@@ -18,8 +18,9 @@ _SUMMARY_RE   = re.compile(r"max\.\s*=\s*([\d.]+).*?avg\.\s*=\s*([\d.]+)", re.IG
 _PATCH_RE     = re.compile(r"^\s*\[([\d.]+)\]\s+\d+\s+@\s+([A-Za-z0-9]+):", re.MULTILINE)
 _STRIP_LETTER = re.compile(r"^([A-Za-z]+)")
 
-REFINE_DE_THRESHOLD     = 2.0   # flag a strip if any single patch exceeds this ΔE
-REFINE_START_OVER_RATIO = 0.5   # recommend start-over if flagged strips > this fraction of total
+REFINE_DE_THRESHOLD          = 2.0   # flag a strip if any single patch exceeds this ΔE
+REFINE_START_OVER_RATIO      = 0.5   # recommend start-over if patch ratio exceeds this
+REFINE_START_OVER_STRIP_RATIO = 0.75  # recommend start-over if strip ratio exceeds this
 
 
 

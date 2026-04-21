@@ -109,6 +109,12 @@ class SettingsDialog(QDialog):
 
         layout.addWidget(folder_grp)
 
+        # ---- Author credit ----
+        credit_lbl = QLabel("ChromIQ · Created by Sebastian Reiprich", self)
+        credit_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        credit_lbl.setStyleSheet("color: #606060; font-size: 11px;")
+        layout.addWidget(credit_lbl)
+
         # ---- Bottom row: Restore Defaults left, Cancel/OK right ----
         bottom_row = QHBoxLayout()
         reset_btn = QPushButton("Restore Factory Defaults", self)

@@ -27,6 +27,7 @@ from ui.widgets import NoScrollComboBox, NoScrollDoubleSpinBox, make_browse_butt
 from workflow.profcheck_runner import (
     REFINE_DE_THRESHOLD,
     REFINE_START_OVER_RATIO,
+    REFINE_START_OVER_STRIP_RATIO,
     ProfcheckParams,
     ProfcheckRunner,
     group_by_strip,
@@ -486,9 +487,14 @@ class TabCheckRefine(QWidget):
         threshold          = self._threshold_spin.value()
         all_strips_display = group_by_strip(result.patch_errors) if result.patch_errors else []
         refine_strips      = strips_to_refine(result.patch_errors, threshold=threshold) if result.patch_errors else []
+        n_total_strips     = total_strip_count(result.patch_errors) if result.patch_errors else 1
+        n_flagged          = len(refine_strips)
         n_patches_above    = sum(1 for _, de in result.patch_errors if de > threshold)
         n_total_patches    = len(result.patch_errors) if result.patch_errors else 1
-        recommend_start_over = n_patches_above > n_total_patches * REFINE_START_OVER_RATIO
+        recommend_start_over = (
+            n_patches_above / n_total_patches > REFINE_START_OVER_RATIO        # >50% of patches bad
+            or n_flagged / n_total_strips   > REFINE_START_OVER_STRIP_RATIO    # >75% of strips flagged
+        )
 
         # Write output files (best-effort — a failure must not prevent the dialog)
         strips_file: Path | None = None
@@ -526,7 +532,8 @@ class TabCheckRefine(QWidget):
         # Always show the assessment dialog if we have results
         self._show_result_dialog(
             result, all_strips_display, refine_strips, strips_file,
-            recommend_start_over, n_patches_above, n_total_patches,
+            recommend_start_over,
+            n_flagged, n_total_strips, n_patches_above, n_total_patches,
         )
 
     # ------------------------------------------------------------------
@@ -540,6 +547,8 @@ class TabCheckRefine(QWidget):
         refine_strips: list[tuple[str, float]],
         strips_file: Path | None,
         recommend_start_over: bool,
+        n_flagged: int = 0,
+        n_total_strips: int = 1,
         n_patches_above: int = 0,
         n_total_patches: int = 1,
     ) -> None:
@@ -580,11 +589,21 @@ class TabCheckRefine(QWidget):
 
         # Action recommendation
         if recommend_start_over and refine_strips:
-            pct = round(100 * n_patches_above / n_total_patches)
+            thr = self._threshold_spin.value()
+            patch_pct = round(100 * n_patches_above / n_total_patches)
+            strip_pct = round(100 * n_flagged / n_total_strips)
+            if n_patches_above / n_total_patches > REFINE_START_OVER_RATIO:
+                reason = (
+                    f"{n_patches_above} out of {n_total_patches} patches ({patch_pct}%) "
+                    f"exceed \u0394E\u202f{thr:.1f} \u2014 more than half of your measurement data."
+                )
+            else:
+                reason = (
+                    f"{n_flagged} out of {n_total_strips} strips ({strip_pct}%) need "
+                    f"re-measuring \u2014 more than three-quarters of your chart."
+                )
             action_lbl = QLabel(
-                f"<b>{n_patches_above} out of {n_total_patches} patches ({pct}%) exceed "
-                f"\u0394E\u202f{self._threshold_spin.value():.1f} \u2014 more than half of your "
-                f"measurement data.</b><br><br>"
+                f"<b>{reason}</b><br><br>"
                 "Re-measuring individual strips is unlikely to reliably fix this. "
                 "<b>Starting over with a freshly printed and measured chart is "
                 "strongly recommended.</b>",
