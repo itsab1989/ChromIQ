@@ -71,7 +71,7 @@ class TabPrint(QWidget):
         # ---- Left controls ----
         left = QWidget(self)
         self._left_panel = left
-        left.setMaximumWidth(560)
+        left.setFixedWidth(580)
         left.setStyleSheet("QPushButton { min-height: 44px; }")
         ll = QVBoxLayout(left)
         ll.setContentsMargins(16, 12, 16, 12)
@@ -169,12 +169,19 @@ class TabPrint(QWidget):
         ll.addWidget(self._status_lbl)
 
         ll.addStretch()
+
+        # Status bar (replaces main-window status bar)
+        self._status_bar_lbl = QLabel("", left)
+        self._status_bar_lbl.setWordWrap(True)
+        self._status_bar_lbl.setVisible(False)
+        ll.addWidget(self._status_bar_lbl)
+
         splitter.addWidget(left)
 
         # ---- Right preview ----
         right = QWidget(self)
         rl = QVBoxLayout(right)
-        rl.setContentsMargins(0, 0, 0, 0)
+        rl.setContentsMargins(0, 0, 0, 12)
         lbl = QLabel("PRINT PREVIEW", right)
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl.setStyleSheet(

@@ -110,6 +110,9 @@ class MainWindow(QMainWindow):
         active = int(self._settings.get("active_tab", 0))
         self._tabs.setCurrentIndex(active)
 
+        self.statusBar().hide()
+        self._status_msg: str = ""
+
         self._check_argyll_binaries(initial=True)
         self._startup_update_checker: UpdateChecker | None = None
         QTimer.singleShot(0, self._apply_dark_title_bar)
@@ -247,17 +250,30 @@ class MainWindow(QMainWindow):
         )
         self._startup_update_checker.check_async()
 
+    def _set_tab_status(self, msg: str, warning: bool = False) -> None:
+        self._status_msg = msg
+        style_warn = (
+            "background: #3a2a00; color: #ffb42d; border: 1px solid #ffb42d; "
+            "border-radius: 4px; padding: 6px 10px; margin: 0px 16px 8px 16px;"
+        )
+        style_info = "color: #909090; font-size: 11px; padding: 4px 16px 8px 16px;"
+        for tab in (self._tab_chart, self._tab_print, self._tab_measure):
+            lbl = tab._status_bar_lbl
+            lbl.setText(msg)
+            lbl.setStyleSheet(style_warn if warning else style_info)
+            lbl.setVisible(bool(msg))
+
     def _on_startup_update_available(self, latest: str) -> None:
-        if not self.statusBar().currentMessage():
-            self.statusBar().showMessage(
-                f"Update available: ChromIQ {latest} — open Preferences (⚙) to download.", 0
+        if not self._status_msg:
+            self._set_tab_status(
+                f"Update available: ChromIQ {latest} — open Preferences (⚙) to download."
             )
 
     def _check_argyll_binaries(self, initial: bool = False) -> None:
         bin_dir = Path(self._settings.get("argyll_bin_path", "/Applications/Argyll/bin"))
 
         if all_tools_present(bin_dir):
-            self.statusBar().clearMessage()
+            self._set_tab_status("")
             return
 
         if initial:
@@ -266,13 +282,13 @@ class MainWindow(QMainWindow):
             if detected:
                 self._settings.set("argyll_bin_path", str(detected))
                 log.info("ArgyllCMS auto-configured to %s", detected)
-                self.statusBar().clearMessage()
+                self._set_tab_status("")
                 return
 
-        # Not found — show status bar warning and, on first launch, a popup
+        # Not found — show warning and, on first launch, a popup
         log.warning("ArgyllCMS binaries not found at %s", bin_dir)
-        self.statusBar().showMessage(
-            "⚠ ArgyllCMS not found. Open Preferences (⚙) to set the path.", 0
+        self._set_tab_status(
+            "⚠  ArgyllCMS not found. Open Preferences (⚙) to set the path.", warning=True
         )
         if initial:
             self._show_argyll_not_found_dialog()

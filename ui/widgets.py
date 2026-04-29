@@ -4,8 +4,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from PyQt6.QtCore import QModelIndex, QSize, QSortFilterProxyModel, Qt, QUrl
-from PyQt6.QtGui import QIcon, QPixmap
+from PyQt6.QtCore import QEvent, QModelIndex, QObject, QSize, QSortFilterProxyModel, Qt, QUrl
+from PyQt6.QtGui import QFont, QIcon, QPixmap
 from PyQt6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -16,6 +16,18 @@ from PyQt6.QtWidgets import (
     QStyle,
     QWidget,
 )
+
+
+class ButtonFontFilter(QObject):
+    """Applies Menlo + AllUppercase to every QPushButton as it is polished."""
+
+    def eventFilter(self, obj: QObject, event: QEvent) -> bool:
+        if isinstance(obj, QPushButton) and event.type() == QEvent.Type.Polish:
+            font = obj.font()
+            font.setFamily("Menlo")
+            font.setCapitalization(QFont.Capitalization.AllUppercase)
+            obj.setFont(font)
+        return False
 
 
 class _ExtensionFilterProxy(QSortFilterProxyModel):

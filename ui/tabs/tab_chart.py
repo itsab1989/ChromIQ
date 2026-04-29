@@ -91,8 +91,7 @@ class TabChart(QWidget):
         # Left: controls
         left = QWidget(self)
         self._left_panel = left
-        left.setMinimumWidth(420)
-        left.setMaximumWidth(700)
+        left.setFixedWidth(700)
         left_layout = QVBoxLayout(left)
         left_layout.setContentsMargins(16, 12, 16, 12)
         left_layout.setSpacing(14)
@@ -159,12 +158,18 @@ class TabChart(QWidget):
         self._log.setPlaceholderText("Output will appear here…")
         left_layout.addWidget(self._log)
 
+        # Status bar (replaces main-window status bar)
+        self._status_bar_lbl = QLabel("", left)
+        self._status_bar_lbl.setWordWrap(True)
+        self._status_bar_lbl.setVisible(False)
+        left_layout.addWidget(self._status_bar_lbl)
+
         splitter.addWidget(left)
 
         # Right: TIFF preview
         right = QWidget(self)
         right_layout = QVBoxLayout(right)
-        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setContentsMargins(0, 0, 0, 12)
         lbl = QLabel("CHART PREVIEW", right)
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl.setStyleSheet(

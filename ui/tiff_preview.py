@@ -6,7 +6,7 @@ from typing import Optional
 
 from PIL import Image
 from PyQt6.QtCore import QRect, QSize, Qt, QTimer
-from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPixmap
+from PyQt6.QtGui import QColor, QFont, QPainter, QPainterPath, QPixmap
 from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -104,7 +104,7 @@ class TiffPreview(QWidget):
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(4)
+        layout.setSpacing(12)
 
         # Image label
         self._img_label = QLabel("No preview", self)
@@ -113,15 +113,18 @@ class TiffPreview(QWidget):
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )
         self._img_label.setStyleSheet(
-            "background: #111111; border: 1px solid #333; color: #606060;"
+            "background: #111111; border: 1px solid #333; color: #606060; font-family: 'Menlo';"
         )
+        _lbl_font = self._img_label.font()
+        _lbl_font.setCapitalization(QFont.Capitalization.AllUppercase)
+        self._img_label.setFont(_lbl_font)
         self._img_label.setMinimumSize(200, 200)
         layout.addWidget(self._img_label, stretch=1)
 
         # Navigation bar
         nav = QWidget(self)
         nav_layout = QHBoxLayout(nav)
-        nav_layout.setContentsMargins(4, 0, 4, 0)
+        nav_layout.setContentsMargins(12, 0, 12, 0)
 
         self._prev_btn = QPushButton("‹ Prev", nav)
         self._prev_btn.setFixedWidth(84)

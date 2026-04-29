@@ -98,6 +98,7 @@ QPushButton {{
     padding: 6px 18px;
     min-height: 28px;
     min-width: 72px;
+    font-family: "Menlo";
 }}
 QPushButton:hover {{
     background: {NEUTRAL_BTN_HOVER};

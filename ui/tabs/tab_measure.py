@@ -249,11 +249,16 @@ class TabMeasure(QWidget):
         splitter = QSplitter(Qt.Orientation.Horizontal, self)
 
         # ---- Left ----
-        left_scroll = QScrollArea(self)
-        self._left_panel = left_scroll
+        left_container = QWidget(self)
+        self._left_panel = left_container
+        left_container.setFixedWidth(580)
+        lc_layout = QVBoxLayout(left_container)
+        lc_layout.setContentsMargins(0, 0, 0, 0)
+        lc_layout.setSpacing(0)
+
+        left_scroll = QScrollArea(left_container)
         left_scroll.setWidgetResizable(True)
         left_scroll.setFrameShape(left_scroll.Shape.NoFrame)
-        left_scroll.setMaximumWidth(580)
 
         left = QWidget()
         ll = QVBoxLayout(left)
@@ -463,12 +468,20 @@ class TabMeasure(QWidget):
         ll.addWidget(self._log)
 
         left_scroll.setWidget(left)
-        splitter.addWidget(left_scroll)
+        lc_layout.addWidget(left_scroll, stretch=1)
+
+        # Status bar (replaces main-window status bar)
+        self._status_bar_lbl = QLabel("", left_container)
+        self._status_bar_lbl.setWordWrap(True)
+        self._status_bar_lbl.setVisible(False)
+        lc_layout.addWidget(self._status_bar_lbl)
+
+        splitter.addWidget(left_container)
 
         # ---- Right preview ----
         right = QWidget(self)
         rl = QVBoxLayout(right)
-        rl.setContentsMargins(0, 0, 0, 0)
+        rl.setContentsMargins(0, 0, 0, 12)
         lbl = QLabel("CHART PREVIEW", right)
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl.setStyleSheet(

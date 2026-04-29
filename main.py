@@ -13,6 +13,7 @@ from core.resource_path import resource_path
 from core.settings import AppSettings
 from ui.main_window import MainWindow
 from ui.styles import APP_STYLESHEET, make_dark_palette
+from ui.widgets import ButtonFontFilter
 
 
 def main() -> int:
@@ -34,6 +35,10 @@ def main() -> int:
     app.setStyle("Fusion")
     app.setPalette(make_dark_palette())
     app.setStyleSheet(APP_STYLESHEET)
+
+    _btn_font_filter = ButtonFontFilter(app)
+    app.installEventFilter(_btn_font_filter)
+
     settings = AppSettings()
 
     icon_path = resource_path("assets/app_icon.png")
