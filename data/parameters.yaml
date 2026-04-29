@@ -8,14 +8,24 @@ parameters:
     - flag: "-d"
       name: "Device Type"
       type: choice
-      choices: ["1", "2", "3", "4", "5", "6"]
+      choices: ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"]
       labels:
-        - "Video/display grey"
+        - "Print grey"
+        - "Video grey"
         - "Print RGB (recommended)"
-        - "Video/display RGB"
+        - "Video RGB"
         - "CMYK"
         - "CMY"
-        - "Hexachrome"
+        - "CMYK + Light CM"
+        - "CMYK + Light CMK"
+        - "CMYK + Red + Blue"
+        - "CMYK + Orange + Green"
+        - "CMYK + Red + Green + Blue"
+        - "CMYK + Orange + Green + Violet"
+        - "CMYK + Orange + Green + Blue"
+        - "CMYK + Light CMK + Light Light K"
+        - "CMYK + Orange + Green + Light CM"
+        - "CMYK + Light CM + Medium CM"
       default: "2"
       no_space: true
       affects_preview: true
@@ -23,10 +33,67 @@ parameters:
       tooltip_title: "Device Type (-d)"
       tooltip_body: |
         Defines the colorant combination of your output device.
-        For RGB inkjet printers, use "Print RGB" (-d 2).
-        "Video/display RGB" (-d 3) uses a different colour space model
-        suited for monitors.  CMYK (-d 4) is for four-colour offset or
-        inkjet printers with separate K cartridge.
+
+        Print spaces are subtractive: device value 0 = white (no ink),
+        maximum = black (full ink).  Video/display spaces are additive:
+        device value 0 = black, maximum = white.
+
+        Common choices:
+          • Print grey (-d 0)  — single-channel greyscale printer
+          • Video grey (-d 1)  — single-channel display/monitor
+          • Print RGB (-d 2)   — standard RGB inkjet (default, recommended)
+          • Video RGB (-d 3)   — RGB display/monitor
+          • CMYK (-d 4)        — four-colour inkjet or offset press
+          • CMY (-d 5)         — three-colour, no separate black channel
+
+        Options 6–15 are for specialty multi-channel inkjet printers with
+        additional inks (light cyan/magenta, orange, green, violet, etc.).
+        Use -D (Expert) to fine-tune the colorant set if needed.
+
+    - flag: "-D"
+      name: "Add/Remove Colorant"
+      type: choice
+      choices: ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19"]
+      labels:
+        - "Additive"
+        - "Cyan"
+        - "Magenta"
+        - "Yellow"
+        - "Black"
+        - "Orange"
+        - "Red"
+        - "Green"
+        - "Blue"
+        - "Violet"
+        - "White"
+        - "Light Cyan"
+        - "Light Magenta"
+        - "Light Yellow"
+        - "Light Black"
+        - "Medium Cyan"
+        - "Medium Magenta"
+        - "Medium Yellow"
+        - "Medium Black"
+        - "Light Light Black"
+      default: "5"
+      no_space: false
+      affects_preview: true
+      expert_only: true
+      tooltip_title: "Add/Remove Colorant (-D)"
+      tooltip_body: |
+        Modifies the colorant set established by Device Type (-d) by adding
+        or removing one individual colorant.  If the chosen colorant is
+        already present in the set it is removed; if absent it is added.
+
+        Typical uses:
+          • Add Orange (-D 5) to standard CMYK for extended gamut
+          • Add Light Cyan (-D 11) / Light Magenta (-D 12) to CMYK
+            for smoother highlight gradients
+
+        Note: the UI supports one -D modification at a time.  For multiple
+        colorant modifications run targen directly from the command line.
+
+        Leave this disabled for standard device types 0–5.
 
     - flag: "-f"
       name: "Total Patch Count"

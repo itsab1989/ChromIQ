@@ -157,6 +157,8 @@ class SettingsDialog(QDialog):
         bottom_row.addWidget(bb)
         layout.addLayout(bottom_row)
 
+        self.setStyleSheet("QLineEdit:focus { border-color: #f4f4f4; }")
+
     # ------------------------------------------------------------------
 
     def _load_settings(self) -> None:
