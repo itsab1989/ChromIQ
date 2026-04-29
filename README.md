@@ -1,6 +1,8 @@
 # ChromIQ
 
-**ChromIQ** is a macOS desktop application for creating custom ICC profiles for RGB inkjet printers using [ArgyllCMS](https://www.argyllcms.com/). It provides a guided, five-step workflow that takes you from generating and printing a test chart through measuring it, building a ready-to-use ICC profile, and verifying its quality — without needing to touch the command line.
+**ChromIQ** is a free, open-source macOS desktop application for creating custom ICC profiles for RGB inkjet printers using [ArgyllCMS](https://www.argyllcms.com/). It provides a guided, five-step printer color calibration workflow that takes you from generating and printing a test chart through spectrophotometer measurement, ICC profile building with `colprof`, and quality verification with `profcheck` — without needing to touch the command line.
+
+Supported instruments: X-Rite i1Pro, i1Pro 2, i1Pro 3, i1Pro 3 Plus, ColorMunki, i1Studio, ColorChecker Studio, and SpectroScan.
 
 ---
 
@@ -64,9 +66,10 @@ A4, A4 Landscape, A3, A3 Landscape, A2, US Letter, Letter Landscape, Legal, Tabl
 - Separate patch counts for charts with and without the left clip border (`-L` flag)
 - Double-density mode for ColorMunki/i1Studio with measuring rig (`-h` flag)
 - Live TIFF preview of the generated test chart
-- Direct TIFF printing via CUPS (no PostScript conversion, no ColorSync interference)
-- Full `colprof` option set: illuminant, observer, FWA compensation, gamut mapping source profiles, rendering intent overrides
-- Automatic file naming based on printer, paper, paper type, instrument, and timestamp
+- Direct TIFF printing via CUPS — color management forced off, no ColorSync interference, no PostScript conversion
+- Full `colprof` option set: illuminant (D50, D65, A, C, F5, F8, F10), observer (1931 2°, 1964 10°, 2015 variants), FWA compensation, gamut mapping source profiles, rendering intent overrides
+- Per-tab **Save as Defaults** and named user presets (Manual mode) for repeatable workflows
+- Automatic session naming based on printer, paper, media type, instrument, and timestamp
 - Settings persist between sessions via `QSettings`
 - Built-in ArgyllCMS binary tester and direct download link detection for your platform
 
@@ -75,7 +78,7 @@ A4, A4 Landscape, A3, A3 Landscape, A2, US Letter, Letter Landscape, Legal, Tabl
 ## Requirements
 
 ### System
-- macOS 12 Ventura or later (Apple Silicon and Intel supported)
+- macOS 13 Ventura or later (Apple Silicon and Intel supported)
 - [ArgyllCMS 3.5.0](https://www.argyllcms.com/downloaddev.html) — binaries must be installed at `/Applications/Argyll/bin` (configurable in Preferences)
 
 ### To run from source
@@ -146,8 +149,8 @@ Copy `dist/ChromIQ.app` to `/Applications` and launch like any other macOS app. 
 
 ### Step 4 — Build Profile
 - Review the colprof settings (quality, algorithm, gamut mapping, etc.)
-- Click **Build Profile** — the resulting `.icm` file is saved in the same folder as the chart
-- Install the profile in macOS via **ColorSync Utility** or by double-clicking the `.icm` file
+- Click **Build Profile** — the resulting `.icc` file is saved in the same folder as the chart
+- Click **Install Profile** to copy it directly to `~/Library/ColorSync/Profiles/` so it is immediately available system-wide
 
 ### Step 5 — Check & Refine
 - The `.ti3` measurement file from Step 3 is loaded automatically
@@ -194,23 +197,28 @@ ChromIQ/
     ├── chart_creator.py       # targen + printtarg orchestration
     ├── cups_printer.py        # lp command wrapper
     ├── measure_manager.py     # chartread orchestration
-    ├── postscript_generator.py
+    ├── postscript_generator.py  # PostScript generation — internal infrastructure, not used in current workflow
     ├── print_manager.py       # Printer enumeration (lpstat)
-    └── profile_builder.py     # colprof orchestration
+    ├── profile_builder.py     # colprof orchestration
+    └── profcheck_runner.py    # profcheck orchestration, ΔE parsing, quality grading, refinement guidance
 ```
 
 ---
 
 ## Configuration
 
-All settings are stored via `QSettings` (macOS: `~/Library/Preferences/ChromIQ.ChromIQ.plist`) and can be adjusted in **Preferences**:
+All settings are stored via `QSettings` (macOS: `~/Library/Preferences/ChromIQ.ChromIQ.plist`).
+
+**Preferences dialog** (⌘,) exposes:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
 | ArgyllCMS bin path | `/Applications/Argyll/bin` | Directory containing the ArgyllCMS executables |
-| Preferred instrument | i1Pro | Pre-selects instrument in Guided mode |
-| Preferred paper size | A4 | Pre-selects paper in Guided mode |
 | Output folder | `~/ChromIQ/` | Root folder for all chart/profile sessions |
+
+**Per-tab defaults** — every tab has a **Save as Defaults** button that persists the current parameter values for that step. Defaults are restored on the next launch.
+
+**User presets** (Create Chart — Manual mode) — multiple named parameter presets can be saved and recalled independently of the global defaults.
 
 Each session creates a subfolder named after the target (e.g. `~/ChromIQ/Canon_A4_Matte_i1_2025-04-18_14-30/`) containing all generated files for that run.
 
@@ -251,10 +259,9 @@ Save the file and restart ChromIQ — the new parameter appears automatically in
 
 > This section will be updated as issues are resolved.
 
-- **Printing (Step 2):** Direct TIFF printing via CUPS works, but color management behavior requires further testing.
 - **Measurement (Step 3):** Some spectrophotometer models may require additional calibration steps not yet surfaced in the UI.
-- **Profile (Step 4):** Advanced gamut mapping options (FWA, custom intents) are present in the UI but have not been fully tested across all instrument/paper combinations.
-- **Windows/Linux:** Not tested. The app is developed and tested on macOS only. Linux support via CUPS is theoretically possible; Windows would require significant changes to the printing pipeline.
+- **Advanced color science (Step 4):** FWA compensation and custom gamut mapping intents cover a wide range of instrument/paper combinations — edge cases may exist depending on your specific hardware and media.
+- **macOS only:** ChromIQ is developed and tested exclusively on macOS. The profile installation path (`~/Library/ColorSync/Profiles/`) and certain system integrations (dark title bar, macOS keychain) are macOS-specific. There are no plans for Windows or Linux support at this time.
 
 ---
 
