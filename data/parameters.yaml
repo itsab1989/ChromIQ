@@ -714,3 +714,120 @@ parameters:
         Adds extra cLUT grid points in dark (shadow) regions.
         1.0 = uniform grid (default).  Increase to 1.5–2.0 for
         printers with complex shadow behaviour or blocked-up blacks.
+
+  # ====================================================================
+  # profcheck — check ICC profile accuracy against .ti3 measurements
+  # ====================================================================
+  profcheck:
+
+    - flag: "-v"
+      name: "Verbosity"
+      type: choice
+      choices: ["2", "1"]
+      labels:
+        - "2 — Per-patch (required for strip analysis)"
+        - "1 — Summary only"
+      default: "2"
+      no_space: true
+      expert_only: false
+      tooltip_title: "Verbosity (-v)"
+      tooltip_body: |
+        Per-patch mode outputs each patch's individual ΔE value,
+        which is required for strip-level analysis and guided
+        refinement.  Summary mode only shows average and peak errors.
+
+    - flag: "-I"
+      name: "Rendering Intent"
+      type: choice
+      choices: ["a", "r"]
+      labels:
+        - "a — Absolute colorimetric (default)"
+        - "r — Relative colorimetric"
+      default: "a"
+      no_space: false
+      expert_only: false
+      tooltip_title: "Rendering Intent (-I)"
+      tooltip_body: |
+        Absolute colorimetric checks absolute colour accuracy including
+        the white point — standard for printer profiling.
+        Relative colorimetric normalises to the media white point.
+
+    - flag: "-s"
+      name: "Sort Patches by ΔE (worst first)"
+      type: boolean
+      default: false
+      expert_only: false
+      tooltip_title: "Sort by ΔE (-s)"
+      tooltip_body: |
+        Sorts profcheck output so the worst-performing patches appear
+        first.  Useful for quickly identifying problem areas.
+        Only effective when verbosity is set to per-patch.
+
+    - flag: "-i"
+      name: "Illuminant"
+      type: choice
+      choices: ["D50", "D50M2", "D65", "A", "C", "F5", "F8", "F10"]
+      labels:
+        - "D50 (default)"
+        - "D50M2 (D50 + UV filter)"
+        - "D65 (daylight 6500 K)"
+        - "A (tungsten / incandescent)"
+        - "C (daylight sim., older)"
+        - "F5 (fluorescent CWF)"
+        - "F8 (fluorescent D50 sim.)"
+        - "F10 (fluorescent Ultralume)"
+      default: "D50"
+      no_space: false
+      expert_only: true
+      tooltip_title: "Illuminant (-i)"
+      tooltip_body: |
+        Selects the light source used when converting spectral
+        measurements to colour values.  Only relevant if your .ti3
+        contains spectral data.  D50 is the standard for print
+        profiling.
+
+    - flag: "-o"
+      name: "CIE Observer"
+      type: choice
+      choices: ["1931_2", "1964_10", "2015_2", "2015_10", "shaw"]
+      labels:
+        - "1931 2° (default)"
+        - "1964 10°"
+        - "2015 2° (Stockman)"
+        - "2015 10° (Stockman)"
+        - "Shaw & Fairchild"
+      default: "1931_2"
+      no_space: false
+      expert_only: true
+      tooltip_title: "CIE Observer (-o)"
+      tooltip_body: |
+        Defines the standard observer model for colorimetric computations.
+        The 1931 2° observer is the ICC standard for print profiling.
+        Leave at the default unless specifically required otherwise.
+
+    - flag: "-P"
+      name: "Prune Outlier Patches (ΔE ≤)"
+      type: float
+      min: 0.5
+      max: 20.0
+      default: 3.0
+      step: 0.5
+      expert_only: true
+      tooltip_title: "Prune .ti3 to ΔE ≤ (-P)"
+      tooltip_body: |
+        Creates a reduced copy of your .ti3 file containing only patches
+        whose colour error is at or below the threshold you set.
+        Useful if badly measured patches are pulling the profile down.
+        Enable this option and set the maximum acceptable ΔE value.
+
+    - flag: "-w"
+      name: "Create X3DOM 3D Visualisation"
+      type: boolean
+      default: false
+      expert_only: true
+      tooltip_title: "X3DOM Visualisation (-w)"
+      tooltip_body: |
+        Generates an interactive 3D HTML visualisation of your profile's
+        colour errors.  Open the resulting .x3d.html file in any modern
+        browser to explore which parts of the colour gamut have the
+        largest errors.

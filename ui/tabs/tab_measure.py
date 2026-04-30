@@ -1,26 +1,32 @@
 """Tab 3: Measure Chart."""
 from __future__ import annotations
 
+import json
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QEvent, QObject, QRect, Qt, pyqtSignal
+from PyQt6.QtGui import QFont, QIcon
 from PyQt6.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
+    QDialog,
+    QDialogButtonBox,
     QDoubleSpinBox,
     QFileDialog,
     QGroupBox,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
     QSpinBox,
     QSplitter,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -242,6 +248,25 @@ class TabMeasure(QWidget):
         self._start_btn.setEnabled(False)
 
     # ------------------------------------------------------------------
+    # Mode switching
+    # ------------------------------------------------------------------
+
+    def _switch_mode(self, mode: str) -> None:
+        if mode == "guided":
+            self._stack.setCurrentIndex(0)
+            self._guided_btn.setChecked(True)
+            self._manual_btn.setChecked(False)
+        else:
+            self._stack.setCurrentIndex(1)
+            self._guided_btn.setChecked(False)
+            self._manual_btn.setChecked(True)
+
+    def _current_mode(self) -> str:
+        return "guided" if self._stack.currentIndex() == 0 else "manual"
+
+    # ------------------------------------------------------------------
+    # UI build
+    # ------------------------------------------------------------------
 
     def _build_ui(self) -> None:
         root = QHBoxLayout(self)
@@ -257,18 +282,144 @@ class TabMeasure(QWidget):
         lc_layout.setContentsMargins(0, 0, 0, 0)
         lc_layout.setSpacing(0)
 
-        left_scroll = QScrollArea(left_container)
-        left_scroll.setWidgetResizable(True)
-        left_scroll.setFrameShape(left_scroll.Shape.NoFrame)
+        # Header + mode buttons (outside scroll/stack)
+        top_widget = QWidget(left_container)
+        top_layout = QVBoxLayout(top_widget)
+        top_layout.setContentsMargins(16, 12, 16, 6)
+        top_layout.setSpacing(8)
+        top_layout.addWidget(TabHeader(
+            "STEP 03 · MEASURE TARGET", "Measure printed chart", "#56d6a5", top_widget
+        ))
+        _mode_font = QFont("Menlo", 11, QFont.Weight.Medium)
+        mode_row = QHBoxLayout()
+        self._guided_btn = QPushButton("GUIDED", top_widget)
+        self._guided_btn.setCheckable(True)
+        self._guided_btn.setChecked(True)
+        self._guided_btn.setObjectName("mode_btn")
+        self._guided_btn.setFont(_mode_font)
+        self._manual_btn = QPushButton("MANUAL", top_widget)
+        self._manual_btn.setCheckable(True)
+        self._manual_btn.setObjectName("mode_btn")
+        self._manual_btn.setFont(_mode_font)
+        self._guided_btn.clicked.connect(lambda: self._switch_mode("guided"))
+        self._manual_btn.clicked.connect(lambda: self._switch_mode("manual"))
+        mode_row.addWidget(self._guided_btn)
+        mode_row.addWidget(self._manual_btn)
+        mode_row.addStretch()
+        top_layout.addLayout(mode_row)
+        lc_layout.addWidget(top_widget)
+
+        # File selection — shared between modes
+        file_outer = QWidget(left_container)
+        fo_layout = QVBoxLayout(file_outer)
+        fo_layout.setContentsMargins(16, 4, 16, 0)
+        fo_layout.setSpacing(0)
+        self._file_grp = file_grp = QGroupBox("Target File (.ti2)", file_outer)
+        file_grp.setFlat(True)
+        fg = QVBoxLayout(file_grp)
+        fg.setContentsMargins(8, 6, 8, 8)
+        file_row = QHBoxLayout()
+        self._load_ti1_btn = QPushButton("Load .ti2 file…", file_outer)
+        self._load_ti1_btn.setIcon(load_folder_icon("folder_measure"))
+        self._load_ti1_btn.clicked.connect(self._on_load_ti2)
+        self._ti1_lbl = QLabel("No file selected", file_outer)
+        self._ti1_lbl.setStyleSheet("color: #909090; font-size: 11px;")
+        self._ti1_lbl.setWordWrap(True)
+        file_row.addWidget(self._load_ti1_btn)
+        file_row.addWidget(self._ti1_lbl, stretch=1)
+        fg.addLayout(file_row)
+        fo_layout.addWidget(file_grp)
+        lc_layout.addWidget(file_outer)
+
+        # Stacked panels
+        self._stack = QStackedWidget(left_container)
+        self._guided_panel = self._make_guided_panel()
+        self._manual_panel = self._make_manual_panel()
+        self._stack.addWidget(self._guided_panel)
+        self._stack.addWidget(self._manual_panel)
+        lc_layout.addWidget(self._stack, stretch=1)
+
+        # Buttons — shared
+        btn_outer = QWidget(left_container)
+        bo_layout = QVBoxLayout(btn_outer)
+        bo_layout.setContentsMargins(16, 6, 16, 8)
+        btn_row = QHBoxLayout()
+        self._start_btn = QPushButton("Start Measurement", btn_outer)
+        self._start_btn.setObjectName("primary")
+        self._start_btn.setFixedHeight(36)
+        self._start_btn.clicked.connect(self._on_start)
+        self._stop_btn = QPushButton("Stop", btn_outer)
+        self._stop_btn.setFixedHeight(36)
+        self._stop_btn.setStyleSheet(
+            "QPushButton { background: #f4f4f4; color: #121212; border: 1px solid #cccccc; font-weight: 600; }"
+            "QPushButton:hover { background: #e0e0e0; border-color: #bbbbbb; }"
+            "QPushButton:disabled { background: #2a2a2a; color: #555555; border-color: #333333; }"
+        )
+        self._stop_btn.clicked.connect(self._on_stop)
+        self._stop_btn.setEnabled(False)
+        self._save_defaults_btn = QPushButton("Save as Defaults", btn_outer)
+        self._save_defaults_btn.setFixedHeight(36)
+        self._save_defaults_btn.clicked.connect(self._on_save_defaults)
+        btn_row.addWidget(self._start_btn)
+        btn_row.addWidget(self._stop_btn)
+        btn_row.addStretch()
+        btn_row.addWidget(self._save_defaults_btn)
+        bo_layout.addLayout(btn_row)
+        lc_layout.addWidget(btn_outer)
+
+        # Log — shared
+        log_outer = QWidget(left_container)
+        lo_layout = QVBoxLayout(log_outer)
+        lo_layout.setContentsMargins(16, 0, 16, 6)
+        self._log = QPlainTextEdit(log_outer)
+        self._log.setObjectName("log")
+        self._log.setReadOnly(True)
+        self._log.setMinimumHeight(100)
+        self._log.setMaximumHeight(100)
+        self._log.setPlaceholderText("chartread output will appear here…")
+        lo_layout.addWidget(self._log)
+        lc_layout.addWidget(log_outer)
+
+        # Status bar (replaces main-window status bar)
+        self._status_bar_lbl = QLabel("", left_container)
+        self._status_bar_lbl.setWordWrap(True)
+        self._status_bar_lbl.setVisible(False)
+        lc_layout.addWidget(self._status_bar_lbl)
+
+        splitter.addWidget(left_container)
+
+        # ---- Right preview ----
+        right = QWidget(self)
+        rl = QVBoxLayout(right)
+        rl.setContentsMargins(0, 0, 0, 12)
+        lbl = QLabel("CHART PREVIEW", right)
+        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lbl.setStyleSheet(
+            "color: #808080; background: transparent; padding: 4px;"
+            " font-family: Menlo; font-size: 9pt; font-weight: 300;"
+        )
+        rl.addWidget(lbl)
+        self._preview = TiffPreview(right)
+        rl.addWidget(self._preview, stretch=1)
+        splitter.addWidget(right)
+
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 1)
+        root.addWidget(splitter)
+
+    # ------------------------------------------------------------------
+    # Guided panel
+    # ------------------------------------------------------------------
+
+    def _make_guided_panel(self) -> QWidget:
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(scroll.Shape.NoFrame)
 
         left = QWidget()
         ll = QVBoxLayout(left)
-        ll.setContentsMargins(16, 12, 16, 12)
+        ll.setContentsMargins(16, 8, 16, 8)
         ll.setSpacing(10)
-
-        ll.addWidget(TabHeader(
-            "STEP 03 · MEASURE TARGET", "Measure printed chart", "#56d6a5", left
-        ))
 
         # Instrument
         self._instr_grp = instr_grp = QGroupBox("Measurement Instrument", left)
@@ -292,6 +443,7 @@ class TabMeasure(QWidget):
         ))
         ig.addLayout(instr_row)
         ll.addWidget(instr_grp)
+        instr_grp.setVisible(False)
 
         # Core measurement options (always shown)
         self._core_grp = core_grp = QGroupBox("Measurement Options", left)
@@ -305,33 +457,38 @@ class TabMeasure(QWidget):
             cb.setChecked(default)
             row.addWidget(cb)
             row.addStretch()
-            row.addWidget(TooltipButton(tt_title, tt_body, left))
+            tip = TooltipButton(tt_title, tt_body, left)
+            row.addWidget(tip)
             cg.addLayout(row)
-            return cb
+            return cb, tip
 
-        self._bidir_cb = _bool_row(
+        self._bidir_cb, _ = _bool_row(
             "Disable bidirectional strip recognition (-B)", True,
             "Disable Bidirectional Reading (-B)",
             "Strongly recommended ON.  Prevents mis-reads from scanning\n"
             "strips in the wrong direction.",
         )
-        self._suppress_cb = _bool_row(
+        self._suppress_cb, _ = _bool_row(
             "Suppress warning messages (-S)", True,
             "Suppress Warnings (-S)",
             "Suppresses non-fatal instrument warnings during measurement.",
         )
-        self._nocal_cb = _bool_row(
+        self._nocal_cb, _nocal_tip = _bool_row(
             "Skip initial calibration (-N)", False,
             "Skip Initial Calibration (-N)",
             "Skips the white-tile calibration at startup.  Only use if you\n"
             "have already calibrated in this session.",
         )
-        self._pbp_cb = _bool_row(
+        self._nocal_cb.setVisible(False)
+        _nocal_tip.setVisible(False)
+        self._pbp_cb, _pbp_tip = _bool_row(
             "Patch-by-patch mode (-p)", False,
             "Patch-by-Patch Mode (-p)",
             "Measure each patch individually instead of reading strips.\n"
             "Much slower but useful if strip reading fails.",
         )
+        self._pbp_cb.setVisible(False)
+        _pbp_tip.setVisible(False)
 
         resume_row = QHBoxLayout()
         self._resume_cb = QCheckBox("Refine existing measurement (-r)", left)
@@ -398,12 +555,10 @@ class TabMeasure(QWidget):
             row.setContentsMargins(0, 0, 0, 0)
             row.setSpacing(8)
 
-            # Enable checkbox
             cb = QCheckBox(opt.label, left)
             cb.setChecked(False)
             opt.checkbox = cb
 
-            # Value widget setup
             if opt.widget is not None:
                 opt.widget.setEnabled(False)
                 cb.toggled.connect(opt.widget.setEnabled)
@@ -416,90 +571,372 @@ class TabMeasure(QWidget):
             ag.addLayout(row)
 
         ll.addWidget(adv_grp)
-
-        # File selection
-        self._file_grp = file_grp = QGroupBox("Target File (.ti2)", left)
-        file_grp.setFlat(True)
-        fg = QVBoxLayout(file_grp)
-        fg.setContentsMargins(8, 6, 8, 8)
-        file_row = QHBoxLayout()
-        self._load_ti1_btn = QPushButton("Load .ti2 file…", left)
-        self._load_ti1_btn.setIcon(load_folder_icon("folder_measure"))
-        self._load_ti1_btn.clicked.connect(self._on_load_ti2)
-        self._ti1_lbl = QLabel("No file selected", left)
-        self._ti1_lbl.setStyleSheet("color: #909090; font-size: 11px;")
-        self._ti1_lbl.setWordWrap(True)
-        file_row.addWidget(self._load_ti1_btn)
-        file_row.addWidget(self._ti1_lbl, stretch=1)
-        fg.addLayout(file_row)
-        ll.addWidget(file_grp)
+        adv_grp.setVisible(False)
         ll.addStretch(1)
 
-        # Buttons
-        btn_row = QHBoxLayout()
-        self._start_btn = QPushButton("Start Measurement", left)
-        self._start_btn.setObjectName("primary")
-        self._start_btn.setFixedHeight(36)
-        self._start_btn.clicked.connect(self._on_start)
-        self._stop_btn = QPushButton("Stop", left)
-        self._stop_btn.setFixedHeight(36)
-        self._stop_btn.setStyleSheet(
-            "QPushButton { background: #f4f4f4; color: #121212; border: 1px solid #cccccc; font-weight: 600; }"
-            "QPushButton:hover { background: #e0e0e0; border-color: #bbbbbb; }"
-            "QPushButton:disabled { background: #2a2a2a; color: #555555; border-color: #333333; }"
-        )
-        self._stop_btn.clicked.connect(self._on_stop)
-        self._stop_btn.setEnabled(False)
-        self._save_defaults_btn = QPushButton("Save as Defaults", left)
-        self._save_defaults_btn.setFixedHeight(36)
-        self._save_defaults_btn.clicked.connect(self._on_save_defaults)
-        btn_row.addWidget(self._start_btn)
-        btn_row.addWidget(self._stop_btn)
-        btn_row.addStretch()
-        btn_row.addWidget(self._save_defaults_btn)
-        ll.addLayout(btn_row)
-
-        # Log
-        self._log = QPlainTextEdit(left)
-        self._log.setObjectName("log")
-        self._log.setReadOnly(True)
-        self._log.setMinimumHeight(100)
-        self._log.setMaximumHeight(100)
-        self._log.setPlaceholderText("chartread output will appear here…")
-        ll.addWidget(self._log)
-
-        left_scroll.setWidget(left)
-        lc_layout.addWidget(left_scroll, stretch=1)
-
-        # Status bar (replaces main-window status bar)
-        self._status_bar_lbl = QLabel("", left_container)
-        self._status_bar_lbl.setWordWrap(True)
-        self._status_bar_lbl.setVisible(False)
-        lc_layout.addWidget(self._status_bar_lbl)
-
-        splitter.addWidget(left_container)
-
-        # ---- Right preview ----
-        right = QWidget(self)
-        rl = QVBoxLayout(right)
-        rl.setContentsMargins(0, 0, 0, 12)
-        lbl = QLabel("CHART PREVIEW", right)
-        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl.setStyleSheet(
-            "color: #808080; background: transparent; padding: 4px;"
-            " font-family: Menlo; font-size: 9pt; font-weight: 300;"
-        )
-        rl.addWidget(lbl)
-        self._preview = TiffPreview(right)
-        rl.addWidget(self._preview, stretch=1)
-        splitter.addWidget(right)
-
-        splitter.setStretchFactor(0, 1)
-        splitter.setStretchFactor(1, 1)
-        root.addWidget(splitter)
+        scroll.setWidget(left)
+        return scroll
 
     # ------------------------------------------------------------------
-    # Chartread option rows
+    # Manual panel
+    # ------------------------------------------------------------------
+
+    def _make_manual_panel(self) -> QWidget:
+        container = QWidget()
+        cl = QVBoxLayout(container)
+        cl.setContentsMargins(16, 8, 16, 0)
+        cl.setSpacing(0)
+
+        # Presets group
+        presets_grp = QGroupBox("Presets", container)
+        presets_row = QHBoxLayout(presets_grp)
+        presets_row.setContentsMargins(8, 4, 8, 8)
+        presets_row.addWidget(QLabel("Select preset:", container))
+        self._m_preset_combo = NoScrollComboBox(container)
+        self._m_preset_combo.addItem("Default", userData=None)
+        presets_row.addWidget(self._m_preset_combo, stretch=1)
+        self._m_preset_add_btn = QPushButton(container)
+        self._m_preset_add_btn.setObjectName("icon_btn")
+        self._m_preset_add_btn.setFixedSize(28, 28)
+        self._m_preset_add_btn.setIcon(QIcon(str(resource_path("assets/plus.svg"))))
+        self._m_preset_add_btn.setToolTip("Save current settings as a new preset")
+        self._m_preset_del_btn = QPushButton(container)
+        self._m_preset_del_btn.setObjectName("icon_btn")
+        self._m_preset_del_btn.setFixedSize(28, 28)
+        self._m_preset_del_btn.setIcon(QIcon(str(resource_path("assets/minus.svg"))))
+        self._m_preset_del_btn.setToolTip("Delete selected preset")
+        self._m_preset_del_btn.setEnabled(False)
+        presets_row.addWidget(self._m_preset_add_btn)
+        presets_row.addWidget(self._m_preset_del_btn)
+        presets_row.addWidget(TooltipButton(
+            "Manual Presets",
+            "Save and recall named snapshots of all Manual mode settings.\n\n"
+            "Use the + button to save the current parameter values as a named preset. "
+            "Select a preset from the list to instantly restore those values. "
+            "Use the − button to delete the selected preset.",
+            container,
+            min_width=480,
+        ))
+        self._m_preset_combo.currentIndexChanged.connect(self._on_m_preset_selected)
+        self._m_preset_add_btn.clicked.connect(self._on_m_preset_save)
+        self._m_preset_del_btn.clicked.connect(self._on_m_preset_delete)
+        cl.addWidget(presets_grp)
+        cl.addSpacing(8)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(scroll.Shape.NoFrame)
+
+        left = QWidget()
+        ll = QVBoxLayout(left)
+        ll.setContentsMargins(0, 8, 0, 8)
+        ll.setSpacing(10)
+
+        # Instrument — mirrors guided "Measurement Instrument" group
+        m_instr_grp = QGroupBox("Measurement Instrument", left)
+        m_instr_grp.setFlat(True)
+        mig = QVBoxLayout(m_instr_grp)
+        mig.setContentsMargins(8, 6, 8, 8)
+        m_instr_row = QHBoxLayout()
+        m_instr_row.addWidget(QLabel("Instrument port number:", left))
+        self._m_instr_spin = NoScrollSpinBox(left)
+        self._m_instr_spin.setRange(1, 9)
+        self._m_instr_spin.setValue(1)
+        m_instr_row.addWidget(self._m_instr_spin)
+        m_instr_row.addStretch()
+        m_instr_row.addWidget(TooltipButton(
+            "Instrument Port",
+            "Port index passed to chartread via -c.\n"
+            "Most setups use 1 (single instrument connected).\n"
+            "If chartread lists multiple devices at startup, set the\n"
+            "number shown next to your instrument in that list.",
+            left,
+        ))
+        mig.addLayout(m_instr_row)
+        ll.addWidget(m_instr_grp)
+
+        # Measurement Options — mirrors guided "Measurement Options" group
+        m_core_grp = QGroupBox("Measurement Options", left)
+        mcg = QVBoxLayout(m_core_grp)
+        mcg.setContentsMargins(8, 14, 8, 8)
+        mcg.setSpacing(8)
+
+        def _bool_row_m(label, default, tt_title, tt_body):
+            row = QHBoxLayout()
+            cb = QCheckBox(label, left)
+            cb.setChecked(default)
+            row.addWidget(cb)
+            row.addStretch()
+            row.addWidget(TooltipButton(tt_title, tt_body, left))
+            mcg.addLayout(row)
+            return cb
+
+        self._m_bidir_cb = _bool_row_m(
+            "Disable bidirectional strip recognition (-B)", True,
+            "Disable Bidirectional Reading (-B)",
+            "Strongly recommended ON.  Prevents mis-reads from scanning\n"
+            "strips in the wrong direction.",
+        )
+        self._m_suppress_cb = _bool_row_m(
+            "Suppress warning messages (-S)", True,
+            "Suppress Warnings (-S)",
+            "Suppresses non-fatal instrument warnings during measurement.",
+        )
+        self._m_nocal_cb = _bool_row_m(
+            "Skip initial calibration (-N)", False,
+            "Skip Initial Calibration (-N)",
+            "Skips the white-tile calibration at startup.  Only use if you\n"
+            "have already calibrated in this session.",
+        )
+        self._m_pbp_cb = _bool_row_m(
+            "Patch-by-patch mode (-p)", False,
+            "Patch-by-Patch Mode (-p)",
+            "Measure each patch individually instead of reading strips.\n"
+            "Much slower but useful if strip reading fails.",
+        )
+
+        m_resume_row = QHBoxLayout()
+        self._m_resume_cb = QCheckBox("Refine existing measurement (-r)", left)
+        self._m_resume_cb.setChecked(False)
+        self._m_resume_cb.setVisible(False)
+        m_resume_row.addWidget(self._m_resume_cb)
+        m_resume_row.addStretch()
+        self._m_resume_tip = TooltipButton(
+            "Refine Existing Measurement (-r)",
+            "Resumes from the existing .ti3 file in the same folder as the\n"
+            ".ti2 file. Previously measured strips are kept — you only need\n"
+            "to scan the strips you want to update or add.\n\n"
+            "Use this after a quality check to re-measure problem strips,\n"
+            "or to continue a measurement that was interrupted.\n\n"
+            "This option appears only when a matching .ti3 file is found.",
+            left,
+        )
+        self._m_resume_tip.setVisible(False)
+        m_resume_row.addWidget(self._m_resume_tip)
+        mcg.addLayout(m_resume_row)
+
+        self._m_refine_row = QWidget(left)
+        m_refine_rl = QHBoxLayout(self._m_refine_row)
+        m_refine_rl.setContentsMargins(20, 0, 0, 0)
+        m_refine_rl.setSpacing(6)
+        self._m_refine_cb = QCheckBox(
+            "Use refinement strips file for guided re-measurement",
+            self._m_refine_row,
+        )
+        self._m_refine_cb.setEnabled(False)
+        m_refine_rl.addWidget(self._m_refine_cb, stretch=1)
+        m_refine_rl.addWidget(TooltipButton(
+            "Refinement Strips File",
+            "Available when a Refine_Strips_<name>.txt file exists next\n"
+            "to your .ti2 file.\n\n"
+            "That file is created automatically by the Check && Refine\n"
+            "tab after a quality check. It lists the strips with the\n"
+            "highest colour errors, sorted worst-first.\n\n"
+            "When active, the app navigates chartread to each of those\n"
+            "strips automatically — you only need to scan them.",
+            self._m_refine_row,
+        ))
+        self._m_refine_row.setVisible(False)
+        mcg.addWidget(self._m_refine_row)
+
+        self._m_resume_cb.stateChanged.connect(
+            lambda state: self._m_refine_row.setVisible(
+                state == Qt.CheckState.Checked.value
+            )
+        )
+
+        ll.addWidget(m_core_grp)
+
+        # Additional Options — mirrors guided "Additional Options" group
+        m_adv_grp = QGroupBox("Additional Options", left)
+        mag = QVBoxLayout(m_adv_grp)
+        mag.setContentsMargins(8, 14, 8, 8)
+        mag.setSpacing(6)
+
+        self._m_chartread_opts = self._make_manual_chartread_options(left)
+        for opt in self._m_chartread_opts:
+            row = QHBoxLayout()
+            row.setContentsMargins(0, 0, 0, 0)
+            row.setSpacing(8)
+            cb = QCheckBox(opt.label, left)
+            cb.setChecked(False)
+            opt.checkbox = cb
+            if opt.widget is not None:
+                opt.widget.setEnabled(False)
+                cb.toggled.connect(opt.widget.setEnabled)
+                row.addWidget(cb, stretch=1)
+                row.addWidget(opt.widget)
+            else:
+                row.addWidget(cb, stretch=1)
+            row.addWidget(TooltipButton(opt.tooltip_title, opt.tooltip_body, left))
+            mag.addLayout(row)
+
+        ll.addWidget(m_adv_grp)
+        ll.addStretch(1)
+
+        scroll.setWidget(left)
+        cl.addWidget(scroll, stretch=1)
+        return container
+
+    # ------------------------------------------------------------------
+    # Manual preset helpers (Measure tab)
+    # ------------------------------------------------------------------
+
+    def _m_load_presets(self) -> dict:
+        raw = self._settings.get("manual2_measure_presets", "")
+        try:
+            return json.loads(raw) if raw else {}
+        except Exception:
+            return {}
+
+    def _m_save_presets(self, presets: dict) -> None:
+        self._settings.set("manual2_measure_presets", json.dumps(presets))
+
+    def _m_populate_preset_combo(self, presets: dict, select_name: str | None = None) -> None:
+        self._m_preset_combo.blockSignals(True)
+        self._m_preset_combo.clear()
+        self._m_preset_combo.addItem("Default", userData=None)
+        for name in presets:
+            self._m_preset_combo.addItem(name, userData=name)
+        if select_name is not None:
+            idx = self._m_preset_combo.findText(select_name)
+            if idx >= 0:
+                self._m_preset_combo.setCurrentIndex(idx)
+        self._m_preset_combo.blockSignals(False)
+        self._m_preset_del_btn.setEnabled(self._m_preset_combo.currentIndex() > 0)
+
+    def _m_collect_preset_data(self) -> dict:
+        data: dict = {
+            "instr":    self._m_instr_spin.value(),
+            "bidir":    self._m_bidir_cb.isChecked(),
+            "suppress": self._m_suppress_cb.isChecked(),
+            "nocal":    self._m_nocal_cb.isChecked(),
+            "pbp":      self._m_pbp_cb.isChecked(),
+        }
+        for opt in self._m_chartread_opts:
+            if opt.checkbox:
+                data[f"{opt.key}_enabled"] = opt.checkbox.isChecked()
+            if opt.widget is not None:
+                if isinstance(opt.widget, (QSpinBox, QDoubleSpinBox)):
+                    data[f"{opt.key}_value"] = opt.widget.value()
+                elif isinstance(opt.widget, QComboBox):
+                    data[f"{opt.key}_value"] = opt.widget.currentData()
+        return data
+
+    def _m_apply_preset_data(self, data: dict) -> None:
+        try:
+            self._m_instr_spin.setValue(int(data.get("instr", 1)))
+        except (ValueError, TypeError):
+            pass
+        self._m_bidir_cb.setChecked(bool(data.get("bidir", True)))
+        self._m_suppress_cb.setChecked(bool(data.get("suppress", True)))
+        self._m_nocal_cb.setChecked(bool(data.get("nocal", False)))
+        self._m_pbp_cb.setChecked(bool(data.get("pbp", False)))
+        for opt in self._m_chartread_opts:
+            if opt.checkbox:
+                opt.checkbox.setChecked(bool(data.get(f"{opt.key}_enabled", False)))
+            if opt.widget is not None:
+                val = data.get(f"{opt.key}_value")
+                if val is not None:
+                    if isinstance(opt.widget, (QSpinBox, QDoubleSpinBox)):
+                        try:
+                            opt.widget.setValue(float(val))
+                        except (ValueError, TypeError):
+                            pass
+                    elif isinstance(opt.widget, QComboBox):
+                        idx = opt.widget.findData(str(val))
+                        if idx >= 0:
+                            opt.widget.setCurrentIndex(idx)
+
+    def _on_m_preset_selected(self, index: int) -> None:
+        self._m_preset_del_btn.setEnabled(index > 0)
+        s = self._settings
+        if index == 0:
+            # Restore from individual manual2_chartread_* settings
+            try:
+                self._m_instr_spin.setValue(int(s.get("manual2_chartread_instr", 1)))
+            except (ValueError, TypeError):
+                pass
+            self._m_bidir_cb.setChecked(bool(s.get("manual2_chartread_bidir", True)))
+            self._m_suppress_cb.setChecked(bool(s.get("manual2_chartread_suppress", True)))
+            self._m_nocal_cb.setChecked(bool(s.get("manual2_chartread_nocal", False)))
+            self._m_pbp_cb.setChecked(bool(s.get("manual2_chartread_pbp", False)))
+            for opt in self._m_chartread_opts:
+                if opt.checkbox:
+                    opt.checkbox.setChecked(bool(s.get(f"manual2_chartread_{opt.key}_enabled", False)))
+                if opt.widget is not None:
+                    val = s.get(f"manual2_chartread_{opt.key}_value")
+                    if val is not None:
+                        if isinstance(opt.widget, (QSpinBox, QDoubleSpinBox)):
+                            try:
+                                opt.widget.setValue(float(val))
+                            except (ValueError, TypeError):
+                                pass
+                        elif isinstance(opt.widget, QComboBox):
+                            idx = opt.widget.findData(str(val))
+                            if idx >= 0:
+                                opt.widget.setCurrentIndex(idx)
+        else:
+            name = self._m_preset_combo.currentData()
+            presets = self._m_load_presets()
+            self._m_apply_preset_data(presets.get(name, {}))
+
+    def _on_m_preset_save(self) -> None:
+        data = self._m_collect_preset_data()
+        dlg = QInputDialog(self)
+        dlg.setWindowTitle("Save Preset")
+        dlg.setLabelText(
+            "Give this preset a name.\n"
+            "All current Manual mode settings will be saved under that name\n"
+            "and can be recalled at any time from the preset list."
+        )
+        dlg.setMinimumWidth(460)
+        if not dlg.exec():
+            return
+        name = dlg.textValue().strip()
+        if not name:
+            return
+        presets = self._m_load_presets()
+        presets[name] = data
+        self._m_save_presets(presets)
+        self._m_populate_preset_combo(presets, select_name=name)
+
+    def _on_m_preset_delete(self) -> None:
+        name = self._m_preset_combo.currentText()
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Delete Preset")
+        dlg.setMinimumWidth(460)
+        dlg_layout = QVBoxLayout(dlg)
+        dlg_layout.setSpacing(10)
+        dlg_layout.setContentsMargins(20, 20, 20, 16)
+        heading = QLabel(f'Delete the preset "{name}"?', dlg)
+        heading.setStyleSheet("font-weight: bold;")
+        heading.setWordWrap(True)
+        dlg_layout.addWidget(heading)
+        info = QLabel(
+            "All parameter values saved in this preset will be permanently removed. "
+            "This cannot be undone.",
+            dlg,
+        )
+        info.setWordWrap(True)
+        dlg_layout.addWidget(info)
+        bb = QDialogButtonBox(dlg)
+        bb.addButton("Cancel", QDialogButtonBox.ButtonRole.RejectRole)
+        del_btn = bb.addButton("Delete", QDialogButtonBox.ButtonRole.AcceptRole)
+        del_btn.setObjectName("primary")
+        bb.rejected.connect(dlg.reject)
+        bb.accepted.connect(dlg.accept)
+        dlg_layout.addWidget(bb)
+        tint_dialog_primary(dlg, _TAB_COLOR)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        presets = self._m_load_presets()
+        presets.pop(name, None)
+        self._m_save_presets(presets)
+        self._m_populate_preset_combo(presets)
+
+    # ------------------------------------------------------------------
+    # Chartread option rows (guided panel)
     # ------------------------------------------------------------------
 
     def _make_chartread_options(self, parent: QWidget) -> list[_ChartreadOption]:
@@ -598,6 +1035,102 @@ class TabMeasure(QWidget):
 
         return opts
 
+    def _make_manual_chartread_options(self, parent: QWidget) -> list[_ChartreadOption]:
+        """Mirror of _make_chartread_options for the manual panel."""
+        opts = []
+
+        def _spinbox(lo, hi, step, default, decimals=0):
+            if decimals > 0:
+                sb = NoScrollDoubleSpinBox(parent)
+                sb.setRange(lo, hi)
+                sb.setSingleStep(step)
+                sb.setDecimals(decimals)
+                sb.setValue(default)
+                sb.setFixedWidth(90)
+            else:
+                sb = NoScrollSpinBox(parent)
+                sb.setRange(int(lo), int(hi))
+                sb.setSingleStep(int(step))
+                sb.setValue(int(default))
+                sb.setFixedWidth(90)
+            sb.setObjectName("compact_input")
+            return sb
+
+        opts.append(_ChartreadOption(
+            key="highres", flag="-H",
+            label="High resolution spectral mode (-H)",
+            tooltip_title="High Resolution Spectral Mode (-H)",
+            tooltip_body="Enables high-resolution spectral sampling on instruments that\n"
+                         "support it (i1Pro 2/3).  Slightly slower but more accurate Lab values.",
+        ))
+
+        filter_combo = NoScrollComboBox(parent)
+        filter_combo.setFixedWidth(130)
+        filter_combo.setObjectName("compact_input")
+        for code, lbl in [("n", "None (M0)"), ("5", "D50 (M1)"), ("6", "D65"), ("u", "UV Cut (M2)"), ("p", "Polarizing (M3)")]:
+            filter_combo.addItem(lbl, code)
+        filter_combo.setCurrentIndex(1)
+        opts.append(_ChartreadOption(
+            key="filter", flag="-F",
+            label="Spectral filter type (-F)",
+            tooltip_title="Spectral Filter (-F)",
+            tooltip_body=(
+                "Overrides the filter configuration used by the instrument.\n"
+                "Select the filter physically in use on your spectrophotometer:\n\n"
+                "  n = None (M0 — default, no filter)\n"
+                "  5 = D50 (M1 illuminant)\n"
+                "  6 = D65 illuminant\n"
+                "  u = UV Cut (M2)\n"
+                "  p = Polarizing filter (M3)\n\n"
+                "Only set this if you are using a specific filter or illuminant\n"
+                "condition. Wrong selection will silently skew measured values."
+            ),
+            widget=filter_combo,
+        ))
+
+        opts.append(_ChartreadOption(
+            key="tolerance", flag="-T",
+            label="Patch consistency tolerance (-T)",
+            tooltip_title="Patch Tolerance Multiplier (-T)",
+            tooltip_body="Multiplies the default patch consistency tolerance.\n"
+                         "Increase to 2.0–3.0 on textured or matte papers.\n"
+                         "Default: 1.0",
+            widget=_spinbox(0.1, 10.0, 0.1, 1.0, decimals=1),
+        ))
+
+        opts.append(_ChartreadOption(
+            key="save_lab", flag="-l",
+            label="Save L*a*b* instead of XYZ (-l)",
+            tooltip_title="Save L*a*b* Values (-l)",
+            tooltip_body="Saves measurement data as D50 L*a*b* instead of XYZ.\n"
+                         "Most workflows use XYZ (default).  Enable only if downstream\n"
+                         "tools require L*a*b* input.",
+        ))
+
+        opts.append(_ChartreadOption(
+            key="save_lab_and_xyz", flag="-L",
+            label="Save L*a*b* AND XYZ (-L)",
+            tooltip_title="Save L*a*b* AND XYZ (-L)",
+            tooltip_body="Saves both D50 L*a*b* and XYZ values in the .ti3 file.",
+        ))
+
+        xrga_combo = NoScrollComboBox(parent)
+        xrga_combo.setFixedWidth(110)
+        xrga_combo.setObjectName("compact_input")
+        for code, lbl in [("N", "None"), ("A", "XRGA"), ("X", "XRDI"), ("G", "GMDI")]:
+            xrga_combo.addItem(lbl, code)
+        opts.append(_ChartreadOption(
+            key="xrga", flag="-A",
+            label="XRGA instrument correction (-A)",
+            tooltip_title="XRGA Correction (-A)",
+            tooltip_body="Apply an XRGA colorimetric correction to convert between\n"
+                         "different spectrophotometer calibration standards.\n"
+                         "N = none (default), A = XRGA, X = XRDI, G = GMDI.",
+            widget=xrga_combo,
+        ))
+
+        return opts
+
     # ------------------------------------------------------------------
     # Public
     # ------------------------------------------------------------------
@@ -629,32 +1162,42 @@ class TabMeasure(QWidget):
 
     def _update_resume_availability(self) -> None:
         if self._ti1_path is None:
-            self._resume_cb.setVisible(False)
-            self._resume_tip.setVisible(False)
-            self._resume_cb.setChecked(False)
-            self._refine_cb.setEnabled(False)
-            self._refine_cb.setChecked(False)
+            for cb, tip, rcb in [
+                (self._resume_cb,   self._resume_tip,   self._refine_cb),
+                (self._m_resume_cb, self._m_resume_tip, self._m_refine_cb),
+            ]:
+                cb.setVisible(False)
+                tip.setVisible(False)
+                cb.setChecked(False)
+                rcb.setEnabled(False)
+                rcb.setChecked(False)
             self._refine_strips_path = None
             self._strip_list = []
             return
         ti3 = self._ti1_path.with_suffix(".ti3")
         has_ti3 = ti3.exists()
-        self._resume_cb.setVisible(has_ti3)
-        self._resume_tip.setVisible(has_ti3)
-        if not has_ti3:
-            self._resume_cb.setChecked(False)
+        for cb, tip in [
+            (self._resume_cb,   self._resume_tip),
+            (self._m_resume_cb, self._m_resume_tip),
+        ]:
+            cb.setVisible(has_ti3)
+            tip.setVisible(has_ti3)
+            if not has_ti3:
+                cb.setChecked(False)
         # Auto-detect Refine_Strips file
         refine_file = self._ti1_path.parent / f"Refine_Strips_{self._ti1_path.stem}.txt"
         if refine_file.exists():
             self._refine_strips_path = refine_file
             self._load_refine_strips(refine_file)
-            self._refine_cb.setEnabled(True)
-            self._refine_cb.setChecked(True)
+            for rcb in (self._refine_cb, self._m_refine_cb):
+                rcb.setEnabled(True)
+                rcb.setChecked(True)
         else:
             self._refine_strips_path = None
             self._strip_list = []
-            self._refine_cb.setEnabled(False)
-            self._refine_cb.setChecked(False)
+            for rcb in (self._refine_cb, self._m_refine_cb):
+                rcb.setEnabled(False)
+                rcb.setChecked(False)
 
     def _load_refine_strips(self, path: Path) -> None:
         from workflow.profcheck_runner import parse_refine_strips
@@ -699,9 +1242,9 @@ class TabMeasure(QWidget):
             self._preview.set_stripe_rects(rects)
 
     def _set_settings_enabled(self, enabled: bool) -> None:
-        for w in (self._instr_grp, self._core_grp, self._adv_grp,
-                  self._file_grp, self._save_defaults_btn):
-            w.setEnabled(enabled)
+        self._stack.setEnabled(enabled)
+        self._file_grp.setEnabled(enabled)
+        self._save_defaults_btn.setEnabled(enabled)
 
     def _on_start(self) -> None:
         if not self._ti1_path:
@@ -724,13 +1267,20 @@ class TabMeasure(QWidget):
         self._stop_btn.setEnabled(True)
         QApplication.instance().installEventFilter(self)
 
+        if self._current_mode() == "guided":
+            resume_cb  = self._resume_cb
+            refine_cb  = self._refine_cb
+        else:
+            resume_cb  = self._m_resume_cb
+            refine_cb  = self._m_refine_cb
         guided = (
-            self._resume_cb.isChecked()
-            and self._refine_cb.isChecked()
+            resume_cb.isChecked()
+            and refine_cb.isChecked()
             and bool(self._strip_list)
         )
         self._guided_refinement_active = guided
-        self._resume_active = self._resume_cb.isChecked()
+        self._resume_active = resume_cb.isChecked()
+
         self._manager.set_guided_strips(self._strip_list if guided else [])
 
         self._manager.start(
@@ -915,7 +1465,7 @@ class TabMeasure(QWidget):
             "How to fix it:<br>"
             "&nbsp;&nbsp;1. Flip or slide the sensor head so it faces <b>downward</b>.<br>"
             "&nbsp;&nbsp;2. Place the instrument at the beginning of the strip.<br>"
-            "&nbsp;&nbsp;3. Press <b>OK</b> \u2014 chartread is still waiting and you can scan straight away.",
+            "&nbsp;&nbsp;3. Press <b>OK</b> — chartread is still waiting and you can scan straight away.",
             dlg,
         )
         msg.setWordWrap(True)
@@ -1051,12 +1601,12 @@ class TabMeasure(QWidget):
         if self._guided_refinement_active and self._strip_list:
             first = self._strip_list[0]
             n = len(self._strip_list)
-            dlg.setWindowTitle("Calibration Complete \u2014 Guided Refinement Ready")
+            dlg.setWindowTitle("Calibration Complete — Guided Refinement Ready")
 
             msg = QLabel(
                 "<b>Calibration complete. The app will guide you to each strip.</b><br><br>"
                 f"There are <b>{n} strip(s)</b> to re-measure. "
-                "The app will automatically navigate chartread to each one \u2014 "
+                "The app will automatically navigate chartread to each one — "
                 "<b>you do not need to press f or b yourself.</b>",
                 dlg,
             )
@@ -1073,23 +1623,23 @@ class TabMeasure(QWidget):
             hfl.addWidget(hdr)
             for bullet_text in (
                 "Watch the <b>highlighted strip</b> in the preview panel on the right.",
-                "Or follow the <b>output field</b> below \u2014 it will name the strip.",
+                "Or follow the <b>output field</b> below — it will name the strip.",
             ):
-                b = QLabel(f"  \u2022  {bullet_text}", dlg)
+                b = QLabel(f"  •  {bullet_text}", dlg)
                 b.setWordWrap(True)
                 b.setStyleSheet(_plain_style)
                 hfl.addWidget(b)
             layout.addWidget(hint_frame)
 
             first_lbl = QLabel(
-                f"<b>First strip: {first}</b> \u2014 place your instrument there and scan when ready.",
+                f"<b>First strip: {first}</b> — place your instrument there and scan when ready.",
                 dlg,
             )
             first_lbl.setWordWrap(True)
             layout.addWidget(first_lbl)
 
             footnote = QLabel(
-                "When all strips are done, the output field will tell you to press \u2018d\u2019 to finish and save.",
+                "When all strips are done, the output field will tell you to press ‘d’ to finish and save.",
                 dlg,
             )
             footnote.setWordWrap(True)
@@ -1097,12 +1647,12 @@ class TabMeasure(QWidget):
             layout.addWidget(footnote)
 
         elif self._resume_active:
-            dlg.setWindowTitle("Calibration Complete \u2014 Manual Re-measurement")
+            dlg.setWindowTitle("Calibration Complete — Manual Re-measurement")
 
             msg = QLabel(
                 "<b>Calibration complete. You are ready to re-measure strips manually.</b><br><br>"
                 "chartread will show you each strip in order. Strips already measured are "
-                "marked with <i>(!! ALL ROWS READ !!)</i> \u2014 skip or re-scan as needed.",
+                "marked with <i>(!! ALL ROWS READ !!)</i> — skip or re-scan as needed.",
                 dlg,
             )
             msg.setWordWrap(True)
@@ -1132,7 +1682,7 @@ class TabMeasure(QWidget):
             layout.addWidget(step_frame)
 
             footnote = QLabel(
-                "<b>n</b> jumps to the next unread strip \u00a0\u2014\u00a0 <b>Esc / q</b> quits without saving.",
+                "<b>n</b> jumps to the next unread strip  —  <b>Esc / q</b> quits without saving.",
                 dlg,
             )
             footnote.setWordWrap(True)
@@ -1140,7 +1690,7 @@ class TabMeasure(QWidget):
             layout.addWidget(footnote)
 
         else:
-            dlg.setWindowTitle("Calibration Complete \u2014 How to Measure")
+            dlg.setWindowTitle("Calibration Complete — How to Measure")
 
             msg = QLabel(
                 "<b>Calibration complete. You are ready to start measuring.</b><br><br>"
@@ -1214,10 +1764,10 @@ class TabMeasure(QWidget):
             msg = QLabel(
                 f"<b>All {n} target strip(s) have been re-measured successfully.</b><br><br>"
                 "What would you like to do next?<br><br>"
-                "&nbsp;&nbsp;\u2022&nbsp; <b>Build Profile</b> \u2014 saves the measurement "
+                "&nbsp;&nbsp;•&nbsp; <b>Build Profile</b> — saves the measurement "
                 "and takes you straight to the Build Profile tab to create your updated "
                 "ICC profile.<br><br>"
-                "&nbsp;&nbsp;\u2022&nbsp; <b>Continue Measuring Manually</b> \u2014 keeps "
+                "&nbsp;&nbsp;•&nbsp; <b>Continue Measuring Manually</b> — keeps "
                 "chartread running so you can scan additional strips yourself. "
                 "You will have <b>full manual control</b>: use <b>f</b>&nbsp;/&nbsp;<b>b</b> "
                 "to move between strips, <b>n</b> to jump to the next unread one, and "
@@ -1230,7 +1780,7 @@ class TabMeasure(QWidget):
             msg = QLabel(
                 "<b>All stripes have been read successfully.</b><br><br>"
                 "Click <b>Build Profile</b> to finalise the measurement and go directly "
-                "to the Build Profile tab \u2014 the next and final step.<br><br>"
+                "to the Build Profile tab — the next and final step.<br><br>"
                 "If you would like to re-read any stripe first, click <b>Re-read Stripes</b>. "
                 "Use <b>f</b>&nbsp;/&nbsp;<b>b</b> to move forward and back between stripes, "
                 "<b>n</b> to jump to the next unread stripe, and press <b>d</b> when you "
@@ -1244,7 +1794,7 @@ class TabMeasure(QWidget):
         layout.addWidget(msg)
 
         btn_box = QDialogButtonBox()
-        build_btn = btn_box.addButton("Build Profile \u2192", QDialogButtonBox.ButtonRole.AcceptRole)
+        build_btn = btn_box.addButton("Build Profile →", QDialogButtonBox.ButtonRole.AcceptRole)
         build_btn.setObjectName("primary")
         cont_label = "Continue Measuring Manually" if self._guided_refinement_active else "Re-read Stripes"
         btn_box.addButton(cont_label, QDialogButtonBox.ButtonRole.RejectRole)
@@ -1410,7 +1960,11 @@ class TabMeasure(QWidget):
             self._preview.show_page(page)
         self._preview.highlight_stripe(local_idx)
 
-    def _collect_params(self) -> MeasureParams:
+    # ------------------------------------------------------------------
+    # Param collection
+    # ------------------------------------------------------------------
+
+    def _collect_guided(self) -> MeasureParams:
         extra_args: list[str] = []
         for opt in self._chartread_opts:
             extra_args += opt.build_args()
@@ -1426,25 +1980,66 @@ class TabMeasure(QWidget):
             extra_args          = " ".join(extra_args),
         )
 
+    def _collect_manual(self) -> MeasureParams:
+        extra_args: list[str] = []
+        for opt in self._m_chartread_opts:
+            extra_args += opt.build_args()
+
+        return MeasureParams(
+            ti1_path            = self._ti1_path,
+            instrument          = str(self._m_instr_spin.value()),
+            disable_bidir       = self._m_bidir_cb.isChecked(),
+            suppress_warnings   = self._m_suppress_cb.isChecked(),
+            disable_initial_cal = self._m_nocal_cb.isChecked(),
+            patch_by_patch      = self._m_pbp_cb.isChecked(),
+            resume              = self._m_resume_cb.isChecked(),
+            extra_args          = " ".join(extra_args),
+        )
+
+    def _collect_params(self) -> MeasureParams:
+        if self._current_mode() == "guided":
+            return self._collect_guided()
+        return self._collect_manual()
+
+    # ------------------------------------------------------------------
+    # Settings
+    # ------------------------------------------------------------------
+
     def _on_save_defaults(self) -> None:
         s = self._settings
-        s.set("measure_disable_bidir",     self._bidir_cb.isChecked())
-        s.set("measure_suppress_warnings", self._suppress_cb.isChecked())
-        s.set("measure_no_cal",            self._nocal_cb.isChecked())
-        s.set("measure_patch_by_patch",    self._pbp_cb.isChecked())
-        for opt in self._chartread_opts:
-            if opt.checkbox:
-                s.set(f"measure_{opt.key}_enabled", opt.checkbox.isChecked())
-            if opt.widget is not None:
-                if isinstance(opt.widget, (QSpinBox, QDoubleSpinBox)):
-                    s.set(f"measure_{opt.key}_value", opt.widget.value())
-                elif isinstance(opt.widget, QComboBox):
-                    s.set(f"measure_{opt.key}_value", opt.widget.currentData())
+        if self._current_mode() == "guided":
+            s.set("measure_disable_bidir",     self._bidir_cb.isChecked())
+            s.set("measure_suppress_warnings", self._suppress_cb.isChecked())
+            s.set("measure_no_cal",            self._nocal_cb.isChecked())
+            s.set("measure_patch_by_patch",    self._pbp_cb.isChecked())
+            for opt in self._chartread_opts:
+                if opt.checkbox:
+                    s.set(f"measure_{opt.key}_enabled", opt.checkbox.isChecked())
+                if opt.widget is not None:
+                    if isinstance(opt.widget, (QSpinBox, QDoubleSpinBox)):
+                        s.set(f"measure_{opt.key}_value", opt.widget.value())
+                    elif isinstance(opt.widget, QComboBox):
+                        s.set(f"measure_{opt.key}_value", opt.widget.currentData())
+        else:
+            s.set("manual2_chartread_instr",    self._m_instr_spin.value())
+            s.set("manual2_chartread_bidir",    self._m_bidir_cb.isChecked())
+            s.set("manual2_chartread_suppress", self._m_suppress_cb.isChecked())
+            s.set("manual2_chartread_nocal",    self._m_nocal_cb.isChecked())
+            s.set("manual2_chartread_pbp",      self._m_pbp_cb.isChecked())
+            for opt in self._m_chartread_opts:
+                if opt.checkbox:
+                    s.set(f"manual2_chartread_{opt.key}_enabled", opt.checkbox.isChecked())
+                if opt.widget is not None:
+                    if isinstance(opt.widget, (QSpinBox, QDoubleSpinBox)):
+                        s.set(f"manual2_chartread_{opt.key}_value", opt.widget.value())
+                    elif isinstance(opt.widget, QComboBox):
+                        s.set(f"manual2_chartread_{opt.key}_value", opt.widget.currentData())
         self._log.appendPlainText("Measurement settings saved as defaults.")
         self._log.ensureCursorVisible()
 
     def _restore_defaults(self) -> None:
         s = self._settings
+        # Guided defaults
         self._bidir_cb.setChecked(bool(s.get("measure_disable_bidir", True)))
         self._suppress_cb.setChecked(bool(s.get("measure_suppress_warnings", True)))
         self._nocal_cb.setChecked(bool(s.get("measure_no_cal", False)))
@@ -1465,3 +2060,32 @@ class TabMeasure(QWidget):
                         idx = opt.widget.findData(str(val))
                         if idx >= 0:
                             opt.widget.setCurrentIndex(idx)
+        # Manual defaults
+        m_instr = s.get("manual2_chartread_instr")
+        if m_instr is not None:
+            try:
+                self._m_instr_spin.setValue(int(m_instr))
+            except (ValueError, TypeError):
+                pass
+        self._m_bidir_cb.setChecked(bool(s.get("manual2_chartread_bidir", True)))
+        self._m_suppress_cb.setChecked(bool(s.get("manual2_chartread_suppress", True)))
+        self._m_nocal_cb.setChecked(bool(s.get("manual2_chartread_nocal", False)))
+        self._m_pbp_cb.setChecked(bool(s.get("manual2_chartread_pbp", False)))
+        for opt in self._m_chartread_opts:
+            if opt.checkbox:
+                enabled = bool(s.get(f"manual2_chartread_{opt.key}_enabled", False))
+                opt.checkbox.setChecked(enabled)
+            if opt.widget is not None:
+                val = s.get(f"manual2_chartread_{opt.key}_value")
+                if val is not None:
+                    if isinstance(opt.widget, (QSpinBox, QDoubleSpinBox)):
+                        try:
+                            opt.widget.setValue(float(val))
+                        except (ValueError, TypeError):
+                            pass
+                    elif isinstance(opt.widget, QComboBox):
+                        idx = opt.widget.findData(str(val))
+                        if idx >= 0:
+                            opt.widget.setCurrentIndex(idx)
+        presets = self._m_load_presets()
+        self._m_populate_preset_combo(presets)

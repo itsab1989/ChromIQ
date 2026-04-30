@@ -94,7 +94,7 @@ class TabChart(QWidget):
         left.setFixedWidth(700)
         left_layout = QVBoxLayout(left)
         left_layout.setContentsMargins(16, 12, 16, 12)
-        left_layout.setSpacing(14)
+        left_layout.setSpacing(8)
 
         left_layout.addWidget(TabHeader(
             "STEP 01 · GENERATE TARGET", "Create test chart", "#ff4573", left
