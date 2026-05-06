@@ -441,6 +441,206 @@ parameters:
         beyond the paper edge — verify the generated TIFF before
         printing.
 
+    - flag: "-N"
+      name: "N-Channel TIFF (>4 inks)"
+      type: boolean
+      default: false
+      affects_preview: false
+      expert_only: true
+      tooltip_title: "N-Channel TIFF (-N)"
+      tooltip_body: |
+        For printers with more than 4 ink channels (e.g. CMYK plus
+        additional spot colours), standard TIFF only supports up to
+        4 channels.  This flag makes printtarg encode the extra
+        channels using TIFF's alpha-channel slots so that all ink
+        values are preserved in a single file.
+
+        Enable this only if your printer driver or RIP expects a
+        multi-channel TIFF.  For standard RGB or CMYK profiling
+        you do not need this option.
+
+    - flag: "-K"
+      name: "Apply Calibration File"
+      type: file_path
+      default: ""
+      filter: "Calibration files (*.cal);;All files (*)"
+      no_space: false
+      affects_preview: false
+      expert_only: true
+      tooltip_title: "Apply Calibration to Patches (-K)"
+      tooltip_body: |
+        Use this when your printer has no built-in calibration system
+        — i.e. the printer driver or RIP cannot apply a calibration
+        curve on its own.
+
+        You first run Argyll's printcal to produce a .cal file that
+        describes how to linearise the printer.  Then you pass that
+        .cal here: printtarg remaps every patch colour value through
+        the calibration curves before generating the chart, so the
+        printed target already reflects calibrated device behaviour.
+        The .cal is also embedded in the .ti2 file so that colprof
+        can reference it when building the ICC profile.
+
+        Typical use: desktop inkjet printers without built-in
+        linearisation, driven directly from a TIFF with no
+        intervening RIP.
+
+        Mutually exclusive with "Include Calibration" (-I) — only
+        one calibration option can be active at a time.
+
+    - flag: "-I"
+      name: "Include Calibration File (no apply)"
+      type: file_path
+      default: ""
+      filter: "Calibration files (*.cal);;All files (*)"
+      no_space: false
+      affects_preview: false
+      expert_only: true
+      tooltip_title: "Include Calibration Without Applying (-I)"
+      tooltip_body: |
+        Use this when your printer or RIP already applies a
+        calibration curve natively — for example, a production inkjet
+        RIP with its own linearisation LUT, or a printer with
+        built-in density calibration.
+
+        In this case you do not want printtarg to remap the patch
+        values (the printer handles that itself), but you do want
+        colprof to know about the calibration.  -I embeds the .cal
+        file into the .ti2 output as metadata only, leaving all patch
+        values untouched.
+
+        Typical use: professional inkjet RIPs (e.g. EFI Fiery,
+        Wasatch, ColorBurst) or printers with built-in linearisation
+        that is active during the profiling print run.
+
+        Mutually exclusive with "Apply Calibration" (-K) — only one
+        calibration option can be active at a time.
+
+    - flag: "-C"
+      name: "Disable TIFF Compression"
+      type: boolean
+      default: false
+      affects_preview: false
+      expert_only: true
+      tooltip_title: "Disable TIFF Compression (-C)"
+      tooltip_body: |
+        Outputs uncompressed TIFF files instead of the default LZW
+        compression.  Uncompressed files are larger but universally
+        compatible with all RIPs and printer drivers.
+        Enable this if your print workflow refuses or mangles
+        compressed TIFFs.
+
+    - flag: "-D"
+      name: "Dither 8-bit from 16-bit"
+      type: boolean
+      default: false
+      affects_preview: false
+      expert_only: true
+      tooltip_title: "Dither 8-bit Output (-D)"
+      tooltip_body: |
+        When generating an 8-bit TIFF, uses error-diffusion dithering
+        to down-sample from internal 16-bit precision.  This reduces
+        banding in smooth gradients that would otherwise be caused by
+        quantisation.
+        Only has an effect when 8-bit TIFF output is selected.
+
+    - flag: "-U"
+      name: "Suppress CUPS Color Management Header"
+      type: boolean
+      default: false
+      affects_preview: false
+      expert_only: true
+      tooltip_title: "Suppress CUPS CMM Header (-U)"
+      tooltip_body: |
+        Removes the 'cupsJobTicket: cups-disable-cmm' comment from
+        PostScript and EPS output files.  Some CUPS versions react
+        differently to this comment.
+        This option only affects PS/EPS output and has no effect on
+        TIFF files.  Enable only if you are experiencing unexpected
+        colour management being applied during printing.
+
+    - flag: "-R"
+      name: "Randomisation Seed"
+      type: int
+      min: 1
+      max: 99999
+      default: 1
+      step: 1
+      affects_preview: false
+      expert_only: true
+      tooltip_title: "Randomisation Seed (-R)"
+      tooltip_body: |
+        Sets the starting seed for the patch randomisation algorithm.
+        Using the same seed with the same patch count always produces
+        the same patch layout, making charts fully reproducible.
+        Useful for research or when you need to regenerate an
+        identical chart at a later date.
+        Has no effect when "Preserve Patch Order" (-r) is enabled.
+
+    - flag: "-Q"
+      name: "Quantize Bits"
+      type: int
+      min: 1
+      max: 16
+      default: 8
+      step: 1
+      affects_preview: false
+      expert_only: true
+      tooltip_title: "Quantize Patch Values (-Q)"
+      tooltip_body: |
+        Rounds all patch colour values to fit within the specified
+        bit depth before generating the chart.  For example, -Q 8
+        rounds all values to 8-bit (256-level) precision.
+        Use this when your printer pipeline introduces banding at a
+        specific bit depth and you want to test at exactly that
+        precision level.
+
+    - flag: "-A"
+      name: "Spacer-Only Scale"
+      type: float
+      min: 0.1
+      max: 4.0
+      default: 1.0
+      step: 0.1
+      affects_preview: false
+      expert_only: true
+      tooltip_title: "Spacer-Only Scale (-A)"
+      tooltip_body: |
+        Applies an additional scaling factor to the spacer bars only,
+        without changing the patch dimensions set by -a.
+        Values above 1.0 make spacers wider; below 1.0 make them
+        narrower.  Useful for instruments that need extra separation
+        between strips or when you want to reclaim space by narrowing
+        spacers while keeping patch size constant.
+
+    - flag: "-n"
+      name: "No Spacers"
+      type: boolean
+      default: false
+      affects_preview: false
+      expert_only: true
+      tooltip_title: "No Spacers (-n)"
+      tooltip_body: |
+        Removes all spacer bars between patches and strips.  Spacers
+        normally help the instrument identify strip boundaries and
+        direction.
+        Disable spacers only if your measurement workflow explicitly
+        does not rely on them (e.g. some flatbed scanner setups).
+
+    - flag: "-c"
+      name: "Force Colored Spacers"
+      type: boolean
+      default: false
+      affects_preview: false
+      expert_only: true
+      tooltip_title: "Force Colored Spacers (-c)"
+      tooltip_body: |
+        Forces inter-patch spacer areas to be rendered in colour
+        rather than the default (which may be black/white depending
+        on the instrument profile).  Can improve strip recognition
+        on some colour inkjet devices where black spacers have low
+        contrast against dark patches.
+
   # ====================================================================
   # chartread — measure printed chart with instrument (.ti2 → .ti3)
   # ====================================================================

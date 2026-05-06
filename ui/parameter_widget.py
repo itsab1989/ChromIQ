@@ -149,6 +149,8 @@ class ParameterWidget(QWidget):
                 c.setValue(float(v))
             elif t in ("string", "file_path"):
                 c.setText(str(v))
+                if t == "file_path" and self._enable_check is not None and str(v).strip():
+                    self._enable_check.setChecked(True)
         except Exception as exc:
             log.warning("set_value(%s, %r): %s", self.flag, v, exc)
 
@@ -158,6 +160,11 @@ class ParameterWidget(QWidget):
         if self._enable_check is not None:
             return self._enable_check.isChecked()
         return True
+
+    def set_user_enabled(self, checked: bool) -> None:
+        """Programmatically set the expert enable-checkbox state."""
+        if self._enable_check is not None:
+            self._enable_check.setChecked(checked)
 
     def build_args(self) -> list[str]:
         """Build the list of CLI tokens for this parameter."""

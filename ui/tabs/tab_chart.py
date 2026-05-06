@@ -461,6 +461,8 @@ class TabChart(QWidget):
         self._manual_lb_pw: ParameterWidget | None = None
         self._manual_dd_pw: ParameterWidget | None = None
         self._manual_instr_pw: ParameterWidget | None = None
+        self._manual_cal_k_pw: ParameterWidget | None = None
+        self._manual_cal_i_pw: ParameterWidget | None = None
         self._bit8_radio: QRadioButton | None = None
         self._bit16_radio: QRadioButton | None = None
 
@@ -501,6 +503,10 @@ class TabChart(QWidget):
                 if tool == "printtarg" and flag == "-i":
                     self._manual_instr_pw = pw
                     pw.value_changed.connect(self._update_manual_lb_visibility)
+                if tool == "printtarg" and flag == "-K":
+                    self._manual_cal_k_pw = pw
+                if tool == "printtarg" and flag == "-I":
+                    self._manual_cal_i_pw = pw
 
                 if p.get("expert_only", False):
                     expert_layout.addWidget(pw)
@@ -513,6 +519,7 @@ class TabChart(QWidget):
             inner_layout.addWidget(grp)
 
         self._update_manual_lb_visibility()
+        self._connect_cal_mutex()
         self._preset_combo.currentIndexChanged.connect(self._on_preset_selected)
         self._preset_add_btn.clicked.connect(self._on_preset_save)
         self._preset_del_btn.clicked.connect(self._on_preset_delete)
@@ -564,6 +571,13 @@ class TabChart(QWidget):
             self._manual_lb_pw.setVisible(not is_cm)
         if self._manual_dd_pw is not None:
             self._manual_dd_pw.setVisible(is_cm)
+
+    def _connect_cal_mutex(self) -> None:
+        k, i = self._manual_cal_k_pw, self._manual_cal_i_pw
+        if k is None or i is None:
+            return
+        k.value_changed.connect(lambda: i.set_user_enabled(False) if k.is_enabled_by_user else None)
+        i.value_changed.connect(lambda: k.set_user_enabled(False) if i.is_enabled_by_user else None)
 
     # ------------------------------------------------------------------
     # Preset helpers
@@ -915,6 +929,18 @@ class TabChart(QWidget):
         p.no_randomise         = bool(_get("printtarg", "-r",  False))
         p.bw_spacers           = bool(_get("printtarg", "-b",  False))
         p.no_strip_limit       = bool(_get("printtarg", "-P",  False))
+
+        # All remaining printtarg params (e.g. -N, -K, -I, -C, -D, -U, -R, -Q, -A, -n, -c)
+        # are collected here and passed through extra_printtarg_args, which
+        # _build_printtarg_args() already appends verbatim before the target name.
+        _pt_mapped = {"-i", "-p", "-t", "-h", "-L", "-a", "-m", "-r", "-b", "-P"}
+        extra_pt: list[str] = []
+        for pw in self._manual_widgets.get("printtarg", []):
+            if pw.flag not in _pt_mapped:
+                extra_pt.extend(pw.build_args())
+        if extra_pt:
+            p.extra_printtarg_args = shlex.join(extra_pt)
+
         p.is_manual            = True
         return p
 
