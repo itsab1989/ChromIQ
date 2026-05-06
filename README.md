@@ -76,8 +76,11 @@ A4, A4 Landscape, A3, A3 Landscape, A2, US Letter, Letter Landscape, Legal, Tabl
 - Double-density mode for ColorMunki/i1Studio with measuring rig (`-h` flag)
 - Live TIFF preview of the generated test chart
 - Direct TIFF printing via CUPS — color management forced off automatically, no manual option selection required, no ColorSync interference
+- **Multi-page TIFF support** — Print Current Page and Print All Pages correctly extract and send individual frames from multi-page charts
+- **Printer reachability check** — detects offline printers before submitting a job and shows a clear error dialog
 - **Clear Print Queue** button and stuck-job pre-print detection — cancels held or aborted jobs before submitting a new one
 - **AirPrint driver detection** in the Print tab — identifies when no configurable options are available and explains how to reinstall the printer with a native PPD driver
+- **Zoomable TIFF preview** panel on every tab (labelled CHART PREVIEW / PRINT PREVIEW) — live view of the generated chart updates as parameters change
 - **Spectral filter type** option in Measure tab (`-F` flag) — override the measurement condition (M0 / M1 / M2 / M3) for instruments that support it
 - Full `colprof` option set: illuminant (D50, D65, A, C, F5, F8, F10), observer (1931 2°, 1964 10°, 2015 variants), FWA compensation, gamut mapping source profiles, rendering intent overrides
 - Per-tab **Save as Defaults** and named user presets (Manual mode) for repeatable workflows
