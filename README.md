@@ -109,6 +109,11 @@ A2, A3+, A3, A4, Tabloid (11×17), Legal, Letter, and landscape variants of each
 PyQt6 >= 6.11.0
 Pillow >= 10.0.0
 PyYAML >= 6.0
+pycups >= 2.0.1
+certifi >= 2024.0.0
+tifffile >= 2024.0.0
+numpy >= 1.24.0
+imagecodecs >= 2024.0.0
 ```
 
 ---
@@ -206,9 +211,15 @@ ChromIQ/
 │   ├── main_window.py         # Top-level window, tab container, status bar
 │   ├── parameter_widget.py    # Auto-generated flag widgets from parameters.yaml
 │   ├── styles.py              # Fusion dark-theme QSS stylesheet
-│   ├── tiff_preview.py        # Zoomable TIFF viewer widget
+│   ├── tiff_preview.py        # Zoomable multi-channel TIFF viewer widget
 │   ├── tooltip_button.py      # ? icon with popover tooltip
 │   ├── tab_header.py          # Per-tab workflow header widget (step indicator + headline)
+│   ├── masthead_header.py     # Gradient masthead banner at the top of the window
+│   ├── gradient_overlay.py    # Accent-coloured gradient wash on tab control panels
+│   ├── spectrum_tab_bar.py    # Per-tab coloured tab bar
+│   ├── spectrum_progress.py   # Animated five-segment spectrum progress bar
+│   ├── scan_highlighter.py    # Strip highlight overlay during chartread measurement
+│   ├── ti2_loader.py          # .ti2 file loading and cross-tab population logic
 │   ├── widgets.py             # Shared widget helpers (browse buttons, etc.)
 │   ├── dialogs/
 │   │   └── settings_dialog.py # Preferences dialog
