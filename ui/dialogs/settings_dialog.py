@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from core.argyll_detect import find_argyll_bin_path
 from core.logger import get_logger
 from core.updater import UpdateChecker, _RELEASES_PAGE
 from core.version import APP_VERSION
@@ -79,9 +80,12 @@ class SettingsDialog(QDialog):
         btn_row = QHBoxLayout()
         test_btn = QPushButton("Test binaries", self)
         test_btn.clicked.connect(self._test_argyll)
+        detect_btn = QPushButton("Auto-detect", self)
+        detect_btn.clicked.connect(self._auto_detect)
         dl_btn = QPushButton("Download latest ArgyllCMS…", self)
         dl_btn.clicked.connect(self._open_argyll_download)
         btn_row.addWidget(test_btn)
+        btn_row.addWidget(detect_btn)
         btn_row.addWidget(dl_btn)
         btn_row.addStretch()
         ag.addLayout(btn_row)
@@ -204,6 +208,20 @@ class SettingsDialog(QDialog):
         )
         if d:
             self._folder_edit.setText(d)
+
+    def _auto_detect(self) -> None:
+        detected = find_argyll_bin_path()
+        if detected:
+            self._argyll_edit.setText(str(detected))
+            self._argyll_status.setStyleSheet("color: #4caf50;")
+            self._argyll_status.setText(f"Auto-detected at {detected}")
+        else:
+            self._argyll_status.setStyleSheet("color: #ff5252;")
+            self._argyll_status.setText(
+                "ArgyllCMS not found in any known location. "
+                "Install it or set the path manually."
+            )
+        log.info("ArgyllCMS auto-detect: %s", detected)
 
     def _test_argyll(self) -> None:
         bin_dir = Path(self._argyll_edit.text().strip())

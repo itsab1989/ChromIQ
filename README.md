@@ -70,16 +70,20 @@ ChromIQ walks you through five steps of RGB printer profiling:
 A4, A4 Landscape, A3, A3 Landscape, A2, US Letter, Letter Landscape, Legal, Tabloid (11×17)
 
 ### Key Capabilities
+- **ArgyllCMS auto-detection** at launch — searches the system PATH, Homebrew, MacPorts, and any versioned Argyll folder in `/Applications`. An **Auto-detect** button in Preferences re-runs detection on demand.
 - Empirical patch capacity database (measured with Argyll 3.5.0) for instant lookup without binary search
 - Separate patch counts for charts with and without the left clip border (`-L` flag)
 - Double-density mode for ColorMunki/i1Studio with measuring rig (`-h` flag)
 - Live TIFF preview of the generated test chart
-- Direct TIFF printing via CUPS — color management forced off, no ColorSync interference, no PostScript conversion
+- Direct TIFF printing via CUPS — color management forced off automatically, no manual option selection required, no ColorSync interference
+- **Clear Print Queue** button and stuck-job pre-print detection — cancels held or aborted jobs before submitting a new one
+- **AirPrint driver detection** in the Print tab — identifies when no configurable options are available and explains how to reinstall the printer with a native PPD driver
+- **Spectral filter type** option in Measure tab (`-F` flag) — override the measurement condition (M0 / M1 / M2 / M3) for instruments that support it
 - Full `colprof` option set: illuminant (D50, D65, A, C, F5, F8, F10), observer (1931 2°, 1964 10°, 2015 variants), FWA compensation, gamut mapping source profiles, rendering intent overrides
 - Per-tab **Save as Defaults** and named user presets (Manual mode) for repeatable workflows
 - Automatic session naming based on printer, paper, media type, instrument, and timestamp
+- **Update checker** — silent background check on launch; manual check available in Preferences
 - Settings persist between sessions via `QSettings`
-- Built-in ArgyllCMS binary tester and direct download link detection for your platform
 
 ---
 
@@ -87,7 +91,7 @@ A4, A4 Landscape, A3, A3 Landscape, A2, US Letter, Letter Landscape, Legal, Tabl
 
 ### System
 - macOS 13 Ventura or later (Apple Silicon and Intel supported)
-- [ArgyllCMS 3.5.0](https://www.argyllcms.com/downloaddev.html) — binaries must be installed at `/Applications/Argyll/bin` (configurable in Preferences)
+- [ArgyllCMS 3.5.0](https://www.argyllcms.com/downloaddev.html) — ChromIQ auto-detects ArgyllCMS at launch, scanning the system PATH, Homebrew, MacPorts, and any versioned Argyll folder in `/Applications`. The path can be overridden or re-detected from Preferences.
 
 ### To run from source
 - Python 3.12 or later
@@ -134,9 +138,9 @@ Copy `dist/ChromIQ.app` to `/Applications` and launch like any other macOS app. 
 ## Usage
 
 ### First-time setup
-1. Install ArgyllCMS and note the path to its `bin` folder (default: `/Applications/Argyll/bin`)
-2. Open ChromIQ → **ChromIQ ▸ Preferences** (or ⌘,) and verify the binary path
-3. Click **Test binaries** to confirm `targen`, `printtarg`, `chartread`, and `colprof` are found
+1. Install ArgyllCMS — download from [argyllcms.com](https://www.argyllcms.com/downloadmac.html), extract the archive, and move the folder to `/Applications`
+2. Launch ChromIQ — it auto-detects ArgyllCMS and configures itself. If detection fails, a setup guide opens with instructions.
+3. (Optional) Open **Preferences** (⌘,) → click **Auto-detect** to re-run detection, or browse to the `bin` folder manually, then **Test binaries** to confirm
 
 ### Step 1 — Create Chart
 - Choose **Guided** or **Manual** mode
@@ -178,11 +182,15 @@ ChromIQ/
 ├── requirements.txt
 ├── assets/                    # App icons and UI images
 ├── core/
+│   ├── argyll_detect.py       # ArgyllCMS auto-detection (PATH, Homebrew, /Applications scan)
 │   ├── argyll_runner.py       # QProcess wrapper for ArgyllCMS tools
 │   ├── file_manager.py        # Working folder and target name management
-│   ├── logger.py              # Rotating file logger (~ChromIQ/chromiq.log)
+│   ├── logger.py              # Rotating file logger (~Library/Logs/ChromIQ/chromiq.log)
 │   ├── resource_path.py       # Asset path resolution for dev + frozen bundles
-│   └── settings.py            # QSettings wrapper with typed defaults
+│   ├── settings.py            # QSettings wrapper with typed defaults
+│   ├── strip_utils.py         # Strip label parsing and TIFF zone detection
+│   ├── updater.py             # Background update checker (GitHub releases API)
+│   └── version.py             # Application version constant
 ├── data/
 │   ├── parameters.yaml        # All targen/printtarg/colprof flags + tooltips
 │   └── patch_db.py            # Empirical per-sheet patch capacity database
@@ -192,6 +200,7 @@ ChromIQ/
 │   ├── styles.py              # Fusion dark-theme QSS stylesheet
 │   ├── tiff_preview.py        # Zoomable TIFF viewer widget
 │   ├── tooltip_button.py      # ? icon with popover tooltip
+│   ├── tab_header.py          # Per-tab workflow header widget (step indicator + headline)
 │   ├── widgets.py             # Shared widget helpers (browse buttons, etc.)
 │   ├── dialogs/
 │   │   └── settings_dialog.py # Preferences dialog
@@ -269,13 +278,13 @@ Save the file and restart ChromIQ — the new parameter appears automatically in
 
 - **Measurement (Step 3):** Some spectrophotometer models may require additional calibration steps not yet surfaced in the UI.
 - **Advanced color science (Step 4):** FWA compensation and custom gamut mapping intents cover a wide range of instrument/paper combinations — edge cases may exist depending on your specific hardware and media.
-- **macOS only:** ChromIQ is developed and tested exclusively on macOS. The profile installation path (`~/Library/ColorSync/Profiles/`) and certain system integrations (dark title bar, macOS keychain) are macOS-specific. There are no plans for Windows or Linux support at this time.
+- **macOS only:** ChromIQ is developed and tested exclusively on macOS. The profile installation path (`~/Library/ColorSync/Profiles/`) and certain system integrations (dark title bar, macOS keychain) are macOS-specific. There are no plans for Windows or Linux support at this time. If you need a simple Windows or Linux option for printer profiling, try [Argyll_Printer_Profiler scripts](https://soul-traveller.github.io/Argyll_Printer_Profiler/) by Knut Georg Larsson.
 
 ---
 
 ## Log File
 
-ChromIQ writes a rotating log to `~/ChromIQ/chromiq.log` (max 2 MB, 3 backups). All ArgyllCMS commands and their full argument lists are recorded here at `INFO` level, which is useful for debugging unexpected behaviour.
+ChromIQ writes a rotating log to `~/Library/Logs/ChromIQ/chromiq.log` (max 2 MB, 3 backups). All ArgyllCMS commands and their full argument lists are recorded here at `INFO` level, which is useful for debugging unexpected behaviour.
 
 ---
 
