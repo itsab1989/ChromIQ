@@ -67,7 +67,7 @@ ChromIQ walks you through five steps of RGB printer profiling:
 | `SS` | X-Rite SpectroScan (flatbed XY) |
 
 ### Paper Size Support
-A4, A4 Landscape, A3, A3 Landscape, A2, US Letter, Letter Landscape, Legal, Tabloid (11×17)
+A2, A3+, A3, A4, Tabloid (11×17), Legal, Letter, and landscape variants of each — plus photo formats (8×10", 5×7", 4×6") and fully custom dimensions (width × height in mm)
 
 ### Key Capabilities
 - **ArgyllCMS auto-detection** at launch — searches the system PATH, Homebrew, MacPorts, and any versioned Argyll folder in `/Applications`. An **Auto-detect** button in Preferences re-runs detection on demand.
@@ -75,12 +75,15 @@ A4, A4 Landscape, A3, A3 Landscape, A2, US Letter, Letter Landscape, Legal, Tabl
 - Separate patch counts for charts with and without the left clip border (`-L` flag)
 - Double-density mode for ColorMunki/i1Studio with measuring rig (`-h` flag)
 - Live TIFF preview of the generated test chart
-- Direct TIFF printing via CUPS — color management forced off automatically, no manual option selection required, no ColorSync interference
+- **PostScript Level 2/3 printing pipeline** — generates a device-dependent PS document (`/DeviceRGB`, `/DeviceCMYK`, `/DeviceN`) with `%cupsJobTicket: cups-disable-cmm`, ensuring zero colour transforms between the app and the printer
+- **CMYK and multi-channel (DeviceN) target support** — 4-channel CMYK and 5–17 channel extended-gamut targets (e.g. CMYK + LC LM) print correctly without colour channel corruption
+- **16-bit TIFF printing** via PostScript Level 3 for printers and RIPs with a true 16-bit pipeline (`printtarg -T300`)
+- **Automatic TIFF fallback** for AirPrint/driverless printers that reject PostScript — retries with colour-space-aware CUPS raster options, bypassing ColorSync without requiring PostScript support
 - **Multi-page TIFF support** — Print Current Page and Print All Pages correctly extract and send individual frames from multi-page charts
 - **Printer reachability check** — detects offline printers before submitting a job and shows a clear error dialog
 - **Clear Print Queue** button and stuck-job pre-print detection — cancels held or aborted jobs before submitting a new one
 - **AirPrint driver detection** in the Print tab — identifies when no configurable options are available and explains how to reinstall the printer with a native PPD driver
-- **Zoomable TIFF preview** panel on every tab (labelled CHART PREVIEW / PRINT PREVIEW) — live view of the generated chart updates as parameters change
+- **Zoomable TIFF preview** with full multi-channel support — displays RGB, CMYK, and extended-gamut TIFFs (up to 8 inks) with ICC-accurate colour conversion (US Web Coated SWOP v2); LZW-compressed files supported
 - **Spectral filter type** option in Measure tab (`-F` flag) — override the measurement condition (M0 / M1 / M2 / M3) for instruments that support it
 - Full `colprof` option set: illuminant (D50, D65, A, C, F5, F8, F10), observer (1931 2°, 1964 10°, 2015 variants), FWA compensation, gamut mapping source profiles, rendering intent overrides
 - Per-tab **Save as Defaults** and named user presets (Manual mode) for repeatable workflows
@@ -154,8 +157,8 @@ Copy `dist/ChromIQ.app` to `/Applications` and launch like any other macOS app. 
 ### Step 2 — Print Chart
 - Select your printer from the dropdown (click ↺ to refresh the list)
 - Configure paper slot, media type, and print quality if needed
-- Use **No Color Adjustment** in your printer driver to bypass color management when printing
-- Click **Print Page X** for each page of the chart
+- Click **Print Page X** for each page of the chart — color management is disabled automatically via the PostScript pipeline; no driver settings need changing
+- For AirPrint/driverless printers, ChromIQ falls back to TIFF automatically if the printer rejects PostScript
 
 ### Step 3 — Measure Chart
 - The `.ti2` file from Step 1 is loaded automatically
@@ -217,7 +220,7 @@ ChromIQ/
     ├── chart_creator.py       # targen + printtarg orchestration
     ├── cups_printer.py        # lp command wrapper
     ├── measure_manager.py     # chartread orchestration
-    ├── postscript_generator.py  # PostScript generation — internal infrastructure, not used in current workflow
+    ├── postscript_generator.py  # PostScript Level 2/3 document generation for the print pipeline
     ├── print_manager.py       # Printer enumeration (lpstat)
     ├── profile_builder.py     # colprof orchestration
     └── profcheck_runner.py    # profcheck orchestration, ΔE parsing, quality grading, refinement guidance
