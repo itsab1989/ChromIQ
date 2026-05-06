@@ -88,6 +88,8 @@ A2, A3+, A3, A4, Tabloid (11×17), Legal, Letter, and landscape variants of each
 - Full `colprof` option set: illuminant (D50, D65, A, C, F5, F8, F10), observer (1931 2°, 1964 10°, 2015 variants), FWA compensation, gamut mapping source profiles, rendering intent overrides
 - Per-tab **Save as Defaults** and named user presets (Manual mode) for repeatable workflows
 - Automatic session naming based on printer, paper, media type, instrument, and timestamp
+- **Optional calibration workflow** (`printcal → applycal`) — enabled via Preferences → Behaviour → "Enable calibration options" (off by default). When active: guided panels are hidden, Tab 4 becomes "Calibration & Profiling" with three modules (Create Calibration File, Build Profile, Apply Calibration), and measurements whose filename starts with `cal_` are automatically routed to the calibration module
+- **Session restore** — "Restore last session on launch" in Preferences reloads the previously active project files (`.ti2`, `.ti3`, `.icc`) on startup
 - **Update checker** — silent background check on launch; manual check available in Preferences
 - Settings persist between sessions via `QSettings`
 
@@ -222,6 +224,8 @@ ChromIQ/
     ├── measure_manager.py     # chartread orchestration
     ├── postscript_generator.py  # PostScript Level 2/3 document generation for the print pipeline
     ├── print_manager.py       # Printer enumeration (lpstat)
+    ├── printcal_runner.py     # printcal orchestration (calibration curve generation)
+    ├── applycal_runner.py     # applycal orchestration (bake/remove/check calibration on ICC)
     ├── profile_builder.py     # colprof orchestration
     └── profcheck_runner.py    # profcheck orchestration, ΔE parsing, quality grading, refinement guidance
 ```
@@ -238,6 +242,14 @@ All settings are stored via `QSettings` (macOS: `~/Library/Preferences/ChromIQ.C
 |---------|---------|-------------|
 | ArgyllCMS bin path | `/Applications/Argyll/bin` | Directory containing the ArgyllCMS executables |
 | Output folder | `~/ChromIQ/` | Root folder for all chart/profile sessions |
+
+**Behaviour settings** (Preferences → Behaviour):
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Restore last active tab on launch | On | Re-opens on the tab that was active when the app was closed |
+| Restore last session on launch | Off | Reloads previously loaded files (`.ti2`, `.ti3`, `.icc`) on startup |
+| Enable calibration options | Off | Unlocks the full `printcal → applycal` calibration workflow |
 
 **Per-tab defaults** — every tab has a **Save as Defaults** button that persists the current parameter values for that step. Defaults are restored on the next launch.
 
