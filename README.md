@@ -77,13 +77,15 @@ A2, A3+, A3, A4, Tabloid (11×17), Legal, Letter, and landscape variants of each
 - Live TIFF preview of the generated test chart
 - **PostScript Level 2/3 printing pipeline** — generates a device-dependent PS document (`/DeviceRGB`, `/DeviceCMYK`, `/DeviceN`) with `%cupsJobTicket: cups-disable-cmm`, ensuring zero colour transforms between the app and the printer
 - **CMYK and multi-channel (DeviceN) target support** — 4-channel CMYK and 5–17 channel extended-gamut targets (e.g. CMYK + LC LM) print correctly without colour channel corruption
+- **Cascading colorant slot overrides** (Create Chart — Manual mode) — up to 11 stacked `-D` modifications configure extended-gamut inksets (e.g. CMYK + Orange + Green + Light Cyan) directly in the UI; enabling one slot reveals the next, and values are saved and restored through presets and Save Defaults
 - **16-bit TIFF printing** via PostScript Level 3 for printers and RIPs with a true 16-bit pipeline (`printtarg -T300`)
 - **Automatic TIFF fallback** for AirPrint/driverless printers that reject PostScript — retries with colour-space-aware CUPS raster options, bypassing ColorSync without requiring PostScript support
 - **Multi-page TIFF support** — Print Current Page and Print All Pages correctly extract and send individual frames from multi-page charts
 - **Printer reachability check** — detects offline printers before submitting a job and shows a clear error dialog
 - **Clear Print Queue** button and stuck-job pre-print detection — cancels held or aborted jobs before submitting a new one
 - **AirPrint driver detection** in the Print tab — identifies when no configurable options are available and explains how to reinstall the printer with a native PPD driver
-- **Zoomable TIFF preview** with full multi-channel support — displays RGB, CMYK, and extended-gamut TIFFs (up to 8 inks) with ICC-accurate colour conversion (US Web Coated SWOP v2); LZW-compressed files supported
+- **Optional native macOS printer dialog** — a toggle in Preferences → Behaviour replaces the built-in PostScript/CUPS pipeline with the standard macOS print sheet; the Print tab shows per-brand instructions for disabling colour management in the driver panel (Epson, Canon, HP, and others) when this mode is active
+- **Zoomable TIFF preview** with full multi-channel support — displays RGB, CMYK, and extended-gamut TIFFs (up to 11 inks) with ICC-accurate colour conversion (US Web Coated SWOP v2); LZW-compressed files supported
 - **Spectral filter type** option in Measure tab (`-F` flag) — override the measurement condition (M0 / M1 / M2 / M3) for instruments that support it
 - Full `colprof` option set: illuminant (D50, D65, A, C, F5, F8, F10), observer (1931 2°, 1964 10°, 2015 variants), FWA compensation, gamut mapping source profiles, rendering intent overrides
 - Per-tab **Save as Defaults** and named user presets (Manual mode) for repeatable workflows
@@ -167,6 +169,7 @@ Copy `dist/ChromIQ.app` to `/Applications` and launch like any other macOS app. 
 - Configure paper slot, media type, and print quality if needed
 - Click **Print Page X** for each page of the chart — color management is disabled automatically via the PostScript pipeline; no driver settings need changing
 - For AirPrint/driverless printers, ChromIQ falls back to TIFF automatically if the printer rejects PostScript
+- If "Use default macOS printer dialog" is enabled in Preferences, the native macOS print sheet opens instead — disable colour management manually in the driver panel (per-brand instructions are shown in the Print tab)
 
 ### Step 3 — Measure Chart
 - The `.ti2` file from Step 1 is loaded automatically
@@ -262,6 +265,7 @@ All settings are stored via `QSettings` (macOS: `~/Library/Preferences/ChromIQ.C
 | Restore last active tab on launch | On | Re-opens on the tab that was active when the app was closed |
 | Restore last session on launch | Off | Reloads previously loaded files (`.ti2`, `.ti3`, `.icc`) on startup |
 | Enable calibration options | Off | Unlocks the full `printcal → applycal` calibration workflow |
+| Use default macOS printer dialog | Off | Opens the native macOS print sheet instead of the built-in PostScript/CUPS pipeline |
 
 **Per-tab defaults** — every tab has a **Save as Defaults** button that persists the current parameter values for that step. Defaults are restored on the next launch.
 
