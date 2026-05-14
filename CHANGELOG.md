@@ -1,5 +1,20 @@
 # Changelog
 
+## v3.2.9
+### Fixed
+- **Landscape charts printed as portrait on the CUPS PostScript path** (#14, #15).
+  When the chart's pixel aspect contradicted the selected paper orientation,
+  `PostScriptGenerator` was emitting `setpagedevice` with portrait dimensions
+  and then drawing the landscape image on top. Apple's `pstops` filter
+  double-rotated the result: HP and some other CUPS drivers clipped columns
+  A–E (#14) or silently dropped the job entirely (#15). `PostScriptGenerator`
+  now swaps `page_w`/`page_h` in `setpagedevice` to match the TIFF aspect
+  before the PostScript is written. `CupsRawPrinter._build_lp_command_ps()` no
+  longer forwards `orientation-requested` to `lp` on the PostScript path — the
+  document now fully describes its own geometry, so `pstops` has nothing to
+  rotate. The raw-TIFF fallback path is unaffected and still uses
+  `orientation-requested`.
+
 ## v3.2.8
 ### Fixed
 - **Intel-only DMG (`ChromIQ-macOS-x86_64.dmg`) failed to launch** with
