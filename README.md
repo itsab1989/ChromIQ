@@ -133,7 +133,8 @@ A2, A3+, A3, A4, Tabloid (11×17), Legal, Letter, and landscape variants of each
 - **Printer reachability check** — detects offline printers before submitting a job and shows a clear error dialog
 - **Clear Print Queue** button and stuck-job pre-print detection — cancels held or aborted jobs before submitting a new one
 - **AirPrint driver detection** in the Print tab — identifies when no configurable options are available and explains how to reinstall the printer with a native PPD driver
-- **Optional native macOS printer dialog** — a toggle in Preferences → Behaviour replaces the built-in PostScript/CUPS pipeline with the standard macOS print sheet; per-brand instructions for disabling colour management (Epson, Canon, HP) are shown in the Print tab and Preferences tooltip
+- **Optional native macOS printer dialog** — a toggle in Preferences → Behaviour opens the real macOS print panel via PyObjC and locks `AP_ApplicationColorMatching` mode automatically (no manual driver interaction needed); a post-print verification confirms the lock and shows a warning if it couldn't be applied. On Windows and Linux the native OS print dialog is always used — disable colour management manually in the driver panel (per-brand instructions are shown in the Print tab)
+- **Print preflight confirmation** — before each job, ChromIQ shows a summary of all options being sent (printer, paper, tray, media, quality, orientation, duplex, colour-management status, and any detected mismatches); toggleable via "Confirm print settings before sending to printer" in Preferences (on by default). **Automatic page orientation** matches the chart aspect ratio to the selected paper, and a **paper-size mismatch warning** flags discrepancies before you waste ink
 - **Zoomable TIFF preview** with full multi-channel support — displays RGB, CMYK, and extended-gamut TIFFs (up to 11 inks) with ICC-accurate colour conversion (US Web Coated SWOP v2); LZW-compressed files supported
 - **Spectral filter type** option in Measure tab (`-F` flag) — override the measurement condition (M0 / M1 / M2 / M3) for instruments that support it
 - Full `colprof` option set: illuminant (D50, D65, A, C, F5, F8, F10), observer (1931 2°, 1964 10°, 2015 variants), FWA compensation, gamut mapping source profiles, rendering intent overrides
@@ -141,8 +142,12 @@ A2, A3+, A3, A4, Tabloid (11×17), Legal, Letter, and landscape variants of each
 - **Interactive 3D ICC gamut viewer** (Check & Refine tab) — powered by ArgyllCMS `iccgamut` + `viewgam` + X3DOM; renders the profile gamut as a zoomable 3D mesh in-app with volume in ΔE³; options include rendering intent, colour space (Lab / CIECAM02 Jab), surface resolution, axes, cusp markers, and edge plot; themed to ChromIQ's spectrum accent colours; compare against a second ICC/ICM profile with delta %, intersection volume, and bidirectional coverage statistics
 - **Windows WinUSB driver installer** — detects connected ArgyllCMS-compatible colorimeters via the Windows registry and installs the WinUSB driver silently with UAC elevation; falls back to bundled Zadig GUI if needed (Windows only)
 - Per-tab **Save as Defaults** and named user presets (Manual mode) for repeatable workflows
+- **Auto patch count** (Create Chart — Manual mode) — an "Auto" checkbox computes the exact patch count to fill a requested number of pages at Generate time, running a binary search when needed; the spinbox displays "Auto" while active
+- **Self-documenting chart TIFFs** — the exact `targen` and `printtarg` commands plus the ChromIQ version are stamped as a rotated text line in the right margin of every generated TIFF; an optional "Chart notes" field (e.g. printer / paper details) rides along on the same stamp
+- **Measurement error recovery** — the misread dialog offers Retry / Skip Stripe / Save Partial & Quit; "Save Partial & Quit" writes the `.ti3` with unread patches intact and automatically arms the resume checkbox so one click continues from where measurement left off
+- **i1Pro margin auto-set to 10 mm** — for i1Pro / i1Pro 3 Plus the guided workflow silently applies a 10 mm page margin (vs. 6 mm for other instruments) to prevent strip-end clipping and "not enough patches read" errors; Manual mode pre-selects it when the instrument is picked but never overwrites a value typed by hand
 - Automatic session naming based on printer, paper, media type, instrument, and timestamp
-- **Optional calibration workflow** (`printcal → applycal`) — enabled via Preferences → Behaviour → "Enable calibration options" (off by default). When active: guided panels are hidden, Tab 4 becomes "Calibration & Profiling" with three modules (Create Calibration File, Build Profile, Apply Calibration), and measurements whose filename starts with `cal_` are automatically routed to the calibration module. **Create Calibration File** supports per-channel initial target overrides for C/M/Y/K and extended inkset channels (Ch4–Ch7), calibration metadata embedding (description, manufacturer, model, copyright flags `-D`/`-A`/`-M`/`-C`), imitation target mode (`-I`) to derive a null-calibration from an existing `.ti3`, a dry-run checkbox (`-d`) to simulate the calibration without writing any files, a spectrum progress bar, and a result dialog that offers "Go to Create Chart →" with the `.cal` path pre-filled. **Apply Calibration** shows a spectrum progress bar and a result dialog with "Install on this Mac". When calibration mode is active, the Build Profile result dialog also offers "Apply Calibration →" with the ICC path pre-filled; and the Measure completion dialog routes `cal_*` measurements to "Create Calibration File →" automatically
+- **Optional calibration workflow** (`printcal → applycal`) — enabled via Preferences → Behaviour → "Enable calibration options" (off by default). When active: guided panels are hidden, Tab 4 becomes "Calibration & Profiling" with three modules (Create Calibration File, Build Profile, Apply Calibration), and measurements whose filename starts with `cal_` are automatically routed to the calibration module. **Create Calibration File** supports per-channel initial target overrides for C/M/Y/K and extended inkset channels (Ch4–Ch7), calibration metadata embedding (description, manufacturer, model, copyright flags `-D`/`-A`/`-M`/`-C`), imitation target mode (`-I`) to derive a null-calibration from an existing `.ti3`, a dry-run checkbox (`-d`) to simulate the calibration without writing any files, a spectrum progress bar, and a result dialog that offers "Go to Create Chart →" with the `.cal` path pre-filled. **Apply Calibration** shows a spectrum progress bar and a result dialog with "Install Profile". When calibration mode is active, the Build Profile result dialog also offers "Apply Calibration →" with the ICC path pre-filled; and the Measure completion dialog routes `cal_*` measurements to "Create Calibration File →" automatically
 - **Responsive window sizing** — the window scales to fit the available screen on launch (13″ MacBook 1280×800 and larger); minimum size 900×650 enforced; geometry saved on a large display is clamped to the current screen on the next launch; the Print Chart options panel scrolls vertically on small screens
 - **Session restore** — "Restore last session on launch" in Preferences reloads the previously active project files (`.ti2`, `.ti3`, `.icc`) on startup
 - **Guided pre-conditioning (refinement) workflow** — the *Generate Chart* panel exposes an optional refinement section: tick the box and pick an existing `.icc` / `.icm` / `.mpp` to drive a `targen -c` second-pass profiling run. The *Build Profile* and *Check & Refine* result dialogs offer a one-click **Use as Pre-conditioning** action that pre-fills the chart picker with the just-built profile; the prior session's `.icc` / `.ti3` are auto-renamed `pre_*` so v1 isn't lost.
@@ -157,6 +162,7 @@ A2, A3+, A3, A4, Tabloid (11×17), Legal, Letter, and landscape variants of each
 ### System
 - **macOS:** macOS 13 Ventura or later (Apple Silicon and Intel supported)
 - **Windows:** Windows 10 or later (x64 or ARM64)
+- **Linux:** glibc-based distributions, x86_64 or aarch64 (beta) — see [Linux (beta)](#linux-beta) above
 - [ArgyllCMS 3.5.0](https://www.argyllcms.com/downloaddev.html) — ChromIQ auto-detects ArgyllCMS at launch. On macOS: scans the system PATH, Homebrew, MacPorts, and any versioned Argyll folder in `/Applications`. On Windows: checks `C:\Program Files\ArgyllCMS\bin` and `%LOCALAPPDATA%\ArgyllCMS\bin`. The path can be overridden or re-detected from Preferences on both platforms.
 
 ### To run from source
@@ -254,6 +260,7 @@ ChromIQ/
 ├── main.py                    # Entry point
 ├── ChromIQ.spec               # PyInstaller build spec (macOS)
 ├── ChromIQWin.spec            # PyInstaller build spec (Windows)
+├── ChromIQLinux.spec          # PyInstaller build spec (Linux)
 ├── requirements.txt
 ├── assets/                    # App icons and UI images
 ├── core/
@@ -266,6 +273,7 @@ ChromIQ/
 │   ├── strip_utils.py         # Strip label parsing and TIFF zone detection
 │   ├── updater.py             # Background update checker (GitHub releases API)
 │   ├── usb_driver_installer.py  # Windows: colorimeter detection and WinUSB driver installation via libwdi
+│   ├── platform_paths.py      # Cross-platform path resolution (log dir, ICC install location, Argyll bin defaults)
 │   └── version.py             # Application version constant
 ├── data/
 │   ├── parameters.yaml        # All targen/printtarg/colprof flags + tooltips
@@ -286,7 +294,8 @@ ChromIQ/
 │   ├── gamut_panel.py         # 3D gamut viewer panel widget (iccgamut + X3DOM via QWebEngineView)
 │   ├── widgets.py             # Shared widget helpers (browse buttons, etc.)
 │   ├── dialogs/
-│   │   └── settings_dialog.py # Preferences dialog
+│   │   ├── settings_dialog.py # Preferences dialog
+│   │   └── preflight_dialog.py  # Print preflight confirmation dialog
 │   └── tabs/
 │       ├── tab_chart.py           # Step 1: chart creation
 │       ├── tab_print.py           # Step 2: CUPS printing
@@ -304,7 +313,10 @@ ChromIQ/
     ├── profile_builder.py     # colprof orchestration
     ├── profcheck_runner.py    # profcheck orchestration, ΔE parsing, quality grading, refinement guidance
     ├── gamut_viewer.py        # iccgamut orchestration, volume computation, X3DOM 3D mesh generation
-    └── viewgam_runner.py      # viewgam orchestration, gamut comparison and coverage statistics
+    ├── viewgam_runner.py      # viewgam orchestration, gamut comparison and coverage statistics
+    ├── native_print_macos.py  # macOS native print dialog implementation (PyObjC, colour-management lock)
+    ├── page_geometry.py       # Chart page geometry computation (aspect ratio, orientation, DPI)
+    └── tiff_metadata.py       # TIFF right-margin command stamp and chart notes
 ```
 
 ---
@@ -328,6 +340,7 @@ All settings are stored via `QSettings` (macOS: `~/Library/Preferences/ChromIQ.C
 | Restore last session on launch | Off | Reloads previously loaded files (`.ti2`, `.ti3`, `.icc`) on startup |
 | Enable calibration options | Off | Unlocks the full `printcal → applycal` calibration workflow |
 | Use default macOS printer dialog | Off | Opens the native macOS print sheet instead of the built-in PostScript/CUPS pipeline (macOS only) |
+| Confirm print settings before sending | On | Shows a preflight summary of all print options before every job |
 | Use app theme colours for 3D gamut viewer | On | Remaps gamut mesh vertex colours to ChromIQ's spectrum accent palette |
 
 **Per-tab defaults** — every tab has a **Save as Defaults** button that persists the current parameter values for that step. Defaults are restored on the next launch.
@@ -342,7 +355,7 @@ Each session creates a subfolder named after the target (e.g. `~/ChromIQ/Canon_A
 
 In **Guided mode** ChromIQ determines how many color patches to generate:
 
-1. **Direct lookup** — for standard `patch_scale` (1.0) and `margin_mm` (6 mm), the empirical database in `data/patch_db.py` is consulted. Separate values are stored for charts with (`-L`) and without the left clip border.
+1. **Direct lookup** — the empirical database in `data/patch_db.py` is consulted. Separate values are stored for charts with (`-L`) and without the left clip border, and for two margin settings: 6 mm (ColorMunki / SpectroScan) and 10 mm (i1Pro / i1Pro 3 Plus — raised to prevent strip-end clipping on the narrower scanning head).
 2. **Binary search fallback** — for custom scale or margin settings, ChromIQ runs a series of quick `targen`/`printtarg` probes to find the maximum patch count that fits on a single page.
 
 The database values were measured with Argyll 3.5.0 at 300 DPI. All common instrument/paper combinations are covered.
@@ -408,13 +421,25 @@ Please include the contents of the in-app log panel (or the file under `~/Librar
 
 ## Log File
 
-ChromIQ writes a rotating log to `~/Library/Logs/ChromIQ/chromiq.log` (max 2 MB, 3 backups). All ArgyllCMS commands and their full argument lists are recorded here at `INFO` level, which is useful for debugging unexpected behaviour.
+ChromIQ writes a rotating log (max 5 MB × 5 backups) to:
+
+- **macOS:** `~/Library/Logs/ChromIQ/chromiq.log`
+- **Windows:** `%LOCALAPPDATA%\ChromIQ\Logs\chromiq.log`
+- **Linux:** `~/.local/state/ChromIQ/logs/chromiq.log`
+
+Every ArgyllCMS command and its full argument list is recorded at `INFO` level. Each session opens with a banner stamped with the local time, app version, platform, and Python version. Tab switches are logged with `---- Tab → <name> ----` markers so it's easy to locate output from a specific workflow step.
 
 ---
 
 ## License
 
 To be determined.
+
+---
+
+## Support
+
+ChromIQ is free and open-source. If it has saved you time and paper, [buying me a coffee on Ko-fi](https://ko-fi.com/itsab1989) is a kind way to say thanks and helps keep the project going.
 
 ---
 
