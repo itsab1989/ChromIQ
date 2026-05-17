@@ -16,14 +16,14 @@ Supported instruments: X-Rite i1Pro, i1Pro 2, i1Pro 3, i1Pro 3 Plus, ColorMunki,
 2. Open the DMG — a Finder window appears.
 3. Drag **ChromIQ** into your **Applications** folder.
 4. Eject the DMG (⌘E or drag it to the Trash).
-5. Open your **Applications** folder and double-click **ChromIQ**.
+5. Open your **Applications** folder, **right-click ChromIQ** and choose **Open** from the menu, then click **Open** in the dialog that appears. This one-time step tells macOS you trust the app.
 
-> **"Apple cannot check it for malicious software"?**
-> ChromIQ is ad-hoc signed but not notarized. On macOS Sonoma (14) and later, right-click → Open no longer bypasses Gatekeeper for unsigned apps. Run this one-time command in Terminal instead:
+> **Dialog has no Open button (macOS Sonoma 14+ only)?**
+> On Sonoma and later, right-click → Open sometimes shows only a "Done" button with no way to proceed. If that happens, run this one-time command in Terminal:
 > ```
 > xattr -dr com.apple.quarantine /Applications/ChromIQ.app
 > ```
-> Then double-click ChromIQ again — it will open normally from this point on.
+> Then double-click ChromIQ normally — no further steps needed.
 
 6. On first launch, ChromIQ automatically searches for ArgyllCMS. If it isn't found, a setup guide opens — follow the on-screen steps or see [First-time setup](#first-time-setup) below.
 
