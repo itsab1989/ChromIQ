@@ -8,59 +8,72 @@ Supported instruments: X-Rite i1Pro, i1Pro 2, i1Pro 3, i1Pro 3 Plus, ColorMunki,
 
 ---
 
-## Download
+## Download & First Launch
 
 ### macOS
 
-Pre-built DMGs are attached to each [GitHub Release](https://github.com/itsab1989/ChromIQ/releases/latest):
+1. Go to the [Releases page](https://github.com/itsab1989/ChromIQ/releases/latest) and download **`ChromIQ-macOS-universal.dmg`** (works on both Apple Silicon and Intel).
+2. Open the DMG — a Finder window appears.
+3. Drag **ChromIQ** into your **Applications** folder.
+4. Eject the DMG (⌘E or drag it to the Trash).
+5. Open your **Applications** folder and double-click **ChromIQ**.
 
-| Build | Runs on |
-|-------|---------|
-| `ChromIQ-macOS-universal.dmg` | Apple Silicon **and** Intel (recommended) |
-| `ChromIQ-macOS-arm64.dmg` | Apple Silicon only |
+> **"Apple cannot check it for malicious software"?**
+> ChromIQ is ad-hoc signed but not notarized. On macOS Sonoma (14) and later, right-click → Open no longer bypasses Gatekeeper for unsigned apps. Run this one-time command in Terminal instead:
+> ```
+> xattr -dr com.apple.quarantine /Applications/ChromIQ.app
+> ```
+> Then double-click ChromIQ again — it will open normally from this point on.
 
-Open the DMG, drag ChromIQ to Applications, eject, then launch.
+6. On first launch, ChromIQ automatically searches for ArgyllCMS. If it isn't found, a setup guide opens — follow the on-screen steps or see [First-time setup](#first-time-setup) below.
 
-ChromIQ is ad-hoc signed (not notarized). On macOS Sonoma+ Gatekeeper may refuse to launch the app with *"Apple cannot check it for malicious software."* If that happens, remove the quarantine flag in Terminal:
-
-```
-xattr -dr com.apple.quarantine /Applications/ChromIQ.app
-```
-
-Then double-click as normal. ArgyllCMS must be installed separately — see [Requirements](#requirements).
+---
 
 ### Windows
 
-Pre-built ZIPs are attached to each [GitHub Release](https://github.com/itsab1989/ChromIQ/releases/latest):
+1. Go to the [Releases page](https://github.com/itsab1989/ChromIQ/releases/latest) and download the right build for your PC:
+   - **`ChromIQ-Windows-x64.zip`** — 64-bit Intel or AMD (most PCs)
+   - **`ChromIQ-Windows-arm64.zip`** — ARM64 (e.g. Snapdragon X laptops)
+2. Right-click the ZIP → **Extract All…**, then open the extracted `ChromIQ` folder.
+3. Double-click **`ChromIQ.exe`**.
 
-| Build | Runs on |
-|-------|---------|
-| `ChromIQ-Windows-x64.zip` | 64-bit Intel / AMD (most PCs) |
-| `ChromIQ-Windows-arm64.zip` | ARM64 (e.g. Snapdragon X laptops) |
+> **Windows SmartScreen says "Windows protected your PC"?**
+> This is expected for apps without a paid code-signing certificate. Click **More info**, then **Run anyway**.
 
-Extract the ZIP, open the `ChromIQ` folder, and run `ChromIQ.exe`. Windows SmartScreen may warn on first launch — click **More info → Run anyway**. See [Windows](#windows) below for ArgyllCMS setup and differences from macOS.
+4. On first launch, ChromIQ automatically searches for ArgyllCMS in `C:\Program Files\ArgyllCMS\bin` and `%LOCALAPPDATA%\ArgyllCMS\bin`. If it isn't found, a setup guide opens — see [First-time setup](#first-time-setup) below.
+
+---
 
 ### Linux (beta)
 
-Pre-built tarballs are attached to each [GitHub Release](https://github.com/itsab1989/ChromIQ/releases/latest):
+1. Go to the [Releases page](https://github.com/itsab1989/ChromIQ/releases/latest) and download the right build:
+   - **`ChromIQ-Linux-x86_64.tar.gz`** — 64-bit Intel / AMD
+   - **`ChromIQ-Linux-aarch64.tar.gz`** — 64-bit ARM (Raspberry Pi 4/5, ARM workstations)
+2. Extract the archive:
+   ```
+   tar xzf ChromIQ-Linux-x86_64.tar.gz
+   ```
+3. Run ChromIQ:
+   ```
+   ./ChromIQ/ChromIQ
+   ```
 
-| Build | Runs on |
-|-------|---------|
-| `ChromIQ-Linux-x86_64.tar.gz` | 64-bit Intel / AMD (most desktops & laptops) |
-| `ChromIQ-Linux-aarch64.tar.gz` | 64-bit ARM (Raspberry Pi 4/5, ARM workstations) |
+> **`qt.qpa.plugin: ... xcb-cursor0 ...` on launch?**
+> Install the missing system library:
+> ```
+> sudo apt install libxcb-cursor0        # Debian / Ubuntu
+> sudo dnf install xcb-util-cursor       # Fedora / RHEL
+> sudo pacman -S xcb-util-cursor         # Arch
+> ```
 
-Extract it and run the `ChromIQ` binary inside:
+4. Install ArgyllCMS from your package manager:
+   - **Debian / Ubuntu:** `sudo apt install argyll`
+   - **Fedora:** `sudo dnf install argyllcms`
+   - **Arch:** `sudo pacman -S argyllcms`
+   - Or download the latest version from [argyllcms.com](https://www.argyllcms.com/downloadlinux.html)
+5. ChromIQ auto-detects ArgyllCMS at `/usr/bin` and common fallback paths. If needed, set the path manually in **Preferences → ArgyllCMS bin path**.
 
-```
-tar xzf ChromIQ-Linux-x86_64.tar.gz
-./ChromIQ/ChromIQ
-```
-
-Install ArgyllCMS from your distribution's package manager (`sudo apt install argyll` on Debian/Ubuntu) or from [argyllcms.com](https://www.argyllcms.com/downloadlinux.html). ChromIQ defaults to `/usr/bin` and falls back to `/usr/local/bin`, `/opt/argyll/bin`, etc. — override the path in **Preferences** if your install lives elsewhere. Logs are written to `~/.local/state/ChromIQ/logs/chromiq.log` (or `$XDG_STATE_HOME/ChromIQ/logs/` if set), and the **Install Profile** action writes to `~/.local/share/color/icc/` (or `$XDG_DATA_HOME/color/icc/`).
-
-If the binary aborts with `qt.qpa.plugin: ... xcb-cursor0 ... is needed to load the Qt xcb platform plugin`, the bundled xcb helper libs were not picked up on your distro — install the system package as a fallback: `sudo apt install libxcb-cursor0` (Debian/Ubuntu), `sudo dnf install xcb-util-cursor` (Fedora/RHEL), or `sudo pacman -S xcb-util-cursor` (Arch).
-
-Linux support is currently **beta** — please report what works and what doesn't via [Discussions](https://github.com/itsab1989/ChromIQ/discussions) or the issue tracker.
+Linux support is currently **beta** — please report what works and what doesn't via [Discussions](https://github.com/itsab1989/ChromIQ/discussions) or the [issue tracker](https://github.com/itsab1989/ChromIQ/issues).
 
 ---
 
@@ -183,11 +196,9 @@ imagecodecs >= 2024.0.0
 
 ---
 
-## Installation
+## Building from source
 
-### Pre-built app (recommended)
-
-Download the latest DMG from the [Releases page](https://github.com/itsab1989/ChromIQ/releases/latest), open it, drag ChromIQ to Applications, and launch. No Python or build tools required.
+> The pre-built downloads above cover most users. Only continue here if you want to run or modify the source code directly.
 
 ### From source
 
@@ -216,9 +227,16 @@ Copy `dist/ChromIQ.app` to `/Applications` and launch like any other macOS app. 
 ## Usage
 
 ### First-time setup
-1. Install ArgyllCMS — download from [argyllcms.com](https://www.argyllcms.com/downloadmac.html), extract the archive, and move the folder to `/Applications`
-2. Launch ChromIQ — it auto-detects ArgyllCMS and configures itself. If detection fails, a setup guide opens with instructions.
-3. (Optional) Open **Preferences** (⌘,) → click **Auto-detect** to re-run detection, or browse to the `bin` folder manually, then **Test binaries** to confirm
+
+**Install ArgyllCMS** before or after installing ChromIQ:
+- **macOS** — download from [argyllcms.com](https://www.argyllcms.com/downloadmac.html), extract the archive, and move the folder to `/Applications` (e.g. `/Applications/Argyll_V3.5.0/`)
+- **Windows** — download `win64` from [argyllcms.com](https://www.argyllcms.com/downloadwin.html) and extract to `C:\Program Files\ArgyllCMS\`
+- **Linux** — use your package manager (`sudo apt install argyll`) or download from [argyllcms.com](https://www.argyllcms.com/downloadlinux.html)
+
+**On first launch**, ChromIQ searches for ArgyllCMS automatically. If it is found, you are ready to go. If not:
+1. A setup guide opens — follow the on-screen instructions
+2. Or open **Preferences** (`⌘,` on macOS / `Ctrl+,` on Windows & Linux), click **Auto-detect**, and ChromIQ will search again
+3. If auto-detection still fails, click **Browse** and navigate manually to the ArgyllCMS `bin` folder, then click **Test binaries** to confirm everything is working
 
 ### Step 1 — Create Chart
 - Choose **Guided** or **Manual** mode
