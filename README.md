@@ -279,6 +279,8 @@ Copy `dist/ChromIQ.app` to `/Applications` and launch like any other macOS app. 
 
 ## Usage
 
+> Every workflow tab has a clickable **ⓘ** icon next to its title that opens a beginner-friendly explanation of what the screen does, what needs to be ready (devices connected, paper loaded…), how to use it, and what comes next — the README below is a quick reference; the in-app tooltips are the full guide.
+
 ### First-time setup
 
 **Install ArgyllCMS** before or after installing ChromIQ:
@@ -296,30 +298,44 @@ Copy `dist/ChromIQ.app` to `/Applications` and launch like any other macOS app. 
 - In Guided mode: select your instrument and paper size, set the number of pages, and ChromIQ calculates the optimal patch count automatically
 - Optionally toggle **Suppress left clip border (-L)** — suppressing it gains ~15 mm of printable width for extra patches; leave it on unless you use a physical paper-clip jig
 - Click **Generate Chart** — the TIFF preview appears on the right when done
+- Optional **Refinement (Optional)** section: tick **Refinement profile** and pick an existing `.icc` / `.icm` to drive a `targen -c` second-pass profiling run — useful for iteratively improving an existing profile rather than building from scratch
 
 ### Step 2 — Print Chart
 - Select your printer from the dropdown (click ↺ to refresh the list)
 - Configure paper slot, media type, and print quality if needed
 - Click **Print Page X** for each page of the chart — color management is disabled automatically via the PostScript pipeline; no driver settings need changing
 - For AirPrint/driverless printers, ChromIQ falls back to TIFF automatically if the printer rejects PostScript
-- On **Windows**, or when "Use default macOS printer dialog" is enabled in Preferences, the native OS print sheet opens — disable colour management manually in the driver panel (per-brand instructions are shown in the Print tab)
+- The **native OS print sheet** is used on Windows and Linux, and on macOS when "Use default macOS printer dialog" is enabled in Preferences — when it opens, disable colour management manually in the driver panel (per-brand instructions are shown in the Print tab)
+- Before each job a **Confirm Print Settings** dialog summarises printer, paper, media, quality, orientation, duplex, and colour-management status; toggle via *Confirm Print Settings* in Preferences (on by default)
+- If the printer is offline or has held / stuck jobs, ChromIQ flags it before sending — use the **Clear Print Queue** button (top right of the Print tab) to cancel held jobs and retry
 
 ### Step 3 — Measure Chart
 - The `.ti2` file from Step 1 is loaded automatically
 - Follow the on-screen prompts from `chartread`
 - Use **Enter/Space** to confirm each strip, **← →** to navigate, **ESC** to abort
+- On a misread, the dialog offers **Retry**, **Skip Stripe**, or **Save Partial && Quit** — the last option writes the partial `.ti3` and arms the **Refine / resume existing measurement (-r)** checkbox so one click continues from where you stopped on the next launch
+- For instruments that support it, set the **Spectral filter type (-F)** dropdown (None / M1 / M2 / M3) before measuring
 
 ### Step 4 — Build Profile
-- Review the colprof settings (quality, algorithm, gamut mapping, etc.)
+- Review the `colprof` settings (quality, algorithm, gamut mapping, etc.)
+- When supplying a Gamut Source profile, set the CIECAM02 viewing-condition presets — **Source viewing (-c)** and **Destination viewing (-d)** — to drive correct perceptual and saturation tables
+- Optionally embed ICC media attributes (Media Surface / Type / Polarity, Colour Type, Default Intent) from the **Color Science** group in Manual mode (`colprof -Z`)
 - Click **Build Profile** — the resulting `.icc` file is saved in the same folder as the chart
-- Click **Install Profile** to copy it directly to `~/Library/ColorSync/Profiles/` so it is immediately available system-wide
+- Click **Install Profile** to copy it to the standard system location so it is immediately available system-wide:
+  - **macOS** — `~/Library/ColorSync/Profiles`
+  - **Windows** — `C:\Windows\System32\spool\drivers\color`
+  - **Linux** — `~/.local/share/color/icc` (or `$XDG_DATA_HOME/color/icc`)
+- To iterate, click **← Use as Pre-conditioning** on the result dialog — the just-built profile pre-fills the Step 1 refinement chart picker and v1 is auto-archived as `pre_*`
+
+> **Calibration mode** — turn on **Enable Calibration Options** in Preferences to rename this tab to **4. Calibration & Profiling** with three modules: **Create Calibration File** (`printcal`), **Build Profile** (`colprof`), and **Apply Calibration** (`applycal`). The Build Profile result dialog then offers an additional **Apply Calibration →** shortcut, and measurement files whose names start with `cal_` are routed to the calibration module automatically.
 
 ### Step 5 — Check & Refine
 - The `.ti3` measurement file from Step 3 is loaded automatically
 - Click **Run profcheck** to evaluate the finished profile — per-patch ΔE statistics are shown in the log
 - Patches above the ΔE threshold are highlighted; click **Re-measure patches** to start a guided re-measurement of only those patches
 - After re-measurement, click **Build Profile** again to incorporate the improved data
-- The **Gamut Volume** panel on the right displays the gamut as a zoomable 3D mesh and reports the gamut volume (ΔE³); load a second profile to compare volumes, delta %, and bidirectional coverage
+- The **Gamut Volume** panel on the right renders the profile as a zoomable 3D mesh and reports its volume (ΔE³); use **Compare with:** to load a second profile and ChromIQ reports the volume delta (Δ %), intersection volume, and bidirectional coverage (*A covered by B* / *B covered by A*)
+- Click **← Use as Pre-conditioning** on the profcheck result dialog to start a Step 1 second-pass with the current profile pre-filled
 - Repeat until the profile accuracy meets your requirements
 
 ---
