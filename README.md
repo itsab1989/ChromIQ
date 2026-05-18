@@ -1,6 +1,13 @@
 # ChromIQ
 
-**ChromIQ** is a free, open-source desktop application for creating custom ICC profiles for RGB inkjet printers using [ArgyllCMS](https://www.argyllcms.com/). It provides a guided, five-step printer color calibration workflow that takes you from generating and printing a test chart through spectrophotometer measurement, ICC profile building with `colprof`, and quality verification with `profcheck` — without needing to touch the command line.
+**ChromIQ** is a free, open-source desktop application for creating custom ICC profiles for inkjet printers using [ArgyllCMS](https://www.argyllcms.com/). It guides you through a five-step workflow — generate a test chart, print it, measure it with a spectrophotometer, build the ICC profile with `colprof`, then verify and refine with `profcheck` — all without touching the command line. An optional `printcal → applycal → colprof` calibration mode is available from Preferences for users who want full per-channel ink calibration before profiling.
+
+What sets ChromIQ apart:
+
+- **Light / Dark / System (Auto) appearance** that follows your OS theme live.
+- **Interactive 3D gamut viewer** with profile-vs-profile comparison (delta %, intersection volume, bidirectional coverage).
+- **Print pipeline that bypasses colour management automatically** — PostScript Level 2/3 with TIFF fallback for AirPrint, plus an optional native OS print dialog.
+- **RGB, CMYK, and DeviceN multi-channel targets** up to 11 inks (e.g. CMYK + Orange + Green + Light Cyan).
 
 ChromIQ runs on **macOS**, **Windows** (x64 and ARM64), and **Linux** (x86_64 and aarch64, beta).
 
@@ -111,20 +118,24 @@ Linux support is currently **beta** — please report what works and what doesn'
 
 ## Features
 
-### Guided Workflow
-ChromIQ walks you through five steps of RGB printer profiling:
+### Five-step guided workflow
 
-1. **Create Chart** — generates a test chart using `targen` and `printtarg`, with automatic patch count calculation for your instrument/paper combination
-2. **Print Chart** — sends the chart TIFF directly to your printer via CUPS with configurable print options
-3. **Measure Chart** — drives your spectrophotometer with `chartread` to measure the printed patches
-4. **Build Profile** — runs `colprof` to generate a finished ICC profile
-5. **Check & Refine** — evaluates the finished profile with `profcheck`, shows per-patch ΔE statistics, and guides you through a targeted re-measurement to improve accuracy
+1. **Create Chart** — `targen` + `printtarg` generate a test chart with the optimal patch count for your instrument/paper combo.
+2. **Print Chart** — send the chart to the printer with colour management bypassed automatically.
+3. **Measure Chart** — drive your spectrophotometer with `chartread`.
+4. **Build Profile** — run `colprof` to write the finished ICC profile.
+5. **Check & Refine** — evaluate the profile with `profcheck`, then re-measure only the worst patches and rebuild.
 
-### Guided and Manual Modes
-- **Guided mode** (Step 1): Select instrument, paper size, and number of pages — ChromIQ looks up the optimal patch count from an empirical database and sets sensible defaults automatically.
-- **Manual mode** (Step 1): Full access to all `targen` and `printtarg` flags for advanced users.
+An optional `printcal → applycal → colprof` **calibration mode** (Preferences → Behaviour → *Enable calibration options*) turns Step 4 into a three-module panel — Create Calibration File, Build Profile, Apply Calibration — for users who want per-channel ink linearisation before profiling.
 
-### Instrument Support
+### Guided and Manual modes
+
+- **Guided** picks sensible defaults from an empirical patch-capacity database — just choose instrument, paper, and page count.
+- **Manual** exposes every `targen` / `printtarg` / `colprof` flag, with a live command preview.
+- Per-tab **Save as Defaults** and named **user presets** (Manual mode) make repeatable workflows easy.
+
+### Instrument and paper support
+
 | Code | Instrument |
 |------|-----------|
 | `i1` | X-Rite i1Pro / i1Pro 2 / i1Pro 3 |
@@ -132,45 +143,83 @@ ChromIQ walks you through five steps of RGB printer profiling:
 | `CM` | X-Rite ColorMunki / i1Studio / ColorChecker Studio |
 | `SS` | X-Rite SpectroScan (flatbed XY) |
 
-### Paper Size Support
-A2, A3+, A3, A4, Tabloid (11×17), Legal, Letter, and landscape variants of each — plus photo formats (8×10", 5×7", 4×6") and fully custom dimensions (width × height in mm)
+Paper sizes: A2, A3+, A3, A4, Tabloid (11×17), Legal, Letter (each with a landscape variant), photo formats (8×10", 5×7", 4×6"), and fully custom dimensions in mm.
 
-### Key Capabilities
-- **ArgyllCMS auto-detection** at launch — on macOS searches the system PATH, Homebrew, MacPorts, and any versioned Argyll folder in `/Applications`; on Windows checks `C:\Program Files\ArgyllCMS\bin` and `%LOCALAPPDATA%\ArgyllCMS\bin`; on Linux probes `/usr/bin`, `/usr/local/bin`, `/opt/argyll/bin`, `/opt/argyllcms/bin`, and `~/.local/bin`. An **Auto-detect** button in Preferences re-runs detection on demand.
-- Empirical patch capacity database (measured with Argyll 3.5.0) for instant lookup without binary search
-- Separate patch counts for charts with and without the left clip border (`-L` flag)
-- Double-density mode for ColorMunki/i1Studio with measuring rig (`-h` flag)
-- Live TIFF preview of the generated test chart
-- **PostScript Level 2/3 printing pipeline** — generates a device-dependent PS document (`/DeviceRGB`, `/DeviceCMYK`, `/DeviceN`) with `%cupsJobTicket: cups-disable-cmm`, ensuring zero colour transforms between the app and the printer
-- **CMYK and multi-channel (DeviceN) target support** — 4-channel CMYK and 5–17 channel extended-gamut targets (e.g. CMYK + LC LM) print correctly without colour channel corruption
-- **Cascading colorant slot overrides** (Create Chart — Manual mode) — up to 11 stacked `-D` modifications configure extended-gamut inksets (e.g. CMYK + Orange + Green + Light Cyan) directly in the UI; values and enabled states persist through presets and Save Defaults
-- **16-bit TIFF printing** via PostScript Level 3 for printers and RIPs with a true 16-bit pipeline (`printtarg -T300`)
-- **Automatic TIFF fallback** for AirPrint/driverless printers that reject PostScript — retries with colour-space-aware CUPS raster options, bypassing ColorSync without requiring PostScript support
-- **Multi-page TIFF support** — Print Current Page and Print All Pages correctly extract and send individual frames from multi-page charts
-- **Printer reachability check** — detects offline printers before submitting a job and shows a clear error dialog
-- **Clear Print Queue** button and stuck-job pre-print detection — cancels held or aborted jobs before submitting a new one
-- **AirPrint driver detection** in the Print tab — identifies when no configurable options are available and explains how to reinstall the printer with a native PPD driver
-- **Optional native macOS printer dialog** — a toggle in Preferences → Behaviour opens the real macOS print panel via PyObjC and locks `AP_ApplicationColorMatching` mode automatically (no manual driver interaction needed); a post-print verification confirms the lock and shows a warning if it couldn't be applied. On Windows and Linux the native OS print dialog is always used — disable colour management manually in the driver panel (per-brand instructions are shown in the Print tab)
-- **Print preflight confirmation** — before each job, ChromIQ shows a summary of all options being sent (printer, paper, tray, media, quality, orientation, duplex, colour-management status, and any detected mismatches); toggleable via "Confirm print settings before sending to printer" in Preferences (on by default). **Automatic page orientation** matches the chart aspect ratio to the selected paper, and a **paper-size mismatch warning** flags discrepancies before you waste ink
-- **Zoomable TIFF preview** with full multi-channel support — displays RGB, CMYK, and extended-gamut TIFFs (up to 11 inks) with ICC-accurate colour conversion (US Web Coated SWOP v2); LZW-compressed files supported
-- **Spectral filter type** option in Measure tab (`-F` flag) — override the measurement condition (M0 / M1 / M2 / M3) for instruments that support it
-- Full `colprof` option set: illuminant (D50, D65, A, C, F5, F8, F10), observer (1931 2°, 1964 10°, 2015 variants), FWA compensation, gamut mapping source profiles, rendering intent overrides
-- **ICC media attributes and default rendering intent** (`colprof -Z`) — embed Media Surface (Glossy/Matte), Colour Type (Color/B&W), Media Type, Polarity, and Default Rendering Intent in the profile header; available in both Guided and Manual modes
-- **Interactive 3D ICC gamut viewer** (Check & Refine tab) — powered by ArgyllCMS `iccgamut` + `viewgam` + X3DOM; renders the profile gamut as a zoomable 3D mesh in-app with volume in ΔE³; options include rendering intent, colour space (Lab / CIECAM02 Jab), surface resolution, axes, cusp markers, and edge plot; themed to ChromIQ's spectrum accent colours; compare against a second ICC/ICM profile with delta %, intersection volume, and bidirectional coverage statistics
-- **Windows WinUSB driver installer** — detects connected ArgyllCMS-compatible colorimeters via the Windows registry and installs the WinUSB driver silently with UAC elevation; falls back to bundled Zadig GUI if needed (Windows only)
-- Per-tab **Save as Defaults** and named user presets (Manual mode) for repeatable workflows
-- **Auto patch count** (Create Chart — Manual mode) — an "Auto" checkbox computes the exact patch count to fill a requested number of pages at Generate time, running a binary search when needed; the spinbox displays "Auto" while active
-- **Self-documenting chart TIFFs** — the exact `targen` and `printtarg` commands plus the ChromIQ version are stamped as a rotated text line in the right margin of every generated TIFF; an optional "Chart notes" field (e.g. printer / paper details) rides along on the same stamp
-- **Measurement error recovery** — the misread dialog offers Retry / Skip Stripe / Save Partial & Quit; "Save Partial & Quit" writes the `.ti3` with unread patches intact and automatically arms the resume checkbox so one click continues from where measurement left off
-- **i1Pro margin auto-set to 10 mm** — for i1Pro / i1Pro 3 Plus the guided workflow silently applies a 10 mm page margin (vs. 6 mm for other instruments) to prevent strip-end clipping and "not enough patches read" errors; Manual mode pre-selects it when the instrument is picked but never overwrites a value typed by hand
-- Automatic session naming based on printer, paper, media type, instrument, and timestamp
-- **Optional calibration workflow** (`printcal → applycal`) — enabled via Preferences → Behaviour → "Enable calibration options" (off by default). When active: guided panels are hidden, Tab 4 becomes "Calibration & Profiling" with three modules (Create Calibration File, Build Profile, Apply Calibration), and measurements whose filename starts with `cal_` are automatically routed to the calibration module. **Create Calibration File** supports per-channel initial target overrides for C/M/Y/K and extended inkset channels (Ch4–Ch7), calibration metadata embedding (description, manufacturer, model, copyright flags `-D`/`-A`/`-M`/`-C`), imitation target mode (`-I`) to derive a null-calibration from an existing `.ti3`, a dry-run checkbox (`-d`) to simulate the calibration without writing any files, a spectrum progress bar, and a result dialog that offers "Go to Create Chart →" with the `.cal` path pre-filled. **Apply Calibration** shows a spectrum progress bar and a result dialog with "Install Profile". When calibration mode is active, the Build Profile result dialog also offers "Apply Calibration →" with the ICC path pre-filled; and the Measure completion dialog routes `cal_*` measurements to "Create Calibration File →" automatically
-- **Responsive window sizing** — the window scales to fit the available screen on launch (13″ MacBook 1280×800 and larger); minimum size 900×650 enforced; geometry saved on a large display is clamped to the current screen on the next launch; the Print Chart options panel scrolls vertically on small screens
-- **Session restore** — "Restore last session on launch" in Preferences reloads the previously active project files (`.ti2`, `.ti3`, `.icc`) on startup
-- **Guided pre-conditioning (refinement) workflow** — the *Generate Chart* panel exposes an optional refinement section: tick the box and pick an existing `.icc` / `.icm` / `.mpp` to drive a `targen -c` second-pass profiling run. The *Build Profile* and *Check & Refine* result dialogs offer a one-click **Use as Pre-conditioning** action that pre-fills the chart picker with the just-built profile; the prior session's `.icc` / `.ti3` are auto-renamed `pre_*` so v1 isn't lost.
-- **Per-tab onboarding tooltips** — every workflow tab has a clickable ⓘ icon next to its big title that opens a beginner-friendly explanation of what the screen does, what needs to be ready (devices connected, paper loaded…), how to use it, and what comes next. The *Build Profile* tooltip swaps to the 3-stage `printcal → applycal → colprof` flow when calibration mode is enabled; the *Print Chart* tooltip varies by OS and `use_native_print_dialog`.
-- **Update checker** — silent background check on launch; manual check available in Preferences. SemVer-aware: pre-release users see newer betas as upgrade candidates, stable users only see stable releases.
-- Settings persist between sessions via `QSettings`
+### Printing pipeline
+
+- **PostScript Level 2/3** output with `%cupsJobTicket: cups-disable-cmm` — zero colour transforms between app and printer.
+- **Automatic TIFF fallback** for AirPrint / driverless printers that reject PostScript.
+- **16-bit TIFF printing** via PostScript Level 3 for printers and RIPs with a true 16-bit pipeline.
+- **Optional native OS print dialog** — on macOS it locks `AP_ApplicationColorMatching` via PyObjC; on Windows and Linux per-brand instructions are shown in-app.
+- **Print preflight confirmation** with paper-size and orientation checks before each job.
+
+<details>
+<summary>More printing details</summary>
+
+- **CMYK and multi-channel (DeviceN) target support** — 4-channel CMYK and 5–17 channel extended-gamut targets (e.g. CMYK + LC LM) print correctly without colour-channel corruption.
+- **Cascading colorant slot overrides** (Create Chart — Manual mode) — up to 11 stacked `-D` modifications configure extended-gamut inksets (e.g. CMYK + Orange + Green + Light Cyan) directly in the UI; values and enabled states persist through presets and Save Defaults.
+- **Multi-page TIFF support** — Print Current Page and Print All Pages correctly extract and send individual frames from multi-page charts.
+- **Printer reachability check** detects offline printers before submitting a job and shows a clear error dialog.
+- **Clear Print Queue** button and stuck-job pre-print detection cancel held or aborted jobs before submitting a new one.
+- **AirPrint driver detection** in the Print tab — identifies when no configurable options are available and explains how to reinstall the printer with a native PPD driver.
+- The native macOS dialog runs a **post-print verification** that confirms the colour-management lock and shows a warning if it couldn't be applied.
+- **Automatic page orientation** matches the chart aspect ratio to the selected paper, and a **paper-size mismatch warning** flags discrepancies before you waste ink.
+
+</details>
+
+### Colour science and profiling
+
+- Full `colprof` option set: illuminants (D50, D65, A, C, F5, F8, F10), observers (1931 2°, 1964 10°, 2015 variants), FWA compensation, gamut-mapping intents.
+- **CIECAM02 viewing-condition presets** (`-c` / `-d`) for source and destination — required for correct perceptual / saturation tables when a Gamut Source profile is supplied.
+- **Pre-conditioning (second-pass) refinement** — pick an existing `.icc` / `.icm` / `.mpp` to drive a `targen -c` second pass; the *Build Profile* and *Check & Refine* dialogs offer one-click **Use as Pre-conditioning** with auto-archiving of v1.
+- **ICC media attributes** (`colprof -Z`) — embed Media Surface, Colour Type, Media Type, Polarity, and Default Rendering Intent in the profile header.
+- **ClayRGB1998** (Argyll's AdobeRGB 1998 equivalent) ships as the default Gamut Source.
+
+<details>
+<summary>More colour-science details</summary>
+
+- **Spectral filter type** in the Measure tab (`-F` flag) — override the measurement condition (M0 / M1 / M2 / M3) for instruments that support it.
+- **Colorimetric-gamut combobox** in Manual mode collapses the `-nP` / `-nS` checkboxes into one selector; `-nI` (inverse gamut mapping) stays on its own row.
+- **Auto patch count** (Manual mode) — an "Auto" checkbox computes the exact patch count to fill a requested page count at Generate time, running a binary search when needed.
+- Separate patch counts for charts **with and without the left clip border** (`-L` flag).
+- **Double-density mode** for ColorMunki / i1Studio with measuring rig (`-h` flag).
+- **i1Pro margin auto-set to 10 mm** — silently applied for i1Pro / i1Pro 3 Plus to prevent strip-end clipping; never overwrites a value typed by hand in Manual mode.
+- **Empirical patch-capacity database** (measured with Argyll 3.5.0) for instant lookup, with binary-search fallback for custom margins.
+- **Optional calibration workflow** (`printcal → applycal`) — per-channel initial target overrides (C/M/Y/K, Ch4–Ch7), metadata embedding (`-D`/`-A`/`-M`/`-C`), imitation target mode (`-I`), dry-run (`-d`); `cal_*` measurements are auto-routed to the calibration module.
+
+</details>
+
+### Quality check and 3D gamut viewer
+
+- **`profcheck` integration** in the Check & Refine tab with per-patch ΔE statistics and quality grading.
+- **Targeted re-measurement** — patches above the ΔE threshold are highlighted; one click starts a guided re-measurement of just those patches.
+- **Interactive 3D gamut viewer** powered by `iccgamut` + `viewgam` + X3DOM — zoomable mesh with volume in ΔE³, Lab / CIECAM02 Jab, cusp markers, edge plot.
+- **Profile-vs-profile comparison** with delta %, intersection volume, and bidirectional coverage.
+- **Measurement error recovery** — the misread dialog offers Retry / Skip Stripe / **Save Partial & Quit** that arms the resume checkbox for one-click continuation.
+
+### App experience
+
+- **Light / Dark / System (Auto) appearance** — Auto follows the OS theme live (re-skins on the fly on macOS).
+- **Per-tab onboarding tooltips** — a ⓘ icon on every tab explains what the screen does, what needs to be ready, and what comes next.
+- **Live command preview** in Manual mode mirrors the exact `targen` / `printtarg` lines that will run.
+- **Zoomable multi-channel TIFF preview** — RGB, CMYK, and extended-gamut up to 11 inks, ICC-accurate.
+- **Session restore** and **automatic session naming** based on printer, paper, media, instrument, and timestamp.
+- **Responsive window sizing**, **rotating log file**, and a SemVer-aware **update checker**.
+
+<details>
+<summary>More UI details</summary>
+
+- The window scales to fit the available screen on launch (13″ MacBook 1280×800 and larger); minimum size 900×650 enforced; geometry saved on a large display is clamped to the current screen on the next launch; the Print Chart options panel scrolls vertically on small screens.
+- **Self-documenting chart TIFFs** — the exact `targen` and `printtarg` commands plus the ChromIQ version are stamped as a rotated text line in the right margin of every generated TIFF; an optional "Chart notes" field rides along on the same stamp.
+- Settings persist between sessions via `QSettings`.
+
+</details>
+
+### Cross-platform and setup
+
+- **ArgyllCMS auto-detection** at launch on every platform, with an **Auto-detect** button in Preferences to re-run on demand.
+- **Windows WinUSB driver installer** — detects connected colorimeters via the Windows registry and installs the driver silently with UAC elevation; falls back to bundled Zadig GUI if needed.
+- ICC profiles install to the standard system location for each OS — see [First-time setup](#first-time-setup).
 
 ---
 
