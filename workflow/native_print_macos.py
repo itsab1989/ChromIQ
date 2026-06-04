@@ -15,15 +15,19 @@ is not wrapped by PyObjC, so it is called through ``ctypes`` against
 PrintCore.  No custom colour-matching callback is registered, so no
 transform is applied: pixel values reach the driver unchanged.
 
-On Tahoe (macOS 15) the print dialog's Color Matching pane (Epson
-"Farbanpassung") may still appear active and let the user pick driver-managed
-modes — this is cosmetic; the spool is still overridden at submit time by the
-locks above.  Reproducing ACPU's full grey-out behaviour would require running
-the raw ``PMSession*NoDialog`` lifecycle instead of ``NSPrintOperation``:
-Apple gates ``PMSessionSetColorMatchingMode`` and
-``PMSessionCopyDefaultOutputIntent`` on the session ``NSPrintInfo`` hands out
-(both SIGABRT when called).  See the ``project-native-print-acpu`` auto-memory
-entry.
+In addition, ``_apply_session_no_color_management`` re-declares the printer's
+own default output intent as the *application* output intent on the
+``PMPrintSession`` and switches the session to application-managed colour, via
+the ``PMSession*WithColorSyncProfiles`` SPI family.  This is the step ColorByte
+Print-Tool performs (reverse-engineered from its binary) that the
+``PMPrintSettings`` lock alone does not: it stops vendor colour engines that
+ignore the Apple-level keys — notably newer Canon macOS drivers, which
+otherwise colour-manage profiling charts even with ``ColorSync=None``.  Unlike
+the *bare* ``PMSessionSetApplicationOutputIntent`` /
+``PMSessionCopyDefaultOutputIntent`` (which SIGABRT on the ``NSPrintInfo``
+session), the ``*WithColorSyncProfiles`` variants are callable on that session
+— Print-Tool uses exactly this path under ``NSPrintOperation``.  See the
+``project-native-print-acpu`` auto-memory entry.
 
 This module logs the resolved ``printSettings`` / ``dictionary`` after every run
 for diagnostics.
@@ -127,6 +131,44 @@ try:  # pragma: no cover - macOS only
 except Exception as _exc:  # pragma: no cover
     _PRINTCORE_OK = False
     log.warning("PrintCore ctypes setup failed; colour-matching lock disabled: %s", _exc)
+
+# Session-level colour APIs (the PMSession*WithColorSyncProfiles family) are
+# bound separately so that, if any is missing on this OS, the working
+# PMPrintSettings lock above is *not* disabled with them.  Signatures were
+# recovered from ColorByte Print-Tool 2.3.4's arm64 disassembly: every call in
+# the family takes (PMPrintSession session, PMPrintSettings settings, payload),
+# confirmed at its ``runPrintSettings:`` call site (x0=PMPrintSession from
+# ``-[NSPrintInfo PMPrintSession]``, x1=PMPrintSettings).  These are the modern
+# *WithColorSyncProfiles variants — distinct from the bare
+# PMSessionSetApplicationOutputIntent / PMSessionCopyDefaultOutputIntent that
+# SIGABRT on the NSPrintInfo-vended session — and Print-Tool calls them on
+# exactly that session without crashing.
+if _PRINTCORE_OK:
+    try:  # pragma: no cover - macOS only
+        _appsvc.PMSessionSetColorMatchingMode.restype = ctypes.c_int32  # OSStatus
+        _appsvc.PMSessionSetColorMatchingMode.argtypes = [
+            ctypes.c_void_p,  # PMPrintSession
+            ctypes.c_void_p,  # PMPrintSettings
+            ctypes.c_void_p,  # CFStringRef mode
+        ]
+        _appsvc.PMSessionCopyDefaultOutputIntentWithColorSyncProfiles.restype = ctypes.c_int32
+        _appsvc.PMSessionCopyDefaultOutputIntentWithColorSyncProfiles.argtypes = [
+            ctypes.c_void_p,                # PMPrintSession
+            ctypes.c_void_p,                # PMPrintSettings
+            ctypes.POINTER(ctypes.c_void_p),  # CFDictionaryRef* out
+        ]
+        _appsvc.PMSessionSetApplicationOutputIntentWithColorSyncProfiles.restype = ctypes.c_int32
+        _appsvc.PMSessionSetApplicationOutputIntentWithColorSyncProfiles.argtypes = [
+            ctypes.c_void_p,  # PMPrintSession
+            ctypes.c_void_p,  # PMPrintSettings
+            ctypes.c_void_p,  # CFDictionaryRef intents
+        ]
+        _PM_SESSION_OK = True
+    except Exception as _exc2:  # pragma: no cover
+        _PM_SESSION_OK = False
+        log.warning("PrintCore session colour APIs unavailable: %s", _exc2)
+else:  # pragma: no cover
+    _PM_SESSION_OK = False
 
 
 def _cfstr(value: str) -> int:
@@ -317,6 +359,81 @@ def _lock_no_color_management(print_info) -> None:
         log.warning("native print: locking colour-matching failed: %s", exc)
 
 
+def _apply_session_no_color_management(print_info) -> None:
+    """Re-declare the printer's *default* output intent as the *application's*
+    output intent and switch the print session to application-managed colour.
+
+    This is the step ColorByte Print-Tool performs that ChromIQ previously did
+    not.  Setting only the ``PMPrintSettings`` ``AP_ColorMatchingMode`` key (see
+    ``_lock_no_color_management``) is enough for some drivers (e.g. Epson, which
+    also exposes ``EPIJ_CMat``), but newer Canon macOS drivers keep running
+    their internal colour engine regardless — the symptom a user hit on a Canon
+    Pro-1000 under Tahoe, where charts printed as if a profile had been applied.
+
+    Copying the printer's default output intent (its own device-space profiles)
+    and re-declaring it as the application output intent tells the print system
+    the bitmap is *already* in the device's space, so neither ColorSync nor the
+    vendor colour engine transforms it — the same thing Print-Tool does, and
+    why its Color Matching pane shows greyed out.
+
+    Best-effort: every failure is logged and swallowed so a print is never
+    blocked.  Reverse-engineered from Print-Tool 2.3.4; see the binding comment
+    near ``_PM_SESSION_OK`` for the recovered signatures.
+    """
+    if not (_PRINTCORE_OK and _PM_SESSION_OK):
+        return
+    import objc
+
+    try:
+        pid = objc.pyobjc_id(print_info)
+        session = _libobjc.objc_msgSend(
+            ctypes.c_void_p(pid), _libobjc.sel_registerName(b"PMPrintSession"),
+        )
+        settings = _libobjc.objc_msgSend(
+            ctypes.c_void_p(pid), _libobjc.sel_registerName(b"PMPrintSettings"),
+        )
+        if not session or not settings:
+            log.warning("native print: PMPrintSession/Settings NULL — session intent skipped")
+            return
+
+        # 1. Copy the printer's default output intent (its device profiles).
+        intents = ctypes.c_void_p(0)
+        status = _appsvc.PMSessionCopyDefaultOutputIntentWithColorSyncProfiles(
+            ctypes.c_void_p(session), ctypes.c_void_p(settings), ctypes.byref(intents),
+        )
+        if status == 0 and intents:
+            # 2. Re-declare it as the *application's* output intent → the print
+            #    system treats the pixels as already device-targeted (no CM).
+            st2 = _appsvc.PMSessionSetApplicationOutputIntentWithColorSyncProfiles(
+                ctypes.c_void_p(session), ctypes.c_void_p(settings), intents,
+            )
+            if st2 != 0:
+                log.warning("native print: SetApplicationOutputIntent -> %d", st2)
+            else:
+                log.info("native print: application output intent declared (device-space passthrough)")
+            _cf.CFRelease(intents)
+        else:
+            log.warning(
+                "native print: CopyDefaultOutputIntent -> %d (intents=%s)",
+                status, bool(intents),
+            )
+
+        # 3. Switch the session itself to application-managed colour.
+        mode_ref = _cfstr("AP_ApplicationColorMatching")
+        try:
+            st3 = _appsvc.PMSessionSetColorMatchingMode(
+                ctypes.c_void_p(session), ctypes.c_void_p(settings),
+                ctypes.c_void_p(mode_ref),
+            )
+            if st3 != 0:
+                log.warning("native print: SetColorMatchingMode -> %d", st3)
+        finally:
+            if mode_ref:
+                _cf.CFRelease(ctypes.c_void_p(mode_ref))
+    except Exception as exc:
+        log.warning("native print: session output-intent setup failed: %s", exc)
+
+
 # The print view is registered with the Objective-C runtime on first import;
 # it must live at module scope so re-printing doesn't re-register the class.
 try:  # pragma: no cover - macOS only
@@ -433,6 +550,7 @@ def print_frames(pages: list[tuple[Path, int]]) -> None:
     # greyed out, then show the dialog (for paper / quality / copies), then lock
     # it again afterwards in case a pane reset it — the same dance ACPU does.
     _lock_no_color_management(print_info)
+    _apply_session_no_color_management(print_info)
 
     panel = AppKit.NSPrintPanel.printPanel()
     # Force the paper-size / orientation / scale controls to be available in
@@ -450,6 +568,7 @@ def print_frames(pages: list[tuple[Path, int]]) -> None:
         return
 
     _lock_no_color_management(print_info)
+    _apply_session_no_color_management(print_info)
     # Verify the lock survived the dialog before we hand the job to the spooler.
     _verify_color_management(print_info, "post-dialog")
 
