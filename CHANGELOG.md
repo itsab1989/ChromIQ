@@ -1,5 +1,22 @@
 # Changelog
 
+## v3.8.6
+A printing fix for the macOS print dialog: some printer drivers were quietly
+colour-correcting the test chart even with colour management turned off.
+
+### 🐛 Fixes
+- **Stopped some printer drivers from colour-managing the test chart** when you
+  print through the macOS print dialog. On recent macOS, certain drivers (Canon
+  in particular) kept applying their own colour engine, so the chart printed as
+  if a profile had already been baked in — which makes it useless for building
+  an accurate profile. ChromIQ now tells the print system the chart is already
+  in the printer's own colour space, so the driver leaves the patches exactly as
+  sent.
+- **The print dialog's "Color Matching" pane now locks and greys out** along
+  with the driver's other colour controls, so there's no stray setting left to
+  switch on by mistake. After every print ChromIQ still reads the job back to
+  confirm colour management really stayed off.
+
 ## v3.8.5
 A quicker way to reach the ready-made charts, plus a few small refinements.
 
