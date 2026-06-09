@@ -27,6 +27,33 @@ def _log_excepthook(exc_type, exc, tb):
 
 sys.excepthook = _log_excepthook
 
+# Native crash capture. A fatal signal (SIGSEGV/SIGABRT) raised inside Qt or
+# Chromium teardown — e.g. SIP following a freed C++ pointer during the window's
+# closeEvent — never reaches _log_excepthook above; it kills the process with no
+# Python traceback, and on macOS may not even leave a Console crash report the
+# user can locate. faulthandler dumps the active Python stack of every thread on
+# any fatal signal, so the next such crash lands in ChromIQ's own log directory
+# (next to chromiq.log) where the user already looks. The file handle is kept at
+# module scope for the whole process lifetime because faulthandler writes to the
+# raw fd directly — letting it be garbage-collected would close the fd.
+import faulthandler  # noqa: E402
+
+_crash_log = None
+try:
+    from datetime import datetime as _dt
+
+    from core.platform_paths import log_dir as _log_dir
+
+    _crash_dir = _log_dir()
+    _crash_dir.mkdir(parents=True, exist_ok=True)
+    _crash_log = open(_crash_dir / "chromiq-crash.log", "a", encoding="utf-8")
+    _crash_log.write(f"\n=== faulthandler armed {_dt.now():%Y-%m-%d %H:%M:%S} ===\n")
+    _crash_log.flush()
+    faulthandler.enable(file=_crash_log, all_threads=True)
+except Exception:
+    log.debug("Could not arm faulthandler to crash log; using stderr", exc_info=True)
+    faulthandler.enable()
+
 log.info(
     "ChromIQ starting; python=%s platform=%s frozen=%s argv=%s",
     sys.version.split()[0],

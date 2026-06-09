@@ -312,8 +312,9 @@ QLabel#error {{
 }}
 QLabel#patch_count {{ font-size: 24px; font-weight: bold; color: {SPEC_MAGENTA}; }}
 QLabel#section_title {{ font-size: 14px; font-weight: bold; color: #ffffff; }}
-QLabel#param_label, QCheckBox#param_label {{ color: #c8c8c8; }}
-QLabel#param_label:disabled, QCheckBox#param_label:disabled {{ color: #6a6a6a; }}
+QLabel#param_label, QCheckBox#param_label, QRadioButton#param_label {{ color: #c8c8c8; }}
+QLabel#param_label:disabled, QCheckBox#param_label:disabled, QRadioButton#param_label:disabled {{ color: #6a6a6a; }}
+QRadioButton#param_label::indicator:disabled {{ background: #1f1f1f; border-color: #3a3a3a; }}
 
 /* ---- Browse buttons ----------------------------------------------- */
 QPushButton#browse {{

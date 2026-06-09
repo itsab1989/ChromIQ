@@ -1502,6 +1502,10 @@ class TabChart(QWidget):
                     bg = QButtonGroup(pw)
                     self._bit8_radio = QRadioButton("8-bit", pw)
                     self._bit16_radio = QRadioButton("16-bit", pw)
+                    # Tag as param_label so the disabled QSS rule greys text +
+                    # indicator when a preset locks the printtarg panel.
+                    self._bit8_radio.setObjectName("param_label")
+                    self._bit16_radio.setObjectName("param_label")
                     self._bit8_radio.setChecked(True)
                     bg.addButton(self._bit8_radio)
                     bg.addButton(self._bit16_radio)
@@ -1652,11 +1656,9 @@ class TabChart(QWidget):
                 pages_row_l.setSpacing(8)
                 pages_lbl = QLabel("Pages:", pages_row_w)
                 pages_lbl.setFixedWidth(190)
-                from ui.theme import resolve_mode
-                _pages_mode = resolve_mode(self._settings.get("appearance", "auto"))
-                pages_lbl.setStyleSheet(
-                    f"color: {'#22211F' if _pages_mode == 'light' else '#c8c8c8'};"
-                )
+                # param_label carries the right per-theme colour AND a :disabled
+                # rule, so it greys when a preset locks the printtarg panel.
+                pages_lbl.setObjectName("param_label")
                 pages_row_l.addWidget(pages_lbl)
                 self._manual_pages_spin = NoScrollSpinBox(pages_row_w)
                 self._manual_pages_spin.setObjectName("compact_input")
@@ -2290,6 +2292,9 @@ class TabChart(QWidget):
         row.setSpacing(8)
         lbl = QLabel("Triple density", row_w)
         lbl.setFixedWidth(190)
+        # param_label gives it the standard label colour plus the :disabled
+        # rule, so it greys when a preset locks the printtarg panel.
+        lbl.setObjectName("param_label")
         self._manual_td_check = QCheckBox(row_w)
         self._manual_td_check.toggled.connect(self._on_manual_td_toggled)
         self._manual_td_check.toggled.connect(self._refresh_manual_command_preview)

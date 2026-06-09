@@ -1,5 +1,23 @@
 # Changelog
 
+## v3.8.14
+A reliability-and-polish release: better crash diagnostics — prompted by a bug
+report from **Knut** — plus a small visual fix to the preset setting locks
+introduced in v3.8.13.
+
+### 🛡️ Crash diagnostics
+- **ChromIQ now records crashes to its own log folder.** If the app ever quits
+  unexpectedly, it writes the technical details to `chromiq-crash.log` (right
+  next to the normal log file), so problems that macOS doesn't always keep a
+  crash report for can still be diagnosed and fixed. This came out of a rare
+  close-time crash reported by **Knut**.
+
+### 💅 Polish
+- **Locked preset panels now grey out completely.** When a preset locks the
+  *printtarg* options, the 8-/16-bit choice, the *Pages* field and the *Triple
+  density* label grey out along with the rest of the panel — so it's
+  consistently clear at a glance which settings the preset is in charge of.
+
 ## v3.8.13
 A new ready-to-use **ColorMunki TC9.18 (A3+)** preset from **Pharmacist**, and —
 suggested by **Knut** — the ability to safely tweak a preset's settings without

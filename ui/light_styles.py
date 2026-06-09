@@ -426,8 +426,18 @@ QLabel#section_title {{
     font-weight: bold;
     color: {LM_TEXT_MAIN};
 }}
-QLabel#param_label, QCheckBox#param_label {{ color: {LM_TEXT_MAIN}; }}
-QLabel#param_label:disabled, QCheckBox#param_label:disabled {{ color: {LM_TEXT_FAINT}; }}
+QLabel#param_label, QCheckBox#param_label, QRadioButton#param_label {{ color: {LM_TEXT_MAIN}; }}
+QLabel#param_label:disabled, QCheckBox#param_label:disabled, QRadioButton#param_label:disabled {{ color: {LM_TEXT_FAINT}; }}
+/* Scoped indicator styling for param_label radios (the 8-/16-bit pair) only,
+ * so they grey when a preset locks the panel; other radios stay native. */
+QRadioButton#param_label::indicator {{
+    width: 14px; height: 14px;
+    border: 1px solid {LM_BORDER_HI};
+    border-radius: 7px;
+    background: {LM_BG_INPUT};
+}}
+QRadioButton#param_label::indicator:checked {{ background: {ACCENT_BLUE}; border-color: {ACCENT_BLUE}; }}
+QRadioButton#param_label::indicator:disabled {{ background: {LM_BG_WINDOW}; border-color: {LM_BORDER}; }}
 
 /* -- Mode buttons (Guided / Manual / Expert) --------------------- */
 /* Default appearance. The per-tab QSS injection in main_window also
