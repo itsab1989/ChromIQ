@@ -63,12 +63,20 @@ def apply_appearance(
         log.warning("Unknown appearance %r — falling back to auto", setting)
         setting = APPEARANCE_AUTO
     mode = resolve_mode(setting)
-    if mode == APPEARANCE_LIGHT:
-        app.setPalette(make_light_palette())
-        app.setStyleSheet(LIGHT_STYLESHEET)
-    else:
-        app.setPalette(make_dark_palette())
-        app.setStyleSheet(APP_STYLESHEET)
+    stylesheet = LIGHT_STYLESHEET if mode == APPEARANCE_LIGHT else APP_STYLESHEET
+    # Setting an app-wide stylesheet forces Qt to re-polish *every* existing
+    # widget — ~2 s for our ~2500-widget tree on a cold start. At launch this
+    # runs twice with the same resolved mode: once before the window exists (to
+    # seed the QSS so widgets polish correctly as they are built) and once after
+    # (to sync window-only chrome). The second call would re-polish the whole
+    # tree against a stylesheet that is already in effect. Skip that redundant
+    # re-polish when the QSS is unchanged; a genuine theme switch changes the
+    # string and still applies in full. apply_theme() below always runs so the
+    # window-only bits (macOS native title bar, masthead, per-tab accents) sync
+    # regardless of whether the app-wide QSS was touched.
+    if app.styleSheet() != stylesheet:
+        app.setPalette(make_light_palette() if mode == APPEARANCE_LIGHT else make_dark_palette())
+        app.setStyleSheet(stylesheet)
     if main_window is not None and hasattr(main_window, "apply_theme"):
         main_window.apply_theme(mode)
     log.debug("Appearance applied: setting=%s mode=%s", setting, mode)
