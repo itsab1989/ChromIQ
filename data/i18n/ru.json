@@ -3213,5 +3213,12 @@
   "Click to jump to this patch and measure it next.": "Нажмите, чтобы перейти к этому патчу и измерить его следующим.",
   "[Engine] Jumping to patch {loc}…": "[Engine] Переход к патчу {loc}…",
   "[Engine] Live patch preview needs a chart made with the ChromIQ layout engine, so it is off for this chart. Your measurement is unaffected — every patch is still saved and checked.": "[Engine] Для живого предпросмотра патчей нужна шкала, созданная движком раскладки ChromIQ, поэтому для этой шкалы он выключен. На ваше измерение это не влияет — каждый патч всё равно сохраняется и проверяется.",
-  "[Engine] Tip: click any patch in the preview to jump straight to it.": "[Engine] Совет: нажмите на любой патч в предпросмотре, чтобы сразу перейти к нему."
+  "[Engine] Tip: click any patch in the preview to jump straight to it.": "[Engine] Совет: нажмите на любой патч в предпросмотре, чтобы сразу перейти к нему.",
+  "<b>Calibration complete. You are ready to measure patch by patch.</b><br><br>Place the instrument on the <b>highlighted patch</b> in the preview and take a reading. The next patch is highlighted automatically.": "<b>Калибровка завершена. Можно измерять патч за патчем.</b><br><br>Поместите прибор на <b>выделенный патч</b> в предпросмотре и выполните измерение. Следующий патч выделяется автоматически.",
+  "Click a patch in the preview to jump to it": "Нажмите на патч в предпросмотре, чтобы перейти к нему",
+  "Finish and save when all patches are done": "Завершить и сохранить, когда все патчи готовы",
+  "Jump to the next unread patch": "К следующему непрочитанному патчу",
+  "Move back to the previous patch": "Назад к предыдущему патчу",
+  "Move to the next patch": "Вперёд к следующему патчу",
+  "click": "клик"
 }

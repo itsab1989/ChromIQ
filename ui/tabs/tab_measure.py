@@ -4015,7 +4015,50 @@ class TabMeasure(QWidget):
         _fam = instrument_family(self._detected_instrument)
         _how = measurement_instructions_html(_fam)
 
-        if self._guided_refinement_active and self._strip_list:
+        if self._spot_session:
+            dlg.setWindowTitle(tr("Calibration Complete — How to Measure"))
+
+            msg = QLabel(
+                tr("<b>Calibration complete. You are ready to measure patch by "
+                   "patch.</b><br><br>Place the instrument on the "
+                   "<b>highlighted patch</b> in the preview and take a reading. "
+                   "The next patch is highlighted automatically."),
+                dlg,
+            )
+            msg.setTextFormat(Qt.TextFormat.RichText)
+            msg.setWordWrap(True)
+            layout.addWidget(msg)
+
+            key_frame = QFrame(dlg)
+            key_frame.setStyleSheet(_frame_style)
+            kfl = QGridLayout(key_frame)
+            kfl.setContentsMargins(16, 12, 16, 12)
+            kfl.setHorizontalSpacing(20)
+            kfl.setVerticalSpacing(6)
+            kfl.setColumnStretch(1, 1)
+            key_rows = [
+                ("f", tr("Move to the next patch")),
+                ("b", tr("Move back to the previous patch")),
+                ("n", tr("Jump to the next unread patch")),
+                (tr("click"), tr("Click a patch in the preview to jump to it")),
+                ("d", tr("Finish and save when all patches are done")),
+                ("Esc / q", tr("Quit without saving")),
+            ]
+            for row, (key, desc) in enumerate(key_rows):
+                k = QLabel(key)
+                k.setStyleSheet(_key_style)
+                d = QLabel(desc)
+                d.setStyleSheet(_plain_style)
+                kfl.addWidget(k, row, 0, Qt.AlignmentFlag.AlignLeft)
+                kfl.addWidget(d, row, 1, Qt.AlignmentFlag.AlignLeft)
+            layout.addWidget(key_frame)
+
+            footnote = QLabel(tr("These instructions are always visible in the output log below."), dlg)
+            footnote.setWordWrap(True)
+            footnote.setStyleSheet(_dim_style)
+            layout.addWidget(footnote)
+
+        elif self._guided_refinement_active and self._strip_list:
             first = self._strip_list[0]
             n = len(self._strip_list)
             dlg.setWindowTitle(tr("Calibration Complete — Guided Refinement Ready"))
@@ -5303,6 +5346,16 @@ class TabMeasure(QWidget):
                              for s in strips}
         self._preview.clear_patch_overlay()
         self._patch_geom_warned = False
+        if self._spot_session:
+            # Patch-by-patch mode drives the preview via spot_ready/patch_read
+            # with its OWN per-patch highlight + click-to-jump. The strip
+            # click/highlight UI must stay off, or it frames the whole strip and
+            # (because strip-click is tested before patch-click) swallows the
+            # patch click so nothing jumps.
+            self._preview.set_stripe_click_enabled(False)
+            self._m_engine_tip.setVisible(False)
+            self._set_autosave_banner()
+            return
         is_manual = self._current_mode() == "manual"
         # The view controls are always visible in the "Live preview" group now;
         # only the transient click-a-strip tip appears while a manual read runs.

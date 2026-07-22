@@ -3213,5 +3213,12 @@
   "Click to jump to this patch and measure it next.": "Fai clic per passare a questo tassello e misurarlo subito dopo.",
   "[Engine] Jumping to patch {loc}…": "[Motore] Passaggio al tassello {loc}…",
   "[Engine] Live patch preview needs a chart made with the ChromIQ layout engine, so it is off for this chart. Your measurement is unaffected — every patch is still saved and checked.": "[Motore] L'anteprima dei tasselli dal vivo richiede un grafico creato con il motore di disposizione ChromIQ, perciò è disattivata per questo grafico. La tua misurazione non ne risente — ogni tassello viene comunque salvato e controllato.",
-  "[Engine] Tip: click any patch in the preview to jump straight to it.": "[Motore] Suggerimento: fai clic su un tassello qualsiasi nell'anteprima per saltarci direttamente."
+  "[Engine] Tip: click any patch in the preview to jump straight to it.": "[Motore] Suggerimento: fai clic su un tassello qualsiasi nell'anteprima per saltarci direttamente.",
+  "<b>Calibration complete. You are ready to measure patch by patch.</b><br><br>Place the instrument on the <b>highlighted patch</b> in the preview and take a reading. The next patch is highlighted automatically.": "<b>Calibrazione completata. Puoi misurare tassello per tassello.</b><br><br>Appoggia lo strumento sul <b>tassello evidenziato</b> nell'anteprima ed esegui una misura. Il tassello successivo viene evidenziato automaticamente.",
+  "Click a patch in the preview to jump to it": "Fai clic su un tassello nell'anteprima per saltarci",
+  "Finish and save when all patches are done": "Termina e salva quando tutti i tasselli sono completi",
+  "Jump to the next unread patch": "Salta al prossimo tassello non letto",
+  "Move back to the previous patch": "Torna al tassello precedente",
+  "Move to the next patch": "Vai al tassello successivo",
+  "click": "clic"
 }

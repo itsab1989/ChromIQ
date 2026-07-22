@@ -3213,5 +3213,12 @@
   "Click to jump to this patch and measure it next.": "Cliquez pour aller à cette plage et la mesurer ensuite.",
   "[Engine] Jumping to patch {loc}…": "[Moteur] Passage à la plage {loc}…",
   "[Engine] Live patch preview needs a chart made with the ChromIQ layout engine, so it is off for this chart. Your measurement is unaffected — every patch is still saved and checked.": "[Moteur] L'aperçu des plages en direct nécessite une mire créée avec le moteur de disposition ChromIQ, il est donc désactivé pour cette mire. Votre mesure n'est pas affectée — chaque plage est toujours enregistrée et vérifiée.",
-  "[Engine] Tip: click any patch in the preview to jump straight to it.": "[Moteur] Astuce : cliquez sur n'importe quelle plage de l'aperçu pour y accéder directement."
+  "[Engine] Tip: click any patch in the preview to jump straight to it.": "[Moteur] Astuce : cliquez sur n'importe quelle plage de l'aperçu pour y accéder directement.",
+  "<b>Calibration complete. You are ready to measure patch by patch.</b><br><br>Place the instrument on the <b>highlighted patch</b> in the preview and take a reading. The next patch is highlighted automatically.": "<b>Étalonnage terminé. Vous pouvez mesurer plage par plage.</b><br><br>Placez l'instrument sur la <b>plage en surbrillance</b> dans l'aperçu et effectuez une mesure. La plage suivante est mise en surbrillance automatiquement.",
+  "Click a patch in the preview to jump to it": "Cliquez sur une plage dans l'aperçu pour y accéder",
+  "Finish and save when all patches are done": "Terminer et enregistrer quand toutes les plages sont faites",
+  "Jump to the next unread patch": "Sauter à la prochaine plage non lue",
+  "Move back to the previous patch": "Revenir à la plage précédente",
+  "Move to the next patch": "Passer à la plage suivante",
+  "click": "clic"
 }

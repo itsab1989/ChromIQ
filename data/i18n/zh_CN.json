@@ -3213,5 +3213,12 @@
   "Click to jump to this patch and measure it next.": "点击跳转到此色块并接着测量它。",
   "[Engine] Jumping to patch {loc}…": "[Engine] 正在跳转到色块 {loc}…",
   "[Engine] Live patch preview needs a chart made with the ChromIQ layout engine, so it is off for this chart. Your measurement is unaffected — every patch is still saved and checked.": "[Engine] 实时色块预览需要一张用 ChromIQ 布局引擎制作的色卡，因此对这张色卡它是关闭的。你的测量不受影响 — 每个色块仍会被保存和检查。",
-  "[Engine] Tip: click any patch in the preview to jump straight to it.": "[Engine] 提示：点击预览中的任意色块即可直接跳转到它。"
+  "[Engine] Tip: click any patch in the preview to jump straight to it.": "[Engine] 提示：点击预览中的任意色块即可直接跳转到它。",
+  "<b>Calibration complete. You are ready to measure patch by patch.</b><br><br>Place the instrument on the <b>highlighted patch</b> in the preview and take a reading. The next patch is highlighted automatically.": "<b>校准完成。你可以逐块测量了。</b><br><br>把仪器放在预览中<b>高亮的色块</b>上并进行测量。下一个色块会自动高亮。",
+  "Click a patch in the preview to jump to it": "点击预览中的色块可跳转到它",
+  "Finish and save when all patches are done": "所有色块完成后结束并保存",
+  "Jump to the next unread patch": "跳到下一个未读色块",
+  "Move back to the previous patch": "回到上一个色块",
+  "Move to the next patch": "前进到下一个色块",
+  "click": "点击"
 }

@@ -3213,5 +3213,12 @@
   "Click to jump to this patch and measure it next.": "Klikk for å hoppe til dette feltet og måle det som neste.",
   "[Engine] Jumping to patch {loc}…": "[Motor] Hopper til felt {loc}…",
   "[Engine] Live patch preview needs a chart made with the ChromIQ layout engine, so it is off for this chart. Your measurement is unaffected — every patch is still saved and checked.": "[Motor] Sanntids feltforhåndsvisning krever et diagram laget med ChromIQ-oppsettmotoren, så den er av for dette diagrammet. Målingen din påvirkes ikke — hvert felt lagres og kontrolleres fortsatt.",
-  "[Engine] Tip: click any patch in the preview to jump straight to it.": "[Motor] Tips: klikk på et hvilket som helst felt i forhåndsvisningen for å hoppe rett dit."
+  "[Engine] Tip: click any patch in the preview to jump straight to it.": "[Motor] Tips: klikk på et hvilket som helst felt i forhåndsvisningen for å hoppe rett dit.",
+  "<b>Calibration complete. You are ready to measure patch by patch.</b><br><br>Place the instrument on the <b>highlighted patch</b> in the preview and take a reading. The next patch is highlighted automatically.": "<b>Kalibrering fullført. Du kan måle felt for felt.</b><br><br>Plasser instrumentet på det <b>uthevede feltet</b> i forhåndsvisningen og ta en måling. Neste felt utheves automatisk.",
+  "Click a patch in the preview to jump to it": "Klikk på et felt i forhåndsvisningen for å hoppe dit",
+  "Finish and save when all patches are done": "Fullfør og lagre når alle felt er ferdige",
+  "Jump to the next unread patch": "Hopp til neste uleste felt",
+  "Move back to the previous patch": "Tilbake til forrige felt",
+  "Move to the next patch": "Til neste felt",
+  "click": "klikk"
 }

@@ -3213,5 +3213,12 @@
   "Click to jump to this patch and measure it next.": "Klicke, um zu diesem Feld zu springen und es als Nächstes zu messen.",
   "[Engine] Jumping to patch {loc}…": "[Engine] Springe zu Feld {loc} …",
   "[Engine] Live patch preview needs a chart made with the ChromIQ layout engine, so it is off for this chart. Your measurement is unaffected — every patch is still saved and checked.": "[Engine] Die Live-Feldvorschau braucht ein Chart, das mit der ChromIQ-Layout-Engine erstellt wurde — für dieses Chart ist sie daher aus. Deine Messung ist davon nicht betroffen — jedes Feld wird weiterhin gespeichert und geprüft.",
-  "[Engine] Tip: click any patch in the preview to jump straight to it.": "[Engine] Tipp: Klicke ein beliebiges Feld in der Vorschau an, um direkt dorthin zu springen."
+  "[Engine] Tip: click any patch in the preview to jump straight to it.": "[Engine] Tipp: Klicke ein beliebiges Feld in der Vorschau an, um direkt dorthin zu springen.",
+  "<b>Calibration complete. You are ready to measure patch by patch.</b><br><br>Place the instrument on the <b>highlighted patch</b> in the preview and take a reading. The next patch is highlighted automatically.": "<b>Kalibrierung abgeschlossen. Du kannst Feld für Feld messen.</b><br><br>Setze das Messgerät auf das <b>hervorgehobene Feld</b> in der Vorschau und miss es. Das nächste Feld wird automatisch hervorgehoben.",
+  "Click a patch in the preview to jump to it": "Klicke ein Feld in der Vorschau an, um dorthin zu springen",
+  "Finish and save when all patches are done": "Abschließen und speichern, wenn alle Felder fertig sind",
+  "Jump to the next unread patch": "Zum nächsten ungelesenen Feld springen",
+  "Move back to the previous patch": "Zurück zum vorherigen Feld",
+  "Move to the next patch": "Weiter zum nächsten Feld",
+  "click": "Klick"
 }

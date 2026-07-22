@@ -766,3 +766,16 @@ def test_measure_done_clears_spot_state(monkeypatch):
     assert not tab._preview._patch_click_enabled
     assert tab._preview._active_patch_box is None
     assert not tab._spot_click_on
+
+
+def test_session_map_in_spot_mode_keeps_strip_ui_off(monkeypatch):
+    """session_start fires in spot mode too, but the strip click/highlight UI
+    must stay OFF — otherwise it frames whole strips and swallows patch clicks
+    (strip-click is tested before patch-click in the preview)."""
+    tab = _spot_tab(monkeypatch)
+    tab._spot_session = True
+    tab._page_stripe_rects = [[QRect(0, 0, 100, 20)]]
+    tab._strips_per_page = [1]
+    tab._on_session_map([{"strip": "A", "sheet": 1, "read": False,
+                          "verifiable": True}])
+    assert not tab._preview._stripe_click_enabled

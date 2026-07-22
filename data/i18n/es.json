@@ -3213,5 +3213,12 @@
   "Click to jump to this patch and measure it next.": "Haz clic para saltar a este parche y medirlo a continuación.",
   "[Engine] Jumping to patch {loc}…": "[Motor] Saltando al parche {loc}…",
   "[Engine] Live patch preview needs a chart made with the ChromIQ layout engine, so it is off for this chart. Your measurement is unaffected — every patch is still saved and checked.": "[Motor] La vista previa de parches en vivo necesita una carta creada con el motor de disposición de ChromIQ, así que está desactivada para esta carta. Tu medición no se ve afectada — cada parche se sigue guardando y comprobando.",
-  "[Engine] Tip: click any patch in the preview to jump straight to it.": "[Motor] Consejo: haz clic en cualquier parche de la vista previa para saltar directamente a él."
+  "[Engine] Tip: click any patch in the preview to jump straight to it.": "[Motor] Consejo: haz clic en cualquier parche de la vista previa para saltar directamente a él.",
+  "<b>Calibration complete. You are ready to measure patch by patch.</b><br><br>Place the instrument on the <b>highlighted patch</b> in the preview and take a reading. The next patch is highlighted automatically.": "<b>Calibración completada. Ya puedes medir parche por parche.</b><br><br>Coloca el instrumento sobre el <b>parche resaltado</b> en la vista previa y toma una medición. El siguiente parche se resalta automáticamente.",
+  "Click a patch in the preview to jump to it": "Haz clic en un parche de la vista previa para saltar a él",
+  "Finish and save when all patches are done": "Terminar y guardar cuando todos los parches estén completos",
+  "Jump to the next unread patch": "Saltar al siguiente parche sin leer",
+  "Move back to the previous patch": "Volver al parche anterior",
+  "Move to the next patch": "Pasar al siguiente parche",
+  "click": "clic"
 }

@@ -3213,5 +3213,12 @@
   "Click to jump to this patch and measure it next.": "Clique para saltar para esta amostra e medi-la a seguir.",
   "[Engine] Jumping to patch {loc}…": "[Motor] A saltar para a amostra {loc}…",
   "[Engine] Live patch preview needs a chart made with the ChromIQ layout engine, so it is off for this chart. Your measurement is unaffected — every patch is still saved and checked.": "[Motor] A pré-visualização de amostras ao vivo precisa de um gráfico criado com o motor de disposição ChromIQ, por isso está desativada para este gráfico. A sua medição não é afetada — cada amostra continua a ser guardada e verificada.",
-  "[Engine] Tip: click any patch in the preview to jump straight to it.": "[Motor] Dica: clique em qualquer amostra na pré-visualização para saltar diretamente para ela."
+  "[Engine] Tip: click any patch in the preview to jump straight to it.": "[Motor] Dica: clique em qualquer amostra na pré-visualização para saltar diretamente para ela.",
+  "<b>Calibration complete. You are ready to measure patch by patch.</b><br><br>Place the instrument on the <b>highlighted patch</b> in the preview and take a reading. The next patch is highlighted automatically.": "<b>Calibração concluída. Já pode medir amostra a amostra.</b><br><br>Coloque o instrumento sobre a <b>amostra destacada</b> na pré-visualização e faça uma medição. A amostra seguinte é destacada automaticamente.",
+  "Click a patch in the preview to jump to it": "Clique numa amostra na pré-visualização para saltar para ela",
+  "Finish and save when all patches are done": "Terminar e guardar quando todas as amostras estiverem prontas",
+  "Jump to the next unread patch": "Saltar para a próxima amostra por ler",
+  "Move back to the previous patch": "Voltar à amostra anterior",
+  "Move to the next patch": "Passar à amostra seguinte",
+  "click": "clique"
 }

@@ -3213,5 +3213,12 @@
   "Click to jump to this patch and measure it next.": "Kliknij, aby przejść do tego pola i zmierzyć je jako następne.",
   "[Engine] Jumping to patch {loc}…": "[Silnik] Przechodzenie do pola {loc}…",
   "[Engine] Live patch preview needs a chart made with the ChromIQ layout engine, so it is off for this chart. Your measurement is unaffected — every patch is still saved and checked.": "[Silnik] Podgląd pól na żywo wymaga wykresu utworzonego silnikiem układu ChromIQ, więc dla tego wykresu jest wyłączony. Twój pomiar nie jest tym dotknięty — każde pole nadal jest zapisywane i sprawdzane.",
-  "[Engine] Tip: click any patch in the preview to jump straight to it.": "[Silnik] Wskazówka: kliknij dowolne pole w podglądzie, aby przejść od razu do niego."
+  "[Engine] Tip: click any patch in the preview to jump straight to it.": "[Silnik] Wskazówka: kliknij dowolne pole w podglądzie, aby przejść od razu do niego.",
+  "<b>Calibration complete. You are ready to measure patch by patch.</b><br><br>Place the instrument on the <b>highlighted patch</b> in the preview and take a reading. The next patch is highlighted automatically.": "<b>Kalibracja zakończona. Możesz mierzyć pole po polu.</b><br><br>Umieść przyrząd na <b>wyróżnionym polu</b> w podglądzie i wykonaj pomiar. Następne pole zostanie wyróżnione automatycznie.",
+  "Click a patch in the preview to jump to it": "Kliknij pole w podglądzie, aby do niego przejść",
+  "Finish and save when all patches are done": "Zakończ i zapisz, gdy wszystkie pola będą gotowe",
+  "Jump to the next unread patch": "Skocz do następnego nieodczytanego pola",
+  "Move back to the previous patch": "Wróć do poprzedniego pola",
+  "Move to the next patch": "Przejdź do następnego pola",
+  "click": "kliknij"
 }

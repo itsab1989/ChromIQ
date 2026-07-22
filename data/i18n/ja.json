@@ -3213,5 +3213,12 @@
   "Click to jump to this patch and measure it next.": "クリックするとこのパッチに移動し、次に測定します。",
   "[Engine] Jumping to patch {loc}…": "[Engine] パッチ {loc} に移動中…",
   "[Engine] Live patch preview needs a chart made with the ChromIQ layout engine, so it is off for this chart. Your measurement is unaffected — every patch is still saved and checked.": "[Engine] ライブパッチプレビューには ChromIQ レイアウトエンジンで作られたチャートが必要なので、このチャートではオフです。あなたの測定は影響を受けません — 各パッチは引き続き保存され確認されます。",
-  "[Engine] Tip: click any patch in the preview to jump straight to it.": "[Engine] ヒント：プレビューで任意のパッチをクリックすると、そこへ直接移動します。"
+  "[Engine] Tip: click any patch in the preview to jump straight to it.": "[Engine] ヒント：プレビューで任意のパッチをクリックすると、そこへ直接移動します。",
+  "<b>Calibration complete. You are ready to measure patch by patch.</b><br><br>Place the instrument on the <b>highlighted patch</b> in the preview and take a reading. The next patch is highlighted automatically.": "<b>キャリブレーションが完了しました。パッチごとに測定できます。</b><br><br>プレビューで<b>ハイライトされたパッチ</b>に測定器を置いて測定してください。次のパッチは自動的にハイライトされます。",
+  "Click a patch in the preview to jump to it": "プレビューでパッチをクリックするとそこへ移動します",
+  "Finish and save when all patches are done": "すべてのパッチが終わったら完了して保存",
+  "Jump to the next unread patch": "次の未読パッチへジャンプ",
+  "Move back to the previous patch": "前のパッチに戻る",
+  "Move to the next patch": "次のパッチへ進む",
+  "click": "クリック"
 }

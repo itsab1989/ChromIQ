@@ -3213,5 +3213,12 @@
   "Click to jump to this patch and measure it next.": "Klicka för att hoppa till det här fältet och mäta det härnäst.",
   "[Engine] Jumping to patch {loc}…": "[Motor] Hoppar till fält {loc}…",
   "[Engine] Live patch preview needs a chart made with the ChromIQ layout engine, so it is off for this chart. Your measurement is unaffected — every patch is still saved and checked.": "[Motor] Direkt fältförhandsvisning kräver ett diagram gjort med ChromIQ-layoutmotorn, så den är av för det här diagrammet. Din mätning påverkas inte — varje fält sparas och kontrolleras fortfarande.",
-  "[Engine] Tip: click any patch in the preview to jump straight to it.": "[Motor] Tips: klicka på valfritt fält i förhandsvisningen för att hoppa direkt dit."
+  "[Engine] Tip: click any patch in the preview to jump straight to it.": "[Motor] Tips: klicka på valfritt fält i förhandsvisningen för att hoppa direkt dit.",
+  "<b>Calibration complete. You are ready to measure patch by patch.</b><br><br>Place the instrument on the <b>highlighted patch</b> in the preview and take a reading. The next patch is highlighted automatically.": "<b>Kalibrering klar. Du kan mäta fält för fält.</b><br><br>Placera instrumentet på det <b>markerade fältet</b> i förhandsvisningen och gör en mätning. Nästa fält markeras automatiskt.",
+  "Click a patch in the preview to jump to it": "Klicka på ett fält i förhandsvisningen för att hoppa dit",
+  "Finish and save when all patches are done": "Slutför och spara när alla fält är klara",
+  "Jump to the next unread patch": "Hoppa till nästa olästa fält",
+  "Move back to the previous patch": "Tillbaka till föregående fält",
+  "Move to the next patch": "Till nästa fält",
+  "click": "klick"
 }
