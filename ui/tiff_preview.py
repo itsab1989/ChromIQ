@@ -428,6 +428,9 @@ class TiffPreview(QWidget):
     # #126: user clicked a strip in the preview (page index, local stripe
     # index on that page). Only emitted while set_stripe_click_enabled(True).
     stripe_clicked = pyqtSignal(int, int)
+    # #126 spot mode: user clicked a patch (page index, patch location id e.g.
+    # "A12"). Only emitted while set_patch_click_enabled(True).
+    patch_clicked = pyqtSignal(int, str)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -466,6 +469,15 @@ class TiffPreview(QWidget):
         # expected/measured RGB + L*a*b* and ΔE of the patch underneath it.
         self._show_patch_tile: bool = False
         self._patch_tile: "_PatchInfoTile | None" = None
+        # #126 spot (patch-by-patch) mode: the single patch to read next, drawn
+        # with a bright highlight so the user knows where to place the
+        # instrument; plus click-to-jump geometry (per page: {loc: image-px
+        # QRect}) and the patch currently hovered for its jump outline.
+        self._active_patch_box: "QRect | None" = None
+        self._active_patch_page: int = -1
+        self._patch_click_enabled: bool = False
+        self._patch_click_pages: "list[dict[str, QRect]]" = []
+        self._hover_patch_loc: str = ""
         # Chart path/name tooltip (shown on the caption/filename/image widgets).
         # Suppressed over the image during a measurement so it doesn't pop up
         # while swiping/inspecting patches (Basti).
@@ -837,6 +849,48 @@ class TiffPreview(QWidget):
 
     def set_stripe_read_map(self, read_map: "dict[int, bool]") -> None:
         self._stripe_read_map = dict(read_map)
+
+    # ---- spot (patch-by-patch) mode --------------------------------------
+    def highlight_patch(self, page: int, box: "QRect | None") -> None:
+        """Highlight the single patch to be read next (engine spot mode). The
+        highlight shows only while `page` is the visible page; pass box=None to
+        clear it."""
+        self._active_patch_box = box
+        self._active_patch_page = page if box is not None else -1
+        self._schedule_refresh()
+
+    def set_patch_click_enabled(self, on: bool,
+                                pages: "list[dict[str, QRect]] | None" = None) -> None:
+        """Enable click-to-jump in spot mode: clicking a patch emits
+        patch_clicked(page, loc). `pages` is a per-page list of {loc: image-px
+        QRect}; when omitted the previous geometry is kept."""
+        self._patch_click_enabled = on
+        if pages is not None:
+            self._patch_click_pages = list(pages)
+        if not on:
+            self._hover_patch_loc = ""
+            self._active_patch_box = None
+            self._active_patch_page = -1
+            self.unsetCursor()
+        self._schedule_refresh()
+
+    def _patch_at(self, widget_pos) -> "tuple[str, QRect] | None":
+        """The (loc, image-px rect) of the patch under a widget-space point, or
+        None. Uses the current page's click geometry."""
+        if self._pixmap is None or not (0 <= self._current < len(self._patch_click_pages)):
+            return None
+        boxes = self._patch_click_pages[self._current]
+        if not boxes:
+            return None
+        label_pos = self._img_label.mapFrom(self, widget_pos)
+        px = self._image_px_at(label_pos)
+        if px is None:
+            return None
+        ix, iy = px
+        for loc, rect in boxes.items():
+            if rect.contains(ix, iy):
+                return loc, rect
+        return None
 
     def set_patch_overlay(self, page: int,
                           items: "list[tuple[QRect, QColor, QColor, bool]]",
@@ -1941,6 +1995,44 @@ class TiffPreview(QWidget):
                 painter.setPen(red)
                 painter.drawRect(wr)
 
+        # #126 spot mode: highlight the patch to read next with a bright
+        # haloed accent ring so the user knows where to place the instrument.
+        if self._active_patch_box is not None and self._active_patch_page == self._current:
+            r = self._active_patch_box
+            x0 = round(r.x() * s + ox)
+            y0 = round(r.y() * s + oy)
+            x1 = round((r.x() + r.width()) * s + ox)
+            y1 = round((r.y() + r.height()) * s + oy)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            halo = QPen(QColor(255, 255, 255, 235))
+            halo.setWidthF(5.0)
+            halo.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+            painter.setPen(halo)
+            painter.drawRect(x0, y0, x1 - x0, y1 - y0)
+            ring = QPen(QColor("#1f8f6b"))
+            ring.setWidthF(2.5)
+            ring.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+            painter.setPen(ring)
+            painter.drawRect(x0, y0, x1 - x0, y1 - y0)
+
+        # #126 spot mode: click-to-jump hover outline around the patch under
+        # the pointer (mirrors the strip hover outline below).
+        if self._patch_click_enabled and self._hover_patch_loc:
+            _boxes = (self._patch_click_pages[self._current]
+                      if 0 <= self._current < len(self._patch_click_pages) else {})
+            hr = _boxes.get(self._hover_patch_loc)
+            if hr is not None:
+                x0 = round(hr.x() * s + ox)
+                y0 = round(hr.y() * s + oy)
+                x1 = round((hr.x() + hr.width()) * s + ox)
+                y1 = round((hr.y() + hr.height()) * s + oy)
+                pen = QPen(QColor("#56d6a5"))
+                pen.setWidthF(2.5)
+                pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+                painter.setPen(pen)
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawRect(x0, y0, x1 - x0, y1 - y0)
+
         if self._stripe_click_enabled and self._hover_stripe >= 0 \
                 and self._hover_stripe < len(self._stripe_rects):
             # Hug only the patches of the hovered strip (never the label band or
@@ -2163,6 +2255,20 @@ class TiffPreview(QWidget):
                 # jump-target highlight should track the pointer without lag
                 # (Basti). The debounce is kept for bulk changes elsewhere.
                 self._repaint_label()
+        # #126 spot mode: hovering a clickable patch
+        if self._patch_click_enabled:
+            hit = self._patch_at(event.position().toPoint())
+            loc = hit[0] if hit else ""
+            if loc != self._hover_patch_loc:
+                self._hover_patch_loc = loc
+                if loc:
+                    self.setCursor(Qt.CursorShape.PointingHandCursor)
+                    self.setToolTip(tr("Click to jump to this patch and "
+                                       "measure it next."))
+                else:
+                    self.unsetCursor()
+                    self.setToolTip("")
+                self._repaint_label()
         self._update_ink_readout(event)   # per-ink cursor readout (#72)
         self._update_patch_tile(event.position().toPoint())  # hover value tile
         if self._coord_readout and self._pixmap is not None:
@@ -2182,6 +2288,9 @@ class TiffPreview(QWidget):
             if self._cursor_overlay is not None:
                 self._cursor_overlay.show_cursor(None, None)
         self._hide_patch_tile()
+        if self._hover_patch_loc:
+            self._hover_patch_loc = ""
+            self._repaint_label()
         super().leaveEvent(event)
 
     def mouseReleaseEvent(self, event) -> None:  # type: ignore[override]
@@ -2196,6 +2305,11 @@ class TiffPreview(QWidget):
                 if idx >= 0:
                     self.stripe_clicked_page = self._current
                     self.stripe_clicked.emit(self._current, idx)
+            elif (self._patch_click_enabled and self._pan_dist < 4
+                    and event.button() == Qt.MouseButton.LeftButton):
+                hit = self._patch_at(event.position().toPoint())
+                if hit is not None:
+                    self.patch_clicked.emit(self._current, hit[0])
             self._pan_dist = 0
             event.accept()
             return
@@ -2205,6 +2319,13 @@ class TiffPreview(QWidget):
             if idx >= 0:
                 self.stripe_clicked_page = self._current
                 self.stripe_clicked.emit(self._current, idx)
+                event.accept()
+                return
+        if (self._patch_click_enabled
+                and event.button() == Qt.MouseButton.LeftButton):
+            hit = self._patch_at(event.position().toPoint())
+            if hit is not None:
+                self.patch_clicked.emit(self._current, hit[0])
                 event.accept()
                 return
         super().mouseReleaseEvent(event)

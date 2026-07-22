@@ -827,6 +827,11 @@ class TabMeasure(QWidget):
         # chart exposes no per-patch geometry (then the overlay is suppressed).
         self._patch_boxes: list[dict[str, QRect]] = []
         self._patch_geom_warned = False
+        # Engine spot (patch-by-patch) mode: the patch currently awaiting a
+        # read, and whether click-to-jump has been armed for this session.
+        self._spot_current_loc: str = ""
+        self._spot_click_on: bool = False
+        self._spot_session: bool = False
         self._device_busy: bool = False
         self._no_instrument: bool = False
         self._usb_claimed_by_vm: bool = False
@@ -853,6 +858,8 @@ class TabMeasure(QWidget):
         # #126 chart-reading engine
         self._manager.session_map.connect(self._on_session_map)
         self._manager.strip_measured.connect(self._on_strip_measured)
+        self._manager.patch_ready.connect(self._on_patch_ready)
+        self._manager.patch_measured.connect(self._on_patch_measured)
         self._manager.readings_saved.connect(self._on_readings_saved)
         self._manager.instrument_disconnected.connect(self._on_instrument_disconnected)
         self._manager.device_busy.connect(self._on_device_busy)
@@ -950,6 +957,11 @@ class TabMeasure(QWidget):
     def _is_verify_checked(self) -> bool:
         """True if the active module's 'Verification measurement' box is ticked."""
         cb = self._verify_cb if self._current_mode() == "guided" else self._m_verify_cb
+        return cb.isChecked()
+
+    def _is_pbp_checked(self) -> bool:
+        """True if the active module's 'Patch-by-patch mode' box is ticked."""
+        cb = self._pbp_cb if self._current_mode() == "guided" else self._m_pbp_cb
         return cb.isChecked()
 
     def set_calibration_mode(self, enabled: bool) -> None:
@@ -1207,6 +1219,7 @@ class TabMeasure(QWidget):
         rl.setSpacing(0)
         self._preview = TiffPreview(right)
         self._preview.stripe_clicked.connect(self._on_preview_strip_clicked)
+        self._preview.patch_clicked.connect(self._on_preview_patch_clicked)
         self._preview.set_caption(tr("CHART PREVIEW"))
         rl.addWidget(self._preview, stretch=1)
         splitter.addWidget(right)
@@ -2999,6 +3012,11 @@ class TabMeasure(QWidget):
         self._log.clear()
         self._auto_proceed = False
         self._all_done_shown = False
+        self._spot_current_loc = ""
+        self._spot_click_on = False
+        # Remember whether this is a patch-by-patch (spot) session, so the
+        # completion dialog can speak of "patches" instead of "stripes".
+        self._spot_session = self._is_pbp_checked()
         # Capture the verification-measurement choice now, so toggling the box
         # mid-read can't change how the finished .ti3 is handled.
         self._verify_run = self._is_verify_checked()
@@ -4242,6 +4260,20 @@ class TabMeasure(QWidget):
                 "the output log below.</span>"),
                 dlg,
             )
+        elif self._spot_session:
+            dlg.setWindowTitle(tr("All Patches Read"))
+            msg = QLabel(
+                tr("<b>All patches have been read successfully.</b><br><br>"
+                "Click <b>Build Profile</b> to finalise the measurement and go directly "
+                "to the Build Profile tab — the next and final step.<br><br>"
+                "If you would like to re-read any patch first, click <b>Re-read Patches</b>. "
+                "Use <b>f</b>&nbsp;/&nbsp;<b>b</b> to move forward and back between patches, "
+                "<b>n</b> to jump to the next unread patch, click a patch in the preview to "
+                "jump to it, and press <b>d</b> when you are done.<br><br>"
+                "<span style='color:#909090;'>These instructions are always visible in "
+                "the output log below.</span>"),
+                dlg,
+            )
         else:
             dlg.setWindowTitle(tr("All Stripes Read"))
             msg = QLabel(
@@ -4283,7 +4315,12 @@ class TabMeasure(QWidget):
             accept_label = "Create Calibration File →"
         else:
             accept_label = "Build Profile →"
-        cont_label = "Continue Measuring Manually" if self._guided_refinement_active else "Re-read Stripes"
+        if self._guided_refinement_active:
+            cont_label = "Continue Measuring Manually"
+        elif self._spot_session:
+            cont_label = "Re-read Patches"
+        else:
+            cont_label = "Re-read Stripes"
 
         btn_row = QHBoxLayout()
         btn_row.addStretch(1)
@@ -4530,6 +4567,11 @@ class TabMeasure(QWidget):
         # #126: click-to-jump only lives while an engine session runs; the
         # split-patch overlay stays so the finished chart can be inspected.
         self._preview.set_stripe_click_enabled(False)
+        # #126 spot mode: drop the current-patch highlight + click-to-jump; the
+        # split-patch overlay stays so the finished chart can be inspected.
+        self._preview.highlight_patch(-1, None)
+        self._preview.set_patch_click_enabled(False)
+        self._spot_click_on = False
         self._preview.set_notice(None)
         # The view controls live in the always-visible "Live preview" group now
         # (not hidden between reads); only the click-a-strip tip is transient.
@@ -5359,6 +5401,77 @@ class TabMeasure(QWidget):
             self._preview.set_patch_info(page, info_items)
         self._update_engine_read_map()
 
+    def _locate_patch(self, loc: str) -> "tuple[int, QRect | None]":
+        """(page, image-px box) of patch `loc` across the chart's pages, or
+        (-1, None) when the chart exposes no geometry for it."""
+        for page, boxes in enumerate(self._patch_boxes):
+            if loc in boxes:
+                return page, boxes[loc]
+        return -1, None
+
+    def _on_patch_ready(self, ev: dict) -> None:
+        """Engine spot (patch-by-patch) mode: highlight the patch to read next
+        and flip to its page. The first call arms click-to-jump for the whole
+        chart's patches."""
+        loc = str(ev.get("loc", ""))
+        self._spot_current_loc = loc
+        if not self._spot_click_on and any(self._patch_boxes):
+            self._spot_click_on = True
+            self._preview.set_patch_click_enabled(True, self._patch_boxes)
+            self._log.appendPlainText(
+                tr("[Engine] Tip: click any patch in the preview to jump "
+                   "straight to it."))
+        page, box = self._locate_patch(loc)
+        if page < 0:
+            self._preview.highlight_patch(-1, None)
+            return
+        if page != self._preview.current_page():
+            self._preview.show_page(page)
+        self._preview.highlight_patch(page, box)
+
+    def _on_patch_measured(self, ev: dict) -> None:
+        """Engine spot mode: add this patch's expected/measured split and its
+        hover values (mirrors _on_strip_measured for a single patch)."""
+        loc = str(ev.get("loc", ""))
+        page, box = self._locate_patch(loc)
+        if page < 0 or box is None:
+            if not self._patch_geom_warned and not any(self._patch_boxes):
+                self._patch_geom_warned = True
+                self._log.appendPlainText(
+                    tr("[Engine] Live patch preview needs a chart made with the "
+                       "ChromIQ layout engine, so it is off for this chart. Your "
+                       "measurement is unaffected — every patch is still saved and "
+                       "checked."))
+            return
+        from PyQt6.QtGui import QColor as _QC
+        from workflow.icc_info import xyz_to_lab
+        warn_de = float(self._settings.get("patch_read_warn_de", _PATCH_WARN_DE))
+        de_p = float(ev.get("de", 0))
+        exyz = ev.get("exyz", [0, 0, 0])
+        mxyz = ev.get("xyz", [0, 0, 0])
+        exp_rgb = _xyz_d50_to_srgb8(exyz)
+        meas_rgb = _xyz_d50_to_srgb8(mxyz)
+        item = (box, _QC(*exp_rgb), _QC(*meas_rgb), de_p >= warn_de)
+        info = (box, {
+            "loc": loc,
+            "exp_rgb": exp_rgb,
+            "meas_rgb": meas_rgb,
+            "exp_lab": xyz_to_lab(tuple(float(v) / 100.0 for v in exyz[:3])),
+            "meas_lab": xyz_to_lab(tuple(float(v) / 100.0 for v in mxyz[:3])),
+            "de": de_p,
+        })
+        # Accumulate: each patch adds its own split + numbers (dedup by box, so
+        # re-reading a patch refreshes it rather than stacking).
+        self._preview.set_patch_overlay(page, [item])
+        self._preview.set_patch_info(page, [info])
+
+    def _on_preview_patch_clicked(self, page: int, loc: str) -> None:
+        if not self._manager.engine_active or not loc:
+            return
+        self._manager.goto_patch(loc)
+        self._log.appendPlainText(
+            tr("[Engine] Jumping to patch {loc}…").format(loc=loc))
+
     def _update_engine_read_map(self) -> None:
         read_map = {}
         for s in self._engine_strips:
@@ -5435,12 +5548,6 @@ class TabMeasure(QWidget):
     def _apply_engine_params(self, p: MeasureParams) -> MeasureParams:
         """Attach the chart-reading engine when selected and usable."""
         if not self._engine_selected():
-            return p
-        if p.patch_by_patch:
-            self._log.appendPlainText(
-                tr("[Engine] Patch-by-patch mode isn't covered by the "
-                   "ChromIQ engine yet — using regular chartread for this "
-                   "run."))
             return p
         from workflow import chartread_engine
         try:

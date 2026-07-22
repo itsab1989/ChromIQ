@@ -592,9 +592,9 @@ def test_engine_params_attach_and_fallbacks(monkeypatch, tmp_path):
     out = tab._apply_engine_params(p)
     assert out.engine_helper == helper
 
-    # patch-by-patch → stock chartread
+    # patch-by-patch now runs through the engine too (spot mode is wired)
     p2 = MeasureParams(ti1_path=tab._ti1_path, patch_by_patch=True)
-    assert tab._apply_engine_params(p2).engine_helper is None
+    assert tab._apply_engine_params(p2).engine_helper == helper
 
     # setting off → untouched
     tab2 = _make_tab(engine="argyll")
@@ -669,3 +669,100 @@ def test_engine_line_decoder_feeds_existing_signals():
     assert got["readings_saved"] == [("x.ti3", 21)]
     assert got["unread_confirm"] == [("7, A7",)]
     assert "plain console prose is passed through" in prose
+
+
+# ---------------------------------------------------------------------------
+# Engine spot (patch-by-patch) mode wiring (#126 follow-up)
+# ---------------------------------------------------------------------------
+
+def _spot_tab(monkeypatch):
+    """A manual-mode tab with a 2-page patch geometry and a live preview."""
+    tab = _make_tab()
+    monkeypatch.setattr(tab, "_current_mode", lambda: "manual")
+    tab._patch_boxes = [
+        {"A1": QRect(10, 10, 20, 20), "A2": QRect(10, 40, 20, 20)},
+        {"B1": QRect(10, 10, 20, 20)},
+    ]
+    # Give the preview a pixmap so highlight/paint paths are exercised.
+    pm = QPixmap(200, 250)
+    pm.fill(QColor("white"))
+    tab._preview._pixmap = pm
+    tab._preview._pages = [(Path("/nonexistent.tif"), 0),
+                           (Path("/nonexistent.tif"), 1)]
+    tab._preview._repaint_label()
+    return tab
+
+
+def test_locate_patch_finds_page_and_box(monkeypatch):
+    tab = _spot_tab(monkeypatch)
+    assert tab._locate_patch("A2") == (0, QRect(10, 40, 20, 20))
+    assert tab._locate_patch("B1") == (1, QRect(10, 10, 20, 20))
+    assert tab._locate_patch("ZZ9") == (-1, None)
+
+
+def test_patch_ready_highlights_and_arms_click(monkeypatch):
+    tab = _spot_tab(monkeypatch)
+    tab._on_patch_ready({"id": "1", "loc": "A1", "read": False,
+                         "all_done": False, "exyz": [50, 50, 50]})
+    # Click-to-jump armed with the whole chart geometry; the current patch is
+    # highlighted on its page.
+    assert tab._spot_click_on
+    assert tab._preview._patch_click_enabled
+    assert tab._preview._active_patch_box == QRect(10, 10, 20, 20)
+    assert tab._preview._active_patch_page == 0
+
+
+def test_patch_ready_flips_to_the_patchs_page(monkeypatch):
+    tab = _spot_tab(monkeypatch)
+    tab._on_patch_ready({"loc": "A1", "exyz": [50, 50, 50]})
+    tab._on_patch_ready({"loc": "B1", "exyz": [50, 50, 50]})   # on page 1
+    assert tab._preview.current_page() == 1
+    assert tab._preview._active_patch_page == 1
+
+
+def test_patch_measured_feeds_split_and_tile(monkeypatch):
+    tab = _spot_tab(monkeypatch)
+    tab._on_patch_measured({
+        "loc": "A2",
+        "xyz": [40.0, 42.0, 38.0],
+        "exyz": [41.0, 42.0, 39.0],
+        "de": 1.4,
+    })
+    ov = tab._preview._patch_overlay.get(0, [])
+    info = tab._preview._patch_info.get(0, [])
+    assert len(ov) == 1 and ov[0][0] == QRect(10, 40, 20, 20)
+    assert len(info) == 1
+    rect, d = info[0]
+    assert rect == QRect(10, 40, 20, 20)
+    assert d["loc"] == "A2"
+    assert d["de"] == 1.4
+    assert len(d["exp_lab"]) == 3 and len(d["meas_lab"]) == 3
+
+
+def test_patch_measured_accumulates_per_patch(monkeypatch):
+    tab = _spot_tab(monkeypatch)
+    tab._on_patch_measured({"loc": "A1", "xyz": [50, 50, 50],
+                            "exyz": [50, 50, 50], "de": 0.0})
+    tab._on_patch_measured({"loc": "A2", "xyz": [40, 40, 40],
+                            "exyz": [40, 40, 40], "de": 0.0})
+    assert len(tab._preview._patch_overlay.get(0, [])) == 2
+
+
+def test_patch_click_jumps_via_goto_patch(monkeypatch):
+    tab = _spot_tab(monkeypatch)
+    calls = []
+    monkeypatch.setattr(tab._manager, "goto_patch", lambda loc: calls.append(loc))
+    monkeypatch.setattr(type(tab._manager), "engine_active",
+                        property(lambda self: True))
+    tab._on_preview_patch_clicked(0, "A2")
+    assert calls == ["A2"]
+
+
+def test_measure_done_clears_spot_state(monkeypatch):
+    tab = _spot_tab(monkeypatch)
+    tab._on_patch_ready({"loc": "A1", "exyz": [50, 50, 50]})
+    assert tab._preview._patch_click_enabled
+    tab._on_measure_done(0)
+    assert not tab._preview._patch_click_enabled
+    assert tab._preview._active_patch_box is None
+    assert not tab._spot_click_on

@@ -2689,7 +2689,6 @@
   "[Engine] Jumping to strip {strip}…": "[Engine] 正在跳转到色条 {strip}…",
   "[Engine] Live patch preview needs a chart made with the ChromIQ layout engine, so it is off for this chart. Your measurement is unaffected — every strip is still saved and checked.": "[Engine] 实时色块预览需要一张用 ChromIQ 布局引擎制作的色卡，因此对这张色卡它是关闭的。你的测量不受影响 — 每条色条仍会被保存和检查。",
   "[Engine] Note: some rows of this chart are too similar for automatic row identification — for those, take the usual care to swipe the row shown in the preview.": "[Engine] 注意：这张色卡的某些行太相似，无法自动识别行 — 对于那些行，请照常小心地划过预览中显示的那一行。",
-  "[Engine] Patch-by-patch mode isn't covered by the ChromIQ engine yet — using regular chartread for this run.": "[Engine] ChromIQ 引擎尚未涵盖逐块模式 — 本次运行使用普通的 chartread。",
   "[Engine] The ChromIQ chart-reading engine isn't available on this system — using regular chartread. Everything works as before.": "[Engine] ChromIQ 色卡读取引擎在此系统上不可用 — 使用普通的 chartread。一切照旧工作。",
   "[INFO] Bit-exact gamut mapping on a standard (≤4-ink) measurement — building with ArgyllCMS colprof directly, for a profile identical to Argyll.": "[INFO] 在标准（≤4 墨水）测量上进行位精确色域映射 — 直接使用 ArgyllCMS colprof 构建，生成与 Argyll 完全相同的配置文件。",
   "[INFO] Measurement stopped — no measurement (.ti3) file was created.": "[INFO] 测量已停止 — 未创建测量（.ti3）文件。",
@@ -3208,5 +3207,11 @@
   "Show patch values on hover": "悬停时显示色块数值",
   "ΔE  {de:.2f}": "ΔE  {de:.2f}",
   "Turn this on to inspect any patch you've already measured: point at it and a small card appears next to your mouse with the exact numbers behind the two colours in the split — what the chart expected, and what your instrument actually read.\n\nFor each colour the card shows RGB (roughly the colour you see on screen) and L*a*b* (the exact measurement), plus the ΔE between them — how far the print landed from the target for that single patch. A large ΔE on a strong, saturated colour is normal (paper simply can't reach every colour a screen can); what you're really looking for is one patch that sits far off its neighbours.\n\nThe card follows the 'Each patch shows' setting above: with 'Expected & measured (split)' you get both colours and the ΔE; with 'Expected colour only' or 'Measured colour only' you get just that one. It only reads out numbers — it never changes your readings.": "开启后可查看任何已测量的色块：将鼠标指向它，指针旁会出现一个小卡片，显示分割中两种颜色背后的精确数值——色卡期望的颜色，以及仪器实际读取的颜色。\n\n卡片会为每种颜色显示 RGB（大致是你在屏幕上看到的颜色）和 L*a*b*（精确测量值），以及两者之间的 ΔE——即该色块的打印结果与目标的偏差。鲜艳、高饱和度的颜色出现较大的 ΔE 是正常的（纸张根本无法呈现屏幕上的所有颜色）；你真正要找的是明显偏离相邻色块的那个色块。\n\n卡片会跟随上方“每个色块显示：”的设置：选择“期望值与测量值（分割）”时会同时显示两种颜色和 ΔE；选择“仅期望颜色”或“仅测量颜色”时只显示其中一种。它只显示数值，绝不会改变你的测量结果。",
-  "Measured on": "测量时间"
+  "Measured on": "测量时间",
+  "<b>All patches have been read successfully.</b><br><br>Click <b>Build Profile</b> to finalise the measurement and go directly to the Build Profile tab — the next and final step.<br><br>If you would like to re-read any patch first, click <b>Re-read Patches</b>. Use <b>f</b>&nbsp;/&nbsp;<b>b</b> to move forward and back between patches, <b>n</b> to jump to the next unread patch, click a patch in the preview to jump to it, and press <b>d</b> when you are done.<br><br><span style='color:#909090;'>These instructions are always visible in the output log below.</span>": "<b>所有色块都已成功读取。</b><br><br>点击<b>生成配置文件</b>完成测量并直接前往生成配置文件标签页 — 这是下一步，也是最后一步。<br><br>如果想先重读某个色块，点击<b>重读色块</b>。用 <b>f</b>&nbsp;/&nbsp;<b>b</b> 在色块间前后移动，<b>n</b> 跳到下一个未读的，点击预览中的色块可跳转到它，完成后按 <b>d</b>。<br><br><span style='color:#909090;'>这些说明始终显示在下方的输出日志中。</span>",
+  "All Patches Read": "所有色块已读取",
+  "Click to jump to this patch and measure it next.": "点击跳转到此色块并接着测量它。",
+  "[Engine] Jumping to patch {loc}…": "[Engine] 正在跳转到色块 {loc}…",
+  "[Engine] Live patch preview needs a chart made with the ChromIQ layout engine, so it is off for this chart. Your measurement is unaffected — every patch is still saved and checked.": "[Engine] 实时色块预览需要一张用 ChromIQ 布局引擎制作的色卡，因此对这张色卡它是关闭的。你的测量不受影响 — 每个色块仍会被保存和检查。",
+  "[Engine] Tip: click any patch in the preview to jump straight to it.": "[Engine] 提示：点击预览中的任意色块即可直接跳转到它。"
 }

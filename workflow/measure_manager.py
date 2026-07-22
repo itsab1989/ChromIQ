@@ -202,6 +202,10 @@ class MeasureManager(QObject):
     session_map                = pyqtSignal(list)      # [{strip, sheet, read, verifiable}, …]
     strip_measured             = pyqtSignal(dict)      # full strip_read event payload
     readings_saved             = pyqtSignal(str, int)  # (.ti3 path, patches on disk)
+    # Engine spot (patch-by-patch) mode: the patch to read next, and a patch's
+    # measured result — the single-patch analogues of stripe_changed/strip_measured.
+    patch_ready                = pyqtSignal(dict)      # {id, loc, read, all_done, exyz}
+    patch_measured             = pyqtSignal(dict)      # {id, loc, xyz, exyz, de}
 
     def __init__(self, runner: "ArgyllRunner", parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -248,8 +252,9 @@ class MeasureManager(QObject):
         # Reset guided state for this run
         self._guided_idx   = 0
         self._guided_state = "idle" if self._guided_strips else "disabled"
-        self._engine_active = (params.engine_helper is not None
-                               and not params.patch_by_patch)
+        # The engine now covers patch-by-patch (spot) mode too — the spot loop
+        # speaks the same JSON protocol as the strip loop (#126 follow-up).
+        self._engine_active = params.engine_helper is not None
         # Engine → stock-chartread safety net (#126, mavtop). Reset per run.
         self._engine_fatal = None
         self._engine_progress = False
@@ -433,6 +438,11 @@ class MeasureManager(QObject):
         if self._engine_active:
             self.send_command({"cmd": "goto", "strip": strip})
 
+    def goto_patch(self, loc: str) -> None:
+        """Jump the engine directly to patch `loc` in spot mode (engine only)."""
+        if self._engine_active:
+            self.send_command({"cmd": "goto", "patch": loc})
+
     @property
     def engine_active(self) -> bool:
         return self._engine_active
@@ -532,6 +542,17 @@ class MeasureManager(QObject):
                     f"(worst patch ΔE {ev.get('worst_de', 0):.1f})")
             if self._guided_state == "waiting":
                 self._advance_guided_strip(on_line)
+
+        elif kind == "spot_ready":
+            # Engine patch-by-patch mode: the read loop is now sitting on this
+            # patch. Drives the current-patch highlight + page flip.
+            self.patch_ready.emit(ev)
+            if ev.get("all_done"):
+                self.all_stripes_done.emit()
+
+        elif kind == "patch_read":
+            self._engine_progress = True
+            self.patch_measured.emit(ev)
 
         elif kind == "saved":
             self._engine_progress = True
