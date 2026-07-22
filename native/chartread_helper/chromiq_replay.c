@@ -179,9 +179,15 @@ static inst_code cq_set_mode(inst *p, inst_mode m) {
 	return inst_ok;
 }
 
+/* Optional calibration simulation (CHROMIQ_REPLAY_NEEDCAL): lets tests
+ * exercise the JSON calibration handshake the real ColorMunki triggers —
+ * one inst_cal_setup round (user positions the sensor), then inst_ok. */
+static int cq_needcal_armed = 0;
+static int cq_cal_step = 0;
+
 static inst_cal_type cq_needs_calibration(inst *p) {
 	(void)p;
-	return inst_calt_none;		/* never needs calibration */
+	return cq_needcal_armed ? inst_calt_ref_white : inst_calt_none;
 }
 
 static inst_code cq_get_n_a_cals(inst *p, inst_cal_type *needed,
@@ -196,7 +202,17 @@ static inst_code cq_get_n_a_cals(inst *p, inst_cal_type *needed,
 
 static inst_code cq_calibrate(inst *p, inst_cal_type *calt, inst_cal_cond *calc,
 	inst_calc_id_type *idtype, char id[CALIDLEN]) {
-	(void)p; (void)calc; (void)idtype; (void)id;
+	(void)p; (void)idtype; (void)id;
+	if (cq_needcal_armed && cq_cal_step == 0) {
+		/* First round: ask the user to set the sensor to the white tile. */
+		cq_cal_step = 1;
+		if (calc != NULL)
+			*calc = inst_calc_man_ref_white;
+		return inst_cal_setup;
+	}
+	/* Done — clear the armed flag so the read loop proceeds. */
+	cq_needcal_armed = 0;
+	cq_cal_step = 0;
 	if (calt != NULL)
 		*calt = inst_calt_none;
 	return inst_ok;
@@ -377,6 +393,10 @@ inst *cq_new_replay_inst(a1log *log,
 
 	if ((p = (cq_inst *)calloc(1, sizeof(cq_inst))) == NULL)
 		return NULL;
+
+	/* Arm the calibration simulation from the environment (tests only). */
+	cq_needcal_armed = (getenv("CHROMIQ_REPLAY_NEEDCAL") != NULL);
+	cq_cal_step = 0;
 
 	p->log = new_a1log_d(log);
 	p->init_coms          = cq_init_coms;

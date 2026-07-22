@@ -2461,8 +2461,13 @@ a1log *log			/* verb, debug & error log */
 
 			/* Do any needed calibration before the user places the instrument on a desired spot */
 			if (it->needs_calibration(it) & inst_calt_n_dfrble_mask) {
-				if ((rv = inst_handle_calibrate(it, inst_calt_needed, inst_calc_none, NULL, NULL, 0))
-				                                                                    != inst_ok) {
+				/* CHROMIQ_EXT: in JSON mode calibration prompts become cal_*
+				 * events answered by commands — the console is a pipe here, so
+				 * stock inst_handle_calibrate would hang on next_con_char. */
+				rv = cq_json
+				   ? cq_handle_calibrate(it, inst_calt_needed, inst_calc_none, 0)
+				   : inst_handle_calibrate(it, inst_calt_needed, inst_calc_none, NULL, NULL, 0);
+				if (rv != inst_ok) {
 					printf("\nCalibration failed with error :'%s' (%s)\n",
 		       	       it->inst_interp_error(it, rv), it->interp_error(it, rv));
 					it->del(it);
@@ -2731,7 +2736,9 @@ a1log *log			/* verb, debug & error log */
 					if (cap2 & inst2_no_feedback)
 						bad_beep();
 					printf("\nSpot read failed because instruments needs calibration\n");
-					ev = inst_handle_calibrate(it, inst_calt_needed, inst_calc_none, NULL, NULL, 0);
+					ev = cq_json
+					   ? cq_handle_calibrate(it, inst_calt_needed, inst_calc_none, 0)
+					   : inst_handle_calibrate(it, inst_calt_needed, inst_calc_none, NULL, NULL, 0);
 					if (ev != inst_ok) {	/* Abort or fatal error */
 						it->del(it);
 						if (pfname != NULL)
@@ -2834,7 +2841,9 @@ a1log *log			/* verb, debug & error log */
 			} else if (ch == 'k') {
 				inst_code ev;
 
-				ev = inst_handle_calibrate(it, inst_calt_available, inst_calc_none, NULL, NULL, 0);
+				ev = cq_json
+				   ? cq_handle_calibrate(it, inst_calt_available, inst_calc_none, 0)
+				   : inst_handle_calibrate(it, inst_calt_available, inst_calc_none, NULL, NULL, 0);
 				if (ev != inst_ok) {	/* Abort or fatal error */
 					it->del(it);
 					if (pfname != NULL)

@@ -184,3 +184,22 @@ def test_quit_aborts_without_saving(spot_chart):
     finally:
         if s.proc.poll() is None:
             s.proc.kill()
+
+
+def test_spot_calibration_handshake(spot_chart, monkeypatch):
+    """The exact path that hung on a real ColorMunki: spot mode needs an initial
+    calibration. It must arrive as a cal_required event answered by a command —
+    never a console next_con_char (which fails on the JSON pipe)."""
+    base, replay = spot_chart
+    monkeypatch.setenv("CHROMIQ_REPLAY_NEEDCAL", "1")
+    s = _spot_session(base, replay)
+    try:
+        ev = s.wait_event("cal_required", timeout=8)
+        assert ev["cond"] == "man_ref_white"
+        idx = s.event_index()
+        s.send(cmd="accept")                 # user set the sensor, continue
+        s.wait_event("cal_done", after=idx, timeout=5)
+        # After calibration the read loop proceeds normally.
+        s.wait_event("spot_ready", after=idx, timeout=5)
+    finally:
+        s.proc.kill()
