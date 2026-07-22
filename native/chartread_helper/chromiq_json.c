@@ -147,7 +147,12 @@ static void cq_handle_line(const char *line) {
 		return;
 	}
 
-	if (strcmp(cmd, "goto") == 0 && cq_json_get(line, "strip", gl, sizeof(gl)))
+	/* "goto" carries a target label: "strip" in strip mode, "patch" in
+	 * spot mode. Both feed the same CQ_KEY_GOTO / cq_goto_label channel —
+	 * the read loop matches the label against its own units. */
+	if (strcmp(cmd, "goto") == 0
+	 && (cq_json_get(line, "strip", gl, sizeof(gl))
+	  || cq_json_get(line, "patch", gl, sizeof(gl))))
 		key = CQ_KEY_GOTO;
 	else if (strcmp(cmd, "next_unread") == 0)
 		key = 'n';
@@ -155,6 +160,8 @@ static void cq_handle_line(const char *line) {
 		key = 'f';
 	else if (strcmp(cmd, "back") == 0)
 		key = 'b';
+	else if (strcmp(cmd, "read") == 0)
+		key = 0x0d;                    /* spot-mode read trigger (== Return) */
 	else if (strcmp(cmd, "done") == 0 || strcmp(cmd, "save") == 0)
 		key = 'd';
 	else if (strcmp(cmd, "retry") == 0)

@@ -49,6 +49,10 @@ int cq_wait_char(void);
 extern const char *cq_replay_path;
 int  cq_replay_active(void);
 int  cq_replay_load(const char *path);
+/* Arm the replay's spot instrument with the current patch's expected XYZ,
+ * so a headless patch-by-patch read echoes it back (measured == expected).
+ * No-op unless replay mode is active. */
+void cq_replay_arm_spot(const double xyz[3]);
 
 /* Pending swipe injected by the command channel ({"cmd":"swipe", ...}) */
 extern volatile int cq_swipe_pending;

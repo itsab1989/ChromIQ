@@ -555,6 +555,40 @@ static void cq_emit_strip_read(chcol **scb, int stipa, const char *label,
 	fflush(stdout);
 }
 
+/* CHROMIQ_EXT: per-patch events for engine-driven patch-by-patch (spot) mode.
+ * `spot_ready` announces the patch the read loop is now sitting on (so the
+ * GUI can highlight it and offer a jump); `patch_read` carries the measured
+ * value after a good read — the same schema as one element of a strip_read's
+ * patches[], so the GUI's split view / hover tile is fed identically. */
+static void cq_emit_spot_ready(chcol *c, int read_done, int all_done) {
+	if (!cq_json)
+		return;
+	cq_emit_raw("{\"event\":\"spot_ready\",\"id\":\"%s\",\"loc\":\"%s\","
+	            "\"read\":%s,\"all_done\":%s,\"exyz\":[%.4f,%.4f,%.4f]}",
+	            c->id, c->loc, read_done ? "true" : "false",
+	            all_done ? "true" : "false",
+	            c->eXYZ[0], c->eXYZ[1], c->eXYZ[2]);
+}
+
+static void cq_emit_patch_read(chcol *c) {
+	double lab_m[3], lab_e[3], xyz[3], de;
+	int j;
+	if (!cq_json)
+		return;
+	for (j = 0; j < 3; j++)
+		xyz[j] = c->XYZ[j] / 100.0;
+	icmXYZ2Lab(&icmD50, lab_m, xyz);
+	for (j = 0; j < 3; j++)
+		xyz[j] = c->eXYZ[j] / 100.0;
+	icmXYZ2Lab(&icmD50, lab_e, xyz);
+	de = icmLabDE(lab_m, lab_e);
+	cq_emit_raw("{\"event\":\"patch_read\",\"id\":\"%s\",\"loc\":\"%s\","
+	            "\"xyz\":[%.4f,%.4f,%.4f],\"exyz\":[%.4f,%.4f,%.4f],\"de\":%.2f}",
+	            c->id, c->loc,
+	            c->XYZ[0], c->XYZ[1], c->XYZ[2],
+	            c->eXYZ[0], c->eXYZ[1], c->eXYZ[2], de);
+}
+
 /* CHROMIQ_EXT: misalignment safety net (opt-in, #50). After a strip is read,
  * if it fits its expected colours badly, probe small ±offsets to see whether a
  * shift gives a dramatically better match — the signature of the reader locking
@@ -2480,6 +2514,12 @@ a1log *log			/* verb, debug & error log */
 			inst_set_uih('k', 'k',   DUIH_CMND);
 			inst_set_uih('q', 'q', DUIH_ABORT);
 			inst_set_uih('Q', 'Q', DUIH_ABORT);
+			/* CHROMIQ_EXT: in JSON mode {"cmd":"quit"} arrives as Esc; the
+			 * console path never sees Esc here (it's read at the menu), so
+			 * register it as an abort only for the engine — stock behaviour
+			 * stays byte-identical. */
+			if (cq_json)
+				inst_set_uih(0x1b, 0x1b, DUIH_ABORT);
 			inst_set_uih(0xd, 0xd, DUIH_TRIG);	/* Return */
 			inst_set_uih(' ', ' ', DUIH_TRIG);
 		}
@@ -2529,23 +2569,37 @@ a1log *log			/* verb, debug & error log */
 						break;
 				}
 			} else if (incflag == 4) {		/* Goto specific patch */
-				printf("\nEnter patch to go to: %s",fl_end); do_fflush();
+				int opix = pix;
+				int have_target = 1;
 
-				/* Read in the next line from stdin. */
-				if (con_fgets(buf, 200) == NULL) {
-					printf("Error - unrecognised input\n");
+				if (cq_json) {
+					/* JSON mode: the target loc arrived via
+					 * {"cmd":"goto","patch":"…"} — the uicallback stashed it
+					 * in cq_goto_target. The console is off-limits here. */
+					strncpy(buf, cq_goto_target, sizeof(buf) - 1);
+					buf[sizeof(buf) - 1] = '\0';
+					bp = buf;
 				} else {
-					int opix = pix;
+					printf("\nEnter patch to go to: %s",fl_end); do_fflush();
+					/* Read in the next line from stdin. */
+					if (con_fgets(buf, 200) == NULL) {
+						printf("Error - unrecognised input\n");
+						have_target = 0;
+					} else {
+						bp = buf;
+					}
+				}
 
+				if (have_target) {
 					/* Skip whitespace */
-					for (bp = buf; *bp != '\000' && isspace(*bp); bp++)
+					for (; *bp != '\000' && isspace(*bp); bp++)
 						;
 
 					/* Skip non-whitespace */
 					for (ep = bp; *ep != '\000' && !isspace(*ep); ep++)
 						;
 					*ep = '\000';
-				
+
 					if (pix >= npat)
 						pix = 0;
 					for (;;) {
@@ -2556,6 +2610,8 @@ a1log *log			/* verb, debug & error log */
 							pix = 0;
 						if (pix == opix) {
 							printf("Patch '%s' not found\n",bp);
+							if (cq_json)
+								cq_emit_error("patch_not_found", bp);
 							break;
 						}
 					}
@@ -2568,6 +2624,10 @@ a1log *log			/* verb, debug & error log */
 				if (scols[i]->rr == 0 && strcmp(scols[i]->id, "0") != 0)
 					break;					/* At least one patch read */
 			}
+
+			/* CHROMIQ_EXT: tell the GUI which patch we're on (both the
+			 * manual-entry and instrument branches read scols[pix] next). */
+			cq_emit_spot_ready(scols[pix], scols[pix]->rr, i >= npat);
 
 			if (xtern != 0) {	/* User entered values */
 				printf("\nReady to read patch '%s' at '%s'%s\n",scols[pix]->id, scols[pix]->loc,
@@ -2617,6 +2677,12 @@ a1log *log			/* verb, debug & error log */
 					printf("    <return> or <space> to read:%s",fl_end);
 				do_fflush();
 
+				/* CHROMIQ_EXT: a headless replay run echoes this patch's
+				 * expected value back as the measurement. Inert with a
+				 * real instrument. */
+				if (cq_replay_active())
+					cq_replay_arm_spot(scols[pix]->eXYZ);
+
 				rv = it->read_sample(it, "SPOT", &val, 1);
 
 				/* Deal with reading */
@@ -2646,7 +2712,8 @@ a1log *log			/* verb, debug & error log */
 						empty_con_chars();
 						printf("\n\nSpot read stopped at user request!\n");
 						printf("Hit Esc or 'q' to give up, any other key to retry:%s",fl_end); do_fflush();
-						if ((ch = next_con_char()) == 0x1b || ch == 0x3 || ch == 'q' || ch == 'Q') {
+						cq_emit_simple("strip_interrupted");	/* CHROMIQ_EXT */
+						if ((ch = cq_prompt_char()) == 0x1b || ch == 0x3 || ch == 'q' || ch == 'Q') {
 							printf("\n");
 							it->del(it);
 							if (pfname != NULL)
@@ -2679,7 +2746,8 @@ a1log *log			/* verb, debug & error log */
 					empty_con_chars();
 					printf("\nStrip read failed due to misread (%s)\n",it->interp_error(it, rv));
 					printf("Hit Esc or 'q' to give up, any other key to retry:%s",fl_end); do_fflush();
-					if ((ch = next_con_char()) == 0x1b || ch == 0x3 || ch == 'q' || ch == 'Q') {
+					cq_emit_error("misread", it->interp_error(it, rv));	/* CHROMIQ_EXT */
+					if ((ch = cq_prompt_char()) == 0x1b || ch == 0x3 || ch == 'q' || ch == 'Q') {
 						printf("\n");
 						it->del(it);
 						if (pfname != NULL)
@@ -2695,7 +2763,8 @@ a1log *log			/* verb, debug & error log */
 					empty_con_chars();
 					printf("\nStrip read failed due to communication problem.\n");
 					printf("Hit Esc or 'q' to give up, any other key to retry:%s",fl_end); do_fflush();
-					if ((ch = next_con_char()) == 0x1b || ch == 0x3 || ch == 'q' || ch == 'Q') {
+					cq_emit_error("coms", "");	/* CHROMIQ_EXT */
+					if ((ch = cq_prompt_char()) == 0x1b || ch == 0x3 || ch == 'q' || ch == 'Q') {
 						printf("\n");
 						it->del(it);
 						if (pfname != NULL)
@@ -2736,7 +2805,8 @@ a1log *log			/* verb, debug & error log */
 					printf("\nPatch read failed due unexpected error :'%s' (%s)\n",
 			       	       it->inst_interp_error(it, rv), it->interp_error(it, rv));
 					printf("Hit Esc or 'q' to give up, any other key to retry:%s",fl_end); do_fflush();
-					if ((ch = next_con_char()) == 0x1b || ch == 0x3 || ch == 'q' || ch == 'Q') {
+					cq_emit_error("misread", it->interp_error(it, rv));	/* CHROMIQ_EXT */
+					if ((ch = cq_prompt_char()) == 0x1b || ch == 0x3 || ch == 'q' || ch == 'Q') {
 						printf("\n");
 						it->del(it);
 						if (pfname != NULL)
@@ -2751,7 +2821,8 @@ a1log *log			/* verb, debug & error log */
 			if (ch == 'q' || ch == 0x1b || ch == 0x03) {	/* q or Esc or ^C */
 				empty_con_chars();
 				printf("\nAbort ? - Are you sure ? [y/n]:%s",fl_end); do_fflush();
-				if ((ch = next_con_char()) == 'y' || ch == 'Y') {
+				cq_emit_simple("abort_confirm");	/* CHROMIQ_EXT */
+				if ((ch = cq_prompt_char()) == 'y' || ch == 'Y') {
 					printf("\n");
 					it->del(it);
 					if (pfname != NULL)
@@ -2803,7 +2874,9 @@ a1log *log			/* verb, debug & error log */
 				printf("\nDone ? - At least one unread patch (%s, %s), Are you sure [y/n]: %s",
 				       scols[i]->id, scols[i]->loc, fl_end);
 				do_fflush();
-				if ((ch = next_con_char()) == 0x1b) {
+				cq_emit_raw("{\"event\":\"unread_confirm\",\"id\":\"%s\",\"loc\":\"%s\"}",
+				            scols[i]->id, scols[i]->loc);	/* CHROMIQ_EXT */
+				if ((ch = cq_prompt_char()) == 0x1b) {
 					printf("\n");
 					it->del(it);
 					if (pfname != NULL)
@@ -2858,6 +2931,7 @@ a1log *log			/* verb, debug & error log */
 
 				scols[pix]->rr = 1;		/* Has been read */
 				printf(" Got XYZ value %f %f %f\n",scols[pix]->XYZ[0], scols[pix]->XYZ[1], scols[pix]->XYZ[2]);
+				cq_emit_patch_read(scols[pix]);		/* CHROMIQ_EXT */
 
 				/* Advance to next patch. */
 				incflag = 1;
@@ -2878,6 +2952,7 @@ a1log *log			/* verb, debug & error log */
 				}
 				scols[pix]->rr = 1;		/* Has been read */
 				printf(" Patch read OK\n");
+				cq_emit_patch_read(scols[pix]);		/* CHROMIQ_EXT */
 
 				/* Advance to next patch. */
 				incflag = 1;

@@ -311,6 +311,61 @@ static inst_code cq_read_strip(inst *p, char *name, int npatch, char *pname,
 	}
 }
 
+/* ---------------- spot (patch-by-patch) reading ----------------
+ * The spot loop arms the current patch's expected XYZ before each read
+ * (cq_replay_arm_spot); the fake instrument echoes it back, so the whole
+ * patch-by-patch path runs headless with measured == expected. A pending
+ * fault (set via {"cmd":"swipe","fault":"…"}) is honoured once, exactly
+ * like the strip path, so misread/coms/needs-cal recovery is testable. */
+static double cq_spot_armed[3] = {0.0, 0.0, 0.0};
+
+void cq_replay_arm_spot(const double xyz[3]) {
+	cq_spot_armed[0] = xyz[0];
+	cq_spot_armed[1] = xyz[1];
+	cq_spot_armed[2] = xyz[2];
+}
+
+static inst_code cq_read_sample(inst *p, char *name, ipatch *val,
+	instClamping clamp) {
+	cq_inst *cq = (cq_inst *)p;
+	(void)name; (void)clamp;
+
+	for (;;) {
+		/* Same poll as cq_read_strip: nav/goto commands surface as
+		 * inst_user_abort, the read trigger as inst_user_trig. */
+		if (cq->uicallback != NULL) {
+			inst_code uev = cq->uicallback(cq->uic_cntx, inst_armed);
+			if (uev == inst_user_abort)
+				return inst_user_abort;
+			if (uev == inst_user_trig) {
+				char fault[16];
+				strncpy(fault, cq_swipe_fault, sizeof(fault) - 1);
+				fault[sizeof(fault) - 1] = '\0';
+				cq_swipe_fault[0] = '\0';
+				cq_swipe_pending = 0;
+				if (fault[0] != '\0') {
+					if (strcmp(fault, "misread") == 0)
+						return inst_misread;
+					if (strcmp(fault, "coms") == 0)
+						return inst_coms_fail;
+					if (strcmp(fault, "needs_cal") == 0)
+						return inst_needs_cal;
+					return inst_misread;
+				}
+				memset(val, 0, sizeof(ipatch));
+				val->XYZ[0] = cq_spot_armed[0];
+				val->XYZ[1] = cq_spot_armed[1];
+				val->XYZ[2] = cq_spot_armed[2];
+				val->XYZ_v = 1;
+				val->mtype = inst_mrt_reflective;
+				val->sp.spec_n = 0;
+				return inst_ok;
+			}
+		}
+		msec_sleep(20);
+	}
+}
+
 /* Members read_strips touches but never exercises on the strip path. */
 static inst_code cq_unsupported(void) {
 	return inst_unsupported;
@@ -341,6 +396,7 @@ inst *cq_new_replay_inst(a1log *log,
 	p->inst_interp_error  = cq_inst_interp_error;
 	p->interp_error       = cq_interp_error;
 	p->read_strip         = cq_read_strip;
+	p->read_sample        = cq_read_sample;
 	p->last_scomerr       = cq_last_scomerr;
 	p->del                = cq_del;
 	p->dtype              = instI1Pro;
