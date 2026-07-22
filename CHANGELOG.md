@@ -1,5 +1,18 @@
 # Changelog
 
+## v3.14.7
+
+- **The chart-reading engine can now also drive XY tables and chart readers
+  (opt-in).** Motorised XY tables (the GretagMacbeth SpectroScan) and autonomous
+  chart readers (the X-Rite i1iSis and DTP70) previously always used Argyll's
+  chartread. A new **Settings → Beta** option, *"Also drive XY tables and chart
+  readers with the engine"*, lets the ChromIQ engine measure them too — filling
+  in the expected-vs-measured preview as sheets are read and saving after every
+  sheet. It is **off by default**: these instruments are rare and the new path
+  has not yet been tested on real hardware, so unless you turn it on they keep
+  measuring exactly as before. With the engine's own strip and patch modes, that
+  makes the engine cover every interactive reading mode.
+
 ## v3.14.6
 
 - **Patch-by-patch measuring now autosaves after every patch.** Previously a
