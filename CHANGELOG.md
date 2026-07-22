@@ -1,5 +1,22 @@
 # Changelog
 
+## v3.14.5
+
+- **Patch-by-patch measuring now has the full live preview.** When you measure
+  a chart one patch at a time (Measure → Manual → “Patch-by-patch mode”) with
+  the ChromIQ chart-reading engine, the preview now guides you exactly like
+  strip reading does: the patch to measure next is **highlighted**, the view
+  follows it across pages, and every patch you read fills in with the colour the
+  chart **expected** versus the colour your instrument **measured** — hover a
+  patch to see both as RGB and L\*a\*b\* plus the ΔE. You can also **click any
+  patch in the preview to jump straight to it.** Previously patch-by-patch mode
+  fell back to plain ArgyllCMS with only text prompts and no live guidance. The
+  engine now drives both interactive reading modes — strips and single patches.
+- **Fix — patch-by-patch no longer hangs on instruments that must calibrate
+  first.** On a meter like the ColorMunki that asks to be calibrated at the
+  start, patch-by-patch mode would freeze; the calibration request now appears
+  as the normal ChromIQ dialog and measuring proceeds.
+
 ## v3.14.4
 
 - **See the numbers behind any measured patch, right in the preview.** With the
