@@ -203,3 +203,22 @@ def test_spot_calibration_handshake(spot_chart, monkeypatch):
         s.wait_event("spot_ready", after=idx, timeout=5)
     finally:
         s.proc.kill()
+
+
+def test_each_patch_read_autosaves(spot_chart):
+    """Patch-by-patch autosaves after every patch (parity with strip mode) so a
+    disconnect mid-session never loses the slow one-at-a-time readings: each
+    read emits a `saved` event and the .ti3 exists on disk before finishing."""
+    base, replay = spot_chart
+    s = _spot_session(base, replay)
+    try:
+        s.wait_event("spot_ready", timeout=8)
+        idx = s.event_index()
+        s.send(cmd="read")
+        s.wait_event("patch_read", after=idx, timeout=5)
+        saved = s.wait_event("saved", after=idx, timeout=5)
+        assert int(saved["read_patches"]) >= 1
+        # Written mid-session, before any `done`.
+        assert base.with_suffix(".ti3").is_file()
+    finally:
+        s.proc.kill()

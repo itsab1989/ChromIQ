@@ -2941,6 +2941,7 @@ a1log *log			/* verb, debug & error log */
 				scols[pix]->rr = 1;		/* Has been read */
 				printf(" Got XYZ value %f %f %f\n",scols[pix]->XYZ[0], scols[pix]->XYZ[1], scols[pix]->XYZ[2]);
 				cq_emit_patch_read(scols[pix]);		/* CHROMIQ_EXT */
+				cq_write_ti3_atomic();			/* CHROMIQ_EXT: autosave per patch */
 
 				/* Advance to next patch. */
 				incflag = 1;
@@ -2962,6 +2963,7 @@ a1log *log			/* verb, debug & error log */
 				scols[pix]->rr = 1;		/* Has been read */
 				printf(" Patch read OK\n");
 				cq_emit_patch_read(scols[pix]);		/* CHROMIQ_EXT */
+				cq_write_ti3_atomic();			/* CHROMIQ_EXT: autosave per patch */
 
 				/* Advance to next patch. */
 				incflag = 1;
