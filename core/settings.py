@@ -158,6 +158,12 @@ DEFAULTS: dict[str, Any] = {
     # chartread over a PTY (the classic path). Falls back to "argyll" at runtime
     # when the helper binary isn't present.
     "chartread_engine":          "chromiq",
+    # Opt-in (Settings → Beta): let the ChromIQ engine also drive XY tables
+    # (GretagMacbeth SpectroScan) and autonomous chart readers (X-Rite i1iSis,
+    # DTP70). Off by default → those modes route through stock chartread, which
+    # is the proven path for them. Not yet verified on that hardware, so it's
+    # opt-in for the adventurous (and for us to test). See --xychart.
+    "engine_all_modes":          False,
     # Faster instrument connection: skip Argyll's slow phantom-serial-port probe
     # (macOS Bluetooth/debug ports, Linux rfcomm) so a USB spectro connects
     # nearly instantly. Default on; real USB-serial adapters are never excluded.

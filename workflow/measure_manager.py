@@ -146,6 +146,10 @@ class MeasureParams:
     # Opt-in misalignment safety net (#50): pass --safenet to the helper so it
     # warns when a strip would fit dramatically better shifted by a patch.
     engine_safenet: bool = False
+    # Opt-in (Settings → Beta): let the engine drive XY (SpectroScan) and chart
+    # (i1iSis/DTP70) reading too. Off by default → those modes fall back to
+    # stock chartread. Passed as --xychart.
+    engine_xy_chart: bool = False
     # How many times to retry a failed calibration automatically before giving
     # up (mavtop's i1Pro1 lamp can need several strikes to burn in). Falls back
     # to CAL_AUTO_RETRIES when the caller doesn't set it.
@@ -206,6 +210,10 @@ class MeasureManager(QObject):
     # measured result — the single-patch analogues of stripe_changed/strip_measured.
     patch_ready                = pyqtSignal(dict)      # {id, loc, read, all_done, exyz}
     patch_measured             = pyqtSignal(dict)      # {id, loc, xyz, exyz, de}
+    # XY/chart modes read many patches at once: {patches:[…]} — whole chart or
+    # one XY sheet. `chart_reading` announces an autonomous chart read is running.
+    chart_measured             = pyqtSignal(dict)      # {patches:[…]}
+    chart_reading              = pyqtSignal()          # autonomous whole-chart read started
 
     def __init__(self, runner: "ArgyllRunner", parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -233,6 +241,7 @@ class MeasureManager(QObject):
         self._engine_progress: bool = False
         self._engine_saw_event: bool = False
         self._engine_fallback_used: bool = False
+        self._engine_mode_fallback: bool = False
         self._user_quit: bool = False
         self._cal_auto_retries: int = CAL_AUTO_RETRIES
         self._cal_retries_left: int = CAL_AUTO_RETRIES
@@ -260,6 +269,7 @@ class MeasureManager(QObject):
         self._engine_progress = False
         self._engine_saw_event = False
         self._engine_fallback_used = False
+        self._engine_mode_fallback = False
         self._user_quit = False
         # The user can raise this for an ageing instrument (Settings → Beta);
         # clamp so a bad value can't disable retries or loop for ever.
@@ -273,6 +283,15 @@ class MeasureManager(QObject):
             self._save_partial_state = None
             was_engine = self._engine_active
             self._engine_active = False
+            if was_engine and self._engine_mode_fallback:
+                # XY/chart mode with the engine opt-in off: silently re-run on
+                # stock chartread (over a PTY, where those modes' console
+                # prompts work). Not an error — no scary wording.
+                self._engine_fallback_used = True
+                on_line(tr("[Engine] This instrument reads whole sheets; "
+                           "using ArgyllCMS chartread for it."))
+                self._launch_stock(args, cwd, on_line, _on_finish)
+                return
             if was_engine and self._engine_should_fall_back(code):
                 self._engine_fallback_used = True
                 reason = self._engine_fatal or "unknown error"
@@ -292,6 +311,8 @@ class MeasureManager(QObject):
             eargs = ["--json"]
             if params.engine_safenet:
                 eargs += ["--safenet"]
+            if params.engine_xy_chart:
+                eargs += ["--xychart"]
             if params.engine_replay is not None:
                 eargs += ["--replay", str(params.engine_replay)]
             eargs += args
@@ -553,6 +574,26 @@ class MeasureManager(QObject):
         elif kind == "patch_read":
             self._engine_progress = True
             self.patch_measured.emit(ev)
+
+        elif kind == "mode_fallback":
+            # Engine opt-in for XY/chart is off — the run will re-launch on
+            # stock chartread when the helper exits (handled in _on_finish).
+            self._engine_mode_fallback = True
+
+        elif kind == "chart_reading":
+            self.chart_reading.emit()
+
+        elif kind in ("chart_read", "xy_sheet_read"):
+            self._engine_progress = True
+            self.chart_measured.emit(ev)
+
+        elif kind == "xy_place_sheet":
+            self.xy_place_sheet.emit(int(ev.get("sheet", 1)),
+                                     int(ev.get("total", 1)))
+
+        elif kind == "xy_locate":
+            on_line(tr("[Engine] Locate patch {p} with the table sight, then "
+                       "continue.").format(p=ev.get("patch", "?")))
 
         elif kind == "saved":
             self._engine_progress = True

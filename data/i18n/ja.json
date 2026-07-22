@@ -3220,5 +3220,11 @@
   "Jump to the next unread patch": "次の未読パッチへジャンプ",
   "Move back to the previous patch": "前のパッチに戻る",
   "Move to the next patch": "次のパッチへ進む",
-  "click": "クリック"
+  "click": "クリック",
+  "Also drive XY tables and chart readers with the engine (beta)": "XYテーブルやチャートリーダーもエンジンで測定する（ベータ）",
+  "Engine for XY tables & chart readers (beta)": "XYテーブル・チャートリーダー用エンジン（ベータ）",
+  "[Engine] Locate patch {p} with the table sight, then continue.": "[Engine] テーブルの照準でパッチ {p} を合わせてから続行してください。",
+  "[Engine] Reading the whole chart — this may take a moment…": "[Engine] チャート全体を読み取り中 — 少し時間がかかることがあります…",
+  "[Engine] This instrument reads whole sheets; using ArgyllCMS chartread for it.": "[Engine] この機器はシート全体を読み取ります。これには ArgyllCMS chartread を使用します。",
+  "Two rare kinds of instrument read a whole sheet at once instead of one strip at a time: motorised XY tables (the GretagMacbeth SpectroScan) and autonomous chart readers (the X-Rite i1iSis and DTP70).\n\nWhen this box is OFF (the default), ChromIQ measures these with Argyll's own chartread — the long-proven path. Everything works; you just don't get the engine's live preview for them.\n\nWhen it is ON, the ChromIQ engine drives them too, so you get the same extras as strip and patch reading: the expected-vs-measured preview fills in as sheets are read, and the result is saved after every sheet.\n\nThis path is new and has NOT yet been tested on real SpectroScan or i1iSis hardware — so it is off by default. If you own one of these and want to help, turn it on and check the result; if anything looks wrong, switch it back off and the measurement runs the classic way. Needs the chart-reading engine above to be on.\n\nDefault: off": "まれに、ストリップごとではなくシート全体を一度に読む機器が2種類あります。モーター駆動のXYテーブル（GretagMacbeth SpectroScan）と、自律型チャートリーダー（X-Rite i1iSis と DTP70）です。\n\nこのチェックボックスがオフのとき（既定）、ChromIQ はこれらを Argyll の chartread で測定します。長年実績のある方法です。すべて動作しますが、これらではライブプレビューは得られません。\n\nオンにすると、ChromIQ エンジンがこれらも駆動するので、ストリップ／パッチ読み取りと同じ利点が得られます。シートを読むにつれて期待値対測定値のプレビューが埋まり、各シートの後に結果が保存されます。\n\nこの経路は新しく、実機の SpectroScan や i1iSis ではまだテストされていません。そのため既定ではオフです。これらの機器をお持ちで協力いただける場合はオンにして結果を確認してください。おかしいと感じたら再びオフにすれば、測定は従来どおり行われます。上のチャート読み取りエンジンがオンである必要があります。\n\n既定：オフ"
 }

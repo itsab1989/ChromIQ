@@ -779,3 +779,16 @@ def test_session_map_in_spot_mode_keeps_strip_ui_off(monkeypatch):
     tab._on_session_map([{"strip": "A", "sheet": 1, "read": False,
                           "verifiable": True}])
     assert not tab._preview._stripe_click_enabled
+
+
+def test_chart_measured_fills_all_pages(monkeypatch):
+    """XY/chart mode reads many patches at once; _on_chart_measured must fill the
+    split/tile for every read patch, across pages."""
+    tab = _spot_tab(monkeypatch)          # _patch_boxes: A1,A2 on p0; B1 on p1
+    tab._on_chart_measured({"patches": [
+        {"loc": "A1", "xyz": [50, 50, 50], "exyz": [50, 50, 50], "de": 0.0},
+        {"loc": "B1", "xyz": [40, 40, 40], "exyz": [41, 41, 41], "de": 1.0},
+    ]})
+    assert len(tab._preview._patch_overlay.get(0, [])) == 1     # A1
+    assert len(tab._preview._patch_overlay.get(1, [])) == 1     # B1
+    assert len(tab._preview._patch_info.get(0, [])) == 1

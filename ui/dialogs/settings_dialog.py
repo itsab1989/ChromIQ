@@ -689,6 +689,39 @@ class SettingsDialog(QDialog):
         _cr_row.addWidget(chartread_engine_tip)
         _beta.addLayout(_cr_row)
 
+        # XY / chart-reader engine support (opt-in). Sits right under the engine
+        # toggle. Off by default → these niche instruments use stock chartread.
+        self._engine_all_modes_check = QCheckBox(
+            tr("Also drive XY tables and chart readers with the engine (beta)"),
+            self)
+        engine_all_modes_tip = TooltipButton(
+            tr("Engine for XY tables & chart readers (beta)"),
+            tr("Two rare kinds of instrument read a whole sheet at once instead "
+            "of one strip at a time: motorised XY tables (the "
+            "GretagMacbeth SpectroScan) and autonomous chart readers "
+            "(the X-Rite i1iSis and DTP70).\n\n"
+            "When this box is OFF (the default), ChromIQ measures these with "
+            "Argyll's own chartread — the long-proven path. Everything works; "
+            "you just don't get the engine's live preview for them.\n\n"
+            "When it is ON, the ChromIQ engine drives them too, so you get the "
+            "same extras as strip and patch reading: the expected-vs-measured "
+            "preview fills in as sheets are read, and the result is saved after "
+            "every sheet.\n\n"
+            "This path is new and has NOT yet been tested on real "
+            "SpectroScan or i1iSis hardware — so it is off by default. If "
+            "you own one of these and want to help, turn it on and check the "
+            "result; if anything looks wrong, switch it back off and the "
+            "measurement runs the classic way. Needs the chart-reading engine "
+            "above to be on.\n\nDefault: off"),
+            self,
+            min_width=680,
+        )
+        _xy_row = QHBoxLayout()
+        _xy_row.addWidget(self._engine_all_modes_check)
+        _xy_row.addStretch()
+        _xy_row.addWidget(engine_all_modes_tip)
+        _beta.addLayout(_xy_row)
+
         # Patch-reading error limit (#126, Knut): the ΔE at which a just-measured
         # patch gets the red warning outline in the live split-patch preview.
         self._patch_warn_spin = NoScrollDoubleSpinBox(self)
@@ -2009,6 +2042,8 @@ class SettingsDialog(QDialog):
             self._profile_engine_check.isChecked())
         self._chartread_engine_check.setChecked(
             str(s.get("chartread_engine", "argyll")) == "chromiq")
+        self._engine_all_modes_check.setChecked(
+            bool(s.get("engine_all_modes", False)))
         self._save_report_check.setChecked(
             bool(s.get("save_measurement_report", True)))
         self._report_avg_thr_spin.setValue(
@@ -2733,6 +2768,7 @@ class SettingsDialog(QDialog):
         s.set("gammap_mode",               self._gammap_mode_combo.currentData())
         s.set("chartread_engine",
               "chromiq" if self._chartread_engine_check.isChecked() else "argyll")
+        s.set("engine_all_modes", self._engine_all_modes_check.isChecked())
         s.set("save_measurement_report", self._save_report_check.isChecked())
         s.set("report_pass_threshold_avg", float(self._report_avg_thr_spin.value()))
         s.set("report_pass_threshold_max", float(self._report_max_thr_spin.value()))

@@ -374,3 +374,32 @@ def test_guided_run_emits_no_spurious_dialog_signals():
         "xy_place_sheet", "spot_ready", "abort_confirm", "strip_error",
     ):
         assert not sigs.get(noisy), f"{noisy} fired during a clean guided run"
+
+
+# ---------------------------------------------------------------------------
+# Engine XY/chart mode events (#126 follow-up)
+# ---------------------------------------------------------------------------
+
+def _feed_engine(mgr, line: str) -> None:
+    mgr._handle_engine_line(line, lambda _l: None)
+
+
+def test_mode_fallback_event_sets_flag():
+    mgr, _r, _s = _make_manager()
+    _feed_engine(mgr, '{"event":"mode_fallback","mode":"xy"}')
+    assert mgr._engine_mode_fallback is True
+
+
+def test_chart_read_event_emits_chart_measured():
+    mgr, _r, _s = _make_manager()
+    got = []
+    mgr.chart_measured.connect(lambda ev: got.append(ev))
+    _feed_engine(mgr, '{"event":"chart_read","patches":[{"loc":"A1",'
+                      '"xyz":[50,50,50],"exyz":[50,50,50],"de":0.0}]}')
+    assert len(got) == 1 and len(got[0]["patches"]) == 1
+
+
+def test_xy_place_sheet_event_emits_signal():
+    mgr, _r, sigs = _make_manager()
+    _feed_engine(mgr, '{"event":"xy_place_sheet","sheet":2,"total":3}')
+    assert sigs["xy_place_sheet"] == [(2, 3)]

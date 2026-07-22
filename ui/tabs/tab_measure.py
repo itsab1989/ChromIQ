@@ -860,6 +860,8 @@ class TabMeasure(QWidget):
         self._manager.strip_measured.connect(self._on_strip_measured)
         self._manager.patch_ready.connect(self._on_patch_ready)
         self._manager.patch_measured.connect(self._on_patch_measured)
+        self._manager.chart_measured.connect(self._on_chart_measured)
+        self._manager.chart_reading.connect(self._on_chart_reading)
         self._manager.readings_saved.connect(self._on_readings_saved)
         self._manager.instrument_disconnected.connect(self._on_instrument_disconnected)
         self._manager.device_busy.connect(self._on_device_busy)
@@ -5518,6 +5520,46 @@ class TabMeasure(QWidget):
         self._preview.set_patch_overlay(page, [item])
         self._preview.set_patch_info(page, [info])
 
+    def _on_chart_reading(self) -> None:
+        """XY/chart mode (engine opt-in): an autonomous whole-chart read began."""
+        self._log.appendPlainText(
+            tr("[Engine] Reading the whole chart — this may take a moment…"))
+
+    def _on_chart_measured(self, ev: dict) -> None:
+        """XY/chart mode: fill the expected/measured split + hover values for
+        every patch that was read at once (a whole chart, or one XY sheet)."""
+        patches = ev.get("patches", [])
+        if not patches or not any(self._patch_boxes):
+            return
+        from PyQt6.QtGui import QColor as _QC
+        from workflow.icc_info import xyz_to_lab
+        warn_de = float(self._settings.get("patch_read_warn_de", _PATCH_WARN_DE))
+        items: dict[int, list] = {}
+        infos: dict[int, list] = {}
+        for p in patches:
+            loc = str(p.get("loc", ""))
+            page, box = self._locate_patch(loc)
+            if page < 0 or box is None:
+                continue
+            de_p = float(p.get("de", 0))
+            exyz = p.get("exyz", [0, 0, 0])
+            mxyz = p.get("xyz", [0, 0, 0])
+            exp_rgb = _xyz_d50_to_srgb8(exyz)
+            meas_rgb = _xyz_d50_to_srgb8(mxyz)
+            items.setdefault(page, []).append(
+                (box, _QC(*exp_rgb), _QC(*meas_rgb), de_p >= warn_de))
+            infos.setdefault(page, []).append((box, {
+                "loc": loc,
+                "exp_rgb": exp_rgb,
+                "meas_rgb": meas_rgb,
+                "exp_lab": xyz_to_lab(tuple(float(v) / 100.0 for v in exyz[:3])),
+                "meas_lab": xyz_to_lab(tuple(float(v) / 100.0 for v in mxyz[:3])),
+                "de": de_p,
+            }))
+        for page, its in items.items():
+            self._preview.set_patch_overlay(page, its)
+            self._preview.set_patch_info(page, infos[page])
+
     def _on_preview_patch_clicked(self, page: int, loc: str) -> None:
         if not self._manager.engine_active or not loc:
             return
@@ -5612,6 +5654,7 @@ class TabMeasure(QWidget):
                    "Everything works as before."))
             return p
         p.engine_safenet = bool(self._settings.get("misalign_safenet", False))
+        p.engine_xy_chart = bool(self._settings.get("engine_all_modes", False))
         p.cal_auto_retries = int(self._settings.get("cal_auto_retries", 3))
         import os as _os
         replay = _os.environ.get("CHROMIQ_REPLAY")

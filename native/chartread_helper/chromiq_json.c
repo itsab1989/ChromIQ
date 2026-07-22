@@ -18,6 +18,7 @@
 int cq_json = 0;
 int cq_autosave = 0;
 int cq_safenet = 0;
+int cq_xychart = 0;
 
 /* ------------------------------------------------------------------ */
 /* Emission: every event is one complete JSON object on one line,      */

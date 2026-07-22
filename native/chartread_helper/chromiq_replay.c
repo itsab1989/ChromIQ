@@ -149,12 +149,26 @@ static inst_code cq_get_set_opt(inst *p, inst_opt_type m, ...) {
 	return inst_ok;
 }
 
+/* Which read mode the fake instrument advertises (CHROMIQ_REPLAY_MODE):
+ * 0 = strip+spot (default), 2 = xy (SpectroScan), 3 = chart (i1iSis). Lets
+ * tests drive the fork into rmode 2/3 to exercise the XY/chart engine paths
+ * and the mode-fallback gate. */
+static int cq_replay_mode = 0;
+
 static void cq_capabilities(inst *p, inst_mode *cap1,
 	inst2_capability *cap2, inst3_capability *cap3) {
 	(void)p;
-	if (cap1 != NULL)
-		*cap1 = inst_mode_ref_strip | inst_mode_ref_spot | inst_mode_reflection
-		      | inst_mode_colorimeter;
+	if (cap1 != NULL) {
+		if (cq_replay_mode == 3)
+			*cap1 = inst_mode_ref_chart | inst_mode_reflection | inst_mode_colorimeter;
+		else if (cq_replay_mode == 2)
+			*cap1 = inst_mode_ref_xy | inst_mode_reflection | inst_mode_colorimeter;
+		else
+			*cap1 = inst_mode_ref_strip | inst_mode_ref_spot | inst_mode_reflection
+			      | inst_mode_colorimeter;
+	}
+	/* No xy_holdrel / xy_locate: the fake table needs no hold/clear/sight
+	 * steps, so the XY loop skips straight to read_xy. */
 	if (cap2 != NULL)
 		*cap2 = inst2_user_trig | inst2_user_switch_trig | inst2_bidi_scan;
 	if (cap3 != NULL)
@@ -169,9 +183,46 @@ static inst_code cq_meas_config(inst *p, inst_mode *mmodes,
 
 static inst_code cq_check_mode(inst *p, inst_mode m) {
 	(void)p;
+	if (cq_replay_mode == 3)
+		return IMODETST(m, inst_mode_ref_chart) ? inst_ok : inst_unsupported;
+	if (cq_replay_mode == 2)
+		return IMODETST(m, inst_mode_ref_xy) ? inst_ok : inst_unsupported;
 	if (IMODETST(m, inst_mode_ref_strip) || IMODETST(m, inst_mode_ref_spot))
 		return inst_ok;
 	return inst_unsupported;
+}
+
+/* Fill a value array with a synthetic neutral reading — enough to exercise the
+ * whole-chart / whole-sheet transfer + JSON events + autosave without hardware.
+ * (Faithful colours would need the real motorized table; the protocol is what
+ * these paths are tested for.) */
+static void cq_fill_synthetic(ipatch *vals, int n) {
+	int i;
+	for (i = 0; i < n; i++) {
+		memset(&vals[i], 0, sizeof(ipatch));
+		vals[i].XYZ[0] = 50.0;
+		vals[i].XYZ[1] = 50.0;
+		vals[i].XYZ[2] = 50.0;
+		vals[i].XYZ_v = 1;
+		vals[i].mtype = inst_mrt_reflective;
+		vals[i].sp.spec_n = 0;
+	}
+}
+
+static inst_code cq_read_chart(inst *p, int npatch, int pich, int sip,
+	int *pis, int chid, ipatch *vals) {
+	(void)p; (void)pich; (void)sip; (void)pis; (void)chid;
+	cq_fill_synthetic(vals, npatch);
+	return inst_ok;
+}
+
+static inst_code cq_read_xy(inst *p, int pis, int sip, int npatch,
+	char *pname, char *sname, double ox, double oy, double ax, double ay,
+	double aax, double aay, double px, double py, ipatch *vals) {
+	(void)p; (void)pis; (void)sip; (void)pname; (void)sname;
+	(void)ox; (void)oy; (void)ax; (void)ay; (void)aax; (void)aay; (void)px; (void)py;
+	cq_fill_synthetic(vals, npatch);
+	return inst_ok;
 }
 
 static inst_code cq_set_mode(inst *p, inst_mode m) {
@@ -398,6 +449,18 @@ inst *cq_new_replay_inst(a1log *log,
 	cq_needcal_armed = (getenv("CHROMIQ_REPLAY_NEEDCAL") != NULL);
 	cq_cal_step = 0;
 
+	/* Which read mode to advertise (tests only): xy / chart / default. */
+	{
+		const char *rm = getenv("CHROMIQ_REPLAY_MODE");
+		cq_replay_mode = 0;
+		if (rm != NULL) {
+			if (strcmp(rm, "chart") == 0)
+				cq_replay_mode = 3;
+			else if (strcmp(rm, "xy") == 0)
+				cq_replay_mode = 2;
+		}
+	}
+
 	p->log = new_a1log_d(log);
 	p->init_coms          = cq_init_coms;
 	p->init_inst          = cq_init_inst;
@@ -417,6 +480,8 @@ inst *cq_new_replay_inst(a1log *log,
 	p->interp_error       = cq_interp_error;
 	p->read_strip         = cq_read_strip;
 	p->read_sample        = cq_read_sample;
+	p->read_chart         = cq_read_chart;
+	p->read_xy            = cq_read_xy;
 	p->last_scomerr       = cq_last_scomerr;
 	p->del                = cq_del;
 	p->dtype              = instI1Pro;

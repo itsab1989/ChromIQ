@@ -589,6 +589,38 @@ static void cq_emit_patch_read(chcol *c) {
 	            c->eXYZ[0], c->eXYZ[1], c->eXYZ[2], de);
 }
 
+/* CHROMIQ_EXT: whole-chart / whole-sheet result for XY and chart modes, which
+ * read many patches at once. Same per-patch schema as strip_read's patches[],
+ * so the GUI fills the split/tile for every read patch in one go. Padding
+ * patches (id "0") are skipped. */
+static void cq_emit_chart_read(const char *event, chcol **scols, int npat) {
+	int i, j, first = 1;
+	if (!cq_json)
+		return;
+	fprintf(stdout, "\n{\"event\":\"%s\",\"patches\":[", event);
+	for (i = 0; i < npat; i++) {
+		double lab_m[3], lab_e[3], xyz[3], de;
+		if (scols[i]->rr == 0 || strcmp(scols[i]->id, "0") == 0)
+			continue;			/* unread or padding */
+		for (j = 0; j < 3; j++)
+			xyz[j] = scols[i]->XYZ[j] / 100.0;
+		icmXYZ2Lab(&icmD50, lab_m, xyz);
+		for (j = 0; j < 3; j++)
+			xyz[j] = scols[i]->eXYZ[j] / 100.0;
+		icmXYZ2Lab(&icmD50, lab_e, xyz);
+		de = icmLabDE(lab_m, lab_e);
+		fprintf(stdout,
+		        "%s{\"id\":\"%s\",\"loc\":\"%s\",\"xyz\":[%.4f,%.4f,%.4f],"
+		        "\"exyz\":[%.4f,%.4f,%.4f],\"de\":%.2f}",
+		        first ? "" : ",", scols[i]->id, scols[i]->loc,
+		        scols[i]->XYZ[0], scols[i]->XYZ[1], scols[i]->XYZ[2],
+		        scols[i]->eXYZ[0], scols[i]->eXYZ[1], scols[i]->eXYZ[2], de);
+		first = 0;
+	}
+	fprintf(stdout, "]}\n");
+	fflush(stdout);
+}
+
 /* CHROMIQ_EXT: misalignment safety net (opt-in, #50). After a strip is read,
  * if it fits its expected colours badly, probe small ±offsets to see whether a
  * shift gives a dramatically better match — the signature of the reader locking
@@ -736,6 +768,13 @@ void test_event_callback(void *cntx, inst_event_type event) {
 /* Return 0 to retry, 1 to abort */
 static int ierror(inst *it, inst_code ic) {
 	int ch;
+	/* CHROMIQ_EXT: in JSON mode the console is a pipe — emit the error as an
+	 * event and read the retry/quit answer from the command channel. */
+	if (cq_json) {
+		cq_emit_error("read_error", it->interp_error(it, ic));
+		ch = cq_wait_char();
+		return (ch == 0x03 || ch == 0x1b || ch == 'q' || ch == 'Q') ? 1 : 0;
+	}
 	empty_con_chars();
 	printf("Got '%s' (%s) error.\nHit Esc or 'q' to give up, any other key to retry:%s",
 	       it->inst_interp_error(it, ic), it->interp_error(it, ic),fl_end);
@@ -1341,6 +1380,20 @@ a1log *log			/* verb, debug & error log */
 		}
 	}
 
+	/* CHROMIQ_EXT: XY (SpectroScan) and chart (i1iSis/DTP70) modes are gated
+	 * behind a Settings → Beta opt-in (--xychart). When it's off, hand them
+	 * back to the caller so it re-runs stock chartread over a PTY (where the
+	 * console prompts these modes still use actually work). The engine covers
+	 * these modes only when explicitly enabled. */
+	if (cq_json && !cq_xychart && (rmode == 2 || rmode == 3)) {
+		cq_emit_raw("{\"event\":\"mode_fallback\",\"mode\":\"%s\"}",
+		            rmode == 2 ? "xy" : "chart");
+		it->del(it);
+		if (pfname != NULL)
+			free(pfname);
+		return -1;
+	}
+
 	/* -------------------------------------------------- */
 	if (rmode == 3) {		/* For chart mode, read all at once */
 		int chid;			/* Chart ID number */
@@ -1352,6 +1405,7 @@ a1log *log			/* verb, debug & error log */
 			/* ~~999 ??? Need to setup trigger and wait for it appropriately ???  */
 			printf("Reading the whole chart in one go\n");
 		}
+		cq_emit_simple("chart_reading");	/* CHROMIQ_EXT */
 
 		/* Allocate space for patches */
 		if ((vals = (ipatch *)calloc(sizeof(ipatch), npat)) == NULL)
@@ -1399,6 +1453,10 @@ a1log *log			/* verb, debug & error log */
 			scols[i]->rr = 1;		/* Has been read */
 		}
 		free(vals);
+
+		/* CHROMIQ_EXT: publish the whole-chart result + autosave. */
+		cq_emit_chart_read("chart_read", scols, npat);
+		cq_write_ti3_atomic();
 
 
 	/* -------------------------------------------------- */
@@ -1482,7 +1540,9 @@ a1log *log			/* verb, debug & error log */
 			} else
 				printf("\nPlease remove previous sheet, then place sheet %d of %d on table, then\n",sheet, nsheets);
 				printf("hit return to continue, Esc or 'q' to give up%s",fl_end); do_fflush();
-				if ((ch = next_con_char()) == 0x1b || ch == 0x3 || ch == 'q' || ch == 'Q') {
+				cq_emit_raw("{\"event\":\"xy_place_sheet\",\"sheet\":%d,\"total\":%d}",
+				            sheet, nsheets);	/* CHROMIQ_EXT */
+				if ((ch = cq_prompt_char()) == 0x1b || ch == 0x3 || ch == 'q' || ch == 'Q') {
 					printf("\n");
 					for (k = 0; k < 3; k++) {
 						if (pn[k] != NULL)
@@ -1552,7 +1612,9 @@ a1log *log			/* verb, debug & error log */
 					printf("\nUsing the XY table controls, locate patch %s%s with the sight,\n",
 					        pn[ll], sn[ll]);
 					printf("then hit return to continue, Esc or 'q' to give up%s",fl_end); do_fflush();
-						if ((ch = next_con_char()) == 0x1b || ch == 0x3 || ch == 'q' || ch == 'Q') {
+						cq_emit_raw("{\"event\":\"xy_locate\",\"patch\":\"%s%s\"}",
+						            pn[ll], sn[ll]);	/* CHROMIQ_EXT */
+						if ((ch = cq_prompt_char()) == 0x1b || ch == 0x3 || ch == 'q' || ch == 'Q') {
 							printf("\n");
 							for (k = 0; k < 3; k++) {
 								if (pn[k] != NULL)
@@ -1697,6 +1759,12 @@ a1log *log			/* verb, debug & error log */
 				}
 				scols[sti]->rr = 1;		/* Has been read */
 			}
+
+			/* CHROMIQ_EXT: publish this sheet's readings + autosave, so a
+			 * multi-sheet XY run never loses a completed sheet. The GUI dedups
+			 * by patch box, so re-sending all read patches is harmless. */
+			cq_emit_chart_read("xy_sheet_read", scols, npat);
+			cq_write_ti3_atomic();
 
 
 			if (cap2 & inst2_xy_holdrel) {
@@ -3158,6 +3226,9 @@ int main(int argc, char *argv[]) {
 				eat = 1;
 			} else if (strcmp(argv[ai], "--safenet") == 0) {
 				cq_safenet = 1;
+				eat = 1;
+			} else if (strcmp(argv[ai], "--xychart") == 0) {
+				cq_xychart = 1;
 				eat = 1;
 			} else if (strcmp(argv[ai], "--replay") == 0 && ai + 1 < argc) {
 				cq_replay_path = argv[ai + 1];
