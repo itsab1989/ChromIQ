@@ -1,5 +1,13 @@
 # Changelog
 
+## v3.14.6
+
+- **Patch-by-patch measuring now autosaves after every patch.** Previously a
+  patch-by-patch session only wrote its measurement file at the very end, so an
+  interrupted read (an unplugged instrument, a crash) lost everything you'd
+  scanned. It now saves after each patch — exactly like strip reading does after
+  each strip — so you can always resume from the last patch you measured.
+
 ## v3.14.5
 
 - **Patch-by-patch measuring now has the full live preview.** When you measure
