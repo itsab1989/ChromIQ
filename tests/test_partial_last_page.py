@@ -90,3 +90,18 @@ def test_no_warning_when_auto_patch_count(tab, monkeypatch):
                         lambda ti2: called.append(1) or 50)
     tab._maybe_warn_partial_last_page(Path("x.ti2"))
     assert not called
+
+
+def test_no_warning_for_fixed_ti1_preset(tab, monkeypatch):
+    """A bundled fixed-patch-set preset (TC9.18 / Knut / a vendor family like Red
+    River) owns its patch count — the set is locked, so "add/remove a few patches"
+    is the wrong advice and the hint must not fire."""
+    tab._switch_mode("manual")
+    if tab._manual_auto_patches_check is not None:
+        tab._manual_auto_patches_check.setChecked(False)
+    tab._knut_active = True          # a ti1 preset is active → set is locked
+    called = []
+    monkeypatch.setattr(tab, "_partial_last_page_blank",
+                        lambda ti2: called.append(1) or 50)
+    tab._maybe_warn_partial_last_page(Path("x.ti2"))
+    assert not called

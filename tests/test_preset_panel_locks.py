@@ -411,3 +411,43 @@ def test_selecting_preset_clears_reflection(qapp, settings, tmp_path):
     assert _printtarg_enabled(tab)
     assert tab._override_targen_row.isHidden()
     assert tab._override_printtarg_row.isHidden()
+
+
+# ---------------------------------------------------------------------------
+# Vendor preset: editing the patch recipe drops the vendor branding
+# ---------------------------------------------------------------------------
+
+def test_override_debrands_vendor_preset(qapp, settings, monkeypatch):
+    """A vendor preset (Red River) shows its logo in a clip band. The moment the
+    user unlocks "Edit patch recipe" the set is no longer that vendor's certified
+    set, so the branding must come off: the clip band reverts to ChromIQ's own
+    notes record, with no vendor logo/text left on the chart."""
+    from ui.tabs.tab_chart import KNUT_PRESETS_BY_KEY
+    from workflow.layout_engine.presets import LayoutRecipe
+
+    tab = _make_tab(qapp, settings)
+    panel = getattr(tab, "_manual_layout_panel", None)
+    assert panel is not None
+
+    key = "__chromiq_knut_redriver_i1pro_a4_2052p_4pages__"
+    tab._knut_active = True
+    tab._knut_active_key = key
+    panel.set_recipe(LayoutRecipe.from_dict(KNUT_PRESETS_BY_KEY[key].layout_recipe))
+    assert tab._current_layout_recipe().clip_content_mode == "image"
+
+    # Don't let the informational modal block the test.
+    monkeypatch.setattr("ui.tabs.tab_chart.InfoDialog",
+                        lambda *a, **k: type("D", (), {"exec": lambda self: None})())
+    assert "Red River" in (tab._active_layout_name() or "")   # branded before
+    tab._on_override_clicked("targen", True)
+
+    rec = tab._current_layout_recipe()
+    assert rec.clip_content_mode == "notes"   # ChromIQ record, not a vendor logo
+    assert not rec.clip_image_path            # no logo image left
+    # The "Chart layout <name>" edge stamp must not name the vendor any more.
+    name = tab._active_layout_name()
+    assert name is None or "Red River" not in name
+
+    # Selecting the preset afresh re-brands it (the drop is not sticky).
+    tab._reset_override_checks()
+    assert not tab._vendor_debranded

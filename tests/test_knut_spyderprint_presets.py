@@ -73,12 +73,15 @@ def _fmt_scale(v: float) -> str:
 
 def test_registry_shape():
     # The 15 "Full layout setup" presets (#63; the 17 shared-.ti1
-    # "TC9.18+Spyderprint Grays" presets were removed in #89) plus the six
-    # engine-built Scanner charts (#100, #108, #118).
-    assert len(KNUT_PRESETS) == 21
-    assert len(KNUT_PRESET_KEYS) == 21  # all keys unique
+    # "TC9.18+Spyderprint Grays" presets were removed in #89), the six
+    # engine-built Scanner charts (#100, #108, #118), and the six Red River
+    # Paper vendor variants (one shared 2052-patch .ti1: i1Pro A4/Letter, and
+    # ColorMunki A4/Letter in both a compact 8-page and a ruler-size 10-page cut).
+    assert len(KNUT_PRESETS) == 27
+    assert len(KNUT_PRESET_KEYS) == 27  # all keys unique
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("fls_")) == 15
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("scanner_")) == 6
+    assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("redriver_")) == 6
     assert KNUT_PRESET_KEYS <= BUILTIN_PRESET_KEYS
     assert all(p.combo_label in BUILTIN_PRESET_LABELS for p in KNUT_PRESETS)
     # every preset is reachable from a dropdown/overlay group

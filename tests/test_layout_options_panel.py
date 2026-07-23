@@ -345,10 +345,13 @@ def test_clip_width_margin_conflict_flagging(app):
 
 
 def test_clip_conflict_flags_locked_side_margin(app):
-    """When "Use instrument margins" locks (disables) the margins, the clip-SIDE
-    margin box must STILL light up red whenever the clip-border width and that
-    side's margin disagree — never the clip-width box (Sebastian). The direction
-    (clip wider or narrower) only changes the tooltip, not which box lights up."""
+    """When "Use instrument margins" locks (disables) the margins, the red outline
+    must NEVER sit on the disabled margin box — on a greyed field it reads as a
+    stray focus ring, not a warning (Sebastian). Instead:
+      • clip WIDER than the margin (the normal case for a branded clip band) →
+        no outline anywhere, just an explanatory tooltip on the clip-width box;
+      • clip NARROWER than the margin (its content is squeezed) → the editable
+        clip-width box lights up, since that's the field the user can raise."""
     from ui.dialogs.layout_options_panel import LayoutOptionsPanel
     p = LayoutOptionsPanel(with_selectors=True)
     p.show()
@@ -356,21 +359,21 @@ def test_clip_conflict_flags_locked_side_margin(app):
     p.set_threshold_lookup(lambda inst, paper: {"L": 26, "R": 9, "T": 38, "B": 10})
     p.use_instr_margins.setChecked(True)
     assert not p.margins["l"].isEnabled()              # locked
-    # clip WIDER than the locked left margin → LEFT box flagged, clip_width clean
+    # clip WIDER than the locked left margin → NO red outline (normal), just a hint
     p.clip_width.setValue(40.0)
-    assert _has_conflict(p.margins["l"]) and not _has_conflict(p.clip_width)
+    assert not _has_conflict(p.margins["l"]) and not _has_conflict(p.clip_width)
     assert p.clip_width.toolTip()                       # the why rides on clip_width
-    # clip NARROWER than the left margin → STILL the LEFT box, not clip_width
+    # clip NARROWER than the left margin → the editable clip-width box flags
     p.clip_width.setValue(15.0)
-    assert _has_conflict(p.margins["l"]) and not _has_conflict(p.clip_width)
+    assert _has_conflict(p.clip_width) and not _has_conflict(p.margins["l"])
     # equal → nothing flagged
     p.clip_width.setValue(26.0)
     assert not _has_conflict(p.margins["l"]) and not _has_conflict(p.clip_width)
-    # right-side clip flags the RIGHT (locked) margin box
+    # right-side clip: still never the disabled margin box
     p.clip_side.setCurrentIndex(p.clip_side.findData("right"))
-    p.clip_width.setValue(20.0)                         # != right margin (9)
-    assert _has_conflict(p.margins["r"])
-    assert not _has_conflict(p.margins["l"]) and not _has_conflict(p.clip_width)
+    p.clip_width.setValue(20.0)                         # wider than right margin (9)
+    assert not _has_conflict(p.margins["r"]) and not _has_conflict(p.margins["l"])
+    assert not _has_conflict(p.clip_width)              # clip wins → hint only
     # Unticking re-enables every margin AND clears the flag (bug: L/R stayed grey).
     p.use_instr_margins.setChecked(False)
     for k in ("t", "r", "b", "l"):

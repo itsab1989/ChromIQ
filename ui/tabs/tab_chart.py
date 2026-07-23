@@ -336,6 +336,67 @@ _KNUT_SCANNER_RECIPE: dict = {
 }
 
 
+# Red River Paper vendor family: one fixed 2052-patch verification set (their
+# .ti1, byte-identical), offered as four ready starting points in the dropdown /
+# overlay. Engine-built (layout_recipe drives the ChromIQ layout engine); the
+# patch set is locked (targen greyed) but every layout control stays editable, so
+# a user can re-flow paper / margins / branding freely. Each row differs only in
+# instrument + paper; the recipes below carry the worked-out, verified layout
+# (i1Pro: instrument margins + clip-border record; ColorMunki: Guided high-
+# density with edge spacers). ColorMunki triple density is intentionally NOT
+# offered — it is hardware-unverified.
+_REDRIVER_SUFFIX = " · Standard Patch Set v25"
+_REDRIVER_DIR = "assets/charts/redriver/rgb/standard_patch_set_v25"
+
+# Common engine settings shared by every Red River variant.
+# Layout: "area first" (Prioritise chart area, then fit patches) so the page
+# margins are LAW and the patches fill the margin box — Knut's preference, for
+# margin control. by_width sizes the patches from a per-instrument minimum width
+# and grows them to fill; the minimum lives on each instrument recipe below.
+_REDRIVER_BASE: dict = {
+    "dpi": 300, "randomize": True, "seed": None,
+    "spacer_on": True, "spacer_mode": "colored",
+    "edge_spacers": True,               # each strip starts + ends on a spacer
+    "layout_mode": "area_first",
+    "area_method": "by_width",
+    "area_ratio": 1.0,                  # patch height ≈ width (square-ish)
+    "border": 6.0,
+}
+# i1Pro: area-first BY GRID (columns × rows). i1Pro strips must stay under the
+# 240 mm jig ruler, and area-first "by width" fills the whole page height (~280 mm
+# strips, over the ruler). A fixed grid + a paper-tuned bottom margin keeps the
+# strip length just under 240 mm (Knut). The clip band (≈ left margin) carries the
+# Red River / ChromIQ logo. area_cols / area_rows / margin_bottom are set per paper
+# on each preset row. Path resolves in dev + frozen via resource_path.
+_REDRIVER_RECIPE_I1: dict = {
+    **_REDRIVER_BASE,
+    "instrument": "i1", "cm_density": 1,
+    "area_method": "by_grid",
+    "use_instrument_margins": False,
+    "margin_top": 38.0, "margin_right": 9.0, "margin_left": 26.0,
+    "clip_border": True, "clip_border_width_mm": 26.0, "clip_side": "left",
+    "clip_content_mode": "image",
+    "clip_image_path": str(resource_path(f"{_REDRIVER_DIR}/clip_logo.png")),
+    "clip_image_rotation": 90, "clip_image_scale": 100.0,
+}
+# ColorMunki: area-first BY GRID (columns × rows), Knut's tuned 13 × 20. The
+# ColorMunki is hand-guided (no jig ruler), so a full-page strip is fine; a fixed
+# grid + these margins give a comfortable 13.5 mm patch and pack the set into 8
+# pages. The 26 mm clip band (= left margin, so no clip-vs-margin flag) carries the
+# same Red River / ChromIQ logo band as the i1Pro clip. No strip stagger (Knut).
+_REDRIVER_RECIPE_CM: dict = {
+    **_REDRIVER_BASE,
+    "instrument": "CM", "cm_stagger": False,
+    "area_method": "by_grid", "area_cols": 13, "area_rows": 20,
+    "use_instrument_margins": False,
+    "margin_top": 28.0, "margin_right": 9.0, "margin_bottom": 10.0, "margin_left": 26.0,
+    "clip_border": False, "clip_side": "left", "clip_border_width_mm": 26.0,
+    "clip_content_mode": "image",
+    "clip_image_path": str(resource_path(f"{_REDRIVER_DIR}/clip_logo.png")),
+    "clip_image_rotation": 90, "clip_image_scale": 100.0,
+}
+
+
 # Pulls a "-w<number>mm" patch-width token (e.g. "-w11.5mm") out of a name.
 _WIDTH_TOKEN_RE = re.compile(r"-w\d+(?:\.\d+)?mm")
 
@@ -626,6 +687,59 @@ KNUT_PRESETS: list[_Ti1Preset] = [
                white=3, black=3, tiff_16bit=False, suffix=KNUT_SCANNER_SUFFIX,
                group="Scanner",
                layout_recipe=dict(_KNUT_SCANNER_RECIPE, paper="LetterR")),
+
+    # --- Red River Paper vendor family (one shared, locked 2052-patch .ti1) ---
+    _Ti1Preset("redriver_i1pro_a4_2052p_4pages",
+               "i1Pro · A4-2052p-4pages" + _REDRIVER_SUFFIX,
+               "i1", "A4", 1.0, 6, 4,
+               ti1_asset=f"{_REDRIVER_DIR}/chart.ti1", patches=2052,
+               white=6, black=6, tiff_16bit=False, suffix=_REDRIVER_SUFFIX,
+               group="Red River Paper",
+               layout_recipe=dict(_REDRIVER_RECIPE_I1, paper="A4",
+                                  area_cols=21, area_rows=25, margin_bottom=19.0)),
+    _Ti1Preset("redriver_i1pro_letter_2052p_4pages",
+               "i1Pro · Letter-2052p-4pages" + _REDRIVER_SUFFIX,
+               "i1", "Letter", 1.0, 6, 4,
+               ti1_asset=f"{_REDRIVER_DIR}/chart.ti1", patches=2052,
+               white=6, black=6, tiff_16bit=False, suffix=_REDRIVER_SUFFIX,
+               group="Red River Paper",
+               layout_recipe=dict(_REDRIVER_RECIPE_I1, paper="Letter",
+                                  area_cols=22, area_rows=24, margin_bottom=13.0)),
+    _Ti1Preset("redriver_colormunki_a4_2052p_8pages",
+               "ColorMunki · A4-2052p-8pages" + _REDRIVER_SUFFIX,
+               "CM", "A4", 1.0, 6, 8,
+               ti1_asset=f"{_REDRIVER_DIR}/chart.ti1", patches=2052,
+               white=6, black=6, tiff_16bit=False, suffix=_REDRIVER_SUFFIX,
+               group="Red River Paper",
+               layout_recipe=dict(_REDRIVER_RECIPE_CM, paper="A4")),
+    _Ti1Preset("redriver_colormunki_letter_2052p_8pages",
+               "ColorMunki · Letter-2052p-8pages" + _REDRIVER_SUFFIX,
+               "CM", "Letter", 1.0, 6, 8,
+               ti1_asset=f"{_REDRIVER_DIR}/chart.ti1", patches=2052,
+               white=6, black=6, tiff_16bit=False, suffix=_REDRIVER_SUFFIX,
+               group="Red River Paper",
+               layout_recipe=dict(_REDRIVER_RECIPE_CM, paper="Letter")),
+    # A larger-patch ColorMunki option (13 × 16): fewer rows → ~14 mm patches,
+    # the sweet spot for a ruler (Knut), at the cost of two more pages. Knut's
+    # margins for this one (top 26, left 20, so a 20 mm clip band).
+    _Ti1Preset("redriver_colormunki_a4_2052p_10pages",
+               "ColorMunki · A4-2052p-10pages" + _REDRIVER_SUFFIX,
+               "CM", "A4", 1.0, 6, 10,
+               ti1_asset=f"{_REDRIVER_DIR}/chart.ti1", patches=2052,
+               white=6, black=6, tiff_16bit=False, suffix=_REDRIVER_SUFFIX,
+               group="Red River Paper",
+               layout_recipe=dict(_REDRIVER_RECIPE_CM, paper="A4", area_rows=16,
+                                  margin_top=26.0, margin_left=20.0,
+                                  clip_border_width_mm=20.0)),
+    _Ti1Preset("redriver_colormunki_letter_2052p_10pages",
+               "ColorMunki · Letter-2052p-10pages" + _REDRIVER_SUFFIX,
+               "CM", "Letter", 1.0, 6, 10,
+               ti1_asset=f"{_REDRIVER_DIR}/chart.ti1", patches=2052,
+               white=6, black=6, tiff_16bit=False, suffix=_REDRIVER_SUFFIX,
+               group="Red River Paper",
+               layout_recipe=dict(_REDRIVER_RECIPE_CM, paper="Letter", area_rows=16,
+                                  margin_top=26.0, margin_left=20.0,
+                                  clip_border_width_mm=20.0)),
 ]
 KNUT_PRESETS_BY_KEY: dict[str, _Ti1Preset] = {p.key: p for p in KNUT_PRESETS}
 KNUT_PRESET_KEYS = frozenset(KNUT_PRESETS_BY_KEY)
@@ -726,7 +840,7 @@ _KNUT_GROUP_ENTRIES = {
     grp: [(p.combo_label, p.overlay_label, p.key)
           for p in sorted((q for q in KNUT_PRESETS if q.display_group == grp),
                           key=lambda q: _paper_sort_key(q.paper))]
-    for grp in ("ColorMunki", "i1Pro", "Scanner")
+    for grp in ("ColorMunki", "i1Pro", "Scanner", "Red River Paper")
 }
 BUILTIN_PRESET_GROUPS: list[tuple[str, list[tuple[str, str, str]]]] = [
     ("ColorMunki", [
@@ -750,6 +864,11 @@ BUILTIN_PRESET_GROUPS: list[tuple[str, list[tuple[str, str, str]]]] = [
     # profiling — its own group, since no spectrophotometer is involved.
     ("Scanner", [
         *_KNUT_GROUP_ENTRIES["Scanner"],
+    ]),
+    # Vendor family: Red River Paper's shared verification patch set, four ready
+    # starting points (its own group so it reads as a partner section).
+    ("Red River Paper", [
+        *_KNUT_GROUP_ENTRIES["Red River Paper"],
     ]),
 ]
 
@@ -1034,6 +1153,11 @@ class TabChart(QWidget):
         # Which Knut preset is active — each Full-layout-setup one has its OWN .ti1, so a
         # regenerate must reuse that preset's .ti1, not the shared TC9.18 one (#58).
         self._knut_active_key: str | None = None
+        # Set once the user unlocks a vendor preset's patch recipe: from then on
+        # the chart is no longer that vendor's certified set, so neither its clip
+        # logo nor its layout-name stamp may keep naming the vendor. Reset on
+        # every fresh preset selection.
+        self._vendor_debranded = False
         # Prebuilt-files built-in preset state. While active the targen/printtarg
         # panels are greyed out and "Generate Chart" re-copies the bundled files
         # instead of running any tool. Cleared when another preset / Default is
@@ -5695,6 +5819,8 @@ class TabChart(QWidget):
                 cb.blockSignals(True)
                 cb.setChecked(False)
                 cb.blockSignals(False)
+        # A newly selected preset starts fully branded again.
+        self._vendor_debranded = False
 
     def _on_override_clicked(self, tool: str, checked: bool) -> None:
         """User ticked/unticked an override box — warn (once) when unlocking.
@@ -5706,9 +5832,45 @@ class TabChart(QWidget):
         if tool == "targen":
             InfoDialog(tr(_OVERRIDE_TARGEN_POPUP_TITLE), tr(_OVERRIDE_TARGEN_POPUP_BODY),
                        self, min_width=560).exec()
+            # Editing the patch recipe drops the vendor identity: once the locked
+            # patch set can be changed, the chart is no longer that vendor's
+            # certified set, so its branding must not stay on it. Revert a
+            # branded clip band (a bundled vendor logo) to ChromIQ's own notes
+            # record — no vendor logo / text remains on the chart.
+            self._debrand_on_override()
         else:
             InfoDialog(tr(_OVERRIDE_PRINTTARG_POPUP_TITLE), tr(_OVERRIDE_PRINTTARG_POPUP_BODY),
                        self, min_width=560).exec()
+
+    def _debrand_on_override(self) -> None:
+        """Strip a vendor preset's branding from the layout when the user unlocks
+        the patch recipe: a bundled-logo clip band (clip_content_mode "image")
+        reverts to ChromIQ's regular chart-notes clip border, so nothing on the
+        chart still names the vendor."""
+        key = getattr(self, "_knut_active_key", None)
+        p = KNUT_PRESETS_BY_KEY.get(key or "")
+        branded = bool(
+            p is not None and p.layout_recipe
+            and p.layout_recipe.get("clip_content_mode") == "image")
+        if not branded:
+            return
+        # Drop the vendor identity from the layout-name stamp too (the "Chart
+        # layout <name>" text on the sheet edge), not just the clip logo.
+        self._vendor_debranded = True
+        panel = getattr(self, "_manual_layout_panel", None)
+        if panel is None:
+            return
+        rec = self._current_layout_recipe()
+        if rec is None:
+            return
+        from dataclasses import replace
+        panel.set_recipe(replace(
+            rec,
+            clip_content_mode="notes",   # ChromIQ's own record, not a vendor logo
+            clip_image_path="",
+            clip_image_rotation=0,
+            clip_border_width_mm=26.0,    # the regular clip-border width
+        ))
 
     def _apply_tc918_preset(self, target_name: str | None = None) -> None:
         """Seed the fixed TC9.18 layout and create the target from the bundled .ti1."""
@@ -6561,7 +6723,9 @@ class TabChart(QWidget):
         the targen command when no targen was run (#70, Knut's model)."""
         if getattr(self, "_tc918_active", False):
             return "TC9.18"
-        if getattr(self, "_knut_active", False):
+        # A de-branded vendor preset (patch recipe unlocked) must NOT stamp the
+        # vendor's name onto the sheet — fall through to a neutral label.
+        if getattr(self, "_knut_active", False) and not self._vendor_debranded:
             p = KNUT_PRESETS_BY_KEY.get(self._knut_active_key or "")
             return p.default_target_name if p is not None else "TC9.18+Spyderprint"
         if getattr(self, "_prebuilt_active", False) and self._prebuilt_key:
@@ -8269,6 +8433,12 @@ class TabChart(QWidget):
         auto_count = (getattr(self, "_manual_auto_patches_check", None) is not None
                       and self._manual_auto_patches_check.isChecked())
         if not manual or auto_count:
+            return
+        # A fixed-patch-set preset (a bundled .ti1: TC9.18, Knut, a vendor family
+        # like Red River, or a user preset with an attached .ti1) owns its patch
+        # count — the set is locked and targen is greyed, so "add/remove a few
+        # patches" is exactly the wrong advice. Suppress the heads-up for those.
+        if self._ti1_preset_active():
             return
         blank = self._partial_last_page_blank(ti2)
         if not blank:
