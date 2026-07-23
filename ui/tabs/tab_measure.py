@@ -994,11 +994,21 @@ class TabMeasure(QWidget):
         if run.built_profile_icc().exists():
             return None
         return tr(
-            "A verification checks a finished profile — but this run doesn't "
-            "have a built profile yet.\n\nFirst measure this chart normally "
-            "(with “Profile verification” OFF) and build its profile on the "
-            "Build Profile tab. Then print a chart through that profile and "
-            "measure it here with “Profile verification” ON.")
+            "A verification checks a finished profile — but this profile run "
+            "doesn't have a built profile yet.\n\n"
+            "To build the profile first:\n"
+            "  1. Set “Run type” to “Profiling”.\n"
+            "  2. Create, print and measure the profiling chart as normal — its "
+            "measurement is stored in the run folder.\n"
+            "  3. Build the profile on the Build Profile tab (this makes the "
+            "profile's .icc / .icm file).\n\n"
+            "Once the profile exists, you can verify it:\n"
+            "  4. Set “Run type” back to “Verification”.\n"
+            "  5. Create a verification chart in the Create Chart tab.\n"
+            "  6. Print that chart THROUGH the finished profile (with colour "
+            "management on).\n"
+            "  7. Measure it here with “Run type” = “Verification” — the result "
+            "is kept in a dated folder under this run's “verifications” folder.")
 
     def _uncheck_verification(self) -> None:
         cb = self._verify_cb if self._current_mode() == "guided" else self._m_verify_cb
