@@ -112,12 +112,32 @@ def test_verification_guard_blocks_without_profile(tmp_path):
 
     # No profile yet → blocked with a message.
     assert tab._verification_guard() is not None
-    # Build a profile → allowed.
+    # Build a profile → Hole 1 satisfied, but no verify chart yet → Hole 2 blocks.
     run.profile_icc.write_text("icc")
+    assert tab._verification_guard() is not None
+    # Create the verification chart → allowed.
+    run.verifications_dir.mkdir(parents=True, exist_ok=True)
+    run.verify_chart_ti2.write_text("vc")
     assert tab._verification_guard() is None
     # Not ticked → never blocked.
     (tab._verify_cb if tab._current_mode() == "guided" else tab._m_verify_cb).setChecked(False)
     assert tab._verification_guard() is None
+
+
+def test_verification_guard_hole2_no_verify_chart(tmp_path):
+    """#130 Hole 2: a run with a finished profile but no verification chart yet
+    returns the 'create a verification chart first' guidance — distinct from the
+    Hole 1 (no profile) message."""
+    from core.file_manager import Project
+    tab = _make_tab()
+    proj = Project.create(tmp_path / "P", "P")
+    run = proj.current_run(); run.ensure_dir()
+    run.chart_ti2.write_text("x"); run.profile_icc.write_text("icc")
+    tab._ti1_path = run.chart_ti2
+    (tab._verify_cb if tab._current_mode() == "guided" else tab._m_verify_cb).setChecked(True)
+    msg = tab._verification_guard()
+    assert msg is not None and "verification chart" in msg.lower()
+    assert "doesn't have a built profile" not in msg      # not the Hole 1 text
 
 
 def test_verification_guard_ignores_external_charts(tmp_path):

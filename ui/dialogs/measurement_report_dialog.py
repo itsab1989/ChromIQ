@@ -871,16 +871,53 @@ class MeasurementReportDialog(QDialog):
             return run_dir.parents[1]
         return run_dir
 
+    @staticmethod
+    def _lca_dir(dirs: "list[Path]") -> Path:
+        """The deepest folder that contains every path in *dirs* (their least
+        common ancestor). One folder in → that folder."""
+        dirs = [Path(d) for d in dirs if d is not None]
+        if not dirs:
+            return Path.cwd()
+        common = dirs[0].parts
+        for d in dirs[1:]:
+            parts = d.parts
+            n = 0
+            while n < len(common) and n < len(parts) and common[n] == parts[n]:
+                n += 1
+            common = common[:n]
+        return Path(*common) if common else dirs[0]
+
     def _report_dir(self) -> Path:
-        """Where a PDF is saved (Knut): an all-runs report belongs to the whole
-        profile, so it goes in a ``reports`` folder next to ``runs/``; a single-run
-        report goes in that run's own ``reports`` folder. For an imported
-        measurement it goes in a ``reports`` folder next to the file itself."""
+        """Where a PDF is saved — the ``reports`` folder at the tightest place that
+        still contains everything the report covers (#130 Hole 5, Knut). The four
+        natural homes, from the least-common-ancestor of the measurements:
+
+        * a single profiling run  → ``runs/<id>/reports``
+        * a single verification   → ``runs/<id>/verifications/<date>/reports``
+        * several verifications of one run → ``runs/<id>/verifications/reports``
+        * several runs / the whole profile → ``<project>/reports`` (next to ``runs/``)
+
+        For a browsed / imported measurement that isn't in a ChromIQ project it
+        goes in a ``reports`` folder next to the file itself."""
         from core.file_manager import reports_subdir
-        run_dir = self._anchor_dir()
-        if self._all_runs_check.isChecked() and run_dir.parent.name == "runs":
-            return reports_subdir(self._profile_root())
-        return reports_subdir(run_dir)
+        # The measurements this report actually covers: every loaded source when
+        # 'all runs' is on, otherwise just the anchored one.
+        if self._all_runs_check.isChecked() and self._sources:
+            lca = self._lca_dir([s["origin"].parent for s in self._sources])
+        else:
+            lca = self._anchor_dir()
+        # If the common ancestor is the ``runs`` container itself, the report spans
+        # multiple runs → it belongs to the whole profile, next to ``runs/``.
+        if lca.name == "runs":
+            return reports_subdir(lca.parent)
+        # An all-runs report is a whole-profile document even when only one of the
+        # profile's measurements is physically loaded: root it at the project (next
+        # to ``runs/``), not inside the single run that happens to be open.
+        if self._all_runs_check.isChecked():
+            for anc in (lca, *lca.parents):
+                if anc.name == "runs":
+                    return reports_subdir(anc.parent)
+        return reports_subdir(lca)
 
     def _on_reveal(self) -> None:
         """Open the profile's folder in the file manager so the user can browse to

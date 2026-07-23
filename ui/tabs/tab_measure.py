@@ -992,6 +992,22 @@ class TabMeasure(QWidget):
         if run.dir.parent.name != "runs":
             return None        # external chart — the verification model doesn't apply
         if run.built_profile_icc().exists():
+            # Hole 1 satisfied. Hole 2: a verification needs a verification chart
+            # to measure. If the run has a profile but no verify chart yet, guide
+            # the user to create one (a distinct message from Hole 1).
+            if not run.has_verify_chart():
+                return tr(
+                    "No verification chart for this run yet.\n\n"
+                    "This run has a finished profile, but you haven't created its "
+                    "verification chart.\n\n"
+                    "  1. Go to the Create Chart tab and, with “Run type” = "
+                    "“Verification”, create the verification chart (a smaller "
+                    "chart is fine).\n"
+                    "  2. Print it through this run's profile (with colour "
+                    "management on).\n"
+                    "  3. Come back here with “Run type” = “Verification” and "
+                    "measure it — the result is stored in a dated folder under "
+                    "this run's “verifications” folder.")
             return None
         return tr(
             "A verification checks a finished profile — but this profile run "

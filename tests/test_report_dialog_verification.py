@@ -104,3 +104,45 @@ def test_dialog_profiling_report_stays_profiling(tmp_path):
     assert dlg._report_title(runs).startswith("Measurement Report - Profiling of Printer")
     assert "verification run" not in dlg._scope_html(runs)
     dlg.deleteLater()
+
+
+def test_report_dir_places_by_least_common_ancestor(tmp_path):
+    """#130 Hole 5: a single verification's report lands inside that dated
+    verification folder; a single profiling run's inside the run; and an
+    all-runs report next to ``runs/`` at the project root."""
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    # A verification measurement in runs/run1/verifications/<date>/. With the
+    # default 'all runs' trend view on, the report is a whole-profile document →
+    # it belongs at the project root, next to runs/.
+    vti3 = _verification_project(tmp_path)
+    dlg = MeasurementReportDialog(_Settings(), initial_ti3=vti3)
+    assert dlg._all_runs_check.isChecked()               # trend view on by default
+    assert dlg._report_dir() == vti3.parents[4] / "reports"   # <project>/reports
+    # Untick 'all runs' → this single verification → its own dated folder.
+    dlg._all_runs_check.setChecked(False)
+    rd = dlg._report_dir()
+    assert rd == vti3.parent / "reports"                 # dated verification folder
+    assert "verifications" in rd.parts
+    dlg.deleteLater()
+
+    # A single profiling measurement at the run root (all runs off) → run reports.
+    proj = Project.create(tmp_path / "Q", "Q")
+    run = proj.current_run(); run.ensure_dir()
+    (run.dir / "Q.ti2").write_text(_TI2)
+    ti3 = run.measurement_ti3; ti3.write_text(_TI3)
+    dlg2 = MeasurementReportDialog(_Settings(), initial_ti3=ti3)
+    dlg2._all_runs_check.setChecked(False)
+    assert dlg2._report_dir() == run.dir / "reports"     # run root
+    # 'all runs' on → whole profile, next to runs/.
+    dlg2._all_runs_check.setChecked(True)
+    assert dlg2._report_dir() == proj.root / "reports"
+    dlg2.deleteLater()
+
+
+def test_lca_dir_helper():
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog as D
+    base = Path("/p/runs")
+    assert D._lca_dir([base / "run1", base / "run2"]) == base            # → runs container
+    assert D._lca_dir([base / "run1" / "verifications" / "d1",
+                       base / "run1" / "verifications" / "d2"]) == base / "run1" / "verifications"
+    assert D._lca_dir([base / "run1"]) == base / "run1"                  # single → itself
