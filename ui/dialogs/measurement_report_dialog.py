@@ -1335,10 +1335,10 @@ class MeasurementReportDialog(QDialog):
         return Counter(names).most_common(1)[0][0] if names else ""
 
     def _report_title(self, runs: list) -> str:
-        """The report's first-page title AND (sanitised) PDF file name stem,
-        from the user's Settings → Reports prefixes: "<prefix>[ - <profile>] -
-        <date_time>". The prefix is the profiling or verification line depending
-        on the included measurements (#130, Knut)."""
+        """The report's first-page title from the user's Settings → Reports
+        prefixes: "<prefix>[ - <profile name>]" — NO date/time (the report shows
+        its Created date inside; Knut). The prefix is the profiling or
+        verification line depending on the included measurements (#130)."""
         if self._report_kind(runs) == "verification":
             prefix = str(self._settings.get(
                 "report_title_verification",
@@ -1352,14 +1352,15 @@ class MeasurementReportDialog(QDialog):
             name = self._report_profile_name(runs)
             if name:
                 parts.append(name)
-        # self._created is ISO "YYYY-MM-DDTHH:MM:SS" → "YYYY-MM-DD_HH-MM-SS".
-        parts.append(self._created.replace("T", "_").replace(":", "-"))
         return " - ".join(parts)
 
     def _report_filename(self, runs: list) -> str:
-        """Filesystem-safe PDF name = the title + '.pdf' (title == file name)."""
+        """Filesystem-safe PDF name = the title PLUS the date/time (which the
+        title itself omits): "<title> - <date_time>.pdf" (#130, Knut).
+        self._created is ISO "YYYY-MM-DDTHH:MM:SS" → "YYYY-MM-DD_HH-MM-SS"."""
         import re
-        return re.sub(r'[/\\:*?"<>|]', "_", self._report_title(runs)) + ".pdf"
+        dt = self._created.replace("T", "_").replace(":", "-")
+        return re.sub(r'[/\\:*?"<>|]', "_", f"{self._report_title(runs)} - {dt}") + ".pdf"
 
     def _report_body_html(self, runs: list, *, for_pdf: bool,
                           charts_html: str = "", created: "str | None" = None) -> str:

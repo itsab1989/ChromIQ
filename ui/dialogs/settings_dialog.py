@@ -1373,7 +1373,7 @@ class SettingsDialog(QDialog):
         tgl.addLayout(_vr)
         _apn_row = QHBoxLayout()
         self._report_add_profile_check = QCheckBox(
-            tr("Add profile name before date"), self)
+            tr("Add profile name in title and file name"), self)
         _apn_row.addWidget(self._report_add_profile_check)
         _apn_row.addStretch()
         _apn_row.addWidget(TooltipButton(
@@ -1381,12 +1381,14 @@ class SettingsDialog(QDialog):
             tr("The measurement report's first-page title and its saved PDF file "
             "name are built from these lines. ChromIQ uses the first line for a "
             "normal profiling report and the second for a verification report "
-            "(it can tell which from the measurements). It then appends the "
-            "date and time, so the title and file name read "
-            "“<your text> - <date_time>”.\n\n"
-            "Tick “Add profile name before date” to also insert the profile "
-            "(chart) name, giving “<your text> - <profile name> - <date_time>”. "
-            "The saved PDF file name always matches the title.\n\n"
+            "(it can tell which from the measurements).\n\n"
+            "The first-page title is just your text — “<your text>” — because "
+            "the report already shows its date inside. The saved PDF file name "
+            "adds the date and time: “<your text> - <date_time>.pdf”.\n\n"
+            "Tick “Add profile name in title and file name” to also insert the "
+            "profile (chart) name, giving the title “<your text> - <profile "
+            "name>” and the file name “<your text> - <profile name> - "
+            "<date_time>.pdf”.\n\n"
             "Default: the two suggested lines, profile name on."),
             self))
         tgl.addLayout(_apn_row)

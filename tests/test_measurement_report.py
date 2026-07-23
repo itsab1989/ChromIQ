@@ -325,11 +325,12 @@ def test_report_title_picks_prefix_by_kind():
     prof = [{"chart": "Canon-Glossy", "is_verification": False}]
     veri = [{"chart": "Canon-Glossy", "is_verification": True},
             {"chart": "Canon-Glossy", "is_verification": True}]
-    assert d._report_title(prof) == "P-prefix - Canon-Glossy - 2026-07-23_14-30-00"
-    assert d._report_title(veri) == "V-prefix - Canon-Glossy - 2026-07-23_14-30-00"
-    # File name == title + .pdf.
-    assert d._report_filename(veri).endswith(".pdf")
-    assert d._report_filename(veri)[:-4] == d._report_title(veri)
+    # Title carries NO date/time (the report shows its date inside) — Knut.
+    assert d._report_title(prof) == "P-prefix - Canon-Glossy"
+    assert d._report_title(veri) == "V-prefix - Canon-Glossy"
+    # The date/time lives only in the FILE NAME: "<title> - <date_time>.pdf".
+    assert d._report_filename(veri) == "V-prefix - Canon-Glossy - 2026-07-23_14-30-00.pdf"
+    assert "2026-07-23_14-30-00" not in d._report_title(veri)
 
 
 def test_report_title_profile_name_toggle_and_mixed_kind():
