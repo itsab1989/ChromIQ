@@ -1,5 +1,37 @@
 # Changelog
 
+## v3.14.8-beta.2
+
+- **Verification runs — check a finished profile, and keep a history (#130).**
+  ChromIQ now cleanly separates *profiling* (building a profile) from
+  *verification* (checking a finished one). A verification is a chart printed
+  *through* the profile with colour management **on**, then measured to see how
+  accurate the profile still is — and each check is filed in its own dated
+  folder, so you build up a history and can watch a profile hold up, or drift,
+  over time. A verification never overwrites your profiling measurement and
+  never builds a profile.
+- **A shared "Profile run / Run type" bar, in the masthead.** A compact bar now
+  sits on the masthead, centred in line with the "Printer Profiling" wordmark
+  and the version number. **Profile run** picks which build you're working on
+  (or a new one); **Run type** switches between Profiling and Verification; a
+  third box appears for verifications so you can start a fresh dated check or
+  re-measure an earlier one. The choice stays in step across Create Chart, Print
+  Chart and Measure, and its highlight follows the active tab's colour.
+- **Profiling and verification reports never mix.** The Measurement Report
+  trends verification measurements entirely separately from the profiling run
+  that built the profile. Report titles and file names are now configurable in
+  **Settings → Reports** (separate profiling / verification wording, with an
+  optional profile name); the first-page title carries no date, the file name
+  does.
+- **"Build a profile first" guidance.** Choosing Verification on a run that has
+  no profile yet gently guides you to build one first and switches the type back
+  to Profiling — nothing is created until you actually measure.
+- **A verification help card.** The "?" help gains a step-by-step
+  *"Check a finished profile"* walk-through, in all twelve languages.
+- **Show or hide the startup splash screen.** A new **Settings → General**
+  option turns the startup splash on or off (on by default) — turn it off for a
+  quieter launch. Translated into all twelve languages.
+
 ## v3.14.8-beta.1
 
 - **Red River Paper vendor presets (built-in).** A new *Red River Paper* group
