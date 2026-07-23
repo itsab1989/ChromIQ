@@ -1237,7 +1237,7 @@ class TabPrint(QWidget):
                     "colour-off setting ChromIQ applied; OK keeps it. When in doubt, OK is "
                     "always the safe button.\n\n"
                     "Prefer no dialog at all? Untick \"Use the native print dialog\" in "
-                    "Settings to send the chart straight to the queue via lp (colour "
+                    "Preferences to send the chart straight to the queue via lp (colour "
                     "management is forced off there too).\n\n"
                     "Allow pigment inks to dry fully before measuring "
                     "(at least 1 h; 24 h for best accuracy).")
