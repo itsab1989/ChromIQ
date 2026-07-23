@@ -1,0 +1,107 @@
+"""#130: loading a patch set (.ti1) into the Create Chart tab is bar-aware.
+
+With a profile project loaded the tab asks whether the patches should be laid
+out INTO that project (Create Chart then follows the Profile-run bar) or start
+their own new project named after the file. With no project loaded the file's
+name simply seeds a new project — no dialog."""
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+import pytest
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+from PyQt6.QtCore import QSettings                              # noqa: E402
+from PyQt6.QtWidgets import QApplication                        # noqa: E402
+
+from core.file_manager import FileManager, Project              # noqa: E402
+from core.settings import AppSettings                           # noqa: E402
+from ui.measurement_target_bar import MeasurementTargetController  # noqa: E402
+from ui.tabs.tab_chart import TabChart                          # noqa: E402
+
+
+@pytest.fixture(scope="module")
+def qapp():
+    return QApplication.instance() or QApplication([])
+
+
+def _make_tab(tmp_path):
+    from core.argyll_runner import ArgyllRunner
+    s = AppSettings()
+    s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    s.set("custom_output_path", str(tmp_path / "projects"))
+    s.set("use_chromiq_layout_engine", False)
+    fm = FileManager(s)
+    tab = TabChart(ArgyllRunner(s), fm, s)
+    ctl = MeasurementTargetController(fm)
+    tab.set_target_controller(ctl)
+    return tab, fm, ctl
+
+
+def test_no_project_loaded_seeds_new_without_dialog(qapp, tmp_path):
+    tab, fm, ctl = _make_tab(tmp_path)
+    # No project on disk / current target is the auto name → treated as "new".
+    assert tab._ti1_load_destination(Path("/some/where/MyPatches.ti1")) == "new"
+
+
+def test_project_loaded_offers_into_and_new(qapp, tmp_path, monkeypatch):
+    tab, fm, ctl = _make_tab(tmp_path)
+    proj = Project.create(tmp_path / "projects" / "CanonP", "CanonP")
+    proj.current_run().ensure_dir()
+    fm.set_target_name("CanonP")
+    ctl.set_profile_run(proj.current_run().id)
+
+    import ui.ti2_loader as L
+    seen = {}
+
+    def _fake_dialog(parent, title, intro, choices):
+        seen["keys"] = [c[2] for c in choices]
+        seen["intro"] = intro
+        return "into"
+    monkeypatch.setattr(L, "_choice_dialog", _fake_dialog)
+
+    assert tab._ti1_load_destination(Path("/ext/Foreign.ti1")) == "into"
+    assert seen["keys"] == ["into", "new"]
+    assert "CanonP" in seen["intro"]
+
+
+def test_project_loaded_cancel_returns_none(qapp, tmp_path, monkeypatch):
+    tab, fm, ctl = _make_tab(tmp_path)
+    proj = Project.create(tmp_path / "projects" / "P2", "P2")
+    proj.current_run().ensure_dir()
+    fm.set_target_name("P2")
+
+    import ui.ti2_loader as L
+    monkeypatch.setattr(L, "_choice_dialog", lambda *a, **k: None)
+    assert tab._ti1_load_destination(Path("/ext/x.ti1")) is None
+
+
+def test_port_announced_only_for_old_schema(qapp, tmp_path, monkeypatch):
+    """#130 Model C: opening a pre-migration project announces the port; a
+    current-schema project does not."""
+    import json
+    from core.file_manager import SCHEMA_VERSION
+    import ui.tabs.tab_chart as T
+    tab, fm, ctl = _make_tab(tmp_path)
+
+    shown = {"n": 0}
+
+    class _FakeInfo:
+        def __init__(self, *a, **k):
+            shown["n"] += 1
+        def exec(self):
+            return 0
+    monkeypatch.setattr(T, "InfoDialog", _FakeInfo)
+
+    old = tmp_path / "Old" / "project.json"
+    old.parent.mkdir(parents=True)
+    old.write_text(json.dumps({"schema_version": 1, "current_run": "run1", "runs": ["run1"]}))
+    tab._maybe_announce_project_port(old)
+    assert shown["n"] == 1                       # old project → announced
+
+    new = tmp_path / "New" / "project.json"
+    new.parent.mkdir(parents=True)
+    new.write_text(json.dumps({"schema_version": SCHEMA_VERSION, "current_run": "run1", "runs": ["run1"]}))
+    tab._maybe_announce_project_port(new)
+    assert shown["n"] == 1                       # current schema → no extra dialog

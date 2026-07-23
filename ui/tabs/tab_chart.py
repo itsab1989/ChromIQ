@@ -3531,6 +3531,34 @@ class TabChart(QWidget):
         btn.clicked.connect(self._load_existing_profile)
         return btn
 
+    def _maybe_announce_project_port(self, manifest: Path) -> None:
+        """If *manifest* is from an older ChromIQ, show a one-time, friendly
+        explanation that opening it will bring the folder up to the current
+        layout (#130 Model C). Reads the raw schema_version BEFORE Project.load
+        migrates it. Never blocks — porting is safe and non-destructive."""
+        import json as _json
+        from core.file_manager import SCHEMA_VERSION
+        try:
+            data = _json.loads(manifest.read_text(encoding="utf-8"))
+            ver = int(data.get("schema_version", 1))
+        except Exception:      # noqa: BLE001 — a load problem surfaces later
+            return
+        if ver >= SCHEMA_VERSION:
+            return
+        InfoDialog(
+            tr("Bringing this profile up to date"),
+            tr("“{name}” was made by an older version of ChromIQ.\n\n"
+               "Opening it now updates the folder to the current layout — the "
+               "chart, measurement and profile files are tidied into per-run "
+               "folders, with reports, exports and verifications kept in their "
+               "own sub-folders.\n\n"
+               "This happens in place and is completely safe: nothing is "
+               "deleted, and a short “How this folder is organised” guide is "
+               "written alongside your files. You only see this message once "
+               "per profile.").format(name=manifest.parent.name),
+            self, min_width=560,
+        ).exec()
+
     def _load_existing_profile(self) -> None:
         """Reopen an existing project: make it the active profile, fill the name
         field, and show its current chart (#70, Knut)."""
@@ -3556,6 +3584,12 @@ class TabChart(QWidget):
                 self, min_width=520,
             ).exec()
             return
+        # #130 (Model C): a project written by an older ChromIQ (pre-#127 flat
+        # layout, or a pre-verifications manifest) is brought up to the current
+        # folder layout the moment it's opened. The migration is in-place and
+        # never deletes anything, but the folder visibly reorganises — so tell
+        # the user first, in plain language, before it happens.
+        self._maybe_announce_project_port(manifest)
         name = manifest.parent.name
         # Make it the active profile and reflect it in both name fields.
         self._file_mgr.set_target_name(name)
@@ -7597,6 +7631,52 @@ class TabChart(QWidget):
         self._cancelled_by_user = True
         self._creator.cancel()
 
+    def _ti1_load_destination(self, src: Path) -> "str | None":
+        """Ask where a loaded patch set's chart should be built (#130).
+
+        Returns ``"into"`` (lay it into the currently loaded profile project, so
+        Create Chart writes it per the Profile-run bar), ``"new"`` (start a new
+        project named after the file), or ``None`` (Cancel). With no project
+        loaded there is nothing to choose → ``"new"`` without a dialog."""
+        from core.measurement_target import (RUN_TYPE_VERIFICATION)
+        from ui.ti2_loader import _choice_dialog
+        ctl = getattr(self, "_target_ctl", None)
+        proj = ctl.project_or_none() if ctl is not None else None
+        if proj is None:
+            return "new"
+        # Describe the bar so the user knows exactly where "into this project"
+        # would put the chart.
+        t = ctl.target
+        run_id = t.profile_run
+        if run_id and proj.has_run(run_id):
+            where = tr("overwrite <b>{run}</b>").format(run=run_id)
+        else:
+            where = tr("a new run")
+        rtype = (tr("Verification") if t.run_type == RUN_TYPE_VERIFICATION
+                 else tr("Profiling"))
+        pname = proj.root.name
+        intro = tr(
+            "You loaded the patch set <b>{file}</b>.<br><br>"
+            "A profile project is open: <b>{project}</b>. Where should the chart "
+            "these patches make be built?"
+        ).format(file=src.name, project=pname)
+        into_desc = tr(
+            "Keep working in <b>{project}</b>. When you click <b>Create Chart</b>, "
+            "the patches are laid out and saved into this project — following the "
+            "Profile-run bar (Run type = <b>{rtype}</b>, {where}). Nothing is "
+            "overwritten until you actually create the chart."
+        ).format(project=pname, rtype=rtype, where=where)
+        new_desc = tr(
+            "Start a fresh profile project named <b>{name}</b> (after the file). "
+            "The current project <b>{project}</b> is left untouched; the new "
+            "project gets its own folder and its own run 1."
+        ).format(name=self._file_mgr.strip_workfile_ext(src.stem), project=pname)
+        return _choice_dialog(
+            self, tr("Where should this patch set's chart go?"), intro,
+            [(tr("Add to this project"), into_desc, "into"),
+             (tr("Start a new project"), new_desc, "new")],
+        )
+
     def _on_load_ti1(self) -> None:
         path = open_file_dialog(
             self, "Load patch set",
@@ -7655,7 +7735,19 @@ class TabChart(QWidget):
         # "Generate Chart" re-lays the same patches with the new printtarg knobs.
         self._reset_override_checks()
         self._update_preset_locks()
-        self._file_mgr.set_target_name(src.stem)
+        # #130: where should the laid-out chart go? If a profile project is loaded,
+        # ask — the patches can go INTO that project (Create Chart then writes them
+        # per the Profile-run bar: Overwrite run N, or a new run), or start their
+        # own new project named after the file. With no project loaded there's
+        # nothing to disambiguate, so the file's own name seeds a new project.
+        dest = self._ti1_load_destination(src)
+        if dest is None:                       # Cancel — load nothing
+            self._preset_ti1_path = None
+            self._preview.clear()
+            self._generate_btn.setEnabled(True)
+            return
+        if dest == "new":
+            self._file_mgr.set_target_name(src.stem)
         params = self._collect_params()
         self._preview.clear()
         self._generate_btn.setEnabled(False)
