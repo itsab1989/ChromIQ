@@ -1288,9 +1288,9 @@ class TabChart(QWidget):
                 "profile will only be accurate for that exact combination.\n"
                 "• Have a rough idea of how careful you want to be. More patches = "
                 "more accuracy, but also more ink and paper.\n\n"
-                "First, name your profile.\n"
-                "The \"Printer profile name\" field at the top is the name of this "
-                "whole job. It becomes the working folder, every file ChromIQ makes "
+                "First, name your profiling project.\n"
+                "The \"Printer profile project name\" field at the top is the name of this "
+                "whole job. It becomes the project folder, every file ChromIQ makes "
                 "along the way (chart, measurements, ICC profile) and the name "
                 "written inside the profile itself — so what you see later in, say, "
                 "macOS ColorSync Utility matches the folder exactly. A good name "
@@ -1570,14 +1570,14 @@ class TabChart(QWidget):
         folder_layout = QVBoxLayout(folder_grp)
 
         name_row = QHBoxLayout()
-        _guided_name_lbl = QLabel(tr("Printer profile name:"), inner)
+        _guided_name_lbl = QLabel(tr("Printer profile project name:"), inner)
         name_row.addWidget(_guided_name_lbl)
         self._target_name_edit = self._make_lineedit("", inner)
         # Live-update the guided command preview as the user types.
         self._target_name_edit.textChanged.connect(self._update_patch_count)
         name_row.addWidget(self._target_name_edit, stretch=1)
         name_row.addWidget(TooltipButton(
-            tr("Printer profile name"),
+            tr("Printer profile project name"),
             self._profile_name_tooltip(),
             inner,
             min_width=540,
@@ -1977,7 +1977,7 @@ class TabChart(QWidget):
         # input fields aligned vertically. Sized to the translated labels so
         # longer locales widen the column (the stretchy edits absorb it).
         name_row = QHBoxLayout()
-        _name_lbl = QLabel(tr("Printer profile name:"), w)
+        _name_lbl = QLabel(tr("Printer profile project name:"), w)
         # Label column = the wider label's full sizeHint (the same measure guided
         # uses) — its natural width incl. margins, so the column matches guided's
         # left edge without clipping the label's trailing ":".
@@ -1993,7 +1993,7 @@ class TabChart(QWidget):
         )
         name_row.addWidget(self._manual_target_name_edit, stretch=1)
         name_row.addWidget(TooltipButton(
-            tr("Printer profile name"),
+            tr("Printer profile project name"),
             self._profile_name_tooltip(),
             w,
             min_width=540,
@@ -3449,7 +3449,7 @@ class TabChart(QWidget):
             removed = raw[len(cleaned):]
             edit.setText(cleaned)
             hint.setText(
-                tr("Removed “{removed}” — the printer profile name is used for the output folder and every generated file, so it shouldn't include a file extension.").format(removed=removed)
+                tr("Removed “{removed}” — the printer profile project name is used for the project folder and every generated file, so it shouldn't include a file extension.").format(removed=removed)
             )
             hint.setVisible(True)
         else:
@@ -5215,11 +5215,15 @@ class TabChart(QWidget):
         deliberately says nothing about chart-layout naming (that lives in Save
         Preset and the editor's Save As)."""
         return tr(
-            "The name for this printer profile. It names the working folder, "
-            "every file generated along the way (chart, measurements, ICC "
-            "profile) and the profile's own embedded description — so what you "
-            "see later in, for example, macOS ColorSync Utility matches the "
+            "The name of this whole profiling project — think of it as the job's "
+            "title. It becomes the project folder on disk, the base name of every "
+            "file ChromIQ makes along the way (chart, measurements, the finished "
+            "ICC profile) and the profile's own embedded description — so what "
+            "you see later in, for example, macOS ColorSync Utility matches the "
             "folder and files exactly.\n\n"
+            "(The “printer profile” itself is the .icc / .icm file this project "
+            "produces at the end. Naming the project after the printer and paper "
+            "keeps that file easy to recognise.)\n\n"
             "Choose a name that identifies this printer and paper at a glance. "
             "A good name describes the printer (name or abbreviation), the paper "
             "(type/id and substrate such as glossy or matte), the colour space, "
@@ -5418,7 +5422,7 @@ class TabChart(QWidget):
         run_chk.setChecked(prefill_run)
         lay.addWidget(run_chk)
         run_note = QLabel(
-            tr("When on, picking this preset asks for a profile name and then creates "
+            tr("When on, picking this preset asks for a printer profile project name and then creates "
             "the chart straight away (it's shown with a ▶ in the list), instead of "
             "only loading the values. This is saved inside the preset file, so it "
             "travels with a shared preset."),

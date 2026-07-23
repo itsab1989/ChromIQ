@@ -734,6 +734,36 @@ GLOSSARY += [
         "a profile — better than trusting the build report.")),
 ]
 
+
+# Naming and folder terms (#130) — the words the load dialogs and the Create
+# Chart tab use, so a newcomer can tell the project from the profile file.
+GLOSSARY += [
+    (tr("Printer profile project name"),
+     tr("The name of a whole profiling job — the title you type in the Create "
+        "Chart tab. It is the same as the project folder on disk and the base "
+        "name of every file inside it (chart, measurements, the finished "
+        "profile). Rename it and ChromIQ offers to rename the folder and files "
+        "to match. Not to be confused with the printer profile itself.")),
+    (tr("Printer profile (the file)"),
+     tr("The finished .icc / .icm file a project produces — the thing you "
+        "install and pick in a print dialog. A project makes exactly one; it "
+        "takes the project's name so it's easy to recognise later.")),
+    (tr("Profile run"),
+     tr("One attempt at building (or checking) a profile inside a project. A "
+        "project can hold several — run1, run2, … — so you can try again "
+        "without losing earlier work. The Profile-run bar chooses which one "
+        "you're working in.")),
+    (tr("Run type (Profiling / Verification)"),
+     tr("What a profile run is for. Profiling builds the profile (chart → "
+        "measurement → .icc). Verification checks a finished profile by "
+        "measuring a chart printed through it; its results live in the run's "
+        "“verifications” folder and never change the profile.")),
+    (tr("old/ folder"),
+     tr("Where ChromIQ moves files it would otherwise overwrite — every "
+        "displaced chart, measurement or profile is kept in a dated “old” "
+        "sub-folder instead of being deleted, so nothing is ever lost.")),
+]
+
 GLOSSARY_CARD: dict = {
     "key": "glossary",
     "title": tr("Dictionary and terminology"),
