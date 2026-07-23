@@ -32,9 +32,13 @@ def _intro() -> str:
         "your custom output folder from Settings), named after the profile. "
         "Everything you would print, install or keep sits right at the top of "
         "each run folder; the paperwork is grouped into a few folders whose "
-        "names already tell you whether you care about them. Below: first the "
-        "three files that matter, then what each folder means, then every "
-        "file in detail. “{name}” stands for your profile's name.")
+        "names already tell you whether you care about them. Each build is a "
+        "“run” (runs/run1, run2 …); a run's profiling work sits in the run "
+        "folder, and any later checks of the finished profile — “verification” "
+        "runs — accrue as dated folders inside verifications/, kept apart so the "
+        "two never mix. Below: first the three files that matter, then what each "
+        "folder means, then every file in detail. “{name}” stands for your "
+        "profile's name.")
 
 
 def _outro() -> str:
@@ -54,7 +58,8 @@ def _folders():
     'safe to delete?' judgments."""
     return [
         ("runs/run1, run2 …", tr("One folder per profile build; the newest is current. Old runs are your history — delete a whole runN if not needed.")),
-        ("runs/runN/reports/", tr("Things ChromIQ tells you about your work: quality-check reports, the re-measure list, dated measurement reports.")),
+        ("runs/runN/reports/", tr("Things ChromIQ tells you about your PROFILING work: quality-check reports, the re-measure list, and the dated measurement reports for the profile build.")),
+        ("runs/runN/verifications/", tr("Checks of a FINISHED profile over time. The shared verification chart lives here, and each check gets its own dated sub-folder (verifications/2026-07-15_1030/ …) with its measurement and report. Kept apart from your profiling measurement, so the two never mix — this is what lets the Measurement Report trend how a profile holds up, or drifts, month after month.")),
         ("runs/runN/exports/", tr("Files made for use in other programs — the i1Profiler patch set and the plain colour list.")),
         ("runs/runN/cache/", tr("Temporary working files from the tools. Always safe to delete — ChromIQ can recreate everything in here.")),
         ("runs/runN/reads/", tr("Your individual readings when you measure a chart more than once to average.")),
@@ -76,10 +81,16 @@ def _features():
         (tr("Print Chart"),
          tr("{name}_01.tif … (the chart pages)"),
          tr("{name}.ps (only on the PostScript print path)")),
-        (tr("Measure"),
+        (tr("Measure (profiling)"),
          tr("{name}.ti2 (+ {name}.strips.json / .channels.json for the preview)"),
          tr("{name}.ti3; reads/readN.ti3 when averaging; "
             "reports/report_*.json when a measurement report is saved")),
+        (tr("Measure (verification)"),
+         tr("{name}-verify.ti2 (the shared verification chart, printed through "
+            "the profile)"),
+         tr("verifications/<date>/{name}-verify.ti3 and its "
+            "verifications/<date>/reports/report_*.json — one dated check, kept "
+            "as history and never built into a profile")),
         (tr("Build Profile"),
          tr("{name}.ti3"),
          tr("{name}.icc; merged.ti3 / merged.icc and calibrated.icc when "
@@ -94,7 +105,9 @@ def _features():
          tr("Your scan/photo image(s) + the chart's {name}.cht and {name}.cie"),
          tr("The scanner/camera ICC profile; cache/ working copies + a -diag.tif")),
         (tr("Verify a profile (Tools)"),
-         tr("{name}.icc and {name}.ti3"),
+         tr("{name}.icc and a verification {name}-verify.ti3 (the last step of a "
+            "verification run: print through the profile → measure → report → "
+            "this tool)"),
          tr("reports/Verify_Profile_N_{name}.txt; a 3D difference map (*.x3d.html)")),
         (tr("Verify against reference (Tools)"),
          tr("A profile / measurement and a reference"),
@@ -129,7 +142,7 @@ def _rows():
             ("Refine_Strips_{name}.txt", "runs/runN/reports", tr("The list of strips to re-measure after a check; the guided refinement reads it back."), tr("Check & Refine")),
             ("Verify_Profile_1_{name}.txt", "runs/runN/reports", tr("A readable report from “Verify a profile” — verdict, scores, full output. Numbered so repeated checks keep a history."), tr("Verify a profile (Tools)")),
             ("Verify_Reference_1_{name}.txt", "runs/runN/reports", tr("A readable report from “Verify against reference” — result summary and full output."), tr("Verify against reference (Tools)")),
-            ("report_*.json", "runs/runN/reports", tr("Dated measurement reports (accuracy & drift), saved automatically after each measurement (Settings → Reports). The Measurement Report tool reads these back — it builds its figures from the run's .ti3, needs the chart's .ti2 beside it for the ΔE, and reads the instrument name from the .ti3 — and plots how the printer drifts over time."), tr("Measure tab")),
+            ("report_*.json", "runs/runN/reports", tr("Dated PROFILING measurement reports (accuracy & drift), saved automatically after each measurement (Settings → Reports). The Measurement Report tool reads these back — it builds its figures from the run's .ti3, needs the chart's .ti2 beside it for the ΔE, and reads the instrument name from the .ti3 — and plots how the printer drifts over time. Verification checks keep their own report points under verifications/<date>/reports/, gathered separately."), tr("Measure tab")),
             ("measurement_report_*.pdf", "runs/runN/reports  ·  reports/ (project)", tr("A printable PDF of a measurement report, written when you press “Save report as PDF”. An all-runs report belongs to the whole printer, so it goes in a reports folder next to runs/; a single-run report goes in that run's own reports folder."), tr("Measurement Report tool")),
         ]),
         (tr("exports/ — files for other programs"), [
@@ -146,6 +159,11 @@ def _rows():
             ("merged.ti3 / merged.icc", "runs/runN", tr("The build-time merge of your new measurement with the pre-conditioning one. The installed profile still gets the clean {name}.icc name."), tr("Build Profile (refinement)")),
             ("calibrated.icc", "runs/runN", tr("Your profile with calibration curves baked in (applycal), when the calibration workflow is on."), tr("Build Profile")),
             ("*.x3d.html + x3dom.css / x3dom.js", "runs/runN", tr("The 3D difference map from a profile verification, next to the measurement it belongs to (the three files reference each other)."), tr("Verify profile (Tools)")),
+        ]),
+        (tr("Verification runs — checking a finished profile over time"), [
+            ("{name}-verify.ti1 / .ti2 / .cht …", "runs/runN/verifications", tr("The shared verification chart for this profile — usually smaller than the profiling chart (one page is plenty). You make it once on the Create Chart tab with Run type = Verification, and every future check reuses it, so results always compare like with like."), tr("Create Chart (Run type = Verification)")),
+            ("{name}-verify.ti3", "runs/runN/verifications/<date>", tr("One dated verification measurement: the verification chart printed THROUGH the profile (colour management ON) and measured, to see how accurate the profile still is. Each check lands in its own date-stamped folder, so nothing is overwritten. Tagged internally so it never builds a profile and never mixes with your profiling measurement."), tr("Measure tab (Run type = Verification)")),
+            ("report_*.json", "runs/runN/verifications/<date>/reports", tr("The accuracy report for that one dated check. The Measurement Report tool trends these verification checks over time — entirely separately from the profiling runs above — so you can watch a profile hold up, or drift, month after month."), tr("Measure tab (Run type = Verification)")),
         ]),
         (tr("Project-level files and folders"), [
             ("project.json", "(project root)", tr("ChromIQ's manifest: current run + run history. Please don't edit."), tr("Created on first use")),
