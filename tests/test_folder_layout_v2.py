@@ -44,7 +44,7 @@ def test_migration_bumps_schema_and_persists(tmp_path: Path) -> None:
     proj = Project.load(root)
     assert not proj.schema_too_new
     on_disk = json.loads((root / "project.json").read_text(encoding="utf-8"))
-    assert on_disk["schema_version"] == SCHEMA_VERSION == 2
+    assert on_disk["schema_version"] == SCHEMA_VERSION == 3
 
 
 def test_migration_full_v2_manifest(tmp_path: Path) -> None:

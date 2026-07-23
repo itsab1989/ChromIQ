@@ -31,7 +31,7 @@ from core.file_manager import (
 def test_project_manifest_fresh_defaults() -> None:
     from core.file_manager import SCHEMA_VERSION
     m = ProjectManifest.fresh("MyChart")
-    assert m.schema_version == SCHEMA_VERSION == 2
+    assert m.schema_version == SCHEMA_VERSION == 3
     assert m.target_name == "MyChart"
     assert m.current_run == "run1"
     assert m.runs == ["run1"]
@@ -651,3 +651,65 @@ def test_project_rename_covers_cal_sidecars_and_subfolders(tmp_path: Path) -> No
     assert (run2.dir / "Old-notes.txt").exists()            # user file untouched
     # Refine_Strips keeps its own (report) name — not a stem-carrying artefact
     assert (run2.reports_dir / "Refine_Strips_Old.txt").exists()
+
+
+# ---------------------------------------------------------------------------
+# #130: verification-run model + v2→v3 migration
+# ---------------------------------------------------------------------------
+
+def test_verification_paths_and_new_verification(tmp_path: Path) -> None:
+    from core.file_manager import Verification
+    proj = Project.create(tmp_path / "Canon-Pro300", "Canon-Pro300")
+    run = proj.current_run()
+    assert run.verify_stem == "Canon-Pro300-verify"
+    assert run.verifications_dir == run.dir / "verifications"
+    assert run.verify_chart_ti2 == run.verifications_dir / "Canon-Pro300-verify.ti2"
+    assert run.has_verify_chart() is False
+    assert run.verifications() == []
+
+    v = run.new_verification()
+    assert isinstance(v, Verification)
+    assert v.dir.parent == run.verifications_dir
+    assert v.measurement_ti3 == v.dir / "Canon-Pro300-verify.ti3"
+    assert v.reports_dir == v.dir / "reports"
+    assert v.exists() is False
+    # Materialise it → it shows up in the sorted history.
+    v.ensure_dir()
+    v.measurement_ti3.write_text("CTI3\n")
+    assert v.exists() is True
+    ids = [x.id for x in run.verifications()]
+    assert ids == [v.id]
+    # for_dir round-trips (project-less path ops).
+    v2 = Verification.for_dir(v.dir)
+    assert v2.measurement_ti3 == v.measurement_ti3
+
+
+def test_new_verification_ids_are_unique_same_second(tmp_path: Path) -> None:
+    from datetime import datetime
+    proj = Project.create(tmp_path / "P", "P")
+    run = proj.current_run()
+    when = datetime(2026, 7, 15, 10, 30, 0)
+    a = run.new_verification(when); a.ensure_dir()
+    b = run.new_verification(when); b.ensure_dir()
+    assert a.id != b.id                      # collision suffix
+    assert b.id.startswith(a.id)
+
+
+def test_v2_to_v3_migration_folds_legacy_verify_ti3(tmp_path: Path) -> None:
+    proj = Project.create(tmp_path / "P", "P")
+    run = proj.current_run()
+    run.ensure_dir()
+    # Simulate a pre-#130 project: a flat <stem>-verify.ti3 in the run root,
+    # schema 2 on disk.
+    legacy = run.dir / "P-verify.ti3"
+    legacy.write_text("CTI3\n")
+    proj._manifest.schema_version = 2
+    proj.save_manifest()
+
+    reloaded = Project.load(proj.root)
+    assert reloaded._manifest.schema_version == 3
+    assert not legacy.exists()                       # moved out of the root
+    vs = reloaded.current_run().verifications()
+    assert len(vs) == 1
+    assert vs[0].measurement_ti3.is_file()
+    assert vs[0].measurement_ti3.read_text().startswith("CTI3")

@@ -82,13 +82,20 @@ _NEW_READ_RE = re.compile(r"^read(\d+)$")
 REPORTS_DIRNAME = "reports"
 EXPORTS_DIRNAME = "exports"
 CACHE_DIRNAME   = "cache"
+#: #130 — a profiling run's verification activity lives here: the shared verify
+#: chart at the folder root, plus one dated sub-folder per verification run.
+VERIFICATIONS_DIRNAME = "verifications"
+
+#: A dated verification-run folder id: "YYYY-MM-DD_HHMMSS" (+ optional "_N").
+_VERIFY_ID_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{6}(?:_\d+)?$")
 
 #: Current on-disk project format. 1 = flat run folders (pre-#127),
-#: 2 = reports/exports/cache sub-folders. ``Project.load`` migrates 1 → 2
-#: in place; formats newer than this open read-normally with a warning flag
-#: (see ``Project.schema_too_new``) — the valuable files sit in the same
-#: place in every format, so opening can't damage anything.
-SCHEMA_VERSION = 2
+#: 2 = reports/exports/cache sub-folders, 3 = verification runs moved into
+#: runs/runN/verifications/<date>/ (#130). ``Project.load`` migrates in place;
+#: formats newer than this open read-normally with a warning flag (see
+#: ``Project.schema_too_new``) — the valuable files sit in the same place in
+#: every format, so opening can't damage anything.
+SCHEMA_VERSION = 3
 
 
 def reports_subdir(folder: Path | str) -> Path:
@@ -549,6 +556,57 @@ class Run:
     def ensure_exports_dir(self) -> Path:     return ensure_subdir(self.exports_dir)
     def ensure_cache_dir(self) -> Path:       return ensure_subdir(self.cache_dir)
 
+    # ---- verification runs (#130)
+    # runs/runN/verifications/ holds ONE shared verify chart (a smaller chart
+    # printed through this run's profile) at its root, plus one dated sub-folder
+    # per verification measurement. Profiling reports and verification reports
+    # therefore live in physically separate folders and never mix.
+    @property
+    def verifications_dir(self) -> Path:      return self.dir / VERIFICATIONS_DIRNAME
+    @property
+    def verify_stem(self) -> str:             return f"{self.stem}-verify"
+    @property
+    def verify_chart_ti1(self) -> Path:       return self.verifications_dir / f"{self.verify_stem}.ti1"
+    @property
+    def verify_chart_ti2(self) -> Path:       return self.verifications_dir / f"{self.verify_stem}.ti2"
+    @property
+    def verify_chart_cht(self) -> Path:       return self.verifications_dir / f"{self.verify_stem}.cht"
+    @property
+    def verify_chart_ps(self) -> Path:        return self.verifications_dir / f"{self.verify_stem}.ps"
+    @property
+    def verify_chart_channels_json(self) -> Path:
+        return self.verifications_dir / f"{self.verify_stem}.channels.json"
+
+    def verify_chart_tiffs(self) -> list[Path]:
+        if not self.verifications_dir.exists():
+            return []
+        return sorted(self.verifications_dir.glob(f"{self.verify_stem}*.tif"))
+
+    def has_verify_chart(self) -> bool:       return self.verify_chart_ti2.exists()
+
+    def verifications(self) -> "list[Verification]":
+        """Dated verification runs, oldest-first (folder id = timestamp)."""
+        vdir = self.verifications_dir
+        if not vdir.exists():
+            return []
+        ids = sorted(d.name for d in vdir.iterdir()
+                     if d.is_dir() and _VERIFY_ID_RE.match(d.name))
+        return [Verification(self, vid) for vid in ids]
+
+    def verification(self, vid: str) -> "Verification":
+        return Verification(self, vid)
+
+    def new_verification(self, when: "datetime | None" = None) -> "Verification":
+        """A fresh dated verification folder (not yet created on disk)."""
+        when = when or datetime.now()
+        base = when.strftime("%Y-%m-%d_%H%M%S")
+        v = Verification(self, base)
+        n = 1
+        while v.dir.exists():          # same-second collision → suffix
+            v = Verification(self, f"{base}_{n}")
+            n += 1
+        return v
+
     # ---- meta
     @property
     def meta_path(self) -> Path:              return self.dir / "meta.json"
@@ -604,6 +662,54 @@ class Run:
             except OSError as exc:
                 log.warning("Could not delete %s: %s", tiff, exc)
         self.clear_reads()
+
+
+# ---------------------------------------------------------------------------
+# Verification — one dated verification run under a Run (#130)
+# ---------------------------------------------------------------------------
+
+class Verification:
+    """One dated verification measurement: ``runs/runN/verifications/<id>/``.
+
+    Holds only the measurement (``<stem>-verify.ti3``) + its own ``reads/`` and
+    ``reports/``; the (shared, smaller) verify chart lives one level up, at the
+    ``verifications/`` root, owned by the :class:`Run`. A verification grades the
+    run's built profile — never overwrites the profiling measurement, and never
+    produces a profile itself."""
+
+    def __init__(self, run: "Run", vid: str) -> None:
+        self._run = run
+        self._vid = vid
+
+    @classmethod
+    def for_dir(cls, vdir: Path) -> "Verification":
+        """A project-less Verification for path ops on a known dated folder
+        (``…/runs/runN/verifications/<id>``)."""
+        run = Run.for_dir(vdir.parents[1])
+        return cls(run, vdir.name)
+
+    @property
+    def id(self) -> str:                      return self._vid
+    @property
+    def run(self) -> "Run":                   return self._run
+    @property
+    def dir(self) -> Path:                    return self._run.verifications_dir / self._vid
+    @property
+    def stem(self) -> str:                    return self._run.verify_stem
+    @property
+    def measurement_ti3(self) -> Path:        return self.dir / f"{self.stem}.ti3"
+    @property
+    def reads_dir(self) -> Path:              return self.dir / "reads"
+    @property
+    def reports_dir(self) -> Path:            return self.dir / REPORTS_DIRNAME
+    @property
+    def cache_dir(self) -> Path:              return self.dir / CACHE_DIRNAME
+
+    def ensure_dir(self) -> Path:
+        self.dir.mkdir(parents=True, exist_ok=True)
+        return self.dir
+
+    def exists(self) -> bool:                 return self.measurement_ti3.exists()
 
 
 # ---------------------------------------------------------------------------
@@ -690,7 +796,16 @@ class Project:
                 "opening without migration; update ChromIQ.",
                 root, proj._manifest.schema_version, SCHEMA_VERSION)
         elif proj._manifest.schema_version < SCHEMA_VERSION:
-            proj._migrate_v1_to_v2()
+            # Cumulative, idempotent migrations. Capture the ORIGINAL version
+            # first — _migrate_v1_to_v2 bumps schema_version to SCHEMA_VERSION,
+            # which would otherwise make the v2→v3 check skip itself.
+            orig = proj._manifest.schema_version
+            if orig < 2:
+                proj._migrate_v1_to_v2()
+            if orig < 3:
+                proj._migrate_v2_to_v3()
+            proj._manifest.schema_version = SCHEMA_VERSION
+            proj.save_manifest()
         # Backfill the README for projects created before it shipped — and
         # rewrite a 0-byte file, which is exactly the artefact a pre-fix Windows
         # build left behind: write_readme crashed mid-write (UnicodeEncodeError
@@ -803,6 +918,29 @@ class Project:
         # actually has — the one deliberate overwrite of this file.
         self.write_readme()
         log.info("Migration to v2 complete: %s", self._root)
+
+    def _migrate_v2_to_v3(self) -> None:
+        """#130: fold a legacy single ``<stem>-verify.ti3`` (written flat in the
+        run root by the old one-slot verification) into a dated
+        ``verifications/<date>/`` folder, so verification history can accrue.
+        The date comes from the file's modification time. Idempotent — runs
+        already on the new layout have nothing to move; the profiling chain is
+        never touched."""
+        log.info("Migrating project %s verification files to layout v3", self._root)
+        rids = list(self._manifest.runs) or [
+            d.name for d in self.runs_root.glob("run*") if d.is_dir()]
+        for rid in rids:
+            run = Run(self, rid)
+            legacy = run.dir / f"{run.stem}-verify.ti3"
+            if not legacy.is_file():
+                continue
+            when = datetime.fromtimestamp(legacy.stat().st_mtime)
+            v = run.new_verification(when)
+            v.ensure_dir()
+            self._migrate_move(legacy, v.dir)
+            legacy_ti2 = run.dir / f"{run.stem}-verify.ti2"
+            if legacy_ti2.is_file():
+                self._migrate_move(legacy_ti2, run.verifications_dir)
 
     def save_manifest(self) -> None:
         self._root.mkdir(parents=True, exist_ok=True)
