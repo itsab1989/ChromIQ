@@ -341,6 +341,14 @@ WORKFLOWS: list[dict] = [
             (3, tr("Click “Measure Chart” and follow the strip-by-strip "
                 "prompts. Results save as a .ti3 next to the chart, "
                 "ready for the Build Profile tab.")),
+            (3, tr("Optional — tick “Play sounds during measurement” to get "
+                "audible feedback as you read: a tick as each patch is read, a "
+                "bell when a strip is done, a warning if a reading looks off, "
+                "and a fanfare when the whole chart is finished. It's a "
+                "hands-free way to follow progress without watching the screen. "
+                "Choose the sound for each event — or add your own — in "
+                "Preferences → Sounds."),
+                True),
             (4, tr("On the Build Profile tab the new .ti3 is already loaded. "
                 "If you like, fill in the optional metadata fields "
                 "(Description, Manufacturer, Copyright) — they get embedded "
