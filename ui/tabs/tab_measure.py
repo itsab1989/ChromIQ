@@ -966,6 +966,33 @@ class TabMeasure(QWidget):
         cb = self._pbp_cb if self._current_mode() == "guided" else self._m_pbp_cb
         return cb.isChecked()
 
+    def _verification_guard(self) -> "str | None":
+        """#130 Hole 1: a verification checks a FINISHED profile. If the user
+        ticked 'Profile verification' but the loaded chart's run has no built
+        profile yet, return a guiding message so the caller stops and explains
+        (softened per Knut — warn + guide, never a silent hard block). None when
+        the read may proceed. Only applies inside a project run folder."""
+        if not self._is_verify_checked() or self._ti1_path is None:
+            return None
+        try:
+            run = Run.for_dir(self._ti1_path.parent)
+        except Exception:      # noqa: BLE001 — a guard must never break Start
+            return None
+        if run.dir.parent.name != "runs":
+            return None        # external chart — the verification model doesn't apply
+        if run.built_profile_icc().exists():
+            return None
+        return tr(
+            "A verification checks a finished profile — but this run doesn't "
+            "have a built profile yet.\n\nFirst measure this chart normally "
+            "(with “Profile verification” OFF) and build its profile on the "
+            "Build Profile tab. Then print a chart through that profile and "
+            "measure it here with “Profile verification” ON.")
+
+    def _uncheck_verification(self) -> None:
+        cb = self._verify_cb if self._current_mode() == "guided" else self._m_verify_cb
+        cb.setChecked(False)
+
     def set_calibration_mode(self, enabled: bool) -> None:
         """Hide guided mode toggle and lock to manual when calibration mode is active."""
         self._mode_row_widget.setVisible(not enabled)
@@ -3005,6 +3032,15 @@ class TabMeasure(QWidget):
             self._log.ensureCursorVisible()
             return
         if self._runner.is_running:
+            return
+
+        # #130 Hole 1: don't start a verification of a run that has no profile.
+        block = self._verification_guard()
+        if block:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.information(
+                self, tr("Build a profile before verifying"), block)
+            self._uncheck_verification()      # auto-switch back to Profiling (Knut)
             return
 
         params = self._collect_params()

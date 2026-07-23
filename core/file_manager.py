@@ -1053,6 +1053,11 @@ class Project:
     def all_runs(self) -> list[Run]:
         return [Run(self, rid) for rid in self._manifest.runs]
 
+    def run(self, run_id: str) -> Run:
+        """The Run with this id (not validated against the manifest — callers
+        that need existence use :meth:`has_run`)."""
+        return Run(self, run_id)
+
     def has_run(self, run_id: str) -> bool:
         return run_id in self._manifest.runs
 

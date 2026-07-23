@@ -95,3 +95,35 @@ def test_normal_run_unaffected(tmp_path, monkeypatch):
     assert (tmp_path / "chart.ti3").exists()       # untouched
     assert not (tmp_path / "chart-verify.ti3").exists()
     assert emitted and emitted[0].name == "chart.ti3"
+
+
+def test_verification_guard_blocks_without_profile(tmp_path):
+    """#130 Hole 1: 'Profile verification' on a run with no built profile is
+    blocked with a guiding message; with a profile it proceeds."""
+    from core.file_manager import Project
+    tab = _make_tab()
+    proj = Project.create(tmp_path / "P", "P")
+    run = proj.current_run(); run.ensure_dir()
+    run.chart_ti2.write_text("x")
+    tab._ti1_path = run.chart_ti2
+
+    # Tick the active module's verification box.
+    (tab._verify_cb if tab._current_mode() == "guided" else tab._m_verify_cb).setChecked(True)
+
+    # No profile yet → blocked with a message.
+    assert tab._verification_guard() is not None
+    # Build a profile → allowed.
+    run.profile_icc.write_text("icc")
+    assert tab._verification_guard() is None
+    # Not ticked → never blocked.
+    (tab._verify_cb if tab._current_mode() == "guided" else tab._m_verify_cb).setChecked(False)
+    assert tab._verification_guard() is None
+
+
+def test_verification_guard_ignores_external_charts(tmp_path):
+    tab = _make_tab()
+    (tmp_path / "loose.ti2").write_text("x")
+    tab._ti1_path = tmp_path / "loose.ti2"
+    (tab._verify_cb if tab._current_mode() == "guided" else tab._m_verify_cb).setChecked(True)
+    # Not inside runs/runN → the verification model doesn't apply, no block.
+    assert tab._verification_guard() is None
