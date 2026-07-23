@@ -1,5 +1,29 @@
 # Changelog
 
+## v3.14.8-beta.3
+
+Fixes from Knut's beta-2 test of the verification-runs work (#130):
+
+- **The "Where are my files?" guide now covers verification runs.** It explains
+  the new `runs/runN/verifications/` area — the shared verification chart and
+  the dated per-check sub-folders — splits the Measure step into profiling vs
+  verification, and adds a dedicated "Verification runs" section, so the guide
+  matches how files are actually laid out now.
+- **The chart preview no longer sticks on a phantom extra page.** Regenerating a
+  *smaller* verification chart (fewer pages) used to leave the previous chart's
+  extra page behind, so the preview kept showing an out-of-date page count. The
+  old verification-chart files are now cleared before the new ones are saved —
+  your dated verification history is untouched.
+- **Switching Run type swaps the chart in Create Chart.** Changing between
+  Profiling and Verification (or picking a different Profile run) now loads that
+  target's *own* chart — its settings and its preview — so your edits and the
+  next Generate apply to the right chart instead of overwriting the other one.
+- **i1Pro bottom margin corrected for the tall sheets.** For i1Pro on
+  **A4 Portrait** and **A3 Landscape**, the default bottom margin is now 19 mm
+  (was 9 mm), keeping the strip under the i1Pro 240 mm strip-length limit;
+  Letter Portrait is unchanged. Existing settings are migrated automatically,
+  and a bottom margin you set yourself is kept.
+
 ## v3.14.8-beta.2
 
 - **Verification runs — check a finished profile, and keep a history (#130).**
