@@ -2590,6 +2590,14 @@ class LayoutOptionsPanel(QWidget):
         # Final pass with loading off: computes the real conflict state for
         # the values just loaded (during loading only the clean-up runs).
         self._update_clip_margin_conflict()
+        # One consolidated refresh now that loading is off: every field above was
+        # set with change-signals suppressed, so without this the text/clip
+        # previews and any listener (the layout editor's render preview) kept
+        # showing the PREVIOUS recipe — a freshly loaded preset showed the old
+        # clip content and strip/patch layout until a field was toggled by hand
+        # (Knut #130 beta-2 test #1). _emit refreshes both previews and fires the
+        # panel's `changed` signal exactly as an interactive edit would.
+        self._emit()
 
     def apply_to_recipe(self, r: LayoutRecipe) -> LayoutRecipe:
         """Write the panel's values onto *r* (keeps r's instrument/paper/mode)."""

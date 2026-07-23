@@ -667,3 +667,22 @@ def test_switch_to_i1_keeps_a_deliberate_clip_content(app):
                               clip_content_mode="text", clip_text="hi"))
     p.instr.setCurrentIndex(p.instr.findData("i1"))
     assert p.clip_content_mode.currentData() == "text"
+
+
+def test_set_recipe_emits_changed_for_preview_refresh(app):
+    """#130 Knut beta-2 test #1: loading a recipe (e.g. a preset) must fire ONE
+    `changed` at the end so the clip preview and the layout editor's render
+    preview refresh — otherwise a freshly loaded preset kept showing the previous
+    clip content and strip/patch layout until a field was toggled by hand."""
+    from ui.dialogs.layout_options_panel import LayoutOptionsPanel
+    panel = LayoutOptionsPanel()
+    fired = []
+    panel.changed.connect(lambda: fired.append(1))
+    panel.set_recipe(LayoutRecipe(instrument="i1", paper="A4",
+                                  clip_content_mode="notes", area_method="by_area",
+                                  area_cols=6, area_rows=9))
+    assert fired, "set_recipe did not emit `changed` — the preview won't refresh"
+    # And the loaded values are actually applied (not left at the old defaults).
+    out = panel.apply_to_recipe(LayoutRecipe(instrument="i1", paper="A4"))
+    assert out.area_cols == 6 and out.area_rows == 9
+    assert out.clip_content_mode == "notes"
