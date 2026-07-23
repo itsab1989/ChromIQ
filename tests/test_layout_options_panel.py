@@ -639,3 +639,31 @@ def test_cm_stagger_gated_without_selectors_via_set_recipe(app):
     for inst in ("i1", "p3", "SS", "41", "51", "CM"):
         panel.set_recipe(LayoutRecipe(instrument=inst, paper="A4"))
         assert panel.cm_stagger_cb.isHidden() == (inst != "CM"), inst
+
+
+def test_switch_cm_to_i1_defaults_clip_content_to_notes(app):
+    """ColorMunki has no clip band (content 'off'); switching to i1Pro — which has
+    a real clip border — must DEFAULT the clip content to the notes record, not
+    leave the border blank. (Sebastian: Guided CM chart -> Manual -> change
+    instrument to i1Pro produced a blank clip border.)"""
+    from ui.dialogs.layout_options_panel import LayoutOptionsPanel
+    from workflow.layout_engine.presets import LayoutRecipe
+    p = LayoutOptionsPanel(with_selectors=True)
+    p.set_recipe(LayoutRecipe(instrument="CM", paper="A4", clip_content_mode="off"))
+    assert p.instr.currentData() == "CM"
+    assert p.clip_content_mode.currentData() == "off"
+    p.instr.setCurrentIndex(p.instr.findData("i1"))          # genuine user switch
+    assert p.instr.currentData() == "i1"
+    assert p.clip_content_mode.currentData() == "notes"      # not blank
+
+
+def test_switch_to_i1_keeps_a_deliberate_clip_content(app):
+    """Only 'off' is treated as a carry-over — a deliberate content choice
+    survives an instrument switch to i1Pro."""
+    from ui.dialogs.layout_options_panel import LayoutOptionsPanel
+    from workflow.layout_engine.presets import LayoutRecipe
+    p = LayoutOptionsPanel(with_selectors=True)
+    p.set_recipe(LayoutRecipe(instrument="CM", paper="A4",
+                              clip_content_mode="text", clip_text="hi"))
+    p.instr.setCurrentIndex(p.instr.findData("i1"))
+    assert p.clip_content_mode.currentData() == "text"

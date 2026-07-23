@@ -1535,6 +1535,17 @@ class LayoutOptionsPanel(QWidget):
                     if _bg >= 0:
                         self.area_method.setCurrentIndex(_bg)
             self._sync_layout_mode()
+        # Switching to an instrument with a real clip border (i1/p3): if the clip
+        # content is still "off" — e.g. carried over from ColorMunki, which has no
+        # clip band — default it to the notes record so the clip border isn't
+        # blank. Only on a genuine USER switch; a preset/recipe load (was_loading)
+        # carries its own clip-content value and must not be overridden.
+        if (not was_loading and inst in ("i1", "p3")
+                and hasattr(self, "clip_content_mode")
+                and self.clip_content_mode.currentData() == "off"):
+            _notes = self.clip_content_mode.findData("notes")
+            if _notes >= 0:
+                self.clip_content_mode.setCurrentIndex(_notes)
         self._loading = False
         self._on_paper_changed()
 
