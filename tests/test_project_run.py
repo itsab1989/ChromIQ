@@ -776,3 +776,34 @@ def test_adopt_run_chart_as_verify(tmp_path: Path) -> None:
     # Nothing to adopt → None.
     proj2 = Project.create(tmp_path / "P2", "P2")
     assert proj2.current_run().adopt_run_chart_as_verify() is None
+
+
+def test_readopt_smaller_verify_chart_leaves_no_stale_pages(tmp_path: Path) -> None:
+    """#130 beta-2 test #2: regenerating a SMALLER verification chart (fewer
+    pages) must not leave the old higher-numbered page behind — verify_chart_
+    tiffs() globs the folder, so an orphan made the preview show a phantom page.
+    The dated verification history must survive the chart replacement."""
+    import datetime as dt
+    proj = Project.create(tmp_path / "Canon", "Canon")
+    run = proj.current_run(); run.ensure_dir()
+    stem = run.stem
+
+    def _generate(pages: int) -> None:
+        for p in list(run.dir.glob(f"{stem}_*.tif")):
+            p.unlink()
+        for ext in (".ti1", ".ti2", ".cht", ".channels.json"):
+            (run.dir / f"{stem}{ext}").write_text("x")
+        for i in range(1, pages + 1):
+            (run.dir / f"{stem}_{i:02d}.tif").write_text("p")
+
+    _generate(2); run.adopt_run_chart_as_verify()
+    assert len(run.verify_chart_tiffs()) == 2
+
+    # A real verification measurement in a dated folder — must be preserved.
+    v = run.new_verification(dt.datetime(2026, 6, 1, 9, 0, 0)); v.ensure_dir()
+    v.measurement_ti3.write_text("meas")
+
+    _generate(1); run.adopt_run_chart_as_verify()
+    assert len(run.verify_chart_tiffs()) == 1                 # no stale _02.tif
+    assert not (run.verifications_dir / f"{stem}-verify_02.tif").exists()
+    assert run.verification("2026-06-01_090000").measurement_ti3.is_file()  # history kept

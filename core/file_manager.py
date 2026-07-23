@@ -623,6 +623,11 @@ class Run:
         if not self.chart_ti2.exists():
             return None
         self.verifications_dir.mkdir(parents=True, exist_ok=True)
+        # Clear any previous verification chart first. Regenerating a smaller
+        # verify chart (fewer pages) would otherwise leave the old higher-numbered
+        # page TIFFs behind, and verify_chart_tiffs() globs the folder — so the
+        # preview kept showing a phantom extra page (Knut #130 beta-2 test #2).
+        self._clear_verify_chart_files()
         old, new = self.stem, self.verify_stem
         moved_ti2: "Path | None" = None
         for ext in self._CHART_EXTS:
@@ -644,6 +649,27 @@ class Run:
                 if f.is_file() and f.name.startswith(old):
                     shutil.move(str(f), str(vexp / f.name.replace(old, new, 1)))
         return moved_ti2
+
+    def _clear_verify_chart_files(self) -> None:
+        """Delete the shared verification CHART files at the ``verifications/``
+        root (``<verify_stem>.*`` + ``<verify_stem>_NN.tif`` + the exports
+        sidecars). The dated ``verifications/<date>/`` measurement folders are
+        named by timestamp, not by the verify stem, so they are never matched —
+        the verification HISTORY is untouched, only the reusable chart is
+        replaced (#130)."""
+        vdir = self.verifications_dir
+        if not vdir.exists():
+            return
+        stem = self.verify_stem
+        targets = [p for p in vdir.glob(f"{stem}*") if p.is_file()]
+        vexp = vdir / EXPORTS_DIRNAME
+        if vexp.is_dir():
+            targets += [f for f in vexp.glob(f"{stem}*") if f.is_file()]
+        for p in targets:
+            try:
+                p.unlink()
+            except OSError as exc:
+                log.warning("Could not delete stale verify file %s: %s", p, exc)
 
     # ---- overwrite safety: "start fresh" archive (#130)
     @property
