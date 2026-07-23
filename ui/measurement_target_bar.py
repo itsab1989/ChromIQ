@@ -87,11 +87,13 @@ class MeasurementTargetBar(QWidget):
         self._show_verification = show_verification
         self._syncing = False
 
+        self._accent = TooltipButton.ACCENT
+
         row = QHBoxLayout(self)
         row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(8)
+        row.setSpacing(6)
 
-        row.addWidget(QLabel(tr("Profile run:"), self))
+        row.addWidget(self._mk_label(tr("Profile run:")))
         self._run_combo = NoScrollComboBox(self)
         self._run_combo.setToolTip(tr(
             "Which profile build this applies to. Every profile you make is a "
@@ -102,8 +104,8 @@ class MeasurementTargetBar(QWidget):
         self._run_combo.currentIndexChanged.connect(self._on_run_changed)
         row.addWidget(self._run_combo)
 
-        row.addSpacing(6)
-        row.addWidget(QLabel(tr("Run type:"), self))
+        row.addSpacing(4)
+        row.addWidget(self._mk_label(tr("Run type:")))
         self._type_combo = NoScrollComboBox(self)
         self._type_combo.addItem(tr("Profiling"), RUN_TYPE_PROFILING)
         self._type_combo.addItem(tr("Verification"), RUN_TYPE_VERIFICATION)
@@ -121,7 +123,7 @@ class MeasurementTargetBar(QWidget):
         self._type_combo.currentIndexChanged.connect(self._on_type_changed)
         row.addWidget(self._type_combo)
 
-        self._verify_label = QLabel(tr("Verification:"), self)
+        self._verify_label = self._mk_label(tr("Verification:"))
         row.addWidget(self._verify_label)
         self._verify_combo = NoScrollComboBox(self)
         self._verify_combo.setToolTip(tr(
@@ -132,7 +134,7 @@ class MeasurementTargetBar(QWidget):
         self._verify_combo.currentIndexChanged.connect(self._on_verify_changed)
         row.addWidget(self._verify_combo)
 
-        row.addWidget(TooltipButton(
+        self._tip_btn = TooltipButton(
             tr("Profile run and Run type"),
             tr("These two choices decide what your next action works on, and "
             "they stay in step across the Create Chart, Print Chart and Measure "
@@ -146,11 +148,38 @@ class MeasurementTargetBar(QWidget):
             "A verification always belongs to a finished profile, so if the "
             "selected run has no profile yet, ChromIQ will ask you to build one "
             "first."),
-            self))
-        row.addStretch(1)
+            self)
+        row.addWidget(self._tip_btn)
+
+        # Compact the three dropdowns to match the Manual-module comboboxes so
+        # the whole bar fits on the masthead's version rail.
+        for c in (self._run_combo, self._type_combo, self._verify_combo):
+            c.setFixedHeight(self._COMBO_H)
+        self.set_accent(self._accent)
 
         self._ctl.changed.connect(self._sync_from_controller)
         self.refresh()
+
+    # ---- compact helpers --------------------------------------------------
+    _COMBO_H = 24
+
+    def _mk_label(self, text: str) -> QLabel:
+        lbl = QLabel(text, self)
+        lbl.setObjectName("target_bar_label")
+        return lbl
+
+    def set_accent(self, color: str) -> None:
+        """Tint the combobox highlight and the ⓘ icon to follow the active
+        tab's accent colour (called by the main window on tab change)."""
+        self._accent = color
+        qss = (
+            "QComboBox { padding: 1px 6px 1px 8px; }"
+            f"QComboBox:hover, QComboBox:focus {{ border: 1px solid {color}; }}"
+            f"QComboBox QAbstractItemView {{ selection-background-color: {color}; }}"
+        )
+        for c in (self._run_combo, self._type_combo, self._verify_combo):
+            c.setStyleSheet(qss)
+        self._tip_btn.set_color(color)
 
     # ---- rebuild the run + verification lists from the project -----------
     def refresh(self) -> None:

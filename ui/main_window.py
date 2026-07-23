@@ -107,7 +107,11 @@ class MainWindow(QMainWindow):
             MeasurementTargetBar, MeasurementTargetController)
         self._target_ctl = MeasurementTargetController(self._file_mgr, self)
         self._target_bar = MeasurementTargetBar(self._target_ctl, parent=central)
-        main_layout.addWidget(self._target_bar)
+        # Live on the masthead's version rail, centred and in line with the
+        # 'PRINTER PROFILING' tagline and the version number (#130). Re-centre
+        # whenever the bar's width changes (the Verification box shows/hides).
+        self._masthead.set_center_widget(self._target_bar)
+        self._target_ctl.changed.connect(self._masthead.reposition_center)
         for _t in (self._tab_chart, self._tab_measure):
             if hasattr(_t, "set_target_controller"):
                 _t.set_target_controller(self._target_ctl)
@@ -290,10 +294,13 @@ class MainWindow(QMainWindow):
         log.info("---- Tab → %s ----", self._tabs.tabText(index))
         # #130: keep the shared Profile-run list current (a run may have been
         # created since the bar last populated). Cheap; the picked run/type stay.
+        color = TAB_COLORS[index] if index < len(TAB_COLORS) else TAB_COLORS[-1]
         if getattr(self, "_target_bar", None) is not None:
             self._target_bar.refresh()
+            # Tint the bar's combobox highlight + ⓘ icon to the active tab's accent.
+            self._target_bar.set_accent(color)
+            self._masthead.reposition_center()
 
-        color = TAB_COLORS[index] if index < len(TAB_COLORS) else TAB_COLORS[-1]
         # Compute variants without broken hex-alpha (Qt reads #AARRGGBB, not #RRGGBBAA)
         r, g, b = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
         color_glow = f"rgba({r},{g},{b},0.33)"

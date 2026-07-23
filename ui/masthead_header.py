@@ -97,6 +97,10 @@ class MastheadHeader(QWidget):
         self._help_btn = WelcomeButton(self)
         self._help_btn.help_clicked.connect(self.help_clicked)
 
+        # ---- Optional centred widget on the version rail (the shared
+        # Profile-run / Run-type bar, #130) ----
+        self._center_widget: QWidget | None = None
+
     # ------------------------------------------------------------------
     def set_appearance(self, mode: str) -> None:
         """Switch between 'light' and 'dark' palettes and repaint."""
@@ -127,6 +131,27 @@ class MastheadHeader(QWidget):
         self._help_btn.move(help_x, btn_y)
         self._btn.move(help_x - bw - 8, btn_y)
         self._tools_btn.move(help_x - bw - 8 - self._tools_btn.width() - 8, btn_y)
+        self.reposition_center()
+
+    # ------------------------------------------------------------------
+    def set_center_widget(self, w: QWidget) -> None:
+        """Host ``w`` centred on the version rail, in line with the
+        'PRINTER PROFILING' tagline and the version number."""
+        w.setParent(self)
+        self._center_widget = w
+        w.show()
+        self.reposition_center()
+
+    def reposition_center(self) -> None:
+        w = self._center_widget
+        if w is None:
+            return
+        cw = w.sizeHint().width()
+        ch = w.sizeHint().height()
+        ver_y = self.height() - self.VERSION_H
+        x = (self.width() - cw) // 2
+        y = ver_y + (self.VERSION_H - ch) // 2      # centred on the rail
+        w.setGeometry(x, y, cw, ch)
 
     def sizeHint(self) -> QSize:  # noqa: N802
         return QSize(900, 110)
