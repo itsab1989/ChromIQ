@@ -1,5 +1,29 @@
 # Changelog
 
+## v3.14.8-beta.1
+
+- **Red River Paper vendor presets (built-in).** A new *Red River Paper* group
+  in Create Chart → Manual → Presets ships six ready starting points built on
+  one shared, locked verification patch set: **i1Pro** A4 / Letter (4 pages) and
+  **ColorMunki** A4 / Letter in a compact 8-page cut and a ruler-size 10-page
+  cut. Each lays out "chart-area-first" (so the page margins are respected) with
+  the i1Pro strips kept under the 240 mm jig ruler, and carries a Red River /
+  ChromIQ logo band in the clip border. The patch set is locked (targen is
+  greyed) while the page layout stays fully editable.
+- **Editing the patch recipe drops the vendor branding.** Ticking *"Edit patch
+  recipe"* on a vendor preset reverts the clip band to ChromIQ's own notes
+  record and removes the vendor name from the sheet-edge stamp — once the set can
+  be changed it is no longer the vendor's certified set, so nothing on the chart
+  still names them.
+- **A startup splash screen.** The Chrom/IQ wordmark underlined by the
+  full-width spectrum bar, in light or dark to match your theme, shown while the
+  app starts.
+- Fixed: the "last page not quite full" hint no longer appears for a
+  fixed-patch-set preset (adding/removing patches doesn't apply to a locked
+  set), and the clip-border-vs-margin warning outline no longer sits on a
+  greyed-out (instrument-margin-locked) margin box where it looked like a stuck
+  focus ring.
+
 ## v3.14.7
 
 - **The chart-reading engine can now also drive XY tables and chart readers
