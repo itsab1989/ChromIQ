@@ -640,6 +640,13 @@ class Run:
         for tif in sorted(self.dir.glob(f"{old}_*.tif")):
             dst = self.verifications_dir / tif.name.replace(old, new, 1)
             shutil.move(str(tif), str(dst))
+        # A single-page chart's TIFF has no "_NN" suffix — it's just "<stem>.tif"
+        # — so the glob above misses it. Move that too, or a single-page verify
+        # chart lands in verifications/ with no page bitmap and never previews
+        # (Knut #130: "Run type = Verification shows no preview").
+        single_tif = self.dir / f"{old}.tif"
+        if single_tif.exists():
+            shutil.move(str(single_tif), str(self.verifications_dir / f"{new}.tif"))
         # The chart's hand-off sidecars (exports/) belong with the verify chart.
         exp = self.exports_dir
         if exp.exists():

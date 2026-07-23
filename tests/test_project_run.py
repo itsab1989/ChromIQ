@@ -806,6 +806,24 @@ def test_adopt_run_chart_as_verify(tmp_path: Path) -> None:
     assert proj2.current_run().adopt_run_chart_as_verify() is None
 
 
+def test_adopt_single_page_verify_chart_moves_its_tiff(tmp_path: Path) -> None:
+    """#130 (Knut: 'Run type = Verification shows no preview'): a single-page
+    chart's TIFF is '<stem>.tif' with no _NN suffix, so it must move into
+    verifications/ too — otherwise the verify chart has no page bitmap and never
+    previews (and Print/Measure get nothing)."""
+    proj = Project.create(tmp_path / "Canon", "Canon")
+    run = proj.current_run(); run.ensure_dir()
+    stem = run.stem
+    for ext in (".ti1", ".ti2", ".channels.json"):
+        (run.dir / f"{stem}{ext}").write_text("x")
+    (run.dir / f"{stem}.tif").write_text("single page")     # NO _NN suffix
+
+    run.adopt_run_chart_as_verify()
+    assert (run.verifications_dir / f"{stem}-verify.tif").is_file()
+    assert not (run.dir / f"{stem}.tif").exists()           # not left behind
+    assert run.verify_chart_tiffs() == [run.verifications_dir / f"{stem}-verify.tif"]
+
+
 def test_readopt_smaller_verify_chart_leaves_no_stale_pages(tmp_path: Path) -> None:
     """#130 beta-2 test #2: regenerating a SMALLER verification chart (fewer
     pages) must not leave the old higher-numbered page behind — verify_chart_
