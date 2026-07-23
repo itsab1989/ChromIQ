@@ -7,6 +7,7 @@ import os
 import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+from PyQt6.QtCore import QSettings                 # noqa: E402
 from PyQt6.QtWidgets import QApplication, QDialog  # noqa: E402
 
 import core.sound as snd                            # noqa: E402
@@ -19,8 +20,16 @@ def qapp():
     return QApplication.instance() or QApplication([])
 
 
-def test_sounds_tab_present_and_populated(qapp):
-    dlg = SettingsDialog(AppSettings())
+def _isolated_settings(tmp_path):
+    """AppSettings backed by a throwaway .ini so tests never read or write the
+    real user settings (SettingsDialog._save_and_close persists to disk)."""
+    s = AppSettings()
+    s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    return s
+
+
+def test_sounds_tab_present_and_populated(qapp, tmp_path):
+    dlg = SettingsDialog(_isolated_settings(tmp_path))
     tabs = [dlg._tabs.tabText(i) for i in range(dlg._tabs.count())]
     assert "Sounds" in tabs
     assert set(dlg._sound_combos) == set(snd.ALL_EVENTS)
@@ -33,7 +42,7 @@ def test_sounds_tab_present_and_populated(qapp):
 
 def test_sounds_tab_saves_choices_and_folder(qapp, tmp_path, monkeypatch):
     monkeypatch.setattr(QDialog, "accept", lambda self: None)
-    s = AppSettings()
+    s = _isolated_settings(tmp_path)
     dlg = SettingsDialog(s)
     # Silence patch-ok, change the completion sound, set a user folder.
     dlg._sound_combos[snd.PATCH_OK].setCurrentIndex(0)          # OFF
