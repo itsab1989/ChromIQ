@@ -1125,6 +1125,8 @@ class SettingsDialog(QDialog):
                           tr("Paths"))
         self._tabs.addTab(self._scroll_wrap(self._build_reports_tab()),
                           tr("Reports"))
+        self._tabs.addTab(self._scroll_wrap(self._build_sounds_tab()),
+                          tr("Sounds"))
         self._tabs.addTab(self._scroll_wrap(self._beta_page), tr("Beta"))
         # Run the (deferred) Chart Layout estimate the first time that tab is
         # actually opened — it's suspended during build to keep the window quick.
@@ -1291,6 +1293,124 @@ class SettingsDialog(QDialog):
         box.setDefaultButton(QMessageBox.StandardButton.Ok)
         if box.exec() != QMessageBox.StandardButton.Ok:
             self._profile_engine_check.setChecked(False)
+
+    def _build_sounds_tab(self) -> QWidget:
+        """Measurement sound feedback (#131): which sound plays for each event.
+        The master on/off is the “Play sounds during measurement” box on the
+        Measure tab; here you pick the sounds. Every dropdown is built from the
+        .wav files in the sounds folder (Preferences → Paths), so it grows if you
+        add your own."""
+        import core.sound as snd
+
+        page = QWidget()
+        v = QVBoxLayout(page)
+        v.setSpacing(12)
+        v.setContentsMargins(12, 12, 12, 12)
+
+        intro = QLabel(tr(
+            "ChromIQ can play a short sound as you measure — a tick as each "
+            "patch is read, a bell when a strip is done, a warning if a reading "
+            "looks off, and a little fanfare when everything's finished. It's a "
+            "hands-free way to know how the measurement is going without "
+            "watching the screen."), self)
+        intro.setWordWrap(True)
+        v.addWidget(intro)
+
+        note = QLabel(tr(
+            "Turn sounds on with the “Play sounds during measurement” box on the "
+            "Measure tab. Here you choose which sound plays for each event — pick "
+            "“Off (no sound)” for any you'd rather keep silent, and press "
+            "“Play” to hear one. To add your own sounds, set a sounds folder on "
+            "the Paths tab."), self)
+        note.setWordWrap(True)
+        note.setStyleSheet("color: #909090; font-size: 11px;")
+        v.addWidget(note)
+
+        self._sound_combos: dict = {}
+
+        def _add_rows(grp_title: str, rows: list) -> None:
+            grp = QGroupBox(grp_title, page)
+            grid = QGridLayout(grp)
+            grid.setHorizontalSpacing(8)
+            grid.setVerticalSpacing(8)
+            for r, (event, label, help_body) in enumerate(rows):
+                lbl = QLabel(label, grp)
+                grid.addWidget(lbl, r, 0)
+                combo = NoScrollComboBox(grp)
+                for stem in snd.list_choices(self._settings, event):
+                    combo.addItem(
+                        tr("Off (no sound)") if stem == snd.OFF else stem, stem)
+                cur = snd.choice_for(self._settings, event)
+                combo.setCurrentIndex(max(0, combo.findData(cur)))
+                self._sound_combos[event] = combo
+                grid.addWidget(combo, r, 1)
+                play = QPushButton(tr("Play"), grp)
+                play.setStyleSheet(
+                    "QPushButton { padding: 2px 12px; min-height: 0; }")
+                play.clicked.connect(
+                    lambda _=False, e=event, c=combo: self._preview_sound(e, c))
+                grid.addWidget(play, r, 2)
+                grid.addWidget(TooltipButton(label, help_body, grp), r, 3)
+            grid.setColumnStretch(1, 1)
+            v.addWidget(grp)
+
+        _add_rows(tr("Sounds at measurement actions"), [
+            (snd.PATCH_OK, tr("Patch read OK"),
+             tr("Plays each time a single patch is read successfully. A short, "
+                "quiet sound (a tick or click) works best, because it repeats "
+                "for every patch.")),
+            (snd.PATCH_OUT_OF_TOL, tr("Patch reading looks off"),
+             tr("Plays when a patch's reading is far from its expected colour — "
+                "a likely misread or a smudge. A low “thump” makes it stand out "
+                "from the normal patch tick. (Available with the ChromIQ "
+                "reading engine, which is on by default.)")),
+            (snd.STRIP_OK, tr("Strip read OK"),
+             tr("Plays when a whole strip (a row of patches) has been read "
+                "successfully — your cue to move to the next strip.")),
+            (snd.STRIP_FAIL, tr("Strip read failed"),
+             tr("Plays when a strip couldn't be read — for example if you "
+                "swiped too fast or the instrument lost its place. Read that "
+                "strip again.")),
+            (snd.INSTRUMENT_ERROR, tr("Instrument error"),
+             tr("Plays when the measuring instrument reports a problem — a "
+                "disconnection, a wrong position, or a communication error.")),
+            (snd.SLOW_DOWN, tr("Slow down"),
+             tr("Plays when a strip was swiped too fast to read reliably and "
+                "you should ease off. A calm, unmistakable cue.")),
+        ])
+
+        _add_rows(tr("Sounds at action completion"), [
+            (snd.MEASUREMENT_FINISHED, tr("Measurement finished"),
+             tr("Plays once the whole chart has been measured — a celebratory "
+                "sound like a drumroll or applause. This one may play even when "
+                "you're not actively measuring.")),
+            (snd.PROFILE_BUILT, tr("Profile build finished"),
+             tr("Plays when a profile has finished building on the Build "
+                "Profile tab. This one may play even when you're not "
+                "measuring.")),
+        ])
+
+        v.addStretch()
+        return page
+
+    def _preview_sound(self, event: str, combo) -> None:
+        """Audition the dropdown's currently-selected sound (ignores the on/off
+        switch and the during-measurement rule — it's a manual preview)."""
+        import core.sound as snd
+        stem = combo.currentData()
+        path = snd.file_for_stem(self._settings, event, stem)
+        if path is None:
+            return
+        try:
+            from PyQt6.QtCore import QUrl
+            from PyQt6.QtMultimedia import QSoundEffect
+            eff = getattr(self, "_preview_effect", None) or QSoundEffect(self)
+            self._preview_effect = eff       # keep a ref so it isn't GC'd mid-play
+            eff.setSource(QUrl.fromLocalFile(str(path)))
+            eff.setVolume(0.85)
+            eff.play()
+        except Exception:                    # noqa: BLE001 — preview must never crash
+            pass
 
     def _build_reports_tab(self) -> QWidget:
         """Measurement-report settings (Knut): the auto-save toggle, moved here
@@ -1476,6 +1596,37 @@ class SettingsDialog(QDialog):
         inst_browse.clicked.connect(_pick_profile_dir)
         inst_row.addWidget(inst_browse)
         gw.addLayout(inst_row)
+
+        # Measurement sounds folder (#131). Blank = the bundled default pack;
+        # point it at your own folder to add or replace sounds. The Sounds tab's
+        # dropdowns list whatever .wav files are found in its three sub-folders.
+        snd_lbl = QLabel(tr(
+            "Measurement sounds folder — your own sounds for the Sounds tab "
+            "(leave blank to use the sounds that come with ChromIQ). It should "
+            "contain the sub-folders “measurement-events”, “slow-down” and "
+            "“task-complete”; each .wav file inside becomes a choice in the "
+            "matching dropdown."), self)
+        snd_lbl.setWordWrap(True)
+        gw.addWidget(snd_lbl)
+        snd_row = QHBoxLayout()
+        self._sound_dir_edit = QLineEdit(self)
+        self._sound_dir_edit.setPlaceholderText(
+            tr("(the sounds that come with ChromIQ)"))
+        self._sound_dir_edit.setText(str(self._settings.get("sound_folder", "")))
+        snd_row.addWidget(self._sound_dir_edit, stretch=1)
+        snd_browse = make_browse_button(
+            self, tr("Select measurement sounds folder"), icon="folder")
+
+        def _pick_sound_dir() -> None:
+            d = open_dir_dialog(self, tr("Select measurement sounds folder"),
+                                start_dir=self._sound_dir_edit.text()
+                                or str(Path.home()))
+            if d:
+                self._sound_dir_edit.setText(d)
+
+        snd_browse.clicked.connect(_pick_sound_dir)
+        snd_row.addWidget(snd_browse)
+        gw.addLayout(snd_row)
         v.addWidget(grp_w)
 
         grp_r = QGroupBox(tr("For reference"), page)
@@ -2875,6 +3026,11 @@ class SettingsDialog(QDialog):
         s.set("scanner_flank_min_boxes",   int(self._scan_flank_min_combo.currentData()))
         s.set("scanner_flank_min_cells",   int(self._scan_flank_cells_combo.currentData()))
         s.set("profile_install_dir",       self._profile_dir_edit.text().strip())
+        # Measurement sounds (#131): the user sounds folder + per-event choices.
+        if hasattr(self, "_sound_dir_edit"):
+            s.set("sound_folder", self._sound_dir_edit.text().strip())
+        for _event, _combo in getattr(self, "_sound_combos", {}).items():
+            s.set(f"sound_choice_{_event}", _combo.currentData())
         from core.platform_paths import set_icc_install_override
         set_icc_install_override(self._profile_dir_edit.text())
         # Margin inspector: behaviour flags + the per-combo threshold table.

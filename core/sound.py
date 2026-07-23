@@ -121,6 +121,20 @@ def choice_for(settings, event: str) -> str:
     return OFF
 
 
+def file_for_stem(settings, event: str, stem: str) -> "Path | None":
+    """The ``.wav`` for a specific *stem* in *event*'s sub-folder (or ``None``).
+    Used to audition a not-yet-saved dropdown choice. Prefers the user's folder,
+    then the bundled pack."""
+    if not stem or stem == OFF:
+        return None
+    sub = SUBFOLDER_OF[event]
+    for root in (sounds_root(settings), bundled_sounds_root()):
+        cand = root / sub / f"{stem}.wav"
+        if cand.is_file():
+            return cand
+    return None
+
+
 def resolve_file(settings, event: str) -> "Path | None":
     """The ``.wav`` path for *event*'s current selection, or ``None`` (OFF /
     missing). Prefers the user's folder, then the bundled pack."""

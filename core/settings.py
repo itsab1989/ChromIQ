@@ -195,6 +195,19 @@ DEFAULTS: dict[str, Any] = {
     # patch gets the red warning outline in the engine's live split-patch
     # preview. Generous by default so only near-certain misreads are flagged.
     "patch_read_warn_de":        50.0,
+    # Measurement sound feedback (#131, Phase 1). Master switch lives on the
+    # Measure tab; per-event choices and the optional user sounds folder on the
+    # Preferences → Sounds / Paths tabs. Off by default (opt-in comfort feature).
+    "sound_enabled":             False,
+    "sound_folder":              "",     # blank = the bundled default pack
+    "sound_choice_patch_ok":             "tick",
+    "sound_choice_patch_out_of_tol":     "thump",
+    "sound_choice_strip_ok":             "bell",
+    "sound_choice_strip_fail":           "failure",
+    "sound_choice_instrument_error":     "error",
+    "sound_choice_slow_down":            "slowdown",
+    "sound_choice_measurement_finished": "drumroll",
+    "sound_choice_profile_built":        "trumpet",
     # "Read again & average" — master switch. OFF (default) restores the classic
     # behaviour: a finished full read proceeds straight to Build Profile. ON adds
     # the post-read completion dialog offering measure-again / average.
