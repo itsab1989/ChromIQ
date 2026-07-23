@@ -3598,50 +3598,57 @@ class TabChart(QWidget):
         self._log.appendPlainText(
             tr("Loaded profile “{name}”.").format(name=self._last_target_name))
         if tiffs:
-            self._preview.load_tiff(tiffs)
-            # Feed the Chart-layout-information panel and the margin
-            # inspector, so the "on screen" column shows the LOADED chart's
-            # real numbers (mavtop: it sat empty after reloading a project).
-            self._set_margin_chart(list(tiffs), ti2)
-            # And bring the option panels back to the settings this chart
-            # was actually made with, so screen and chart tell one story.
-            restored_full = self._restore_chart_settings(ti2)
-            notes_too = getattr(self, "_restored_notes_stamp", False)
-            if restored_full and notes_too:
-                self._log.appendPlainText(tr(
-                    "Restored the chart's own layout settings — patch size, "
-                    "spacers, margins, seed, notes and patch count now show "
-                    "the values this chart was made with."))
-            elif restored_full:
-                # Chart saved before notes/stamp were recorded per chart.
-                self._log.appendPlainText(tr(
-                    "Restored the chart's own layout settings — patch size, "
-                    "spacers, margins, seed and patch count now show the "
-                    "values this chart was made with."))
-            elif notes_too:
-                self._log.appendPlainText(tr(
-                    "This chart carries no saved layout recipe (made with "
-                    "printtarg), so its instrument, paper, patch count, "
-                    "chart notes and stamp choice were restored — the "
-                    "preview still shows the chart exactly as it is."))
-            else:
-                self._log.appendPlainText(tr(
-                    "This chart carries no saved layout recipe (made with "
-                    "printtarg or an older ChromIQ), so only its instrument, "
-                    "paper and patch count could be restored — the preview "
-                    "still shows the chart exactly as it is."))
-            # Recompute the layout-info ESTIMATE column from the restored
-            # settings — set_recipe applies silently (no changed signal), so
-            # without this the estimate kept showing the pre-load values
-            # while the options already showed the chart's own (Basti).
-            self._refresh_manual_command_preview()
             ti1 = run.dir / f"{run.stem}.ti1"
-            self._current_ti1_path = ti1 if ti1.is_file() else None
-            # Let Print / Measure pick the chart up, as if it had just been built.
-            self.chart_finished.emit(tiffs, ti2, False)
+            self._display_run_chart(ti2, tiffs, ti1)
         else:
             self._preview.clear()
             self._current_ti1_path = None
+
+    def _display_run_chart(self, ti2: Path, tiffs: list[Path], ti1: Path) -> None:
+        """Show an existing chart (its pages, margins and own creation settings)
+        in the Create-Chart tab and hand it to Print / Measure. Shared by
+        project-load (:meth:`_load_existing_profile`) and the Run-type switch
+        (:meth:`_on_target_changed`), so both paths tell one story."""
+        self._preview.load_tiff(list(tiffs))
+        # Feed the Chart-layout-information panel and the margin inspector, so
+        # the "on screen" column shows the LOADED chart's real numbers (mavtop:
+        # it sat empty after reloading a project).
+        self._set_margin_chart(list(tiffs), ti2)
+        # And bring the option panels back to the settings this chart was
+        # actually made with, so screen and chart tell one story.
+        restored_full = self._restore_chart_settings(ti2)
+        notes_too = getattr(self, "_restored_notes_stamp", False)
+        if restored_full and notes_too:
+            self._log.appendPlainText(tr(
+                "Restored the chart's own layout settings — patch size, "
+                "spacers, margins, seed, notes and patch count now show "
+                "the values this chart was made with."))
+        elif restored_full:
+            # Chart saved before notes/stamp were recorded per chart.
+            self._log.appendPlainText(tr(
+                "Restored the chart's own layout settings — patch size, "
+                "spacers, margins, seed and patch count now show the "
+                "values this chart was made with."))
+        elif notes_too:
+            self._log.appendPlainText(tr(
+                "This chart carries no saved layout recipe (made with "
+                "printtarg), so its instrument, paper, patch count, "
+                "chart notes and stamp choice were restored — the "
+                "preview still shows the chart exactly as it is."))
+        else:
+            self._log.appendPlainText(tr(
+                "This chart carries no saved layout recipe (made with "
+                "printtarg or an older ChromIQ), so only its instrument, "
+                "paper and patch count could be restored — the preview "
+                "still shows the chart exactly as it is."))
+        # Recompute the layout-info ESTIMATE column from the restored settings —
+        # set_recipe applies silently (no changed signal), so without this the
+        # estimate kept showing the pre-load values while the options already
+        # showed the chart's own (Basti).
+        self._refresh_manual_command_preview()
+        self._current_ti1_path = ti1 if ti1.is_file() else None
+        # Let Print / Measure pick the chart up, as if it had just been built.
+        self.chart_finished.emit(list(tiffs), ti2, False)
 
     def _load_yaml_params(self) -> dict:
         path = resource_path("data/parameters.yaml")
@@ -7808,12 +7815,68 @@ class TabChart(QWidget):
 
     def set_target_controller(self, controller) -> None:
         """Receive the shared Profile-run / Run-type controller (#130) so a
-        Verification generation is filed as the run's verify chart."""
+        Verification generation is filed as the run's verify chart, and so
+        switching Run type / Profile run swaps the Create-Chart tab to that
+        target's own chart (settings + preview)."""
         self._target_ctl = controller
+        # Remembers which (profile_run, run_type) the tab currently displays, so
+        # a controller change only reloads when the *active chart* really changed
+        # (not on an unrelated verification-date pick).
+        self._shown_target_key: tuple | None = None
+        controller.changed.connect(self._on_target_changed)
 
     def _is_verification_target(self) -> bool:
         ctl = getattr(self, "_target_ctl", None)
         return ctl is not None and ctl.target.is_verification()
+
+    def _on_target_changed(self) -> None:
+        """React to a Profile-run / Run-type change: load THAT target's chart
+        (its own settings + preview) so edits and the next generation apply to
+        the right chart — a verification chart for Run type = Verification, the
+        run's profiling chart for Profiling (#130, Knut beta-2 test #4).
+
+        When the target has no chart yet (a fresh run, or a verification chart
+        not made yet) the tab is simply left as-is so the user can create it;
+        nothing from the other target is written over."""
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
+            return
+        t = ctl.target
+        key = (t.profile_run, t.run_type)
+        if key == self._shown_target_key:
+            return                     # same active chart — nothing to swap
+        # Resolve the selected run (never create anything here).
+        try:
+            proj = ctl.project_or_none()
+            if proj is None:
+                self._shown_target_key = key
+                return
+            run_id = t.profile_run
+            if not run_id or not proj.has_run(run_id):
+                # "New run" or no project run yet — no existing chart to load.
+                self._shown_target_key = key
+                return
+            run = proj.run(run_id)
+            if t.is_verification():
+                ti2, ti1 = run.verify_chart_ti2, run.verify_chart_ti1
+                tiffs = run.verify_chart_tiffs()
+            else:
+                ti2, ti1 = run.chart_ti2, run.chart_ti1
+                tiffs = sorted(run.dir.glob(f"{run.stem}_*.tif"))
+                if not tiffs and (run.dir / f"{run.stem}.tif").is_file():
+                    tiffs = [run.dir / f"{run.stem}.tif"]
+        except Exception as exc:  # noqa: BLE001 — never break the tab on this
+            log.warning("Run-type switch: could not resolve target chart: %s", exc)
+            self._shown_target_key = key
+            return
+        self._shown_target_key = key
+        if ti2.is_file() and tiffs:
+            kind = tr("verification chart") if t.is_verification() else tr("profiling chart")
+            self._log.appendPlainText(
+                tr("Switched to this run's {kind}.").format(kind=kind))
+            self._display_run_chart(ti2, list(tiffs), ti1)
+        # else: target has no chart yet — leave the tab untouched so a fresh
+        # chart can be created for it without disturbing the other target.
 
     def _on_generate_finished(self, tiffs: list[Path]) -> None:
         # Disarm the slow-chart watchdog and dismiss its dialog if it's still
