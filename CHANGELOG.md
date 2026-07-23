@@ -1,5 +1,20 @@
 # Changelog
 
+## v3.14.8-beta.4
+
+Two more fixes from Knut's testing of the verification-runs work (#130):
+
+- **Loading a preset refreshes the preview right away.** The chart-layout panel
+  applied a preset's settings silently, so the clip-border content and the
+  strip/patch layout kept showing the previous recipe until you nudged a field
+  by hand. It now does one consolidated refresh at the end of a preset/recipe
+  load, so the preview matches what you loaded immediately.
+- **Print and Measure always follow the selected Profile run + Run type.**
+  Switching Run type now reliably swaps Create Chart to that target's own chart
+  and pushes the matching chart to the Print and Measure tabs. If the selected
+  target has no chart yet, the previous chart is cleared from all three tabs so
+  the wrong chart can never be printed or measured.
+
 ## v3.14.8-beta.3
 
 Fixes from Knut's beta-2 test of the verification-runs work (#130):
