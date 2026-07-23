@@ -63,12 +63,16 @@ def test_verify_run_saves_tagged_verify_file(tmp_path, monkeypatch):
 
     tab._on_measure_done(0)
 
-    out = tmp_path / "chart-verify.ti3"
-    assert out.exists()                          # saved under the verify name
-    assert not (tmp_path / "chart.ti3").exists()  # original renamed away
-    assert is_verification_ti3(parse_ti3(out))    # tagged
-    assert emitted == []                          # never advanced to Build Profile
-    assert tab._verify_run is False               # consumed
+    # #130: a verification is filed in a dated verifications/<date>/ folder
+    # (history), not overwritten flat next to the chart.
+    verifs = list(tmp_path.glob("verifications/*/*-verify.ti3"))
+    assert len(verifs) == 1                        # one dated verification run
+    out = verifs[0]
+    assert not (tmp_path / "chart.ti3").exists()   # original renamed away
+    assert not (tmp_path / "chart-verify.ti3").exists()  # not left flat at root
+    assert is_verification_ti3(parse_ti3(out))     # tagged
+    assert emitted == []                           # never advanced to Build Profile
+    assert tab._verify_run is False                # consumed
 
 
 def test_normal_run_unaffected(tmp_path, monkeypatch):

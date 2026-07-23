@@ -4558,10 +4558,18 @@ class TabMeasure(QWidget):
         # Event filter stays off — chartread will finish momentarily.
 
     def _finalize_verification(self, ti3: Path) -> None:
-        """Tag a verification read as verify-only ('<name>-verify.ti3' + marker),
-        and offer to open it in the measurement inspector — never build a profile."""
+        """Tag a verification read as verify-only ('<name>-verify.ti3' + marker)
+        and file it in a dated verification-run folder so a profile's monthly
+        verifications accrue as history (#130), then offer to open it in the
+        measurement inspector — never build a profile."""
+        import shutil
         try:
-            dst = mark_verification_ti3(ti3)
+            marked = mark_verification_ti3(ti3)          # <name>-verify.ti3 (run root)
+            run = Run.for_dir(marked.parent)
+            verification = run.new_verification()
+            verification.ensure_dir()
+            dst = verification.measurement_ti3           # verifications/<date>/<name>-verify.ti3
+            shutil.move(str(marked), str(dst))
         except OSError as exc:
             self._log.appendPlainText(f"\n[ERROR] Could not save verification file: {exc}")
             return

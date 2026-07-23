@@ -1137,18 +1137,27 @@ class MeasurementReportDialog(QDialog):
         cube colours."""
         from workflow.measurement_report import report_scope
         sc = report_scope(runs)
+        verification = self._report_kind(runs) == "verification"
+
+        def _count_label(n: int) -> str:
+            if verification:
+                return tr("verification run") if n == 1 else tr("verification runs")
+            return tr("run") if n == 1 else tr("runs")
+
         items = "".join(
             "<li>" + html.escape(p["name"]) + ", "
             + html.escape(tr("Instrument: {inst}").format(inst=p["instrument"]))
             + f" <span style='color:#888'>· {p['n']} "
-            + html.escape(tr("run") if p["n"] == 1 else tr("runs"))
+            + html.escape(_count_label(p["n"]))
             + "</span></li>"
             for p in sc["profiles"])
         d0, d1 = sc["date_range"]
         ind = "margin:0 0 0 1.6em"
+        intro = (tr("The following profile verification runs are included:")
+                 if verification
+                 else tr("The following profile(s) measurement runs are included:"))
         out = (_h2(tr("Report Scope"))
-               + "<div>" + html.escape(
-                   tr("The following profile(s) measurement runs are included:"))
+               + "<div>" + html.escape(intro)
                + "</div><ul style='margin:2px 0 6px'>" + items + "</ul>"
                + "<div><b>" + html.escape(tr("No. of Measurements:")) + "</b></div>"
                + f"<div style='{ind}'>{sc['total']}</div>"

@@ -165,6 +165,29 @@ def _design_xyz_is_d65(keywords: "dict[str, str]") -> bool:
     return near(_WHITE_D65) < near(_WHITE_D50)
 
 
+def _find_reference_ti2(ti3_path: Path) -> Path:
+    """Locate the design ``.ti2`` for a measurement (#130). A verification lives
+    in ``runs/runN/verifications/<date>/`` and holds only its ``.ti3``, so the
+    reference chart may be next to it, the shared verify chart one level up
+    (``verifications/<name>-verify.ti2``), or the run's profiling chart at the
+    run root (``runs/runN/<name>.ti2`` when a verification re-measures the same
+    chart). Falls back to the sibling path (which then triggers the device
+    reference) when nothing is found."""
+    same = ti3_path.with_suffix(".ti2")
+    if same.is_file():
+        return same
+    stem = ti3_path.stem
+    up = ti3_path.parent.parent / f"{stem}.ti2"           # shared verify chart
+    if up.is_file():
+        return up
+    base = stem[:-7] if stem.endswith("-verify") else stem
+    run_root = ti3_path.parent.parent.parent              # verifications/<date>/ → runN/
+    cand = run_root / f"{base}.ti2"                        # profiling chart at run root
+    if cand.is_file():
+        return cand
+    return same
+
+
 def _reference_labs(ti2_path: Path) -> "dict[str, tuple]":
     """{SAMPLE_ID: expected Lab} from the chart's .ti2 design XYZ, or {}.
 
@@ -287,7 +310,7 @@ def build_report(ti3_path: str | Path, worst_n: int = 16) -> dict:
     # the way the .ti2's design XYZ is (workflow/i1profiler_import._patch_xyz).
     # That makes the colour-accuracy figures work with no .ti2 and no patch-ID
     # matching, so an imported measurement is self-contained (Knut).
-    ref = _reference_labs(ti3_path.with_suffix(".ti2"))
+    ref = _reference_labs(_find_reference_ti2(ti3_path))
     ref_source = "design"
     matched_ids = sum(1 for sid in data.sample_ids if sid in ref) if ref else 0
     if not matched_ids and rgb100 is not None:
@@ -394,11 +417,16 @@ def list_project_reports(run_dir: str | Path) -> list[Path]:
     ``run*`` folders are the printer's other builds. Sorted oldest-first by the
     report's ``created`` stamp (falling back to the filename). Falls back to the
     single run's reports when the folder isn't a ``runs/runN`` layout."""
-    from core.file_manager import REPORTS_DIRNAME
+    from core.file_manager import REPORTS_DIRNAME, VERIFICATIONS_DIRNAME
     run_dir = Path(run_dir)
     runs_root = run_dir.parent
     paths: list[Path] = []
-    if runs_root.is_dir() and run_dir.name.startswith("run"):
+    # #130: a dated verification folder (…/verifications/<date>/) trends across
+    # ALL of this run's verification dates — a physically separate area from the
+    # profiling runs/*/reports/, so profiling and verification never mix.
+    if runs_root.name == VERIFICATIONS_DIRNAME:
+        paths = list(runs_root.glob(f"*/{REPORTS_DIRNAME}/report_*.json"))
+    elif runs_root.is_dir() and run_dir.name.startswith("run"):
         paths = list(runs_root.glob(f"*/{REPORTS_DIRNAME}/report_*.json"))
     if not paths:                                   # not a runs/runN layout
         paths = list_reports(run_dir)

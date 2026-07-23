@@ -342,3 +342,51 @@ def test_report_title_profile_name_toggle_and_mixed_kind():
     mixed = [{"chart": "X", "is_verification": True},
              {"chart": "X", "is_verification": False}]
     assert on._report_kind(mixed) == "profiling"
+
+
+def test_find_reference_ti2_up_the_verification_tree(tmp_path):
+    from workflow.measurement_report import _find_reference_ti2, build_report
+    from core.file_manager import Project
+    proj = Project.create(tmp_path / "P", "P")
+    run = proj.current_run(); run.ensure_dir()
+    # Profiling chart at the run root provides the design reference.
+    (run.dir / "P.ti2").write_text(_TI2)
+    v = run.new_verification(); v.ensure_dir()
+    vti3 = v.measurement_ti3                       # verifications/<date>/P-verify.ti3
+    vti3.write_text(_TI3)
+    # No .ti2 next to it, none in verifications/ — falls back to run-root P.ti2.
+    ref = _find_reference_ti2(vti3)
+    assert ref == run.dir / "P.ti2"
+    # And the report builds with a real reference + the verification flag.
+    from workflow.ti3_analysis import mark_verification_ti3
+    mark_verification_ti3(vti3)
+    rep = build_report(vti3)
+    assert rep["is_verification"] is True
+    assert rep.get("de00") is not None            # reference was found → ΔE present
+
+    # A shared verify chart one level up is preferred when present.
+    (run.verifications_dir / "P-verify.ti2").write_text(_TI2)
+    assert _find_reference_ti2(vti3) == run.verifications_dir / "P-verify.ti2"
+
+
+def test_list_project_reports_trends_verification_dates(tmp_path):
+    from workflow.measurement_report import list_project_reports, save_report
+    from core.file_manager import Project
+    proj = Project.create(tmp_path / "P", "P")
+    run = proj.current_run()
+    # Two dated verifications, each with a saved report point.
+    for _ in range(2):
+        v = run.new_verification(); v.ensure_dir()
+        save_report({"schema": 1, "created": v.id}, v.dir)
+    # Also a profiling report at the run root — must NOT be gathered by a
+    # verification query, and vice-versa (physically separate).
+    run.ensure_dir(); save_report({"schema": 1, "created": "prof"}, run.dir)
+
+    any_v = run.verifications()[0]
+    v_reports = list_project_reports(any_v.dir)
+    assert len(v_reports) == 2                         # both dates, no profiling
+    assert all("verifications" in str(p) for p in v_reports)
+
+    prof_reports = list_project_reports(run.dir)
+    assert len(prof_reports) == 1                      # profiling only
+    assert all("verifications" not in str(p) for p in prof_reports)
