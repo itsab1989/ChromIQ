@@ -93,7 +93,8 @@ class MeasurementTargetBar(QWidget):
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(6)
 
-        row.addWidget(self._mk_label(tr("Profile run:")))
+        self._run_label = self._mk_label(tr("Profile run:"))
+        row.addWidget(self._run_label)
         self._run_combo = NoScrollComboBox(self)
         self._run_combo.setToolTip(tr(
             "Which profile build this applies to. Every profile you make is a "
@@ -105,7 +106,8 @@ class MeasurementTargetBar(QWidget):
         row.addWidget(self._run_combo)
 
         row.addSpacing(4)
-        row.addWidget(self._mk_label(tr("Run type:")))
+        self._type_label = self._mk_label(tr("Run type:"))
+        row.addWidget(self._type_label)
         self._type_combo = NoScrollComboBox(self)
         self._type_combo.addItem(tr("Profiling"), RUN_TYPE_PROFILING)
         self._type_combo.addItem(tr("Verification"), RUN_TYPE_VERIFICATION)
@@ -151,6 +153,16 @@ class MeasurementTargetBar(QWidget):
             self)
         row.addWidget(self._tip_btn)
 
+        # Hole 7 (State B): shown next to the greyed selectors when no profile
+        # project is loaded — a first chart is made from Create Chart's name
+        # field, not from here, so there's nothing to select yet.
+        self._hint = self._mk_label(tr(
+            "Load a profile project, or specify a profile project name and "
+            "create your first chart, then you may choose a profile run."))
+        self._hint.setObjectName("target_bar_hint")
+        self._hint.setVisible(False)
+        row.addWidget(self._hint)
+
         # Compact the three dropdowns to exactly the Manual-module look
         # (#compact_input → max-height 22 px) so the bar seats on the version rail.
         for c in (self._run_combo, self._type_combo, self._verify_combo):
@@ -191,6 +203,13 @@ class MeasurementTargetBar(QWidget):
         self._syncing = True
         try:
             t = self._ctl.target
+            # Hole 7 (State B): with no profile project loaded, grey the
+            # selectors and show the hint; enable + hide it once a project exists.
+            has_project = self._ctl.project_or_none() is not None
+            for w in (self._run_label, self._run_combo, self._type_label,
+                      self._type_combo, self._verify_label, self._verify_combo):
+                w.setEnabled(has_project)
+            self._hint.setVisible(not has_project)
             # Run dropdown: "Run N (overwrite)" per existing run + "New run".
             self._run_combo.clear()
             for rid in self._ctl.run_ids():

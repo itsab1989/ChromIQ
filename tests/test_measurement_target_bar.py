@@ -104,3 +104,19 @@ def test_two_bars_stay_in_sync(tmp_path):
     assert b._type_combo.currentData() == RUN_TYPE_VERIFICATION
     a._run_combo.setCurrentIndex(a._run_combo.findData("run1"))
     assert b._run_combo.currentData() == "run1"
+
+
+def test_hole7_bar_disabled_and_hint_without_project(qapp, tmp_path):
+    """#130 Hole 7 (State B): with no profile project loaded the selectors are
+    disabled and a hint is shown; a loaded project enables them and hides it."""
+    class _NoProj:
+        def working_dir(self): return tmp_path / "nope"
+        def project(self): raise AssertionError("no project")
+    bar = MeasurementTargetBar(MeasurementTargetController(_NoProj()))
+    assert not bar._run_combo.isEnabled() and not bar._type_combo.isEnabled()
+    assert not bar._hint.isHidden()                       # hint shown
+
+    proj = Project.create(tmp_path / "P", "P"); proj.current_run().ensure_dir()
+    bar2 = MeasurementTargetBar(MeasurementTargetController(_FM(proj.root)))
+    assert bar2._run_combo.isEnabled() and bar2._type_combo.isEnabled()
+    assert bar2._hint.isHidden()                          # hint gone
