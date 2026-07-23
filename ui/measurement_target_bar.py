@@ -151,18 +151,16 @@ class MeasurementTargetBar(QWidget):
             self)
         row.addWidget(self._tip_btn)
 
-        # Compact the three dropdowns to match the Manual-module comboboxes so
-        # the whole bar fits on the masthead's version rail.
+        # Compact the three dropdowns to exactly the Manual-module look
+        # (#compact_input → max-height 22 px) so the bar seats on the version rail.
         for c in (self._run_combo, self._type_combo, self._verify_combo):
-            c.setFixedHeight(self._COMBO_H)
+            c.setObjectName("compact_input")
         self.set_accent(self._accent)
 
         self._ctl.changed.connect(self._sync_from_controller)
         self.refresh()
 
     # ---- compact helpers --------------------------------------------------
-    _COMBO_H = 24
-
     def _mk_label(self, text: str) -> QLabel:
         lbl = QLabel(text, self)
         lbl.setObjectName("target_bar_label")
@@ -170,12 +168,14 @@ class MeasurementTargetBar(QWidget):
 
     def set_accent(self, color: str) -> None:
         """Tint the combobox highlight and the ⓘ icon to follow the active
-        tab's accent colour (called by the main window on tab change)."""
+        tab's accent colour (called by the main window on tab change). Only the
+        accent bits are set here so the #compact_input height/padding still win."""
         self._accent = color
         qss = (
-            "QComboBox { padding: 1px 6px 1px 8px; }"
-            f"QComboBox:hover, QComboBox:focus {{ border: 1px solid {color}; }}"
-            f"QComboBox QAbstractItemView {{ selection-background-color: {color}; }}"
+            f"QComboBox#compact_input:hover, QComboBox#compact_input:focus "
+            f"{{ border: 1px solid {color}; }}"
+            f"QComboBox#compact_input QAbstractItemView "
+            f"{{ selection-background-color: {color}; }}"
         )
         for c in (self._run_combo, self._type_combo, self._verify_combo):
             c.setStyleSheet(qss)

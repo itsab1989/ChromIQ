@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QRect, QRectF, QSize, Qt, pyqtSignal
+from PyQt6.QtCore import QPointF, QRect, QRectF, QSize, Qt, pyqtSignal
 from PyQt6.QtGui import (
     QColor, QFont, QFontMetrics, QFontMetricsF, QPainter, QPaintEvent, QPen,
 )
@@ -432,6 +432,46 @@ WORKFLOWS: list[dict] = [
             (4, tr("Click “Build Profile” again. The refined .ti3 produces "
                 "a more accurate profile, and you can repeat this cycle "
                 "until the worst outliers are below threshold.")),
+        ],
+    },
+    {
+        "key": "verify",
+        "title": tr("Check a finished profile (verification run)"),
+        "subtitle": tr("Print a chart THROUGH the profile and measure it to see "
+            "how accurate the profile still is."),
+        "steps": [
+            (1, tr("First make sure the profile you want to check already "
+                "exists — a verification always checks a finished profile. In "
+                "the bar at the top of the window set “Profile run” to that "
+                "profile's run, then set “Run type” to “Verification”. If the "
+                "run has no profile yet, ChromIQ tells you to build one first "
+                "and switches the type back to Profiling — do that, then come "
+                "back here.")),
+            (1, tr("On the Create Chart tab, generate a chart as usual. Because "
+                "Run type is Verification, this becomes the profile's "
+                "verification chart (a smaller chart is fine — you're checking, "
+                "not rebuilding). It's stored once per profile and reused for "
+                "every future check, so you compare like with like over time.")),
+            (2, tr("On the Print Chart tab, print the verification chart WITH "
+                "colour management ON — i.e. printed THROUGH the profile you're "
+                "checking (assign/convert to that .icc in your print path). "
+                "This is the opposite of a profiling chart, which is printed "
+                "with colour management OFF. You're asking: “when the profile "
+                "is applied, how close to correct do the colours land?”")),
+            (3, tr("On the Measure tab, keep “Run type” on Verification and pick "
+                "“New verification” in the Verification box to start a fresh, "
+                "dated check (or pick an earlier date to re-measure it). Click "
+                "Measure and read the chart as normal. The result is saved in "
+                "its own dated folder under the run's “verifications” folder, "
+                "so each check is kept as history — it never overwrites your "
+                "profiling measurement or builds a profile.")),
+            (3, tr("Open Tools → Measurement Report to see the numbers. A "
+                "verification report is titled and filed separately from "
+                "profiling reports (you can set the wording in Preferences → "
+                "Reports), and it only ever trends verification measurements — "
+                "so a profile's checks are never mixed in with the run that "
+                "built it. Repeat a verification every few weeks or months to "
+                "watch the profile hold up, or drift, over time.")),
         ],
     },
     {
@@ -997,6 +1037,22 @@ class WorkflowIcon(QWidget):
             p.setPen(Qt.PenStyle.NoPen)
             p.setBrush(accent)
             p.drawEllipse(int(cx - 5), int(cy - 5), 10, 10)
+
+        elif self._key == "verify":
+            # A ring with a magenta check mark — confirming a finished profile
+            # still measures accurate.
+            ring_r = 24
+            cx = s / 2
+            cy = s / 2
+            p.setPen(QPen(fg, stroke))
+            p.setBrush(QColor(0, 0, 0, 0))
+            p.drawEllipse(int(cx - ring_r), int(cy - ring_r), 2 * ring_r, 2 * ring_r)
+            p.setPen(QPen(accent, stroke + 1.8, Qt.PenStyle.SolidLine,
+                          Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+            p.drawPolyline(*[
+                QPointF(x, y)
+                for x, y in ((cx - 12, cy), (cx - 3, cy + 10), (cx + 14, cy - 11))
+            ])
 
         elif self._key == "two_pass":
             # Two cubes side by side, second one filled magenta — first profile

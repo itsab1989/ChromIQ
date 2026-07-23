@@ -61,7 +61,7 @@ class MastheadHeader(QWidget):
     tools_clicked    = pyqtSignal()
 
     STRIPE_H  = 6
-    VERSION_H = 22
+    VERSION_H = 28      # tall enough to seat the compact target bar with margin
 
     def __init__(
         self,
@@ -72,7 +72,7 @@ class MastheadHeader(QWidget):
         self._version = version
         self._mode    = "dark"
         self._palette = _PALETTE_DARK
-        self.setFixedHeight(110)
+        self.setFixedHeight(116)   # body unchanged (88); +6 goes to the version rail
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
         self.setAutoFillBackground(False)
 
@@ -154,7 +154,7 @@ class MastheadHeader(QWidget):
         w.setGeometry(x, y, cw, ch)
 
     def sizeHint(self) -> QSize:  # noqa: N802
-        return QSize(900, 110)
+        return QSize(900, 116)
 
     # ------------------------------------------------------------------
     def paintEvent(self, _ev: QPaintEvent) -> None:  # noqa: N802
