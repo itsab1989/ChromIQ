@@ -283,3 +283,62 @@ def test_d50_design_reference_is_left_alone(chart):
     assert white["expected_lab"][0] == pytest.approx(100.0, abs=0.5)
     assert white["expected_lab"][1] == pytest.approx(0.0, abs=0.5)
     assert white["expected_lab"][2] == pytest.approx(0.0, abs=0.5)
+
+
+# ---------------------------------------------------------------------------
+# #130: verification flag + report title/filename prefixes
+# ---------------------------------------------------------------------------
+
+def test_build_report_flags_verification(tmp_path, chart):
+    from workflow.ti3_analysis import mark_verification_ti3
+    # A plain profiling .ti3 is not a verification.
+    rep = build_report(chart)
+    assert rep["is_verification"] is False
+    # Marking it (adds CHROMIQ_VERIFICATION) flips the flag.
+    verified = mark_verification_ti3(chart)
+    (verified.with_suffix(".ti2")).write_text((chart.with_suffix(".ti2")).read_text())
+    rep2 = build_report(verified)
+    assert rep2["is_verification"] is True
+
+
+def _title_helpers(add_name=True, prof="P-prefix", verify="V-prefix"):
+    import types
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog as D
+
+    class S:
+        def __init__(s):
+            s._d = {"report_title_profiling": prof,
+                    "report_title_verification": verify,
+                    "report_add_profile_name": add_name}
+        def get(s, k, d=None):
+            return s._d.get(k, d)
+
+    d = types.SimpleNamespace(_settings=S(), _created="2026-07-23T14-30-00")
+    for m in ("_report_kind", "_report_profile_name", "_report_title",
+              "_report_filename"):
+        setattr(d, m, getattr(D, m).__get__(d))
+    return d
+
+
+def test_report_title_picks_prefix_by_kind():
+    d = _title_helpers()
+    prof = [{"chart": "Canon-Glossy", "is_verification": False}]
+    veri = [{"chart": "Canon-Glossy", "is_verification": True},
+            {"chart": "Canon-Glossy", "is_verification": True}]
+    assert d._report_title(prof) == "P-prefix - Canon-Glossy - 2026-07-23_14-30-00"
+    assert d._report_title(veri) == "V-prefix - Canon-Glossy - 2026-07-23_14-30-00"
+    # File name == title + .pdf.
+    assert d._report_filename(veri).endswith(".pdf")
+    assert d._report_filename(veri)[:-4] == d._report_title(veri)
+
+
+def test_report_title_profile_name_toggle_and_mixed_kind():
+    on = _title_helpers(add_name=True)
+    off = _title_helpers(add_name=False)
+    prof = [{"chart": "Canon-Glossy", "is_verification": False}]
+    assert "Canon-Glossy" in on._report_title(prof)
+    assert "Canon-Glossy" not in off._report_title(prof)
+    # A mixed set (any non-verification) is treated as profiling.
+    mixed = [{"chart": "X", "is_verification": True},
+             {"chart": "X", "is_verification": False}]
+    assert on._report_kind(mixed) == "profiling"

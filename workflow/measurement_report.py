@@ -26,7 +26,7 @@ import numpy as np
 
 from core.logger import get_logger
 from workflow.ti3_analysis import (
-    Ti3ParseError, ciede2000, parse_ti3, xyz_to_lab,
+    Ti3ParseError, ciede2000, is_verification_ti3, parse_ti3, xyz_to_lab,
 )
 
 log = get_logger(__name__)
@@ -249,6 +249,10 @@ def build_report(ti3_path: str | Path, worst_n: int = 16) -> dict:
         # (chartread writes it). Used in Report Scope and to warn when runs from
         # different instruments are mixed into one report (Knut).
         "instrument": _clean_instrument(data.keywords.get("TARGET_INSTRUMENT")),
+        # True when this measurement is a colour-managed verification (carries
+        # CHROMIQ_VERIFICATION) — chooses the report's title/scope wording and
+        # keeps verification trends separate from profiling ones (#130).
+        "is_verification": is_verification_ti3(data),
     }
 
     # Paper white (lightest) and darkest black by measured L*.

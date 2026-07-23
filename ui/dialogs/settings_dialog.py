@@ -1351,6 +1351,47 @@ class SettingsDialog(QDialog):
             self))
         gl.addLayout(thr_row)
         v.addWidget(defaults_grp)
+
+        # Report title/filename prefixes (#130, Knut). The report picks the
+        # profiling or verification line by whether its measurements are
+        # colour-managed verifications; the date_time and optional profile name
+        # are appended automatically.
+        from PyQt6.QtWidgets import QLineEdit
+        title_grp = QGroupBox(
+            tr("Default measurement report title and file name"), self)
+        tgl = QVBoxLayout(title_grp)
+        tgl.setSpacing(8)
+        _pr = QHBoxLayout()
+        _pr.addWidget(QLabel(tr("Profiling measurement runs:"), self))
+        self._report_title_prof_edit = QLineEdit(self)
+        _pr.addWidget(self._report_title_prof_edit, 1)
+        tgl.addLayout(_pr)
+        _vr = QHBoxLayout()
+        _vr.addWidget(QLabel(tr("Verification measurement runs:"), self))
+        self._report_title_verify_edit = QLineEdit(self)
+        _vr.addWidget(self._report_title_verify_edit, 1)
+        tgl.addLayout(_vr)
+        _apn_row = QHBoxLayout()
+        self._report_add_profile_check = QCheckBox(
+            tr("Add profile name before date"), self)
+        _apn_row.addWidget(self._report_add_profile_check)
+        _apn_row.addStretch()
+        _apn_row.addWidget(TooltipButton(
+            tr("Report title and file name"),
+            tr("The measurement report's first-page title and its saved PDF file "
+            "name are built from these lines. ChromIQ uses the first line for a "
+            "normal profiling report and the second for a verification report "
+            "(it can tell which from the measurements). It then appends the "
+            "date and time, so the title and file name read "
+            "“<your text> - <date_time>”.\n\n"
+            "Tick “Add profile name before date” to also insert the profile "
+            "(chart) name, giving “<your text> - <profile name> - <date_time>”. "
+            "The saved PDF file name always matches the title.\n\n"
+            "Default: the two suggested lines, profile name on."),
+            self))
+        tgl.addLayout(_apn_row)
+        v.addWidget(title_grp)
+
         v.addStretch()
         return page
 
@@ -2050,6 +2091,14 @@ class SettingsDialog(QDialog):
             float(s.get("report_pass_threshold_avg", 2.0)))
         self._report_max_thr_spin.setValue(
             float(s.get("report_pass_threshold_max", 3.0)))
+        self._report_title_prof_edit.setText(
+            str(s.get("report_title_profiling",
+                      "Measurement Report - Profiling of Printer")))
+        self._report_title_verify_edit.setText(
+            str(s.get("report_title_verification",
+                      "Measurement Report - Verification of Profile")))
+        self._report_add_profile_check.setChecked(
+            bool(s.get("report_add_profile_name", True)))
         self._patch_warn_spin.setValue(
             float(s.get("patch_read_warn_de", 50.0)))
         self._cal_retries_spin.setValue(int(s.get("cal_auto_retries", 3)))
@@ -2772,6 +2821,13 @@ class SettingsDialog(QDialog):
         s.set("save_measurement_report", self._save_report_check.isChecked())
         s.set("report_pass_threshold_avg", float(self._report_avg_thr_spin.value()))
         s.set("report_pass_threshold_max", float(self._report_max_thr_spin.value()))
+        s.set("report_title_profiling",
+              self._report_title_prof_edit.text().strip()
+              or "Measurement Report - Profiling of Printer")
+        s.set("report_title_verification",
+              self._report_title_verify_edit.text().strip()
+              or "Measurement Report - Verification of Profile")
+        s.set("report_add_profile_name", self._report_add_profile_check.isChecked())
         s.set("patch_read_warn_de", float(self._patch_warn_spin.value()))
         s.set("cal_auto_retries", int(self._cal_retries_spin.value()))
         s.set("fast_instrument_connect", self._fast_connect_check.isChecked())

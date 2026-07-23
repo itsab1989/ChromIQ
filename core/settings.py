@@ -182,6 +182,15 @@ DEFAULTS: dict[str, Any] = {
     # with; the user can change them here and per-report in the window (Knut).
     "report_pass_threshold_avg": 2.0,
     "report_pass_threshold_max": 3.0,
+    # Measurement Report title/filename prefixes (#130, Knut). The report picks
+    # the profiling or verification prefix from whether its measurements carry
+    # the CHROMIQ_VERIFICATION marker; the full title/filename is
+    # "<prefix>[ - <profile name>] - <date_time>". "report_add_profile_name"
+    # inserts the profile (chart) name before the date. Editable in Settings →
+    # Reports.
+    "report_title_profiling":    "Measurement Report - Profiling of Printer",
+    "report_title_verification": "Measurement Report - Verification of Profile",
+    "report_add_profile_name":   True,
     # Patch-reading error limit (#126, Knut): the ΔE at which a just-measured
     # patch gets the red warning outline in the engine's live split-patch
     # preview. Generous by default so only near-certain misreads are flagged.

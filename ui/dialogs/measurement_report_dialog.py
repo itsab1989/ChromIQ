@@ -904,8 +904,7 @@ class MeasurementReportDialog(QDialog):
 
         reports = self._report_dir()
         reports.mkdir(parents=True, exist_ok=True)
-        default = reports / (
-            f"measurement_report_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.pdf")
+        default = reports / self._report_filename(self._runs_for_report())
         path, _ = QFileDialog.getSaveFileName(
             self, tr("Save report as PDF"), str(default), "PDF (*.pdf)")
         if not path:
@@ -1313,6 +1312,46 @@ class MeasurementReportDialog(QDialog):
         return (_h2(tr("Overview of Measurement Metrics"), page_break=True)
                 + self._chunked_metric_tables(runs, row_getters))
 
+    def _report_kind(self, runs: list) -> str:
+        """"verification" when every included measurement is a colour-managed
+        verification (carries CHROMIQ_VERIFICATION), else "profiling" (#130)."""
+        return ("verification"
+                if runs and all(r.get("is_verification") for r in runs)
+                else "profiling")
+
+    def _report_profile_name(self, runs: list) -> str:
+        """The dominant profile/chart name across the included runs."""
+        from collections import Counter
+        names = [r.get("chart") for r in runs if r.get("chart")]
+        return Counter(names).most_common(1)[0][0] if names else ""
+
+    def _report_title(self, runs: list) -> str:
+        """The report's first-page title AND (sanitised) PDF file name stem,
+        from the user's Settings → Reports prefixes: "<prefix>[ - <profile>] -
+        <date_time>". The prefix is the profiling or verification line depending
+        on the included measurements (#130, Knut)."""
+        if self._report_kind(runs) == "verification":
+            prefix = str(self._settings.get(
+                "report_title_verification",
+                "Measurement Report - Verification of Profile"))
+        else:
+            prefix = str(self._settings.get(
+                "report_title_profiling",
+                "Measurement Report - Profiling of Printer"))
+        parts = [prefix.strip() or "Measurement Report"]
+        if self._settings.get("report_add_profile_name", True):
+            name = self._report_profile_name(runs)
+            if name:
+                parts.append(name)
+        # self._created is ISO "YYYY-MM-DDTHH:MM:SS" → "YYYY-MM-DD_HH-MM-SS".
+        parts.append(self._created.replace("T", "_").replace(":", "-"))
+        return " - ".join(parts)
+
+    def _report_filename(self, runs: list) -> str:
+        """Filesystem-safe PDF name = the title + '.pdf' (title == file name)."""
+        import re
+        return re.sub(r'[/\\:*?"<>|]', "_", self._report_title(runs)) + ".pdf"
+
     def _report_body_html(self, runs: list, *, for_pdf: bool,
                           charts_html: str = "", created: "str | None" = None) -> str:
         """The full report body, shared by the window and the PDF in ONE sequence
@@ -1329,7 +1368,7 @@ class MeasurementReportDialog(QDialog):
                         + html.escape(tr("Created:")) + " " + when + "</div>")
         if for_pdf:
             head = (f"<div style='font-size:22px;font-weight:bold;color:{_HEAD}'>"
-                    + html.escape(tr("Measurement Report")) + "</div>"
+                    + html.escape(self._report_title(runs)) + "</div>"
                     + _colour_line_html() + created_line + "<br>")
         else:
             head = created_line
