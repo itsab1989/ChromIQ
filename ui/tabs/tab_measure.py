@@ -891,6 +891,26 @@ class TabMeasure(QWidget):
         self._manager.abort_confirm.connect(self._on_abort_confirm)
         self._runner.keypress_failed.connect(self._on_keypress_failed)
 
+        # #131 sound feedback: play a sound at each measurement event, connected
+        # alongside the existing handlers so the sound layer stays decoupled. The
+        # SoundManager itself no-ops when sounds are off or the event is OFF.
+        import core.sound as _snd
+        self._sound = _snd.SoundManager(self._settings)
+        _m = self._manager
+        _m.patch_measured.connect(self._on_patch_sound)
+        _m.strip_measured.connect(lambda _d: self._sound.play(_snd.STRIP_OK))
+        _m.strip_error.connect(self._on_strip_error_sound)
+        for _sig in (_m.instrument_disconnected, _m.no_instrument,
+                     _m.device_busy, _m.sensor_wrong_position,
+                     _m.usb_claimed_by_vm):
+            _sig.connect(lambda *_: self._sound.play(_snd.INSTRUMENT_ERROR))
+        for _sig in (_m.generic_instrument_error, _m.coms_init_failed,
+                     _m.inst_init_failed, _m.instrument_wrong_type,
+                     _m.ccmx_load_failed, _m.mode_set_failed):
+            _sig.connect(lambda *_: self._sound.play(_snd.INSTRUMENT_ERROR))
+        self.measure_finished.connect(
+            lambda _p: self._sound.play(_snd.MEASUREMENT_FINISHED))
+
         # Watchdog: if a dialog sends a key but chartread emits no new output
         # within KEY_WATCHDOG_MS, surface a recoverable warning so the user is
         # not left staring at a frozen dialog when a keystroke vanishes
@@ -1255,6 +1275,27 @@ class TabMeasure(QWidget):
         btn_row.addStretch()
         btn_row.addWidget(self._save_defaults_btn)
         bo_layout.addLayout(btn_row)
+
+        # #131: master switch for measurement sounds (shared by both modes). The
+        # individual sounds for each event are chosen in Preferences → Sounds.
+        sound_row = QHBoxLayout()
+        self._sound_cb = QCheckBox(tr("Play sounds during measurement"), btn_outer)
+        self._sound_cb.setChecked(bool(self._settings.get("sound_enabled", False)))
+        self._sound_cb.toggled.connect(self._on_sound_toggled)
+        sound_row.addWidget(self._sound_cb)
+        sound_row.addWidget(TooltipButton(
+            tr("Play sounds during measurement"),
+            tr("Plays a short sound at each step of a measurement — a tick as "
+               "each patch is read, a bell when a strip is finished, a warning "
+               "if a reading looks off, and a fanfare when the whole chart is "
+               "done. It's a hands-free way to follow the measurement without "
+               "watching the screen.\n\n"
+               "Choose which sound plays for each event, and add your own, in "
+               "Preferences → Sounds. This switch is remembered between "
+               "sessions."),
+            btn_outer, min_width=460))
+        sound_row.addStretch()
+        bo_layout.addLayout(sound_row)
         lc_layout.addWidget(btn_outer)
 
         # Log — shared
@@ -3064,6 +3105,41 @@ class TabMeasure(QWidget):
         # read runs — it gets in the way of swiping and the patch hover tile.
         self._preview.set_suppress_file_tooltip(not enabled)
 
+    def _on_sound_toggled(self, on: bool) -> None:
+        """Master switch for measurement sounds (#131): persist it so it's
+        remembered, and pre-load the selected sounds when turning it on so the
+        first play during a measurement isn't delayed by a disk read."""
+        self._settings.set("sound_enabled", on)
+        if on and getattr(self, "_sound", None) is not None:
+            self._sound.arm()
+            self._sound.disarm()      # preload only; not in a measurement yet
+
+    def _on_patch_sound(self, payload: dict) -> None:
+        """Per-patch sound (#131): a normal tick, or the 'looks off' sound when
+        the just-read patch is far from its expected colour (ΔE over the patch-
+        read warning limit — the same limit that red-outlines it in the live
+        preview). ΔE is only present with the ChromIQ reading engine."""
+        import core.sound as _snd
+        de = payload.get("de")
+        try:
+            warn = float(self._settings.get("patch_read_warn_de", 50.0))
+        except (TypeError, ValueError):
+            warn = 50.0
+        if de is not None and de > warn:
+            self._sound.play(_snd.PATCH_OUT_OF_TOL)
+        else:
+            self._sound.play(_snd.PATCH_OK)
+
+    def _on_strip_error_sound(self, reason: str) -> None:
+        """Strip-failure sound (#131): Argyll's own 'Slow Down!' comes through
+        here after a too-fast swipe — play the calmer 'slow down' cue for that,
+        and the plain 'strip failed' sound otherwise."""
+        import core.sound as _snd
+        if "slow down" in (reason or "").lower():
+            self._sound.play(_snd.SLOW_DOWN)
+        else:
+            self._sound.play(_snd.STRIP_FAIL)
+
     def _on_start(self) -> None:
         if not self._ti1_path:
             self._log.appendPlainText("[ERROR] No .ti2 file selected.")
@@ -3071,6 +3147,10 @@ class TabMeasure(QWidget):
             return
         if self._runner.is_running:
             return
+        # #131: enter measurement mode so per-patch/strip sounds are allowed and
+        # the selected clips are pre-loaded for zero-latency playback.
+        if getattr(self, "_sound", None) is not None:
+            self._sound.arm()
 
         # #130 Hole 1: don't start a verification of a run that has no profile.
         block = self._verification_guard()
@@ -4702,6 +4782,11 @@ class TabMeasure(QWidget):
             insp.exec()
 
     def _on_measure_done(self, code: int) -> None:
+        # #131: leave measurement mode. Any completion sound (played via
+        # measure_finished, below) is exempt from the at-rest gate, so it still
+        # fires; per-patch/strip sounds can no longer sound outside a read.
+        if getattr(self, "_sound", None) is not None:
+            self._sound.disarm()
         self._preview.highlight_stripe(-1)
         self._preview.set_bidirectional(False)
         # #126: click-to-jump only lives while an engine session runs; the

@@ -1401,10 +1401,12 @@ class SettingsDialog(QDialog):
         path = snd.file_for_stem(self._settings, event, stem)
         if path is None:
             return
+        cls = snd._sound_effect_cls()
+        if cls is None:                     # no audio backend in this build/env
+            return
         try:
             from PyQt6.QtCore import QUrl
-            from PyQt6.QtMultimedia import QSoundEffect
-            eff = getattr(self, "_preview_effect", None) or QSoundEffect(self)
+            eff = getattr(self, "_preview_effect", None) or cls(self)
             self._preview_effect = eff       # keep a ref so it isn't GC'd mid-play
             eff.setSource(QUrl.fromLocalFile(str(path)))
             eff.setVolume(0.85)

@@ -118,3 +118,17 @@ def test_in_measurement_allows_all_events():
     for e in S.ALL_EVENTS:
         mgr.play(e)
     assert set(played) == set(S.ALL_EVENTS)
+
+
+def test_degrades_silently_without_audio_backend(monkeypatch):
+    """If QtMultimedia is unavailable, arm()/play() must no-op, never raise —
+    a missing multimedia plugin in a bundle can't break a measurement."""
+    monkeypatch.setattr(S, "_QSOUND_EFFECT", None)   # force 'unavailable'
+    assert S.audio_available() is False
+    s = _Settings({"sound_enabled": True})
+    mgr = S.SoundManager(s)
+    mgr.arm()                 # would preload — must be a quiet no-op
+    mgr._in_measurement = True
+    mgr.play(S.PATCH_OK)      # must not raise
+    mgr.play(S.MEASUREMENT_FINISHED)
+    assert mgr._effects == {}

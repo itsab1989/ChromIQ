@@ -114,6 +114,7 @@ a = Analysis(
         'PyQt6.QtGui',
         'PyQt6.QtWidgets',
         'PyQt6.QtPrintSupport',
+        'PyQt6.QtMultimedia',   # measurement sounds (#131) — imported lazily in core.sound
         'PyQt6.QtWebEngineWidgets',
         'PyQt6.QtWebEngineCore',
         'PIL.Image',

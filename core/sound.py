@@ -34,6 +34,33 @@ log = logging.getLogger(__name__)
 
 OFF = "OFF"
 
+# QtMultimedia is imported lazily and defensively: on a packaged build where the
+# multimedia plugin somehow didn't ship (or on a Linux box with no audio server
+# available at import time), the whole sound layer must degrade to a silent
+# no-op — it must NEVER raise into the measurement or profile-build flow. The
+# result is cached so we probe the import only once.
+_QSOUND_EFFECT = ...          # ... = "not probed yet"; None = unavailable
+
+
+def _sound_effect_cls():
+    """The ``QSoundEffect`` class, or ``None`` when audio isn't available in
+    this build/environment. Probed once, then cached."""
+    global _QSOUND_EFFECT
+    if _QSOUND_EFFECT is ...:
+        try:
+            from PyQt6.QtMultimedia import QSoundEffect
+            _QSOUND_EFFECT = QSoundEffect
+        except Exception as exc:      # noqa: BLE001 — ImportError or plugin error
+            log.warning("Measurement sounds disabled — QtMultimedia "
+                        "unavailable: %s", exc)
+            _QSOUND_EFFECT = None
+    return _QSOUND_EFFECT
+
+
+def audio_available() -> bool:
+    """True when this build/environment can play sounds at all."""
+    return _sound_effect_cls() is not None
+
 # ---- event keys (also the settings-key suffixes) ---------------------------
 PATCH_OK = "patch_ok"
 PATCH_OUT_OF_TOL = "patch_out_of_tol"
@@ -178,8 +205,11 @@ class SoundManager:
         self._in_measurement = False
 
     def _preload(self, events) -> None:
+        cls = _sound_effect_cls()
+        if cls is None:                          # no audio in this build/env
+            return
         from PyQt6.QtCore import QUrl
-        from PyQt6.QtMultimedia import QSoundEffect
+        QSoundEffect = cls
         for event in events:
             path = resolve_file(self._settings, event)
             if path is None:

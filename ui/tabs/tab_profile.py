@@ -278,6 +278,13 @@ class TabProfile(QWidget):
         super().__init__(parent)
         self._runner        = runner
         self._settings      = settings
+        # #131: play the "profile build finished" sound when a build completes.
+        # A completion sound is exempt from the during-measurement gate, so a
+        # dedicated SoundManager here is fine (and independent of the Measure tab).
+        import core.sound as _snd
+        self._sound = _snd.SoundManager(settings)
+        self.profile_built.connect(
+            lambda *_: self._sound.play(_snd.PROFILE_BUILT))
         self._builder       = ProfileBuilder(runner)
         self._engine_builder = EngineProfileBuilder(settings)  # #122 beta
         self._printcal_runner = PrintcalRunner(runner, settings)
