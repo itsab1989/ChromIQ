@@ -3647,6 +3647,7 @@ class TabChart(QWidget):
         # showed the chart's own (Basti).
         self._refresh_manual_command_preview()
         self._current_ti1_path = ti1 if ti1.is_file() else None
+        self._shown_chart_ti2 = ti2      # track the artefact now on screen (#130)
         # Let Print / Measure pick the chart up, as if it had just been built.
         self.chart_finished.emit(list(tiffs), ti2, False)
 
@@ -7819,43 +7820,33 @@ class TabChart(QWidget):
         switching Run type / Profile run swaps the Create-Chart tab to that
         target's own chart (settings + preview)."""
         self._target_ctl = controller
-        # Remembers which (profile_run, run_type) the tab currently displays, so
-        # a controller change only reloads when the *active chart* really changed
-        # (not on an unrelated verification-date pick).
-        self._shown_target_key: tuple | None = None
+        # The actual chart (.ti2 path) the tab currently displays. Tracking the
+        # real artefact — not a (run, type) key — keeps the swap correct even
+        # after a generation or reload changed the chart out from under us
+        # (Knut #130 beta-2 test: switching Run type showed the wrong chart).
+        self._shown_chart_ti2: "Path | None" = None
         controller.changed.connect(self._on_target_changed)
 
     def _is_verification_target(self) -> bool:
         ctl = getattr(self, "_target_ctl", None)
         return ctl is not None and ctl.target.is_verification()
 
-    def _on_target_changed(self) -> None:
-        """React to a Profile-run / Run-type change: load THAT target's chart
-        (its own settings + preview) so edits and the next generation apply to
-        the right chart — a verification chart for Run type = Verification, the
-        run's profiling chart for Profiling (#130, Knut beta-2 test #4).
-
-        When the target has no chart yet (a fresh run, or a verification chart
-        not made yet) the tab is simply left as-is so the user can create it;
-        nothing from the other target is written over."""
+    def _resolve_target_chart(self) -> "tuple[Path, list[Path], Path] | None":
+        """``(ti2, tiffs, ti1)`` for the current Profile-run / Run-type target's
+        EXISTING chart — the verification chart for Run type = Verification, the
+        run's profiling chart for Profiling — or ``None`` when that chart hasn't
+        been generated yet. Never creates anything (#130)."""
         ctl = getattr(self, "_target_ctl", None)
         if ctl is None:
-            return
-        t = ctl.target
-        key = (t.profile_run, t.run_type)
-        if key == self._shown_target_key:
-            return                     # same active chart — nothing to swap
-        # Resolve the selected run (never create anything here).
+            return None
         try:
             proj = ctl.project_or_none()
             if proj is None:
-                self._shown_target_key = key
-                return
+                return None
+            t = ctl.target
             run_id = t.profile_run
             if not run_id or not proj.has_run(run_id):
-                # "New run" or no project run yet — no existing chart to load.
-                self._shown_target_key = key
-                return
+                return None                      # "New run" / no such run yet
             run = proj.run(run_id)
             if t.is_verification():
                 ti2, ti1 = run.verify_chart_ti2, run.verify_chart_ti1
@@ -7865,18 +7856,43 @@ class TabChart(QWidget):
                 tiffs = sorted(run.dir.glob(f"{run.stem}_*.tif"))
                 if not tiffs and (run.dir / f"{run.stem}.tif").is_file():
                     tiffs = [run.dir / f"{run.stem}.tif"]
+            if ti2.is_file() and tiffs:
+                return ti2, list(tiffs), ti1
         except Exception as exc:  # noqa: BLE001 — never break the tab on this
             log.warning("Run-type switch: could not resolve target chart: %s", exc)
-            self._shown_target_key = key
+        return None
+
+    def _on_target_changed(self) -> None:
+        """React to a Profile-run / Run-type change: show THAT target's chart —
+        its own Create-Chart settings + preview — and hand it to Print / Measure,
+        so the chart that prints and is measured always matches the selected
+        Profile run and Run type (#130, Knut beta-2 tests).
+
+        When the selected target has no chart yet (a fresh run, or a verification
+        chart not made yet), the previous chart is CLEARED from the preview and
+        from Print / Measure so a stale chart can never linger there; the
+        Create-Chart editing settings are left as-is so the new chart can be made."""
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
             return
-        self._shown_target_key = key
-        if ti2.is_file() and tiffs:
-            kind = tr("verification chart") if t.is_verification() else tr("profiling chart")
-            self._log.appendPlainText(
-                tr("Switched to this run's {kind}.").format(kind=kind))
-            self._display_run_chart(ti2, list(tiffs), ti1)
-        # else: target has no chart yet — leave the tab untouched so a fresh
-        # chart can be created for it without disturbing the other target.
+        resolved = self._resolve_target_chart()
+        if resolved is None:
+            if self._shown_chart_ti2 is not None:
+                self._shown_chart_ti2 = None
+                self._preview.clear()
+                self._current_ti1_path = None
+                # Empty payload → main window drops the chart from Print / Measure.
+                self.chart_finished.emit([], None, False)
+            return
+        ti2, tiffs, ti1 = resolved
+        if ti2 == self._shown_chart_ti2:
+            return                               # already showing this exact chart
+        self._shown_chart_ti2 = ti2              # set first so the dedup is robust
+        kind = (tr("verification chart") if ctl.target.is_verification()
+                else tr("profiling chart"))
+        self._log.appendPlainText(
+            tr("Switched to this run's {kind}.").format(kind=kind))
+        self._display_run_chart(ti2, tiffs, ti1)
 
     def _on_generate_finished(self, tiffs: list[Path]) -> None:
         # Disarm the slow-chart watchdog and dismiss its dialog if it's still
@@ -7989,6 +8005,9 @@ class TabChart(QWidget):
             # #79: arm the one-shot Guided→Manual transfer when this chart was
             # built in Guided mode, so opening Manual seeds the recipe used.
             self._guided_transfer_pending = (self._current_mode() == "guided")
+            # Track the just-built chart so a later Run-type switch back to it
+            # doesn't needlessly reload (#130).
+            self._shown_chart_ti2 = ti2
             self.chart_finished.emit(tiffs, ti2, is_isis)
         else:
             self._set_margin_chart([], None)

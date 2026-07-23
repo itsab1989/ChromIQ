@@ -496,9 +496,16 @@ class MainWindow(QMainWindow):
             # i1iSis: i1Profiler drives print + measure, so don't push the
             # ChromIQ preview TIFFs or TI2 into those tabs.
             return
-        self._tab_print.load_tiffs(list(tiffs))
+        tiff_list = list(tiffs)
+        self._tab_print.load_tiffs(tiff_list)
         if ti2 and Path(ti2).exists():
             self._tab_measure.set_ti1_path(Path(ti2))
+        elif not tiff_list:
+            # #130: an empty payload means the selected Profile-run / Run-type has
+            # no chart yet (e.g. switched to Verification before its chart exists).
+            # Drop the previous chart from Measure so the wrong chart can't be
+            # printed or measured; Print was already cleared by load_tiffs([]).
+            self._tab_measure.clear_chart_file()
 
     def _on_measure_done(self, ti3: Path) -> None:
         cal_mode = bool(self._settings.get("calibration_mode", False))

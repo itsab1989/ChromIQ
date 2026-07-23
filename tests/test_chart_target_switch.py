@@ -89,25 +89,29 @@ def test_switch_runtype_loads_matching_chart(qapp, tmp_path, monkeypatch):
     assert shown and shown[-1] == run.chart_ti2         # swapped back to profiling
 
 
-def test_switch_to_verification_without_chart_leaves_tab(qapp, tmp_path, monkeypatch):
-    """Switching to Verification when no verify chart exists yet must NOT load
-    (or overwrite) anything — the user is about to create it."""
+def test_switch_to_verification_without_chart_clears(qapp, tmp_path, monkeypatch):
+    """Switching to Verification when no verify chart exists yet must NOT load a
+    chart, and must CLEAR the previous one from the preview + Print/Measure (an
+    empty chart_finished) so no stale chart lingers (Knut #130 beta-2 test)."""
     proj = Project.create(tmp_path / "Q", "Q")
     run = proj.current_run()
     _make_profiling_chart(run)                  # profiling chart only, no verify
 
     tab = _tab(_settings(tmp_path))
     shown: list = []
+    emitted: list = []
     monkeypatch.setattr(tab, "_display_run_chart",
-                        lambda *a: shown.append(a))
+                        lambda ti2, tiffs, ti1: shown.append(Path(ti2)))
+    tab.chart_finished.connect(lambda tiffs, ti2, ext: emitted.append((list(tiffs), ti2)))
 
     ctl = MeasurementTargetController(_FM(proj.root))
     tab.set_target_controller(ctl)
-    ctl.set_profile_run("run1")
-    shown.clear()
+    ctl.set_profile_run("run1")                 # shows the profiling chart
+    shown.clear(); emitted.clear()
 
     ctl.set_run_type(RUN_TYPE_VERIFICATION)     # no verify chart on disk
-    assert shown == []                          # tab left untouched
+    assert shown == []                          # no chart loaded
+    assert emitted == [([], None)]              # cleared Print/Measure
 
 
 def test_new_run_target_does_not_load(qapp, tmp_path, monkeypatch):
