@@ -1,5 +1,34 @@
 # Changelog
 
+## v3.14.8-beta.7
+
+Measurement sound feedback — Phase 1 of #131. ChromIQ can now play a short
+sound as you measure, so you can follow a read hands-free without watching the
+screen. (This beta also includes everything from beta.6, the #130 unified
+file-handling model.)
+
+- **A new “Play sounds during measurement” switch on the Measure tab.** With it
+  on, ChromIQ plays a tick as each patch is read, a bell when a strip is
+  finished, a distinct sound if a reading looks off, a warning on an instrument
+  error, and a fanfare when the whole chart is done. Argyll's own “Slow Down!”
+  after a too-fast swipe gets its own calm cue. A sound also plays when a
+  profile finishes building.
+- **A new Preferences → Sounds tab** to choose which sound plays for each event,
+  in two groups (measurement actions and action completion), each with a “Play”
+  button to hear it. Pick “Off (no sound)” for any you'd rather keep silent.
+- **Bring your own sounds.** Every dropdown is built from the `.wav` files
+  present in a sounds folder, so it grows if you add your own. Point Preferences
+  → Paths at a folder with `measurement-events/`, `slow-down/` and
+  `task-complete/` sub-folders. ChromIQ ships a small built-in set so it works
+  out of the box.
+- Works on the ready-to-use macOS, Windows and Linux bundles; if a machine has
+  no working audio, sounds simply stay silent and never interrupt a measurement.
+
+Notes: the per-patch “reading looks off” sound uses the ChromIQ reading engine
+(on by default). Live measurement-speed feedback is Phase 2. New strings ship as
+English placeholders in the non-English catalogs for this beta; full translation
+follows before the final release.
+
 ## v3.14.8-beta.6
 
 This beta completes the unified file-handling model for the verification-runs
