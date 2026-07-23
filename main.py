@@ -99,7 +99,8 @@ try:
     from PyQt6.QtGui import QFontDatabase
     from core.resource_path import resource_path
     from core.settings import AppSettings
-    from ui.main_window import MainWindow
+    # NB: ui.main_window (the whole UI tree, a heavy import) is imported inside
+    # main() AFTER the splash is on screen, so the splash covers that cost too.
     from ui.styles import WinButtonLayoutStyle
     from ui.theme import apply_appearance
     from ui.widgets import (ButtonFontFilter, DialogFocusFilter,
@@ -164,13 +165,38 @@ def main() -> int:
     install_qt_translator(app)
 
     appearance = settings.get("appearance", "auto")
-    apply_appearance(app, None, appearance)
+    mode = apply_appearance(app, None, appearance)
 
     icon_path = resource_path("assets/app_icon.png")
     log.debug("App icon: %s  exists=%s", icon_path, icon_path.exists())
     if icon_path.exists():
         app.setWindowIcon(QIcon(str(icon_path)))
 
+    # Startup splash: shown while the main window builds, theme-aware, dismissed
+    # once the window is up.
+    import time as _time
+    from ui.splash import make_splash
+    _SPLASH_MIN_S = 0.9          # keep it on screen at least this long (branding)
+
+    def _pump(seconds: float) -> None:
+        """Run the event loop for *seconds* so macOS actually composites the
+        splash to the screen — a plain processEvents() paints it but the window
+        server may not flush it before the blocking window build runs, which is
+        why the splash used to only flash at the very end."""
+        end = _time.monotonic() + seconds
+        while _time.monotonic() < end:
+            app.processEvents()
+            _time.sleep(0.01)
+
+    splash = make_splash(mode, f"v{APP_VERSION}")
+    _splash_shown = _time.monotonic()
+    splash.show()
+    splash.raise_()
+    splash.repaint()
+    _pump(0.18)                 # get it on screen before the blocking build
+
+    # Heavy UI import + construction, now visibly covered by the splash.
+    from ui.main_window import MainWindow
     win = MainWindow(settings)
     apply_appearance(app, win, settings.get("appearance", "auto"))
 
@@ -181,7 +207,12 @@ def main() -> int:
 
     app.styleHints().colorSchemeChanged.connect(_on_system_color_scheme_changed)
 
+    # Hold the splash to its minimum on-screen time (only pads when the build was
+    # faster than _SPLASH_MIN_S — usually it wasn't, so this adds nothing), then
+    # reveal the window and dismiss the splash.
+    _pump(max(0.0, _SPLASH_MIN_S - (_time.monotonic() - _splash_shown)))
     win.show()
+    splash.finish(win)          # dismiss the splash now the window is up
 
     # Belt-and-braces re-apply for the maximize / fullscreen state. The bytes
     # from saveGeometry() carry it on most platforms, but explicit re-apply
