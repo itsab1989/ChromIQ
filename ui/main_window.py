@@ -99,6 +99,19 @@ class MainWindow(QMainWindow):
         self._tab_measure = TabMeasure(self._runner, self._settings, self)
         self._tab_profile = TabProfile(self._runner, self._settings, self)
         self._tab_check   = TabCheckRefine(self._runner, self._settings, self)
+
+        # #130: one shared "Profile run / Run type" selection, owned by a single
+        # controller and shown in one bar above the tabs, so the choice stays in
+        # step across Create Chart, Print Chart and Measure.
+        from ui.measurement_target_bar import (
+            MeasurementTargetBar, MeasurementTargetController)
+        self._target_ctl = MeasurementTargetController(self._file_mgr, self)
+        self._target_bar = MeasurementTargetBar(self._target_ctl, parent=central)
+        main_layout.addWidget(self._target_bar)
+        for _t in (self._tab_chart, self._tab_measure):
+            if hasattr(_t, "set_target_controller"):
+                _t.set_target_controller(self._target_ctl)
+
         self._load_state_snapshot: dict | None = None
         # Which (tab → theme) the per-tab stylesheet has already been applied for,
         # so a revisit doesn't pay the ~30 ms style re-polish again. Keyed on the
@@ -275,6 +288,10 @@ class MainWindow(QMainWindow):
         from ui.styles import TAB_COLORS
 
         log.info("---- Tab → %s ----", self._tabs.tabText(index))
+        # #130: keep the shared Profile-run list current (a run may have been
+        # created since the bar last populated). Cheap; the picked run/type stay.
+        if getattr(self, "_target_bar", None) is not None:
+            self._target_bar.refresh()
 
         color = TAB_COLORS[index] if index < len(TAB_COLORS) else TAB_COLORS[-1]
         # Compute variants without broken hex-alpha (Qt reads #AARRGGBB, not #RRGGBBAA)

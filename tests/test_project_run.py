@@ -741,3 +741,38 @@ def test_archive_to_old_moves_existing_and_dedups(tmp_path: Path) -> None:
     assert d2 == d3                                 # same timestamped folder
     names = sorted(p.name for p in d2.iterdir())
     assert names == ["P.ti3", "P_1.ti3"]            # de-duped
+
+
+def test_adopt_run_chart_as_verify(tmp_path: Path) -> None:
+    proj = Project.create(tmp_path / "Canon", "Canon")
+    run = proj.current_run(); run.ensure_dir()
+    stem = run.stem
+    # A freshly generated chart at the run root (chart files + two pages) +
+    # a measurement/profile that must NOT move, and an exports sidecar.
+    for ext in (".ti1", ".ti2", ".cht", ".channels.json"):
+        (run.dir / f"{stem}{ext}").write_text("x")
+    (run.dir / f"{stem}_01.tif").write_text("p1")
+    (run.dir / f"{stem}_02.tif").write_text("p2")
+    (run.dir / f"{stem}.ti3").write_text("meas")     # must stay
+    (run.dir / f"{stem}.icc").write_text("prof")     # must stay
+    run.ensure_exports_dir()
+    (run.exports_dir / f"{stem}-colours.txt").write_text("c")
+
+    ti2 = run.adopt_run_chart_as_verify()
+    assert ti2 == run.verify_chart_ti2 and ti2.is_file()
+    # Chart files moved + renamed to the -verify stem, in verifications/.
+    assert run.verify_chart_ti1.is_file() and run.verify_chart_cht.is_file()
+    assert (run.verifications_dir / f"{stem}-verify_01.tif").is_file()
+    assert (run.verifications_dir / f"{stem}-verify_02.tif").is_file()
+    # The chart files are gone from the run root.
+    assert not (run.dir / f"{stem}.ti2").exists()
+    assert not (run.dir / f"{stem}_01.tif").exists()
+    # Measurement + profile stayed put.
+    assert (run.dir / f"{stem}.ti3").is_file()
+    assert (run.dir / f"{stem}.icc").is_file()
+    # Sidecar followed the chart.
+    assert (run.verifications_dir / "exports" / f"{stem}-verify-colours.txt").is_file()
+
+    # Nothing to adopt → None.
+    proj2 = Project.create(tmp_path / "P2", "P2")
+    assert proj2.current_run().adopt_run_chart_as_verify() is None

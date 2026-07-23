@@ -956,10 +956,21 @@ class TabMeasure(QWidget):
     def _current_mode(self) -> str:
         return "guided" if self._stack.currentIndex() == 0 else "manual"
 
+    def set_target_controller(self, controller) -> None:
+        """Receive the shared Profile-run / Run-type controller (#130) so the
+        'Verification' run type drives the verification flow and its dated
+        destination."""
+        self._target_ctl = controller
+
     def _is_verify_checked(self) -> bool:
-        """True if the active module's 'Verification measurement' box is ticked."""
+        """True when this is a verification read — either the active module's
+        'Verification measurement' box is ticked, or the shared Run type is set
+        to Verification (#130)."""
         cb = self._verify_cb if self._current_mode() == "guided" else self._m_verify_cb
-        return cb.isChecked()
+        if cb.isChecked():
+            return True
+        ctl = getattr(self, "_target_ctl", None)
+        return ctl is not None and ctl.target.is_verification()
 
     def _is_pbp_checked(self) -> bool:
         """True if the active module's 'Patch-by-patch mode' box is ticked."""
@@ -4599,10 +4610,23 @@ class TabMeasure(QWidget):
         verifications accrue as history (#130), then offer to open it in the
         measurement inspector — never build a profile."""
         import shutil
+
+        from core.file_manager import VERIFICATIONS_DIRNAME
         try:
-            marked = mark_verification_ti3(ti3)          # <name>-verify.ti3 (run root)
-            run = Run.for_dir(marked.parent)
-            verification = run.new_verification()
+            marked = mark_verification_ti3(ti3)          # <name>-verify.ti3
+            # Resolve the run whether the loaded chart is the run's profiling
+            # chart (run root) or its shared verify chart (in verifications/).
+            parent = marked.parent
+            run = (Run.for_dir(parent.parent)
+                   if parent.name == VERIFICATIONS_DIRNAME
+                   else Run.for_dir(parent))
+            # Honour the shared target: overwrite a chosen dated verification, or
+            # start a new one (the default). New verifications never overwrite a
+            # prior date, so the history accrues.
+            ctl = getattr(self, "_target_ctl", None)
+            vid = (ctl.target.verification_id
+                   if (ctl is not None and ctl.target.is_verification()) else "")
+            verification = (run.verification(vid) if vid else run.new_verification())
             verification.ensure_dir()
             dst = verification.measurement_ti3           # verifications/<date>/<name>-verify.ti3
             shutil.move(str(marked), str(dst))

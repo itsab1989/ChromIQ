@@ -607,6 +607,44 @@ class Run:
             n += 1
         return v
 
+    #: Chart-file extensions moved when a generated chart becomes a verify chart.
+    _CHART_EXTS = (".ti1", ".ti2", ".cht", ".ps", ".channels.json",
+                   ".strips.json", ".cie", ".pdf")
+
+    def adopt_run_chart_as_verify(self) -> "Path | None":
+        """Move a just-generated chart from the run root into ``verifications/``
+        as this run's shared verify chart, renaming ``<stem>.*`` → ``<stem>-
+        verify.*`` (#130). Only the chart files + page TIFFs move — never the
+        measurement (``.ti3``) or profile (``.icc``). Returns the moved verify
+        ``.ti2``, or None when there's no chart at the run root to adopt.
+
+        Guarded by construction: nothing calls this unless the user chose Run
+        type = Verification, so the normal profiling flow is untouched."""
+        if not self.chart_ti2.exists():
+            return None
+        self.verifications_dir.mkdir(parents=True, exist_ok=True)
+        old, new = self.stem, self.verify_stem
+        moved_ti2: "Path | None" = None
+        for ext in self._CHART_EXTS:
+            src = self.dir / f"{old}{ext}"
+            if src.exists():
+                dst = self.verifications_dir / f"{new}{ext}"
+                shutil.move(str(src), str(dst))
+                if ext == ".ti2":
+                    moved_ti2 = dst
+        for tif in sorted(self.dir.glob(f"{old}_*.tif")):
+            dst = self.verifications_dir / tif.name.replace(old, new, 1)
+            shutil.move(str(tif), str(dst))
+        # The chart's hand-off sidecars (exports/) belong with the verify chart.
+        exp = self.exports_dir
+        if exp.exists():
+            vexp = self.verifications_dir / EXPORTS_DIRNAME
+            vexp.mkdir(parents=True, exist_ok=True)
+            for f in list(exp.iterdir()):
+                if f.is_file() and f.name.startswith(old):
+                    shutil.move(str(f), str(vexp / f.name.replace(old, new, 1)))
+        return moved_ti2
+
     # ---- overwrite safety: "start fresh" archive (#130)
     @property
     def old_dir(self) -> Path:                return self.dir / "old"

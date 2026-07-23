@@ -7806,6 +7806,15 @@ class TabChart(QWidget):
         ).exec()
         return True
 
+    def set_target_controller(self, controller) -> None:
+        """Receive the shared Profile-run / Run-type controller (#130) so a
+        Verification generation is filed as the run's verify chart."""
+        self._target_ctl = controller
+
+    def _is_verification_target(self) -> bool:
+        ctl = getattr(self, "_target_ctl", None)
+        return ctl is not None and ctl.target.is_verification()
+
     def _on_generate_finished(self, tiffs: list[Path]) -> None:
         # Disarm the slow-chart watchdog and dismiss its dialog if it's still
         # open (targen finished/was swapped while the user was deciding).
@@ -7834,6 +7843,27 @@ class TabChart(QWidget):
             stem = m.group(1) if m else tiffs[0].stem
         else:
             stem = "chart"
+
+        # #130: when the user chose Run type = Verification, move the just-
+        # generated chart into the run's verifications/ folder as its shared
+        # verify chart, then continue with the moved files (preview, meta,
+        # sidecars and the chart_finished signal all use the verify paths).
+        # Guarded — profiling generation is completely untouched.
+        if tiffs and self._is_verification_target():
+            try:
+                run = self._file_mgr.project().current_run()
+                new_ti2 = run.adopt_run_chart_as_verify()
+                if new_ti2 is not None:
+                    tiffs = run.verify_chart_tiffs()
+                    stem = run.verify_stem
+                    self._log.appendPlainText(tr(
+                        "This chart was saved as the run's verification chart "
+                        "(in the “verifications” folder). Print it through your "
+                        "finished profile, then measure it with the run type set "
+                        "to Verification."))
+            except Exception:  # noqa: BLE001 — never break a finished generation
+                log.warning("verify-chart adopt failed", exc_info=True)
+
         # For i1iSis the load-bearing artifact is the TI1 from targen, not the
         # printtarg TIFF. Run the export off the TI1 so users still get their
         # patch-set files even if printtarg fails for an unrelated reason
