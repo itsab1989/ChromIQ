@@ -618,8 +618,19 @@ class MainWindow(QMainWindow):
         initial_chart = None
         if key == "ti2_relayout":
             initial_chart = self._current_chart_ti2()
+        # The Verify-a-Profile tool points its file pickers at the loaded
+        # project's run + verification history (#130). Guarded — a missing
+        # manifest must never block opening a tool.
+        project = None
+        if key == "verify_profile" \
+                and (self._file_mgr.working_dir() / "project.json").exists():
+            try:
+                project = self._file_mgr.project()
+            except Exception:  # noqa: BLE001
+                project = None
         open_tool_dialog(key, self._runner, self._settings, self,
-                         on_apply=on_apply, initial_chart=initial_chart)
+                         on_apply=on_apply, initial_chart=initial_chart,
+                         project=project)
 
     def _current_chart_ti2(self) -> "Path | None":
         """The current run's generated chart .ti2, or None when no chart has

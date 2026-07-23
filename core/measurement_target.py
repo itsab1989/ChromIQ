@@ -89,6 +89,42 @@ def resolve_measurement(project: Project, target: MeasurementTarget,
     return verification
 
 
+def verify_tool_dirs(project: "Project | None",
+                     target: "MeasurementTarget | None" = None
+                     ) -> "tuple[Path, Path]":
+    """Browse-default folders for the Verify-a-Profile tool's two file pickers,
+    as ``(profile_icc_dir, measurement_ti3_dir)`` (#130, Knut's cascade).
+
+    - profile .icc: the target/current run's folder → the project root.
+    - measurement .ti3: the selected dated verification → the run's
+      ``verifications/`` (defaulting to its latest date) → the run folder →
+      the project root.
+
+    Both fall back to ``~/ChromIQ`` when no project is loaded, so the dialog
+    always opens somewhere sensible."""
+    from pathlib import Path
+    home = Path.home() / "ChromIQ"
+    if project is None:
+        return home, home
+    run = (resolve_run(project, target) if target is not None
+           else project.current_run())
+    profile_dir = run.dir if run.dir.exists() else project.root
+    meas_dir = run.dir
+    if run.verifications_dir.exists():
+        meas_dir = run.verifications_dir
+        if target is not None and target.verification_id:
+            cand = run.verification(target.verification_id).dir
+            if cand.exists():
+                meas_dir = cand
+        else:
+            history = run.verifications()
+            if history:
+                meas_dir = history[-1].dir          # latest verification
+    if not meas_dir.exists():
+        meas_dir = project.root
+    return profile_dir, meas_dir
+
+
 def verification_blocked_reason(project: Project,
                                 target: MeasurementTarget) -> "str | None":
     """Why a verification can't start for this target, or ``None`` (Hole 1).

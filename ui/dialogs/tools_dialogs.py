@@ -494,11 +494,13 @@ class _ToolDialogBase(QDialog):
     # ------------------------------------------------------------------
     # Picker helpers
     # ------------------------------------------------------------------
-    def _pick_input_file(self, caption: str, name_filter: str) -> Path | None:
-        path = open_file_dialog(
-            self, caption, name_filter,
-            start_dir=str(_initial_dir(self._settings, self.TOOL_KEY)),
-        )
+    def _pick_input_file(self, caption: str, name_filter: str,
+                         start_dir: "Path | None" = None) -> Path | None:
+        # An explicit start_dir (e.g. the Verify-a-Profile cascade, #130) wins
+        # over the tool's remembered last-used folder.
+        sd = str(start_dir) if start_dir is not None \
+            else str(_initial_dir(self._settings, self.TOOL_KEY))
+        path = open_file_dialog(self, caption, name_filter, start_dir=sd)
         if not path:
             return None
         p = Path(path)
@@ -2054,10 +2056,12 @@ class VerifyProfileDialog(_ToolDialogBase):
         "reference”.")
     )
 
-    def __init__(self, runner: "ArgyllRunner", settings: "AppSettings", parent: QWidget | None = None) -> None:
+    def __init__(self, runner: "ArgyllRunner", settings: "AppSettings",
+                 parent: QWidget | None = None, project=None) -> None:
         super().__init__(settings, parent)
         self._runner   = runner
         self._checker  = ProfcheckRunner(runner)
+        self._project_obj = project          # loaded Project, for #130 browse defaults
         self._profile: Path | None = None
         self._measured: Path | None = None
         self._build_inputs()
@@ -2155,18 +2159,34 @@ class VerifyProfileDialog(_ToolDialogBase):
 
     # -- pickers --------------------------------------------------------
     def _pick_profile(self) -> None:
-        p = self._pick_input_file(tr("Choose profile to test"), tr("ICC profiles (*.icc *.icm);;All files (*)"))
+        prof_dir, _meas_dir = self._verify_dirs()
+        p = self._pick_input_file(tr("Choose profile to test"),
+                                  tr("ICC profiles (*.icc *.icm);;All files (*)"),
+                                  start_dir=prof_dir)
         if p:
             self._profile = p
             self._profile_field.setText(str(p))
             self._refresh()
 
     def _pick_measured(self) -> None:
-        p = self._pick_input_file(tr("Choose measured chart"), tr("Measurements (*.ti3);;All files (*)"))
+        _prof_dir, meas_dir = self._verify_dirs()
+        p = self._pick_input_file(tr("Choose measured chart"),
+                                  tr("Measurements (*.ti3);;All files (*)"),
+                                  start_dir=meas_dir)
         if p:
             self._measured = p
             self._measured_field.setText(str(p))
             self._refresh()
+
+    def _verify_dirs(self) -> "tuple[Path | None, Path | None]":
+        """Browse-default folders (profile, measurement) for this tool, pointing
+        at the loaded project's run and its verification history (#130). Falls
+        back to the tool's remembered folders when no project is open."""
+        from core.measurement_target import verify_tool_dirs
+        try:
+            return verify_tool_dirs(self._project_obj)
+        except Exception:      # noqa: BLE001 — a browse default must never break
+            return None, None
 
     # -- run ------------------------------------------------------------
     def _can_run(self) -> bool:
@@ -2262,6 +2282,7 @@ def open_tool_dialog(
     parent: QWidget | None = None,
     on_apply: "Callable[[Path, str], bool | None] | None" = None,
     initial_chart: "Path | None" = None,
+    project=None,
 ) -> None:
     """Open the dialog for the given tool key (no-op for unknown keys).
 
@@ -2290,7 +2311,7 @@ def open_tool_dialog(
     elif key == "verify":
         dlg = VerifyAgainstReferenceDialog(runner, settings, parent)
     elif key == "verify_profile":
-        dlg = VerifyProfileDialog(runner, settings, parent)
+        dlg = VerifyProfileDialog(runner, settings, parent, project=project)
     elif key == "profile_info":
         from ui.dialogs.profile_info_dialog import ProfileInfoDialog
         dlg = ProfileInfoDialog(runner, settings, parent)

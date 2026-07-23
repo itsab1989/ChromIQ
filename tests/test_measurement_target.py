@@ -87,3 +87,30 @@ def test_verification_blocked_reason_hole1(tmp_path):
     run.verifications_dir.mkdir(parents=True, exist_ok=True)
     run.verify_chart_ti2.write_text("ti2")
     assert verification_blocked_reason(proj, t) is None
+
+
+def test_verify_tool_dirs_cascade(tmp_path, monkeypatch):
+    from pathlib import Path
+    from core.measurement_target import verify_tool_dirs
+    # No project → ~/ChromIQ for both.
+    home = tmp_path / "home"
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
+    prof, meas = verify_tool_dirs(None)
+    assert prof == home / "ChromIQ" and meas == home / "ChromIQ"
+
+    proj = _project(tmp_path)
+    run = proj.current_run(); run.ensure_dir()
+    # No verifications yet → profile & measurement default to the run folder.
+    prof, meas = verify_tool_dirs(proj)
+    assert prof == run.dir and meas == run.dir
+    # With verification history → measurement defaults to the LATEST dated folder.
+    import datetime as _dt
+    run.new_verification(_dt.datetime(2026, 6, 1, 9, 0, 0)).ensure_dir()
+    latest = run.new_verification(_dt.datetime(2026, 7, 1, 9, 0, 0)); latest.ensure_dir()
+    prof, meas = verify_tool_dirs(proj)
+    assert meas == latest.dir
+    # An explicit verification_id in the target wins.
+    t = MeasurementTarget(run_type="verification", profile_run=run.id,
+                          verification_id=run.verifications()[0].id)
+    _, meas = verify_tool_dirs(proj, t)
+    assert meas == run.verifications()[0].dir
