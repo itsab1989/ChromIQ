@@ -101,7 +101,11 @@ def test_landscape_jig_margins_in_seed():
     for instr, L, T in (("i1Pro", 26, 38), ("i1Pro 3+", 28, 40)):
         for combo in ("A4 Landscape", "Letter Landscape", "A4 Portrait"):
             e = t[f"{instr}|{combo}"]
-            assert (e["L"], e["R"], e["T"], e["B"]) == (L, 9, T, 9)
+            # L/R/T are the jig margins; the bottom is 9 mm except on the two
+            # i1Pro full-height-strip combos, which use 19 mm (#130).
+            assert (e["L"], e["R"], e["T"]) == (L, 9, T)
+            want_b = 19 if (instr == "i1Pro" and combo == "A4 Portrait") else 9
+            assert e["B"] == want_b
 
 
 def test_landscape_jig_migration_preserves_customisation():
@@ -116,6 +120,24 @@ def test_landscape_jig_migration_preserves_customisation():
     assert out["i1Pro|Letter Landscape"]["L"] == 15    # customisation kept
     # Idempotent: a second pass on the now-jig values changes nothing.
     _out2, changed2 = upgrade_margin_landscape_jig(out)
+    assert changed2 is False
+
+
+def test_i1pro_tall_bottom_migration_preserves_customisation():
+    """#130: i1Pro A4 Portrait / A3 Landscape get a 19 mm bottom, but only when
+    they still hold the old 9 mm jig default — a customised bottom is kept."""
+    from core.settings import upgrade_margin_i1pro_tall_bottom, _I1_PRIMARY
+    table = {
+        "i1Pro|A4 Portrait": dict(_I1_PRIMARY),                       # old B=9
+        "i1Pro|A3 Landscape": {"L": 26, "R": 9, "T": 38, "B": 12,     # customised
+                               "desc": "x"},
+    }
+    out, changed = upgrade_margin_i1pro_tall_bottom(table)
+    assert changed
+    assert out["i1Pro|A4 Portrait"]["B"] == 19       # old default upgraded
+    assert out["i1Pro|A3 Landscape"]["B"] == 12       # customisation kept
+    # Idempotent on the now-19 values (A3 stays customised).
+    _out2, changed2 = upgrade_margin_i1pro_tall_bottom(out)
     assert changed2 is False
 
 

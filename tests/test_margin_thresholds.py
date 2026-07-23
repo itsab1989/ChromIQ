@@ -22,9 +22,15 @@ def test_combo_key_format():
 
 def test_seed_table_matches_knut_values():
     seeds = default_margin_thresholds()
-    # i1Pro primary combos: 26 / 9 / 38 / 9 (L/R/T/B), confirmed (#82).
-    assert seeds["i1Pro|A4 Portrait"] == {"L": 26, "R": 9, "T": 38, "B": 9,
+    # i1Pro primary combos: 26 / 9 / 38 (L/R/T), confirmed (#82). The two
+    # full-height-strip combos (A4 Portrait, A3 Landscape) carry a 19 mm bottom
+    # so the seeded chart stays under the 240 mm strip-length limit (#130); the
+    # other primary combos keep the 9 mm bottom.
+    assert seeds["i1Pro|A4 Portrait"] == {"L": 26, "R": 9, "T": 38, "B": 19,
                                           "desc": "i1Pro ruler / jig"}
+    assert seeds["i1Pro|A3 Landscape"] == {"L": 26, "R": 9, "T": 38, "B": 19,
+                                           "desc": "i1Pro ruler / jig"}
+    assert seeds["i1Pro|Letter Portrait"]["B"] == 9      # shorter sheet, stays 9
     assert seeds["i1Pro|A3 Landscape"]["T"] == 38
     # Other i1Pro paper/orientations: plain 9 mm all round.
     assert seeds["i1Pro|A3 Portrait"] == {"L": 9, "R": 9, "T": 9, "B": 9,

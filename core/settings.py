@@ -378,9 +378,28 @@ _PRIMARY_COMBOS = (
 _SCHEMA7_LANDSCAPE_COMBOS = ("A4 Landscape", "Letter Landscape")
 _ALL_COMBOS = [(p, o) for p in _MARGIN_PAPERS_ALL
                for o in ("Portrait", "Landscape")]
+
+# i1Pro A4 Portrait and A3 Landscape read a full-height (297 mm) strip; with the
+# 38 mm label-edge top a 9 mm bottom leaves a 250 mm strip — over the i1Pro's
+# 240 mm strip-length limit, so the default chart never fit. These two combos get
+# a 19 mm bottom (297 − 38 − 19 = 240) so the seeded chart is legal (Knut,
+# #130 beta-2 test). Letter Portrait (279 mm) already fits and stays at 9 mm.
+_I1_TALLBOTTOM_COMBOS = ("A4 Portrait", "A3 Landscape")
+_I1_TALLBOTTOM_B = 19
+
+
+def _i1_primary(combo: str) -> dict[str, Any]:
+    """The i1Pro jig margins for *combo*, with the taller bottom on the two
+    full-height-strip combos (see :data:`_I1_TALLBOTTOM_COMBOS`)."""
+    d = dict(_I1_PRIMARY)
+    if combo in _I1_TALLBOTTOM_COMBOS:
+        d["B"] = _I1_TALLBOTTOM_B
+    return d
+
+
 _MARGIN_SEED: dict[str, dict[str, Any]] = {
     **_seed_rows("i1Pro", _I1_DESC, 9, 9, _ALL_COMBOS),
-    **{f"i1Pro|{c}": dict(_I1_PRIMARY) for c in _PRIMARY_COMBOS},
+    **{f"i1Pro|{c}": _i1_primary(c) for c in _PRIMARY_COMBOS},
     **_seed_rows("i1Pro 3+", _I1P3_DESC, 9, 9, _ALL_COMBOS),
     **{f"i1Pro 3+|{c}": dict(_I1P3_PRIMARY) for c in _PRIMARY_COMBOS},
     **_seed_rows("ColorMunki", _CM_DESC, 6, 24, _ALL_COMBOS),
@@ -413,6 +432,24 @@ def upgrade_margin_landscape_jig(
             if cur is None or _same_margin(cur, old_plain):
                 table[key] = dict(primary)
                 changed = True
+    return table, changed
+
+
+def upgrade_margin_i1pro_tall_bottom(
+    table: dict[str, dict[str, Any]]
+) -> tuple[dict[str, dict[str, Any]], bool]:
+    """Give i1Pro A4 Portrait / A3 Landscape the 19 mm bottom margin (schema 12,
+    #130), returning ``(table, changed)``. A combo is upgraded only when it is
+    absent or still equals the old jig default (:data:`_I1_PRIMARY`, bottom 9) —
+    a value the user customised is kept. Pure (no I/O) so it is unit-tested
+    directly."""
+    changed = False
+    for combo in _I1_TALLBOTTOM_COMBOS:
+        key = f"i1Pro|{combo}"
+        cur = table.get(key)
+        if cur is None or _same_margin(cur, _I1_PRIMARY):   # _I1_PRIMARY has B=9
+            table[key] = _i1_primary(combo)
+            changed = True
     return table, changed
 
 
@@ -502,7 +539,7 @@ def thresholds_for_combo(
 # Bump when a shipped default changes in a way that must reach users who have
 # the OLD default persisted. Settings → Save writes every key, so a stored
 # value otherwise pins a user to the old behaviour for good.
-SETTINGS_SCHEMA = 11
+SETTINGS_SCHEMA = 12
 
 # key → the old default(s) it must no longer be stuck on. Only a stored value
 # EQUAL to one of the old defaults is dropped (so it falls through to the new
@@ -569,6 +606,8 @@ class AppSettings:
                 dropped.append(key)
         if self._migrate_margin_landscape_jig():
             dropped.append("margin_thresholds[A4/Letter Landscape jig]")
+        if self._migrate_margin_i1pro_tall_bottom():
+            dropped.append("margin_thresholds[i1Pro A4 Portrait/A3 Landscape bottom→19mm]")
         if self._migrate_patch_warn_floor():
             dropped.append("patch_read_warn_de (raised value now too high)")
         if self._migrate_save_report_default():
@@ -647,6 +686,25 @@ class AppSettings:
         except Exception:  # noqa: BLE001
             return False
         table, changed = upgrade_margin_landscape_jig(table)
+        if changed:
+            self._qs.setValue("margin_thresholds",
+                              serialize_margin_thresholds(table))
+        return changed
+
+    def _migrate_margin_i1pro_tall_bottom(self) -> bool:
+        """schema 12 (#130): raise the i1Pro A4 Portrait / A3 Landscape bottom
+        margin to 19 mm so the seeded chart stays under the 240 mm strip-length
+        limit. Upgrades a stored ``margin_thresholds`` blob in place, but only for
+        combos that still hold the old 9 mm jig default — a customised value is
+        left untouched. Fresh installs need nothing (the seed already carries 19)."""
+        raw = self._qs.value("margin_thresholds", None)
+        if not raw:
+            return False
+        try:
+            table = parse_margin_thresholds(str(raw))
+        except Exception:  # noqa: BLE001
+            return False
+        table, changed = upgrade_margin_i1pro_tall_bottom(table)
         if changed:
             self._qs.setValue("margin_thresholds",
                               serialize_margin_thresholds(table))
