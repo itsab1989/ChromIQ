@@ -975,6 +975,28 @@ class SettingsDialog(QDialog):
         )
         self._declutter_tip = declutter_tip
 
+        self._splash_check = QCheckBox(
+            tr("Show the splash screen on startup"), self
+        )
+        splash_tip = TooltipButton(
+            tr("Show the Splash Screen on Startup"),
+            tr("When you launch ChromIQ, it briefly shows a small branded "
+            "\"splash\" window — the ChromIQ name and version — while the main "
+            "window is being built behind it. It's the app's way of saying "
+            "\"I'm starting up\" so the screen isn't blank during the short "
+            "moment before the window appears.\n\n"
+            "When this option is ON (the default), that splash screen is shown "
+            "each time you start the app.\n\n"
+            "When OFF, ChromIQ skips the splash entirely and goes straight to "
+            "building the main window. Nothing else changes — the app starts "
+            "exactly the same way and takes the same amount of time; you simply "
+            "don't see the branding screen first. Turn it off if you prefer a "
+            "quieter, no-frills launch.\n\n"
+            "This takes effect the next time you start ChromIQ."),
+            self,
+            min_width=560,
+        )
+
         # Collect the options that apply on this platform, in order, then place
         # them two per row. Platform-specific options are simply omitted (rather
         # than hidden) so they leave no empty cell in the grid.
@@ -988,6 +1010,7 @@ class SettingsDialog(QDialog):
             _bh_cell(self._chromiq_refine_check, refine_tip),
             _bh_cell(self._averaging_check, averaging_tip),
             _bh_cell(self._declutter_check, declutter_tip),
+            _bh_cell(self._splash_check, splash_tip),
         ]
         if native_print_supported():
             bh_cells.append(_bh_cell(self._native_print_check, native_tip))
@@ -2076,6 +2099,7 @@ class SettingsDialog(QDialog):
         self._chromiq_refine_check.setChecked(bool(s.get("chromiq_refinement", False)))
         self._averaging_check.setChecked(bool(s.get("averaging_enabled", False)))
         self._declutter_check.setChecked(bool(s.get("declutter_on_load", True)))
+        self._splash_check.setChecked(bool(s.get("show_splash", True)))
         self._profile_engine_check.setChecked(bool(s.get("profile_engine_beta", False)))
         self._gammap_mode_combo.setCurrentIndex(
             max(0, self._gammap_mode_combo.findData(
@@ -2815,6 +2839,7 @@ class SettingsDialog(QDialog):
         s.set("chromiq_refinement",        self._chromiq_refine_check.isChecked())
         s.set("averaging_enabled",         self._averaging_check.isChecked())
         s.set("declutter_on_load",         self._declutter_check.isChecked())
+        s.set("show_splash",               self._splash_check.isChecked())
         s.set("profile_engine_beta",       self._profile_engine_check.isChecked())
         s.set("gammap_mode",               self._gammap_mode_combo.currentData())
         s.set("chartread_engine",

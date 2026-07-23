@@ -188,12 +188,16 @@ def main() -> int:
             app.processEvents()
             _time.sleep(0.01)
 
-    splash = make_splash(mode, f"v{APP_VERSION}")
+    # The startup splash is optional (Settings → General). When off we skip
+    # straight to the build with no branding screen and no minimum-time hold.
+    show_splash = settings.get("show_splash", True)
+    splash = make_splash(mode, f"v{APP_VERSION}") if show_splash else None
     _splash_shown = _time.monotonic()
-    splash.show()
-    splash.raise_()
-    splash.repaint()
-    _pump(0.18)                 # get it on screen before the blocking build
+    if splash is not None:
+        splash.show()
+        splash.raise_()
+        splash.repaint()
+        _pump(0.18)             # get it on screen before the blocking build
 
     # Heavy UI import + construction, now visibly covered by the splash.
     from ui.main_window import MainWindow
@@ -210,9 +214,11 @@ def main() -> int:
     # Hold the splash to its minimum on-screen time (only pads when the build was
     # faster than _SPLASH_MIN_S — usually it wasn't, so this adds nothing), then
     # reveal the window and dismiss the splash.
-    _pump(max(0.0, _SPLASH_MIN_S - (_time.monotonic() - _splash_shown)))
+    if splash is not None:
+        _pump(max(0.0, _SPLASH_MIN_S - (_time.monotonic() - _splash_shown)))
     win.show()
-    splash.finish(win)          # dismiss the splash now the window is up
+    if splash is not None:
+        splash.finish(win)      # dismiss the splash now the window is up
 
     # Belt-and-braces re-apply for the maximize / fullscreen state. The bytes
     # from saveGeometry() carry it on most platforms, but explicit re-apply

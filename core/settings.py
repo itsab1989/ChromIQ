@@ -215,6 +215,7 @@ DEFAULTS: dict[str, Any] = {
     # or the built-in image-preview pane (Qt/OS limitation — see ui/widgets.py).
     "use_native_file_dialogs":   False,
     "show_welcome_dialog":       True,
+    "show_splash":               True,     # startup branding splash (main.py)
     "window_maximized":          False,
     "window_fullscreen":         False,
     # Session restore — only the target name is stored; every artefact path is
