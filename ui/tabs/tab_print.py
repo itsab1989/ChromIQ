@@ -213,6 +213,7 @@ class TabPrint(QWidget):
         self._printer  = CupsRawPrinter()
         self._tiff_pages: list[Path] = []
         self._current_ti2: Path | None = None
+        self._target_ctl = None          # shared Profile-run / Run-type controller (#130)
         # Sequential-enabling state — populated in _rebuild_option_rows
         self._ordered_opts: list[tuple[str, list[str], QComboBox]] = []
         self._raw_value_pairs: dict[str, list[tuple[str, str]]] = {}
@@ -473,6 +474,11 @@ class TabPrint(QWidget):
         self._tiff_pages = paths
         self._preview.load_tiff(paths)
         self._set_print_buttons_enabled(bool(paths))
+
+    def set_target_controller(self, controller) -> None:
+        """Receive the shared Profile-run / Run-type controller (#130) so loading
+        a chart here honours the bar exactly like the Measure tab."""
+        self._target_ctl = controller
 
     # ------------------------------------------------------------------
     # Internal
@@ -762,7 +768,8 @@ class TabPrint(QWidget):
         )
         if not path:
             return
-        result = resolve_ti2(self, Path(path), self._settings)
+        result = resolve_ti2(self, Path(path), self._settings,
+                             getattr(self, "_target_ctl", None))
         if result is None:
             return
         ti2_path, tiffs = result

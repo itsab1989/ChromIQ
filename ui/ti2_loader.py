@@ -5,8 +5,14 @@ import re
 import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from PyQt6.QtCore import Qt
+
 from core.i18n import tr
 from core.logger import get_logger
+from core.measurement_target import (RUN_TYPE_PROFILING, RUN_TYPE_VERIFICATION,
+                                     MeasurementTarget)
+import workflow.chart_import as _chart_import
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QWidget
@@ -241,16 +247,365 @@ def resolve_ti2(
     parent: "QWidget",
     ti2_path: Path,
     settings: "AppSettings",
+    controller=None,
 ) -> tuple[Path, list[Path]] | None:
-    """Determine how to load a .ti2 file relative to the working folder.
+    """Determine how to load a ``.ti2`` file, honouring the shared Profile-run /
+    Run-type bar (#130 unified file-handling model).
 
-    Returns (ti2_path_to_use, tiff_list) — either the original paths or newly
-    copied/renamed ones — or None if the user cancelled.
+    Returns ``(ti2_path_to_use, tiff_list)`` — the original paths (used in place)
+    or newly copied ones — or ``None`` if the user cancelled. Every path shows an
+    explaining pop-up first (the universal rule); nothing is copied/moved silently.
+
+    *controller* is the shared :class:`MeasurementTargetController`. When a
+    profile project is loaded, the model routes by where the file lives:
+      • inside the loaded project → **Continue** in place (sets the bar) or copy
+        out (A2a);
+      • inside a different project → **Open** it, or copy out (A2b);
+      • a complete project outside the folder → copy the whole project, or import
+        just this chart per the bar (A1b);
+      • a loose chart (or an older/flat layout) → import into the bar's target run
+        per Run type, with a New-vs-Replace choice on overwrite (A1a / A2c).
+    When no project is loaded (or no controller), it falls back to the original
+    "create a new profile project" flow so a first chart can still be loaded.
     """
     working_dir = _resolve_working_dir(settings)
-    if _project_root_for(ti2_path, working_dir) is not None:
+    inside_root = _project_root_for(ti2_path, working_dir)
+    loaded_root = _loaded_project_root(controller)
+
+    if controller is not None and loaded_root is not None:
+        if inside_root is not None and inside_root == loaded_root:
+            return _handle_inside_current(parent, ti2_path, working_dir,
+                                          controller)                      # A2a
+        if inside_root is not None:
+            return _handle_inside_other(parent, ti2_path, inside_root,
+                                        working_dir, controller)           # A2b
+        full = _chart_import.is_full_project(ti2_path)
+        if full is not None:
+            return _handle_full_project(parent, ti2_path, full, working_dir,
+                                        controller)                        # A1b
+        return _handle_loose_into_project(parent, ti2_path, working_dir,
+                                          controller)                      # A1a/A2c
+
+    # No project loaded → the original new-project flow (loads the first chart).
+    if inside_root is not None:
         return _handle_inside(parent, ti2_path, working_dir)
     return _handle_outside(parent, ti2_path, working_dir)
+
+
+def _loaded_project_root(controller) -> "Path | None":
+    if controller is None:
+        return None
+    try:
+        proj = controller.project_or_none()
+        return proj.root if proj is not None else None
+    except Exception:      # noqa: BLE001 — never break a load on this
+        return None
+
+
+# ---------------------------------------------------------------------------
+# #130 unified model — bar-aware load dialogs (each shows an explaining pop-up
+# first; nothing is copied/moved silently).
+# ---------------------------------------------------------------------------
+def _run_label(target) -> str:
+    rid = getattr(target, "profile_run", "") or ""
+    if not rid:
+        return tr("New run")
+    n = rid[3:] if rid.startswith("run") else rid
+    return tr("run {n}").format(n=n)
+
+
+def _type_label(target) -> str:
+    return tr("Verification") if target.is_verification() else tr("Profiling")
+
+
+def _bar_header(target) -> str:
+    return tr("Since <b>Profile run</b> = {run} and <b>Run type</b> = {kind}, the "
+              "following actions are available:").format(
+                  run=_run_label(target), kind=_type_label(target))
+
+
+def _choice_dialog(parent, title, intro_html, choices):
+    """A vertical list of action buttons, each with a description underneath, and
+    a Cancel. *choices* = ``[(button_label, description_html, key)]``. Returns the
+    chosen key, or ``None`` on Cancel."""
+    from PyQt6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QPushButton,
+                                 QVBoxLayout)
+    dlg = QDialog(parent)
+    dlg.setWindowTitle(title)
+    dlg.setMinimumWidth(580)
+    lay = QVBoxLayout(dlg)
+    lay.setContentsMargins(24, 20, 24, 20)
+    lay.setSpacing(10)
+    if intro_html:
+        lbl = QLabel(intro_html, dlg)
+        lbl.setWordWrap(True)
+        lbl.setTextFormat(Qt.TextFormat.RichText)
+        lay.addWidget(lbl)
+    result = {"key": None}
+
+    def _make(k):
+        def _h() -> None:
+            result["key"] = k
+            dlg.accept()
+        return _h
+
+    for label, desc, key in choices:
+        btn = QPushButton(label, dlg)
+        btn.setAutoDefault(False)
+        btn.clicked.connect(_make(key))
+        lay.addWidget(btn)
+        d = QLabel(desc, dlg)
+        d.setWordWrap(True)
+        d.setObjectName("info")
+        d.setTextFormat(Qt.TextFormat.RichText)
+        lay.addWidget(d)
+
+    row = QHBoxLayout()
+    row.addStretch(1)
+    cancel = QPushButton(tr("Cancel"), dlg)
+    cancel.setAutoDefault(False)
+    cancel.clicked.connect(dlg.reject)
+    row.addWidget(cancel)
+    lay.addLayout(row)
+    dlg.exec()
+    return result["key"]
+
+
+def _dest_tiffs(ti2_in_project: Path) -> "list[Path]":
+    return sorted(ti2_in_project.parent.glob(f"{ti2_in_project.stem}_*.tif"))
+
+
+def _run_and_kind_for_ti2(ti2_path: Path) -> "tuple[str, bool]":
+    """(run id, is_verification) for a .ti2 that lives inside a project — a verify
+    chart sits under ``…/runs/runN/verifications/``."""
+    from core.file_manager import Run
+    parent = ti2_path.parent
+    if parent.name == "verifications":
+        run = Run.for_dir(parent.parent)
+        return run.id, True
+    run = Run.for_dir(parent)
+    return run.id, False
+
+
+def _copy_out_new_project(parent, ti2_path, working_dir):
+    """Reuse the classic 'copy to a new profile project' flow (name prompt +
+    copy), used by the 'Use as base for a new profile' choice."""
+    ti1, tiffs = _related_files(ti2_path)
+    res = _ask_profile_name(parent, ti2_path, ti1, tiffs, working_dir)
+    if res is None:
+        return None
+    name, overwrite = res
+    return _copy_files(ti2_path, ti1, tiffs, working_dir, name, overwrite=overwrite)
+
+
+def _handle_loose_into_project(parent, ti2_path, working_dir, controller):
+    """A1a / A2c — a loose external chart (or an older/flat layout inside the
+    working folder). Import into the bar's target run per Run type."""
+    ti1, tiffs = _related_files(ti2_path)
+    proj = controller.project_or_none()
+    t = controller.target
+    verif = t.is_verification()
+    header = _bar_header(t)
+    if not t.profile_run:                      # New run
+        if verif:
+            desc = tr("Copies only the chart files into a new run's "
+                      "<code>verifications/</code> folder as its verification "
+                      "chart. Any .icc/.icm and .ti3 beside the file are not "
+                      "copied.")
+        else:
+            desc = tr("Copies the chart — and its measurement (.ti3) and profile "
+                      "(.icc/.icm) if present — into a new run at the run root.")
+        key = _choice_dialog(parent, tr("Import this chart"), header,
+                             [(tr("Import as a new run"), desc, "import")])
+        if key != "import":
+            return None
+        out = _chart_import.import_external_chart(ti2_path, ti1, tiffs, proj, t)
+    else:                                       # Overwrite run N
+        runlabel = _run_label(t)
+        if verif:
+            rep = tr("Moves the current verification chart and all dated "
+                     "verifications to the folder <code>old/</code>, then installs "
+                     "the loaded chart. Any .icc/.icm and .ti3 beside the file are "
+                     "ignored; the run's profile is untouched.")
+        else:
+            rep = tr("Moves this run's chart, measurement, profile, reports and "
+                     "verifications to the folder <code>old/</code>, then copies "
+                     "the loaded files into the run.")
+        key = _choice_dialog(parent, tr("Import this chart"), header, [
+            (tr("Create a new run instead"),
+             tr("Imports into a brand-new run; nothing in {run} is touched.")
+             .format(run=runlabel), "new"),
+            (tr("Replace {run}").format(run=runlabel), rep, "replace")])
+        if key == "new":
+            t = MeasurementTarget(run_type=t.run_type, profile_run="")
+            out = _chart_import.import_external_chart(ti2_path, ti1, tiffs, proj, t)
+        elif key == "replace":
+            out = _chart_import.import_external_chart(ti2_path, ti1, tiffs, proj,
+                                                     t, replace=True)
+        else:
+            return None
+    _point_bar_at_current_run(controller)
+    return out, _dest_tiffs(out)
+
+
+def _handle_inside_current(parent, ti2_path, working_dir, controller):
+    """A2a — the file is inside the currently loaded project."""
+    run_id, verif = _run_and_kind_for_ti2(ti2_path)
+    n = run_id[3:] if run_id.startswith("run") else run_id
+    what = tr("verification chart") if verif else tr("chart")
+    header = tr("This file is run {n}'s {what}.").format(n=n, what=what)
+    key = _choice_dialog(parent,
+        tr("This chart belongs to the loaded project"), header, [
+        (tr("Continue"),
+         tr("Use it in place; nothing is copied. Profile run is set to "
+            "<b>Overwrite run {n}</b> and Run type to <b>{kind}</b> to match.")
+         .format(n=n, kind=(tr("Verification") if verif else tr("Profiling"))),
+         "continue"),
+        (tr("Use as base for a new profile"),
+         tr("Copies it out into a new printer profile project (you'll pick a "
+            "name); the original is untouched."), "new")])
+    if key == "continue":
+        controller.set_run_type(RUN_TYPE_VERIFICATION if verif else RUN_TYPE_PROFILING)
+        controller.set_profile_run(run_id)
+        _, tiffs = _related_files(ti2_path)
+        return ti2_path, tiffs
+    if key == "new":
+        return _copy_out_new_project(parent, ti2_path, working_dir)
+    return None
+
+
+def _handle_inside_other(parent, ti2_path, inside_root, working_dir, controller):
+    """A2b — the file is inside a DIFFERENT current-structure project."""
+    other = inside_root.name
+    key = _choice_dialog(parent, tr("Load another profile project"), "", [
+        (tr("Open {name}").format(name=other),
+         tr("Switches the working project to <b>{name}</b>. Profile run is set to "
+            "its current run and Run type to Profiling. Nothing is copied.")
+         .format(name=other), "open"),
+        (tr("Use as base for a new profile"),
+         tr("Copies this chart into a new printer profile project (new name → new "
+            "folder). The original {name} is untouched.").format(name=other),
+         "new")])
+    if key == "open":
+        try:
+            controller._fm.set_target_name(other)
+        except Exception:      # noqa: BLE001
+            log.warning("Could not switch to project %s", other, exc_info=True)
+            return None
+        controller.set_run_type(RUN_TYPE_PROFILING)
+        run_id, _ = _run_and_kind_for_ti2(ti2_path)
+        controller.set_profile_run(run_id)
+        _, tiffs = _related_files(ti2_path)
+        return ti2_path, tiffs
+    if key == "new":
+        return _copy_out_new_project(parent, ti2_path, working_dir)
+    return None
+
+
+def _handle_full_project(parent, ti2_path, src_root, working_dir, controller):
+    """A1b — a complete ChromIQ project sitting outside the working folder."""
+    t = controller.target
+    key = _choice_dialog(parent, tr("This is a complete ChromIQ project"), "", [
+        (tr("Copy the whole project in"),
+         tr("Copies the entire project (all runs, verifications, calibration) "
+            "into your ChromIQ folder. Profile run / Run type are not used — the "
+            "copy reproduces the project exactly. You'll confirm the project name "
+            "(pre-filled with <b>{name}</b>); if it already exists you can pick a "
+            "different one or Replace it (the old one is moved to its "
+            "<code>old/</code> folder first).").format(name=src_root.name),
+         "whole"),
+        (tr("Import just this chart"),
+         tr("Ignores the rest of the project and copies only this chart per your "
+            "current Profile run = {run} and Run type = {kind}.").format(
+                run=_run_label(t), kind=_type_label(t)), "chart")])
+    if key == "whole":
+        name = _ask_project_name(parent, src_root.name, working_dir)
+        if name is None:
+            return None
+        new_name, replace = name
+        dest = _chart_import.copy_whole_project(src_root, working_dir, new_name,
+                                                replace=replace)
+        try:
+            controller._fm.set_target_name(dest.name)
+        except Exception:      # noqa: BLE001
+            pass
+        _point_bar_at_current_run(controller)
+        from core.file_manager import Project
+        run = Project.load(dest).current_run()
+        return run.chart_ti2, sorted(run.dir.glob(f"{run.stem}_*.tif"))
+    if key == "chart":
+        return _handle_loose_into_project(parent, ti2_path, working_dir, controller)
+    return None
+
+
+def _ask_project_name(parent, default_name, working_dir):
+    """Prompt for a project name (pre-filled with *default_name*). Returns
+    ``(name, replace)`` or None. On a name collision the user may Replace."""
+    from PyQt6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QLineEdit,
+                                 QPushButton, QVBoxLayout)
+    from core.file_manager import FileManager
+    dlg = QDialog(parent)
+    dlg.setWindowTitle(tr("Copy project"))
+    dlg.setMinimumWidth(520)
+    lay = QVBoxLayout(dlg)
+    lay.setContentsMargins(24, 20, 24, 20)
+    lay.setSpacing(10)
+    lay.addWidget(QLabel(tr("Copy the project into your ChromIQ folder as:"), dlg))
+    edit = QLineEdit(default_name, dlg)
+    edit.selectAll()
+    lay.addWidget(edit)
+    err = QLabel("", dlg)
+    err.setStyleSheet("color:#e05555;")
+    err.setWordWrap(True)
+    lay.addWidget(err)
+    out = {"val": None}
+    row = QHBoxLayout()
+    cont = QPushButton(tr("Continue"), dlg)
+    cont.setDefault(True)
+    replace_btn = QPushButton(tr("Replace existing"), dlg)
+    replace_btn.setAutoDefault(False)
+    replace_btn.setVisible(False)
+    row.addWidget(cont)
+    row.addWidget(replace_btn)
+    row.addStretch(1)
+    cancel = QPushButton(tr("Cancel"), dlg)
+    cancel.setAutoDefault(False)
+    cancel.clicked.connect(dlg.reject)
+    row.addWidget(cancel)
+    lay.addLayout(row)
+
+    def _exists(name):
+        return (Path(working_dir) / FileManager._sanitise(
+            FileManager.strip_workfile_ext(name))).exists()
+
+    def _accept(replace):
+        name = edit.text().strip()
+        if not name:
+            err.setText(tr("Please enter a name.")); return
+        if _exists(name) and not replace:
+            replace_btn.setVisible(True)
+            err.setText(tr("A project named “{name}” already exists. Choose a "
+                           "different name, or Replace it (the existing one is "
+                           "moved to its own old/ folder).").format(name=name))
+            return
+        out["val"] = (name, replace)
+        dlg.accept()
+
+    cont.clicked.connect(lambda: _accept(False))
+    replace_btn.clicked.connect(lambda: _accept(True))
+    dlg.exec()
+    return out["val"]
+
+
+def _point_bar_at_current_run(controller) -> None:
+    """After an import, point the bar at the project's current run so it reflects
+    where the chart landed (keeps Run type)."""
+    try:
+        proj = controller.project_or_none()
+        if proj is not None:
+            controller.set_profile_run(proj.current_run().id)
+    except Exception:      # noqa: BLE001
+        pass
 
 
 def resolve_ti3(

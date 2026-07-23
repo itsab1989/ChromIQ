@@ -2800,7 +2800,8 @@ class TabMeasure(QWidget):
         )
         if not path:
             return
-        result = resolve_ti2(self, Path(path), self._settings)
+        result = resolve_ti2(self, Path(path), self._settings,
+                             getattr(self, "_target_ctl", None))
         if result is None:
             return
         ti2_path, tiffs = result   # TIFFs re-discovered by set_ti1_path → _try_load_tiffs

@@ -112,7 +112,7 @@ class MainWindow(QMainWindow):
         # whenever the bar's width changes (the Verification box shows/hides).
         self._masthead.set_center_widget(self._target_bar)
         self._target_ctl.changed.connect(self._masthead.reposition_center)
-        for _t in (self._tab_chart, self._tab_measure):
+        for _t in (self._tab_chart, self._tab_measure, self._tab_print):
             if hasattr(_t, "set_target_controller"):
                 _t.set_target_controller(self._target_ctl)
 
