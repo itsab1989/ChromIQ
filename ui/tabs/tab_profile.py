@@ -218,7 +218,7 @@ _TOOLTIP_BODY_CAL = (
     "In short: make the calibration → use it when you print the real "
     "chart → measure → build the profile → (optionally) fold the "
     "calibration into the profile.\n\n"
-    "New to this? Turn calibration mode off in Settings and use the "
+    "New to this? Turn calibration mode off in Preferences and use the "
     "simple 4-tab flow until you're comfortable. Calibration is here for "
     "people chasing extra accuracy on printers that aren't perfectly "
     "stable batch-to-batch."
@@ -575,7 +575,7 @@ class TabProfile(QWidget):
 
     def _accurate_engine_active(self) -> bool:
         """True while builds run through the engine's Maximum accuracy
-        mode (Settings → Beta) — the only state with engine-only options."""
+        mode (Preferences → Beta) — the only state with engine-only options."""
         return (bool(self._settings.get("profile_engine_beta", False))
                 and str(self._settings.get("gammap_mode", "fast"))
                 == "accurate")
@@ -2416,7 +2416,7 @@ class TabProfile(QWidget):
             lambda _i: _on_kgen_rule_changed())
 
         # Engine-only options (#123) — only shown while the ChromIQ engine
-        # runs in its Maximum accuracy mode (Settings → Beta); colprof has
+        # runs in its Maximum accuracy mode (Preferences → Beta); colprof has
         # no equivalent flags, so they stay hidden on every other path.
         self._m_engine_rows_widget = QWidget(grp)
         eng_col = QVBoxLayout(self._m_engine_rows_widget)

@@ -125,7 +125,7 @@ CAMERA_HELP = tr(
 def _user_profile_dir() -> Path:
     """The colour-profile folder "Install profile" writes to (Nelson):
     the platform's per-user store, or the user's own choice from
-    Settings → Paths (Knut #108) — one source of truth in platform_paths."""
+    Preferences → Paths (Knut #108) — one source of truth in platform_paths."""
     from core.platform_paths import icc_install_dir
     return icc_install_dir()
 
@@ -3356,7 +3356,7 @@ class ScannerProfileDialog(_ToolDialogBase):
             "{al}. A grid sitting slightly off on one page (even by half a "
             "patch) produces exactly this. Check the diagnostic images, "
             "realign and rebuild before trusting this profile. (Thresholds: "
-            "Settings → Scanner Limits.)").format(
+            "Preferences → Scanner Limits.)").format(
                 p=round(peak, 1), a=round(avg, 1), al=round(avg_lim)))
 
     def _build_printer_profile(self, pbase: Path, base: Path) -> None:

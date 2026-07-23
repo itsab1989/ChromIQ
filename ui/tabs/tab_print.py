@@ -110,7 +110,7 @@ _TT_BODY_PRINT_MACOS_BYPASS = (
     "best accuracy with pigment inks) before measuring. Wet ink reads "
     "wrong.\n\n"
     "If you'd rather use the macOS print dialog (e.g. to pick a specific "
-    "paper feed), enable \"Use the native print dialog\" in Settings."
+    "paper feed), enable \"Use the native print dialog\" in Preferences."
 )
 
 _TT_BODY_PRINT_MACOS_NATIVE = (
@@ -133,7 +133,7 @@ _TT_BODY_PRINT_MACOS_NATIVE = (
     "• Never click Cancel/Abort in any pane or sub-window — always close them "
     "with OK. Cancel reverts the colour-off setting; OK keeps it.\n\n"
     "Prefer ChromIQ to print straight to the queue with no dialog? Untick "
-    "\"Use the native print dialog\" in Settings to use the lp path instead "
+    "\"Use the native print dialog\" in Preferences to use the lp path instead "
     "— it also forces colour management off.\n\n"
     "Let the print dry fully (1 h minimum, 24 h for pigment inks) before "
     "measuring."
@@ -1283,7 +1283,7 @@ class TabPrint(QWidget):
                            "The print may have been colour-managed by the driver. "
                            "Check the swatch with Digital Color Meter or reprint "
                            "after switching to the non-native (standard) print mode "
-                           "in Settings.").format(exc=exc),
+                           "in Preferences.").format(exc=exc),
                     )
             except Exception as exc:
                 log.error("Native macOS print failed: %s", exc)

@@ -1455,7 +1455,7 @@ class TabChart(QWidget):
 
         # Margin inspector — measures the realised page margins of the generated
         # preview and flags ruler/jig threshold violations (Knut). Hidden when
-        # the user disables it in Settings → Margin Thresholds.
+        # the user disables it in Preferences → Margin Thresholds.
         # Page TIFFs + ti2 of the chart currently in the preview (for measuring).
         # Set BEFORE the panel is wired so restoring the saved guide-checkbox
         # state (which can emit guides_toggled) never finds these unset.
@@ -3227,10 +3227,10 @@ class TabChart(QWidget):
 
     def _current_layout_recipe(self):
         """The LayoutRecipe from the engine layout panel, with the strip-
-        indicator styling overlaid from Settings → Chart Layout. That styling
+        indicator styling overlaid from Preferences → Chart Layout. That styling
         is global — the single source of truth for every engine chart; loaded
         presets / saved defaults carry the styling fields only as inert
-        history. Overlaying at read time means a style change in Settings
+        history. Overlaying at read time means a style change in Preferences
         reaches the next build/preview immediately, on any recipe (#93)."""
         return self._settings.apply_indicator_style(
             self._manual_layout_panel.get_recipe())
@@ -8289,7 +8289,7 @@ class TabChart(QWidget):
             thresholds = self._settings.get_margin_thresholds().get(key)
 
         # Strip-length (ruler) limit: the per-combo value configured in
-        # Settings → Instrument Limits wins; else the instrument's built-in ruler
+        # Preferences → Instrument Limits wins; else the instrument's built-in ruler
         # reported by the engine geometry (#93, Knut). Warn when the strip is over.
         _eff_ruler = _geom_ruler
         try:

@@ -554,7 +554,7 @@ class MeasurementReportDialog(QDialog):
         # metrics, the maximum threshold the two maximum metrics (Knut).
         from ui.widgets import NoScrollDoubleSpinBox
         from workflow.measurement_report import DEFAULT_PASS_AVG, DEFAULT_PASS_MAX
-        # Open with the user's configured defaults (Settings → Reports), falling
+        # Open with the user's configured defaults (Preferences → Reports), falling
         # back to the built-in 2.0 / 3.0 (Knut).
         avg0 = float(settings.get("report_pass_threshold_avg", DEFAULT_PASS_AVG))
         max0 = float(settings.get("report_pass_threshold_max", DEFAULT_PASS_MAX))
@@ -584,7 +584,7 @@ class MeasurementReportDialog(QDialog):
                "points are 2.0 for the average and 3.0 for the maximum — tighten "
                "them for critical work, loosen them for a quick health check.\n\n"
                "The values a report starts with are the defaults set in "
-               "Settings → Reports (Pass Threshold Average and Maximum)."),
+               "Preferences → Reports (Pass Threshold Average and Maximum)."),
             self, color=SPEC_GREEN))
         thr_row.addStretch(1)
         v.addLayout(thr_row)
@@ -1335,7 +1335,7 @@ class MeasurementReportDialog(QDialog):
         return Counter(names).most_common(1)[0][0] if names else ""
 
     def _report_title(self, runs: list) -> str:
-        """The report's first-page title from the user's Settings → Reports
+        """The report's first-page title from the user's Preferences → Reports
         prefixes: "<prefix>[ - <profile name>]" — NO date/time (the report shows
         its Created date inside; Knut). The prefix is the profiling or
         verification line depending on the included measurements (#130)."""

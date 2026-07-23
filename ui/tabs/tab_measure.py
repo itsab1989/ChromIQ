@@ -1950,7 +1950,7 @@ class TabMeasure(QWidget):
             "second pass. Guided refinement uses the very same jump "
             "automatically.\n\n"
             "This tip appears because the ChromIQ chart-reading engine is "
-            "enabled in Settings → Beta features."),
+            "enabled in Preferences → Beta features."),
             self._m_engine_tip))
         self._m_engine_tip.setVisible(False)
         ll.addWidget(self._m_engine_tip)
@@ -3698,7 +3698,7 @@ class TabMeasure(QWidget):
             "[Engine] Switched to ArgyllCMS chartread because ChromIQ's own "
             "measuring engine could not use your instrument ({reason}). "
             "Measuring continues as normal; you can turn the ChromIQ engine off "
-            "for good in Settings if this keeps happening."
+            "for good in Preferences if this keeps happening."
         ).format(reason=reason))
         self._log.ensureCursorVisible()
 
@@ -4888,7 +4888,7 @@ class TabMeasure(QWidget):
             layout.setSpacing(16)
             layout.setContentsMargins(24, 20, 24, 20)
             msg = QLabel(
-                tr("<b>The colorimeter correction file could not be applied.</b><br><br>Argyll reported: <i>{err}</i><br><br>Check the path in <b>Settings → Argyll Options</b>, or remove the CCMX / CCSS reference from the extra-args field and try again.").format(err=err),
+                tr("<b>The colorimeter correction file could not be applied.</b><br><br>Argyll reported: <i>{err}</i><br><br>Check the path in <b>Preferences → Argyll Options</b>, or remove the CCMX / CCSS reference from the extra-args field and try again.").format(err=err),
                 dlg,
             )
             msg.setWordWrap(True)
@@ -5369,7 +5369,7 @@ class TabMeasure(QWidget):
 
     def refresh_engine_visibility(self) -> None:
         """Re-apply the chart-reading-engine beta flag to the engine-only UI so
-        turning it on/off in Settings takes effect the moment you click OK — no
+        turning it on/off in Preferences takes effect the moment you click OK — no
         app restart. Called by MainWindow after the Settings dialog closes; the
         engine itself is already chosen live at the start of each measurement, so
         this only syncs the visible chrome (the "Live preview" view groups)."""
@@ -5494,7 +5494,7 @@ class TabMeasure(QWidget):
 
         from PyQt6.QtGui import QColor as _QC
         # The ΔE at which a patch gets the red warning outline is user-settable
-        # (Settings → Beta), defaulting to _PATCH_WARN_DE (Knut).
+        # (Preferences → Beta), defaulting to _PATCH_WARN_DE (Knut).
         warn_de = float(self._settings.get("patch_read_warn_de", _PATCH_WARN_DE))
         # A patch is flagged only if it is BOTH above the absolute floor AND an
         # outlier within this strip (Tukey fence). Vivid patches that all sit

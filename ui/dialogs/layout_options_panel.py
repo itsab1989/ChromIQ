@@ -1,6 +1,6 @@
 """Reusable ChromIQ layout-engine options panel (issue #93).
 
-The same control set is shown in **Settings → Chart Layout** (as the defaults
+The same control set is shown in **Preferences → Chart Layout** (as the defaults
 editor) and in the **Create Chart → Manual** module (as the per-chart mirror),
 so the two can't drift.  The panel edits the layout-specific fields of a
 :class:`~workflow.layout_engine.presets.LayoutRecipe`; the host supplies the
@@ -319,7 +319,7 @@ class LayoutOptionsPanel(QWidget):
 
         # "Show strip indicators" (the per-chart on/off) lives in the Layout frame
         # right above Clip border (Knut #93); the indicator *styling* (font / size
-        # / rotation / underline …) moved to Settings → Chart Layout. Created
+        # / rotation / underline …) moved to Preferences → Chart Layout. Created
         # unconditionally so from_recipe/to_recipe work even without selectors.
         self.show_indicators = QCheckBox(tr("Show strip indicators"), self)
         self.show_indicators.setChecked(True)
@@ -331,7 +331,7 @@ class LayoutOptionsPanel(QWidget):
                "you always know which strip you're measuring and in what order. "
                "Turn off only if you have another way to keep the strips "
                "straight. Set the font, size and underline style in "
-               "Settings → Chart Layout."), self)
+               "Preferences → Chart Layout."), self)
 
         from PyQt6.QtWidgets import QLineEdit, QPushButton
 
@@ -483,7 +483,7 @@ class LayoutOptionsPanel(QWidget):
         lgg.addWidget(self._area_fields_w, 1, 0, 1, 3)
         # "Show strip indicators" is a layout option (not a selector), so it is
         # ALWAYS placed here — otherwise, when the panel has no built-in selectors
-        # (e.g. the Settings → Chart Layout tab), the checkbox was created but
+        # (e.g. the Preferences → Chart Layout tab), the checkbox was created but
         # never added to a layout and floated at the panel's top-left, overlapping
         # the "Basic" frame header (Knut).
         lgg.addWidget(self.show_indicators, 2, 1)
@@ -501,7 +501,7 @@ class LayoutOptionsPanel(QWidget):
         # "Offset every second strip" is a ColorMunki layout option (printtarg's
         # rig stagger), so it belongs with the layout choices, not in Patches &
         # spacers (Knut). CM-only — visibility is set per-instrument. Always placed
-        # (like Show strip indicators) so it shows in Settings too.
+        # (like Show strip indicators) so it shows in Preferences too.
         self.cm_stagger_cb = QCheckBox(tr("Offset every second strip"), self)
         self.cm_stagger_cb.toggled.connect(self._emit)
         self._cm_stagger_tip = TooltipButton(
@@ -687,7 +687,7 @@ class LayoutOptionsPanel(QWidget):
         self._on_randomize_toggled(True)
 
         # ---- Strip indicators (detail widgets) ----
-        # The styling controls moved to Settings → Chart Layout (Knut #93); only
+        # The styling controls moved to Preferences → Chart Layout (Knut #93); only
         # the "Show strip indicators" checkbox stays in the panel (in the Layout
         # frame, above Clip border). These widgets are still built so a loaded
         # preset's styling round-trips through from_recipe / to_recipe, but the
@@ -800,7 +800,7 @@ class LayoutOptionsPanel(QWidget):
                        "patches, a negative value raises them into the margin. The "
                        "patch area doesn't change, so this doesn't affect how many "
                        "patches fit."), self))
-        # Hidden carrier: the styling now lives in Settings → Chart Layout, but
+        # Hidden carrier: the styling now lives in Preferences → Chart Layout, but
         # these widgets still back from_recipe / to_recipe so presets round-trip.
         si.setVisible(False)
         self._on_rotation_changed()
@@ -914,7 +914,7 @@ class LayoutOptionsPanel(QWidget):
                     tr("Max strip length"),
                     tr("Caps how long a single strip (column of patches) may get, "
                        "in mm. Leave at “auto” to use the instrument's limit (set "
-                       "per instrument/paper in Settings → Instrument Limits). Some "
+                       "per instrument/paper in Preferences → Instrument Limits). Some "
                        "scanners can't read a strip past a certain length; lower "
                        "this if long strips misread. Only used in “Prioritise patch "
                        "size” — area-first fills the page and warns if a strip is "
