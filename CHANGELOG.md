@@ -1,5 +1,49 @@
 # Changelog
 
+## v3.14.8-beta.6
+
+This beta completes the unified file-handling model for the verification-runs
+work (#130): opening any chart, patch set or profile now routes through one
+clear, explaining pop-up and always follows the shared **Profile-run / Run type**
+bar. Nothing is ever silently overwritten or deleted.
+
+- **Loading a chart (`.ti2`) now always explains what will happen first.**
+  Whether you pick a loose chart, a chart from inside the loaded project, one
+  from another project, or a complete project folder, ChromIQ shows a pop-up
+  headed by the current bar state ("Since **Profile run** = … and **Run type** =
+  …, the following actions are available:") and lists each option with its exact
+  consequences and file paths, plus Cancel. Profiling loads the full chart set
+  into the run; Verification files a verification chart under the run's
+  `verifications/` folder; and choosing **Overwrite → Replace** moves every
+  displaced file — including the whole `verifications/` tree — into a dated
+  `old/` folder rather than deleting it.
+- **Loading a patch set (`.ti1`) is bar-aware too.** With a profile project open,
+  ChromIQ asks whether to lay the patches into that project (Create Chart then
+  follows the bar) or start a new project named after the file — instead of
+  quietly renaming your project.
+- **Opening an older profile is explained before it's updated.** Reopening a
+  project made by an older ChromIQ shows a friendly, one-time note that the
+  folder is being brought up to the current layout — safe, in place, nothing
+  deleted.
+- **"No verification chart yet" guidance.** Starting a verification on a run that
+  has a finished profile but no verification chart now stops and walks you
+  through creating one, distinct from the "build a profile first" message.
+- **Reports are saved in the right place.** An exported report PDF now lands at
+  the tightest folder that still contains everything it covers: a single
+  profiling run's own `reports/`, a single verification's dated
+  `verifications/<date>/reports/`, or the whole profile's `reports/` (next to
+  `runs/`) for the all-runs trend view.
+- **Clearer naming: "Printer profile project name".** The Create Chart name field
+  is renamed to make plain that it names the whole project (the folder and every
+  file's base name), distinct from the printer profile itself (the `.icc`/`.icm`
+  file it produces). The Dictionary gains entries for the project name, the
+  profile file, a profile run, run type and the `old/` folder.
+- **The run/type bar is honest when no project is loaded.** With nothing open the
+  Profile-run and Run-type controls are greyed out with a short hint, and light
+  up the moment you create or open a project.
+- **The Create Chart presets button is a list icon** (it previously read as a
+  favourites star), and the guided help describes it accordingly.
+
 ## v3.14.8-beta.5
 
 More fixes from Knut's testing of the verification-runs work (#130):
