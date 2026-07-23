@@ -149,3 +149,73 @@ def test_same_target_key_does_not_reload(qapp, tmp_path, monkeypatch):
     shown.clear()
     ctl.set_verification_id("2026-06-01_090000")   # same run+type, different date
     assert shown == []                              # no reload
+
+
+# --- #130 (Knut 14:45): build targets the run the bar selects ---------------
+
+def _make_run2(proj):
+    from core.file_manager import Project
+    proj.new_run()                      # run2 becomes current
+    return Project.load(proj.root)
+
+
+def test_align_overwrite_sets_current_run(qapp, tmp_path):
+    proj = Project.create(tmp_path / "P", "P")
+    _make_profiling_chart(proj.current_run())        # run1 has a chart
+    proj = _make_run2(proj)                          # now run2 is current
+    assert proj.current_run().id == "run2"
+
+    tab = _tab(_settings(tmp_path))
+    ctl = MeasurementTargetController(_FM(proj.root))
+    tab.set_target_controller(ctl)
+    ctl.set_profile_run("run1")                      # "Overwrite run 1"
+    tab._align_current_run_to_target()
+
+    assert Project.load(proj.root).current_run().id == "run1"
+
+
+def test_align_new_run_creates_and_selects_it(qapp, tmp_path):
+    proj = Project.create(tmp_path / "Q", "Q")
+    _make_profiling_chart(proj.current_run())        # run1
+    tab = _tab(_settings(tmp_path))
+    ctl = MeasurementTargetController(_FM(proj.root))
+    tab.set_target_controller(ctl)
+    ctl.set_profile_run("")                          # "New run"
+    tab._align_current_run_to_target()
+
+    reloaded = Project.load(proj.root)
+    assert reloaded.current_run().id == "run2"       # a fresh run was created
+    assert ctl.target.profile_run == "run2"          # bar now points at it
+
+
+def test_align_noop_without_project(qapp, tmp_path):
+    """No project loaded → alignment does nothing (the new-project flow makes run1)."""
+    tab = _tab(_settings(tmp_path))
+
+    class _EmptyFM:
+        def working_dir(self): return tmp_path / "nope"
+        def project(self): raise AssertionError("should not be called")
+
+    ctl = MeasurementTargetController(_EmptyFM())
+    tab.set_target_controller(ctl)
+    ctl.set_profile_run("")
+    tab._align_current_run_to_target()               # must not raise
+
+
+def test_default_bar_to_current_run_prevents_spurious_new_run(qapp, tmp_path):
+    """#130 regression: after a build (or load) the bar must point at the current
+    run, so a plain re-align OVERWRITES it instead of creating a new run."""
+    proj = Project.create(tmp_path / "P", "P")
+    _make_profiling_chart(proj.current_run())        # run1 is current
+    tab = _tab(_settings(tmp_path))
+    ctl = MeasurementTargetController(_FM(proj.root))
+    tab.set_target_controller(ctl)
+    assert ctl.target.profile_run == ""              # empty default == "New run"
+
+    tab._default_bar_to_current_run()
+    assert ctl.target.profile_run == "run1"          # now overwrites run1
+
+    # A subsequent align must NOT create a new run.
+    tab._align_current_run_to_target()
+    assert Project.load(proj.root).current_run().id == "run1"
+    assert [r.id for r in Project.load(proj.root).all_runs()] == ["run1"]

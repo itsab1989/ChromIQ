@@ -3603,6 +3603,8 @@ class TabChart(QWidget):
         else:
             self._preview.clear()
             self._current_ti1_path = None
+        # #130: default the shared bar to this project's current run.
+        self._default_bar_to_current_run()
 
     def _display_run_chart(self, ti2: Path, tiffs: list[Path], ti1: Path) -> None:
         """Show an existing chart (its pages, margins and own creation settings)
@@ -7413,6 +7415,15 @@ class TabChart(QWidget):
 
         self.target_started.emit()
 
+        # #130: remember which project we're in BEFORE the profile name is
+        # applied. A build under the SAME profile name can honour the shared
+        # bar's Profile-run selection (Overwrite runN / New run); a build under a
+        # NEW name is its own new project (with its own run1), so the bar's
+        # run selection — which refers to the previously loaded project — must
+        # NOT drive it.
+        _ctl = getattr(self, "_target_ctl", None)
+        _proj_before = _ctl.project_or_none() if _ctl is not None else None
+
         params = self._collect_params()
         # Remembered for _stamp_chart_meta so the run's meta.json can carry the
         # full printtarg layout knobs (not just instrument/paper), letting the
@@ -7454,6 +7465,20 @@ class TabChart(QWidget):
                     params.neutral_axis_from_profile = True
                 except FileNotFoundError as exc:
                     log.warning("Could not seed pre-conditioning run: %s", exc)
+
+        # #130 (Knut): for a normal build INTO the loaded project, point the
+        # current run at the shared bar's Profile-run selection so the chart
+        # lands where the bar shows — Overwrite runN → runs/runN/, New run → a
+        # fresh runs/runN+1/ (Run type = Verification then files it under that
+        # run's verifications/ in _on_generate_finished). Skipped for
+        # calibration and refinement (they chose their run above) and for a
+        # build under a new name (that's a different project with its own run1).
+        _same_project = (
+            _proj_before is not None
+            and _proj_before.root.name == self._file_mgr.working_dir().name)
+        if not cal_target_active and not self._preconditioning_from_dialog \
+                and _same_project:
+            self._align_current_run_to_target()
 
         self._log.clear()
         self._preview.clear()
@@ -7862,6 +7887,50 @@ class TabChart(QWidget):
             log.warning("Run-type switch: could not resolve target chart: %s", exc)
         return None
 
+    def _default_bar_to_current_run(self) -> None:
+        """Point the shared bar at the loaded project's current run (#130), so the
+        bar reads "Overwrite run N" rather than its empty "New run" default — and
+        a plain Generate overwrites that run instead of creating a spurious new
+        one. A no-op without a project or controller; the user can still pick
+        "New run" explicitly afterwards."""
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
+            return
+        try:
+            proj = ctl.project_or_none()
+            if proj is None:
+                return
+            rid = proj.current_run().id
+            if ctl.target.profile_run != rid:
+                ctl.set_profile_run(rid)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Could not default the target bar to the current run: %s", exc)
+
+    def _align_current_run_to_target(self) -> None:
+        """Point the loaded project's current run at the shared bar's Profile-run
+        selection before a normal build, so the chart is written where the bar
+        shows (#130, Knut): **Overwrite run N** → that run's folder; **New run**
+        → a fresh ``runs/runN+1/``. Only called for an in-project build (same
+        profile name); never for calibration, refinement or a new-name project.
+
+        For "New run" the bar is advanced to the freshly created run so the next
+        action targets it too (and so the run stops reading as "New run")."""
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
+            return
+        proj = ctl.project_or_none()
+        if proj is None:
+            return
+        run_id = ctl.target.profile_run
+        if run_id and proj.has_run(run_id):
+            if proj.current_run().id != run_id:
+                proj.set_current_run(run_id)
+                log.info("Create Chart: build target run → %s (overwrite)", run_id)
+        elif not run_id:                     # "New run"
+            new_run = proj.new_run()
+            log.info("Create Chart: build target run → %s (new run)", new_run.id)
+            ctl.set_profile_run(new_run.id)
+
     def _on_target_changed(self) -> None:
         """React to a Profile-run / Run-type change: show THAT target's chart —
         its own Create-Chart settings + preview — and hand it to Print / Measure,
@@ -8008,6 +8077,10 @@ class TabChart(QWidget):
             # Track the just-built chart so a later Run-type switch back to it
             # doesn't needlessly reload (#130).
             self._shown_chart_ti2 = ti2
+            # #130: default the shared bar to the run we just built into, so a
+            # plain re-Generate OVERWRITES it instead of spuriously creating a new
+            # run (the bar's empty default reads as "New run").
+            self._default_bar_to_current_run()
             self.chart_finished.emit(tiffs, ti2, is_isis)
         else:
             self._set_margin_chart([], None)

@@ -1068,6 +1068,10 @@ class MainWindow(QMainWindow):
 
         proj = self._file_mgr.project()
         run = proj.current_run()
+        # #130: default the shared Profile-run bar to the restored project's
+        # current run, so a plain Generate overwrites it (not a spurious new run).
+        if getattr(self, "_target_ctl", None) is not None:
+            self._target_ctl.set_profile_run(run.id)
 
         if proj.schema_too_new:
             # A newer ChromIQ organised this project's folders in a way this
