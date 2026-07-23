@@ -1082,11 +1082,14 @@ class Project:
         # so a user's own "<stem>-notes.txt" is left untouched, and structural
         # files (project.json, meta.json, the README) never match. The bare
         # extensions (.ti1/.ti2/.cht/.cie/…) match via the trailing \.[\w.]+$.
-        # -cal may combine with a sidecar marker: a calibration chart's
-        # exports are "<stem>-cal-colours.txt" etc. (#127 — the old
-        # single-marker pattern silently skipped those on rename).
+        # -cal / -verify may combine with a sidecar marker: a calibration chart's
+        # exports are "<stem>-cal-colours.txt" etc. (#127 — the old single-marker
+        # pattern silently skipped those on rename). -verify covers the shared
+        # verification chart (verifications/<stem>-verify.*) and the dated
+        # verification measurements (verifications/<date>/<stem>-verify.ti3), so a
+        # project rename carries them along too (#130, Hole 8).
         protected = {self.MANIFEST, self.README, "meta.json"}
-        tail_re = re.compile(r"(-cal)?(-i1profiler|-colours)?(_\d+)?\.[\w.]+$")
+        tail_re = re.compile(r"(-cal|-verify)?(-i1profiler|-colours)?(_\d+)?\.[\w.]+$")
 
         for f in sorted(self._root.rglob("*")):
             if not f.is_file() or f.name in protected:

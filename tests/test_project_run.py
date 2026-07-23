@@ -653,6 +653,34 @@ def test_project_rename_covers_cal_sidecars_and_subfolders(tmp_path: Path) -> No
     assert (run2.reports_dir / "Refine_Strips_Old.txt").exists()
 
 
+def test_project_rename_covers_verification_stems(tmp_path: Path) -> None:
+    """#130 Hole 8: a project rename also renames the shared verify-chart files
+    (<stem>-verify.*) and the dated verification measurements
+    (verifications/<date>/<stem>-verify.ti3), plus their exports sidecars."""
+    import shutil as _sh
+    import datetime as _dt
+    proj = Project.create(tmp_path / "Old", "Old")
+    run = proj.current_run(); run.ensure_dir()
+    run.verifications_dir.mkdir(parents=True, exist_ok=True)
+    run.verify_chart_ti2.write_text("v")                        # Old-verify.ti2
+    (run.verifications_dir / f"{run.verify_stem}_01.tif").write_text("t")
+    from core.file_manager import ensure_subdir
+    ensure_subdir(run.verifications_dir / "exports").joinpath(
+        f"{run.verify_stem}-colours.txt").write_text("x")
+    v = run.new_verification(_dt.datetime(2026, 6, 1, 9, 0, 0)); v.ensure_dir()
+    v.measurement_ti3.write_text("vm")                          # Old-verify.ti3
+
+    _sh.move(str(tmp_path / "Old"), str(tmp_path / "New"))
+    proj2 = Project.load(tmp_path / "New"); proj2.rename("New")
+
+    r = proj2.current_run()
+    assert r.verify_chart_ti2.exists() and r.verify_chart_ti2.name == "New-verify.ti2"
+    assert (r.verifications_dir / f"{r.verify_stem}_01.tif").exists()
+    assert (r.verifications_dir / "exports" / f"{r.verify_stem}-colours.txt").exists()
+    assert r.verification("2026-06-01_090000").measurement_ti3.exists()
+    assert not list(r.dir.rglob("Old*"))                        # nothing stale left
+
+
 # ---------------------------------------------------------------------------
 # #130: verification-run model + v2→v3 migration
 # ---------------------------------------------------------------------------
