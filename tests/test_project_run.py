@@ -713,3 +713,31 @@ def test_v2_to_v3_migration_folds_legacy_verify_ti3(tmp_path: Path) -> None:
     assert len(vs) == 1
     assert vs[0].measurement_ti3.is_file()
     assert vs[0].measurement_ti3.read_text().startswith("CTI3")
+
+
+def test_archive_to_old_moves_existing_and_dedups(tmp_path: Path) -> None:
+    proj = Project.create(tmp_path / "P", "P")
+    run = proj.current_run(); run.ensure_dir()
+    (run.dir / "P.ti3").write_text("meas")
+    reads = run.reads_dir; reads.mkdir(); (reads / "read1.ti3").write_text("r1")
+    missing = run.dir / "nope.icc"                 # doesn't exist → skipped
+
+    dest = run.archive_to_old([run.dir / "P.ti3", reads, missing])
+    assert dest is not None and dest.parent == run.old_dir
+    assert (dest / "P.ti3").read_text() == "meas"  # file moved
+    assert (dest / "reads" / "read1.ti3").is_file() # folder moved whole
+    assert not (run.dir / "P.ti3").exists()         # gone from the run root
+    assert not reads.exists()
+
+    # Nothing to archive → None, no folder churn.
+    assert run.archive_to_old([run.dir / "ghost.ti3"]) is None
+
+    # A second archive of a same-named file de-dups within its own dated folder.
+    (run.dir / "P.ti3").write_text("meas2")
+    import datetime as _dt
+    d2 = run.archive_to_old([run.dir / "P.ti3"], when=_dt.datetime(2026, 7, 15, 10, 30, 0))
+    (run.dir / "P.ti3").write_text("meas3")
+    d3 = run.archive_to_old([run.dir / "P.ti3"], when=_dt.datetime(2026, 7, 15, 10, 30, 0))
+    assert d2 == d3                                 # same timestamped folder
+    names = sorted(p.name for p in d2.iterdir())
+    assert names == ["P.ti3", "P_1.ti3"]            # de-duped

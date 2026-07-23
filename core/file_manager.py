@@ -607,6 +607,33 @@ class Run:
             n += 1
         return v
 
+    # ---- overwrite safety: "start fresh" archive (#130)
+    @property
+    def old_dir(self) -> Path:                return self.dir / "old"
+
+    def archive_to_old(self, paths: "list[Path]",
+                       when: "datetime | None" = None) -> "Path | None":
+        """Move existing *paths* (files or folders) into a timestamped
+        ``runs/runN/old/<date>/`` folder before an overwrite, so "start fresh"
+        never silently destroys the previous measurement / profile / reports
+        (#130, Knut). Missing paths are skipped; name clashes get a numeric
+        suffix. Returns the archive folder, or None when nothing existed."""
+        existing = [p for p in paths if p.exists()]
+        if not existing:
+            return None
+        when = when or datetime.now()
+        dest = self.old_dir / when.strftime("%Y-%m-%d_%H%M%S")
+        dest.mkdir(parents=True, exist_ok=True)
+        for p in existing:
+            target = dest / p.name
+            n = 1
+            while target.exists():
+                target = dest / f"{p.stem}_{n}{p.suffix}"
+                n += 1
+            shutil.move(str(p), str(target))
+            log.info("archived %s -> old/%s/", p.name, dest.name)
+        return dest
+
     # ---- meta
     @property
     def meta_path(self) -> Path:              return self.dir / "meta.json"
