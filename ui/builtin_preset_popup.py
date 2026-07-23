@@ -13,10 +13,11 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from PyQt6.QtCore import QEvent, QPoint, QPointF, QRect, QSize, Qt, pyqtSignal
+from PyQt6.QtCore import (QEvent, QPoint, QPointF, QRect, QRectF, QSize, Qt,
+                          pyqtSignal)
 from PyQt6.QtGui import (
     QColor, QFont, QFontMetricsF, QMouseEvent, QPainter, QPainterPath,
-    QPaintEvent, QPen, QPolygonF,
+    QPaintEvent, QPen,
 )
 from PyQt6.QtWidgets import QApplication, QToolButton, QWidget
 
@@ -47,20 +48,18 @@ _PALETTE_LIGHT = {
 
 
 class BuiltinPresetButton(QToolButton):
-    """Star button that opens the Built-in presets overlay.
+    """Presets button that opens the Built-in presets overlay.
 
-    Sits next to the GUIDED / MANUAL switch. The five-point star is the app's
-    spectrum magenta in both themes (the masthead motif), painted directly in
-    ``paintEvent`` like the welcome "?" button — building a QIcon from a
-    DPR-scaled pixmap clips on Retina, painting in logical coords doesn't.
-    The QSS ``#tooltip_btn`` rule still paints the hover background (we chain to
-    ``super().paintEvent``). ``set_appearance`` is a no-op (magenta is
-    theme-independent), kept only so the apply_theme broadcast can call it.
+    Sits next to the GUIDED / MANUAL switch. The glyph is a small **list** (three
+    rows, each a bullet + line) — a menu of presets to pick from, which reads as
+    "presets" rather than "favourites" (the old star did). It's the app's spectrum
+    magenta in both themes, painted directly in ``paintEvent`` like the welcome
+    "?" button — building a QIcon from a DPR-scaled pixmap clips on Retina,
+    painting in logical coords doesn't. The QSS ``#tooltip_btn`` rule still paints
+    the hover background (we chain to ``super().paintEvent``). ``set_appearance``
+    is a no-op (magenta is theme-independent), kept only so the apply_theme
+    broadcast can call it.
     """
-
-    # Star diameter as a fraction of the button — leaves a comfortable margin so
-    # the glyph reads as a small icon inside a larger hit target.
-    STAR_FRAC = 0.58
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -90,21 +89,26 @@ class BuiltinPresetButton(QToolButton):
         super().paintEvent(ev)  # QSS background (incl. :hover) under the glyph
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        cx = self.width() / 2.0
-        cy = self.height() / 2.0
-        r_out = min(self.width(), self.height()) * self.STAR_FRAC / 2.0
-        r_in  = r_out * 0.42
-        pts = QPolygonF()
-        for i in range(10):
-            ang = -math.pi / 2 + i * math.pi / 5    # start at the top point
-            r = r_out if i % 2 == 0 else r_in
-            pts.append(QPointF(cx + r * math.cos(ang), cy + r * math.sin(ang)))
+        w, h = self.width(), self.height()
+        s = min(w, h)
         color = QColor(SPEC_MAGENTA)
         if not self._hover:
             color.setAlpha(230)
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(color)
-        p.drawPolygon(pts)
+        # Three list rows: a rounded-square bullet + a line, centred with a
+        # comfortable margin so the glyph reads as a small icon in the hit target.
+        line_w = s * 0.075
+        bullet = s * 0.10
+        for i in range(3):
+            y = h * (0.32 + i * 0.20)
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(color)
+            p.drawRoundedRect(QRectF(w * 0.22, y - bullet / 2, bullet, bullet),
+                              bullet * 0.28, bullet * 0.28)
+            pen = QPen(color)
+            pen.setWidthF(line_w)
+            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            p.setPen(pen)
+            p.drawLine(QPointF(w * 0.40, y), QPointF(w * 0.78, y))
         p.end()
 
 
