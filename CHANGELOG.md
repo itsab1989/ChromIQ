@@ -1,5 +1,22 @@
 # Changelog
 
+## v3.14.8-beta.5
+
+More fixes from Knut's testing of the verification-runs work (#130):
+
+- **Create Chart builds into the run you selected.** The chart is now written to
+  the folder the shared bar shows: **Overwrite run N** rebuilds that run;
+  **New run** creates a fresh `runs/runN+1/` (and, with Run type = Verification,
+  files the chart under that run's `verifications/`). The bar defaults to the
+  loaded project's current run — on load, on session restore, and after each
+  build — so a plain **Generate** overwrites the current run instead of piling
+  up new ones.
+- **Clearer "build a profile first" guidance.** Starting a verification on a run
+  with no profile yet now shows a numbered, step-by-step message that uses the
+  correct **Run type = Profiling / Verification** labels (instead of the old
+  "Profile verification OFF" wording) and names the run folder, the profile
+  file, and the dated `verifications/` folder.
+
 ## v3.14.8-beta.4
 
 Two more fixes from Knut's testing of the verification-runs work (#130):
