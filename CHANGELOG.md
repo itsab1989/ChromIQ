@@ -1,5 +1,14 @@
 # Changelog
 
+## v3.14.8-beta.13
+
+- **Loading a chart (`.ti2`) from a sub-folder project now opens it in place too.**
+  In beta.12 the Create Chart "Load profile" button learned to recognise projects
+  organised in sub-folders of your ChromIQ folder; the Print Chart / Measure
+  "Load chart" buttons now do the same — a chart inside a nested project is
+  recognised as one ChromIQ manages (Open / Continue) instead of being offered as
+  an external whole-project copy.
+
 ## v3.14.8-beta.12
 
 - **Presets now build into the run you selected.** With "Overwrite run N" chosen
