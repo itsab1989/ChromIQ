@@ -2643,7 +2643,13 @@ class TabMeasure(QWidget):
         self._update_resume_availability()
         self._update_precond_availability()
         self._refresh_bidir_autodetect()
-        if is_new_chart:
+        # #134 / K1 (Knut): the overlay auto-offer is a MEASURE-tab feature, but
+        # set_ti1_path is also driven cross-tab — the Print tab's ti2_loaded, the
+        # Check tab's ti2_found, project open, session restore and Profile-run /
+        # Run-type bar changes all call it. Only pop the offer when the Measure
+        # tab is actually the one on screen, so it never appears over Create Chart
+        # or Print Chart.
+        if is_new_chart and self.isVisible():
             self._maybe_offer_existing_overlay()
 
     def _maybe_offer_existing_overlay(self) -> None:

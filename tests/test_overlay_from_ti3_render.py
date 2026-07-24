@@ -103,6 +103,37 @@ def test_overlay_toggle_hidden_without_ti3(tmp_path):
     assert tab._m_overlay_cb.isHidden()
 
 
+def test_set_ti1_path_no_offer_when_tab_hidden(tmp_path, monkeypatch):
+    """#134/K1: a cross-tab load (Measure tab NOT on screen) must NOT pop the
+    overlay offer — it was appearing over Create Chart / Print Chart (Knut)."""
+    tab = _make_tab()
+    ti2 = tmp_path / "chart.ti2"; ti2.write_text(_TI2)
+    (tmp_path / "chart.ti3").write_text(_TI3)
+    calls = []
+    monkeypatch.setattr(tab, "_maybe_offer_existing_overlay",
+                        lambda: calls.append(1))
+    assert not tab.isVisible()                # never shown
+    tab.set_ti1_path(ti2)
+    assert calls == [], "must not auto-offer when the Measure tab is hidden"
+
+
+def test_set_ti1_path_offers_when_tab_visible(tmp_path, monkeypatch):
+    """The flip side: loading a chart while the Measure tab IS on screen still
+    offers the overlay."""
+    tab = _make_tab()
+    ti2 = tmp_path / "chart.ti2"; ti2.write_text(_TI2)
+    (tmp_path / "chart.ti3").write_text(_TI3)
+    calls = []
+    monkeypatch.setattr(tab, "_maybe_offer_existing_overlay",
+                        lambda: calls.append(1))
+    tab.show()
+    try:
+        tab.set_ti1_path(ti2)
+    finally:
+        tab.hide()
+    assert calls == [1], "should auto-offer when the Measure tab is visible"
+
+
 def test_load_popup_ok_applies_checkboxes(tmp_path, monkeypatch):
     """#134: the load dialog is a checkbox dialog now. On OK it applies the
     (default-on) 'show overlay' choice, paints, and remembers the selections."""
