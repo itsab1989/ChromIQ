@@ -94,14 +94,101 @@ def test_calibration_failure_also_falls_back(tmp_path):
     assert any("no answer from device" in ln for ln in lines)
 
 
-def test_no_fallback_once_a_strip_was_read(tmp_path):
-    """A restart would discard or duplicate real readings — never do it."""
+def test_no_fresh_restart_once_a_strip_was_read(tmp_path):
+    """A FRESH restart would discard or duplicate real readings — never do it.
+    With no saved .ti3 to resume from, the failed run ends normally (the resume
+    path in test_resume_fallback_* handles the case where one exists)."""
     mgr, runner, lines, finished = _start_engine_run(tmp_path)
     _feed_engine(mgr, {"event": "strip_read", "strip": "A", "worst_de": 0.4}, lines)
     _feed_engine(mgr, {"event": "error", "kind": "coms"}, lines)
     _finish(runner, 1)
 
-    assert len(runner.runs) == 1, "must not restart after real readings"
+    assert len(runner.runs) == 1, "must not fresh-restart after real readings"
+    assert finished == [1]
+
+
+# --- the with-progress resume fallback (#134) -----------------------------
+
+def _partial_ti3(tmp_path: Path) -> Path:
+    """A non-empty <stem>.ti3 standing in for the engine's autosave."""
+    ti3 = tmp_path / "chart.ti3"
+    ti3.write_text("CTI3\nNUMBER_OF_SETS 1\n")
+    return ti3
+
+
+def test_resume_fallback_when_a_partial_ti3_exists(tmp_path):
+    """Instrument dies mid-chart but strips are saved: continue on stock
+    chartread RESUMING (-r), keeping the readings, and don't surface the fail."""
+    mgr, runner, lines, finished = _start_engine_run(tmp_path)
+    _partial_ti3(tmp_path)
+    resumed: list[str] = []
+    mgr.engine_fell_back_resumed.connect(resumed.append)
+
+    _feed_engine(mgr, {"event": "strip_read", "strip": "A", "worst_de": 0.4}, lines)
+    _feed_engine(mgr, {"event": "error", "kind": "coms"}, lines)
+    _finish(runner, 1)
+
+    assert len(runner.runs) == 2, "should have resumed on stock chartread"
+    assert runner.runs[1]["tool"] == "chartread"
+    assert "-r" in runner.runs[1]["args"], "must resume, not restart"
+    assert runner.runs[1]["use_pty"] is True
+    assert finished == [], "the caller must not see the failed engine attempt"
+    assert resumed == ["communication problem"]
+    assert any("kept" in ln.lower() for ln in lines), "user should be reassured"
+
+
+def test_resume_fallback_backs_up_the_partial(tmp_path):
+    """The partial .ti3 is copied aside first, so readings survive a bad resume."""
+    mgr, runner, lines, finished = _start_engine_run(tmp_path)
+    _partial_ti3(tmp_path)
+    _feed_engine(mgr, {"event": "strip_read", "strip": "A", "worst_de": 0.4}, lines)
+    _feed_engine(mgr, {"event": "error", "kind": "coms"}, lines)
+    _finish(runner, 1)
+
+    assert (tmp_path / "chart.ti3.engine-partial").is_file()
+
+
+def test_resume_fallback_does_not_double_add_r(tmp_path):
+    """When the run was already a resume (-r), don't add a second one."""
+    runner = _RecordingRunner()
+    mgr = MeasureManager(runner)
+    mgr._guided_state = "disabled"
+    ti1 = tmp_path / "chart.ti1"; ti1.write_text("")
+    _partial_ti3(tmp_path)
+    params = MeasureParams(ti1_path=ti1, resume=True,
+                           engine_helper=Path("/fake/chromiq-chartread"))
+    mgr.start(params, [].append, [].append)
+    _feed_engine(mgr, {"event": "strip_read", "strip": "A"}, [])
+    _feed_engine(mgr, {"event": "error", "kind": "coms"}, [])
+    _finish(runner, 1)
+
+    assert runner.runs[1]["args"].count("-r") == 1
+
+
+def test_no_resume_fallback_after_user_quit(tmp_path):
+    """A deliberate stop is never second-guessed, even with saved strips."""
+    mgr, runner, lines, finished = _start_engine_run(tmp_path)
+    _partial_ti3(tmp_path)
+    _feed_engine(mgr, {"event": "strip_read", "strip": "A"}, lines)
+    _feed_engine(mgr, {"event": "error", "kind": "coms"}, lines)
+    mgr.send_key("\x1b")
+    _finish(runner, 1)
+
+    assert len(runner.runs) == 1
+    assert finished == [1]
+
+
+def test_resume_fallback_happens_only_once(tmp_path):
+    """If the resumed stock run also fails, the caller sees it — no loop."""
+    mgr, runner, lines, finished = _start_engine_run(tmp_path)
+    _partial_ti3(tmp_path)
+    _feed_engine(mgr, {"event": "strip_read", "strip": "A"}, lines)
+    _feed_engine(mgr, {"event": "error", "kind": "coms"}, lines)
+    _finish(runner, 1)
+    assert len(runner.runs) == 2
+
+    _finish(runner, 1)                    # the stock resume fails too
+    assert len(runner.runs) == 2
     assert finished == [1]
 
 

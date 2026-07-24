@@ -1,5 +1,28 @@
 # Changelog
 
+## v3.14.8-beta.14
+
+- **See how a print turned out without measuring it again (#134).** When a chart
+  already has a measurement, the Measure tab can now paint that measurement onto
+  the patches in the preview — each patch split between the colour the chart
+  *expected* and what your instrument actually *measured*, with the far-off ones
+  outlined. Turn it on with the new "Show overlay from existing measurement" box,
+  which appears whenever a measurement (`.ti3`) is found for the loaded chart.
+- **Loading a chart that already has a measurement now offers both choices up
+  front.** Instead of a plain yes/no, a friendly dialog lets you tick "Show it as
+  an overlay" and/or "Refine / resume this measurement" — with a clear warning
+  that starting a fresh measurement without resume will *replace* the existing
+  one. Your last choice is remembered.
+- **A mid-chart instrument hiccup no longer throws away the strips you already
+  measured (#134).** If ChromIQ's own measuring engine fails partway through a
+  chart, it now continues on ArgyllCMS's chartread *resuming from where you left
+  off* — keeping every strip already read — instead of ending the run. The
+  partial measurement is backed up first, so your readings are safe no matter
+  what. (When nothing had been measured yet, it still restarts cleanly as before.)
+- The scanner-profiling checkbox in the "All Stripes Read" dialog now shows the
+  tab's own accent colour when ticked or hovered, instead of the system blue.
+- All of the above is fully translated into every supported language.
+
 ## v3.14.8-beta.13
 
 - **Loading a chart (`.ti2`) from a sub-folder project now opens it in place too.**

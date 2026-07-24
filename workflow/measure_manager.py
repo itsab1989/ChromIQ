@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 import shlex
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
@@ -167,6 +168,11 @@ class MeasureManager(QObject):
     # The engine could not use the instrument, so the run was restarted on stock
     # ArgyllCMS chartread. Carries the reason, for the log/status line.
     engine_fell_back       = pyqtSignal(str)
+    # Like engine_fell_back, but the engine had ALREADY measured part of the
+    # chart when it failed (#134): the run continues on stock chartread
+    # RESUMING from the autosaved .ti3 (-r), so nothing measured is lost.
+    # Carries the reason, for a reassuring status line.
+    engine_fell_back_resumed = pyqtSignal(str)
     # A failed calibration is being retried automatically: (attempt, of_total).
     calibration_retrying   = pyqtSignal(int, int)
     calibration_done       = pyqtSignal()    # emitted when instrument calibration completes
@@ -292,6 +298,34 @@ class MeasureManager(QObject):
                            "using ArgyllCMS chartread for it."))
                 self._launch_stock(args, cwd, on_line, _on_finish)
                 return
+            if was_engine:
+                partial = self._resumable_partial_ti3(params.ti1_path)
+                if partial is not None and self._engine_should_resume_fallback(code):
+                    # The instrument failed PARTWAY through the chart, but the
+                    # strips already read are saved on disk (#134). Continue on
+                    # stock chartread resuming from that .ti3 (-r) instead of
+                    # discarding the session — after backing the file up first,
+                    # so the readings survive even if the resume misbehaves.
+                    self._engine_fallback_used = True
+                    reason = self._engine_fatal or "unknown error"
+                    log.warning("engine failed mid-measurement (%s) — resuming "
+                                "on stock chartread with -r", reason)
+                    self._backup_partial_ti3(partial)
+                    resume_args = args if "-r" in args else ["-r", *args]
+                    on_line(tr(
+                        "[Engine] ChromIQ's own measuring engine ran into a "
+                        "problem with your instrument ({reason}) partway through "
+                        "the chart. Don't worry — every strip you have already "
+                        "measured has been saved and will be kept. ChromIQ is "
+                        "now switching to ArgyllCMS's chartread and continuing "
+                        "from exactly where you left off, so just carry on "
+                        "measuring the remaining strips as usual. If this keeps "
+                        "happening, you can turn the ChromIQ engine off for good "
+                        "in Preferences."
+                    ).format(reason=reason))
+                    self.engine_fell_back_resumed.emit(reason)
+                    self._launch_stock(resume_args, cwd, on_line, _on_finish)
+                    return
             if was_engine and self._engine_should_fall_back(code):
                 self._engine_fallback_used = True
                 reason = self._engine_fatal or "unknown error"
@@ -423,6 +457,56 @@ class MeasureManager(QObject):
         if self._engine_fallback_used:
             return False
         return self._engine_fatal is not None or not self._engine_saw_event
+
+    def _resumable_partial_ti3(self, ti1_path: Path) -> Path | None:
+        """The engine's autosaved measurement for this chart, if there is one to
+        resume from (#134).
+
+        The engine saves readings to ``<stem>.ti3`` as it goes, so if the
+        instrument fails partway through, that file holds the strips already
+        measured — exactly what stock chartread ``-r`` reads to continue. Returns
+        the path only when the file exists and is non-empty; otherwise ``None``
+        (nothing safe to resume, so the run is handled the ordinary way)."""
+        ti3 = ti1_path.with_suffix(".ti3")
+        try:
+            if ti3.is_file() and ti3.stat().st_size > 0:
+                return ti3
+        except OSError:
+            pass
+        return None
+
+    def _engine_should_resume_fallback(self, code: int) -> bool:
+        """Whether a failed engine run that ALREADY read part of the chart should
+        continue on stock chartread, resuming from the autosaved .ti3 (#134).
+
+        The mirror of :meth:`_engine_should_fall_back` for the with-progress
+        case: the instrument died mid-chart, but the strips already measured are
+        on disk, so ArgyllCMS's chartread can pick up where the engine left off
+        (``-r``) instead of throwing the whole session away. Caller also checks a
+        resumable .ti3 actually exists.
+
+        Never when the run exited cleanly, when the user stopped it themselves
+        (a restart would fight a deliberate quit), or when a fallback has already
+        happened (no restart loops). Requires a real instrument-level failure —
+        an ordinary non-zero exit after normal reading is the run's own business,
+        not something to silently retry."""
+        if code == 0 or self._user_quit or self._engine_fallback_used:
+            return False
+        return self._engine_fatal is not None and self._engine_progress
+
+    def _backup_partial_ti3(self, ti3: Path) -> None:
+        """Copy the engine's partial measurement aside before handing it to stock
+        chartread ``-r`` (#134), so the readings are recoverable even if the
+        resume misbehaves — the user's measurements must never be lost.
+
+        Best-effort: a failed copy is logged but must not stop the fallback, or a
+        full/read-only disk would turn a recoverable hiccup into a dead end."""
+        try:
+            backup = ti3.parent / (ti3.name + ".engine-partial")
+            shutil.copy2(ti3, backup)
+            log.info("backed up engine partial measurement to %s", backup)
+        except OSError as e:
+            log.warning("could not back up engine partial %s: %s", ti3, e)
 
     def set_guided_strips(self, strips: list[str]) -> None:
         """Configure strips to auto-navigate during the next measurement run."""

@@ -234,6 +234,9 @@ DEFAULTS: dict[str, Any] = {
     # Session restore — only the target name is stored; every artefact path is
     # derived from the project's current run on restore (see main_window).
     "session_target_name":       "",
+    # #134: remembered choices in the "chart already has a measurement" prompt.
+    "overlay_prompt_show_overlay": True,
+    "overlay_prompt_resume":       False,
     # #130: the open project's actual folder when it's nested in a sub-folder of
     # the ChromIQ folder (blank for a direct child). Restores nested projects.
     "session_project_root":      "",

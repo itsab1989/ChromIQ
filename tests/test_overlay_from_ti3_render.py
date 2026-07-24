@@ -103,17 +103,38 @@ def test_overlay_toggle_hidden_without_ti3(tmp_path):
     assert tab._m_overlay_cb.isHidden()
 
 
-def test_load_popup_yes_shows_overlay(tmp_path, monkeypatch):
+def test_load_popup_ok_applies_checkboxes(tmp_path, monkeypatch):
+    """#134: the load dialog is a checkbox dialog now. On OK it applies the
+    (default-on) 'show overlay' choice, paints, and remembers the selections."""
     from PyQt6.QtCore import QRect
-    from PyQt6.QtWidgets import QMessageBox
+    from PyQt6.QtWidgets import QDialog
     tab = _make_tab()
     ti2 = tmp_path / "chart.ti2"; ti2.write_text(_TI2)
     (tmp_path / "chart.ti3").write_text(_TI3)
     tab._ti1_path = ti2
     tab._tiff_pages = [tmp_path / "chart_01.tif"]
     tab._patch_boxes = [{"A1": QRect(0, 0, 10, 10), "A2": QRect(10, 0, 10, 10)}]
-    monkeypatch.setattr(QMessageBox, "exec",
-                        lambda self: QMessageBox.StandardButton.Yes)
+    # Accept the dialog; checkboxes keep their default states (show overlay on).
+    monkeypatch.setattr(QDialog, "exec",
+                        lambda self: int(QDialog.DialogCode.Accepted))
     tab._maybe_offer_existing_overlay()
     assert tab._overlay_cb.isChecked()
     assert tab._preview._patch_info.get(0)
+    # The choice was remembered.
+    assert tab._settings.get("overlay_prompt_show_overlay") is True
+
+
+def test_load_popup_cancel_does_nothing(tmp_path, monkeypatch):
+    from PyQt6.QtCore import QRect
+    from PyQt6.QtWidgets import QDialog
+    tab = _make_tab()
+    ti2 = tmp_path / "chart.ti2"; ti2.write_text(_TI2)
+    (tmp_path / "chart.ti3").write_text(_TI3)
+    tab._ti1_path = ti2
+    tab._tiff_pages = [tmp_path / "chart_01.tif"]
+    tab._patch_boxes = [{"A1": QRect(0, 0, 10, 10), "A2": QRect(10, 0, 10, 10)}]
+    monkeypatch.setattr(QDialog, "exec",
+                        lambda self: int(QDialog.DialogCode.Rejected))
+    tab._maybe_offer_existing_overlay()
+    assert not tab._overlay_cb.isChecked()
+    assert not tab._preview._patch_info.get(0)

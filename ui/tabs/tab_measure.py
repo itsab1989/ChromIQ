@@ -95,7 +95,14 @@ def make_scanner_target_row(parent, checked: bool, *, accent: str = "#56d6a5",
         f"#scannerTargetRow {{ border: 1px solid rgba({r},{g},{b},0.55);"
         f" border-radius: 6px; background: {tint_bg}; }}"
         " #scannerTargetRow QCheckBox, #scannerTargetRow QLabel"
-        " { background: transparent; }")
+        " { background: transparent; }"
+        # Without this the checked indicator falls back to the system accent
+        # (blue); tint it with this card's accent (green here, violet in Check
+        # & Refine) so it matches the rest of the card.
+        f" #scannerTargetRow QCheckBox::indicator:checked {{ background: {accent};"
+        f" border-color: {accent}; }}"
+        # Same for the hover border, which otherwise shows the system blue.
+        f" #scannerTargetRow QCheckBox::indicator:hover {{ border-color: {accent}; }}")
     outer = QVBoxLayout(row)
     outer.setContentsMargins(12, 8, 12, 10)
     outer.setSpacing(2)
@@ -896,6 +903,8 @@ class TabMeasure(QWidget):
         # B-status. Non-blocking informational messages
         self._manager.info_message.connect(self._on_info_message)
         self._manager.engine_fell_back.connect(self._on_engine_fell_back)
+        self._manager.engine_fell_back_resumed.connect(
+            self._on_engine_fell_back_resumed)
         self._manager.calibration_retrying.connect(self._on_calibration_retrying)
         # D. Spot / XY mode defensive handlers
         self._manager.xy_place_sheet.connect(self._on_xy_place_sheet)
@@ -2638,32 +2647,102 @@ class TabMeasure(QWidget):
             self._maybe_offer_existing_overlay()
 
     def _maybe_offer_existing_overlay(self) -> None:
-        """#134: when a freshly-loaded chart already has a measurement, tell the
-        user and offer to show the expected-vs-measured overlay right away. They
-        can always toggle it later with 'Show overlay from existing measurement'."""
+        """#134: when a freshly-loaded chart already has a measurement, show a
+        small dialog offering BOTH choices as checkboxes (Basti): see it as an
+        overlay, and/or refine/resume it so a new read doesn't replace it — with
+        a clear warning about replacement. The last choice is remembered."""
         if self._existing_ti3_for_chart() is None:
             return
-        from PyQt6.QtWidgets import QMessageBox
-        # Built by hand (not QMessageBox.question) so it carries NO big "?" icon,
-        # matching ChromIQ's cleaner dialog style (Basti).
-        box = QMessageBox(self)
-        box.setIcon(QMessageBox.Icon.NoIcon)
-        box.setWindowTitle(tr("This chart already has a measurement"))
-        box.setText(
-            tr("A measurement (.ti3) already exists for this chart.\n\n"
-               "Would you like to see the colours from it overlaid on the "
-               "patches — each patch split between the colour the chart "
-               "EXPECTED and what your instrument actually MEASURED?\n\n"
-               "You can turn this on or off any time with the “Show overlay "
-               "from existing measurement” box in the options panel."))
-        box.setStandardButtons(
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        box.setDefaultButton(QMessageBox.StandardButton.No)
-        if box.exec() == QMessageBox.StandardButton.Yes:
-            # Ticking drives _on_overlay_toggled, which paints it (or explains
-            # why it can't and unticks).
-            self._sync_overlay_checkboxes(True)
-            self._on_overlay_toggled(True)
+        from PyQt6.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox,
+                                     QLabel, QVBoxLayout)
+        dlg = QDialog(self)
+        dlg.setWindowTitle(tr("This chart already has a measurement"))
+        dlg.setMinimumWidth(560)
+        lay = QVBoxLayout(dlg)
+        lay.setContentsMargins(22, 20, 22, 18)
+        lay.setSpacing(12)
+        intro = QLabel(tr(
+            "A measurement (.ti3) already exists for this chart. Choose what "
+            "you'd like to do — you can change either of these any time from the "
+            "options panel:"), dlg)
+        intro.setWordWrap(True)
+        lay.addWidget(intro)
+
+        # Tint the checkboxes with the Measure tab's green accent (the app fills
+        # a checked indicator with the accent; per-tab code overrides :checked).
+        _green_cb_css = (
+            "QCheckBox::indicator:checked { background:%s; border-color:%s; }"
+            "QCheckBox::indicator:hover { border-color:%s; }"
+            % (_TAB_COLOR, _TAB_COLOR, _TAB_COLOR))
+        # Info boxes under each choice — neutral boxed frame matching the
+        # post-measurement / "calibration complete" dialogs (see
+        # _on_calibration_done): gray surface, gray border, default text.
+        # NB: object name is NOT "info" — the global stylesheet paints QLabel#info
+        # magenta-on-dark (a different kind of callout). Use our own name so the
+        # neutral frame fully wins, text colour included.
+        from ui.theme import resolve_mode
+        if resolve_mode(self._settings.get("appearance", "auto")) == "light":
+            _info_bg, _info_bd, _info_fg = "#f7f4ef", "#d0ccc6", "#33312e"
+        else:
+            _info_bg, _info_bd, _info_fg = "#181818", "#2a2a2a", "#c8c8c8"
+        _info_css = (
+            "QLabel#overlay_note { background:%s; border:1px solid %s; color:%s; "
+            "border-radius:6px; padding:8px 10px; }"
+            % (_info_bg, _info_bd, _info_fg))
+
+        show_cb = QCheckBox(tr("Show it as an overlay on the patches"), dlg)
+        show_cb.setStyleSheet(_green_cb_css)
+        show_cb.setChecked(bool(self._settings.get("overlay_prompt_show_overlay", True)))
+        show_sub = QLabel(tr(
+            "Each patch is split between the colour the chart EXPECTED and what "
+            "your instrument actually MEASURED, with the far-off ones outlined "
+            "— so you can see how the print turned out without measuring again."),
+            dlg)
+        show_sub.setWordWrap(True); show_sub.setObjectName("overlay_note")
+        show_sub.setStyleSheet(_info_css)
+        lay.addWidget(show_cb); lay.addWidget(show_sub)
+
+        resume_cb = QCheckBox(
+            tr("Refine / resume this measurement (keep the strips already "
+               "measured)"), dlg)
+        resume_cb.setStyleSheet(_green_cb_css)
+        resume_cb.setChecked(bool(self._settings.get("overlay_prompt_resume", False)))
+        resume_sub = QLabel(tr(
+            "With this on, a new measurement re-uses the existing one — you only "
+            "scan the strips you want to update or add, and everything already "
+            "measured is kept."), dlg)
+        resume_sub.setWordWrap(True); resume_sub.setObjectName("overlay_note")
+        resume_sub.setStyleSheet(_info_css)
+        lay.addWidget(resume_cb); lay.addWidget(resume_sub)
+
+        warn = QLabel(tr(
+            "⚠  If you leave “Refine / resume” unticked and start a new "
+            "measurement, it will REPLACE this existing measurement. Tick it to "
+            "keep your previous readings."), dlg)
+        warn.setWordWrap(True)
+        warn.setStyleSheet("color:#c8781e; font-weight:600;")
+        lay.addWidget(warn)
+
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok
+                              | QDialogButtonBox.StandardButton.Cancel, dlg)
+        bb.accepted.connect(dlg.accept); bb.rejected.connect(dlg.reject)
+        lay.addWidget(bb)
+
+        from PyQt6.QtWidgets import QDialog as _QD
+        if dlg.exec() != int(_QD.DialogCode.Accepted):
+            return
+        want_overlay = show_cb.isChecked()
+        want_resume = resume_cb.isChecked()
+        # Remember the choice for next time.
+        self._settings.set("overlay_prompt_show_overlay", want_overlay)
+        self._settings.set("overlay_prompt_resume", want_resume)
+        # Apply: overlay toggle (paints, or explains + unticks if not placeable).
+        self._sync_overlay_checkboxes(want_overlay)
+        self._on_overlay_toggled(want_overlay)
+        # Refine/resume: tick the (already-visible) resume box in both modes.
+        for cb in (self._resume_cb, self._m_resume_cb):
+            if cb is not None:
+                cb.setChecked(want_resume)
 
     def set_chart_notice(self, text: "str | None") -> None:
         """Show guidance in the preview when there's no chart to measure for the
@@ -3918,6 +3997,17 @@ class TabMeasure(QWidget):
             "for good in Preferences if this keeps happening."
         ).format(reason=reason))
         self._log.ensureCursorVisible()
+
+    def _on_engine_fell_back_resumed(self, reason: str) -> None:
+        """Like _on_engine_fell_back, but the engine had already measured part of
+        the chart when the instrument failed (#134). The manager writes the full,
+        reassuring explanation to the log; here we add a brief, non-blocking
+        status flash so the good news — nothing was lost, just carry on — is
+        impossible to miss without interrupting the measurement."""
+        self._flash_status(
+            tr("Your measured strips are safe — continuing on ArgyllCMS "
+               "chartread from where you left off."),
+            duration_ms=8000)
 
     def _on_info_message(self, category: str, text: str) -> None:
         # Log it and flash a status bar message (non-blocking).
