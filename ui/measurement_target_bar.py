@@ -103,6 +103,17 @@ class MeasurementTargetBar(QWidget):
             "start a fresh profile alongside the ones you already have. Your "
             "older runs are never touched unless you select them here."))
         self._run_combo.currentIndexChanged.connect(self._on_run_changed)
+        # Wide enough that its content ("Run N (overwrite)", "New run") stays
+        # fully readable instead of being truncated (Basti); grows to fit longer
+        # labels (e.g. two-digit run numbers) but never shrinks below this floor.
+        from PyQt6.QtWidgets import QComboBox
+        self._run_combo.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToContents)
+        # A representative widest label for the floor; AdjustToContents grows it
+        # if a translation runs longer, so this need not be translated itself.
+        self._run_combo.setMinimumWidth(
+            self._run_combo.fontMetrics().horizontalAdvance(
+                "Run 8 (overwrite)") + 44)
         row.addWidget(self._run_combo)
 
         row.addSpacing(4)

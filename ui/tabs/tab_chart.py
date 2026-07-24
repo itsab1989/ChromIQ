@@ -3646,6 +3646,7 @@ class TabChart(QWidget):
         in the Create-Chart tab and hand it to Print / Measure. Shared by
         project-load (:meth:`_load_existing_profile`) and the Run-type switch
         (:meth:`_on_target_changed`), so both paths tell one story."""
+        self._preview.set_notice(None)     # a real chart is showing — drop guidance
         self._preview.load_tiff(list(tiffs))
         # Feed the Chart-layout-information panel and the margin inspector, so
         # the "on screen" column shows the LOADED chart's real numbers (mavtop:
@@ -8028,6 +8029,24 @@ class TabChart(QWidget):
             log.info("Create Chart: build target run → %s (new run)", new_run.id)
             ctl.set_profile_run(new_run.id)
 
+    def _no_chart_guidance(self) -> str:
+        """Friendly text for the empty preview when the selected Profile-run /
+        Run-type has no chart yet (#130, Knut beta-6): explain that nothing is
+        wrong and how to make the chart, tailored to Profiling vs Verification."""
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is not None and ctl.target.is_verification():
+            return tr(
+                "No verification chart for this run yet.\n\n"
+                "To make one, keep “Run type” set to “Verification”, choose your "
+                "chart options above and click “Create Chart”. Then print that "
+                "chart through your finished profile (with colour management on) "
+                "and measure it on the Measure tab.")
+        return tr(
+            "No chart for this profile run yet.\n\n"
+            "Choose your chart options above and click “Create Chart” to make "
+            "it. (If you had a chart here before, its files may have been moved "
+            "or deleted — just create it again.)")
+
     def _on_target_changed(self) -> None:
         """React to a Profile-run / Run-type change: show THAT target's chart —
         its own Create-Chart settings + preview — and hand it to Print / Measure,
@@ -8049,6 +8068,9 @@ class TabChart(QWidget):
                 self._current_ti1_path = None
                 # Empty payload → main window drops the chart from Print / Measure.
                 self.chart_finished.emit([], None, False)
+            # #130 (Knut beta-6): the empty preview must tell the user WHY it's
+            # empty and how to fill it — this run/type simply has no chart yet.
+            self._preview.set_notice(self._no_chart_guidance())
             return
         ti2, tiffs, ti1 = resolved
         if ti2 == self._shown_chart_ti2:
@@ -8122,6 +8144,7 @@ class TabChart(QWidget):
             )
 
         if tiffs:
+            self._preview.set_notice(None)   # chart just made — drop any guidance
             self._preview.load_tiff(tiffs)
             log.info("Preview loaded: %d TIFF(s)", len(tiffs))
             ti2 = tiffs[0].parent / f"{stem}.ti2"
