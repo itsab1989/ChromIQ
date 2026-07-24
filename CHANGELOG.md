@@ -1,5 +1,15 @@
 # Changelog
 
+## v3.14.8-beta.16
+
+- **Check & Refine gamut comparison now keeps your 3-D rotation when you switch
+  views.** Rotating the shape and then switching between Profile A, Profile B and
+  Combined snapped the view back to the start each time, because each view is a
+  separate 3-D scene that gets reloaded. The rotation is now carried across the
+  switch, so the shape stays exactly where you left it — making it much easier to
+  compare two profiles from the same angle. (Completes the gamut-compare fixes
+  started in beta.15.)
+
 ## v3.14.8-beta.15
 
 - **The "chart already has a measurement" pop-up now appears only on the Measure
