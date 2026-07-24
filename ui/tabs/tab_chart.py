@@ -7825,32 +7825,35 @@ class TabChart(QWidget):
         # #130 §3 (Model B): building into a run that already holds work is a
         # Replace — say so, and offer a new run instead, before anything moves.
         if self._run_has_work_to_displace(proj, run_id):
-            verif = t.run_type == RUN_TYPE_VERIFICATION
-            if verif:
+            from ui.ti2_loader import _run_label
+            # Friendly label ("run 1") in prose and on the button; the raw folder
+            # id only inside the <code> paths, so both read naturally.
+            label = _run_label(t)
+            if t.run_type == RUN_TYPE_VERIFICATION:
                 replace_desc = tr(
-                    "Build the chart as <b>{run}</b>'s verification chart. Its "
+                    "Build the chart as <b>{label}</b>'s verification chart. Its "
                     "current verification chart and every dated verification are "
                     "moved to <code>runs/{run}/old/</code> first — nothing is "
                     "deleted — and the new chart is saved in "
                     "<code>runs/{run}/verifications/</code>. This run's own "
                     "chart, measurement and printer profile are left alone."
-                ).format(run=run_id)
+                ).format(label=label, run=run_id)
             else:
                 replace_desc = tr(
-                    "Build the chart into <b>{run}</b>. That run's current chart, "
-                    "measurement, printer profile, reports and verifications are "
-                    "moved to <code>runs/{run}/old/</code> first — nothing is "
-                    "deleted — and the new chart is saved in "
+                    "Build the chart into <b>{label}</b>. That run's current "
+                    "chart, measurement, printer profile, reports and "
+                    "verifications are moved to <code>runs/{run}/old/</code> "
+                    "first — nothing is deleted — and the new chart is saved in "
                     "<code>runs/{run}/</code>."
-                ).format(run=run_id)
+                ).format(label=label, run=run_id)
             new_run_desc = tr(
                 "Build the chart in a brand-new run of <b>{project}</b> instead, "
                 "so everything in <b>{run}</b> stays exactly as it is. The "
                 "Profile-run bar moves to the new run."
-            ).format(project=pname, run=run_id)
+            ).format(project=pname, run=label)
             return _choice_dialog(
                 self, tr("Where should this patch set's chart go?"), intro,
-                [(tr("Replace {run}").format(run=run_id), replace_desc,
+                [(tr("Replace {run}").format(run=label), replace_desc,
                   "into_replace"),
                  (tr("Build it as a new run instead"), new_run_desc, "into_new"),
                  (tr("Start a new project"), new_desc, "new")],
