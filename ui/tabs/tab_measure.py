@@ -997,20 +997,44 @@ class TabMeasure(QWidget):
         cb = self._pbp_cb if self._current_mode() == "guided" else self._m_pbp_cb
         return cb.isChecked()
 
+    def _guard_run(self) -> "Run | None":
+        """The run the verification guard checks (#130). Prefers the Profile-run
+        bar — reliable even before a chart is loaded, and correct when the loaded
+        chart is a verify chart living under verifications/ — then falls back to
+        the loaded chart's own run (walking up to runs/runN)."""
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is not None:
+            try:
+                proj = ctl.project_or_none()
+                rid = ctl.target.profile_run
+                if proj is not None and rid and proj.has_run(rid):
+                    return proj.run(rid)
+            except Exception:      # noqa: BLE001
+                pass
+        if self._ti1_path is not None:
+            p = self._ti1_path.parent
+            for anc in (p, *p.parents):
+                if anc.parent.name == "runs":
+                    try:
+                        return Run.for_dir(anc)
+                    except Exception:      # noqa: BLE001
+                        return None
+        return None
+
     def _verification_guard(self) -> "str | None":
-        """#130 Hole 1: a verification checks a FINISHED profile. If the user
-        ticked 'Profile verification' but the loaded chart's run has no built
-        profile yet, return a guiding message so the caller stops and explains
-        (softened per Knut — warn + guide, never a silent hard block). None when
-        the read may proceed. Only applies inside a project run folder."""
-        if not self._is_verify_checked() or self._ti1_path is None:
+        """#130 Holes 1+2: a verification checks a FINISHED profile. If Run type
+        is Verification but the selected run has no built profile yet (Hole 1), or
+        it has a profile but no verification chart yet (Hole 2), return a guiding
+        message so the caller stops and explains. Keyed off the Profile-run bar,
+        so it fires even when the loaded chart is a verify chart under
+        verifications/ (Knut). None when the read may proceed."""
+        if not self._is_verify_checked():
             return None
-        try:
-            run = Run.for_dir(self._ti1_path.parent)
-        except Exception:      # noqa: BLE001 — a guard must never break Start
-            return None
+        run = self._guard_run()
+        if run is None:
+            return None        # external chart / no project run — model doesn't apply
         if run.dir.parent.name != "runs":
-            return None        # external chart — the verification model doesn't apply
+            return None
         if run.built_profile_icc().exists():
             # Hole 1 satisfied. Hole 2: a verification needs a verification chart
             # to measure. If the run has a profile but no verify chart yet, guide
@@ -2562,6 +2586,11 @@ class TabMeasure(QWidget):
         self._update_resume_availability()
         self._update_precond_availability()
         self._refresh_bidir_autodetect()
+
+    def set_chart_notice(self, text: "str | None") -> None:
+        """Show guidance in the preview when there's no chart to measure for the
+        selected Profile-run / Run-type (#130, Knut)."""
+        self._preview.set_notice(text)
 
     def clear_chart_file(self) -> None:
         self._ti1_path = None

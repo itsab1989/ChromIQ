@@ -3604,8 +3604,13 @@ class TabChart(QWidget):
         # strategy); a project already in the working folder opens directly.
         proj_root = manifest.parent
         working = Path(self._file_mgr.root_dir())     # the base ~/ChromIQ folder
+        # #130 (Knut): a project may be organised in a SUB-folder of the ChromIQ
+        # folder — treat any project UNDER the ChromIQ folder (at any depth) as
+        # internal and open it in place. Only a project truly outside the ChromIQ
+        # folder offers the copy-in pop-up.
         try:
-            is_external = proj_root.resolve().parent != working.resolve()
+            rp = proj_root.resolve(); rootp = working.resolve()
+            is_external = rootp != rp.parent and rootp not in rp.parents
         except OSError:
             is_external = False
         if is_external:
@@ -3645,9 +3650,9 @@ class TabChart(QWidget):
         # never deletes anything, but the folder visibly reorganises — so tell
         # the user first, in plain language, before it happens.
         self._maybe_announce_project_port(manifest)
-        name = manifest.parent.name
-        # Make it the active profile and reflect it in both name fields.
-        self._file_mgr.set_target_name(name)
+        # Open at the project's ACTUAL folder (handles a nested sub-folder
+        # location as well as a direct child of the ChromIQ folder).
+        self._file_mgr.open_project_at(manifest.parent)
         self._last_target_name = self._file_mgr.get_target_name()
         self._update_name_fields()
         # Loading a saved project is a clean slate for the preset/applied bindings.

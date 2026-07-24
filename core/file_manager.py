@@ -1212,6 +1212,11 @@ class FileManager:
         self._settings = settings
         self._target_name: str = ""
         self._project: Project | None = None
+        # #130 (Knut): projects may be organised in SUB-folders of the ChromIQ
+        # folder. When a nested project is opened, this holds its actual root so
+        # working_dir() resolves there instead of <ChromIQ>/<name>. Cleared by
+        # set_target_name (a fresh/direct project lives directly under ChromIQ).
+        self._project_root_override: "Path | None" = None
 
     # ---- target name
     @staticmethod
@@ -1243,9 +1248,25 @@ class FileManager:
             self._target_name = self._auto_name()
         else:
             self._target_name = self._sanitise(cleaned)
+        # A name set directly means a project living directly under the ChromIQ
+        # folder — drop any nested-location override.
+        self._project_root_override = None
         # Invalidate cached Project — new name = different folder.
         self._project = None
         log.debug("Target name set to: %s", self._target_name)
+
+    def open_project_at(self, root: "Path") -> None:
+        """Open a project at its ACTUAL folder *root*, which may be nested in a
+        sub-folder of the ChromIQ folder (#130, Knut). working_dir() then
+        resolves there rather than <ChromIQ>/<name>."""
+        root = Path(root)
+        self._target_name = self._sanitise(root.name)
+        self._project_root_override = root
+        self._project = None
+        log.debug("Opened nested project at: %s", root)
+
+    def project_root_override(self) -> "Path | None":
+        return self._project_root_override
 
     def get_target_name(self) -> str:
         if not self._target_name:
@@ -1273,6 +1294,11 @@ class FileManager:
         return Path(custom) if custom else Path.home() / "ChromIQ"
 
     def working_dir(self) -> Path:
+        # A nested project (opened from a sub-folder) resolves at its actual
+        # location; every other project lives directly under the ChromIQ folder.
+        ov = self._project_root_override
+        if ov is not None and self._sanitise(ov.name) == self.get_target_name():
+            return ov
         return self.root_dir() / self.get_target_name()
 
     def preview_project_root(self, raw_name: str) -> Path | None:

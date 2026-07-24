@@ -472,8 +472,15 @@ class TabPrint(QWidget):
     def load_tiffs(self, paths: list[Path]) -> None:
         """Called by main window after chart generation."""
         self._tiff_pages = paths
+        if paths:
+            self._preview.set_notice(None)     # a real chart — drop guidance
         self._preview.load_tiff(paths)
         self._set_print_buttons_enabled(bool(paths))
+
+    def set_chart_notice(self, text: "str | None") -> None:
+        """Show guidance in the preview when there's no chart to print for the
+        selected Profile-run / Run-type (#130, Knut)."""
+        self._preview.set_notice(text)
 
     def set_target_controller(self, controller) -> None:
         """Receive the shared Profile-run / Run-type controller (#130) so loading

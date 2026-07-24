@@ -48,7 +48,7 @@ def test_guidance_text_differs_by_run_type(qapp, tmp_path):
     v = tab._no_chart_guidance()
     ctl.set_run_type(RUN_TYPE_PROFILING)
     p = tab._no_chart_guidance()
-    assert "verification chart" in v.lower() and "Create Chart" in v
+    assert "verification chart" in v.lower() and "Generate Chart" in v
     assert "profile run" in p.lower() and v != p
 
 

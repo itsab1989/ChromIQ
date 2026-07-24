@@ -234,6 +234,9 @@ DEFAULTS: dict[str, Any] = {
     # Session restore — only the target name is stored; every artefact path is
     # derived from the project's current run on restore (see main_window).
     "session_target_name":       "",
+    # #130: the open project's actual folder when it's nested in a sub-folder of
+    # the ChromIQ folder (blank for a direct child). Restores nested projects.
+    "session_project_root":      "",
     # Diagnostics — off by default; flip to True to log per-strip highlighter
     # math (id, global_idx, page, local_idx) to chromiq.log for investigating
     # detection drift.

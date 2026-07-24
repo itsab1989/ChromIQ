@@ -500,12 +500,36 @@ class MainWindow(QMainWindow):
         self._tab_print.load_tiffs(tiff_list)
         if ti2 and Path(ti2).exists():
             self._tab_measure.set_ti1_path(Path(ti2))
+            # A real chart is loaded → clear any "no chart yet" guidance.
+            self._tab_print.set_chart_notice(None)
+            self._tab_measure.set_chart_notice(None)
         elif not tiff_list:
             # #130: an empty payload means the selected Profile-run / Run-type has
             # no chart yet (e.g. switched to Verification before its chart exists).
             # Drop the previous chart from Measure so the wrong chart can't be
             # printed or measured; Print was already cleared by load_tiffs([]).
             self._tab_measure.clear_chart_file()
+            # Guide the user in BOTH tabs' preview (Knut): explain there's no
+            # chart yet and where to make it — it stays visible on tab switch.
+            guidance = self._no_chart_guidance_text()
+            self._tab_print.set_chart_notice(guidance)
+            self._tab_measure.set_chart_notice(guidance)
+
+    def _no_chart_guidance_text(self) -> str:
+        """Guidance for the Print/Measure preview when the selected Profile-run /
+        Run-type has no chart yet (#130, Knut) — tailored to Profiling vs
+        Verification, and pointing at the Create Chart tab."""
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is not None and ctl.target.is_verification():
+            return tr(
+                "No verification chart for this run yet.\n\n"
+                "Create it in the Create Chart tab with “Run type” = "
+                "“Verification”, print it through this run's finished profile, "
+                "then come back here to measure it.")
+        return tr(
+            "No chart for this profile run yet.\n\n"
+            "Create it in the Create Chart tab, then print it and measure it "
+            "here.")
 
     def _on_measure_done(self, ti3: Path) -> None:
         cal_mode = bool(self._settings.get("calibration_mode", False))
@@ -1057,7 +1081,13 @@ class MainWindow(QMainWindow):
         target = self._settings.get("session_target_name", "")
         if not target:
             return
-        self._file_mgr.set_target_name(target)
+        # #130: a nested project (in a sub-folder of the ChromIQ folder) is
+        # restored at its actual location; a direct child by name as before.
+        nested = self._settings.get("session_project_root", "")
+        if nested and (Path(nested) / "project.json").exists():
+            self._file_mgr.open_project_at(Path(nested))
+        else:
+            self._file_mgr.set_target_name(target)
 
         # Only the target name is persisted now; every artefact path is derived
         # from the project's current run. Bail if there's no project on disk for
@@ -1132,5 +1162,9 @@ class MainWindow(QMainWindow):
         # Only the target name is persisted; _restore_last_session derives every
         # artefact path from the project's current run (project.json).
         self._settings.set("session_target_name",  self._file_mgr._target_name)
+        # #130: remember a nested project's actual folder so it restores there.
+        self._settings.set(
+            "session_project_root",
+            str(self._file_mgr.project_root_override() or ""))
         self._runner.cleanup()
         super().closeEvent(event)

@@ -1,6 +1,6 @@
 # Changelog
 
-## v3.14.8-beta.11
+## v3.14.8-beta.12
 
 - **Presets now build into the run you selected.** With "Overwrite run N" chosen
   in the Profile-run bar, picking a built-in "by Pharmacist" preset (or a TC9.18
@@ -9,7 +9,19 @@
   lands in the run it shows ("Overwrite run N", or a fresh run for "New run").
   Together with beta.10's archiving, a preset can no longer overwrite the wrong
   run or destroy its results.
-- The empty-preview guidance now names the actual button, "Generate Chart".
+- **Projects can live in sub-folders of your ChromIQ folder.** Opening a project
+  nested several levels deep now recognises it as one ChromIQ manages and opens
+  it in place — no more "copy it into your working folder" prompt for a project
+  that's already inside the ChromIQ folder. (A project truly outside still offers
+  the copy-in.) The nested location is remembered across restarts.
+- **The Measure tab now warns before verifying a run with no profile.** The
+  "build a profile first" / "make a verification chart first" guidance now keys
+  off the Profile-run bar, so it fires reliably (it previously missed the case
+  where the loaded chart was a verification chart).
+- **The "no chart yet" guidance now appears in the Print and Measure tabs too**,
+  not just Create Chart — so wherever you are, it tells you where to make the
+  missing chart.
+- The empty-preview guidance names the actual button, "Generate Chart".
 
 ## v3.14.8-beta.10
 

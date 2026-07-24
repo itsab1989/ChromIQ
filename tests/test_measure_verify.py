@@ -147,3 +147,30 @@ def test_verification_guard_ignores_external_charts(tmp_path):
     (tab._verify_cb if tab._current_mode() == "guided" else tab._m_verify_cb).setChecked(True)
     # Not inside runs/runN → the verification model doesn't apply, no block.
     assert tab._verification_guard() is None
+
+
+def test_verification_guard_keys_off_bar_run(tmp_path, monkeypatch):
+    """#130 (Knut): the guard must fire from the Profile-run bar even when the
+    loaded chart is a verify chart under verifications/ (not the run root) — a
+    run with no built profile blocks a verification Start."""
+    from core.file_manager import Project, FileManager
+    from ui.measurement_target_bar import MeasurementTargetController
+    tab = _make_tab()
+    fm = FileManager(tab._settings)
+    tab._settings.set("custom_output_path", str(tmp_path))
+    proj = Project.create(tmp_path / "P", "P"); run = proj.current_run(); run.ensure_dir()
+    run.chart_ti2.write_text("chart")                 # profiling chart, but…
+    # …no built profile. Bar → this run, Run type = Verification.
+    fm.set_target_name("P")
+    ctl = MeasurementTargetController(fm)
+    from core.measurement_target import RUN_TYPE_VERIFICATION
+    ctl.set_profile_run("run1"); ctl.set_run_type(RUN_TYPE_VERIFICATION)
+    tab.set_target_controller(ctl)
+    # A verify chart loaded from verifications/ (its parent is not the run root).
+    run.verifications_dir.mkdir(parents=True, exist_ok=True)
+    run.verify_chart_ti2.write_text("vc")
+    tab._ti1_path = run.verify_chart_ti2
+    (tab._verify_cb if tab._current_mode() == "guided" else tab._m_verify_cb).setChecked(True)
+
+    msg = tab._verification_guard()
+    assert msg is not None and "doesn't have a built profile" in msg   # Hole 1 fires
