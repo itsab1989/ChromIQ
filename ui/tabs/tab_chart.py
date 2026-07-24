@@ -3586,6 +3586,47 @@ class TabChart(QWidget):
                 self, min_width=520,
             ).exec()
             return
+        # #130 (Knut bug): a project OUTSIDE the working folder must not open
+        # silently — the model keeps every project in the working folder so it
+        # can find them again. Offer to copy it in (per the unified load
+        # strategy); a project already in the working folder opens directly.
+        proj_root = manifest.parent
+        working = Path(self._file_mgr.root_dir())     # the base ~/ChromIQ folder
+        try:
+            is_external = proj_root.resolve().parent != working.resolve()
+        except OSError:
+            is_external = False
+        if is_external:
+            from ui.ti2_loader import _ask_project_name, _choice_dialog
+            import workflow.chart_import as _chart_import
+            intro = tr(
+                "<b>{name}</b> is a complete ChromIQ project, but it is outside "
+                "your ChromIQ working folder.<br><br>ChromIQ keeps every project "
+                "in your working folder so it can always find it again. Copy "
+                "this project in to open it?"
+            ).format(name=proj_root.name)
+            choice = _choice_dialog(
+                self, tr("Open a printer profile project"), intro,
+                [(tr("Copy it into my working folder"),
+                  tr("Recommended. Copies the whole project — every run, chart, "
+                     "measurement, profile and verification — into your working "
+                     "folder, then opens the copy. The original is left "
+                     "untouched."), "copy")])
+            if choice != "copy":
+                return
+            picked_name, replace = _ask_project_name(self, proj_root.name, working)
+            if picked_name is None:
+                return
+            try:
+                new_root = _chart_import.copy_whole_project(
+                    proj_root, working, picked_name, replace=replace)
+            except Exception as exc:      # noqa: BLE001
+                InfoDialog(tr("Couldn't copy the project"),
+                           tr("The project could not be copied into your "
+                              "working folder:\n\n{error}").format(error=str(exc)),
+                           self, min_width=500).exec()
+                return
+            manifest = new_root / "project.json"
         # #130 (Model C): a project written by an older ChromIQ (pre-#127 flat
         # layout, or a pre-verifications manifest) is brought up to the current
         # folder layout the moment it's opened. The migration is in-place and

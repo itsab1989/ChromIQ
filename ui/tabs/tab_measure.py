@@ -1283,6 +1283,9 @@ class TabMeasure(QWidget):
         self._sound_cb.setChecked(bool(self._settings.get("sound_enabled", False)))
         self._sound_cb.toggled.connect(self._on_sound_toggled)
         sound_row.addWidget(self._sound_cb)
+        # Tooltip icon sits at the far right of the panel (Basti), not hugging
+        # the checkbox label.
+        sound_row.addStretch()
         sound_row.addWidget(TooltipButton(
             tr("Play sounds during measurement"),
             tr("Plays a short sound at each step of a measurement — a tick as "
@@ -1294,7 +1297,6 @@ class TabMeasure(QWidget):
                "Preferences → Sounds. This switch is remembered between "
                "sessions."),
             btn_outer, min_width=460))
-        sound_row.addStretch()
         bo_layout.addLayout(sound_row)
         lc_layout.addWidget(btn_outer)
 
