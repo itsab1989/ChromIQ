@@ -97,3 +97,45 @@ def test_truly_external_project_still_offers_copy_in(qapp, tmp_path, monkeypatch
 
     assert seen["choice"] == 1                    # copy-in offered (truly external)
     assert (root / "Q" / "project.json").is_file()  # copied in
+
+
+def test_project_root_for_finds_nested_project(qapp, tmp_path):
+    """#130: _project_root_for recognises a project nested at any depth."""
+    from ui.ti2_loader import _project_root_for
+    root = tmp_path / "ChromIQ"; root.mkdir()
+    proj = root / "companyA" / "2026" / "P"
+    Project.create(proj, "P")
+    run = proj / "runs" / "run1"; run.mkdir(parents=True, exist_ok=True)
+    ti2 = run / "P.ti2"; ti2.write_text("CTI2\n")
+    assert _project_root_for(ti2, root) == proj
+    # A loose chart not inside any project → None.
+    loose = root / "loose" / "x.ti2"; loose.parent.mkdir(parents=True); loose.write_text("x")
+    assert _project_root_for(loose, root) is None
+    # A file outside the ChromIQ folder → None.
+    assert _project_root_for(tmp_path / "elsewhere" / "y.ti2", root) is None
+
+
+def test_resolve_ti2_opens_nested_other_project_in_place(qapp, tmp_path, monkeypatch):
+    """Loading a .ti2 from a nested project (not the current one) offers 'Open'
+    and switches to it AT ITS REAL nested location — not copy-whole."""
+    from core.measurement_target import RUN_TYPE_PROFILING
+    from ui.ti2_loader import resolve_ti2
+    import ui.ti2_loader as L2
+    fm, root, s = _fm(tmp_path)
+    # Current project A (direct child).
+    Project.create(root / "A", "A").current_run().ensure_dir()
+    fm.set_target_name("A")
+    ctl = MeasurementTargetController(fm)
+    ctl.set_profile_run("run1"); ctl.set_run_type(RUN_TYPE_PROFILING)
+    # A DIFFERENT project P nested deep, with a real chart.
+    pnest = root / "sub" / "deep" / "P"
+    pnest_proj = Project.create(pnest, "P"); run = pnest_proj.current_run(); run.ensure_dir()
+    run.chart_ti2.write_text("chart"); (run.dir / "P_01.tif").write_text("t")
+
+    monkeypatch.setattr(L2, "_choice_dialog", lambda *a, **k: "open")
+    out = resolve_ti2(None, run.chart_ti2, s, ctl)
+
+    assert out is not None and out[0] == run.chart_ti2      # used in place
+    assert fm.get_target_name() == "P"
+    assert fm.working_dir() == pnest                        # opened at the nested folder
+    assert not (root / "P").exists()                        # no copy made

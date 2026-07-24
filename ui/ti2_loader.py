@@ -488,7 +488,9 @@ def _handle_inside_other(parent, ti2_path, inside_root, working_dir, controller)
          "new")])
     if key == "open":
         try:
-            controller._fm.set_target_name(other)
+            # Open at the project's ACTUAL folder (handles a nested sub-folder
+            # location as well as a direct child of the ChromIQ folder, #130).
+            controller._fm.open_project_at(inside_root)
         except Exception:      # noqa: BLE001
             log.warning("Could not switch to project %s", other, exc_info=True)
             return None
@@ -656,19 +658,25 @@ def _resolve_working_dir(settings: "AppSettings") -> Path:
 def _project_root_for(path: Path, working_dir: Path) -> Path | None:
     """Return the ChromIQ project root that contains ``path``, or None.
 
-    A project root is a first-level subfolder of ``working_dir`` that holds a
-    ``project.json``. ``path`` counts as "inside" when that manifest exists —
-    so a chart already structured as ``<project>/runs/<id>/chart.ti2`` (or a
+    A project root is any folder UNDER ``working_dir`` (at any depth — projects
+    may be organised in sub-folders, #130 Knut) that holds a ``project.json``.
+    ``path`` counts as "inside" when such a manifest is found walking up from it
+    — so a chart already structured as ``<project>/runs/<id>/chart.ti2`` (or a
     calibration in ``<project>/cal/``) is recognised and not re-imported.
     """
     try:
-        rel = path.resolve().relative_to(working_dir.resolve())
+        p = path.resolve()
+        wd = working_dir.resolve()
+        p.relative_to(wd)               # must live under the ChromIQ folder
     except ValueError:
         return None
-    if not rel.parts:
-        return None
-    candidate = working_dir / rel.parts[0]
-    return candidate if (candidate / "project.json").exists() else None
+    cur = p.parent
+    while True:
+        if (cur / "project.json").exists():
+            return cur
+        if cur == wd or wd not in cur.parents:
+            return None                 # reached the ChromIQ folder, no project
+        cur = cur.parent
 
 
 def _related_files(ti2_path: Path) -> tuple[Path | None, list[Path]]:
