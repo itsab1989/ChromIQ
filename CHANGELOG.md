@@ -1,5 +1,22 @@
 # Changelog
 
+## v3.14.8-beta.10
+
+More fixes from Knut's #130 testing:
+
+- **Regenerating a chart can no longer delete a run's measurement or profile.**
+  Building a new chart into a run that already had a measurement (`.ti3`) and
+  profile (`.icc`) used to delete them; now they're archived to the run's
+  `old/<timestamp>/` folder first — finished results are never destroyed. (Only
+  runs that actually have results archive; iterating on a not-yet-measured chart
+  doesn't create `old/` folders.)
+- **Clearer wording.** The vague "tick an unlock box in Create Chart" (and two
+  related hints) now name the exact checkboxes: "Edit patch recipe (override
+  preset)" and "Edit page layout (override preset)".
+- **Name field updates when a project is copied in.** Copying a whole project in
+  from a Print/Measure chart load now updates the "Printer profile project name"
+  field, so the new project is visibly loaded in Create Chart.
+
 ## v3.14.8-beta.9
 
 More fixes from Knut's #130 testing:
