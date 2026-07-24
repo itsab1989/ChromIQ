@@ -77,3 +77,43 @@ def test_show_overlay_foreign_ti3_returns_false(tmp_path):
     tab._tiff_pages = [tmp_path / "chart_01.tif"]
     tab._patch_boxes = [{"A1": QRect(0, 0, 10, 10), "A2": QRect(10, 0, 10, 10)}]
     assert tab._show_overlay_from_existing_ti3() is False
+
+
+def test_overlay_toggle_visible_with_ti3_and_paints(tmp_path):
+    from PyQt6.QtCore import QRect
+    tab = _make_tab()
+    ti2 = tmp_path / "chart.ti2"; ti2.write_text(_TI2)
+    (tmp_path / "chart.ti3").write_text(_TI3)
+    tab._ti1_path = ti2
+    tab._tiff_pages = [tmp_path / "chart_01.tif"]
+    tab._patch_boxes = [{"A1": QRect(0, 0, 10, 10), "A2": QRect(10, 0, 10, 10)}]
+    tab._update_resume_availability()
+    assert not tab._overlay_cb.isHidden()           # shown when a .ti3 exists
+    tab._on_overlay_toggled(True)
+    assert tab._preview._patch_info.get(0)          # painted
+    tab._on_overlay_toggled(False)                  # untick clears (no crash)
+
+
+def test_overlay_toggle_hidden_without_ti3(tmp_path):
+    tab = _make_tab()
+    ti2 = tmp_path / "chart.ti2"; ti2.write_text(_TI2)   # no sibling .ti3
+    tab._ti1_path = ti2
+    tab._update_resume_availability()
+    assert tab._overlay_cb.isHidden()
+    assert tab._m_overlay_cb.isHidden()
+
+
+def test_load_popup_yes_shows_overlay(tmp_path, monkeypatch):
+    from PyQt6.QtCore import QRect
+    from PyQt6.QtWidgets import QMessageBox
+    tab = _make_tab()
+    ti2 = tmp_path / "chart.ti2"; ti2.write_text(_TI2)
+    (tmp_path / "chart.ti3").write_text(_TI3)
+    tab._ti1_path = ti2
+    tab._tiff_pages = [tmp_path / "chart_01.tif"]
+    tab._patch_boxes = [{"A1": QRect(0, 0, 10, 10), "A2": QRect(10, 0, 10, 10)}]
+    monkeypatch.setattr(QMessageBox, "exec",
+                        lambda self: QMessageBox.StandardButton.Yes)
+    tab._maybe_offer_existing_overlay()
+    assert tab._overlay_cb.isChecked()
+    assert tab._preview._patch_info.get(0)

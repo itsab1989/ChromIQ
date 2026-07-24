@@ -697,6 +697,18 @@ _PRECOND_TIP_BODY = (
     "Settings and saved pre-conditioning data is present."
 )
 
+# #134: tooltip for the "Show overlay from existing measurement" toggle.
+_OVERLAY_TIP_BODY = (
+    "Paints the colours from a measurement you already made onto the chart in "
+    "the preview — each patch split between the colour the chart EXPECTED and "
+    "what your instrument actually MEASURED, with the far-off ones outlined. It "
+    "reads the .ti3 measurement file sitting next to this chart, so you can look "
+    "back at how a print turned out without measuring it again.\n\n"
+    "This option appears only when a measurement (.ti3) is found for the loaded "
+    "chart. If the measurement came from a different chart (no matching patch "
+    "layout), open it in Tools ▸ Inspect a measurement to see the numbers "
+    "instead.")
+
 _VERIFY_TIP_TITLE = "Verification measurement (colour-managed print)"
 _VERIFY_TIP_BODY = (
     "Tick this ONLY when you are measuring a chart you printed *through* a "
@@ -1503,6 +1515,24 @@ class TabMeasure(QWidget):
         self._refine_row.setVisible(False)
         cg.addWidget(self._refine_row)
 
+        # #134: show the expected-vs-measured overlay from a measurement already
+        # on disk. Like the resume option, it appears only when a matching .ti3
+        # is found next to the chart.
+        overlay_row = QHBoxLayout()
+        self._overlay_cb = QCheckBox(
+            tr("Show overlay from existing measurement"), left)
+        self._overlay_cb.setChecked(False)
+        self._overlay_cb.setVisible(False)
+        self._overlay_cb.toggled.connect(self._on_overlay_toggled)
+        overlay_row.addWidget(self._overlay_cb)
+        overlay_row.addStretch()
+        self._overlay_tip = TooltipButton(
+            tr("Show overlay from existing measurement"),
+            tr(_OVERLAY_TIP_BODY), left)
+        self._overlay_tip.setVisible(False)
+        overlay_row.addWidget(self._overlay_tip)
+        cg.addLayout(overlay_row)
+
         precond_row = QHBoxLayout()
         self._use_precond_cb = QCheckBox(
             tr("Also use measurement data from the pre-conditioning profile"), left
@@ -1915,6 +1945,23 @@ class TabMeasure(QWidget):
         ))
         self._m_refine_row.setVisible(False)
         mcg.addWidget(self._m_refine_row)
+
+        # #134: manual-mode counterpart of the "Show overlay from existing
+        # measurement" toggle (kept in sync with the guided one).
+        m_overlay_row = QHBoxLayout()
+        self._m_overlay_cb = QCheckBox(
+            tr("Show overlay from existing measurement"), left)
+        self._m_overlay_cb.setChecked(False)
+        self._m_overlay_cb.setVisible(False)
+        self._m_overlay_cb.toggled.connect(self._on_overlay_toggled)
+        m_overlay_row.addWidget(self._m_overlay_cb)
+        m_overlay_row.addStretch()
+        self._m_overlay_tip = TooltipButton(
+            tr("Show overlay from existing measurement"),
+            tr(_OVERLAY_TIP_BODY), left)
+        self._m_overlay_tip.setVisible(False)
+        m_overlay_row.addWidget(self._m_overlay_tip)
+        mcg.addLayout(m_overlay_row)
 
         # Measurement report (Knut) — accuracy stats + drift-over-time for the
         # current chart. Available for any measured chart (engine or not).
@@ -2577,7 +2624,8 @@ class TabMeasure(QWidget):
         return self._ti1_path
 
     def set_ti1_path(self, path: Path) -> None:
-        if path != self._ti1_path:
+        is_new_chart = path != self._ti1_path
+        if is_new_chart:
             self._averaging_active = False   # new chart → fresh averaging session
         self._ti1_path = path
         self._ti1_lbl.setText(str(path))
@@ -2586,6 +2634,36 @@ class TabMeasure(QWidget):
         self._update_resume_availability()
         self._update_precond_availability()
         self._refresh_bidir_autodetect()
+        if is_new_chart:
+            self._maybe_offer_existing_overlay()
+
+    def _maybe_offer_existing_overlay(self) -> None:
+        """#134: when a freshly-loaded chart already has a measurement, tell the
+        user and offer to show the expected-vs-measured overlay right away. They
+        can always toggle it later with 'Show overlay from existing measurement'."""
+        if self._existing_ti3_for_chart() is None:
+            return
+        from PyQt6.QtWidgets import QMessageBox
+        # Built by hand (not QMessageBox.question) so it carries NO big "?" icon,
+        # matching ChromIQ's cleaner dialog style (Basti).
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(tr("This chart already has a measurement"))
+        box.setText(
+            tr("A measurement (.ti3) already exists for this chart.\n\n"
+               "Would you like to see the colours from it overlaid on the "
+               "patches — each patch split between the colour the chart "
+               "EXPECTED and what your instrument actually MEASURED?\n\n"
+               "You can turn this on or off any time with the “Show overlay "
+               "from existing measurement” box in the options panel."))
+        box.setStandardButtons(
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        box.setDefaultButton(QMessageBox.StandardButton.No)
+        if box.exec() == QMessageBox.StandardButton.Yes:
+            # Ticking drives _on_overlay_toggled, which paints it (or explains
+            # why it can't and unticks).
+            self._sync_overlay_checkboxes(True)
+            self._on_overlay_toggled(True)
 
     def set_chart_notice(self, text: "str | None") -> None:
         """Show guidance in the preview when there's no chart to measure for the
@@ -2911,6 +2989,10 @@ class TabMeasure(QWidget):
                 cb.setChecked(False)
                 rcb.setEnabled(False)
                 rcb.setChecked(False)
+            for ocb, otip in [(self._overlay_cb, self._overlay_tip),
+                              (self._m_overlay_cb, self._m_overlay_tip)]:
+                ocb.setVisible(False); otip.setVisible(False)
+                ocb.setChecked(False)      # #134: no chart → no overlay
             self._refine_strips_path = None
             self._strip_list = []
             return
@@ -2924,6 +3006,13 @@ class TabMeasure(QWidget):
             tip.setVisible(has_ti3)
             if not has_ti3:
                 cb.setChecked(False)
+        # #134: the "Show overlay from existing measurement" toggle appears only
+        # when a matching .ti3 is present; hide + untick it otherwise.
+        for ocb, otip in [(self._overlay_cb, self._overlay_tip),
+                          (self._m_overlay_cb, self._m_overlay_tip)]:
+            ocb.setVisible(has_ti3); otip.setVisible(has_ti3)
+            if not has_ti3:
+                ocb.setChecked(False)
         # Auto-detect Refine_Strips file — reports/ since #127, with a
         # fallback to the flat pre-v2 location (an external chart folder that
         # never went through project migration may still hold one there).
@@ -5807,6 +5896,43 @@ class TabMeasure(QWidget):
     def _clear_overlay(self) -> None:
         """Remove a statically-shown overlay (#134)."""
         self._preview.clear_patch_overlay()
+
+    def _sync_overlay_checkboxes(self, checked: bool) -> None:
+        """Keep the guided + manual 'Show overlay' boxes in step (#134)."""
+        for cb in (getattr(self, "_overlay_cb", None),
+                   getattr(self, "_m_overlay_cb", None)):
+            if cb is not None and cb.isChecked() != checked:
+                cb.blockSignals(True)
+                cb.setChecked(checked)
+                cb.blockSignals(False)
+
+    def _on_overlay_toggled(self, checked: bool) -> None:
+        """Show/hide the from-.ti3 overlay (#134). If the chart's measurement
+        can't be placed (foreign / geometry-less .ti3), inform the user and
+        untick — the numbers are still available in Tools ▸ Inspect a
+        measurement."""
+        self._sync_overlay_checkboxes(checked)
+        if not checked:
+            self._clear_overlay()
+            return
+        if self._show_overlay_from_existing_ti3():
+            self._log.appendPlainText(tr(
+                "Showing the expected vs. measured colours from this chart's "
+                "existing measurement. Untick to hide them."))
+            return
+        # No usable overlay data → undo the tick and guide to the tabular view.
+        self._sync_overlay_checkboxes(False)
+        from PyQt6.QtWidgets import QMessageBox
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)      # clean style, no icon (Basti)
+        box.setWindowTitle(tr("Can't show the overlay"))
+        box.setText(
+            tr("This chart's measurement can't be shown on the patches — it "
+               "looks like it was made for a different chart (the patch layout "
+               "doesn't match).\n\nOpen it in Tools ▸ Inspect a measurement to "
+               "see the measured values as a table instead."))
+        box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        box.exec()
 
     def _on_preview_patch_clicked(self, page: int, loc: str) -> None:
         if not self._manager.engine_active or not loc:
