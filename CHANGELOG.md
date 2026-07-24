@@ -24,6 +24,14 @@ file-handling model.)
 - Works on the ready-to-use macOS, Windows and Linux bundles; if a machine has
   no working audio, sounds simply stay silent and never interrupt a measurement.
 
+Also fixed (from driving the #130 test plan through the app):
+
+- **Single-page verification charts now preview.** Generating a verification
+  chart that fits on one page left its page image at the run root instead of
+  moving it into `verifications/`, so switching Run type to Verification showed a
+  blank preview (and Print/Measure got no chart). The single-page TIFF now moves
+  with the rest of the chart.
+
 Notes: the per-patch “reading looks off” sound uses the ChromIQ reading engine
 (on by default). Live measurement-speed feedback is Phase 2. New strings ship as
 English placeholders in the non-English catalogs for this beta; full translation
