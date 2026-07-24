@@ -6382,7 +6382,57 @@ class TabChart(QWidget):
         except Exception:  # noqa: BLE001
             log.warning("could not restore notes/stamp from %s", sidecar,
                         exc_info=True)
+        # printtarg charts carry no layout recipe, but they DO save their
+        # printtarg parameter fields (margins, patch scale, spacers, …). Restore
+        # them so toggling between two charts shows EACH chart's own printtarg
+        # settings, not whichever preset was loaded last (#130 Bug 1, Knut).
+        if not restored_full:
+            self._restore_printtarg_fields(doc.get("printtarg_fields"))
         return restored_full
+
+    def _snapshot_printtarg_fields(self) -> list:
+        """The current manual printtarg fields as ``[{flag, value, enabled}]`` —
+        saved with each chart so it can be shown exactly when reloaded (#130)."""
+        out = []
+        for pw in self._manual_widgets.get("printtarg", []):
+            try:
+                out.append({"flag": pw.flag, "value": pw.get_raw_value(),
+                            "enabled": bool(pw.is_enabled_by_user)})
+            except Exception:  # noqa: BLE001
+                pass
+        return out
+
+    def _restore_printtarg_fields(self, fields) -> None:
+        """Apply saved printtarg field values (from :meth:`_snapshot_printtarg_
+        fields`) to the manual printtarg panel (#130 Bug 1)."""
+        if not fields:
+            return
+        by_flag = {pw.flag: pw for pw in self._manual_widgets.get("printtarg", [])}
+        for f in fields:
+            pw = by_flag.get(f.get("flag"))
+            if pw is None:
+                continue
+            try:
+                pw.set_value(f.get("value"))
+                pw.set_user_enabled(bool(f.get("enabled")))
+            except Exception:  # noqa: BLE001 — one bad field must not abort
+                pass
+
+    def _store_printtarg_fields_in_sidecar(self, ti2: "Path | None") -> None:
+        """Merge the current printtarg fields into a chart's channels.json so a
+        later load restores them (#130 Bug 1). Best-effort; never raises."""
+        if not ti2:
+            return
+        sidecar = Path(ti2).with_suffix(".channels.json")
+        try:
+            doc = json.loads(sidecar.read_text()) if sidecar.is_file() else {}
+        except Exception:  # noqa: BLE001
+            doc = {}
+        doc["printtarg_fields"] = self._snapshot_printtarg_fields()
+        try:
+            sidecar.write_text(json.dumps(doc))
+        except Exception:  # noqa: BLE001
+            log.warning("could not store printtarg fields in %s", sidecar)
 
     def reflect_loaded_chart(self, ti2_path: Path, tiffs: list[Path]) -> None:
         """Mirror a chart loaded in the Print/Measure tab, read-only.
@@ -8272,6 +8322,11 @@ class TabChart(QWidget):
             self._preview.load_tiff(tiffs)
             log.info("Preview loaded: %d TIFF(s)", len(tiffs))
             ti2 = tiffs[0].parent / f"{stem}.ti2"
+            # #130 Bug 1 (Knut): save this chart's printtarg fields with it, so
+            # switching Run type later shows THIS chart's printtarg settings
+            # (not the last preset's). Engine charts restore from their recipe
+            # instead; this is the printtarg-chart counterpart.
+            self._store_printtarg_fields_in_sidecar(ti2)
             # Record the chart's instrument + paper in the run's meta.json,
             # mirroring what the TI2 layout editor writes (see
             # workflow.ti2_relayout.save_editor_meta). The .ti2 carries these
