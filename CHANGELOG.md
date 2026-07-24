@@ -1,5 +1,21 @@
 # Changelog
 
+## v3.14.8-beta.15
+
+- **The "chart already has a measurement" pop-up now appears only on the Measure
+  tab.** It was popping up over Create Chart and Print Chart too — when you
+  opened a project that had a measurement, or changed the Profile-run / Run-type
+  bar — because the Measure tab listens for charts loaded elsewhere. It now only
+  offers the overlay when the Measure tab is actually on screen. (The persistent
+  "Show overlay from existing measurement" checkbox is unchanged.)
+- **Check & Refine gamut comparison keeps your opacity and saturation when you
+  switch views.** Switching to profile A or B and back to Combined re-loaded the
+  3-D scene at its default transparency/saturation while the sliders still showed
+  your values — so it looked wrong until you nudged a slider. The view now
+  re-applies your current slider values immediately after the switch.
+- Added a first batch of automated conformance checks for the unified
+  file-handling model (internal; findings for review are tracked on the issue).
+
 ## v3.14.8-beta.14
 
 - **See how a print turned out without measuring it again (#134).** When a chart
