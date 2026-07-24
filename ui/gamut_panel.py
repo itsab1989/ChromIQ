@@ -742,9 +742,15 @@ class GamutPanel(QWidget):
             return
         t = 1.0 - self._opacity_slider.value() / 100.0
         s = self._sat_slider.value() / 100.0
+        # M2 (mavtop): switching to A/B and back to Combined RELOADS the scene,
+        # which re-initialises at its default opacity/saturation while the Qt
+        # sliders keep their values — so the view looked wrong until a slider was
+        # nudged. Re-APPLY the current values here (not just set the vars), exactly
+        # as _on_opacity_changed / _on_saturation_changed do.
         self._web_view.page().runJavaScript(
             f"window._chromiqCompareOpacity={t:.2f};"
             f" window._chromiqCompareSat={s:.2f};"
+            " if(window._chromiqApplyCompare) window._chromiqApplyCompare();"
         )
 
     def _on_opacity_changed(self, value: int) -> None:
