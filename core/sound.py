@@ -10,8 +10,10 @@ Design (confirmed with Knut on #131):
   sub-folders — ``measurement-events/``, ``slow-down/`` and ``task-complete/``.
   The choice list for each event is simply the ``.wav`` files present in its
   sub-folder (filename stem → list entry), always with ``OFF`` on top. ChromIQ
-  ships a synthesised CC0 default pack under ``assets/sounds/``; the user can
-  point Preferences → Paths at their own folder to extend or replace it.
+  ships a freely reusable default pack under ``assets/sounds/`` — synthesised by
+  ``scripts/make_default_sounds.py`` except for the applause, which is a CC0
+  recording (see ``assets/sounds/CREDITS.md``); the user can point
+  Preferences → Paths at their own folder to extend or replace it.
 * **Per-event selection** is stored in settings (``sound_choice_<event>``); a
   master ``sound_enabled`` switch (the Measure-tab checkbox) turns the whole
   layer on or off.

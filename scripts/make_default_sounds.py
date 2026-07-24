@@ -1,17 +1,26 @@
 #!/usr/bin/env python3
 """Generate ChromIQ's default measurement-sound pack (#131, Phase 1).
 
-All sounds are synthesised from scratch here — simple sine tones, glides and
-filtered noise with short fades — so the pack is CC0 (no third-party samples,
-no licensing) and ships in the app. Users can drop their own .wav files into a
-Sounds folder (Preferences → Paths) to extend or replace any of these; the
-Sounds preferences dropdowns are built from whichever files are present.
+Every sound this script writes is synthesised from scratch — simple sine tones,
+glides, damped resonances and filtered noise with short fades — so the pack
+stays free of licensing questions and ships in the app. Users can drop their own
+.wav files into a Sounds folder (Preferences → Paths) to extend or replace any
+of these; the Sounds preferences dropdowns are built from whichever files are
+present.
+
+**``task-complete/applause.wav`` is NOT written here.** It is a CC0 recording of
+a real crowd (see ``assets/sounds/CREDITS.md``): applause was the one sound that
+resisted synthesis — hundreds of hand claps plus room acoustics — and every
+generated attempt read as fireworks or static rather than clapping. This script
+must never overwrite it, which is why no applause block exists below; running
+the script leaves that file untouched.
 
 Layout written under assets/sounds/:
     measurement-events/   tick, click, ding, chime, thump, bump, bell,
                           ding-hi, failure, buzz, error, alarm
     slow-down/            slowdown, slowdown-soft, slowdown-chime
-    task-complete/        drumroll, trumpet, applause, fanfare, chime-long
+    task-complete/        drumroll, trumpet, fanfare, chime-long
+                          (applause is the CC0 recording — not generated)
 
 Every file is 44.1 kHz, mono, 16-bit PCM, peak-normalised with a couple of
 milliseconds of fade at each end so nothing clicks.
@@ -237,31 +246,15 @@ def build() -> None:
            _seq(_decay(C5, 0.18, 0.12, partials=(1.0, 0.5, 0.35, 0.2)),
                 _decay(E5, 0.18, 0.12, partials=(1.0, 0.5, 0.35, 0.2)),
                 _decay(G5, 0.35, 0.20, partials=(1.0, 0.5, 0.35, 0.2)), gap=0.01))
-    # applause: a ROOM full of people clapping. Three things separate this from
-    # fireworks (Basti's ear on the first rebuild): the claps must overlap
-    # densely enough to fuse into a texture, each clap needs body low down
-    # (hands are not just a bright tick), and the room's reverberation has to
-    # glue them together. Sparse + bright + dry = firecrackers.
-    ap_len = 1.45
-    rng = np.random.default_rng(31)
-    claps: list[tuple[float, np.ndarray]] = []
-    for k in range(1400):
-        start = float(rng.random()) * ap_len
-        # Swell in quickly, hold, then thin out as people stop.
-        density = min(start / 0.16, 1.0) * min(1.0, max(0.12, 1.0 - (start - 0.75) / 0.8))
-        if float(rng.random()) > density:
-            continue
-        # Every pair of hands is a little different — vary band and decay per
-        # clap so it never sounds like one sample repeated.
-        low = 260.0 + 260.0 * float(rng.random())
-        high = 1700.0 + 1500.0 * float(rng.random())
-        tau = 0.0035 + 0.0035 * float(rng.random())
-        clap = _bandpass(_rand(int(SR * 0.022), 900 + k), low, high)
-        clap *= np.exp(-_t(0.022) / tau)
-        clap /= max(float(np.max(np.abs(clap))), 1e-9)
-        claps.append((start, clap * (0.25 + 0.75 * float(rng.random()) ** 2)))
-    _write("task-complete", "applause",
-           _room(_sprinkle(claps, ap_len + 0.10), decay=0.16, wet=0.40))
+    # applause is NOT generated — task-complete/applause.wav is a CC0 recording
+    # of a real crowd (assets/sounds/CREDITS.md). Two rounds of synthesis were
+    # tried and rejected by ear: a noise swell sounded like static, and a crowd
+    # of filtered-noise bursts sounded like fireworks. The giveaway was measuring
+    # the real recording afterwards — it has MORE silence between events (17.5%)
+    # and sharper peaks than the "improved" dense version (5.8%), so the fault
+    # was never the arrangement but the clap timbre itself. Filtered noise is a
+    # "tss"; a hand clap is an air-cavity burst with resonant modes. Leave the
+    # recording alone.
     # fanfare: quick rising flourish resolving up an octave
     _write("task-complete", "fanfare",
            _seq(_decay(G5, 0.12, 0.06), _decay(C6, 0.12, 0.06),
