@@ -3285,7 +3285,6 @@
   "Please enter a name.": "Please enter a name.",
   "Profile run": "Profile run",
   "Printer profile (the file)": "Printer profile (the file)",
-  "Start a fresh profile project named <b>{name}</b> (after the file). The current project <b>{project}</b> is left untouched; the new project gets its own folder and its own run 1.": "Start a fresh profile project named <b>{name}</b> (after the file). The current project <b>{project}</b> is left untouched; the new project gets its own folder and its own run 1.",
   "Copy the project into your ChromIQ folder as:": "Copy the project into your ChromIQ folder as:",
   "Import as a new run": "Import as a new run",
   "A project named “{name}” already exists. Choose a different name, or Replace it (the existing one is moved to its own old/ folder).": "A project named “{name}” already exists. Choose a different name, or Replace it (the existing one is moved to its own old/ folder).",
@@ -3365,5 +3364,6 @@
   "<b>{name}</b> is a complete ChromIQ project, but it is outside your ChromIQ working folder.<br><br>ChromIQ keeps every project in your working folder so it can always find it again. Copy this project in to open it?": "<b>{name}</b> is a complete ChromIQ project, but it is outside your ChromIQ working folder.<br><br>ChromIQ keeps every project in your working folder so it can always find it again. Copy this project in to open it?",
   "Copy it into my working folder": "Copy it into my working folder",
   "Recommended. Copies the whole project — every run, chart, measurement, profile and verification — into your working folder, then opens the copy. The original is left untouched.": "Recommended. Copies the whole project — every run, chart, measurement, profile and verification — into your working folder, then opens the copy. The original is left untouched.",
-  "The project could not be copied into your working folder:\n\n{error}": "The project could not be copied into your working folder:\n\n{error}"
+  "The project could not be copied into your working folder:\n\n{error}": "The project could not be copied into your working folder:\n\n{error}",
+  "Start a fresh profile project from these patches. You'll be asked for the project name (pre-filled as <b>{name}</b> — change it or keep it). The current project <b>{project}</b> is left untouched; the new project gets its own folder and its own run 1.": "Start a fresh profile project from these patches. You'll be asked for the project name (pre-filled as <b>{name}</b> — change it or keep it). The current project <b>{project}</b> is left untouched; the new project gets its own folder and its own run 1."
 }

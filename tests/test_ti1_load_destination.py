@@ -105,3 +105,53 @@ def test_port_announced_only_for_old_schema(qapp, tmp_path, monkeypatch):
     new.write_text(json.dumps({"schema_version": SCHEMA_VERSION, "current_run": "run1", "runs": ["run1"]}))
     tab._maybe_announce_project_port(new)
     assert shown["n"] == 1                       # current schema → no extra dialog
+
+
+def test_load_ti1_new_project_prompts_name_and_updates_field(qapp, tmp_path, monkeypatch):
+    """#130 Bug 4 (Knut): loading a patch set and choosing 'Start a new project'
+    prompts for the name (pre-filled, editable) AND updates the 'Printer profile
+    project name' field so the new project is visibly loaded."""
+    import ui.tabs.tab_chart as tc
+    import ui.ti2_loader as L
+    tab, fm, ctl = _make_tab(tmp_path)
+    # A real Argyll .ti1 (used as-is, no conversion).
+    ti1 = tmp_path / "MyPatches.ti1"; ti1.write_text("CTI1\n")
+    monkeypatch.setattr(tc, "open_file_dialog", lambda *a, **k: str(ti1))
+    monkeypatch.setattr(tab, "_ti1_load_destination", lambda src: "new")
+    seen = {"prefill": None}
+
+    def _ask(parent, default, working):
+        seen["prefill"] = default
+        return ("Chosen-Name", False)
+    monkeypatch.setattr(L, "_ask_project_name", _ask)
+    # Don't actually run targen/printtarg.
+    monkeypatch.setattr(tab._creator, "load_ti1_and_generate_preview",
+                        lambda *a, **k: None)
+
+    tab._on_load_ti1()
+
+    assert seen["prefill"] == "MyPatches"          # pre-filled from the file
+    assert fm.get_target_name() == "Chosen-Name"   # new name applied
+    # The name field(s) now show the new project → it's visibly loaded.
+    edits = [getattr(tab, "_target_name_edit", None),
+             getattr(tab, "_manual_target_name_edit", None)]
+    assert any(e is not None and e.text() == "Chosen-Name" for e in edits)
+
+
+def test_load_ti1_new_project_cancel_aborts(qapp, tmp_path, monkeypatch):
+    import ui.tabs.tab_chart as tc
+    import ui.ti2_loader as L
+    tab, fm, ctl = _make_tab(tmp_path)
+    before = fm.get_target_name()
+    ti1 = tmp_path / "P.ti1"; ti1.write_text("CTI1\n")
+    monkeypatch.setattr(tc, "open_file_dialog", lambda *a, **k: str(ti1))
+    monkeypatch.setattr(tab, "_ti1_load_destination", lambda src: "new")
+    monkeypatch.setattr(L, "_ask_project_name", lambda *a, **k: (None, False))
+    called = {"gen": 0}
+    monkeypatch.setattr(tab._creator, "load_ti1_and_generate_preview",
+                        lambda *a, **k: called.__setitem__("gen", called["gen"] + 1))
+
+    tab._on_load_ti1()
+
+    assert called["gen"] == 0                      # cancelled → nothing generated
+    assert fm.get_target_name() == before          # name unchanged

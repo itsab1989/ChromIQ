@@ -3561,6 +3561,18 @@ class TabChart(QWidget):
             self, min_width=560,
         ).exec()
 
+    def _update_name_fields(self) -> None:
+        """Reflect the current target name in both the guided and manual
+        “Printer profile project name” fields, so opening/creating a project is
+        visibly loaded in the Create Chart tab (#130, Knut)."""
+        self._last_target_name = self._file_mgr.get_target_name()
+        for f in (getattr(self, "_target_name_edit", None),
+                  getattr(self, "_manual_target_name_edit", None)):
+            if f is not None:
+                if isinstance(f, PrefixLockedLineEdit):
+                    f.set_prefix("")
+                f.setText(self._last_target_name)
+
     def _load_existing_profile(self) -> None:
         """Reopen an existing project: make it the active profile, fill the name
         field, and show its current chart (#70, Knut)."""
@@ -3637,12 +3649,7 @@ class TabChart(QWidget):
         # Make it the active profile and reflect it in both name fields.
         self._file_mgr.set_target_name(name)
         self._last_target_name = self._file_mgr.get_target_name()
-        for f in (getattr(self, "_target_name_edit", None),
-                  getattr(self, "_manual_target_name_edit", None)):
-            if f is not None:
-                if isinstance(f, PrefixLockedLineEdit):
-                    f.set_prefix("")
-                f.setText(self._last_target_name)
+        self._update_name_fields()
         # Loading a saved project is a clean slate for the preset/applied bindings.
         self._tc918_active = False
         self._tc918_targen_sig = None
@@ -7721,9 +7728,10 @@ class TabChart(QWidget):
             "overwritten until you actually create the chart."
         ).format(project=pname, rtype=rtype, where=where)
         new_desc = tr(
-            "Start a fresh profile project named <b>{name}</b> (after the file). "
-            "The current project <b>{project}</b> is left untouched; the new "
-            "project gets its own folder and its own run 1."
+            "Start a fresh profile project from these patches. You'll be asked "
+            "for the project name (pre-filled as <b>{name}</b> — change it or "
+            "keep it). The current project <b>{project}</b> is left untouched; "
+            "the new project gets its own folder and its own run 1."
         ).format(name=self._file_mgr.strip_workfile_ext(src.stem), project=pname)
         return _choice_dialog(
             self, tr("Where should this patch set's chart go?"), intro,
@@ -7801,7 +7809,21 @@ class TabChart(QWidget):
             self._generate_btn.setEnabled(True)
             return
         if dest == "new":
-            self._file_mgr.set_target_name(src.stem)
+            # Bug 4 (Knut): starting a new project from a patch set must let the
+            # user confirm or change the name (pre-filled from the file, like
+            # creating any new profile project), then actually LOAD it — show the
+            # new name in the "Printer profile project name" field.
+            from ui.ti2_loader import _ask_project_name
+            name, _replace = _ask_project_name(
+                self, self._file_mgr.strip_workfile_ext(src.stem),
+                self._file_mgr.root_dir())
+            if name is None:                      # cancelled the name prompt
+                self._preset_ti1_path = None
+                self._preview.clear()
+                self._generate_btn.setEnabled(True)
+                return
+            self._file_mgr.set_target_name(name)
+            self._update_name_fields()
         params = self._collect_params()
         self._preview.clear()
         self._generate_btn.setEnabled(False)
