@@ -72,6 +72,13 @@ class MeasurementTargetController(QObject):
             self._target.verification_id = vid
             self.changed.emit()
 
+    def notify_changed(self) -> None:
+        """Force a ``changed`` emission even when no field value differs — used
+        after the working PROJECT is switched out from under the bar (e.g. a
+        Print/Measure load copied a new project in), so listeners refresh even
+        if the new project's run id happens to match the old one (#130, Knut)."""
+        self.changed.emit()
+
 
 class MeasurementTargetBar(QWidget):
     """A compact row: **Profile run** (a friendly single dropdown), **Run type**

@@ -6490,7 +6490,9 @@ class TabChart(QWidget):
         if Path(ti2_path).with_suffix(".channels.json").is_file():
             self._log.appendPlainText(tr(
                 "The locked panels show the settings this chart was made "
-                "with — unlock to build a new chart starting from them."))
+                "with — tick “Edit patch recipe (override preset)” or “Edit "
+                "page layout (override preset)” to build a new chart starting "
+                "from them."))
         if tiffs:
             self._preview.load_tiff(list(tiffs))
             self._set_margin_chart(list(tiffs), ti2_path)
@@ -6529,9 +6531,11 @@ class TabChart(QWidget):
                "~/ChromIQ, and you can open it again any time from Print or "
                "Measure.\n\n"
                "If you'd like to build a NEW chart starting from these "
-               "settings, just tick an unlock box in Create Chart, make your "
-               "changes, and click Generate Chart — the loaded chart stays "
-               "untouched. For charts made with the ChromIQ layout engine, "
+               "settings, tick the “Edit patch recipe (override preset)” or "
+               "“Edit page layout (override preset)” checkbox in the Create "
+               "Chart tab, make your changes, and click “Generate Chart” — the "
+               "loaded chart stays untouched. For charts made with the ChromIQ "
+               "layout engine, "
                "the panels really do show the chart's own creation settings "
                "— patch size, spacers, margins, seed, notes and patch count "
                "are all restored from the chart itself.").format(name=ti2_path.name),
@@ -7440,10 +7444,10 @@ class TabChart(QWidget):
                     "shown here just for reference — it already lives in its own "
                     "folder and there's nothing to generate.\n\n"
                     "If you want to build your own chart from these settings, "
-                    "tick “Edit patch recipe” or “Edit page layout” above to "
-                    "unlock the panels, make your changes, then click Generate "
-                    "Chart — that creates a brand-new chart and leaves the loaded "
-                    "one untouched.",
+                    "tick “Edit patch recipe (override preset)” or “Edit page "
+                    "layout (override preset)” above, make your changes, then "
+                    "click “Generate Chart” — that creates a brand-new chart and "
+                    "leaves the loaded one untouched.",
                     self, min_width=540,
                 ).exec()
                 return
@@ -8228,6 +8232,15 @@ class TabChart(QWidget):
         ctl = getattr(self, "_target_ctl", None)
         if ctl is None:
             return
+        # #130 Bug C (Knut): if the loaded PROJECT changed (e.g. a Print/Measure
+        # load copied a new project into the working folder), reflect its name in
+        # the "Printer profile project name" field so it's visibly loaded. Gated
+        # on the name actually changing, so run/type toggles within one project
+        # never overwrite a name the user is typing.
+        cur_name = self._file_mgr.get_target_name()
+        if cur_name and cur_name != getattr(self, "_last_shown_project_name", None):
+            self._last_shown_project_name = cur_name
+            self._update_name_fields()
         resolved = self._resolve_target_chart()
         if resolved is None:
             if self._shown_chart_ti2 is not None:

@@ -606,6 +606,9 @@ def _point_bar_at_current_run(controller) -> None:
             controller.set_profile_run(proj.current_run().id)
     except Exception:      # noqa: BLE001
         pass
+    # Force a refresh even when the run id is unchanged, so the Create Chart
+    # name field reflects a newly switched-in project (#130 Bug C, Knut).
+    controller.notify_changed()
 
 
 def resolve_ti3(
