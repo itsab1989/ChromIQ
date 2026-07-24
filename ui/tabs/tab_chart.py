@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import re
 import shlex
+import shutil
 import tempfile
 import unicodedata
 from dataclasses import dataclass
@@ -7520,6 +7521,16 @@ class TabChart(QWidget):
                 and _same_project:
             self._align_current_run_to_target()
 
+        # #130 (Knut bug): a verification chart must live ONLY in the run's
+        # verifications/ folder — the profiling chart at the run root must
+        # survive. Generating the verify chart writes <stem>.ti1/.ti2/.tif into
+        # the run root (overwriting the profiling chart) before it's moved into
+        # verifications/, so snapshot the profiling chart now and restore it in
+        # _on_generate_finished after the move.
+        self._verify_profiling_backup = None
+        if not cal_target_active and self._is_verification_target():
+            self._verify_profiling_backup = self._snapshot_profiling_chart()
+
         self._log.clear()
         self._preview.clear()
         self._generate_btn.setEnabled(False)
@@ -7954,6 +7965,50 @@ class TabChart(QWidget):
         ctl = getattr(self, "_target_ctl", None)
         return ctl is not None and ctl.target.is_verification()
 
+    def _snapshot_profiling_chart(self) -> "Path | None":
+        """Copy the current run's PROFILING chart files aside before a
+        verification chart is generated into the same run root, so generating
+        the verify chart (which overwrites them there before they're moved into
+        verifications/) never destroys the profiling chart (#130, Knut). Returns
+        the temp folder, or None when the run has no profiling chart to protect."""
+        try:
+            run = self._file_mgr.project().current_run()
+        except Exception:      # noqa: BLE001
+            return None
+        stem = run.stem
+        srcs = [run.dir / f"{stem}{ext}" for ext in
+                (".ti1", ".ti2", ".cht", ".channels.json", ".strips.json",
+                 ".tif")]
+        srcs += list(run.dir.glob(f"{stem}_*.tif"))
+        present = [p for p in srcs if p.is_file()]
+        if not present:
+            return None
+        import tempfile
+        tmp = Path(tempfile.mkdtemp(prefix="chromiq_prof_chart_"))
+        for p in present:
+            try:
+                shutil.copy2(p, tmp / p.name)
+            except OSError:
+                pass
+        return tmp
+
+    def _restore_profiling_chart(self) -> None:
+        """Move the snapshotted profiling chart back to the run root after a
+        verification chart was generated + filed into verifications/ (#130)."""
+        bak = getattr(self, "_verify_profiling_backup", None)
+        self._verify_profiling_backup = None
+        if not bak:
+            return
+        try:
+            run = self._file_mgr.project().current_run()
+            for p in Path(bak).iterdir():
+                shutil.move(str(p), str(run.dir / p.name))
+        except Exception:      # noqa: BLE001 — never break a finished generation
+            log.warning("Could not restore the profiling chart after verify "
+                        "generation", exc_info=True)
+        finally:
+            shutil.rmtree(bak, ignore_errors=True)
+
     def _resolve_target_chart(self) -> "tuple[Path, list[Path], Path] | None":
         """``(ti2, tiffs, ti1)`` for the current Profile-run / Run-type target's
         EXISTING chart — the verification chart for Run type = Verification, the
@@ -8130,6 +8185,12 @@ class TabChart(QWidget):
                         "to Verification."))
             except Exception:  # noqa: BLE001 — never break a finished generation
                 log.warning("verify-chart adopt failed", exc_info=True)
+            # Put the profiling chart back at the run root — the verify chart now
+            # lives only in verifications/, and the two must coexist (#130, Knut).
+            self._restore_profiling_chart()
+        else:
+            # Not a verification generation → drop any stale snapshot.
+            self._verify_profiling_backup = None
 
         # For i1iSis the load-bearing artifact is the TI1 from targen, not the
         # printtarg TIFF. Run the export off the TI1 so users still get their
