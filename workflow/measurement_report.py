@@ -210,6 +210,55 @@ def _reference_labs(ti2_path: Path) -> "dict[str, tuple]":
     return out
 
 
+def per_patch_overlay(ti3_path: "str | Path",
+                      ti2_path: "str | Path | None" = None) -> "list[dict]":
+    """Per-patch expected-vs-measured data for the split-patch overlay (#134).
+
+    Returns ``[{loc, exyz, xyz, de}, …]`` — one entry per patch that matches
+    between the measured ``.ti3`` and its chart ``.ti2`` (by ``SAMPLE_ID``):
+
+      * ``loc``  — the patch location (``SAMPLE_LOC``, e.g. ``"A1"``) used to
+        place it on the chart page.
+      * ``exyz`` — the chart's EXPECTED XYZ (D50-adapted, Y≈100), the same
+        colour-correct reference the Measurement Report uses.
+      * ``xyz``  — the MEASURED XYZ from the ``.ti3`` (Y≈100).
+      * ``de``   — ΔE00 between them.
+
+    This is exactly the shape ``TabMeasure._on_chart_measured`` renders, so a
+    measurement already on disk can be shown as the overlay without re-reading.
+    Returns ``[]`` when the reference ``.ti2`` is missing/unreadable or nothing
+    matches (e.g. a foreign ``.ti3`` from a different chart) — the caller then
+    falls back to the tabular "Inspect a measurement" view."""
+    ti3_path = Path(ti3_path)
+    ti2 = Path(ti2_path) if ti2_path else _find_reference_ti2(ti3_path)
+    try:
+        measured = parse_ti3(ti3_path)
+        design = parse_ti3(ti2)
+    except (Ti3ParseError, OSError):
+        return []
+    dxyz = _design_xyz_to_100(np.asarray(design.xyz, dtype=float))
+    adapt = _design_xyz_is_d65(design.keywords)
+    ref: "dict[str, tuple]" = {}
+    for i, sid in enumerate(design.sample_ids):
+        x, y, z = (float(v) for v in dxyz[i])
+        if adapt:
+            x, y, z = _bradford_d65_to_d50(x, y, z)
+        loc = design.sample_locs[i] if i < len(design.sample_locs) else sid
+        ref[sid] = (loc, (x, y, z))
+    out: "list[dict]" = []
+    for i, sid in enumerate(measured.sample_ids):
+        if sid not in ref:
+            continue
+        loc, exyz = ref[sid]
+        mxyz = tuple(float(v) for v in measured.xyz[i])
+        de = ciede2000(
+            xyz_to_lab(tuple(v / 100.0 for v in mxyz)),
+            xyz_to_lab(tuple(v / 100.0 for v in exyz)))
+        out.append({"loc": loc, "exyz": list(exyz),
+                    "xyz": list(mxyz), "de": round(float(de), 2)})
+    return out
+
+
 def _stats(vals: "list[float]") -> dict:
     """The colour-accuracy metrics (Knut's revised set): averages and maxima over
     all patches, over the best 95 %, and over the worst 5 %, plus the spread.
