@@ -1,5 +1,21 @@
 # Changelog
 
+## v3.14.8-beta.9
+
+More fixes from Knut's #130 testing:
+
+- **Switching Run type now updates the printtarg parameters too.** Previously the
+  preview swapped between a run's profiling and verification charts but the
+  printtarg settings frame kept showing the last preset's values. Each chart now
+  remembers its own printtarg settings, so toggling Run type shows the settings
+  that actually made the chart on screen. (Engine charts already did this via
+  their layout recipe; this is the printtarg-chart counterpart.)
+- **Loading a patch set into a new project now asks for the name.** Choosing
+  "Start a new project" when you load a `.ti1` prompts for the project name
+  (pre-filled from the file, editable) like creating any new profile project, and
+  then loads it — the "Printer profile project name" field updates so you can see
+  the new project is active.
+
 ## v3.14.8-beta.8
 
 Fixes from Knut's beta-6/7 testing (#130):
