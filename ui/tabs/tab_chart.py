@@ -6805,10 +6805,25 @@ class TabChart(QWidget):
             return
 
         self.target_started.emit()
+        # Remember the loaded project BEFORE the name is applied, so a build into
+        # the SAME project can honour the Profile-run bar (Overwrite run N / New
+        # run); a build under a NEW name is its own project (#130).
+        _ctl = getattr(self, "_target_ctl", None)
+        _proj_before = _ctl.project_or_none() if _ctl is not None else None
         name = (self._manual_target_name_edit.text().strip()
                 if self._manual_target_name_edit is not None else "") \
             or target_name or default_name
         self._file_mgr.set_target_name(name)
+        # #130 CRITICAL (Knut): a prebuilt preset must build into the run the bar
+        # shows — "Overwrite run N" → run N, "New run" → a fresh run — NOT always
+        # the project's current run (which jumped the chart to the last run and
+        # overwrote it). The params-based presets already do this via _on_generate;
+        # the prebuilt-copy path bypassed it. Skipped for a build under a new name.
+        _same_project = (
+            _proj_before is not None
+            and _proj_before.root.name == self._file_mgr.working_dir().name)
+        if _same_project:
+            self._align_current_run_to_target()
         run = self._file_mgr.project().current_run()
         # Start from a clean slate so stale pages from a prior copy can't linger.
         run.reset_chart_artefacts()
@@ -6914,10 +6929,22 @@ class TabChart(QWidget):
             ).exec()
             return
         self.target_started.emit()
+        # Remember the loaded project before the name is applied (#130).
+        _ctl = getattr(self, "_target_ctl", None)
+        _proj_before = _ctl.project_or_none() if _ctl is not None else None
         name = (self._manual_target_name_edit.text().strip()
                 if self._manual_target_name_edit is not None else "")
         if name:
             self._file_mgr.set_target_name(name)
+        # #130 CRITICAL (Knut): a .ti1-based preset (TC9.18, Spyderprint) must
+        # build into the run the Profile-run bar shows — Overwrite run N / New
+        # run — not always the project's current run. Skipped for a build under a
+        # new name (that's a different project).
+        _same_project = (
+            _proj_before is not None
+            and _proj_before.root.name == self._file_mgr.working_dir().name)
+        if _same_project:
+            self._align_current_run_to_target()
         base_name = self._file_mgr.get_target_name() or TC918_TARGET_NAME
         params = self._collect_params()
         self._last_params = params  # for _stamp_chart_meta (see _on_generate)
@@ -8210,12 +8237,12 @@ class TabChart(QWidget):
             return tr(
                 "No verification chart for this run yet.\n\n"
                 "To make one, keep “Run type” set to “Verification”, choose your "
-                "chart options above and click “Create Chart”. Then print that "
+                "chart options above and click “Generate Chart”. Then print that "
                 "chart through your finished profile (with colour management on) "
                 "and measure it on the Measure tab.")
         return tr(
             "No chart for this profile run yet.\n\n"
-            "Choose your chart options above and click “Create Chart” to make "
+            "Choose your chart options above and click “Generate Chart” to make "
             "it. (If you had a chart here before, its files may have been moved "
             "or deleted — just create it again.)")
 
