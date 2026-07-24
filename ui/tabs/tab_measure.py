@@ -5771,6 +5771,43 @@ class TabMeasure(QWidget):
             self._preview.set_patch_overlay(page, its)
             self._preview.set_patch_info(page, infos[page])
 
+    def _existing_ti3_for_chart(self) -> "Path | None":
+        """The measured .ti3 sitting next to the loaded chart (#134), or None."""
+        if self._ti1_path is None:
+            return None
+        ti3 = self._ti1_path.with_suffix(".ti3")
+        return ti3 if ti3.is_file() else None
+
+    def _show_overlay_from_existing_ti3(self) -> bool:
+        """Paint the expected-vs-measured split-patch overlay from a measurement
+        already on disk (#134), without re-reading. Returns True when the overlay
+        was painted; False when there's no usable data (foreign / geometry-less
+        .ti3) — the caller then points the user at Tools ▸ Inspect a measurement."""
+        ti3 = self._existing_ti3_for_chart()
+        if ti3 is None or self._ti1_path is None:
+            return False
+        # Ensure we have this chart's per-patch geometry (populated on load, but
+        # be defensive so the overlay works even if it wasn't).
+        if not any(self._patch_boxes):
+            try:
+                self._patch_boxes = patch_boxes_from_sidecar(
+                    self._ti1_path, len(self._tiff_pages) or 1)
+            except Exception:      # noqa: BLE001
+                self._patch_boxes = []
+        try:
+            from workflow.measurement_report import per_patch_overlay
+            patches = per_patch_overlay(ti3, self._ti1_path)
+        except Exception:          # noqa: BLE001 — never break on a bad file
+            patches = []
+        if not patches or not any(self._patch_boxes):
+            return False
+        self._on_chart_measured({"patches": patches})
+        return True
+
+    def _clear_overlay(self) -> None:
+        """Remove a statically-shown overlay (#134)."""
+        self._preview.clear_patch_overlay()
+
     def _on_preview_patch_clicked(self, page: int, loc: str) -> None:
         if not self._manager.engine_active or not loc:
             return
