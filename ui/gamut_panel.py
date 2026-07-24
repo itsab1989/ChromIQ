@@ -61,6 +61,7 @@ class GamutPanel(QWidget):
         # State
         self._icc_path:         Path | None = None
         self._compare_path:     Path | None = None
+        self._saved_camera:     str = ""      # M1: rotation kept across view switches
         self._primary_volume:   float | None = None
         self._compare_volume:   float | None = None
         self._primary_html:     str | None = None
@@ -722,23 +723,69 @@ class GamutPanel(QWidget):
     # Slots — view toggle
     # ------------------------------------------------------------------
 
+    # --- M1 (mavtop): keep the 3-D rotation when switching PROFILE A / B /
+    # COMBINED. Each view is a separate scene that gets reloaded, which reset the
+    # x3dom camera. We capture the camera's transform BEFORE the switch and
+    # restore it once the new scene has loaded (_on_page_loaded), so the shape
+    # stays where the user rotated it. Uses this bundled x3dom build's viewarea
+    # matrices; every access is guarded so a failure only skips the restore.
+    _CAPTURE_CAMERA_JS = (
+        "(function(){try{var x=document.querySelector('x3d');"
+        "var va=x.runtime.canvas.doc._viewarea;"
+        "return JSON.stringify({t:va._transMat.toGL(),r:va._rotMat.toGL()});}"
+        "catch(e){return '';}})()")
+
+    def _switch_view(self, btn, html: str, *, show_compare: bool) -> None:
+        def _after_capture(res) -> None:
+            if isinstance(res, str) and res:
+                self._saved_camera = res
+            self._set_toggle_checked(btn)
+            self._compare_controls.setVisible(show_compare)
+            self._load_html(html or "")
+        if self._web_view is not None:
+            self._web_view.page().runJavaScript(self._CAPTURE_CAMERA_JS,
+                                                _after_capture)
+        else:
+            _after_capture("")
+
+    def _restore_camera(self) -> None:
+        cam = getattr(self, "_saved_camera", "")
+        if not cam or self._web_view is None:
+            return
+        # x3dom builds its scene asynchronously AFTER the page 'load' event, so
+        # try immediately and, if the viewarea isn't up yet, retry twice.
+        # x3dom 1.6.3 has no SFMatrix4f.fromGL; rebuild from the toGL() array
+        # (column-major) via the 16-arg constructor (row-major) — hence the
+        # transpose indexing g[0],g[4],g[8],g[12], …
+        self._web_view.page().runJavaScript(
+            "(function(){var c=" + cam + ";"
+            "function mk(g){return new x3dom.fields.SFMatrix4f("
+            "g[0],g[4],g[8],g[12],g[1],g[5],g[9],g[13],"
+            "g[2],g[6],g[10],g[14],g[3],g[7],g[11],g[15]);}"
+            "function apply(){try{var x=document.querySelector('x3d');"
+            "var va=x.runtime.canvas.doc._viewarea;"
+            "va._transMat=mk(c.t);va._rotMat=mk(c.r);"
+            "x.runtime.canvas.doc.needRender=true;return true;}catch(e){return false;}}"
+            "if(!apply()){setTimeout(apply,150);setTimeout(apply,400);}})()")
+
     def _on_view_primary(self) -> None:
-        self._set_toggle_checked(self._view_primary_btn)
-        self._compare_controls.setVisible(False)
-        self._load_html(self._primary_html or "")
+        self._switch_view(self._view_primary_btn, self._primary_html or "",
+                          show_compare=False)
 
     def _on_view_combined(self) -> None:
-        self._set_toggle_checked(self._view_combined_btn)
-        self._compare_controls.setVisible(True)
-        self._load_html(self._combined_html or "")
+        self._switch_view(self._view_combined_btn, self._combined_html or "",
+                          show_compare=True)
 
     def _on_view_compare(self) -> None:
-        self._set_toggle_checked(self._view_compare_btn)
-        self._compare_controls.setVisible(False)
-        self._load_html(self._compare_html or "")
+        self._switch_view(self._view_compare_btn, self._compare_html or "",
+                          show_compare=False)
 
     def _on_page_loaded(self, ok: bool) -> None:
-        if not ok or self._web_view is None or not self._view_combined_btn.isChecked():
+        if not ok or self._web_view is None:
+            return
+        # M1: put the rotation back after the scene reloads (all three views).
+        self._restore_camera()
+        if not self._view_combined_btn.isChecked():
             return
         t = 1.0 - self._opacity_slider.value() / 100.0
         s = self._sat_slider.value() / 100.0
