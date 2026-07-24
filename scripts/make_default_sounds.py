@@ -114,6 +114,25 @@ def _stroke(dur: float, pitch: float, tone: float, seed: int) -> np.ndarray:
     return 0.55 * body + 0.75 * head
 
 
+def _room(y: np.ndarray, decay: float = 0.13, wet: float = 0.34,
+          seed: int = 21) -> np.ndarray:
+    """Put *y* in a small room: convolve with a decaying-noise impulse response.
+
+    Without it, a crowd of individual claps reads as firecrackers — separate
+    sharp pops with silence between them. Reverberation is what fuses them into
+    one continuous texture, which is what applause actually sounds like (Basti's
+    ear, #131). FFT convolution so the script stays fast.
+    """
+    k = int(SR * decay)
+    ir = _rand(k, seed) * np.exp(-np.arange(k) / (SR * decay / 3.5))
+    ir[0] += 3.0                                   # the direct (dry) sound
+    n = len(y) + k
+    out = np.fft.irfft(np.fft.rfft(y, n) * np.fft.rfft(ir, n))[:len(y)]
+    out /= max(float(np.max(np.abs(out))), 1e-9)
+    dry = y / max(float(np.max(np.abs(y))), 1e-9)
+    return (1.0 - wet) * dry + wet * out
+
+
 def _sprinkle(hits: list[tuple[float, np.ndarray]], total: float) -> np.ndarray:
     """Place ``(start_seconds, sound)`` pairs onto one *total*-second buffer."""
     out = np.zeros(int(SR * total) + 1)
@@ -218,20 +237,31 @@ def build() -> None:
            _seq(_decay(C5, 0.18, 0.12, partials=(1.0, 0.5, 0.35, 0.2)),
                 _decay(E5, 0.18, 0.12, partials=(1.0, 0.5, 0.35, 0.2)),
                 _decay(G5, 0.35, 0.20, partials=(1.0, 0.5, 0.35, 0.2)), gap=0.01))
-    # applause: many individual claps at random times, swelling then thinning
-    # out — a flat noise swell read as hiss rather than a room full of people.
-    ap_len = 1.30
+    # applause: a ROOM full of people clapping. Three things separate this from
+    # fireworks (Basti's ear on the first rebuild): the claps must overlap
+    # densely enough to fuse into a texture, each clap needs body low down
+    # (hands are not just a bright tick), and the room's reverberation has to
+    # glue them together. Sparse + bright + dry = firecrackers.
+    ap_len = 1.45
     rng = np.random.default_rng(31)
     claps: list[tuple[float, np.ndarray]] = []
-    for k in range(260):
+    for k in range(1400):
         start = float(rng.random()) * ap_len
-        density = min(start / 0.22, 1.0) * (1.0 - 0.72 * max(start - 0.5, 0.0))
-        if float(rng.random()) > max(density, 0.05):
+        # Swell in quickly, hold, then thin out as people stop.
+        density = min(start / 0.16, 1.0) * min(1.0, max(0.12, 1.0 - (start - 0.75) / 0.8))
+        if float(rng.random()) > density:
             continue
-        clap = _bandpass(_rand(int(SR * 0.030), 900 + k), 700.0, 3400.0)
-        clap *= np.exp(-_t(0.030) / 0.006) * (0.35 + 0.65 * float(rng.random()))
-        claps.append((start, clap))
-    _write("task-complete", "applause", _sprinkle(claps, ap_len + 0.06))
+        # Every pair of hands is a little different — vary band and decay per
+        # clap so it never sounds like one sample repeated.
+        low = 260.0 + 260.0 * float(rng.random())
+        high = 1700.0 + 1500.0 * float(rng.random())
+        tau = 0.0035 + 0.0035 * float(rng.random())
+        clap = _bandpass(_rand(int(SR * 0.022), 900 + k), low, high)
+        clap *= np.exp(-_t(0.022) / tau)
+        clap /= max(float(np.max(np.abs(clap))), 1e-9)
+        claps.append((start, clap * (0.25 + 0.75 * float(rng.random()) ** 2)))
+    _write("task-complete", "applause",
+           _room(_sprinkle(claps, ap_len + 0.10), decay=0.16, wet=0.40))
     # fanfare: quick rising flourish resolving up an octave
     _write("task-complete", "fanfare",
            _seq(_decay(G5, 0.12, 0.06), _decay(C6, 0.12, 0.06),

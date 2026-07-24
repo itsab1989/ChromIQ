@@ -1751,7 +1751,6 @@
   "Printer Selection": "打印机选择",
   "Printer calibration": "打印机校准",
   "Printer profile from a scan": "从扫描生成打印机配置文件",
-  "Printer profile name": "打印机配置文件名称",
   "Printer profile:": "打印机配置文件：",
   "Printer-ready files already exist next to some of your images and will be overwritten. Continue?": "在你的一些图像旁已存在可直接打印的文件，将被覆盖。是否继续？",
   "Printer:": "打印机:",

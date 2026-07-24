@@ -3853,7 +3853,7 @@ class TabChart(QWidget):
         except ValueError:
             pass
         if not quiet:
-            # Printer profile name + a one-time confirmation.
+            # Printer profile project name + a one-time confirmation.
             name_edit = getattr(self, "_target_name_edit", None)
             name = name_edit.text().strip() if name_edit is not None else ""
             if name:

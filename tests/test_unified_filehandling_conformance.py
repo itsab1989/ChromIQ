@@ -20,10 +20,6 @@ from core.file_manager import Project                              # noqa: E402
 # X-05 — terminology sweep: the old "Printer profile name" label must be gone,
 # replaced by "Printer profile project name" (model v3 §0).
 # ---------------------------------------------------------------------------
-@pytest.mark.xfail(reason="#130 FINDING F1: user-facing label 'Printer profile "
-                          "name' still in layout_options_panel.py:33 (+ stale "
-                          "comment tab_chart.py:3856). Awaiting Sebastian's ruling.",
-                   strict=False)
 def test_X05_no_stale_printer_profile_name_label():
     root = Path(__file__).resolve().parent.parent
     hits: list[str] = []

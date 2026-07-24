@@ -30,7 +30,7 @@ from workflow.layout_engine.presets import LayoutRecipe
 # human-readable values (e.g. {instrument} → "i1Pro3+", {paper} → "A4 landscape",
 # {patchcount} → "576 patches", {seed} → "seed 1234", {dpi} → "300 dpi").
 SHEET_TOKENS = (
-    ("project", tr("Printer profile name")),
+    ("project", tr("Printer profile project name")),
     ("page", tr("This page, e.g. “page 1/3”")),
     ("date", tr("Build date")),
     ("paper", tr("Paper size & orientation")),
