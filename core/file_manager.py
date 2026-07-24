@@ -732,13 +732,24 @@ class Run:
         would if it weren't tied to the chart being wiped. ``exports/`` and
         ``cache/`` belong to the old chart and go with it.
         """
+        s = self.stem
+        # #130 (Knut, critical): a chart re-generation must NEVER delete the
+        # run's finished MEASUREMENT / PROFILE — they can't be regenerated. If
+        # this run already has results, archive them (and the reports that
+        # document them) to old/<timestamp>/ first. Chart files (below) are
+        # regenerated, so they may be dropped. Only archives when results exist,
+        # so iterating on a not-yet-measured chart doesn't spawn old/ folders.
+        results = [self.dir / f"{s}.ti3", self.dir / f"{s}.icc",
+                   self.dir / f"{s}.icm", self.dir / "merged.ti3",
+                   self.dir / "merged.icc", self.dir / "calibrated.icc"]
+        if any(p.exists() for p in results):
+            self.archive_to_old([p for p in results if p.exists()])
         for sub in (self.exports_dir, self.cache_dir):
             if sub.exists():
                 try:
                     shutil.rmtree(sub)
                 except OSError as exc:
                     log.warning("Could not delete %s: %s", sub, exc)
-        s = self.stem
         for name in (
             f"{s}.ti1", f"{s}.ti2", f"{s}.cht", f"{s}.cie", f"{s}.ps",
             f"{s}.pdf",                  # vector-PDF export (was left stale, Basti)

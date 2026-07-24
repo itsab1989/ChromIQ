@@ -853,3 +853,42 @@ def test_readopt_smaller_verify_chart_leaves_no_stale_pages(tmp_path: Path) -> N
     assert len(run.verify_chart_tiffs()) == 1                 # no stale _02.tif
     assert not (run.verifications_dir / f"{stem}-verify_02.tif").exists()
     assert run.verification("2026-06-01_090000").measurement_ti3.is_file()  # history kept
+
+
+def test_reset_chart_artefacts_archives_results_not_delete(tmp_path: Path) -> None:
+    """#130 (Knut, critical): re-generating a chart into a run that already has a
+    MEASUREMENT and PROFILE must archive them to old/<timestamp>/, never delete
+    them — the file strategy never destroys results you can't regenerate."""
+    from core.file_manager import Project
+    proj = Project.create(tmp_path / "P", "P")
+    run = proj.current_run(); run.ensure_dir()
+    s = run.stem
+    (run.dir / f"{s}.ti2").write_text("old-chart")       # chart (regenerated → ok to drop)
+    (run.dir / f"{s}_01.tif").write_text("page")
+    run.measurement_ti3.write_text("MEAS")               # result → must survive
+    run.profile_icc.write_text("PROF")                   # result → must survive
+
+    run.reset_chart_artefacts()
+
+    # The measurement + profile are gone from the run root…
+    assert not run.measurement_ti3.exists()
+    assert not run.profile_icc.exists()
+    # …but archived under old/<timestamp>/, not deleted.
+    assert run.old_dir.exists()
+    archived = list(run.old_dir.rglob("*"))
+    names = {p.name for p in archived}
+    assert f"{s}.ti3" in names and f"{s}.icc" in names
+    # And their contents are intact.
+    ti3 = next(p for p in archived if p.name == f"{s}.ti3")
+    assert ti3.read_text() == "MEAS"
+
+
+def test_reset_chart_artefacts_no_archive_without_results(tmp_path: Path) -> None:
+    """Iterating on a chart that has no measurement/profile yet must NOT spawn an
+    old/ folder — only finished results are archived."""
+    from core.file_manager import Project
+    proj = Project.create(tmp_path / "Q", "Q")
+    run = proj.current_run(); run.ensure_dir()
+    (run.dir / f"{run.stem}.ti2").write_text("chart")
+    run.reset_chart_artefacts()
+    assert not run.old_dir.exists()
