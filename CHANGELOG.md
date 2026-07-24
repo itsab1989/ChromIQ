@@ -1,5 +1,16 @@
 # Changelog
 
+## v3.14.8-beta.11
+
+- **Presets now build into the run you selected.** With "Overwrite run N" chosen
+  in the Profile-run bar, picking a built-in "by Pharmacist" preset (or a TC9.18
+  / Spyderprint preset) built the chart into the project's *last* run and
+  overwrote it, ignoring your selection. Both now honour the bar — the chart
+  lands in the run it shows ("Overwrite run N", or a fresh run for "New run").
+  Together with beta.10's archiving, a preset can no longer overwrite the wrong
+  run or destroy its results.
+- The empty-preview guidance now names the actual button, "Generate Chart".
+
 ## v3.14.8-beta.10
 
 More fixes from Knut's #130 testing:
