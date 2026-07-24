@@ -1,5 +1,27 @@
 # Changelog
 
+## v3.14.8-beta.8
+
+Fixes from Knut's beta-6/7 testing (#130):
+
+- **A verification chart no longer eats the profiling chart.** Generating a
+  verification chart into a run kept the profiling chart safe at the run root —
+  the verification chart now lives only in `runs/runN/verifications/`, and the
+  two coexist as intended.
+- **The empty preview now guides you.** When you switch to a Profile-run /
+  Run-type that has no chart yet, the preview explains what to do — for a
+  verification, "keep Run type = Verification, set up the chart and click Create
+  Chart, then print it through your profile and measure it"; for a profiling run,
+  "set up the options and click Create Chart" (with a note if files were moved or
+  deleted). It clears the moment a real chart appears.
+- **Opening a project from outside your working folder no longer happens
+  silently.** "Load profile" on an external project now offers to copy the whole
+  project into your working folder, then opens the copy — matching the unified
+  load strategy.
+- **The Profile-run dropdown is wider** so "Run N (overwrite)" is fully readable.
+- The Measure tab's "Play sounds during measurement" tooltip icon now sits at the
+  right of the panel.
+
 ## v3.14.8-beta.7
 
 Measurement sound feedback — Phase 1 of #131. ChromIQ can now play a short
