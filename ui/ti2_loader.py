@@ -371,6 +371,16 @@ def _choice_dialog(parent, title, intro_html, choices):
     return result["key"]
 
 
+def _next_run_id(project) -> str:
+    """The id the next ``project.new_run()`` would create (``run3``, …), so a
+    pop-up can name the exact folder an import will land in. Purely read-only;
+    falls back to a generic label when the project can't be inspected."""
+    try:
+        return f"run{project._next_run_index()}"
+    except Exception:      # noqa: BLE001 — a label must never break a load
+        return tr("the next run")
+
+
 def _dest_tiffs(ti2_in_project: Path) -> "list[Path]":
     return sorted(ti2_in_project.parent.glob(f"{ti2_in_project.stem}_*.tif"))
 
@@ -406,15 +416,19 @@ def _handle_loose_into_project(parent, ti2_path, working_dir, controller):
     t = controller.target
     verif = t.is_verification()
     header = _bar_header(t)
+    next_id = _next_run_id(proj)
     if not t.profile_run:                      # New run
         if verif:
-            desc = tr("Copies only the chart files into a new run's "
-                      "<code>verifications/</code> folder as its verification "
-                      "chart. Any .icc/.icm and .ti3 beside the file are not "
-                      "copied.")
+            desc = tr("Copies only the chart files into a brand-new run inside "
+                      "the profile project you have open, as its verification "
+                      "chart: <code>runs/{run}/verifications/</code>. Any "
+                      ".icc/.icm and .ti3 beside the file are not copied, and no "
+                      "existing run is touched.").format(run=next_id)
         else:
             desc = tr("Copies the chart — and its measurement (.ti3) and profile "
-                      "(.icc/.icm) if present — into a new run at the run root.")
+                      "(.icc/.icm) if present — into a brand-new run inside the "
+                      "profile project you have open: <code>runs/{run}/</code>. "
+                      "No existing run is touched.").format(run=next_id)
         key = _choice_dialog(parent, tr("Import this chart"), header,
                              [(tr("Import as a new run"), desc, "import")])
         if key != "import":
@@ -422,19 +436,26 @@ def _handle_loose_into_project(parent, ti2_path, working_dir, controller):
         out = _chart_import.import_external_chart(ti2_path, ti1, tiffs, proj, t)
     else:                                       # Overwrite run N
         runlabel = _run_label(t)
+        rid = t.profile_run
         if verif:
-            rep = tr("Moves the current verification chart and all dated "
-                     "verifications to the folder <code>old/</code>, then installs "
-                     "the loaded chart. Any .icc/.icm and .ti3 beside the file are "
-                     "ignored; the run's profile is untouched.")
+            rep = tr("Moves the current verification chart and every dated "
+                     "verification into <code>runs/{run}/old/</code> — nothing is "
+                     "deleted — and then installs the loaded chart as this run's "
+                     "verification chart in <code>runs/{run}/verifications/</code>. "
+                     "Any .icc/.icm and .ti3 beside the file are ignored, and this "
+                     "run's own chart, measurement and profile stay exactly as "
+                     "they are.").format(run=rid)
         else:
             rep = tr("Moves this run's chart, measurement, profile, reports and "
-                     "verifications to the folder <code>old/</code>, then copies "
-                     "the loaded files into the run.")
+                     "verifications into <code>runs/{run}/old/</code> — nothing is "
+                     "deleted — and then copies the loaded files into "
+                     "<code>runs/{run}/</code>.").format(run=rid)
         key = _choice_dialog(parent, tr("Import this chart"), header, [
             (tr("Create a new run instead"),
-             tr("Imports into a brand-new run; nothing in {run} is touched.")
-             .format(run=runlabel), "new"),
+             tr("Imports into a brand-new run — <code>runs/{new}/</code> — inside "
+                "the profile project you have open. Nothing in {run} is touched, "
+                "and no new profile project is created.")
+             .format(new=next_id, run=runlabel), "new"),
             (tr("Replace {run}").format(run=runlabel), rep, "replace")])
         if key == "new":
             t = MeasurementTarget(run_type=t.run_type, profile_run="")
@@ -528,7 +549,9 @@ def _handle_full_project(parent, ti2_path, src_root, working_dir, controller):
         dest = _chart_import.copy_whole_project(src_root, working_dir, new_name,
                                                 replace=replace)
         try:
-            controller._fm.set_target_name(dest.name)
+            # Point at the copy's ACTUAL folder — if a project of the same name
+            # is open from a sub-folder, the name alone would still resolve there.
+            controller._fm.open_project_at(dest)
         except Exception:      # noqa: BLE001
             pass
         _point_bar_at_current_run(controller)

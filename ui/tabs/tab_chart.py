@@ -6824,11 +6824,12 @@ class TabChart(QWidget):
         # the project's current run (which jumped the chart to the last run and
         # overwrote it). The params-based presets already do this via _on_generate;
         # the prebuilt-copy path bypassed it. Skipped for a build under a new name.
-        _same_project = (
-            _proj_before is not None
-            and _proj_before.root.name == self._file_mgr.working_dir().name)
+        _same_project = self._builds_into_project(_proj_before)
         if _same_project:
             self._align_current_run_to_target()
+        # Run type = Verification copies through the run root too — keep the
+        # run's profiling chart (#130, Knut K3).
+        self._arm_verification_snapshot()
         run = self._file_mgr.project().current_run()
         # Start from a clean slate so stale pages from a prior copy can't linger.
         run.reset_chart_artefacts()
@@ -6852,6 +6853,9 @@ class TabChart(QWidget):
                 tiffs.append(dest)
         except OSError as exc:
             log.error("Prebuilt copy failed: %s", exc)
+            # The run root was already cleared for the copy — give the run its
+            # profiling chart back before bailing out (#130, Knut K3).
+            self._restore_profiling_chart()
             InfoDialog(
                 "Could not create target",
                 f"Copying the bundled chart into\n\n{work_dir}\n\nfailed:\n{exc}",
@@ -6945,11 +6949,12 @@ class TabChart(QWidget):
         # build into the run the Profile-run bar shows — Overwrite run N / New
         # run — not always the project's current run. Skipped for a build under a
         # new name (that's a different project).
-        _same_project = (
-            _proj_before is not None
-            and _proj_before.root.name == self._file_mgr.working_dir().name)
+        _same_project = self._builds_into_project(_proj_before)
         if _same_project:
             self._align_current_run_to_target()
+        # Run type = Verification builds through the run root too — keep the
+        # run's profiling chart (#130, Knut K3).
+        self._arm_verification_snapshot()
         base_name = self._file_mgr.get_target_name() or TC918_TARGET_NAME
         params = self._collect_params()
         self._last_params = params  # for _stamp_chart_meta (see _on_generate)
@@ -7648,9 +7653,7 @@ class TabChart(QWidget):
         # run's verifications/ in _on_generate_finished). Skipped for
         # calibration and refinement (they chose their run above) and for a
         # build under a new name (that's a different project with its own run1).
-        _same_project = (
-            _proj_before is not None
-            and _proj_before.root.name == self._file_mgr.working_dir().name)
+        _same_project = self._builds_into_project(_proj_before)
         if not cal_target_active and not self._preconditioning_from_dialog \
                 and _same_project:
             self._align_current_run_to_target()
@@ -7662,8 +7665,8 @@ class TabChart(QWidget):
         # verifications/, so snapshot the profiling chart now and restore it in
         # _on_generate_finished after the move.
         self._verify_profiling_backup = None
-        if not cal_target_active and self._is_verification_target():
-            self._verify_profiling_backup = self._snapshot_profiling_chart()
+        if not cal_target_active:
+            self._arm_verification_snapshot()
 
         self._log.clear()
         self._preview.clear()
@@ -7819,11 +7822,64 @@ class TabChart(QWidget):
             "keep it). The current project <b>{project}</b> is left untouched; "
             "the new project gets its own folder and its own run 1."
         ).format(name=self._file_mgr.strip_workfile_ext(src.stem), project=pname)
+        # #130 §3 (Model B): building into a run that already holds work is a
+        # Replace — say so, and offer a new run instead, before anything moves.
+        if self._run_has_work_to_displace(proj, run_id):
+            verif = t.run_type == RUN_TYPE_VERIFICATION
+            if verif:
+                replace_desc = tr(
+                    "Build the chart as <b>{run}</b>'s verification chart. Its "
+                    "current verification chart and every dated verification are "
+                    "moved to <code>runs/{run}/old/</code> first — nothing is "
+                    "deleted — and the new chart is saved in "
+                    "<code>runs/{run}/verifications/</code>. This run's own "
+                    "chart, measurement and printer profile are left alone."
+                ).format(run=run_id)
+            else:
+                replace_desc = tr(
+                    "Build the chart into <b>{run}</b>. That run's current chart, "
+                    "measurement, printer profile, reports and verifications are "
+                    "moved to <code>runs/{run}/old/</code> first — nothing is "
+                    "deleted — and the new chart is saved in "
+                    "<code>runs/{run}/</code>."
+                ).format(run=run_id)
+            new_run_desc = tr(
+                "Build the chart in a brand-new run of <b>{project}</b> instead, "
+                "so everything in <b>{run}</b> stays exactly as it is. The "
+                "Profile-run bar moves to the new run."
+            ).format(project=pname, run=run_id)
+            return _choice_dialog(
+                self, tr("Where should this patch set's chart go?"), intro,
+                [(tr("Replace {run}").format(run=run_id), replace_desc,
+                  "into_replace"),
+                 (tr("Build it as a new run instead"), new_run_desc, "into_new"),
+                 (tr("Start a new project"), new_desc, "new")],
+            )
         return _choice_dialog(
             self, tr("Where should this patch set's chart go?"), intro,
             [(tr("Add to this project"), into_desc, "into"),
              (tr("Start a new project"), new_desc, "new")],
         )
+
+    def _run_has_work_to_displace(self, proj, run_id: str) -> bool:
+        """Whether building into *run_id* would displace something the user
+        would miss — the run's chart, measurement, printer profile, or (for a
+        verification build) its verification chart or dated verifications.
+
+        Drives the New-vs-Replace choice (#130 §3): a run that is still empty
+        needs no warning, so iterating on a fresh run stays a single click.
+        """
+        if not run_id or proj is None or not proj.has_run(run_id):
+            return False                      # "New run" — nothing to displace
+        try:
+            run = proj.run(run_id)
+            if self._is_verification_target():
+                return (run.verify_chart_ti2.exists()
+                        or bool(run.verifications()))
+            return (run.chart_ti2.exists() or run.measurement_ti3.exists()
+                    or run.profile_icc.exists())
+        except Exception:      # noqa: BLE001 — never block a load on this
+            return False
 
     def _on_load_ti1(self) -> None:
         path = open_file_dialog(
@@ -7908,8 +7964,26 @@ class TabChart(QWidget):
                 self._preview.clear()
                 self._generate_btn.setEnabled(True)
                 return
-            self._file_mgr.set_target_name(name)
+            self._file_mgr.start_new_project(name)
             self._update_name_fields()
+        else:
+            # #130 (Knut K3): building INTO the open project must follow the
+            # Profile-run bar — Overwrite run N → that run, New run → a fresh one
+            # — instead of always using the project's current run, which quietly
+            # built the chart into a different run than the bar showed.
+            if dest == "into_new":
+                # The user chose a fresh run over replacing the selected one.
+                ctl = getattr(self, "_target_ctl", None)
+                if ctl is not None:
+                    ctl.set_profile_run("")            # "New run"
+            self._align_current_run_to_target()
+            if dest == "into_replace":
+                # #130 §5a/§5b: a Replace archives what it displaces — the same
+                # rule, and the same helper, as a Print/Measure chart import.
+                self._archive_run_for_replace()
+        # Run type = Verification lays the chart down at the run root before it
+        # is filed under verifications/ — keep the run's profiling chart.
+        self._arm_verification_snapshot()
         params = self._collect_params()
         self._preview.clear()
         self._generate_btn.setEnabled(False)
@@ -8115,11 +8189,17 @@ class TabChart(QWidget):
         return ctl is not None and ctl.target.is_verification()
 
     def _snapshot_profiling_chart(self) -> "Path | None":
-        """Copy the current run's PROFILING chart files aside before a
-        verification chart is generated into the same run root, so generating
-        the verify chart (which overwrites them there before they're moved into
-        verifications/) never destroys the profiling chart (#130, Knut). Returns
-        the temp folder, or None when the run has no profiling chart to protect."""
+        """Copy the current run's PROFILING work aside before a verification
+        chart is built into the same run root, so building the verify chart
+        (which overwrites the run root before the files are moved into
+        verifications/) never disturbs it (#130, Knut). Returns the temp folder,
+        or None when the run has nothing to protect.
+
+        Covers the chart files **and the run's measurement (.ti3) and printer
+        profile (.icc/.icm)**: the build starts with ``reset_chart_artefacts()``,
+        which archives those to ``old/`` — so without this the run appeared to
+        have lost its finished profile the moment a verification chart was made.
+        """
         try:
             run = self._file_mgr.project().current_run()
         except Exception:      # noqa: BLE001
@@ -8127,7 +8207,7 @@ class TabChart(QWidget):
         stem = run.stem
         srcs = [run.dir / f"{stem}{ext}" for ext in
                 (".ti1", ".ti2", ".cht", ".channels.json", ".strips.json",
-                 ".tif")]
+                 ".tif", ".ti3", ".icc", ".icm")]
         srcs += list(run.dir.glob(f"{stem}_*.tif"))
         present = [p for p in srcs if p.is_file()]
         if not present:
@@ -8207,6 +8287,58 @@ class TabChart(QWidget):
                 ctl.set_profile_run(rid)
         except Exception as exc:  # noqa: BLE001
             log.warning("Could not default the target bar to the current run: %s", exc)
+
+    def _builds_into_project(self, proj_before) -> bool:
+        """Whether the build about to run targets the project that was loaded
+        *before* the name was applied — i.e. an in-project build that must honour
+        the Profile-run bar, rather than a build under a new name (its own,
+        brand-new project).
+
+        Compares the actual folders, not just their names (#130, Knut): a project
+        opened from a SUB-folder of the ChromIQ folder has the same name as the
+        ``<ChromIQ>/<name>`` path a fresh project would use, so a name-only check
+        called a different folder "the same project".
+        """
+        if proj_before is None:
+            return False
+        try:
+            return (Path(proj_before.root).resolve()
+                    == Path(self._file_mgr.working_dir()).resolve())
+        except OSError:                     # unreadable path — assume different
+            return False
+
+    def _archive_run_for_replace(self) -> None:
+        """Move everything a Replace displaces in the current run to
+        ``runs/runN/old/<timestamp>/`` (#130 §5a/§5b) — the run's chart,
+        measurement, printer profile, reports and verifications for a Profiling
+        build; the verification chart and all dated verifications for a
+        Verification build. Never deletes; shares the helper the Print/Measure
+        chart import uses, so both Replace paths behave identically."""
+        from workflow.chart_import import archive_run_for_replace
+        try:
+            run = self._file_mgr.project().current_run()
+            archive_run_for_replace(
+                run, verification=self._is_verification_target())
+        except Exception:      # noqa: BLE001 — never block a build on this
+            log.warning("Could not archive the run before a Replace build",
+                        exc_info=True)
+
+    def _arm_verification_snapshot(self) -> None:
+        """Protect the run's PROFILING chart before a verification chart is built
+        into the same run root (#130, Knut K3).
+
+        Every build — Generate, a prebuilt preset, a .ti1 preset, a loaded patch
+        set — lays its chart down at the run root first; for Run type =
+        Verification, ``_on_generate_finished`` then moves it into
+        ``verifications/``. Without a snapshot the run's own profiling chart is
+        overwritten (and ``reset_chart_artefacts`` clears what's left), so it was
+        simply gone once the user switched Run type back to Profiling. Taking the
+        snapshot here — the one place every build path passes through before
+        starting — is what ``_restore_profiling_chart`` puts back afterwards.
+        """
+        self._verify_profiling_backup = None
+        if self._is_verification_target():
+            self._verify_profiling_backup = self._snapshot_profiling_chart()
 
     def _align_current_run_to_target(self) -> None:
         """Point the loaded project's current run at the shared bar's Profile-run
@@ -8347,8 +8479,12 @@ class TabChart(QWidget):
             # lives only in verifications/, and the two must coexist (#130, Knut).
             self._restore_profiling_chart()
         else:
-            # Not a verification generation → drop any stale snapshot.
-            self._verify_profiling_backup = None
+            # Either a profiling build (nothing was ever armed — this no-ops), or
+            # a verification build that produced no chart because it failed or
+            # was cancelled. In that second case the run root has already been
+            # cleared, so put the snapshot back rather than dropping it — a
+            # failed verification chart must not cost the run its profiling work.
+            self._restore_profiling_chart()
 
         # For i1iSis the load-bearing artifact is the TI1 from targen, not the
         # printtarg TIFF. Run the export off the TI1 so users still get their

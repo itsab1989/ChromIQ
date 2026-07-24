@@ -1214,8 +1214,9 @@ class FileManager:
         self._project: Project | None = None
         # #130 (Knut): projects may be organised in SUB-folders of the ChromIQ
         # folder. When a nested project is opened, this holds its actual root so
-        # working_dir() resolves there instead of <ChromIQ>/<name>. Cleared by
-        # set_target_name (a fresh/direct project lives directly under ChromIQ).
+        # working_dir() resolves there instead of <ChromIQ>/<name>. Dropped by
+        # set_target_name only when the name names a DIFFERENT project (a fresh
+        # project always lives directly under the ChromIQ folder).
         self._project_root_override: "Path | None" = None
 
     # ---- target name
@@ -1244,16 +1245,37 @@ class FileManager:
 
     def set_target_name(self, name: str) -> None:
         cleaned = self.strip_workfile_ext(name)
-        if not cleaned.strip():
-            self._target_name = self._auto_name()
-        else:
-            self._target_name = self._sanitise(cleaned)
-        # A name set directly means a project living directly under the ChromIQ
-        # folder — drop any nested-location override.
-        self._project_root_override = None
+        new_name = self._auto_name() if not cleaned.strip() else self._sanitise(cleaned)
+        # #130 (Knut): a nested project keeps its real location as long as the
+        # name still names THAT project. Re-applying the unchanged name is
+        # routine — the Create Chart name field, every preset and Generate all
+        # do it — and used to drop the override, so working_dir() silently
+        # jumped to <ChromIQ>/<name> and the next project() call CREATED an
+        # empty duplicate there. Everything the user did afterwards (importing a
+        # chart, replacing a verification, adding a run) then landed in that
+        # phantom project instead of the one on screen. A genuinely different
+        # name means a different, fresh project, which always lives directly
+        # under the ChromIQ folder — so the override is dropped in that case.
+        ov = self._project_root_override
+        if ov is None or self._sanitise(ov.name) != new_name:
+            self._project_root_override = None
+        self._target_name = new_name
         # Invalidate cached Project — new name = different folder.
         self._project = None
-        log.debug("Target name set to: %s", self._target_name)
+        log.debug("Target name set to: %s (root %s)", self._target_name,
+                  self.working_dir())
+
+    def start_new_project(self, name: str) -> None:
+        """Point at a BRAND-NEW project called *name*, directly under the ChromIQ
+        folder — even when a project of the same name is currently open from a
+        sub-folder.
+
+        ``set_target_name`` deliberately keeps a nested project's location when
+        the name still refers to it (#130), so the "start a new project" flows
+        say what they mean here instead of relying on that side effect.
+        """
+        self._project_root_override = None
+        self.set_target_name(name)
 
     def open_project_at(self, root: "Path") -> None:
         """Open a project at its ACTUAL folder *root*, which may be nested in a

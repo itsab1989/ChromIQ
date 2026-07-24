@@ -42,6 +42,35 @@ def test_bundled_pack_has_every_default():
         assert S.resolve_file(s, event) is not None
 
 
+def _samples(path):
+    with wave.open(str(path)) as w:
+        assert (w.getnchannels(), w.getsampwidth(), w.getframerate()) == (1, 2, 44100)
+        raw = w.readframes(w.getnframes())
+    return np.frombuffer(raw, dtype="<i2").astype(float)
+
+
+def _zero_crossing_rate(s):
+    return float(np.mean(np.diff(np.signbit(s)) != 0))
+
+
+@pytest.mark.parametrize("stem", ["drumroll", "applause"])
+def test_percussive_completion_sounds_are_struck_not_hiss(stem):
+    """#131 (Knut): the drumroll and applause were synthesised as flat white
+    noise, so they sounded like static rather than drum strokes and clapping.
+    They are now built from individual strokes/claps — guard both properties:
+    a low zero-crossing rate (energy is not spread over the whole spectrum) and
+    several distinct onsets (discrete events, not one continuous wash)."""
+    from core.resource_path import resource_path
+    s = _samples(resource_path("assets/sounds/task-complete") / f"{stem}.wav")
+    assert _zero_crossing_rate(s) < 0.35, "still reads as broadband noise"
+    win = 441                                    # 10 ms envelope
+    env = np.abs(s[:len(s) // win * win].reshape(-1, win)).max(axis=1)
+    peaks = ((env[1:-1] > env[:-2]) & (env[1:-1] >= env[2:])
+             & (env[1:-1] > 0.25 * env.max())).sum()
+    assert peaks >= 8, f"only {peaks} onsets — not a sequence of hits"
+    assert np.abs(s).max() < 32767, "must not clip"
+
+
 def test_choice_lists_start_with_off_and_are_sorted():
     s = _Settings()
     for event in S.ALL_EVENTS:

@@ -83,6 +83,48 @@ def _click(dur: float = 0.01, freq: float = 2200.0) -> np.ndarray:
     return _decay(freq, dur, tau=dur / 3)
 
 
+def _lowpass(y: np.ndarray, cutoff: float) -> np.ndarray:
+    """One-pole low-pass, as an FIR convolution (no SciPy needed).
+
+    Plain white noise reads as hiss — real percussion is noise with most of its
+    energy below a few hundred Hz. Rolling the top off is what turns a noise
+    burst into something that sounds struck rather than static (#131, Knut).
+    """
+    tau = 1.0 / (2 * np.pi * max(cutoff, 1.0))
+    k = np.exp(-np.arange(int(SR * tau * 6) + 1) / (tau * SR))
+    return np.convolve(y, k / k.sum(), mode="full")[:len(y)]
+
+
+def _bandpass(y: np.ndarray, low: float, high: float) -> np.ndarray:
+    """Keep the band between *low* and *high* (difference of two low-passes)."""
+    return _lowpass(y, high) - _lowpass(y, low)
+
+
+def _rand(n: int, seed: int) -> np.ndarray:
+    return np.random.default_rng(seed).standard_normal(n)
+
+
+def _stroke(dur: float, pitch: float, tone: float, seed: int) -> np.ndarray:
+    """One drum stroke: a low-passed noise burst (the stick on the head) plus a
+    damped sine at *pitch* (the membrane's body), decaying within *dur*."""
+    t = _t(dur)
+    body = np.sin(2 * np.pi * pitch * t) * np.exp(-t / (dur * 0.28))
+    head = _lowpass(_rand(len(t), seed), tone) * np.exp(-t / (dur * 0.16))
+    head /= max(float(np.max(np.abs(head))), 1e-9)
+    return 0.55 * body + 0.75 * head
+
+
+def _sprinkle(hits: list[tuple[float, np.ndarray]], total: float) -> np.ndarray:
+    """Place ``(start_seconds, sound)`` pairs onto one *total*-second buffer."""
+    out = np.zeros(int(SR * total) + 1)
+    for start, snd in hits:
+        i = int(SR * start)
+        j = min(i + len(snd), len(out))
+        if j > i:
+            out[i:j] += snd[:j - i]
+    return out
+
+
 def _seq(*parts: np.ndarray, gap: float = 0.0) -> np.ndarray:
     """Concatenate note arrays with an optional silent gap between them."""
     g = np.zeros(int(SR * gap))
@@ -155,25 +197,41 @@ def build() -> None:
                 _decay(C5, 0.30, 0.14), gap=0.03))
 
     print("task-complete:")
-    # drumroll: swelling filtered noise + final hit
-    n = int(SR * 0.9)
-    swell = np.linspace(0.05, 1.0, n) ** 2
-    roll = _noise(0.9, env=swell) * 0.6
-    hit = np.concatenate([np.zeros(n), _decay(70, 0.25, 0.08) +
-                          _noise(0.25) * 0.4])
-    _write("task-complete", "drumroll", _mix(roll, hit))
+    # drumroll: individual snare strokes, accelerating and swelling into a final
+    # accented hit. Built stroke by stroke — a plain noise swell just sounded
+    # like hiss (Knut, #131).
+    roll_len, hits, pos, i = 1.05, [], 0.0, 0
+    while pos < roll_len:
+        frac = pos / roll_len
+        rate = 13.0 + 26.0 * frac                 # strokes per second, speeding up
+        amp = (0.30 + 0.70 * frac ** 1.4) * (1.0 if i % 2 == 0 else 0.72)
+        hits.append((pos, _stroke(0.075, 190.0, 1400.0, seed=100 + i) * amp))
+        pos += 1.0 / rate
+        i += 1
+    final = _mix(_stroke(0.45, 96.0, 900.0, seed=7) * 1.35,      # low tom accent
+                 _lowpass(_rand(int(SR * 0.45), 8), 5200.0)
+                 * np.exp(-_t(0.45) / 0.16) * 0.55)              # cymbal shimmer
+    hits.append((roll_len, final))
+    _write("task-complete", "drumroll", _sprinkle(hits, roll_len + 0.45))
     # trumpet: ascending major triad, bright
     _write("task-complete", "trumpet",
            _seq(_decay(C5, 0.18, 0.12, partials=(1.0, 0.5, 0.35, 0.2)),
                 _decay(E5, 0.18, 0.12, partials=(1.0, 0.5, 0.35, 0.2)),
                 _decay(G5, 0.35, 0.20, partials=(1.0, 0.5, 0.35, 0.2)), gap=0.01))
-    # applause: bright filtered noise swell that fades
-    n2 = int(SR * 1.1)
-    ap_env = np.concatenate([np.linspace(0, 1, n2 // 4) ** 0.5,
-                             np.linspace(1, 0.15, n2 - n2 // 4)])
-    ap = _noise(1.1, env=ap_env)
-    ap = ap * (0.5 + 0.5 * np.sin(2 * np.pi * 18 * _t(1.1)))   # crowd flutter
-    _write("task-complete", "applause", ap)
+    # applause: many individual claps at random times, swelling then thinning
+    # out — a flat noise swell read as hiss rather than a room full of people.
+    ap_len = 1.30
+    rng = np.random.default_rng(31)
+    claps: list[tuple[float, np.ndarray]] = []
+    for k in range(260):
+        start = float(rng.random()) * ap_len
+        density = min(start / 0.22, 1.0) * (1.0 - 0.72 * max(start - 0.5, 0.0))
+        if float(rng.random()) > max(density, 0.05):
+            continue
+        clap = _bandpass(_rand(int(SR * 0.030), 900 + k), 700.0, 3400.0)
+        clap *= np.exp(-_t(0.030) / 0.006) * (0.35 + 0.65 * float(rng.random()))
+        claps.append((start, clap))
+    _write("task-complete", "applause", _sprinkle(claps, ap_len + 0.06))
     # fanfare: quick rising flourish resolving up an octave
     _write("task-complete", "fanfare",
            _seq(_decay(G5, 0.12, 0.06), _decay(C6, 0.12, 0.06),

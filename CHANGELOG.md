@@ -1,5 +1,53 @@
 # Changelog
 
+## v3.14.8-beta.17
+
+- **Projects kept in a sub-folder of your ChromIQ folder now stay where they
+  are.** This was one bug behind several confusing reports. Opening such a
+  project worked, but the moment anything re-applied its name — the "Printer
+  profile project name" field, a preset, or clicking Create Chart — ChromIQ
+  quietly switched to `<ChromIQ folder>/<name>` and created an empty duplicate
+  project there. Everything you did next (importing a chart, replacing a
+  verification chart, adding a run) went into that invisible duplicate, so it
+  looked as though nothing had happened at all: no folder created, the loaded
+  `.ti2` "not put anywhere", the verification chart not replaced. A project now
+  keeps its real location for as long as its name still refers to it; typing a
+  genuinely different name still starts a new project directly in your ChromIQ
+  folder, exactly as before.
+
+- **Loading a patch set now follows the Profile-run bar.** "Load .ti1" →
+  "Add to this project" built the chart into the project's most recent run
+  instead of the run the bar showed, so the chart appeared in a run you hadn't
+  selected.
+
+- **Making a verification chart no longer costs you the run's profiling work.**
+  A verification chart is laid out at the run root before it is filed under
+  `verifications/`, and only the plain Create Chart path protected what was
+  already there. Loading a preset or a patch set with Run type = Verification
+  therefore wiped that run's profiling chart — it was simply gone when you
+  switched Run type back to Profiling. All four ways of building a chart now
+  protect it, and the run's measurement (`.ti3`) and printer profile
+  (`.icc`/`.icm`) are protected too, so a finished profile no longer disappears
+  into `old/` when you make a verification chart.
+
+- **Building a patch set into a run that already holds work now asks first.**
+  You get a clear choice — replace that run, build it as a new run instead, or
+  start a new project — with each option naming exactly which folder the
+  displaced files move to. Replacing archives the same things a chart import
+  does (`runs/runN/old/`, never deleted). A run that is still empty stays a
+  single click, as before.
+
+- **Chart-import pop-ups now name the exact destination folder,** e.g.
+  `runs/run1/old/` and `runs/run1/verifications/`, instead of just "the folder
+  `old/`" — and the "Create a new run instead" option now says plainly that the
+  new run is created inside the project you already have open.
+
+- **The drumroll and applause completion sounds have been rebuilt.** Both were
+  synthesised as flat noise, so they came out as static rather than a drum roll
+  and clapping. The drumroll is now a real sequence of snare strokes that speeds
+  up and swells into a final accented hit, and the applause is built from
+  individual claps.
+
 ## v3.14.8-beta.16
 
 - **Check & Refine gamut comparison now keeps your 3-D rotation when you switch

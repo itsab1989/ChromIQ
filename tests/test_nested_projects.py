@@ -115,6 +115,104 @@ def test_project_root_for_finds_nested_project(qapp, tmp_path):
     assert _project_root_for(tmp_path / "elsewhere" / "y.ti2", root) is None
 
 
+def test_reapplying_the_same_name_keeps_a_nested_project(qapp, tmp_path):
+    """#130 (Knut K2): re-applying the UNCHANGED name — which the Create Chart
+    name field, every preset and Generate all do — must not relocate a nested
+    project to <ChromIQ>/<name> and create an empty duplicate there."""
+    fm, root, s = _fm(tmp_path)
+    nested = root / "load-test-data" / "working-folder" / "Test-Profiling-P"
+    Project.create(nested, "Test-Profiling-P").current_run().ensure_dir()
+    fm.open_project_at(nested)
+
+    fm.set_target_name("Test-Profiling-P")       # what the name field re-applies
+
+    assert fm.working_dir() == nested
+    assert fm.project_root_override() == nested
+    assert fm.project().root == nested           # a Generate would build here
+    assert not (root / "Test-Profiling-P").exists()   # no phantom duplicate
+
+
+def test_a_different_name_still_creates_a_direct_child_project(qapp, tmp_path):
+    """The flip side: typing a genuinely different name is a NEW project, which
+    always lives directly under the ChromIQ folder."""
+    fm, root, s = _fm(tmp_path)
+    nested = root / "sub" / "P"
+    Project.create(nested, "P").current_run().ensure_dir()
+    fm.open_project_at(nested)
+
+    fm.set_target_name("P-take-two")
+
+    assert fm.project_root_override() is None
+    assert fm.working_dir() == root / "P-take-two"
+    assert nested.exists()                        # the nested original is untouched
+
+
+def test_start_new_project_overrides_a_nested_project_of_the_same_name(qapp, tmp_path):
+    """Keeping the nested location for an unchanged name must not swallow a
+    DELIBERATE "start a new project" that happens to reuse that name."""
+    fm, root, s = _fm(tmp_path)
+    nested = root / "sub" / "P"
+    Project.create(nested, "P").current_run().ensure_dir()
+    fm.open_project_at(nested)
+
+    fm.start_new_project("P")
+
+    assert fm.project_root_override() is None
+    assert fm.working_dir() == root / "P"
+
+
+def test_import_into_nested_project_after_name_reapply(qapp, tmp_path, monkeypatch):
+    """#130 (Knut K4/K5): with a nested project open, a Print/Measure chart
+    import must land in THAT project — not in a phantom copy at the ChromIQ
+    root. This is the end-to-end shape of Knut's report ("the new .ti2 was not
+    put into verifications/ or anywhere else")."""
+    from core.measurement_target import RUN_TYPE_VERIFICATION
+    from ui.ti2_loader import resolve_ti2
+    import ui.ti2_loader as L2
+    fm, root, s = _fm(tmp_path)
+    nested = root / "customers" / "2026" / "P"
+    proj = Project.create(nested, "P"); run = proj.current_run(); run.ensure_dir()
+    run.chart_ti2.write_text("PROFILING-CHART")
+    run.verifications_dir.mkdir(parents=True, exist_ok=True)
+    run.verify_chart_ti2.write_text("OLD-VERIFY")
+    fm.open_project_at(nested)
+    fm.set_target_name("P")                       # the relocation trigger
+
+    ctl = MeasurementTargetController(fm)
+    ctl.set_profile_run("run1"); ctl.set_run_type(RUN_TYPE_VERIFICATION)
+    ext = tmp_path / "elsewhere" / "loose"; ext.mkdir(parents=True)
+    src = ext / "loose.ti2"; src.write_text("NEW-VERIFY")
+
+    monkeypatch.setattr(L2, "_choice_dialog", lambda *a, **k: "replace")
+    out = resolve_ti2(None, src, s, ctl)
+
+    assert out is not None
+    r = Project.load(nested).run("run1")
+    assert r.verify_chart_ti2.read_text() == "NEW-VERIFY"   # landed in the real project
+    assert r.chart_ti2.read_text() == "PROFILING-CHART"     # profiling side untouched
+    assert r.old_dir.exists()                               # displaced files archived
+    assert not (root / "P").exists()                        # no phantom project
+
+
+def test_builds_into_project_compares_folders_not_names(qapp, tmp_path):
+    """A nested project has the same NAME as the <ChromIQ>/<name> path a fresh
+    project would use, so the in-project-build check must compare folders."""
+    from types import SimpleNamespace
+    fm, root, s = _fm(tmp_path)
+    nested = root / "sub" / "P"
+    proj = Project.create(nested, "P")
+    fm.open_project_at(nested)
+    tab = SimpleNamespace(_file_mgr=fm)
+
+    assert TabChart._builds_into_project(tab, proj) is True
+    assert TabChart._builds_into_project(tab, None) is False
+    other = Project.create(root / "Q", "Q")
+    assert TabChart._builds_into_project(tab, other) is False
+    # Same name, different folder → not the same project.
+    twin = Project.create(tmp_path / "elsewhere" / "P", "P")
+    assert TabChart._builds_into_project(tab, twin) is False
+
+
 def test_resolve_ti2_opens_nested_other_project_in_place(qapp, tmp_path, monkeypatch):
     """Loading a .ti2 from a nested project (not the current one) offers 'Open'
     and switches to it AT ITS REAL nested location — not copy-whole."""
