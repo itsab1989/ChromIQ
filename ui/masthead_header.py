@@ -62,6 +62,10 @@ class MastheadHeader(QWidget):
 
     STRIPE_H  = 6
     VERSION_H = 28      # tall enough to seat the compact target bar with margin
+    BODY_H    = 88      # the masthead proper; the rail is added underneath it
+    RAIL_PAD  = 3       # breathing room above + below the centre widget;
+                        # matches the margin the 28 px rail always gave the
+                        # one-line bar, so the default masthead is unchanged
 
     def __init__(
         self,
@@ -72,7 +76,11 @@ class MastheadHeader(QWidget):
         self._version = version
         self._mode    = "dark"
         self._palette = _PALETTE_DARK
-        self.setFixedHeight(116)   # body unchanged (88); +6 goes to the version rail
+        # The rail grows to fit whatever centre widget is installed — the
+        # Profile-run bar gained a second line ("Location being edited"), and a
+        # fixed 28 px rail silently pushed it up out of view (#130).
+        self._rail_h = self.VERSION_H
+        self.setFixedHeight(self.BODY_H + self._rail_h)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
         self.setAutoFillBackground(False)
 
@@ -125,7 +133,7 @@ class MastheadHeader(QWidget):
         # Right edge: [ Tools ] [ Settings ] [ ? ] — help icon sits on the far right.
         bw, bh = self._btn.width(), self._btn.height()
         body_top  = self.STRIPE_H
-        body_bot  = self.height() - self.VERSION_H
+        body_bot  = self.height() - self._rail_h
         btn_y = body_top + (body_bot - body_top - bh) // 2
         help_x = self.width() - self._help_btn.width() - 12
         self._help_btn.move(help_x, btn_y)
@@ -136,25 +144,42 @@ class MastheadHeader(QWidget):
     # ------------------------------------------------------------------
     def set_center_widget(self, w: QWidget) -> None:
         """Host ``w`` centred on the version rail, in line with the
-        'PRINTER PROFILING' tagline and the version number."""
+        'PRINTER PROFILING' tagline and the version number.
+
+        The rail (and with it the masthead) grows when *w* needs more room than
+        the default, so a taller centre widget is always fully visible instead
+        of being centred out of the band."""
         w.setParent(self)
         self._center_widget = w
         w.show()
+        self._fit_rail_to_center()
         self.reposition_center()
+
+    def _fit_rail_to_center(self) -> None:
+        """Size the version rail to the centre widget, never below the default."""
+        w = self._center_widget
+        needed = (w.sizeHint().height() + 2 * self.RAIL_PAD) if w is not None else 0
+        rail = max(self.VERSION_H, needed)
+        if rail != self._rail_h:
+            self._rail_h = rail
+            self.setFixedHeight(self.BODY_H + rail)
+            self.updateGeometry()
+            self.update()
 
     def reposition_center(self) -> None:
         w = self._center_widget
         if w is None:
             return
+        self._fit_rail_to_center()          # the widget may have grown/shrunk
         cw = w.sizeHint().width()
         ch = w.sizeHint().height()
-        ver_y = self.height() - self.VERSION_H
+        ver_y = self.height() - self._rail_h
         x = (self.width() - cw) // 2
-        y = ver_y + (self.VERSION_H - ch) // 2      # centred on the rail
+        y = ver_y + (self._rail_h - ch) // 2        # centred on the rail
         w.setGeometry(x, y, cw, ch)
 
     def sizeHint(self) -> QSize:  # noqa: N802
-        return QSize(900, 116)
+        return QSize(900, self.BODY_H + self._rail_h)
 
     # ------------------------------------------------------------------
     def paintEvent(self, _ev: QPaintEvent) -> None:  # noqa: N802
@@ -178,8 +203,8 @@ class MastheadHeader(QWidget):
             p.fillRect(x0, 0, x1 - x0, self.STRIPE_H, QColor(col))
 
         # Version rail
-        ver_y = h - self.VERSION_H
-        p.fillRect(0, ver_y, w, self.VERSION_H, QColor(pal["ver_bg"]))
+        ver_y = h - self._rail_h
+        p.fillRect(0, ver_y, w, self._rail_h, QColor(pal["ver_bg"]))
         p.setPen(QPen(QColor(pal["ver_separator"]), 1))
         p.drawLine(0, ver_y, w, ver_y)
 
@@ -194,7 +219,7 @@ class MastheadHeader(QWidget):
             fm = QFontMetricsF(mono_lc)
             ver_text = f"v{self._version}"
             ver_tw = fm.horizontalAdvance(ver_text)
-            base = int(ver_y + (self.VERSION_H + fm.ascent() - fm.descent()) / 2)
+            base = int(ver_y + (self._rail_h + fm.ascent() - fm.descent()) / 2)
             p.setPen(QColor(pal["ver_fg"]))
             p.drawText(int(w - ver_tw - 18), base, ver_text)
 

@@ -1,5 +1,41 @@
 # Changelog
 
+## v3.14.8-beta.19
+
+- **The bar now tells you which folder you are working in.** Under the Profile
+  run and Run type selectors there is a new line — *"Location being edited:"* —
+  showing the exact folder your current selection reads from and writes to,
+  written out from your ChromIQ folder down, for example
+  `ChromIQ/My-Printer/runs/run1/` or, with Run type set to Verification,
+  `ChromIQ/My-Printer/runs/run1/verifications/`. It follows both dropdowns as you
+  change them, so you can always see where your files are going before you do
+  anything. A profile project kept in sub-folders shows its real place, and
+  "New run" shows the folder that would be created.
+
+- **Replacing a verification chart now keeps everything else.** Choosing to
+  replace when Run type is Verification only ever touches the verification chart
+  itself: it moves to `runs/runN/verifications/old/`, and your dated
+  verification results stay exactly where they are. Previously the dated results
+  were archived as well, and everything landed in the run's own `old/` folder
+  one level too high. Nothing was lost either way — this puts things where you
+  would look for them.
+
+- **Replacing a profiling chart now archives the whole run.** When you replace a
+  run's chart, its measurement, printer profile and every folder inside that run
+  — reports, exports and verifications included — move together into
+  `runs/runN/old/`. They describe the chart that was there before, so they travel
+  with it rather than being left behind to look current. Nothing is deleted.
+
+- **Building into a run you already have always asks first.** The New-vs-Replace
+  question no longer waits until the run holds a measurement or a profile: any
+  build into an existing run offers to replace it, build a new run instead, or
+  start a new project. Only "New run" goes straight through.
+
+- **Printing or measuring with "New run" selected now explains itself.** Both
+  buttons used to fail obscurely, because "New run" names a run that does not
+  exist yet and so has no chart. They now tell you to pick an existing run, and
+  list every way to create a new one.
+
 ## v3.14.8-beta.18
 
 - **The applause completion sound is now a real recording.** Synthesising a
