@@ -9,8 +9,19 @@
   `ChromIQ/My-Printer/runs/run1/` or, with Run type set to Verification,
   `ChromIQ/My-Printer/runs/run1/verifications/`. It follows both dropdowns as you
   change them, so you can always see where your files are going before you do
-  anything. A profile project kept in sub-folders shows its real place, and
-  "New run" shows the folder that would be created.
+  anything. It appears as soon as you have typed a profile project name — you do
+  not have to create the chart first — so you can check the destination before
+  anything is written. A profile project kept in sub-folders shows its real
+  place, and "New run" shows the folder that would be created.
+
+- **The profile project name you typed is no longer overwritten.** Switching Run
+  type or Profile run could replace whatever you had typed in "Printer profile
+  project name" with an automatically generated name such as
+  `Printer_Paper_Type_Instr_2026-07-25_23-26`. That happened because several
+  parts of the app asked for "the current name" through a call that quietly
+  invented one whenever none had been set, and then wrote the invented name into
+  the field. Those places now simply leave the field alone until a profile
+  project genuinely has a name, so what you type stays put.
 
 - **Replacing a verification chart now keeps everything else.** Choosing to
   replace when Run type is Verification only ever touches the verification chart
