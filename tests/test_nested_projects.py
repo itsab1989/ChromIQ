@@ -190,7 +190,7 @@ def test_import_into_nested_project_after_name_reapply(qapp, tmp_path, monkeypat
     r = Project.load(nested).run("run1")
     assert r.verify_chart_ti2.read_text() == "NEW-VERIFY"   # landed in the real project
     assert r.chart_ti2.read_text() == "PROFILING-CHART"     # profiling side untouched
-    assert r.old_dir.exists()                               # displaced files archived
+    assert r.verifications_old_dir.exists()                 # displaced files archived
     assert not (root / "P").exists()                        # no phantom project
 
 

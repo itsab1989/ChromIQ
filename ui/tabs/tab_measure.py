@@ -3345,12 +3345,29 @@ class TabMeasure(QWidget):
         else:
             self._sound.play(_snd.STRIP_FAIL)
 
+    def _blocked_by_new_run(self) -> bool:
+        """True — and the explaining pop-up has been shown — when the bar's
+        **Profile run** is "New run" (#130, Knut). A run has to exist before its
+        chart can be measured."""
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None or ctl.target.profile_run:
+            return False
+        from PyQt6.QtWidgets import QMessageBox
+        from core.measurement_target import new_run_guard_message
+        QMessageBox.information(self, tr("Choose a profile run to measure"),
+                                new_run_guard_message("measure"))
+        return True
+
     def _on_start(self) -> None:
         if not self._ti1_path:
             self._log.appendPlainText("[ERROR] No .ti2 file selected.")
             self._log.ensureCursorVisible()
             return
         if self._runner.is_running:
+            return
+        # #130 (Knut): "New run" names a run that does not exist yet, so there is
+        # nothing to measure. Say so, and explain how to create one.
+        if self._blocked_by_new_run():
             return
         # #131: enter measurement mode so per-patch/strip sounds are allowed and
         # the selected clips are pre-loaded for zero-latency playback.

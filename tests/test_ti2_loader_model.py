@@ -192,8 +192,10 @@ def test_A03plus_profiling_replace_also_archives_verifications(qapp, tmp_path, m
 
 
 def test_A04_verification_replace_archives_and_keeps_profile(qapp, tmp_path, monkeypatch):
-    """Model v3 §5b / A-04: a Verification Replace moves the verify chart + all
-    dated verifications to old/, installs the loaded chart, leaves the profile."""
+    """Model v3 §5b / A-04, as ruled 2026-07-25: a Verification Replace acts
+    ONLY on the files at the root of verifications/, archives them into
+    verifications/old/ (not the run's own old/), installs the loaded chart, and
+    leaves both the profile and the dated verification folders alone."""
     work = tmp_path / "work"; work.mkdir(parents=True)
     proj = Project.create(work / "P", "P"); run = proj.current_run(); run.ensure_dir()
     run.profile_icc.write_text("keepme")
@@ -204,8 +206,9 @@ def test_A04_verification_replace_archives_and_keeps_profile(qapp, tmp_path, mon
     monkeypatch.setattr(L, "_choice_dialog", lambda *a, **k: "replace")
     out, _ = L.resolve_ti2(None, ti2, _settings(tmp_path), ctl)
     r = Project.load(proj.root).run("run1")
-    assert r.old_dir.exists()
-    assert not vdated.exists(), "old dated verifications must be archived (§5b)"
+    assert r.verifications_old_dir.exists(), "archive belongs in verifications/old/"
+    assert not r.old_dir.exists(), "a verification Replace must not touch the run root"
+    assert vdated.exists(), "dated verification results are kept, not archived"
     assert out == r.verify_chart_ti2 and r.verify_chart_ti2.read_text() == "ti2"
     assert r.profile_icc.read_text() == "keepme", "profile must be untouched"
 

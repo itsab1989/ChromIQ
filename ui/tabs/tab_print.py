@@ -816,8 +816,23 @@ class TabPrint(QWidget):
             "chart afterwards, load its .ti2 with the grid button — an image "
             "alone carries no patch geometry."))
 
+    def _blocked_by_new_run(self) -> bool:
+        """True — and the explaining pop-up has been shown — when the bar's
+        **Profile run** is "New run" (#130, Knut). A run has to exist before its
+        chart can be printed."""
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None or ctl.target.profile_run:
+            return False
+        from PyQt6.QtWidgets import QMessageBox
+        from core.measurement_target import new_run_guard_message
+        QMessageBox.information(self, tr("Choose a profile run to print"),
+                                new_run_guard_message("print"))
+        return True
+
     def _on_print_current(self) -> None:
         if not self._preview._pages:
+            return
+        if self._blocked_by_new_run():
             return
         if self._settings.get("use_native_print_dialog", False):
             path, frame = self._preview._pages[self._preview._current]
@@ -828,6 +843,8 @@ class TabPrint(QWidget):
 
     def _on_print_all(self) -> None:
         if not self._preview._pages:
+            return
+        if self._blocked_by_new_run():
             return
         if self._settings.get("use_native_print_dialog", False):
             self._print_native(list(self._preview._pages))

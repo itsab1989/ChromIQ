@@ -438,18 +438,23 @@ def _handle_loose_into_project(parent, ti2_path, working_dir, controller):
         runlabel = _run_label(t)
         rid = t.profile_run
         if verif:
-            rep = tr("Moves the current verification chart and every dated "
-                     "verification into <code>runs/{run}/old/</code> — nothing is "
+            rep = tr("Moves the current verification chart into "
+                     "<code>runs/{run}/verifications/old/</code> — nothing is "
                      "deleted — and then installs the loaded chart as this run's "
                      "verification chart in <code>runs/{run}/verifications/</code>. "
-                     "Any .icc/.icm and .ti3 beside the file are ignored, and this "
-                     "run's own chart, measurement and profile stay exactly as "
-                     "they are.").format(run=rid)
+                     "Your dated verification results are kept exactly where they "
+                     "are, and so are this run's own chart, measurement and "
+                     "printer profile. Any .icc/.icm and .ti3 beside the loaded "
+                     "file are ignored.").format(run=rid)
         else:
-            rep = tr("Moves this run's chart, measurement, profile, reports and "
-                     "verifications into <code>runs/{run}/old/</code> — nothing is "
-                     "deleted — and then copies the loaded files into "
-                     "<code>runs/{run}/</code>.").format(run=rid)
+            rep = tr("Moves this run's chart, measurement and printer profile — "
+                     "together with every folder inside it, including its "
+                     "reports and verifications — into "
+                     "<code>runs/{run}/old/</code>, and then copies the loaded "
+                     "files into <code>runs/{run}/</code>. Nothing is deleted. "
+                     "Everything moves because a new chart no longer matches the "
+                     "measurement, profile or checks made from the old one."
+                     ).format(run=rid)
         key = _choice_dialog(parent, tr("Import this chart"), header, [
             (tr("Create a new run instead"),
              tr("Imports into a brand-new run — <code>runs/{new}/</code> — inside "

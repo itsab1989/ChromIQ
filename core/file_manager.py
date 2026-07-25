@@ -682,18 +682,31 @@ class Run:
     @property
     def old_dir(self) -> Path:                return self.dir / "old"
 
+    @property
+    def verifications_old_dir(self) -> Path:
+        """``runs/runN/verifications/old/`` — where a **verification** Replace
+        archives what it displaces (#130, Knut). A verification only ever acts
+        on the files inside ``verifications/``, so its history stays inside that
+        folder rather than landing in the run's own ``old/``."""
+        return self.verifications_dir / "old"
+
     def archive_to_old(self, paths: "list[Path]",
-                       when: "datetime | None" = None) -> "Path | None":
+                       when: "datetime | None" = None,
+                       *, into: "Path | None" = None) -> "Path | None":
         """Move existing *paths* (files or folders) into a timestamped
         ``runs/runN/old/<date>/`` folder before an overwrite, so "start fresh"
         never silently destroys the previous measurement / profile / reports
         (#130, Knut). Missing paths are skipped; name clashes get a numeric
-        suffix. Returns the archive folder, or None when nothing existed."""
+        suffix. Returns the archive folder, or None when nothing existed.
+
+        *into* overrides the base folder — used by a verification Replace, which
+        archives into ``verifications/old/`` instead (see
+        :attr:`verifications_old_dir`)."""
         existing = [p for p in paths if p.exists()]
         if not existing:
             return None
         when = when or datetime.now()
-        dest = self.old_dir / when.strftime("%Y-%m-%d_%H%M%S")
+        dest = (into or self.old_dir) / when.strftime("%Y-%m-%d_%H%M%S")
         dest.mkdir(parents=True, exist_ok=True)
         for p in existing:
             target = dest / p.name

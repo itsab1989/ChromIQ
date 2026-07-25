@@ -7831,20 +7831,24 @@ class TabChart(QWidget):
             label = _run_label(t)
             if t.run_type == RUN_TYPE_VERIFICATION:
                 replace_desc = tr(
-                    "Build the chart as <b>{label}</b>'s verification chart. Its "
-                    "current verification chart and every dated verification are "
-                    "moved to <code>runs/{run}/old/</code> first — nothing is "
-                    "deleted — and the new chart is saved in "
-                    "<code>runs/{run}/verifications/</code>. This run's own "
-                    "chart, measurement and printer profile are left alone."
+                    "Build the chart as <b>{label}</b>'s verification chart. The "
+                    "verification chart that is there now moves to "
+                    "<code>runs/{run}/verifications/old/</code> first — nothing "
+                    "is deleted — and the new chart is saved in "
+                    "<code>runs/{run}/verifications/</code>. Your dated "
+                    "verification results are kept, and so are this run's own "
+                    "chart, measurement and printer profile."
                 ).format(label=label, run=run_id)
             else:
                 replace_desc = tr(
                     "Build the chart into <b>{label}</b>. That run's current "
-                    "chart, measurement, printer profile, reports and "
-                    "verifications are moved to <code>runs/{run}/old/</code> "
-                    "first — nothing is deleted — and the new chart is saved in "
-                    "<code>runs/{run}/</code>."
+                    "chart, measurement and printer profile — together with "
+                    "every folder inside it, including its reports and "
+                    "verifications — move to <code>runs/{run}/old/</code> first, "
+                    "and the new chart is saved in <code>runs/{run}/</code>. "
+                    "Nothing is deleted. Everything moves because a new chart no "
+                    "longer matches the measurement, profile or checks made from "
+                    "the old one."
                 ).format(label=label, run=run_id)
             new_run_desc = tr(
                 "Build the chart in a brand-new run of <b>{project}</b> instead, "
@@ -7865,24 +7869,16 @@ class TabChart(QWidget):
         )
 
     def _run_has_work_to_displace(self, proj, run_id: str) -> bool:
-        """Whether building into *run_id* would displace something the user
-        would miss — the run's chart, measurement, printer profile, or (for a
-        verification build) its verification chart or dated verifications.
+        """Whether building into *run_id* is an **Overwrite** of an existing run,
+        and must therefore offer New-vs-Replace first (#130 §3).
 
-        Drives the New-vs-Replace choice (#130 §3): a run that is still empty
-        needs no warning, so iterating on a fresh run stays a single click.
+        Knut's ruling of 2026-07-25 — "Always ask on an Overwrite run" — makes
+        this a question about the run's existence, not its contents: any build
+        into a run the user already has asks first, even when that run holds
+        only a chart. Only "New run" proceeds without the question, because
+        there is nothing there to displace.
         """
-        if not run_id or proj is None or not proj.has_run(run_id):
-            return False                      # "New run" — nothing to displace
-        try:
-            run = proj.run(run_id)
-            if self._is_verification_target():
-                return (run.verify_chart_ti2.exists()
-                        or bool(run.verifications()))
-            return (run.chart_ti2.exists() or run.measurement_ti3.exists()
-                    or run.profile_icc.exists())
-        except Exception:      # noqa: BLE001 — never block a load on this
-            return False
+        return bool(run_id) and proj is not None and proj.has_run(run_id)
 
     def _on_load_ti1(self) -> None:
         path = open_file_dialog(

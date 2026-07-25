@@ -141,3 +141,34 @@ def verification_blocked_reason(project: Project,
     if not run.has_verify_chart():
         return BLOCK_NO_CHART
     return None
+
+
+# ---------------------------------------------------------------------------
+# "New run" guards for Print / Measure (#130, Knut 2026-07-25)
+# ---------------------------------------------------------------------------
+def new_run_guard_message(action: str) -> str:
+    """The message shown when Print or Measure is started while **Profile run**
+    is set to *New run* (*action* = ``"print"`` or ``"measure"``).
+
+    Neither tab can act on a run that does not exist yet: there is no chart to
+    print or measure until one has been made. Rather than failing obscurely, the
+    message says which selection to change, and — because the usual reason for
+    landing here is wanting a brand-new run — spells out every way to create one
+    (Knut's wording, #130).
+    """
+    from core.i18n import tr
+    lead = (tr("You can only print an already created chart. Select an existing "
+               "“Profile run” option to print the chart for that run.")
+            if action == "print" else
+            tr("You can only measure an already created chart. Select an "
+               "existing “Profile run” option to measure the chart for that run."))
+    return lead + "\n\n" + tr(
+        "If you intended to create a new profile run, this is best done in the "
+        "Create Chart tab by setting “Profile run” = “New run” and “Run type” = "
+        "“Profiling”, then\n"
+        "    • choosing your chart settings and pressing “Generate Chart”, or\n"
+        "    • loading a chart preset, or\n"
+        "    • loading a .ti1 file.\n\n"
+        "You may also create a new profile run by loading a .ti2 file in the "
+        "Print Chart or Measure tab while “Profile run” is set to “New run” and "
+        "“Run type” is set to “Profiling”.")

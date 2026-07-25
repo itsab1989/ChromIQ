@@ -69,25 +69,36 @@ def import_external_chart(ti2_path: Path, ti1: "Path | None", tiffs: "list[Path]
 
 
 def archive_run_for_replace(run: Run, *, verification: bool) -> "Path | None":
-    """Move the files a Replace displaces into ``runs/runN/old/<timestamp>/``
-    (never delete). Returns the archive folder, or None when nothing existed.
+    """Move what a Replace displaces into a timestamped ``old/`` folder (never
+    delete). Returns the archive folder, or None when nothing existed.
 
-    • Verification replace → the shared verify chart **and all dated
-      verifications**.
-    • Profiling replace → the run-root chart, measurement, profile and reports
-      **and the whole verifications tree** (§5a — kept consistent with §5b).
+    The two Run types archive to **different places**, because they act on
+    different parts of the run (#130, Knut's ruling of 2026-07-25):
+
+    • **Verification replace** → only the files at the root of
+      ``verifications/`` (the shared verify chart), archived into
+      ``runs/runN/verifications/old/<timestamp>/``. The dated verification
+      folders and everything at the run root are left completely alone: a
+      verification never touches the profiling side, and its dated results stay
+      where the user expects to find them.
+    • **Profiling replace** → the run-root chart, measurement and profile, plus
+      **every folder inside the run** (reports, exports, cache, verifications,
+      …), archived into ``runs/runN/old/<timestamp>/``. Once the chart is
+      replaced, none of that material describes the run any more, so it travels
+      with the chart it belonged to.
     """
     if verification:
-        paths: list[Path] = [p for p in run.verifications_dir.glob(f"{run.verify_stem}*")
+        paths: list[Path] = [p for p in run.verifications_dir.glob("*")
                              if p.is_file()]
-        paths += [v.dir for v in run.verifications()]          # dated folders
-    else:
-        s = run.stem
-        paths = [run.dir / f"{s}.ti1", run.dir / f"{s}.ti2"]
-        paths += [run.dir / f"{s}{ext}" for ext in _CHART_EXTS]
-        paths += run.chart_tiffs()
-        paths += [run.measurement_ti3, run.profile_icc, run.dir / f"{s}.icm",
-                  run.reports_dir, run.verifications_dir]
+        return run.archive_to_old(paths, into=run.verifications_old_dir)
+    s = run.stem
+    paths = [run.dir / f"{s}.ti1", run.dir / f"{s}.ti2"]
+    paths += [run.dir / f"{s}{ext}" for ext in _CHART_EXTS]
+    paths += run.chart_tiffs()
+    paths += [run.measurement_ti3, run.profile_icc, run.dir / f"{s}.icm"]
+    # Every sub-folder except old/ itself — the chart they belonged to is going.
+    paths += [d for d in run.dir.iterdir() if d.is_dir() and d.name != "old"] \
+        if run.dir.exists() else []
     return run.archive_to_old([p for p in paths if p.exists()])
 
 

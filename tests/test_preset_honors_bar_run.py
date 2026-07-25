@@ -135,11 +135,27 @@ def test_patch_set_into_used_run_offers_new_vs_replace(qapp, tmp_path, monkeypat
     assert offered == [["into_replace", "into_new", "new"]]
 
 
-def test_patch_set_into_empty_run_stays_one_click(qapp, tmp_path, monkeypatch):
-    """An empty run has nothing to displace, so no Replace warning is raised."""
+def test_patch_set_into_any_existing_run_offers_new_vs_replace(qapp, tmp_path, monkeypatch):
+    """#130, Knut's ruling of 2026-07-25 — "always ask on an Overwrite run": even
+    an EMPTY existing run gets the New-vs-Replace question, because the user
+    chose that run deliberately and a build changes what is in it."""
     import ui.ti2_loader as L
     tab, fm, ctl = _tab_with_three_runs(tmp_path)
     ctl.set_profile_run("run1"); ctl.set_run_type(RUN_TYPE_PROFILING)
+    offered: list[list[str]] = []
+    monkeypatch.setattr(L, "_choice_dialog",
+                        lambda p, t, i, choices: (offered.append(
+                            [k for _l, _d, k in choices]), "into_replace")[1])
+
+    assert tab._ti1_load_destination(tmp_path / "x.ti1") == "into_replace"
+    assert offered == [["into_replace", "into_new", "new"]]
+
+
+def test_patch_set_into_new_run_asks_nothing_extra(qapp, tmp_path, monkeypatch):
+    """"New run" has nothing to displace, so it keeps the plain two-way choice."""
+    import ui.ti2_loader as L
+    tab, fm, ctl = _tab_with_three_runs(tmp_path)
+    ctl.set_profile_run(""); ctl.set_run_type(RUN_TYPE_PROFILING)   # New run
     offered: list[list[str]] = []
     monkeypatch.setattr(L, "_choice_dialog",
                         lambda p, t, i, choices: (offered.append(
