@@ -509,13 +509,26 @@ def test_recolour_patch_lands_in_regenerated_ti2(ti2: Path, tmp_path: Path):
                for p in new.patches)
 
 
-def test_engine_chart_reloads_in_sheet_order_renders_identically(tmp_path):
+def test_engine_chart_reloads_in_sheet_order_renders_identically(tmp_path,
+                                                                monkeypatch):
     """A randomised engine chart, reloaded into the editor (grid = .ti2 SHEET
     order), must re-render pixel-identically when treated as un-randomised — the
     grid already IS the randomised layout, so re-applying the seed would show a
     different chart than printed (#93)."""
     import random
     from workflow.layout_engine import chart as le_chart
+
+    # The sheet carries a build date (chart.py stamps strftime("%Y-%m-%d") in
+    # LOCAL time). This test renders the same chart twice and compares pixels,
+    # so a run that straddles local midnight stamps two different dates and
+    # fails — once a day, for no real reason. chart.py imports time inside the
+    # function, so the stdlib module is the seam; other formats still delegate.
+    import time as _t
+    _real_strftime = _t.strftime
+    monkeypatch.setattr(
+        _t, "strftime",
+        lambda fmt, *a: "2026-01-01" if fmt == "%Y-%m-%d"
+        else _real_strftime(fmt, *a))
     from workflow.layout_engine.presets import default_recipe
     from PIL import Image
 
