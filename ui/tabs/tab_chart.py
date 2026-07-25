@@ -3565,7 +3565,14 @@ class TabChart(QWidget):
         """Reflect the current target name in both the guided and manual
         “Printer profile project name” fields, so opening/creating a project is
         visibly loaded in the Create Chart tab (#130, Knut)."""
-        self._last_target_name = self._file_mgr.get_target_name()
+        # Read WITHOUT get_target_name(): it invents and stores a
+        # "Printer_Paper_Type_Instr_<timestamp>" name when none is set, which
+        # would then be written into the field over whatever the user had typed.
+        # There is nothing to reflect until a project actually carries a name.
+        name = getattr(self._file_mgr, "_target_name", "")
+        if not name:
+            return
+        self._last_target_name = name
         for f in (getattr(self, "_target_name_edit", None),
                   getattr(self, "_manual_target_name_edit", None)):
             if f is not None:
@@ -8176,6 +8183,13 @@ class TabChart(QWidget):
         switching Run type / Profile run swaps the Create-Chart tab to that
         target's own chart (settings + preview)."""
         self._target_ctl = controller
+        # Let the bar's "Location being edited" line follow the name as it is
+        # typed, so it is answerable before the first chart exists (#130).
+        for _f in (getattr(self, "_target_name_edit", None),
+                   getattr(self, "_manual_target_name_edit", None)):
+            if _f is not None:
+                _f.textChanged.connect(controller.set_pending_project_name)
+                controller.set_pending_project_name(_f.text())
         # The actual chart (.ti2 path) the tab currently displays. Tracking the
         # real artefact — not a (run, type) key — keeps the swap correct even
         # after a generation or reload changed the chart out from under us
@@ -8400,7 +8414,12 @@ class TabChart(QWidget):
         # the "Printer profile project name" field so it's visibly loaded. Gated
         # on the name actually changing, so run/type toggles within one project
         # never overwrite a name the user is typing.
-        cur_name = self._file_mgr.get_target_name()
+        # Read the name WITHOUT get_target_name(): that invents and stores a
+        # "Printer_Paper_Type_Instr_<timestamp>" name whenever none is set, and
+        # the line below would then stamp that invented name straight over what
+        # the user had typed — on nothing more than a Run-type toggle. Only a
+        # name that genuinely belongs to a loaded project should be reflected.
+        cur_name = getattr(self._file_mgr, "_target_name", "")
         if cur_name and cur_name != getattr(self, "_last_shown_project_name", None):
             self._last_shown_project_name = cur_name
             self._update_name_fields()

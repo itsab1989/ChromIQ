@@ -72,12 +72,34 @@ def test_new_run_names_the_folder_that_would_be_created(qapp, tmp_path):
     assert ctl.location_being_edited() == "ChromIQ/My-Printer/runs/run2/"
 
 
-def test_no_project_open_shows_nothing(qapp, tmp_path):
+def test_nothing_named_at_all_shows_nothing(qapp, tmp_path):
+    """A freshly-started app names no destination — better than a half path."""
     s = AppSettings(); s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
     root = tmp_path / "ChromIQ"; root.mkdir()
     s.set("custom_output_path", str(root))
     ctl = MeasurementTargetController(FileManager(s))
 
+    assert ctl.location_being_edited() == ""
+
+
+def test_a_typed_name_shows_the_destination_before_the_project_exists(qapp, tmp_path):
+    """The answer is most useful BEFORE the first chart is generated: as soon as
+    a name is typed, the line says where that chart will land."""
+    s = AppSettings(); s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    root = tmp_path / "ChromIQ"; root.mkdir()
+    s.set("custom_output_path", str(root))
+    ctl = MeasurementTargetController(FileManager(s))
+
+    ctl.set_pending_project_name("ChromIQ Test Chart")
+
+    # Spaces become hyphens, exactly as the folder on disk will be named.
+    assert ctl.location_being_edited() == "ChromIQ/ChromIQ-Test-Chart/runs/run1/"
+    assert not (root / "ChromIQ-Test-Chart").exists(), "nothing is created early"
+
+    ctl.set_run_type(RUN_TYPE_VERIFICATION)
+    assert ctl.location_being_edited().endswith("runs/run1/verifications/")
+
+    ctl.set_pending_project_name("")          # cleared again
     assert ctl.location_being_edited() == ""
 
 

@@ -31,6 +31,18 @@ class MeasurementTargetController(QObject):
         super().__init__(parent)
         self._fm = file_mgr
         self._target = MeasurementTarget()
+        # The name typed into "Printer profile project name" before any project
+        # exists on disk, so the location line can answer "where will this go?"
+        # while the user is still setting up (#130, Knut).
+        self._pending_name = ""
+
+    def set_pending_project_name(self, raw: str) -> None:
+        """Track the profile-project name being typed, so the bar's location
+        line follows it before the project folder exists."""
+        raw = (raw or "").strip()
+        if raw != self._pending_name:
+            self._pending_name = raw
+            self.changed.emit()
 
     @property
     def target(self) -> MeasurementTarget:
@@ -38,6 +50,16 @@ class MeasurementTargetController(QObject):
 
     def project_or_none(self):
         try:
+            # Don't go through working_dir() before a name exists: it calls
+            # get_target_name(), which INVENTS and stores a
+            # "Printer_Paper_Type_Instr_<timestamp>" name. The bar asks this
+            # question constantly, so that invented name would then be written
+            # into the user's "Printer profile project name" field on the next
+            # refresh. With no name and no opened project there is nothing to
+            # find anyway.
+            if (not getattr(self._fm, "_target_name", "")
+                    and self._fm.project_root_override() is None):
+                return None
             if (self._fm.working_dir() / "project.json").exists():
                 return self._fm.project()
         except Exception:      # noqa: BLE001 — the bar must never crash a tab
@@ -80,25 +102,48 @@ class MeasurementTargetController(QObject):
 
         A project kept in a sub-folder shows its real place
         (``ChromIQ/customers/2026/My-Printer/runs/run1/``), because that is where
-        the files actually are. Returns an empty string when no project is open
-        yet — there is no location to name until one exists.
+        the files actually are.
+
+        **It does not wait for the project to exist.** As soon as a profile
+        project name is known — typed into "Printer profile project name", or
+        carried by an opened project — the destination is answerable, and that is
+        precisely when the answer is most useful: before the first chart is
+        generated. Returns an empty string only when nothing is named at all, so
+        a freshly-started app shows no half-formed path.
         """
         from pathlib import Path
         try:
             proj = self.project_or_none()
             if proj is None:
-                return ""
+                # No project folder yet. Use the name shown in "Printer profile
+                # project name" — deliberately NOT the FileManager's target name,
+                # which get_target_name() invents as
+                # Printer_Paper_Type_Instr_<timestamp> the first time anything
+                # asks for it. Showing that invented name as a location would be
+                # worse than showing nothing: it names a folder the user never
+                # chose and that may never exist.
+                if not self._pending_name:
+                    return ""
+                from core.file_manager import FileManager
+                clean = FileManager._sanitise(
+                    FileManager.strip_workfile_ext(self._pending_name))
+                if not clean:
+                    return ""
+                proj_root = Path(self._fm.root_dir()) / clean
+            else:
+                proj_root = Path(proj.root)
             root = Path(self._fm.root_dir())
             try:
-                rel = Path(proj.root).resolve().relative_to(root.resolve())
+                rel = proj_root.resolve().relative_to(root.resolve())
             except (ValueError, OSError):
-                rel = Path(proj.root.name)          # project outside the folder
+                rel = Path(proj_root.name)          # project outside the folder
             run_id = self._target.profile_run
             if not run_id:
                 # "New run" — name the folder that would be created, so the user
                 # can see where a Generate is about to put things.
                 try:
-                    run_id = f"run{proj._next_run_index()}"
+                    run_id = f"run{proj._next_run_index()}" if proj is not None \
+                        else "run1"
                 except Exception:      # noqa: BLE001
                     run_id = "run…"
             parts = [root.name, *rel.parts, "runs", run_id]
@@ -273,9 +318,10 @@ class MeasurementTargetBar(QWidget):
         empty app never shows a half-formed path."""
         where = self._ctl.location_being_edited()
         self._location.setVisible(bool(where))
-        if where:
-            self._location.setText(
-                tr("Location being edited: {path}").format(path=where))
+        # Clear the text too, so a hidden label can never surface a stale path
+        # if something shows it again later.
+        self._location.setText(
+            tr("Location being edited: {path}").format(path=where) if where else "")
 
     # ---- rebuild the run + verification lists from the project -----------
     def refresh(self) -> None:
