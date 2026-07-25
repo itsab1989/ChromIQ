@@ -9,7 +9,7 @@ holds the state itself — the controller is the single source of truth.
 from __future__ import annotations
 
 from PyQt6.QtCore import QObject, Qt, pyqtSignal
-from PyQt6.QtWidgets import QHBoxLayout, QLabel, QWidget
+from PyQt6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from core.i18n import tr
 from core.measurement_target import (
@@ -72,6 +72,42 @@ class MeasurementTargetController(QObject):
             self._target.verification_id = vid
             self.changed.emit()
 
+    def location_being_edited(self) -> str:
+        """The folder the current Profile-run / Run-type selection writes into,
+        written from the ChromIQ folder down (#130, Knut 2026-07-25) — e.g.
+        ``ChromIQ/My-Printer/runs/run1/`` for Profiling, or
+        ``ChromIQ/My-Printer/runs/run1/verifications/`` for Verification.
+
+        A project kept in a sub-folder shows its real place
+        (``ChromIQ/customers/2026/My-Printer/runs/run1/``), because that is where
+        the files actually are. Returns an empty string when no project is open
+        yet — there is no location to name until one exists.
+        """
+        from pathlib import Path
+        try:
+            proj = self.project_or_none()
+            if proj is None:
+                return ""
+            root = Path(self._fm.root_dir())
+            try:
+                rel = Path(proj.root).resolve().relative_to(root.resolve())
+            except (ValueError, OSError):
+                rel = Path(proj.root.name)          # project outside the folder
+            run_id = self._target.profile_run
+            if not run_id:
+                # "New run" — name the folder that would be created, so the user
+                # can see where a Generate is about to put things.
+                try:
+                    run_id = f"run{proj._next_run_index()}"
+                except Exception:      # noqa: BLE001
+                    run_id = "run…"
+            parts = [root.name, *rel.parts, "runs", run_id]
+            if self._target.is_verification():
+                parts.append("verifications")
+            return "/".join(parts) + "/"
+        except Exception:      # noqa: BLE001 — a label must never break the bar
+            return ""
+
     def notify_changed(self) -> None:
         """Force a ``changed`` emission even when no field value differs — used
         after the working PROJECT is switched out from under the bar (e.g. a
@@ -96,9 +132,15 @@ class MeasurementTargetBar(QWidget):
 
         self._accent = TooltipButton.ACCENT
 
-        row = QHBoxLayout(self)
+        # A column: the selection row, then the "Location being edited" line
+        # underneath it (#130, Knut 2026-07-25).
+        column = QVBoxLayout(self)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(2)
+        row = QHBoxLayout()
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(6)
+        column.addLayout(row)
 
         self._run_label = self._mk_label(tr("Profile run:"))
         row.addWidget(self._run_label)
@@ -187,6 +229,20 @@ class MeasurementTargetBar(QWidget):
             c.setObjectName("compact_input")
         self.set_accent(self._accent)
 
+        # The folder this selection writes into, spelled out from the ChromIQ
+        # folder down so "where are my files?" is answered on the spot.
+        self._location = QLabel("", self)
+        self._location.setObjectName("target_bar_location")
+        self._location.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse)
+        self._location.setToolTip(tr(
+            "The folder your current Profile run and Run type selection works "
+            "in. Charts you create, print or measure for this selection are "
+            "read from and written to this folder, inside your ChromIQ folder. "
+            "It follows the two dropdowns above, so you can always see where "
+            "your files are going before you do anything."))
+        column.addWidget(self._location)
+
         self._ctl.changed.connect(self._sync_from_controller)
         self.refresh()
 
@@ -211,6 +267,16 @@ class MeasurementTargetBar(QWidget):
             c.setStyleSheet(qss)
         self._tip_btn.set_color(color)
 
+    def _update_location(self) -> None:
+        """Refresh the "Location being edited" line for the current selection
+        (#130, Knut). Hidden entirely until a profile project is open, so an
+        empty app never shows a half-formed path."""
+        where = self._ctl.location_being_edited()
+        self._location.setVisible(bool(where))
+        if where:
+            self._location.setText(
+                tr("Location being edited: {path}").format(path=where))
+
     # ---- rebuild the run + verification lists from the project -----------
     def refresh(self) -> None:
         """Repopulate from the loaded project — call when the project or its
@@ -218,6 +284,7 @@ class MeasurementTargetBar(QWidget):
         self._sync_from_controller()
 
     def _sync_from_controller(self) -> None:
+        self._update_location()
         self._syncing = True
         try:
             t = self._ctl.target

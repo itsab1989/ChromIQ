@@ -45,7 +45,10 @@ def test_no_project_loaded_seeds_new_without_dialog(qapp, tmp_path):
     assert tab._ti1_load_destination(Path("/some/where/MyPatches.ti1")) == "new"
 
 
-def test_project_loaded_offers_into_and_new(qapp, tmp_path, monkeypatch):
+def test_project_loaded_offers_new_vs_replace_on_an_existing_run(qapp, tmp_path,
+                                                                monkeypatch):
+    """#130, Knut's ruling of 2026-07-25: building into an EXISTING run always
+    offers Replace / new run / new project, whatever that run holds."""
     tab, fm, ctl = _make_tab(tmp_path)
     proj = Project.create(tmp_path / "projects" / "CanonP", "CanonP")
     proj.current_run().ensure_dir()
@@ -58,12 +61,32 @@ def test_project_loaded_offers_into_and_new(qapp, tmp_path, monkeypatch):
     def _fake_dialog(parent, title, intro, choices):
         seen["keys"] = [c[2] for c in choices]
         seen["intro"] = intro
+        return "into_replace"
+    monkeypatch.setattr(L, "_choice_dialog", _fake_dialog)
+
+    assert tab._ti1_load_destination(Path("/ext/Foreign.ti1")) == "into_replace"
+    assert seen["keys"] == ["into_replace", "into_new", "new"]
+    assert "CanonP" in seen["intro"]
+
+
+def test_project_loaded_new_run_keeps_the_simple_choice(qapp, tmp_path, monkeypatch):
+    """"New run" displaces nothing, so it keeps the two-way question."""
+    tab, fm, ctl = _make_tab(tmp_path)
+    proj = Project.create(tmp_path / "projects" / "CanonP", "CanonP")
+    proj.current_run().ensure_dir()
+    fm.set_target_name("CanonP")
+    ctl.set_profile_run("")
+
+    import ui.ti2_loader as L
+    seen = {}
+
+    def _fake_dialog(parent, title, intro, choices):
+        seen["keys"] = [c[2] for c in choices]
         return "into"
     monkeypatch.setattr(L, "_choice_dialog", _fake_dialog)
 
     assert tab._ti1_load_destination(Path("/ext/Foreign.ti1")) == "into"
     assert seen["keys"] == ["into", "new"]
-    assert "CanonP" in seen["intro"]
 
 
 def test_project_loaded_cancel_returns_none(qapp, tmp_path, monkeypatch):
