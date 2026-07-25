@@ -57,9 +57,14 @@ class MeasurementTargetController(QObject):
             # into the user's "Printer profile project name" field on the next
             # refresh. With no name and no opened project there is nothing to
             # find anyway.
-            if (not getattr(self._fm, "_target_name", "")
-                    and self._fm.project_root_override() is None):
-                return None
+            # Only skip when we POSITIVELY know there is no name: a file
+            # manager that doesn't expose these (a test double, or any other
+            # duck-typed one) falls through to the normal lookup below.
+            name = getattr(self._fm, "_target_name", None)
+            if name == "":
+                override = getattr(self._fm, "project_root_override", None)
+                if override is None or override() is None:
+                    return None
             if (self._fm.working_dir() / "project.json").exists():
                 return self._fm.project()
         except Exception:      # noqa: BLE001 — the bar must never crash a tab
