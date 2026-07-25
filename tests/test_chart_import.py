@@ -105,10 +105,15 @@ def test_overwrite_verification_replace_moves_verifications_keeps_profile(tmp_pa
     ti2, ti1, tiffs = _external_chart(tmp_path / "ext", "src", pages=1)
     import_external_chart(ti2, ti1, tiffs, proj, _target(False, "run1"), replace=True)
 
+    # Knut's ruling of 2026-07-25: a verification Replace acts ONLY on the files
+    # at the root of verifications/, archives them INSIDE that folder, and keeps
+    # the dated verification results where the user left them.
     r = Project.load(proj.root).run("run1")
-    arch = next(r.old_dir.iterdir())
+    arch = next(r.verifications_old_dir.iterdir())
     assert (arch / f"{r.verify_stem}.ti2").exists()          # old verify chart archived
-    assert (arch / "2026-06-01_090000").exists()             # dated verification archived
+    assert not r.old_dir.exists()                            # run root untouched
+    assert r.verification("2026-06-01_090000").measurement_ti3.exists(), \
+        "dated verification results are kept, not archived"
     assert r.verify_chart_ti2.read_text() == "ti2"           # new verify chart installed
     assert r.measurement_ti3.exists() and r.profile_icc.exists()  # profile untouched
 
