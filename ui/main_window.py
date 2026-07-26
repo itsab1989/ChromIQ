@@ -562,15 +562,27 @@ class MainWindow(QMainWindow):
             ctl.set_measuring(active)
 
     def _on_verify_chart_restored(self) -> None:
-        """Re-feed the tabs after Restore Used Chart put an older verification
-        chart back: Create Chart re-reads the target's chart (which refreshes the
-        preview and hands it to Print and Measure), and the bar refreshes so the
-        button's own state follows the new situation."""
-        try:
-            self._tab_chart._on_target_changed()
-        except Exception:      # noqa: BLE001 — a refresh must never crash the app
-            log.warning("Could not refresh the tabs after a chart restore",
-                        exc_info=True)
+        """React to Restore Used Chart having put an older verification chart
+        back (#130, Knut).
+
+        When the snapshot carried no page images — the normal case, because the
+        chart's layout recipe can redraw them — the pages are rebuilt here, and
+        the finished build feeds the preview and the other tabs by the usual
+        route. Otherwise the images came back with the snapshot and only a
+        refresh is needed, so nothing is rebuilt needlessly."""
+        outcome = getattr(self._target_ctl, "_last_restore", None)
+        rebuilt = False
+        if outcome is not None and outcome.should_rebuild:
+            try:
+                rebuilt = self._tab_chart.rebuild_verification_pages()
+            except Exception:      # noqa: BLE001
+                log.warning("Could not rebuild the restored pages", exc_info=True)
+        if not rebuilt:
+            try:
+                self._tab_chart._on_target_changed()
+            except Exception:      # noqa: BLE001 — never crash on a refresh
+                log.warning("Could not refresh the tabs after a chart restore",
+                            exc_info=True)
         if getattr(self, "_target_bar", None) is not None:
             self._target_bar.refresh()
 

@@ -156,3 +156,71 @@ def test_dropdown_marks_a_verification_with_no_measurement(qapp, tmp_path):
     # still selectable, and its chart is restorable
     ctl.set_verification_id(started.id)
     assert ctl.restore_state()[0] is True
+
+
+def test_outcome_says_the_pages_can_be_redrawn(qapp, tmp_path):
+    """With a recipe present the snapshot holds no images, so the restore asks
+    the caller to redraw them rather than leaving the user to do it."""
+    ctl, run = _env(tmp_path)
+    v = run.verification("2026-07-25_120000"); v.ensure_dir()
+    snapshot_chart(v); ctl.set_verification_id(v.id)
+
+    result = ctl.restore_used_chart()
+
+    assert result.ok
+    assert result.should_rebuild is True
+    assert result.images_restored is False
+    assert result.needs_regeneration is False
+
+
+def test_outcome_needs_no_rebuild_when_the_images_came_back(qapp, tmp_path):
+    """Without a recipe the images travel with the snapshot, so there is
+    nothing to redraw."""
+    ctl, run = _env(tmp_path, with_chart=False)
+    run.verify_chart_ti2.write_text("TI2")
+    (run.verifications_dir / f"{run.verify_stem}_01.tif").write_text("PAGE")
+    v = run.verification("2026-07-25_120000"); v.ensure_dir()
+    snapshot_chart(v); ctl.set_verification_id(v.id)
+    for p in run.verify_chart_tiffs():
+        p.unlink()
+
+    result = ctl.restore_used_chart()
+
+    assert result.ok and result.images_restored is True
+    assert result.should_rebuild is False
+    assert len(run.verify_chart_tiffs()) == 1
+
+
+def test_rebuild_is_started_for_the_restored_chart(qapp, tmp_path, monkeypatch):
+    """The Create Chart tab redraws the pages from the restored chart files,
+    applying that chart's own saved settings first."""
+    from core.argyll_runner import ArgyllRunner
+    from ui.tabs.tab_chart import TabChart
+    ctl, run = _env(tmp_path)
+    s = AppSettings(); s._qs = QSettings(str(tmp_path / "s2.ini"), QSettings.Format.IniFormat)
+    s.set("custom_output_path", str(tmp_path / "ChromIQ"))
+    tab = TabChart(ArgyllRunner(s), ctl._fm, s)
+    tab._switch_mode("manual")
+    if not tab._manual_panel_inited:
+        tab._init_manual_layout_panel()
+    tab.set_target_controller(ctl)
+    v = run.verification("2026-07-25_120000"); v.ensure_dir()
+    snapshot_chart(v); ctl.set_verification_id(v.id)
+    started = {}
+    monkeypatch.setattr(tab._creator, "load_ti1_and_generate_preview",
+                        lambda ti1, params, **k: started.update(ti1=ti1))
+
+    assert tab.rebuild_verification_pages() is True
+    assert started.get("ti1") == run.verify_chart_ti1
+
+
+def test_no_rebuild_without_a_chart_to_rebuild_from(qapp, tmp_path):
+    from core.argyll_runner import ArgyllRunner
+    from ui.tabs.tab_chart import TabChart
+    ctl, run = _env(tmp_path, with_chart=False)
+    s = AppSettings(); s._qs = QSettings(str(tmp_path / "s3.ini"), QSettings.Format.IniFormat)
+    s.set("custom_output_path", str(tmp_path / "ChromIQ"))
+    tab = TabChart(ArgyllRunner(s), ctl._fm, s)
+    tab.set_target_controller(ctl)
+
+    assert tab.rebuild_verification_pages() is False

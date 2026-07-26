@@ -8336,6 +8336,55 @@ class TabChart(QWidget):
             log.warning("Could not archive the run before a Replace build",
                         exc_info=True)
 
+    def rebuild_verification_pages(self) -> bool:
+        """Redraw the printable pages of the run's verification chart from the
+        chart files that are there now (#130, Knut).
+
+        Called after **Restore Used Chart** has put an older chart back: the
+        snapshot deliberately holds no page images when the chart carries a
+        layout recipe, so the pages are rebuilt here rather than copied. The
+        chart's own saved settings are applied first, so the rebuilt sheet
+        matches the one that was measured — same patch size, margins and
+        spacers, not whatever the panels happen to show.
+
+        Returns True when a rebuild was started. Best-effort: a chart that can't
+        be rebuilt leaves the restored files in place and says so via the caller.
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None or not ctl.target.is_verification():
+            return False
+        try:
+            proj = ctl.project_or_none()
+            run_id = ctl.target.profile_run
+            if proj is None or not run_id or not proj.has_run(run_id):
+                return False
+            run = proj.run(run_id)
+            ti1, ti2 = run.verify_chart_ti1, run.verify_chart_ti2
+            if not ti1.is_file():
+                return False
+            # Build the restored chart exactly as it was made: its own recipe
+            # first, then the normal verification build, which lays the pages at
+            # the run root and files them back under verifications/.
+            if ti2.is_file():
+                self._restore_chart_settings(ti2)
+            if proj.current_run().id != run_id:
+                proj.set_current_run(run_id)
+            self._arm_verification_snapshot()
+            params = self._collect_params()
+            params.target_name = self._file_mgr.get_target_name()
+            self._preview.clear()
+            self._generate_btn.setEnabled(False)
+            self._creator.load_ti1_and_generate_preview(
+                ti1, params,
+                on_line=self._on_log_line,
+                on_finish=self._on_generate_finished,
+            )
+            return True
+        except Exception:      # noqa: BLE001 — never break a restore
+            log.warning("Could not rebuild the restored verification pages",
+                        exc_info=True)
+            return False
+
     def _arm_verification_snapshot(self) -> None:
         """Protect the run's PROFILING chart before a verification chart is built
         into the same run root (#130, Knut K3).

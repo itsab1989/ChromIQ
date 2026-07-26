@@ -1,5 +1,28 @@
 # Changelog
 
+## v3.14.8-beta.21
+
+- **Restoring a verification chart now redraws its printable pages for you.**
+  The stored copy of a chart deliberately holds no page images — they are
+  redrawn from the chart's own layout information, which keeps the stored copy
+  small. That redraw now happens automatically as part of the restore, using the
+  settings the chart was originally made with, so the sheet matches the one that
+  was measured. You are only asked to do something in the one case where it is
+  genuinely impossible: a chart made without any layout information *and*
+  without stored page images.
+
+- **A verification date that has no measurement now says so.** If a verification
+  measurement is cancelled or fails, its dated folder is kept — it already holds
+  a copy of the chart, which you may still want to restore — and the Verification
+  dropdown labels it "— no measurement yet", so an empty date is never mistaken
+  for a result.
+
+- **The "Where are my files?" guide covers the stored charts.** It explains what
+  `runs/runN/verifications/<date>/chart/` is, that ChromIQ saves it automatically
+  when a verification measurement starts, and that "Restore Used Chart" puts it
+  back without ever touching your measurements.
+
+
 ## v3.14.8-beta.20
 
 - **Every verification now remembers the chart it measured.** When you start a

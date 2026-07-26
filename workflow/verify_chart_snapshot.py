@@ -183,6 +183,18 @@ class RestoreResult:
     def ok(self) -> bool:
         return bool(self.restored) and not self.rolled_back
 
+    @property
+    def should_rebuild(self) -> bool:
+        """The pages were not in the snapshot, but the recipe to redraw them
+        was — so the caller can rebuild them and the user need do nothing.
+
+        The three outcomes are exclusive: the images came back
+        (:attr:`images_restored`), they can be redrawn (this), or they can
+        neither be restored nor redrawn (:attr:`needs_regeneration`, which is the
+        only case the user is asked to act on).
+        """
+        return self.ok and not self.images_restored and not self.needs_regeneration
+
 
 def restore_chart(verification: Verification) -> RestoreResult:
     """Put a verification's snapshotted chart back as the run's live chart.

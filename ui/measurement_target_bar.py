@@ -12,10 +12,13 @@ from PyQt6.QtCore import QObject, Qt, pyqtSignal
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from core.i18n import tr
+from core.logger import get_logger
 from core.measurement_target import (
     RUN_TYPE_PROFILING, RUN_TYPE_VERIFICATION, MeasurementTarget)
 from ui.tooltip_button import TooltipButton
 from ui.widgets import NoScrollComboBox
+
+log = get_logger(__name__)
 
 _NEW = "\x00new"          # sentinel userData for the "New …" combo entries
 
@@ -36,6 +39,9 @@ class MeasurementTargetController(QObject):
         self._target = MeasurementTarget()
         # Chart-changing controls are unavailable while a measurement runs.
         self._measuring = False
+        #: the outcome of the most recent Restore Used Chart, so the listener of
+        #: ``chart_restored`` knows whether the pages still need redrawing.
+        self._last_restore = None
         # The name typed into "Printer profile project name" before any project
         # exists on disk, so the location line can answer "where will this go?"
         # while the user is still setting up (#130, Knut).
@@ -226,6 +232,9 @@ class MeasurementTargetController(QObject):
             return None
         result = restore_chart(verification)
         if result.ok:
+            # The listener rebuilds the pages when the snapshot held none but
+            # the recipe to redraw them is there (result.should_rebuild).
+            self._last_restore = result
             self.chart_restored.emit()
         return result
 
@@ -455,9 +464,13 @@ class MeasurementTargetBar(QWidget):
                 self, tr("Chart restored — the pages need rebuilding"),
                 tr("The chart files are back in place, but this chart was made "
                    "without the layout information ChromIQ needs to redraw its "
-                   "printable pages automatically.\n\nOpen the Create Chart tab "
-                   "and create the chart again to produce the pages, then print "
-                   "as usual."))
+                   "printable pages, and no page images were stored with it.\n\n"
+                   "Open the Create Chart tab and create the chart again to "
+                   "produce the pages, then print as usual."))
+        elif result.should_rebuild:
+            # The pages are being redrawn from the chart's own recipe; the
+            # finished build shows itself in the preview.
+            log.info("restored chart: rebuilding its pages")
 
     def _update_location(self) -> None:
         """Refresh the "Location being edited" line for the current selection
