@@ -1,5 +1,21 @@
 # Changelog
 
+## v3.14.8-beta.25
+
+- **The verification chart warning now points at the Verification field
+  instead of acting for you.** Starting a new dated verification run is what
+  the "Verification" field is for, so ChromIQ no longer offers to move your
+  measurement to a new date from inside the warning. When the loaded chart
+  differs from the one a chosen date was measured with, the warning explains
+  what would be replaced and suggests the way out: set "Verification" to
+  "New verification" and start the measurement again. Your two answers are to
+  replace the stored chart deliberately, or to cancel.
+
+- **One runner for the whole issue-130 test plan.** `scripts/drive_130.py`
+  drives the real application through all 23 rows — the nine load-model
+  scenarios and the fourteen verification rows — and prints a single table.
+  Each half can still be run on its own.
+
 ## v3.14.8-beta.24
 
 - **The Profile-run bar keeps its boxes together on the left.** The boxes and

@@ -13,6 +13,9 @@ Run headless for a rigorous pass/fail:
     QT_QPA_PLATFORM=offscreen python scripts/drive_130_test_plan.py
 Run on screen to watch it (slower, with pauses):
     CHROMIQ_DRIVE_ONSCREEN=1 python scripts/drive_130_test_plan.py
+
+These scenarios and the verification rows run together, with one table, via
+`scripts/drive_130.py` — that is the one to run before cutting a beta.
 """
 from __future__ import annotations
 
@@ -86,7 +89,12 @@ def seed_fixtures() -> tuple[Path, Path]:
     return root / "working-folder", root / "external"
 
 
-def main() -> int:
+def run_scenarios() -> None:
+    """Walk every load-model scenario, appending each row to ``RESULTS``.
+
+    Reports nothing and exits nothing, so `scripts/drive_130.py` can run this
+    alongside the verification rows and print a single table for both.
+    """
     app = build_app()
     work, ext = seed_fixtures()
     print(f"Sandbox working folder: {work}")
@@ -308,6 +316,10 @@ def main() -> int:
     if ONSCREEN:
         pump(app, 2000)
 
+
+def main() -> int:
+    """Standalone entry point: the load-model rows only, with their own table."""
+    run_scenarios()
     # ---- summary (printed BEFORE teardown; the WebEngine teardown segfaults
     # offscreen — issue #38 — so we hard-exit past it after reporting) ---------
     passed = sum(1 for _, ok, _ in RESULTS if ok)

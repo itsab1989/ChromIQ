@@ -123,26 +123,43 @@ def test_replace_overwrites_the_stored_chart(qapp, tmp_path, monkeypatch):
     assert ctl.target.verification_id == v.id, "the date does not change"
 
 
-def test_measuring_into_a_new_date_leaves_the_old_one_intact(qapp, tmp_path,
-                                                             monkeypatch):
-    """The answer that keeps both: the earlier check keeps its chart, and the
-    reading about to be taken gets a dated entry of its own."""
+def test_new_verification_takes_a_new_date_without_asking(qapp, tmp_path,
+                                                          monkeypatch):
+    """Knut's rule (#130, 2026-07-26): a new dated entry is what the
+    **Verification field** means, not something a pop-up decides. With the field
+    on "New verification" the measurement simply gets its own date, and nothing
+    is asked — there is no stored chart at risk."""
     run, ctl, tab, v = _arm(tmp_path)
     monkeypatch.setattr(TabMeasure, "_chart_overwrite_choice",
-                        lambda self, _v: "new")
+                        lambda self, _v: pytest.fail(
+                            "New verification must never raise the warning"))
+    ctl.set_verification_id("")            # "New verification"
 
     assert tab._snapshot_verification_chart() is True
+    new_id = ctl.target.verification_id
+    assert new_id and new_id != v.id, "a new dated entry must be created"
+
     from workflow.verify_chart_snapshot import snapshot_files
     old = {p.name: p.read_text() for p in snapshot_files(v)}
     assert old[run.verify_chart_ti2.name] == "TI2-v1", \
-        "the earlier date must keep the chart it was measured with"
-
-    new_id = ctl.target.verification_id
-    assert new_id and new_id != v.id, "the bar must move to a new date"
-    fresh = run.verification(new_id)
-    assert has_snapshot(fresh)
-    made = {p.name: p.read_text() for p in snapshot_files(fresh)}
+        "the earlier date keeps the chart it was measured with"
+    made = {p.name: p.read_text() for p in snapshot_files(run.verification(new_id))}
     assert made[run.verify_chart_ti2.name] == "TI2-v2 — a different chart"
+    assert has_snapshot(run.verification(new_id))
+
+
+def test_the_pop_up_offers_only_replace_and_cancel(qapp, tmp_path, monkeypatch):
+    """The pop-up must not move the measurement to another date behind the
+    field's back — so it offers exactly two answers."""
+    run, ctl, tab, v = _arm(tmp_path)
+    seen = {}
+    from PyQt6.QtWidgets import QMessageBox
+    monkeypatch.setattr(QMessageBox, "exec",
+                        lambda self: seen.setdefault("buttons",
+                                                     [b.text() for b in self.buttons()]))
+    tab._chart_overwrite_choice(v)
+    assert len(seen["buttons"]) == 2, seen["buttons"]
+    assert any("Replace" in b for b in seen["buttons"])
 
 
 # ---- wording --------------------------------------------------------------
@@ -150,4 +167,6 @@ def test_the_message_names_the_date_and_the_way_out():
     text = chart_overwrite_message("2026-07-20_100000")
     assert "2026-07-20 10:00" in text, "the date must be readable, not a stamp"
     assert "Restore Used Chart" in text
-    assert "new verification date" in text
+    # Knut's requirement: say what to do instead, naming the field and its value
+    assert "“Verification”" in text and "“New verification”" in text
+    assert "start the measurement again" in text

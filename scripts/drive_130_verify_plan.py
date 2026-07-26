@@ -25,6 +25,9 @@ Run headless for a pass/fail table:
     QT_QPA_PLATFORM=offscreen python scripts/drive_130_verify_plan.py
 Run on screen to watch it:
     CHROMIQ_DRIVE_ONSCREEN=1 python scripts/drive_130_verify_plan.py
+
+These rows and the load-model scenarios run together, with one table, via
+`scripts/drive_130.py` — that is the one to run before cutting a beta.
 """
 from __future__ import annotations
 
@@ -88,7 +91,12 @@ def _env(tmp: Path, *, recipe: bool = True):
     return s, fm, ctl, run
 
 
-def main() -> int:
+def run_rows() -> None:
+    """Walk every verification row, appending each to ``RESULTS``.
+
+    Reports nothing and exits nothing, so `scripts/drive_130.py` can run this
+    after the load-model scenarios and print a single table for both.
+    """
     app = QApplication.instance() or QApplication(sys.argv)
     QDialog.exec = lambda self: 0
     for m in ("warning", "critical", "information", "question"):
@@ -188,6 +196,10 @@ def main() -> int:
            run.old_dir.exists() and "verifications" in archived,
            str(archived[:6]))
 
+
+def main() -> int:
+    """Standalone entry point: the verification rows only, with their own table."""
+    run_rows()
     passed = sum(1 for _, ok, _ in RESULTS if ok)
     print(f"\n==== {passed}/{len(RESULTS)} rows PASSED ====")
     for name, ok, detail in RESULTS:

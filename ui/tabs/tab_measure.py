@@ -3421,7 +3421,7 @@ class TabMeasure(QWidget):
 
     def _chart_overwrite_choice(self, verification) -> str:
         """Ask before replacing the chart a verification date was measured with
-        (#130, Knut 2026-07-26). Returns ``"go"``, ``"new"`` or ``"cancel"``.
+        (#130, Knut 2026-07-26). Returns ``"go"`` or ``"cancel"``.
 
         The comparison is the same one behind **Restore Used Chart**: content
         digests of the stored chart against the live one. A date with no stored
@@ -3444,19 +3444,14 @@ class TabMeasure(QWidget):
         box.setText(tr("Measuring here replaces the chart stored with that "
                        "verification date."))
         box.setInformativeText(chart_overwrite_message(verification.id))
-        new_btn = box.addButton(tr("Measure into a new date"),
-                                QMessageBox.ButtonRole.AcceptRole)
         over_btn = box.addButton(tr("Replace the stored chart"),
                                  QMessageBox.ButtonRole.DestructiveRole)
         cancel_btn = box.addButton(QMessageBox.StandardButton.Cancel)
-        box.setDefaultButton(new_btn)
+        # Cancel is the default: the route the message recommends — switching
+        # the Verification field to "New verification" — starts by stopping here.
+        box.setDefaultButton(cancel_btn)
         box.exec()
-        clicked = box.clickedButton()
-        if clicked is over_btn:
-            return "go"
-        if clicked is cancel_btn or clicked is None:
-            return "cancel"
-        return "new"
+        return "go" if box.clickedButton() is over_btn else "cancel"
 
     def _snapshot_verification_chart(self) -> bool:
         """Before a verification measurement starts, copy the chart it is about
@@ -3491,11 +3486,8 @@ class TabMeasure(QWidget):
             verification = None
             if vid and run.verification(vid).dir.exists():
                 verification = run.verification(vid)
-                choice = self._chart_overwrite_choice(verification)
-                if choice == "cancel":
+                if self._chart_overwrite_choice(verification) == "cancel":
                     return False
-                if choice == "new":
-                    verification = None          # start a fresh dated entry
             if verification is None:
                 verification = run.new_verification()
                 verification.ensure_dir()

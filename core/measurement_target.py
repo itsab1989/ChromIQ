@@ -167,8 +167,14 @@ def chart_overwrite_message(vid: str) -> str:
     Every verification date keeps a copy of the chart it was measured with, and
     that copy is what *Restore Used Chart* puts back. Measuring a different
     chart into the same date replaces it, so the older result would end up
-    described by a chart nobody kept. This says so plainly, and offers the way
-    out that keeps both: measure into a new date instead.
+    described by a chart nobody kept.
+
+    The message says so plainly and then points at the way out — **setting the
+    “Verification” field to “New verification”**. ChromIQ deliberately does not
+    move the measurement to a new date on the user's behalf (Knut's ruling,
+    #130 2026-07-26): that field is the one place that decides which
+    verification is being measured, and a pop-up quietly overriding it would
+    leave the interface saying one thing and the files another.
     """
     from core.i18n import tr
     return tr(
@@ -179,9 +185,10 @@ def chart_overwrite_message(vid: str) -> str:
         "loaded into this same date, that stored copy is replaced, and the "
         "result already sitting there would no longer describe a chart you "
         "still have.\n\n"
-        "Measuring into a new verification date keeps both: the earlier check "
-        "stays exactly as it is, with its own chart, and today's reading starts "
-        "a fresh dated entry beside it."
+        "If you meant to start a new verification run, set the “Verification” "
+        "field to “New verification” and start the measurement again — the "
+        "earlier check then stays exactly as it is, with its own chart, and "
+        "today's reading gets a dated entry of its own."
     ).format(when=pretty_verification_date(vid))
 
 
