@@ -3484,6 +3484,98 @@ class TabMeasure(QWidget):
         except Exception:      # noqa: BLE001 — a hint must never break a read
             log.warning("failed-strip pace hint failed", exc_info=True)
 
+    def _prompt_too_fast_strip(self, strip: str, pace, config) -> None:
+        """A strip ArgyllCMS accepted, but read faster than the minimum set for
+        this instrument (#131, Knut 2026-07-26).
+
+        Argyll only refuses a strip once it is unusable; between "fine" and
+        "refused" lies a band where the readings are accepted but thin — fewer
+        readings per patch means more noise in every patch, and that noise ends
+        up in the profile. Argyll never mentions it, so ChromIQ asks: read the
+        strip again, or keep it.
+
+        Only offered with the ChromIQ engine, because going back to a strip
+        Argyll has already accepted needs the engine's own "go to strip".
+        """
+        from PyQt6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QPushButton,
+                                     QVBoxLayout)
+        if not self._manager.engine_active or not strip:
+            return
+        ms = int(pace.mean_seconds * 1000)
+        target_ms = int(config.target_seconds * 1000)
+        good_secs = (target_ms * pace.patches) / 1000.0
+
+        QApplication.instance().removeEventFilter(self)
+        dlg = QDialog(self)
+        dlg.setWindowTitle(tr("Strip Read Quickly"))
+        dlg.setMinimumWidth(560)
+        layout = QVBoxLayout(dlg)
+        layout.setSpacing(16)
+        layout.setContentsMargins(24, 20, 24, 20)
+
+        detail = tr(
+            "<b>Strip {name} was accepted, but it was read quickly.</b><br><br>"
+            "It took {secs} s for {n} patches — about <b>{ms} ms</b> on each "
+            "patch, where this instrument is set to want at least "
+            "<b>{target} ms</b>. Reading the whole strip in about "
+            "<b>{good} s</b> would sit comfortably above that."
+        ).format(name=strip, secs=f"{pace.elapsed:.1f}", n=pace.patches, ms=ms,
+                 target=target_ms, good=f"{good_secs:.0f}")
+        if pace.est_samples is not None:
+            detail += "<br><br>" + tr(
+                "At this speed each patch received roughly <b>{n} readings</b> "
+                "instead of the {want} asked for."
+            ).format(n=pace.est_samples, want=config.min_samples)
+        detail += "<br><br>" + tr(
+            "<b>Why it matters:</b> the instrument averages the readings it "
+            "takes while passing over a patch. Fewer readings mean a noisier "
+            "measurement, and that noise is carried into the profile you build "
+            "from it. ArgyllCMS only refuses a strip once it is unusable, so a "
+            "strip can pass and still be thinner than you want."
+        ) + "<br><br>" + tr(
+            "The limits come from Preferences → Measurement, and the defaults "
+            "are set to give good-quality readings. If you would rather trade "
+            "some quality for speed, lower the minimum readings per patch "
+            "there and this warning will follow your setting."
+        ) + "<br><br>" + tr(
+            "&nbsp;&nbsp;<b>Re-read Strip</b> — read strip {name} again, more "
+            "slowly. The new reading replaces this one.<br>"
+            "&nbsp;&nbsp;<b>Continue Anyway</b> — keep what was just read and "
+            "carry on to the next strip."
+        ).format(name=strip)
+
+        msg = QLabel(detail, dlg)
+        msg.setWordWrap(True)
+        layout.addWidget(msg)
+
+        chosen = ["continue"]
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        row.addStretch(1)
+        again = QPushButton(tr("Re-read Strip"), dlg)
+        again.setObjectName("primary")
+        again.setFixedHeight(32)
+        again.clicked.connect(lambda: (chosen.__setitem__(0, "reread"),
+                                       dlg.accept()))
+        keep = QPushButton(tr("Continue Anyway"), dlg)
+        keep.setFixedHeight(32)
+        keep.clicked.connect(lambda: (chosen.__setitem__(0, "continue"),
+                                      dlg.accept()))
+        row.addWidget(keep)
+        row.addWidget(again)
+        layout.addLayout(row)
+
+        tint_dialog_primary(dlg, _TAB_COLOR)
+        dlg.exec()
+        QApplication.instance().installEventFilter(self)
+
+        if chosen[0] == "reread":
+            self._manager.goto_strip(strip)     # the next swipe overwrites it
+            self._log.appendPlainText(
+                "\n" + tr("Re-reading strip {name} — take it more slowly this "
+                          "time.").format(name=strip))
+            self._log.ensureCursorVisible()
+
     def _on_strip_error_sound(self, reason: str) -> None:
         """Strip-failure sound (#131): Argyll's own 'Slow Down!' comes through
         here after a too-fast swipe — play the calmer 'slow down' cue for that,
@@ -6185,9 +6277,14 @@ class TabMeasure(QWidget):
             if msg:
                 self._log.appendPlainText("\n" + msg)
                 self._log.ensureCursorVisible()
-                if pace.too_fast and getattr(self, "_sound", None) is not None:
+            if pace.too_fast:
+                if getattr(self, "_sound", None) is not None:
                     import core.sound as _snd
                     self._sound.play(_snd.SLOW_DOWN)
+                # Accepted, but under the threshold: offer the same choice a
+                # failed strip gets — read it again, or keep it (Knut, #131).
+                self._prompt_too_fast_strip(str((ev or {}).get("strip", "")),
+                                            pace, tracker.config)
         except Exception:      # noqa: BLE001 — a hint must never break a read
             log.warning("pace hint failed", exc_info=True)
 

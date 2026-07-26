@@ -1,5 +1,27 @@
 # Changelog
 
+## v3.14.8-beta.34
+
+- **A strip that was accepted but read too quickly now asks what you want to
+  do.** ArgyllCMS only refuses a strip once it is unusable; between "fine" and
+  "refused" lies a band where your readings are accepted but thin, and nothing
+  used to mention it. When a strip falls in that band you now get the same kind
+  of window a failed strip gives you, saying how long the strip took, how many
+  milliseconds that left for each patch, roughly how many readings each patch
+  received against the number you asked for, and what a comfortable time for
+  that strip would be.
+
+  It also explains why it matters: the instrument averages the readings it takes
+  while passing over a patch, so fewer readings mean a noisier measurement, and
+  that noise is carried into the profile you build from it.
+
+  Your choices are **Re-read Strip**, which takes you back to that strip so a
+  slower swipe replaces the hurried one, or **Continue Anyway**, which keeps
+  what was read. Every figure comes from Preferences → Measurement, whose
+  defaults are set for good-quality readings — lower the minimum readings per
+  patch there if you would rather trade quality for speed, and the warning
+  follows your setting.
+
 ## v3.14.8-beta.33
 
 - **The cue now matches the fault when a strip fails.** ArgyllCMS reports a

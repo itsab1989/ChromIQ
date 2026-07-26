@@ -228,3 +228,121 @@ def test_a_failure_is_listed_even_when_the_patch_count_is_unknown(tab,
     assert "Strip failed after 1.0 s" in tab._pace_strips.text()
     assert not tab._pace_readout.isHidden()
     assert "ms per patch" not in tab._pace_readout.text()
+
+
+# ---- accepted, but under the threshold (Knut, #131 2026-07-26) ------------
+def _engine(tab, monkeypatch, accepted=True):
+    """Pretend the ChromIQ engine is running — the offer needs its go-to."""
+    monkeypatch.setattr(type(tab._manager), "engine_active",
+                        property(lambda self: True))
+    jumped = []
+    monkeypatch.setattr(tab._manager, "goto_strip", lambda s: jumped.append(s))
+    return jumped
+
+
+def test_a_fast_but_accepted_strip_offers_a_re_read(tab, monkeypatch):
+    """Argyll only refuses a strip once it is unusable. Between "fine" and
+    "refused" the readings are accepted but thin, and nothing used to say so."""
+    jumped = _engine(tab, monkeypatch)
+    shown = {}
+    from PyQt6.QtWidgets import QDialog
+    monkeypatch.setattr(QDialog, "exec",
+                        lambda self: shown.setdefault("title", self.windowTitle()))
+    clock = [100.0]
+    monkeypatch.setattr("time.monotonic", lambda: clock[0])
+
+    tab._on_scan_started()
+    clock[0] += 3.0                              # 273 ms per patch vs 600 ms
+    tab._report_strip_pace(_strip(11, "A"))
+
+    assert shown.get("title") == "Strip Read Quickly"
+    assert jumped == [], "nothing is re-read unless the user asks"
+
+
+def test_continuing_keeps_the_reading(tab, monkeypatch):
+    jumped = _engine(tab, monkeypatch)
+    from PyQt6.QtWidgets import QDialog
+    monkeypatch.setattr(QDialog, "exec", lambda self: 0)   # default = continue
+    clock = [100.0]
+    monkeypatch.setattr("time.monotonic", lambda: clock[0])
+
+    tab._on_scan_started(); clock[0] += 3.0
+    tab._report_strip_pace(_strip(11, "A"))
+
+    assert jumped == [], "Continue Anyway must not jump back"
+
+
+def test_a_comfortable_strip_is_never_interrupted(tab, monkeypatch):
+    _engine(tab, monkeypatch)
+    from PyQt6.QtWidgets import QDialog
+    seen = {"n": 0}
+    monkeypatch.setattr(QDialog, "exec",
+                        lambda self: seen.__setitem__("n", seen["n"] + 1))
+    clock = [100.0]
+    monkeypatch.setattr("time.monotonic", lambda: clock[0])
+
+    tab._on_scan_started(); clock[0] += 9.0      # 818 ms per patch
+    tab._report_strip_pace(_strip(11, "A"))
+
+    assert seen["n"] == 0, "a strip read at a good pace must not raise a dialog"
+
+
+def test_the_offer_quotes_the_current_preference(tab, monkeypatch):
+    """The good speed suggested has to follow the settings, not be fixed text."""
+    _engine(tab, monkeypatch)
+    texts = []
+    from PyQt6.QtWidgets import QDialog, QLabel
+    monkeypatch.setattr(QDialog, "exec", lambda self: texts.append(
+        " ".join(w.text() for w in self.findChildren(QLabel))))
+    clock = [100.0]
+    monkeypatch.setattr("time.monotonic", lambda: clock[0])
+
+    tab._on_scan_started(); clock[0] += 3.0
+    tab._report_strip_pace(_strip(11, "A"))
+    assert "600 ms" in texts[0], texts[0][:200]
+
+    tab._settings.set("pace_min_samples_colormunki", 60)   # 1200 ms
+    tab._on_scan_started(); clock[0] += 3.0
+    tab._report_strip_pace(_strip(11, "B"))
+    assert "1200 ms" in texts[1], texts[1][:200]
+
+
+def test_no_offer_without_the_engine(tab, monkeypatch):
+    """Going back to an accepted strip needs the engine's go-to, so with stock
+    chartread the warning is shown but no re-read is offered."""
+    monkeypatch.setattr(type(tab._manager), "engine_active",
+                        property(lambda self: False))
+    from PyQt6.QtWidgets import QDialog
+    seen = {"n": 0}
+    monkeypatch.setattr(QDialog, "exec",
+                        lambda self: seen.__setitem__("n", seen["n"] + 1))
+    clock = [100.0]
+    monkeypatch.setattr("time.monotonic", lambda: clock[0])
+
+    tab._on_scan_started(); clock[0] += 3.0
+    tab._report_strip_pace(_strip(11, "A"))
+
+    assert seen["n"] == 0
+    assert "Too fast" in tab._pace_readout.text(), "the verdict still shows"
+
+
+def test_choosing_re_read_jumps_back_to_that_strip(tab, monkeypatch):
+    """The half that matters: the engine is told to go back, so the next swipe
+    replaces the hurried reading."""
+    jumped = _engine(tab, monkeypatch)
+    from PyQt6.QtWidgets import QDialog, QPushButton
+
+    def press_re_read(dlg):
+        for b in dlg.findChildren(QPushButton):
+            if "Re-read" in b.text():
+                b.click()
+                return 1
+        raise AssertionError("no Re-read button in the dialog")
+    monkeypatch.setattr(QDialog, "exec", press_re_read)
+
+    clock = [100.0]
+    monkeypatch.setattr("time.monotonic", lambda: clock[0])
+    tab._on_scan_started(); clock[0] += 3.0
+    tab._report_strip_pace(_strip(11, "A"))
+
+    assert jumped == ["A"], "the engine must be sent back to that strip"
