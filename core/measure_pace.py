@@ -130,6 +130,31 @@ class PaceTracker:
             too_fast=seconds < self.config.target_seconds,
         )
 
+    # ---- judging a whole strip at once -------------------------------------
+    def strip_timed(self, seconds: float, patches: int) -> StripPace:
+        """Judge a strip from its **total** time and patch count.
+
+        This is the path that strip-scanning instruments actually take. They
+        hand the whole strip back in one go when the swipe ends, so there are no
+        per-patch events to time — the only honest figure available is the mean,
+        which is exactly how Knut derived the thresholds in the first place
+        (seconds per strip ÷ patches per strip).
+
+        *seconds* must be the time the **scan** took, measured from the
+        instrument firing — not from when the strip was offered, which would
+        include the user lining the head up and make every strip look slow.
+        """
+        result = StripPace(patches=patches, elapsed=max(0.0, seconds))
+        if patches <= 0 or seconds <= 0:
+            return result
+        result.mean_seconds = seconds / patches
+        result.est_samples = self.config.samples_for(result.mean_seconds)
+        target = self.config.target_seconds
+        result.too_fast = result.mean_seconds < target
+        result.marginal = (not result.too_fast
+                           and result.mean_seconds < target * 1.35)
+        return result
+
     # ---- judging -----------------------------------------------------------
     @property
     def enough_data(self) -> bool:

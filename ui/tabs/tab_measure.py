@@ -881,7 +881,8 @@ class TabMeasure(QWidget):
         self._manager.patch_measured.connect(self._on_patch_pace)
         if hasattr(self._manager, "instrument_detected"):
             self._manager.instrument_detected.connect(self._on_instrument_detected)
-        self._manager.strip_measured.connect(lambda _e: self._report_strip_pace())
+        self._manager.strip_measured.connect(self._report_strip_pace)
+        self._manager.scan_started.connect(self._on_scan_started)
         self._manager.patch_ready.connect(self._on_patch_ready)
         self._manager.patch_measured.connect(self._on_patch_measured)
         self._manager.chart_measured.connect(self._on_chart_measured)
@@ -935,7 +936,7 @@ class TabMeasure(QWidget):
                      _m.ccmx_load_failed, _m.mode_set_failed):
             _sig.connect(lambda *_: self._sound.play(_snd.INSTRUMENT_ERROR))
         self.measure_finished.connect(
-            lambda _p: self._sound.play(_snd.MEASUREMENT_FINISHED))
+            lambda _p: self._play_measurement_finished_once())
 
         # Watchdog: if a dialog sends a key but chartread emits no new output
         # within KEY_WATCHDOG_MS, surface a recoverable warning so the user is
@@ -1381,6 +1382,23 @@ class TabMeasure(QWidget):
         self._preview.patch_clicked.connect(self._on_preview_patch_clicked)
         self._preview.set_caption(tr("CHART PREVIEW"))
         rl.addWidget(self._preview, stretch=1)
+
+        # #131 (Knut, 2026-07-26): reading pace, right under the chart where the
+        # eye already is. Two lines — the strips read so far with the time each
+        # scan took, and one large verdict line, green when the pace is fine and
+        # red when it is too fast. Hidden until there is something to say, so it
+        # takes no room from the preview otherwise.
+        self._pace_strips = QLabel("", right)
+        self._pace_strips.setWordWrap(True)
+        self._pace_strips.setStyleSheet("color: #909090; font-size: 11px;")
+        self._pace_strips.setVisible(False)
+        rl.addWidget(self._pace_strips)
+
+        self._pace_readout = QLabel("", right)
+        self._pace_readout.setWordWrap(True)
+        self._pace_readout.setVisible(False)
+        rl.addWidget(self._pace_readout)
+
         splitter.addWidget(right)
 
         splitter.setStretchFactor(0, 1)
@@ -3526,6 +3544,10 @@ class TabMeasure(QWidget):
         # the selected clips are pre-loaded for zero-latency playback.
         if getattr(self, "_sound", None) is not None:
             self._sound.arm()
+        # A fresh read starts with a clean pace panel (Knut: it must be cleared
+        # when a strip is re-read, a chart is re-read, or measuring is stopped).
+        self._clear_pace_readout()
+        self._finish_sound_played = False
 
         # #130 Hole 1: don't start a verification of a run that has no profile.
         block = self._verification_guard()
@@ -4763,6 +4785,11 @@ class TabMeasure(QWidget):
             and bool(self._settings.get("calibration_mode", False))
         )
 
+        # The chart is read: sound it now, before anything is asked (Knut,
+        # #131 — the completion sound belongs to finishing the measurement, not
+        # to whatever you decide to do afterwards).
+        self._play_measurement_finished_once()
+
         # Suspend the event filter while the dialog is open so that keyboard
         # interactions with the dialog (Enter, Space, Esc) are not forwarded
         # to chartread as spurious keystrokes.
@@ -4961,6 +4988,8 @@ class TabMeasure(QWidget):
             QDialog, QHBoxLayout, QLabel, QPushButton, QVBoxLayout,
         )
 
+        self._play_measurement_finished_once()   # read is done — sound it now
+
         prior = (
             Run.for_dir(self._ti1_path.parent).reads()
             if self._ti1_path is not None else []
@@ -5066,10 +5095,22 @@ class TabMeasure(QWidget):
             reread_btn.clicked.connect(lambda: _pick("reread"))
             again_btn = QPushButton(tr("Measure again to average"), dlg)
             again_btn.clicked.connect(lambda: _pick("again"))
-            build_btn = QPushButton(tr("Build Profile →"), dlg)
+            close_btn = QPushButton(tr("Close"), dlg)
+            close_btn.setToolTip(tr(
+                "Keeps your measurement and closes this window without going "
+                "anywhere. You can build the profile whenever you like."))
+            close_btn.clicked.connect(lambda: _pick("close"))
+            # Knut (#131): "Build Profile" read as though it would build the
+            # profile there and then — it only takes you to the tab, where you
+            # still press Build Profile yourself. The name now says that.
+            build_btn = QPushButton(tr("Go to Build Profile Tab →"), dlg)
             build_btn.setObjectName("primary")
+            build_btn.setToolTip(tr(
+                "Saves the measurement and opens the Build Profile tab. The "
+                "profile is not built yet — press “Build Profile” there when "
+                "your settings are how you want them."))
             build_btn.clicked.connect(lambda: _pick("build"))
-            for b in (reread_btn, again_btn, build_btn):
+            for b in (reread_btn, again_btn, close_btn, build_btn):
                 btn_row.addWidget(b)
         layout.addLayout(btn_row)
 
@@ -5607,6 +5648,14 @@ class TabMeasure(QWidget):
 
         # "continue" / "build" (single read) or "use_last" (last read of a set).
         self.measure_finished.emit(current)
+        if action == "close":
+            # Knut (#131): keep the measurement, go nowhere. The profile can be
+            # built whenever the user likes.
+            self._log.appendPlainText(
+                "\n" + tr("→ Your measurement is saved. When you want the "
+                          "profile, go to the “4. Build Profile” tab and press "
+                          "“Build Profile”."))
+            return
         self.proceed_to_profile.emit()
 
 
@@ -5959,19 +6008,115 @@ class TabMeasure(QWidget):
             self._log.appendPlainText(
                 tr("[Engine] Jumping to strip {strip}…").format(strip=letter))
 
-    def _report_strip_pace(self) -> None:
-        """After a strip that Argyll ACCEPTED, say so when it was read close to
-        (or past) the speed at which it would have been rejected — the warning
-        Argyll itself only gives once the strip has already failed."""
+    def _show_strip_pace(self, strip: str, pace, config) -> None:
+        """Put the pace on screen: the per-strip times, and one large verdict.
+
+        Green means the strip had time to spare, amber that it only just made
+        it, red that it was read faster than this instrument can properly
+        manage. The numbers are the honest ones — the time the scan itself took
+        and what that leaves per patch.
+        """
+        if pace.patches <= 0 or pace.mean_seconds <= 0:
+            return
+        ms = int(pace.mean_seconds * 1000)
+        target_ms = int(config.target_seconds * 1000)
+        times = getattr(self, "_pace_strip_times", None)
+        if times is None:
+            times = self._pace_strip_times = []
+        times.append(tr("Strip {name}: {secs} s for {n} patches").format(
+            name=strip or "?", secs=f"{pace.elapsed:.1f}", n=pace.patches)
+            if pace.elapsed else
+            tr("Strip {name}: {n} patches").format(name=strip or "?",
+                                                   n=pace.patches))
+        self._pace_strips.setText("   ·   ".join(times[-8:]))
+        self._pace_strips.setVisible(True)
+
+        if pace.too_fast:
+            colour, verdict = "#ff6b6b", tr("Too fast — read more slowly")
+        elif pace.marginal:
+            colour, verdict = "#e0a63a", tr("Close to the limit")
+        else:
+            colour, verdict = "#5cb85c", tr("Good reading speed")
+        detail = tr("{ms} ms per patch (aim for {target} ms or more)").format(
+            ms=ms, target=target_ms)
+        if pace.est_samples is not None:
+            detail = tr(
+                "{ms} ms per patch — roughly {n} readings (aim for {target} ms "
+                "or more)").format(ms=ms, n=pace.est_samples, target=target_ms)
+        self._pace_readout.setText(f"{verdict} · {detail}")
+        self._pace_readout.setStyleSheet(
+            f"color: {colour}; font-size: 16px; font-weight: 600;")
+        self._pace_readout.setVisible(True)
+
+    def _clear_pace_readout(self) -> None:
+        """Forget the pace shown on screen — a new or re-read chart starts from
+        nothing, so an old strip's verdict can never be mistaken for this one."""
+        self._pace_strip_times = []
+        self._scan_started_at = None
+        for w in (getattr(self, "_pace_strips", None),
+                  getattr(self, "_pace_readout", None)):
+            if w is not None:
+                w.setText("")
+                w.setVisible(False)
+
+    def _play_measurement_finished_once(self) -> None:
+        """Sound "measurement finished" the moment the chart is read.
+
+        Knut (#131): it used to come only once the pop-up had been answered and
+        the profile tab opened, which felt wrong — the measurement was over the
+        instant the last strip was accepted, whatever you choose to do next. The
+        once-per-read flag keeps it from sounding twice when the read also ends
+        through the measure_finished signal.
+        """
+        if getattr(self, "_finish_sound_played", False):
+            return
+        self._finish_sound_played = True
+        if getattr(self, "_sound", None) is not None:
+            import core.sound as _snd
+            self._sound.play(_snd.MEASUREMENT_FINISHED)
+
+    def _on_scan_started(self) -> None:
+        """The instrument fired: the swipe starts now (#131, Knut 2026-07-26).
+
+        This is the only true start time for a strip. ``strip_ready`` arrives
+        while the head is still being lined up, and timing from there would add
+        the user's positioning to the swipe and make every strip look slow.
+        """
+        import time
+        self._scan_started_at = time.monotonic()
+
+    def _report_strip_pace(self, ev: "dict | None" = None) -> None:
+        """After a strip that Argyll ACCEPTED, say how fast it was read — and
+        say so loudly when it was read close to (or past) the speed at which it
+        would have been rejected, which Argyll only tells you once the strip has
+        already failed.
+
+        **A strip-scanning instrument hands the whole strip back at once**, so
+        there are no per-patch events during a swipe and no per-patch times to
+        show. What is real is the scan's total time and the number of patches in
+        the strip — the same two numbers Knut derived the thresholds from.
+        """
         if not self._settings.get("pace_hint_enabled", True):
             return
         try:
             import time
             from core.measure_pace import strip_pace_message
-            tracker = getattr(self, "_pace", None)
-            if tracker is None:
-                return
-            pace = tracker.strip_finished(time.monotonic())
+            # Created here, not merely fetched: in strip mode nothing else makes
+            # one, because the per-patch handler that used to create it never
+            # runs (a strip-scanning instrument reports no per-patch events).
+            tracker = self._pace_tracker()
+            started = getattr(self, "_scan_started_at", None)
+            patches = len((ev or {}).get("patches") or [])
+            if started is not None and patches:
+                seconds = time.monotonic() - started
+                pace = tracker.strip_timed(seconds, patches)
+            else:
+                # Patch-by-patch (spot) reading: the per-patch events are real
+                # there, so the tracker's own timings are used.
+                pace = tracker.strip_finished(time.monotonic())
+            self._scan_started_at = None
+            self._show_strip_pace(str((ev or {}).get("strip", "")), pace,
+                                  tracker.config)
             msg = strip_pace_message(pace, tracker.config)
             if msg:
                 self._log.appendPlainText("\n" + msg)

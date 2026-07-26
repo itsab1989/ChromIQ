@@ -1,5 +1,35 @@
 # Changelog
 
+## v3.14.8-beta.30
+
+- **Reading speed is now shown on screen, and works for strip reading at
+  last.** The pace feedback was built on a per-patch event that only exists in
+  patch-by-patch reading — a strip-scanning instrument hands the whole strip
+  back when the swipe ends, so nothing was ever timed and nothing was ever
+  shown. The engine now reports the moment the instrument fires, which is the
+  true start of a swipe, and each strip is judged on the time that scan took
+  and the number of patches in it — the same two numbers the thresholds were
+  derived from.
+
+  Under the chart preview you now see the strips read so far with the time each
+  scan took, and one large verdict line: green when the pace is comfortable,
+  amber when it only just made it, red when it was faster than the instrument
+  can properly manage, always with the milliseconds per patch and what to aim
+  for. It clears itself for a fresh read.
+
+- **The measurement-finished sound plays when the measurement finishes**, before
+  you are asked what to do next, instead of after you had chosen. It sounds once
+  per read.
+
+- **The pop-up after a measurement says what its buttons do.** "Build Profile"
+  became "Go to Build Profile Tab", since that is all it did — the profile is
+  still built by you, on that tab. There is also a Close button now, for
+  keeping the measurement without going anywhere.
+
+- **The chart's file tooltip stays out of the way of hovered patch values.**
+  With "Show patch values on hover" switched on, the path tooltip no longer
+  pops up over the value you are reading.
+
 ## v3.14.8-beta.29
 
 - **Fixes the overlapping bar introduced in beta.26.** Switching Run type to

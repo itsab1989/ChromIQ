@@ -211,6 +211,10 @@ class MeasureManager(QObject):
     # active; the stock chartread path never emits them.
     session_map                = pyqtSignal(list)      # [{strip, sheet, read, verifiable}, …]
     strip_measured             = pyqtSignal(dict)      # full strip_read event payload
+    #: the instrument fired — the swipe begins now (#131). In strip mode the
+    #: instrument hands back the whole strip at once, so this and strip_measured
+    #: are the only two moments from which reading pace can be judged at all.
+    scan_started               = pyqtSignal()
     #: the model the instrument reported when it was opened, e.g.
     #: "X-Rite i1 Pro2" — Argyll distinguishes the i1Pro generations, which a
     #: chart's TARGET_INSTRUMENT does not (#131 Phase 2)
@@ -643,6 +647,12 @@ class MeasureManager(QObject):
                 self.send_key(key)
             elif self._guided_state not in ("idle_done", "disabled"):
                 self._guided_step(strip, on_line)
+
+        elif kind == "scan_started":
+            # The instrument has fired: the swipe starts NOW (#131). In strip
+            # mode this is the only true start time — `strip_ready` arrives
+            # while the user is still lining the head up.
+            self.scan_started.emit()
 
         elif kind == "strip_read":
             self._engine_progress = True

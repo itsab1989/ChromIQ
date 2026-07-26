@@ -236,3 +236,38 @@ def test_an_unknown_instrument_still_explains_the_fallback():
     from core.measure_pace import explanation_for
     _title, body = explanation_for("something-else")
     assert "slowest" in body
+
+
+# ---- strip-scanning instruments (Knut, #131 2026-07-26) -------------------
+def test_a_strip_is_judged_from_its_scan_time_and_patch_count():
+    """The path a strip-scanning instrument really takes: the whole strip comes
+    back at once, so the mean is all there is — and it is exactly what Knut's
+    thresholds were derived from."""
+    from core.measure_pace import PaceConfig, PaceTracker
+    cfg = PaceConfig(min_samples=30, sample_hz=50.0)     # ColorMunki: 600 ms
+    t = PaceTracker(cfg)
+
+    fast = t.strip_timed(seconds=3.0, patches=11)        # 273 ms per patch
+    assert fast.too_fast is True and fast.patches == 11
+    assert fast.est_samples == 14                        # 0.273 s × 50 Hz
+
+    fine = t.strip_timed(seconds=9.0, patches=11)        # 818 ms per patch
+    assert fine.too_fast is False and fine.marginal is False
+    assert fine.elapsed == pytest.approx(9.0)
+
+
+def test_a_strip_read_only_just_fast_enough_is_marginal():
+    from core.measure_pace import PaceConfig, PaceTracker
+    cfg = PaceConfig(min_samples=20, sample_hz=200.0)    # i1Pro 2: 100 ms
+    pace = PaceTracker(cfg).strip_timed(seconds=3.2, patches=29)  # 110 ms
+    assert pace.too_fast is False and pace.marginal is True
+
+
+def test_a_strip_with_no_patches_or_no_time_says_nothing():
+    """Defensive: a malformed strip event must not produce a verdict."""
+    from core.measure_pace import PaceConfig, PaceTracker, strip_pace_message
+    cfg = PaceConfig(min_samples=20, sample_hz=200.0)
+    t = PaceTracker(cfg)
+    for pace in (t.strip_timed(0.0, 29), t.strip_timed(3.0, 0)):
+        assert pace.too_fast is False and pace.marginal is False
+        assert strip_pace_message(pace, cfg) == ""

@@ -800,7 +800,9 @@ class TiffPreview(QWidget):
         tip = self._file_tooltip
         self._caption_lbl.setToolTip(tip)
         self._filename_lbl.setToolTip(tip)
-        self._img_label.setToolTip("" if self._suppress_file_tooltip else tip)
+        hide_over_image = (self._suppress_file_tooltip
+                           or getattr(self, "_show_patch_tile", False))
+        self._img_label.setToolTip("" if hide_over_image else tip)
 
     def set_suppress_file_tooltip(self, on: bool) -> None:
         """Hide the chart path/name tooltip over the image while `on` (used to
@@ -940,10 +942,16 @@ class TiffPreview(QWidget):
     def set_show_patch_tile(self, on: bool) -> None:
         """Turn the hover info tile on/off. When off, any visible tile hides at
         once; when on, it appears the next time the pointer is over a measured
-        patch (#126 follow-up, Basti)."""
+        patch (#126 follow-up, Basti).
+
+        Turning it on also drops the chart path/name tooltip from the image:
+        the two appear in the same place, and the tooltip kept popping up on top
+        of the patch values you were trying to read (Knut, #131 2026-07-26).
+        """
         self._show_patch_tile = bool(on)
         if not self._show_patch_tile:
             self._hide_patch_tile()
+        self._apply_file_tooltip()
 
     def _ensure_patch_tile(self) -> "_PatchInfoTile":
         if self._patch_tile is None:

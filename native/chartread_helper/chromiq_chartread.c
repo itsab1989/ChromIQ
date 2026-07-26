@@ -731,8 +731,18 @@ static double cq_last_bcorr = 0.0, cq_last_xbcorr = 0.0, cq_last_werror = 0.0;
 inst_code cq_uicallback(void *cntx, inst_ui_purp purp) {
 	cq_uicontext_mirror *p = (cq_uicontext_mirror *)cntx;
 
-	if (purp == inst_triggered)
+	if (purp == inst_triggered) {
+		/* CHROMIQ_EXT: the instrument has just fired — this is the moment the
+		 * swipe actually begins, as opposed to `strip_ready`, which is emitted
+		 * while the user is still positioning the head. Timing a strip from
+		 * here to its `strip_read` gives the TRUE time the scan took, which is
+		 * the only honest basis for judging reading pace in strip mode: the
+		 * instrument returns the whole strip at once, so there are no per-patch
+		 * events to time (#131, Knut 2026-07-26). */
+		if (cq_json)
+			cq_emit_raw("{\"event\":\"scan_started\"}");
 		return inst_ok;
+	}
 
 	if (purp == inst_negcoms || purp == inst_armed || purp == inst_measuring) {
 		int c = cq_cmd_take_key();
