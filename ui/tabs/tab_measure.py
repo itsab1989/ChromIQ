@@ -3345,6 +3345,44 @@ class TabMeasure(QWidget):
         else:
             self._sound.play(_snd.STRIP_FAIL)
 
+    def _snapshot_verification_chart(self) -> None:
+        """Before a verification measurement starts, copy the chart it is about
+        to measure into its own dated folder (#130, Knut 2026-07-25).
+
+        A run's verification chart is shared by every dated verification beneath
+        it, so replacing it later would leave the older results describing a
+        chart nobody has any more. The snapshot is what **Restore Used Chart**
+        puts back.
+
+        With the Verification dropdown on "New verification" the dated folder is
+        created here — before anything else is written — and the bar moves to it,
+        so the rest of the measurement files into that folder. Best-effort: a
+        snapshot must never stop a measurement from running.
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None or not ctl.target.is_verification():
+            return
+        if not self._is_verify_checked():
+            return          # not being filed as a verification, so nothing to keep
+        try:
+            from workflow.verify_chart_snapshot import snapshot_chart
+            proj = ctl.project_or_none()
+            run_id = ctl.target.profile_run
+            if proj is None or not run_id or not proj.has_run(run_id):
+                return
+            run = proj.run(run_id)
+            vid = ctl.target.verification_id
+            if vid and run.verification(vid).dir.exists():
+                verification = run.verification(vid)
+            else:
+                verification = run.new_verification()
+                verification.ensure_dir()
+                ctl.set_verification_id(verification.id)
+            snapshot_chart(verification)
+        except Exception:      # noqa: BLE001 — never block a measurement
+            log.warning("Could not snapshot the verification chart",
+                        exc_info=True)
+
     def _blocked_by_new_run(self) -> bool:
         """True — and the explaining pop-up has been shown — when the bar's
         **Profile run** is "New run" (#130, Knut). A run has to exist before its
@@ -3382,6 +3420,10 @@ class TabMeasure(QWidget):
                 self, tr("Build a profile before verifying"), block)
             self._uncheck_verification()      # auto-switch back to Profiling (Knut)
             return
+
+        # #130: keep a copy of the chart this verification measures, BEFORE any
+        # measurement file is written.
+        self._snapshot_verification_chart()
 
         params = self._collect_params()
         if not self._confirm_nonrandom_bidir(params):

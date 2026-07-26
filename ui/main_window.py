@@ -112,6 +112,9 @@ class MainWindow(QMainWindow):
         # whenever the bar's width changes (the Verification box shows/hides).
         self._masthead.set_center_widget(self._target_bar)
         self._target_ctl.changed.connect(self._masthead.reposition_center)
+        # A restored verification chart must reach every tab, so nothing is left
+        # showing or printing the pages it replaced (#130, Knut).
+        self._target_ctl.chart_restored.connect(self._on_verify_chart_restored)
         for _t in (self._tab_chart, self._tab_measure, self._tab_print):
             if hasattr(_t, "set_target_controller"):
                 _t.set_target_controller(self._target_ctl)
@@ -551,6 +554,25 @@ class MainWindow(QMainWindow):
         for i in range(self._tabs.count()):
             if i != measure_idx:
                 self._tabs.setTabEnabled(i, not active)
+        # Chart-changing controls on the shared bar go quiet for the duration
+        # (#130, Knut): Restore Used Chart must not swap the chart out from
+        # under a running measurement.
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is not None:
+            ctl.set_measuring(active)
+
+    def _on_verify_chart_restored(self) -> None:
+        """Re-feed the tabs after Restore Used Chart put an older verification
+        chart back: Create Chart re-reads the target's chart (which refreshes the
+        preview and hands it to Print and Measure), and the bar refreshes so the
+        button's own state follows the new situation."""
+        try:
+            self._tab_chart._on_target_changed()
+        except Exception:      # noqa: BLE001 — a refresh must never crash the app
+            log.warning("Could not refresh the tabs after a chart restore",
+                        exc_info=True)
+        if getattr(self, "_target_bar", None) is not None:
+            self._target_bar.refresh()
 
     def _on_profile_active(self, active: bool) -> None:
         profile_idx = self._tabs.indexOf(self._tab_profile)

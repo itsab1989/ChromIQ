@@ -26,11 +26,16 @@ class MeasurementTargetController(QObject):
     dates). ``changed`` fires whenever the selection changes."""
 
     changed = pyqtSignal()
+    #: emitted after a verification's used chart has been restored, so the tabs
+    #: can rebuild the pages and refresh what they show (#130).
+    chart_restored = pyqtSignal()
 
     def __init__(self, file_mgr, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._fm = file_mgr
         self._target = MeasurementTarget()
+        # Chart-changing controls are unavailable while a measurement runs.
+        self._measuring = False
         # The name typed into "Printer profile project name" before any project
         # exists on disk, so the location line can answer "where will this go?"
         # while the user is still setting up (#130, Knut).
@@ -158,6 +163,63 @@ class MeasurementTargetController(QObject):
         except Exception:      # noqa: BLE001 — a label must never break the bar
             return ""
 
+    # ---- Restore Used Chart (#130, Knut 2026-07-25) -----------------------
+    def selected_verification(self):
+        """The :class:`Verification` the bar points at, or None when the type is
+        not Verification, no run is selected, or the dropdown says "New"."""
+        try:
+            if not self._target.is_verification():
+                return None
+            proj = self.project_or_none()
+            run_id = self._target.profile_run
+            vid = self._target.verification_id
+            if proj is None or not run_id or not vid or not proj.has_run(run_id):
+                return None
+            return proj.run(run_id).verification(vid)
+        except Exception:      # noqa: BLE001
+            return None
+
+    def restore_state(self) -> "tuple[bool, str]":
+        """``(enabled, tooltip)`` for the Restore Used Chart button, with the
+        exact wording from the specification for each reason it is unavailable."""
+        from workflow.verify_chart_snapshot import has_snapshot
+        if self._measuring:
+            return False, tr("Not while a measurement is running")
+        verification = self.selected_verification()
+        if verification is None:
+            return False, tr("Select an existing Verification run date to "
+                             "restore its used chart")
+        if not has_snapshot(verification):
+            return False, tr("Selected Verification run date has no available "
+                             "chart to restore")
+        return True, tr("Restore chart used for selected verification run date")
+
+    def restore_needs_confirmation(self) -> bool:
+        """Whether the live chart differs from the snapshot, so the user should
+        be warned before it is replaced."""
+        from workflow.verify_chart_snapshot import live_differs_from_snapshot
+        verification = self.selected_verification()
+        return (verification is not None
+                and live_differs_from_snapshot(verification))
+
+    def restore_used_chart(self):
+        """Put the selected verification's snapshotted chart back. Returns the
+        :class:`RestoreResult`, or None when there is nothing to restore."""
+        from workflow.verify_chart_snapshot import restore_chart
+        verification = self.selected_verification()
+        if verification is None:
+            return None
+        result = restore_chart(verification)
+        if result.ok:
+            self.chart_restored.emit()
+        return result
+
+    def set_measuring(self, running: bool) -> None:
+        """Chart-changing controls are unavailable while a measurement runs."""
+        if running != self._measuring:
+            self._measuring = running
+            self.changed.emit()
+
     def notify_changed(self) -> None:
         """Force a ``changed`` emission even when no field value differs — used
         after the working PROJECT is switched out from under the bar (e.g. a
@@ -246,6 +308,33 @@ class MeasurementTargetBar(QWidget):
         self._verify_combo.currentIndexChanged.connect(self._on_verify_changed)
         row.addWidget(self._verify_combo)
 
+        # Restore Used Chart — puts back the chart a past verification was
+        # measured against (#130, Knut 2026-07-25). Sits directly right of the
+        # Verification dropdown, with its own ⓘ.
+        from PyQt6.QtWidgets import QPushButton
+        self._restore_btn = QPushButton(tr("Restore Used Chart"), self)
+        self._restore_btn.setObjectName("compact_input")
+        self._restore_btn.setAutoDefault(False)
+        self._restore_btn.clicked.connect(self._on_restore_clicked)
+        row.addWidget(self._restore_btn)
+        self._restore_tip = TooltipButton(
+            tr("Restore Used Chart"),
+            tr("Puts back the verification chart that the selected verification "
+               "date was actually measured with.\n\n"
+               "Every time you measure a verification, ChromIQ keeps a copy of "
+               "the chart it measured inside that verification's own folder. If "
+               "you later change or re-create the verification chart, the older "
+               "results no longer describe a chart you still have — this button "
+               "brings the original one back so those results make sense again, "
+               "and so you can reprint exactly the same sheet.\n\n"
+               "It becomes available once you pick an existing verification date "
+               "that has a stored chart. Your measurements are never touched: "
+               "only the chart files at the top of the verifications folder are "
+               "replaced, and you are asked first whenever the chart currently "
+               "there is different."),
+            self)
+        row.addWidget(self._restore_tip)
+
         self._tip_btn = TooltipButton(
             tr("Profile run and Run type"),
             tr("These two choices decide what your next action works on, and "
@@ -317,6 +406,44 @@ class MeasurementTargetBar(QWidget):
             c.setStyleSheet(qss)
         self._tip_btn.set_color(color)
 
+    def _on_restore_clicked(self) -> None:
+        """Restore the selected verification's used chart, warning first when
+        the chart currently in place is a different one (#130)."""
+        from PyQt6.QtWidgets import QMessageBox
+        if self._ctl.restore_needs_confirmation():
+            box = QMessageBox(self)
+            box.setWindowTitle(tr("Restore the chart this verification used?"))
+            box.setText(tr(
+                "The verification chart currently in this run will be replaced "
+                "by the one this verification date was measured with.\n\n"
+                "Your measurements are not affected — only the chart files are "
+                "replaced. The chart that is there now is not kept, so if you "
+                "still need it, cancel and save a copy first."))
+            restore = box.addButton(tr("Restore Chart"),
+                                    QMessageBox.ButtonRole.AcceptRole)
+            box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+            box.exec()
+            if box.clickedButton() is not restore:
+                return
+        result = self._ctl.restore_used_chart()
+        if result is None:
+            return
+        if not result.ok:
+            QMessageBox.warning(
+                self, tr("The chart could not be restored"),
+                tr("Nothing was changed — the verification chart is exactly as "
+                   "it was.\n\nReason: {reason}").format(
+                       reason=result.error or tr("unknown")))
+            return
+        if result.needs_regeneration:
+            QMessageBox.information(
+                self, tr("Chart restored — the pages need rebuilding"),
+                tr("The chart files are back in place, but this chart was made "
+                   "without the layout information ChromIQ needs to redraw its "
+                   "printable pages automatically.\n\nOpen the Create Chart tab "
+                   "and create the chart again to produce the pages, then print "
+                   "as usual."))
+
     def _update_location(self) -> None:
         """Refresh the "Location being edited" line for the current selection
         (#130, Knut). Hidden entirely until a profile project is open, so an
@@ -362,6 +489,12 @@ class MeasurementTargetBar(QWidget):
             show = self._show_verification and is_verif
             self._verify_label.setVisible(show)
             self._verify_combo.setVisible(show)
+            self._restore_btn.setVisible(show)
+            self._restore_tip.setVisible(show)
+            if show:
+                enabled, tip = self._ctl.restore_state()
+                self._restore_btn.setEnabled(enabled)
+                self._restore_btn.setToolTip(tip)
             if show:
                 self._verify_combo.clear()
                 run_id = t.profile_run
