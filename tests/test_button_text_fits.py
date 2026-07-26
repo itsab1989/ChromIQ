@@ -111,3 +111,19 @@ def test_the_filter_is_installed_for_the_whole_application():
               / "main.py").read_text()
     assert "ButtonFontFilter(app)" in source
     assert "app.installEventFilter(_btn_font_filter)" in source
+
+
+def test_both_completion_dialogs_offer_close_and_the_renamed_button():
+    """Knut (#131) asked for this once and I changed only the averaging dialog;
+    he then met the other one. Both paths are pinned here so a rename can never
+    again land in one place only."""
+    import pathlib
+    src = (pathlib.Path(__file__).resolve().parents[1]
+           / "ui" / "tabs" / "tab_measure.py").read_text()
+    # Three dialogs offer this step: the two All-Stripes-Read variants
+    # (averaging on and off) and the post-measurement averaging dialog.
+    assert src.count('tr("Go to Build Profile Tab →")') == 3, \
+        "every dialog offering the step must use the renamed button"
+    assert src.count('tr("Close")') >= 3, "each must also offer Close"
+    assert "Continue to Build Profile" not in src, "old wording left behind"
+    assert 'QPushButton(tr("Build Profile →")' not in src

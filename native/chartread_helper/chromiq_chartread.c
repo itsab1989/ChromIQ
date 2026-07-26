@@ -208,6 +208,25 @@ typedef struct {
 #define CHROMIQ_EXT 1
 #include "chromiq_ext.h"
 
+/* CHROMIQ_EXT: ChromIQ owns measurement sound (#131, Knut 2026-07-26).
+ *
+ * ArgyllCMS beeps from inside the reading code. Those beeps are not ChromIQ's:
+ * they ignore the "Play sounds during measurement" switch, they are not in the
+ * Preferences list, they sounded over ChromIQ's own cue when a strip failed,
+ * and pressing a button in the failure window produced a second, unasked-for
+ * beep. In JSON mode the interface is told about every event and plays the
+ * sound the user chose for it, so the built-in beeps are silenced here.
+ *
+ * The wrappers are defined BEFORE the macros so they can still reach the real
+ * functions; the macros then redirect every call site in this file.
+ */
+static void cq_beep_good(void) { good_beep(); }
+static void cq_beep_bad(void)  { bad_beep(); }
+static void cq_beep_norm(void) { normal_beep(); }
+#define good_beep()   do { if (!cq_json) cq_beep_good(); } while (0)
+#define bad_beep()    do { if (!cq_json) cq_beep_bad();  } while (0)
+#define normal_beep() do { if (!cq_json) cq_beep_norm(); } while (0)
+
 /* Per-row auto-ID eligibility for fixed-order charts (F7-R). Computed once
  * from the chart's expected values; NULL when unused. */
 static int *cq_row_elig = NULL;		/* row identity distinguishable from all others */

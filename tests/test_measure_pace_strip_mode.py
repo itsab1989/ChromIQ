@@ -346,3 +346,67 @@ def test_choosing_re_read_jumps_back_to_that_strip(tab, monkeypatch):
     tab._report_strip_pace(_strip(11, "A"))
 
     assert jumped == ["A"], "the engine must be sent back to that strip"
+
+
+# ---- one window at a time on the last strip (Knut, #131 2026-07-26) -------
+def test_the_completion_window_defers_while_the_pace_prompt_is_open(tab):
+    """The real guard: with the pace prompt on screen, the engine's "all strips
+    read" is held back rather than opening a second window on top of it."""
+    tab._pace_prompt_open = True
+    tab._all_done_deferred = False
+
+    tab._on_all_stripes_done()                 # the real handler
+
+    assert tab._all_done_deferred is True, "it must be remembered, not lost"
+
+
+def test_continuing_releases_the_held_back_completion_window(tab, monkeypatch):
+    """…and it runs once the reading has been kept."""
+    _engine(tab, monkeypatch)
+    done = {"n": 0}
+    monkeypatch.setattr(type(tab), "_on_all_stripes_done",
+                        lambda self: done.__setitem__("n", done["n"] + 1))
+    from PyQt6.QtWidgets import QDialog, QPushButton
+
+    def while_open(dlg):
+        tab._all_done_deferred = True          # arrived inside the modal loop
+        for b in dlg.findChildren(QPushButton):
+            if "Continue" in b.text():
+                b.click()
+                return 1
+        raise AssertionError("no Continue button")
+    monkeypatch.setattr(QDialog, "exec", while_open)
+
+    clock = [100.0]
+    monkeypatch.setattr("time.monotonic", lambda: clock[0])
+    tab._on_scan_started(); clock[0] += 3.0
+    tab._report_strip_pace(_strip(11, "A"))
+
+    assert done["n"] == 1, "exactly once, and after the pace prompt"
+
+
+def test_re_reading_cancels_the_completion_window(tab, monkeypatch):
+    """Re-read goes back to measuring, so the chart is not finished any more."""
+    jumped = _engine(tab, monkeypatch)
+    done = {"n": 0}
+    monkeypatch.setattr(type(tab), "_on_all_stripes_done",
+                        lambda self: done.__setitem__("n", done["n"] + 1))
+    from PyQt6.QtWidgets import QDialog, QPushButton
+
+    def while_open(dlg):
+        tab._all_done_deferred = True          # arrived during the prompt
+        for b in dlg.findChildren(QPushButton):
+            if "Re-read" in b.text():
+                b.click()
+                return 1
+        return 0
+    monkeypatch.setattr(QDialog, "exec", while_open)
+
+    clock = [100.0]
+    monkeypatch.setattr("time.monotonic", lambda: clock[0])
+    tab._on_scan_started(); clock[0] += 3.0
+    tab._report_strip_pace(_strip(11, "A"))
+
+    assert jumped == ["A"]
+    assert done["n"] == 0, "no completion window after choosing to re-read"
+    assert tab._all_done_deferred is False

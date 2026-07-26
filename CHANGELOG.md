@@ -1,5 +1,31 @@
 # Changelog
 
+## v3.14.8-beta.35
+
+- **ChromIQ's own sounds are the only ones you hear now.** ArgyllCMS beeps from
+  inside its reading code, and those beeps ignored the "Play sounds during
+  measurement" switch, were absent from the Preferences list, sounded over
+  ChromIQ's cue when a strip failed, and added an unasked-for noise when you
+  pressed a button in the failure window. They are silenced, so every sound you
+  hear is one you chose.
+
+- **The strip-failure sound plays when the window appears**, not after you have
+  dealt with it. It used to be queued behind the window itself, which is why
+  Argyll's beep was all you heard. Pressing a button in that window makes no
+  further sound — the failure has already been announced.
+
+- **One window at a time on the last strip.** When the final strip was read too
+  quickly, the "Strip Read Quickly" window and the "All Stripes Read" window
+  opened together, with both sounds on top of each other. The pace window now
+  always comes first and alone; the completion window follows only if you chose
+  to keep the reading. Choosing to re-read goes back to measuring, with no
+  completion window at all.
+
+- **"Go to Build Profile Tab" and "Close" are now in every completion window.**
+  The rename shipped in an earlier beta reached only one of the three windows
+  that offer this step; all three now match, and a test pins them together so a
+  future rename cannot land in one place only.
+
 ## v3.14.8-beta.34
 
 - **A strip that was accepted but read too quickly now asks what you want to

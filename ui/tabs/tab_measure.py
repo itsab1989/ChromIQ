@@ -929,7 +929,7 @@ class TabMeasure(QWidget):
         _m = self._manager
         _m.patch_measured.connect(self._on_patch_sound)
         _m.strip_measured.connect(lambda _d: self._sound.play(_snd.STRIP_OK))
-        _m.strip_error.connect(self._on_strip_error_sound)
+        # (strip_error's sound is played by _on_strip_error itself — see there)
         for _sig in (_m.instrument_disconnected, _m.no_instrument,
                      _m.device_busy, _m.sensor_wrong_position,
                      _m.usb_claimed_by_vm):
@@ -3566,15 +3566,31 @@ class TabMeasure(QWidget):
         layout.addLayout(row)
 
         tint_dialog_primary(dlg, _TAB_COLOR)
-        dlg.exec()
+        # While this is open, a modal dialog runs a nested event loop, so the
+        # engine's "all strips read" arrives and would open its window on top of
+        # this one — two windows and two sounds at once on the last strip (Knut,
+        # #131 2026-07-26). Held back here and released below.
+        self._pace_prompt_open = True
+        try:
+            dlg.exec()
+        finally:
+            self._pace_prompt_open = False
         QApplication.instance().installEventFilter(self)
 
         if chosen[0] == "reread":
+            # Back to measuring: the chart is no longer finished, so the
+            # "All Stripes Read" window must not appear at all.
+            self._all_done_deferred = False
             self._manager.goto_strip(strip)     # the next swipe overwrites it
             self._log.appendPlainText(
                 "\n" + tr("Re-reading strip {name} — take it more slowly this "
                           "time.").format(name=strip))
             self._log.ensureCursorVisible()
+        elif getattr(self, "_all_done_deferred", False):
+            # "Continue Anyway" on the last strip: now show the window that was
+            # held back, alone and after this one.
+            self._all_done_deferred = False
+            self._on_all_stripes_done()
 
     def _on_strip_error_sound(self, reason: str) -> None:
         """Strip-failure sound (#131): Argyll's own 'Slow Down!' comes through
@@ -4511,6 +4527,13 @@ class TabMeasure(QWidget):
     def _on_strip_error(self, reason: str) -> None:
         from PyQt6.QtWidgets import QDialog, QLabel, QVBoxLayout
 
+        # Sound FIRST: this handler opens a modal dialog and blocks inside its
+        # own slot, so anything connected after it could not be heard until the
+        # dialog was dismissed. The cue belongs to the window appearing (Knut,
+        # #131 2026-07-26) — and there is deliberately no sound on the buttons,
+        # because the failure has already been announced.
+        self._on_strip_error_sound(reason)
+
         QApplication.instance().removeEventFilter(self)
 
         dlg = QDialog(self)
@@ -4924,6 +4947,12 @@ class TabMeasure(QWidget):
         QApplication.instance().installEventFilter(self)
 
     def _on_all_stripes_done(self) -> None:
+        # The pace prompt for the final strip owns the screen until it is
+        # answered (#131, Knut): "Strip Read Quickly" always comes alone and
+        # first, and this window follows only if the reading was kept.
+        if getattr(self, "_pace_prompt_open", False):
+            self._all_done_deferred = True
+            return
         if self._all_done_shown:
             return
         self._all_done_shown = True
@@ -5083,9 +5112,11 @@ class TabMeasure(QWidget):
         from PyQt6.QtWidgets import QHBoxLayout, QPushButton
 
         if is_cal and not self._guided_refinement_active:
-            accept_label = "Create Calibration File →"
+            accept_label = tr("Create Calibration File →")
         else:
-            accept_label = "Build Profile →"
+            # Knut (#131): it only takes you to the tab — the profile is still
+            # built there, by you. The name has to say that.
+            accept_label = tr("Go to Build Profile Tab →")
         if self._guided_refinement_active:
             cont_label = "Continue Measuring Manually"
         elif self._spot_session:
@@ -5097,12 +5128,25 @@ class TabMeasure(QWidget):
         btn_row.addStretch(1)
         cont_btn = QPushButton(cont_label, dlg)
         cont_btn.clicked.connect(dlg.reject)
+        # Knut (#131): a way to keep the measurement and go nowhere.
+        close_btn = QPushButton(tr("Close"), dlg)
+        close_btn.setToolTip(tr(
+            "Keeps your measurement and closes this window without going "
+            "anywhere. You can build the profile whenever you like."))
+        closed = {"chosen": False}
+        close_btn.clicked.connect(lambda: (closed.__setitem__("chosen", True),
+                                           dlg.reject()))
         build_btn = QPushButton(accept_label, dlg)
         build_btn.setObjectName("primary")
+        build_btn.setToolTip(tr(
+            "Saves the measurement and opens the Build Profile tab. The profile "
+            "is not built yet — press “Build Profile” there when your settings "
+            "are how you want them."))
         build_btn.setDefault(True)
         build_btn.setAutoDefault(True)
         build_btn.clicked.connect(dlg.accept)
         btn_row.addWidget(cont_btn)
+        btn_row.addWidget(close_btn)
         btn_row.addWidget(build_btn)
         layout.addLayout(btn_row)
 
@@ -5115,8 +5159,15 @@ class TabMeasure(QWidget):
             if meta.scanner_target_enabled != scanner_cb.isChecked():
                 meta.scanner_target_enabled = scanner_cb.isChecked()
                 scanner_run.save_meta(meta)
-        if accepted:
-            self._auto_proceed = True
+        if accepted or closed["chosen"]:
+            # Close keeps the measurement exactly like Build does — it only
+            # declines the trip to the Build Profile tab.
+            self._auto_proceed = accepted
+            if closed["chosen"]:
+                self._log.appendPlainText(
+                    "\n" + tr("→ Your measurement is saved. When you want the "
+                              "profile, go to the “4. Build Profile” tab and "
+                              "press “Build Profile”."))
             self._manager.send_key("d")
             self._arm_key_watchdog()
             # Event filter stays off — chartread will finish momentarily.
@@ -5849,10 +5900,13 @@ class TabMeasure(QWidget):
                 "<b>Measurement complete — your readings have been saved.</b><br><br>"
                 "Reading the same chart a second time and averaging the two results "
                 "reduces instrument noise and can improve profile accuracy.<br><br>"
-                "&nbsp;&nbsp;•&nbsp; <b>Continue to Build Profile</b> — use this single "
-                "measurement as it is.<br>"
+                "&nbsp;&nbsp;•&nbsp; <b>Go to Build Profile Tab</b> — use this single "
+                "measurement as it is, and open the Build Profile tab. The profile "
+                "is built there, when you press <i>Build Profile</i>.<br>"
                 "&nbsp;&nbsp;•&nbsp; <b>Measure again to average</b> — read the same "
-                "chart once more; the results will be averaged together."
+                "chart once more; the results will be averaged together.<br>"
+                "&nbsp;&nbsp;•&nbsp; <b>Close</b> — keep this measurement and go "
+                "nowhere; you can build the profile whenever you like."
             )
         msg = QLabel(body, dlg)
         msg.setWordWrap(True)
@@ -5897,10 +5951,19 @@ class TabMeasure(QWidget):
         else:
             again_btn = QPushButton(tr("Measure again to average"), dlg)
             again_btn.clicked.connect(lambda: _pick("again"))
-            cont_btn = QPushButton(tr("Continue to Build Profile →"), dlg)
+            close_btn = QPushButton(tr("Close"), dlg)
+            close_btn.setToolTip(tr(
+                "Keeps your measurement and closes this window without going "
+                "anywhere. You can build the profile whenever you like."))
+            close_btn.clicked.connect(lambda: _pick("close"))
+            cont_btn = QPushButton(tr("Go to Build Profile Tab →"), dlg)
             cont_btn.setObjectName("primary")
+            cont_btn.setToolTip(tr(
+                "Saves the measurement and opens the Build Profile tab. The "
+                "profile is not built yet — press “Build Profile” there when "
+                "your settings are how you want them."))
             cont_btn.clicked.connect(lambda: _pick("continue"))
-            for b in (again_btn, cont_btn):
+            for b in (again_btn, close_btn, cont_btn):
                 btn_row.addWidget(b)
         layout.addLayout(btn_row)
 
