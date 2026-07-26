@@ -270,6 +270,89 @@ def model_key(argyll_name):
     return None
 
 
+# ---------------------------------------------------------------------------
+# Why a strip failed (Knut, #131 2026-07-26)
+# ---------------------------------------------------------------------------
+#: ArgyllCMS reports a failed strip with a driver message, and the wording is
+#: identical across the ColorMunki, i1Pro, i1Pro 2 and i1Pro 3 families (their
+#: ``interp_error`` tables carry the same strings). Only some of those failures
+#: mean "you swiped too fast", and telling the user to slow down when they did
+#: not is worse than saying nothing — so each message is classified.
+#:
+#: TOO FAST — the scan did not gather enough light or enough samples:
+_TOO_FAST = (
+    "not enough samples per patch",   # Argyll says "Slow Down!" itself
+    "reading is too short",           # the whole swipe was over too quickly
+    "not enough patches",             # patches too short in samples to resolve
+)
+#: TOO SLOW / hesitant — extra transitions were found, so "slow down" would be
+#: exactly the wrong advice:
+_TOO_SLOW = (
+    "too many patches",
+)
+#: NOT about pace at all — position, light level or calibration:
+_NOT_PACE = (
+    "swipe didn't start and end on the media",
+    "light level is too low",
+    "light level is too high",
+    "white reference calibration",
+    "no refresh rate",
+    "no delay calibration transition",
+    "no flashes recognized",
+    "no ambient found",
+)
+
+
+def failure_kind(detail: str) -> str:
+    """Classify a strip failure as ``"too_fast"``, ``"too_slow"``, ``"other"``.
+
+    "Reading is inconsistent" deliberately lands in *other*: it means the swipe
+    was uneven rather than simply quick, and blaming speed for it would send the
+    user in a direction that may not help.
+    """
+    low = (detail or "").lower()
+    for needle in _TOO_FAST:
+        if needle in low:
+            return "too_fast"
+    for needle in _TOO_SLOW:
+        if needle in low:
+            return "too_slow"
+    for needle in _NOT_PACE:
+        if needle in low:
+            return "other"
+    return "other"
+
+
+def failure_advice(detail: str, config: "PaceConfig") -> str:
+    """A sentence about *why* a strip failed, in terms of the thresholds
+    currently set in Preferences — never a fixed number, so changing a setting
+    changes what the user is told (Knut, #131)."""
+    from core.i18n import tr
+    kind = failure_kind(detail)
+    target_ms = int(config.target_seconds * 1000)
+    if kind == "too_fast":
+        if config.knows_rate:
+            return tr(
+                "That reading was too quick for the instrument to gather what "
+                "it needs. Aim for at least {ms} ms on each patch — that is the "
+                "{n} readings per patch set for this instrument in Preferences "
+                "→ Measurement, at {hz} readings per second."
+            ).format(ms=target_ms, n=config.min_samples, hz=int(config.sample_hz))
+        return tr(
+            "That reading was too quick for the instrument to gather what it "
+            "needs. Aim for at least {ms} ms on each patch."
+        ).format(ms=target_ms)
+    if kind == "too_slow":
+        return tr(
+            "More patches were found than the strip holds, which usually means "
+            "the swipe hesitated or wavered rather than being too quick. Try "
+            "one smooth, even movement from the start of the strip to the end.")
+    return tr(
+        "This one does not look like a speed problem. Check that the swipe "
+        "starts before the first patch and ends after the last, stays on the "
+        "strip, and that the instrument is flat on the paper.")
+
+
 def _target_ms(key) -> int:
     """The slowest-acceptable patch time these defaults imply, in ms."""
     hz, min_samples = defaults_for(key)

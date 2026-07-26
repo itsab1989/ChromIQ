@@ -1,5 +1,31 @@
 # Changelog
 
+## v3.14.8-beta.33
+
+- **The cue now matches the fault when a strip fails.** ArgyllCMS reports a
+  failed strip with its own wording, and only some of those failures mean you
+  swiped too quickly. Each message is now classified: a hurried scan gets the
+  "Slow down" sound, while a swipe that wandered off the strip, started or
+  ended in the wrong place, or met the wrong light level gets "Strip read
+  failed". "Too many patches" is treated as a hesitant swipe rather than a fast
+  one — telling you to slow down there would be precisely the wrong advice.
+
+- **Every strip now shows its reading time, whether it succeeded or failed**,
+  with an explanation underneath that says what to try next: a slower swipe for
+  a hurried strip, one smooth even movement for a hesitant one, or a check on
+  where the swipe started and ended when speed was not the problem.
+
+- **The numbers in those messages come from your own settings.** Change the
+  readings per second or the minimum readings per patch in Preferences →
+  Measurement and the advice changes with them, on the very next strip — the
+  targets quoted are never fixed text.
+
+- **Preferences → Sounds now says which reading mode each patch sound applies
+  to.** The patch tick and the "looks off" sound only apply to patch-by-patch
+  reading: when you swipe a whole strip, the instrument reports the strip in one
+  go once the swipe has finished, so there are no separate patches to sound as
+  you go.
+
 ## v3.14.8-beta.32
 
 - **Reading pace is judged per strip only.** Timing single patches in

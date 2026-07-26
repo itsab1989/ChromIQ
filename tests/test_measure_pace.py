@@ -271,3 +271,55 @@ def test_a_strip_with_no_patches_or_no_time_says_nothing():
     for pace in (t.strip_timed(0.0, 29), t.strip_timed(3.0, 0)):
         assert pace.too_fast is False and pace.marginal is False
         assert strip_pace_message(pace, cfg) == ""
+
+
+# ---- classifying WHY a strip failed (Knut, #131 2026-07-26) ---------------
+# The messages are ArgyllCMS's own, taken from the driver's interp_error table.
+# The wording is identical for the ColorMunki, i1Pro, i1Pro 2 and i1Pro 3.
+@pytest.mark.parametrize("detail,expected", [
+    ("Not enough samples per patch - Slow Down!", "too_fast"),
+    ("Reading is too short",                      "too_fast"),
+    ("Not enough patches",                        "too_fast"),
+    ("Too many patches",                          "too_slow"),
+    ("Swipe didn't start and end on the media",   "other"),
+    ("Light level is too low",                    "other"),
+    ("Reading is inconsistent",                   "other"),
+    ("",                                          "other"),
+])
+def test_argylls_own_wording_decides_the_verdict(detail, expected):
+    from core.measure_pace import failure_kind
+    assert failure_kind(detail) == expected
+
+
+def test_too_many_patches_is_never_called_too_fast():
+    """The advice would be exactly backwards: extra transitions mean the swipe
+    hesitated, not that it hurried."""
+    from core.measure_pace import PaceConfig, failure_advice
+    advice = failure_advice("Too many patches", PaceConfig(min_samples=20,
+                                                           sample_hz=200.0))
+    assert "hesitated" in advice or "wavered" in advice
+    # It must not carry the slow-down instruction. (Checking for the words
+    # "too quick" alone would be wrong — the sentence legitimately says the
+    # swipe wavered "rather than being too quick".)
+    assert "Aim for at least" not in advice
+
+
+def test_the_advice_quotes_the_thresholds_currently_set():
+    """Knut: nothing in these messages may be static — change a threshold in
+    Preferences and what the user is told changes with it."""
+    from core.measure_pace import PaceConfig, failure_advice
+    lenient = failure_advice("Not enough patches",
+                             PaceConfig(min_samples=20, sample_hz=200.0))
+    strict = failure_advice("Not enough patches",
+                            PaceConfig(min_samples=60, sample_hz=200.0))
+    assert "100 ms" in lenient and "20 readings" in lenient
+    assert "300 ms" in strict and "60 readings" in strict
+    assert lenient != strict
+
+
+def test_the_advice_makes_no_sample_claim_without_a_rate():
+    from core.measure_pace import PaceConfig, failure_advice
+    advice = failure_advice("Reading is too short",
+                            PaceConfig(sample_hz=0.0, min_patch_seconds=0.2))
+    assert "200 ms" in advice
+    assert "readings per second" not in advice

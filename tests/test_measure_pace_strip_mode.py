@@ -180,10 +180,11 @@ def test_a_failed_strip_is_told_it_was_read_too_fast(tab, monkeypatch):
     assert "ff6b6b" in tab._pace_readout.styleSheet()
 
 
-def test_a_failed_strip_read_at_a_fine_pace_is_not_blamed_on_speed(tab,
-                                                                   monkeypatch):
-    """A misread has other causes — a crooked swipe, the wrong strip. Speed is
-    only mentioned when speed was actually the problem."""
+def test_a_failure_that_is_not_about_speed_is_not_blamed_on_speed(tab,
+                                                                  monkeypatch):
+    """Argyll's own wording decides. "Swipe didn't start and end on the media"
+    is a positioning fault — telling the user to slow down would send them the
+    wrong way (Knut, #131)."""
     clock = [100.0]
     monkeypatch.setattr("time.monotonic", lambda: clock[0])
     tab._on_scan_started(); clock[0] += 9.0
@@ -191,20 +192,39 @@ def test_a_failed_strip_read_at_a_fine_pace_is_not_blamed_on_speed(tab,
     tab._clear_pace_readout()
 
     tab._on_scan_started()
-    clock[0] += 12.0                             # 800 ms per patch: comfortable
-    tab._report_failed_strip_pace("Not enough patches")
+    clock[0] += 12.0
+    tab._report_failed_strip_pace("Swipe didn't start and end on the media")
 
-    assert tab._pace_readout.isHidden(), tab._pace_readout.text()
+    assert "does not look like speed" in tab._pace_readout.text()
+    assert "Too fast" not in tab._pace_readout.text()
 
 
-def test_nothing_is_claimed_about_a_failure_before_any_strip_succeeded(tab,
-                                                                       monkeypatch):
-    """With no successful strip yet, the patch count is unknown — so no verdict
-    is invented."""
+def test_too_many_patches_is_called_uneven_not_too_fast(tab, monkeypatch):
+    """"Too many patches" means hesitation — the opposite advice."""
+    clock = [100.0]
+    monkeypatch.setattr("time.monotonic", lambda: clock[0])
+    tab._on_scan_started(); clock[0] += 9.0
+    tab._report_strip_pace(_strip(15, "B"))
+    tab._clear_pace_readout()
+
+    tab._on_scan_started(); clock[0] += 20.0
+    tab._report_failed_strip_pace("Too many patches")
+
+    assert "Uneven swipe" in tab._pace_readout.text()
+
+
+def test_a_failure_is_listed_even_when_the_patch_count_is_unknown(tab,
+                                                                  monkeypatch):
+    """Knut: the timing shows for every strip, "even if OK or failed". With no
+    successful strip yet the seconds are still shown — but no per-patch figure
+    is invented from a count nobody knows."""
     clock = [100.0]
     monkeypatch.setattr("time.monotonic", lambda: clock[0])
     tab._clear_pace_readout()
     tab._last_strip_patches = 0
     tab._on_scan_started(); clock[0] += 1.0
     tab._report_failed_strip_pace("Not enough patches")
-    assert tab._pace_readout.isHidden()
+
+    assert "Strip failed after 1.0 s" in tab._pace_strips.text()
+    assert not tab._pace_readout.isHidden()
+    assert "ms per patch" not in tab._pace_readout.text()

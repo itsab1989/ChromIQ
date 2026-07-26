@@ -1472,25 +1472,37 @@ class SettingsDialog(QDialog):
             (snd.PATCH_OK, tr("Patch read OK"),
              tr("Plays each time a single patch is read successfully. A short, "
                 "quiet sound (a tick or click) works best, because it repeats "
-                "for every patch.")),
+                "for every patch.\n\n"
+                "Only in patch-by-patch reading — reading one patch at a time, "
+                "or a chart set to patch-by-patch mode. When you swipe whole "
+                "strips the instrument reports the strip in one go, once the "
+                "swipe has finished, so there are no separate patches to sound "
+                "as you go.")),
             (snd.PATCH_OUT_OF_TOL, tr("Patch reading looks off"),
              tr("Plays when a patch's reading is far from its expected colour — "
                 "a likely misread or a smudge. A low “thump” makes it stand out "
-                "from the normal patch tick. (Available with the ChromIQ "
-                "reading engine, which is on by default.)")),
+                "from the normal patch tick.\n\n"
+                "Needs the ChromIQ reading engine (on by default), and — like "
+                "the patch tick above — only in patch-by-patch reading.")),
             (snd.STRIP_OK, tr("Strip read OK"),
              tr("Plays when a whole strip (a row of patches) has been read "
                 "successfully — your cue to move to the next strip.")),
             (snd.STRIP_FAIL, tr("Strip read failed"),
-             tr("Plays when a strip couldn't be read — for example if you "
-                "swiped too fast or the instrument lost its place. Read that "
-                "strip again.")),
+             tr("Plays when a strip couldn't be read for a reason other than "
+                "speed — the swipe wandered off the strip, started or ended in "
+                "the wrong place, or the light level was wrong. Read that strip "
+                "again.\n\nWhen the strip failed because it was read too "
+                "quickly, the “Slow down” sound plays instead, so the cue "
+                "always matches the fault.")),
             (snd.INSTRUMENT_ERROR, tr("Instrument error"),
              tr("Plays when the measuring instrument reports a problem — a "
                 "disconnection, a wrong position, or a communication error.")),
             (snd.SLOW_DOWN, tr("Slow down"),
              tr("Plays when a strip was swiped too fast to read reliably and "
-                "you should ease off. A calm, unmistakable cue.")),
+                "you should ease off. A calm, unmistakable cue.\n\n"
+                "It is used both when the instrument rejects a strip for being "
+                "hurried and when a strip was accepted but read faster than "
+                "the minimum you set in Preferences → Measurement.")),
         ])
 
         _add_rows(tr("Sounds at action completion"), [

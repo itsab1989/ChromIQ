@@ -3391,6 +3391,11 @@ class TabMeasure(QWidget):
         t = getattr(self, "_pace", None)
         if t is None:
             t = self._pace = PaceTracker(self._pace_config())
+        else:
+            # Rebuilt from the settings every time, so changing a threshold in
+            # Preferences → Measurement takes effect on the very next strip
+            # rather than at the next restart (Knut, #131 2026-07-26).
+            t.config = self._pace_config()
         return t
 
     def _on_instrument_detected(self, model: str) -> None:
@@ -3419,44 +3424,61 @@ class TabMeasure(QWidget):
             self._sound.play(_snd.PATCH_OK)
 
     def _report_failed_strip_pace(self, reason: str) -> None:
-        """When a strip FAILS, say whether it was read too fast (#131, from
-        Knut's ColorMunki log, 2026-07-26).
+        """When a strip FAILS, say how fast it was read and whether speed was
+        the likely cause (#131, Knut 2026-07-26).
 
-        A failed scan returns no patches at all, so the count has to come from a
-        strip that did succeed — every strip of a chart holds the same number.
-        Without one, nothing is claimed.
+        Knut asked for the timing to appear for every strip, "even if OK or
+        failed" — so a failed strip is listed with its scan time like any
+        other. Whether speed is *blamed* depends on Argyll's own wording: a
+        hurried scan and a hesitant one fail with different messages, and the
+        advice has to match.
 
-        This is the case that matters most: a ColorMunki swiped too quickly
-        fails with Argyll's "Not enough patches", which says nothing about
-        speed, so the user tries again exactly as fast and fails again. In
-        Knut's log that happened three times in a row.
+        A failed scan returns no patches, so the count comes from a strip that
+        did succeed — every strip of a chart holds the same number. Without one,
+        the time is still shown but no per-patch figure is claimed.
         """
         if not self._settings.get("pace_hint_enabled", True):
             return
         try:
             import time
+            from core.measure_pace import failure_advice, failure_kind
             started = getattr(self, "_scan_started_at", None)
             patches = getattr(self, "_last_strip_patches", 0)
             self._scan_started_at = None
-            if not started or not patches:
+            if not started:
                 return
-            tracker = self._pace_tracker()
-            pace = tracker.strip_timed(time.monotonic() - started, patches)
-            if not pace.too_fast:
-                return
-            ms = int(pace.mean_seconds * 1000)
-            target_ms = int(tracker.config.target_seconds * 1000)
-            note = tr(
-                "That strip was read in {secs} s — about {ms} ms per patch, "
-                "where this instrument needs at least {target} ms. Reading too "
-                "quickly is the most likely reason it failed, so try the same "
-                "strip again more slowly."
-            ).format(secs=f"{pace.elapsed:.1f}", ms=ms, target=target_ms)
-            self._pace_readout.setText(tr("Too fast — that is probably why the "
-                                          "strip failed"))
+            elapsed = time.monotonic() - started
+            tracker = self._pace_tracker()          # config re-read from settings
+            kind = failure_kind(reason)
+
+            times = getattr(self, "_pace_strip_times", None)
+            if times is None:
+                times = self._pace_strip_times = []
+            times.append(tr("Strip failed after {secs} s").format(
+                secs=f"{elapsed:.1f}"))
+            self._pace_strips.setText("   ·   ".join(times[-8:]))
+            self._pace_strips.setVisible(True)
+
+            pace = tracker.strip_timed(elapsed, patches) if patches else None
+            if kind == "too_fast":
+                headline = tr("Too fast — that is probably why the strip failed")
+                colour = "#ff6b6b"
+            elif kind == "too_slow":
+                headline = tr("Uneven swipe — too many patches were found")
+                colour = "#e0a63a"
+            else:
+                headline = tr("Strip failed — this does not look like speed")
+                colour = "#e0a63a"
+            self._pace_readout.setText(headline)
             self._pace_readout.setStyleSheet(
-                "color: #ff6b6b; font-size: 16px; font-weight: 600;")
+                f"color: {colour}; font-size: 16px; font-weight: 600;")
             self._pace_readout.setVisible(True)
+
+            note = failure_advice(reason, tracker.config)
+            if pace is not None and pace.mean_seconds > 0:
+                note = tr("That strip took {secs} s — about {ms} ms per patch. "
+                          ).format(secs=f"{elapsed:.1f}",
+                                   ms=int(pace.mean_seconds * 1000)) + note
             self._log.appendPlainText("\n" + note)
             self._log.ensureCursorVisible()
         except Exception:      # noqa: BLE001 — a hint must never break a read
@@ -3467,7 +3489,12 @@ class TabMeasure(QWidget):
         here after a too-fast swipe — play the calmer 'slow down' cue for that,
         and the plain 'strip failed' sound otherwise."""
         import core.sound as _snd
-        if "slow down" in (reason or "").lower():
+        from core.measure_pace import failure_kind
+        # Knut (#131): the cue must match the fault. Argyll's own wording is
+        # classified — only a genuinely hurried scan gets the "slow down" cue,
+        # because telling someone to slow down when they hesitated (too many
+        # patches) or drifted off the strip sends them the wrong way.
+        if failure_kind(reason) == "too_fast":
             self._sound.play(_snd.SLOW_DOWN)
         else:
             self._sound.play(_snd.STRIP_FAIL)
