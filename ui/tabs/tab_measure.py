@@ -3487,9 +3487,15 @@ class TabMeasure(QWidget):
         Only offered with the ChromIQ engine, because going back to a strip
         Argyll has already accepted needs the engine's own "go to strip".
         """
-        from PyQt6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QPushButton,
-                                     QVBoxLayout)
+        from PyQt6.QtWidgets import (QCheckBox, QDialog, QHBoxLayout, QLabel,
+                                     QPushButton, QVBoxLayout)
         if not self._manager.engine_active or not strip:
+            return
+        if getattr(self, "_suppress_fast_prompt", False):
+            # Asked for by the user for the rest of this measurement (Knut,
+            # #131 2026-07-26). The "slow down" sound has already played, and
+            # the panel under the preview still shows the verdict — only the
+            # window is held back.
             return
         ms = int(pace.mean_seconds * 1000)
         target_ms = int(config.target_seconds * 1000)
@@ -3538,6 +3544,17 @@ class TabMeasure(QWidget):
         msg.setWordWrap(True)
         layout.addWidget(msg)
 
+        quiet = QCheckBox(
+            tr("Do not show this message for the rest of the measurement "
+               "session"), dlg)
+        quiet.setToolTip(tr(
+            "Keeps the reading-speed window out of your way while you finish "
+            "this chart. The slow-down sound still plays, and the reading times "
+            "and verdict under the chart still update, so you can see the pace "
+            "without being interrupted. It comes back for your next "
+            "measurement."))
+        layout.addWidget(quiet)
+
         chosen = ["continue"]
         row = QHBoxLayout()
         row.setSpacing(8)
@@ -3565,6 +3582,13 @@ class TabMeasure(QWidget):
             dlg.exec()
         finally:
             self._pace_prompt_open = False
+        if quiet.isChecked():
+            self._suppress_fast_prompt = True
+            self._log.appendPlainText(
+                "\n" + tr("The reading-speed window will stay out of the way "
+                          "for the rest of this measurement. The slow-down "
+                          "sound and the times under the chart still appear."))
+            self._log.ensureCursorVisible()
         QApplication.instance().installEventFilter(self)
 
         if chosen[0] == "reread":
@@ -6273,6 +6297,10 @@ class TabMeasure(QWidget):
         self._pace_times = {}
         self._pace_patches = 0
         self._scan_started_at = None
+        # Each measurement decides for itself whether the reading-speed window
+        # is wanted: another chart may need a different pace, and that is worth
+        # seeing once (Knut, #131 2026-07-26).
+        self._suppress_fast_prompt = False
         panel = getattr(self, "_pace_panel", None)
         if panel is not None:
             panel.clear()

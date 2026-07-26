@@ -3469,5 +3469,8 @@
   "Create Calibration File →": "Create Calibration File →",
   "Strip reading times, {n} patches:": "Strip reading times, {n} patches:",
   "{secs} s": "{secs} s",
-  "{secs} s ✕": "{secs} s ✕"
+  "{secs} s ✕": "{secs} s ✕",
+  "Do not show this message for the rest of the measurement session": "Do not show this message for the rest of the measurement session",
+  "Keeps the reading-speed window out of your way while you finish this chart. The slow-down sound still plays, and the reading times and verdict under the chart still update, so you can see the pace without being interrupted. It comes back for your next measurement.": "Keeps the reading-speed window out of your way while you finish this chart. The slow-down sound still plays, and the reading times and verdict under the chart still update, so you can see the pace without being interrupted. It comes back for your next measurement.",
+  "The reading-speed window will stay out of the way for the rest of this measurement. The slow-down sound and the times under the chart still appear.": "The reading-speed window will stay out of the way for the rest of this measurement. The slow-down sound and the times under the chart still appear."
 }

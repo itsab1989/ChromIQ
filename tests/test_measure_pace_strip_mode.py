@@ -409,3 +409,66 @@ def test_re_reading_cancels_the_completion_window(tab, monkeypatch):
     assert jumped == ["A"]
     assert done["n"] == 0, "no completion window after choosing to re-read"
     assert tab._all_done_deferred is False
+
+
+# ---- "don't show this again for this session" (Knut, #131 2026-07-26) -----
+def test_ticking_the_box_silences_the_window_for_the_rest_of_the_session(
+        tab, monkeypatch):
+    _engine(tab, monkeypatch)
+    from PyQt6.QtWidgets import QCheckBox, QDialog, QPushButton
+    shown = {"n": 0}
+
+    def answer(dlg):
+        shown["n"] += 1
+        for cb in dlg.findChildren(QCheckBox):
+            cb.setChecked(True)
+        for b in dlg.findChildren(QPushButton):
+            if "Continue" in b.text():
+                b.click()
+                return 1
+        raise AssertionError("no Continue button")
+    monkeypatch.setattr(QDialog, "exec", answer)
+
+    clock = [100.0]
+    monkeypatch.setattr("time.monotonic", lambda: clock[0])
+    tab._on_scan_started(); clock[0] += 3.0
+    tab._report_strip_pace(_strip(11, "A"))          # asks once
+    tab._on_scan_started(); clock[0] += 3.0
+    tab._report_strip_pace(_strip(11, "B"))          # and never again
+    tab._on_scan_started(); clock[0] += 3.0
+    tab._report_strip_pace(_strip(11, "C"))
+
+    assert shown["n"] == 1, "the window must appear only the first time"
+
+
+def test_the_slow_down_sound_still_plays_when_the_window_is_silenced(
+        tab, monkeypatch):
+    """Knut was explicit: suppressing the window must not suppress the cue."""
+    _engine(tab, monkeypatch)
+    played = []
+    tab._sound.play = lambda ev: played.append(ev)
+    tab._suppress_fast_prompt = True
+    from PyQt6.QtWidgets import QDialog
+    monkeypatch.setattr(QDialog, "exec",
+                        lambda self: (_ for _ in ()).throw(
+                            AssertionError("no window may open")))
+
+    clock = [100.0]
+    monkeypatch.setattr("time.monotonic", lambda: clock[0])
+    tab._on_scan_started(); clock[0] += 3.0
+    tab._report_strip_pace(_strip(11, "A"))
+
+    assert "slow_down" in played
+    assert "Too fast" in tab._pace_panel._verdict, \
+        "the verdict under the chart must still be shown"
+
+
+def test_a_new_measurement_asks_again(tab):
+    """It is a per-measurement choice, not a permanent setting: another chart
+    may need a different pace, and that is worth seeing once. Starting a
+    measurement clears the pace state, and the choice goes with it."""
+    tab._suppress_fast_prompt = True
+
+    tab._clear_pace_readout()                # what starting a read does
+
+    assert tab._suppress_fast_prompt is False

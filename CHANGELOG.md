@@ -1,5 +1,15 @@
 # Changelog
 
+## v3.14.8-beta.37
+
+- **The reading-speed window can be put away for the rest of a measurement.**
+  It now carries a "Do not show this message for the rest of the measurement
+  session" box. Tick it and the window stays out of your way while you finish
+  the chart — but the slow-down sound still plays, and the reading times and
+  verdict under the chart still update, so you keep the feedback without the
+  interruption. It comes back for your next measurement, because a different
+  chart may need a different pace and that is worth seeing once.
+
 ## v3.14.8-beta.36
 
 - **The reading times now sit under the strips they belong to.** Each strip's
