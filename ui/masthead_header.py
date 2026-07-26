@@ -108,6 +108,7 @@ class MastheadHeader(QWidget):
         # ---- Optional centred widget on the version rail (the shared
         # Profile-run / Run-type bar, #130) ----
         self._center_widget: QWidget | None = None
+        self._repositioning = False    # guards the layout-request filter
 
     # ------------------------------------------------------------------
     def set_appearance(self, mode: str) -> None:
@@ -151,6 +152,13 @@ class MastheadHeader(QWidget):
         of being centred out of the band."""
         w.setParent(self)
         self._center_widget = w
+        # The rail is laid out by hand, so nothing re-lays the centre widget
+        # when *its own* content changes — and it changes often: turning Run
+        # type to Verification adds boxes. Left as it was, the widget kept its
+        # old width and its children overlapped each other until some later
+        # event happened to re-lay it (Knut, #130 2026-07-26). Watching for the
+        # layout request keeps it in step, whatever caused the change.
+        w.installEventFilter(self)
         w.show()
         self._fit_rail_to_center()
         self.reposition_center()
@@ -176,6 +184,16 @@ class MastheadHeader(QWidget):
         mono.setPixelSize(9)
         return mono
 
+    def eventFilter(self, obj, event):      # noqa: N802
+        """Re-lay the centre widget as soon as it asks for a layout."""
+        from PyQt6.QtCore import QEvent
+        if obj is self._center_widget and event.type() in (
+                QEvent.Type.LayoutRequest, QEvent.Type.Show,
+                QEvent.Type.FontChange, QEvent.Type.StyleChange):
+            if not self._repositioning:
+                self.reposition_center()
+        return False
+
     def _rail_text_widths(self) -> "tuple[float, float]":
         """(left tag, right version) widths, measured with the very fonts the
         rail paints them in — so the centre widget can be placed against them."""
@@ -192,9 +210,22 @@ class MastheadHeader(QWidget):
 
     def reposition_center(self) -> None:
         w = self._center_widget
-        if w is None:
+        if w is None or self._repositioning:
             return
+        self._repositioning = True          # setGeometry re-enters this filter
+        try:
+            self._do_reposition(w)
+        finally:
+            self._repositioning = False
+
+    def _do_reposition(self, w) -> None:
         self._fit_rail_to_center()          # the widget may have grown/shrunk
+        # Tell it how much room there is first, so a widget that can give way
+        # (the Profile-run bar can) has already done so before it is measured.
+        tag_w0, ver_w0 = self._rail_text_widths()
+        room0 = int(self.width() - 18 - ver_w0 - 12) - int(18 + tag_w0 + 16)
+        if hasattr(w, "set_available_width") and room0 > 0:
+            w.set_available_width(room0)
         cw = w.sizeHint().width()
         ch = w.sizeHint().height()
         ver_y = self.height() - self._rail_h
@@ -207,7 +238,11 @@ class MastheadHeader(QWidget):
         x = int(18 + tag_w + 16)
         room = int(self.width() - 18 - ver_w - 12) - x      # stay clear of vX.Y
         y = ver_y + (self._rail_h - ch) // 2        # centred on the rail
-        w.setGeometry(x, y, max(0, min(cw, room)) if room > 0 else cw, ch)
+        # Never narrower than the widget's own minimum: squeezing it below that
+        # does not shrink its children, it makes them overlap each other.
+        floor = w.minimumSizeHint().width()
+        width = min(cw, room) if room > 0 else cw
+        w.setGeometry(x, y, max(width, floor), ch)
 
     def sizeHint(self) -> QSize:  # noqa: N802
         return QSize(900, self.BODY_H + self._rail_h)

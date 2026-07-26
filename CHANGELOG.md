@@ -1,5 +1,26 @@
 # Changelog
 
+## v3.14.8-beta.29
+
+- **Fixes the overlapping bar introduced in beta.26.** Switching Run type to
+  Verification could leave the labels, boxes, buttons and information icons
+  piled on top of one another until a few more changes happened to sort it out.
+  The bar sits on a hand-placed rail, so nothing was re-laying it when its own
+  content changed — it kept the width it had before the extra boxes appeared,
+  and with boxes that now hold their width, the only place left for them to go
+  was on top of each other. The masthead now notices the moment the bar's
+  content changes, whatever caused it, so it is correct on the very first
+  change and at startup.
+
+- **The bar gives way gracefully on a narrow window.** If the rail cannot hold
+  the row at its comfortable width, the widest box gives up width first, down
+  to a point where it is still readable, instead of running under the version
+  number. Widen the window and the full width comes straight back.
+
+- The folder line beneath the bar is shortened in the middle when space is
+  tight, rather than forcing the whole bar wider. The full path stays in its
+  tooltip.
+
 ## v3.14.8-beta.28
 
 - **Every instrument in Preferences → Measurement now explains its own two

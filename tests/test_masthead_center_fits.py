@@ -90,13 +90,17 @@ def test_the_real_target_bar_fits_on_the_rail(qapp, tmp_path):
 
 
 # ---- left-anchored, not centred (Knut, #130 2026-07-26) -------------------
-def _mast_with_bar(tmp_path, name="P"):
+def _mast_with_bar(tmp_path, name="P", dates=()):
     s = AppSettings(); s._qs = QSettings(str(tmp_path / "s.ini"),
                                          QSettings.Format.IniFormat)
     root = tmp_path / "ChromIQ"; root.mkdir(exist_ok=True)
     s.set("custom_output_path", str(root))
     fm = FileManager(s)
-    Project.create(root / name, name).current_run().ensure_dir()
+    proj = Project.create(root / name, name)
+    run = proj.current_run(); run.ensure_dir()
+    run.verifications_dir.mkdir(parents=True, exist_ok=True)
+    for d in dates:
+        run.verification(d).ensure_dir()
     fm.set_target_name(name)
     ctl = MeasurementTargetController(fm)
     bar = MeasurementTargetBar(ctl)
@@ -104,6 +108,9 @@ def _mast_with_bar(tmp_path, name="P"):
     mast = MastheadHeader(version="9.9.9")
     mast.set_center_widget(bar)
     mast.resize(1200, mast.sizeHint().height())
+    # Shown, as it is in the real window: Qt defers layout for hidden widgets,
+    # so a hidden masthead would not exercise the re-layout path at all.
+    mast.show()
     mast.reposition_center()
     return mast, bar, ctl
 
@@ -142,3 +149,113 @@ def test_the_bar_never_reaches_the_version_text(qapp, tmp_path):
 
     _tag_w, ver_w = mast._rail_text_widths()
     assert bar.x() + bar.width() <= mast.width() - ver_w - 18
+
+
+# ---- the centre widget must never overlap itself (Knut, #130 2026-07-26) ---
+def _row_overlaps(bar):
+    """Adjacent widgets in the bar's top row that intrude on one another."""
+    row = bar.layout().itemAt(0).layout()
+    visible = [row.itemAt(i).widget() for i in range(row.count())
+               if row.itemAt(i).widget() is not None
+               and row.itemAt(i).widget().isVisible()]
+    visible.sort(key=lambda w: w.x())
+    return [(type(a).__name__, type(b).__name__)
+            for a, b in zip(visible, visible[1:])
+            if a.x() + a.width() > b.x()]
+
+
+def test_the_bar_is_relaid_the_moment_its_content_changes(qapp, tmp_path):
+    """The regression Knut hit in beta.26: the rail is positioned by hand, so
+    nothing re-laid the bar when *it* grew. Switching Run type left it at its
+    old width and its children overlapped — "chaos" — until some later event
+    happened to re-lay it. Nothing here calls reposition_center(): the masthead
+    has to notice on its own."""
+    from core.measurement_target import RUN_TYPE_VERIFICATION
+    from ui.styles import APP_STYLESHEET
+    mast, bar, ctl = _mast_with_bar(tmp_path)
+    bar.setStyleSheet(APP_STYLESHEET)          # the padding is part of the fit
+    QApplication.processEvents()
+    assert not _row_overlaps(bar), "the bar starts out overlapping"
+
+    ctl.set_run_type(RUN_TYPE_VERIFICATION)    # the very first change
+    QApplication.processEvents()
+    bar.layout().activate()
+
+    assert bar.width() >= bar.minimumSizeHint().width(), (
+        f"the bar is {bar.width()}px but needs {bar.minimumSizeHint().width()}px "
+        f"— its children have nowhere to go but on top of each other")
+    assert not _row_overlaps(bar), _row_overlaps(bar)
+
+
+def test_no_overlap_through_a_run_of_changes(qapp, tmp_path):
+    """Knut also had it come right "after a few changes" — so every step of a
+    realistic sequence is checked, not just the end state."""
+    from core.measurement_target import (RUN_TYPE_PROFILING,
+                                         RUN_TYPE_VERIFICATION)
+    from ui.styles import APP_STYLESHEET
+    mast, bar, ctl = _mast_with_bar(tmp_path)
+    bar.setStyleSheet(APP_STYLESHEET)
+
+    for step in (lambda: ctl.set_run_type(RUN_TYPE_VERIFICATION),
+                 lambda: ctl.set_run_type(RUN_TYPE_PROFILING),
+                 lambda: ctl.set_profile_run(""),
+                 lambda: ctl.set_run_type(RUN_TYPE_VERIFICATION),
+                 lambda: ctl.set_profile_run("run1")):
+        step()
+        QApplication.processEvents()
+        bar.layout().activate()
+        assert not _row_overlaps(bar), _row_overlaps(bar)
+        assert bar.width() >= bar.minimumSizeHint().width()
+
+
+def test_a_narrow_rail_squeezes_the_bar_instead_of_letting_it_overrun(qapp,
+                                                                      tmp_path):
+    """With more to show than the rail can hold, the widest box gives up width
+    — the bar never runs under the version text, and never over itself."""
+    from core.measurement_target import RUN_TYPE_VERIFICATION
+    from ui.styles import APP_STYLESHEET
+    mast, bar, ctl = _mast_with_bar(
+        tmp_path, dates=("2026-07-20_100000", "2026-07-22_143000"))
+    bar.setStyleSheet(APP_STYLESHEET)
+    ctl.set_run_type(RUN_TYPE_VERIFICATION)
+    QApplication.processEvents()
+
+    mast.resize(1180, mast.sizeHint().height())     # deliberately tight
+    mast.reposition_center()
+    QApplication.processEvents()
+    bar.layout().activate()
+
+    _tag_w, ver_w = mast._rail_text_widths()
+    assert bar.x() + bar.width() <= mast.width() - ver_w - 18, \
+        "the bar ran under the version text"
+    assert not _row_overlaps(bar), _row_overlaps(bar)
+    assert bar._verify_combo.width() >= bar._SQUEEZE_FLOOR, \
+        "a box was squeezed past the point of being readable"
+
+
+def test_the_comfortable_width_comes_back_when_there_is_room(qapp, tmp_path):
+    """Squeezing is a concession to a narrow window, not a new normal."""
+    from core.measurement_target import RUN_TYPE_VERIFICATION
+    from ui.styles import APP_STYLESHEET
+    mast, bar, ctl = _mast_with_bar(
+        tmp_path, dates=("2026-07-20_100000", "2026-07-22_143000"))
+    bar.setStyleSheet(APP_STYLESHEET)
+    ctl.set_run_type(RUN_TYPE_VERIFICATION)
+    QApplication.processEvents()
+
+    # reposition_center() is called explicitly here because the offscreen
+    # platform does not reliably deliver a resize to a top-level window; the
+    # real window reaches the same code from MastheadHeader.resizeEvent.
+    mast.resize(1180, mast.sizeHint().height())
+    mast.reposition_center(); QApplication.processEvents()
+    squeezed = bar._verify_combo.width()
+    mast.resize(1800, mast.sizeHint().height())
+    mast.reposition_center(); QApplication.processEvents()
+    bar.layout().activate()
+
+    assert bar._verify_combo.width() > squeezed
+    fm = bar._verify_combo.fontMetrics()
+    widest = max(fm.horizontalAdvance(bar._verify_combo.itemText(i))
+                 for i in range(bar._verify_combo.count()))
+    assert bar._verify_combo.width() >= widest, \
+        "with room to spare every entry must be fully readable again"

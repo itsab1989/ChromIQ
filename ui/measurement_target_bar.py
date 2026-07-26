@@ -415,6 +415,14 @@ class MeasurementTargetBar(QWidget):
             "read from and written to this folder, inside your ChromIQ folder. "
             "It follows the two dropdowns above, so you can always see where "
             "your files are going before you do anything."))
+        # The path can be long, and it must never be what decides how wide the
+        # bar has to be: a label that refuses to shrink drags the bar out past
+        # the version text, or — worse — forces a minimum the rail cannot give,
+        # which is what makes the boxes above overlap. Its width is ignored and
+        # the text is shortened in the middle when space is tight; the full path
+        # stays in the tooltip.
+        self._location.setSizePolicy(QSizePolicy.Policy.Ignored,
+                                     QSizePolicy.Policy.Preferred)
         column.addWidget(self._location)
 
         self._ctl.changed.connect(self._sync_from_controller)
@@ -514,6 +522,50 @@ class MeasurementTargetBar(QWidget):
         super().showEvent(event)
         self._fit_widths(getattr(self, "_last_labels", ()))
 
+    #: How narrow a box may be squeezed when the rail cannot hold the row at
+    #: its comfortable width. Elided text is a poor second best — but it is far
+    #: better than boxes climbing over each other, or over the version.
+    _SQUEEZE_FLOOR = 150
+
+    def set_available_width(self, px: int) -> None:
+        """Tell the bar how much room it has, so it can give way gracefully.
+
+        Called by the masthead before it places the bar. With plenty of room
+        every box shows its longest entry in full; with too little, the widest
+        box gives up width first, down to a floor — the bar never demands more
+        than it has been given (Knut, #130 2026-07-26).
+        """
+        px = int(px)
+        if px <= 0 or px == getattr(self, "_avail", 0):
+            return
+        self._avail = px
+        self._fit_widths(getattr(self, "_last_labels", ()))
+
+    def _squeeze_to_fit(self) -> None:
+        """Take width off the widest box until the row fits the space given."""
+        avail = getattr(self, "_avail", 0)
+        if not avail:
+            return
+        row = self.layout().itemAt(0).layout()
+        natural = row.minimumSize().width()
+        excess = natural - avail
+        if excess <= 0:
+            return
+        # The verification box is both the widest and the one whose entries
+        # elide most gracefully — a shortened date still reads as a date.
+        for box in (self._verify_combo, self._run_combo, self._type_combo):
+            if excess <= 0:
+                break
+            if not box.isVisible():
+                continue
+            # minimumWidth, not width(): setFixedWidth pins both bounds, while
+            # the live geometry is whatever the last (too narrow) layout left.
+            have = box.minimumWidth()
+            give = min(excess, max(0, have - self._SQUEEZE_FLOOR))
+            if give > 0:
+                box.setFixedWidth(have - give)
+                excess -= give
+
     def _fit_widths(self, verify_labels=()) -> None:
         """Give every box and the Restore button a width that stays put."""
         self._last_labels = tuple(verify_labels)
@@ -540,6 +592,10 @@ class MeasurementTargetBar(QWidget):
         want = max(btn.minimumWidth(), getattr(btn, "_cq_floor", 0))
         btn._cq_floor = want
         btn.setFixedWidth(want)
+
+        # …and if that comfortable row does not fit the rail, give way.
+        self.layout().activate()
+        self._squeeze_to_fit()
 
     # ---- compact helpers --------------------------------------------------
     def _mk_label(self, text: str) -> QLabel:
@@ -612,8 +668,31 @@ class MeasurementTargetBar(QWidget):
         self._location.setVisible(bool(where))
         # Clear the text too, so a hidden label can never surface a stale path
         # if something shows it again later.
-        self._location.setText(
+        self._location_full = (
             tr("Location being edited: {path}").format(path=where) if where else "")
+        self._apply_location_text()
+
+    def _apply_location_text(self) -> None:
+        """Show the path, shortened in the middle if it does not fit."""
+        full = getattr(self, "_location_full", "")
+        if not full:
+            self._location.setText("")
+            return
+        # Measured against the bar, which the label spans: the label's own
+        # width is meaningless until the layout has run, and eliding against a
+        # stale value shortens a path that would have fitted.
+        room = self.width()
+        fm = self._location.fontMetrics()
+        if room > 40 and fm.horizontalAdvance(full) > room:
+            from PyQt6.QtCore import Qt as _Qt
+            self._location.setText(fm.elidedText(full, _Qt.TextElideMode.ElideMiddle,
+                                                 room))
+        else:
+            self._location.setText(full)
+
+    def resizeEvent(self, event) -> None:      # noqa: N802
+        super().resizeEvent(event)
+        self._apply_location_text()
 
     # ---- rebuild the run + verification lists from the project -----------
     def refresh(self) -> None:
