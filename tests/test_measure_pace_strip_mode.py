@@ -157,3 +157,54 @@ def test_the_finished_sound_plays_once_per_read(tab):
     tab._finish_sound_played = False           # a new read may sound again
     tab._play_measurement_finished_once()
     assert len(played) == 2
+
+
+# ---- a FAILED strip: the case from Knut's log ----------------------------
+def test_a_failed_strip_is_told_it_was_read_too_fast(tab, monkeypatch):
+    """Knut's log: three "Not enough patches" failures in a row, with nothing
+    said about speed — so he tried again just as fast. A failed scan returns no
+    patches, so the count comes from the strip that succeeded first."""
+    clock = [100.0]
+    monkeypatch.setattr("time.monotonic", lambda: clock[0])
+
+    tab._on_scan_started()                       # a good strip first
+    clock[0] += 9.0
+    tab._report_strip_pace(_strip(15, "B"))
+    assert tab._last_strip_patches == 15
+
+    tab._on_scan_started()                       # then a hurried one that fails
+    clock[0] += 2.1                              # 140 ms per patch
+    tab._report_failed_strip_pace("Not enough patches")
+
+    assert "Too fast" in tab._pace_readout.text()
+    assert "ff6b6b" in tab._pace_readout.styleSheet()
+
+
+def test_a_failed_strip_read_at_a_fine_pace_is_not_blamed_on_speed(tab,
+                                                                   monkeypatch):
+    """A misread has other causes — a crooked swipe, the wrong strip. Speed is
+    only mentioned when speed was actually the problem."""
+    clock = [100.0]
+    monkeypatch.setattr("time.monotonic", lambda: clock[0])
+    tab._on_scan_started(); clock[0] += 9.0
+    tab._report_strip_pace(_strip(15, "B"))
+    tab._clear_pace_readout()
+
+    tab._on_scan_started()
+    clock[0] += 12.0                             # 800 ms per patch: comfortable
+    tab._report_failed_strip_pace("Not enough patches")
+
+    assert tab._pace_readout.isHidden(), tab._pace_readout.text()
+
+
+def test_nothing_is_claimed_about_a_failure_before_any_strip_succeeded(tab,
+                                                                       monkeypatch):
+    """With no successful strip yet, the patch count is unknown — so no verdict
+    is invented."""
+    clock = [100.0]
+    monkeypatch.setattr("time.monotonic", lambda: clock[0])
+    tab._clear_pace_readout()
+    tab._last_strip_patches = 0
+    tab._on_scan_started(); clock[0] += 1.0
+    tab._report_failed_strip_pace("Not enough patches")
+    assert tab._pace_readout.isHidden()

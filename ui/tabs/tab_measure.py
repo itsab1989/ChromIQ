@@ -874,6 +874,7 @@ class TabMeasure(QWidget):
         self._manager.calibration_prompt.connect(self._on_calibration_prompt)
         self._manager.calibration_done.connect(self._on_calibration_done)
         self._manager.strip_error.connect(self._on_strip_error)
+        self._manager.strip_error.connect(self._report_failed_strip_pace)
         # #126 chart-reading engine
         self._manager.session_map.connect(self._on_session_map)
         self._manager.strip_measured.connect(self._on_strip_measured)
@@ -3426,6 +3427,50 @@ class TabMeasure(QWidget):
             self._sound.play(_snd.PATCH_OUT_OF_TOL)
         else:
             self._sound.play(_snd.PATCH_OK)
+
+    def _report_failed_strip_pace(self, reason: str) -> None:
+        """When a strip FAILS, say whether it was read too fast (#131, from
+        Knut's ColorMunki log, 2026-07-26).
+
+        A failed scan returns no patches at all, so the count has to come from a
+        strip that did succeed — every strip of a chart holds the same number.
+        Without one, nothing is claimed.
+
+        This is the case that matters most: a ColorMunki swiped too quickly
+        fails with Argyll's "Not enough patches", which says nothing about
+        speed, so the user tries again exactly as fast and fails again. In
+        Knut's log that happened three times in a row.
+        """
+        if not self._settings.get("pace_hint_enabled", True):
+            return
+        try:
+            import time
+            started = getattr(self, "_scan_started_at", None)
+            patches = getattr(self, "_last_strip_patches", 0)
+            self._scan_started_at = None
+            if not started or not patches:
+                return
+            tracker = self._pace_tracker()
+            pace = tracker.strip_timed(time.monotonic() - started, patches)
+            if not pace.too_fast:
+                return
+            ms = int(pace.mean_seconds * 1000)
+            target_ms = int(tracker.config.target_seconds * 1000)
+            note = tr(
+                "That strip was read in {secs} s — about {ms} ms per patch, "
+                "where this instrument needs at least {target} ms. Reading too "
+                "quickly is the most likely reason it failed, so try the same "
+                "strip again more slowly."
+            ).format(secs=f"{pace.elapsed:.1f}", ms=ms, target=target_ms)
+            self._pace_readout.setText(tr("Too fast — that is probably why the "
+                                          "strip failed"))
+            self._pace_readout.setStyleSheet(
+                "color: #ff6b6b; font-size: 16px; font-weight: 600;")
+            self._pace_readout.setVisible(True)
+            self._log.appendPlainText("\n" + note)
+            self._log.ensureCursorVisible()
+        except Exception:      # noqa: BLE001 — a hint must never break a read
+            log.warning("failed-strip pace hint failed", exc_info=True)
 
     def _on_strip_error_sound(self, reason: str) -> None:
         """Strip-failure sound (#131): Argyll's own 'Slow Down!' comes through
@@ -6115,6 +6160,10 @@ class TabMeasure(QWidget):
                 # there, so the tracker's own timings are used.
                 pace = tracker.strip_finished(time.monotonic())
             self._scan_started_at = None
+            if patches:
+                # Every strip of a chart holds the same number, so this is what
+                # a FAILED strip (which returns nothing) is judged by.
+                self._last_strip_patches = patches
             self._show_strip_pace(str((ev or {}).get("strip", "")), pace,
                                   tracker.config)
             msg = strip_pace_message(pace, tracker.config)

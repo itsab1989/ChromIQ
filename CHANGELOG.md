@@ -1,5 +1,15 @@
 # Changelog
 
+## v3.14.8-beta.31
+
+- **A strip that fails is now told when it was read too fast.** Argyll rejects a
+  hurried scan with "Not enough patches", which says nothing about speed — so
+  the natural response is to try again at exactly the same pace and fail again.
+  ChromIQ now times the failed scan against the number of patches a strip holds
+  and, when speed was the likely cause, says so plainly and suggests reading
+  that same strip again more slowly. When the pace was fine it stays quiet,
+  because a misread has other causes too — a crooked swipe, or the wrong strip.
+
 ## v3.14.8-beta.30
 
 - **Reading speed is now shown on screen, and works for strip reading at

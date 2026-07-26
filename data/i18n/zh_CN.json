@@ -3451,5 +3451,7 @@
   "Too fast — read more slowly": "Too fast — read more slowly",
   "{ms} ms per patch (aim for {target} ms or more)": "{ms} ms per patch (aim for {target} ms or more)",
   "{ms} ms per patch — roughly {n} readings (aim for {target} ms or more)": "{ms} ms per patch — roughly {n} readings (aim for {target} ms or more)",
-  "→ Your measurement is saved. When you want the profile, go to the “4. Build Profile” tab and press “Build Profile”.": "→ Your measurement is saved. When you want the profile, go to the “4. Build Profile” tab and press “Build Profile”."
+  "→ Your measurement is saved. When you want the profile, go to the “4. Build Profile” tab and press “Build Profile”.": "→ Your measurement is saved. When you want the profile, go to the “4. Build Profile” tab and press “Build Profile”.",
+  "That strip was read in {secs} s — about {ms} ms per patch, where this instrument needs at least {target} ms. Reading too quickly is the most likely reason it failed, so try the same strip again more slowly.": "That strip was read in {secs} s — about {ms} ms per patch, where this instrument needs at least {target} ms. Reading too quickly is the most likely reason it failed, so try the same strip again more slowly.",
+  "Too fast — that is probably why the strip failed": "Too fast — that is probably why the strip failed"
 }
