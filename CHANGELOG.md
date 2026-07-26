@@ -1,5 +1,22 @@
 # Changelog
 
+## v3.14.8-beta.38
+
+- **"All Stripes Read" is now always the last window.** Any strip window — a
+  failed strip as well as a strip read too quickly — is dealt with first, and
+  the completion window follows only when nothing more will be read. Choosing
+  to retry or skip a strip goes back to measuring, with no completion window.
+
+- **The measurement finishes with a summary.** Every version of the completion
+  window now reports the total measuring time as hours, minutes and seconds,
+  the average, fastest and slowest strip reading times, and the ten strips with
+  the worst — that is, the fastest — reading times. Strips that failed are left
+  out of the figures, since a failed scan has no reliable time to average.
+
+- **The reading times survive turning the page.** On a multi-page chart the
+  times for each page reappear as you move between pages; they are kept for the
+  whole measurement and cleared when the next one starts.
+
 ## v3.14.8-beta.37
 
 - **The reading-speed window can be put away for the rest of a measurement.**

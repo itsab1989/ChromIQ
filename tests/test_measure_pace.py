@@ -323,3 +323,51 @@ def test_the_advice_makes_no_sample_claim_without_a_rate():
                             PaceConfig(sample_hz=0.0, min_patch_seconds=0.2))
     assert "200 ms" in advice
     assert "readings per second" not in advice
+
+
+# ---- the end-of-measurement summary (Knut, #131 2026-07-26) --------------
+def test_the_summary_reports_total_average_fastest_and_slowest():
+    from core.measure_pace import session_summary
+    times = {"A": (9.0, True), "B": (6.0, True), "C": (12.0, True)}
+    text = session_summary(times, total_seconds=3725)      # 1 h 2 m 5 s
+    assert "01:02:05" in text
+    assert "average 9.0 s" in text
+    assert "fastest 6.0 s" in text and "slowest 12.0 s" in text
+    assert "over 3 strips" in text
+
+
+def test_worst_means_fastest_and_is_listed_in_order():
+    """The shortest times are the risky ones — that is what "worst" means for
+    reading pace."""
+    from core.measure_pace import session_summary
+    times = {c: (float(i), True) for i, c in enumerate("ABCDEFGHIJKLM", start=1)}
+    text = session_summary(times, total_seconds=100)
+    listed = text.rsplit(":", 1)[-1]
+    assert listed.strip().startswith("A 1.0 s, B 2.0 s, C 3.0 s")
+    assert "K 11.0 s" not in listed, "only the ten fastest are listed"
+    assert listed.count(",") == 9, "ten entries"
+
+
+def test_failed_strips_are_left_out_of_the_figures():
+    """A failed scan produced nothing; averaging it in would misrepresent the
+    strips that were actually read."""
+    from core.measure_pace import session_summary
+    times = {"A": (9.0, True), "B": (0.5, False), "C": (11.0, True)}
+    text = session_summary(times, total_seconds=60)
+    assert "average 10.0 s" in text
+    assert "fastest 9.0 s" in text
+    assert " B " not in text
+
+
+def test_a_measurement_with_nothing_read_still_reports_its_time():
+    from core.measure_pace import session_summary
+    text = session_summary({}, total_seconds=95)
+    assert "00:01:35" in text
+    assert "average" not in text
+
+
+def test_one_strip_is_described_in_the_singular():
+    from core.measure_pace import session_summary
+    text = session_summary({"A": (7.0, True)}, total_seconds=7)
+    assert "over one strip" in text
+    assert "strips" not in text.split("\n")[1]

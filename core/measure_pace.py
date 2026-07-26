@@ -473,3 +473,47 @@ def defaults_for(key):
     too-quick swipe pass unremarked, which is the failure that costs a re-read.
     """
     return MODEL_DEFAULTS.get(key, MODEL_DEFAULTS["i1pro"])
+
+
+# ---------------------------------------------------------------------------
+# End-of-measurement summary (Knut, #131 2026-07-26)
+# ---------------------------------------------------------------------------
+def _hhmmss(seconds: float) -> str:
+    s = max(0, int(round(seconds)))
+    return f"{s // 3600:02d}:{(s % 3600) // 60:02d}:{s % 60:02d}"
+
+
+def session_summary(times, total_seconds: float, worst: int = 10) -> str:
+    """How the whole chart went, for the window that closes a measurement.
+
+    *times* maps a strip's name to ``(seconds, succeeded)``. The summary is
+    built only from strips that were actually read: a failed scan has no
+    reliable duration to average, and including it would drag the figures
+    towards a strip that produced nothing.
+
+    "Worst" means **fastest** — the shortest times are the ones that risk a thin
+    reading, which is the whole point of watching the pace.
+    """
+    from core.i18n import tr
+    read = {k: v[0] for k, v in (times or {}).items() if v[1] and v[0] > 0}
+    lines = [tr("Total measuring time: {hms}").format(hms=_hhmmss(total_seconds))]
+    if not read:
+        return lines[0]
+
+    values = sorted(read.values())
+    mean = sum(values) / len(values)
+    lines.append(tr(
+        "Strip reading times — average {avg} s, fastest {fast} s, slowest "
+        "{slow} s, over {n} strips."
+    ).format(avg=f"{mean:.1f}", fast=f"{values[0]:.1f}",
+             slow=f"{values[-1]:.1f}", n=len(values))
+        if len(values) > 1 else
+        tr("Strip reading time: {avg} s, over one strip.").format(
+            avg=f"{mean:.1f}"))
+
+    if len(values) > 1:
+        ranked = sorted(read.items(), key=lambda kv: kv[1])[:worst]
+        listed = ", ".join(f"{name} {secs:.1f} s" for name, secs in ranked)
+        lines.append(tr("Strips with worst reading time: {list}").format(
+            list=listed))
+    return "\n".join(lines)

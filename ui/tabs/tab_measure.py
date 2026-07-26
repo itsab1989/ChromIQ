@@ -1382,6 +1382,12 @@ class TabMeasure(QWidget):
         rl.setSpacing(0)
         self._preview = TiffPreview(right)
         self._preview.stripe_clicked.connect(self._on_preview_strip_clicked)
+        # The times are kept for the whole measurement, so turning to another
+        # page of a multi-page chart must redraw them for THAT page (Knut,
+        # #131 2026-07-26).
+        self._preview.page_changed.connect(lambda _i: self._refresh_pace_panel(
+            getattr(self, "_pace_verdict", ""),
+            getattr(self, "_pace_verdict_colour", "#909090")))
         self._preview.patch_clicked.connect(self._on_preview_patch_clicked)
         self._preview.set_caption(tr("CHART PREVIEW"))
         rl.addWidget(self._preview, stretch=1)
@@ -3460,8 +3466,7 @@ class TabMeasure(QWidget):
             # The failed strip is listed with its time like any other (Knut:
             # "even if OK or failed"), marked so it reads as a failure.
             letter = getattr(self, "_current_strip_letter", "") or "?"
-            self._pace_times[letter] = tr("{secs} s ✕").format(
-                secs=f"{elapsed:.1f}")
+            self._pace_times[letter] = (elapsed, False)
             self._refresh_pace_panel(headline, colour)
 
             note = failure_advice(reason, tracker.config)
@@ -3732,6 +3737,8 @@ class TabMeasure(QWidget):
         # when a strip is re-read, a chart is re-read, or measuring is stopped).
         self._clear_pace_readout()
         self._finish_sound_played = False
+        import time as _t
+        self._measure_started_at = _t.monotonic()
 
         # #130 Hole 1: don't start a verification of a run that has no profile.
         block = self._verification_guard()
@@ -4548,6 +4555,10 @@ class TabMeasure(QWidget):
         # because the failure has already been announced.
         self._on_strip_error_sound(reason)
 
+        # "All Stripes Read" is always the LAST window (Knut): while any strip
+        # window is up, the completion window waits its turn.
+        self._pace_prompt_open = True
+
         QApplication.instance().removeEventFilter(self)
 
         dlg = QDialog(self)
@@ -4644,6 +4655,16 @@ class TabMeasure(QWidget):
 
         tint_dialog_primary(dlg, _TAB_COLOR)
         dlg.exec()
+        self._pace_prompt_open = False
+        if getattr(self, "_all_done_deferred", False) and chosen[0] not in (
+                "retry", "skip"):
+            # Nothing more will be read, so the completion window that arrived
+            # while this one was up may now have its turn (Knut: it is always
+            # the last window).
+            self._all_done_deferred = False
+            self._on_all_stripes_done()
+        elif chosen[0] in ("retry", "skip"):
+            self._all_done_deferred = False   # back to measuring
 
         if chosen[0] == "retry":
             self._manager.send_key("\r")
@@ -5013,6 +5034,13 @@ class TabMeasure(QWidget):
                 "the next unread, <b>d</b> when done)."), dlg)
             msg.setWordWrap(True)
             lay.addWidget(msg)
+
+            summary = self._measurement_summary()
+            if summary:
+                sum_lbl = QLabel(summary, dlg)
+                sum_lbl.setWordWrap(True)
+                sum_lbl.setStyleSheet("color: #909090; font-size: 11px;")
+                lay.addWidget(sum_lbl)
             row = QHBoxLayout()
             row.addStretch(1)
             reread = QPushButton(tr("Re-read Stripes"), dlg)
@@ -5105,6 +5133,14 @@ class TabMeasure(QWidget):
 
         msg.setWordWrap(True)
         layout.addWidget(msg)
+
+        summary = self._measurement_summary()
+        if summary:
+            from PyQt6.QtWidgets import QLabel as _QL
+            sum_lbl = _QL(summary, dlg)
+            sum_lbl.setWordWrap(True)
+            sum_lbl.setStyleSheet("color: #909090; font-size: 11px;")
+            layout.addWidget(sum_lbl)
 
         # Opt-in scanner-target checkbox — offered for a profiling read of an
         # engine chart (not calibration), so the user can later profile a scanner
@@ -5259,6 +5295,14 @@ class TabMeasure(QWidget):
         msg = QLabel(body, dlg)
         msg.setWordWrap(True)
         layout.addWidget(msg)
+
+        summary = self._measurement_summary()
+        if summary:
+            from PyQt6.QtWidgets import QLabel as _QL
+            sum_lbl = _QL(summary, dlg)
+            sum_lbl.setWordWrap(True)
+            sum_lbl.setStyleSheet("color: #909090; font-size: 11px;")
+            layout.addWidget(sum_lbl)
 
         method_combo = None
         if in_set:
@@ -6247,8 +6291,7 @@ class TabMeasure(QWidget):
         if pace.patches <= 0 or pace.mean_seconds <= 0:
             return
         self._pace_patches = pace.patches
-        self._pace_times[strip or "?"] = tr("{secs} s").format(
-            secs=f"{pace.elapsed:.1f}")
+        self._pace_times[strip or "?"] = (pace.elapsed, True)
         ms = int(pace.mean_seconds * 1000)
         target_ms = int(config.target_seconds * 1000)
         if pace.too_fast:
@@ -6265,6 +6308,23 @@ class TabMeasure(QWidget):
                 "or more)").format(ms=ms, n=pace.est_samples, target=target_ms)
         self._refresh_pace_panel(f"{verdict} · {detail}", colour)
 
+    def _measurement_summary(self) -> str:
+        """How the whole chart went, for the window that closes a measurement
+        (#131, Knut 2026-07-26). Empty when nothing was timed — with stock
+        chartread there are no scan times, and an empty summary is better than
+        a made-up one."""
+        try:
+            from core.measure_pace import session_summary
+            times = getattr(self, "_pace_times", None)
+            started = getattr(self, "_measure_started_at", None)
+            if not times or started is None:
+                return ""
+            import time
+            return session_summary(times, time.monotonic() - started)
+        except Exception:      # noqa: BLE001 — a summary must never block a read
+            log.warning("could not build the measurement summary", exc_info=True)
+            return ""
+
     def _refresh_pace_panel(self, verdict: str = "", colour: str = "#909090") -> None:
         """Lay the recorded times out under the strips they belong to.
 
@@ -6279,12 +6339,16 @@ class TabMeasure(QWidget):
         try:
             centres = self._preview.stripe_x_centres()
             page_now = self._preview.current_page()
-            for letter, text in self._pace_times.items():
+            for letter, (secs, ok) in self._pace_times.items():
                 page, local_idx, _rect = self._locate_strip(letter)
                 if page == page_now and 0 <= local_idx < len(centres):
+                    text = (tr("{secs} s").format(secs=f"{secs:.1f}") if ok
+                            else tr("{secs} s ✕").format(secs=f"{secs:.1f}"))
                     columns.append((centres[local_idx], text))
         except Exception:      # noqa: BLE001 — a panel must never break a read
             columns = []
+        self._pace_verdict = verdict
+        self._pace_verdict_colour = colour
         label = ""
         if columns and self._pace_patches:
             label = tr("Strip reading times, {n} patches:").format(

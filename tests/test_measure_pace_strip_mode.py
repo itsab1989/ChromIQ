@@ -104,7 +104,9 @@ def test_each_strip_is_listed_with_the_time_it_took(tab, monkeypatch):
         tab._report_strip_pace(_strip(11, name))
 
     assert set(tab._pace_times) == {"A", "B"}, tab._pace_times
-    assert "9.0" in tab._pace_times["A"] and "8.0" in tab._pace_times["B"]
+    assert tab._pace_times["A"][0] == pytest.approx(9.0)
+    assert tab._pace_times["B"][0] == pytest.approx(8.0)
+    assert tab._pace_times["A"][1] is True, "a strip that succeeded"
     assert bool(tab._pace_times)
 
 
@@ -224,7 +226,8 @@ def test_a_failure_is_listed_even_when_the_patch_count_is_unknown(tab,
     tab._on_scan_started(); clock[0] += 1.0
     tab._report_failed_strip_pace("Not enough patches")
 
-    assert any("1.0" in v for v in tab._pace_times.values()), tab._pace_times
+    secs, ok = next(iter(tab._pace_times.values()))
+    assert secs == pytest.approx(1.0) and ok is False, tab._pace_times
     assert bool(tab._pace_panel._verdict)
     assert "ms per patch" not in tab._pace_panel._verdict
 
