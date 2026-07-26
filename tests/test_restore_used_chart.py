@@ -133,3 +133,26 @@ def test_restore_emits_chart_restored_and_puts_the_chart_back(qapp, tmp_path):
 def test_restore_is_a_no_op_when_nothing_is_selected(qapp, tmp_path):
     ctl, run = _env(tmp_path)
     assert ctl.restore_used_chart() is None
+
+
+def test_dropdown_marks_a_verification_with_no_measurement(qapp, tmp_path):
+    """#130 decision 1: a folder created by a measurement that was cancelled or
+    failed is kept, and marked, so an empty date is never mistaken for a result —
+    while staying selectable, because its chart can still be restored."""
+    ctl, run = _env(tmp_path)
+    started = run.verification("2026-07-25_120000"); started.ensure_dir()
+    snapshot_chart(started)                       # chart kept, no .ti3 written
+    finished = run.verification("2026-07-25_130000"); finished.ensure_dir()
+    finished.measurement_ti3.write_text("MEASURED")
+
+    assert ctl.verification_has_measurement("run1", started.id) is False
+    assert ctl.verification_has_measurement("run1", finished.id) is True
+
+    bar = MeasurementTargetBar(ctl)
+    labels = [bar._verify_combo.itemText(i)
+              for i in range(bar._verify_combo.count())]
+    assert any("no measurement yet" in t for t in labels), labels
+    assert sum("no measurement yet" in t for t in labels) == 1
+    # still selectable, and its chart is restorable
+    ctl.set_verification_id(started.id)
+    assert ctl.restore_state()[0] is True

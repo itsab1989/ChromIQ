@@ -86,6 +86,21 @@ class MeasurementTargetController(QObject):
             return []
         return [v.id for v in p.run(run_id).verifications()]
 
+    def verification_has_measurement(self, run_id: str, vid: str) -> bool:
+        """Whether a dated verification actually holds a measurement.
+
+        A folder is created the moment a verification measurement starts, so one
+        that was cancelled or failed leaves a dated entry with a stored chart but
+        no result (#130, Knut's decision 1: keep it, and mark it). The chart is
+        still restorable from it, which is why the entry stays selectable."""
+        p = self.project_or_none()
+        if p is None or not run_id or not vid or not p.has_run(run_id):
+            return False
+        try:
+            return p.run(run_id).verification(vid).exists()
+        except Exception:      # noqa: BLE001
+            return False
+
     # ---- mutators (each emits changed only on a real change) --------------
     def set_run_type(self, value: str) -> None:
         if value != self._target.run_type:
@@ -499,8 +514,15 @@ class MeasurementTargetBar(QWidget):
                 self._verify_combo.clear()
                 run_id = t.profile_run
                 for vid in self._ctl.verification_ids(run_id):
-                    self._verify_combo.addItem(
-                        tr("Overwrite {when}").format(when=self._pretty_date(vid)), vid)
+                    label = tr("Overwrite {when}").format(
+                        when=self._pretty_date(vid))
+                    if not self._ctl.verification_has_measurement(run_id, vid):
+                        # Created when a measurement started, but never finished
+                        # — say so, so an empty date is not mistaken for a result
+                        # (#130, Knut). Its chart can still be restored.
+                        label = tr("{when} — no measurement yet").format(
+                            when=self._pretty_date(vid))
+                    self._verify_combo.addItem(label, vid)
                 self._verify_combo.addItem(tr("New verification"), _NEW)
                 self._select_data(self._verify_combo, t.verification_id or _NEW)
         finally:
