@@ -191,10 +191,10 @@ class TargetChangeDialog(QDialog):
             btn.setObjectName("danger")
         # The title carries the target name(s); a long name (or a longer
         # translation) used to overflow the fixed width and clip at both ends
-        # (#52). Demand at least the text width plus the stylesheet's 18px×2
-        # padding (+ a safety margin), so the button — and the dialog — grow to
-        # fit instead of clipping, in every language.
-        btn.setMinimumWidth(btn.fontMetrics().horizontalAdvance(title) + 48)
+        # (#52). One shared helper decides every button's width, so this can
+        # never drift from the rest of the app (Knut, #130 2026-07-26).
+        from ui.widgets import fit_button_width
+        fit_button_width(btn)
         btn.clicked.connect(lambda: self._choose(action))
         col.addWidget(btn)
 

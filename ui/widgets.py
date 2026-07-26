@@ -33,16 +33,68 @@ from PyQt6.QtWidgets import (
 )
 
 
+def fit_button_width(btn) -> None:
+    """Make sure *btn* is wide enough for the label it will actually paint.
+
+    **The one place button widths are decided** (Knut, #130 2026-07-26). A
+    button works out its own width from the font it has at the time — but
+    :class:`ButtonFontFilter` then swaps every button to Menlo in capitals,
+    which is wider. The button keeps its old width and paints the new, longer
+    label into it, so the text is clipped at both ends. That is why pop-up
+    buttons could come up with "…EPLACE THE STORED CHAR…".
+
+    Widening is one-way: a button may grow to fit its text, never shrink below
+    a width somebody set deliberately.
+    """
+    from PyQt6.QtCore import QSize
+    from PyQt6.QtGui import QFontMetrics
+    from PyQt6.QtWidgets import QStyle, QStyleOptionButton
+
+    text = btn.text().replace("&&", "\x00").replace("&", "").replace("\x00", "&")
+    if not text:
+        return
+    font = btn.font()
+    if font.capitalization() == QFont.Capitalization.AllUppercase:
+        # QFontMetrics measures the characters given, not the capitalisation the
+        # painter will apply — so measure what will really be drawn.
+        text = text.upper()
+    fm = QFontMetrics(font)
+    needed = fm.horizontalAdvance(text)
+    try:
+        opt = QStyleOptionButton()
+        opt.initFrom(btn)
+        opt.text = text
+        want = btn.style().sizeFromContents(
+            QStyle.ContentsType.CT_PushButton, opt,
+            QSize(needed, fm.height()), btn).width()
+    except Exception:      # noqa: BLE001 — sizing must never raise
+        want = 0
+    # A floor of its own, in case the style under-reports the frame and padding.
+    want = max(want, needed + 36)
+    icon = btn.icon()
+    if icon is not None and not icon.isNull():
+        want += btn.iconSize().width() + 6
+    if btn.minimumWidth() < want:
+        btn.setMinimumWidth(want)
+
+
 class ButtonFontFilter(QObject):
-    """Applies Menlo + AllUppercase to every QPushButton as it is polished."""
+    """Applies Menlo + AllUppercase to every QPushButton as it is polished, and
+    keeps it wide enough for the label that font produces."""
 
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
         if isinstance(obj, QPushButton) and event.type() == QEvent.Type.Polish:
-            font = obj.font()
-            font.setFamilies(["Menlo", "Consolas", "Courier New", "monospace"])
-            font.setCapitalization(QFont.Capitalization.AllUppercase)
-            obj.setFont(font)
+            self.fit(obj)
         return False
+
+    @staticmethod
+    def fit(btn) -> None:
+        """Give *btn* the app's button font, then the width that font needs."""
+        font = btn.font()
+        font.setFamilies(["Menlo", "Consolas", "Courier New", "monospace"])
+        font.setCapitalization(QFont.Capitalization.AllUppercase)
+        btn.setFont(font)
+        fit_button_width(btn)
 
 
 class _ExtensionFilterProxy(QSortFilterProxyModel):

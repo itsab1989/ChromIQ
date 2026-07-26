@@ -531,10 +531,13 @@ class MeasurementTargetBar(QWidget):
                        for i in range(self._verify_combo.count())])
         # The button's label never changes, but its width was being taken from
         # an unpolished hint, so it could render with its text cut off at both
-        # ends. Measure the text and keep that width for good.
+        # ends. The shared helper decides the width — the same one every other
+        # button in the app uses (Knut, #130 2026-07-26) — and the floor keeps
+        # it from moving afterwards.
         btn = self._restore_btn
-        want = btn.fontMetrics().horizontalAdvance(btn.text()) + self._BUTTON_CHROME
-        want = max(want, getattr(btn, "_cq_floor", 0))
+        from ui.widgets import fit_button_width
+        fit_button_width(btn)
+        want = max(btn.minimumWidth(), getattr(btn, "_cq_floor", 0))
         btn._cq_floor = want
         btn.setFixedWidth(want)
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## v3.14.8-beta.27
+
+- **No button anywhere can paint its label clipped any more.** Every button in
+  ChromIQ is switched to the monospace label font as it appears, and that font
+  is wider than the one the button measured itself with — so a long label could
+  be cut off at both ends, as it was on the new verification chart warning.
+  Button widths are now decided in one shared place, which measures the label
+  in the font it will really be painted in, and every button in every window
+  and pop-up goes through it. The two places that worked their width out for
+  themselves now use it too, so this cannot come back one dialog at a time.
+
 ## v3.14.8-beta.26
 
 - **The Profile-run bar keeps still.** It is now anchored just to the right of
