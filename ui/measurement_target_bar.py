@@ -420,6 +420,124 @@ class MeasurementTargetBar(QWidget):
         self._ctl.changed.connect(self._sync_from_controller)
         self.refresh()
 
+    # ---- locked on tabs that do not use the selection ---------------------
+    def set_locked(self, locked: bool) -> None:
+        """Grey the whole selection out, keeping it readable (Knut, #130
+        2026-07-26).
+
+        Build Profile and Check & Refine work on the measurement file you load
+        into them, not on this selection — so leaving these boxes live there
+        invites a change that appears to do nothing. Locked, they still say
+        which run and run type you are on, and their tooltips say where to
+        change it.
+        """
+        if locked == getattr(self, "_locked", False):
+            return
+        self._locked = locked
+        self._sync_from_controller()
+
+    _LOCK_NOTE = None       # built lazily so tr() runs after the language loads
+
+    def _lock_note(self) -> str:
+        if self._LOCK_NOTE is None:
+            type(self)._LOCK_NOTE = tr(
+                "This selection is not used on the Build Profile and Check & "
+                "Refine tabs — both work on the measurement file you load into "
+                "them. It is shown here so you can see where you are, and can "
+                "be changed on the Create Chart, Print Chart and Measure tabs.")
+        return self._LOCK_NOTE
+
+    # ---- stable, readable widths (Knut, #130 2026-07-26) ------------------
+    # What the compact_input stylesheet adds around a box's text: 6 px of left
+    # padding, 28 px on the right for the arrow, plus the frame. Measured
+    # rather than guessed from sizeHint(), because a widget's style-sheet
+    # padding is not in its hint until Qt has polished it — which is why a box
+    # could come up too narrow and then correct itself on a later visit.
+    _COMBO_CHROME = 42
+    _BUTTON_CHROME = 30
+
+    @staticmethod
+    def _combo_chrome(box) -> int:
+        """How much of a combobox's width is NOT available to its text.
+
+        Asked of the style rather than assumed: the arrow, the frame and the
+        style sheet's padding differ between platforms and themes, and a guess
+        that is a few pixels short shows up as an elided "Run 1 (overwr…".
+        Returns 0 when the style cannot say, so the caller can fall back.
+        """
+        from PyQt6.QtWidgets import QStyle, QStyleOptionComboBox
+        try:
+            opt = QStyleOptionComboBox()
+            opt.initFrom(box)
+            opt.frame = True
+            field = box.style().subControlRect(
+                QStyle.ComplexControl.CC_ComboBox, opt,
+                QStyle.SubControl.SC_ComboBoxEditField, box)
+            return max(0, box.width() - field.width())
+        except Exception:      # noqa: BLE001 — sizing must never raise
+            return 0
+
+    def _fit_box(self, box, texts) -> None:
+        """Width *box* so every one of *texts* is fully readable, and never let
+        it shrink again.
+
+        Widths are computed from the widest text the box can **ever** show, not
+        from what it happens to show now, so switching tabs, picking another run
+        or a date gaining a measurement cannot change the layout under the
+        user's hands.
+        """
+        fm = box.fontMetrics()
+        widest = max((fm.horizontalAdvance(t) for t in texts if t), default=0)
+        # +4 px of air so a text that measures exactly the field width is not
+        # elided by a rounding difference between measuring and painting.
+        want = widest + (self._combo_chrome(box) or self._COMBO_CHROME) + 4
+        want = max(want, box.minimumWidth(), getattr(box, "_cq_floor", 0))
+        box._cq_floor = want
+        box.setFixedWidth(want)
+
+    def changeEvent(self, event) -> None:      # noqa: N802
+        """Re-fit when the style or the font changes.
+
+        A widget's style-sheet padding is not in its metrics until Qt has
+        polished it, so the fit done while the bar is being built is too tight.
+        Re-fitting here means the correction lands before the first paint —
+        this is what made a box "suddenly get wider" on the next tab switch
+        (Knut, #130 2026-07-26).
+        """
+        from PyQt6.QtCore import QEvent
+        super().changeEvent(event)
+        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.FontChange,
+                            QEvent.Type.PaletteChange):
+            self._fit_widths(getattr(self, "_last_labels", ()))
+
+    def showEvent(self, event) -> None:         # noqa: N802
+        super().showEvent(event)
+        self._fit_widths(getattr(self, "_last_labels", ()))
+
+    def _fit_widths(self, verify_labels=()) -> None:
+        """Give every box and the Restore button a width that stays put."""
+        self._last_labels = tuple(verify_labels)
+        self._fit_box(self._run_combo,
+                      [self._run_combo.itemText(i)
+                       for i in range(self._run_combo.count())])
+        self._fit_box(self._type_combo,
+                      [self._type_combo.itemText(i)
+                       for i in range(self._type_combo.count())])
+        # The verification box is measured against BOTH labels every date can
+        # carry — "Overwrite <date>" and "<date> — no measurement yet" — so a
+        # date gaining a measurement never resizes it.
+        self._fit_box(self._verify_combo, list(verify_labels) or
+                      [self._verify_combo.itemText(i)
+                       for i in range(self._verify_combo.count())])
+        # The button's label never changes, but its width was being taken from
+        # an unpolished hint, so it could render with its text cut off at both
+        # ends. Measure the text and keep that width for good.
+        btn = self._restore_btn
+        want = btn.fontMetrics().horizontalAdvance(btn.text()) + self._BUTTON_CHROME
+        want = max(want, getattr(btn, "_cq_floor", 0))
+        btn._cq_floor = want
+        btn.setFixedWidth(want)
+
     # ---- compact helpers --------------------------------------------------
     def _mk_label(self, text: str) -> QLabel:
         lbl = QLabel(text, self)
@@ -508,9 +626,17 @@ class MeasurementTargetBar(QWidget):
             # Hole 7 (State B): with no profile project loaded, grey the
             # selectors and show the hint; enable + hide it once a project exists.
             has_project = self._ctl.project_or_none() is not None
+            locked = getattr(self, "_locked", False)
             for w in (self._run_label, self._run_combo, self._type_label,
                       self._type_combo, self._verify_label, self._verify_combo):
-                w.setEnabled(has_project)
+                w.setEnabled(has_project and not locked)
+            # A disabled widget still shows its tooltip, so the explanation is
+            # reachable exactly where the user tries to click. The box's own
+            # tooltip is put back the moment the bar is live again.
+            for w in (self._run_combo, self._type_combo, self._verify_combo):
+                if not hasattr(w, "_cq_tip"):
+                    w._cq_tip = w.toolTip()
+                w.setToolTip(self._lock_note() if locked else w._cq_tip)
             self._hint.setVisible(not has_project)
             # Run dropdown: "Run N (overwrite)" per existing run + "New run".
             self._run_combo.clear()
@@ -532,14 +658,19 @@ class MeasurementTargetBar(QWidget):
             self._restore_tip.setVisible(show)
             if show:
                 enabled, tip = self._ctl.restore_state()
-                self._restore_btn.setEnabled(enabled)
-                self._restore_btn.setToolTip(tip)
+                self._restore_btn.setEnabled(enabled and not locked)
+                self._restore_btn.setToolTip(self._lock_note() if locked else tip)
+            every_label: list[str] = []
             if show:
                 self._verify_combo.clear()
                 run_id = t.profile_run
                 for vid in self._ctl.verification_ids(run_id):
                     label = tr("Overwrite {when}").format(
                         when=self._pretty_date(vid))
+                    # Both forms this date could show, so the box is sized for
+                    # the wider one whichever it currently is.
+                    every_label += [label, tr("{when} — no measurement yet").format(
+                        when=self._pretty_date(vid))]
                     if not self._ctl.verification_has_measurement(run_id, vid):
                         # Created when a measurement started, but never finished
                         # — say so, so an empty date is not mistaken for a result
@@ -548,7 +679,9 @@ class MeasurementTargetBar(QWidget):
                             when=self._pretty_date(vid))
                     self._verify_combo.addItem(label, vid)
                 self._verify_combo.addItem(tr("New verification"), _NEW)
+                every_label.append(tr("New verification"))
                 self._select_data(self._verify_combo, t.verification_id or _NEW)
+            self._fit_widths(every_label)
         finally:
             self._syncing = False
 

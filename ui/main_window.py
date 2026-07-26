@@ -299,6 +299,10 @@ class MainWindow(QMainWindow):
         # created since the bar last populated). Cheap; the picked run/type stay.
         color = TAB_COLORS[index] if index < len(TAB_COLORS) else TAB_COLORS[-1]
         if getattr(self, "_target_bar", None) is not None:
+            # Build Profile (3) and Check & Refine (4) work on the measurement
+            # file loaded into them, not on this selection, so it is shown but
+            # locked there (#130, Knut 2026-07-26).
+            self._target_bar.set_locked(index in (3, 4))
             self._target_bar.refresh()
             # Tint the bar's combobox highlight + ⓘ icon to the active tab's accent.
             self._target_bar.set_accent(color)

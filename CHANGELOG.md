@@ -1,5 +1,38 @@
 # Changelog
 
+## v3.14.8-beta.26
+
+- **The Profile-run bar keeps still.** It is now anchored just to the right of
+  the "PRINTER PROFILING" tag instead of being centred, so it no longer slides
+  sideways whenever its content changes — switching Run type simply adds the
+  verification boxes on the right, and nothing already on screen moves.
+
+- **Every box is wide enough to read, and stays that width.** The Verification
+  box could come up too narrow to read its entry, the Run and Run-type boxes
+  could show "Run 1 (overwr…", and the "Restore Used Chart" button could render
+  with its label cut off at both ends — then quietly correct itself on a later
+  visit. Each box is now measured against the widest entry it can ever show,
+  using the width its own style really leaves for text, and re-measured when
+  the theme or font changes. A verification date gaining a measurement, or
+  moving between tabs, no longer changes any width.
+
+- **Tooltips no longer appear clipped or half empty.** All tooltips share a
+  single label, and a size worked out for a long tooltip stayed on it: the next
+  tooltip was then shown in the wrong box — too small for a longer text, far
+  too large for a shorter one — and hovering back and forth appeared to fix and
+  re-break it at random. Each tooltip is now sized from scratch.
+
+- **The selection is shown but locked on Build Profile and Check & Refine.**
+  Both tabs work on the measurement file you load into them, not on this
+  selection, so changing it there looked as though it did nothing. It stays
+  visible so you can see where you are, and each box explains that it can be
+  changed on the Create Chart, Print Chart and Measure tabs.
+
+- **"Where are my files?" now lists the verification chart copy.** The Files
+  Relating to Features table said a verification writes its measurement and its
+  report; it now also names verifications/<date>/chart/, the copy of the chart
+  that check was measured with.
+
 ## v3.14.8-beta.25
 
 - **The verification chart warning now points at the Verification field

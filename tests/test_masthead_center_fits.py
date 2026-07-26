@@ -87,3 +87,58 @@ def test_the_real_target_bar_fits_on_the_rail(qapp, tmp_path):
     assert bar.sizeHint().height() > 28, "the bar is the two-line one"
     _assert_center_fits(mast)
     assert bar._location.text().endswith("runs/run1/")
+
+
+# ---- left-anchored, not centred (Knut, #130 2026-07-26) -------------------
+def _mast_with_bar(tmp_path, name="P"):
+    s = AppSettings(); s._qs = QSettings(str(tmp_path / "s.ini"),
+                                         QSettings.Format.IniFormat)
+    root = tmp_path / "ChromIQ"; root.mkdir(exist_ok=True)
+    s.set("custom_output_path", str(root))
+    fm = FileManager(s)
+    Project.create(root / name, name).current_run().ensure_dir()
+    fm.set_target_name(name)
+    ctl = MeasurementTargetController(fm)
+    bar = MeasurementTargetBar(ctl)
+    ctl.set_profile_run("run1"); ctl.set_run_type(RUN_TYPE_PROFILING)
+    mast = MastheadHeader(version="9.9.9")
+    mast.set_center_widget(bar)
+    mast.resize(1200, mast.sizeHint().height())
+    mast.reposition_center()
+    return mast, bar, ctl
+
+
+def test_the_bar_sits_just_right_of_the_printer_profiling_tag(qapp, tmp_path):
+    """Knut asked for it left-adjusted against that text, not centred."""
+    mast, bar, _ctl = _mast_with_bar(tmp_path)
+    tag_w, _ver_w = mast._rail_text_widths()
+    assert 18 + tag_w <= bar.x() <= 18 + tag_w + 40, (
+        f"bar at x={bar.x()}, tag ends at {18 + tag_w:.0f}")
+    assert bar.x() < mast.width() // 3, "it must not be centred"
+
+
+def test_the_bar_does_not_move_when_it_grows(qapp, tmp_path):
+    """A centred widget slides sideways whenever its content changes — which is
+    what made the group jump when Run type was switched."""
+    from core.measurement_target import RUN_TYPE_VERIFICATION
+    mast, bar, ctl = _mast_with_bar(tmp_path)
+    before_x = bar.x()
+    before_w = bar.width()
+
+    ctl.set_run_type(RUN_TYPE_VERIFICATION)
+    QApplication.processEvents()
+    mast.reposition_center()
+
+    assert bar.x() == before_x, "the group's left edge must stay put"
+    assert bar.width() >= before_w, "the extra boxes extend it to the right"
+
+
+def test_the_bar_never_reaches_the_version_text(qapp, tmp_path):
+    """Left-anchoring must not let a long selection run under "v9.9.9"."""
+    mast, bar, _ctl = _mast_with_bar(tmp_path, name="A-Very-Long-Printer-Name")
+    bar._location.setText("ChromIQ/" + "a-long-folder-name/" * 8)
+    QApplication.processEvents()
+    mast.reposition_center()
+
+    _tag_w, ver_w = mast._rail_text_widths()
+    assert bar.x() + bar.width() <= mast.width() - ver_w - 18

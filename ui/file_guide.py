@@ -90,7 +90,9 @@ def _features():
             "the profile)"),
          tr("verifications/<date>/{name}-verify.ti3 and its "
             "verifications/<date>/reports/report_*.json — one dated check, kept "
-            "as history and never built into a profile")),
+            "as history and never built into a profile; plus "
+            "verifications/<date>/chart/, a copy of the chart that check was "
+            "measured with, saved the moment the measurement starts")),
         (tr("Build Profile"),
          tr("{name}.ti3"),
          tr("{name}.icc; merged.ti3 / merged.icc and calibrated.icc when "

@@ -166,6 +166,30 @@ class MastheadHeader(QWidget):
             self.updateGeometry()
             self.update()
 
+    @staticmethod
+    def _rail_mono() -> QFont:
+        """The rail's base font — one definition, so what is measured is
+        exactly what is painted."""
+        mono = QFont()
+        mono.setFamilies(["JetBrains Mono", "Menlo", "SF Mono", "Courier New",
+                          "monospace"])
+        mono.setPixelSize(9)
+        return mono
+
+    def _rail_text_widths(self) -> "tuple[float, float]":
+        """(left tag, right version) widths, measured with the very fonts the
+        rail paints them in — so the centre widget can be placed against them."""
+        mono = self._rail_mono()
+        tag = QFont(mono)
+        tag.setPixelSize(9)
+        tag.setLetterSpacing(QFont.SpacingType.PercentageSpacing, 148)
+        tag_w = QFontMetricsF(tag).horizontalAdvance("PRINTER PROFILING")
+        ver = QFont(mono)
+        ver.setLetterSpacing(QFont.SpacingType.PercentageSpacing, 115)
+        ver_w = (QFontMetricsF(ver).horizontalAdvance(f"v{self._version}")
+                 if self._version else 0.0)
+        return tag_w, ver_w
+
     def reposition_center(self) -> None:
         w = self._center_widget
         if w is None:
@@ -174,9 +198,16 @@ class MastheadHeader(QWidget):
         cw = w.sizeHint().width()
         ch = w.sizeHint().height()
         ver_y = self.height() - self._rail_h
-        x = (self.width() - cw) // 2
+        # Left-aligned immediately after the "PRINTER PROFILING" tag, not
+        # centred (Knut, #130 2026-07-26): a centred widget slides sideways
+        # every time its content changes — turning Run type to Verification
+        # moved the whole group. Anchored here, new boxes only extend to the
+        # right and nothing already on screen moves.
+        tag_w, ver_w = self._rail_text_widths()
+        x = int(18 + tag_w + 16)
+        room = int(self.width() - 18 - ver_w - 12) - x      # stay clear of vX.Y
         y = ver_y + (self._rail_h - ch) // 2        # centred on the rail
-        w.setGeometry(x, y, cw, ch)
+        w.setGeometry(x, y, max(0, min(cw, room)) if room > 0 else cw, ch)
 
     def sizeHint(self) -> QSize:  # noqa: N802
         return QSize(900, self.BODY_H + self._rail_h)
@@ -208,9 +239,7 @@ class MastheadHeader(QWidget):
         p.setPen(QPen(QColor(pal["ver_separator"]), 1))
         p.drawLine(0, ver_y, w, ver_y)
 
-        mono = QFont()
-        mono.setFamilies(["JetBrains Mono", "Menlo", "SF Mono", "Courier New", "monospace"])
-        mono.setPixelSize(9)
+        mono = self._rail_mono()
 
         if self._version:
             mono_lc = QFont(mono)

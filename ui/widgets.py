@@ -617,33 +617,57 @@ class TooltipWrapFilter(QObject):
     """
 
     MAX_W = 460   # px — a comfortable reading measure; text re-flows to fit
+    #: Qt's own "no maximum" value (QWIDGETSIZE_MAX), which PyQt does not export.
+    _RESET_MAX = 16777215
 
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
         if (event.type() in (QEvent.Type.Polish, QEvent.Type.Show)
                 and obj.metaObject().className() == "QTipLabel"
                 and isinstance(obj, QLabel)):
-            fm = obj.fontMetrics()
-            # Widest existing line (tooltips may already carry manual newlines).
-            longest = max(
-                (fm.horizontalAdvance(s) for s in obj.text().split("\n")),
-                default=0,
-            )
-            m = obj.contentsMargins()
-            pad = m.left() + m.right() + 2 * obj.margin() + 8
-            if longest + pad > self.MAX_W:
-                obj.setWordWrap(True)
-                # heightForWidth gives the true wrapped height; pin both so
-                # QToolTip's own resize(sizeHint()) can't clip it back to one
-                # line (its sizeHint ignores the wrap on a transient label).
-                h = obj.heightForWidth(self.MAX_W)
-                if h > 0:
-                    obj.setFixedSize(self.MAX_W, h)
-                    # QToolTip already positioned the label using its huge
-                    # pre-wrap width, so a very wide tooltip got shoved to the
-                    # screen's left edge. Re-anchor the now-narrow box near the
-                    # cursor, clamped on-screen, so it appears where the mouse is.
-                    self._reanchor(obj, self.MAX_W, h)
+            self.fit(obj)
         return False
+
+    def fit(self, obj: QLabel) -> None:
+        """Wrap and size one tooltip label for the text it is about to show.
+
+        **Qt reuses a single ``QTipLabel`` for every tooltip**, so this must
+        start by undoing whatever the previous tooltip left behind. Without
+        that reset, a fixed size set for a long tooltip stayed on the label and
+        the next one was shown in the old box — too small for a longer text
+        (clipped) or far too large for a shorter one (a mostly empty box), and
+        hovering back and forth appeared to fix and re-break it at random
+        (Knut, #130 2026-07-26).
+        """
+        # ---- reset: no state may carry over from the previous tooltip -------
+        obj.setWordWrap(False)
+        obj.setMinimumSize(0, 0)
+        obj.setMaximumSize(self._RESET_MAX, self._RESET_MAX)
+
+        fm = obj.fontMetrics()
+        # Widest existing line (tooltips may already carry manual newlines).
+        longest = max(
+            (fm.horizontalAdvance(s) for s in obj.text().split("\n")),
+            default=0,
+        )
+        m = obj.contentsMargins()
+        pad = m.left() + m.right() + 2 * obj.margin() + 8
+        if longest + pad > self.MAX_W:
+            obj.setWordWrap(True)
+            # heightForWidth gives the true wrapped height; pin both so
+            # QToolTip's own resize(sizeHint()) can't clip it back to one
+            # line (its sizeHint ignores the wrap on a transient label).
+            h = obj.heightForWidth(self.MAX_W)
+            if h > 0:
+                obj.setFixedSize(self.MAX_W, h)
+                # QToolTip already positioned the label using its huge
+                # pre-wrap width, so a very wide tooltip got shoved to the
+                # screen's left edge. Re-anchor the now-narrow box near the
+                # cursor, clamped on-screen, so it appears where the mouse is.
+                self._reanchor(obj, self.MAX_W, h)
+        else:
+            # Short enough for one line: let it take exactly that, in case the
+            # label is still carrying the previous tooltip's larger geometry.
+            obj.adjustSize()
 
     @staticmethod
     def _reanchor(obj: QLabel, w: int, h: int) -> None:
