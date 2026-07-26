@@ -878,8 +878,10 @@ class TabMeasure(QWidget):
         # #126 chart-reading engine
         self._manager.session_map.connect(self._on_session_map)
         self._manager.strip_measured.connect(self._on_strip_measured)
-        # #131 Phase 2: pace tracking rides on the same events as the overlay.
-        self._manager.patch_measured.connect(self._on_patch_pace)
+        # #131 Phase 2: reading pace is judged per STRIP, not per patch. Knut
+        # (2026-07-26): timing single patches in patch-by-patch mode has no
+        # value — pace only means something while swiping a whole strip — so
+        # nothing subscribes to patch events for pace any more.
         if hasattr(self._manager, "instrument_detected"):
             self._manager.instrument_detected.connect(self._on_instrument_detected)
         self._manager.strip_measured.connect(self._report_strip_pace)
@@ -3399,18 +3401,6 @@ class TabMeasure(QWidget):
         self._pace = None            # rebuild the tracker with that model's rate
         if model:
             log.info("measurement: instrument reported as %s", model)
-
-    def _on_patch_pace(self, _payload: dict) -> None:
-        """Time each completed patch (#131 Phase 2, Knut's method). The event
-        arrives as the patch finishes, so its arrival time IS the completion
-        time — no timestamp is needed in the payload."""
-        if not self._settings.get("pace_hint_enabled", True):
-            return
-        import time
-        try:
-            self._pace_tracker().patch_completed(time.monotonic())
-        except Exception:      # noqa: BLE001 — pace must never break a read
-            pass
 
     def _on_patch_sound(self, payload: dict) -> None:
         """Per-patch sound (#131): a normal tick, or the 'looks off' sound when
@@ -6152,13 +6142,11 @@ class TabMeasure(QWidget):
             tracker = self._pace_tracker()
             started = getattr(self, "_scan_started_at", None)
             patches = len((ev or {}).get("patches") or [])
-            if started is not None and patches:
-                seconds = time.monotonic() - started
-                pace = tracker.strip_timed(seconds, patches)
-            else:
-                # Patch-by-patch (spot) reading: the per-patch events are real
-                # there, so the tracker's own timings are used.
-                pace = tracker.strip_finished(time.monotonic())
+            if started is None or not patches:
+                # Nothing to judge: no scan start (stock chartread reports none)
+                # or no patches (a strip that failed is handled separately).
+                return
+            pace = tracker.strip_timed(time.monotonic() - started, patches)
             self._scan_started_at = None
             if patches:
                 # Every strip of a chart holds the same number, so this is what

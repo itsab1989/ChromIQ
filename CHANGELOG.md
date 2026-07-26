@@ -1,5 +1,11 @@
 # Changelog
 
+## v3.14.8-beta.32
+
+- **Reading pace is judged per strip only.** Timing single patches in
+  patch-by-patch reading told you nothing useful — pace only means something
+  while you swipe a whole strip — so that calculation is gone.
+
 ## v3.14.8-beta.31
 
 - **A strip that fails is now told when it was read too fast.** Argyll rejects a
