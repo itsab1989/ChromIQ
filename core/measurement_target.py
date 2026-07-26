@@ -144,6 +144,48 @@ def verification_blocked_reason(project: Project,
 
 
 # ---------------------------------------------------------------------------
+# Verification dates: one formatter, used by the bar and by every message
+# ---------------------------------------------------------------------------
+def pretty_verification_date(vid: str) -> str:
+    """``"2026-07-15_103000"`` → ``"2026-07-15 10:30"``.
+
+    Falls back to the folder name unchanged for anything that isn't a stamp, so
+    a hand-named folder still reads sensibly.
+    """
+    try:
+        date, time = vid.split("_", 1)
+        return f"{date} {time[:2]}:{time[2:4]}"
+    except Exception:      # noqa: BLE001
+        return vid
+
+
+def chart_overwrite_message(vid: str) -> str:
+    """Shown when a measurement is about to be started on a verification date
+    whose stored chart is **not** the chart currently loaded (#130, Knut
+    2026-07-26).
+
+    Every verification date keeps a copy of the chart it was measured with, and
+    that copy is what *Restore Used Chart* puts back. Measuring a different
+    chart into the same date replaces it, so the older result would end up
+    described by a chart nobody kept. This says so plainly, and offers the way
+    out that keeps both: measure into a new date instead.
+    """
+    from core.i18n import tr
+    return tr(
+        "The verification from {when} was measured with a different chart than "
+        "the one loaded now.\n\n"
+        "That date keeps its own copy of the chart it was measured with — the "
+        "copy “Restore Used Chart” puts back. If you measure the chart you have "
+        "loaded into this same date, that stored copy is replaced, and the "
+        "result already sitting there would no longer describe a chart you "
+        "still have.\n\n"
+        "Measuring into a new verification date keeps both: the earlier check "
+        "stays exactly as it is, with its own chart, and today's reading starts "
+        "a fresh dated entry beside it."
+    ).format(when=pretty_verification_date(vid))
+
+
+# ---------------------------------------------------------------------------
 # "New run" guards for Print / Measure (#130, Knut 2026-07-25)
 # ---------------------------------------------------------------------------
 def new_run_guard_message(action: str) -> str:

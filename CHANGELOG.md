@@ -1,5 +1,26 @@
 # Changelog
 
+## v3.14.8-beta.24
+
+- **The Profile-run bar keeps its boxes together on the left.** The boxes and
+  their labels were being spread across the whole width, so a label could sit a
+  long way from the box it belongs to. They now stay left-aligned and in
+  sequence, and switching "Run type" to Verification simply adds its boxes on
+  the right instead of pushing the others apart.
+
+- **Starting a measurement can no longer replace a stored verification chart
+  without asking.** Every verification date keeps its own copy of the chart it
+  was measured with — the copy "Restore Used Chart" puts back. Measuring a
+  different chart into that same date used to overwrite that copy silently,
+  which left the earlier result describing a chart nobody still had.
+
+  ChromIQ now compares the loaded chart against the stored one, using the same
+  content check that "Restore Used Chart" uses, and asks first. You can measure
+  into a new verification date, which keeps both the earlier check and today's
+  reading; replace the stored chart deliberately; or cancel. Re-measuring the
+  very same chart is never interrupted — the question appears only when the two
+  charts really differ.
+
 ## v3.14.8-beta.23
 
 - **The pace warning now knows exactly which instrument you are using.** Every

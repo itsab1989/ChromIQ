@@ -9,7 +9,8 @@ holds the state itself — the controller is the single source of truth.
 from __future__ import annotations
 
 from PyQt6.QtCore import QObject, Qt, pyqtSignal
-from PyQt6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import (QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout,
+                             QWidget)
 
 from core.i18n import tr
 from core.logger import get_logger
@@ -385,11 +386,21 @@ class MeasurementTargetBar(QWidget):
         self._hint.setObjectName("target_bar_hint")
         self._hint.setVisible(False)
         row.addWidget(self._hint)
+        # Everything in the row stays left-aligned and in sequence, so switching
+        # Run type to Verification simply adds its boxes on the right (Knut,
+        # #130 2026-07-26). Without this the row is as wide as the location line
+        # below it, and the slack is shared out *between* the boxes — spreading
+        # them across the screen and pulling every label away from its box.
+        row.addStretch(1)
 
         # Compact the three dropdowns to exactly the Manual-module look
         # (#compact_input → max-height 22 px) so the bar seats on the version rail.
         for c in (self._run_combo, self._type_combo, self._verify_combo):
             c.setObjectName("compact_input")
+            # A QComboBox expands by default; here it must keep its own width so
+            # the trailing stretch is the only thing that grows.
+            c.setSizePolicy(QSizePolicy.Policy.Preferred,
+                            c.sizePolicy().verticalPolicy())
         self.set_accent(self._accent)
 
         # The folder this selection writes into, spelled out from the ChromIQ
@@ -573,9 +584,7 @@ class MeasurementTargetBar(QWidget):
 
     @staticmethod
     def _pretty_date(vid: str) -> str:
-        # "2026-07-15_103000" → "2026-07-15 10:30"
-        try:
-            date, time = vid.split("_", 1)
-            return f"{date} {time[:2]}:{time[2:4]}"
-        except Exception:      # noqa: BLE001
-            return vid
+        # One formatter for the dropdown and for every message that names a
+        # verification date, so they can never drift apart.
+        from core.measurement_target import pretty_verification_date
+        return pretty_verification_date(vid)

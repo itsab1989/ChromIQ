@@ -3419,7 +3419,46 @@ class TabMeasure(QWidget):
         else:
             self._sound.play(_snd.STRIP_FAIL)
 
-    def _snapshot_verification_chart(self) -> None:
+    def _chart_overwrite_choice(self, verification) -> str:
+        """Ask before replacing the chart a verification date was measured with
+        (#130, Knut 2026-07-26). Returns ``"go"``, ``"new"`` or ``"cancel"``.
+
+        The comparison is the same one behind **Restore Used Chart**: content
+        digests of the stored chart against the live one. A date with no stored
+        chart, or one whose stored chart *is* what is loaded, goes ahead without
+        a word — re-measuring the same chart is the ordinary case and must not
+        be interrupted.
+        """
+        from workflow.verify_chart_snapshot import (has_snapshot,
+                                                    live_differs_from_snapshot)
+        if not has_snapshot(verification):
+            return "go"
+        if not live_differs_from_snapshot(verification):
+            return "go"          # same chart — nothing would be lost
+
+        from PyQt6.QtWidgets import QMessageBox
+        from core.measurement_target import chart_overwrite_message
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle(tr("This verification was measured with another chart"))
+        box.setText(tr("Measuring here replaces the chart stored with that "
+                       "verification date."))
+        box.setInformativeText(chart_overwrite_message(verification.id))
+        new_btn = box.addButton(tr("Measure into a new date"),
+                                QMessageBox.ButtonRole.AcceptRole)
+        over_btn = box.addButton(tr("Replace the stored chart"),
+                                 QMessageBox.ButtonRole.DestructiveRole)
+        cancel_btn = box.addButton(QMessageBox.StandardButton.Cancel)
+        box.setDefaultButton(new_btn)
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked is over_btn:
+            return "go"
+        if clicked is cancel_btn or clicked is None:
+            return "cancel"
+        return "new"
+
+    def _snapshot_verification_chart(self) -> bool:
         """Before a verification measurement starts, copy the chart it is about
         to measure into its own dated folder (#130, Knut 2026-07-25).
 
@@ -3432,23 +3471,32 @@ class TabMeasure(QWidget):
         created here — before anything else is written — and the bar moves to it,
         so the rest of the measurement files into that folder. Best-effort: a
         snapshot must never stop a measurement from running.
+
+        Returns **False** only when the user, asked whether to replace the chart
+        an existing verification date was measured with, chose to stop.
         """
         ctl = getattr(self, "_target_ctl", None)
         if ctl is None or not ctl.target.is_verification():
-            return
+            return True
         if not self._is_verify_checked():
-            return          # not being filed as a verification, so nothing to keep
+            return True     # not being filed as a verification, so nothing to keep
         try:
             from workflow.verify_chart_snapshot import snapshot_chart
             proj = ctl.project_or_none()
             run_id = ctl.target.profile_run
             if proj is None or not run_id or not proj.has_run(run_id):
-                return
+                return True
             run = proj.run(run_id)
             vid = ctl.target.verification_id
+            verification = None
             if vid and run.verification(vid).dir.exists():
                 verification = run.verification(vid)
-            else:
+                choice = self._chart_overwrite_choice(verification)
+                if choice == "cancel":
+                    return False
+                if choice == "new":
+                    verification = None          # start a fresh dated entry
+            if verification is None:
                 verification = run.new_verification()
                 verification.ensure_dir()
                 ctl.set_verification_id(verification.id)
@@ -3456,6 +3504,7 @@ class TabMeasure(QWidget):
         except Exception:      # noqa: BLE001 — never block a measurement
             log.warning("Could not snapshot the verification chart",
                         exc_info=True)
+        return True
 
     def _blocked_by_new_run(self) -> bool:
         """True — and the explaining pop-up has been shown — when the bar's
@@ -3497,7 +3546,8 @@ class TabMeasure(QWidget):
 
         # #130: keep a copy of the chart this verification measures, BEFORE any
         # measurement file is written.
-        self._snapshot_verification_chart()
+        if not self._snapshot_verification_chart():
+            return          # the user chose not to replace the stored chart
 
         params = self._collect_params()
         if not self._confirm_nonrandom_bidir(params):
