@@ -182,3 +182,33 @@ def test_engine_builder_reports_failure(tmp_path, qtbot):
     assert finished == [1]
     assert builder.primary_failure() is not None
     assert any("[ERROR]" in ln for ln in lines)
+
+
+def test_thread_reference_is_held_until_the_thread_really_stops(qtbot, tmp_path):
+    """The engine's QThread must stay referenced until Qt says it has finished.
+
+    ``done`` is emitted from inside run(), so the thread is still going when the
+    finish callback fires. Releasing the reference there left a LIVE QThread
+    eligible for garbage collection, and Qt aborts the process if it collects
+    one — an intermittent hard crash that killed a release gate twice. This pins
+    the ordering: the reference survives the finish callback."""
+    ti3 = write_synth_ti3(tmp_path / "s.ti3", "iRGB",
+                          ["RGB_R", "RGB_G", "RGB_B"], additive=True)
+    builder = EngineProfileBuilder()
+    params = _params(ti3, quality="l")
+    finished: list[int] = []
+    held: list[bool] = []
+
+    def _on_finish(code: int) -> None:
+        # Called from the done signal — the thread must still be referenced.
+        held.append(builder._thread is not None)
+        finished.append(code)
+
+    builder.build(params, on_line=lambda _l: None, on_finish=_on_finish)
+    qtbot.waitUntil(lambda: bool(finished), timeout=60000)
+
+    assert finished == [0]
+    assert held == [True], "the QThread was released while still running"
+    # and it is released once Qt reports the thread finished
+    qtbot.waitUntil(lambda: builder._thread is None, timeout=10000)
+    assert builder.is_running is False

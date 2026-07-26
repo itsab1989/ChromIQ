@@ -346,12 +346,24 @@ class EngineProfileBuilder:
 
         def _finished(code: int, err: str) -> None:
             self._last_error = err
-            self._thread = None
             if err:
                 on_line(tr("[ERROR] {msg}").format(msg=err))
             on_finish(code)
 
+        def _released() -> None:
+            """Drop our reference only once the thread has really stopped."""
+            self._thread = None
+
         t.done.connect(_finished)
+        # ``done`` is emitted from inside the thread's run(), so the QThread is
+        # still running when _finished executes. Clearing self._thread there
+        # dropped the last Python reference to a LIVE QThread, and if the
+        # garbage collector reclaimed it before the thread stopped, Qt aborted
+        # the process — an intermittent hard crash that took out a release gate
+        # twice, and could equally have killed the app at the end of a real
+        # profile build. The reference is released on ``finished`` instead,
+        # which Qt emits after run() has returned.
+        t.finished.connect(_released)
         t.finished.connect(t.deleteLater)
         on_line(tr("Building with the ChromIQ profile engine (beta)…"))
         t.start()

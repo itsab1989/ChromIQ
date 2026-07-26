@@ -2,6 +2,12 @@
 
 ## v3.14.8-beta.21
 
+- **Fixed a rare crash at the end of a profile build.** When the ChromIQ profile
+  engine finished, ChromIQ let go of the background worker a moment too early —
+  while it was still shutting down. Most of the time nothing came of it, but if
+  the timing was unlucky the whole application could close without warning as
+  the build completed. It now holds on until the worker has genuinely stopped.
+
 - **Restoring a verification chart now redraws its printable pages for you.**
   The stored copy of a chart deliberately holds no page images — they are
   redrawn from the chart's own layout information, which keeps the stored copy
