@@ -2275,7 +2275,28 @@ class TabChart(QWidget):
                "When OFF the chart is made by printtarg exactly as before. This "
                "switch only affects how charts are CREATED; printing and "
                "measuring existing charts always work the same way, so it is "
-               "safe to switch back at any time."), inner))
+               "safe to switch back at any time.\n\n"
+               "─────────────────────────────────\n"
+               "What each one gives you\n"
+               "─────────────────────────────────\n\n"
+               "                                  Engine   printtarg\n"
+               "  Patches per sheet               more       fewer\n"
+               "  Choose the patch size            yes         no\n"
+               "  Choose the margins per side      yes         no\n"
+               "  Instrument margins enforced      yes    partly\n"
+               "  Spacer size and colour           yes         no\n"
+               "  Notes and record area on sheet   yes         no\n"
+               "  Clip border for cutting          yes         no\n"
+               "  Multi-ink (CMY+N) charts         yes         no\n"
+               "  Layout saved with the chart      yes         no\n"
+               "  Live patch preview when          yes         no\n"
+               "    measuring\n"
+               "  Scanner target geometry          yes         no\n"
+               "  Reading pace guidance            yes         no\n"
+               "    (needs the reading engine too)\n\n"
+               "Both produce a chart ArgyllCMS reads and profiles in exactly "
+               "the same way — the difference is what the sheet looks like and "
+               "how much you can decide about it."), inner))
         _eng_w = QWidget(inner)
         _eng_w.setLayout(_eng_row)
         # Added to the layout inside the loop, just above the printtarg group (the

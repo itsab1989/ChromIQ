@@ -1,5 +1,17 @@
 # Changelog
 
+## v3.14.8-beta.39
+
+- **Both engine switches now show you what you are choosing between.** The help
+  beside the chart-reading engine lists, side by side, what it gives you and
+  what the separate ArgyllCMS chartread does — including the two rows where the
+  older path simply cannot follow, with the reason: ArgyllCMS tells ChromIQ's
+  own code the exact moment the instrument fires, which is what makes timing a
+  swipe possible, and the separate program beeps on its own with no way to turn
+  that off. The layout-engine help gained the same kind of table against
+  printtarg, and both say plainly that the resulting chart is read and profiled
+  identically either way.
+
 ## v3.14.8-beta.38
 
 - **"All Stripes Read" is now always the last window.** Any strip window — a
