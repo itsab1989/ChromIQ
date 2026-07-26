@@ -61,10 +61,10 @@ def test_a_hurried_strip_is_reported_as_too_fast(tab, monkeypatch):
     clock[0] += 3.0
     tab._report_strip_pace(_strip(11))
 
-    assert not tab._pace_readout.isHidden()
-    text = tab._pace_readout.text()
+    assert bool(tab._pace_panel._verdict)
+    text = tab._pace_panel._verdict
     assert "Too fast" in text, text
-    assert "ff6b6b" in tab._pace_readout.styleSheet(), "the verdict must be red"
+    assert "ff6b6b" in tab._pace_panel._verdict_colour, "the verdict must be red"
 
 
 def test_an_unhurried_strip_is_reported_as_good(tab, monkeypatch):
@@ -75,8 +75,8 @@ def test_an_unhurried_strip_is_reported_as_good(tab, monkeypatch):
     clock[0] += 9.0                      # 818 ms per patch
     tab._report_strip_pace(_strip(11))
 
-    assert "Good reading speed" in tab._pace_readout.text()
-    assert "5cb85c" in tab._pace_readout.styleSheet(), "the verdict must be green"
+    assert "Good reading speed" in tab._pace_panel._verdict
+    assert "5cb85c" in tab._pace_panel._verdict_colour, "the verdict must be green"
 
 
 def test_the_scan_time_is_measured_from_the_instrument_firing(tab, monkeypatch):
@@ -91,7 +91,7 @@ def test_the_scan_time_is_measured_from_the_instrument_firing(tab, monkeypatch):
     clock[0] += 3.0
     tab._report_strip_pace(_strip(11))
 
-    assert "Too fast" in tab._pace_readout.text(), \
+    assert "Too fast" in tab._pace_panel._verdict, \
         "the pause before the swipe must not count as reading time"
 
 
@@ -103,10 +103,9 @@ def test_each_strip_is_listed_with_the_time_it_took(tab, monkeypatch):
         clock[0] += secs
         tab._report_strip_pace(_strip(11, name))
 
-    listed = tab._pace_strips.text()
-    assert "Strip A" in listed and "Strip B" in listed
-    assert "9.0" in listed and "8.0" in listed
-    assert not tab._pace_strips.isHidden()
+    assert set(tab._pace_times) == {"A", "B"}, tab._pace_times
+    assert "9.0" in tab._pace_times["A"] and "8.0" in tab._pace_times["B"]
+    assert bool(tab._pace_times)
 
 
 def test_the_readout_is_cleared_for_a_fresh_read(tab, monkeypatch):
@@ -117,13 +116,13 @@ def test_the_readout_is_cleared_for_a_fresh_read(tab, monkeypatch):
     tab._on_scan_started()
     clock[0] += 3.0
     tab._report_strip_pace(_strip(11))
-    assert not tab._pace_readout.isHidden()
+    assert bool(tab._pace_panel._verdict)
 
     tab._clear_pace_readout()
 
-    assert tab._pace_readout.isHidden()
-    assert tab._pace_strips.isHidden()
-    assert tab._pace_readout.text() == "" and tab._pace_strips.text() == ""
+    assert not tab._pace_panel._verdict
+    assert not tab._pace_times
+    assert tab._pace_panel._verdict == "" and " ".join(tab._pace_times.values()) == ""
 
 
 def test_no_verdict_without_a_scan_start(tab):
@@ -131,7 +130,7 @@ def test_no_verdict_without_a_scan_start(tab):
     no such event) says nothing rather than inventing a number."""
     tab._clear_pace_readout()
     tab._report_strip_pace(_strip(11))
-    assert tab._pace_readout.isHidden()
+    assert not tab._pace_panel._verdict
 
 
 def test_the_pace_panel_respects_the_preference(tab, monkeypatch):
@@ -141,7 +140,7 @@ def test_the_pace_panel_respects_the_preference(tab, monkeypatch):
     tab._on_scan_started()
     clock[0] += 3.0
     tab._report_strip_pace(_strip(11))
-    assert tab._pace_readout.isHidden()
+    assert not tab._pace_panel._verdict
 
 
 # ---- the completion sound belongs to the measurement, not the next step ----
@@ -176,8 +175,8 @@ def test_a_failed_strip_is_told_it_was_read_too_fast(tab, monkeypatch):
     clock[0] += 2.1                              # 140 ms per patch
     tab._report_failed_strip_pace("Not enough patches")
 
-    assert "Too fast" in tab._pace_readout.text()
-    assert "ff6b6b" in tab._pace_readout.styleSheet()
+    assert "Too fast" in tab._pace_panel._verdict
+    assert "ff6b6b" in tab._pace_panel._verdict_colour
 
 
 def test_a_failure_that_is_not_about_speed_is_not_blamed_on_speed(tab,
@@ -195,8 +194,8 @@ def test_a_failure_that_is_not_about_speed_is_not_blamed_on_speed(tab,
     clock[0] += 12.0
     tab._report_failed_strip_pace("Swipe didn't start and end on the media")
 
-    assert "does not look like speed" in tab._pace_readout.text()
-    assert "Too fast" not in tab._pace_readout.text()
+    assert "does not look like speed" in tab._pace_panel._verdict
+    assert "Too fast" not in tab._pace_panel._verdict
 
 
 def test_too_many_patches_is_called_uneven_not_too_fast(tab, monkeypatch):
@@ -210,7 +209,7 @@ def test_too_many_patches_is_called_uneven_not_too_fast(tab, monkeypatch):
     tab._on_scan_started(); clock[0] += 20.0
     tab._report_failed_strip_pace("Too many patches")
 
-    assert "Uneven swipe" in tab._pace_readout.text()
+    assert "Uneven swipe" in tab._pace_panel._verdict
 
 
 def test_a_failure_is_listed_even_when_the_patch_count_is_unknown(tab,
@@ -225,9 +224,9 @@ def test_a_failure_is_listed_even_when_the_patch_count_is_unknown(tab,
     tab._on_scan_started(); clock[0] += 1.0
     tab._report_failed_strip_pace("Not enough patches")
 
-    assert "Strip failed after 1.0 s" in tab._pace_strips.text()
-    assert not tab._pace_readout.isHidden()
-    assert "ms per patch" not in tab._pace_readout.text()
+    assert any("1.0" in v for v in tab._pace_times.values()), tab._pace_times
+    assert bool(tab._pace_panel._verdict)
+    assert "ms per patch" not in tab._pace_panel._verdict
 
 
 # ---- accepted, but under the threshold (Knut, #131 2026-07-26) ------------
@@ -323,7 +322,7 @@ def test_no_offer_without_the_engine(tab, monkeypatch):
     tab._report_strip_pace(_strip(11, "A"))
 
     assert seen["n"] == 0
-    assert "Too fast" in tab._pace_readout.text(), "the verdict still shows"
+    assert "Too fast" in tab._pace_panel._verdict, "the verdict still shows"
 
 
 def test_choosing_re_read_jumps_back_to_that_strip(tab, monkeypatch):

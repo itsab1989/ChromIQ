@@ -1,5 +1,16 @@
 # Changelog
 
+## v3.14.8-beta.36
+
+- **The reading times now sit under the strips they belong to.** Each strip's
+  scan time is drawn beneath its own strip, turned a quarter-turn clockwise and
+  reading downwards, aligned with the strip above it — so a chart with
+  thirty-five strips across a landscape page still shows a time for every one.
+  The patch count is stated once, on the left ("Strip reading times, 15
+  patches:"), instead of being repeated against every strip, and the verdict
+  line is centred underneath in its own colour. A strip that failed is listed
+  with its time as well, marked so it reads as a failure.
+
 ## v3.14.8-beta.35
 
 - **ChromIQ's own sounds are the only ones you hear now.** ArgyllCMS beeps from

@@ -1391,16 +1391,12 @@ class TabMeasure(QWidget):
         # scan took, and one large verdict line, green when the pace is fine and
         # red when it is too fast. Hidden until there is something to say, so it
         # takes no room from the preview otherwise.
-        self._pace_strips = QLabel("", right)
-        self._pace_strips.setWordWrap(True)
-        self._pace_strips.setStyleSheet("color: #909090; font-size: 11px;")
-        self._pace_strips.setVisible(False)
-        rl.addWidget(self._pace_strips)
-
-        self._pace_readout = QLabel("", right)
-        self._pace_readout.setWordWrap(True)
-        self._pace_readout.setVisible(False)
-        rl.addWidget(self._pace_readout)
+        from ui.strip_times_panel import StripTimesPanel
+        self._pace_panel = StripTimesPanel(right)
+        rl.addWidget(self._pace_panel)
+        # Times measured so far, per strip letter, plus whether each passed.
+        self._pace_times: dict = {}
+        self._pace_patches = 0
 
         splitter.addWidget(right)
 
@@ -3451,14 +3447,6 @@ class TabMeasure(QWidget):
             tracker = self._pace_tracker()          # config re-read from settings
             kind = failure_kind(reason)
 
-            times = getattr(self, "_pace_strip_times", None)
-            if times is None:
-                times = self._pace_strip_times = []
-            times.append(tr("Strip failed after {secs} s").format(
-                secs=f"{elapsed:.1f}"))
-            self._pace_strips.setText("   ·   ".join(times[-8:]))
-            self._pace_strips.setVisible(True)
-
             pace = tracker.strip_timed(elapsed, patches) if patches else None
             if kind == "too_fast":
                 headline = tr("Too fast — that is probably why the strip failed")
@@ -3469,10 +3457,12 @@ class TabMeasure(QWidget):
             else:
                 headline = tr("Strip failed — this does not look like speed")
                 colour = "#e0a63a"
-            self._pace_readout.setText(headline)
-            self._pace_readout.setStyleSheet(
-                f"color: {colour}; font-size: 16px; font-weight: 600;")
-            self._pace_readout.setVisible(True)
+            # The failed strip is listed with its time like any other (Knut:
+            # "even if OK or failed"), marked so it reads as a failure.
+            letter = getattr(self, "_current_strip_letter", "") or "?"
+            self._pace_times[letter] = tr("{secs} s ✕").format(
+                secs=f"{elapsed:.1f}")
+            self._refresh_pace_panel(headline, colour)
 
             note = failure_advice(reason, tracker.config)
             if pace is not None and pace.mean_seconds > 0:
@@ -6073,6 +6063,9 @@ class TabMeasure(QWidget):
         letter = "".join(c for c in strip_id if c.isalpha()).upper()
         if not letter:
             return
+        # A failed strip reports no data, so this is the only way to name it in
+        # the reading-times panel (#131).
+        self._current_strip_letter = letter
         if not self._page_stripe_rects:
             return
         global_idx = letter_to_idx(letter)
@@ -6226,28 +6219,14 @@ class TabMeasure(QWidget):
                 tr("[Engine] Jumping to strip {strip}…").format(strip=letter))
 
     def _show_strip_pace(self, strip: str, pace, config) -> None:
-        """Put the pace on screen: the per-strip times, and one large verdict.
-
-        Green means the strip had time to spare, amber that it only just made
-        it, red that it was read faster than this instrument can properly
-        manage. The numbers are the honest ones — the time the scan itself took
-        and what that leaves per patch.
-        """
+        """Record this strip's time and redraw the panel under the preview."""
         if pace.patches <= 0 or pace.mean_seconds <= 0:
             return
+        self._pace_patches = pace.patches
+        self._pace_times[strip or "?"] = tr("{secs} s").format(
+            secs=f"{pace.elapsed:.1f}")
         ms = int(pace.mean_seconds * 1000)
         target_ms = int(config.target_seconds * 1000)
-        times = getattr(self, "_pace_strip_times", None)
-        if times is None:
-            times = self._pace_strip_times = []
-        times.append(tr("Strip {name}: {secs} s for {n} patches").format(
-            name=strip or "?", secs=f"{pace.elapsed:.1f}", n=pace.patches)
-            if pace.elapsed else
-            tr("Strip {name}: {n} patches").format(name=strip or "?",
-                                                   n=pace.patches))
-        self._pace_strips.setText("   ·   ".join(times[-8:]))
-        self._pace_strips.setVisible(True)
-
         if pace.too_fast:
             colour, verdict = "#ff6b6b", tr("Too fast — read more slowly")
         elif pace.marginal:
@@ -6260,21 +6239,43 @@ class TabMeasure(QWidget):
             detail = tr(
                 "{ms} ms per patch — roughly {n} readings (aim for {target} ms "
                 "or more)").format(ms=ms, n=pace.est_samples, target=target_ms)
-        self._pace_readout.setText(f"{verdict} · {detail}")
-        self._pace_readout.setStyleSheet(
-            f"color: {colour}; font-size: 16px; font-weight: 600;")
-        self._pace_readout.setVisible(True)
+        self._refresh_pace_panel(f"{verdict} · {detail}", colour)
+
+    def _refresh_pace_panel(self, verdict: str = "", colour: str = "#909090") -> None:
+        """Lay the recorded times out under the strips they belong to.
+
+        A time is only drawn for a strip on the page currently shown, and only
+        when the preview can say where that strip is — otherwise the panel would
+        put numbers under the wrong columns, which is worse than none.
+        """
+        panel = getattr(self, "_pace_panel", None)
+        if panel is None:
+            return
+        columns = []
+        try:
+            centres = self._preview.stripe_x_centres()
+            page_now = self._preview.current_page()
+            for letter, text in self._pace_times.items():
+                page, local_idx, _rect = self._locate_strip(letter)
+                if page == page_now and 0 <= local_idx < len(centres):
+                    columns.append((centres[local_idx], text))
+        except Exception:      # noqa: BLE001 — a panel must never break a read
+            columns = []
+        label = ""
+        if columns and self._pace_patches:
+            label = tr("Strip reading times, {n} patches:").format(
+                n=self._pace_patches)
+        panel.set_content(label, sorted(columns), verdict, colour)
 
     def _clear_pace_readout(self) -> None:
         """Forget the pace shown on screen — a new or re-read chart starts from
         nothing, so an old strip's verdict can never be mistaken for this one."""
-        self._pace_strip_times = []
+        self._pace_times = {}
+        self._pace_patches = 0
         self._scan_started_at = None
-        for w in (getattr(self, "_pace_strips", None),
-                  getattr(self, "_pace_readout", None)):
-            if w is not None:
-                w.setText("")
-                w.setVisible(False)
+        panel = getattr(self, "_pace_panel", None)
+        if panel is not None:
+            panel.clear()
 
     def _play_measurement_finished_once(self) -> None:
         """Sound "measurement finished" the moment the chart is read.

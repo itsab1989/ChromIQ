@@ -1197,6 +1197,27 @@ class TiffPreview(QWidget):
                 return i
         return -1
 
+    def stripe_x_centres(self) -> "list[int]":
+        """The horizontal centre of every stripe on the current page, in **this
+        widget's** coordinates — index-aligned with the stripe rects.
+
+        Used to line the per-strip reading times up underneath the strips they
+        belong to (#131, Knut 2026-07-26): the times have to sit exactly where
+        the strip labels do, whatever the zoom or page size. Empty when the page
+        has not been laid out yet, so a caller can simply skip drawing.
+        """
+        from PyQt6.QtCore import QPoint
+        if self._paint_geom is None or not self._stripe_rects:
+            return []
+        scale, ox, oy = self._paint_geom
+        if scale <= 0:
+            return []
+        out = []
+        for r in self._stripe_rects:
+            label_x = int(r.center().x() * scale + ox)
+            out.append(self._img_label.mapTo(self, QPoint(label_x, 0)).x())
+        return out
+
     def set_stripe_rects(self, rects: list[QRect],
                          arrow_mode: str = "base") -> None:
         """Provide precomputed pixel rects for each stripe on current page.
