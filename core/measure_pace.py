@@ -245,6 +245,118 @@ def model_key(argyll_name):
     return None
 
 
+def _target_ms(key) -> int:
+    """The slowest-acceptable patch time these defaults imply, in ms."""
+    hz, min_samples = defaults_for(key)
+    if not hz or not min_samples:
+        return 0
+    return round(min_samples / hz * 1000)
+
+
+def explanation_for(key) -> "tuple[str, str]":
+    """``(title, body)`` explaining where an instrument's two defaults come
+    from, and how they were worked out (Knut, #131 2026-07-26).
+
+    Every figure below is Knut's own derivation, and every one is recomputed
+    from :data:`MODEL_DEFAULTS` where it can be, so the explanation can never
+    drift away from the values ChromIQ actually ships.
+    """
+    from core.i18n import tr
+    hz, min_samples = defaults_for(key)
+    rate = int(hz)
+    target = _target_ms(key)
+    closing = tr(
+        "\n\nWith {n} readings at {hz} readings per second, one patch has to "
+        "last at least {ms} ms. Read a strip faster than that and ChromIQ "
+        "mentions it; read it at a comfortable pace and it says nothing."
+    ).format(n=min_samples, hz=rate, ms=target) if min_samples else ""
+
+    if key == "i1pro":
+        return tr("i1Pro (first generation)"), tr(
+            "The first i1Pro takes 100 readings per second — half the rate of "
+            "the i1Pro 2. It gathers half as much light in the same time, so "
+            "the same chart simply needs reading about twice as slowly.\n\n"
+            "Worked out from a chart, rather than picked: where an i1Pro 2 "
+            "wants about 3 seconds for a strip, this one wants about 6. Six "
+            "seconds at 100 readings per second is 600 readings for the whole "
+            "strip. A tightly packed i1Pro chart carries around 29 patches per "
+            "strip, so 600 ÷ 29 ≈ 20 readings for each patch."
+        ) + closing
+    if key == "i1pro2":
+        return tr("i1Pro 2"), tr(
+            "The i1Pro 2 takes 200 readings per second.\n\n"
+            "Worked out from a chart: a slightly hurried strip read in 2.5 "
+            "seconds collects 500 readings, and a tightly packed chart carries "
+            "27 to 29 patches per strip — 500 ÷ 29 ≈ 17 readings per patch, "
+            "which is a little thin. Taking 3 seconds as the sensible minimum "
+            "instead gives 3 × 200 = 600 readings, and 600 ÷ 29 ≈ 20 readings "
+            "for each patch."
+        ) + closing
+    if key == "i1pro3":
+        return tr("i1Pro 3"), tr(
+            "The i1Pro 3 takes 400 readings per second — twice the i1Pro 2's "
+            "rate. That can be spent two ways: reading twice as fast for the "
+            "same quality, or reading at the same speed for better quality. "
+            "ChromIQ's default spends it on quality, because below roughly two "
+            "seconds per strip a human hand grows unsteady and the errors you "
+            "save on light you lose on aim.\n\n"
+            "Worked out from a chart: 2.5 seconds at 400 readings per second "
+            "is 1000 readings per strip. Over 29 patches that is about 34 "
+            "readings each; a very dense chart with 33 patches gives about 30. "
+            "The stricter of the two is taken."
+        ) + closing
+    if key == "i1pro3plus":
+        return tr("i1Pro 3 Plus"), tr(
+            "The i1Pro 3 Plus reads at the same 400 readings per second as the "
+            "i1Pro 3, but its smallest usable patch is much larger — 16 mm — so "
+            "a normal 230 to 235 mm strip holds only 14 or 15 patches instead "
+            "of nearly 30. Fewer, longer patches means each one can be given "
+            "far more readings at the same hand speed.\n\n"
+            "Worked out from a chart: 2.5 seconds at 400 readings per second is "
+            "1000 readings, and over 15 patches that is about 66 readings each. "
+            "A brisker 2-second strip gives 800 readings, or about 53 each. The "
+            "default sits between the two.\n\n"
+            "So this instrument asks for the most readings per patch of any of "
+            "them, while still being read at about the speed of an i1Pro 2."
+        ) + closing
+    if key == "colormunki":
+        return tr("ColorMunki / i1Studio"), tr(
+            "The ColorMunki takes only 50 readings per second — the slowest "
+            "here — so it needs the longest patches and the slowest hand. "
+            "X-Rite specify a maximum scan speed of 15 cm per second using "
+            "20 mm patches.\n\n"
+            "Worked out from a chart: at 20 mm per patch, a 230 mm A4 strip "
+            "holds about 11 or 12 patches, and at 15 cm per second it takes at "
+            "least 7.5 seconds. That is 7.5 × 50 = 375 readings for the strip, "
+            "so 375 ÷ 11 ≈ 34 readings for each patch. A denser 15-patch strip "
+            "held to that same quality would need 15 × 34 = 510 readings — "
+            "about 10 seconds for one strip.\n\n"
+            "The default is set a little under the ideal 34, so that a chart "
+            "only slightly denser than the ideal does not draw a remark on "
+            "every strip. If your charts are dense, expect to read slowly: "
+            "this is a real limit of the instrument, not caution on our part."
+        ) + closing
+    if key == "spectroscan":
+        return tr("SpectroScan (motorised table)"), tr(
+            "The SpectroScan is not swiped by hand at all — a motorised table "
+            "places the head on each patch and takes about 1.5 seconds over it, "
+            "whatever the chart looks like. There is no pace to get wrong, so "
+            "there is nothing worth warning about, and the minimum is set to "
+            "Off.\n\n"
+            "Its sampling frequency can be set anywhere from 50 to 250 readings "
+            "per second, and 250 is the usual setting; that is what the rate "
+            "here is for. Should you ever want a remark from this instrument "
+            "too, give it a minimum above Off and it will be judged like any "
+            "other."
+        )
+    return tr("This instrument"), tr(
+        "ChromIQ has no measured figures for this instrument, so it is judged "
+        "by the slowest rate in the i1Pro family. Assuming a faster instrument "
+        "than the one in your hand would let a hurried swipe pass unremarked, "
+        "which is the failure that costs you a re-read."
+    ) + closing
+
+
 def defaults_for(key):
     """``(sample_hz, min_samples)`` for a model key.
 

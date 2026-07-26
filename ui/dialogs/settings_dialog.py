@@ -1363,6 +1363,7 @@ class SettingsDialog(QDialog):
             hz.setRange(*SAMPLE_HZ_RANGE)
             hz.setDecimals(0)
             hz.setSuffix(tr(" Hz"))
+            hz.setMaximumWidth(140)
             hz.setValue(float(self._settings.get(f"pace_sample_hz_{key}", hz_default)
                               or hz_default))
             hz.setToolTip(tr(
@@ -1378,6 +1379,7 @@ class SettingsDialog(QDialog):
             # motorised table has no swipe to be too quick).
             mn.setRange(0, MIN_SAMPLES_RANGE[1])
             mn.setSpecialValueText(tr("Off"))
+            mn.setMaximumWidth(140)
             stored = self._settings.get(f"pace_min_samples_{key}", None)
             if stored is None:
                 stored = 0 if min_default is None else min_default
@@ -1388,6 +1390,19 @@ class SettingsDialog(QDialog):
                 "warning for this instrument."))
             form.addWidget(mn, row, 2)
             self._pace_min[key] = mn
+
+            # Why these two numbers, and how they were arrived at (Knut, #131
+            # 2026-07-26). The text lives beside the defaults themselves, so a
+            # changed default cannot leave a stale explanation behind.
+            from core.measure_pace import explanation_for
+            from ui.tooltip_button import TooltipButton
+            title, body = explanation_for(key)
+            form.addWidget(TooltipButton(title, body, self), row, 3)
+
+        # The slack goes into a column of its own on the right, so the boxes
+        # keep a sensible width and the ⓘ next to each row is never squeezed
+        # off the edge of the group.
+        form.setColumnStretch(4, 1)
 
         v.addWidget(grp)
         v.addStretch(1)

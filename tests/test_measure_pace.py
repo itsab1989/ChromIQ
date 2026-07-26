@@ -192,3 +192,47 @@ def test_the_ranges_are_the_ones_specified():
     from core.measure_pace import MIN_SAMPLES_RANGE, SAMPLE_HZ_RANGE
     assert SAMPLE_HZ_RANGE == (10.0, 500.0)
     assert MIN_SAMPLES_RANGE == (10, 100)
+
+
+# ---- the ⓘ explanations (Knut, #131 2026-07-26) ---------------------------
+@pytest.mark.parametrize("key", ["i1pro", "i1pro2", "i1pro3", "i1pro3plus",
+                                 "colormunki", "spectroscan"])
+def test_every_instrument_explains_its_own_defaults(key):
+    """Each instrument gets a title and a body, and the body carries the
+    reasoning rather than restating the number."""
+    from core.measure_pace import explanation_for
+    title, body = explanation_for(key)
+    assert title and len(body) > 200, f"{key} needs a real explanation"
+
+
+@pytest.mark.parametrize("key,rate", [("i1pro", "100"), ("i1pro2", "200"),
+                                      ("i1pro3", "400"), ("i1pro3plus", "400"),
+                                      ("colormunki", "50")])
+def test_the_explanation_states_the_rate_it_ships_with(key, rate):
+    from core.measure_pace import explanation_for
+    _title, body = explanation_for(key)
+    assert rate in body, f"{key}'s explanation should name its {rate} Hz rate"
+
+
+@pytest.mark.parametrize("key", ["i1pro", "i1pro2", "i1pro3", "i1pro3plus",
+                                 "colormunki"])
+def test_the_explanation_ends_with_the_time_the_defaults_imply(key):
+    """The closing line is computed from MODEL_DEFAULTS, so changing a default
+    changes the text — no stale explanation can survive."""
+    from core.measure_pace import MODEL_DEFAULTS, _target_ms, explanation_for
+    _title, body = explanation_for(key)
+    assert f"{_target_ms(key)} ms" in body
+    assert f"{MODEL_DEFAULTS[key][1]} readings" in body
+
+
+def test_the_spectroscan_explains_why_it_has_no_threshold():
+    from core.measure_pace import explanation_for
+    _title, body = explanation_for("spectroscan")
+    assert "motorised" in body and "Off" in body
+    assert "ms" not in body, "there is no target time when the threshold is Off"
+
+
+def test_an_unknown_instrument_still_explains_the_fallback():
+    from core.measure_pace import explanation_for
+    _title, body = explanation_for("something-else")
+    assert "slowest" in body

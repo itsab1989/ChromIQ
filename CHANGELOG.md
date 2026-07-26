@@ -1,5 +1,24 @@
 # Changelog
 
+## v3.14.8-beta.28
+
+- **Every instrument in Preferences → Measurement now explains its own two
+  numbers.** Each row has an ⓘ that says why that instrument's readings per
+  second and minimum readings per patch are what they are, and works the figure
+  out in front of you from a real chart — how many patches fit on a strip, how
+  long a strip takes to read at a sensible pace, and what that leaves for each
+  patch. The ColorMunki explains why it genuinely needs slow reading, the
+  i1Pro 3 why its extra speed is spent on quality instead, the i1Pro 3 Plus why
+  it asks for the most readings per patch of any of them, and the SpectroScan
+  why it has no threshold at all.
+
+  The closing line of each explanation is worked out from the values ChromIQ
+  actually ships, so an explanation can never quietly fall out of step with the
+  setting it describes.
+
+- The rows on that tab also keep their boxes to a sensible width, so the new
+  ⓘ sits beside each row instead of being squeezed off the edge.
+
 ## v3.14.8-beta.27
 
 - **No button anywhere can paint its label clipped any more.** Every button in
