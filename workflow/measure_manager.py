@@ -211,6 +211,10 @@ class MeasureManager(QObject):
     # active; the stock chartread path never emits them.
     session_map                = pyqtSignal(list)      # [{strip, sheet, read, verifiable}, …]
     strip_measured             = pyqtSignal(dict)      # full strip_read event payload
+    #: the model the instrument reported when it was opened, e.g.
+    #: "X-Rite i1 Pro2" — Argyll distinguishes the i1Pro generations, which a
+    #: chart's TARGET_INSTRUMENT does not (#131 Phase 2)
+    instrument_detected        = pyqtSignal(str)
     readings_saved             = pyqtSignal(str, int)  # (.ti3 path, patches on disk)
     # Engine spot (patch-by-patch) mode: the patch to read next, and a patch's
     # measured result — the single-patch analogues of stripe_changed/strip_measured.
@@ -654,6 +658,10 @@ class MeasureManager(QObject):
             self.patch_ready.emit(ev)
             if ev.get("all_done"):
                 self.all_stripes_done.emit()
+
+        elif kind == "instrument":
+            # The engine opened the device and reports what it actually is.
+            self.instrument_detected.emit(str(ev.get("model") or ""))
 
         elif kind == "patch_read":
             self._engine_progress = True

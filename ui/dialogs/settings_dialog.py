@@ -1125,6 +1125,8 @@ class SettingsDialog(QDialog):
                           tr("Paths"))
         self._tabs.addTab(self._scroll_wrap(self._build_reports_tab()),
                           tr("Reports"))
+        self._tabs.addTab(self._scroll_wrap(self._build_measurement_tab()),
+                          tr("Measurement"))
         self._tabs.addTab(self._scroll_wrap(self._build_sounds_tab()),
                           tr("Sounds"))
         self._tabs.addTab(self._scroll_wrap(self._beta_page), tr("Beta"))
@@ -1293,6 +1295,103 @@ class SettingsDialog(QDialog):
         box.setDefaultButton(QMessageBox.StandardButton.Ok)
         if box.exec() != QMessageBox.StandardButton.Ok:
             self._profile_engine_check.setChecked(False)
+
+    def _build_measurement_tab(self) -> QWidget:
+        """Measurement pace (#131 Phase 2): how fast a strip may be swiped
+        before ChromIQ says something.
+
+        One row per instrument, because the instruments differ enormously — a
+        ColorMunki samples at 50 readings per second and a i1Pro 3 at 400, so
+        the same swipe gives one of them eight times more light than the other.
+        """
+        from core.measure_pace import (MIN_SAMPLES_RANGE, MODEL_DEFAULTS,
+                                       SAMPLE_HZ_RANGE)
+        from ui.widgets import NoScrollDoubleSpinBox, NoScrollSpinBox
+
+        page = QWidget()
+        v = QVBoxLayout(page)
+        v.setSpacing(12)
+        v.setContentsMargins(12, 12, 12, 12)
+
+        intro = QLabel(tr(
+            "Reading a strip too quickly is the most common reason a scan is "
+            "rejected — the instrument simply does not gather enough light per "
+            "patch. ChromIQ times each patch as you read it and, after a strip "
+            "that was accepted but read close to the limit, tells you so. A "
+            "strip read at a comfortable pace says nothing at all."), self)
+        intro.setWordWrap(True)
+        v.addWidget(intro)
+
+        note = QLabel(tr(
+            "Every instrument takes a fixed number of readings per second, so "
+            "how long a patch takes decides how many readings it gets. Set that "
+            "rate and the minimum readings you want per patch, and ChromIQ works "
+            "out the rest. The defaults suit each instrument; raise the minimum "
+            "for more careful measurements, or set it to “Off” to silence the "
+            "hint for that instrument."), self)
+        note.setWordWrap(True)
+        note.setStyleSheet("color: #909090; font-size: 11px;")
+        v.addWidget(note)
+
+        self._pace_enable = QCheckBox(tr("Warn me when I read a strip too fast"), self)
+        self._pace_enable.setChecked(bool(self._settings.get("pace_hint_enabled", True)))
+        v.addWidget(self._pace_enable)
+
+        grp = QGroupBox(tr("Per instrument"), self)
+        form = QGridLayout(grp)
+        form.setHorizontalSpacing(12)
+        form.setVerticalSpacing(8)
+        form.addWidget(QLabel(tr("Instrument"), self), 0, 0)
+        form.addWidget(QLabel(tr("Readings per second"), self), 0, 1)
+        form.addWidget(QLabel(tr("Minimum readings per patch"), self), 0, 2)
+
+        labels = {
+            "i1pro":      tr("i1Pro (first generation)"),
+            "i1pro2":     tr("i1Pro 2"),
+            "i1pro3":     tr("i1Pro 3"),
+            "i1pro3plus": tr("i1Pro 3 Plus"),
+            "colormunki": tr("ColorMunki / i1Studio"),
+            "spectroscan": tr("SpectroScan (motorised table)"),
+        }
+        self._pace_hz: dict = {}
+        self._pace_min: dict = {}
+        for row, (key, (hz_default, min_default)) in enumerate(
+                MODEL_DEFAULTS.items(), start=1):
+            form.addWidget(QLabel(labels.get(key, key), self), row, 0)
+
+            hz = NoScrollDoubleSpinBox(self)
+            hz.setRange(*SAMPLE_HZ_RANGE)
+            hz.setDecimals(0)
+            hz.setSuffix(tr(" Hz"))
+            hz.setValue(float(self._settings.get(f"pace_sample_hz_{key}", hz_default)
+                              or hz_default))
+            hz.setToolTip(tr(
+                "How many readings this instrument takes each second, from its "
+                "specification. ChromIQ uses it to work out how many readings a "
+                "patch received from how long it took."))
+            form.addWidget(hz, row, 1)
+            self._pace_hz[key] = hz
+
+            mn = NoScrollSpinBox(self)
+            # 0 means off, so the range starts one below the real minimum and
+            # the special value shows as "Off" (the SpectroScan's default: a
+            # motorised table has no swipe to be too quick).
+            mn.setRange(0, MIN_SAMPLES_RANGE[1])
+            mn.setSpecialValueText(tr("Off"))
+            stored = self._settings.get(f"pace_min_samples_{key}", None)
+            if stored is None:
+                stored = 0 if min_default is None else min_default
+            mn.setValue(int(stored or 0))
+            mn.setToolTip(tr(
+                "The fewest readings a patch should get. Below this, ChromIQ "
+                "says the strip was read quickly. Set it to Off to give no "
+                "warning for this instrument."))
+            form.addWidget(mn, row, 2)
+            self._pace_min[key] = mn
+
+        v.addWidget(grp)
+        v.addStretch(1)
+        return page
 
     def _build_sounds_tab(self) -> QWidget:
         """Measurement sound feedback (#131): which sound plays for each event.
@@ -3033,6 +3132,13 @@ class SettingsDialog(QDialog):
             s.set("sound_folder", self._sound_dir_edit.text().strip())
         for _event, _combo in getattr(self, "_sound_combos", {}).items():
             s.set(f"sound_choice_{_event}", _combo.currentData())
+        # Measurement pace (#131 Phase 2)
+        if hasattr(self, "_pace_enable"):
+            s.set("pace_hint_enabled", self._pace_enable.isChecked())
+            for _key, _hz in self._pace_hz.items():
+                s.set(f"pace_sample_hz_{_key}", float(_hz.value()))
+            for _key, _mn in self._pace_min.items():
+                s.set(f"pace_min_samples_{_key}", int(_mn.value()))
         from core.platform_paths import set_icc_install_override
         set_icc_install_override(self._profile_dir_edit.text())
         # Margin inspector: behaviour flags + the per-combo threshold table.

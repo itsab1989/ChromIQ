@@ -185,3 +185,71 @@ def strip_pace_message(pace: StripPace, config: PaceConfig) -> str:
         "slightly slower swipe leaves more margin, so fewer strips need reading "
         "twice."
     ).format(measured=per_patch)
+
+
+# ---------------------------------------------------------------------------
+# Per-model sampling rates and thresholds (Knut, #131 2026-07-26)
+# ---------------------------------------------------------------------------
+#: Scanning measurement frequency in samples per second, and the minimum
+#: samples per patch that model needs for a dependable read. Both are Knut's
+#: figures — the rates from the manufacturers' specifications, the thresholds
+#: derived from real patch densities and the reading speeds a person can
+#: actually hold. ``None`` for a threshold means **no pace warning** for that
+#: instrument.
+#:
+#: The SpectroScan is a motorised table: it places the head on each patch and
+#: takes about 1.5 s regardless, so there is no swipe to be too quick and no
+#: threshold worth setting.
+MODEL_DEFAULTS = {
+    # model key      sample_hz   min samples per patch
+    "i1pro":          (100.0,   20),   # Rev A — half the Pro 2's rate
+    "i1pro2":         (200.0,   20),
+    "i1pro3":         (400.0,   30),
+    "i1pro3plus":     (400.0,   60),   # 16 mm minimum patch, so fewer per strip
+    "colormunki":     ( 50.0,   30),   # slowest; needs long patches
+    "spectroscan":    (250.0, None),   # motorised — no pace to judge
+}
+
+#: What a user may enter, per Knut: rates 10-500 Hz, thresholds 10-100 samples
+#: (or off).
+SAMPLE_HZ_RANGE = (10.0, 500.0)
+MIN_SAMPLES_RANGE = (10, 100)
+
+#: ArgyllCMS instrument names (``inst_name(itype)``) -> our model key. Argyll
+#: distinguishes the i1Pro generations even though a chart records only the
+#: family, so the connected model can be identified at read time. Most specific
+#: patterns first, so "i1 Pro3+" is never mistaken for "i1 Pro".
+_ARGYLL_MODEL_KEYS = (
+    ("i1 pro3+", "i1pro3plus"),
+    ("i1pro3+", "i1pro3plus"),
+    ("i1 pro3", "i1pro3"),
+    ("i1pro3", "i1pro3"),
+    ("i1 pro2", "i1pro2"),
+    ("i1pro2", "i1pro2"),
+    ("i1 pro", "i1pro"),
+    ("i1pro", "i1pro"),
+    ("colormunki", "colormunki"),
+    ("i1studio", "colormunki"),
+    ("spectroscan", "spectroscan"),
+)
+
+
+def model_key(argyll_name):
+    """Map an ArgyllCMS instrument name to a model key, or None if unrecognised."""
+    if not argyll_name:
+        return None
+    low = argyll_name.lower()
+    for needle, key in _ARGYLL_MODEL_KEYS:
+        if needle in low:
+            return key
+    return None
+
+
+def defaults_for(key):
+    """``(sample_hz, min_samples)`` for a model key.
+
+    An unknown instrument falls back to the **slowest** rate in the i1Pro family
+    (Knut): assuming a faster instrument than the one connected would let a
+    too-quick swipe pass unremarked, which is the failure that costs a re-read.
+    """
+    return MODEL_DEFAULTS.get(key, MODEL_DEFAULTS["i1pro"])

@@ -1,5 +1,27 @@
 # Changelog
 
+## v3.14.8-beta.23
+
+- **The pace warning now knows exactly which instrument you are using.** Every
+  instrument takes a fixed number of readings per second — a ColorMunki takes
+  50, an i1Pro 2 takes 200, an i1Pro 3 takes 400 — so the same swipe gives one
+  of them eight times more light than another. ChromIQ now asks the instrument
+  what it is when the measurement starts and uses that model's own figures.
+  This distinguishes the i1Pro generations from one another, which the chart
+  alone cannot do, so measuring an older chart with a newer instrument is judged
+  by the instrument you are actually holding.
+
+  If the instrument cannot be identified, the slowest i1Pro rate is assumed —
+  never a faster one, which would let a hurried swipe pass unnoticed.
+
+- **New Preferences → Measurement tab.** One row per instrument, with its
+  readings per second and the fewest readings you want each patch to get. The
+  defaults suit each instrument out of the box; raise the minimum for more
+  careful measurements, or set it to "Off" to silence the warning for that
+  instrument. The SpectroScan is off by default: it is a motorised table that
+  places the head on each patch, so there is no swipe that could be too quick.
+
+
 ## v3.14.8-beta.22
 
 - **ChromIQ now tells you when you are swiping too fast — before the strip is

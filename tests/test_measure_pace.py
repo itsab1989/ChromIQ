@@ -135,3 +135,60 @@ def test_marginal_message_is_gentler_than_the_too_fast_one():
     text = strip_pace_message(marginal, cfg)
     assert "close to the limit" in text
     assert "read twice" in text or "twice" in text
+
+
+# ---- per-model rates and thresholds (Knut, #131 2026-07-26) ---------------
+@pytest.mark.parametrize("argyll_name,expected", [
+    ("X-Rite i1 Pro3+", "i1pro3plus"),
+    ("X-Rite i1 Pro3", "i1pro3"),
+    ("X-Rite i1 Pro2", "i1pro2"),
+    ("GretagMacbeth i1 Pro", "i1pro"),
+    ("X-Rite ColorMunki", "colormunki"),
+    ("X-Rite i1Studio", "colormunki"),
+    ("GretagMacbeth SpectroScan", "spectroscan"),
+    ("Some Other Device", None),
+    ("", None),
+])
+def test_argyll_names_map_to_models(argyll_name, expected):
+    """The "+" and the generations must not collapse into one another."""
+    from core.measure_pace import model_key
+    assert model_key(argyll_name) == expected
+
+
+def test_an_unknown_instrument_assumes_the_slowest_i1pro():
+    """Knut's rule, precisely: when the model cannot be determined, assume the
+    slowest rate of the i1Pro group. Guessing a FASTER instrument than the one
+    connected would let a too-quick swipe pass unremarked, which is the failure
+    that costs a re-read."""
+    from core.measure_pace import MODEL_DEFAULTS, defaults_for
+    hz, min_samples = defaults_for(None)
+    i1pro_group = [MODEL_DEFAULTS[k][0] for k in ("i1pro", "i1pro2", "i1pro3")]
+    assert hz == min(i1pro_group) == 100.0
+    assert min_samples is not None, "an unknown instrument still gets a warning"
+
+
+def test_the_spectroscan_has_no_threshold():
+    """A motorised table places the head on each patch — there is no swipe."""
+    from core.measure_pace import defaults_for
+    _hz, min_samples = defaults_for("spectroscan")
+    assert min_samples is None
+
+
+@pytest.mark.parametrize("key,expected_ms", [
+    ("i1pro", 200),        # 100 Hz, 20 samples
+    ("i1pro2", 100),       # 200 Hz, 20 samples — Knut derived ~103 ms
+    ("i1pro3", 75),        # 400 Hz, 30 samples — Knut derived ~76 ms
+    ("i1pro3plus", 150),   # 400 Hz, 60 samples
+    ("colormunki", 600),   # 50 Hz, 30 samples
+])
+def test_each_models_target_matches_the_derivation(key, expected_ms):
+    from core.measure_pace import PaceConfig, defaults_for
+    hz, min_samples = defaults_for(key)
+    cfg = PaceConfig(min_samples=min_samples, sample_hz=hz)
+    assert round(cfg.target_seconds * 1000) == expected_ms
+
+
+def test_the_ranges_are_the_ones_specified():
+    from core.measure_pace import MIN_SAMPLES_RANGE, SAMPLE_HZ_RANGE
+    assert SAMPLE_HZ_RANGE == (10.0, 500.0)
+    assert MIN_SAMPLES_RANGE == (10, 100)

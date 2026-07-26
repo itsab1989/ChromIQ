@@ -3412,5 +3412,20 @@
   "That strip was read quickly: {measured}. Aim for at least {target} ms per patch — a slower, steadier swipe gives the instrument more light to work with, and is read more accurately.": "That strip was read quickly: {measured}. Aim for at least {target} ms per patch — a slower, steadier swipe gives the instrument more light to work with, and is read more accurately.",
   "{ms} ms per patch — roughly {n} samples": "{ms} ms per patch — roughly {n} samples",
   "{ms} ms per patch": "{ms} ms per patch",
-  "That strip read fine, but it was close to the limit: {measured}. A slightly slower swipe leaves more margin, so fewer strips need reading twice.": "That strip read fine, but it was close to the limit: {measured}. A slightly slower swipe leaves more margin, so fewer strips need reading twice."
+  "That strip read fine, but it was close to the limit: {measured}. A slightly slower swipe leaves more margin, so fewer strips need reading twice.": "That strip read fine, but it was close to the limit: {measured}. A slightly slower swipe leaves more margin, so fewer strips need reading twice.",
+  "Readings per second": "Readings per second",
+  "The fewest readings a patch should get. Below this, ChromIQ says the strip was read quickly. Set it to Off to give no warning for this instrument.": "The fewest readings a patch should get. Below this, ChromIQ says the strip was read quickly. Set it to Off to give no warning for this instrument.",
+  "i1Pro 3 Plus": "i1Pro 3 Plus",
+  " Hz": " Hz",
+  "SpectroScan (motorised table)": "SpectroScan (motorised table)",
+  "Warn me when I read a strip too fast": "Warn me when I read a strip too fast",
+  "Per instrument": "Per instrument",
+  "Minimum readings per patch": "Minimum readings per patch",
+  "i1Pro 2": "i1Pro 2",
+  "Every instrument takes a fixed number of readings per second, so how long a patch takes decides how many readings it gets. Set that rate and the minimum readings you want per patch, and ChromIQ works out the rest. The defaults suit each instrument; raise the minimum for more careful measurements, or set it to “Off” to silence the hint for that instrument.": "Every instrument takes a fixed number of readings per second, so how long a patch takes decides how many readings it gets. Set that rate and the minimum readings you want per patch, and ChromIQ works out the rest. The defaults suit each instrument; raise the minimum for more careful measurements, or set it to “Off” to silence the hint for that instrument.",
+  "ColorMunki / i1Studio": "ColorMunki / i1Studio",
+  "How many readings this instrument takes each second, from its specification. ChromIQ uses it to work out how many readings a patch received from how long it took.": "How many readings this instrument takes each second, from its specification. ChromIQ uses it to work out how many readings a patch received from how long it took.",
+  "i1Pro 3": "i1Pro 3",
+  "i1Pro (first generation)": "i1Pro (first generation)",
+  "Reading a strip too quickly is the most common reason a scan is rejected — the instrument simply does not gather enough light per patch. ChromIQ times each patch as you read it and, after a strip that was accepted but read close to the limit, tells you so. A strip read at a comfortable pace says nothing at all.": "Reading a strip too quickly is the most common reason a scan is rejected — the instrument simply does not gather enough light per patch. ChromIQ times each patch as you read it and, after a strip that was accepted but read close to the limit, tells you so. A strip read at a comfortable pace says nothing at all."
 }

@@ -922,6 +922,14 @@ a1log *log			/* verb, debug & error log */
 		if (*atype != itype)
 			a1logv(log, 1, "Warning: chart is for %s, using instrument %s\n",inst_name(itype),inst_name(*atype));
 
+		/* ChromIQ #131: report the ACTUAL connected model, not the chart's
+		 * instrument. Argyll distinguishes instI1Pro / instI1Pro2 / instI1Pro3,
+		 * while a chart only records the family — so this is the only place the
+		 * real model is known. ChromIQ uses it to pick that model's sampling
+		 * rate for the per-patch pace calculation. */
+		cq_emit_raw("{\"event\":\"instrument\",\"model\":\"%s\",\"chart_model\":\"%s\"}",
+		            inst_name(*atype), inst_name(itype));
+
 		{
 			int ccssset = 0;
 			inst_mode mode = 0;

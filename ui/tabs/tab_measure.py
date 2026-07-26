@@ -879,6 +879,8 @@ class TabMeasure(QWidget):
         self._manager.strip_measured.connect(self._on_strip_measured)
         # #131 Phase 2: pace tracking rides on the same events as the overlay.
         self._manager.patch_measured.connect(self._on_patch_pace)
+        if hasattr(self._manager, "instrument_detected"):
+            self._manager.instrument_detected.connect(self._on_instrument_detected)
         self._manager.strip_measured.connect(lambda _e: self._report_strip_pace())
         self._manager.patch_ready.connect(self._on_patch_ready)
         self._manager.patch_measured.connect(self._on_patch_measured)
@@ -3327,27 +3329,40 @@ class TabMeasure(QWidget):
         for (#131 Phase 2). The sampling rate is only used when it has been set
         for that instrument — otherwise the pace is judged in time per patch and
         no sample count is claimed."""
-        from core.measure_pace import PaceConfig
-        from ui.ti2_loader import instrument_family, read_target_instrument
-        family = None
-        try:
-            if self._ti1_path is not None:
-                family = instrument_family(read_target_instrument(self._ti1_path))
-        except Exception:      # noqa: BLE001
-            family = None
-        hz = 0.0
-        if family in ("i1pro", "colormunki"):
+        from core.measure_pace import PaceConfig, defaults_for, model_key
+        # The model the instrument REPORTED when it was opened, which Argyll
+        # distinguishes down to the i1Pro generation. Falls back to the chart's
+        # instrument family, and finally to the slowest i1Pro rate — never to a
+        # faster one, which would let a too-quick swipe pass unremarked (Knut).
+        key = model_key(getattr(self, "_detected_instrument", None))
+        if key is None:
+            from ui.ti2_loader import read_target_instrument
             try:
-                hz = float(self._settings.get(f"pace_sample_hz_{family}", 0.0) or 0.0)
-            except (TypeError, ValueError):
-                hz = 0.0
+                if self._ti1_path is not None:
+                    key = model_key(read_target_instrument(self._ti1_path))
+            except Exception:      # noqa: BLE001
+                key = None
+        hz_default, min_default = defaults_for(key)
+        lookup = key or "i1pro"
         try:
-            min_samples = int(self._settings.get("pace_min_samples", 8) or 8)
-            min_ms = float(self._settings.get("pace_min_patch_ms", 100) or 100)
+            hz = float(self._settings.get(f"pace_sample_hz_{lookup}", hz_default)
+                       or hz_default)
         except (TypeError, ValueError):
-            min_samples, min_ms = 8, 100.0
+            hz = hz_default
+        stored_min = self._settings.get(f"pace_min_samples_{lookup}", None)
+        if stored_min is None:
+            stored_min = 0 if min_default is None else min_default
+        try:
+            min_samples = int(stored_min or 0)
+        except (TypeError, ValueError):
+            min_samples = min_default or 0
+        # 0 = off for this instrument: a rate of 0 makes samples_for() return
+        # None and target_seconds fall back to a threshold nothing can trip.
+        if min_samples <= 0:
+            return PaceConfig(min_samples=0, sample_hz=0.0,
+                              min_patch_seconds=0.0)
         return PaceConfig(min_samples=min_samples, sample_hz=hz,
-                          min_patch_seconds=min_ms / 1000.0)
+                          min_patch_seconds=0.0)
 
     def _pace_tracker(self):
         """The tracker for this measurement, created on first use."""
@@ -3356,6 +3371,15 @@ class TabMeasure(QWidget):
         if t is None:
             t = self._pace = PaceTracker(self._pace_config())
         return t
+
+    def _on_instrument_detected(self, model: str) -> None:
+        """Remember the model the instrument reported when it was opened (#131).
+        A chart records only the family it was laid out for, so this is the only
+        place the actual generation — i1Pro vs i1Pro 2 vs i1Pro 3 — is known."""
+        self._detected_instrument = model or ""
+        self._pace = None            # rebuild the tracker with that model's rate
+        if model:
+            log.info("measurement: instrument reported as %s", model)
 
     def _on_patch_pace(self, _payload: dict) -> None:
         """Time each completed patch (#131 Phase 2, Knut's method). The event
