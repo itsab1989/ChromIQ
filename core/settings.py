@@ -199,6 +199,18 @@ DEFAULTS: dict[str, Any] = {
     # Measure tab; per-event choices and the optional user sounds folder on the
     # Preferences → Sounds / Paths tabs. Off by default (opt-in comfort feature).
     "sound_enabled":             False,
+    # --- measurement pace (#131 Phase 2) ---------------------------------
+    # Warn when the instrument is being swiped too fast to gather enough light
+    # per patch. The judgement is made in TIME per patch, which is what we can
+    # actually measure; when the instrument's sampling rate is known the same
+    # threshold is expressed as "minimum samples per patch" (Knut's method:
+    # samples ≈ seconds × rate). Rate 0 = not known for this instrument, so no
+    # sample count is claimed — ChromIQ never invents that number.
+    "pace_hint_enabled":         True,
+    "pace_min_samples":          8,
+    "pace_min_patch_ms":         100,
+    "pace_sample_hz_i1pro":      0.0,
+    "pace_sample_hz_colormunki": 0.0,
     "sound_folder":              "",     # blank = the bundled default pack
     "sound_choice_patch_ok":             "tick",
     "sound_choice_patch_out_of_tol":     "thump",

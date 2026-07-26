@@ -877,6 +877,9 @@ class TabMeasure(QWidget):
         # #126 chart-reading engine
         self._manager.session_map.connect(self._on_session_map)
         self._manager.strip_measured.connect(self._on_strip_measured)
+        # #131 Phase 2: pace tracking rides on the same events as the overlay.
+        self._manager.patch_measured.connect(self._on_patch_pace)
+        self._manager.strip_measured.connect(lambda _e: self._report_strip_pace())
         self._manager.patch_ready.connect(self._on_patch_ready)
         self._manager.patch_measured.connect(self._on_patch_measured)
         self._manager.chart_measured.connect(self._on_chart_measured)
@@ -3318,6 +3321,53 @@ class TabMeasure(QWidget):
         if on and getattr(self, "_sound", None) is not None:
             self._sound.arm()
             self._sound.disarm()      # preload only; not in a measurement yet
+
+    def _pace_config(self):
+        """Build the pace thresholds for the instrument this chart was laid out
+        for (#131 Phase 2). The sampling rate is only used when it has been set
+        for that instrument — otherwise the pace is judged in time per patch and
+        no sample count is claimed."""
+        from core.measure_pace import PaceConfig
+        from ui.ti2_loader import instrument_family, read_target_instrument
+        family = None
+        try:
+            if self._ti1_path is not None:
+                family = instrument_family(read_target_instrument(self._ti1_path))
+        except Exception:      # noqa: BLE001
+            family = None
+        hz = 0.0
+        if family in ("i1pro", "colormunki"):
+            try:
+                hz = float(self._settings.get(f"pace_sample_hz_{family}", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                hz = 0.0
+        try:
+            min_samples = int(self._settings.get("pace_min_samples", 8) or 8)
+            min_ms = float(self._settings.get("pace_min_patch_ms", 100) or 100)
+        except (TypeError, ValueError):
+            min_samples, min_ms = 8, 100.0
+        return PaceConfig(min_samples=min_samples, sample_hz=hz,
+                          min_patch_seconds=min_ms / 1000.0)
+
+    def _pace_tracker(self):
+        """The tracker for this measurement, created on first use."""
+        from core.measure_pace import PaceTracker
+        t = getattr(self, "_pace", None)
+        if t is None:
+            t = self._pace = PaceTracker(self._pace_config())
+        return t
+
+    def _on_patch_pace(self, _payload: dict) -> None:
+        """Time each completed patch (#131 Phase 2, Knut's method). The event
+        arrives as the patch finishes, so its arrival time IS the completion
+        time — no timestamp is needed in the payload."""
+        if not self._settings.get("pace_hint_enabled", True):
+            return
+        import time
+        try:
+            self._pace_tracker().patch_completed(time.monotonic())
+        except Exception:      # noqa: BLE001 — pace must never break a read
+            pass
 
     def _on_patch_sound(self, payload: dict) -> None:
         """Per-patch sound (#131): a normal tick, or the 'looks off' sound when
@@ -5842,6 +5892,29 @@ class TabMeasure(QWidget):
             self._manager.goto_strip(letter)
             self._log.appendPlainText(
                 tr("[Engine] Jumping to strip {strip}…").format(strip=letter))
+
+    def _report_strip_pace(self) -> None:
+        """After a strip that Argyll ACCEPTED, say so when it was read close to
+        (or past) the speed at which it would have been rejected — the warning
+        Argyll itself only gives once the strip has already failed."""
+        if not self._settings.get("pace_hint_enabled", True):
+            return
+        try:
+            import time
+            from core.measure_pace import strip_pace_message
+            tracker = getattr(self, "_pace", None)
+            if tracker is None:
+                return
+            pace = tracker.strip_finished(time.monotonic())
+            msg = strip_pace_message(pace, tracker.config)
+            if msg:
+                self._log.appendPlainText("\n" + msg)
+                self._log.ensureCursorVisible()
+                if pace.too_fast and getattr(self, "_sound", None) is not None:
+                    import core.sound as _snd
+                    self._sound.play(_snd.SLOW_DOWN)
+        except Exception:      # noqa: BLE001 — a hint must never break a read
+            log.warning("pace hint failed", exc_info=True)
 
     def _on_strip_measured(self, ev: dict) -> None:
         letter = str(ev.get("strip", ""))

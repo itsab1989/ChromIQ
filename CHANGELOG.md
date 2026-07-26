@@ -1,5 +1,25 @@
 # Changelog
 
+## v3.14.8-beta.22
+
+- **ChromIQ now tells you when you are swiping too fast — before the strip is
+  rejected.** Reading a strip too quickly is the commonest reason a scan fails,
+  and ArgyllCMS only says so *afterwards*, once the strip has to be read again.
+  ChromIQ times each patch as it is read, and after a strip that was accepted
+  but read close to the limit it says so in plain language, for example:
+  *"That strip was read quickly: 29 ms per patch. Aim for at least 100 ms per
+  patch — a slower, steadier swipe gives the instrument more light to work with,
+  and is read more accurately."* A strip read at a comfortable pace says nothing
+  at all.
+
+  If you have set your instrument's sampling rate in Preferences, the hint also
+  estimates how many light samples each patch received — the figure the
+  instrument itself never reports. Without that rate ChromIQ speaks only in
+  milliseconds rather than inventing a sample count.
+
+  The hint can be switched off, and its threshold changed, in Preferences.
+
+
 ## v3.14.8-beta.21
 
 - **Fixed a rare crash at the end of a profile build.** When the ChromIQ profile
