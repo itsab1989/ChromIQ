@@ -1,5 +1,35 @@
 # Changelog
 
+## v3.14.8-beta.20
+
+- **Every verification now remembers the chart it measured.** When you start a
+  verification measurement, ChromIQ keeps a copy of the verification chart it is
+  about to measure inside that verification's own dated folder, at
+  `runs/runN/verifications/<date>/chart/`. Nothing is moved and nothing is
+  deleted — it is a copy, taken before the measurement writes anything.
+
+  This matters because a run has one verification chart, shared by every
+  verification you have ever measured against it. Change that chart and your
+  older results quietly stop describing a chart you still have. Now each set of
+  results keeps its own chart alongside it.
+
+- **New button: "Restore Used Chart".** It sits next to the Verification date
+  and puts back the chart that date was measured with — so old results make
+  sense again, and you can reprint exactly the same sheet. It becomes available
+  once you pick a verification date that has a stored chart, and tells you why
+  when it cannot be used. Your measurements are never touched: only the chart
+  files are replaced, and if the chart currently in place is a different one you
+  are asked first.
+
+  The restore is all-or-nothing. If anything goes wrong part way through, your
+  existing chart is put back exactly as it was rather than left half-replaced.
+  A chart restored into a project you have since renamed comes back under the
+  project's current name.
+
+- **Starting a verification measurement on "New verification" now creates that
+  dated folder straight away** and moves the Verification dropdown to it, so you
+  can see where the measurement is going from the moment it begins.
+
 ## v3.14.8-beta.19
 
 - **The bar now tells you which folder you are working in.** Under the Profile
