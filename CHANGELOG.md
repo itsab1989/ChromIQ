@@ -20,6 +20,12 @@
   Measurement and the advice changes with them, on the very next strip — the
   targets quoted are never fixed text.
 
+- **Closing the window during an update check can no longer throw.** If the
+  check finished after the window had gone, reporting the result raised an
+  error inside the background thread — and so did the attempt to report *that*.
+  There is nobody left to tell at that point, so the result is now simply
+  dropped.
+
 - **Preferences → Sounds now says which reading mode each patch sound applies
   to.** The patch tick and the "looks off" sound only apply to patch-by-patch
   reading: when you swipe a whole strip, the instrument reports the strip in one

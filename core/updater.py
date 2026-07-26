@@ -63,6 +63,20 @@ class UpdateChecker(QObject):
     def check_async(self) -> None:
         threading.Thread(target=self._run, daemon=True).start()
 
+    def _emit(self, name: str, *args) -> None:
+        """Emit signal *name*, unless this checker no longer exists.
+
+        _run() is executed on a worker thread. If the window closed while the
+        check was in flight, the C++ object behind this QObject is already gone
+        and touching one of its signals raises RuntimeError — which then escaped
+        as an unhandled thread exception, because the error handler tried to
+        emit as well. There is nobody left to tell, so dropping it is right.
+        """
+        try:
+            getattr(self, name).emit(*args)
+        except RuntimeError:          # the checker was destroyed meanwhile
+            pass
+
     def _run(self) -> None:
         try:
             req = urllib.request.Request(
@@ -73,7 +87,7 @@ class UpdateChecker(QObject):
             with urllib.request.urlopen(req, timeout=10, context=ctx) as resp:
                 data = json.loads(resp.read())
             if not isinstance(data, list):
-                self.check_failed.emit("Unexpected response from releases API.")
+                self._emit("check_failed", "Unexpected response from releases API.")
                 return
 
             # Pre-release users see pre-release tags as upgrade candidates;
@@ -88,17 +102,17 @@ class UpdateChecker(QObject):
                 and (running_is_pre or not r.get("prerelease", False))
             ]
             if not candidates:
-                self.check_failed.emit("No release tag found.")
+                self._emit("check_failed", "No release tag found.")
                 return
 
             latest = max(candidates, key=_parse_version)
             if _parse_version(latest) > _parse_version(APP_VERSION):
-                self.update_available.emit(latest)
+                self._emit("update_available", latest)
             else:
-                self.up_to_date.emit()
+                self._emit("up_to_date")
         except URLError as exc:
             log.debug("Update check failed: %s", exc)
-            self.check_failed.emit(str(exc.reason))
+            self._emit("check_failed", str(exc.reason))
         except Exception as exc:
             log.debug("Update check failed: %s", exc)
-            self.check_failed.emit(str(exc))
+            self._emit("check_failed", str(exc))

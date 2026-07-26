@@ -47,3 +47,21 @@ def test_is_prerelease_true(tag: str) -> None:
 @pytest.mark.parametrize("tag", ["v3.5.0", "3.2.8", "v1.0.0"])
 def test_is_prerelease_false(tag: str) -> None:
     assert not _is_prerelease(tag)
+
+
+def test_a_destroyed_checker_does_not_raise_from_its_thread():
+    """Closing the window during an update check must not throw out of the
+    worker thread. The old code raised RuntimeError on the emit and then raised
+    again from the error handler, surfacing as an unhandled thread exception."""
+    from core.updater import UpdateChecker
+
+    class Gone(UpdateChecker):
+        def __getattribute__(self, name):
+            if name in ("check_failed", "update_available", "up_to_date"):
+                raise RuntimeError(
+                    "wrapped C/C++ object of type UpdateChecker has been deleted")
+            return super().__getattribute__(name)
+
+    gone = Gone()
+    gone._emit("up_to_date")                     # must not raise
+    gone._emit("check_failed", "boom")
