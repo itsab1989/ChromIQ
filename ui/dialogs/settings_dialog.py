@@ -768,19 +768,20 @@ class SettingsDialog(QDialog):
         # switch, on by default, and it now governs BOTH reading modes — which
         # is what made them disagree so sharply before.
         self._patch_fence_check = QCheckBox(
-            tr("Only flag a patch that also stands out from its own strip"), self)
+            tr("When reading strips, only flag a patch that also stands out "
+               "from its own strip"), self)
         self._patch_fence_check.setToolTip(tr(
-            "On (the default): a patch is flagged only when it is past the "
-            "limit above AND unusual compared with the other patches of its "
-            "strip. This is what keeps a good print from being flagged almost "
-            "everywhere, because the chart's design colours are sRGB and a "
-            "printer does not reproduce them.\n\n"
+            "On (the default): when you read strips, a patch is flagged only "
+            "when it is past the limit above AND unusual compared with the "
+            "other patches of its strip. This is what keeps a good print from "
+            "being flagged almost everywhere, because the chart's design "
+            "colours are sRGB and a printer does not reproduce them.\n\n"
             "Off: the limit means exactly what it says, and every patch past it "
             "is flagged — useful when you are checking a chart you already "
             "suspect is wrong, and expect most of it to be flagged.\n\n"
-            "The setting applies to both reading modes, so a patch read one at "
-            "a time and the same patch read in a strip are judged the same "
-            "way."))
+            "It applies to strip reading only, because it is the only mode "
+            "where there is a strip to compare against. Patch by patch, the "
+            "limit above is always the whole rule."))
         _pw_row.addWidget(TooltipButton(
             tr("Patch-reading error limit"),
             tr("While you measure with the ChromIQ chart-reading engine, each "
@@ -794,13 +795,22 @@ class SettingsDialog(QDialog):
             "print. That is expected, not a mistake. If ChromIQ flagged every "
             "patch past a fixed number, it would light up half of a normal "
             "chart in red.\n\n"
-            "So a patch is flagged only when it is BOTH past this limit AND "
-            "clearly stands out from the other patches in its own strip. A real "
-            "misread spikes far above its neighbours; the normal, even "
-            "difference between print and sRGB does not — so it stays quiet. In "
-            "other words: a red outline means “this one patch looks wrong "
-            "compared to the rest of the strip”, not simply “this "
+            "So when you read STRIPS, a patch is flagged only when it is BOTH "
+            "past this limit AND clearly stands out from the other patches in "
+            "its own strip. A real misread spikes far above its neighbours; the "
+            "normal, even difference between print and sRGB does not — so it "
+            "stays quiet. In other words: a red outline means “this one patch "
+            "looks wrong compared to the rest of the strip”, not simply “this "
             "patch differs from sRGB”.\n\n"
+            "PATCH-BY-PATCH MODE IS DIFFERENT, ON PURPOSE\n"
+            "Reading one patch at a time there is no strip to compare against — "
+            "the patch you have just read is the only one that has arrived. So "
+            "that mode uses this limit on its own, and flags every patch past "
+            "it. Expect it to outline MORE patches than strip reading does on "
+            "the very same chart, vivid colours among them: that is the honest "
+            "consequence of having no neighbours to compare with, not a "
+            "disagreement between the two modes about your print. The "
+            "patch-by-patch help text explains it there as well.\n\n"
             "This limit is the floor beneath which a patch is never flagged. "
             "Lower it if you want to be warned about smaller odd-looking "
             "patches; raise it if you only want the most extreme ones. It "

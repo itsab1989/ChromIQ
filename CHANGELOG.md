@@ -1,5 +1,22 @@
 # Changelog
 
+## v3.14.8-beta.67
+
+- **Patch-by-patch reading keeps the plain colour-error limit** — the running
+  comparison tried in beta.65 is withdrawn. Reading one patch at a time there is
+  nothing to compare against, and a comparison against however many patches
+  happened to have been read so far would mean the same patch was judged
+  differently depending on when in the session you read it.
+
+- **Both help texts now explain why the two modes differ**, because they do
+  differ and that is deliberate. The patch-by-patch ⓘ describes what strip
+  reading does, why it does it, and what follows: **patch by patch flags more
+  patches than strip reading does on the very same chart, vivid colours among
+  them** — the honest consequence of having no neighbours to compare with, not a
+  disagreement about your print. It also says what to do about it: raise the
+  limit. The ΔE setting in Preferences says the same from its own side, and its
+  switch now states plainly that it applies to strip reading only.
+
 ## v3.14.8-beta.66
 
 - **"Skip Strip" moves to the next strip. Verified against the real reading

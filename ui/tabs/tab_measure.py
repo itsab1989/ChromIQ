@@ -1474,7 +1474,6 @@ class TabMeasure(QWidget):
         rl.addWidget(pace_area)
         # Times measured so far, per strip letter, plus whether each passed.
         self._pace_times: dict = {}
-        self._spot_des: list = []
         self._pace_patches = 0
 
         splitter.addWidget(right)
@@ -1575,7 +1574,29 @@ class TabMeasure(QWidget):
             "by patch across the chart. This is significantly slower — one\n"
             "reading per patch — but more reliable on heavily textured\n"
             "surfaces or when strip reading consistently fails on a\n"
-            "particular chart layout."),
+            "particular chart layout.\n\n"
+            "RED OUTLINES WORK DIFFERENTLY HERE\n"
+            "While you measure, a patch that looks like a misread is outlined "
+            "in red. The two reading modes decide that differently, and "
+            "deliberately so.\n\n"
+            "Reading a STRIP, the whole strip arrives at once, so ChromIQ can "
+            "ask two questions: is this patch past your colour-error limit "
+            "(Preferences → Beta), AND does it stand out from the other patches "
+            "of its own strip? Both must be true. That second question matters "
+            "because a chart's expected colours are design values and a printer "
+            "does not reproduce them — on a good print, vivid patches sit far "
+            "from their design colour quite legitimately, and without the "
+            "comparison half a normal chart would light up red.\n\n"
+            "Reading PATCH BY PATCH, there is no strip to compare against — the "
+            "patch you have just read is the only one that has arrived. So this "
+            "mode asks the plainer question on its own: is this patch past your "
+            "limit?\n\n"
+            "What that means in practice: patch by patch flags MORE patches "
+            "than strip reading does on the same chart, and vivid colours are "
+            "among them. That is the honest consequence of having no "
+            "neighbours to compare with — not a fault, and not something to "
+            "read as \u201cyour printer is worse than the strips suggested\u201d. If it "
+            "flags more than you want, raise the limit in Preferences → Beta."),
         )
         self._pbp_cb.setVisible(False)
         _pbp_tip.setVisible(False)
@@ -2002,7 +2023,29 @@ class TabMeasure(QWidget):
             "by patch across the chart. This is significantly slower — one\n"
             "reading per patch — but more reliable on heavily textured\n"
             "surfaces or when strip reading consistently fails on a\n"
-            "particular chart layout."),
+            "particular chart layout.\n\n"
+            "RED OUTLINES WORK DIFFERENTLY HERE\n"
+            "While you measure, a patch that looks like a misread is outlined "
+            "in red. The two reading modes decide that differently, and "
+            "deliberately so.\n\n"
+            "Reading a STRIP, the whole strip arrives at once, so ChromIQ can "
+            "ask two questions: is this patch past your colour-error limit "
+            "(Preferences → Beta), AND does it stand out from the other patches "
+            "of its own strip? Both must be true. That second question matters "
+            "because a chart's expected colours are design values and a printer "
+            "does not reproduce them — on a good print, vivid patches sit far "
+            "from their design colour quite legitimately, and without the "
+            "comparison half a normal chart would light up red.\n\n"
+            "Reading PATCH BY PATCH, there is no strip to compare against — the "
+            "patch you have just read is the only one that has arrived. So this "
+            "mode asks the plainer question on its own: is this patch past your "
+            "limit?\n\n"
+            "What that means in practice: patch by patch flags MORE patches "
+            "than strip reading does on the same chart, and vivid colours are "
+            "among them. That is the honest consequence of having no "
+            "neighbours to compare with — not a fault, and not something to "
+            "read as \u201cyour printer is worse than the strips suggested\u201d. If it "
+            "flags more than you want, raise the limit in Preferences → Beta."),
         )
 
         m_resume_row = QHBoxLayout()
@@ -6703,9 +6746,6 @@ class TabMeasure(QWidget):
         self._pace_times = {}
         self._pace_patches = 0
         self._scan_started_at = None
-        # The patch-by-patch comparison population (see _on_patch_measured):
-        # each measurement judges itself, never the previous chart.
-        self._spot_des = []
         # Each measurement decides for itself whether the reading-speed window
         # is wanted: another chart may need a different pace, and that is worth
         # seeing once (Knut, #131 2026-07-26).
@@ -6982,22 +7022,18 @@ class TabMeasure(QWidget):
         mxyz = ev.get("xyz", [0, 0, 0])
         exp_rgb = _xyz_d50_to_srgb8(exyz)
         meas_rgb = _xyz_d50_to_srgb8(mxyz)
-        # Patch by patch there is no finished strip to compare against — the
-        # patch in your hand is the only one that has just arrived. So the
-        # comparison is made against **the patches already read in this
-        # session**, which grows as you work: the first few are judged on the
-        # limit alone (the fence returns 0 below four readings), and from there
-        # on "stands out" means "stands out from what this chart has been
-        # reading so far" (Knut's question, #131 2026-07-27).
+        # Patch by patch the limit is the whole rule — Knut's ruling of
+        # 2026-07-27 (option (a)), after asking how "stands out" could possibly
+        # be judged from a handful of patches. There is no finished strip here
+        # to compare against, and a comparison against however many patches
+        # happen to have been read so far would mean the same patch was judged
+        # differently depending on when in the session it was read. So this mode
+        # answers the plainer question: is this patch past your limit?
         #
-        # A patch's outline is decided once, when it is drawn, and never
-        # revisited — a flag that appeared or vanished later, as the population
-        # changed, would be worse than no flag at all.
-        self._spot_des.append(de_p)
-        fence = (_strip_outlier_fence(self._spot_des)
-                 if self._use_outlier_fence() else 0.0)
-        item = (box, _QC(*exp_rgb), _QC(*meas_rgb),
-                de_p >= warn_de and de_p >= fence)
+        # The two modes therefore behave differently ON PURPOSE, and both help
+        # texts say so — see the "Patch-reading error limit" and the
+        # patch-by-patch explanations.
+        item = (box, _QC(*exp_rgb), _QC(*meas_rgb), de_p >= warn_de)
         info = (box, {
             "loc": loc,
             "exp_rgb": exp_rgb,
