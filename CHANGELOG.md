@@ -1,5 +1,20 @@
 # Changelog
 
+## v3.14.8-beta.45
+
+- **A strip now makes one sound, not two.** A strip that was accepted but read
+  too quickly sounded its "strip read OK" cue and the slow-down cue together.
+  The cue is chosen once, where the verdict is known: slow-down when the strip
+  was hurried, the ordinary strip cue otherwise. Switching the pace hint off
+  still leaves you the strip cue.
+
+- **The margin check judges your chart against the right instrument.** With the
+  layout engine on, the panel was reading the instrument from the printtarg
+  control — which is not even shown then — and falling back to the i1Pro. A
+  ColorMunki chart was therefore measured against the i1Pro's 38 mm top and
+  19 mm bottom minimums. It now reads the instrument the chart itself records,
+  so the minimums are the ones set for that instrument.
+
 ## v3.14.8-beta.44
 
 - **"Restore Used Chart" is now actually on screen for a profiling run.** The

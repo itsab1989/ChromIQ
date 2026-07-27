@@ -1,0 +1,84 @@
+"""#130 (Knut, 2026-07-27): the margin inspector must judge a chart against the
+instrument the CHART was laid out for.
+
+Knut built a ColorMunki chart with the layout engine and was told his margins
+were "below the 38 mm minimum" — i1Pro's A4 Portrait figures. With the engine
+on, the printtarg -i widget is not shown, so reading the instrument from it fell
+back to "i1" and the wrong thresholds were applied.
+"""
+from __future__ import annotations
+
+import json
+import os
+
+import pytest
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+from PyQt6.QtCore import QSettings                   # noqa: E402
+from PyQt6.QtWidgets import QApplication             # noqa: E402
+
+from core.argyll_runner import ArgyllRunner          # noqa: E402
+from core.file_manager import FileManager            # noqa: E402
+from core.settings import AppSettings                # noqa: E402
+
+
+@pytest.fixture(scope="module")
+def qapp():
+    return QApplication.instance() or QApplication([])
+
+
+@pytest.fixture
+def tab(qapp, tmp_path):
+    s = AppSettings()
+    s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    from ui.tabs.tab_chart import TabChart
+    return TabChart(ArgyllRunner(s), FileManager(s), s)
+
+
+def _engine_chart(tmp_path, instrument):
+    ti2 = tmp_path / "P.ti2"
+    ti2.write_text("chart")
+    (tmp_path / "P.channels.json").write_text(json.dumps(
+        {"layout": {"engine": "chromiq", "recipe": {"instrument": instrument}}}))
+    return ti2
+
+
+def test_the_chart_says_which_instrument_it_was_laid_out_for(tab, tmp_path):
+    tab._margin_ti2 = _engine_chart(tmp_path, "CM")
+    assert tab._chart_instrument_flag() == "CM"
+
+
+def test_a_printtarg_chart_has_nothing_to_say(tab, tmp_path):
+    """No recipe, so the answer is empty and the panel's own choice stands."""
+    ti2 = tmp_path / "P.ti2"; ti2.write_text("chart")
+    (tmp_path / "P.channels.json").write_text(json.dumps({"channels": []}))
+    tab._margin_ti2 = ti2
+    assert tab._chart_instrument_flag() == ""
+
+
+def test_no_chart_and_no_sidecar_are_both_safe(tab, tmp_path):
+    tab._margin_ti2 = None
+    assert tab._chart_instrument_flag() == ""
+    ti2 = tmp_path / "Q.ti2"; ti2.write_text("chart")
+    tab._margin_ti2 = ti2                       # no .channels.json beside it
+    assert tab._chart_instrument_flag() == ""
+
+
+def test_a_damaged_sidecar_does_not_break_the_inspector(tab, tmp_path):
+    ti2 = tmp_path / "P.ti2"; ti2.write_text("chart")
+    (tmp_path / "P.channels.json").write_text("{ not json")
+    tab._margin_ti2 = ti2
+    assert tab._chart_instrument_flag() == ""
+
+
+@pytest.mark.parametrize("flag,expected", [
+    ("CM", "ColorMunki"), ("i1", "i1Pro"), ("p3", "i1Pro 3+"),
+    ("SS", "SpectroScan"),
+])
+def test_each_recorded_instrument_maps_to_its_threshold_name(tab, tmp_path,
+                                                             flag, expected):
+    """The mapping the thresholds are looked up with — a ColorMunki chart must
+    never be measured against i1Pro's minimums."""
+    from ui.tabs.tab_chart import _MARGIN_INSTR_LABEL
+    tab._margin_ti2 = _engine_chart(tmp_path, flag)
+    assert _MARGIN_INSTR_LABEL.get(tab._chart_instrument_flag()) == expected

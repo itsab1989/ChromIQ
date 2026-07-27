@@ -6544,6 +6544,17 @@ class TabMeasure(QWidget):
             import core.sound as _snd
             self._sound.play(_snd.MEASUREMENT_FINISHED)
 
+    def _play_strip_cue(self, *, too_fast: bool) -> None:
+        """Sound the one cue this finished strip has earned.
+
+        Called exactly once per accepted strip — the slow-down cue when it was
+        read too fast, the strip cue otherwise. Never both (Knut, #131).
+        """
+        if getattr(self, "_sound", None) is None:
+            return
+        import core.sound as _snd
+        self._sound.play(_snd.SLOW_DOWN if too_fast else _snd.STRIP_OK)
+
     def _on_scan_started(self) -> None:
         """The instrument fired: the swipe starts now (#131, Knut 2026-07-26).
 
@@ -6566,6 +6577,8 @@ class TabMeasure(QWidget):
         the strip — the same two numbers Knut derived the thresholds from.
         """
         if not self._settings.get("pace_hint_enabled", True):
+            # No pace judgement wanted, so the strip simply sounds as read.
+            self._play_strip_cue(too_fast=False)
             return
         try:
             import time
@@ -6579,6 +6592,8 @@ class TabMeasure(QWidget):
             if started is None or not patches:
                 # Nothing to judge: no scan start (stock chartread reports none)
                 # or no patches (a strip that failed is handled separately).
+                # The strip was still read, so it still gets its cue.
+                self._play_strip_cue(too_fast=False)
                 return
             pace = tracker.strip_timed(time.monotonic() - started, patches)
             self._scan_started_at = None
@@ -6592,10 +6607,12 @@ class TabMeasure(QWidget):
             if msg:
                 self._log.appendPlainText("\n" + msg)
                 self._log.ensureCursorVisible()
+            # ONE strip, ONE sound (Knut, #131 2026-07-27): a strip that was
+            # accepted but read too fast used to sound its "strip read OK" cue
+            # and the slow-down cue together. The verdict is only known here,
+            # which is why the cue is chosen here and nowhere else.
+            self._play_strip_cue(too_fast=pace.too_fast)
             if pace.too_fast:
-                if getattr(self, "_sound", None) is not None:
-                    import core.sound as _snd
-                    self._sound.play(_snd.SLOW_DOWN)
                 # Accepted, but under the threshold: offer the same choice a
                 # failed strip gets — read it again, or keep it (Knut, #131).
                 self._prompt_too_fast_strip(str((ev or {}).get("strip", "")),
@@ -6604,14 +6621,6 @@ class TabMeasure(QWidget):
             log.warning("pace hint failed", exc_info=True)
 
     def _on_strip_measured(self, ev: dict) -> None:
-        # Sound FIRST. This is the earliest handler on the signal, and a later
-        # one (_report_strip_pace) can open a modal window and block inside its
-        # own slot — which made the strip cue play when that window was
-        # dismissed, as if pressing its button had caused it (Knut, #131
-        # 2026-07-27). No window's buttons ever make a sound.
-        if getattr(self, "_sound", None) is not None:
-            import core.sound as _snd
-            self._sound.play(_snd.STRIP_OK)
         letter = str(ev.get("strip", ""))
         self._skip_next_all_done = False       # the re-read has happened
         self._engine_read[letter] = True

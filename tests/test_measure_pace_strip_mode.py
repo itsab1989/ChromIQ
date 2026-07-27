@@ -475,3 +475,57 @@ def test_a_new_measurement_asks_again(tab):
     tab._clear_pace_readout()                # what starting a read does
 
     assert tab._suppress_fast_prompt is False
+
+
+# ---- one strip, one sound (Knut, #131 2026-07-27) -------------------------
+def test_a_hurried_strip_sounds_only_the_slow_down_cue(tab, monkeypatch):
+    """It used to sound "strip read OK" AND the slow-down cue together."""
+    _engine(tab, monkeypatch)
+    from PyQt6.QtWidgets import QDialog
+    monkeypatch.setattr(QDialog, "exec", lambda self: 0)
+    played = []
+    tab._sound.play = lambda ev: played.append(ev)
+    clock = [100.0]
+    monkeypatch.setattr("time.monotonic", lambda: clock[0])
+
+    tab._on_scan_started(); clock[0] += 3.0
+    tab._report_strip_pace(_strip(11, "A"))
+
+    assert played == ["slow_down"], played
+
+
+def test_a_comfortable_strip_sounds_only_the_strip_cue(tab, monkeypatch):
+    _engine(tab, monkeypatch)
+    played = []
+    tab._sound.play = lambda ev: played.append(ev)
+    clock = [100.0]
+    monkeypatch.setattr("time.monotonic", lambda: clock[0])
+
+    tab._on_scan_started(); clock[0] += 9.0
+    tab._report_strip_pace(_strip(11, "A"))
+
+    assert played == ["strip_ok"], played
+
+
+def test_the_strip_cue_still_sounds_with_pace_hints_switched_off(tab,
+                                                                monkeypatch):
+    """Turning the pace hint off must not take the strip cue with it."""
+    played = []
+    tab._sound.play = lambda ev: played.append(ev)
+    tab._settings.set("pace_hint_enabled", False)
+
+    tab._report_strip_pace(_strip(11, "A"))
+
+    assert played == ["strip_ok"], played
+
+
+def test_the_strip_cue_sounds_when_there_is_nothing_to_judge(tab):
+    """Stock chartread reports no scan start, so no verdict is possible — the
+    strip was still read and must still be heard."""
+    played = []
+    tab._sound.play = lambda ev: played.append(ev)
+    tab._clear_pace_readout()
+
+    tab._report_strip_pace(_strip(11, "A"))     # no _on_scan_started
+
+    assert played == ["strip_ok"], played

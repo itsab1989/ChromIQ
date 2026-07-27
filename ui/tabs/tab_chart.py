@@ -8848,8 +8848,13 @@ class TabChart(QWidget):
             self._preview.set_measured_guides(None)
             return
 
-        instr_label = _MARGIN_INSTR_LABEL.get(
-            self._active_instrument_flag(), "i1Pro")
+        # An engine chart records the instrument it was actually laid out for.
+        # Trust that over the printtarg -i widget, which is hidden and stale
+        # while the layout engine is on — reading it there fell back to "i1" and
+        # judged a ColorMunki chart against i1Pro's margins (Knut, #130
+        # 2026-07-27).
+        instr_flag = self._chart_instrument_flag() or self._active_instrument_flag()
+        instr_label = _MARGIN_INSTR_LABEL.get(instr_flag, "i1Pro")
         paper_name = _canonical_paper_name(report.page_w_mm, report.page_h_mm)
         orient = "Landscape" if report.page_w_mm > report.page_h_mm else "Portrait"
         thresholds = None
@@ -8977,6 +8982,26 @@ class TabChart(QWidget):
         self._settings.set("margin_coords_show", bool(on))
         self._preview.set_coord_readout(
             bool(on), float(self._settings.get("printtarg_dpi", 300) or 300))
+
+    def _chart_instrument_flag(self) -> str:
+        """The instrument recorded in the chart's own layout recipe, or "".
+
+        Only a ChromIQ-engine chart has one. It is the truth about the chart in
+        the preview, whereas the printtarg widget describes what the panel would
+        build next — and with the engine on, that widget is not even shown.
+        """
+        try:
+            import json
+            if self._margin_ti2 is None:
+                return ""
+            ch = Path(self._margin_ti2).with_suffix(".channels.json")
+            if not ch.is_file():
+                return ""
+            doc = json.loads(ch.read_text())
+            recipe = (doc.get("layout") or {}).get("recipe") or {}
+            return str(recipe.get("instrument") or "")
+        except Exception:      # noqa: BLE001 — the inspector must never crash
+            return ""
 
     def _active_instrument_flag(self) -> str:
         """The instrument the chart in the preview was built with. In Manual mode
