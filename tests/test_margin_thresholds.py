@@ -35,9 +35,11 @@ def test_seed_table_matches_knut_values():
     # Other i1Pro paper/orientations: plain 9 mm all round.
     assert seeds["i1Pro|A3 Portrait"] == {"L": 9, "R": 9, "T": 9, "B": 9,
                                           "desc": "i1Pro ruler / jig"}
-    # ColorMunki: 6 mm sides/bottom, 24 mm on Top.
+    # ColorMunki: 6 mm sides, 30 mm top, 10 mm bottom — every page size
+    # (Knut, #131 2026-07-27; it was 24 mm top / 6 mm bottom before).
     assert seeds["ColorMunki|A4 Portrait"]["L"] == 6
-    assert seeds["ColorMunki|Tabloid Landscape"]["T"] == 24
+    assert seeds["ColorMunki|Tabloid Landscape"]["T"] == 30
+    assert seeds["ColorMunki|Tabloid Landscape"]["B"] == 10
     # A fresh call returns an independent copy (no shared mutation).
     seeds["i1Pro|A4 Portrait"]["L"] = 999
     assert default_margin_thresholds()["i1Pro|A4 Portrait"]["L"] == 26
