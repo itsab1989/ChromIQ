@@ -1,5 +1,14 @@
 # Changelog
 
+## v3.14.8-beta.49
+
+- **"Save as Defaults" now keeps "Show overlay from existing measurement".**
+  Switching it on and saving your defaults had no effect: the switch was not
+  among the settings that button records, and it was also forced off every time
+  the Measure tab was built — so even a saved value could not have brought it
+  back. Both are fixed, in guided and manual mode alike. If you never asked for
+  it, it still starts off.
+
 ## v3.14.8-beta.48
 
 - **A chart built with "Use instrument margins" switched off is no longer
