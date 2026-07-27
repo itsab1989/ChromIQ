@@ -1090,6 +1090,21 @@ class _ComboSeparatorDelegate(QStyledItemDelegate):
         return super().sizeHint(option, index)
 
 
+def ti1_sidecar(src: Path) -> "Path | None":
+    """The chart-settings file that belongs to a patch set, or None.
+
+    A chart ChromIQ wrote keeps its layout recipe — patch size, margins,
+    spacers, and the seed the patches were shuffled with — in a
+    ``<stem>.channels.json`` beside the chart itself. When a user loads such a
+    ``.ti1`` back in, that file is what lets the sheet come out exactly as it
+    was rather than merely holding the same colours (Knut, #130 2026-07-27).
+    """
+    if src is None:
+        return None
+    cand = Path(src).with_suffix(".channels.json")
+    return cand if cand.is_file() else None
+
+
 class TabChart(QWidget):
     """Step 1: create targen/printtarg test chart."""
 
@@ -6324,6 +6339,22 @@ class TabChart(QWidget):
         self._reset_override_checks()
         self._update_preset_locks()
 
+    def _apply_loaded_chart_settings(self, sidecar: Path) -> bool:
+        """Take a loaded patch set's chart-settings file and put those settings
+        on screen, so the sheet is rebuilt as it was laid out (#130, Knut).
+
+        :meth:`_restore_chart_settings` is written around a chart's ``.ti2``
+        because that is where a patch count can also be read; here only the
+        sidecar exists, so it is addressed by the stem the two share.
+        """
+        try:
+            return self._restore_chart_settings(
+                Path(sidecar).with_suffix("").with_suffix(".ti2"))
+        except Exception:      # noqa: BLE001 — a bad sidecar must not block a load
+            log.warning("Could not apply the loaded chart's settings from %s",
+                        sidecar, exc_info=True)
+            return False
+
     def _restore_chart_settings(self, ti2_path: Path) -> bool:
         """Fill the Create-Chart options with the settings the loaded chart
         was actually made with, so what's on screen matches the chart —
@@ -7825,11 +7856,16 @@ class TabChart(QWidget):
         """Ask where a loaded patch set's chart should be built (#130).
 
         Returns ``"into"`` (lay it into the currently loaded profile project, so
-        Create Chart writes it per the Profile-run bar), ``"new"`` (start a new
-        project named after the file), or ``None`` (Cancel). With no project
-        loaded there is nothing to choose → ``"new"`` without a dialog."""
+        Create Chart writes it per the Profile-run bar), ``"into_replace"``,
+        ``"into_new"``, ``"into_chart"`` (swap the chart only, #130), ``"new"``
+        (start a new project named after the file), or ``None`` (Cancel). With no
+        project loaded there is nothing to choose → ``"new"`` without a dialog."""
         from core.measurement_target import (RUN_TYPE_VERIFICATION)
         from ui.ti2_loader import _choice_dialog
+        # Whether the patch set brought its layout settings along decides what
+        # "replace only the chart" can promise, so the answer is worked out once
+        # and stated in the option's own text.
+        _has_sidecar = ti1_sidecar(src) is not None
         ctl = getattr(self, "_target_ctl", None)
         proj = ctl.project_or_none() if ctl is not None else None
         if proj is None:
@@ -7895,11 +7931,33 @@ class TabChart(QWidget):
                 "so everything in <b>{run}</b> stays exactly as it is. The "
                 "Profile-run bar moves to the new run."
             ).format(project=pname, run=label)
+            # #130 (Knut, 2026-07-27): a fourth way — swap ONLY the chart and
+            # leave everything else in the run standing. His reading (b): it is
+            # a convenience that can also serve as a repair tool, and the user
+            # must be warned about the consequence, because whether the incoming
+            # patch set matches the measurement already in the run is a judgement
+            # only a person can make.
+            chart_only_desc = tr(
+                "Swap the chart in <b>{label}</b> and leave everything else "
+                "standing: the measurement, the profile, the reports and the "
+                "verifications stay put, and nothing moves to <code>old/</code>. "
+                "<b>ChromIQ cannot check that these patches are the ones your "
+                "measurement was taken with</b> — only you can, and if they are "
+                "not, the run keeps a measurement that no longer matches its "
+                "chart. {sidecar}"
+            ).format(label=label, sidecar=(
+                tr("The chart's settings file was found beside it, so the sheet "
+                   "is laid out exactly as it was.")
+                if _has_sidecar else
+                tr("No chart settings file was found beside it, so only the "
+                   "patches are replaced and the settings now on screen decide "
+                   "the layout.")))
             return _choice_dialog(
                 self, tr("Where should this patch set's chart go?"), intro,
                 [(tr("Replace {run}").format(run=label), replace_desc,
                   "into_replace"),
                  (tr("Build it as a new run instead"), new_run_desc, "into_new"),
+                 (tr("Replace only the chart"), chart_only_desc, "into_chart"),
                  (tr("Start a new project"), new_desc, "new")],
             )
         return _choice_dialog(
@@ -8020,6 +8078,15 @@ class TabChart(QWidget):
                 # #130 §5a/§5b: a Replace archives what it displaces — the same
                 # rule, and the same helper, as a Print/Measure chart import.
                 self._archive_run_for_replace()
+        # "Replace only the chart" (#130, Knut 2026-07-27): the run keeps its
+        # measurement and profile, and — when the patch set brought its settings
+        # file along — the sheet is laid out exactly as that file describes,
+        # seed included, so a chart put back this way is the chart it was.
+        chart_only = dest == "into_chart"
+        if chart_only:
+            sidecar = ti1_sidecar(ti1) or ti1_sidecar(src)
+            if sidecar is not None:
+                self._apply_loaded_chart_settings(sidecar)
         # Run type = Verification lays the chart down at the run root before it
         # is filed under verifications/ — keep the run's profiling chart.
         self._arm_verification_snapshot()
@@ -8030,6 +8097,7 @@ class TabChart(QWidget):
             ti1, params,
             on_line=self._on_log_line,
             on_finish=self._on_generate_finished,
+            keep_results=chart_only,
         )
 
     def _on_log_line(self, line: str) -> None:

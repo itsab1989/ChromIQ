@@ -1,5 +1,23 @@
 # Changelog
 
+## v3.14.8-beta.54
+
+- **"Replace only the chart" is now offered when you load a patch set into a run
+  that already holds work.** It swaps the chart and leaves everything else
+  standing: the measurement, the printer profile, the reports and the
+  verifications stay put, and nothing moves to the run's "old" folder. Use it to
+  put back a chart you still have a copy of.
+
+  The window says plainly what ChromIQ cannot do for you: it has no way to check
+  that the patches you are loading are the ones your measurement was taken with.
+  Only you can judge that, and if they do not belong together the run keeps a
+  measurement that no longer matches its chart.
+
+- **A patch set that brought its chart-settings file along is laid out exactly as
+  it was** — same patch size, margins, spacers and shuffle seed, so the sheet
+  that comes out is the sheet you had. Without that file only the patches are
+  replaced, and the window tells you which of the two you are getting.
+
 ## v3.14.8-beta.53
 
 - **The ColorMunki's minimum readings per patch is now 23, down from 30.**

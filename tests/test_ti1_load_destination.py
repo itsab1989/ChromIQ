@@ -48,7 +48,10 @@ def test_no_project_loaded_seeds_new_without_dialog(qapp, tmp_path):
 def test_project_loaded_offers_new_vs_replace_on_an_existing_run(qapp, tmp_path,
                                                                 monkeypatch):
     """#130, Knut's ruling of 2026-07-25: building into an EXISTING run always
-    offers Replace / new run / new project, whatever that run holds."""
+    offers Replace / new run / new project, whatever that run holds — plus, since
+    his ruling of 2026-07-27, "Replace only the chart", which swaps the chart and
+    leaves the run's measurement and profile standing (see
+    tests/test_load_chart_only.py)."""
     tab, fm, ctl = _make_tab(tmp_path)
     proj = Project.create(tmp_path / "projects" / "CanonP", "CanonP")
     proj.current_run().ensure_dir()
@@ -65,7 +68,7 @@ def test_project_loaded_offers_new_vs_replace_on_an_existing_run(qapp, tmp_path,
     monkeypatch.setattr(L, "_choice_dialog", _fake_dialog)
 
     assert tab._ti1_load_destination(Path("/ext/Foreign.ti1")) == "into_replace"
-    assert seen["keys"] == ["into_replace", "into_new", "new"]
+    assert seen["keys"] == ["into_replace", "into_new", "into_chart", "new"]
     assert "CanonP" in seen["intro"]
 
 
