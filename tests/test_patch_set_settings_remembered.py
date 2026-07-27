@@ -119,7 +119,7 @@ def test_adding_a_set_folds_it_into_the_chart_s_design():
         if hasattr(Ti2RelayoutDialog, "_add_patches") else ""
     if not ed_src:                      # the method's name may differ
         ed_src = inspect.getsource(Ti2RelayoutDialog)
-    assert "merged.update(dlg.result_recipe)" in ed_src
+    assert "merged.update(_added_recipe)" in ed_src
 
 
 def test_applying_is_what_saves_it():

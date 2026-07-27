@@ -5773,10 +5773,11 @@ class Ti2RelayoutDialog(QDialog):
         # design the editor carries — and applies, and reopens with — includes
         # what was added rather than only what the chart started from (Knut,
         # #130 2026-07-27).
-        if isinstance(dlg.result_recipe, dict):
+        _added_recipe = getattr(dlg, "result_recipe", None)
+        if isinstance(_added_recipe, dict):
             merged = dict(self._chart_recipe) if isinstance(
                 self._chart_recipe, dict) else {}
-            merged.update(dlg.result_recipe)
+            merged.update(_added_recipe)
             self._chart_recipe = merged
         extra = dlg.result_program
         if self._spec is None:
