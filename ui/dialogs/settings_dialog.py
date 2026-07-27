@@ -1392,6 +1392,10 @@ class SettingsDialog(QDialog):
         form.addWidget(QLabel(tr("Instrument"), self), 0, 0)
         form.addWidget(QLabel(tr("Readings per second"), self), 0, 1)
         form.addWidget(QLabel(tr("Minimum readings per patch"), self), 0, 2)
+        # Knut, #131 2026-07-27: show what the two numbers MEAN for a real
+        # strip, live, so a threshold can be chosen without doing the
+        # arithmetic by hand.
+        form.addWidget(QLabel(tr("Min. strip reading speed"), self), 0, 4)
 
         labels = {
             "i1pro":      tr("i1Pro (first generation)"),
@@ -1403,6 +1407,7 @@ class SettingsDialog(QDialog):
         }
         self._pace_hz: dict = {}
         self._pace_min: dict = {}
+        self._pace_estimate: dict = {}
         for row, (key, (hz_default, min_default)) in enumerate(
                 MODEL_DEFAULTS.items(), start=1):
             form.addWidget(QLabel(labels.get(key, key), self), row, 0)
@@ -1447,14 +1452,85 @@ class SettingsDialog(QDialog):
             title, body = explanation_for(key)
             form.addWidget(TooltipButton(title, body, self), row, 3)
 
+            # The live figure: patches x minimum readings / readings per second.
+            est = QLabel("", self)
+            est.setStyleSheet("color: #909090;")
+            form.addWidget(est, row, 4)
+            self._pace_estimate[key] = est
+            hz.valueChanged.connect(self._refresh_pace_estimates)
+            mn.valueChanged.connect(self._refresh_pace_estimates)
+
         # The slack goes into a column of its own on the right, so the boxes
         # keep a sensible width and the ⓘ next to each row is never squeezed
         # off the edge of the group.
-        form.setColumnStretch(4, 1)
+        form.setColumnStretch(5, 1)
 
         v.addWidget(grp)
+
+        # How long a strip is, for the figures above. Changing it shows straight
+        # away what each instrument's setting means for YOUR charts (Knut, #131
+        # 2026-07-27).
+        _pp_row = QHBoxLayout()
+        _pp_row.addWidget(QLabel(
+            tr("No. of patches per strip for estimation of speed:"), self))
+        self._pace_patches_spin = NoScrollSpinBox(self)
+        self._pace_patches_spin.setRange(2, 200)
+        self._pace_patches_spin.setValue(
+            int(self._settings.get("pace_estimate_patches", 20)))
+        self._pace_patches_spin.setMaximumWidth(110)
+        self._pace_patches_spin.valueChanged.connect(self._refresh_pace_estimates)
+        _pp_row.addWidget(self._pace_patches_spin)
+        # The ⓘ belongs beside the box it explains, not at the far edge of the
+        # window — so the stretch comes after it (Knut: "to the right of new
+        # spinbox").
+        _pp_row.addWidget(TooltipButton(
+            tr("Patches per strip for the estimate"),
+            tr("The figures to the right of each instrument answer one "
+               "question: with the settings on this row, what is the fastest a "
+               "strip may be read before ChromIQ says you were quick?\n\n"
+               "The arithmetic is the one ChromIQ uses while you measure:\n\n"
+               "  patches per strip × minimum readings per patch = readings the "
+               "strip needs\n"
+               "  readings needed ÷ readings per second = seconds the strip "
+               "needs\n\n"
+               "So a 15-patch strip at 23 readings per patch needs 345 "
+               "readings, and an instrument taking 50 readings a second needs "
+               "345 ÷ 50 = 6.9 seconds for it.\n\n"
+               "Set this to the number of patches on a strip of your own "
+               "charts — 20 is a common length — and then try different "
+               "minimum-readings values above: the seconds change as you type, "
+               "so you can pick a limit by the reading speed it implies rather "
+               "than by working it out on paper. It changes nothing about how "
+               "you measure; it is only here to make the numbers meaningful."),
+            self))
+        _pp_row.addStretch(1)
+        v.addLayout(_pp_row)
+
+        self._refresh_pace_estimates()
         v.addStretch(1)
         return page
+
+    def _refresh_pace_estimates(self) -> None:
+        """Update every instrument's "fastest a strip may be read" figure.
+
+        Live, because the point is to choose a threshold BY the reading speed it
+        implies (Knut, #131 2026-07-27). An instrument whose warning is switched
+        off has no such speed, and says so rather than showing a nonsense zero.
+        """
+        patches = int(self._pace_patches_spin.value())
+        for key, lbl in getattr(self, "_pace_estimate", {}).items():
+            hz = float(self._pace_hz[key].value())
+            mn = int(self._pace_min[key].value())
+            if mn <= 0 or hz <= 0:
+                lbl.setText(tr("no limit"))
+                continue
+            seconds = patches * mn / hz
+            if patches == 1:
+                lbl.setText(tr("{secs} sec. @ 1 patch/strip").format(
+                    secs=f"{seconds:.1f}"))
+            else:
+                lbl.setText(tr("{secs} sec. @ {n} patches/strip").format(
+                    secs=f"{seconds:.1f}", n=patches))
 
     def _build_sounds_tab(self) -> QWidget:
         """Measurement sound feedback (#131): which sound plays for each event.
@@ -3218,6 +3294,7 @@ class SettingsDialog(QDialog):
                 s.set(f"pace_sample_hz_{_key}", float(_hz.value()))
             for _key, _mn in self._pace_min.items():
                 s.set(f"pace_min_samples_{_key}", int(_mn.value()))
+        s.set("pace_estimate_patches", int(self._pace_patches_spin.value()))
         from core.platform_paths import set_icc_install_override
         set_icc_install_override(self._profile_dir_edit.text())
         # Margin inspector: behaviour flags + the per-combo threshold table.

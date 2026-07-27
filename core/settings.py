@@ -212,6 +212,9 @@ DEFAULTS: dict[str, Any] = {
     "pace_hint_enabled":         True,
     "pace_min_samples":          8,
     "pace_min_patch_ms":         100,
+    # Strip length used for the live "fastest a strip may be read" figures in
+    # Preferences → Measurement (Knut, #131 2026-07-27).
+    "pace_estimate_patches":     20,
     "pace_sample_hz_i1pro":      0.0,
     "pace_sample_hz_colormunki": 0.0,
     "sound_folder":              "",     # blank = the bundled default pack

@@ -1,5 +1,18 @@
 # Changelog
 
+## v3.14.8-beta.64
+
+- **Preferences → Measurement now works out the reading speed for you.** Beside
+  each instrument, a live figure: **Min. strip reading speed — 6.9 sec. @ 15
+  patches/strip**. It follows the readings per second, the minimum readings per
+  patch, and a new box under the table, **"No. of patches per strip for
+  estimation of speed"** (default 20). Set that to the strip length of your own
+  charts and try different minimums: the seconds change as you type, so a limit
+  can be chosen by the reading speed it implies instead of by doing the
+  arithmetic on paper. An instrument whose warning is switched off says "no
+  limit" rather than showing a meaningless zero, and the new box has its own ⓘ
+  explaining the calculation step by step.
+
 ## v3.14.8-beta.63
 
 - **"Skip Strip" moves on, on a finished chart too.** The instruction sent was
