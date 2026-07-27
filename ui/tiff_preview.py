@@ -364,8 +364,15 @@ class _PatchInfoTile(QWidget):
             add_colour(tr("Measured"), info.get("meas_rgb", (0, 0, 0)),
                        info.get("meas_lab", (0, 0, 0)))
         # ΔE compares the two colours, so only show it when both are on screen.
+        # Named in full, because "ΔE" alone says neither which formula nor which
+        # white point — and there are several of each (Knut, #131 2026-07-27:
+        # "Please show what the value means, which standard it is calculated
+        # with"). The reading engine computes it as CIE76 ΔE*ab on L*a*b*
+        # under D50, which is what the two Lab lines above are shown in too.
         if view_mode == "both":
-            rows.append((None, tr("ΔE  {de:.2f}").format(de=float(info.get("de", 0.0)))))
+            rows.append((None, tr("ΔE*ab  {de:.2f}").format(
+                de=float(info.get("de", 0.0)))))
+            rows.append((None, tr("  (CIE76, L*a*b* D50)")))
 
         self._rows = rows
 

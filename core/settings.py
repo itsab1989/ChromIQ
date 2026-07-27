@@ -195,6 +195,9 @@ DEFAULTS: dict[str, Any] = {
     # patch gets the red warning outline in the engine's live split-patch
     # preview. Generous by default so only near-certain misreads are flagged.
     "patch_read_warn_de":        50.0,
+    # Whether a patch must ALSO be unusual for its own strip to be flagged
+    # (Knut's option (c), #131 2026-07-27). On = today's behaviour.
+    "patch_warn_outlier_fence":  True,
     # Measurement sound feedback (#131, Phase 1). Master switch lives on the
     # Measure tab; per-event choices and the optional user sounds folder on the
     # Preferences → Sounds / Paths tabs. Off by default (opt-in comfort feature).

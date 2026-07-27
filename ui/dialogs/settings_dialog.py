@@ -764,6 +764,23 @@ class SettingsDialog(QDialog):
         _pw_row.addWidget(QLabel(tr("Flag a patch when its colour error reaches:"), self))
         _pw_row.addWidget(self._patch_warn_spin)
         _pw_row.addStretch()
+        # Knut's option (c) of 2026-07-27: the strip comparison becomes a
+        # switch, on by default, and it now governs BOTH reading modes — which
+        # is what made them disagree so sharply before.
+        self._patch_fence_check = QCheckBox(
+            tr("Only flag a patch that also stands out from its own strip"), self)
+        self._patch_fence_check.setToolTip(tr(
+            "On (the default): a patch is flagged only when it is past the "
+            "limit above AND unusual compared with the other patches of its "
+            "strip. This is what keeps a good print from being flagged almost "
+            "everywhere, because the chart's design colours are sRGB and a "
+            "printer does not reproduce them.\n\n"
+            "Off: the limit means exactly what it says, and every patch past it "
+            "is flagged — useful when you are checking a chart you already "
+            "suspect is wrong, and expect most of it to be flagged.\n\n"
+            "The setting applies to both reading modes, so a patch read one at "
+            "a time and the same patch read in a strip are judged the same "
+            "way."))
         _pw_row.addWidget(TooltipButton(
             tr("Patch-reading error limit"),
             tr("While you measure with the ChromIQ chart-reading engine, each "
@@ -792,6 +809,7 @@ class SettingsDialog(QDialog):
             "Default: 50 ΔE"),
             self))
         _beta.addLayout(_pw_row)
+        _beta.addWidget(self._patch_fence_check)
 
         # Automatic calibration retries (#126, mavtop): how many times a failed
         # instrument calibration is retried before giving up.
@@ -2436,6 +2454,8 @@ class SettingsDialog(QDialog):
             bool(s.get("report_add_profile_name", True)))
         self._patch_warn_spin.setValue(
             float(s.get("patch_read_warn_de", 50.0)))
+        self._patch_fence_check.setChecked(
+            bool(s.get("patch_warn_outlier_fence", True)))
         self._cal_retries_spin.setValue(int(s.get("cal_auto_retries", 3)))
         self._fast_connect_check.setChecked(
             bool(s.get("fast_instrument_connect", True)))
@@ -3165,6 +3185,8 @@ class SettingsDialog(QDialog):
               or "Measurement Report - Verification of Profile")
         s.set("report_add_profile_name", self._report_add_profile_check.isChecked())
         s.set("patch_read_warn_de", float(self._patch_warn_spin.value()))
+        s.set("patch_warn_outlier_fence",
+              bool(self._patch_fence_check.isChecked()))
         s.set("cal_auto_retries", int(self._cal_retries_spin.value()))
         s.set("fast_instrument_connect", self._fast_connect_check.isChecked())
         s.set("misalign_safenet", self._safenet_check.isChecked())

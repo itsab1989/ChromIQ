@@ -1,5 +1,37 @@
 # Changelog
 
+## v3.14.8-beta.63
+
+- **"Skip Strip" moves on, on a finished chart too.** The instruction sent was
+  "go to the next unread strip" — and when you are re-reading a measurement that
+  is already complete there is no unread strip, so the reading engine had
+  nowhere to go and stayed exactly where it was. Skip now means the next strip
+  when everything has been read, and the next *unread* one while anything is
+  still outstanding.
+
+- **Retry really does stop adding your thinking time now.** Clearing the swipe
+  clock was not enough: the step that reports a failed strip's time ran only
+  after you had answered the failure window, and that window blocks while it is
+  open. It is now timed the moment the failure arrives.
+
+- **The strip comparison behind the red outlines is a setting.**
+  *Preferences → Beta → "Only flag a patch that also stands out from its own
+  strip"*, on by default, and it now governs **both** reading modes — so a patch
+  read one at a time and the same patch read in a strip are judged the same way.
+  Switch it off and the ΔE limit means exactly what it says, which is what you
+  want when you are checking a chart you already suspect.
+
+- **The hover readout names the measure it is quoting**: ΔE\*ab, CIE76, on
+  L\*a\*b\* under D50 — rather than a bare "ΔE" that could be any of several
+  things.
+
+- **"Calibration Required" has a Cancel button.** The only way out was the
+  window's close box, which is not an obvious way to stop a measurement.
+
+- **A remembered overlay is drawn as soon as a chart is loaded.** With "Show
+  overlay from existing measurement" already ticked, the preview stayed empty
+  until the box was switched off and on again.
+
 ## v3.14.8-beta.62
 
 - **"Skip Strip" moves on again.** After a failed strip the reading engine waits

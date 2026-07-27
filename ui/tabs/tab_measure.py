@@ -907,8 +907,13 @@ class TabMeasure(QWidget):
         self.measure_finished.connect(self._maybe_save_measurement_report)
         self._manager.calibration_prompt.connect(self._on_calibration_prompt)
         self._manager.calibration_done.connect(self._on_calibration_done)
-        self._manager.strip_error.connect(self._on_strip_error)
+        # The pace report FIRST: it times the failed swipe, and _on_strip_error
+        # opens a modal window that blocks inside its own slot. Connected after
+        # it, the timing ran only once the user had answered — so the strip's
+        # reading time included however long the window had been open (Knut,
+        # #131 2026-07-27, after my first fix missed this).
         self._manager.strip_error.connect(self._report_failed_strip_pace)
+        self._manager.strip_error.connect(self._on_strip_error)
         # #126 chart-reading engine
         self._manager.session_map.connect(self._on_session_map)
         self._manager.strip_measured.connect(self._on_strip_measured)
@@ -3197,6 +3202,12 @@ class TabMeasure(QWidget):
             ocb.setVisible(has_ti3); otip.setVisible(has_ti3)
             if not has_ti3:
                 ocb.setChecked(False)
+        # The box remembers its setting, so after loading a project it can come
+        # up already ticked — and nothing painted the overlay, so the preview
+        # stayed empty until it was switched off and on again (Knut, #131
+        # 2026-07-27). Paint it now, so what the box says is what you see.
+        if has_ti3:
+            self._restore_overlay_after_measurement()
         # Auto-detect Refine_Strips file — reports/ since #127, with a
         # fallback to the flat pre-v2 location (an external chart folder that
         # never went through project migration may still hold one there).
@@ -4939,9 +4950,11 @@ class TabMeasure(QWidget):
             # unread strip actually means (Knut, #131 2026-07-26).
             self._manager.send_save_partial_and_quit()
         elif chosen[0] == "skip":
-            # Two-step: retry returns chartread to the strip menu, then 'n'
-            # jumps to the next unread strip.
-            self._manager.send_post_retry_key("n")
+            # The manager decides what "skip" can mean: the next unread strip
+            # while anything is unread, otherwise simply the next strip — on a
+            # complete chart there is no unread one to go to (Knut, #131
+            # 2026-07-27).
+            self._manager.skip_current_strip()
         else:  # save partial and quit
             # Three-step chain inside the manager: \r → strip menu → 'd' →
             # ("Are you sure" → 'y') → chartread writes the .ti3 and exits.
@@ -5004,6 +5017,17 @@ class TabMeasure(QWidget):
         skip_btn = (btn_box.addButton(tr("Skip this step"),
                                       QDialogButtonBox.ButtonRole.DestructiveRole)
                     if optional else None)
+        # A real Cancel, because the only way out was the window's close box and
+        # that is not obvious (Knut, #131 2026-07-27: "so that a user is not
+        # confused how to stop the calibration and the measurement session.
+        # Sometimes that is needed"). It does what closing the window did —
+        # cancels the calibration and ends the reading cleanly.
+        cancel_btn = btn_box.addButton(tr("Cancel Measurement"),
+                                       QDialogButtonBox.ButtonRole.RejectRole)
+        cancel_btn.setToolTip(tr(
+            "Stops the calibration and ends this measurement. Anything already "
+            "measured has been saved as you went, so nothing is lost."))
+        btn_box.rejected.connect(dlg.reject)
         btn_box.accepted.connect(dlg.accept)
         layout.addWidget(btn_box)
 
@@ -6724,6 +6748,21 @@ class TabMeasure(QWidget):
                      _m.ccmx_load_failed, _m.mode_set_failed):
             _sig.connect(lambda *_: self._sound.play(_snd.INSTRUMENT_ERROR))
 
+    def _use_outlier_fence(self) -> bool:
+        """Whether a patch must ALSO stand out from its own strip to be flagged.
+
+        Knut's ruling of 2026-07-27, option (c): make it a switch, defaulting to
+        today's behaviour. With it on — the default — a patch is flagged only
+        when it is both past your ΔE threshold and unusual for its strip, which
+        keeps a good print from being flagged almost everywhere (the chart's
+        "expected" values are design values, and a printer does not reproduce
+        them). With it off, the threshold means exactly what it says.
+        """
+        try:
+            return bool(self._settings.get("patch_warn_outlier_fence", True))
+        except Exception:      # noqa: BLE001
+            return True
+
     def _cue_window(self, event: str) -> None:
         """Sound a window at the moment it opens (#131, Knut 2026-07-27).
 
@@ -6857,7 +6896,8 @@ class TabMeasure(QWidget):
         # its neighbours and is caught. This can only REDUCE flags versus the
         # floor alone, so it never adds false alarms (Nelson/pharmacist: a good
         # print was flagged almost everywhere against sRGB).
-        fence = _strip_outlier_fence([float(p.get("de", 0)) for p in patches])
+        fence = (_strip_outlier_fence([float(p.get("de", 0)) for p in patches])
+                 if self._use_outlier_fence() else 0.0)
         from workflow.icc_info import xyz_to_lab
         items = []
         info_items = []
@@ -6938,6 +6978,10 @@ class TabMeasure(QWidget):
         mxyz = ev.get("xyz", [0, 0, 0])
         exp_rgb = _xyz_d50_to_srgb8(exyz)
         meas_rgb = _xyz_d50_to_srgb8(mxyz)
+        # Patch by patch there is no strip to be an outlier within, so the
+        # fence cannot apply here — which is exactly why the two modes used to
+        # disagree so sharply (Knut, #131 2026-07-27). The switch is shared, so
+        # what the two modes mean by "flagged" is now the same question.
         item = (box, _QC(*exp_rgb), _QC(*meas_rgb), de_p >= warn_de)
         info = (box, {
             "loc": loc,

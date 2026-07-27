@@ -238,6 +238,10 @@ class MeasureManager(QObject):
         #: offers the strip menu — and the completion window came up before the
         #: user had re-read anything (Knut, #131 2026-07-27).
         self._read_something: bool = False
+        #: strip letter -> whether it already holds a reading, from the engine's
+        #: session map. Decides what "skip this strip" can mean (see
+        #: :meth:`skip_current_strip`).
+        self._strip_read_state: dict[str, bool] = {}
         self._guided_strips: list[str] = []
         self._guided_idx:    int  = 0
         # "disabled" until strips are actually given: everywhere else the rule
@@ -280,6 +284,7 @@ class MeasureManager(QObject):
         cwd  = params.ti1_path.parent
         self._is_resume      = params.resume
         self._read_something = False
+        self._strip_read_state = {}
         self._guided_on_line = on_line
         # Reset guided state for this run
         self._guided_idx   = 0
@@ -594,6 +599,25 @@ class MeasureManager(QObject):
         self._pending_post_retry_key = key
         self._runner.write_stdin("\r")
 
+    def skip_current_strip(self) -> None:
+        """Leave the strip that just failed and move on.
+
+        "Next unread" is the right instruction only while something is still
+        unread. On a chart that is already complete — a refine, or any re-read of
+        a finished measurement — there is no unread strip, so the engine has
+        nowhere to go and stays exactly where it was. That is what Knut saw on
+        beta.62: the command was sent and accepted, and the arrow did not move
+        (#131, 2026-07-27). When everything has been read, "skip" can only
+        sensibly mean **the next strip**, so that is what is sent.
+        """
+        if self._engine_active:
+            anything_unread = any(not read
+                                  for read in self._strip_read_state.values())
+            self.send_command({"cmd": "next_unread"} if anything_unread
+                              else {"cmd": "forward"})
+            return
+        self.send_post_retry_key("n")
+
     def send_save_partial_and_quit(self) -> None:
         """Save what's been scanned so far and exit chartread cleanly.
 
@@ -668,7 +692,12 @@ class MeasureManager(QObject):
         kind = ev["event"]
 
         if kind == "session_start":
-            self.session_map.emit(ev.get("strips", []))
+            strips = ev.get("strips", [])
+            # Remember which strips already hold a reading: "skip this strip"
+            # means something different on a chart that is already complete.
+            self._strip_read_state = {str(s.get("strip", "")): bool(s.get("read"))
+                                      for s in strips if s.get("strip")}
+            self.session_map.emit(strips)
 
         elif kind == "strip_ready":
             strip = ev.get("strip", "")
@@ -695,6 +724,7 @@ class MeasureManager(QObject):
         elif kind == "strip_read":
             self._engine_progress = True
             self._read_something = True
+            self._strip_read_state[str(ev.get("strip", ""))] = True
             self.strip_measured.emit(ev)
             on_line(f" Strip read OK — {ev.get('strip', '?')} "
                     f"(worst patch ΔE {ev.get('worst_de', 0):.1f})")
