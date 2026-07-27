@@ -6376,6 +6376,17 @@ class TabChart(QWidget):
             if rec_dict:
                 from workflow.layout_engine.presets import LayoutRecipe
                 recipe = LayoutRecipe.from_dict(rec_dict)
+                # The seed the chart was ACTUALLY built with (Knut, #130
+                # 2026-07-27: "the random seed must survive the restore and
+                # regeneration of the chart image"). The recipe records what
+                # the user asked for — and "draw a fresh one each time" is
+                # written there as no seed at all, so rebuilding from the
+                # recipe alone shuffles the patches differently and the sheet
+                # that comes back is not the sheet that was measured. The
+                # build writes the drawn number one level up, and that is the
+                # one that reproduces this chart.
+                if isinstance(layout.get("seed"), int):
+                    recipe.seed = int(layout["seed"])
                 # Engine on first (builds/updates the panel), then the recipe.
                 if (self._manual_engine_check is not None
                         and not self._manual_engine_check.isChecked()):
@@ -8359,34 +8370,43 @@ class TabChart(QWidget):
                         exc_info=True)
 
     def rebuild_verification_pages(self) -> bool:
-        """Redraw the printable pages of the run's verification chart from the
-        chart files that are there now (#130, Knut).
+        """Redraw the printable pages of the chart that was just restored, for
+        **either** run type (#130, Knut).
 
         Called after **Restore Used Chart** has put an older chart back: the
         snapshot deliberately holds no page images when the chart carries a
         layout recipe, so the pages are rebuilt here rather than copied. The
-        chart's own saved settings are applied first, so the rebuilt sheet
-        matches the one that was measured — same patch size, margins and
-        spacers, not whatever the panels happen to show.
+        chart's own saved settings are applied first — including the seed it was
+        actually shuffled with — so the rebuilt sheet is the sheet that was
+        measured: same patch order, patch size, margins and spacers, not
+        whatever the panels happen to show.
+
+        Profiling runs kept their own copy only from beta.42 on, and until now
+        nothing redrew their pages afterwards: the restore left the chart files
+        right but the Create Chart preview empty, which is what Knut saw
+        (2026-07-27). Both run types now take the same route; only *which* chart
+        files are read differs.
 
         Returns True when a rebuild was started. Best-effort: a chart that can't
         be rebuilt leaves the restored files in place and says so via the caller.
         """
         ctl = getattr(self, "_target_ctl", None)
-        if ctl is None or not ctl.target.is_verification():
+        if ctl is None:
             return False
+        verification = ctl.target.is_verification()
         try:
             proj = ctl.project_or_none()
             run_id = ctl.target.profile_run
             if proj is None or not run_id or not proj.has_run(run_id):
                 return False
             run = proj.run(run_id)
-            ti1, ti2 = run.verify_chart_ti1, run.verify_chart_ti2
+            ti1, ti2 = ((run.verify_chart_ti1, run.verify_chart_ti2)
+                        if verification else (run.chart_ti1, run.chart_ti2))
             if not ti1.is_file():
                 return False
             # Build the restored chart exactly as it was made: its own recipe
-            # first, then the normal verification build, which lays the pages at
-            # the run root and files them back under verifications/.
+            # first, then the normal build, which lays the pages at the run root
+            # — and, for a verification, files them back under verifications/.
             if ti2.is_file():
                 self._restore_chart_settings(ti2)
             if proj.current_run().id != run_id:
@@ -8400,10 +8420,14 @@ class TabChart(QWidget):
                 ti1, params,
                 on_line=self._on_log_line,
                 on_finish=self._on_generate_finished,
+                # This IS the chart the run's measurement was taken with, so
+                # redrawing its pages must not move that measurement aside
+                # (Knut, #130 2026-07-27).
+                keep_results=True,
             )
             return True
         except Exception:      # noqa: BLE001 — never break a restore
-            log.warning("Could not rebuild the restored verification pages",
+            log.warning("Could not rebuild the restored chart pages",
                         exc_info=True)
             return False
 

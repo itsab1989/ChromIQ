@@ -437,7 +437,13 @@ class MeasurementTargetBar(QWidget):
             "create your first chart, then you may choose a profile run."))
         self._hint.setObjectName("target_bar_hint")
         self._hint.setVisible(False)
-        row.addWidget(self._hint)
+        # On its own line, wrapped (Knut, #130 2026-07-27). Sitting at the end
+        # of the row it ran off the right-hand side and over the version text,
+        # and no window width was wide enough to show all of it — the row grows
+        # with the boxes, this sentence does not have to.
+        self._hint.setWordWrap(True)
+        self._hint.setSizePolicy(QSizePolicy.Policy.Preferred,
+                                 QSizePolicy.Policy.Preferred)
         # Everything in the row stays left-aligned and in sequence, so switching
         # Run type to Verification simply adds its boxes on the right (Knut,
         # #130 2026-07-26). Without this the row is as wide as the location line
@@ -475,6 +481,7 @@ class MeasurementTargetBar(QWidget):
         # stays in the tooltip.
         self._location.setSizePolicy(QSizePolicy.Policy.Ignored,
                                      QSizePolicy.Policy.Preferred)
+        column.addWidget(self._hint)          # its own line, beneath the row
         column.addWidget(self._location)
 
         self._ctl.changed.connect(self._sync_from_controller)

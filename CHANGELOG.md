@@ -1,5 +1,33 @@
 # Changelog
 
+## v3.14.8-beta.52
+
+- **"Restore Used Chart" now gives back the same chart, down to the patch
+  order.** The stored copy holds no page images because the chart's own recipe
+  can redraw them — but the shuffle seed the chart was really built with was not
+  being read back, so redrawing dealt the patches out differently. The number
+  the build actually drew is now what the rebuild uses, and there are tests that
+  hold it to that.
+
+- **Restoring a profiling run's chart redraws its pages again.** Only
+  verification charts were rebuilt after a restore; a profiling run got its
+  files back but the Create Chart preview stayed empty, so the obvious next move
+  was to press Create Chart — which built a different chart over the restored
+  one. Both run types now redraw straight after the restore.
+
+- **A restore never moves your measurement aside.** The restored chart is
+  exactly the chart that measurement was taken with, so redrawing its pages
+  leaves the measurement, the profile and the individual reads where they are.
+
+- **Creating a new chart in a run that already holds results says so.** Moving
+  the old measurement and profile into the run's "old" folder is deliberate — a
+  new chart no longer matches them, and nothing is ever deleted — but it used to
+  happen without a word. The log now explains it as it happens.
+
+- **The sentence next to the Profile-run boxes wraps instead of running over the
+  version number.** It sits on its own line under the row now, so it stays
+  readable at every window width.
+
 ## v3.14.8-beta.51
 
 - **The margin warning now says which minimum it means** — "below the 28 mm

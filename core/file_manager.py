@@ -750,8 +750,14 @@ class Run:
         self.dir.mkdir(parents=True, exist_ok=True)
         return self.dir
 
-    def reset_chart_artefacts(self) -> None:
+    def reset_chart_artefacts(self, *, keep_results: bool = False) -> None:
         """Wipe chart files + reads + measurement + merged + profile.
+
+        ``keep_results`` redraws the pages of the chart that is already there
+        without touching the measurement or the profile — the case of **Restore
+        Used Chart**, which puts back the very chart a result was measured with
+        (Knut, #130 2026-07-27). Everything else still goes: the page images and
+        sidecars are about to be rebuilt from the same recipe.
 
         Preserves ``preconditioning.*`` and ``meta.json`` so the run's identity
         and pre-conditioning seed survive a chart re-generation, and
@@ -769,6 +775,8 @@ class Run:
         results = [self.dir / f"{s}.ti3", self.dir / f"{s}.icc",
                    self.dir / f"{s}.icm", self.dir / "merged.ti3",
                    self.dir / "merged.icc", self.dir / "calibrated.icc"]
+        if keep_results:
+            results = []
         if any(p.exists() for p in results):
             self.archive_to_old([p for p in results if p.exists()])
         for sub in (self.exports_dir, self.cache_dir):
@@ -781,11 +789,12 @@ class Run:
             f"{s}.ti1", f"{s}.ti2", f"{s}.cht", f"{s}.cie", f"{s}.ps",
             f"{s}.pdf",                  # vector-PDF export (was left stale, Basti)
             f"{s}.channels.json", f"{s}.strips.json",
+        ) + ((
             f"{s}.ti3",                  # the measurement (chartread output)
             f"{s}.icc",                  # the profile (colprof output)
             "merged.ti3", "merged.icc",  # build-time refinement merge outputs
             "calibrated.icc",            # applycal output
-        ):
+        ) if not keep_results else ()):
             p = self.dir / name
             if p.exists():
                 try:
@@ -797,7 +806,10 @@ class Run:
                 tiff.unlink()
             except OSError as exc:
                 log.warning("Could not delete %s: %s", tiff, exc)
-        self.clear_reads()
+        if not keep_results:
+            # The individual reads belong to the measurement, so they stay or go
+            # with it.
+            self.clear_reads()
 
 
 # ---------------------------------------------------------------------------

@@ -568,6 +568,7 @@ class ChartCreator:
             work_dir = proj.calibration.ensure_dir()
         else:
             run = proj.current_run()
+            self._announce_result_archive(run, on_line, False)
             run.reset_chart_artefacts()
             work_dir = run.ensure_dir()
             # External -c preconditioning: copy ICC (and sibling .ti3 if
@@ -691,18 +692,48 @@ class ChartCreator:
         per_sheet = self._binary_search(params, progress_cb)
         return per_sheet * params.pages
 
+    def _announce_result_archive(self, run, on_line, keep_results: bool) -> None:
+        """Say — in the log the user is watching — that a run's finished work is
+        being set aside before a new chart replaces it (Knut, #130 2026-07-27:
+        "Generate Chart silently moved the .ti3 to old/").
+
+        The move itself is deliberate and long-standing: a new chart no longer
+        matches the measurement or the profile made from the old one, so they are
+        archived rather than deleted. What was missing is that nobody said so.
+        """
+        if keep_results or on_line is None:
+            return
+        from core.i18n import tr
+        s = run.stem
+        results = [run.dir / f"{s}.ti3", run.dir / f"{s}.icc",
+                   run.dir / f"{s}.icm", run.dir / "merged.ti3",
+                   run.dir / "merged.icc", run.dir / "calibrated.icc"]
+        if not any(p.exists() for p in results):
+            return
+        on_line(tr(
+            "This run already holds a measurement or a printer profile. A new "
+            "chart no longer matches them, so they are moved into the run's "
+            "“old” folder before the new chart is written. Nothing is deleted — "
+            "you can open that folder and take them back at any time."))
+
     def load_ti1_and_generate_preview(
         self,
         ti1_path: Path,
         params: ChartParams,
         on_line: Callable[[str], None],
         on_finish: Callable[[list[Path]], None],
+        *,
+        keep_results: bool = False,
     ) -> None:
         """Run printtarg only on an existing .ti1 file.
 
         Always targets the current run's chart slot (preview is never a
         calibration target). Copies the input .ti1 into ``chart.ti1``, wipes
         prior chart artefacts in that run, then runs printtarg.
+
+        ``keep_results`` is for redrawing the pages of the chart that is already
+        in the run — **Restore Used Chart** — where the measurement and profile
+        belong to exactly this chart and must be left alone (Knut, #130).
         """
         # _printtarg_done writes the <stem>.channels.json sidecar only when
         # _pending_params is set; otherwise the preview can't identify inks
@@ -717,7 +748,8 @@ class ChartCreator:
         # the input survive the reset no matter where it lives.
         ti1_bytes = Path(ti1_path).read_bytes()
         run = self._file_mgr.project().current_run()
-        run.reset_chart_artefacts()
+        self._announce_result_archive(run, on_line, keep_results)
+        run.reset_chart_artefacts(keep_results=keep_results)
         work_dir = run.ensure_dir()
         stem = run.stem
         dest = run.chart_ti1

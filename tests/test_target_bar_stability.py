@@ -173,3 +173,33 @@ def test_both_info_icons_follow_the_active_tab(qapp, tmp_path):
 
     assert bar._tip_btn._color_override == "#123456"
     assert bar._restore_tip._color_override == "#123456", "the Restore ⓘ must follow too"
+
+
+# ---- the hint sentence must wrap, not run over the version (2026-07-27) ----
+def test_the_hint_sits_on_its_own_line_and_wraps(qapp, tmp_path):
+    """Knut: "the text right of the two ⓘ is cut off and overlaps the version
+    number — it must wrap to the next line at any window width"."""
+    bar, _run = _bar(tmp_path)
+    hint = bar._hint
+    hint.setVisible(True)
+    QApplication.processEvents(); bar.layout().activate()
+
+    assert hint.wordWrap(), "a one-line sentence at the end of the row is what ran off"
+    row = bar.layout().itemAt(0).layout()
+    row_bottom = max(row.itemAt(i).widget().geometry().bottom()
+                     for i in range(row.count())
+                     if row.itemAt(i).widget() is not None)
+    assert hint.y() > row_bottom, "it must be BELOW the row, not inside it"
+
+    for width in (1400, 900, 640, 420):
+        bar.resize(width, bar.sizeHint().height())
+        QApplication.processEvents(); bar.layout().activate()
+        assert hint.x() + hint.width() <= bar.width(), (
+            f"at {width}px the hint reaches past the bar's right edge")
+        # Wrapped, so the whole sentence is on screen: the text needs more
+        # width than one line offers, and the label is taller than one line.
+        one_line = hint.fontMetrics().height()
+        needed = hint.fontMetrics().horizontalAdvance(hint.text())
+        if needed > hint.width():
+            assert hint.height() > one_line, \
+                f"at {width}px the sentence is cut off instead of wrapped"
