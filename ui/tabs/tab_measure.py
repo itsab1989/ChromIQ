@@ -3626,6 +3626,76 @@ class TabMeasure(QWidget):
         else:
             self._sound.play(_snd.STRIP_FAIL)
 
+    def _profiling_overwrite_choice(self, run) -> str:
+        """Ask before a measurement replaces the chart stored with a profile
+        run (#130, Knut 2026-07-27). ``"go"`` / ``"keep"`` / ``"cancel"``.
+
+        ``keep`` is Knut's third option: measure, but leave the stored copy
+        alone — for trying a changed chart out without losing the copy that
+        describes the run's existing measurement. It is recorded on the run,
+        because the copy then no longer describes what the run holds, and that
+        must never be silent.
+        """
+        from workflow.chart_slot import slot_for
+        from workflow.verify_chart_snapshot import (slot_has_snapshot,
+                                                    slot_live_differs)
+        slot = slot_for(run)
+        if not slot_has_snapshot(slot) or not slot_live_differs(slot):
+            return "go"
+
+        from PyQt6.QtWidgets import QMessageBox
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle(tr("This profile run was measured with another chart"))
+        box.setText(tr("Measuring here replaces the chart stored with this "
+                       "profile run."))
+        extra = ""
+        try:
+            if Run.for_dir(run.dir).reads():
+                extra = "\n\n" + tr(
+                    "You have already measured this run and are averaging the "
+                    "results. Replacing the chart now means the earlier reads "
+                    "and this one were made from different sheets, and "
+                    "averaging them together would mix two different charts. "
+                    "Cancel if you did not intend that.")
+        except Exception:      # noqa: BLE001
+            pass
+        box.setInformativeText(tr(
+            "{run} was measured with a different chart from the one loaded "
+            "now. That run keeps its own copy of the chart it was measured "
+            "with — the copy “Restore Used Chart” puts back. If you measure "
+            "the chart you have loaded into this same run, that stored copy is "
+            "replaced, and the measurement already sitting there would no "
+            "longer describe a chart you still have.\n\n"
+            "If you meant to build a separate profile, set “Profile run” to "
+            "“New run” and start the measurement again — this run then stays "
+            "exactly as it is, with its own chart, and today's reading starts "
+            "a run of its own."
+        ).format(run=self._pretty_run_name(run)) + extra)
+        replace = box.addButton(tr("Replace the stored chart"),
+                                QMessageBox.ButtonRole.DestructiveRole)
+        keep = box.addButton(tr("Measure without changing the stored chart"),
+                             QMessageBox.ButtonRole.ActionRole)
+        keep.setToolTip(tr(
+            "For trying something out. The stored copy stays as it is, so it "
+            "will no longer describe the measurement this run ends up with — "
+            "ChromIQ remembers that and says so."))
+        cancel = box.addButton(QMessageBox.StandardButton.Cancel)
+        box.setDefaultButton(cancel)
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked is replace:
+            return "go"
+        if clicked is keep:
+            return "keep"
+        return "cancel"
+
+    @staticmethod
+    def _pretty_run_name(run) -> str:
+        rid = getattr(run, "id", "") or ""
+        n = rid[3:] if rid.startswith("run") else rid
+        return tr("Run {n}").format(n=n) if n else tr("This run")
+
     def _chart_overwrite_choice(self, verification) -> str:
         """Ask before replacing the chart a verification date was measured with
         (#130, Knut 2026-07-26). Returns ``"go"`` or ``"cancel"``.
@@ -3678,10 +3748,12 @@ class TabMeasure(QWidget):
         an existing verification date was measured with, chose to stop.
         """
         ctl = getattr(self, "_target_ctl", None)
-        if ctl is None or not ctl.target.is_verification():
+        if ctl is None:
             return True
-        if not self._is_verify_checked():
-            return True     # not being filed as a verification, so nothing to keep
+        if not ctl.target.is_verification() or not self._is_verify_checked():
+            # Profiling: the run keeps one copy of the chart it was measured
+            # with, in runs/runN/chart/ (#130, Knut 2026-07-27).
+            return self._snapshot_profiling_chart(ctl)
         try:
             from workflow.verify_chart_snapshot import snapshot_chart
             proj = ctl.project_or_none()
@@ -3703,6 +3775,42 @@ class TabMeasure(QWidget):
         except Exception:      # noqa: BLE001 — never block a measurement
             log.warning("Could not snapshot the verification chart",
                         exc_info=True)
+        return True
+
+    def _snapshot_profiling_chart(self, ctl) -> bool:
+        """Copy the run's chart into ``runs/runN/chart/`` before measuring.
+
+        Returns False only when the user chose to stop. Choosing "Measure
+        without changing the stored chart" leaves the copy alone and marks the
+        run, so the interface can say the copy no longer describes what the run
+        holds.
+        """
+        try:
+            from workflow.chart_slot import slot_for
+            from workflow.verify_chart_snapshot import snapshot_slot
+            proj = ctl.project_or_none()
+            run_id = ctl.target.profile_run
+            if proj is None or not run_id or not proj.has_run(run_id):
+                return True
+            run = proj.run(run_id)
+            choice = self._profiling_overwrite_choice(run)
+            if choice == "cancel":
+                return False
+            meta = run.load_meta()
+            if choice == "keep":
+                if not meta.chart_snapshot_stale:
+                    meta.chart_snapshot_stale = True
+                    run.save_meta(meta)
+                self._log.appendPlainText(
+                    "\n" + tr("The stored chart for this run is being left as "
+                              "it is, so it will not describe this measurement."))
+                return True
+            snapshot_slot(slot_for(run))
+            if meta.chart_snapshot_stale:
+                meta.chart_snapshot_stale = False   # the copy matches again
+                run.save_meta(meta)
+        except Exception:      # noqa: BLE001 — never block a measurement
+            log.warning("Could not snapshot the profiling chart", exc_info=True)
         return True
 
     def _blocked_by_new_run(self) -> bool:

@@ -201,37 +201,81 @@ class MeasurementTargetController(QObject):
         except Exception:      # noqa: BLE001
             return None
 
+    def selected_run(self):
+        """The :class:`Run` the bar points at, or None for "New run" / no
+        project — the profiling counterpart of :meth:`selected_verification`."""
+        try:
+            proj = self.project_or_none()
+            run_id = self._target.profile_run
+            if proj is None or not run_id or not proj.has_run(run_id):
+                return None
+            return proj.run(run_id)
+        except Exception:      # noqa: BLE001
+            return None
+
+    def restore_target(self):
+        """Whichever of the two the button acts on, given the Run type."""
+        if self._target.is_verification():
+            return self.selected_verification()
+        return self.selected_run()
+
     def restore_state(self) -> "tuple[bool, str]":
         """``(enabled, tooltip)`` for the Restore Used Chart button, with the
         exact wording from the specification for each reason it is unavailable."""
-        from workflow.verify_chart_snapshot import has_snapshot
+        from workflow.chart_slot import slot_for
+        from workflow.verify_chart_snapshot import slot_has_snapshot
         if self._measuring:
             return False, tr("Not while a measurement is running")
-        verification = self.selected_verification()
-        if verification is None:
-            return False, tr("Select an existing Verification run date to "
-                             "restore its used chart")
-        if not has_snapshot(verification):
-            return False, tr("Selected Verification run date has no available "
-                             "chart to restore")
-        return True, tr("Restore chart used for selected verification run date")
+        if self._target.is_verification():
+            verification = self.selected_verification()
+            if verification is None:
+                return False, tr("Select an existing Verification run date to "
+                                 "restore its used chart")
+            if not slot_has_snapshot(slot_for(verification)):
+                return False, tr("Selected Verification run date has no "
+                                 "available chart to restore")
+            return True, tr("Restore chart used for selected verification "
+                            "run date")
+        # Profiling: the run itself holds one copy, so there is nothing to pick
+        # — the button simply puts back the chart this run was measured with
+        # (#130, Knut 2026-07-27).
+        run = self.selected_run()
+        if run is None:
+            return False, tr("Create the chart for this run first — there is "
+                             "nothing measured yet to restore a chart from")
+        if not slot_has_snapshot(slot_for(run)):
+            return False, tr("This profile run has no stored chart yet. A copy "
+                             "is kept when you start a measurement, and this "
+                             "button then brings that copy back")
+        try:
+            if run.load_meta().chart_snapshot_stale:
+                # The user measured with "Measure without changing the stored
+                # chart", so the copy describes an EARLIER measurement (#130).
+                return True, tr(
+                    "Restore the stored chart. Note: it is from an earlier "
+                    "measurement — the measurement now in this run was taken "
+                    "with a different chart")
+        except Exception:      # noqa: BLE001
+            pass
+        return True, tr("Restore the chart this profile run was measured with")
 
     def restore_needs_confirmation(self) -> bool:
         """Whether the live chart differs from the snapshot, so the user should
         be warned before it is replaced."""
-        from workflow.verify_chart_snapshot import live_differs_from_snapshot
-        verification = self.selected_verification()
-        return (verification is not None
-                and live_differs_from_snapshot(verification))
+        from workflow.chart_slot import slot_for
+        from workflow.verify_chart_snapshot import slot_live_differs
+        target = self.restore_target()
+        return target is not None and slot_live_differs(slot_for(target))
 
     def restore_used_chart(self):
         """Put the selected verification's snapshotted chart back. Returns the
         :class:`RestoreResult`, or None when there is nothing to restore."""
-        from workflow.verify_chart_snapshot import restore_chart
-        verification = self.selected_verification()
-        if verification is None:
+        from workflow.chart_slot import slot_for
+        from workflow.verify_chart_snapshot import restore_slot
+        target = self.restore_target()
+        if target is None:
             return None
-        result = restore_chart(verification)
+        result = restore_slot(slot_for(target))
         if result.ok:
             # The listener rebuilds the pages when the snapshot held none but
             # the recipe to redraw them is there (result.should_rebuild).
@@ -624,10 +668,18 @@ class MeasurementTargetBar(QWidget):
         from PyQt6.QtWidgets import QMessageBox
         if self._ctl.restore_needs_confirmation():
             box = QMessageBox(self)
-            box.setWindowTitle(tr("Restore the chart this verification used?"))
+            verif = self._ctl.target.is_verification()
+            box.setWindowTitle(
+                tr("Restore the chart this verification used?") if verif else
+                tr("Restore the chart this profile run was measured with?"))
             box.setText(tr(
                 "The verification chart currently in this run will be replaced "
                 "by the one this verification date was measured with.\n\n"
+                "Your measurements are not affected — only the chart files are "
+                "replaced. The chart that is there now is not kept, so if you "
+                "still need it, cancel and save a copy first.") if verif else tr(
+                "The chart currently in this profile run will be replaced by "
+                "the one this run was measured with.\n\n"
                 "Your measurements are not affected — only the chart files are "
                 "replaced. The chart that is there now is not kept, so if you "
                 "still need it, cancel and save a copy first."))

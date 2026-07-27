@@ -92,6 +92,98 @@ def snapshot_dir(verification: Verification) -> Path:
     return verification.dir / CHART_SUBDIR
 
 
+# ---------------------------------------------------------------------------
+# The same three operations, for a profiling run or a dated verification
+# (#130, Knut 2026-07-27). See workflow/chart_slot.py for what differs.
+# ---------------------------------------------------------------------------
+def snapshot_slot(slot) -> "Path | None":
+    """Copy *slot*'s live chart into its snapshot folder. Returns the folder,
+    or None when there is no chart to copy. Never moves or deletes anything."""
+    sources = slot.files_to_copy()
+    if not sources:
+        return None
+    slot.snapshot_dir.mkdir(parents=True, exist_ok=True)
+    for src in sources:
+        shutil.copy2(src, slot.snapshot_dir / src.name)
+    log.info("snapshotted %d chart file(s) into %s",
+             len(sources), slot.snapshot_dir)
+    return slot.snapshot_dir
+
+
+def slot_snapshot_files(slot) -> "list[Path]":
+    d = slot.snapshot_dir
+    if not d.exists():
+        return []
+    return sorted(p for p in d.iterdir() if p.is_file())
+
+
+def slot_has_snapshot(slot) -> bool:
+    return bool(slot_snapshot_files(slot))
+
+
+def slot_live_differs(slot) -> bool:
+    """Whether the live chart differs from the copy, by CONTENT — ``copy2``
+    keeps mtimes, so a "newer than" test would call a restored chart
+    unchanged. A missing counterpart on either side counts as a difference."""
+    snap = slot_snapshot_files(slot)
+    if not snap:
+        return False
+    live = {p.name: p for p in slot.live_files()}
+    for s in snap:
+        counterpart = live.get(s.name)
+        if counterpart is None or _digest(counterpart) != _digest(s):
+            return True
+    return False
+
+
+def restore_slot(slot) -> "RestoreResult":
+    """Put *slot*'s copy back as the live chart.
+
+    Transactional, exactly as the verification restore has always been: the
+    live files are moved aside first, the copy is written, and the set-aside
+    files are dropped only once that has worked. Any failure puts everything
+    back as it was.
+
+    The files keep the names they were copied under. Project renames already
+    rewrite every stem everywhere, including inside these folders (Knut
+    verified the reasoning, #130 2026-07-27), so nothing is renamed here.
+    """
+    result = RestoreResult()
+    snap = slot_snapshot_files(slot)
+    if not snap:
+        result.error = "no snapshot"
+        return result
+
+    slot.live_dir.mkdir(parents=True, exist_ok=True)
+    displaced = slot.live_files()
+    stash = slot.snapshot_dir.parent / f".restore-stash-{slot.snapshot_dir.name}"
+    try:
+        if displaced:
+            stash.mkdir(parents=True, exist_ok=True)
+            for p in displaced:
+                shutil.move(str(p), str(stash / p.name))
+        for s in snap:
+            target = slot.live_dir / s.name
+            shutil.copy2(s, target)
+            result.restored.append(target)
+        result.images_restored = any(_is_image(p) for p in result.restored)
+        result.needs_regeneration = not result.images_restored and \
+            not has_layout_recipe(result.restored)
+    except OSError as exc:
+        log.warning("restore failed, rolling back: %s", exc)
+        for p in result.restored:
+            p.unlink(missing_ok=True)
+        if stash.exists():
+            for p in stash.iterdir():
+                shutil.move(str(p), str(slot.live_dir / p.name))
+        result.restored = []
+        result.rolled_back = True
+        result.error = str(exc)
+    finally:
+        shutil.rmtree(stash, ignore_errors=True)
+    return result
+
+
 def snapshot_chart(verification: Verification) -> "Path | None":
     """Copy the live verification chart into ``<date_time>/chart/`` before the
     measurement starts. Returns the snapshot folder, or None when the run has no

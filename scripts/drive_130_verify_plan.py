@@ -195,6 +195,66 @@ def run_rows() -> None:
     record("V-14 profiling Replace archives every folder in the run",
            run.old_dir.exists() and "verifications" in archived,
            str(archived[:6]))
+    # ---- profiling rows (#130, Knut 2026-07-27) --------------------------
+    print("\n--- Restore Used Chart for a PROFILING run ---")
+    from workflow.chart_slot import slot_for
+    from workflow.verify_chart_snapshot import (slot_has_snapshot,
+                                                slot_live_differs,
+                                                snapshot_slot,
+                                                slot_snapshot_files)
+    # A fresh project: the verification rows above end by archiving this run's
+    # whole contents into old/ (V-14), so the profiling rows need their own.
+    tmp3 = Path(tempfile.mkdtemp(prefix="chromiq_profiling_plan_"))
+    s3, fm3, ctl, run = _env(tmp3)
+    ctl.set_run_type(RUN_TYPE_PROFILING)
+    en, tip = ctl.restore_state()
+    record("P-01 no stored chart yet → disabled, with its reason",
+           not en and "no stored chart yet" in tip, tip)
+
+    snapshot_slot(slot_for(run))
+    names = sorted(p.name for p in slot_snapshot_files(slot_for(run)))
+    record("P-02 the copy holds chart files only — no .ti3, no .icc",
+           any(n.endswith(".ti2") for n in names)
+           and not any(n.endswith((".ti3", ".icc")) for n in names), str(names))
+
+    en, tip = ctl.restore_state()
+    record("P-03 enabled once a chart is stored", en and "measured with" in tip,
+           tip)
+
+    record("P-04 an unchanged chart needs no confirmation",
+           ctl.restore_needs_confirmation() is False)
+    run.chart_ti2.write_text("REPLACED LATER")
+    record("P-05 a changed chart does need confirmation",
+           ctl.restore_needs_confirmation() is True)
+
+    run.measurement_ti3.write_text("MEASURED AFTERWARDS")
+    result = ctl.restore_used_chart()
+    record("P-06 restore puts the chart back and keeps the measurement",
+           bool(result and result.ok)
+           and run.chart_ti2.read_text() == "PROFILING-CHART"
+           and run.measurement_ti3.read_text() == "MEASURED AFTERWARDS",
+           f"ok={getattr(result, 'ok', None)}")
+
+    meta = run.load_meta(); meta.chart_snapshot_stale = True; run.save_meta(meta)
+    en, tip = ctl.restore_state()
+    record("P-07 a copy left behind on purpose says so",
+           en and "earlier measurement" in tip, tip)
+    meta.chart_snapshot_stale = False; run.save_meta(meta)
+
+    ctl.set_run_type(RUN_TYPE_VERIFICATION)
+    ctl.set_verification_id("")
+    en, _tip = ctl.restore_state()
+    record("P-08 the run's copy is not offered on the verification side",
+           not en)
+    ctl.set_run_type(RUN_TYPE_PROFILING)
+
+    from workflow.chart_import import archive_run_for_replace
+    archive_run_for_replace(run, verification=False)
+    archived = sorted(p.name for p in run.old_dir.rglob("*")) if run.old_dir.exists() else []
+    record("P-09 profiling Replace archives the stored chart with the rest",
+           any("chart" in a for a in archived), str(archived[:8]))
+
+
 
 
 def main() -> int:

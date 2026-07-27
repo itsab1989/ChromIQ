@@ -85,6 +85,9 @@ CACHE_DIRNAME   = "cache"
 #: #130 — a profiling run's verification activity lives here: the shared verify
 #: chart at the folder root, plus one dated sub-folder per verification run.
 VERIFICATIONS_DIRNAME = "verifications"
+#: #130 — the copy of the chart a run (or a dated verification) was measured
+#: with. Same name at both levels, so one word means one thing.
+CHART_SNAPSHOT_DIRNAME = "chart"
 
 #: A dated verification-run folder id: "YYYY-MM-DD_HHMMSS" (+ optional "_N").
 _VERIFY_ID_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{6}(?:_\d+)?$")
@@ -264,6 +267,11 @@ class RunMeta:
     # from the measurement whenever it's finalised (#97). Off unless the user ticks
     # the "All Stripes Read" checkbox; only meaningful for engine charts.
     scanner_target_enabled: bool = False
+    # #130: set when a measurement was taken with the chart copy deliberately
+    # left alone ("Measure without changing the stored chart"). The stored chart
+    # then describes an EARLIER measurement, so the interface must say so rather
+    # than let Restore Used Chart put back a chart that does not match.
+    chart_snapshot_stale: bool = False
     preconditioning_source_run: str | None = None
     # Set to "merged.ti3" when a refinement merge ran; otherwise the canonical
     # measurement carries the (project-name) chart stem.
@@ -681,6 +689,12 @@ class Run:
     # ---- overwrite safety: "start fresh" archive (#130)
     @property
     def old_dir(self) -> Path:                return self.dir / "old"
+    @property
+    def chart_snapshot_dir(self) -> Path:
+        """``runs/runN/chart/`` — a copy of the chart this run was measured
+        with (#130). Taken when a measurement starts, and what
+        **Restore Used Chart** puts back for a profiling run."""
+        return self.dir / CHART_SNAPSHOT_DIRNAME
 
     @property
     def verifications_old_dir(self) -> Path:

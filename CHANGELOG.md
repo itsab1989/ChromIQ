@@ -1,5 +1,32 @@
 # Changelog
 
+## v3.14.8-beta.42
+
+- **"Restore Used Chart" now works for profiling runs too.** Every profile run
+  keeps a copy of the chart it was measured with, in its own `chart/` folder,
+  saved the moment a measurement starts — so a measurement never stops
+  describing a chart you still have. The button beside the Profile run puts
+  that copy back; your measurement is never touched.
+
+  Only the chart's own files are copied — never the measurement, the profile or
+  ChromIQ's own book-keeping. The copy is taken before the measurement exists,
+  so those could only be leftovers from an earlier read.
+
+- **Starting a measurement with a different chart asks first**, exactly as it
+  does for a verification, and offers a third answer: **Measure without
+  changing the stored chart**, for trying a changed chart out. When you choose
+  it, ChromIQ remembers that the stored copy no longer describes the run's
+  measurement, and says so on the button — so a later restore can never quietly
+  put back a chart that does not match.
+
+  If you are averaging several reads, the question also points out that
+  replacing the chart now would mean averaging readings taken from two
+  different sheets.
+
+- The button explains itself in each state: a new run says to create its chart
+  first, and a run measured before this feature existed simply says it has no
+  stored chart yet.
+
 ## v3.14.8-beta.41
 
 - **Renaming a profile can no longer strand one of its own files.** If a file

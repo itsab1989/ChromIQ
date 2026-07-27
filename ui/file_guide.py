@@ -84,7 +84,9 @@ def _features():
         (tr("Measure (profiling)"),
          tr("{name}.ti2 (+ {name}.strips.json / .channels.json for the preview)"),
          tr("{name}.ti3; reads/readN.ti3 when averaging; "
-            "reports/report_*.json when a measurement report is saved")),
+            "reports/report_*.json when a measurement report is saved; plus "
+            "chart/, a copy of the chart this run was measured with, saved the "
+            "moment the measurement starts")),
         (tr("Measure (verification)"),
          tr("{name}-verify.ti2 (the shared verification chart, printed through "
             "the profile)"),
@@ -164,6 +166,7 @@ def _rows():
         ]),
         (tr("Verification runs — checking a finished profile over time"), [
             ("{name}-verify.ti1 / .ti2 / .cht …", "runs/runN/verifications", tr("The shared verification chart for this profile — usually smaller than the profiling chart (one page is plenty). You make it once on the Create Chart tab with Run type = Verification, and every future check reuses it, so results always compare like with like."), tr("Create Chart (Run type = Verification)")),
+            ("{name}.ti1 / .ti2 / .channels.json …", "runs/runN/chart", tr("A copy of the chart this profile run was measured with, kept so the measurement always describes a chart you still have. ChromIQ saves it automatically the moment a measurement starts. If you later change or re-create the chart, the “Restore Used Chart” button beside the Profile run brings this one back — your measurement is never touched. Only the chart's own files are copied: never the measurement, the profile or ChromIQ's own book-keeping."), tr("Measure tab (Run type = Profiling)")),
             ("{name}-verify.ti1 / .ti2 / .channels.json …", "runs/runN/verifications/<date>/chart", tr("A copy of the verification chart this dated check was measured with, kept so the results always describe a chart you still have. ChromIQ saves it automatically the moment a verification measurement starts. If you later change the verification chart, the “Restore Used Chart” button beside the Verification date puts this one back — your measurements are never touched. Page images are rebuilt from these files, and are stored here as well when the chart carries no layout recipe to rebuild them from."), tr("Measure tab (Run type = Verification)")),
             ("{name}-verify.ti3", "runs/runN/verifications/<date>", tr("One dated verification measurement: the verification chart printed THROUGH the profile (colour management ON) and measured, to see how accurate the profile still is. Each check lands in its own date-stamped folder, so nothing is overwritten. Tagged internally so it never builds a profile and never mixes with your profiling measurement."), tr("Measure tab (Run type = Verification)")),
             ("report_*.json", "runs/runN/verifications/<date>/reports", tr("The accuracy report for that one dated check. The Measurement Report tool trends these verification checks over time — entirely separately from the profiling runs above — so you can watch a profile hold up, or drift, month after month."), tr("Measure tab (Run type = Verification)")),
