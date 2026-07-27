@@ -195,3 +195,31 @@ def test_an_unknown_rate_still_judges_on_time():
     tracker = PaceTracker(PaceConfig(sample_hz=0.0, min_patch_seconds=0.5))
     assert tracker.strip_timed(3.0, 15).too_fast          # 200 ms per patch
     assert not tracker.strip_timed(9.0, 15).too_fast      # 600 ms per patch
+
+
+# ---- spacer width goes with reading speed (Knut, 2026-07-27) --------------
+def test_the_explanation_covers_spacer_width():
+    """His new section: a spacer can only be found if a reading lands inside
+    it, so the width a chart needs follows from the readings-per-patch setting."""
+    _title, body = explanation_for("colormunki")
+    for phrase in ("SPACER WIDTH GOES WITH READING SPEED",
+                   "230 ÷ 345 = 0.7 mm",
+                   "0.8 to 0.9 mm",
+                   "22 × 15 = 330",
+                   "330 ÷ 50 = 6.6 seconds",
+                   "262 ÷ 330 ≈ 0.8 mm",
+                   "about 1 mm wide"):
+        assert phrase in body, f"missing: {phrase}"
+
+
+def test_the_spacer_arithmetic_is_the_arithmetic_the_app_uses():
+    """The worked example must not drift from the model behind it."""
+    from core.measure_pace import PaceConfig
+    cfg = PaceConfig(sample_hz=50.0, min_samples=15)
+    readings_per_strip = 22 * 15
+    assert readings_per_strip == 330
+    assert round(readings_per_strip / cfg.sample_hz, 1) == 6.6
+    assert round(262 / readings_per_strip, 1) == 0.8
+    # …and the 15-patch case the prose leads with.
+    assert 15 * 23 == 345
+    assert round(230 / 345, 1) == 0.7

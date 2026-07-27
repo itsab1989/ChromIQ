@@ -38,13 +38,16 @@ def test_it_grows_tall_enough_for_the_longest_time_on_its_side(qapp):
     assert panel.sizeHint().height() >= longest + panel.PAD_TOP
 
 
-def test_the_verdict_adds_its_own_line(qapp):
+def test_the_verdict_is_no_longer_this_panel_s_business(qapp):
+    """It moved out into a label of its own beneath the frame (Knut, #131
+    2026-07-27): inside the panel it was drawn, and drawing is the first thing a
+    squeezed layout loses. A label with a minimum height cannot be lost."""
     panel = StripTimesPanel()
-    panel.set_content("", [(10, "5.1 s")])
-    without = panel.sizeHint().height()
-    panel.set_content("", [(10, "5.1 s")], "Too fast — read more slowly",
-                      "#ff6b6b")
-    assert panel.sizeHint().height() > without
+    panel.set_content("", [(30, "5.1 s")], "Too fast", "#ff6b6b")
+    without = StripTimesPanel()
+    without.set_content("", [(30, "5.1 s")])
+    assert panel.sizeHint() == without.sizeHint(), \
+        "the verdict must not change how tall this panel is any more"
 
 
 def test_the_columns_keep_the_positions_they_were_given(qapp):
@@ -103,8 +106,6 @@ def test_the_panel_always_asks_for_enough_room_to_draw_what_it_draws(
     panel = StripTimesPanel()
     panel.set_content("Strip reading times, 15 patches:", cols, verdict, "#ff6b6b")
     needed = panel.PAD_TOP + panel._times_height() + panel.PAD_BOTTOM
-    if verdict:
-        needed += panel.GAP + QFontMetrics(panel._verdict_font()).ascent()
     assert panel.sizeHint().height() >= needed, (
         f"asks for {panel.sizeHint().height()}px but draws down to {needed}px")
 

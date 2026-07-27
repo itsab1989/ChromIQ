@@ -1,5 +1,47 @@
 # Changelog
 
+## v3.14.8-beta.56
+
+- **Refining an existing measurement no longer says the chart is finished.** On
+  a resume the chart really is complete, so ChromIQ announced it the instant the
+  strip menu appeared — the completion window, offering to move on, in front of
+  somebody who had just sat down to re-read one strip. During a resume it now
+  waits until a strip has actually been read.
+
+- **Stopping a measurement keeps the overlay on screen** when "Show overlay from
+  existing measurement" is ticked. It used to leave the preview blank until you
+  turned the box off and on again, which made a measurement that was perfectly
+  safe on disk look lost.
+
+- **Pop-up buttons cannot be clipped by the style sheet any more.** The app-wide
+  rule that keeps a button wide enough for its label was being overruled by the
+  style sheet's own minimum width, so long labels were still trimmed at both
+  ends. The rule now answers in the same language, and every button in the
+  application benefits.
+
+- **"Skip initial calibration" is honoured in patch-by-patch mode.** It only
+  switched off the calibration the instrument does when it starts up; a second
+  check then asked for one anyway before the first patch. If your meter truly
+  cannot read without calibrating, it still says so — at the moment it matters.
+
+- **The strip reading times sit in a proper framed panel.** Same frame as the
+  panels on the left of the window, titled "Strip reading times (15 patches per
+  strip)" so the times can stand under any column; clear space above it so the
+  page buttons are not crammed against it; its edges lined up with PREV and
+  NEXT; and the reading-speed warning below it, as a line of its own that no
+  amount of squeezing can hide.
+
+- **The completion sound waits half a second** for the last strip's own cue to
+  finish, so the two no longer arrive on top of each other.
+
+- **The ColorMunki explanation covers spacer width.** A spacer is only found if
+  a reading lands inside it, so how fast you may read and how wide your spacers
+  must be are the same question — with the arithmetic and a worked example.
+
+- **The sentence beside the Profile-run boxes is back where it belongs**, to the
+  right of the two ⓘ, wrapping onto a second line instead of running over the
+  version number. Only "Location being edited:" sits below the row.
+
 ## v3.14.8-beta.55
 
 - **The speed limit is applied strictly by calculation again.** beta.53 let a

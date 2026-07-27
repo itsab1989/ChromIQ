@@ -127,3 +127,41 @@ def test_both_completion_dialogs_offer_close_and_the_renamed_button():
     assert src.count('tr("Close")') >= 3, "each must also offer Close"
     assert "Continue to Build Profile" not in src, "old wording left behind"
     assert 'QPushButton(tr("Build Profile →")' not in src
+
+
+def test_a_stylesheet_min_width_cannot_hold_a_button_narrow(qapp):
+    """#131 (Knut, 2026-07-27): "I thought you made a global rule … why did it
+    now happen?"
+
+    Because a stylesheet's own ``min-width`` decides the minimum size hint and
+    beats ``setMinimumWidth``. The app sheet sets 72 px on every QPushButton, so
+    pop-up buttons kept collapsing to it and clipping their labels. The fit now
+    answers in the same language, and this test fails if it stops doing so.
+    """
+    from PyQt6.QtWidgets import QPushButton
+
+    from ui.widgets import ButtonFontFilter, fit_button_width
+    btn = QPushButton("Replace stored chart")
+    btn.setStyleSheet("QPushButton { min-width: 72px; }")
+    ButtonFontFilter.fit(btn)
+
+    assert "min-width" in btn.styleSheet()
+    fit_button_width(btn)
+    # The minimum the widget will actually report — the number the layout uses.
+    from PyQt6.QtGui import QFontMetrics
+    needed = QFontMetrics(btn.font()).horizontalAdvance(btn.text().upper())
+    assert btn.minimumSizeHint().width() >= needed, (
+        f"{btn.minimumSizeHint().width()}px reported for {needed}px of text")
+
+
+def test_fitting_twice_does_not_pile_up_rules(qapp):
+    """It runs on every polish, so it must stay idempotent in effect."""
+    from PyQt6.QtWidgets import QPushButton
+
+    from ui.widgets import ButtonFontFilter
+    btn = QPushButton("Keep stored chart")
+    for _ in range(4):
+        ButtonFontFilter.fit(btn)
+    first = btn.minimumSizeHint().width()
+    ButtonFontFilter.fit(btn)
+    assert btn.minimumSizeHint().width() == first

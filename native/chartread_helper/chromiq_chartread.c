@@ -1859,7 +1859,13 @@ a1log *log			/* verb, debug & error log */
 		}
 
 		/* Do any needed calibration before the user places the instrument on a desired spot */
-		if (it->needs_calibration(it) & inst_calt_n_dfrble_mask) {
+		/* CHROMIQ_EXT: -N means the user asked NOT to be calibrated before
+		 * reading, so honour it here too. Upstream skips only the driver's
+		 * start-up calibration and then asks again at this point, which reads
+		 * as the flag being ignored (Knut, #131 2026-07-27 — he saw it in
+		 * patch-by-patch mode). If the instrument truly refuses to read, the
+		 * in-loop inst_needs_cal handler still asks, at the moment it matters. */
+		if (nocal == 0 && (it->needs_calibration(it) & inst_calt_n_dfrble_mask)) {
 			rv = cq_json
 			   ? cq_handle_calibrate(it, inst_calt_needed, inst_calc_none, 0)
 			   : inst_handle_calibrate(it, inst_calt_needed, inst_calc_none, NULL, NULL, 0);
@@ -2565,7 +2571,11 @@ a1log *log			/* verb, debug & error log */
 		if (xtern == 0) {	/* Instrument patch by patch */
 
 			/* Do any needed calibration before the user places the instrument on a desired spot */
-			if (it->needs_calibration(it) & inst_calt_n_dfrble_mask) {
+			/* CHROMIQ_EXT: -N is honoured here as well — see the matching
+			 * comment in strip mode. This is the path Knut reported: with
+			 * patch-by-patch on, "Skip initial calibration" was overruled by
+			 * this check before the first patch was ever read. */
+			if (nocal == 0 && (it->needs_calibration(it) & inst_calt_n_dfrble_mask)) {
 				/* CHROMIQ_EXT: in JSON mode calibration prompts become cal_*
 				 * events answered by commands — the console is a pipe here, so
 				 * stock inst_handle_calibrate would hang on next_con_char. */

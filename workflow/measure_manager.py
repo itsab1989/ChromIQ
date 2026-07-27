@@ -233,9 +233,17 @@ class MeasureManager(QObject):
         super().__init__(parent)
         self._runner         = runner
         self._is_resume:     bool = False
+        #: whether a strip has been read in THIS session. On a resume the chart
+        #: is already complete, so chartread reports "all done" the moment it
+        #: offers the strip menu — and the completion window came up before the
+        #: user had re-read anything (Knut, #131 2026-07-27).
+        self._read_something: bool = False
         self._guided_strips: list[str] = []
         self._guided_idx:    int  = 0
-        self._guided_state:  str  = "idle"   # "idle" | "navigating" | "waiting"
+        # "disabled" until strips are actually given: everywhere else the rule
+        # is "idle if there are strips, else disabled", and an "idle" default
+        # with no strips would index an empty list on the first strip event.
+        self._guided_state:  str  = "disabled"   # | "idle" | "navigating" | "waiting"
         self._guided_on_line: "Callable[[str], None] | None" = None
         # Queued key dispatched once chartread returns to the strip menu after
         # a misread retry — see send_post_retry_key().
@@ -271,6 +279,7 @@ class MeasureManager(QObject):
         args = self._build_args(params)
         cwd  = params.ti1_path.parent
         self._is_resume      = params.resume
+        self._read_something = False
         self._guided_on_line = on_line
         # Reset guided state for this run
         self._guided_idx   = 0
@@ -614,6 +623,18 @@ class MeasureManager(QObject):
         args.append(str(p.ti1_path.with_suffix("")))
         return args
 
+    def _all_done_is_news(self) -> bool:
+        """Whether "all stripes read" is worth announcing.
+
+        On a **resume** the chart is already complete, so chartread says so as
+        soon as it offers the strip menu — before the user has re-read a single
+        strip. Announcing it there is worse than useless: it is the completion
+        window, offering to move on, at the exact moment somebody sat down to
+        refine a strip (Knut, #131 2026-07-27). During a resume it waits until
+        something has actually been read; a normal run is unaffected.
+        """
+        return bool(self._read_something or not self._is_resume)
+
     def _handle_engine_line(self, line: str,
                             on_line: Callable[[str], None]) -> None:
         """Engine mode: typed events replace the regex forest. Prose lines
@@ -635,7 +656,7 @@ class MeasureManager(QObject):
         elif kind == "strip_ready":
             strip = ev.get("strip", "")
             self.stripe_changed.emit(strip)
-            if ev.get("all_done"):
+            if ev.get("all_done") and self._all_done_is_news():
                 self.all_stripes_done.emit()
             # Same follow-up logic the console path runs on the menu prompt:
             if self._save_partial_state == "wait_strip_menu":
@@ -656,6 +677,7 @@ class MeasureManager(QObject):
 
         elif kind == "strip_read":
             self._engine_progress = True
+            self._read_something = True
             self.strip_measured.emit(ev)
             on_line(f" Strip read OK — {ev.get('strip', '?')} "
                     f"(worst patch ΔE {ev.get('worst_de', 0):.1f})")
@@ -786,9 +808,15 @@ class MeasureManager(QObject):
         if _ARE_YOU_SURE_RE.search(line) and self._save_partial_state == "wait_sure":
             self._save_partial_state = None
             self._runner.write_stdin("y")
-        if _STRIP_OK_RE.search(line) and self._guided_state == "waiting":
-            self._advance_guided_strip(on_line)
-        if _ALL_DONE_RE.search(line) and not (self._is_resume and _STRIP_RE.search(line)):
+        if _STRIP_OK_RE.search(line):
+            # Something was read in this session — which is what tells a resume
+            # that a later "all stripes read" is real news.
+            self._read_something = True
+            if self._guided_state == "waiting":
+                self._advance_guided_strip(on_line)
+        if (_ALL_DONE_RE.search(line)
+                and not (self._is_resume and _STRIP_RE.search(line))
+                and self._all_done_is_news()):
             self.all_stripes_done.emit()
         if _CALIBRATION_PROMPT_RE.search(line):
             self.calibration_prompt.emit("", "", False)
@@ -928,7 +956,7 @@ class MeasureManager(QObject):
 
     def _guided_step(self, current: str, on_line: Callable[[str], None]) -> None:
         letter = "".join(c for c in current if c.isalpha()).upper()
-        if not letter:
+        if not letter or not self._guided_strips:
             return
 
         if self._guided_state == "idle":

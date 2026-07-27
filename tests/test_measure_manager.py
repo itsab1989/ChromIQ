@@ -308,14 +308,29 @@ def test_all_rows_read_inline_suffix_suppressed_in_resume_mode():
     assert not sigs.get("all_stripes_done")
 
 
-def test_all_rows_read_standalone_line_fires_in_both_modes():
+def test_all_rows_read_standalone_line_still_fires_on_a_normal_run():
     """Older Argyll printed ALL ROWS READ on its own line. The detection must
     keep firing for that historical form too."""
-    for resume in (False, True):
-        mgr, _, sigs = _make_manager()
-        mgr._is_resume = resume
-        _feed(mgr, "    (!! ALL ROWS READ !!)")
-        assert sigs.get("all_stripes_done") == [()], f"resume={resume}"
+    mgr, _, sigs = _make_manager()
+    mgr._is_resume = False
+    _feed(mgr, "    (!! ALL ROWS READ !!)")
+    assert sigs.get("all_stripes_done") == [()]
+
+
+def test_the_standalone_line_waits_for_a_real_read_on_a_resume():
+    """Updated with Knut's report of 2026-07-27: the inline form was already
+    suppressed during a resume, but the standalone form was not — and that is
+    the one that put the completion window in front of him the instant he
+    started a refine, before he had re-read anything."""
+    mgr, _, sigs = _make_manager()
+    mgr._is_resume = True
+
+    _feed(mgr, "    (!! ALL ROWS READ !!)")
+    assert not sigs.get("all_stripes_done")
+
+    _feed(mgr, "Strip read OK")
+    _feed(mgr, "    (!! ALL ROWS READ !!)")
+    assert sigs.get("all_stripes_done") == [()]
 
 
 # ---------------------------------------------------------------------------

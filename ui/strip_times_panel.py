@@ -51,9 +51,9 @@ class StripTimesPanel(QWidget):
         """
         self._label = label or ""
         self._columns = [(int(x), str(t)) for x, t in columns]
-        self._verdict = verdict or ""
+        self._verdict = verdict or ""      # kept for callers; drawn by the host
         self._verdict_colour = verdict_colour
-        self.setVisible(bool(self._columns or self._verdict))
+        self.setVisible(bool(self._columns))
         # A layout may shrink a widget to its minimum, and the verdict line is
         # what disappears first when it does — so the minimum IS what we draw
         # (Knut saw the red warning vanish twice). setMinimumHeight forces it,
@@ -63,7 +63,7 @@ class StripTimesPanel(QWidget):
         self.update()
 
     def clear(self) -> None:
-        self.set_content("", [], "")
+        self.set_content("", [])
 
     # ---- geometry ---------------------------------------------------------
     def _times_height(self) -> int:
@@ -81,22 +81,16 @@ class StripTimesPanel(QWidget):
     def sizeHint(self) -> QSize:      # noqa: N802
         if not self._columns and not self._verdict:
             return QSize(200, 0)      # nothing to say: take no room at all
-        h = self.PAD_TOP + self._times_height() + self.PAD_BOTTOM
-        if self._verdict:
-            h += self.GAP + QFontMetrics(self._verdict_font()).height()
-        return QSize(200, max(0, h))
+        return QSize(200, max(0, self.PAD_TOP + self._times_height()
+                              + self.PAD_BOTTOM))
 
     def minimumSizeHint(self) -> QSize:      # noqa: N802
         """The same as the hint: this panel must never be given less than it
-        draws, or the verdict line is the first thing to disappear — which is
-        exactly what happened when the layout squeezed it (Knut)."""
+        draws. It used to hold the verdict too, and that was always the first
+        thing a squeeze removed (Knut saw it vanish three times) — the verdict
+        is now a label of its own in the layout, which cannot be painted over
+        the edge of anything."""
         return self.sizeHint()
-
-    def _verdict_font(self) -> QFont:
-        f = QFont(self.font())
-        f.setPointSizeF(f.pointSizeF() + 3)
-        f.setBold(True)
-        return f
 
     # ---- painting ---------------------------------------------------------
     def paintEvent(self, _ev) -> None:      # noqa: N802
@@ -114,12 +108,10 @@ class StripTimesPanel(QWidget):
             self.updateGeometry()
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.TextAntialiasing)
-        # Its own faint frame: without one this area reads as part of the
-        # preview's page controls just above it (Knut, #131 2026-07-27).
-        if self._columns or self._verdict:
-            from PyQt6.QtGui import QPen
-            p.setPen(QPen(QColor(self._frame), 1))
-            p.drawRect(0, 0, self.width() - 1, self.height() - 1)
+        # No frame of its own any more: it lives inside a group box that looks
+        # like every other framed panel in the window, and the box's title
+        # carries the caption (Knut, #131 2026-07-27 — "replace this hard box
+        # with a frame, same frames used in left part of the window").
         times_h = self._times_height()
 
         if self._columns:
@@ -151,11 +143,4 @@ class StripTimesPanel(QWidget):
                                    lfm.elidedText(line, Qt.TextElideMode.ElideRight,
                                                   room))
 
-        if self._verdict:
-            p.setFont(self._verdict_font())
-            p.setPen(QColor(self._verdict_colour))
-            vfm = QFontMetrics(self._verdict_font())
-            y = self.PAD_TOP + times_h + self.PAD_BOTTOM + self.GAP + vfm.ascent()
-            p.drawText(0, y, self.width(), vfm.height(),
-                       int(Qt.AlignmentFlag.AlignHCenter), self._verdict)
         p.end()

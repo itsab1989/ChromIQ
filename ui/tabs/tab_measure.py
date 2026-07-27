@@ -149,6 +149,18 @@ if TYPE_CHECKING:
 
 log = get_logger(__name__)
 
+#: The preview's nav row is inset by 12 px, so the reading-times frame uses the
+#: same inset and its edges line up with the PREV and NEXT buttons (Knut, #131).
+_PACE_SIDE_MARGIN = 12
+#: ~2-3 mm of air above and below the frame, so the page buttons and the warning
+#: line are not crammed against it (Knut, #131 2026-07-27).
+_PACE_GAP = 10
+
+#: How long the completion sound waits for the final strip's own cue to finish
+#: (Knut, #131 2026-07-27: "a small 0.5 second delay … so that any sound that
+#: was played before this window has a chance to finish").
+_ALL_DONE_SOUND_GAP_MS = 500
+
 
 
 # Absolute FLOOR ΔE for the split-patch warning outline: a patch is never
@@ -1398,8 +1410,44 @@ class TabMeasure(QWidget):
         # red when it is too fast. Hidden until there is something to say, so it
         # takes no room from the preview otherwise.
         from ui.strip_times_panel import StripTimesPanel
-        self._pace_panel = StripTimesPanel(right)
-        rl.addWidget(self._pace_panel)
+        # Knut's layout (#131, 2026-07-27): a framed panel that looks like every
+        # other one in the window, its title naming the chart's strip length; a
+        # clear gap above it so the page buttons are not crammed against it; the
+        # frame's left and right edges lined up with PREV and NEXT; and the
+        # warning line BELOW the frame, as a label of its own — as part of the
+        # panel it was the first thing a squeeze removed, which is why he lost
+        # sight of it three times.
+        pace_area = QWidget(right)
+        pa = QVBoxLayout(pace_area)
+        # 12 px left/right is the preview's own nav-row margin, so the frame
+        # lines up with the PREV and NEXT buttons above it.
+        pa.setContentsMargins(_PACE_SIDE_MARGIN, _PACE_GAP,
+                              _PACE_SIDE_MARGIN, 0)
+        pa.setSpacing(_PACE_GAP)
+
+        self._pace_group = QGroupBox("", pace_area)
+        self._pace_group.setFlat(True)
+        pg = QVBoxLayout(self._pace_group)
+        pg.setContentsMargins(8, 4, 8, 6)
+        pg.setSpacing(0)
+        self._pace_panel = StripTimesPanel(self._pace_group)
+        pg.addWidget(self._pace_panel)
+        self._pace_group.setVisible(False)
+        pa.addWidget(self._pace_group)
+
+        # The verdict. A real label, wrapped, with a floor under its height, so
+        # no amount of squeezing can hide it again.
+        self._pace_verdict_lbl = QLabel("", pace_area)
+        self._pace_verdict_lbl.setWordWrap(True)
+        self._pace_verdict_lbl.setAlignment(Qt.AlignmentFlag.AlignHCenter
+                                            | Qt.AlignmentFlag.AlignVCenter)
+        _vf = self._pace_verdict_lbl.font()
+        _vf.setPointSizeF(_vf.pointSizeF() + 3)
+        _vf.setBold(True)
+        self._pace_verdict_lbl.setFont(_vf)
+        self._pace_verdict_lbl.setVisible(False)
+        pa.addWidget(self._pace_verdict_lbl)
+        rl.addWidget(pace_area)
         # Times measured so far, per strip letter, plus whether each passed.
         self._pace_times: dict = {}
         self._pace_patches = 0
@@ -5154,6 +5202,16 @@ class TabMeasure(QWidget):
             return
         self._all_done_shown = True
 
+        # The final strip's own "read OK" cue is still sounding when the chart
+        # finishes, so the completion sound landed on top of it (Knut, #131
+        # 2026-07-27). Give the cue its moment, then show the window — the
+        # guard above has already been set, so this cannot run twice.
+        QTimer.singleShot(_ALL_DONE_SOUND_GAP_MS, self._show_all_stripes_done)
+
+    def _show_all_stripes_done(self) -> None:
+        """The completion sound and window, after the short gap that keeps the
+        last strip's cue from being drowned out."""
+
         from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout
 
         _ti3_path = self._ti1_path.with_suffix(".ti3") if self._ti1_path else None
@@ -5664,6 +5722,13 @@ class TabMeasure(QWidget):
         self._set_settings_enabled(True)
         self._start_btn.setEnabled(True)
         self._stop_btn.setEnabled(False)
+
+        # With "Show overlay from existing measurement" ticked, the overlay is
+        # what the user wants to look at — including right after stopping, when
+        # the question is usually "what did I actually get?". Stopping used to
+        # leave the preview blank until the box was toggled off and on again
+        # (Knut, #131 2026-07-27).
+        self._restore_overlay_after_measurement()
 
         if self._usb_claimed_by_vm:
             self._usb_claimed_by_vm = False
@@ -6511,13 +6576,33 @@ class TabMeasure(QWidget):
             columns = []
         self._pace_verdict = verdict
         self._pace_verdict_colour = colour
-        label = ""
-        if columns and self._pace_patches:
-            # Two lines, so a long caption cannot collide with the first
-            # strip's time on charts whose strips start near the page edge.
-            label = tr("Strip reading times:") + "\n" + tr(
-                "({n} patches)").format(n=self._pace_patches)
-        panel.set_content(label, sorted(columns), verdict, colour)
+        # The caption is the FRAME'S TITLE now, so it sits above the times and a
+        # reading can be drawn in any column without colliding with it (Knut,
+        # #131 2026-07-27). Singular and plural both spelled out.
+        group = getattr(self, "_pace_group", None)
+        if group is not None:
+            if self._pace_patches == 1:
+                title = tr("Strip reading times (1 patch per strip)")
+            else:
+                title = tr("Strip reading times ({n} patches per strip)").format(
+                    n=self._pace_patches)
+            group.setTitle(title if self._pace_patches else
+                           tr("Strip reading times"))
+            group.setVisible(bool(columns))
+        panel.set_content("", sorted(columns), verdict, colour)
+
+        lbl = getattr(self, "_pace_verdict_lbl", None)
+        if lbl is not None:
+            lbl.setText(verdict or "")
+            lbl.setStyleSheet(f"color: {colour};")
+            lbl.setVisible(bool(verdict))
+            if verdict:
+                # A floor under its own height: the warning disappearing is the
+                # one failure Knut has reported three times, and a label with a
+                # minimum cannot be squeezed out of a layout.
+                lbl.setMinimumHeight(lbl.heightForWidth(max(lbl.width(), 200))
+                                     if lbl.wordWrap() else
+                                     lbl.sizeHint().height())
 
     def _clear_pace_readout(self) -> None:
         """Forget the pace shown on screen — a new or re-read chart starts from
@@ -6532,6 +6617,13 @@ class TabMeasure(QWidget):
         panel = getattr(self, "_pace_panel", None)
         if panel is not None:
             panel.clear()
+        group = getattr(self, "_pace_group", None)
+        if group is not None:
+            group.setVisible(False)
+        lbl = getattr(self, "_pace_verdict_lbl", None)
+        if lbl is not None:
+            lbl.clear()
+            lbl.setVisible(False)
 
     def _play_measurement_finished_once(self) -> None:
         """Sound "measurement finished" the moment the chart is read.
@@ -6843,6 +6935,23 @@ class TabMeasure(QWidget):
                 cb.blockSignals(True)
                 cb.setChecked(checked)
                 cb.blockSignals(False)
+
+    def _restore_overlay_after_measurement(self) -> None:
+        """Put the from-measurement overlay back on the preview when the user
+        asked to see it (#131, Knut 2026-07-27).
+
+        Best-effort by design: a measurement that produced nothing placeable
+        simply leaves the preview as it is, exactly as ticking the box would.
+        """
+        try:
+            cb = (self._overlay_cb if self._current_mode() == "guided"
+                  else self._m_overlay_cb)
+            if cb is None or not cb.isChecked():
+                return
+            self._show_overlay_from_existing_ti3()
+        except Exception:      # noqa: BLE001 — never break the end of a read
+            log.warning("Could not restore the overlay after the measurement",
+                        exc_info=True)
 
     def _on_overlay_toggled(self, checked: bool) -> None:
         """Show/hide the from-.ti3 overlay (#134). If the chart's measurement

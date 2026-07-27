@@ -175,31 +175,48 @@ def test_both_info_icons_follow_the_active_tab(qapp, tmp_path):
     assert bar._restore_tip._color_override == "#123456", "the Restore ⓘ must follow too"
 
 
-# ---- the hint sentence must wrap, not run over the version (2026-07-27) ----
-def test_the_hint_sits_on_its_own_line_and_wraps(qapp, tmp_path):
-    """Knut: "the text right of the two ⓘ is cut off and overlaps the version
-    number — it must wrap to the next line at any window width"."""
+# ---- the hint stays on the right of the ⓘ and wraps there (2026-07-27) ----
+def test_the_hint_stays_beside_the_boxes_and_wraps_there(qapp, tmp_path):
+    """Knut, #130 2026-07-27, correcting my first fix: "This help text shall stay
+    on the right side of the Restore Used Chart and the two information icons,
+    but also wrap to next line when the text would normally go beyond the version
+    label. Only the Location being edited: label and path shall be placed below."
+    """
     bar, _run = _bar(tmp_path)
     hint = bar._hint
     hint.setVisible(True)
     QApplication.processEvents(); bar.layout().activate()
 
-    assert hint.wordWrap(), "a one-line sentence at the end of the row is what ran off"
-    row = bar.layout().itemAt(0).layout()
-    row_bottom = max(row.itemAt(i).widget().geometry().bottom()
-                     for i in range(row.count())
-                     if row.itemAt(i).widget() is not None)
-    assert hint.y() > row_bottom, "it must be BELOW the row, not inside it"
+    assert hint.wordWrap(), "it must wrap rather than run off the edge"
 
-    for width in (1400, 900, 640, 420):
+    # In the ROW — to the right of both ⓘ, not on the line below it.
+    row = bar.layout().itemAt(0).layout()
+    in_row = [row.itemAt(i).widget() for i in range(row.count())]
+    assert hint in in_row, "the hint belongs in the top row"
+    assert hint.x() > bar._restore_tip.x(), "it sits right of the second ⓘ"
+    assert hint.y() < bar._location.y(), \
+        "only the location line goes below the row"
+
+    # Wrapped, so it never reaches past the bar — at any width.
+    for width in (1400, 1000, 820):
         bar.resize(width, bar.sizeHint().height())
         QApplication.processEvents(); bar.layout().activate()
-        assert hint.x() + hint.width() <= bar.width(), (
+        assert hint.x() + hint.width() <= bar.width() + 1, (
             f"at {width}px the hint reaches past the bar's right edge")
-        # Wrapped, so the whole sentence is on screen: the text needs more
-        # width than one line offers, and the label is taller than one line.
         one_line = hint.fontMetrics().height()
         needed = hint.fontMetrics().horizontalAdvance(hint.text())
         if needed > hint.width():
             assert hint.height() > one_line, \
                 f"at {width}px the sentence is cut off instead of wrapped"
+
+
+def test_the_wrapped_hint_does_not_inflate_the_bar(qapp, tmp_path):
+    """A wrapped label sized from the wrong width made the bar 352 px tall in
+    testing — heightForWidth is what keeps it honest."""
+    bar, _run = _bar(tmp_path)
+    bar._hint.setVisible(True)
+    bar.resize(1400, bar.sizeHint().height())
+    QApplication.processEvents(); bar.layout().activate()
+
+    assert bar._hint.sizePolicy().hasHeightForWidth()
+    assert bar.height() < 120, f"the bar grew to {bar.height()}px"

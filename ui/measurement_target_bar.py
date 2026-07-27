@@ -437,13 +437,24 @@ class MeasurementTargetBar(QWidget):
             "create your first chart, then you may choose a profile run."))
         self._hint.setObjectName("target_bar_hint")
         self._hint.setVisible(False)
-        # On its own line, wrapped (Knut, #130 2026-07-27). Sitting at the end
-        # of the row it ran off the right-hand side and over the version text,
-        # and no window width was wide enough to show all of it — the row grows
-        # with the boxes, this sentence does not have to.
+        # It stays where it belongs — to the right of the ⓘ, beside the boxes it
+        # is about — and WRAPS there rather than running past the version text
+        # (Knut, #130 2026-07-27: my first fix moved it below the row, which is
+        # the place reserved for "Location being edited:"). It takes the row's
+        # leftover width and gives the rest back, so a long sentence turns into
+        # a second line instead of a longer bar.
         self._hint.setWordWrap(True)
-        self._hint.setSizePolicy(QSizePolicy.Policy.Preferred,
-                                 QSizePolicy.Policy.Preferred)
+        # heightForWidth is what makes a wrapped label ask for the height its
+        # GIVEN width needs. Without it the layout sizes it from a sizeHint that
+        # assumes some other width, and the bar grows to a ridiculous height.
+        _hp = QSizePolicy(QSizePolicy.Policy.Preferred,
+                          QSizePolicy.Policy.Minimum)
+        _hp.setHeightForWidth(True)
+        self._hint.setSizePolicy(_hp)
+        self._hint.setMinimumWidth(200)      # below this, wrapping is unreadable
+        self._hint.setAlignment(Qt.AlignmentFlag.AlignLeft
+                                | Qt.AlignmentFlag.AlignVCenter)
+        row.addWidget(self._hint, 1)
         # Everything in the row stays left-aligned and in sequence, so switching
         # Run type to Verification simply adds its boxes on the right (Knut,
         # #130 2026-07-26). Without this the row is as wide as the location line
@@ -481,7 +492,6 @@ class MeasurementTargetBar(QWidget):
         # stays in the tooltip.
         self._location.setSizePolicy(QSizePolicy.Policy.Ignored,
                                      QSizePolicy.Policy.Preferred)
-        column.addWidget(self._hint)          # its own line, beneath the row
         column.addWidget(self._location)
 
         self._ctl.changed.connect(self._sync_from_controller)

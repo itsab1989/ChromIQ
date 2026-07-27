@@ -76,6 +76,18 @@ def fit_button_width(btn) -> None:
         want += btn.iconSize().width() + 6
     if btn.minimumWidth() < want:
         btn.setMinimumWidth(want)
+    # A stylesheet's own ``min-width`` decides the button's minimum size hint,
+    # and it beats setMinimumWidth — which is why the app-wide 72 px rule kept
+    # winning and pop-up buttons were still clipped after all of the above
+    # (Knut, #131 2026-07-27: "I thought you made a global rule … why did it
+    # now happen?"). Answering in the same language is what actually sticks.
+    if want > btn.minimumSizeHint().width():
+        try:
+            btn.setStyleSheet(
+                (btn.styleSheet() or "")
+                + f"\nQPushButton {{ min-width: {int(want)}px; }}")
+        except Exception:      # noqa: BLE001 — sizing must never raise
+            pass
 
 
 class ButtonFontFilter(QObject):
