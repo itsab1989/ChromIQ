@@ -1558,7 +1558,10 @@ class TabMeasure(QWidget):
         overlay_row = QHBoxLayout()
         self._overlay_cb = QCheckBox(
             tr("Show overlay from existing measurement"), left)
-        self._overlay_cb.setChecked(False)
+        # Starts from the saved default (#134/#130): it used to be hard-coded
+        # off, so even a saved default could not bring it back.
+        self._overlay_cb.setChecked(
+            bool(self._settings.get("measure_show_overlay", False)))
         self._overlay_cb.setVisible(False)
         self._overlay_cb.toggled.connect(self._on_overlay_toggled)
         overlay_row.addWidget(self._overlay_cb)
@@ -1988,7 +1991,8 @@ class TabMeasure(QWidget):
         m_overlay_row = QHBoxLayout()
         self._m_overlay_cb = QCheckBox(
             tr("Show overlay from existing measurement"), left)
-        self._m_overlay_cb.setChecked(False)
+        self._m_overlay_cb.setChecked(
+            bool(self._settings.get("measure_show_overlay", False)))
         self._m_overlay_cb.setVisible(False)
         self._m_overlay_cb.toggled.connect(self._on_overlay_toggled)
         m_overlay_row.addWidget(self._m_overlay_cb)
@@ -7029,6 +7033,9 @@ class TabMeasure(QWidget):
             s.set("measure_overlay_mode",      self._g_overlay_mode.currentData())
             s.set("measure_only_measured",     self._g_only_measured.isChecked())
             s.set("measure_patch_tile",        self._g_patch_tile.isChecked())
+            # #134/#130 (Knut, 2026-07-27): this switch was left out, so
+            # "Save as Defaults" never kept it and it came back off every time.
+            s.set("measure_show_overlay",      self._overlay_cb.isChecked())
             for opt in self._chartread_opts:
                 if opt.checkbox:
                     s.set(f"measure_{opt.key}_enabled", opt.checkbox.isChecked())
@@ -7038,6 +7045,7 @@ class TabMeasure(QWidget):
                     elif isinstance(opt.widget, QComboBox):
                         s.set(f"measure_{opt.key}_value", opt.widget.currentData())
         else:
+            s.set("measure_show_overlay",       self._m_overlay_cb.isChecked())
             s.set("manual2_chartread_instr",    self._m_instr_spin.value())
             s.set("manual2_chartread_bidir_mode", self._m_bidir_combo.currentData())
             s.set("manual2_chartread_bidir_auto", self._m_bidir_auto_cb.isChecked())
