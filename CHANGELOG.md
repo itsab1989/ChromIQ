@@ -1,5 +1,18 @@
 # Changelog
 
+## v3.14.8-beta.57
+
+- **The patch-set editor remembers the design you applied.** Set the generators
+  up, add the set, apply it — and the next time you open "New patch set…" the
+  window comes back with those settings rather than with factory defaults, so
+  you can go straight back in and change the patch count. Until now only a
+  sub-window's own OK button recorded anything, so a design that reached the
+  chart by any other route was forgotten the moment you closed the editor.
+
+- **Adding a colour set now counts as part of the chart's design.** What you add
+  is folded into the design the editor carries, so applying afterwards remembers
+  the chart you actually made instead of the one you started from.
+
 ## v3.14.8-beta.56
 
 - **Refining an existing measurement no longer says the chart is finished.** On

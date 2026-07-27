@@ -4120,12 +4120,17 @@ class _AddPatchesDialog(_NewChartDialog):
                                     "generate patches from."))
                 return
             # Remember the colour-set choices for next time (shared with the
-            # New-chart dialog), without disturbing its chart/layout state.
+            # New-chart dialog), without disturbing its chart/layout state —
+            # this window has no chart or layout frames of its own, so only the
+            # generator half is ours to speak for.
             if self._settings is not None:
                 cur = self._settings.get("new_chart_gen", None)
                 cur = dict(cur) if isinstance(cur, dict) else {}
                 cur.update(self._collect_gen_sets())
                 self._settings.set("new_chart_gen", cur)
+                # Keep the editor's own copy in step, so applying afterwards
+                # remembers what was actually added (Knut, #130 2026-07-27).
+                self.result_recipe = dict(cur)
         else:
             program = [self._single_rgb]
         self.result_program = program
@@ -5764,6 +5769,15 @@ class Ti2RelayoutDialog(QDialog):
                                 initial_recipe=self._chart_recipe)
         if dlg.exec() != QDialog.DialogCode.Accepted or not dlg.result_program:
             return
+        # Fold the colour-set choices just used into the chart's recipe, so the
+        # design the editor carries — and applies, and reopens with — includes
+        # what was added rather than only what the chart started from (Knut,
+        # #130 2026-07-27).
+        if isinstance(dlg.result_recipe, dict):
+            merged = dict(self._chart_recipe) if isinstance(
+                self._chart_recipe, dict) else {}
+            merged.update(dlg.result_recipe)
+            self._chart_recipe = merged
         extra = dlg.result_program
         if self._spec is None:
             # Nothing loaded yet — seed a fresh blank chart from the added
@@ -7467,6 +7481,12 @@ class Ti2RelayoutDialog(QDialog):
         # the folder reads like a main-app chart.
         R.save_editor_meta(res.ti2, self._spec, self._options, name,
                            recipe=self._chart_recipe)
+        # …and remember the same design as the app-wide last-used state, so the
+        # next "New patch set…" opens on the settings you just applied rather
+        # than on factory defaults (Knut, #130 2026-07-27). The chart's own copy
+        # above still wins when that chart is reopened; this is the fallback for
+        # every other case, which is exactly the one he hit.
+        self._remember_gen_state()
         # Colour list (<name>-colours.txt) — what the old Export button wrote, so
         # the design can be pasted back into the New chart dialog later.
         colour_note = ""
@@ -7593,6 +7613,24 @@ class Ti2RelayoutDialog(QDialog):
             b = max(0, min(255, round(b100 / 100 * 255)))
             lines.append(f"#{r:02x}{g:02x}{b:02x}" if as_hex else f"{r} {g} {b}")
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    def _remember_gen_state(self) -> None:
+        """Persist the design just applied as the app-wide last-used one.
+
+        "All the last used settings should be saved when applying, and then
+        reloaded into the editor when opened, so I can go back to it and change
+        it" (Knut, #130 2026-07-27). Applying is the moment the user commits to
+        a design, so it is the moment worth remembering — the sub-dialogs only
+        remembered when they were OK'd, and a design that reached the chart by
+        any other route was forgotten.
+        """
+        if self._settings is None or not isinstance(self._chart_recipe, dict):
+            return
+        try:
+            self._settings.set("new_chart_gen", dict(self._chart_recipe))
+        except Exception:      # noqa: BLE001 — never fail an apply over this
+            log.warning("could not remember the patch-set settings",
+                        exc_info=True)
 
     def _save_and_apply(self) -> None:
         """The "Apply / Save" action (#70, Knut's model).
