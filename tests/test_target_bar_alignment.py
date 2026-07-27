@@ -98,7 +98,7 @@ def test_verification_adds_its_boxes_on_the_right(qapp, tmp_path):
     # Measured up to the last *selector* — the bar's ⓘ closes the row and the
     # new boxes are inserted ahead of it.
     profiling_right = max(w.x() + w.width() for w in _visible_row_widgets(bar)
-                          if w is not bar._tip_btn)
+                          if w is bar._type_combo)
 
     bar._ctl.set_run_type(RUN_TYPE_VERIFICATION)
     QApplication.processEvents()
@@ -106,15 +106,19 @@ def test_verification_adds_its_boxes_on_the_right(qapp, tmp_path):
 
     after = _visible_row_widgets(bar)
     assert len(after) > len(before), "verification should add boxes"
-    # The bar's own ⓘ closes the row, so it is pushed along by the new boxes —
-    # everything before the insertion point must stay exactly where it was.
+    # Everything up to the insertion point must stay exactly where it was.
+    # The widgets that sit AFTER it are pushed along, which is the point: the
+    # bar's own ⓘ, and — since #130 — the Restore Used Chart button and its ⓘ,
+    # which are shown for both run types and so are not "new" boxes.
+    pushed = {id(bar._tip_btn), id(bar._restore_btn), id(bar._restore_tip)}
     for w in after:
-        if id(w) in before and w is not bar._tip_btn:
+        if id(w) in before and id(w) not in pushed:
             assert w.x() == before[id(w)], \
                 "an existing box moved when the verification boxes appeared"
     added = [w for w in after if id(w) not in before]
-    assert added and min(w.x() for w in added) >= profiling_right - 1, \
-        "the new boxes must be added on the right"
+    assert added, "verification adds its date label and box"
+    assert min(w.x() for w in added) >= profiling_right - 1, \
+        "the new boxes must be added on the right of the Run type box"
     # …and the widened row still does not reach across the window.
     assert max(w.x() + w.width() for w in after) < WIDE * 0.75
 
