@@ -238,10 +238,6 @@ class MeasureManager(QObject):
         #: offers the strip menu — and the completion window came up before the
         #: user had re-read anything (Knut, #131 2026-07-27).
         self._read_something: bool = False
-        #: strip letter -> whether it already holds a reading, from the engine's
-        #: session map. Decides what "skip this strip" can mean (see
-        #: :meth:`skip_current_strip`).
-        self._strip_read_state: dict[str, bool] = {}
         self._guided_strips: list[str] = []
         self._guided_idx:    int  = 0
         # "disabled" until strips are actually given: everywhere else the rule
@@ -284,7 +280,6 @@ class MeasureManager(QObject):
         cwd  = params.ti1_path.parent
         self._is_resume      = params.resume
         self._read_something = False
-        self._strip_read_state = {}
         self._guided_on_line = on_line
         # Reset guided state for this run
         self._guided_idx   = 0
@@ -575,48 +570,42 @@ class MeasureManager(QObject):
         return self._engine_active
 
     def send_post_retry_key(self, key: str) -> None:
-        """Acknowledge a misread (any-key = retry) and queue ``key`` for the
-        strip menu that chartread shows next. Needed because the misread
-        prompt only accepts retry or Esc — f/b/n/d are accepted only at the
-        subsequent "Press 'f' to move forward…" prompt.
+        """Acknowledge a misread and queue *key* for the strip menu that follows.
 
-        **Engine mode does not need the two-step at all, and could not complete
-        it.** After a failed strip the engine sits at its retry prompt; the
-        acknowledgement puts it back on the SAME strip, and the queued key waits
-        for a console strip menu that never arrives in that form. The result was
-        Knut's report (#131, 2026-07-27): Skip Strip left the arrow where it was,
-        and the next keystroke appeared to go nowhere. The engine takes the
-        command directly instead.
+        **The two steps are both necessary, on the engine as much as on stock
+        chartread**, and this was verified against the real helper binary rather
+        than reasoned about (Knut, #131 2026-07-27, after two failed attempts):
+
+        =========================  ==========================================
+        sent at the retry prompt   what the strip menu does next
+        =========================  ==========================================
+        ``forward`` alone          nothing — the SAME strip is re-armed
+        ``ok`` then ``forward``    moves on to the next strip
+        =========================  ==========================================
+
+        The reason is in the helper: after a failed strip it waits in
+        ``cq_prompt_char()``, where **any key that is not Esc/q means "retry"**.
+        A navigation command sent there is simply spent as that "any key" — so
+        it reads as retry and the strip never changes. The acknowledgement has
+        to be spent on the prompt first; only then is the menu listening.
         """
-        if self._engine_active:
-            from workflow.chartread_engine import command_for_key
-            cmd = command_for_key(key)
-            if cmd is not None:
-                self._pending_post_retry_key = None
-                self.send_command(cmd)
-                return
-            log.warning("engine: no command mapping for post-retry key %r", key)
         self._pending_post_retry_key = key
+        if self._engine_active:
+            self.send_command({"cmd": "ok"})
+            return
         self._runner.write_stdin("\r")
 
     def skip_current_strip(self) -> None:
-        """Leave the strip that just failed and move on.
+        """Leave the strip that just failed and move on to the next one.
 
-        "Next unread" is the right instruction only while something is still
-        unread. On a chart that is already complete — a refine, or any re-read of
-        a finished measurement — there is no unread strip, so the engine has
-        nowhere to go and stays exactly where it was. That is what Knut saw on
-        beta.62: the command was sent and accepted, and the arrow did not move
-        (#131, 2026-07-27). When everything has been read, "skip" can only
-        sensibly mean **the next strip**, so that is what is sent.
+        **"Next unread" is the wrong instruction here**, which is why two
+        earlier attempts at this failed: a strip that has just FAILED is itself
+        still unread, so "go to the next unread strip" lands back on the strip
+        you are trying to leave. On a chart that is already complete it has
+        nowhere to go at all. "Forward" is what "skip this one" means, and it is
+        right in both cases — confirmed against the real helper.
         """
-        if self._engine_active:
-            anything_unread = any(not read
-                                  for read in self._strip_read_state.values())
-            self.send_command({"cmd": "next_unread"} if anything_unread
-                              else {"cmd": "forward"})
-            return
-        self.send_post_retry_key("n")
+        self.send_post_retry_key("f")
 
     def send_save_partial_and_quit(self) -> None:
         """Save what's been scanned so far and exit chartread cleanly.
@@ -692,12 +681,7 @@ class MeasureManager(QObject):
         kind = ev["event"]
 
         if kind == "session_start":
-            strips = ev.get("strips", [])
-            # Remember which strips already hold a reading: "skip this strip"
-            # means something different on a chart that is already complete.
-            self._strip_read_state = {str(s.get("strip", "")): bool(s.get("read"))
-                                      for s in strips if s.get("strip")}
-            self.session_map.emit(strips)
+            self.session_map.emit(ev.get("strips", []))
 
         elif kind == "strip_ready":
             strip = ev.get("strip", "")
@@ -724,7 +708,6 @@ class MeasureManager(QObject):
         elif kind == "strip_read":
             self._engine_progress = True
             self._read_something = True
-            self._strip_read_state[str(ev.get("strip", ""))] = True
             self.strip_measured.emit(ev)
             on_line(f" Strip read OK — {ev.get('strip', '?')} "
                     f"(worst patch ΔE {ev.get('worst_de', 0):.1f})")

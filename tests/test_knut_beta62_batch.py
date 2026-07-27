@@ -43,51 +43,23 @@ def _sent(manager):
 
 
 # ---- Skip Strip -----------------------------------------------------------
-def test_skip_goes_to_the_next_unread_while_anything_is_unread(manager):
-    manager._strip_read_state = {"A": True, "B": False, "C": False}
-
+# What this file used to assert here was wrong, and the real helper disproved
+# it: see tests/test_skip_strip_replay.py, which drives the binary. The
+# read-state bookkeeping those tests described has been removed with the logic
+# it served.
+def test_skip_is_the_two_step_ending_in_forward(manager):
     manager.skip_current_strip()
 
-    assert _sent(manager) == [{"cmd": "next_unread"}]
+    assert manager._runner.stdin == ['{"cmd": "ok"}\n']
+    assert manager._pending_post_retry_key == "f"
 
 
-def test_skip_goes_to_the_next_strip_on_a_complete_chart(manager):
-    """His case: refining a finished measurement. "Next unread" has nowhere to
-    go, so the engine stayed put and the arrow never moved."""
-    manager._strip_read_state = {"A": True, "B": True, "C": True}
+def test_the_manager_no_longer_tracks_which_strips_are_read():
+    """It existed only for the "next unread" idea, which the binary disproved."""
+    import inspect
 
-    manager.skip_current_strip()
-
-    assert _sent(manager) == [{"cmd": "forward"}]
-
-
-def test_an_unknown_read_state_still_moves(manager):
-    """No session map yet — better to move on than to do nothing."""
-    manager._strip_read_state = {}
-    manager.skip_current_strip()
-    assert _sent(manager) == [{"cmd": "forward"}]
-
-
-def test_reading_a_strip_updates_what_skip_will_do(manager):
-    manager._strip_read_state = {"A": False, "B": False}
-    manager._handle_engine_line(
-        json.dumps({"event": "strip_read", "strip": "A", "patches": []}),
-        lambda _s: None)
-    assert manager._strip_read_state["A"] is True
-
-
-def test_the_session_map_seeds_the_read_state(manager):
-    manager._handle_engine_line(json.dumps({
-        "event": "session_start",
-        "strips": [{"strip": "A", "read": True}, {"strip": "B", "read": False}],
-    }), lambda _s: None)
-    assert manager._strip_read_state == {"A": True, "B": False}
-
-
-def test_stock_chartread_keeps_its_own_route(manager):
-    manager._engine_active = False
-    manager.skip_current_strip()
-    assert manager._runner.stdin == ["\r"]
+    from workflow.measure_manager import MeasureManager
+    assert "_strip_read_state" not in inspect.getsource(MeasureManager)
 
 
 # ---- the failure timing ---------------------------------------------------

@@ -39,20 +39,32 @@ def manager():
     return MeasureManager(_Runner())
 
 
-# ---- Skip Strip ------------------------------------------------------------
-def test_the_engine_is_told_to_move_on_directly(manager):
-    """No two-step: the engine takes "next unread" as a command."""
+# ---- Skip Strip -----------------------------------------------------------
+# Proved against the real helper in tests/test_skip_strip_replay.py: a
+# navigation command sent at the retry prompt is spent as "any other key" —
+# which means RETRY — so the acknowledgement has to go first. These are the
+# unit-level guards on that sequence.
+def test_the_acknowledgement_goes_first(manager):
     manager._engine_active = True
 
-    manager.send_post_retry_key("n")
+    manager.send_post_retry_key("f")
 
-    assert manager._runner.stdin == ['{"cmd": "next_unread"}\n']
-    assert manager._pending_post_retry_key is None, \
-        "nothing may be left waiting for a menu that will not come"
+    assert manager._runner.stdin == ['{"cmd": "ok"}\n']
+    assert manager._pending_post_retry_key == "f", \
+        "the navigation key waits for the strip menu"
+
+
+def test_skip_asks_for_the_next_strip_not_the_next_unread_one(manager):
+    """A strip that has just FAILED is itself still unread, so "next unread"
+    lands back on the strip you are trying to leave."""
+    manager._engine_active = True
+
+    manager.skip_current_strip()
+
+    assert manager._pending_post_retry_key == "f"
 
 
 def test_stock_chartread_keeps_the_two_step(manager):
-    """There the console menu really does follow the acknowledgement."""
     manager._engine_active = False
 
     manager.send_post_retry_key("n")
@@ -61,21 +73,17 @@ def test_stock_chartread_keeps_the_two_step(manager):
     assert manager._pending_post_retry_key == "n"
 
 
-def test_an_unmapped_key_falls_back_rather_than_vanishing(manager):
+def test_the_queued_key_is_sent_when_the_menu_appears(manager):
+    """The second half of the two-step, on the engine path."""
     manager._engine_active = True
+    manager.send_post_retry_key("f")
+    manager._runner.stdin.clear()
 
-    manager.send_post_retry_key("c")          # no engine command for 'c'
+    manager._handle_engine_line(
+        json.dumps({"event": "strip_ready", "strip": "A"}), lambda _s: None)
 
-    assert manager._runner.stdin == ["\r"]
-    assert manager._pending_post_retry_key == "c"
-
-
-@pytest.mark.parametrize("key,cmd", [("n", "next_unread"), ("f", "forward"),
-                                     ("b", "back"), ("d", "done")])
-def test_each_navigation_key_has_its_command(manager, key, cmd):
-    manager._engine_active = True
-    manager.send_post_retry_key(key)
-    assert json.loads(manager._runner.stdin[0]) == {"cmd": cmd}
+    assert manager._runner.stdin == ['{"cmd": "forward"}\n']
+    assert manager._pending_post_retry_key is None
 
 
 # ---- the swipe clock -------------------------------------------------------

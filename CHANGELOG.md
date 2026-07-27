@@ -1,5 +1,28 @@
 # Changelog
 
+## v3.14.8-beta.66
+
+- **"Skip Strip" moves to the next strip. Verified against the real reading
+  engine, not reasoned about.** Two earlier attempts failed, so this time the
+  behaviour was measured: the engine was driven through its replay instrument, a
+  strip was failed exactly as in the report, and the strip it armed next was read
+  back.
+
+  Two things were wrong, and both are fixed:
+
+  - After a failed strip the engine waits at a prompt where **any key that is
+    not Escape means "retry"**. A "move on" instruction sent there is spent as
+    that key, so it read as retry and nothing moved. The acknowledgement has to
+    be spent on the prompt first; only then is the menu listening.
+  - The instruction itself was "go to the next **unread** strip" — but a strip
+    that has just failed is still unread, so that lands back on the strip you
+    are trying to leave. It now asks for the next strip, which is what skipping
+    one means.
+
+  Measured result: on a fresh chart the arrow moves A → B; on a chart that is
+  already fully measured it moves on and wraps round at the end. Both are now
+  held by tests that drive the real engine.
+
 ## v3.14.8-beta.65
 
 - **Patch-by-patch reading now honours the strip-comparison setting too** — it
