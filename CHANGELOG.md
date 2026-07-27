@@ -1,5 +1,16 @@
 # Changelog
 
+## v3.14.8-beta.40
+
+- **"Skip Stripe" no longer promises something it cannot do.** Skipping asks
+  ArgyllCMS for the next unread stripe, and that search wraps around — so when
+  the stripe that just failed is the only one still unread, it comes back to
+  that same stripe and nothing is skipped. In that situation the button is now
+  **"Finish Without This Strip"**: it saves the stripes you have read and ends
+  the measurement, and loading the chart again lets you continue from there.
+  The window explains why the choice has changed. With every other stripe it
+  behaves exactly as before.
+
 ## v3.14.8-beta.39
 
 - **Both engine switches now show you what you are choosing between.** The help

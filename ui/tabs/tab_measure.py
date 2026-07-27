@@ -4545,6 +4545,24 @@ class TabMeasure(QWidget):
         self._log.ensureCursorVisible()
         self._manager.abort()
 
+    def _is_last_unread_strip(self) -> bool:
+        """True when the strip that just failed is the only one still unread.
+
+        "Skip Stripe" asks ArgyllCMS for the next UNREAD strip, and that search
+        wraps around — so with nothing else unread it comes back to this very
+        strip. Skipping then skips nothing (Knut, #131 2026-07-26). Answered
+        only from the engine's own read map: with the separate chartread there
+        is no reliable list, and guessing would put the wrong button on screen.
+        """
+        if not self._manager.engine_active:
+            return False
+        read_map = getattr(self, "_engine_read", None)
+        if not read_map:
+            return False
+        current = getattr(self, "_current_strip_letter", "")
+        unread = [s for s, done in read_map.items() if not done]
+        return unread == [current] if current else False
+
     def _on_strip_error(self, reason: str) -> None:
         from PyQt6.QtWidgets import QDialog, QLabel, QVBoxLayout
 
@@ -4602,14 +4620,27 @@ class TabMeasure(QWidget):
                 "raise the <i>Patch consistency tolerance</i> setting before the next run."
             ).format(reason=reason) + "<br><br>"
 
+        # Worked out before the text, because the second choice changes both
+        # its name and what it does when this is the only unread stripe.
+        last_one = self._is_last_unread_strip()
+        if last_one:
+            choices = tr(
+                "&nbsp;&nbsp;<b>Retry</b> — read this same stripe again.<br>"
+                "&nbsp;&nbsp;<b>Finish Without This Strip</b> — this is the only "
+                "stripe still unread, so there is nowhere to skip to. Saves the "
+                "stripes you have read and ends the measurement; loading the "
+                "chart again lets you continue from here.<br>")
+        else:
+            choices = tr(
+                "&nbsp;&nbsp;<b>Retry</b> — read this same stripe again.<br>"
+                "&nbsp;&nbsp;<b>Skip Stripe</b> — leave this stripe unread for now "
+                "and jump to the next unread one. You can come back to it later in "
+                "this session.<br>")
         msg = QLabel(
-            advice +
-            tr("&nbsp;&nbsp;<b>Retry</b> — read this same stripe again.<br>"
-               "&nbsp;&nbsp;<b>Skip Stripe</b> — leave this stripe unread for now and "
-               "jump to the next unread one. You can come back to it later in this session.<br>"
-               "&nbsp;&nbsp;<b>Save Partial &amp; Quit</b> — stop here and save what you "
-               "have read so far. Next time you load this chart, "
-               "<i>Continue Measurement</i> will pick up where you left off."),
+            advice + choices + tr(
+                "&nbsp;&nbsp;<b>Save Partial &amp; Quit</b> — stop here and save what "
+                "you have read so far. Next time you load this chart, "
+                "<i>Continue Measurement</i> will pick up where you left off."),
             dlg,
         )
         msg.setWordWrap(True)
@@ -4623,8 +4654,15 @@ class TabMeasure(QWidget):
         btn_row = QHBoxLayout()
         btn_row.setSpacing(8)
 
-        retry_btn = QPushButton(tr("Retry"),              dlg)
-        skip_btn  = QPushButton(tr("Skip Stripe"),        dlg)
+        retry_btn = QPushButton(tr("Retry"), dlg)
+        skip_btn = QPushButton(
+            tr("Finish Without This Strip") if last_one else tr("Skip Stripe"),
+            dlg)
+        if last_one:
+            skip_btn.setToolTip(tr(
+                "Saves the strips you have read and ends the measurement. This "
+                "strip stays unread; loading the chart again lets you continue "
+                "from here."))
         save_btn  = QPushButton(tr("Save Partial && Quit"), dlg)
         retry_btn.setObjectName("primary")
         retry_btn.setFixedHeight(32)
@@ -4636,7 +4674,9 @@ class TabMeasure(QWidget):
             dlg.accept()
 
         def _skip():
-            chosen[0] = "skip"
+            # With nothing else unread there is nowhere to skip to, so the
+            # honest action is to save what has been read and stop.
+            chosen[0] = "finish" if last_one else "skip"
             dlg.accept()
 
         def _save():
@@ -4668,6 +4708,10 @@ class TabMeasure(QWidget):
 
         if chosen[0] == "retry":
             self._manager.send_key("\r")
+        elif chosen[0] == "finish":
+            # Save what has been read and end, which is what skipping the only
+            # unread strip actually means (Knut, #131 2026-07-26).
+            self._manager.send_save_partial_and_quit()
         elif chosen[0] == "skip":
             # Two-step: retry returns chartread to the strip menu, then 'n'
             # jumps to the next unread stripe.
