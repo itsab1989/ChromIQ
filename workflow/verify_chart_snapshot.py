@@ -129,7 +129,14 @@ def slot_live_differs(slot) -> bool:
     if not snap:
         return False
     live = {p.name: p for p in slot.live_files()}
+    from workflow.chart_slot import CHART_SIDE_FILES
     for s in snap:
+        # Files that merely travel WITH the chart — meta.json and the like — are
+        # restored but do not decide whether the chart itself changed. Otherwise
+        # editing the printtarg knobs would raise "this is a different chart"
+        # (Knut, #130 2026-07-27).
+        if s.name in CHART_SIDE_FILES:
+            continue
         counterpart = live.get(s.name)
         if counterpart is None or _digest(counterpart) != _digest(s):
             return True

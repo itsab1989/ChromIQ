@@ -55,8 +55,17 @@ except Exception:
     log.debug("Could not arm faulthandler to crash log; using stderr", exc_info=True)
     faulthandler.enable()
 
+# The VERSION belongs in the very first line of every log. Without it a report
+# cannot be matched to a build, and "is this fixed?" turns into guesswork about
+# which release the user was actually running (#131, Knut 2026-07-27).
+try:
+    from core.version import APP_VERSION as _APP_VERSION
+except Exception:      # noqa: BLE001 — never let logging block startup
+    _APP_VERSION = "unknown"
+
 log.info(
-    "ChromIQ starting; python=%s platform=%s frozen=%s argv=%s",
+    "ChromIQ %s starting; python=%s platform=%s frozen=%s argv=%s",
+    _APP_VERSION,
     sys.version.split()[0],
     sys.platform,
     getattr(sys, "frozen", False),

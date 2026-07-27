@@ -875,6 +875,13 @@ class TabMeasure(QWidget):
         self._ti3_mtime_before: float | None = None
         self._mode: str = "dark"
 
+        # Sounds FIRST. Qt calls slots in connection order, and every one of the
+        # slots below opens a modal dialog — which blocks inside itself. A cue
+        # connected after such a slot is therefore not heard until the user
+        # dismisses the window, which is the "sound on button press" Knut has
+        # reported three times (#131, 2026-07-27). Connecting the cues ahead of
+        # the windows makes them arrive together, for the whole family at once.
+        self._connect_instrument_error_cues()
         self._manager.stripe_changed.connect(self._on_stripe_changed)
         self._manager.all_stripes_done.connect(self._on_all_stripes_done)
         # Opt-in scanner target: (re)build .cht + .cie from every finalised
@@ -942,14 +949,11 @@ class TabMeasure(QWidget):
         _m.patch_measured.connect(self._on_patch_sound)
         # (the strip cue is played by _on_strip_measured itself — see there)
         # (strip_error's sound is played by _on_strip_error itself — see there)
-        for _sig in (_m.instrument_disconnected, _m.no_instrument,
-                     _m.device_busy, _m.sensor_wrong_position,
-                     _m.usb_claimed_by_vm):
-            _sig.connect(lambda *_: self._sound.play(_snd.INSTRUMENT_ERROR))
-        for _sig in (_m.generic_instrument_error, _m.coms_init_failed,
-                     _m.inst_init_failed, _m.instrument_wrong_type,
-                     _m.ccmx_load_failed, _m.mode_set_failed):
-            _sig.connect(lambda *_: self._sound.play(_snd.INSTRUMENT_ERROR))
+        # (every window that opens a modal cues itself from the top of its own
+        #  slot — see _cue_window. The instrument-error signals below are the
+        #  exception: their cue is CONNECTED, and connection order is therefore
+        #  part of the behaviour. It is set up in _connect_instrument_error_cues,
+        #  called BEFORE the slots that open those windows.)
         self.measure_finished.connect(
             lambda _p: self._play_measurement_finished_once())
 
@@ -4109,6 +4113,7 @@ class TabMeasure(QWidget):
         patch — a likely one-off misread. Offer to re-measure it. This fires
         AFTER the strip is already saved, so we don't answer a chartread prompt;
         we just inform and, on request, jump back to re-read the strip."""
+        self._cue_window("STRIP_FAIL")
         from PyQt6.QtWidgets import (
             QDialog, QHBoxLayout, QLabel, QPushButton, QVBoxLayout,
         )
@@ -4187,6 +4192,7 @@ class TabMeasure(QWidget):
             self._measure_failed = True
 
     def _on_wrong_strip(self, read: str, expected: str) -> None:
+        self._cue_window("STRIP_FAIL")
         from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout
 
         QApplication.instance().removeEventFilter(self)
@@ -4251,6 +4257,7 @@ class TabMeasure(QWidget):
         # If giving up, chartread will exit and _on_measure_done re-enables UI.
 
     def _on_unexpected_response(self, delta_e: str) -> None:
+        self._cue_window("PATCH_OUT_OF_TOL")
         from PyQt6.QtWidgets import QDialog, QLabel, QVBoxLayout
 
         QApplication.instance().removeEventFilter(self)
@@ -4350,6 +4357,7 @@ class TabMeasure(QWidget):
         QApplication.instance().installEventFilter(self)
 
     def _on_strip_interrupted(self) -> None:
+        self._cue_window("STRIP_FAIL")
         QApplication.instance().removeEventFilter(self)
 
         dlg = QDialog(self)
@@ -4407,6 +4415,7 @@ class TabMeasure(QWidget):
             QApplication.instance().installEventFilter(self)
 
     def _on_unread_confirm(self, patch_info: str) -> None:
+        self._cue_window("STRIP_FAIL")
         QApplication.instance().removeEventFilter(self)
 
         dlg = QDialog(self)
@@ -4642,6 +4651,7 @@ class TabMeasure(QWidget):
         )
 
     def _on_abort_confirm(self) -> None:
+        self._cue_window("INSTRUMENT_ERROR")
         QApplication.instance().removeEventFilter(self)
 
         dlg = QDialog(self)
@@ -4896,6 +4906,7 @@ class TabMeasure(QWidget):
 
     def _on_calibration_prompt(self, cond: str = "", message: str = "",
                                optional: bool = False) -> None:
+        self._cue_window("INSTRUMENT_ERROR")
         from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout
 
         QApplication.instance().removeEventFilter(self)
@@ -6646,6 +6657,40 @@ class TabMeasure(QWidget):
         if getattr(self, "_sound", None) is not None:
             import core.sound as _snd
             self._sound.play(_snd.MEASUREMENT_FINISHED)
+
+    def _connect_instrument_error_cues(self) -> None:
+        """Wire the instrument-error cue to every signal that raises an
+        instrument window. Called BEFORE those windows' own slots are connected,
+        so the sound is heard as the window appears rather than when it is
+        dismissed (#131, Knut 2026-07-27)."""
+        import core.sound as _snd
+        _m = self._manager
+        for _sig in (_m.instrument_disconnected, _m.no_instrument,
+                     _m.device_busy, _m.sensor_wrong_position,
+                     _m.usb_claimed_by_vm,
+                     _m.generic_instrument_error, _m.coms_init_failed,
+                     _m.inst_init_failed, _m.instrument_wrong_type,
+                     _m.ccmx_load_failed, _m.mode_set_failed):
+            _sig.connect(lambda *_: self._sound.play(_snd.INSTRUMENT_ERROR))
+
+    def _cue_window(self, event: str) -> None:
+        """Sound a window at the moment it opens (#131, Knut 2026-07-27).
+
+        His rule: *"ALL warnings and error windows that could occur during
+        measurement … shall have their belonging sound played at the same time
+        as the window appears."*
+
+        It has to be called from the TOP of the slot that opens the window, not
+        connected alongside it: a slot that opens a modal dialog blocks inside
+        itself, so anything connected after it is not heard until the window is
+        dismissed — which is how a cue ended up playing on a button press twice
+        before (beta.35, beta.43).
+        """
+        import core.sound as _snd
+        try:
+            self._sound.play(getattr(_snd, event))
+        except Exception:      # noqa: BLE001 — a cue must never block a window
+            log.warning("could not play the cue for %s", event, exc_info=True)
 
     def _play_strip_cue(self, *, too_fast: bool) -> None:
         """Sound the one cue this finished strip has earned.

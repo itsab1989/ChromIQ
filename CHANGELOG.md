@@ -1,5 +1,24 @@
 # Changelog
 
+## v3.14.8-beta.60
+
+- **Every warning and error window during a measurement now sounds as it
+  appears.** Seven windows had no sound at all — "Wrong Strip Read" among them —
+  and eleven instrument-error windows had one that arrived late: it was wired
+  after the window, and a window blocks while it is open, so the sound was heard
+  when you dismissed it rather than when it opened. Both faults are fixed, and
+  the suite now fails if a window is added without a cue or with a late one.
+
+- **The chart's settings file travels with the stored chart.** "Restore Used
+  Chart" now puts back `meta.json` along with the chart files, for profiling runs
+  and for dated verifications alike, so a restored chart comes back with the
+  settings it was made with. A change to that file on its own is not treated as
+  a change of chart, so editing your printtarg settings will not raise the
+  "stored chart differs" window.
+
+- **The log now names the version in its first line.** A report can be matched
+  to a build without guesswork about which release was actually running.
+
 ## v3.14.8-beta.59
 
 - **The two "stored chart differs" windows now carry their name inside the

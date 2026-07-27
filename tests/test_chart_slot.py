@@ -38,8 +38,49 @@ def test_only_chart_files_are_copied(tmp_path):
     snapshot_slot(slot_for_run(run))
 
     names = sorted(p.name for p in slot_snapshot_files(slot_for_run(run)))
+    # meta.json joined the list on Knut's instruction of 2026-07-27: it holds
+    # the patch-set editor's design and the printtarg knobs, so a chart restored
+    # without it comes back without the settings it was made with.
     assert names == [f"{run.stem}.channels.json", f"{run.stem}.ti1",
-                     f"{run.stem}.ti2"], names
+                     f"{run.stem}.ti2", "meta.json"], names
+
+
+def test_the_settings_file_travels_with_the_chart(tmp_path):
+    """Knut, #130 2026-07-27: "this file should also be backed up to the chart/
+    folders … Restoring the chart files should then also copy that meta.json
+    file"."""
+    _proj, run = _run_with_chart(tmp_path)
+    (run.dir / "meta.json").write_text('{"editor_recipe": {"count": 540}}')
+
+    snapshot_slot(slot_for_run(run))
+    (run.dir / "meta.json").write_text('{"editor_recipe": {"count": 9}}')
+    from workflow.verify_chart_snapshot import restore_slot
+    restore_slot(slot_for_run(run))
+
+    assert '"count": 540' in (run.dir / "meta.json").read_text()
+
+
+def test_a_changed_settings_file_is_not_a_changed_chart(tmp_path):
+    """It travels with the chart but does not describe it — otherwise editing
+    the printtarg knobs would raise "this is a different chart"."""
+    _proj, run = _run_with_chart(tmp_path)
+    slot = slot_for_run(run)
+    snapshot_slot(slot)
+
+    (run.dir / "meta.json").write_text('{"editor_recipe": {"count": 1}}')
+
+    assert slot_live_differs(slot) is False
+
+
+def test_a_run_with_only_a_settings_file_has_no_chart(tmp_path):
+    """Every run has a meta.json; that must never make an empty run look as if
+    it had a chart to copy."""
+    from core.file_manager import Project
+    proj = Project.create(tmp_path / "Bare", "Bare")
+    run = proj.current_run(); run.ensure_dir()
+    (run.dir / "meta.json").write_text("{}")
+
+    assert snapshot_slot(slot_for_run(run)) is None
 
 
 def test_the_measurement_and_the_profile_are_never_copied(tmp_path):

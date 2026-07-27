@@ -42,6 +42,14 @@ PROFILING_CHART_SUFFIXES = (
     ".ti1", ".ti2", ".cht", ".channels.json", ".strips.json",
 )
 
+#: Files that belong to the chart but do not carry the chart's stem. ``meta.json``
+#: holds the patch-set editor's design (``editor_recipe``) and the printtarg
+#: knobs the chart was saved with, so a chart restored without it comes back
+#: without the settings it was made with (Knut, #130 2026-07-27: "this file
+#: should also be backed up to the chart/ folders … Restoring the chart files
+#: should then also copy that meta.json file").
+CHART_SIDE_FILES = ("meta.json",)
+
 
 def _is_image(p: Path) -> bool:
     return p.suffix.lower() in _IMAGE_SUFFIXES
@@ -74,6 +82,17 @@ class ChartSlot:
         return [p for p in files if p.name.endswith(self.suffixes)
                 or _is_image(p)]
 
+    def side_files(self) -> "list[Path]":
+        """Files that belong WITH the chart but are not the chart.
+
+        Kept out of :meth:`live_files` deliberately: they must not decide
+        whether a run has a chart at all, and a change in one of them is not a
+        change of chart — otherwise editing the printtarg knobs would raise the
+        "this is a different chart" warning.
+        """
+        return [self.live_dir / name for name in CHART_SIDE_FILES
+                if (self.live_dir / name).is_file()]
+
     def files_to_copy(self) -> "list[Path]":
         """What a copy takes: the chart files, but not the page images — unless
         there is no layout recipe to redraw them from, in which case the images
@@ -82,8 +101,9 @@ class ChartSlot:
         if not files:
             return []
         if has_layout_recipe(files):
-            return [p for p in files if not _is_image(p)]
-        return files
+            files = [p for p in files if not _is_image(p)]
+        # …and whatever travels with a chart, but only when there IS one.
+        return files + self.side_files()
 
 
 def slot_for_run(run: Run) -> ChartSlot:
