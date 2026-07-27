@@ -1,5 +1,17 @@
 # Changelog
 
+## v3.14.8-beta.47
+
+- **A failed strip now opens one window, not two — which is why "Save Partial &
+  Quit" appeared to do nothing.** The reading engine reports a failure as an
+  event *and* prints ArgyllCMS's own message, and both were being treated as
+  separate failures. The second window carried its own default answer, which
+  quietly replaced the one you had just given: choose "Save Partial & Quit" and
+  the measurement retried the strip instead and carried on. The printed line is
+  now ignored while the engine is running, since the event says the same thing.
+  With the separate ArgyllCMS chartread the printed line is still the source, as
+  before.
+
 ## v3.14.8-beta.46
 
 - **The reading-times area is now a frame of its own**, with a faint border, so

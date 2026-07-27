@@ -794,11 +794,18 @@ class MeasureManager(QObject):
             self.calibration_prompt.emit("", "", False)
         if _CALIBRATION_RE.search(line):
             self.calibration_done.emit()
-        m = _STRIP_ERROR_RE.search(line)
-        if m:
-            self.strip_error.emit(m.group(1).strip())
-        elif _STRIP_COMS_FAIL_RE.search(line):
-            self.strip_error.emit("communication problem")
+        # The engine PRINTS the same "Strip read failed …" line it also reports
+        # as a JSON event, so parsing both raised the failure twice — two
+        # windows, the second carrying its own default answer, which quietly
+        # replaced whatever the user had chosen in the first (Knut, #130
+        # 2026-07-27: his Save Partial & Quit ended up retrying instead). In
+        # engine mode the JSON event is the authoritative one.
+        if not self._engine_active:
+            m = _STRIP_ERROR_RE.search(line)
+            if m:
+                self.strip_error.emit(m.group(1).strip())
+            elif _STRIP_COMS_FAIL_RE.search(line):
+                self.strip_error.emit("communication problem")
         if _USB_ERROR_RE.search(line):
             self.instrument_disconnected.emit()
         if _DEVICE_BUSY_RE.search(line):
