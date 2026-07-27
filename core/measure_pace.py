@@ -150,7 +150,17 @@ class PaceTracker:
         result.mean_seconds = seconds / patches
         result.est_samples = self.config.samples_for(result.mean_seconds)
         target = self.config.target_seconds
-        result.too_fast = result.mean_seconds < target
+        # Judged on the SAME reading count the user is shown. Knut's own
+        # comfortable strip — 5 seconds for 11 patches — is 454 ms per patch
+        # against a 460 ms target, so on raw time it drew a "too fast" remark
+        # while the very next line reported "23 readings per patch", which IS
+        # the minimum (#131, 2026-07-27). Rounding twice, once to display and
+        # once to judge, is what made ChromIQ contradict itself; the estimate
+        # decides both when the rate is known.
+        if result.est_samples is not None:
+            result.too_fast = result.est_samples < self.config.min_samples
+        else:
+            result.too_fast = result.mean_seconds < target
         result.marginal = (not result.too_fast
                            and result.mean_seconds < target * 1.35)
         return result
@@ -231,7 +241,10 @@ MODEL_DEFAULTS = {
     "i1pro2":         (200.0,   20),
     "i1pro3":         (400.0,   30),
     "i1pro3plus":     (400.0,   60),   # 16 mm minimum patch, so fewer per strip
-    "colormunki":     ( 50.0,   30),   # slowest; needs long patches
+    # 23, not X-Rite's implied ~34: Knut's practical tests (#131 2026-07-27)
+    # show the ColorMunki reads a strip well at 5-6 s where the vendor figures
+    # imply 7.5 s, and still builds good profiles.
+    "colormunki":     ( 50.0,   23),   # slowest; needs long patches
     "spectroscan":    (250.0, None),   # motorised — no pace to judge
 }
 
@@ -439,10 +452,21 @@ def explanation_for(key) -> "tuple[str, str]":
             "so 375 ÷ 11 ≈ 34 readings for each patch. A denser 15-patch strip "
             "held to that same quality would need 15 × 34 = 510 readings — "
             "about 10 seconds for one strip.\n\n"
-            "The default is set a little under the ideal 34, so that a chart "
-            "only slightly denser than the ideal does not draw a remark on "
-            "every strip. If your charts are dense, expect to read slowly: "
-            "this is a real limit of the instrument, not caution on our part."
+            "Thus, the X-Rite provided limits are very strict and limiting. "
+            "Practical tests have shown that this instrument is capable of "
+            "better speed performance than this, and still resulting in good "
+            "quality profiles. A 5-6 second reading speed, which has proven "
+            "doable on a 11 patch strip, will give 5 × 50 readings per second "
+            "= 250 samples per strip. Using this on the above 11 patch strip "
+            "gives 250 ÷ 11 = 23 readings per patch. For a 15 patch strip this "
+            "implies 15 × 23 = 345 readings per strip, and 345 ÷ 50 = approx. "
+            "7 seconds reading speed.\n\n"
+            "The default is therefore 23 readings per patch, not the 34 the "
+            "vendor figures imply — measured practice, not caution on our "
+            "part. A 15-patch strip then wants about 7 seconds and an 11-patch "
+            "strip about 5 seconds. If your charts are denser still, expect to "
+            "read them more slowly: the instrument's 50 readings per second is "
+            "a real limit, and every patch has to get its share of them."
         ) + closing
     if key == "spectroscan":
         return tr("SpectroScan (motorised table)"), tr(

@@ -601,7 +601,7 @@ def thresholds_for_combo(
 # Bump when a shipped default changes in a way that must reach users who have
 # the OLD default persisted. Settings → Save writes every key, so a stored
 # value otherwise pins a user to the old behaviour for good.
-SETTINGS_SCHEMA = 13
+SETTINGS_SCHEMA = 14
 
 # key → the old default(s) it must no longer be stuck on. Only a stored value
 # EQUAL to one of the old defaults is dropped (so it falls through to the new
@@ -672,6 +672,8 @@ class AppSettings:
             dropped.append("margin_thresholds[i1Pro A4 Portrait/A3 Landscape bottom→19mm]")
         if self._migrate_colormunki_margins():
             dropped.append("margin_thresholds[ColorMunki top→30mm, bottom→10mm]")
+        if self._migrate_colormunki_min_samples():
+            dropped.append("pace_min_samples_colormunki (30 → 23)")
         if self._migrate_patch_warn_floor():
             dropped.append("patch_read_warn_de (raised value now too high)")
         if self._migrate_save_report_default():
@@ -773,6 +775,30 @@ class AppSettings:
             self._qs.setValue("margin_thresholds",
                               serialize_margin_thresholds(table))
         return changed
+
+    def _migrate_colormunki_min_samples(self) -> bool:
+        """schema 14 (#131, Knut 2026-07-27): the ColorMunki's minimum readings
+        per patch drops from 30 to 23.
+
+        Knut's practical tests read a strip well at 5-6 seconds where the vendor
+        figures imply 7.5, and the profiles came out good — so 30 was holding
+        users to a pace the instrument does not actually need. Preferences → Save
+        writes every key, so anyone who has ever opened that dialog carries a
+        stored 30 that is only an echo of the old default; that echo is dropped
+        so it resolves to the new value. A number the user chose themselves is
+        left exactly as it is.
+        """
+        key = "pace_min_samples_colormunki"
+        raw = self._qs.value(key, None)
+        if raw is None:
+            return False
+        try:
+            if int(float(raw)) != 30:      # the user's own choice — leave it
+                return False
+        except (TypeError, ValueError):
+            return False
+        self._qs.remove(key)
+        return True
 
     def _migrate_margin_i1pro_tall_bottom(self) -> bool:
         """schema 12 (#130): raise the i1Pro A4 Portrait / A3 Landscape bottom

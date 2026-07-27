@@ -1,5 +1,25 @@
 # Changelog
 
+## v3.14.8-beta.53
+
+- **The ColorMunki's minimum readings per patch is now 23, down from 30.**
+  X-Rite's own figures imply about 34, and practical testing shows the
+  instrument reads well below that and still produces good profiles: an
+  11-patch strip in 5 to 6 seconds gives 250 readings for the strip, which is
+  23 for each patch. One patch therefore has to last 460 ms rather than 600 —
+  a 15-patch strip is comfortable at about 7 seconds, an 11-patch strip at
+  about 5. If you had already chosen your own number, it is kept exactly as it
+  was; only a stored copy of the old default is updated.
+
+- **The ColorMunki explanation carries that reasoning in full,** so the number
+  in Preferences and the story behind it can never drift apart.
+
+- **A strip is judged by the same reading count it is shown with.** Reading an
+  11-patch strip in 5 seconds reported "23 readings per patch" — exactly the
+  minimum — and called the strip too fast in the same breath, because the
+  verdict used the raw time (454 ms) while the report rounded. Both now use the
+  estimate, so what you are told and what you are judged on agree.
+
 ## v3.14.8-beta.52
 
 - **"Restore Used Chart" now gives back the same chart, down to the patch

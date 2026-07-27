@@ -179,7 +179,9 @@ def test_the_spectroscan_has_no_threshold():
     ("i1pro2", 100),       # 200 Hz, 20 samples — Knut derived ~103 ms
     ("i1pro3", 75),        # 400 Hz, 30 samples — Knut derived ~76 ms
     ("i1pro3plus", 150),   # 400 Hz, 60 samples
-    ("colormunki", 600),   # 50 Hz, 30 samples
+    # 50 Hz, 23 samples — Knut's practical figure (#131 2026-07-27), replacing
+    # the 30 derived from X-Rite's stricter limits.
+    ("colormunki", 460),
 ])
 def test_each_models_target_matches_the_derivation(key, expected_ms):
     from core.measure_pace import PaceConfig, defaults_for
