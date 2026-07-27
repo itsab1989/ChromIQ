@@ -251,7 +251,10 @@ def test_a_strip_is_judged_from_its_scan_time_and_patch_count():
 
     fast = t.strip_timed(seconds=3.0, patches=11)        # 273 ms per patch
     assert fast.too_fast is True and fast.patches == 11
-    assert fast.est_samples == 14                        # 0.273 s × 50 Hz
+    # 0.2727 s × 50 Hz = 13.6 readings → 13 COMPLETE ones. The estimate is
+    # rounded down so it can never claim a patch met a minimum it missed
+    # (#131, 2026-07-27).
+    assert fast.est_samples == 13
 
     fine = t.strip_timed(seconds=9.0, patches=11)        # 818 ms per patch
     assert fine.too_fast is False and fine.marginal is False

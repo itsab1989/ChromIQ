@@ -60,10 +60,20 @@ class PaceConfig:
 
     def samples_for(self, seconds: float) -> "int | None":
         """Estimated samples taken in *seconds*, or None when the rate is
-        unknown — never a guess dressed up as a measurement."""
+        unknown — never a guess dressed up as a measurement.
+
+        Rounded DOWN: a patch that had time for 22.7 readings got 22 complete
+        ones, not 23. Rounding to nearest let a patch just under the limit be
+        reported as meeting it while the verdict — which compares the times
+        strictly, as Knut requires (#131, 2026-07-27) — called the same strip
+        too fast. The figure shown and the figure judged now agree, and both
+        are on the honest side of the limit.
+        """
         if not self.knows_rate or seconds <= 0:
             return None
-        return round(seconds * self.sample_hz)
+        # The epsilon absorbs float noise only: a 20 ms interval arrives as
+        # 0.019999… and would otherwise floor to 3 readings instead of 4.
+        return int(seconds * self.sample_hz + 1e-9)
 
 
 @dataclass(frozen=True)
@@ -150,17 +160,15 @@ class PaceTracker:
         result.mean_seconds = seconds / patches
         result.est_samples = self.config.samples_for(result.mean_seconds)
         target = self.config.target_seconds
-        # Judged on the SAME reading count the user is shown. Knut's own
-        # comfortable strip — 5 seconds for 11 patches — is 454 ms per patch
-        # against a 460 ms target, so on raw time it drew a "too fast" remark
-        # while the very next line reported "23 readings per patch", which IS
-        # the minimum (#131, 2026-07-27). Rounding twice, once to display and
-        # once to judge, is what made ChromIQ contradict itself; the estimate
-        # decides both when the rate is known.
-        if result.est_samples is not None:
-            result.too_fast = result.est_samples < self.config.min_samples
-        else:
-            result.too_fast = result.mean_seconds < target
+        # Strictly on the time, per Knut (#131, 2026-07-27): "the limits shall
+        # always be used strictly according to the calculations". A 15-patch
+        # strip needs 15 × 23 = 345 readings, 345 ÷ 50 = 6.9 s, so 460 ms for
+        # each patch — and 460 ms stays 460 ms whatever the strip's length; it
+        # is the strip TOTAL that grows with the patch count.
+        # The epsilon is float repair, not leniency: an 11-patch strip's exact
+        # minimum is 23 × 11 ÷ 50 = 5.06 s, and 5.06 ÷ 11 lands a whisker under
+        # 0.46 in binary, so the exactly-correct strip would be called too fast.
+        result.too_fast = result.mean_seconds < target * (1 - 1e-9)
         result.marginal = (not result.too_fast
                            and result.mean_seconds < target * 1.35)
         return result
@@ -463,10 +471,15 @@ def explanation_for(key) -> "tuple[str, str]":
             "7 seconds reading speed.\n\n"
             "The default is therefore 23 readings per patch, not the 34 the "
             "vendor figures imply — measured practice, not caution on our "
-            "part. A 15-patch strip then wants about 7 seconds and an 11-patch "
-            "strip about 5 seconds. If your charts are denser still, expect to "
-            "read them more slowly: the instrument's 50 readings per second is "
-            "a real limit, and every patch has to get its share of them."
+            "part.\n\n"
+            "The limit is applied by calculation, never by the rounded figures "
+            "above. A 15-patch strip needs 15 × 23 = 345 readings, and "
+            "345 ÷ 50 = 6.9 seconds; the strips in these examples come to "
+            "about 7 seconds for 15 patches and about 5 seconds for 11, which "
+            "are approximations for reading comfort. Note what does and does "
+            "not change with a longer strip: the time each patch needs stays "
+            "the same, while the time the whole strip needs grows with the "
+            "number of patches on it."
         ) + closing
     if key == "spectroscan":
         return tr("SpectroScan (motorised table)"), tr(

@@ -1,5 +1,24 @@
 # Changelog
 
+## v3.14.8-beta.55
+
+- **The speed limit is applied strictly by calculation again.** beta.53 let a
+  strip pass when its rounded reading count reached the minimum; the limit is
+  now the time it always was. A 15-patch strip needs 15 × 23 = 345 readings, so
+  345 ÷ 50 = 6.9 seconds, which is 460 ms for every patch. The "about 7
+  seconds" and "about 5 seconds" figures in the help text are approximations
+  for reading comfort, and are now labelled as such.
+
+- **The readings-per-patch figure you are shown is rounded down.** A patch with
+  time for 22.7 readings received 22 complete ones, so that is what it says.
+  Reporting 23 claimed a patch had met a minimum it had actually missed — and
+  it was that flattering figure, not the limit, that made ChromIQ appear to
+  contradict itself.
+
+- **The ColorMunki explanation spells out what changes with a longer strip and
+  what does not**: the time each patch needs stays at 460 ms, while the time the
+  whole strip needs grows with the number of patches on it.
+
 ## v3.14.8-beta.54
 
 - **"Replace only the chart" is now offered when you load a patch set into a run
