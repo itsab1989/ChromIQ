@@ -928,7 +928,7 @@ class TabMeasure(QWidget):
         self._sound = _snd.SoundManager(self._settings)
         _m = self._manager
         _m.patch_measured.connect(self._on_patch_sound)
-        _m.strip_measured.connect(lambda _d: self._sound.play(_snd.STRIP_OK))
+        # (the strip cue is played by _on_strip_measured itself — see there)
         # (strip_error's sound is played by _on_strip_error itself — see there)
         for _sig in (_m.instrument_disconnected, _m.no_instrument,
                      _m.device_busy, _m.sensor_wrong_position,
@@ -3598,8 +3598,11 @@ class TabMeasure(QWidget):
 
         if chosen[0] == "reread":
             # Back to measuring: the chart is no longer finished, so the
-            # "All Stripes Read" window must not appear at all.
+            # "All Stripes Read" window must not appear — whether it arrived
+            # while this window was open or arrives just after it closes
+            # (Knut, #131 2026-07-27).
             self._all_done_deferred = False
+            self._skip_next_all_done = True
             self._manager.goto_strip(strip)     # the next swipe overwrites it
             self._log.appendPlainText(
                 "\n" + tr("Re-reading strip {name} — take it more slowly this "
@@ -5140,6 +5143,10 @@ class TabMeasure(QWidget):
         if getattr(self, "_pace_prompt_open", False):
             self._all_done_deferred = True
             return
+        if getattr(self, "_skip_next_all_done", False):
+            # A strip is being read again, so the chart is not finished.
+            self._skip_next_all_done = False
+            return
         if self._all_done_shown:
             return
         self._all_done_shown = True
@@ -6597,7 +6604,16 @@ class TabMeasure(QWidget):
             log.warning("pace hint failed", exc_info=True)
 
     def _on_strip_measured(self, ev: dict) -> None:
+        # Sound FIRST. This is the earliest handler on the signal, and a later
+        # one (_report_strip_pace) can open a modal window and block inside its
+        # own slot — which made the strip cue play when that window was
+        # dismissed, as if pressing its button had caused it (Knut, #131
+        # 2026-07-27). No window's buttons ever make a sound.
+        if getattr(self, "_sound", None) is not None:
+            import core.sound as _snd
+            self._sound.play(_snd.STRIP_OK)
         letter = str(ev.get("strip", ""))
+        self._skip_next_all_done = False       # the re-read has happened
         self._engine_read[letter] = True
         page, local_idx, rect = self._locate_strip(letter)
         patches = ev.get("patches", [])

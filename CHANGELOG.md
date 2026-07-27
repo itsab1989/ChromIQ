@@ -1,5 +1,31 @@
 # Changelog
 
+## v3.14.8-beta.43
+
+- **No window's buttons make a sound any more.** Pressing a button in the
+  reading-speed window played the strip cue afterwards, as though the button
+  had caused it. The cue now sounds when the strip lands, before any window can
+  open — the same correction already made for the failure window. Every event
+  is announced once, when it happens.
+
+- **Choosing "Re-read Strip" goes back to reading that strip**, instead of
+  showing the "All Stripes Read" window. The completion window is now held back
+  whether it arrives while the reading-speed window is open or just after it
+  closes, and it appears again as soon as the re-read is finished.
+
+- **The reading times are set at normal text size**, and the panel always keeps
+  room for the verdict line, which could previously be squeezed out.
+
+- **Both engine comparisons read properly.** They were laid out as columns,
+  which cannot line up in the info window's proportional font — first-row items
+  wrapped and the headings drifted away from their answers. They are now two
+  plain lists: what only the ChromIQ engine gives you, and what is the same
+  either way.
+
+- **ColorMunki page margins** now default to 30 mm at the top and 10 mm at the
+  bottom for every page size, with 6 mm sides. Existing installations are
+  updated automatically, except where you had set your own value.
+
 ## v3.14.8-beta.42
 
 - **"Restore Used Chart" now works for profiling runs too.** Every profile run

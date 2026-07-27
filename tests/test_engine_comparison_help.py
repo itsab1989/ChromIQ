@@ -16,10 +16,15 @@ TAB_CHART = (pathlib.Path(__file__).resolve().parents[1]
 
 
 def test_the_reading_engine_help_compares_it_with_chartread():
-    assert "Engine   chartread" in SETTINGS
-    for row in ("Saved after every strip", "Reading time for each strip",
-                "Too-fast warning and advice", "Identical measured values"):
-        assert row in SETTINGS, row
+    """Grouped lists rather than columns: a plain-text info window uses a
+    proportional font, so aligned columns wrap into nonsense (Knut saw exactly
+    that). The two groups carry the same information without needing to line
+    up."""
+    assert "Only with the ChromIQ engine:" in SETTINGS
+    assert "The same either way:" in SETTINGS
+    for item in ("saved after every strip", "the reading time for every strip",
+                 "read too fast", "the measured values themselves"):
+        assert item in SETTINGS, item
 
 
 def test_the_reading_help_says_why_pace_needs_the_engine():
@@ -36,10 +41,11 @@ def test_the_reading_help_admits_the_beeps_cannot_be_silenced_on_the_old_path():
 
 
 def test_the_layout_engine_help_compares_it_with_printtarg():
-    assert "Engine   printtarg" in TAB_CHART
-    for row in ("Patches per sheet", "Choose the patch size",
-                "Clip border for cutting", "Multi-ink (CMY+N) charts"):
-        assert row in TAB_CHART, row
+    assert "Only with the ChromIQ engine:" in TAB_CHART
+    assert "The same either way:" in TAB_CHART
+    for item in ("more patches on every sheet", "you choose the patch size",
+                 "a clip border to cut along", "multi-ink (CMY+N) charts"):
+        assert item in TAB_CHART, item
 
 
 def test_the_layout_help_says_the_result_is_equally_valid():

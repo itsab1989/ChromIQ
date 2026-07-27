@@ -63,9 +63,9 @@ class StripTimesPanel(QWidget):
         return max(fm.horizontalAdvance(t) for _x, t in self._columns)
 
     def _time_font(self) -> QFont:
-        f = QFont(self.font())
-        f.setPointSizeF(max(8.0, f.pointSizeF() - 1))
-        return f
+        """The times are read at a glance while measuring, so they are set at
+        the interface's normal size — not smaller (Knut, #131 2026-07-27)."""
+        return QFont(self.font())
 
     def sizeHint(self) -> QSize:      # noqa: N802
         if not self._columns and not self._verdict:
@@ -76,6 +76,9 @@ class StripTimesPanel(QWidget):
         return QSize(200, max(0, h))
 
     def minimumSizeHint(self) -> QSize:      # noqa: N802
+        """The same as the hint: this panel must never be given less than it
+        draws, or the verdict line is the first thing to disappear — which is
+        exactly what happened when the layout squeezed it (Knut)."""
         return self.sizeHint()
 
     def _verdict_font(self) -> QFont:

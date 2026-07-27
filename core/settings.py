@@ -382,10 +382,13 @@ _CM_DESC = "ColorMunki ruler / jig"
 _MARGIN_PAPERS_ALL = ("A4", "Letter", "A3", "A3+", "A2", "Tabloid", "Legal")
 
 
-def _seed_rows(instr, desc, side, top, combos):
+def _seed_rows(instr, desc, side, top, combos, bottom=None):
+    """*bottom* defaults to *side*, which is what every instrument used before
+    the ColorMunki gained its own bottom margin (Knut, #131 2026-07-27)."""
+    b = side if bottom is None else bottom
     return {
         f"{instr}|{paper} {orient}":
-            {"L": side, "R": side, "T": top, "B": side, "desc": desc}
+            {"L": side, "R": side, "T": top, "B": b, "desc": desc}
         for paper, orient in combos
     }
 
@@ -433,7 +436,9 @@ _MARGIN_SEED: dict[str, dict[str, Any]] = {
     **{f"i1Pro|{c}": _i1_primary(c) for c in _PRIMARY_COMBOS},
     **_seed_rows("i1Pro 3+", _I1P3_DESC, 9, 9, _ALL_COMBOS),
     **{f"i1Pro 3+|{c}": dict(_I1P3_PRIMARY) for c in _PRIMARY_COMBOS},
-    **_seed_rows("ColorMunki", _CM_DESC, 6, 24, _ALL_COMBOS),
+    # Knut, #131 2026-07-27: the ColorMunki needs 30 mm at the top and 10 mm at
+    # the bottom on every page size; the sides stay at 6 mm.
+    **_seed_rows("ColorMunki", _CM_DESC, 6, 30, _ALL_COMBOS, bottom=10),
 }
 
 
@@ -445,6 +450,32 @@ def _same_margin(a: dict[str, Any], b: dict[str, Any]) -> bool:
                    for k in ("L", "R", "T", "B"))
     except (TypeError, ValueError):
         return False
+
+
+#: What the ColorMunki rows held before schema 13, so a stored blob can be
+#: upgraded without touching a value the user set themselves.
+_CM_OLD_MARGINS = {"L": 6, "R": 6, "T": 24, "B": 6}
+_CM_NEW_MARGINS = {"L": 6, "R": 6, "T": 30, "B": 10}
+
+
+def upgrade_colormunki_margins(
+    table: dict[str, dict[str, Any]]
+) -> tuple[dict[str, dict[str, Any]], bool]:
+    """Give every ColorMunki page combination 30 mm top and 10 mm bottom
+    (schema 13, Knut #131), returning ``(table, changed)``.
+
+    Only rows still holding the old 6/6/24/6 default are changed — anything the
+    user adjusted in Settings is left exactly as it is. Pure, so the rule is
+    unit-tested directly.
+    """
+    changed = False
+    for key, row in list(table.items()):
+        if not key.startswith("ColorMunki|"):
+            continue
+        if _same_margin(row, _CM_OLD_MARGINS):
+            row.update(_CM_NEW_MARGINS)
+            changed = True
+    return table, changed
 
 
 def upgrade_margin_landscape_jig(
@@ -570,7 +601,7 @@ def thresholds_for_combo(
 # Bump when a shipped default changes in a way that must reach users who have
 # the OLD default persisted. Settings → Save writes every key, so a stored
 # value otherwise pins a user to the old behaviour for good.
-SETTINGS_SCHEMA = 12
+SETTINGS_SCHEMA = 13
 
 # key → the old default(s) it must no longer be stuck on. Only a stored value
 # EQUAL to one of the old defaults is dropped (so it falls through to the new
@@ -639,6 +670,8 @@ class AppSettings:
             dropped.append("margin_thresholds[A4/Letter Landscape jig]")
         if self._migrate_margin_i1pro_tall_bottom():
             dropped.append("margin_thresholds[i1Pro A4 Portrait/A3 Landscape bottom→19mm]")
+        if self._migrate_colormunki_margins():
+            dropped.append("margin_thresholds[ColorMunki top→30mm, bottom→10mm]")
         if self._migrate_patch_warn_floor():
             dropped.append("patch_read_warn_de (raised value now too high)")
         if self._migrate_save_report_default():
@@ -717,6 +750,25 @@ class AppSettings:
         except Exception:  # noqa: BLE001
             return False
         table, changed = upgrade_margin_landscape_jig(table)
+        if changed:
+            self._qs.setValue("margin_thresholds",
+                              serialize_margin_thresholds(table))
+        return changed
+
+    def _migrate_colormunki_margins(self) -> bool:
+        """schema 13 (#131, Knut): the ColorMunki needs 30 mm at the top and
+        10 mm at the bottom on every page size. Upgrades a stored
+        ``margin_thresholds`` blob in place, but only for rows still holding the
+        old 6/6/24/6 default — a value the user set is left untouched. Fresh
+        installs need nothing (the seed already carries the new values)."""
+        raw = self._qs.value("margin_thresholds", None)
+        if not raw:
+            return False
+        try:
+            table = parse_margin_thresholds(str(raw))
+        except Exception:  # noqa: BLE001
+            return False
+        table, changed = upgrade_colormunki_margins(table)
         if changed:
             self._qs.setValue("margin_thresholds",
                               serialize_margin_thresholds(table))
