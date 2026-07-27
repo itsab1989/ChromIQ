@@ -859,6 +859,37 @@ real ink on real paper. Everything in cache/ is always safe to delete.
 
 
 
+#: Marker added to a file that already occupies the name a rename needs
+#: (#130, Knut 2026-07-27). Underscores rather than parentheses, which some
+#: tools and shells treat specially on one platform or another.
+CONFLICT_MARKER = "_conflicted_at_renaming_procedure"
+
+
+def _move_aside_conflict(path: Path) -> "Path | None":
+    """Move *path* out of the way so a rename can take its name.
+
+    Returns where it went, or None when it could not be moved — in which case
+    the caller leaves everything as it was rather than risk losing a file. A
+    number is appended if the marked name is taken too, so renaming twice
+    cannot overwrite the first file moved aside.
+    """
+    stem, suffix = path.stem, path.suffix
+    candidate = path.with_name(f"{stem}{CONFLICT_MARKER}{suffix}")
+    n = 2
+    while candidate.exists():
+        candidate = path.with_name(f"{stem}{CONFLICT_MARKER}_{n}{suffix}")
+        n += 1
+    try:
+        path.rename(candidate)
+    except OSError as exc:
+        log.warning("Could not move the conflicting file aside: %s (%s)",
+                    path, exc)
+        return None
+    log.warning("A file was already called %s; moved it aside to %s",
+                path.name, candidate.name)
+    return candidate
+
+
 class Project:
     """A working-folder project. Owns ``project.json`` and all runs."""
 
@@ -1132,8 +1163,21 @@ class Project:
                 continue
             dst = f.with_name(new_stem + tail)
             if dst.exists():
-                log.warning("Rename target already exists, skipping: %s", dst)
-                continue
+                # Something in the folder is already called what this file is
+                # about to be called. ChromIQ never generates such a pair —
+                # its own artefacts all carry the project stem — so this can
+                # only come from a file put there or renamed by hand (Knut,
+                # #130 2026-07-27).
+                #
+                # Skipping used to leave the REAL file behind under the old
+                # name while the project silently used the stranger, and no
+                # later rename ever repaired it. The stranger is moved aside
+                # instead, so the rename can finish correctly and nothing is
+                # lost.
+                _move_aside_conflict(dst)
+                if dst.exists():           # could not be moved: leave well alone
+                    log.warning("Rename target already exists, skipping: %s", dst)
+                    continue
             f.rename(dst)
 
         self._manifest.target_name = new_stem

@@ -121,7 +121,12 @@ class TargetChangeDialog(QDialog):
                    'name. ChromIQ moves the existing folder to "{new}", keeping '
                    'everything inside it (calibration, any earlier runs), and then '
                    'regenerates the chart so the printed sheet and files carry the '
-                   'new name. You end up with one profile, correctly named.').format(new=new_name),
+                   'new name. You end up with one profile, correctly named.\n\n'
+                   'In the rare case that a file you added yourself already has the '
+                   'name one of the renamed files needs, that file is kept and moved '
+                   'aside with "_conflicted_at_renaming_procedure" added to its name, '
+                   'so nothing is lost and the profile\'s own files still end up '
+                   'correctly named.').format(new=new_name),
                 TargetChangeAction.RENAME,
                 primary=True,
             )

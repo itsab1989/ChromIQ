@@ -1,5 +1,17 @@
 # Changelog
 
+## v3.14.8-beta.41
+
+- **Renaming a profile can no longer strand one of its own files.** If a file
+  you had put in the folder yourself already carried the name one of the
+  renamed files needed, that file used to be skipped — and it then kept its old
+  name for good, while the profile quietly used the other one instead. The file
+  you added is now kept and moved aside, with
+  "_conflicted_at_renaming_procedure" added to its name, so nothing is lost and
+  the profile's own files all end up correctly named. Renaming twice never
+  overwrites a file already moved aside, and the rename dialog explains the
+  case.
+
 ## v3.14.8-beta.40
 
 - **"Skip Stripe" no longer promises something it cannot do.** Skipping asks
