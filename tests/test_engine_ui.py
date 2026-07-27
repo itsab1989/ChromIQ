@@ -410,8 +410,12 @@ def test_patch_info_tile_builds_rows_per_mode():
 
     tile.set_content(info, "both")
     texts = " | ".join(t for _s, t in tile._rows)
-    assert len(tile._rows) == 8            # header + 3 exp + 3 meas + ΔE
+    # header + 3 exp + 3 meas + ΔE + the line naming which ΔE it is (Knut, #131
+    # 2026-07-27: "please show what the value means, which standard it is
+    # calculated with").
+    assert len(tile._rows) == 9
     assert "B4" in texts and "2.34" in texts
+    assert "CIE76" in texts and "D50" in texts
     assert tile.width() > 0 and tile.height() > 0
 
     tile.set_content(info, "expected")
