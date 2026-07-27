@@ -162,3 +162,14 @@ def test_a_short_tooltip_after_a_long_one_is_not_left_oversized(qapp):
     f.fit(label)
     assert label.maximumWidth() > f.MAX_W, "the fixed size must be released"
     assert label.height() < tall, "a one-line tooltip must not keep the tall box"
+
+
+def test_both_info_icons_follow_the_active_tab(qapp, tmp_path):
+    """The Restore button's ⓘ kept the Measure tab's colour on every other tab
+    (Knut, #130 2026-07-27)."""
+    bar, _run = _bar(tmp_path, dates=("2026-07-20_100000",))
+
+    bar.set_accent("#123456")
+
+    assert bar._tip_btn._color_override == "#123456"
+    assert bar._restore_tip._color_override == "#123456", "the Restore ⓘ must follow too"

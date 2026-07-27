@@ -3654,39 +3654,38 @@ class TabMeasure(QWidget):
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Warning)
         box.setWindowTitle(tr("This profile run was measured with another chart"))
-        box.setText(tr("Measuring here replaces the chart stored with this "
-                       "profile run."))
+        box.setText(tr("This run already has a stored chart, and it is not the "
+                       "one you are about to measure."))
         extra = ""
         try:
             if Run.for_dir(run.dir).reads():
                 extra = "\n\n" + tr(
-                    "You have already measured this run and are averaging the "
-                    "results. Replacing the chart now means the earlier reads "
-                    "and this one were made from different sheets, and "
-                    "averaging them together would mix two different charts. "
-                    "Cancel if you did not intend that.")
+                    "You are averaging several readings of this run. Replacing "
+                    "the chart now would mean averaging readings taken from two "
+                    "different sheets.")
         except Exception:      # noqa: BLE001
             pass
         box.setInformativeText(tr(
-            "{run} was measured with a different chart from the one loaded "
-            "now. That run keeps its own copy of the chart it was measured "
-            "with — the copy “Restore Used Chart” puts back. If you measure "
-            "the chart you have loaded into this same run, that stored copy is "
-            "replaced, and the measurement already sitting there would no "
-            "longer describe a chart you still have.\n\n"
-            "If you meant to build a separate profile, set “Profile run” to "
-            "“New run” and start the measurement again — this run then stays "
-            "exactly as it is, with its own chart, and today's reading starts "
-            "a run of its own."
+            "{run} keeps a copy of the chart it was measured with, so its "
+            "measurement always describes a sheet you still have. The chart "
+            "loaded now is a different one.\n\n"
+            "What each choice does:\n\n"
+            "•  Replace stored chart — the copy is updated to the chart you "
+            "are about to measure. Use this when the new chart is the one this "
+            "run should keep.\n\n"
+            "•  Keep stored chart — the copy is left exactly as it is, and the "
+            "measurement still goes ahead. Use this to try a chart out. The "
+            "copy will then describe an earlier measurement, and ChromIQ says "
+            "so on the “Restore Used Chart” button.\n\n"
+            "•  Cancel — nothing is written and no measurement starts."
         ).format(run=self._pretty_run_name(run)) + extra)
-        replace = box.addButton(tr("Replace the stored chart"),
+        replace = box.addButton(tr("Replace stored chart"),
                                 QMessageBox.ButtonRole.DestructiveRole)
-        keep = box.addButton(tr("Measure without changing the stored chart"),
+        keep = box.addButton(tr("Keep stored chart"),
                              QMessageBox.ButtonRole.ActionRole)
         keep.setToolTip(tr(
-            "For trying something out. The stored copy stays as it is, so it "
-            "will no longer describe the measurement this run ends up with — "
-            "ChromIQ remembers that and says so."))
+            "Measures without touching the stored copy — for trying a chart "
+            "out. The copy will no longer describe this run's measurement."))
         cancel = box.addButton(QMessageBox.StandardButton.Cancel)
         box.setDefaultButton(cancel)
         box.exec()

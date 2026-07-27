@@ -388,19 +388,27 @@ class MeasurementTargetBar(QWidget):
         row.addWidget(self._restore_btn)
         self._restore_tip = TooltipButton(
             tr("Restore Used Chart"),
-            tr("Puts back the verification chart that the selected verification "
-               "date was actually measured with.\n\n"
-               "Every time you measure a verification, ChromIQ keeps a copy of "
-               "the chart it measured inside that verification's own folder. If "
-               "you later change or re-create the verification chart, the older "
-               "results no longer describe a chart you still have — this button "
-               "brings the original one back so those results make sense again, "
-               "and so you can reprint exactly the same sheet.\n\n"
-               "It becomes available once you pick an existing verification date "
-               "that has a stored chart. Your measurements are never touched: "
-               "only the chart files at the top of the verifications folder are "
+            tr("Puts back the chart that was actually measured — which chart "
+               "that is depends on “Run type”.\n\n"
+               "RUN TYPE = PROFILING\n"
+               "Every profile run keeps a copy of the chart it was measured "
+               "with, saved the moment the measurement starts. If you later "
+               "change or re-create that chart, the run's measurement no longer "
+               "describes a chart you still have — this button brings the copy "
+               "back, so the measurement makes sense again and you can reprint "
+               "exactly the same sheet. It becomes available once that run has "
+               "been measured at least once.\n\n"
+               "RUN TYPE = VERIFICATION\n"
+               "Each dated verification keeps its own copy in the same way, and "
+               "the button puts back the one belonging to the date selected in "
+               "the “Verification” box. Pick an existing date that has a stored "
+               "chart and the button becomes available.\n\n"
+               "IN BOTH CASES\n"
+               "Your measurements are never touched: only the chart files are "
                "replaced, and you are asked first whenever the chart currently "
-               "there is different."),
+               "in place is a different one. If a measurement was taken with "
+               "the copy deliberately left alone, the button says so, because "
+               "the copy then describes an earlier measurement."),
             self)
         row.addWidget(self._restore_tip)
 
@@ -660,7 +668,11 @@ class MeasurementTargetBar(QWidget):
         )
         for c in (self._run_combo, self._type_combo, self._verify_combo):
             c.setStyleSheet(qss)
-        self._tip_btn.set_color(color)
+        # Both ⓘ in the bar follow the active tab, not just the last one —
+        # the Restore button's icon kept the Measure tab's green everywhere
+        # else (Knut, #130 2026-07-27).
+        for tip in (self._tip_btn, self._restore_tip):
+            tip.set_color(color)
 
     def _on_restore_clicked(self) -> None:
         """Restore the selected verification's used chart, warning first when

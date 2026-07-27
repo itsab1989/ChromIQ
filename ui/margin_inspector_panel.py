@@ -264,6 +264,8 @@ class MarginInspectorPanel(QGroupBox):
                     f"font-family: Menlo; font-size: 11px; color: {colour}; font-weight: {weight};")
             # Threshold (minimum) for this edge — the "Margin Thresholds Set"
             # readout, shown beside the measured value for easy comparison (#86).
+            self._thresholds_are_the_charts_own = bool(
+                (thresholds or {}).get("desc", "").endswith("laid out to"))
             raw = (thresholds or {}).get(key)
             try:
                 self._thr_labels[key].setText("—" if raw in (None, "") else f"{float(raw):.1f}")
@@ -298,9 +300,19 @@ class MarginInspectorPanel(QGroupBox):
             return
         self._status.setVisible(True)
         text_warnings = list(text_warnings or [])
+        # Name WHICH minimum was missed (Knut, #130 2026-07-27): the
+        # instrument's, or the margins this chart was laid out to. Saying only
+        # "the minimum" left him reading instrument figures into a chart that
+        # had declined them.
+        own = getattr(self, "_thresholds_are_the_charts_own", False)
+        pattern = (tr("⚠ {edge} margin {measured:.1f} mm is below the "
+                      "{threshold:.0f} mm minimum set for this chart")
+                   if own else
+                   tr("⚠ {edge} margin {measured:.1f} mm is below the "
+                      "{threshold:.0f} mm instrument minimum"))
         margin_lines = [
-            tr("⚠ {edge} margin {measured:.1f} mm is below the {threshold:.0f} mm minimum")
-            .format(edge=tr(v.edge), measured=v.measured_mm, threshold=v.threshold_mm)
+            pattern.format(edge=tr(v.edge), measured=v.measured_mm,
+                           threshold=v.threshold_mm)
             for v in violations
         ] if thresholds_defined else []
         lines = margin_lines + text_warnings

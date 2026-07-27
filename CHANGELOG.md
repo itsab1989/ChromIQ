@@ -1,5 +1,23 @@
 # Changelog
 
+## v3.14.8-beta.51
+
+- **The margin warning now says which minimum it means** — "below the 28 mm
+  minimum set for this chart" when you laid the chart out yourself, or "below
+  the 38 mm instrument minimum" when the instrument's guideline applies. Both
+  are measured against the printed margins exactly as before; only now it is
+  clear which figure you are being held to.
+
+- **The window that appears when a run already has a stored chart is rewritten.**
+  The buttons are now "Replace stored chart" and "Keep stored chart" — the old
+  names were long enough to be cut short and read as nonsense — and the text
+  spells out what each choice does before you pick one.
+
+- **"Restore Used Chart" explains both run types.** Its ⓘ described only
+  verification runs; it now covers profiling first, then verification, and what
+  is true of both. Its icon also follows the tab you are on instead of keeping
+  the Measure tab's colour everywhere.
+
 ## v3.14.8-beta.50
 
 - **Margins are still checked when you switch "Use instrument margins" off —

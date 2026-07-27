@@ -166,3 +166,14 @@ def test_the_reported_source_names_itself(tab, tmp_path):
         tmp_path, instrument="CM", use_instrument_margins=False,
         margin_top=28.0, margin_bottom=10.0)
     assert "laid out to" in tab._chart_own_margins()["desc"]
+
+
+# ---- the warning must name WHICH minimum it means (Knut, 2026-07-27) ------
+def test_the_warning_names_the_source_of_the_minimum():
+    """Saying only "the minimum" let Knut read instrument figures into a chart
+    that had declined them."""
+    import pathlib
+    src = (pathlib.Path(__file__).resolve().parents[1]
+           / "ui" / "margin_inspector_panel.py").read_text()
+    assert "minimum set for this chart" in src
+    assert "instrument minimum" in src
