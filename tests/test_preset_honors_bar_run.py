@@ -132,7 +132,9 @@ def test_patch_set_into_used_run_offers_new_vs_replace(qapp, tmp_path, monkeypat
                             [k for _l, _d, k in choices]), None)[1])
 
     assert tab._ti1_load_destination(tmp_path / "x.ti1") is None      # Cancel
-    assert offered == [["into_replace", "into_new", "new"]]
+    # "into_chart" joined the list with Knut's ruling of 2026-07-27 — swap the
+    # chart, leave the run's measurement and profile standing.
+    assert offered == [["into_replace", "into_new", "into_chart", "new"]]
 
 
 def test_patch_set_into_any_existing_run_offers_new_vs_replace(qapp, tmp_path, monkeypatch):
@@ -148,7 +150,9 @@ def test_patch_set_into_any_existing_run_offers_new_vs_replace(qapp, tmp_path, m
                             [k for _l, _d, k in choices]), "into_replace")[1])
 
     assert tab._ti1_load_destination(tmp_path / "x.ti1") == "into_replace"
-    assert offered == [["into_replace", "into_new", "new"]]
+    # "into_chart" joined the list with Knut's ruling of 2026-07-27 — swap the
+    # chart, leave the run's measurement and profile standing.
+    assert offered == [["into_replace", "into_new", "into_chart", "new"]]
 
 
 def test_patch_set_into_new_run_asks_nothing_extra(qapp, tmp_path, monkeypatch):
