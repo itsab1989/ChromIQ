@@ -788,9 +788,13 @@ class MeasurementTargetBar(QWidget):
             show = self._show_verification and is_verif
             self._verify_label.setVisible(show)
             self._verify_combo.setVisible(show)
-            self._restore_btn.setVisible(show)
-            self._restore_tip.setVisible(show)
-            if show:
+            # The date box belongs to Verification, but the chart a run was
+            # measured with can be restored for EITHER run type (#130, Knut
+            # 2026-07-27) — so the button follows the bar, not the date box.
+            show_restore = self._show_verification
+            self._restore_btn.setVisible(show_restore)
+            self._restore_tip.setVisible(show_restore)
+            if show_restore:
                 enabled, tip = self._ctl.restore_state()
                 self._restore_btn.setEnabled(enabled and not locked)
                 self._restore_btn.setToolTip(self._lock_note() if locked else tip)

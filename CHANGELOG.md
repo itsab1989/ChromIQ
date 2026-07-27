@@ -1,5 +1,13 @@
 # Changelog
 
+## v3.14.8-beta.44
+
+- **"Restore Used Chart" is now actually on screen for a profiling run.** The
+  button worked for profiling in beta 42, but its visibility still followed the
+  Verification date box, so it only ever appeared when Run type was
+  Verification. It now shows for both run types — the date box still belongs to
+  Verification alone.
+
 ## v3.14.8-beta.43
 
 - **No window's buttons make a sound any more.** Pressing a button in the

@@ -206,3 +206,39 @@ def test_cancel_stops_the_measurement_and_changes_nothing(qapp, tmp_path,
 
     kept = (slot_for(run).snapshot_dir / f"{run.stem}.ti2").read_text()
     assert kept == "TI2"
+
+
+# ---- the button has to be ON SCREEN, not merely enabled -------------------
+def test_the_button_is_visible_for_profiling_as_well(qapp, tmp_path):
+    """Knut, beta.42: the button worked for a profiling run but was never
+    shown, because its visibility still followed the Verification date box.
+    Being enabled is no use if it is not on screen."""
+    from ui.measurement_target_bar import MeasurementTargetBar
+    _s, run, ctl = _env(tmp_path)
+    snapshot_slot(slot_for(run))
+    bar = MeasurementTargetBar(ctl)
+    bar.show()
+    QApplication.processEvents()
+
+    assert not bar._restore_btn.isHidden(), "Profiling must show the button"
+    assert bar._restore_btn.isEnabled()
+    # …and the date box, which belongs to Verification, must stay hidden
+    assert bar._verify_combo.isHidden()
+
+    ctl.set_run_type(RUN_TYPE_VERIFICATION)
+    QApplication.processEvents()
+    assert not bar._restore_btn.isHidden(), "and still shown for Verification"
+    assert not bar._verify_combo.isHidden()
+
+
+def test_its_state_follows_the_run_type_while_visible(qapp, tmp_path):
+    from ui.measurement_target_bar import MeasurementTargetBar
+    _s, run, ctl = _env(tmp_path)
+    snapshot_slot(slot_for(run))                  # a profiling copy only
+    bar = MeasurementTargetBar(ctl)
+    bar.show(); QApplication.processEvents()
+    assert bar._restore_btn.isEnabled(), "profiling: there is a copy"
+
+    ctl.set_run_type(RUN_TYPE_VERIFICATION)
+    QApplication.processEvents()
+    assert not bar._restore_btn.isEnabled(), "verification: no date selected"
