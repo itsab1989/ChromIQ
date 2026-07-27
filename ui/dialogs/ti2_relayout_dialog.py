@@ -4128,9 +4128,6 @@ class _AddPatchesDialog(_NewChartDialog):
                 cur = dict(cur) if isinstance(cur, dict) else {}
                 cur.update(self._collect_gen_sets())
                 self._settings.set("new_chart_gen", cur)
-                # Keep the editor's own copy in step, so applying afterwards
-                # remembers what was actually added (Knut, #130 2026-07-27).
-                self.result_recipe = dict(cur)
         else:
             program = [self._single_rgb]
         self.result_program = program
@@ -5769,16 +5766,13 @@ class Ti2RelayoutDialog(QDialog):
                                 initial_recipe=self._chart_recipe)
         if dlg.exec() != QDialog.DialogCode.Accepted or not dlg.result_program:
             return
-        # Fold the colour-set choices just used into the chart's recipe, so the
-        # design the editor carries — and applies, and reopens with — includes
-        # what was added rather than only what the chart started from (Knut,
-        # #130 2026-07-27).
-        _added_recipe = getattr(dlg, "result_recipe", None)
-        if isinstance(_added_recipe, dict):
-            merged = dict(self._chart_recipe) if isinstance(
-                self._chart_recipe, dict) else {}
-            merged.update(_added_recipe)
-            self._chart_recipe = merged
+        # The chart's stored design is NOT touched here. Knut's rule (#130,
+        # 2026-07-27): the settings a chart carries are the ones the New-patch-set
+        # window was used with, and they change only when that window is used
+        # again. Add has its own colour-set choices, which follow the last
+        # New-patch-set settings — it does not speak for the chart's design.
+        # (An earlier version of this folded Add's sets into the chart recipe;
+        # that broke the rule above and was removed.)
         extra = dlg.result_program
         if self._spec is None:
             # Nothing loaded yet — seed a fresh blank chart from the added

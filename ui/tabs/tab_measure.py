@@ -3701,9 +3701,14 @@ class TabMeasure(QWidget):
         from PyQt6.QtWidgets import QMessageBox
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Warning)
-        box.setWindowTitle(tr("This profile run was measured with another chart"))
-        box.setText(tr("This run already has a stored chart, and it is not the "
-                       "one you are about to measure."))
+        # macOS does not paint a window title on a message box, so the title has
+        # to be IN the window to be readable — and a window you can name is a
+        # window you can report (Knut, #131 2026-07-27: "This window also is
+        # missing a title, add one, so that it easier to refer to it").
+        box.setWindowTitle(tr("Stored chart differs"))
+        box.setText(tr("Stored chart differs") + "\n\n" + tr(
+            "This run already has a stored chart, and it is not the one you "
+            "are about to measure."))
         extra = ""
         try:
             if Run.for_dir(run.dir).reads():
@@ -3771,9 +3776,10 @@ class TabMeasure(QWidget):
         from core.measurement_target import chart_overwrite_message
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Warning)
-        box.setWindowTitle(tr("This verification was measured with another chart"))
-        box.setText(tr("Measuring here replaces the chart stored with that "
-                       "verification date."))
+        box.setWindowTitle(tr("Stored chart differs"))
+        box.setText(tr("Stored chart differs") + "\n\n" + tr(
+            "Measuring here replaces the chart stored with that verification "
+            "date."))
         box.setInformativeText(chart_overwrite_message(verification.id))
         over_btn = box.addButton(tr("Replace the stored chart"),
                                  QMessageBox.ButtonRole.DestructiveRole)

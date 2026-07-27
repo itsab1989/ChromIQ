@@ -1,5 +1,25 @@
 # Changelog
 
+## v3.14.8-beta.59
+
+- **The two "stored chart differs" windows now carry their name inside the
+  window.** macOS does not paint a title on a message box, so a window you want
+  to report had nothing to be called. Both now open with **Stored chart differs**
+  as their first line.
+
+- **Button widths are now checked in every language ChromIQ speaks.** A label
+  that fits in English can be half again as long in German or Dutch, which is
+  exactly how a clipped button reaches you rather than us. Every button these
+  pop-ups can show is measured in all thirteen languages, in the font that
+  actually paints it, and the suite fails if any of them has less room than its
+  text needs.
+
+- **The patch-set editor's stored design is left alone by the Add window
+  again.** The settings a chart carries are the ones the New-patch-set window
+  was used with, and they change only when that window is used again — Add has
+  its own colour-set choices, which follow the last New-patch-set settings.
+  beta.57 had folded Add's choices into the chart's design; that is undone.
+
 ## v3.14.8-beta.58
 
 - **The sentence beside the Profile-run boxes now uses the whole width up to the

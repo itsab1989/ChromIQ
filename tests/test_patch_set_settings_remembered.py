@@ -106,20 +106,27 @@ def test_the_new_patch_set_window_reads_that_state_back():
     assert '"new_chart_gen"' in src and "_apply_gen_state" in src
 
 
-def test_adding_a_set_folds_it_into_the_chart_s_design():
-    """Otherwise applying afterwards would remember the design the chart
-    STARTED from, not the one that reached it."""
+def test_adding_patches_never_rewrites_the_chart_s_stored_design():
+    """Knut's rule, stated 2026-07-27 after I had broken it: "the settings used
+    in the NEW PATCH SET window is stored in the chart's json file, and is only
+    changed if NEW PATCH SET window is used again with other settings."
+
+    Add has colour-set choices of its own, which follow the last New-patch-set
+    settings — but it does not speak for the chart's design, and an earlier
+    version of this that folded them in is gone.
+    """
     import inspect
 
     from ui.dialogs.ti2_relayout_dialog import Ti2RelayoutDialog, _AddPatchesDialog
-    add_src = inspect.getsource(_AddPatchesDialog._on_add)
-    assert "self.result_recipe = dict(cur)" in add_src
+    ed_src = inspect.getsource(Ti2RelayoutDialog)
+    assert "merged.update(_added_recipe)" not in ed_src
+    assert "self._chart_recipe = merged" not in ed_src
 
-    ed_src = inspect.getsource(Ti2RelayoutDialog._add_patches) \
-        if hasattr(Ti2RelayoutDialog, "_add_patches") else ""
-    if not ed_src:                      # the method's name may differ
-        ed_src = inspect.getsource(Ti2RelayoutDialog)
-    assert "merged.update(_added_recipe)" in ed_src
+    add_src = inspect.getsource(_AddPatchesDialog._on_add)
+    # It still remembers the colour sets for next time — that part is his rule
+    # too ("the Add button … shall follow the same settings last used").
+    assert '"new_chart_gen"' in add_src
+    assert "self.result_recipe" not in add_src
 
 
 def test_applying_is_what_saves_it():
