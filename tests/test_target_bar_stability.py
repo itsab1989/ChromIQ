@@ -175,48 +175,88 @@ def test_both_info_icons_follow_the_active_tab(qapp, tmp_path):
     assert bar._restore_tip._color_override == "#123456", "the Restore ⓘ must follow too"
 
 
-# ---- the hint stays on the right of the ⓘ and wraps there (2026-07-27) ----
-def test_the_hint_stays_beside_the_boxes_and_wraps_there(qapp, tmp_path):
-    """Knut, #130 2026-07-27, correcting my first fix: "This help text shall stay
-    on the right side of the Restore Used Chart and the two information icons,
-    but also wrap to next line when the text would normally go beyond the version
-    label. Only the Location being edited: label and path shall be placed below."
-    """
+# ---- the hint's box reaches the version text (Knut, #131 2026-07-27) ------
+def _hint_bar(tmp_path, avail):
+    """A bar whose hint is shown, sized the way the masthead sizes it: told how
+    much rail there is, and then given exactly that much."""
     bar, _run = _bar(tmp_path)
-    hint = bar._hint
-    hint.setVisible(True)
-    QApplication.processEvents(); bar.layout().activate()
-
-    assert hint.wordWrap(), "it must wrap rather than run off the edge"
-
-    # In the ROW — to the right of both ⓘ, not on the line below it.
-    row = bar.layout().itemAt(0).layout()
-    in_row = [row.itemAt(i).widget() for i in range(row.count())]
-    assert hint in in_row, "the hint belongs in the top row"
-    assert hint.x() > bar._restore_tip.x(), "it sits right of the second ⓘ"
-    assert hint.y() < bar._location.y(), \
-        "only the location line goes below the row"
-
-    # Wrapped, so it never reaches past the bar — at any width.
-    for width in (1400, 1000, 820):
-        bar.resize(width, bar.sizeHint().height())
-        QApplication.processEvents(); bar.layout().activate()
-        assert hint.x() + hint.width() <= bar.width() + 1, (
-            f"at {width}px the hint reaches past the bar's right edge")
-        one_line = hint.fontMetrics().height()
-        needed = hint.fontMetrics().horizontalAdvance(hint.text())
-        if needed > hint.width():
-            assert hint.height() > one_line, \
-                f"at {width}px the sentence is cut off instead of wrapped"
-
-
-def test_the_wrapped_hint_does_not_inflate_the_bar(qapp, tmp_path):
-    """A wrapped label sized from the wrong width made the bar 352 px tall in
-    testing — heightForWidth is what keeps it honest."""
-    bar, _run = _bar(tmp_path)
+    bar._hint_wanted = True
     bar._hint.setVisible(True)
-    bar.resize(1400, bar.sizeHint().height())
+    bar.set_available_width(avail)
+    bar.resize(avail, bar.sizeHint().height())
     QApplication.processEvents(); bar.layout().activate()
+    return bar
 
-    assert bar._hint.sizePolicy().hasHeightForWidth()
-    assert bar.height() < 120, f"the bar grew to {bar.height()}px"
+
+def test_the_hint_takes_the_room_up_to_the_version_text(qapp, tmp_path):
+    """Knut's correction of my first fix: "This cell width should reach all the
+    way to the left side of the app version number text … The invisible frame
+    with the sentence inside should then follow any change of the window size."
+
+    The masthead hands the bar exactly that room; the sentence must claim what
+    is left of it rather than share it with the row's trailing stretch, which is
+    what wrapped it into a narrow column of four lines.
+    """
+    bar = _hint_bar(tmp_path, 1400)
+    row = bar.layout().itemAt(0).layout()
+    boxes_end = max(row.itemAt(i).widget().geometry().right()
+                    for i in range(row.count())
+                    if row.itemAt(i).widget() is not None
+                    and row.itemAt(i).widget() is not bar._hint)
+
+    hint = bar._hint
+    assert hint.x() > bar._restore_tip.x(), "it sits right of the second ⓘ"
+    # Everything the row has left of it, give or take the row spacing.
+    assert hint.width() >= (bar.width() - boxes_end) - row.spacing() - 2, (
+        f"the sentence got {hint.width()}px of the "
+        f"{bar.width() - boxes_end}px left in the row")
+
+
+def test_the_box_follows_the_window_width(qapp, tmp_path):
+    """Wider window, wider box — that is what "follows any change of the window
+    size" means."""
+    widths = []
+    for avail in (900, 1200, 1600):
+        bar = _hint_bar(tmp_path, avail)
+        if bar._hint_beside:
+            widths.append((avail, bar._hint.width()))
+    assert len(widths) >= 2, "the sentence should sit beside at these widths"
+    assert [w for _a, w in widths] == sorted(w for _a, w in widths), widths
+    assert widths[0][1] != widths[-1][1], "it must not be a fixed width"
+
+
+def test_it_wraps_instead_of_running_off(qapp, tmp_path):
+    bar = _hint_bar(tmp_path, 1400)
+    hint = bar._hint
+    assert hint.wordWrap()
+    assert hint.x() + hint.width() <= bar.width() + 1
+    needed = hint.fontMetrics().horizontalAdvance(hint.text())
+    if needed > hint.width():
+        assert hint.height() > hint.fontMetrics().height(), "cut off, not wrapped"
+
+
+def test_a_rail_too_narrow_for_it_puts_it_under_the_row_instead(qapp, tmp_path):
+    """At 900 px the boxes already fill the rail. Honouring the rule there would
+    give the sentence forty pixels — one word wide and twenty-one lines tall
+    (measured). It goes under the row at that point, and comes back up as soon
+    as there is room."""
+    narrow = _hint_bar(tmp_path, 700)
+    assert not narrow._hint_beside
+    assert narrow._hint.y() > narrow.layout().itemAt(0).layout().geometry().bottom() - 1
+    assert narrow.height() < 120, f"the bar grew to {narrow.height()}px"
+
+    wide = _hint_bar(tmp_path, 1600)
+    assert wide._hint_beside, "it must return to the row when there is room"
+
+
+def test_the_bar_never_grows_absurdly_tall(qapp, tmp_path):
+    """The failure this whole mechanism exists to prevent."""
+    for avail in (600, 700, 900, 1100, 1400, 1900):
+        bar = _hint_bar(tmp_path, avail)
+        assert bar.height() < 140, f"{bar.height()}px at {avail}px of rail"
+
+
+def test_only_the_location_line_is_below_when_it_fits_beside(qapp, tmp_path):
+    bar = _hint_bar(tmp_path, 1600)
+    assert bar._hint_beside
+    assert bar._hint.y() < bar._location.y()

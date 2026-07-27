@@ -227,7 +227,7 @@ class MastheadHeader(QWidget):
         if hasattr(w, "set_available_width") and room0 > 0:
             w.set_available_width(room0)
         cw = w.sizeHint().width()
-        ch = w.sizeHint().height()
+        ch = w.sizeHint().height()      # provisional: refined once width is known
         ver_y = self.height() - self._rail_h
         # Left-aligned immediately after the "PRINTER PROFILING" tag, not
         # centred (Knut, #130 2026-07-26): a centred widget slides sideways
@@ -242,7 +242,25 @@ class MastheadHeader(QWidget):
         # does not shrink its children, it makes them overlap each other.
         floor = w.minimumSizeHint().width()
         width = min(cw, room) if room > 0 else cw
-        w.setGeometry(x, y, max(width, floor), ch)
+        # A widget may ask for the whole rail instead of its own preferred
+        # width — the Profile-run bar does while its hint sentence is shown, so
+        # that the sentence wraps against the version text rather than inside a
+        # narrow column of its own (Knut, #131 2026-07-27).
+        if room > 0 and getattr(w, "wants_full_width", lambda: False)():
+            width = room
+        width = max(width, floor)
+        # A widget whose height depends on its width — one holding a wrapped
+        # label — has to be measured at the width it is about to be given, or it
+        # keeps the height it worked out for some other width and its text wraps
+        # into a column of its own (Knut, #131 2026-07-27).
+        if w.hasHeightForWidth():
+            ch = max(ch, w.heightForWidth(width))
+        w.setGeometry(x, y, width, ch)
+        # …and re-lay its children at that size, so the label inside is measured
+        # against the width it actually has.
+        lay = w.layout()
+        if lay is not None:
+            lay.activate()
 
     def sizeHint(self) -> QSize:  # noqa: N802
         return QSize(900, self.BODY_H + self._rail_h)

@@ -23,6 +23,10 @@ log = get_logger(__name__)
 
 _NEW = "\x00new"          # sentinel userData for the "New …" combo entries
 
+#: The hint sentence against the row's trailing stretch. Ratios, not pixels: the
+#: sentence gets the room, the stretch gets what is left of it.
+_HINT_STRETCH = 1000
+
 
 class MeasurementTargetController(QObject):
     """Holds the shared :class:`MeasurementTarget` and answers the questions the
@@ -451,10 +455,21 @@ class MeasurementTargetBar(QWidget):
                           QSizePolicy.Policy.Minimum)
         _hp.setHeightForWidth(True)
         self._hint.setSizePolicy(_hp)
-        self._hint.setMinimumWidth(200)      # below this, wrapping is unreadable
+        # No minimum of its own: a wrapped sentence can always take another
+        # line, and a minimum here is added to the BAR's minimum — which at
+        # narrow window widths pushed the whole bar out over the version text
+        # instead of wrapping (measured at 1000 px).
+        self._hint.setMinimumWidth(0)
         self._hint.setAlignment(Qt.AlignmentFlag.AlignLeft
                                 | Qt.AlignmentFlag.AlignVCenter)
-        row.addWidget(self._hint, 1)
+        # It takes essentially all the slack in the row, so its box runs from the
+        # ⓘ to the version text rather than sharing the space with the trailing
+        # stretch — which is what wrapped it into a narrow column of four lines
+        # (Knut, #131 2026-07-27). The stretch still packs the boxes to the left
+        # whenever the sentence is hidden, which is the usual case.
+        self._hint_beside = True
+        self._hint_wanted = False
+        row.addWidget(self._hint, _HINT_STRETCH)
         # Everything in the row stays left-aligned and in sequence, so switching
         # Run type to Verification simply adds its boxes on the right (Knut,
         # #130 2026-07-26). Without this the row is as wide as the location line
@@ -596,6 +611,17 @@ class MeasurementTargetBar(QWidget):
     #: better than boxes climbing over each other, or over the version.
     _SQUEEZE_FLOOR = 150
 
+    def wants_full_width(self) -> bool:
+        """Whether the bar should be given the whole rail rather than just its
+        own preferred width.
+
+        True while the hint sentence is shown: its box has to reach the version
+        text so the sentence wraps against that edge and follows the window as it
+        is resized (Knut, #131 2026-07-27). At every other time the bar is
+        exactly as wide as its boxes need, which is what keeps them packed left.
+        """
+        return bool(self._hint.isVisible())
+
     def set_available_width(self, px: int) -> None:
         """Tell the bar how much room it has, so it can give way gracefully.
 
@@ -609,6 +635,44 @@ class MeasurementTargetBar(QWidget):
             return
         self._avail = px
         self._fit_widths(getattr(self, "_last_labels", ()))
+        self._place_hint()
+
+    #: The narrowest the hint sentence may be beside the boxes. Below this it
+    #: wraps into a column one or two words wide and the bar grows absurdly tall
+    #: (measured: 47 px → 21 lines), so it moves under the row instead. Chosen so
+    #: that Knut's rule still holds at 1200 px, a common window width.
+    _HINT_FLOOR = 200
+
+    def _place_hint(self) -> None:
+        """Keep the hint sentence beside the boxes for as long as it fits there.
+
+        Knut's rule (#131, 2026-07-27) is that the sentence lives to the right of
+        the two ⓘ and wraps against the version text. That holds at every window
+        width where it CAN hold. Below about 1100 px the row's own boxes already
+        fill the rail, and honouring the rule there would give the sentence forty
+        pixels — a column one word wide, twenty-one lines tall. At that point it
+        moves to its own line under the row, where the whole window width is
+        available, and returns the moment there is room again.
+        """
+        if self._hint is None:
+            return
+        avail = getattr(self, "_avail", 0)
+        row = self.layout().itemAt(0).layout()
+        boxes = row.minimumSize().width()
+        beside = bool(avail) and (avail - boxes) >= self._HINT_FLOOR
+        if beside == getattr(self, "_hint_beside", True):
+            return
+        self._hint_beside = beside
+        col = self.layout()
+        row.removeWidget(self._hint)
+        col.removeWidget(self._hint)
+        if beside:
+            row.insertWidget(row.count() - 1, self._hint, _HINT_STRETCH)
+        else:
+            col.insertWidget(1, self._hint)      # under the row, above location
+        self._hint.setParent(self)
+        self._hint.setVisible(self._hint_wanted)
+        col.activate()
 
     def _squeeze_to_fit(self) -> None:
         """Take width off the widest box until the row fits the space given."""
@@ -617,6 +681,11 @@ class MeasurementTargetBar(QWidget):
             return
         row = self.layout().itemAt(0).layout()
         natural = row.minimumSize().width()
+        # The sentence is part of the row when it is shown, and it must keep a
+        # readable width — so the boxes are squeezed for it, not the other way
+        # round (Knut, #131 2026-07-27).
+        if self._hint.isVisible():
+            natural += self._HINT_FLOOR
         excess = natural - avail
         if excess <= 0:
             return
@@ -800,7 +869,9 @@ class MeasurementTargetBar(QWidget):
                 if not hasattr(w, "_cq_tip"):
                     w._cq_tip = w.toolTip()
                 w.setToolTip(self._lock_note() if locked else w._cq_tip)
-            self._hint.setVisible(not has_project)
+            self._hint_wanted = not has_project
+            self._hint.setVisible(self._hint_wanted)
+            self._place_hint()
             # Run dropdown: "Run N (overwrite)" per existing run + "New run".
             self._run_combo.clear()
             for rid in self._ctl.run_ids():

@@ -1,5 +1,17 @@
 # Changelog
 
+## v3.14.8-beta.58
+
+- **The sentence beside the Profile-run boxes now uses the whole width up to the
+  version number.** It was wrapping inside a narrow column of its own; its box
+  now runs from the two ⓘ to just short of the version text, and follows the
+  window as you resize it, so the text wraps against that edge and nowhere else.
+
+- On a window too narrow to give the sentence a readable width beside the boxes,
+  it moves to its own line under the row — where the full width is available —
+  and returns to the row as soon as there is room again. Without that, a narrow
+  window squeezed it into a column one word wide and twenty-one lines tall.
+
 ## v3.14.8-beta.57
 
 - **The patch-set editor remembers the design you applied.** Set the generators
