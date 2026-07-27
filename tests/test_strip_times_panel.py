@@ -107,3 +107,23 @@ def test_the_panel_always_asks_for_enough_room_to_draw_what_it_draws(
         needed += panel.GAP + QFontMetrics(panel._verdict_font()).ascent()
     assert panel.sizeHint().height() >= needed, (
         f"asks for {panel.sizeHint().height()}px but draws down to {needed}px")
+
+
+def test_the_panel_forces_the_room_it_needs(qapp):
+    """A layout can squeeze a widget to its minimum, and the verdict line was
+    what vanished — twice. The minimum is now what the panel actually draws."""
+    panel = StripTimesPanel()
+    panel.set_content("Strip reading times:\n(15 patches)",
+                      [(30, "5.1 s"), (90, "9.9 s")],
+                      "Too fast — read more slowly", "#ff6b6b")
+    assert panel.minimumHeight() == panel.sizeHint().height()
+    assert panel.minimumHeight() > 0
+
+
+def test_a_two_line_label_is_kept_as_two_lines(qapp):
+    panel = StripTimesPanel()
+    panel.set_content("Strip reading times:\n(15 patches)", [(30, "5.1 s")])
+    assert "\n" in panel._label
+    panel.resize(400, panel.sizeHint().height())
+    from PyQt6.QtGui import QPixmap
+    panel.render(QPixmap(panel.size()))        # both lines must paint cleanly

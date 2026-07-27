@@ -25,8 +25,8 @@ class StripTimesPanel(QWidget):
     """Per-strip reading times, drawn on their sides under the preview."""
 
     #: room around the rotated times
-    PAD_TOP = 6
-    PAD_BOTTOM = 4
+    PAD_TOP = 10
+    PAD_BOTTOM = 8
     #: gap between the times and the verdict line
     GAP = 6
 
@@ -37,17 +37,28 @@ class StripTimesPanel(QWidget):
         self._verdict = ""
         self._verdict_colour = "#909090"
         self._muted = "#909090"
+        self._frame = "#3a3a3a"          # the faint border around this area
         self.setVisible(False)
 
     # ---- content ----------------------------------------------------------
     def set_content(self, label: str, columns, verdict: str = "",
                     verdict_colour: str = "#909090") -> None:
-        """Show *columns* — ``(x, text)`` pairs in this widget's coordinates."""
+        """Show *columns* — ``(x, text)`` pairs in this widget's coordinates.
+
+        *label* may carry a newline; it is drawn as two lines so a long caption
+        cannot run into the first strip's time on charts whose strips start
+        close to the page edge (Knut, #131 2026-07-27).
+        """
         self._label = label or ""
         self._columns = [(int(x), str(t)) for x, t in columns]
         self._verdict = verdict or ""
         self._verdict_colour = verdict_colour
         self.setVisible(bool(self._columns or self._verdict))
+        # A layout may shrink a widget to its minimum, and the verdict line is
+        # what disappears first when it does — so the minimum IS what we draw
+        # (Knut saw the red warning vanish twice). setMinimumHeight forces it,
+        # where minimumSizeHint alone can still be overridden by a stretch.
+        self.setMinimumHeight(self.sizeHint().height())
         self.updateGeometry()
         self.update()
 
@@ -93,11 +104,22 @@ class StripTimesPanel(QWidget):
         # height worked out before that can be too small and clip the verdict.
         # Asking for a re-layout here corrects it before anyone sees it — the
         # same trap as style-sheet padding (see the target bar).
+        # Font metrics are only final once the widget has been polished, so the
+        # height worked out in set_content can be too small — and the verdict is
+        # the first thing to fall off the bottom. Re-apply it here, which lands
+        # before anyone sees the result.
         want = self.sizeHint().height()
-        if want > self.height():
+        if want > self.minimumHeight():
+            self.setMinimumHeight(want)
             self.updateGeometry()
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+        # Its own faint frame: without one this area reads as part of the
+        # preview's page controls just above it (Knut, #131 2026-07-27).
+        if self._columns or self._verdict:
+            from PyQt6.QtGui import QPen
+            p.setPen(QPen(QColor(self._frame), 1))
+            p.drawRect(0, 0, self.width() - 1, self.height() - 1)
         times_h = self._times_height()
 
         if self._columns:
@@ -119,11 +141,15 @@ class StripTimesPanel(QWidget):
                 # allowed to run into the first strip's time, which owns its x.
                 p.setPen(QColor(self._muted))
                 lfm = QFontMetrics(self._time_font())
-                y = self.PAD_TOP + (times_h + lfm.ascent()) // 2
+                lines = self._label.split("\n")
                 room = min(x for x, _t in self._columns) - 8
                 if room > 20:
-                    p.drawText(0, y, lfm.elidedText(
-                        self._label, Qt.TextElideMode.ElideRight, room))
+                    block = lfm.height() * len(lines)
+                    top = self.PAD_TOP + max(0, (times_h - block) // 2)
+                    for i, line in enumerate(lines):
+                        p.drawText(0, top + lfm.ascent() + i * lfm.height(),
+                                   lfm.elidedText(line, Qt.TextElideMode.ElideRight,
+                                                  room))
 
         if self._verdict:
             p.setFont(self._verdict_font())

@@ -6510,8 +6510,10 @@ class TabMeasure(QWidget):
         self._pace_verdict_colour = colour
         label = ""
         if columns and self._pace_patches:
-            label = tr("Strip reading times, {n} patches:").format(
-                n=self._pace_patches)
+            # Two lines, so a long caption cannot collide with the first
+            # strip's time on charts whose strips start near the page edge.
+            label = tr("Strip reading times:") + "\n" + tr(
+                "({n} patches)").format(n=self._pace_patches)
         panel.set_content(label, sorted(columns), verdict, colour)
 
     def _clear_pace_readout(self) -> None:

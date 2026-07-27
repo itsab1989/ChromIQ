@@ -1,5 +1,18 @@
 # Changelog
 
+## v3.14.8-beta.46
+
+- **The reading-times area is now a frame of its own**, with a faint border, so
+  it is clearly separate from the page controls just above it rather than
+  appearing to contain them.
+
+- **Its caption is on two lines** — "Strip reading times:" above "(15 patches)"
+  — so it cannot run into the first strip's time on charts whose strips begin
+  close to the page edge.
+
+- **The frame insists on the height it needs**, so the large warning line
+  underneath the times can no longer be squeezed away by the layout.
+
 ## v3.14.8-beta.45
 
 - **A strip now makes one sound, not two.** A strip that was accepted but read
