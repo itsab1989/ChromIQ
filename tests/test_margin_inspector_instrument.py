@@ -122,3 +122,47 @@ def test_charts_that_do_not_record_the_choice_are_judged_as_before(tab,
     (tmp_path / "Q.channels.json").write_text(json.dumps({"channels": []}))
     tab._margin_ti2 = ti2
     assert tab._chart_uses_instrument_margins() is True
+
+
+# ---- which minimums a chart is judged against (Knut, #130 2026-07-27) -----
+def test_a_chart_that_declined_the_instrument_is_judged_by_its_own_margins(
+        tab, tmp_path):
+    """Knut's correction: switching the guideline off must not switch the check
+    off. A margin that came out under what he asked for still has to be
+    reported — against HIS numbers, not the instrument's."""
+    tab._margin_ti2 = _engine_chart_with(
+        tmp_path, instrument="CM", use_instrument_margins=False,
+        margin_top=28.0, margin_bottom=10.0, margin_left=6.0, margin_right=6.0)
+
+    own = tab._chart_own_margins()
+
+    assert own is not None
+    assert (own["L"], own["R"], own["T"], own["B"]) == (6.0, 6.0, 28.0, 10.0)
+
+
+def test_a_chart_that_kept_the_instrument_guideline_uses_preferences(tab,
+                                                                     tmp_path):
+    """None means "fall back to the per-instrument minimums"."""
+    tab._margin_ti2 = _engine_chart_with(
+        tmp_path, instrument="CM", use_instrument_margins=True,
+        margin_top=28.0, margin_bottom=10.0)
+    assert tab._chart_own_margins() is None
+
+
+def test_charts_with_no_recipe_use_preferences(tab, tmp_path):
+    ti2 = tmp_path / "P.ti2"; ti2.write_text("chart")
+    (tmp_path / "P.channels.json").write_text(json.dumps({"channels": []}))
+    tab._margin_ti2 = ti2
+    assert tab._chart_own_margins() is None
+
+    tab._margin_ti2 = None
+    assert tab._chart_own_margins() is None
+
+
+def test_the_reported_source_names_itself(tab, tmp_path):
+    """So the panel can say where a minimum came from rather than implying it
+    is the instrument's."""
+    tab._margin_ti2 = _engine_chart_with(
+        tmp_path, instrument="CM", use_instrument_margins=False,
+        margin_top=28.0, margin_bottom=10.0)
+    assert "laid out to" in tab._chart_own_margins()["desc"]

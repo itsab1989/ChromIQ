@@ -8857,11 +8857,14 @@ class TabChart(QWidget):
         instr_label = _MARGIN_INSTR_LABEL.get(instr_flag, "i1Pro")
         paper_name = _canonical_paper_name(report.page_w_mm, report.page_h_mm)
         orient = "Landscape" if report.page_w_mm > report.page_h_mm else "Portrait"
-        thresholds = None
-        # A chart laid out with "Use instrument margins" switched off was not
-        # built to those minimums and must not be judged against them (Knut,
-        # #130 2026-07-27) — the numbers still show, but without warnings.
-        if paper_name and self._chart_uses_instrument_margins():
+        # Which minimums this chart is judged against (Knut, #130 2026-07-27).
+        # With "Use instrument margins" ON: the per-instrument minimums from
+        # Preferences. With it OFF: the margins the chart was actually laid out
+        # to — the user still wants to know when a printed margin came out
+        # under what they asked for; they only declined the instrument's
+        # guideline, not the check itself.
+        thresholds = self._chart_own_margins()
+        if thresholds is None and paper_name:
             key = margin_combo_key(instr_label, paper_name, orient)
             thresholds = self._settings.get_margin_thresholds().get(key)
 
@@ -8985,6 +8988,36 @@ class TabChart(QWidget):
         self._settings.set("margin_coords_show", bool(on))
         self._preview.set_coord_readout(
             bool(on), float(self._settings.get("printtarg_dpi", 300) or 300))
+
+    def _chart_own_margins(self) -> "dict | None":
+        """The margins this chart was laid out to, when it declined the
+        instrument's minimums — otherwise None, so the caller falls back to
+        Preferences (Knut, #130 2026-07-27).
+
+        Returned in the same shape as a Preferences threshold row, so the panel
+        compares and reports it identically.
+        """
+        try:
+            import json
+            if self._margin_ti2 is None:
+                return None
+            ch = Path(self._margin_ti2).with_suffix(".channels.json")
+            if not ch.is_file():
+                return None
+            recipe = (json.loads(ch.read_text()).get("layout") or {}).get("recipe")
+            if not isinstance(recipe, dict):
+                return None
+            if recipe.get("use_instrument_margins", True):
+                return None            # judged against the instrument instead
+            return {
+                "L": float(recipe.get("margin_left", 0.0)),
+                "R": float(recipe.get("margin_right", 0.0)),
+                "T": float(recipe.get("margin_top", 0.0)),
+                "B": float(recipe.get("margin_bottom", 0.0)),
+                "desc": tr("the margins this chart was laid out to"),
+            }
+        except Exception:      # noqa: BLE001 — the inspector must never crash
+            return None
 
     def _chart_uses_instrument_margins(self) -> bool:
         """Whether the chart in the preview was built with the instrument's

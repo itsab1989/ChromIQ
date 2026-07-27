@@ -1,5 +1,15 @@
 # Changelog
 
+## v3.14.8-beta.50
+
+- **Margins are still checked when you switch "Use instrument margins" off —
+  against your own.** Beta 49 dropped those warnings altogether, which went too
+  far: switching the guideline off declines the *instrument's* minimums, not
+  the check itself. A chart laid out with your own margins is now measured
+  against exactly those, so a printed margin that came out under what you asked
+  for is still reported. With the guideline on, the per-instrument minimums
+  from Preferences apply as before.
+
 ## v3.14.8-beta.49
 
 - **"Save as Defaults" now keeps "Show overlay from existing measurement".**
