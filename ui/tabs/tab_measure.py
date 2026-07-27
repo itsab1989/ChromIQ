@@ -1474,6 +1474,7 @@ class TabMeasure(QWidget):
         rl.addWidget(pace_area)
         # Times measured so far, per strip letter, plus whether each passed.
         self._pace_times: dict = {}
+        self._spot_des: list = []
         self._pace_patches = 0
 
         splitter.addWidget(right)
@@ -6702,6 +6703,9 @@ class TabMeasure(QWidget):
         self._pace_times = {}
         self._pace_patches = 0
         self._scan_started_at = None
+        # The patch-by-patch comparison population (see _on_patch_measured):
+        # each measurement judges itself, never the previous chart.
+        self._spot_des = []
         # Each measurement decides for itself whether the reading-speed window
         # is wanted: another chart may need a different pace, and that is worth
         # seeing once (Knut, #131 2026-07-26).
@@ -6978,11 +6982,22 @@ class TabMeasure(QWidget):
         mxyz = ev.get("xyz", [0, 0, 0])
         exp_rgb = _xyz_d50_to_srgb8(exyz)
         meas_rgb = _xyz_d50_to_srgb8(mxyz)
-        # Patch by patch there is no strip to be an outlier within, so the
-        # fence cannot apply here — which is exactly why the two modes used to
-        # disagree so sharply (Knut, #131 2026-07-27). The switch is shared, so
-        # what the two modes mean by "flagged" is now the same question.
-        item = (box, _QC(*exp_rgb), _QC(*meas_rgb), de_p >= warn_de)
+        # Patch by patch there is no finished strip to compare against — the
+        # patch in your hand is the only one that has just arrived. So the
+        # comparison is made against **the patches already read in this
+        # session**, which grows as you work: the first few are judged on the
+        # limit alone (the fence returns 0 below four readings), and from there
+        # on "stands out" means "stands out from what this chart has been
+        # reading so far" (Knut's question, #131 2026-07-27).
+        #
+        # A patch's outline is decided once, when it is drawn, and never
+        # revisited — a flag that appeared or vanished later, as the population
+        # changed, would be worse than no flag at all.
+        self._spot_des.append(de_p)
+        fence = (_strip_outlier_fence(self._spot_des)
+                 if self._use_outlier_fence() else 0.0)
+        item = (box, _QC(*exp_rgb), _QC(*meas_rgb),
+                de_p >= warn_de and de_p >= fence)
         info = (box, {
             "loc": loc,
             "exp_rgb": exp_rgb,

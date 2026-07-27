@@ -1,5 +1,16 @@
 # Changelog
 
+## v3.14.8-beta.65
+
+- **Patch-by-patch reading now honours the strip-comparison setting too** — it
+  did not before, whatever the beta.64 note said. Reading one patch at a time
+  there is no finished strip to compare against, so the comparison is made
+  against the patches already read in this session: the first few are judged on
+  the ΔE limit alone, and from there on "stands out" means "stands out from what
+  this chart has been reading so far". A patch's outline is decided once, when it
+  is drawn, and never revisited — an outline that appeared or vanished later, as
+  more patches arrived, would be worse than none at all.
+
 ## v3.14.8-beta.64
 
 - **Preferences → Measurement now works out the reading speed for you.** Beside
