@@ -509,7 +509,7 @@ WORKFLOWS: list[dict] = [
         "steps": [
             (3, tr("Print and measure a ChromIQ chart as usual, and keep its "
                 "recognition files: after measuring, tick “Also save "
-                "scanner-profiling files for this chart” in the All Stripes Read "
+                "scanner-profiling files for this chart” in the All Strips Read "
                 "or Profile Quality Assessment window — or run Tools ▸ Create "
                 "scanner or camera target on any measured chart. This writes the "
                 "chart's .cht + .cie files.")),

@@ -1,5 +1,25 @@
 # Changelog
 
+## v3.14.8-beta.61
+
+- **ChromIQ stays silent while stock ArgyllCMS chartread reads.** ArgyllCMS
+  beeps from inside its own reading code there and offers no way to switch it
+  off, so ChromIQ's own sounds only doubled every event. On that path you now
+  hear Argyll alone; on ChromIQ's own engine — where Argyll's beeps *are*
+  silenced — you hear ChromIQ alone. A measurement that falls back to stock
+  chartread half-way goes quiet at that moment too. Completion sounds belong to
+  ChromIQ's workflow rather than to the reading, so they are unaffected.
+
+- **"Stripe" is gone from the interface; it is a strip.** Every window, button,
+  message and help text now says strip, read strip, skip strip, re-read strip.
+  "Re-read Stripes" is now **Re-read Individual Strips**.
+
+- **That button explains itself.** It says what it actually does: everything you
+  have measured stays, only the strips you read again are replaced, strips
+  re-read in this session are marked in the preview, and pressing Stop when you
+  are finished is enough — there is no second completion window to wait for,
+  because the chart was already complete.
+
 ## v3.14.8-beta.60
 
 - **Every warning and error window during a measurement now sounds as it

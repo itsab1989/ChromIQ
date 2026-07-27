@@ -187,16 +187,29 @@ class SoundManager:
         self._settings = settings
         self._effects: dict[str, object] = {}     # event -> QSoundEffect
         self._in_measurement = False
+        #: ChromIQ's own reading engine silences ArgyllCMS's built-in beeps, so
+        #: our sounds are the only ones heard. Stock ArgyllCMS chartread has no
+        #: flag to silence them, so on that path the user hears Argyll's beep
+        #: whatever we do — and adding ours on top means two sounds for one
+        #: event. Knut's ruling (#131, 2026-07-27): "the ChromIQ sounds should
+        #: not at all be wired or used for stock argyllcms chartread".
+        self._reading_engine = True
 
     # -- lifecycle ----------------------------------------------------------
     def enabled(self) -> bool:
         return bool(self._settings.get("sound_enabled", False))
 
-    def arm(self) -> None:
+    def arm(self, *, reading_engine: bool = True) -> None:
         """Pre-load every selected sound into memory before a measurement, so
         the first play of each isn't delayed by a disk read. A no-op (and a
-        quiet one) when sounds are disabled."""
+        quiet one) when sounds are disabled.
+
+        ``reading_engine`` says whether this measurement runs on ChromIQ's own
+        engine. On stock ArgyllCMS chartread it is False and no measurement
+        sound is played at all — see :attr:`_reading_engine`.
+        """
         self._in_measurement = True
+        self._reading_engine = bool(reading_engine)
         if not self.enabled():
             return
         self._preload(ALL_EVENTS)
@@ -234,6 +247,13 @@ class SoundManager:
         if not self.enabled():
             return
         if not self._in_measurement and event not in OUTSIDE_MEASUREMENT_EVENTS:
+            return
+        # Stock ArgyllCMS chartread beeps for itself and cannot be silenced, so
+        # ChromIQ stays quiet there rather than doubling every event (Knut,
+        # #131 2026-07-27). Completion sounds belong to ChromIQ's own workflow,
+        # not to the reading, so they are unaffected.
+        if (self._in_measurement and not self._reading_engine
+                and event not in OUTSIDE_MEASUREMENT_EVENTS):
             return
         try:
             eff = self._effects.get(event)

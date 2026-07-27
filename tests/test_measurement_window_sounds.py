@@ -112,3 +112,70 @@ def test_a_cue_never_blocks_a_window():
     """A window must open even if the sound cannot be played at all."""
     src = inspect.getsource(TabMeasure._cue_window)
     assert "except Exception" in src
+
+
+# ---- stock ArgyllCMS chartread stays ChromIQ-silent (Knut, 2026-07-27) -----
+def test_chromiq_plays_nothing_while_stock_chartread_reads(tmp_path):
+    """His ruling: "the ChromIQ sounds should not at all be wired or used for
+    stock argyllcms chartread" — Argyll beeps for itself there and cannot be
+    silenced, so ours would only double every event."""
+    from PyQt6.QtCore import QSettings
+
+    import core.sound as snd
+    from core.settings import AppSettings
+    s = AppSettings()
+    s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    s.set("sound_enabled", True)
+    player = snd.SoundManager(s)
+    played = []
+    player._preload = lambda events: None
+    player._effects = {}
+
+    class _Eff:
+        def __init__(self, name): self.name = name
+        def play(self): played.append(self.name)
+
+    for ev in snd.ALL_EVENTS:
+        player._effects[ev] = _Eff(ev)
+
+    player.arm(reading_engine=False)
+    for ev in (snd.STRIP_OK, snd.STRIP_FAIL, snd.SLOW_DOWN, snd.PATCH_OK):
+        player.play(ev)
+    assert played == [], played
+
+    # …but the engine path is unaffected.
+    player.arm(reading_engine=True)
+    player.play(snd.STRIP_OK)
+    assert played == [snd.STRIP_OK]
+
+
+def test_a_completion_sound_still_plays_on_stock(tmp_path):
+    """It belongs to ChromIQ's own workflow, not to Argyll's reading."""
+    from PyQt6.QtCore import QSettings
+
+    import core.sound as snd
+    from core.settings import AppSettings
+    s = AppSettings()
+    s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    s.set("sound_enabled", True)
+    player = snd.SoundManager(s)
+    played = []
+    player._preload = lambda events: None
+
+    class _Eff:
+        def play(self): played.append("finished")
+
+    player._effects = {snd.MEASUREMENT_FINISHED: _Eff()}
+    player.arm(reading_engine=False)
+    player.play(snd.MEASUREMENT_FINISHED)
+    assert played == ["finished"]
+
+
+def test_a_mid_run_fallback_silences_us_too():
+    """The engine can give way to stock chartread while reading."""
+    import inspect
+
+    from ui.tabs.tab_measure import TabMeasure
+    for slot in (TabMeasure._on_engine_fell_back,
+                 TabMeasure._on_engine_fell_back_resumed):
+        assert "_silence_for_stock_chartread()" in inspect.getsource(slot)

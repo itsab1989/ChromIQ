@@ -1472,7 +1472,7 @@ class TabCheckRefine(QWidget):
             layout.addWidget(precond_desc)
 
         # Scanner-target opt-in (engine/printtarg charts only) — same feature as
-        # the measure tab's "All Stripes Read" dialog. Ticking it (re)builds this
+        # the measure tab's "All Strips Read" dialog. Ticking it (re)builds this
         # chart's .cht + .cie from the measurement so the same printed chart can
         # profile a scanner later, whichever action the user picks below (#97/#98).
         scanner_run = None

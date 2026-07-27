@@ -149,6 +149,21 @@ if TYPE_CHECKING:
 
 log = get_logger(__name__)
 
+
+def _REREAD_TOOLTIP() -> str:
+    """What "Re-read Individual Strips" actually does — spelled out, because
+    nothing said it (Knut, #131 2026-07-27: "the descriptions of the buttons do
+    not properly explain the consequences when clicking them")."""
+    return tr(
+        "Goes back to the chart so you can read single strips again.\n\n"
+        "Everything you have already measured stays exactly as it is — a strip "
+        "you do not read again keeps the reading it has. Only the strips you "
+        "do read are replaced.\n\n"
+        "Strips you re-read in this session are marked in the preview, so you "
+        "can see what you have done. When you have finished, press Stop: your "
+        "measurement is saved either way, and because the chart is already "
+        "complete there is no second “All strips read” window to wait for.")
+
 #: The preview's nav row is inset by 12 px, so the reading-times frame uses the
 #: same inset and its edges line up with the PREV and NEXT buttons (Knut, #131).
 _PACE_SIDE_MARGIN = 12
@@ -844,7 +859,7 @@ class TabMeasure(QWidget):
         # "Read again & average": True once the user opts to re-read the chart,
         # so each subsequent successful read is moved into reads/readN.ti3.
         self._averaging_active: bool = False
-        # When averaging is enabled, the "All Stripes Read" dialog records the
+        # When averaging is enabled, the "All Strips Read" dialog records the
         # user's choice here so _on_measure_done can act on it once chartread has
         # finished writing the .ti3 (the file isn't final while chartread runs).
         # None → no decision pending (fall back to the post-process dialog).
@@ -3403,6 +3418,19 @@ class TabMeasure(QWidget):
             self._sound.arm()
             self._sound.disarm()      # preload only; not in a measurement yet
 
+    def _engine_wanted(self) -> bool:
+        """Whether this measurement will run on ChromIQ's own reading engine.
+
+        The manager settles it when the run starts (it can still fall back to
+        stock chartread if the instrument refuses), but the sounds are armed
+        before that — so the preference is read here and corrected if a fallback
+        happens (see :meth:`_on_engine_fell_back`).
+        """
+        try:
+            return bool(self._settings.get("chartread_engine", True))
+        except Exception:      # noqa: BLE001
+            return True
+
     def _pace_config(self):
         """Build the pace thresholds for the instrument this chart was laid out
         for (#131 Phase 2). The sampling rate is only used when it has been set
@@ -3654,7 +3682,7 @@ class TabMeasure(QWidget):
 
         if chosen[0] == "reread":
             # Back to measuring: the chart is no longer finished, so the
-            # "All Stripes Read" window must not appear — whether it arrived
+            # "All Strips Read" window must not appear — whether it arrived
             # while this window was open or arrives just after it closes
             # (Knut, #131 2026-07-27).
             self._all_done_deferred = False
@@ -3902,9 +3930,13 @@ class TabMeasure(QWidget):
         if self._blocked_by_new_run():
             return
         # #131: enter measurement mode so per-patch/strip sounds are allowed and
-        # the selected clips are pre-loaded for zero-latency playback.
+        # the selected clips are pre-loaded for zero-latency playback. On stock
+        # ArgyllCMS chartread ChromIQ stays quiet — Argyll beeps for itself
+        # there and cannot be silenced, so ours would only double it (Knut,
+        # 2026-07-27). Whether the engine is in use is settled once the run has
+        # started; it is re-stated there, and this is the safe default.
         if getattr(self, "_sound", None) is not None:
-            self._sound.arm()
+            self._sound.arm(reading_engine=self._engine_wanted())
         # A fresh read starts with a clean pace panel (Knut: it must be cleared
         # when a strip is re-read, a chart is re-read, or measuring is stopped).
         self._clear_pace_readout()
@@ -3936,7 +3968,7 @@ class TabMeasure(QWidget):
         self._spot_current_loc = ""
         self._spot_click_on = False
         # Remember whether this is a patch-by-patch (spot) session, so the
-        # completion dialog can speak of "patches" instead of "stripes".
+        # completion dialog can speak of "patches" instead of "strips".
         self._spot_session = self._is_pbp_checked()
         # Capture the verification-measurement choice now, so toggling the box
         # mid-read can't change how the finished .ti3 is handled.
@@ -4271,7 +4303,7 @@ class TabMeasure(QWidget):
         layout.setContentsMargins(24, 20, 24, 20)
 
         msg = QLabel(
-            tr("<b>An unexpected color response was detected (ΔE {delta_e}).</b><br><br>This usually means the instrument was not aligned correctly with the stripe, was moved during the scan, or the wrong stripe was read. A ΔE this high indicates the measured colors are very far from what is expected.<br><br>&nbsp;&nbsp;<b>Use Anyway</b> — accept the reading and continue. Only use this if you are sure the scan was correct.<br><br>&nbsp;&nbsp;<b>Retry</b> — discard this reading, re-position your instrument carefully on the correct stripe, and try again.<br><br>&nbsp;&nbsp;<b>Give Up</b> — stop the measurement without saving.").format(delta_e=delta_e),
+            tr("<b>An unexpected color response was detected (ΔE {delta_e}).</b><br><br>This usually means the instrument was not aligned correctly with the strip, was moved during the scan, or the wrong strip was read. A ΔE this high indicates the measured colors are very far from what is expected.<br><br>&nbsp;&nbsp;<b>Use Anyway</b> — accept the reading and continue. Only use this if you are sure the scan was correct.<br><br>&nbsp;&nbsp;<b>Retry</b> — discard this reading, re-position your instrument carefully on the correct strip, and try again.<br><br>&nbsp;&nbsp;<b>Give Up</b> — stop the measurement without saving.").format(delta_e=delta_e),
             dlg,
         )
         msg.setWordWrap(True)
@@ -4556,7 +4588,16 @@ class TabMeasure(QWidget):
         app pauses for a moment instead of thinking it has frozen."""
         self._log.ensureCursorVisible()
 
+    def _silence_for_stock_chartread(self) -> None:
+        """The engine gave way to stock ArgyllCMS chartread mid-run: Argyll's own
+        beeps take over from here, so ChromIQ's measurement sounds stop (Knut,
+        #131 2026-07-27)."""
+        snd = getattr(self, "_sound", None)
+        if snd is not None:
+            snd._reading_engine = False
+
     def _on_engine_fell_back(self, reason: str) -> None:
+        self._silence_for_stock_chartread()
         """ChromIQ's engine could not drive the instrument, so the run restarted
         on stock ArgyllCMS chartread. Say so plainly — the measurement carries on
         and the user needs no different handling, but they should know which
@@ -4570,6 +4611,7 @@ class TabMeasure(QWidget):
         self._log.ensureCursorVisible()
 
     def _on_engine_fell_back_resumed(self, reason: str) -> None:
+        self._silence_for_stock_chartread()
         """Like _on_engine_fell_back, but the engine had already measured part of
         the chart when the instrument failed (#134). The manager writes the full,
         reassuring explanation to the log; here we add a brief, non-blocking
@@ -4726,7 +4768,7 @@ class TabMeasure(QWidget):
     def _is_last_unread_strip(self) -> bool:
         """True when the strip that just failed is the only one still unread.
 
-        "Skip Stripe" asks ArgyllCMS for the next UNREAD strip, and that search
+        "Skip Strip" asks ArgyllCMS for the next UNREAD strip, and that search
         wraps around — so with nothing else unread it comes back to this very
         strip. Skipping then skips nothing (Knut, #131 2026-07-26). Answered
         only from the engine's own read map: with the separate chartread there
@@ -4751,7 +4793,7 @@ class TabMeasure(QWidget):
         # because the failure has already been announced.
         self._on_strip_error_sound(reason)
 
-        # "All Stripes Read" is always the LAST window (Knut): while any strip
+        # "All Strips Read" is always the LAST window (Knut): while any strip
         # window is up, the completion window waits its turn.
         self._pace_prompt_open = True
 
@@ -4792,8 +4834,8 @@ class TabMeasure(QWidget):
                 "the readings from this session cannot be saved.") + "<br><br>"
         else:
             advice = tr(
-                "<b>The stripe could not be read:</b> {reason}<br><br>"
-                "Re-position your instrument at the beginning of the stripe and try again. "
+                "<b>The strip could not be read:</b> {reason}<br><br>"
+                "Re-position your instrument at the beginning of the strip and try again. "
                 "If the error keeps occurring, try scanning more slowly and steadily, or "
                 "raise the <i>Patch consistency tolerance</i> setting before the next run."
             ).format(reason=reason) + "<br><br>"
@@ -4803,15 +4845,15 @@ class TabMeasure(QWidget):
         last_one = self._is_last_unread_strip()
         if last_one:
             choices = tr(
-                "&nbsp;&nbsp;<b>Retry</b> — read this same stripe again.<br>"
+                "&nbsp;&nbsp;<b>Retry</b> — read this same strip again.<br>"
                 "&nbsp;&nbsp;<b>Finish Without This Strip</b> — this is the only "
-                "stripe still unread, so there is nowhere to skip to. Saves the "
-                "stripes you have read and ends the measurement; loading the "
+                "strip still unread, so there is nowhere to skip to. Saves the "
+                "strips you have read and ends the measurement; loading the "
                 "chart again lets you continue from here.<br>")
         else:
             choices = tr(
-                "&nbsp;&nbsp;<b>Retry</b> — read this same stripe again.<br>"
-                "&nbsp;&nbsp;<b>Skip Stripe</b> — leave this stripe unread for now "
+                "&nbsp;&nbsp;<b>Retry</b> — read this same strip again.<br>"
+                "&nbsp;&nbsp;<b>Skip Strip</b> — leave this strip unread for now "
                 "and jump to the next unread one. You can come back to it later in "
                 "this session.<br>")
         msg = QLabel(
@@ -4834,7 +4876,7 @@ class TabMeasure(QWidget):
 
         retry_btn = QPushButton(tr("Retry"), dlg)
         skip_btn = QPushButton(
-            tr("Finish Without This Strip") if last_one else tr("Skip Stripe"),
+            tr("Finish Without This Strip") if last_one else tr("Skip Strip"),
             dlg)
         if last_one:
             skip_btn.setToolTip(tr(
@@ -4892,7 +4934,7 @@ class TabMeasure(QWidget):
             self._manager.send_save_partial_and_quit()
         elif chosen[0] == "skip":
             # Two-step: retry returns chartread to the strip menu, then 'n'
-            # jumps to the next unread stripe.
+            # jumps to the next unread strip.
             self._manager.send_post_retry_key("n")
         else:  # save partial and quit
             # Three-step chain inside the manager: \r → strip menu → 'd' →
@@ -5158,7 +5200,7 @@ class TabMeasure(QWidget):
 
             msg = QLabel(
                 tr("<b>Calibration complete. You are ready to start measuring."
-                   "</b><br><br>{how}<br><br>Then proceed stripe by stripe until "
+                   "</b><br><br>{how}<br><br>Then proceed strip by strip until "
                    "all are done.").format(how=_how),
                 dlg,
             )
@@ -5174,10 +5216,10 @@ class TabMeasure(QWidget):
             kfl.setVerticalSpacing(6)
             kfl.setColumnStretch(1, 1)
             key_rows = [
-                ("f", tr("Move to the next stripe")),
-                ("b", tr("Move back to the previous stripe")),
-                ("n", tr("Jump to the next unread stripe")),
-                ("d", tr("Finish and save when all stripes are done")),
+                ("f", tr("Move to the next strip")),
+                ("b", tr("Move back to the previous strip")),
+                ("n", tr("Jump to the next unread strip")),
+                ("d", tr("Finish and save when all strips are done")),
                 ("Esc / q", tr("Quit without saving")),
             ]
             for row, (key, desc) in enumerate(key_rows):
@@ -5255,19 +5297,19 @@ class TabMeasure(QWidget):
         if self._verify_run and not is_cal and not self._guided_refinement_active:
             from PyQt6.QtWidgets import QHBoxLayout, QPushButton
             dlg = QDialog(self)
-            dlg.setWindowTitle(tr("Verification Measurement — All Stripes Read"))
+            dlg.setWindowTitle(tr("Verification Measurement — All Strips Read"))
             dlg.setMinimumWidth(560)
             lay = QVBoxLayout(dlg)
             lay.setSpacing(16)
             lay.setContentsMargins(24, 20, 24, 20)
             msg = QLabel(tr(
-                "<b>All stripes have been read.</b><br><br>This is a "
+                "<b>All strips have been read.</b><br><br>This is a "
                 "<b>verification measurement</b> of a colour-managed print, so it "
                 "will be saved as a separate <b>verify</b> file and is <b>not</b> "
                 "for building a profile.<br><br>Click <b>Finish</b> to save it, "
                 "then open it in <b>Tools ▸ Inspect a measurement</b> to check how "
-                "the profile performed. Or click <b>Re-read Stripes</b> to scan a "
-                "stripe again (<b>f</b>&nbsp;/&nbsp;<b>b</b> to move, <b>n</b> for "
+                "the profile performed. Or click <b>Re-read Individual Strips</b> to scan a "
+                "strip again (<b>f</b>&nbsp;/&nbsp;<b>b</b> to move, <b>n</b> for "
                 "the next unread, <b>d</b> when done)."), dlg)
             msg.setWordWrap(True)
             lay.addWidget(msg)
@@ -5280,7 +5322,8 @@ class TabMeasure(QWidget):
                 lay.addWidget(sum_lbl)
             row = QHBoxLayout()
             row.addStretch(1)
-            reread = QPushButton(tr("Re-read Stripes"), dlg)
+            reread = QPushButton(tr("Re-read Individual Strips"), dlg)
+            reread.setToolTip(_REREAD_TOOLTIP())
             reread.clicked.connect(dlg.reject)
             finish = QPushButton(tr("Finish"), dlg)
             finish.setObjectName("primary")
@@ -5326,14 +5369,14 @@ class TabMeasure(QWidget):
         elif is_cal:
             dlg.setWindowTitle(tr("Calibration Measurement Complete"))
             msg = QLabel(
-                tr("<b>All stripes of your calibration chart have been read successfully.</b><br><br>"
+                tr("<b>All strips of your calibration chart have been read successfully.</b><br><br>"
                 "The measurement data has been saved. The next step is to turn it into a "
                 "<b>calibration file (.cal)</b> — click <b>Create Calibration File</b> to go "
                 "directly to the <b>4. Calibration &amp; Profiling</b> tab, where the file "
                 "path is already filled in and ready to go.<br><br>"
-                "If you would like to re-read any stripe first, click <b>Re-read Stripes</b>. "
-                "Use <b>f</b>&nbsp;/&nbsp;<b>b</b> to move forward and back between stripes, "
-                "<b>n</b> to jump to the next unread stripe, and press <b>d</b> when you "
+                "If you would like to re-read any strip first, click <b>Re-read Individual Strips</b>. "
+                "Use <b>f</b>&nbsp;/&nbsp;<b>b</b> to move forward and back between strips, "
+                "<b>n</b> to jump to the next unread strip, and press <b>d</b> when you "
                 "are done.<br><br>"
                 "<span style='color:#909090;'>These instructions are always visible in "
                 "the output log below.</span>"),
@@ -5354,14 +5397,14 @@ class TabMeasure(QWidget):
                 dlg,
             )
         else:
-            dlg.setWindowTitle(tr("All Stripes Read"))
+            dlg.setWindowTitle(tr("All Strips Read"))
             msg = QLabel(
-                tr("<b>All stripes have been read successfully.</b><br><br>"
+                tr("<b>All strips have been read successfully.</b><br><br>"
                 "Click <b>Build Profile</b> to finalise the measurement and go directly "
                 "to the Build Profile tab — the next and final step.<br><br>"
-                "If you would like to re-read any stripe first, click <b>Re-read Stripes</b>. "
-                "Use <b>f</b>&nbsp;/&nbsp;<b>b</b> to move forward and back between stripes, "
-                "<b>n</b> to jump to the next unread stripe, and press <b>d</b> when you "
+                "If you would like to re-read any strip first, click <b>Re-read Individual Strips</b>. "
+                "Use <b>f</b>&nbsp;/&nbsp;<b>b</b> to move forward and back between strips, "
+                "<b>n</b> to jump to the next unread strip, and press <b>d</b> when you "
                 "are done.<br><br>"
                 "<span style='color:#909090;'>These instructions are always visible in "
                 "the output log below.</span>"),
@@ -5409,11 +5452,13 @@ class TabMeasure(QWidget):
         elif self._spot_session:
             cont_label = "Re-read Patches"
         else:
-            cont_label = "Re-read Stripes"
+            cont_label = "Re-read Individual Strips"
 
         btn_row = QHBoxLayout()
         btn_row.addStretch(1)
         cont_btn = QPushButton(cont_label, dlg)
+        if cont_label == tr("Re-read Individual Strips"):
+            cont_btn.setToolTip(_REREAD_TOOLTIP())
         cont_btn.clicked.connect(dlg.reject)
         # Knut (#131): a way to keep the measurement and go nowhere.
         close_btn = QPushButton(tr("Close"), dlg)
@@ -5466,14 +5511,14 @@ class TabMeasure(QWidget):
             QApplication.instance().installEventFilter(self)
 
     def _show_all_stripes_averaging_dialog(self) -> None:
-        """The 'All Stripes Read' dialog when measurement averaging is on.
+        """The 'All Strips Read' dialog when measurement averaging is on.
 
-        First read of a chart → Re-read Stripes / Measure again to average /
+        First read of a chart → Re-read Individual Strips / Measure again to average /
         Build Profile. Mid-set (≥1 read already saved) → Use last read only /
         Measure again to average / Average all reads & build. The chosen action is
         stored in ``_pending_avg_action`` so :meth:`_on_measure_done` can act on it
         once chartread has written the final .ti3 (it isn't final while chartread
-        is still running). 'Re-read Stripes' instead keeps chartread running for
+        is still running). 'Re-read Individual Strips' instead keeps chartread running for
         manual single-strip re-reads, exactly like the classic dialog.
         """
         from PyQt6.QtWidgets import (
@@ -5491,14 +5536,14 @@ class TabMeasure(QWidget):
 
         dlg = QDialog(self)
         dlg.setMinimumWidth(560)
-        dlg.setWindowTitle(tr("All Stripes Read"))
+        dlg.setWindowTitle(tr("All Strips Read"))
         layout = QVBoxLayout(dlg)
         layout.setSpacing(16)
         layout.setContentsMargins(24, 20, 24, 20)
 
         if in_set:
             body = tr(
-                "<b>All stripes read — {n} reads of this chart are now saved.</b>"
+                "<b>All strips read — {n} reads of this chart are now saved.</b>"
                 "<br><br>"
                 "Combining repeated reads of the same chart averages out instrument "
                 "noise and can improve profile accuracy.<br><br>"
@@ -5515,15 +5560,15 @@ class TabMeasure(QWidget):
             ).format(n=n_total)
         else:
             body = tr(
-                "<b>All stripes have been read successfully.</b><br><br>"
+                "<b>All strips have been read successfully.</b><br><br>"
                 "&nbsp;&nbsp;•&nbsp; <b>Build Profile</b> — finalise the measurement and "
                 "go to the Build Profile tab.<br>"
                 "&nbsp;&nbsp;•&nbsp; <b>Measure again to average</b> — read the whole chart "
                 "once more; the reads are averaged together to reduce instrument noise "
                 "(saved as …_average).<br>"
-                "&nbsp;&nbsp;•&nbsp; <b>Re-read Stripes</b> — re-scan individual strips into "
+                "&nbsp;&nbsp;•&nbsp; <b>Re-read Individual Strips</b> — re-read individual strips into "
                 "this same measurement. Use <b>f</b>&nbsp;/&nbsp;<b>b</b> to move, "
-                "<b>n</b> for the next unread stripe, and <b>d</b> when done.<br><br>"
+                "<b>n</b> for the next unread strip, and <b>d</b> when done.<br><br>"
                 "<span style='color:#909090;'>After <b>Measure again to average</b> the "
                 "instrument is set up again — this can take a few seconds and may ask you "
                 "to recalibrate before the next read starts, so a brief pause here is "
@@ -5591,7 +5636,7 @@ class TabMeasure(QWidget):
             for b in (last_btn, again_btn, avg_btn):
                 btn_row.addWidget(b)
         else:
-            reread_btn = QPushButton(tr("Re-read Stripes"), dlg)
+            reread_btn = QPushButton(tr("Re-read Individual Strips"), dlg)
             reread_btn.clicked.connect(lambda: _pick("reread"))
             again_btn = QPushButton(tr("Measure again to average"), dlg)
             again_btn.clicked.connect(lambda: _pick("again"))
@@ -5631,7 +5676,7 @@ class TabMeasure(QWidget):
 
         if action == "reread":
             # Keep chartread running for manual single-strip re-reads, exactly like
-            # the classic "Re-read Stripes" path; the event filter must go back on.
+            # the classic "Re-read Individual Strips" path; the event filter must go back on.
             QApplication.instance().installEventFilter(self)
             return
 
@@ -6025,7 +6070,7 @@ class TabMeasure(QWidget):
                 self.proceed_to_profile.emit()
         elif ti3_exists and self._settings.get("averaging_enabled", False):
             # Normal full read, averaging enabled (docs/dev_averaging.md). The
-            # "All Stripes Read" dialog already captured the user's choice in
+            # "All Strips Read" dialog already captured the user's choice in
             # _pending_avg_action; act on it now that chartread has written the
             # final .ti3. If nothing was captured (the all-rows-read dialog never
             # fired — e.g. detection miss), fall back to the post-process dialog.
@@ -6061,7 +6106,7 @@ class TabMeasure(QWidget):
         self._log.ensureCursorVisible()
 
     def _maybe_build_scanner_target(self, ti3: Path) -> None:
-        """When the chart is flagged for it (the 'All Stripes Read' checkbox),
+        """When the chart is flagged for it (the 'All Strips Read' checkbox),
         (re)build its ``.cht`` + ``.cie`` from the just-finalised measurement so
         the scanner target always reflects the latest read (#97).
 
@@ -6096,7 +6141,7 @@ class TabMeasure(QWidget):
 
     def _handle_measure_complete(self, ti3: Path) -> None:
         """A normal full read finished without a pre-made choice (Manual mode, or
-        the 'All Stripes Read' dialog never fired). Promote the read, then ask via
+        the 'All Strips Read' dialog never fired). Promote the read, then ask via
         the post-process completion dialog and carry out the answer."""
         current, reads = self._promote_completed_read(ti3)
         action, method = self._show_completion_dialog(current, reads)

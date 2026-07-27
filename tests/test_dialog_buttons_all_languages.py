@@ -55,10 +55,11 @@ _POPUP_BUTTONS = [
     "Replace the stored chart",
     "Re-read Strip",
     "Continue Anyway",
-    "Re-read Stripes",
+    "Re-read Individual Strips",
     "Save Partial && Quit",      # && is a literal ampersand on a button
     "Save Partial",
     "Finish Without This Strip",
+    "Skip Strip",
     "Go to Build Profile Tab →",
     "Close",
     "Cancel",

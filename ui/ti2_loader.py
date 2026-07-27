@@ -151,7 +151,7 @@ def calibration_instructions_html(family: "str | None") -> str:
         "in its manual, then click <b>Start Calibration</b>.<br><br>The "
         "calibration takes only a few seconds. Once it is complete, another "
         "message will appear with instructions on how to start measuring the "
-        "stripes.")
+        "strips.")
 
 
 def measurement_instructions_html(family: "str | None") -> str:
