@@ -1,0 +1,120 @@
+"""#131 (Knut, 2026-07-27): Skip Strip must advance, and Retry must not be timed.
+
+Both come from his log of the same session.
+
+**Skip Strip.** After a failed strip the engine sits at its retry prompt, not at
+a console strip menu. Skip was implemented as "acknowledge, then send 'n' when
+the menu appears" — so the acknowledgement put the engine back on the *same*
+strip and the queued key waited for a prompt that never arrives in that form.
+His log shows it exactly: `send_key CR` at 21:21:19, nothing moving, and the run
+killed at 21:23:12 because there was no way forward.
+
+**Retry timing.** The swipe clock was only cleared when the pace hint was
+enabled. With the hint off it survived the failure, so the NEXT strip was timed
+from the failed swipe — and the figure shown included however long he sat in the
+failure window before pressing Retry.
+"""
+from __future__ import annotations
+
+import json
+
+import pytest
+
+from workflow.measure_manager import MeasureManager
+
+
+class _Runner:
+    def __init__(self):
+        self.stdin = []
+
+    def write_stdin(self, data):
+        self.stdin.append(data)
+
+    def __getattr__(self, _name):
+        return lambda *a, **k: None
+
+
+@pytest.fixture
+def manager():
+    return MeasureManager(_Runner())
+
+
+# ---- Skip Strip ------------------------------------------------------------
+def test_the_engine_is_told_to_move_on_directly(manager):
+    """No two-step: the engine takes "next unread" as a command."""
+    manager._engine_active = True
+
+    manager.send_post_retry_key("n")
+
+    assert manager._runner.stdin == ['{"cmd": "next_unread"}\n']
+    assert manager._pending_post_retry_key is None, \
+        "nothing may be left waiting for a menu that will not come"
+
+
+def test_stock_chartread_keeps_the_two_step(manager):
+    """There the console menu really does follow the acknowledgement."""
+    manager._engine_active = False
+
+    manager.send_post_retry_key("n")
+
+    assert manager._runner.stdin == ["\r"]
+    assert manager._pending_post_retry_key == "n"
+
+
+def test_an_unmapped_key_falls_back_rather_than_vanishing(manager):
+    manager._engine_active = True
+
+    manager.send_post_retry_key("c")          # no engine command for 'c'
+
+    assert manager._runner.stdin == ["\r"]
+    assert manager._pending_post_retry_key == "c"
+
+
+@pytest.mark.parametrize("key,cmd", [("n", "next_unread"), ("f", "forward"),
+                                     ("b", "back"), ("d", "done")])
+def test_each_navigation_key_has_its_command(manager, key, cmd):
+    manager._engine_active = True
+    manager.send_post_retry_key(key)
+    assert json.loads(manager._runner.stdin[0]) == {"cmd": cmd}
+
+
+# ---- the swipe clock -------------------------------------------------------
+class _Tab:
+    """Just enough of the tab for the clock rule."""
+    from ui.tabs.tab_measure import TabMeasure
+    _report_failed_strip_pace = TabMeasure._report_failed_strip_pace
+
+    def __init__(self, hint_enabled):
+        self._scan_started_at = 1234.5
+        self._settings = {"pace_hint_enabled": hint_enabled}
+        self._last_strip_patches = 15
+
+    class _S(dict):
+        def get(self, k, d=None):
+            return dict.get(self, k, d)
+
+
+@pytest.mark.parametrize("hint_enabled", [True, False])
+def test_a_failed_strip_always_consumes_the_clock(hint_enabled):
+    """With the hint off it used to survive, and the next strip inherited it —
+    which is why a Retry showed a reading time that grew with the wait."""
+    tab = _Tab(hint_enabled)
+    tab._settings = _Tab._S({"pace_hint_enabled": hint_enabled})
+    try:
+        tab._report_failed_strip_pace("misread")
+    except Exception:      # noqa: BLE001 — the rest of the slot needs a real tab
+        pass
+    assert tab._scan_started_at is None, \
+        "the failed swipe's start time must not be left for the next strip"
+
+
+def test_the_clock_is_cleared_before_the_preference_is_read():
+    """Source-level, because that ordering IS the fix."""
+    import inspect
+
+    from ui.tabs.tab_measure import TabMeasure
+    src = inspect.getsource(TabMeasure._report_failed_strip_pace)
+    clear_at = src.index("self._scan_started_at = None")
+    pref_at = src.index('pace_hint_enabled')
+    assert clear_at < pref_at, \
+        "the clock must be consumed whatever the preference says"

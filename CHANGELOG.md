@@ -1,5 +1,22 @@
 # Changelog
 
+## v3.14.8-beta.62
+
+- **"Skip Strip" moves on again.** After a failed strip the reading engine waits
+  at its own retry prompt, not at the text menu the two-step skip was written
+  for — so the acknowledgement put you back on the same strip, the "go to the
+  next unread strip" instruction waited for a prompt that never came in that
+  form, and the next key you pressed appeared to go nowhere. The engine is now
+  told to move on directly. This is also the "no response from chartread"
+  warning that followed: nothing had been lost, and the instrument was never
+  disconnected — the reading was simply waiting for something that could not
+  arrive.
+
+- **Pressing Retry no longer adds your thinking time to the next strip.** The
+  swipe clock was left running when a strip failed, so the strip you read next
+  was timed from the failed swipe — including however long the failure window
+  had been open.
+
 ## v3.14.8-beta.61
 
 - **ChromIQ stays silent while stock ArgyllCMS chartread reads.** ArgyllCMS

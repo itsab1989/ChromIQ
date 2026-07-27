@@ -3523,14 +3523,20 @@ class TabMeasure(QWidget):
         did succeed — every strip of a chart holds the same number. Without one,
         the time is still shown but no per-patch figure is claimed.
         """
+        # The swipe clock is consumed HERE whatever the preference says. Leaving
+        # it set meant the next strip was timed from the failed swipe — so the
+        # reading time it reported included however long the user spent in the
+        # failure window before pressing Retry (Knut, #131 2026-07-27: "a strip
+        # reading time is added below its column, where the time is depending on
+        # how long time I waited to click Retry").
+        started = getattr(self, "_scan_started_at", None)
+        self._scan_started_at = None
         if not self._settings.get("pace_hint_enabled", True):
             return
         try:
             import time
             from core.measure_pace import failure_advice, failure_kind
-            started = getattr(self, "_scan_started_at", None)
             patches = getattr(self, "_last_strip_patches", 0)
-            self._scan_started_at = None
             if not started:
                 return
             elapsed = time.monotonic() - started

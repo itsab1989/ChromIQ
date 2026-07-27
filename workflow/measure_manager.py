@@ -573,7 +573,24 @@ class MeasureManager(QObject):
         """Acknowledge a misread (any-key = retry) and queue ``key`` for the
         strip menu that chartread shows next. Needed because the misread
         prompt only accepts retry or Esc — f/b/n/d are accepted only at the
-        subsequent "Press 'f' to move forward…" prompt."""
+        subsequent "Press 'f' to move forward…" prompt.
+
+        **Engine mode does not need the two-step at all, and could not complete
+        it.** After a failed strip the engine sits at its retry prompt; the
+        acknowledgement puts it back on the SAME strip, and the queued key waits
+        for a console strip menu that never arrives in that form. The result was
+        Knut's report (#131, 2026-07-27): Skip Strip left the arrow where it was,
+        and the next keystroke appeared to go nowhere. The engine takes the
+        command directly instead.
+        """
+        if self._engine_active:
+            from workflow.chartread_engine import command_for_key
+            cmd = command_for_key(key)
+            if cmd is not None:
+                self._pending_post_retry_key = None
+                self.send_command(cmd)
+                return
+            log.warning("engine: no command mapping for post-retry key %r", key)
         self._pending_post_retry_key = key
         self._runner.write_stdin("\r")
 
