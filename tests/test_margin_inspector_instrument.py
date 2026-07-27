@@ -82,3 +82,43 @@ def test_each_recorded_instrument_maps_to_its_threshold_name(tab, tmp_path,
     from ui.tabs.tab_chart import _MARGIN_INSTR_LABEL
     tab._margin_ti2 = _engine_chart(tmp_path, flag)
     assert _MARGIN_INSTR_LABEL.get(tab._chart_instrument_flag()) == expected
+
+
+# ---- "Use instrument margins" switched off (Knut, #130 2026-07-27) --------
+def _engine_chart_with(tmp_path, **recipe):
+    ti2 = tmp_path / "P.ti2"
+    ti2.write_text("chart")
+    (tmp_path / "P.channels.json").write_text(json.dumps(
+        {"layout": {"engine": "chromiq", "recipe": recipe}}))
+    return ti2
+
+
+def test_a_chart_built_without_instrument_margins_is_not_judged_by_them(
+        tab, tmp_path):
+    """Knut set his own margins with the switch off and was still told they
+    were below the instrument's minimums."""
+    tab._margin_ti2 = _engine_chart_with(tmp_path, instrument="CM",
+                                         use_instrument_margins=False)
+    assert tab._chart_uses_instrument_margins() is False
+
+
+def test_a_chart_built_with_them_still_is(tab, tmp_path):
+    tab._margin_ti2 = _engine_chart_with(tmp_path, instrument="CM",
+                                         use_instrument_margins=True)
+    assert tab._chart_uses_instrument_margins() is True
+
+
+def test_charts_that_do_not_record_the_choice_are_judged_as_before(tab,
+                                                                   tmp_path):
+    """A printtarg chart, an older engine chart, or no chart at all — none of
+    them said otherwise, so nothing changes for them."""
+    tab._margin_ti2 = None
+    assert tab._chart_uses_instrument_margins() is True
+
+    tab._margin_ti2 = _engine_chart_with(tmp_path, instrument="CM")
+    assert tab._chart_uses_instrument_margins() is True
+
+    ti2 = tmp_path / "Q.ti2"; ti2.write_text("chart")
+    (tmp_path / "Q.channels.json").write_text(json.dumps({"channels": []}))
+    tab._margin_ti2 = ti2
+    assert tab._chart_uses_instrument_margins() is True

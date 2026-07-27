@@ -8858,7 +8858,10 @@ class TabChart(QWidget):
         paper_name = _canonical_paper_name(report.page_w_mm, report.page_h_mm)
         orient = "Landscape" if report.page_w_mm > report.page_h_mm else "Portrait"
         thresholds = None
-        if paper_name:
+        # A chart laid out with "Use instrument margins" switched off was not
+        # built to those minimums and must not be judged against them (Knut,
+        # #130 2026-07-27) — the numbers still show, but without warnings.
+        if paper_name and self._chart_uses_instrument_margins():
             key = margin_combo_key(instr_label, paper_name, orient)
             thresholds = self._settings.get_margin_thresholds().get(key)
 
@@ -8982,6 +8985,29 @@ class TabChart(QWidget):
         self._settings.set("margin_coords_show", bool(on))
         self._preview.set_coord_readout(
             bool(on), float(self._settings.get("printtarg_dpi", 300) or 300))
+
+    def _chart_uses_instrument_margins(self) -> bool:
+        """Whether the chart in the preview was built with the instrument's
+        margin minimums enforced.
+
+        Only an engine chart records the choice; anything else (a printtarg
+        chart, or no chart at all) is judged as before.
+        """
+        try:
+            import json
+            if self._margin_ti2 is None:
+                return True
+            ch = Path(self._margin_ti2).with_suffix(".channels.json")
+            if not ch.is_file():
+                return True
+            doc = json.loads(ch.read_text())
+            layout = doc.get("layout") or {}
+            recipe = layout.get("recipe")
+            if not isinstance(recipe, dict) or "use_instrument_margins" not in recipe:
+                return True
+            return bool(recipe["use_instrument_margins"])
+        except Exception:      # noqa: BLE001 — the inspector must never crash
+            return True
 
     def _chart_instrument_flag(self) -> str:
         """The instrument recorded in the chart's own layout recipe, or "".

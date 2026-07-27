@@ -1,5 +1,14 @@
 # Changelog
 
+## v3.14.8-beta.48
+
+- **A chart built with "Use instrument margins" switched off is no longer
+  judged against those minimums.** If you set your own margins with that switch
+  off, the panel still warned that they were below the instrument's — a
+  guideline you had deliberately declined. The measured numbers are still
+  shown; only the warnings are gone, and only for charts that recorded the
+  choice. Charts built with the switch on, and printtarg charts, are unchanged.
+
 ## v3.14.8-beta.47
 
 - **A failed strip now opens one window, not two — which is why "Save Partial &
