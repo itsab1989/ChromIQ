@@ -1385,6 +1385,7 @@ class TabChart(QWidget):
         self._stack = QStackedWidget(self)
         self._guided_panel = self._make_guided_panel()
         self._manual_panel = self._make_manual_panel()
+        self._link_instrument_controls()
         self._stack.addWidget(self._guided_panel)
         self._stack.addWidget(self._manual_panel)
         left_layout.addWidget(self._stack, stretch=1)
@@ -4028,6 +4029,53 @@ class TabChart(QWidget):
                 self._set_manual_value("printtarg", "-P", bool(value))
             elif field == "precond":
                 self._set_manual_value("targen", "-c", str(value or ""))
+
+    def _link_instrument_controls(self) -> None:
+        """Keep Guided's and Manual's instrument the same, in both directions.
+
+        Knut, #130 2026-07-28: he opened a project whose instrument was a
+        ColorMunki, saw it correctly in Manual, and found Guided still showing
+        the default i1Pro. His rule: *"When loading project, or changing
+        instrument, the instrument selection shall always be the same for
+        guided and for manual mode (linked both ways)."*
+
+        **Why a link and not another call site.** The instrument is written by a
+        dozen different paths — opening a project, a preset, a prebuilt chart, a
+        loaded patch set, the layout editor, the Guided→Manual transfer. Adding
+        the mirror to each one would have fixed today's report and left the next
+        path to be found by Knut. Linking the two controls makes every path
+        right, including ones written later.
+
+        A tab switch still carries the other shared settings (paper, pages…) as
+        before; only the instrument is continuous.
+        """
+        self._syncing_instrument = False
+
+        def _mirror(src: str) -> None:
+            if self._syncing_instrument:
+                return                      # the echo of our own write
+            self._syncing_instrument = True
+            try:
+                value = self._shared_get(src).get("instrument")
+                if value:
+                    # _shared_set skips quietly when the other side cannot show
+                    # this instrument — Guided deliberately omits the external
+                    # ones (i1iSis), and must not be forced to a wrong value.
+                    self._shared_set("manual" if src == "guided" else "guided",
+                                     field="instrument", value=value)
+            except Exception:      # noqa: BLE001 — a mirror must never block a load
+                log.warning("Could not mirror the instrument between modes",
+                            exc_info=True)
+            finally:
+                self._syncing_instrument = False
+
+        if getattr(self, "_instr_combo", None) is not None:
+            self._instr_combo.currentIndexChanged.connect(
+                lambda *_: _mirror("guided"))
+        for pw in self._manual_widgets.get("printtarg", []):
+            if pw.flag == "-i":
+                pw.value_changed.connect(lambda *_: _mirror("manual"))
+                break
 
     def _snapshot_shared_settings(self, tab: str) -> None:
         """Remember *tab*'s shared settings as they are now, so the next switch

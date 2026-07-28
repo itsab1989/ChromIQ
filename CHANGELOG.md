@@ -1,5 +1,22 @@
 # Changelog
 
+## v3.14.8-beta.81
+
+- **Guided and Manual always show the same measurement instrument.** Opening a
+  project whose instrument was a ColorMunki showed it correctly in Manual while
+  Guided still held the default i1Pro. The two controls are now linked in both
+  directions, so changing either moves the other — whether the change comes from
+  opening a project, a preset, a prebuilt chart, a loaded patch set or the
+  layout editor.
+
+  The link is between the controls rather than added to each of those paths on
+  purpose: about a dozen places set the instrument, and mirroring inside each
+  would have fixed the one case reported and left the next one to be found the
+  same way. Guided deliberately does not offer the external-workflow instruments
+  (i1iSis), whose layout is recomputed by another program — selecting one of
+  those in Manual leaves Guided as it was rather than forcing it to something
+  wrong.
+
 ## v3.14.8-beta.80
 
 - **Nine instrument windows now sound as they appear, instead of before.** A
