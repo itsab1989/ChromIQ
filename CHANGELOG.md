@@ -1,5 +1,39 @@
 # Changelog
 
+## v3.14.8-beta.77
+
+- **New “Delete” button in the Profile-run bar**, to the right of “Restore Used
+  Chart”, built to the reviewed specification.
+
+  With **Run type = Profiling** it deletes the whole selected profile run — its
+  chart, measurement, profile, reports and verifications — then renumbers the
+  remaining runs so the numbering stays unbroken (delete run 6 of 10 and run 7
+  becomes run 6, and so on) and moves to the **last** run in the project, so you
+  can see at once that something happened. The files inside the remaining runs
+  are never renamed, because a chart's file names come from the project, not the
+  run.
+
+  With **Run type = Verification** it deletes only the selected date when
+  several exist; otherwise the run's whole verification folder goes — chart,
+  result, exports, archives, reports and cached files together — because with
+  the last verification gone there is nothing left for those to belong to. The
+  profiling side of the run is never touched.
+
+  If the run you pick is the only one in the project it cannot be deleted on its
+  own, since a project always has at least one run. You are offered two ways
+  forward instead: empty that run, or delete the whole project and return to the
+  state a freshly started ChromIQ has.
+
+  Every case asks first and names exactly what will go, including the folder it
+  sits in. Nothing is moved to the Trash and nothing is archived — what you
+  confirm is removed for good, and each window says so. Cancel is always the
+  default button. If a folder cannot be removed, the renumbering is rolled back
+  so the run numbering is left exactly as it was.
+
+- **The ⓘ for “Profile run / Run type / Verification” now sits with the fields
+  it explains** — directly after the Verification box, or after Run type when
+  Verification is hidden — instead of at the end of the row behind the buttons.
+
 ## v3.14.8-beta.76
 
 - **A chart loaded in Create Chart or Print Chart now gets its "this chart

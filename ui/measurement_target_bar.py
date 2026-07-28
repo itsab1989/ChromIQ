@@ -293,6 +293,27 @@ class MeasurementTargetController(QObject):
             self._measuring = running
             self.changed.emit()
 
+    def delete_plan(self):
+        """What Delete would do for the current selection, or a ``BLOCK_*``
+        code saying why the button is greyed (#130, Knut 2026-07-28)."""
+        from core.run_delete import BLOCK_NO_PROJECT, plan_for
+        try:
+            return plan_for(self.project_or_none(), self._target,
+                            measuring=self._measuring)
+        except Exception:      # noqa: BLE001 — a greyed button, never a crash
+            log.warning("Could not work out what Delete would do",
+                        exc_info=True)
+            return BLOCK_NO_PROJECT
+
+    def delete_state(self) -> "tuple[bool, str]":
+        """``(enabled, tooltip)`` for the Delete button — the same shape as
+        :meth:`restore_state`, so the two buttons behave alike."""
+        from core.run_delete import block_tooltip, tooltip_for
+        plan = self.delete_plan()
+        if isinstance(plan, str):
+            return False, block_tooltip(plan)
+        return True, tooltip_for(plan)
+
     def notify_changed(self) -> None:
         """Force a ``changed`` emission even when no field value differs — used
         after the working PROJECT is switched out from under the bar (e.g. a
@@ -306,6 +327,11 @@ class MeasurementTargetBar(QWidget):
     (Profiling / Verification), and — when ``show_verification`` and the type is
     Verification — a **Verification** date dropdown. Reflects and drives the
     shared controller."""
+
+    #: The whole project folder was deleted (the second way out of the last-run
+    #: case, #130 Knut D1) — the window closes the project and returns to the
+    #: state a freshly started ChromIQ has.
+    project_deleted = pyqtSignal()
 
     def __init__(self, controller: MeasurementTargetController,
                  *, show_verification: bool = True,
@@ -381,6 +407,30 @@ class MeasurementTargetBar(QWidget):
         self._verify_combo.currentIndexChanged.connect(self._on_verify_changed)
         row.addWidget(self._verify_combo)
 
+        # The ⓘ for the three selectors belongs with the selectors, not at the
+        # end of the row behind the buttons (Knut, #130 2026-07-28: "Move the
+        # help info icon … to right after these, i.e. after the Verification
+        # when that is visible, but then after Run type when Verification is
+        # not visible"). One placement covers both: Verification is HIDDEN in
+        # Profiling rather than removed, so a hidden box takes no width and the
+        # icon closes up behind Run type by itself.
+        self._tip_btn = TooltipButton(
+            tr("Profile run and Run type"),
+            tr("These two choices decide what your next action works on, and "
+            "they stay in step across the Create Chart, Print Chart and Measure "
+            "tabs, so the right chart is always the one shown, printed and "
+            "measured.\n\n"
+            "“Profile run” picks which profile build you're working on (or a "
+            "new one). “Run type” switches between building the profile "
+            "(Profiling) and checking a finished profile (Verification). When "
+            "you choose Verification, an extra box lets you start a new dated "
+            "check or re-measure an existing one.\n\n"
+            "A verification always belongs to a finished profile, so if the "
+            "selected run has no profile yet, ChromIQ will ask you to build one "
+            "first."),
+            self)
+        row.addWidget(self._tip_btn)
+
         # Restore Used Chart — puts back the chart a past verification was
         # measured against (#130, Knut 2026-07-25). Sits directly right of the
         # Verification dropdown, with its own ⓘ.
@@ -416,22 +466,45 @@ class MeasurementTargetBar(QWidget):
             self)
         row.addWidget(self._restore_tip)
 
-        self._tip_btn = TooltipButton(
-            tr("Profile run and Run type"),
-            tr("These two choices decide what your next action works on, and "
-            "they stay in step across the Create Chart, Print Chart and Measure "
-            "tabs, so the right chart is always the one shown, printed and "
-            "measured.\n\n"
-            "“Profile run” picks which profile build you're working on (or a "
-            "new one). “Run type” switches between building the profile "
-            "(Profiling) and checking a finished profile (Verification). When "
-            "you choose Verification, an extra box lets you start a new dated "
-            "check or re-measure an existing one.\n\n"
-            "A verification always belongs to a finished profile, so if the "
-            "selected run has no profile yet, ChromIQ will ask you to build one "
-            "first."),
+        # Delete — removes the selected profile run, or the selected run's
+        # verification files (#130, Knut 2026-07-28). Sits right of Restore
+        # Used Chart, with its own ⓘ; the hint text follows both.
+        self._delete_btn = QPushButton(tr("Delete"), self)
+        self._delete_btn.setObjectName("compact_input")
+        self._delete_btn.setAutoDefault(False)
+        self._delete_btn.clicked.connect(self._on_delete_clicked)
+        row.addWidget(self._delete_btn)
+        self._delete_tip = TooltipButton(
+            tr("Delete"),
+            tr("Removes work you no longer want, permanently. What it removes "
+               "depends on “Run type”, and you are always shown exactly what "
+               "will go — and asked — before anything is deleted.\n\n"
+               "RUN TYPE = PROFILING\n"
+               "Deletes the whole selected profile run: its chart, its "
+               "measurement, its profile, its reports and its verifications. "
+               "The remaining runs are then renumbered so the numbering stays "
+               "unbroken — delete run 6 of 10 and run 7 becomes run 6, and so "
+               "on — and ChromIQ moves to the last run in the project. The "
+               "files inside the remaining runs are not renamed.\n\n"
+               "If the run you pick is the only one in the project, it cannot "
+               "be deleted on its own, because a project always has at least "
+               "one run. You are offered two ways forward instead: empty that "
+               "run, or delete the whole project.\n\n"
+               "RUN TYPE = VERIFICATION\n"
+               "With several verification dates and one of them selected, only "
+               "that date is deleted. Otherwise the run's whole verification "
+               "folder goes — the verification chart, any result in it, and the "
+               "exports, archives and reports that belong to it — because with "
+               "the last verification gone there is nothing left for those to "
+               "belong to. The profiling side of the run is never touched.\n\n"
+               "IN BOTH CASES\n"
+               "Nothing is moved to the Trash and nothing is kept in an “old” "
+               "folder: what you confirm is removed for good. The button is "
+               "greyed whenever there is nothing specific to delete — during a "
+               "measurement, or when the selection says “New run” or “New "
+               "verification”, which name nothing on disk yet."),
             self)
-        row.addWidget(self._tip_btn)
+        row.addWidget(self._delete_tip)
 
         # Hole 7 (State B): shown next to the greyed selectors when no profile
         # project is loaded — a first chart is made from Create Chart's name
@@ -611,6 +684,12 @@ class MeasurementTargetBar(QWidget):
     #: better than boxes climbing over each other, or over the version.
     _SQUEEZE_FLOOR = 150
 
+    #: The absolute floor, used only when the comfortable one still leaves the
+    #: row too wide for the rail. Below this a box shows almost nothing, so it
+    #: is a last resort — but still better than a row that runs under the
+    #: version text (the beta.29 overlap).
+    _SQUEEZE_HARD_FLOOR = 96
+
     def wants_full_width(self) -> bool:
         """Whether the bar should be given the whole rail rather than just its
         own preferred width.
@@ -691,18 +770,28 @@ class MeasurementTargetBar(QWidget):
             return
         # The verification box is both the widest and the one whose entries
         # elide most gracefully — a shortened date still reads as a date.
-        for box in (self._verify_combo, self._run_combo, self._type_combo):
-            if excess <= 0:
-                break
-            if not box.isVisible():
-                continue
-            # minimumWidth, not width(): setFixedWidth pins both bounds, while
-            # the live geometry is whatever the last (too narrow) layout left.
-            have = box.minimumWidth()
-            give = min(excess, max(0, have - self._SQUEEZE_FLOOR))
-            if give > 0:
-                box.setFixedWidth(have - give)
-                excess -= give
+        # Two passes with two floors. The comfortable floor is tried first, so
+        # in the ordinary case nothing is squeezed harder than it has to be. If
+        # the row STILL does not fit, the boxes give up more rather than let it
+        # climb over the version text — that overrun is the beta.29 fault, and
+        # a shortened date is a far smaller price than overlapping widgets.
+        # The second floor became necessary when the Delete button joined the
+        # row (#130, 2026-07-28): it and its ⓘ cost about 110 px, which is
+        # exactly what a tight window did not have spare.
+        for floor in (self._SQUEEZE_FLOOR, self._SQUEEZE_HARD_FLOOR):
+            for box in (self._verify_combo, self._run_combo, self._type_combo):
+                if excess <= 0:
+                    return
+                if not box.isVisible():
+                    continue
+                # minimumWidth, not width(): setFixedWidth pins both bounds,
+                # while the live geometry is whatever the last (too narrow)
+                # layout left.
+                have = box.minimumWidth()
+                give = min(excess, max(0, have - floor))
+                if give > 0:
+                    box.setFixedWidth(have - give)
+                    excess -= give
 
     def _fit_widths(self, verify_labels=()) -> None:
         """Give every box and the Restore button a width that stays put."""
@@ -724,12 +813,12 @@ class MeasurementTargetBar(QWidget):
         # ends. The shared helper decides the width — the same one every other
         # button in the app uses (Knut, #130 2026-07-26) — and the floor keeps
         # it from moving afterwards.
-        btn = self._restore_btn
         from ui.widgets import fit_button_width
-        fit_button_width(btn)
-        want = max(btn.minimumWidth(), getattr(btn, "_cq_floor", 0))
-        btn._cq_floor = want
-        btn.setFixedWidth(want)
+        for btn in (self._restore_btn, self._delete_btn):
+            fit_button_width(btn)
+            want = max(btn.minimumWidth(), getattr(btn, "_cq_floor", 0))
+            btn._cq_floor = want
+            btn.setFixedWidth(want)
 
         # …and if that comfortable row does not fit the rail, give way.
         self.layout().activate()
@@ -809,6 +898,93 @@ class MeasurementTargetBar(QWidget):
             # The pages are being redrawn from the chart's own recipe; the
             # finished build shows itself in the preview.
             log.info("restored chart: rebuilding its pages")
+
+    def _on_delete_clicked(self) -> None:
+        """Delete the selected run, or the selected run's verification files.
+
+        Every branch asks first and names exactly what will go — see
+        :mod:`core.run_delete`, which holds the rules and the words so both can
+        be tested without a window.
+        """
+        from PyQt6.QtWidgets import QMessageBox
+
+        import core.run_delete as rd
+        plan = self._ctl.delete_plan()
+        if isinstance(plan, str):
+            return                       # greyed; nothing to do
+
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(rd.title_for(plan))
+        box.setText(rd.title_for(plan) + "\n\n" + rd.message_for(plan))
+        if plan.kind == rd.KIND_LAST_RUN:
+            empty_btn = box.addButton(
+                tr("Empty run {n}").format(n=rd.run_number(plan.run_id)),
+                QMessageBox.ButtonRole.DestructiveRole)
+            project_btn = box.addButton(tr("Delete the whole project"),
+                                        QMessageBox.ButtonRole.DestructiveRole)
+            go_btn = None
+        else:
+            empty_btn = project_btn = None
+            go_btn = box.addButton(rd.confirm_label(plan),
+                                   QMessageBox.ButtonRole.DestructiveRole)
+        cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(cancel)     # never the destructive one
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked is cancel or clicked is None:
+            return
+
+        try:
+            if clicked is empty_btn:
+                rd.empty_run(self._ctl.project_or_none(), plan.run_id)
+            elif clicked is project_btn:
+                self._delete_whole_project(plan)
+                return
+            elif plan.kind == rd.KIND_RUN:
+                rd.delete_run(self._ctl.project_or_none(), plan)
+            else:
+                rd.delete_verification(plan)
+        except rd.DeleteFailed as exc:
+            QMessageBox.warning(
+                self, tr("Could not delete everything"),
+                tr("ChromIQ deleted what it could, but some files could not be "
+                   "removed:\n\n{paths}\n\nThis usually means a file is open in "
+                   "another program, or the folder is on a disk that is "
+                   "currently read-only. Close anything that might be using "
+                   "these files and try again.\n\nNothing else was changed — "
+                   "the run numbering has been left exactly as it was, so no "
+                   "run has moved.").format(paths="\n".join(exc.paths)))
+        self._after_delete()
+
+    def _delete_whole_project(self, plan) -> None:
+        """The second way out of the last-run case: remove the project folder
+        and return to the state a freshly started ChromIQ has (Knut's D1)."""
+        from PyQt6.QtWidgets import QMessageBox
+        proj = self._ctl.project_or_none()
+        root = getattr(proj, "root", None)
+        if root is None:
+            return
+        import shutil
+        try:
+            shutil.rmtree(root)
+        except OSError as exc:
+            QMessageBox.warning(
+                self, tr("Could not delete the project"),
+                tr("Nothing was changed.\n\nReason: {reason}").format(
+                    reason=str(exc)))
+            return
+        log.info("Deleted project folder %s", root)
+        self.project_deleted.emit()
+
+    def _after_delete(self) -> None:
+        """Rebuild the dropdowns from what is now on disk and tell the tabs."""
+        try:
+            self.refresh()
+        except Exception:      # noqa: BLE001
+            log.warning("Could not refresh the bar after a delete",
+                        exc_info=True)
+        self._ctl.notify_changed()
 
     def _update_location(self) -> None:
         """Refresh the "Location being edited" line for the current selection
@@ -898,6 +1074,15 @@ class MeasurementTargetBar(QWidget):
                 enabled, tip = self._ctl.restore_state()
                 self._restore_btn.setEnabled(enabled and not locked)
                 self._restore_btn.setToolTip(self._lock_note() if locked else tip)
+            # Delete follows the same rule as Restore: shown wherever the bar
+            # carries the Verification box, greyed with its own reason.
+            self._delete_btn.setVisible(show_restore)
+            self._delete_tip.setVisible(show_restore)
+            if show_restore:
+                d_enabled, d_tip = self._ctl.delete_state()
+                self._delete_btn.setEnabled(d_enabled and not locked)
+                self._delete_btn.setToolTip(
+                    self._lock_note() if locked else d_tip)
             every_label: list[str] = []
             if show:
                 self._verify_combo.clear()

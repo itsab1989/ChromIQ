@@ -215,8 +215,16 @@ def test_the_hint_takes_the_room_up_to_the_version_text(qapp, tmp_path):
 def test_the_box_follows_the_window_width(qapp, tmp_path):
     """Wider window, wider box — that is what "follows any change of the window
     size" means."""
+    # The widths are chosen above the point where the sentence still fits beside
+    # the boxes. That point moved out when the Delete button joined the row
+    # (#130, 2026-07-28) — the row is about 110 px wider, so it needs a wider
+    # window before there is 200 px left for the sentence. Below that it drops
+    # to its own line, which is the designed behaviour and is covered by
+    # test_a_narrow_bar_puts_the_sentence_under_the_row. What THIS test is
+    # about is unchanged: while it does sit beside, its width follows the
+    # window.
     widths = []
-    for avail in (900, 1200, 1600):
+    for avail in (1400, 1600, 1800):
         bar = _hint_bar(tmp_path, avail)
         if bar._hint_beside:
             widths.append((avail, bar._hint.width()))

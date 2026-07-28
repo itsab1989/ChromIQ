@@ -229,8 +229,14 @@ def test_a_narrow_rail_squeezes_the_bar_instead_of_letting_it_overrun(qapp,
     assert bar.x() + bar.width() <= mast.width() - ver_w - 18, \
         "the bar ran under the version text"
     assert not _row_overlaps(bar), _row_overlaps(bar)
-    assert bar._verify_combo.width() >= bar._SQUEEZE_FLOOR, \
-        "a box was squeezed past the point of being readable"
+    # The comfortable floor yields to the no-overrun rule when the two cannot
+    # both be had (#130, 2026-07-28): the Delete button and its ⓘ cost about
+    # 110 px, which a 1180 px window does not have spare. Running under the
+    # version text is the beta.29 fault and is never acceptable; an elided date
+    # still reads as a date, so THAT is what gives. The hard floor keeps a box
+    # from collapsing to nothing.
+    assert bar._verify_combo.width() >= bar._SQUEEZE_HARD_FLOOR, \
+        "a box was squeezed past the point of being usable at all"
 
 
 def test_the_comfortable_width_comes_back_when_there_is_room(qapp, tmp_path):

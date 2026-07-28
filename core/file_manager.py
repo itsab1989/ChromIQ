@@ -1235,6 +1235,19 @@ class Project:
         self._manifest.current_run = run_id
         self.save_manifest()
 
+    def set_runs(self, run_ids: "list[str]", *, current: str) -> None:
+        """Replace the manifest's run list wholesale (#130, Knut 2026-07-28).
+
+        Only :mod:`core.run_delete` uses this: after a run is deleted the
+        survivors are renumbered, so ``runs[]`` is rebuilt rather than edited,
+        and ``current_run`` moves to the run the bar will select. Deliberately
+        does **not** validate ``current`` against the old list — the whole point
+        is that the old list no longer describes the folders on disk.
+        """
+        self._manifest.runs = list(run_ids)
+        self._manifest.current_run = current
+        self.save_manifest()
+
     def new_run(self, *, preconditioning_from: Run | None = None) -> Run:
         """Create a new ``runN`` folder; if seeded with ``preconditioning_from``,
         copy the parent's ``profile.icc`` and ``measurement.ti3`` into the new

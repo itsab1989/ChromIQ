@@ -110,7 +110,13 @@ def test_verification_adds_its_boxes_on_the_right(qapp, tmp_path):
     # The widgets that sit AFTER it are pushed along, which is the point: the
     # bar's own ⓘ, and — since #130 — the Restore Used Chart button and its ⓘ,
     # which are shown for both run types and so are not "new" boxes.
-    pushed = {id(bar._tip_btn), id(bar._restore_btn), id(bar._restore_tip)}
+    # Since #130's Delete button (2026-07-28) that is five widgets, not three:
+    # the fields' ⓘ now sits directly after the Verification box rather than at
+    # the end of the row, so it and BOTH buttons with their own ⓘ are pushed
+    # along when the Verification boxes appear. All five are shown for either
+    # run type, so none of them is a "new" box.
+    pushed = {id(bar._tip_btn), id(bar._restore_btn), id(bar._restore_tip),
+              id(bar._delete_btn), id(bar._delete_tip)}
     for w in after:
         if id(w) in before and id(w) not in pushed:
             assert w.x() == before[id(w)], \
