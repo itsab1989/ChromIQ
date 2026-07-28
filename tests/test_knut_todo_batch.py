@@ -100,7 +100,10 @@ def test_the_failure_window_speaks_of_patches_in_patch_mode():
     src = inspect.getsource(TabMeasure._on_strip_error)
     assert 'tr("Patch Read Failed")' in src
     assert "The patch could not be read:" in src
-    assert "Skip Patch" in src and "Finish Without This Patch" in src
+    assert "Skip Patch" in src
+    # "Finish Without This Patch" is gone: on the last one it did exactly what
+    # Save Partial & Quit does (Knut, #131 2026-07-28).
+    assert "Finish Without This Patch" not in src
 
 
 def test_the_patch_mode_advice_does_not_describe_a_swipe():

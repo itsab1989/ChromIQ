@@ -4925,19 +4925,15 @@ class TabMeasure(QWidget):
         last_one = self._is_last_unread_strip()
         _spot = bool(getattr(self, "_spot_session", False))
         if last_one and _spot:
+            # No "finish without this one" button here: it did exactly what
+            # Save Partial & Quit does, and two buttons for one action is a
+            # question the user has to answer for no reason (Knut, #131
+            # 2026-07-28). What it explained is now said by the remaining one.
             choices = tr(
-                "&nbsp;&nbsp;<b>Retry</b> — read this same patch again.<br>"
-                "&nbsp;&nbsp;<b>Finish Without This Patch</b> — this is the only "
-                "patch still unread, so there is nowhere to move on to. Saves "
-                "the patches you have read and ends the measurement; loading the "
-                "chart again lets you continue from here.<br>")
+                "&nbsp;&nbsp;<b>Retry</b> — read this same patch again.<br>")
         elif last_one:
             choices = tr(
-                "&nbsp;&nbsp;<b>Retry</b> — read this same strip again.<br>"
-                "&nbsp;&nbsp;<b>Finish Without This Strip</b> — this is the only "
-                "strip still unread, so there is nowhere to skip to. Saves the "
-                "strips you have read and ends the measurement; loading the "
-                "chart again lets you continue from here.<br>")
+                "&nbsp;&nbsp;<b>Retry</b> — read this same strip again.<br>")
         elif _spot:
             choices = tr(
                 "&nbsp;&nbsp;<b>Retry</b> — read this same patch again.<br>"
@@ -4951,13 +4947,26 @@ class TabMeasure(QWidget):
                 "&nbsp;&nbsp;<b>Skip Strip</b> — leave this strip unread for now "
                 "and jump to the next unread one. You can come back to it later in "
                 "this session.<br>")
-        msg = QLabel(
-            advice + choices + tr(
+        if last_one and _spot:
+            save_text = tr(
+                "&nbsp;&nbsp;<b>Save Partial &amp; Quit</b> — ends the measurement "
+                "and saves every patch you have read. This is the only patch "
+                "still unread, so there is nowhere to move on to: it stays "
+                "unread, and nothing else is lost. Next time you load this "
+                "chart, <i>Continue Measurement</i> picks up from here.")
+        elif last_one:
+            save_text = tr(
+                "&nbsp;&nbsp;<b>Save Partial &amp; Quit</b> — ends the measurement "
+                "and saves every strip you have read. This is the only strip "
+                "still unread, so there is nowhere to skip to: it stays "
+                "unread, and nothing else is lost. Next time you load this "
+                "chart, <i>Continue Measurement</i> picks up from here.")
+        else:
+            save_text = tr(
                 "&nbsp;&nbsp;<b>Save Partial &amp; Quit</b> — stop here and save what "
                 "you have read so far. Next time you load this chart, "
-                "<i>Continue Measurement</i> will pick up where you left off."),
-            dlg,
-        )
+                "<i>Continue Measurement</i> will pick up where you left off.")
+        msg = QLabel(advice + choices + save_text, dlg)
         msg.setWordWrap(True)
         layout.addWidget(msg)
 
@@ -4974,18 +4983,16 @@ class TabMeasure(QWidget):
         # button says so (Knut, #131 2026-07-28: "This button could in this mode
         # become 'skip patch' feature").
         _spot = bool(getattr(self, "_spot_session", False))
-        if last_one:
-            skip_label = (tr("Finish Without This Patch") if _spot
-                          else tr("Finish Without This Strip"))
-        else:
+        # On the LAST unread one there is nothing to skip to, and the button
+        # that used to stand here did exactly what Save Partial & Quit does —
+        # so it is gone, and its explanation moved there (Knut, #131
+        # 2026-07-28). Retry and Save Partial & Quit remain, which is the whole
+        # of the choice.
+        skip_btn = None
+        if not last_one:
             skip_label = tr("Skip Patch") if _spot else tr("Skip Strip")
-        skip_btn = QPushButton(skip_label, dlg)
-        if last_one:
-            skip_btn.setToolTip(tr(
-                "Saves what you have read and ends the measurement. This one "
-                "stays unread; loading the chart again lets you continue from "
-                "here."))
-        elif _spot:
+            skip_btn = QPushButton(skip_label, dlg)
+        if _spot and skip_btn is not None:
             skip_btn.setToolTip(tr(
                 "Leaves this patch unmeasured and moves on to the next one. "
                 "You can come back to it later — the chart is not finished "
@@ -4993,7 +5000,8 @@ class TabMeasure(QWidget):
         save_btn  = QPushButton(tr("Save Partial && Quit"), dlg)
         retry_btn.setObjectName("primary")
         retry_btn.setFixedHeight(32)
-        skip_btn.setFixedHeight(32)
+        if skip_btn is not None:
+            skip_btn.setFixedHeight(32)
         save_btn.setFixedHeight(32)
 
         def _retry():
@@ -5001,9 +5009,7 @@ class TabMeasure(QWidget):
             dlg.accept()
 
         def _skip():
-            # With nothing else unread there is nowhere to skip to, so the
-            # honest action is to save what has been read and stop.
-            chosen[0] = "finish" if last_one else "skip"
+            chosen[0] = "skip"
             dlg.accept()
 
         def _save():
@@ -5011,11 +5017,13 @@ class TabMeasure(QWidget):
             dlg.accept()
 
         retry_btn.clicked.connect(_retry)
-        skip_btn.clicked.connect(_skip)
+        if skip_btn is not None:
+            skip_btn.clicked.connect(_skip)
         save_btn.clicked.connect(_save)
 
         btn_row.addWidget(retry_btn)
-        btn_row.addWidget(skip_btn)
+        if skip_btn is not None:
+            btn_row.addWidget(skip_btn)
         btn_row.addStretch()
         btn_row.addWidget(save_btn)
         layout.addLayout(btn_row)
@@ -5035,10 +5043,6 @@ class TabMeasure(QWidget):
 
         if chosen[0] == "retry":
             self._manager.send_key("\r")
-        elif chosen[0] == "finish":
-            # Save what has been read and end, which is what skipping the only
-            # unread strip actually means (Knut, #131 2026-07-26).
-            self._manager.send_save_partial_and_quit()
         elif chosen[0] == "skip":
             # The manager decides what "skip" can mean: the next unread strip
             # while anything is unread, otherwise simply the next strip — on a

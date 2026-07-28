@@ -58,7 +58,6 @@ _POPUP_BUTTONS = [
     "Re-read Individual Strips",
     "Save Partial && Quit",      # && is a literal ampersand on a button
     "Save Partial",
-    "Finish Without This Strip",
     "Skip Strip",
     "Go to Build Profile Tab →",
     "Close",

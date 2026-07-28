@@ -1,5 +1,16 @@
 # Changelog
 
+## v3.14.8-beta.71
+
+- **One question, one answer: the redundant button on the last strip is gone.**
+  When the strip — or the patch — that failed was the only one still unread, the
+  window offered both **Finish Without This Strip** and **Save Partial & Quit**,
+  and the two did exactly the same thing. The middle button has been removed for
+  that case only, and what it used to explain is now said by the one that
+  remains: it ends the measurement, saves everything you have read, and this one
+  stays unread with nothing else lost. Retry is unchanged, and a strip that is
+  *not* the last still offers Skip.
+
 ## v3.14.8-beta.70
 
 - **Every measurement window and its sound, as a table you can read.**

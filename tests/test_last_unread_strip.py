@@ -77,9 +77,14 @@ def test_nothing_is_claimed_without_a_read_map(tab, monkeypatch):
     assert tab._is_last_unread_strip() is False
 
 
-def test_the_window_offers_the_honest_button_and_saves(tab, monkeypatch):
-    """End to end through the real dialog: the label changes AND the action
-    becomes save-partial rather than a jump that would go nowhere."""
+def test_the_last_one_offers_only_retry_and_save(tab, monkeypatch):
+    """Knut, #131 2026-07-28: "Finish Without This Strip" and "Save Partial &
+    Quit" called exactly the same thing, so the window asked a question with two
+    identical answers. On the last unread strip the middle button is gone, and
+    the remaining one explains what happens to this strip.
+
+    End to end through the real dialog: the buttons offered, and the action.
+    """
     _engine_on(tab, monkeypatch)
     tab._engine_read = {"A": True, "B": False}
     tab._current_strip_letter = "B"
@@ -90,20 +95,48 @@ def test_the_window_offers_the_honest_button_and_saves(tab, monkeypatch):
     monkeypatch.setattr(tab, "_arm_key_watchdog", lambda: None)
     monkeypatch.setattr(tab, "_on_strip_error_sound", lambda *_a: None)
 
-    from PyQt6.QtWidgets import QDialog, QPushButton
+    from PyQt6.QtWidgets import QDialog, QLabel, QPushButton
     seen = {}
 
-    def press_finish(dlg):
-        labels = [b.text() for b in dlg.findChildren(QPushButton)]
-        seen["labels"] = labels
+    def press_save(dlg):
+        seen["labels"] = [b.text() for b in dlg.findChildren(QPushButton)]
+        seen["text"] = " ".join(l.text() for l in dlg.findChildren(QLabel))
         for b in dlg.findChildren(QPushButton):
-            if "Finish Without" in b.text():
+            if "Save Partial" in b.text():
                 b.click()
                 return 1
-        raise AssertionError(f"no Finish button among {labels}")
-    monkeypatch.setattr(QDialog, "exec", press_finish)
+        raise AssertionError(f"no Save button among {seen['labels']}")
+    monkeypatch.setattr(QDialog, "exec", press_save)
 
     tab._on_strip_error("Not enough patches")
 
-    assert not any("Skip Stripe" in x for x in seen["labels"]), seen["labels"]
+    assert not any("Finish Without" in x for x in seen["labels"]), seen["labels"]
+    assert not any("Skip" in x for x in seen["labels"]), seen["labels"]
     assert saved["n"] == 1, "it must save what was read and end"
+    # …and the remaining button says what becomes of this strip.
+    assert "only strip still unread" in seen["text"]
+    assert "stays" in seen["text"]
+
+
+def test_a_strip_that_is_not_the_last_still_offers_skip(tab, monkeypatch):
+    """The middle button is removed only where it was redundant."""
+    _engine_on(tab, monkeypatch)
+    tab._engine_read = {"A": False, "B": False}
+    tab._current_strip_letter = "A"
+    monkeypatch.setattr(tab._manager, "send_key", lambda *_a: None)
+    monkeypatch.setattr(tab._manager, "skip_current_strip", lambda: None)
+    monkeypatch.setattr(tab, "_arm_key_watchdog", lambda: None)
+    monkeypatch.setattr(tab, "_on_strip_error_sound", lambda *_a: None)
+
+    from PyQt6.QtWidgets import QDialog, QPushButton
+    seen = {}
+
+    def look(dlg):
+        seen["labels"] = [b.text() for b in dlg.findChildren(QPushButton)]
+        return 0
+    monkeypatch.setattr(QDialog, "exec", look)
+
+    tab._on_strip_error("Not enough patches")
+
+    assert any("Skip Strip" in x for x in seen["labels"]), seen["labels"]
+
