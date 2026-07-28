@@ -1,30 +1,143 @@
 """The windows a measurement can raise, and the sound each one plays.
 
 Knut asked for this as a table the user can actually read (#131, 2026-07-27),
-and then for row 1 to be given in full (2026-07-28) — a failed strip does not
-always mean the same thing, and the sound follows what ArgyllCMS actually
-reported.
+then for row 1 to be given in full (2026-07-28), and then — after the completion
+audit — for it to be checked against what the code actually does
+(*"ensure that the help text in the preferences sounds tab … is updated and
+correct"*, 2026-07-28).
 
-The rows live here rather than inline so one text can be shown from more than one
-help icon, and so a test can hold them against the code they describe. Sound
-names are the ones in Preferences -> Sounds, never the internal identifiers.
+That check found three things, all fixed here:
+
+* a row named a window by a name it does not have (**Instrument busy** — the
+  window is called *Instrument Not Available*);
+* a row called **Instrument error (other)** stood for four separate windows the
+  user can actually meet, and named none of them;
+* the **Averaging Failed** window was missing, because it had no sound at all —
+  now it has one.
+
+**The HTML is built from the rows.** It used to be a second copy of the same
+table, written out by hand, so the two could disagree — which is exactly the
+kind of fault Knut asked me to look for. There is now one source.
+
+Sound names are the ones in Preferences → Sounds, never the internal
+identifiers.
 """
 from __future__ import annotations
+
+import html
 
 from core.i18n import tr
 
 #: (window, reading mode, Preferences sound label)
-WINDOW_ROWS = [('Strip read failed', 'Strip reading', "Slow down, or Strip read failed — ChromIQ reads Argyll's own wording and picks the one that fits (see the third table)"), ('Patch read failed', 'Patch by patch', 'Strip read failed'), ('Strip read quickly', 'Strip reading', 'Slow down'), ('Wrong strip read', 'Strip reading', 'Strip read failed'), ('Unexpected Color Response', 'Both', 'Patch reading looks off'), ('Strip may be misaligned', 'Strip reading', 'Strip read failed'), ('Strip read interrupted', 'Strip reading', 'Strip read failed'), ('Patches still unread', 'Both', 'Strip read failed'), ('Calibration required', 'Both', 'Instrument error'), ('Confirm abort', 'Both', 'Instrument error'), ('Instrument disconnected', 'Both', 'Instrument error'), ('No instrument found', 'Both', 'Instrument error'), ('Instrument busy', 'Both', 'Instrument error'), ('Instrument in Wrong Position', 'Both', 'Instrument error'), ('Instrument Not Accessible (claimed by a virtual machine)', 'Both', 'Instrument error'), ('Instrument error (other)', 'Both', 'Instrument error'), ('All strips read / All patches read', 'Both', 'Measurement finished')]
+WINDOW_ROWS = [
+    ("Strip read failed", "Strip reading",
+     "Slow down, or Strip read failed — ChromIQ reads Argyll's own wording and "
+     "picks the one that fits (see the third table)"),
+    ("Patch read failed", "Patch by patch", "Strip read failed"),
+    ("Strip read quickly", "Strip reading", "Slow down"),
+    ("Wrong strip read", "Strip reading", "Strip read failed"),
+    ("Unexpected Color Response", "Both", "Patch reading looks off"),
+    ("Strip may be misaligned", "Strip reading", "Strip read failed"),
+    ("Strip read interrupted", "Strip reading", "Strip read failed"),
+    ("Patches still unread", "Both", "Strip read failed"),
+    ("Averaging failed", "Both", "Strip read failed"),
+    ("Calibration required", "Both", "Instrument error"),
+    ("Confirm abort", "Both", "Instrument error"),
+    ("Instrument disconnected", "Both", "Instrument error"),
+    ("No instrument found", "Both", "Instrument error"),
+    ("Instrument Not Available (in use by another program)", "Both",
+     "Instrument error"),
+    ("Instrument in Wrong Position", "Both", "Instrument error"),
+    ("Instrument Not Accessible (claimed by a virtual machine)", "Both",
+     "Instrument error"),
+    ("Instrument Failed to Initialize", "Both", "Instrument error"),
+    ("Instrument Type Mismatch", "Both", "Instrument error"),
+    ("Correction File Failed to Load", "Both", "Instrument error"),
+    ("Instrument Mode Rejected", "Both", "Instrument error"),
+    ("Instrument Error (anything else the instrument reports)", "Both",
+     "Instrument error"),
+    ("All strips read / All patches read", "Both", "Measurement finished"),
+]
 
 #: Sounds that mark an event rather than a window.
-EVENT_ROWS = [('A patch was read and looks right', 'Patch by patch', 'Patch read OK'), ('A patch was read and looks off', 'Patch by patch', 'Patch reading looks off'), ('A strip was accepted', 'Strip reading', 'Strip read OK'), ('A strip was accepted but read quickly', 'Strip reading', 'Slow down'), ('The measurement finished', 'Both', 'Measurement finished'), ('A profile finished building', '—', 'Profile build finished')]
+EVENT_ROWS = [
+    ("A patch was read and looks right", "Patch by patch", "Patch read OK"),
+    ("A patch was read and looks off", "Patch by patch",
+     "Patch reading looks off"),
+    ("A strip was accepted", "Strip reading", "Strip read OK"),
+    ("A strip was accepted but read quickly", "Strip reading", "Slow down"),
+    ("The measurement finished", "Both", "Measurement finished"),
+    ("A profile finished building", "—", "Profile build finished"),
+]
 
 #: Row 1 broken out: how a strip failure is classified, and the sound that
 #: follows. Mirrors the wording tables in :mod:`core.measure_pace`.
-FAILURE_ROWS = [('Not enough samples per patch - Slow Down!', 'Too fast — ArgyllCMS says so itself', 'Slow down'), ('Reading is too short', 'Too fast — the whole swipe was over too quickly', 'Slow down'), ('Not enough patches', 'Too fast — the patches were too short in readings to tell apart', 'Slow down'), ('Too many patches', 'Hesitant, not hurried — extra transitions were found, so telling you to slow down would be exactly the wrong advice', 'Strip read failed'), ("Swipe didn't start and end on the media", 'Positioning, not speed', 'Strip read failed'), ('Light level is too low / too high', 'The instrument or the sheet, not speed', 'Strip read failed'), ('Reading is inconsistent', 'Uneven rather than simply quick — blaming speed could send you the wrong way', 'Strip read failed')]
+FAILURE_ROWS = [
+    ("Not enough samples per patch - Slow Down!",
+     "Too fast — ArgyllCMS says so itself", "Slow down"),
+    ("Reading is too short",
+     "Too fast — the whole swipe was over too quickly", "Slow down"),
+    ("Not enough patches",
+     "Too fast — the patches were too short in readings to tell apart",
+     "Slow down"),
+    ("Too many patches",
+     "Hesitant, not hurried — extra transitions were found, so telling you to "
+     "slow down would be exactly the wrong advice", "Strip read failed"),
+    ("Swipe didn't start and end on the media", "Positioning, not speed",
+     "Strip read failed"),
+    ("Light level is too low / too high",
+     "The instrument or the sheet, not speed", "Strip read failed"),
+    ("Reading is inconsistent",
+     "Uneven rather than simply quick — blaming speed could send you the wrong "
+     "way", "Strip read failed"),
+]
+
+
+def _esc(text: str) -> str:
+    return html.escape(tr(text), quote=False)
+
+
+def _table(headings, rows) -> str:
+    out = ['<table border="1" cellspacing="0" cellpadding="6">',
+           "<tr>" + "".join(f"<th>{_esc(h)}</th>" for h in headings) + "</tr>"]
+    for n, row in enumerate(rows, start=1):
+        cells = "".join(f"<td>{_esc(c)}</td>" for c in row)
+        out.append(f"<tr><td>{n}</td>{cells}</tr>")
+    out.append("</table>")
+    return "\n".join(out)
 
 
 def windows_and_sounds_html() -> str:
-    """The tables as HTML. :class:`ui.tooltip_button.TooltipButton` switches to
-    rich text when a body contains one."""
-    return tr('<p>Every window a measurement can raise, and the sound played <b>as it opens</b> — not when you answer it. The names in the sound columns are the ones in Preferences &rarr; Sounds, so you can change any of them there.</p>\n\n<table border="1" cellspacing="0" cellpadding="6">\n<tr><th>#</th><th>Window</th><th>Reading mode</th><th>Sound played when it opens</th></tr>\n<tr><td>1</td><td>Strip read failed</td><td>Strip reading</td><td>Slow down, or Strip read failed — ChromIQ reads Argyll\'s own wording and picks the one that fits (see the third table)</td></tr>\n<tr><td>2</td><td>Patch read failed</td><td>Patch by patch</td><td>Strip read failed</td></tr>\n<tr><td>3</td><td>Strip read quickly</td><td>Strip reading</td><td>Slow down</td></tr>\n<tr><td>4</td><td>Wrong strip read</td><td>Strip reading</td><td>Strip read failed</td></tr>\n<tr><td>5</td><td>Unexpected Color Response</td><td>Both</td><td>Patch reading looks off</td></tr>\n<tr><td>6</td><td>Strip may be misaligned</td><td>Strip reading</td><td>Strip read failed</td></tr>\n<tr><td>7</td><td>Strip read interrupted</td><td>Strip reading</td><td>Strip read failed</td></tr>\n<tr><td>8</td><td>Patches still unread</td><td>Both</td><td>Strip read failed</td></tr>\n<tr><td>9</td><td>Calibration required</td><td>Both</td><td>Instrument error</td></tr>\n<tr><td>10</td><td>Confirm abort</td><td>Both</td><td>Instrument error</td></tr>\n<tr><td>11</td><td>Instrument disconnected</td><td>Both</td><td>Instrument error</td></tr>\n<tr><td>12</td><td>No instrument found</td><td>Both</td><td>Instrument error</td></tr>\n<tr><td>13</td><td>Instrument busy</td><td>Both</td><td>Instrument error</td></tr>\n<tr><td>14</td><td>Instrument in Wrong Position</td><td>Both</td><td>Instrument error</td></tr>\n<tr><td>15</td><td>Instrument Not Accessible (claimed by a virtual machine)</td><td>Both</td><td>Instrument error</td></tr>\n<tr><td>16</td><td>Instrument error (other)</td><td>Both</td><td>Instrument error</td></tr>\n<tr><td>17</td><td>All strips read / All patches read</td><td>Both</td><td>Measurement finished</td></tr>\n</table>\n\n<p><b>Sounds that are not windows</b> — these mark an event as it happens.</p>\n\n<table border="1" cellspacing="0" cellpadding="6">\n<tr><th>#</th><th>Event</th><th>Reading mode</th><th>Sound</th></tr>\n<tr><td>1</td><td>A patch was read and looks right</td><td>Patch by patch</td><td>Patch read OK</td></tr>\n<tr><td>2</td><td>A patch was read and looks off</td><td>Patch by patch</td><td>Patch reading looks off</td></tr>\n<tr><td>3</td><td>A strip was accepted</td><td>Strip reading</td><td>Strip read OK</td></tr>\n<tr><td>4</td><td>A strip was accepted but read quickly</td><td>Strip reading</td><td>Slow down</td></tr>\n<tr><td>5</td><td>The measurement finished</td><td>Both</td><td>Measurement finished</td></tr>\n<tr><td>6</td><td>A profile finished building</td><td>—</td><td>Profile build finished</td></tr>\n</table>\n\n<p><b>Row 1 in full.</b> A failed strip does not always mean the same thing, so ChromIQ reads ArgyllCMS\'s own wording and picks the sound that fits. Only a genuinely hurried scan is told to slow down: saying that to someone who hesitated, or whose instrument drifted off the strip, would send them the wrong way.</p>\n\n<table border="1" cellspacing="0" cellpadding="6">\n<tr><th>#</th><th>What ArgyllCMS reports</th><th>What it means</th><th>Sound</th></tr>\n<tr><td>1</td><td>Not enough samples per patch - Slow Down!</td><td>Too fast — ArgyllCMS says so itself</td><td>Slow down</td></tr>\n<tr><td>2</td><td>Reading is too short</td><td>Too fast — the whole swipe was over too quickly</td><td>Slow down</td></tr>\n<tr><td>3</td><td>Not enough patches</td><td>Too fast — the patches were too short in readings to tell apart</td><td>Slow down</td></tr>\n<tr><td>4</td><td>Too many patches</td><td>Hesitant, not hurried — extra transitions were found, so telling you to slow down would be exactly the wrong advice</td><td>Strip read failed</td></tr>\n<tr><td>5</td><td>Swipe didn\'t start and end on the media</td><td>Positioning, not speed</td><td>Strip read failed</td></tr>\n<tr><td>6</td><td>Light level is too low / too high</td><td>The instrument or the sheet, not speed</td><td>Strip read failed</td></tr>\n<tr><td>7</td><td>Reading is inconsistent</td><td>Uneven rather than simply quick — blaming speed could send you the wrong way</td><td>Strip read failed</td></tr>\n</table>\n\n<p><b>Two things worth knowing.</b> The completion sound waits half a second so the last strip\'s own cue can finish first — they used to arrive on top of each other. And ChromIQ plays none of these while stock ArgyllCMS chartread is doing the reading: it beeps for itself there and cannot be silenced, so ChromIQ would only double every event. On ChromIQ\'s own reading engine, Argyll\'s beeps are silenced and these sounds are the only ones you hear.</p>')
+    """The tables as HTML, built from the rows above.
+
+    :class:`ui.tooltip_button.TooltipButton` switches to rich text when a body
+    contains a table.
+    """
+    return "\n\n".join([
+        "<p>" + _esc(
+            "Every window a measurement can raise, and the sound played as it "
+            "opens — not when you answer it. The names in the sound columns "
+            "are the ones in Preferences → Sounds, so you can change any of "
+            "them there.") + "</p>",
+        _table(("#", "Window", "Reading mode", "Sound played when it opens"),
+               WINDOW_ROWS),
+        "<p><b>" + _esc("Sounds that are not windows") + "</b> — "
+        + _esc("these mark an event as it happens.") + "</p>",
+        _table(("#", "Event", "Reading mode", "Sound"), EVENT_ROWS),
+        "<p><b>" + _esc("Row 1 in full.") + "</b> " + _esc(
+            "A failed strip does not always mean the same thing, so ChromIQ "
+            "reads ArgyllCMS's own wording and picks the sound that fits. Only "
+            "a genuinely hurried scan is told to slow down: saying that to "
+            "someone who hesitated, or whose instrument drifted off the strip, "
+            "would send them the wrong way.") + "</p>",
+        _table(("#", "What ArgyllCMS reports", "What it means", "Sound"),
+               FAILURE_ROWS),
+        "<p><b>" + _esc("Two things worth knowing.") + "</b> " + _esc(
+            "The completion sound waits half a second so the last strip's own "
+            "cue can finish first — they used to arrive on top of each other. "
+            "And ChromIQ plays none of these while stock ArgyllCMS chartread "
+            "is doing the reading: it beeps for itself there and cannot be "
+            "silenced, so ChromIQ would only double every event. On ChromIQ's "
+            "own reading engine, Argyll's beeps are silenced and these sounds "
+            "are the only ones you hear.") + "</p>",
+    ])

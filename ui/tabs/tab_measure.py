@@ -6639,6 +6639,10 @@ class TabMeasure(QWidget):
         )
 
     def _show_average_failed_dialog(self, detail: str) -> None:
+        # Found by the audit of 2026-07-28 (Knut): a failure window raised
+        # during a measurement that had no sound at all. It is not an
+        # instrument fault, so it takes the general reading-failure sound.
+        self._cue_window("STRIP_FAIL")
         from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout
         dlg = QDialog(self)
         dlg.setWindowTitle(tr("Averaging Failed"))

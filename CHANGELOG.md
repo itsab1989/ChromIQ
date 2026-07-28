@@ -1,5 +1,25 @@
 # Changelog
 
+## v3.14.8-beta.83
+
+- **The “which sound belongs to which window” help is now checked against the
+  code, and three things were wrong.** One row named a window by a name it does
+  not have — the window called “Instrument busy” is actually **Instrument Not
+  Available**. One row, “Instrument error (other)”, quietly stood for four
+  separate windows you can genuinely meet, and named none of them: **Instrument
+  Failed to Initialize**, **Instrument Type Mismatch**, **Correction File Failed
+  to Load** and **Instrument Mode Rejected**. All four are now listed. The table
+  has grown from 17 window rows to 22.
+
+- **The “Averaging Failed” window had no sound at all** — a failure raised
+  during a measurement, silent. It now plays the same sound as any other
+  reading failure, and it appears in the table.
+
+- **The help text can no longer drift from the code.** The table a user reads
+  used to be a second, hand-written copy of the same information, so the two
+  could disagree — which is how the wrong names survived. It is now built from
+  the one list, and a test fails if a hand-written row is ever added back.
+
 ## v3.14.8-beta.82
 
 - **New “Getting started” card in the Help window**, and it is the first one you

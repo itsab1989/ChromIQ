@@ -92,8 +92,11 @@ def test_the_windows_listed_are_the_windows_that_exist():
     src = inspect.getsource(TabMeasure).lower()
     # These carry the instrument-error cue and are raised from shared helpers
     # rather than by a window of their own name.
-    by_signal = {"instrument disconnected", "no instrument found",
-                 "instrument busy", "instrument error (other)"}
+    # Only these two are raised from a shared helper rather than by a window
+    # carrying their own name. The list used to include "instrument busy" and
+    # "instrument error (other)" — and THAT is how two wrong names survived
+    # this test, because an exemption is also a blind spot (Knut, 2026-07-28).
+    by_signal = {"instrument disconnected", "no instrument found"}
     for window, _mode, _sound in WINDOW_ROWS:
         stem = window.split("/")[0].split("(")[0].strip()
         if stem.lower() in by_signal:
@@ -104,10 +107,18 @@ def test_the_windows_listed_are_the_windows_that_exist():
 def test_the_instrument_windows_all_say_instrument_error():
     """They share one cue, wired in _connect_instrument_error_cues."""
     rows = {w: s for w, _m, s in WINDOW_ROWS}
-    for w in ("Instrument disconnected", "No instrument found", "Instrument busy",
+    # Updated 2026-07-28 after Knut asked for the table to be checked against
+    # the code: "Instrument busy" named a window that does not exist (it is
+    # called "Instrument Not Available"), and "Instrument error (other)" stood
+    # for four separate windows without naming any of them.
+    for w in ("Instrument disconnected", "No instrument found",
+              "Instrument Not Available (in use by another program)",
               "Instrument in Wrong Position",
               "Instrument Not Accessible (claimed by a virtual machine)",
-              "Instrument error (other)", "Calibration required"):
+              "Instrument Failed to Initialize", "Instrument Type Mismatch",
+              "Correction File Failed to Load", "Instrument Mode Rejected",
+              "Instrument Error (anything else the instrument reports)",
+              "Calibration required"):
         assert rows[w] == "Instrument error", w
 
 
@@ -156,3 +167,61 @@ def test_every_wording_the_code_knows_appears_in_the_table():
     for needle in ("swipe didn't start and end on the media",
                    "light level is too low"):
         assert needle.split(" / ")[0][:20] in listed
+
+
+# ---- the check Knut asked for, made permanent ---------------------------
+def test_the_html_is_built_from_the_rows():
+    """It used to be a second copy of the same table written out by hand, so
+    the rows and the text a user reads could disagree — exactly the kind of
+    fault he asked me to look for (2026-07-28). One source now."""
+    import inspect
+
+    import core.measure_windows as mw
+    src = inspect.getsource(mw.windows_and_sounds_html)
+    assert "_table(" in src
+    assert "WINDOW_ROWS" in src and "EVENT_ROWS" in src and "FAILURE_ROWS" in src
+    assert "<tr><td>1</td><td>Strip read failed" not in src, \
+        "a hand-written row has crept back in"
+
+
+def test_every_row_reaches_the_rendered_table():
+    from core.measure_windows import (EVENT_ROWS, FAILURE_ROWS, WINDOW_ROWS,
+                                      windows_and_sounds_html)
+    html = windows_and_sounds_html()
+    for rows in (WINDOW_ROWS, EVENT_ROWS, FAILURE_ROWS):
+        for first, _mode, _sound in rows:
+            import html as _h
+            assert _h.escape(first, quote=False) in html, first
+
+
+def test_every_instrument_window_in_the_table_really_exists():
+    """The four that used to hide behind "Instrument error (other)" are real
+    windows with real titles — so the table can be held to them."""
+    import inspect
+
+    from ui.tabs.tab_measure import TabMeasure
+    src = inspect.getsource(TabMeasure)
+    for title in ("Instrument Not Available", "Instrument Failed to Initialize",
+                  "Instrument Type Mismatch", "Correction File Failed to Load",
+                  "Instrument Mode Rejected", "Instrument Not Accessible"):
+        assert f'tr("{title}")' in src, f"no window titled {title!r}"
+
+
+def test_the_averaging_failure_window_now_sounds():
+    """It was raised during a measurement with no sound at all — found by the
+    audit, not by a report."""
+    import inspect
+
+    from ui.tabs.tab_measure import TabMeasure
+    src = inspect.getsource(TabMeasure._show_average_failed_dialog)
+    assert '_cue_window("STRIP_FAIL")' in src
+    lines = [l.strip() for l in src.splitlines()]
+    cue = next(i for i, l in enumerate(lines) if "_cue_window(" in l)
+    dlg = next(i for i, l in enumerate(lines) if "QDialog(self)" in l)
+    assert cue < dlg, "the cue must come before the window is built"
+
+
+def test_it_is_listed_in_the_table_too():
+    from core.measure_windows import WINDOW_ROWS
+    rows = {w: s for w, _m, s in WINDOW_ROWS}
+    assert rows["Averaging failed"] == "Strip read failed"
