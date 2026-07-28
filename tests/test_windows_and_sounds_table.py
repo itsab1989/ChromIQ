@@ -33,9 +33,12 @@ def qapp():
 
 
 def test_it_is_a_real_table():
+    from core.measure_windows import FAILURE_ROWS
     html = windows_and_sounds_html()
     assert "<table" in html and "</table>" in html
-    assert html.count("<tr>") == len(WINDOW_ROWS) + len(EVENT_ROWS) + 2  # + headers
+    # three tables, each with a header row
+    assert html.count("<tr>") == (len(WINDOW_ROWS) + len(EVENT_ROWS)
+                                  + len(FAILURE_ROWS) + 3)
 
 
 def test_the_help_dialog_renders_it_as_rich_text(qapp):
@@ -112,3 +115,44 @@ def test_the_notes_state_the_two_rules_that_surprise_people():
     html = windows_and_sounds_html()
     assert "half a second" in html          # the completion gap
     assert "stock ArgyllCMS chartread" in html
+
+
+# ---- row 1 in full (Knut, #131 2026-07-28) --------------------------------
+def test_row_one_is_broken_out_in_full():
+    """"for row 1, also list all the cases previously defined with sound, so
+    the table is complete"."""
+    from core.measure_windows import FAILURE_ROWS
+    html = windows_and_sounds_html()
+    assert "Row 1 in full" in html
+    assert html.count("<table") == 3
+    for wording, _meaning, _sound in FAILURE_ROWS:
+        assert wording in html
+
+
+def test_the_failure_rows_match_how_the_code_classifies_them():
+    """The table must not drift from `failure_kind`: every wording listed as
+    "Slow down" has to classify as too_fast, and every other as not-too_fast."""
+    from core.measure_pace import failure_kind
+    from core.measure_windows import FAILURE_ROWS
+    for wording, _meaning, sound in FAILURE_ROWS:
+        kind = failure_kind(wording)
+        if sound == "Slow down":
+            assert kind == "too_fast", (wording, kind)
+        else:
+            assert kind != "too_fast", (wording, kind)
+
+
+def test_every_wording_the_code_knows_appears_in_the_table():
+    """A phrase ChromIQ classifies but never lists would be a gap in the very
+    table that is meant to be complete."""
+    from core.measure_pace import _NOT_PACE, _TOO_FAST, _TOO_SLOW
+    from core.measure_windows import FAILURE_ROWS
+    listed = " ".join(w.lower() for w, _m, _s in FAILURE_ROWS)
+    for needle in _TOO_FAST + _TOO_SLOW:
+        assert needle in listed, f"{needle!r} is classified but not listed"
+    # The not-about-pace list includes calibration phrases that belong to the
+    # instrument windows rather than to a strip failure; the strip ones must
+    # still be there.
+    for needle in ("swipe didn't start and end on the media",
+                   "light level is too low"):
+        assert needle.split(" / ")[0][:20] in listed

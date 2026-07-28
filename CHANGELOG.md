@@ -1,5 +1,15 @@
 # Changelog
 
+## v3.14.8-beta.72
+
+- **The windows-and-sounds table now gives row 1 in full.** A failed strip does
+  not always mean the same thing, so a third table lists every wording ArgyllCMS
+  reports, what it means, and which sound follows: the three that mean you were
+  too quick get **Slow down**, and hesitation, positioning, light level and an
+  uneven reading get **Strip read failed** — because telling someone to slow
+  down when they hesitated, or when the instrument drifted off the strip, would
+  send them the wrong way.
+
 ## v3.14.8-beta.71
 
 - **One question, one answer: the redundant button on the last strip is gone.**
