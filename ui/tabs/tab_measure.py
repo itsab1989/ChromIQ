@@ -5182,18 +5182,28 @@ class TabMeasure(QWidget):
         # Instrument-specific "how to scan a strip" wording, shared by all three
         # variants below (standard / guided / resume) so the physical steps match
         # the chart's instrument (ColorMunki dial, i1Pro base-and-slide, …).
-        from ui.ti2_loader import instrument_family, measurement_instructions_html
+        from ui.ti2_loader import (instrument_family,
+                                    measurement_instructions_html,
+                                    patch_measurement_instructions_html)
         _fam = instrument_family(self._detected_instrument)
-        _how = measurement_instructions_html(_fam)
+        # Patch by patch there is no swipe, so the steps are the single-patch
+        # ones for the same instrument (Knut, #131 2026-07-28).
+        _how = (patch_measurement_instructions_html(_fam) if self._spot_session
+                else measurement_instructions_html(_fam))
 
         if self._spot_session:
             dlg.setWindowTitle(tr("Calibration Complete — How to Measure"))
 
+            # The instrument's OWN steps belong here too — this window was the
+            # only one of the three that dropped them, so patch by patch you
+            # were told "take a reading" without being told how your particular
+            # instrument takes one (Knut, #131 2026-07-28).
             msg = QLabel(
                 tr("<b>Calibration complete. You are ready to measure patch by "
                    "patch.</b><br><br>Place the instrument on the "
                    "<b>highlighted patch</b> in the preview and take a reading. "
-                   "The next patch is highlighted automatically."),
+                   "The next patch is highlighted automatically.<br><br>{how}"
+                   ).format(how=_how),
                 dlg,
             )
             msg.setTextFormat(Qt.TextFormat.RichText)

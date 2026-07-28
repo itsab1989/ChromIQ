@@ -751,7 +751,12 @@ class MeasureManager(QObject):
             # Engine patch-by-patch mode: the read loop is now sitting on this
             # patch. Drives the current-patch highlight + page flip.
             self.patch_ready.emit(ev)
-            if ev.get("all_done"):
+            # The same rule as strip mode, which this path was missing: a chart
+            # that was ALREADY complete when the session opened has not been
+            # completed by opening it, so re-reading a patch of a finished
+            # measurement must not raise the completion window (Knut, #131
+            # 2026-07-28 — the patch-mode half of the fault fixed in beta.69).
+            if ev.get("all_done") and self._all_done_is_news():
                 self.all_stripes_done.emit()
 
         elif kind == "instrument":
@@ -760,6 +765,7 @@ class MeasureManager(QObject):
 
         elif kind == "patch_read":
             self._engine_progress = True
+            self._read_something = True
             self.patch_measured.emit(ev)
 
         elif kind == "mode_fallback":

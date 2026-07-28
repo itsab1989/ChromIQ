@@ -175,6 +175,38 @@ def measurement_instructions_html(family: "str | None") -> str:
         "described in its manual.")
 
 
+def patch_measurement_instructions_html(family: "str | None") -> str:
+    """How to read a SINGLE patch with an instrument *family*.
+
+    The strip version of this describes a swipe — press, hold, slide — which is
+    not what patch-by-patch mode asks of you, so quoting it there would be
+    describing something the user is not doing (Knut, #131 2026-07-28). Same
+    per-instrument treatment, different action.
+    """
+    if family == "colormunki":
+        return tr(
+            "Turn the dial to the <b>measurement position</b> (the target / "
+            "aperture icon). Rest the device flat on the highlighted patch, "
+            "with the aperture fully inside it, and <b>press the side button "
+            "once</b>. Hold it still until the reading is taken — there is no "
+            "sliding in this mode.")
+    if family == "i1pro":
+        return tr(
+            "Take the i1Pro off its base. Place it flat on the highlighted "
+            "patch so the aperture sits fully inside it, and <b>press the "
+            "button once</b>. Keep it still until the reading is taken — there "
+            "is no sliding in this mode.")
+    if family == "spectroscan":
+        return tr(
+            "The SpectroScan positions itself over each patch; follow the "
+            "prompts on the table and let it complete each reading before "
+            "moving on.")
+    return tr(
+        "Place your instrument flat on the highlighted patch, with its aperture "
+        "fully inside the patch, and take a single reading as described in its "
+        "manual.")
+
+
 def disable_bidir_for_instrument(name: str | None) -> bool:
     """Whether the Auto toggle should disable bidirectional strip recognition
     (chartread ``-B``).

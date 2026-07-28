@@ -1,5 +1,22 @@
 # Changelog
 
+## v3.14.8-beta.74
+
+- **"All patches read" no longer greets you when you resume in patch-by-patch
+  mode.** The rule that fixed this for strip reading in beta.69 — announce
+  completion only when the chart actually *became* complete in this session —
+  was consulted on the strip path only, and patch by patch uses a different one.
+  Both now follow it. Reading the last outstanding patch of a partly-measured
+  chart still announces it, as it should.
+
+- **The calibration windows speak to your instrument in patch-by-patch mode
+  too.** "Calibration Complete" gave per-instrument steps when reading strips
+  and none at all when reading patches, so you were told to take a reading
+  without being told how your instrument takes one. It now gives the steps for
+  the instrument in your hand — and they are the single-patch steps, not the
+  strip ones: there is no press-hold-and-slide in this mode, and the text no
+  longer implies otherwise.
+
 ## v3.14.8-beta.73
 
 - **Clipped pop-up buttons: the cause found, not the symptom patched again.**
