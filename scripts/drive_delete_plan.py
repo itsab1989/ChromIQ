@@ -22,8 +22,10 @@ from ui.measurement_target_bar import (MeasurementTargetBar,
 import core.run_delete as rd
 
 ROWS = []
-SHOTS = Path(__file__).parent / "delete_shots"
-SHOTS.mkdir(exist_ok=True)
+# Window grabs go to a temp folder — they are diagnostics for one run, not
+# something the repository should carry.
+import tempfile as _tf
+SHOTS = Path(_tf.mkdtemp(prefix="chromiq_delete_shots_"))
 
 
 def row(name, ok, detail=""):
