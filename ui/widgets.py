@@ -103,19 +103,64 @@ class ButtonFontFilter(QObject):
     _fitting: bool = False
 
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
-        if isinstance(obj, QPushButton) and not ButtonFontFilter._fitting:
+        if ButtonFontFilter._fitting:
+            return False
+        kinds = (QEvent.Type.Polish, QEvent.Type.Show, QEvent.Type.StyleChange)
+        if isinstance(obj, QPushButton) and event.type() in kinds:
             # Polish is when the font is swapped; Show and StyleChange are when
             # something ELSE may have restyled the button since — and a button
             # that has lost its width rule clips its label (Knut, #131, three
             # times). Re-fitting is idempotent: it only ever widens.
-            if event.type() in (QEvent.Type.Polish, QEvent.Type.Show,
-                                QEvent.Type.StyleChange):
-                ButtonFontFilter._fitting = True
-                try:
-                    self.fit(obj)
-                finally:
-                    ButtonFontFilter._fitting = False
+            ButtonFontFilter._fitting = True
+            try:
+                self.fit(obj)
+            finally:
+                ButtonFontFilter._fitting = False
+        elif (event.type() in kinds and isinstance(obj, QWidget)
+              and obj.isWindow()):
+            # …and once for the WINDOW as a whole (Knut, #130 2026-07-28, after
+            # a fifth clipping report: "the rules should prevent it for any and
+            # all windows").
+            #
+            # Fitting each button on its own is not enough when the buttons sit
+            # in a QDialogButtonBox: the box gives them ONE uniform width, taken
+            # before the font swap widens them, and nothing asks it to measure
+            # again. So the button knows how wide it should be and the box never
+            # hears about it. Doing it here — every button in the window, then
+            # re-activating every layout from the innermost outwards — is what
+            # makes the rule hold without each dialog having to opt in.
+            ButtonFontFilter._fitting = True
+            try:
+                self.fit_window(obj)
+            finally:
+                ButtonFontFilter._fitting = False
         return False
+
+    @staticmethod
+    def fit_window(win) -> None:
+        """Fit every button in *win*, then let its layouts re-measure."""
+        try:
+            buttons = win.findChildren(QPushButton)
+            if not buttons:
+                return
+            for btn in buttons:
+                ButtonFontFilter.fit(btn)
+            # Innermost outwards, so a button box re-measures before the dialog
+            # it sits in is asked for its own size.
+            seen = set()
+            for btn in buttons:
+                parent = btn.parentWidget()
+                while parent is not None and id(parent) not in seen:
+                    seen.add(id(parent))
+                    lay = parent.layout()
+                    if lay is not None:
+                        lay.invalidate()
+                        lay.activate()
+                    if parent is win:
+                        break
+                    parent = parent.parentWidget()
+        except Exception:      # noqa: BLE001 — sizing must never raise
+            pass
 
     @staticmethod
     def fit(btn) -> None:

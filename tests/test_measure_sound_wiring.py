@@ -46,7 +46,13 @@ def _make_tab():
     s = _Settings({"sound_enabled": True, "patch_read_warn_de": 10.0})
     tab = TabMeasure(ArgyllRunner(s), s)
     played: list = []
-    tab._sound.play = lambda e: played.append(e)      # record intent
+    # Record BOTH entry points. A window's cue goes through play_window(),
+    # which is deliberately not subject to the at-rest gate — patching only
+    # play() made this double miss it entirely (2026-07-28). The newer
+    # test_window_sounds_actually_play.py records at the effect instead, which
+    # is why it does not have this problem.
+    tab._sound.play = lambda e: played.append(e)
+    tab._sound.play_window = lambda e: played.append(e)
     tab._sound._in_measurement = True                  # pretend a read is live
     return tab, played
 

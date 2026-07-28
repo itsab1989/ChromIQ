@@ -240,6 +240,36 @@ class SoundManager:
             self._effects[event] = eff
 
     # -- playback -----------------------------------------------------------
+    def play_window(self, event: str) -> None:
+        """Sound a WINDOW ChromIQ is opening, whether or not a read is running.
+
+        Knut, #130 2026-07-28: *"when starting a measurement without the
+        colormunki connected, the window 'No instrument Found' comes, but
+        without any sound."* The cue was in the right place and still silent —
+        :meth:`play` drops anything that is not a completion sound once the
+        measurement is over, and the instrument windows are raised **after** the
+        process exits, by which time :meth:`disarm` has already run.
+
+        A window is ChromIQ's own interface, not part of the reading, so the
+        at-rest gate does not apply to it — the same reasoning that already
+        exempts the completion sounds. ArgyllCMS does not beep for ChromIQ's
+        windows either, so there is nothing to double here.
+
+        Everything else still holds: the master switch, and a sound the user has
+        set to "Off".
+        """
+        if not self.enabled():
+            return
+        try:
+            eff = self._effects.get(event)
+            if eff is None:
+                self._preload([event])
+                eff = self._effects.get(event)
+            if eff is not None:
+                eff.play()
+        except Exception as exc:      # noqa: BLE001 — audio must never break a window
+            log.debug("could not play window sound %s: %s", event, exc)
+
     def play(self, event: str) -> None:
         """Play *event*'s sound now, if sounds are on, a file is selected, and
         the event is allowed in the current context (only completion sounds play

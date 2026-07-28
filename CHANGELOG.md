@@ -1,5 +1,28 @@
 # Changelog
 
+## v3.14.8-beta.87
+
+- **The instrument windows are heard again.** Starting a measurement with no
+  instrument connected showed “No Instrument Found” in silence. The sound was
+  wired to the right place — but those windows are only raised once the
+  measurement process has ended, and at that point ChromIQ had already left
+  measurement mode, where every sound except the completion ones is suppressed.
+  A window ChromIQ opens is part of ChromIQ, not part of the reading, so it now
+  sounds whether or not a read is in progress. The reading sounds themselves are
+  unchanged: they still stay quiet outside a measurement, and still stay quiet
+  when ArgyllCMS is doing the reading and beeping for itself.
+
+  The tests for this now listen for the sound instead of reading the code. The
+  previous check confirmed every window *had* a sound and that it was in the
+  right place — both were true while nothing could be heard.
+
+- **Button labels are now fitted per window, not only per button.** Buttons in a
+  dialog's button row are given one shared width, worked out before ChromIQ
+  swaps them to the wider font it paints with — so a button could know how wide
+  it needed to be while the row it sits in never heard about it. Every window is
+  now measured as a whole when it opens, and its rows are re-measured around the
+  buttons, so no window has to opt in for the rule to hold.
+
 ## v3.14.8-beta.86
 
 - **The two new help cards have their own icons**, in the same style as the

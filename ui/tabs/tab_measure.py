@@ -7038,10 +7038,17 @@ class TabMeasure(QWidget):
         itself, so anything connected after it is not heard until the window is
         dismissed — which is how a cue ended up playing on a button press twice
         before (beta.35, beta.43).
+
+        **And it must not be gated on a read being in progress.** Several of
+        these windows are raised only after the process has exited — the
+        instrument ones especially — by which time the measurement is over and
+        ``play()`` would drop the sound. That is why "No Instrument Found" was
+        silent even after its cue was in the right branch (Knut, #130
+        2026-07-28). ``play_window`` is the same sound without that gate.
         """
         import core.sound as _snd
         try:
-            self._sound.play(getattr(_snd, event))
+            self._sound.play_window(getattr(_snd, event))
         except Exception:      # noqa: BLE001 — a cue must never block a window
             log.warning("could not play the cue for %s", event, exc_info=True)
 

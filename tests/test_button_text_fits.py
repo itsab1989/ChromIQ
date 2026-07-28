@@ -262,3 +262,87 @@ def test_a_button_is_refitted_when_something_restyles_it(qapp):
     src = inspect.getsource(ButtonFontFilter.eventFilter)
     assert "QEvent.Type.Show" in src and "QEvent.Type.StyleChange" in src
     assert "_fitting" in src, "re-entry must be guarded"
+
+
+# ---- the rule now applies per WINDOW, not per button (Knut, #130 2026-07-28)
+# Fifth clipping report: "the Update available window … buttons have cut text at
+# both ends. Yet again this error happens, when the rules should prevent it for
+# any and all windows."
+def test_the_filter_also_fits_whole_windows():
+    import inspect
+
+    from ui.widgets import ButtonFontFilter
+    src = inspect.getsource(ButtonFontFilter.eventFilter)
+    assert "isWindow()" in src, "the filter only ever looks at single buttons"
+    assert "fit_window" in src
+
+
+def test_fitting_a_window_fits_every_button_in_it(qapp):
+    from PyQt6.QtWidgets import (QDialog, QDialogButtonBox, QPushButton,
+                                 QVBoxLayout)
+
+    from ui.widgets import ButtonFontFilter
+    dlg = QDialog()
+    lay = QVBoxLayout(dlg)
+    box = QDialogButtonBox(dlg)
+    box.addButton("Delete run 10 permanently",
+                  QDialogButtonBox.ButtonRole.DestructiveRole)
+    box.addButton("Cancel", QDialogButtonBox.ButtonRole.RejectRole)
+    lay.addWidget(box)
+
+    ButtonFontFilter.fit_window(dlg)
+
+    for btn in dlg.findChildren(QPushButton):
+        assert btn.minimumSizeHint().width() >= _painted_width(btn), btn.text()
+
+
+def test_it_re_measures_the_button_box_not_only_the_buttons():
+    """A QDialogButtonBox gives its buttons ONE uniform width, worked out
+    before the font swap widens them — so fitting each button on its own is not
+    enough, and the layouts have to be asked to measure again."""
+    import inspect
+
+    from ui.widgets import ButtonFontFilter
+    src = inspect.getsource(ButtonFontFilter.fit_window)
+    assert "invalidate()" in src and "activate()" in src
+
+
+def test_a_window_with_no_buttons_is_left_alone(qapp):
+    from PyQt6.QtWidgets import QDialog
+
+    from ui.widgets import ButtonFontFilter
+    ButtonFontFilter.fit_window(QDialog())      # must not raise
+
+
+def test_fitting_a_window_never_raises(qapp):
+    from ui.widgets import ButtonFontFilter
+
+    class _Broken:
+        def findChildren(self, _cls):
+            raise RuntimeError("no")
+
+    ButtonFontFilter.fit_window(_Broken())      # must not raise
+
+
+def test_the_update_window_s_buttons_fit_in_every_language(qapp):
+    """The window he reported, measured in the font that will paint it."""
+    import pathlib
+
+    import core.i18n as I
+    from PyQt6.QtWidgets import QPushButton
+
+    from ui.widgets import ButtonFontFilter
+    langs = ["en"] + sorted(
+        p.stem for p in (pathlib.Path(__file__).resolve().parents[1]
+                         / "data" / "i18n").glob("*.json") if "." not in p.stem)
+    bad = []
+    for lang in langs:
+        I.set_language(lang)
+        for source in ("Download", "Later",
+                       "Don't remind me of new available versions"):
+            btn = QPushButton(I.tr(source))
+            ButtonFontFilter.fit(btn)
+            if btn.minimumSizeHint().width() < _painted_width(btn):
+                bad.append((lang, source, btn.text()))
+    I.set_language("en")
+    assert not bad, bad
