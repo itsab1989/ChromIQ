@@ -1,5 +1,52 @@
 # Changelog
 
+## v3.14.8-beta.75
+
+- **Skip Patch now works after a patch fails to read — found in your log, not
+  guessed.** Your two reproductions (head left in the calibration position, and
+  holding the button while dragging) both leave the reader waiting at *"Hit Esc
+  or 'q' to give up, any other key to retry"*. Skip sent "move forward" straight
+  into that prompt, so it was spent as the "any other key" — meaning **retry** —
+  and the reader came back to the very same patch. Your log shows it plainly:
+  patch 25 at A5, `{"cmd": "forward"}` sent, and patch 25 at A5 armed again.
+  Skip now acknowledges the prompt first and moves on only once the patch menu
+  is listening again. Skipping from a patch that has *not* failed is unchanged —
+  that path was already right.
+
+  Both of your cases are now driven through the real reader binary in the test
+  suite, so this cannot quietly come back.
+
+- **A measurement's markings no longer outlive the chart they describe.** You
+  read one strip of a 3-column chart, re-generated it with 4 columns, and the
+  old strip stayed painted over the new layout — then followed you into every
+  other profiling run you switched to. Anything drawn from a measurement is now
+  discarded the moment the chart underneath it changes, and re-drawn from
+  whatever the chart you are actually looking at has. A measurement in progress
+  is left alone, since those markings are being drawn right then.
+
+- **Re-generating a chart tells you what it will do to the run's measurement.**
+  This was the missing piece behind the rest of your report. Re-generating the
+  chart moved this run's measurement into its `old/` folder — correctly, and
+  without a word. With no measurement left in the run, "Refine / resume existing
+  measurement" and "Show overlay from existing measurement" had nothing to act
+  on, so they hid themselves, and the "this chart already has a measurement"
+  window had nothing to announce. Every rule fired exactly as written; nothing
+  ever said the measurement had moved. Now a run that already holds a
+  measurement or a profile says so before the new chart is built, names the
+  folder the files go to, and points out that "New run" keeps them.
+
+- **Start Measurement warns before it writes over readings you already have.**
+  You expected this warning and it genuinely was not there: the only warning
+  about replacement lived in the window that appears when a chart is *loaded*,
+  so a chart already open had nothing guarding it. Starting a read on a chart
+  that already has a measurement now says so, names the file, and reminds you
+  that ticking "Refine / resume existing measurement (-r)" adds to those
+  readings instead of replacing them. It stays quiet when refine or resume is
+  already ticked — nothing is being replaced then.
+
+- **The "which sound belongs to which window" help moved to the Sounds tab**,
+  where the sounds it explains live, instead of the Measurement tab.
+
 ## v3.14.8-beta.74
 
 - **"All patches read" no longer greets you when you resume in patch-by-patch

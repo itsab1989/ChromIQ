@@ -161,6 +161,50 @@ def _armed_patch(s):
     return None
 
 
+def _spot_run(chart, fault, commands):
+    """Fail the armed patch with *fault*, then send *commands*.
+
+    A session of its own each time: a failed read leaves the helper in a state
+    the next case must not inherit.
+    """
+    base, replay = chart
+    s = ReplaySession(base, replay, extra_args=["-p"])
+    try:
+        s.wait_event("spot_ready")
+        before = _armed_patch(s)
+
+        i = s.event_index()
+        s.send(cmd="swipe", fault=fault)   # arms the fault…
+        s.send(cmd="read")                 # …and this trips it
+        s.wait_event("error", after=i)
+
+        i = s.event_index()
+        for cmd in commands:
+            s.send(**cmd)
+            time.sleep(0.4)
+        time.sleep(0.6)
+        with s._lock:
+            tail = list(s.events[i:])
+        return before, tail
+    finally:
+        try:
+            s.send(cmd="quit")
+            s.proc.wait(timeout=3)
+        except Exception:      # noqa: BLE001
+            s.proc.kill()
+
+
+def _armed_patch_after(chart, commands, fault):
+    before, tail = _spot_run(chart, fault, commands)
+    readies = [e.get("loc") for e in tail if e.get("event") == "spot_ready"]
+    return before, (readies[-1] if readies else None)
+
+
+def _read_events_after(chart, commands, fault):
+    _before, tail = _spot_run(chart, fault, commands)
+    return [e for e in tail if e.get("event") == "patch_read"]
+
+
 def test_forward_alone_moves_the_patch(spot_session):
     """No retry prompt is waiting here, so nothing has to be spent on one."""
     before = _armed_patch(spot_session)
@@ -182,6 +226,7 @@ def test_the_acknowledgement_would_read_the_patch_instead(spot_session):
 
 
 def test_the_manager_sends_forward_alone_in_patch_mode():
+    """At the patch menu, with no failure window open."""
     from workflow.measure_manager import MeasureManager
 
     class _R:
@@ -196,3 +241,86 @@ def test_the_manager_sends_forward_alone_in_patch_mode():
 
     assert m._runner.out == ['{"cmd": "forward"}\n'], m._runner.out
     assert m._pending_post_retry_key is None
+
+
+# ---- Skip Patch *after a failed read* (Knut, #131 2026-07-28) -------------
+# His two reproductions, and the log line that explains both:
+#
+#   Patch read failed … 'Wrong Sensor Position'
+#   Hit Esc or 'q' to give up, any other key to retry:
+#   send_key '{"cmd": "forward"}'
+#   {"event":"spot_ready","id":"25","loc":"A5"}     ← the SAME patch
+#
+# The `forward` was spent as the prompt's "any other key", i.e. as *retry*.
+# beta.74 assumed patch mode never sits at such a prompt; it does.
+@pytest.mark.parametrize("fault,what", [
+    ("wrong_config", "head left in the calibration position"),
+    ("misread", "reading is inconsistent"),
+])
+def test_forward_alone_after_a_failure_stays_on_the_same_patch(chart, fault, what):
+    """The defect itself, reproduced against the real binary."""
+    before, after = _armed_patch_after(chart, [{"cmd": "forward"}], fault)
+    assert after == before, (
+        f"{what}: if this ever passes the helper's prompt has changed")
+
+
+@pytest.mark.parametrize("fault", ["wrong_config", "misread"])
+def test_retry_then_forward_moves_off_the_failed_patch(chart, fault):
+    """The fix, measured the same way."""
+    before, after = _armed_patch_after(
+        chart, [{"cmd": "retry"}, {"cmd": "forward"}], fault)
+    assert after != before, f"stayed on {before}"
+
+
+def test_the_acknowledgement_is_never_return_in_patch_mode(chart):
+    """`ok` is Return, and Return at the patch menu READS the patch. `retry`
+    is the letter 'r' — "any other key" at the prompt, inert at the menu — so
+    it is safe whichever of the two is listening."""
+    from workflow.chartread_engine import KEY_TO_COMMAND
+    assert KEY_TO_COMMAND["\r"] == {"cmd": "ok"}
+
+    before, after = _armed_patch_after(chart, [{"cmd": "retry"}], "misread")
+    assert after == before, "the acknowledgement alone must not navigate"
+    # …and it must not have read the patch either.
+    assert not _read_events_after(chart, [{"cmd": "retry"}], "misread")
+
+
+def test_the_manager_sends_the_two_step_when_a_failure_window_is_open():
+    from workflow.measure_manager import MeasureManager
+
+    class _R:
+        def __init__(self): self.out = []
+        def write_stdin(self, d): self.out.append(d)
+        def __getattr__(self, _n): return lambda *a, **k: None
+
+    m = MeasureManager(_R())
+    m._engine_active = True
+    m._spot_mode = True
+    m._at_retry_prompt = True
+    m.skip_current_strip()
+
+    assert m._runner.out == ['{"cmd": "retry"}\n'], m._runner.out
+    assert m._pending_post_retry_key == "f"
+
+    # …and the queued key goes out when the patch menu is listening again.
+    m._handle_engine_line(
+        '{"event":"spot_ready","id":"1","loc":"A1","read":false,'
+        '"all_done":false}', lambda _l: None)
+    assert m._runner.out[-1] == '{"cmd": "forward"}\n', m._runner.out
+    assert m._pending_post_retry_key is None
+    assert m._at_retry_prompt is False
+
+
+def test_an_error_event_is_what_marks_the_prompt_open():
+    from workflow.measure_manager import MeasureManager
+
+    class _R:
+        def write_stdin(self, d): pass
+        def __getattr__(self, _n): return lambda *a, **k: None
+
+    m = MeasureManager(_R())
+    m._engine_active = True
+    assert m._at_retry_prompt is False
+    m._handle_engine_line(
+        '{"event":"error","kind":"misread","detail":"x"}', lambda _l: None)
+    assert m._at_retry_prompt is True

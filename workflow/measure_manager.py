@@ -251,6 +251,12 @@ class MeasureManager(QObject):
         # Queued key dispatched once chartread returns to the strip menu after
         # a misread retry — see send_post_retry_key().
         self._pending_post_retry_key: str | None = None
+        # True while the helper is blocked on a failure prompt ("Hit Esc or 'q'
+        # to give up, any other key to retry"). Whatever we send there is spent
+        # as that "any other key", so a navigation command sent while this is
+        # True never navigates — it retries. skip_current_strip() branches on
+        # it; see that docstring for Knut's log (#131, 2026-07-28).
+        self._at_retry_prompt: bool = False
         # Two-step state for "Save Partial & Quit" from the misread dialog:
         #   None             — idle
         #   "wait_strip_menu" — waiting for the strip-menu prompt to send 'd'
@@ -310,6 +316,7 @@ class MeasureManager(QObject):
 
         def _on_finish(code: int) -> None:
             self._pending_post_retry_key = None
+            self._at_retry_prompt = False
             self._save_partial_state = None
             was_engine = self._engine_active
             self._engine_active = False
@@ -612,16 +619,40 @@ class MeasureManager(QObject):
         nowhere to go at all. "Forward" is what "skip this one" means, and it is
         right in both cases — confirmed against the real helper.
 
-        **Patch by patch is different, and also measured.** There is no failed
-        strip waiting at a retry prompt, and the acknowledgement would not be an
-        acknowledgement at all: Return is the *read* trigger in that mode, so
-        sending it would measure the patch again instead of moving off it. That
-        is why Skip did nothing there (Knut, #131 2026-07-28). Moving on
-        directly is both sufficient and correct — verified against the real
-        helper, which stepped A1 → A2 on ``forward`` alone.
+        **Patch by patch has both cases, and that is what beta.74 got wrong.**
+        It is not "spot mode never sits at a retry prompt" — Knut's hardware log
+        (#131, 2026-07-28) shows it doing exactly that, and shows why Skip then
+        did nothing::
+
+            Patch read failed … 'Wrong Sensor Position'
+            Hit Esc or 'q' to give up, any other key to retry:
+            send_key '{"cmd": "forward"}'
+            {"event":"spot_ready","id":"25","loc":"A5"}     ← the SAME patch
+
+        The ``forward`` was spent as the prompt's "any other key", i.e. as
+        *retry*, and the helper looped straight back onto A5. So the real
+        distinction is **not** strip vs patch, it is *"is a retry prompt open
+        right now"* — and in patch mode both answers happen:
+
+        =============================  =========================================
+        where Skip is pressed          what has to be sent
+        =============================  =========================================
+        at the patch menu (no window)  ``forward`` — moves on, as Knut confirms
+        at a failure window            ``retry`` first, then ``forward``
+        =============================  =========================================
+
+        The acknowledgement here is ``retry`` (the letter ``r``) and **not**
+        ``ok``: ``ok`` is Return, and if it ever reached the patch menu instead
+        of the prompt it would *read the patch* rather than acknowledge
+        anything. ``r`` means "any other key" at the prompt and is inert at the
+        menu, so it is safe whichever one is listening.
         """
         if self._engine_active and self._spot_mode:
-            self.send_command({"cmd": "forward"})
+            if self._at_retry_prompt:
+                self._pending_post_retry_key = "f"
+                self.send_command({"cmd": "retry"})
+            else:
+                self.send_command({"cmd": "forward"})
             return
         self.send_post_retry_key("f")
 
@@ -718,6 +749,7 @@ class MeasureManager(QObject):
 
         elif kind == "strip_ready":
             strip = ev.get("strip", "")
+            self._at_retry_prompt = False        # back at the menu
             self.stripe_changed.emit(strip)
             if ev.get("all_done") and self._all_done_is_news():
                 self.all_stripes_done.emit()
@@ -750,7 +782,16 @@ class MeasureManager(QObject):
         elif kind == "spot_ready":
             # Engine patch-by-patch mode: the read loop is now sitting on this
             # patch. Drives the current-patch highlight + page flip.
+            # Reaching the patch menu also means any failure prompt is closed.
+            self._at_retry_prompt = False
             self.patch_ready.emit(ev)
+            # The second half of Skip Patch after a failed read: the retry
+            # prompt has just been acknowledged, the menu is listening again,
+            # and NOW the navigation key is the one that navigates (#131).
+            if self._pending_post_retry_key is not None:
+                key = self._pending_post_retry_key
+                self._pending_post_retry_key = None
+                self.send_key(key)
             # The same rule as strip mode, which this path was missing: a chart
             # that was ALREADY complete when the session opened has not been
             # completed by opening it, so re-reading a patch of a finished
@@ -818,8 +859,11 @@ class MeasureManager(QObject):
         elif kind == "error":
             ekind = ev.get("kind", "")
             if ekind == "misread":
+                # The helper is now blocked on "…any other key to retry".
+                self._at_retry_prompt = True
                 self.strip_error.emit(ev.get("detail") or "misread")
             elif ekind == "coms":
+                self._at_retry_prompt = True
                 self._engine_fatal = "communication problem"
                 self.strip_error.emit("communication problem")
             elif ekind == "needs_cal":

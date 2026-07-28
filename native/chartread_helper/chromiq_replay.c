@@ -417,6 +417,13 @@ static inst_code cq_read_sample(inst *p, char *name, ipatch *val,
 						return inst_coms_fail;
 					if (strcmp(fault, "needs_cal") == 0)
 						return inst_needs_cal;
+					/* Knut's real case 1 (#131, 2026-07-28): the head
+					 * left in the calibration position. It is NOT a
+					 * misread — it falls into chartread's "unexpected
+					 * error" branch, which prints a different message
+					 * and is the one Skip Patch has to survive. */
+					if (strcmp(fault, "wrong_config") == 0)
+						return inst_wrong_config;
 					return inst_misread;
 				}
 				memset(val, 0, sizeof(ipatch));

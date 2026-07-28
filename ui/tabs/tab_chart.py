@@ -7530,6 +7530,8 @@ class TabChart(QWidget):
         if self._runner.is_running:
             log.warning("A process is already running")
             return
+        if not self._confirm_displacing_results():
+            return
         # The per-ink inspector describes the PREVIOUS chart — drop it the
         # moment a new build starts; load_tiff rebuilds it for the new chart's
         # ink set when the build lands (#72, Basti).
@@ -8297,6 +8299,63 @@ class TabChart(QWidget):
         # (Knut #130 beta-2 test: switching Run type showed the wrong chart).
         self._shown_chart_ti2: "Path | None" = None
         controller.changed.connect(self._on_target_changed)
+
+    def _confirm_displacing_results(self) -> bool:
+        """Ask before a new chart displaces this run's measurement or profile.
+
+        Knut, #131 2026-07-28: he read one strip of a chart, went to Create
+        Chart, changed the column count and re-generated. The measurement was
+        archived to ``old/`` — correctly, and without a word — so back on the
+        Measure tab the run simply had no measurement any more. The "Refine /
+        resume" and "Show overlay" boxes were gone (there was nothing left to
+        resume or show), no "this chart already has a measurement" window came,
+        and none of that was wrong; it was just unexplained, and he spent a long
+        time thinking the checkboxes were broken.
+
+        Nothing is ever deleted — this only makes the move visible, and only
+        when there is something to move. A run with no results yet (the ordinary
+        case while you are still settling on chart options) never sees it.
+        """
+        try:
+            run = self._file_mgr.project().current_run()
+        except Exception:      # noqa: BLE001 — no project yet: nothing at risk
+            return True
+        if self._is_verification_target():
+            return True        # a verification build protects the run root
+        names = {run.measurement_ti3: tr("the measurement"),
+                 run.profile_icc:     tr("the printer profile")}
+        present = [label for path, label in names.items() if path.exists()]
+        if not present:
+            return True
+
+        from PyQt6.QtWidgets import QMessageBox
+        if len(present) == 1:
+            what = tr("This profile run already has {item}.").format(
+                item=present[0])
+        else:
+            what = tr("This profile run already has {first} and {second}.").format(
+                first=present[0], second=present[1])
+
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(tr("This run already has results"))
+        box.setText(what + "\n\n" + tr(
+            "A new chart replaces the patches this run is about to be measured "
+            "with, so what you measured earlier no longer describes it. Nothing "
+            "is deleted — it is moved into the run's “old” folder, where you can "
+            "always get it back:\n\n{folder}\n\n"
+            "Afterwards this run starts empty, so the Measure tab will no longer "
+            "offer to refine, resume or overlay that measurement — there will be "
+            "nothing left in the run to refine or show.\n\n"
+            "If you would rather keep it, choose “New run” in the Profile-run bar "
+            "and build the new chart there instead.").format(
+                folder=str(run.old_dir)))
+        go = box.addButton(tr("Generate the new chart"),
+                           QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(go)
+        box.exec()
+        return box.clickedButton() is go
 
     def _is_verification_target(self) -> bool:
         ctl = getattr(self, "_target_ctl", None)

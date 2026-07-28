@@ -3212,6 +3212,16 @@ class TabMeasure(QWidget):
         self.chart_load_requested.emit(ti2_path, list(tiffs or []))
 
     def _update_resume_availability(self) -> None:
+        # Whatever is painted on the preview describes the chart that was
+        # showing a moment ago, and this method runs exactly when that chart
+        # may have stopped being the current one — a different .ti2, a
+        # different profiling run, or the same chart re-generated underneath.
+        # Knut, #131 2026-07-28: he measured one strip of a 3-column chart,
+        # re-generated it with 4 columns, and the old strip stayed painted on
+        # top of the new one — then followed him into every other run he
+        # switched to. The painting is discarded here and re-established below
+        # from whatever the *current* chart actually has.
+        self._discard_stale_overlay()
         if self._ti1_path is None:
             for cb, tip, rcb in [
                 (self._resume_cb,   self._resume_tip,   self._refine_cb),
@@ -4027,6 +4037,8 @@ class TabMeasure(QWidget):
 
         params = self._collect_params()
         if not self._confirm_nonrandom_bidir(params):
+            return
+        if not self._confirm_replacing_measurement():
             return
         self._preview.set_bidirectional(self._effective_bidirectional(params))
         self._log.clear()
@@ -7160,6 +7172,50 @@ class TabMeasure(QWidget):
             self._preview.set_patch_overlay(page, its)
             self._preview.set_patch_info(page, infos[page])
 
+    def _confirm_replacing_measurement(self) -> bool:
+        """Ask before a fresh read writes over a measurement that is already there.
+
+        Knut, #131 2026-07-28: *"if I click on Start Measurement on a chart that
+        has a measurement, there is supposed to be a warning, which not always
+        comes."* It did not come at Start at all — the only warning about
+        replacement lived in the window that appears when a chart with a
+        measurement is **loaded**, so once that window had been dismissed (or
+        the chart was already open) nothing stood between a click and the old
+        readings.
+
+        It asks only when the read really would replace something: a
+        measurement exists **and** neither refine/resume is ticked, because with
+        either of those the existing readings are added to rather than
+        overwritten.
+        """
+        ti3 = self._existing_ti3_for_chart()
+        if ti3 is None:
+            return True
+        guided = self._current_mode() == "guided"
+        resume = (self._resume_cb if guided else self._m_resume_cb)
+        refine = (self._refine_cb if guided else self._m_refine_cb)
+        if (resume is not None and resume.isVisible() and resume.isChecked()) \
+           or (refine is not None and refine.isEnabled() and refine.isChecked()):
+            return True        # the old readings are kept and built on
+
+        from PyQt6.QtWidgets import QMessageBox
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(tr("This chart already has a measurement"))
+        box.setText(tr(
+            "Reading this chart again writes a new measurement over the one "
+            "that is already here:\n\n{file}\n\n"
+            "If you want to keep those readings and add to them instead, stop "
+            "here and tick “Refine / resume existing measurement (-r)” in the "
+            "options panel first — then the strips you read now are merged with "
+            "what is already measured, rather than replacing it.").format(
+                file=str(ti3)))
+        go = box.addButton(tr("Measure again"), QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(go)
+        box.exec()
+        return box.clickedButton() is go
+
     def _existing_ti3_for_chart(self) -> "Path | None":
         """The measured .ti3 sitting next to the loaded chart (#134), or None."""
         if self._ti1_path is None:
@@ -7196,6 +7252,47 @@ class TabMeasure(QWidget):
     def _clear_overlay(self) -> None:
         """Remove a statically-shown overlay (#134)."""
         self._preview.clear_patch_overlay()
+
+    def _chart_identity(self) -> "tuple | None":
+        """What makes the loaded chart *this* chart: its path and the moment its
+        .ti2 was written. The second half matters — re-generating a chart into
+        the same run keeps the path and replaces the patches, which is exactly
+        the case that fooled the preview (Knut, #131 2026-07-28)."""
+        if self._ti1_path is None:
+            return None
+        try:
+            return (str(self._ti1_path), self._ti1_path.stat().st_mtime_ns)
+        except OSError:
+            return (str(self._ti1_path), None)
+
+    def _discard_stale_overlay(self) -> None:
+        """Drop a painting that belongs to a chart we are leaving (#131).
+
+        Two different things end up on the preview and both had to go: the
+        static overlay read back from a .ti3, and the live expected-vs-measured
+        painting a measurement leaves behind. Only the first was ever cleared,
+        and only when its checkbox happened to be ticked — so the live one from
+        a part-measured chart survived a re-generation and every run switch
+        after it (Knut, #131 2026-07-28).
+
+        **Only when the chart has actually changed.** This runs from the same
+        place that refreshes the option boxes, and that place also runs at the
+        end of a measurement — where the painting is the freshly-read strips and
+        clearing it would blank the preview at the very moment the user wants to
+        see what they got. A measurement still in progress is skipped for the
+        same reason.
+        """
+        if self._runner.is_running:
+            return
+        now = self._chart_identity()
+        if now == getattr(self, "_painted_chart", None):
+            return
+        self._painted_chart = now
+        try:
+            self._clear_overlay()
+        except Exception:      # noqa: BLE001 — never block a chart change
+            log.warning("Could not clear the previous chart's overlay",
+                        exc_info=True)
 
     def _sync_overlay_checkboxes(self, checked: bool) -> None:
         """Keep the guided + manual 'Show overlay' boxes in step (#134)."""
