@@ -866,6 +866,12 @@ class TabMeasure(QWidget):
         # revisiting a run another day warns again. Keys come from
         # _replace_warning_scope().
         self._replace_warning_silenced: set = set()
+        # The same, for the "this chart already has a measurement" window that
+        # appears when a chart with readings is loaded or a run is switched to
+        # (Knut's scenario 4). A SEPARATE set: silencing one window must not
+        # silence the other — they say different things and one of them is the
+        # last guard before readings are overwritten.
+        self._offer_silenced: set = set()
         # A chart was loaded while another tab was on screen and still owes the
         # user the "this chart already has a measurement" offer — made when this
         # tab is next shown. See set_ti1_path / showEvent.
@@ -2840,8 +2846,18 @@ class TabMeasure(QWidget):
         """#134: when a freshly-loaded chart already has a measurement, show a
         small dialog offering BOTH choices as checkboxes (Basti): see it as an
         overlay, and/or refine/resume it so a new read doesn't replace it — with
-        a clear warning about replacement. The last choice is remembered."""
+        a clear warning about replacement. The last choice is remembered.
+
+        Knut ruled (#131, 2026-07-28) that this window is right to appear when
+        you switch Profile run or Run type — *"scenario 4: keep it"* — and that
+        it should carry the same per-run silence as the replace warning, so a
+        run you are working through stops asking while every other run, and the
+        same run tomorrow, still does.
+        """
         if self._existing_ti3_for_chart() is None:
+            return
+        scope_now = self._replace_warning_scope()
+        if scope_now is not None and scope_now in self._offer_silenced:
             return
         from PyQt6.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox,
                                      QLabel, QVBoxLayout)
@@ -2913,6 +2929,36 @@ class TabMeasure(QWidget):
         warn.setStyleSheet("color:#c8781e; font-weight:600;")
         lay.addWidget(warn)
 
+        # What each button does, spelled out — Knut, #131 2026-07-28: "Make
+        # sure the actions/consequences of each window's buttons are explained
+        # for all windows."
+        buttons_note = QLabel(tr(
+            "What each button does:\n\n"
+            "•  OK — applies the two choices above to this chart. Nothing is "
+            "measured and nothing is written yet; you still press Start "
+            "Measurement when you are ready.\n\n"
+            "•  Cancel — changes nothing at all. The chart stays loaded, your "
+            "existing measurement is untouched, and both settings stay as they "
+            "were. You can set either of them later in the options panel."), dlg)
+        buttons_note.setWordWrap(True)
+        buttons_note.setObjectName("overlay_note")
+        buttons_note.setStyleSheet(_info_css)
+        lay.addWidget(buttons_note)
+
+        # The same per-run, session-only silence as the replace warning — his
+        # ruling on scenario 4: "keep it and implement the same per-run 'don't
+        # ask again' I specified."
+        scope = self._replace_warning_scope()
+        ask_cb = None
+        if scope is not None:
+            ask_cb = QCheckBox(self._offer_silence_label(), dlg)
+            ask_cb.setStyleSheet(_green_cb_css)
+            ask_cb.setToolTip(tr(
+                "Only for this one run, and only until you close ChromIQ. Every "
+                "other run keeps asking, and so does this one the next time you "
+                "start the program."))
+            lay.addWidget(ask_cb)
+
         bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok
                               | QDialogButtonBox.StandardButton.Cancel, dlg)
         bb.accepted.connect(dlg.accept); bb.rejected.connect(dlg.reject)
@@ -2921,6 +2967,12 @@ class TabMeasure(QWidget):
         from PyQt6.QtWidgets import QDialog as _QD
         if dlg.exec() != int(_QD.DialogCode.Accepted):
             return
+        # Remembered only when the user went ahead — ticking and then
+        # cancelling means "not this time", not "never ask me again".
+        if ask_cb is not None and ask_cb.isChecked() and scope is not None:
+            self._offer_silenced.add(scope)
+            log.info("Existing-measurement offer silenced for %s (this session)",
+                     scope)
         want_overlay = show_cb.isChecked()
         want_resume = resume_cb.isChecked()
         # Remember the choice for next time.
@@ -5974,6 +6026,13 @@ class TabMeasure(QWidget):
         # leave the preview blank until the box was toggled off and on again
         # (Knut, #131 2026-07-27).
         self._restore_overlay_after_measurement()
+        # A run that had no measurement before now has one, so the two boxes
+        # that act on a measurement can appear — and the overlay box appears
+        # TICKED, matching the readings already drawn on the preview (Knut,
+        # #131 2026-07-28). Refreshed here so every completion path gets it,
+        # not only the interrupted one.
+        self._update_resume_availability()
+        self._adopt_overlay_after_first_measurement()
 
         if self._usb_claimed_by_vm:
             self._usb_claimed_by_vm = False
@@ -6230,6 +6289,10 @@ class TabMeasure(QWidget):
             cb = self._resume_cb if self._current_mode() == "guided" else self._m_resume_cb
             if cb.isVisible():
                 cb.setChecked(True)
+            # The overlay box has just appeared for the first time — tick it, so
+            # the control agrees with the readings already on the preview
+            # (Knut, #131 2026-07-28).
+            self._adopt_overlay_after_first_measurement()
             self._log.appendPlainText(
                 "\n" + tr("[INFO] Measurement was interrupted — partial readings saved.")
                 + f"\nSaved: {ti3}\n\n"
@@ -7254,7 +7317,12 @@ class TabMeasure(QWidget):
             "If you want to keep those readings and add to them instead, stop "
             "here and tick “Refine / resume existing measurement (-r)” in the "
             "options panel first — then the strips you read now are merged with "
-            "what is already measured, rather than replacing it.").format(
+            "what is already measured, rather than replacing it.\n\n"
+            "What each button does:\n\n"
+            "•  Measure again — starts the measurement now. When it finishes, "
+            "the file above is overwritten by what you read this time.\n\n"
+            "•  Cancel — nothing is measured and nothing is written. Your "
+            "existing measurement stays exactly as it is.").format(
                 file=str(ti3)))
         # Only offered where it can be scoped to one run — with no run selected
         # there is nothing to remember it against, and a blanket "never ask"
@@ -7315,6 +7383,19 @@ class TabMeasure(QWidget):
             return ("verification", root, run_id, vid)
         except Exception:      # noqa: BLE001 — a scope is a convenience, never a gate
             return None
+
+    def _offer_silence_label(self) -> str:
+        """The tick's wording in the existing-measurement window. It names the
+        window it silences, so silencing one is never mistaken for the other."""
+        ctl = getattr(self, "_target_ctl", None)
+        try:
+            if ctl is not None and ctl.target.is_verification():
+                return tr("Don't ask this again for this verification, until I "
+                          "close ChromIQ")
+        except Exception:      # noqa: BLE001
+            pass
+        return tr("Don't ask this again for this profile run, until I close "
+                  "ChromIQ")
 
     def _replace_warning_silence_label(self) -> str:
         """The tick's wording, naming the run it will be remembered for so the
@@ -7438,6 +7519,38 @@ class TabMeasure(QWidget):
                 cb.blockSignals(True)
                 cb.setChecked(checked)
                 cb.blockSignals(False)
+
+    def _adopt_overlay_after_first_measurement(self) -> None:
+        """Tick "Show overlay from existing measurement" when a measurement has
+        just created one (Knut, #131 2026-07-28).
+
+        His report: he measured a run that had nothing, read one strip and
+        stopped. The readings were on the preview — but the checkbox, which had
+        been hidden the whole time because there was no measurement to show,
+        appeared **unticked**. So the picture said "overlay on" and the control
+        said "overlay off".
+
+        His rule: *"After creating measurements, where the Show overlay function
+        did show during the measurement, then the checkbox should be ON when
+        exiting the measurement and the checkbox becomes visible."* Ticking it
+        also makes the two agree in substance, not just in appearance — the
+        painting is re-read from the finished .ti3.
+
+        Only on the transition. A box the user has deliberately unticked on a
+        chart that already had a measurement is left alone.
+        """
+        try:
+            if self._existing_ti3_for_chart() is None:
+                return
+            cb = (self._overlay_cb if self._current_mode() == "guided"
+                  else self._m_overlay_cb)
+            if cb is None or not cb.isVisible() or cb.isChecked():
+                return
+            self._sync_overlay_checkboxes(True)
+            self._show_overlay_from_existing_ti3()
+        except Exception:      # noqa: BLE001 — never break the end of a read
+            log.warning("Could not adopt the overlay after the measurement",
+                        exc_info=True)
 
     def _restore_overlay_after_measurement(self) -> None:
         """Put the from-measurement overlay back on the preview when the user

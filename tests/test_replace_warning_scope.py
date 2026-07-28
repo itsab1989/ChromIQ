@@ -300,3 +300,115 @@ def test_the_held_offer_is_made_only_once():
 def test_showing_the_tab_never_breaks_on_a_failed_offer():
     from ui.tabs.tab_measure import TabMeasure
     assert "except Exception" in inspect.getsource(TabMeasure.showEvent)
+
+
+# --- 7. the overlay offer carries the same silence (Knut's scenario 4) ----
+# *"scenario 4: keep it and Implement the same per-run 'don't ask again' I
+# specified."*
+def test_the_offer_window_can_be_silenced_per_run():
+    from ui.tabs.tab_measure import TabMeasure
+    src = inspect.getsource(TabMeasure._maybe_offer_existing_overlay)
+    assert "self._offer_silenced" in src
+    assert "_replace_warning_scope()" in src, "it must use the SAME scope rule"
+
+
+def test_the_offer_silence_is_consulted_before_the_window_is_built():
+    from ui.tabs.tab_measure import TabMeasure
+    lines = [l.strip() for l in
+             inspect.getsource(TabMeasure._maybe_offer_existing_overlay).splitlines()]
+    check = next(i for i, l in enumerate(lines) if "in self._offer_silenced" in l)
+    build = next(i for i, l in enumerate(lines) if "QDialog(self)" in l)
+    assert check < build
+
+
+def test_the_two_windows_have_separate_silences():
+    """Silencing the load-time offer must not silence the last guard before
+    readings are overwritten, and the other way round."""
+    from ui.tabs.tab_measure import TabMeasure
+    init = inspect.getsource(TabMeasure.__init__)
+    assert "self._offer_silenced: set = set()" in init
+    assert "self._replace_warning_silenced: set = set()" in init
+
+    offer = inspect.getsource(TabMeasure._maybe_offer_existing_overlay)
+    replace = inspect.getsource(TabMeasure._confirm_replacing_measurement)
+    assert "_replace_warning_silenced" not in offer
+    assert "_offer_silenced" not in replace
+
+
+def test_the_offer_silence_is_never_persisted():
+    from ui.tabs.tab_measure import TabMeasure
+    src = inspect.getsource(TabMeasure)
+    for bad in ('settings.set("offer_silenced', 'settings.set("_offer_silenced'):
+        assert bad not in src
+
+
+def test_cancelling_the_offer_never_silences_it():
+    from ui.tabs.tab_measure import TabMeasure
+    src = inspect.getsource(TabMeasure._maybe_offer_existing_overlay)
+    lines = [l.strip() for l in src.splitlines()]
+    ret = next(i for i, l in enumerate(lines) if "DialogCode.Accepted" in l)
+    add = next(i for i, l in enumerate(lines) if "self._offer_silenced.add" in l)
+    assert ret < add, "the silence is recorded before the window was accepted"
+
+
+def test_the_two_labels_name_which_window_they_silence(qapp, tmp_path):
+    from ui.tabs.tab_measure import TabMeasure
+
+    class _T(_Tab):
+        _offer_silence_label = TabMeasure._offer_silence_label
+
+    t = _T(_Ctl(_project(tmp_path), _Target(profile_run="run1")))
+    assert t._offer_silence_label() != t._replace_warning_silence_label(), \
+        "two windows that can be silenced separately need distinguishable ticks"
+
+
+# --- 8. every window explains what its buttons do ------------------------
+# *"Make sure the actions/consequences of each window's buttons are explained
+# for all windows."*
+def test_the_replace_warning_explains_its_buttons():
+    from ui.tabs.tab_measure import TabMeasure
+    src = inspect.getsource(TabMeasure._confirm_replacing_measurement)
+    assert "What each button does" in src
+    assert "Measure again — starts the measurement now" in src
+    assert "Cancel — nothing is measured and nothing is written" in src
+
+
+def test_the_offer_window_explains_its_buttons():
+    from ui.tabs.tab_measure import TabMeasure
+    src = inspect.getsource(TabMeasure._maybe_offer_existing_overlay)
+    assert "What each button does" in src
+    assert "OK — applies the two choices" in src
+    assert "Cancel — changes nothing at all" in src
+
+
+# --- 9. the overlay box is ON when it first appears ----------------------
+# His beta.76 report: he measured a run that had nothing, stopped after one
+# strip, and the readings were on the preview while the checkbox — newly
+# visible — was unticked.
+def test_a_first_measurement_ticks_the_overlay_box():
+    from ui.tabs.tab_measure import TabMeasure
+    src = inspect.getsource(TabMeasure._adopt_overlay_after_first_measurement)
+    assert "_sync_overlay_checkboxes(True)" in src
+    assert "_show_overlay_from_existing_ti3()" in src, \
+        "the picture and the control must agree in substance, not just look"
+
+
+def test_it_only_acts_on_the_transition():
+    """A box the user deliberately unticked on a chart that already had a
+    measurement must be left alone."""
+    from ui.tabs.tab_measure import TabMeasure
+    src = inspect.getsource(TabMeasure._adopt_overlay_after_first_measurement)
+    assert "cb.isChecked()" in src and "not cb.isVisible()" in src
+
+
+def test_both_completion_paths_reach_it():
+    from ui.tabs.tab_measure import TabMeasure
+    src = inspect.getsource(TabMeasure._on_measure_done)
+    assert src.count("_adopt_overlay_after_first_measurement()") >= 2, \
+        "the interrupted path and the ordinary one both have to tick it"
+
+
+def test_it_never_breaks_the_end_of_a_measurement():
+    from ui.tabs.tab_measure import TabMeasure
+    assert "except Exception" in inspect.getsource(
+        TabMeasure._adopt_overlay_after_first_measurement)

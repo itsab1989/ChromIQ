@@ -1,5 +1,30 @@
 # Changelog
 
+## v3.14.8-beta.78
+
+- **The “Show overlay from existing measurement” box is now ON when it first
+  appears.** You measured a run that had no measurement, read one strip and
+  stopped — the readings were on the preview, but the checkbox, which had been
+  hidden the whole time because there was nothing to show, came back unticked.
+  The picture said one thing and the control said another. A measurement that
+  has just created something to show now ticks the box as it becomes visible,
+  and the overlay is re-read from the finished measurement so the two agree in
+  substance and not only in appearance. A box you deliberately unticked on a
+  chart that already had a measurement is left alone.
+
+- **The “this chart already has a measurement” window can be silenced per run
+  too.** You ruled that it is right to appear when you switch Profile run or
+  Run type, and that it should carry the same “don't ask again” as the Start
+  Measurement warning. It now does: remembered for that one run — or that one
+  dated verification — and only until you close ChromIQ. The two windows keep
+  **separate** memories on purpose: silencing the one you meet on arrival must
+  never silence the last guard before readings are overwritten.
+
+- **Every one of these windows now explains what its buttons do**, in the window
+  itself: what “Measure again” will overwrite and when, and that “Cancel”
+  changes nothing at all — including that the arrival window's OK applies your
+  two choices without measuring or writing anything yet.
+
 ## v3.14.8-beta.77
 
 - **New “Delete” button in the Profile-run bar**, to the right of “Restore Used
