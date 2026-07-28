@@ -1,5 +1,23 @@
 # Changelog
 
+## v3.14.8-beta.80
+
+- **Nine instrument windows now sound as they appear, instead of before.** A
+  completion audit of every sound against the implementation record found that
+  eleven instrument signals carried the "Instrument error" sound — but only two
+  of them actually open a window when they fire. The other nine set a flag, and
+  their window is raised later, once the measurement has stopped. So the sound
+  arrived seconds early and the window itself arrived silent. Each of those
+  windows now plays the sound in its own branch, as it opens: instrument
+  disconnected, no instrument found, instrument busy, not accessible (claimed by
+  a virtual machine), failed to initialise, type mismatch, correction file
+  failed to load, and mode rejected.
+
+  The audit confirmed everything else matches: all seventeen windows and six
+  events play the sound the specification gives them, every sound has exactly
+  one box on Preferences ▸ Sounds, and nothing anywhere is wired to an audio
+  file — every event plays a named sound that its box decides.
+
 ## v3.14.8-beta.79
 
 - **The Delete windows' buttons no longer clip.** “DELETE RUN 4 PERMANENTLY”

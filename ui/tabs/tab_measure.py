@@ -6053,6 +6053,7 @@ class TabMeasure(QWidget):
         self._adopt_overlay_after_first_measurement()
 
         if self._usb_claimed_by_vm:
+            self._cue_window("INSTRUMENT_ERROR")   # as the window opens
             self._usb_claimed_by_vm = False
             from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout
             dlg = QDialog(self)
@@ -6083,6 +6084,7 @@ class TabMeasure(QWidget):
             return
 
         if self._no_instrument:
+            self._cue_window("INSTRUMENT_ERROR")   # as the window opens
             self._no_instrument = False
             from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout
             dlg = QDialog(self)
@@ -6122,6 +6124,7 @@ class TabMeasure(QWidget):
             return
 
         if self._device_busy:
+            self._cue_window("INSTRUMENT_ERROR")   # as the window opens
             self._device_busy = False
             from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout
             dlg = QDialog(self)
@@ -6149,6 +6152,7 @@ class TabMeasure(QWidget):
             return
 
         if self._instrument_disconnected:
+            self._cue_window("INSTRUMENT_ERROR")   # as the window opens
             self._instrument_disconnected = False
             from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout
             dlg = QDialog(self)
@@ -6178,6 +6182,7 @@ class TabMeasure(QWidget):
         # difference is which Argyll error string is shown.
         _b_init_msg = self._coms_init_failed_msg or self._inst_init_failed_msg
         if _b_init_msg:
+            self._cue_window("INSTRUMENT_ERROR")   # as the window opens
             self._coms_init_failed_msg = None
             self._inst_init_failed_msg = None
             from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout
@@ -6201,6 +6206,7 @@ class TabMeasure(QWidget):
             return
 
         if self._instrument_wrong_type:
+            self._cue_window("INSTRUMENT_ERROR")   # as the window opens
             cap = self._instrument_wrong_type
             self._instrument_wrong_type = None
             from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout
@@ -6224,6 +6230,7 @@ class TabMeasure(QWidget):
             return
 
         if self._ccmx_load_failed_msg:
+            self._cue_window("INSTRUMENT_ERROR")   # as the window opens
             err = self._ccmx_load_failed_msg
             self._ccmx_load_failed_msg = None
             from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout
@@ -6247,6 +6254,7 @@ class TabMeasure(QWidget):
             return
 
         if self._mode_set_failed_msg:
+            self._cue_window("INSTRUMENT_ERROR")   # as the window opens
             err = self._mode_set_failed_msg
             self._mode_set_failed_msg = None
             from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout
@@ -6980,18 +6988,23 @@ class TabMeasure(QWidget):
             self._sound.play(_snd.MEASUREMENT_FINISHED)
 
     def _connect_instrument_error_cues(self) -> None:
-        """Wire the instrument-error cue to every signal that raises an
-        instrument window. Called BEFORE those windows' own slots are connected,
-        so the sound is heard as the window appears rather than when it is
-        dismissed (#131, Knut 2026-07-27)."""
+        """Cue the two instrument windows that open **the moment their signal
+        arrives**. Connected BEFORE those windows' own slots, so the sound is
+        heard as the window appears rather than when it is dismissed (#131,
+        Knut 2026-07-27).
+
+        **Only these two.** The completion audit of 2026-07-28 (Knut: *"compare
+        … and note any discrepancies between the design specification and
+        implementation"*) found that the other nine instrument signals do not
+        open a window at all — they set a flag, and the window is raised later,
+        in :meth:`_on_measure_done`, once the process has exited. Cueing those
+        from the signal played the sound seconds before the window it belongs
+        to, which is exactly what his rule forbids. They are now cued where
+        they are actually raised.
+        """
         import core.sound as _snd
         _m = self._manager
-        for _sig in (_m.instrument_disconnected, _m.no_instrument,
-                     _m.device_busy, _m.sensor_wrong_position,
-                     _m.usb_claimed_by_vm,
-                     _m.generic_instrument_error, _m.coms_init_failed,
-                     _m.inst_init_failed, _m.instrument_wrong_type,
-                     _m.ccmx_load_failed, _m.mode_set_failed):
+        for _sig in (_m.sensor_wrong_position, _m.generic_instrument_error):
             _sig.connect(lambda *_: self._sound.play(_snd.INSTRUMENT_ERROR))
 
     def _use_outlier_fence(self) -> bool:

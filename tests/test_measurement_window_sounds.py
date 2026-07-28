@@ -73,16 +73,58 @@ def test_the_instrument_error_cues_are_connected_before_their_windows():
             f"window is dismissed")
 
 
-def test_every_error_signal_that_opens_a_window_has_a_cue():
-    """A new window must not be able to arrive silent. The list of signals that
-    carry a cue is checked against the slots that open windows."""
+def test_only_signals_that_really_open_a_window_are_cued_from_the_signal():
+    """Rewritten after the completion audit of 2026-07-28 (Knut).
+
+    The old version asserted that **all eleven** instrument signals were cued
+    from the signal. That was the wrong requirement, and it was hiding a fault:
+    nine of those signals do not open a window at all. They set a flag, and the
+    window is raised later in ``_on_measure_done`` — after the process has
+    exited. Cueing them from the signal played the sound seconds BEFORE the
+    window it belongs to, breaking the rule the cue exists to keep.
+
+    Only the two that really do open a window as the signal arrives belong here.
+    """
     cues = inspect.getsource(TabMeasure._connect_instrument_error_cues)
-    for signal in ("instrument_disconnected", "no_instrument", "device_busy",
-                   "sensor_wrong_position", "usb_claimed_by_vm",
-                   "generic_instrument_error", "coms_init_failed",
-                   "inst_init_failed", "instrument_wrong_type",
-                   "ccmx_load_failed", "mode_set_failed"):
-        assert signal in cues, f"{signal} has no cue"
+    for signal in ("sensor_wrong_position", "generic_instrument_error"):
+        assert signal in cues, f"{signal} opens a window at once and needs a cue"
+    for deferred in ("instrument_disconnected", "no_instrument", "device_busy",
+                     "usb_claimed_by_vm", "coms_init_failed",
+                     "inst_init_failed", "instrument_wrong_type",
+                     "ccmx_load_failed", "mode_set_failed"):
+        assert deferred not in cues, (
+            f"{deferred} does not open a window when it fires — cueing it here "
+            f"plays the sound before the window appears")
+
+
+def test_every_deferred_instrument_window_cues_itself_as_it_opens():
+    """The other half of the same rule: each window raised at the end of a
+    measurement plays the cue in its own branch, so sound and window arrive
+    together."""
+    src = inspect.getsource(TabMeasure._on_measure_done)
+    guards = ("if self._usb_claimed_by_vm:", "if self._no_instrument:",
+              "if self._device_busy:", "if self._instrument_disconnected:",
+              "if _b_init_msg:", "if self._instrument_wrong_type:",
+              "if self._ccmx_load_failed_msg:", "if self._mode_set_failed_msg:")
+    lines = [l.strip() for l in src.splitlines()]
+    for guard in guards:
+        i = next((n for n, l in enumerate(lines) if l == guard), None)
+        assert i is not None, f"{guard} is gone — has the window moved?"
+        following = " ".join(lines[i + 1:i + 4])
+        assert '_cue_window("INSTRUMENT_ERROR")' in following, (
+            f"the window behind {guard} opens without its sound")
+
+
+def test_the_cue_comes_before_the_window_is_built_in_each_branch():
+    src = inspect.getsource(TabMeasure._on_measure_done)
+    lines = [l.strip() for l in src.splitlines()]
+    for n, line in enumerate(lines):
+        if '_cue_window("INSTRUMENT_ERROR")' not in line:
+            continue
+        after = lines[n + 1:n + 12]
+        built = next((k for k, l in enumerate(after) if "QDialog(self)" in l), None)
+        if built is not None:
+            assert built >= 0, "the cue must precede the dialog"
 
 
 def test_the_strip_windows_keep_their_own_arrangements():

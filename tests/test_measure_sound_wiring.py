@@ -63,8 +63,31 @@ def test_strip_and_error_signals_make_sound():
     tab, played = _make_tab()
     tab._manager.strip_measured.emit({"strip": "A"})
     tab._manager.strip_error.emit("read failed")
+    assert played == [snd.STRIP_OK, snd.STRIP_FAIL]
+
+
+def test_a_signal_that_only_raises_its_window_later_stays_silent():
+    """Changed by the completion audit of 2026-07-28 (Knut).
+
+    ``instrument_disconnected`` used to sound the instrument-error cue the
+    moment it arrived. But it does not open a window — it sets a flag, and the
+    window is raised later, once the measurement process has exited. So the
+    sound came seconds before the window it belongs to, and the window itself
+    arrived silent. It is now cued where it is actually raised, which is what
+    his rule asks for: the sound at the same time as the window.
+    """
+    tab, played = _make_tab()
     tab._manager.instrument_disconnected.emit()
-    assert played == [snd.STRIP_OK, snd.STRIP_FAIL, snd.INSTRUMENT_ERROR]
+    assert played == [], (
+        "the sound arrived while the window is still several seconds away")
+    assert tab._instrument_disconnected is True, "the flag must still be set"
+
+
+def test_the_window_that_flag_raises_does_sound():
+    """The other half: when that window is finally built, it cues itself."""
+    tab, played = _make_tab()
+    tab._cue_window("INSTRUMENT_ERROR")
+    assert played == [snd.INSTRUMENT_ERROR]
 
 
 def test_slow_down_text_maps_to_slow_down_sound():
