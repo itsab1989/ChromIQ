@@ -3586,6 +3586,12 @@ class TabMeasure(QWidget):
         # how long time I waited to click Retry").
         started = getattr(self, "_scan_started_at", None)
         self._scan_started_at = None
+        # Reading patch by patch there is no swipe to have been too quick, so
+        # none of this applies — and its advice ("check that the swipe starts
+        # before the first patch…") describes something the user is not doing
+        # (Knut, #131 2026-07-27).
+        if bool(getattr(self, "_spot_session", False)):
+            return
         if not self._settings.get("pace_hint_enabled", True):
             return
         try:
@@ -4861,7 +4867,9 @@ class TabMeasure(QWidget):
         QApplication.instance().removeEventFilter(self)
 
         dlg = QDialog(self)
-        dlg.setWindowTitle(tr("Strip Read Failed"))
+        dlg.setWindowTitle(tr("Patch Read Failed")
+                          if bool(getattr(self, "_spot_session", False))
+                          else tr("Strip Read Failed"))
         dlg.setMinimumWidth(520)
 
         layout = QVBoxLayout(dlg)
@@ -4893,6 +4901,17 @@ class TabMeasure(QWidget):
                 "computer if possible, not through a hub — and only then click "
                 "<i>Save Partial &amp; Quit</i>. If the instrument stays silent, "
                 "the readings from this session cannot be saved.") + "<br><br>"
+        elif bool(getattr(self, "_spot_session", False)):
+            # Reading one patch at a time there is no swipe, so swipe advice is
+            # not merely unhelpful — it describes an action the user is not
+            # performing (Knut, #131 2026-07-27).
+            advice = tr(
+                "<b>The patch could not be read:</b> {reason}<br><br>"
+                "Place the instrument flat on the patch, covering it fully, and "
+                "read again. If the error keeps happening, check that the "
+                "instrument is on the patch the arrow points to and that the "
+                "sheet is lying flat."
+            ).format(reason=reason) + "<br><br>"
         else:
             advice = tr(
                 "<b>The strip could not be read:</b> {reason}<br><br>"
@@ -4904,13 +4923,28 @@ class TabMeasure(QWidget):
         # Worked out before the text, because the second choice changes both
         # its name and what it does when this is the only unread stripe.
         last_one = self._is_last_unread_strip()
-        if last_one:
+        _spot = bool(getattr(self, "_spot_session", False))
+        if last_one and _spot:
+            choices = tr(
+                "&nbsp;&nbsp;<b>Retry</b> — read this same patch again.<br>"
+                "&nbsp;&nbsp;<b>Finish Without This Patch</b> — this is the only "
+                "patch still unread, so there is nowhere to move on to. Saves "
+                "the patches you have read and ends the measurement; loading the "
+                "chart again lets you continue from here.<br>")
+        elif last_one:
             choices = tr(
                 "&nbsp;&nbsp;<b>Retry</b> — read this same strip again.<br>"
                 "&nbsp;&nbsp;<b>Finish Without This Strip</b> — this is the only "
                 "strip still unread, so there is nowhere to skip to. Saves the "
                 "strips you have read and ends the measurement; loading the "
                 "chart again lets you continue from here.<br>")
+        elif _spot:
+            choices = tr(
+                "&nbsp;&nbsp;<b>Retry</b> — read this same patch again.<br>"
+                "&nbsp;&nbsp;<b>Skip Patch</b> — leave this patch unread and move "
+                "on to the next one. You can come back to it later in this "
+                "session; the chart is not finished until every patch has a "
+                "reading.<br>")
         else:
             choices = tr(
                 "&nbsp;&nbsp;<b>Retry</b> — read this same strip again.<br>"
@@ -6736,6 +6770,18 @@ class TabMeasure(QWidget):
                     n=self._pace_patches)
             group.setTitle(title if self._pace_patches else
                            tr("Strip reading times"))
+            # Which strips have you read in THIS session? Exactly the ones with
+            # a time under them — which matters most while refining, where every
+            # strip already holds a reading and the overlay looks the same
+            # either way (Knut, #131 2026-07-27).
+            group.setToolTip(tr(
+                "One time for each strip you have read in this session, under "
+                "the strip it belongs to.\n\n"
+                "While you are refining an existing measurement this is also "
+                "how you see your own progress: every strip on the sheet "
+                "already has a reading, so the overlay looks the same whether "
+                "you have re-read a strip or not — but only the strips you have "
+                "read now have a time here."))
             group.setVisible(bool(columns))
         panel.set_content("", sorted(columns), verdict, colour)
 

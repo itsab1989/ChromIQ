@@ -239,6 +239,8 @@ class MeasureManager(QObject):
         #: user had re-read anything (Knut, #131 2026-07-27).
         self._read_something: bool = False
         self._spot_mode: bool = False
+        #: whether every strip already held a reading when the session opened.
+        self._chart_was_complete: bool = False
         self._guided_strips: list[str] = []
         self._guided_idx:    int  = 0
         # "disabled" until strips are actually given: everywhere else the rule
@@ -284,6 +286,7 @@ class MeasureManager(QObject):
         #: patch-by-patch (spot) reading, which answers keys differently — see
         #: :meth:`skip_current_strip`.
         self._spot_mode      = bool(params.patch_by_patch)
+        self._chart_was_complete = False
         self._guided_on_line = on_line
         # Reset guided state for this run
         self._guided_idx   = 0
@@ -671,13 +674,22 @@ class MeasureManager(QObject):
     def _all_done_is_news(self) -> bool:
         """Whether "all stripes read" is worth announcing.
 
-        On a **resume** the chart is already complete, so chartread says so as
-        soon as it offers the strip menu — before the user has re-read a single
-        strip. Announcing it there is worse than useless: it is the completion
-        window, offering to move on, at the exact moment somebody sat down to
-        refine a strip (Knut, #131 2026-07-27). During a resume it waits until
-        something has actually been read; a normal run is unaffected.
+        It is news only when the chart **became** complete in this session.
+
+        Opening a chart that was already finished — a refine, or a re-read of a
+        measurement you kept — and re-reading one strip does not complete
+        anything: it was complete before you started. Announcing it there put
+        the completion window in front of Knut every time he answered a strip
+        window, as though he had just finished (#131, 2026-07-27/28). Reading the
+        last outstanding strip of a partly-measured chart, on the other hand, IS
+        a completion, and still says so.
+
+        Verified against the real reading engine: on a complete chart the
+        announcement is now silent both at the menu and after a re-read; on a
+        chart with one strip left it still arrives when that strip is read.
         """
+        if self._chart_was_complete:
+            return False
         return bool(self._read_something or not self._is_resume)
 
     def _handle_engine_line(self, line: str,
@@ -696,7 +708,13 @@ class MeasureManager(QObject):
         kind = ev["event"]
 
         if kind == "session_start":
-            self.session_map.emit(ev.get("strips", []))
+            strips = ev.get("strips", [])
+            # Was there anything left to read when we opened it? That is what
+            # decides whether "all strips read" can ever be news in this
+            # session — see _all_done_is_news.
+            self._chart_was_complete = bool(strips) and all(
+                s.get("read") for s in strips)
+            self.session_map.emit(strips)
 
         elif kind == "strip_ready":
             strip = ev.get("strip", "")

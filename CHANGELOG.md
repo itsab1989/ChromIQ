@@ -1,5 +1,26 @@
 # Changelog
 
+## v3.14.8-beta.69
+
+- **"All strips read" no longer interrupts a refine.** Opening a measurement
+  that is already finished and re-reading one strip completes nothing — it was
+  complete before you started — yet the completion window appeared every time
+  you answered a strip window. It is now announced only when the chart actually
+  *became* complete in this session: read the last outstanding strip of a
+  partly-measured chart and it still arrives, exactly as it should.
+
+- **The failure window fits the mode you are reading in.** Patch by patch it is
+  titled **Patch Read Failed**, says *"The patch could not be read"*, offers
+  **Skip Patch** / **Finish Without This Patch**, and advises what actually
+  applies — place the instrument flat on the patch, covering it fully — instead
+  of describing a swipe you are not performing. The reading-speed verdict stays
+  silent there for the same reason: there is no swipe to judge.
+
+- **The reading-times panel explains that it is your progress.** While refining,
+  every strip on the sheet already holds a reading, so the overlay looks the
+  same whether you have re-read a strip or not — but only the strips you have
+  read *now* have a time under them, and the panel says so.
+
 ## v3.14.8-beta.68
 
 - **Skip works in patch-by-patch mode, and the button says "Skip Patch" there.**
