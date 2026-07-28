@@ -1,5 +1,21 @@
 # Changelog
 
+## v3.14.8-beta.70
+
+- **Every measurement window and its sound, as a table you can read.**
+  *Preferences → Measurement* gains **"Which sound belongs to which window
+  during a measurement"** — seventeen windows and six event sounds, each with
+  the reading mode it belongs to and the sound played **as the window opens**,
+  named exactly as it appears in Preferences → Sounds so you can change it
+  there. It also states the two rules that surprise people: the completion sound
+  waits half a second so the last strip's cue can finish, and ChromIQ stays
+  silent while stock ArgyllCMS chartread is reading, because Argyll beeps for
+  itself there.
+
+- Help texts can now carry a real table. A proportional font cannot align
+  columns any other way, which is why the earlier attempt was unreadable —
+  checked in both the light and the dark theme.
+
 ## v3.14.8-beta.69
 
 - **"All strips read" no longer interrupts a refine.** Opening a measurement

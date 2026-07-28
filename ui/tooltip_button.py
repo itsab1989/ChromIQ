@@ -208,10 +208,35 @@ class _InfoDialog(QDialog):
         # Body lives inside a scroll area: the dialog grows to show it in full
         # when it fits, and scrolls instead of overflowing the screen when it
         # doesn't.
+        # A rich-text body does NOT inherit the label's colour: the table cells
+        # come out in the default black, which is unreadable on the dark theme
+        # (and the border invisible on the light one). So the colour is written
+        # into the HTML, from the same value the rest of the dialog uses — which
+        # keeps it correct in both themes.
+        _rich = "<table" in body
+        if _rich:
+            body = body.replace("<table ",
+                                f'<table bordercolor="{text_color}" ')
         text = QLabel(body, self)
         text.setWordWrap(True)
         text.setStyleSheet(f"color: {text_color};")
-        text.setTextFormat(Qt.TextFormat.PlainText)
+        if _rich:
+            # A style sheet colours a PLAIN label; rich text takes its default
+            # colour from the palette instead, so a table came out in black on
+            # the dark theme — unreadable. Setting the palette is what actually
+            # reaches the cells.
+            from PyQt6.QtGui import QColor
+            _pal = text.palette()
+            for _role in (QPalette.ColorRole.WindowText, QPalette.ColorRole.Text):
+                _pal.setColor(_role, QColor(text_color))
+            text.setPalette(_pal)
+        # Plain text by default — help bodies are written as prose and a stray
+        # "<" must never be swallowed as markup. A body that carries a real
+        # table is the exception: Knut asked for the windows-and-sounds summary
+        # to be "actually shown as a table" (#131, 2026-07-27), and a
+        # proportional font cannot align columns any other way.
+        text.setTextFormat(Qt.TextFormat.RichText if _rich
+                           else Qt.TextFormat.PlainText)
         text.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
 
         scroll = _BodyScrollArea(self)

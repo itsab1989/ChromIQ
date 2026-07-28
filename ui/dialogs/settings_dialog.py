@@ -1391,6 +1391,20 @@ class SettingsDialog(QDialog):
         note.setStyleSheet("color: #909090; font-size: 11px;")
         v.addWidget(note)
 
+        # The full windows-and-sounds table, in one common place (Knut, #131
+        # 2026-07-27: "A common help text icon for the preferences measurements
+        # tab can also include this").
+        _wnd_row = QHBoxLayout()
+        _wnd_row.addWidget(QLabel(
+            tr("Which sound belongs to which window during a measurement:"), self))
+        from core.measure_windows import windows_and_sounds_html
+        from ui.tooltip_button import TooltipButton
+        _wnd_row.addWidget(TooltipButton(
+            tr("Measurement windows and their sounds"),
+            windows_and_sounds_html(), self))
+        _wnd_row.addStretch(1)
+        v.addLayout(_wnd_row)
+
         self._pace_enable = QCheckBox(tr("Warn me when I read a strip too fast"), self)
         self._pace_enable.setChecked(bool(self._settings.get("pace_hint_enabled", True)))
         v.addWidget(self._pace_enable)
