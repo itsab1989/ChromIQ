@@ -79,6 +79,58 @@ def _ti2(stem: str, patches: int, rows: int) -> str:
     return "\n".join(head)
 
 
+def _ti3_from_ti2(ti2: Path, *, drift: float = 0.0) -> str:
+    """A measurement of the chart that is actually there.
+
+    Reads the real ``.ti2`` and writes one reading per patch, so the ``.ti3``
+    has the same SAMPLE_IDs and device values as the chart — which is what makes
+    it loadable, reportable and refinable. ``drift`` shifts every reading a
+    little, so a series of verifications trends instead of repeating.
+    """
+    rows, fields = [], []
+    in_fmt = in_data = False
+    for line in ti2.read_text().splitlines():
+        s = line.strip()
+        if s == "BEGIN_DATA_FORMAT":
+            in_fmt = True; continue
+        if s == "END_DATA_FORMAT":
+            in_fmt = False; continue
+        if in_fmt:
+            fields = s.split(); continue
+        if s == "BEGIN_DATA":
+            in_data = True; continue
+        if s == "END_DATA":
+            break
+        if in_data and s:
+            rows.append(s.split())
+    idx = {n: i for i, n in enumerate(fields)}
+    ir, ig, ib = idx.get("RGB_R"), idx.get("RGB_G"), idx.get("RGB_B")
+
+    out = [
+        "CTI3", "", 'DESCRIPTOR "Argyll Calibration Target chart information 3"',
+        'ORIGINATOR "Argyll chartread"',
+        f'CREATED "{datetime.now():%a %b %d %H:%M:%S %Y}"',
+        'KEYWORD "DEVICE_CLASS"', 'DEVICE_CLASS "OUTPUT"',
+        'KEYWORD "COLOR_REP"', 'COLOR_REP "RGB_XYZ"',
+        "NUMBER_OF_FIELDS 7", "BEGIN_DATA_FORMAT",
+        "SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z", "END_DATA_FORMAT",
+        f"NUMBER_OF_SETS {len(rows)}", "BEGIN_DATA",
+    ]
+    rnd = random.Random(f"{ti2.name}-{drift}")
+    for n, row in enumerate(rows, start=1):
+        r = float(row[ir]) if ir is not None else rnd.uniform(0, 100)
+        g = float(row[ig]) if ig is not None else rnd.uniform(0, 100)
+        b = float(row[ib]) if ib is not None else rnd.uniform(0, 100)
+        # a plausible printer: slightly dark, slightly warm, plus the drift
+        j = rnd.uniform(-0.35, 0.35)
+        x = max(0.0, r * 0.86 + b * 0.14 + drift + j)
+        y = max(0.0, g * 0.92 + r * 0.06 + drift + j)
+        z = max(0.0, b * 1.02 + drift + j)
+        out.append(f"{n} {r:.4f} {g:.4f} {b:.4f} {x:.4f} {y:.4f} {z:.4f}")
+    out += ["END_DATA", ""]
+    return "\n".join(out)
+
+
 def _ti3(stem: str, patches: int, *, drift: float = 0.0) -> str:
     rnd = random.Random(f"{stem}-ti3-{drift}")
     head = [
@@ -100,14 +152,46 @@ def _ti3(stem: str, patches: int, *, drift: float = 0.0) -> str:
     return "\n".join(head)
 
 
-def _icc(stem: str) -> bytes:
-    """Not a valid profile — a recognisable stand-in of plausible size."""
-    return (b"\x00\x00\x0c\x48acspAPPL" + stem.encode("ascii", "replace")
-            .ljust(64, b"\0") + b"\0" * 1024)
+def _build_icc(run_dir: Path, stem: str) -> bool:
+    """Build a REAL ICC profile from the run's measurement, with colprof.
+
+    A stub of the right size would have been quicker, and would have been the
+    same mistake as the stub TIFFs: a demo project whose profile cannot be
+    opened, inspected or soft-proofed tests nothing. Returns False (with a
+    note) if colprof is unavailable, rather than leaving a fake behind.
+    """
+    import subprocess
+    try:
+        colprof = _argyll("colprof")
+    except SystemExit:
+        return False
+    try:
+        # No -a: an OUTPUT profile can only use the cLUT algorithm, and
+        # colprof refuses -aG outright ("Output profile can only be a cLUT
+        # algorithm"). -qm keeps it quick enough for a demo.
+        subprocess.run([colprof, "-v0", "-qm", f"-D{stem} (demo)", stem],
+                       cwd=run_dir, check=True, capture_output=True, timeout=300)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+        print(f"    (colprof failed for {stem}: {exc}) — no profile written")
+        return False
+    return (run_dir / f"{stem}.icc").is_file()
 
 
-def _tiff(page: int) -> bytes:
-    return b"II*\x00\x08\x00\x00\x00" + bytes([page]) * 512
+def _write_tiff(path: Path, page: int) -> None:
+    """A REAL, small TIFF — used only for the scanner diagnostic stand-in.
+
+    The page images themselves come from the chart engine. This one still has
+    to be a valid image: Knut found the first attempt's stubs unopenable, and a
+    file that cannot be opened is worse than one that is not there.
+    """
+    from PIL import Image
+    img = Image.new("RGB", (240, 160), (250, 250, 248))
+    for x in range(0, 240, 30):
+        for y in range(0, 160, 40):
+            band = ((x // 30) * 37 + page * 20) % 256
+            img.paste((band, (band + 80) % 256, (band + 160) % 256),
+                      (x, y, x + 28, y + 38))
+    img.save(path, format="TIFF")
 
 
 def _report(stem: str, when: datetime, de: float) -> str:
@@ -125,19 +209,59 @@ def _report(stem: str, when: datetime, de: float) -> str:
 
 
 # ---------------------------------------------------------------------------
+def _argyll(tool: str) -> str:
+    for base in ("/Applications/Argyll/bin", "/usr/local/bin", "/opt/homebrew/bin"):
+        p = Path(base) / tool
+        if p.exists():
+            return str(p)
+    found = shutil.which(tool)
+    if found:
+        return found
+    raise SystemExit(f"ArgyllCMS {tool} not found — install it, or set PATH.")
+
+
 def _chart_files(into: Path, stem: str, *, patches: int, rows: int,
-                 pages: int = 1) -> None:
+                 pages: int = 1, instrument: str = "CM") -> None:
+    """Build a **real** chart: real ``targen`` patches, laid out by ChromIQ's own
+    engine, with real page TIFFs and a real layout recipe.
+
+    Knut, #130 2026-07-28: *"The demo projects contain tif files that are not
+    viewable, and the projects do not contain json files for the charts, so
+    their chart data is not loaded."* The first attempt wrote plausible-looking
+    stubs — the folder shape was right and nothing in it worked. Demo data has
+    to be **openable**, or it tests nothing.
+
+    So the pipeline here is the same one the application uses: ``targen`` makes
+    the patch set, :func:`workflow.layout_engine.chart.build_chart` lays it out,
+    and the layout is folded into ``<stem>.channels.json`` exactly as
+    ``ChartCreator._embed_layout_geometry`` does — which is what lets the chart
+    reopen with its own settings instead of "carries no saved layout recipe".
+    """
+    import subprocess
+
+    from workflow.layout_engine.chart import build_chart
+    from workflow.layout_engine.presets import LayoutRecipe
+
     into.mkdir(parents=True, exist_ok=True)
-    (into / f"{stem}.ti1").write_text(_ti2(stem, patches, rows))
-    (into / f"{stem}.ti2").write_text(_ti2(stem, patches, rows))
-    (into / f"{stem}.cht").write_text(f"BOXES {patches}\n")
-    (into / f"{stem}.ps").write_text("%!PS-Adobe-3.0\n% demo\n")
-    (into / f"{stem}.channels.json").write_text(
-        json.dumps({"channels": ["r", "g", "b"]}, indent=2))
-    (into / f"{stem}.strips.json").write_text(
-        json.dumps({"rows": rows, "patches": patches}, indent=2))
-    for p in range(1, pages + 1):
-        (into / f"{stem}_{p:02d}.tif").write_bytes(_tiff(p))
+    base = into / stem
+    subprocess.run([_argyll("targen"), "-v0", "-d2", "-G", f"-f{patches}", stem],
+                   cwd=into, check=True, capture_output=True)
+    kwargs = dict(instrument=instrument, paper="A4", randomize=False)
+    result = build_chart(base.with_suffix(".ti1"), base, **kwargs)
+
+    # …and the sidecar the application writes, so the chart carries its recipe.
+    sidecar = into / f"{stem}.channels.json"
+    strips = into / f"{stem}.strips.json"
+    doc = {"channels": ["r", "g", "b"]}
+    layout = json.loads(strips.read_text()) if strips.exists() else {}
+    layout["engine"] = "chromiq"
+    layout["engine_version"] = 1
+    layout["seed"] = getattr(result, "seed", 0)
+    layout["color_rep"] = getattr(result, "color_rep", "RGB")
+    layout["recipe"] = LayoutRecipe.from_build_kwargs(kwargs).to_dict()
+    doc["layout"] = layout
+    sidecar.write_text(json.dumps(doc))
+    strips.unlink(missing_ok=True)      # geometry now lives in channels.json
 
 
 def _write_manifest(root: Path, name: str, runs: list, current: str,
@@ -163,8 +287,9 @@ def _verification(run_dir: Path, stem: str, when: datetime, de: float) -> None:
     vdir = run_dir / "verifications" / when.strftime("%Y-%m-%d_%H%M%S")
     (vdir / "chart").mkdir(parents=True, exist_ok=True)
     (vdir / "reports").mkdir(parents=True, exist_ok=True)
-    (vdir / f"{stem}-verify.ti3").write_text(_ti3(stem, 60, drift=de))
-    (vdir / "chart" / f"{stem}-verify.ti2").write_text(_ti2(stem, 60, 10))
+    verify_ti2 = run_dir / "verifications" / f"{stem}-verify.ti2"
+    (vdir / f"{stem}-verify.ti3").write_text(_ti3_from_ti2(verify_ti2, drift=de))
+    shutil.copy2(verify_ti2, vdir / "chart" / f"{stem}-verify.ti2")
     (vdir / "reports" / f"report_{when:%Y-%m-%d_%H-%M-%S}.json").write_text(
         _report(f"{stem}-verify", when, de))
 
@@ -180,15 +305,15 @@ def build_full(root: Path) -> None:
     _write_manifest(p, name, ["run1", "run2", "run3"], "run3", 3)
     (p / "cal").mkdir(parents=True, exist_ok=True)
     _chart_files(p / "cal", f"{stem}-cal", patches=60, rows=10)
-    (p / "cal" / f"{stem}-cal.ti3").write_text(_ti3(f"{stem}-cal", 60))
+    (p / "cal" / f"{stem}-cal.ti3").write_text(_ti3_from_ti2(p / "cal" / f"{stem}-cal.ti2"))
     (p / "exports").mkdir(exist_ok=True)
     (p / "exports" / f"{stem}-colours.txt").write_text("# demo export\n")
 
     # run1 — a finished profile with everything around it
     r1 = p / "runs" / "run1"
     _chart_files(r1, stem, patches=240, rows=15, pages=2)
-    (r1 / f"{stem}.ti3").write_text(_ti3(stem, 240))
-    (r1 / f"{stem}.icc").write_bytes(_icc(stem))
+    (r1 / f"{stem}.ti3").write_text(_ti3_from_ti2(r1 / f"{stem}.ti2"))
+    _build_icc(r1, stem)
     (r1 / "chart").mkdir(exist_ok=True)
     _chart_files(r1 / "chart", stem, patches=240, rows=15, pages=2)
     for sub, fname, body in (
@@ -199,21 +324,21 @@ def build_full(root: Path) -> None:
             ("cache", f"{stem}-diag.tif", None)):
         (r1 / sub).mkdir(exist_ok=True)
         if body is None:
-            (r1 / sub / fname).write_bytes(_tiff(9))
+            _write_tiff(r1 / sub / fname, 9)
         else:
             (r1 / sub / fname).write_text(body)
     (r1 / "reads").mkdir(exist_ok=True)
     for n in (1, 2):
-        (r1 / "reads" / f"read{n}.ti3").write_text(_ti3(stem, 240, drift=n * 0.2))
+        (r1 / "reads" / f"read{n}.ti3").write_text(_ti3_from_ti2(r1 / f"{stem}.ti2", drift=n * 0.2))
     _meta(r1, "run1", averaging_enabled=True, averaging_read_count=2)
 
     # run2 — refined from run1, and verified twice
     r2 = p / "runs" / "run2"
     _chart_files(r2, stem, patches=240, rows=15, pages=2)
-    (r2 / f"{stem}.ti3").write_text(_ti3(stem, 240, drift=0.4))
-    (r2 / f"{stem}.icc").write_bytes(_icc(stem))
-    (r2 / "preconditioning.ti3").write_text(_ti3(stem, 240))
-    (r2 / "preconditioning.icc").write_bytes(_icc(stem))
+    (r2 / f"{stem}.ti3").write_text(_ti3_from_ti2(r2 / f"{stem}.ti2", drift=0.4))
+    _build_icc(r2, stem)
+    (r2 / "preconditioning.ti3").write_text(_ti3_from_ti2(r1 / f"{stem}.ti2"))
+    shutil.copy2(r1 / f"{stem}.icc", r2 / "preconditioning.icc") if (r1 / f"{stem}.icc").exists() else None
     _chart_files(r2 / "verifications", f"{stem}-verify", patches=60, rows=10)
     for when, de in ((datetime(2026, 5, 20, 9, 5), 0.9),
                      (datetime(2026, 6, 24, 16, 40), 1.5)):
@@ -234,8 +359,8 @@ def build_verify_history(root: Path) -> None:
     _write_manifest(p, name, ["run1"], "run1", 3)
     r1 = p / "runs" / "run1"
     _chart_files(r1, stem, patches=240, rows=15, pages=2)
-    (r1 / f"{stem}.ti3").write_text(_ti3(stem, 240))
-    (r1 / f"{stem}.icc").write_bytes(_icc(stem))
+    (r1 / f"{stem}.ti3").write_text(_ti3_from_ti2(r1 / f"{stem}.ti2"))
+    _build_icc(r1, stem)
     _chart_files(r1 / "verifications", f"{stem}-verify", patches=60, rows=10)
     start = datetime(2026, 1, 12, 11, 0)
     for i, de in enumerate((0.8, 1.0, 1.3, 1.9, 2.6)):   # a drifting printer
@@ -256,15 +381,15 @@ def build_legacy_v1(root: Path) -> None:
     for rid in ("run1", "run2"):
         rd = p / "runs" / rid
         _chart_files(rd, stem, patches=240, rows=15, pages=2)
-        (rd / f"{stem}.ti3").write_text(_ti3(stem, 240))
-        (rd / f"{stem}.icc").write_bytes(_icc(stem))
+        (rd / f"{stem}.ti3").write_text(_ti3_from_ti2(rd / f"{stem}.ti2"))
+        _build_icc(rd, stem)
         # …flat, exactly where v1 left them
         (rd / f"Quality_Check_1_{stem}.txt").write_text("worst dE 3.1\n")
         (rd / f"Quality_Check_2_{stem}.txt").write_text("worst dE 2.2\n")
         (rd / f"Refine_Strips_{stem}.txt").write_text("A\nD\nF\n")
         (rd / f"{stem}-patchbox.cht").write_text("BOXES 240\n")
         (rd / f"{stem}-aligned.cht").write_text("BOXES 240\n")
-        (rd / f"{stem}-diag.tif").write_bytes(_tiff(3))
+        _write_tiff(rd / f"{stem}-diag.tif", 3)
         _meta(rd, rid)
     cal = p / "cal"
     _chart_files(cal, f"{stem}-cal", patches=60, rows=10)
@@ -281,13 +406,15 @@ def build_legacy_v2(root: Path) -> None:
     _write_manifest(p, name, ["run1"], "run1", 2)
     rd = p / "runs" / "run1"
     _chart_files(rd, stem, patches=240, rows=15, pages=2)
-    (rd / f"{stem}.ti3").write_text(_ti3(stem, 240))
-    (rd / f"{stem}.icc").write_bytes(_icc(stem))
+    (rd / f"{stem}.ti3").write_text(_ti3_from_ti2(rd / f"{stem}.ti2"))
+    _build_icc(rd, stem)
     (rd / "reports").mkdir(exist_ok=True)
     (rd / "reports" / f"Quality_Check_1_{stem}.txt").write_text("worst dE 2.8\n")
-    # the legacy one-slot verification, flat at the run root
-    (rd / f"{stem}-verify.ti3").write_text(_ti3(f"{stem}-verify", 60))
-    (rd / f"{stem}-verify.ti2").write_text(_ti2(f"{stem}-verify", 60, 10))
+    # The legacy one-slot verification, flat at the run root — a real chart, so
+    # the migrated result is something you can actually open afterwards.
+    _chart_files(rd, f"{stem}-verify", patches=60, rows=10)
+    (rd / f"{stem}-verify.ti3").write_text(
+        _ti3_from_ti2(rd / f"{stem}-verify.ti2"))
     _meta(rd, "run1")
 
 

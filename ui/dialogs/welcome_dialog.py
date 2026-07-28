@@ -13,7 +13,8 @@ from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QPointF, QRect, QRectF, QSize, Qt, pyqtSignal
 from PyQt6.QtGui import (
-    QColor, QFont, QFontMetrics, QFontMetricsF, QPainter, QPaintEvent, QPen,
+    QColor, QFont, QFontMetrics, QFontMetricsF, QPainter, QPainterPath,
+    QPaintEvent, QPen,
 )
 from PyQt6.QtWidgets import (
     QCheckBox,
@@ -1293,6 +1294,39 @@ class WorkflowIcon(QWidget):
             p.setPen(Qt.PenStyle.NoPen)
             p.setBrush(accent)
             p.drawRoundedRect(int(s * 0.30), s - 22, int(s * 0.40), 5, 2, 2)
+
+        elif self._key == "getting_started":
+            # B — "Interface map" (Knut's choice, #130 2026-07-28): ChromIQ's
+            # own layout — masthead, options panel, preview — because that is
+            # what the card opens by explaining.
+            m = 12
+            p.setPen(QPen(fg, stroke))
+            p.setBrush(QColor(0, 0, 0, 0))
+            p.drawRoundedRect(m, m, s - 2 * m, s - 2 * m, 5, 5)
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(accent)
+            p.drawRoundedRect(m + 3, m + 3, s - 2 * m - 6, 13, 3, 3)
+            p.setPen(QPen(fg, stroke))
+            p.setBrush(QColor(0, 0, 0, 0))
+            p.drawLine(m + 26, m + 20, m + 26, s - m - 3)
+            for i in range(4):
+                y = m + 28 + i * 9
+                p.drawLine(m + 7, y, m + 20, y)
+
+        elif self._key == "main_actions":
+            # B — "Branching routes" (Knut's choice): one starting point and
+            # several ways on, which is the card's actual subject.
+            p.setPen(QPen(fg, stroke))
+            p.setBrush(QColor(0, 0, 0, 0))
+            sx, sy = 20, s / 2
+            for y in (26, 48, 70):
+                path = QPainterPath(QPointF(sx, sy))
+                path.cubicTo(46, sy, 50, y, 72, y)
+                p.drawPath(path)
+                p.drawEllipse(QRectF(72 - 6, y - 6, 12, 12))
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(accent)
+            p.drawEllipse(QRectF(sx - 9, sy - 9, 18, 18))
 
         elif self._key == "file_guide":
             # Folder guide (#125): a folder — accent tab, outlined body, two

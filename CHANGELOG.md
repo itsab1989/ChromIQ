@@ -1,5 +1,24 @@
 # Changelog
 
+## v3.14.8-beta.86
+
+- **The two new help cards have their own icons**, in the same style as the
+  others: the Getting-started card shows ChromIQ's own window layout, and the
+  Overview of Main Actions card shows one starting point branching into several
+  routes. Before this they fell through to nothing at all.
+
+- **The demo projects are real projects now.** The first attempt wrote files of
+  the right names and shapes, and none of it could be opened: the page images
+  were not images, and the charts carried no layout, so nothing was viewable and
+  every project reported that it had no saved layout recipe.
+
+  They are now built with the same pipeline the application uses — real patch
+  sets from targen, laid out by ChromIQ's own chart engine, so the pages are
+  genuine printable TIFFs and each chart carries its full layout recipe and
+  opens with its own settings. Each measurement is generated from the chart
+  beside it, so the readings match the patches they claim to describe, and each
+  finished run has a **real ICC profile** built from its measurement.
+
 ## v3.14.8-beta.85
 
 - **Demo projects you can download and open**, built by one command

@@ -134,3 +134,55 @@ def test_every_row_string_reaches_the_translation_catalogue():
             if s not in keys:
                 missing.append(s)
     assert not missing, f"never translatable: {missing[:3]}"
+
+
+# ---- the card icons Knut chose (#130, 2026-07-28) -----------------------
+def test_both_new_cards_have_their_own_icon(qapp):
+    """He picked B for each: "Getting started: B — Interface map" and
+    "Overview of Main Actions: B — Branching routes". Before this, both cards
+    fell through to the default and showed nothing."""
+    import inspect
+
+    from ui.dialogs.welcome_dialog import WorkflowIcon
+    src = inspect.getsource(WorkflowIcon.paintEvent)
+    assert 'self._key == "getting_started"' in src
+    assert 'self._key == "main_actions"' in src
+
+
+def test_the_icons_paint_without_error(qapp):
+    from PyQt6.QtGui import QImage
+    from ui.dialogs.welcome_dialog import WorkflowIcon
+    for key in ("getting_started", "main_actions"):
+        for mode in ("dark", "light"):
+            w = WorkflowIcon(key)
+            w.set_appearance(mode)
+            img = QImage(96, 96, QImage.Format.Format_ARGB32)
+            img.fill(0)
+            w.render(img)                      # must not raise
+            assert img.width() == 96
+
+
+def test_each_icon_actually_draws_something(qapp):
+    """A key that falls through the if/elif chain paints nothing at all —
+    which is exactly what these two cards did before."""
+    from PyQt6.QtGui import QImage
+    from ui.dialogs.welcome_dialog import WorkflowIcon
+    for key in ("getting_started", "main_actions"):
+        w = WorkflowIcon(key)
+        w.set_appearance("dark")
+        img = QImage(96, 96, QImage.Format.Format_ARGB32)
+        img.fill(0)
+        w.render(img)
+        painted = sum(1 for y in range(0, 96, 3) for x in range(0, 96, 3)
+                      if img.pixelColor(x, y).alpha() > 0)
+        assert painted > 40, f"{key} painted almost nothing ({painted})"
+
+
+def test_they_use_the_shared_accent(qapp):
+    """One magenta accent, like every other card icon."""
+    import inspect
+
+    from ui.dialogs.welcome_dialog import WorkflowIcon
+    src = inspect.getsource(WorkflowIcon.paintEvent)
+    block = src.split('self._key == "getting_started"', 1)[1].split("elif", 2)
+    assert "accent" in block[0], "the Getting started icon has no accent"
