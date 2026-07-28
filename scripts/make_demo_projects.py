@@ -298,6 +298,11 @@ BUILDERS = {
     "Demo-Legacy-v2": build_legacy_v2,
 }
 
+#: The two ready-made downloads (Knut, #130 2026-07-28): one for checking the
+#: upgrade from 3.13, one for exercising the current version.
+LEGACY_PROJECTS = ("Demo-Legacy-v1", "Demo-Legacy-v2")
+CURRENT_PROJECTS = ("Demo-Full-RGB", "Demo-Verify-History")
+
 
 def build_all(dest: Path) -> "list[Path]":
     dest.mkdir(parents=True, exist_ok=True)
@@ -316,7 +321,7 @@ def main(argv=None) -> int:
     ap.add_argument("dest", nargs="?", default="demo-projects",
                     help="where to write them (default: ./demo-projects)")
     ap.add_argument("--zip", action="store_true",
-                    help="also write demo-projects.zip beside them")
+                    help="also write the two ready-made archives beside them")
     args = ap.parse_args(argv)
 
     dest = Path(args.dest).expanduser().resolve()
@@ -325,9 +330,25 @@ def main(argv=None) -> int:
         files = sum(1 for _ in m.rglob("*") if _.is_file())
         print(f"  {m.name:24} {files:4d} files   {m}")
     if args.zip:
-        archive = shutil.make_archive(str(dest), "zip", root_dir=dest)
-        size = Path(archive).stat().st_size / 1024
-        print(f"\n  archive: {archive}  ({size:.0f} KB)")
+        # Two downloads, not one (Knut, #130 2026-07-28): "one for 3.13 and one
+        # for testing latest version". Someone checking the upgrade wants the
+        # old layouts and nothing else; someone exercising verifications and
+        # reporting wants the current ones and nothing else.
+        for suffix, names in (("3.13", LEGACY_PROJECTS),
+                              ("latest", CURRENT_PROJECTS)):
+            staged = dest.parent / f"_stage-{suffix}"
+            if staged.exists():
+                shutil.rmtree(staged)
+            staged.mkdir(parents=True)
+            for name in names:
+                shutil.copytree(dest / name, staged / name)
+            archive = shutil.make_archive(
+                str(dest.parent / f"chromiq-demo-projects-{suffix}"),
+                "zip", root_dir=staged)
+            shutil.rmtree(staged)
+            size = Path(archive).stat().st_size / 1024
+            print(f"  archive: {Path(archive).name:38} ({size:>5.0f} KB)  "
+                  f"{', '.join(names)}")
     print(f"\n{len(made)} demo projects written to {dest}")
     return 0
 
