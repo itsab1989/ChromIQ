@@ -8370,8 +8370,11 @@ class TabChart(QWidget):
             return True
         if self._is_verification_target():
             return True        # a verification build protects the run root
-        names = {run.measurement_ti3: tr("the measurement"),
-                 run.profile_icc:     tr("the printer profile")}
+        # Indefinite articles: "already has A measurement" reads as English,
+        # "already has THE measurement" does not (Knut, #130 2026-07-28 —
+        # "a bit convoluted and not so user friendly").
+        names = {run.measurement_ti3: tr("a measurement"),
+                 run.profile_icc:     tr("a printer profile")}
         present = [label for path, label in names.items() if path.exists()]
         if not present:
             return True
@@ -8386,8 +8389,13 @@ class TabChart(QWidget):
 
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.NoIcon)
-        box.setWindowTitle(tr("This run already has results"))
-        box.setText(what + "\n\n" + tr(
+        title = tr("This run already has results")
+        box.setWindowTitle(title)
+        # macOS paints no title on a message box, so a window the user can name
+        # is one whose title is IN it — the same rule as "Stored chart differs"
+        # (Knut, #131 2026-07-27, and again here: "The window does not have a
+        # title").
+        box.setText(title + "\n\n" + what + "\n\n" + tr(
             "A new chart replaces the patches this run is about to be measured "
             "with, so what you measured earlier no longer describes it. Nothing "
             "is deleted — it is moved into the run's “old” folder, where you can "

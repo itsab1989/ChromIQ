@@ -804,6 +804,21 @@ GETTING_STARTED_CARD: dict = {
 }
 WORKFLOWS.insert(0, GETTING_STARTED_CARD)
 
+# "Overview of Main Actions" — every action and each route to it, as a table
+# (#130, Knut 2026-07-28: "create this as a separate help card next to the
+# Getting Started Card"). Second in the grid, so it sits beside the tour.
+from ui.main_actions import (main_actions_card_subtitle,  # noqa: E402
+                             main_actions_card_title)
+
+MAIN_ACTIONS_CARD: dict = {
+    "key": "main_actions",
+    "title": main_actions_card_title(),
+    "subtitle": main_actions_card_subtitle(),
+    "steps": [],
+    "kind": "main_actions",
+}
+WORKFLOWS.insert(1, MAIN_ACTIONS_CARD)
+
 
 FILE_GUIDE_CARD: dict = {
     "key": "file_guide",
@@ -1795,7 +1810,7 @@ class WelcomeDialog(QDialog):
                 self._steps_layout.addWidget(self._make_glossary_row(
                     term, definition))
         elif wf.get("kind") in ("files", "richtext", "shortcuts",
-                                "getting_started"):
+                                "getting_started", "main_actions"):
             # The folder guide (#125/#126) and the keyboard-shortcuts card render
             # as HTML tables (Knut); the CMYK+N card is a flowing text page.
             if wf.get("kind") == "files":
@@ -1805,6 +1820,10 @@ class WelcomeDialog(QDialog):
             elif wf.get("kind") == "getting_started":
                 from ui.getting_started import getting_started_html
                 body = QLabel(getting_started_html(), self._steps_host)
+                body.setTextFormat(Qt.TextFormat.RichText)
+            elif wf.get("kind") == "main_actions":
+                from ui.main_actions import main_actions_html
+                body = QLabel(main_actions_html(), self._steps_host)
                 body.setTextFormat(Qt.TextFormat.RichText)
             elif wf.get("kind") == "shortcuts":
                 from ui.keyboard_help import keyboard_shortcuts_html

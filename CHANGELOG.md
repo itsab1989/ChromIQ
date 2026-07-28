@@ -1,5 +1,31 @@
 # Changelog
 
+## v3.14.8-beta.84
+
+- **New “Overview of Main Actions” help card**, next to “Getting started”. Every
+  main action with each of the different ways to reach it — 21 actions, most of
+  them with two, three or four routes — as a proper table. A single route is not
+  lettered, since the letters only earn their place where there is a choice.
+
+  It carries a second table of **what ChromIQ cannot do today**, with the nearest
+  thing it can do instead, and marks the ones that are possible future
+  improvements. Printing through a profile is recorded there with an explanation
+  of why: ChromIQ prints charts with colour management off, which is what
+  profiling needs, and it does not drive your printer's own colour settings — so
+  printing through a profile is done in the program you normally print from.
+
+- **A clearer warning when a new chart would displace your results.** It read
+  “This profile run already has the measurement”, which is not how anyone would
+  say it; it now reads “…already has a measurement”. The window also had no
+  visible name — macOS paints no title on a window of that kind — so its name is
+  now the first line inside it.
+
+- **The help tables can now actually be translated.** The rows of the sounds
+  table and the new actions table were translated only as they were drawn, which
+  made them invisible to the tool that collects text for translation — they would
+  have stayed English through a whole translation pass without anyone noticing.
+  A test now fails if a row is ever added that cannot reach the catalogue.
+
 ## v3.14.8-beta.83
 
 - **The “which sound belongs to which window” help is now checked against the
