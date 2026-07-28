@@ -1,5 +1,27 @@
 # Changelog
 
+## v3.14.8-beta.82
+
+- **New “Getting started” card in the Help window**, and it is the first one you
+  meet. It opens by naming the parts of the interface — the masthead, the
+  Profile-run bar, the “Location being edited” line, the five tabs, the options
+  panel, the preview, the log and the Tools menu — saying where each one is and
+  what it is for, before it explains anything else.
+
+  Then the five steps from a blank page to a finished profile, including the one
+  warning a first profile most often needs: colour management must be off when
+  you print the chart.
+
+  Then a section that exists because almost every action in ChromIQ has two or
+  three routes and a new user only ever finds one: how to open a chart, open a
+  project, put a chart into a particular run, add to a measurement instead of
+  replacing it, bring in a measurement from another program, check a profile and
+  find your files.
+
+  It closes with what is kept and what is not — that replacing a chart moves
+  what it displaces into an “old” folder, that Delete is permanent, and that
+  your measurements are the one thing that cannot be made again.
+
 ## v3.14.8-beta.81
 
 - **Guided and Manual always show the same measurement instrument.** Opening a

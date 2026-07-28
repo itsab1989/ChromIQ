@@ -789,6 +789,22 @@ WORKFLOWS.append(GLOSSARY_CARD)
 from ui.file_guide import (file_guide_body, file_guide_card_subtitle,  # noqa: E402
                            file_guide_card_title)
 
+# "Getting started" — the tour of the interface and the five steps (#130,
+# Knut 2026-07-28). Inserted at the FRONT of the grid: it is the card a first
+# run should meet before any of the specialised ones.
+from ui.getting_started import (getting_started_card_subtitle,  # noqa: E402
+                                getting_started_card_title)
+
+GETTING_STARTED_CARD: dict = {
+    "key": "getting_started",
+    "title": getting_started_card_title(),
+    "subtitle": getting_started_card_subtitle(),
+    "steps": [],
+    "kind": "getting_started",
+}
+WORKFLOWS.insert(0, GETTING_STARTED_CARD)
+
+
 FILE_GUIDE_CARD: dict = {
     "key": "file_guide",
     "title": file_guide_card_title(),
@@ -1778,12 +1794,17 @@ class WelcomeDialog(QDialog):
                                            key=lambda e: e[0].lower()):
                 self._steps_layout.addWidget(self._make_glossary_row(
                     term, definition))
-        elif wf.get("kind") in ("files", "richtext", "shortcuts"):
+        elif wf.get("kind") in ("files", "richtext", "shortcuts",
+                                "getting_started"):
             # The folder guide (#125/#126) and the keyboard-shortcuts card render
             # as HTML tables (Knut); the CMYK+N card is a flowing text page.
             if wf.get("kind") == "files":
                 from ui.file_guide import file_guide_html
                 body = QLabel(file_guide_html(), self._steps_host)
+                body.setTextFormat(Qt.TextFormat.RichText)
+            elif wf.get("kind") == "getting_started":
+                from ui.getting_started import getting_started_html
+                body = QLabel(getting_started_html(), self._steps_host)
                 body.setTextFormat(Qt.TextFormat.RichText)
             elif wf.get("kind") == "shortcuts":
                 from ui.keyboard_help import keyboard_shortcuts_html
