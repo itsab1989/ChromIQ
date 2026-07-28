@@ -859,6 +859,17 @@ class TabMeasure(QWidget):
         # "Read again & average": True once the user opts to re-read the chart,
         # so each subsequent successful read is moved into reads/readN.ti3.
         self._averaging_active: bool = False
+        # Runs whose "this chart already has a measurement" warning the user has
+        # silenced with the window's tick. **Deliberately an in-memory set and
+        # never a setting** (Knut, #131 2026-07-28): it must survive moving
+        # between runs and back, and must NOT survive closing the program, so
+        # revisiting a run another day warns again. Keys come from
+        # _replace_warning_scope().
+        self._replace_warning_silenced: set = set()
+        # A chart was loaded while another tab was on screen and still owes the
+        # user the "this chart already has a measurement" offer — made when this
+        # tab is next shown. See set_ti1_path / showEvent.
+        self._pending_overlay_offer: bool = False
         # When averaging is enabled, the "All Strips Read" dialog records the
         # user's choice here so _on_measure_done can act on it once chartread has
         # finished writing the .ti3 (the file isn't final while chartread runs).
@@ -2797,8 +2808,33 @@ class TabMeasure(QWidget):
         # Run-type bar changes all call it. Only pop the offer when the Measure
         # tab is actually the one on screen, so it never appears over Create Chart
         # or Print Chart.
-        if is_new_chart and self.isVisible():
+        if is_new_chart:
+            if self.isVisible():
+                self._maybe_offer_existing_overlay()
+            else:
+                # …but a chart loaded from Create Chart or Print Chart used to
+                # lose the offer altogether: it was made while another tab was
+                # on screen, suppressed, and never revisited (Knut, #131
+                # 2026-07-28 — he expected it in exactly those two workflows).
+                # Hold it instead, and make it when this tab is next shown.
+                self._pending_overlay_offer = True
+
+    def showEvent(self, event) -> None:            # noqa: N802 — Qt name
+        """Make an offer that was held back because another tab was showing.
+
+        The #134 rule stands — the window must never appear over Create Chart or
+        Print Chart — but "not now" was being implemented as "never", which is
+        why loading a chart in either of those tabs and then coming here was
+        silent (Knut, #131 2026-07-28).
+        """
+        super().showEvent(event)
+        if not self._pending_overlay_offer:
+            return
+        self._pending_overlay_offer = False
+        try:
             self._maybe_offer_existing_overlay()
+        except Exception:      # noqa: BLE001 — never break showing the tab
+            log.warning("Could not offer the existing measurement", exc_info=True)
 
     def _maybe_offer_existing_overlay(self) -> None:
         """#134: when a freshly-loaded chart already has a measurement, show a
@@ -7187,8 +7223,14 @@ class TabMeasure(QWidget):
         measurement exists **and** neither refine/resume is ticked, because with
         either of those the existing readings are added to rather than
         overwritten.
+
+        **"Don't ask again" is deliberately narrow** (Knut, #131 2026-07-28):
+        remembered for the *currently selected* profiling run or dated
+        verification only, and only in memory — so it goes quiet while you work
+        on that one run, and comes back both for any other run and for the same
+        run on another day. See :meth:`_replace_warning_scope`.
         """
-        ti3 = self._existing_ti3_for_chart()
+        ti3 = self._measurement_at_risk()
         if ti3 is None:
             return True
         guided = self._current_mode() == "guided"
@@ -7198,7 +7240,11 @@ class TabMeasure(QWidget):
            or (refine is not None and refine.isEnabled() and refine.isChecked()):
             return True        # the old readings are kept and built on
 
-        from PyQt6.QtWidgets import QMessageBox
+        scope = self._replace_warning_scope()
+        if scope is not None and scope in self._replace_warning_silenced:
+            return True
+
+        from PyQt6.QtWidgets import QCheckBox, QMessageBox
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.NoIcon)
         box.setWindowTitle(tr("This chart already has a measurement"))
@@ -7210,11 +7256,101 @@ class TabMeasure(QWidget):
             "options panel first — then the strips you read now are merged with "
             "what is already measured, rather than replacing it.").format(
                 file=str(ti3)))
+        # Only offered where it can be scoped to one run — with no run selected
+        # there is nothing to remember it against, and a blanket "never ask"
+        # is exactly what this must not become.
+        ask = None
+        if scope is not None:
+            ask = QCheckBox(self._replace_warning_silence_label(), box)
+            ask.setToolTip(tr(
+                "Only for this one run, and only until you close ChromIQ. Every "
+                "other run keeps asking, and so does this one the next time you "
+                "start the program."))
+            box.setCheckBox(ask)
         go = box.addButton(tr("Measure again"), QMessageBox.ButtonRole.AcceptRole)
         box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(go)
         box.exec()
-        return box.clickedButton() is go
+        agreed = box.clickedButton() is go
+        # Remember only when the user actually went ahead: ticking the box and
+        # then cancelling means "not this time", not "never warn me again".
+        if agreed and ask is not None and ask.isChecked() and scope is not None:
+            self._replace_warning_silenced.add(scope)
+            log.info("Replace-measurement warning silenced for %s (this session)",
+                     scope)
+        return agreed
+
+    def _replace_warning_scope(self) -> "tuple | None":
+        """What the "don't ask again" tick is remembered against, or None when
+        there is nothing specific enough to remember it against.
+
+        Knut's rule (#131, 2026-07-28): the currently selected **profile run**
+        with Run type = Profiling, or the currently selected **dated
+        verification** with Run type = Verification — and for a verification
+        only when that dated folder actually holds a measurement. "New run" and
+        "New verification" name nothing yet, so they are never scoped.
+
+        The project root is part of the key so two projects that both have a
+        "run1" can never silence each other.
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
+            return None
+        try:
+            proj = ctl.project_or_none()
+            if proj is None:
+                return None
+            root = str(proj.root)
+            run_id = ctl.target.profile_run
+            if not run_id or not proj.has_run(run_id):
+                return None                      # "New run" — nothing to key on
+            if not ctl.target.is_verification():
+                return ("profiling", root, run_id)
+            vid = ctl.target.verification_id
+            if not vid:
+                return None                      # "New verification"
+            verification = proj.run(run_id).verification(vid)
+            if not verification.measurement_ti3.exists():
+                return None                      # nothing there to be replaced
+            return ("verification", root, run_id, vid)
+        except Exception:      # noqa: BLE001 — a scope is a convenience, never a gate
+            return None
+
+    def _replace_warning_silence_label(self) -> str:
+        """The tick's wording, naming the run it will be remembered for so the
+        promise is visible rather than implied."""
+        ctl = getattr(self, "_target_ctl", None)
+        try:
+            if ctl is not None and ctl.target.is_verification():
+                return tr("Don't ask again for this verification, until I "
+                          "close ChromIQ")
+        except Exception:      # noqa: BLE001
+            pass
+        return tr("Don't ask again for this profile run, until I close ChromIQ")
+
+    def _measurement_at_risk(self) -> "Path | None":
+        """The measurement a plain re-read would overwrite, or None.
+
+        Not the same as :meth:`_existing_ti3_for_chart`, and that difference was
+        a real gap: a verification's readings live in its **dated folder**, not
+        beside the shared verification chart, so keying on the chart-adjacent
+        .ti3 meant the warning could never fire for a verification at all
+        (Knut, #131 2026-07-28).
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        try:
+            if ctl is not None and ctl.target.is_verification():
+                proj = ctl.project_or_none()
+                run_id = ctl.target.profile_run
+                vid = ctl.target.verification_id
+                if proj is None or not run_id or not vid \
+                   or not proj.has_run(run_id):
+                    return None      # a new verification replaces nothing
+                ti3 = proj.run(run_id).verification(vid).measurement_ti3
+                return ti3 if ti3.is_file() else None
+        except Exception:      # noqa: BLE001
+            pass
+        return self._existing_ti3_for_chart()
 
     def _existing_ti3_for_chart(self) -> "Path | None":
         """The measured .ti3 sitting next to the loaded chart (#134), or None."""

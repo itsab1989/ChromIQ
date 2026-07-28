@@ -1,5 +1,33 @@
 # Changelog
 
+## v3.14.8-beta.76
+
+- **A chart loaded in Create Chart or Print Chart now gets its "this chart
+  already has a measurement" window when you reach the Measure tab.** You asked
+  whether it appeared in those two workflows. It did not — and that was a
+  defect, not a design. The rule that the window must never appear over Create
+  Chart or Print Chart was implemented as "if the Measure tab is not showing, do
+  not offer", and the offer was then dropped for good. It is now *held* and made
+  the moment the Measure tab is next shown, once. The window still never appears
+  over another tab.
+
+- **"Don't ask again" on the replace-measurement warning, scoped to one run.**
+  The warning that a fresh read would overwrite existing readings now carries a
+  tick: *"Don't ask again for this profile run, until I close ChromIQ"* — or
+  *"…for this verification…"* when a dated verification is selected. It is
+  remembered against that project, that run and (for a verification) that date,
+  and it is held in memory only, so revisiting the same run another day warns
+  again. Every other run keeps asking. Where there is nothing specific to
+  remember it against — "New run", "New verification", or a verification date
+  with no measurement — the tick is not offered at all, so it can never quietly
+  become "never ask anywhere". Ticking the box and then pressing Cancel means
+  "not this time", not "never again".
+
+- **The replace-measurement warning can now fire for a verification.** It looked
+  for the readings beside the chart, but a verification's readings live in its
+  dated folder, not beside the shared verification chart — so for a verification
+  the warning could never appear. It now looks in the right place.
+
 ## v3.14.8-beta.75
 
 - **Skip Patch now works after a patch fails to read — found in your log, not

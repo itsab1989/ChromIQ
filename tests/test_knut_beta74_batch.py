@@ -288,12 +288,20 @@ class _Box:
 class _Measure(__import__("PyQt6.QtWidgets", fromlist=["QWidget"]).QWidget):
     from ui.tabs.tab_measure import TabMeasure
     _confirm_replacing_measurement = TabMeasure._confirm_replacing_measurement
+    # Which measurement is at risk became its own lookup in beta.76, so a
+    # verification's readings are found in their dated folder rather than
+    # beside the shared chart. With no target controller it falls through to
+    # the chart's own .ti3, which is what these profiling cases are about.
+    _measurement_at_risk = TabMeasure._measurement_at_risk
+    _replace_warning_scope = TabMeasure._replace_warning_scope
 
     def __init__(self, ti3, resume=False, refine=False):
         super().__init__()
         self._ti3 = ti3
         self._m_resume_cb = self._resume_cb = _Box(resume)
         self._m_refine_cb = self._refine_cb = _Box(refine)
+        self._target_ctl = None          # → no scope, so no "don't ask" tick
+        self._replace_warning_silenced = set()
 
     def _existing_ti3_for_chart(self):  return self._ti3
     def _current_mode(self):            return "manual"

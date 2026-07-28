@@ -3540,5 +3540,8 @@
   "This profile run already has {item}.": "This profile run already has {item}.",
   "the printer profile": "the printer profile",
   "Generate the new chart": "Generate the new chart",
-  "the measurement": "the measurement"
+  "the measurement": "the measurement",
+  "Don't ask again for this verification, until I close ChromIQ": "Don't ask again for this verification, until I close ChromIQ",
+  "Don't ask again for this profile run, until I close ChromIQ": "Don't ask again for this profile run, until I close ChromIQ",
+  "Only for this one run, and only until you close ChromIQ. Every other run keeps asking, and so does this one the next time you start the program.": "Only for this one run, and only until you close ChromIQ. Every other run keeps asking, and so does this one the next time you start the program."
 }

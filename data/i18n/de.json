@@ -3540,5 +3540,8 @@
   "This profile run already has {item}.": "Dieser Profil-Durchlauf hat bereits {item}.",
   "the printer profile": "das Druckerprofil",
   "Generate the new chart": "Neues Chart erzeugen",
-  "the measurement": "die Messung"
+  "the measurement": "die Messung",
+  "Don't ask again for this verification, until I close ChromIQ": "Nicht noch einmal fragen für diese Verifizierung, bis ich ChromIQ schließe",
+  "Don't ask again for this profile run, until I close ChromIQ": "Nicht noch einmal fragen für diesen Profil-Durchlauf, bis ich ChromIQ schließe",
+  "Only for this one run, and only until you close ChromIQ. Every other run keeps asking, and so does this one the next time you start the program.": "Gilt nur für diesen einen Durchlauf und nur, bis du ChromIQ schließt. Alle anderen Durchläufe fragen weiterhin nach — und dieser auch wieder, sobald du das Programm neu startest."
 }
