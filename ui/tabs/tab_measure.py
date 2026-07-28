@@ -5639,8 +5639,8 @@ class TabMeasure(QWidget):
             dlg.setWindowTitle(tr("All Patches Read"))
             msg = QLabel(
                 tr("<b>All patches have been read successfully.</b><br><br>"
-                "Click <b>Build Profile</b> to finalise the measurement and go directly "
-                "to the Build Profile tab — the next and final step.<br><br>"
+                "Click <b>Go to Build Profile Tab</b> to finalise the measurement and "
+                "go straight to that tab — the next and final step.<br><br>"
                 "If you would like to re-read any patch first, click <b>Re-read Patches</b>. "
                 "Use <b>f</b>&nbsp;/&nbsp;<b>b</b> to move forward and back between patches, "
                 "<b>n</b> to jump to the next unread patch, click a patch in the preview to "
@@ -5653,8 +5653,8 @@ class TabMeasure(QWidget):
             dlg.setWindowTitle(tr("All Strips Read"))
             msg = QLabel(
                 tr("<b>All strips have been read successfully.</b><br><br>"
-                "Click <b>Build Profile</b> to finalise the measurement and go directly "
-                "to the Build Profile tab — the next and final step.<br><br>"
+                "Click <b>Go to Build Profile Tab</b> to finalise the measurement and "
+                "go straight to that tab — the next and final step.<br><br>"
                 "If you would like to re-read any strip first, click <b>Re-read Individual Strips</b>. "
                 "Use <b>f</b>&nbsp;/&nbsp;<b>b</b> to move forward and back between strips, "
                 "<b>n</b> to jump to the next unread strip, and press <b>d</b> when you "
@@ -7553,8 +7553,14 @@ class TabMeasure(QWidget):
         self._painted_chart = now
         try:
             self._clear_overlay()
+            # The strip reading times belong to the chart that was measured,
+            # not to the one now in front of you. They were only ever cleared
+            # when a measurement STARTED, so switching to a new run still
+            # showed the previous run's times — six of them, on a run that had
+            # never been measured (Knut, #130 2026-07-28).
+            self._clear_pace_readout()
         except Exception:      # noqa: BLE001 — never block a chart change
-            log.warning("Could not clear the previous chart's overlay",
+            log.warning("Could not clear the previous chart's readout",
                         exc_info=True)
 
     def _sync_overlay_checkboxes(self, checked: bool) -> None:

@@ -1,5 +1,23 @@
 # Changelog
 
+## v3.14.8-beta.88
+
+- **Building a chart for a new run no longer warns about another run's
+  results.** With “New run” selected, the warning that a measurement was about
+  to be displaced still looked at whichever run happened to be selected before —
+  a run the new build does not touch. It now says nothing, because nothing is at
+  risk. An existing run with results is still protected exactly as before.
+
+- **The “all strips read” window names the button it actually has.** It said
+  “Click Build Profile” while the button reads “Go to Build Profile Tab”. Both
+  that window and its patch-by-patch counterpart are corrected.
+
+- **Strip reading times no longer follow you to another run.** They were only
+  cleared when a measurement started, so switching to a run that had never been
+  measured still showed the previous run's times. They are now cleared whenever
+  the chart in front of you changes — and left alone while a measurement is
+  running, since those times are the one being taken.
+
 ## v3.14.8-beta.87
 
 - **The instrument windows are heard again.** Starting a measurement with no

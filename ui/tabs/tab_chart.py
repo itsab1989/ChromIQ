@@ -8364,6 +8364,14 @@ class TabChart(QWidget):
         when there is something to move. A run with no results yet (the ordinary
         case while you are still settling on chart options) never sees it.
         """
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is not None and not ctl.target.profile_run:
+            # "New run" — the build makes a fresh, empty run, so nothing at all
+            # is displaced. The results belong to whichever run happened to be
+            # selected before, which is not the one being built (Knut, #130
+            # 2026-07-28: "this is not at all relevant for a new run that is
+            # being created, so this message should not happen").
+            return True
         try:
             run = self._file_mgr.project().current_run()
         except Exception:      # noqa: BLE001 — no project yet: nothing at risk
