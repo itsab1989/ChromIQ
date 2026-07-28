@@ -1,5 +1,24 @@
 # Changelog
 
+## v3.14.8-beta.85
+
+- **Demo projects you can download and open**, built by one command
+  (`python scripts/make_demo_projects.py --zip`). Four of them: a full project
+  with three runs — one finished with its measurement, profile, reports,
+  exports and averaged reads, one refined from it with two dated verifications,
+  and one with a chart waiting to be measured; a verification-history project
+  with five checks three months apart and a printer that drifts, so the report
+  has a real trend to draw; and two projects in the older folder layouts, for
+  testing that upgrading an existing project still works.
+
+- **Upgrading from the 3.13 layout is now covered by the test suite.** The old
+  layouts in those demo projects are taken from the upgrade code itself rather
+  than from memory, and the tests open them with the real code and check what
+  actually moved: quality checks and refine lists into `reports`, scanner
+  working files into `cache`, a single old-style verification folded into a
+  dated one — and, just as important, that the measurement and the profile are
+  never moved or rewritten.
+
 ## v3.14.8-beta.84
 
 - **New “Overview of Main Actions” help card**, next to “Getting started”. Every
