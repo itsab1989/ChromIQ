@@ -99,9 +99,22 @@ class ButtonFontFilter(QObject):
     """Applies Menlo + AllUppercase to every QPushButton as it is polished, and
     keeps it wide enough for the label that font produces."""
 
+    #: Guards against the re-entry that a style change inside fit() would cause.
+    _fitting: bool = False
+
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
-        if isinstance(obj, QPushButton) and event.type() == QEvent.Type.Polish:
-            self.fit(obj)
+        if isinstance(obj, QPushButton) and not ButtonFontFilter._fitting:
+            # Polish is when the font is swapped; Show and StyleChange are when
+            # something ELSE may have restyled the button since — and a button
+            # that has lost its width rule clips its label (Knut, #131, three
+            # times). Re-fitting is idempotent: it only ever widens.
+            if event.type() in (QEvent.Type.Polish, QEvent.Type.Show,
+                                QEvent.Type.StyleChange):
+                ButtonFontFilter._fitting = True
+                try:
+                    self.fit(obj)
+                finally:
+                    ButtonFontFilter._fitting = False
         return False
 
     @staticmethod
@@ -1724,11 +1737,21 @@ def tint_dialog_primary(dlg: "QWidget", color: str) -> None:
     hover = "#{:02x}{:02x}{:02x}".format(int(r * 0.82), int(g * 0.82), int(b * 0.82))
     for btn in dlg.findChildren(QPushButton):
         if btn.objectName() == "primary":
+            # APPEND, never replace. fit_button_width writes a min-width rule
+            # into the button's own style sheet — the only thing the application
+            # sheet's own min-width respects — and replacing the sheet here threw
+            # it away, so the button collapsed to 72 px and clipped its label
+            # again (Knut, #131 2026-07-28, the third report of this).
+            existing = btn.styleSheet() or ""
             btn.setStyleSheet(
-                f"QPushButton {{ background: {color}; border: 1px solid {color};"
+                existing
+                + f"\nQPushButton {{ background: {color}; border: 1px solid {color};"
                 f" color: #0a0a0a; font-weight: 700; }}"
                 f"QPushButton:hover {{ background: {hover}; border-color: {hover}; }}"
             )
+            # …and re-assert the width afterwards, so the order of the two never
+            # matters again.
+            fit_button_width(btn)
 
 
 def load_refresh_icon(name: str) -> QIcon:

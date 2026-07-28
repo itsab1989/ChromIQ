@@ -4947,20 +4947,21 @@ class TabMeasure(QWidget):
                 "&nbsp;&nbsp;<b>Skip Strip</b> — leave this strip unread for now "
                 "and jump to the next unread one. You can come back to it later in "
                 "this session.<br>")
+        # Describe only what is on screen: no "nowhere to skip to", because
+        # there is no Skip button in this case to refer to (Knut's standing
+        # rule, restated #131 2026-07-28).
         if last_one and _spot:
             save_text = tr(
                 "&nbsp;&nbsp;<b>Save Partial &amp; Quit</b> — ends the measurement "
-                "and saves every patch you have read. This is the only patch "
-                "still unread, so there is nowhere to move on to: it stays "
-                "unread, and nothing else is lost. Next time you load this "
-                "chart, <i>Continue Measurement</i> picks up from here.")
+                "and saves every patch you have read. This patch stays unread, "
+                "and nothing else is lost. Next time you load this chart, "
+                "<i>Continue Measurement</i> picks up from here.")
         elif last_one:
             save_text = tr(
                 "&nbsp;&nbsp;<b>Save Partial &amp; Quit</b> — ends the measurement "
-                "and saves every strip you have read. This is the only strip "
-                "still unread, so there is nowhere to skip to: it stays "
-                "unread, and nothing else is lost. Next time you load this "
-                "chart, <i>Continue Measurement</i> picks up from here.")
+                "and saves every strip you have read. This strip stays unread, "
+                "and nothing else is lost. Next time you load this chart, "
+                "<i>Continue Measurement</i> picks up from here.")
         else:
             save_text = tr(
                 "&nbsp;&nbsp;<b>Save Partial &amp; Quit</b> — stop here and save what "

@@ -114,8 +114,10 @@ def test_the_last_one_offers_only_retry_and_save(tab, monkeypatch):
     assert not any("Skip" in x for x in seen["labels"]), seen["labels"]
     assert saved["n"] == 1, "it must save what was read and end"
     # …and the remaining button says what becomes of this strip.
-    assert "only strip still unread" in seen["text"]
-    assert "stays" in seen["text"]
+    assert "This strip stays unread" in seen["text"]
+    # …and it must NOT refer to a Skip button that is not on screen (Knut's
+    # standing rule, restated 2026-07-28).
+    assert "skip" not in seen["text"].lower()
 
 
 def test_a_strip_that_is_not_the_last_still_offers_skip(tab, monkeypatch):

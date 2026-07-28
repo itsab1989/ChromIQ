@@ -217,3 +217,48 @@ def test_the_print_chart_buttons_are_not_forced_oversized(qapp):
         assert widest <= asked < joined + 36, (
             f"{label!r}: asked for {asked}px; its widest line needs {widest}px "
             f"and its lines end to end would be {joined}px")
+
+
+def test_the_accent_tint_cannot_wipe_a_button_s_width(qapp):
+    """#131 (Knut, 2026-07-28), the third report of clipped pop-up buttons.
+
+    `fit_button_width` writes a `min-width` rule into the button's own style
+    sheet — the only thing the application sheet's own `min-width` respects —
+    and `tint_dialog_primary` used to REPLACE that sheet with the accent
+    colours, throwing the width away. The button then collapsed to 72 px and
+    clipped its label again.
+    """
+    from PyQt6.QtGui import QFontMetrics
+    from PyQt6.QtWidgets import QDialog, QPushButton, QVBoxLayout
+
+    from ui.widgets import ButtonFontFilter, tint_dialog_primary
+    dlg = QDialog()
+    lay = QVBoxLayout(dlg)
+    btn = QPushButton("Go to Build Profile Tab →", dlg)
+    btn.setObjectName("primary")
+    lay.addWidget(btn)
+    ButtonFontFilter.fit(btn)
+    before = btn.minimumSizeHint().width()
+
+    tint_dialog_primary(dlg, "#1FB7C7")
+
+    needed = QFontMetrics(btn.font()).horizontalAdvance(btn.text().upper())
+    assert btn.minimumSizeHint().width() >= needed, "the tint clipped it again"
+    # The width RULE must survive the tint — that is what used to be thrown
+    # away. (The resolved hint may shift by a few pixels as the tint changes
+    # the border, which is why the rule is what is asserted, not the number.)
+    assert "min-width" in btn.styleSheet()
+    assert before > 0
+    # …and the tint itself still applied.
+    assert "1fb7c7" in btn.styleSheet().lower()
+
+
+def test_a_button_is_refitted_when_something_restyles_it(qapp):
+    """Belt and braces for the same failure: whatever resets a button later,
+    showing or restyling it puts the width back."""
+    import inspect
+
+    from ui.widgets import ButtonFontFilter
+    src = inspect.getsource(ButtonFontFilter.eventFilter)
+    assert "QEvent.Type.Show" in src and "QEvent.Type.StyleChange" in src
+    assert "_fitting" in src, "re-entry must be guarded"

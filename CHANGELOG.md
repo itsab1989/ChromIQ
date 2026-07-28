@@ -1,5 +1,22 @@
 # Changelog
 
+## v3.14.8-beta.73
+
+- **Clipped pop-up buttons: the cause found, not the symptom patched again.**
+  The rule that keeps a button wide enough writes a minimum into the button's
+  own style sheet — the only thing the application-wide style sheet respects —
+  and the accent-colour tint applied to a window's main button **replaced that
+  sheet**, throwing the width away. The button then collapsed and clipped its
+  label, which is why this kept coming back. The tint now adds to the sheet
+  instead of replacing it, re-asserts the width afterwards, and every button
+  re-checks its width when it is shown or restyled, so whatever touches a button
+  later cannot leave it too narrow.
+
+- **The window that appears when a stored chart differs no longer mentions a
+  button that is not there.** Its remaining explanation said "there is nowhere
+  to skip to", which referred to the button removed in beta.71 — texts describe
+  only what is on screen.
+
 ## v3.14.8-beta.72
 
 - **The windows-and-sounds table now gives row 1 in full.** A failed strip does
