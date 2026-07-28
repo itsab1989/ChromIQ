@@ -843,10 +843,12 @@ class MeasurementTargetBar(QWidget):
         )
         for c in (self._run_combo, self._type_combo, self._verify_combo):
             c.setStyleSheet(qss)
-        # Both ⓘ in the bar follow the active tab, not just the last one —
+        # EVERY ⓘ in the bar follows the active tab, not just the last one —
         # the Restore button's icon kept the Measure tab's green everywhere
-        # else (Knut, #130 2026-07-27).
-        for tip in (self._tip_btn, self._restore_tip):
+        # else (Knut, #130 2026-07-27), and the Delete button's icon did the
+        # same when it was added (Knut, #130 2026-07-28). Anything added to the
+        # bar in future belongs in this tuple too.
+        for tip in (self._tip_btn, self._restore_tip, self._delete_tip):
             tip.set_color(color)
 
     def _on_restore_clicked(self) -> None:
@@ -930,6 +932,11 @@ class MeasurementTargetBar(QWidget):
                                    QMessageBox.ButtonRole.DestructiveRole)
         cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(cancel)     # never the destructive one
+        # "Delete run 4 permanently" is a long label, and a button sizes itself
+        # before the font swap widens it — fit every one of them (Knut, #130
+        # 2026-07-28).
+        from ui.widgets import fit_message_box_buttons
+        fit_message_box_buttons(box)
         box.exec()
         clicked = box.clickedButton()
         if clicked is cancel or clicked is None:
@@ -942,7 +949,14 @@ class MeasurementTargetBar(QWidget):
                 self._delete_whole_project(plan)
                 return
             elif plan.kind == rd.KIND_RUN:
-                rd.delete_run(self._ctl.project_or_none(), plan)
+                landed = rd.delete_run(self._ctl.project_or_none(), plan)
+                # The manifest now says the last run is current, but the BAR
+                # reads its selection from the target — which still named the
+                # run that has just gone, so the dropdown kept showing a stale
+                # choice and never jumped (Knut, #130 2026-07-28: "the Profile
+                # run selection did not jump to last run in the list").
+                self._ctl.set_profile_run(landed)
+                self._ctl.set_verification_id("")
             else:
                 rd.delete_verification(plan)
         except rd.DeleteFailed as exc:

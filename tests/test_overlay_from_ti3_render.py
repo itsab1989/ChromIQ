@@ -129,6 +129,11 @@ def test_set_ti1_path_offers_when_tab_visible(tmp_path, monkeypatch):
     tab.show()
     try:
         tab.set_ti1_path(ti2)
+        # The offer is deferred by one turn of the event loop so it cannot open
+        # over a tab that has not finished painting (Knut, #130 2026-07-28), so
+        # let that turn happen before looking.
+        from PyQt6.QtWidgets import QApplication
+        QApplication.processEvents()
     finally:
         tab.hide()
     assert calls == [1], "should auto-offer when the Measure tab is visible"

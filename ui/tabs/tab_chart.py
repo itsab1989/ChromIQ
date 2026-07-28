@@ -8354,6 +8354,10 @@ class TabChart(QWidget):
                            QMessageBox.ButtonRole.AcceptRole)
         box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(go)
+        # Long labels clip once the font swap widens them, and polish
+        # does not happen offscreen — so fit them here (Knut, #130).
+        from ui.widgets import fit_message_box_buttons
+        fit_message_box_buttons(box)
         box.exec()
         return box.clickedButton() is go
 

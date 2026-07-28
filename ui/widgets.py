@@ -127,6 +127,39 @@ class ButtonFontFilter(QObject):
         fit_button_width(btn)
 
 
+def fit_message_box_buttons(box) -> None:
+    """Fit **every** button of a QMessageBox to the label it will paint.
+
+    Knut, #130 2026-07-28, on the Delete windows: *"The button Delete Run 4
+    Permanently has its text cut on both sides. Again, all windows created must
+    follow the universal rules created to prevent this happening."*
+
+    A button added with ``QMessageBox.addButton`` sizes itself from the font it
+    has at that moment; :class:`ButtonFontFilter` then swaps it to Menlo in
+    capitals, which is wider, and the label is clipped at both ends. The filter
+    re-fits at polish — but **polish does not happen offscreen**, which is
+    exactly why a window can look right in a rendered check and clip in the real
+    application. Calling this when the window is built removes the dependency on
+    when polish happens.
+
+    Use it for every message box that carries a button whose label is longer
+    than a word or two.
+
+    It applies :meth:`ButtonFontFilter.fit`, **not** :func:`fit_button_width`:
+    the former puts the final font on the button *first* and then measures it.
+    Measuring before the swap is the whole bug — it computes a width for the
+    narrow font and the wide one is painted into it.
+    """
+    try:
+        for btn in box.buttons():
+            ButtonFontFilter.fit(btn)
+        lay = box.layout()
+        if lay is not None:
+            lay.activate()     # let the box re-measure itself around them
+    except Exception:      # noqa: BLE001 — sizing must never raise
+        pass
+
+
 class _ExtensionFilterProxy(QSortFilterProxyModel):
     """Hides files whose extension is not in the allowed set; directories always shown."""
 

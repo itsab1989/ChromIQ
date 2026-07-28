@@ -279,27 +279,32 @@ def test_a_chart_loaded_from_another_tab_still_owes_the_offer():
 
 
 def test_showing_the_tab_makes_the_held_offer():
+    """Since beta.79 the window is not opened from inside showEvent — a modal
+    blocks there before the tab has painted (Knut, #130 2026-07-28) — so it is
+    handed to the event loop and made a moment later."""
     from ui.tabs.tab_measure import TabMeasure
-    src = inspect.getsource(TabMeasure.showEvent)
-    assert "_maybe_offer_existing_overlay()" in src
-    assert "self._pending_overlay_offer = False" in src
+    show = inspect.getsource(TabMeasure.showEvent)
+    assert "self._pending_overlay_offer = False" in show
+    assert "QTimer.singleShot(0, self._offer_existing_overlay_now)" in show
+    assert "_maybe_offer_existing_overlay()" in inspect.getsource(
+        TabMeasure._offer_existing_overlay_now)
 
 
 def test_the_held_offer_is_made_only_once():
-    """It is cleared BEFORE the window opens, so re-showing the tab does not
-    ask again."""
+    """The flag is cleared as the tab is shown, so re-showing does not ask
+    again even though the window itself opens a moment later."""
     from ui.tabs.tab_measure import TabMeasure
     lines = [l.strip() for l in inspect.getsource(TabMeasure.showEvent).splitlines()]
     cleared = next(i for i, l in enumerate(lines)
                    if "self._pending_overlay_offer = False" in l)
-    offered = next(i for i, l in enumerate(lines)
-                   if "_maybe_offer_existing_overlay()" in l)
-    assert cleared < offered
+    scheduled = next(i for i, l in enumerate(lines) if "QTimer.singleShot" in l)
+    assert cleared < scheduled
 
 
 def test_showing_the_tab_never_breaks_on_a_failed_offer():
     from ui.tabs.tab_measure import TabMeasure
-    assert "except Exception" in inspect.getsource(TabMeasure.showEvent)
+    assert "except Exception" in inspect.getsource(
+        TabMeasure._offer_existing_overlay_now)
 
 
 # --- 7. the overlay offer carries the same silence (Knut's scenario 4) ----

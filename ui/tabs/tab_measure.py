@@ -2816,7 +2816,12 @@ class TabMeasure(QWidget):
         # or Print Chart.
         if is_new_chart:
             if self.isVisible():
-                self._maybe_offer_existing_overlay()
+                # Deferred for the same reason as the showEvent path below: a
+                # modal opened straight out of a selection change blocks inside
+                # the layout that change started, and the window comes up over a
+                # partly painted tab (Knut, #130 2026-07-28).
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(0, self._offer_existing_overlay_now)
             else:
                 # …but a chart loaded from Create Chart or Print Chart used to
                 # lose the offer altogether: it was made while another tab was
@@ -2837,8 +2842,21 @@ class TabMeasure(QWidget):
         if not self._pending_overlay_offer:
             return
         self._pending_overlay_offer = False
+        # NOT here and now. Opening a modal window from inside showEvent blocks
+        # before the tab has finished being painted, so the window comes up over
+        # a half-drawn tab — Knut, #130 2026-07-28: "the whole main window
+        # behind the popup warning window is half drawn… the right preview
+        # panel is not at all drawn". Handing it to the event loop lets the tab
+        # paint completely first, and the window then opens over a finished
+        # screen.
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(0, self._offer_existing_overlay_now)
+
+    def _offer_existing_overlay_now(self) -> None:
+        """Make the held offer, once the tab has actually painted."""
         try:
-            self._maybe_offer_existing_overlay()
+            if self.isVisible():
+                self._maybe_offer_existing_overlay()
         except Exception:      # noqa: BLE001 — never break showing the tab
             log.warning("Could not offer the existing measurement", exc_info=True)
 
@@ -7338,6 +7356,10 @@ class TabMeasure(QWidget):
         go = box.addButton(tr("Measure again"), QMessageBox.ButtonRole.AcceptRole)
         box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(go)
+        # Long labels clip once the font swap widens them, and polish
+        # does not happen offscreen — so fit them here (Knut, #130).
+        from ui.widgets import fit_message_box_buttons
+        fit_message_box_buttons(box)
         box.exec()
         agreed = box.clickedButton() is go
         # Remember only when the user actually went ahead: ticking the box and

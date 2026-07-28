@@ -1,5 +1,35 @@
 # Changelog
 
+## v3.14.8-beta.79
+
+- **The Delete windows' buttons no longer clip.** “DELETE RUN 4 PERMANENTLY”
+  was cut at both ends. The universal rule was being applied at the wrong
+  moment: a button's width was worked out in the font it had when the window was
+  built, and the app then swaps every button to a wider font — so the wide text
+  was painted into a width measured for the narrow one. Every window ChromIQ
+  builds now puts the final font on its buttons **first** and measures them
+  after, so the width is right before the window is ever laid out. A test pins
+  the ordering by proving that measuring first is not enough, and the Delete
+  labels are checked in all thirteen languages.
+
+- **The Delete button's ⓘ follows the tab colour**, like every other one in the
+  bar. A test now fails if any information icon in the bar is left untinted, so
+  the next one added cannot be forgotten.
+
+- **After deleting a run, the Profile-run box jumps to the last run.** The files
+  and the manifest were already right — it was the box that kept showing the run
+  that had just gone, because it reads the current selection rather than the
+  manifest. It is now moved explicitly, and the verification date is cleared
+  with it, since those dates belonged to the run that was deleted.
+
+- **No window opens over a half-drawn tab.** Moving to the Measure tab where the
+  “this chart already has a measurement” window is due drew part of the options
+  panel, none of the preview, and then the window on top. The window was being
+  opened from inside the code that shows the tab, which blocks before the tab
+  has finished painting. It now waits for the tab to finish, then opens over a
+  complete screen — and if you have moved on in the meantime, it does not open
+  at all.
+
 ## v3.14.8-beta.78
 
 - **The “Show overlay from existing measurement” box is now ON when it first
