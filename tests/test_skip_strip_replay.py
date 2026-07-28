@@ -134,3 +134,65 @@ def test_the_manager_sends_exactly_that_sequence():
     assert m._runner.out == ['{"cmd": "ok"}\n'], m._runner.out
     assert m._pending_post_retry_key == "f", \
         "'n' (next unread) lands back on the failed strip — it is still unread"
+
+
+# ---- patch-by-patch mode (Knut, #131 2026-07-28) --------------------------
+@pytest.fixture(scope="module")
+def spot_session(chart):
+    """The same chart, read one patch at a time."""
+    base, replay = chart
+    s = ReplaySession(base, replay, extra_args=["-p"])
+    try:
+        s.wait_event("spot_ready")
+        yield s
+    finally:
+        try:
+            s.send(cmd="quit")
+            s.proc.wait(timeout=3)
+        except Exception:      # noqa: BLE001
+            s.proc.kill()
+
+
+def _armed_patch(s):
+    with s._lock:
+        for e in reversed(s.events):
+            if e.get("event") == "spot_ready":
+                return e.get("loc")
+    return None
+
+
+def test_forward_alone_moves_the_patch(spot_session):
+    """No retry prompt is waiting here, so nothing has to be spent on one."""
+    before = _armed_patch(spot_session)
+    spot_session.send(cmd="forward")
+    time.sleep(0.6)
+    assert _armed_patch(spot_session) != before
+
+
+def test_the_acknowledgement_would_read_the_patch_instead(spot_session):
+    """Return is the READ trigger in this mode — which is why sending it as an
+    acknowledgement did nothing useful, and why Skip appeared dead."""
+    from workflow.chartread_engine import KEY_TO_COMMAND
+    assert KEY_TO_COMMAND["\r"] == {"cmd": "ok"}
+    # …and the helper maps both "ok" and "read" to the same key.
+    import pathlib as _p
+    src = (_p.Path(__file__).resolve().parents[1] / "native" /
+           "chartread_helper" / "chromiq_json.c").read_text()
+    assert 'strcmp(cmd, "read") == 0' in src and "0x0d" in src
+
+
+def test_the_manager_sends_forward_alone_in_patch_mode():
+    from workflow.measure_manager import MeasureManager
+
+    class _R:
+        def __init__(self): self.out = []
+        def write_stdin(self, d): self.out.append(d)
+        def __getattr__(self, _n): return lambda *a, **k: None
+
+    m = MeasureManager(_R())
+    m._engine_active = True
+    m._spot_mode = True
+    m.skip_current_strip()
+
+    assert m._runner.out == ['{"cmd": "forward"}\n'], m._runner.out
+    assert m._pending_post_retry_key is None

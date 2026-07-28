@@ -165,3 +165,55 @@ def test_fitting_twice_does_not_pile_up_rules(qapp):
     first = btn.minimumSizeHint().width()
     ButtonFontFilter.fit(btn)
     assert btn.minimumSizeHint().width() == first
+
+
+def test_a_two_line_label_is_measured_line_by_line(qapp):
+    """#131 (Knut, 2026-07-28): the Print Chart buttons suddenly looked wrong.
+
+    Their labels are written over two lines, and the fit was measuring the whole
+    string as if it were one — so "Print\\nCurrent Page" asked for the width of
+    "PrintCurrent Page" and the buttons were forced far too wide, throwing their
+    text out of alignment.
+    """
+    from PyQt6.QtGui import QFontMetrics
+    from PyQt6.QtWidgets import QPushButton
+
+    from ui.widgets import ButtonFontFilter
+    two_line = QPushButton("Print\nCurrent Page")
+    ButtonFontFilter.fit(two_line)
+    one_line = QPushButton("PrintCurrent Page")
+    ButtonFontFilter.fit(one_line)
+
+    assert two_line.minimumSizeHint().width() < one_line.minimumSizeHint().width(), \
+        "a wrapped label must not ask for the width of its lines end to end"
+
+    # …and it is still wide enough for its widest line.
+    fm = QFontMetrics(two_line.font())
+    widest = max(fm.horizontalAdvance(l.upper()) for l in two_line.text().split("\n"))
+    assert two_line.minimumSizeHint().width() >= widest
+
+
+def test_the_print_chart_buttons_are_not_forced_oversized(qapp):
+    """The property that actually broke: whatever minimum the fit asks for, it
+    must be a width the label needs — not the width of its lines end to end.
+
+    (Whether a style sheet is written at all depends on what the application
+    sheet already provides; with it applied these four need nothing extra, which
+    was confirmed on screen.)
+    """
+    from PyQt6.QtGui import QFontMetrics
+    from PyQt6.QtWidgets import QPushButton
+
+    from ui.widgets import ButtonFontFilter
+    for label in ("Print\nCurrent Page", "Print All\nPages",
+                  "Save as\nDefaults", "Clear\nPrint Queue"):
+        btn = QPushButton(label)
+        ButtonFontFilter.fit(btn)
+        fm = QFontMetrics(btn.font())
+        widest = max(fm.horizontalAdvance(l.upper())
+                     for l in btn.text().split("\n"))
+        joined = fm.horizontalAdvance(btn.text().replace("\n", "").upper())
+        asked = btn.minimumSizeHint().width()
+        assert widest <= asked < joined + 36, (
+            f"{label!r}: asked for {asked}px; its widest line needs {widest}px "
+            f"and its lines end to end would be {joined}px")

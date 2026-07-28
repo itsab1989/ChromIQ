@@ -59,11 +59,16 @@ def fit_button_width(btn) -> None:
         # painter will apply — so measure what will really be drawn.
         text = text.upper()
     fm = QFontMetrics(font)
-    needed = fm.horizontalAdvance(text)
+    # A label written over two lines is drawn as two lines, so what it needs is
+    # the WIDEST line — not both of them laid end to end. Measuring the whole
+    # string made "Print\nCurrent Page" ask for the width of "PrintCurrent
+    # Page", which forced the Print Chart buttons far wider than they should be
+    # and threw their text out of alignment (Knut, #131 2026-07-28).
+    needed = max(fm.horizontalAdvance(line) for line in text.split("\n"))
     try:
         opt = QStyleOptionButton()
         opt.initFrom(btn)
-        opt.text = text
+        opt.text = max(text.split("\n"), key=len)
         want = btn.style().sizeFromContents(
             QStyle.ContentsType.CT_PushButton, opt,
             QSize(needed, fm.height()), btn).width()

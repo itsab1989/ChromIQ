@@ -1,5 +1,21 @@
 # Changelog
 
+## v3.14.8-beta.68
+
+- **Skip works in patch-by-patch mode, and the button says "Skip Patch" there.**
+  It did nothing before, and the reason is that the two modes answer keys
+  differently: Return is the *read* trigger when you measure one patch at a
+  time, so the acknowledgement the strip path needs would have re-measured the
+  patch instead of moving off it. Reading patch by patch, ChromIQ now simply
+  moves on. Measured against the real reading engine: A1 → A2 → A3.
+
+- **The Print Chart buttons look themselves again.** Their labels are written
+  over two lines, and the width rule added in beta.56 was measuring the whole
+  label as if it were a single line — so "Print / Current Page" asked for the
+  width of "PrintCurrent Page" and the buttons were forced far too wide, which
+  is what threw their text out of alignment. Each line is now measured on its
+  own. Checked on screen, not only in tests.
+
 ## v3.14.8-beta.67
 
 - **Patch-by-patch reading keeps the plain colour-error limit** — the running

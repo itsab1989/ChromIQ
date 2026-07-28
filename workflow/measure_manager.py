@@ -238,6 +238,7 @@ class MeasureManager(QObject):
         #: offers the strip menu — and the completion window came up before the
         #: user had re-read anything (Knut, #131 2026-07-27).
         self._read_something: bool = False
+        self._spot_mode: bool = False
         self._guided_strips: list[str] = []
         self._guided_idx:    int  = 0
         # "disabled" until strips are actually given: everywhere else the rule
@@ -280,6 +281,9 @@ class MeasureManager(QObject):
         cwd  = params.ti1_path.parent
         self._is_resume      = params.resume
         self._read_something = False
+        #: patch-by-patch (spot) reading, which answers keys differently — see
+        #: :meth:`skip_current_strip`.
+        self._spot_mode      = bool(params.patch_by_patch)
         self._guided_on_line = on_line
         # Reset guided state for this run
         self._guided_idx   = 0
@@ -604,7 +608,18 @@ class MeasureManager(QObject):
         you are trying to leave. On a chart that is already complete it has
         nowhere to go at all. "Forward" is what "skip this one" means, and it is
         right in both cases — confirmed against the real helper.
+
+        **Patch by patch is different, and also measured.** There is no failed
+        strip waiting at a retry prompt, and the acknowledgement would not be an
+        acknowledgement at all: Return is the *read* trigger in that mode, so
+        sending it would measure the patch again instead of moving off it. That
+        is why Skip did nothing there (Knut, #131 2026-07-28). Moving on
+        directly is both sufficient and correct — verified against the real
+        helper, which stepped A1 → A2 on ``forward`` alone.
         """
+        if self._engine_active and self._spot_mode:
+            self.send_command({"cmd": "forward"})
+            return
         self.send_post_retry_key("f")
 
     def send_save_partial_and_quit(self) -> None:

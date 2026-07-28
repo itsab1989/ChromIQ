@@ -4936,14 +4936,26 @@ class TabMeasure(QWidget):
         btn_row.setSpacing(8)
 
         retry_btn = QPushButton(tr("Retry"), dlg)
-        skip_btn = QPushButton(
-            tr("Finish Without This Strip") if last_one else tr("Skip Strip"),
-            dlg)
+        # Reading one patch at a time, this window is about a patch — so the
+        # button says so (Knut, #131 2026-07-28: "This button could in this mode
+        # become 'skip patch' feature").
+        _spot = bool(getattr(self, "_spot_session", False))
+        if last_one:
+            skip_label = (tr("Finish Without This Patch") if _spot
+                          else tr("Finish Without This Strip"))
+        else:
+            skip_label = tr("Skip Patch") if _spot else tr("Skip Strip")
+        skip_btn = QPushButton(skip_label, dlg)
         if last_one:
             skip_btn.setToolTip(tr(
-                "Saves the strips you have read and ends the measurement. This "
-                "strip stays unread; loading the chart again lets you continue "
-                "from here."))
+                "Saves what you have read and ends the measurement. This one "
+                "stays unread; loading the chart again lets you continue from "
+                "here."))
+        elif _spot:
+            skip_btn.setToolTip(tr(
+                "Leaves this patch unmeasured and moves on to the next one. "
+                "You can come back to it later — the chart is not finished "
+                "until every patch has a reading."))
         save_btn  = QPushButton(tr("Save Partial && Quit"), dlg)
         retry_btn.setObjectName("primary")
         retry_btn.setFixedHeight(32)
