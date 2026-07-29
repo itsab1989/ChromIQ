@@ -744,26 +744,6 @@ _OVERLAY_TIP_BODY = (
     "layout), open it in Tools ▸ Inspect a measurement to see the numbers "
     "instead.")
 
-_VERIFY_TIP_TITLE = "Verification measurement (colour-managed print)"
-_VERIFY_TIP_BODY = (
-    "Tick this ONLY when you are measuring a chart you printed *through* a "
-    "profile (with colour management ON) to check how good that profile is — "
-    "NOT the normal profiling chart.\n\n"
-    "Normally you print the chart with colour management OFF so ChromIQ can "
-    "learn your printer's raw behaviour and build a profile from it. A chart "
-    "printed THROUGH a profile is the opposite: it shows the corrected result, "
-    "so a profile built from it would be wrong.\n\n"
-    "When this is ticked, ChromIQ:\n"
-    "  • saves the reading as a separate '…-verify.ti3' file (your real "
-    "measurement is never overwritten),\n"
-    "  • marks it so it can't be turned into a profile by accident, and\n"
-    "  • afterwards reminds you to open it in Tools ▸ Inspect a measurement, "
-    "where it checks the colours against the profile.\n\n"
-    "Leave it OFF for normal profiling. To verify, reprint your chart through "
-    "the finished profile, then measure it with this ticked."
-)
-
-
 @dataclass
 class _ChartreadOption:
     """One chartread option row with enable-checkbox and optional value widget."""
@@ -1073,13 +1053,15 @@ class TabMeasure(QWidget):
         destination."""
         self._target_ctl = controller
 
-    def _is_verify_checked(self) -> bool:
-        """True when this is a verification read — either the active module's
-        'Verification measurement' box is ticked, or the shared Run type is set
-        to Verification (#130)."""
-        cb = self._verify_cb if self._current_mode() == "guided" else self._m_verify_cb
-        if cb.isChecked():
-            return True
+    def _is_verification_run(self) -> bool:
+        """True when the shared Run type says this read is a verification.
+
+        It used to be "the module's Verification checkbox is ticked, OR the
+        shared Run type is Verification". The checkbox is gone (Knut, #130
+        2026-07-29) — under the unified file handling the bar is the only place
+        a run's type is decided, and a second control could only disagree with
+        it.
+        """
         ctl = getattr(self, "_target_ctl", None)
         return ctl is not None and ctl.target.is_verification()
 
@@ -1119,7 +1101,7 @@ class TabMeasure(QWidget):
         message so the caller stops and explains. Keyed off the Profile-run bar,
         so it fires even when the loaded chart is a verify chart under
         verifications/ (Knut). None when the read may proceed."""
-        if not self._is_verify_checked():
+        if not self._is_verification_run():
             return None
         run = self._guard_run()
         if run is None:
@@ -1160,10 +1142,6 @@ class TabMeasure(QWidget):
             "management on).\n"
             "  7. Measure it here with “Run type” = “Verification” — the result "
             "is kept in a dated folder under this run's “verifications” folder.")
-
-    def _uncheck_verification(self) -> None:
-        cb = self._verify_cb if self._current_mode() == "guided" else self._m_verify_cb
-        cb.setChecked(False)
 
     def set_calibration_mode(self, enabled: bool) -> None:
         """Hide guided mode toggle and lock to manual when calibration mode is active."""
@@ -1755,18 +1733,12 @@ class TabMeasure(QWidget):
 
         ll.addWidget(adv_grp)
 
-        verify_grp = QGroupBox(tr("Profile verification"), left)
-        vg = QVBoxLayout(verify_grp)
-        vg.setContentsMargins(8, 14, 8, 8)
-        verify_row = QHBoxLayout()
-        self._verify_cb = QCheckBox(
-            tr("Verification measurement (colour-managed print)"), left)
-        verify_row.addWidget(self._verify_cb)
-        verify_row.addStretch()
-        verify_row.addWidget(
-            TooltipButton(tr(_VERIFY_TIP_TITLE), tr(_VERIFY_TIP_BODY), left))
-        vg.addLayout(verify_row)
-        ll.addWidget(verify_grp)
+        # The "Profile verification" group that used to sit here is gone
+        # (Knut, #130 2026-07-29): *"this frame, the checkbox, and the
+        # information icon can be removed totally from the code"*. Under the
+        # unified file handling the Profile-run bar's **Run type** decides
+        # whether a read is a verification, and a second control saying the same
+        # thing could only ever disagree with it.
         ll.addStretch(1)
 
         scroll.setWidget(left)
@@ -2224,19 +2196,6 @@ class TabMeasure(QWidget):
 
         ll.addWidget(m_adv_grp)
 
-        m_verify_grp = QGroupBox(tr("Profile verification"), left)
-        mvg = QVBoxLayout(m_verify_grp)
-        mvg.setContentsMargins(8, 14, 8, 8)
-        m_verify_row = QHBoxLayout()
-        self._m_verify_cb = QCheckBox(
-            tr("Verification measurement (colour-managed print)"), left)
-        m_verify_row.addWidget(self._m_verify_cb)
-        m_verify_row.addStretch()
-        m_verify_row.addWidget(
-            TooltipButton(tr(_VERIFY_TIP_TITLE), tr(_VERIFY_TIP_BODY), left))
-        mvg.addLayout(m_verify_row)
-        ll.addWidget(m_verify_grp)
-
         # Click-a-strip tip — at the BOTTOM of the manual options (Knut: it
         # looked out of place in the middle). Shown only with the engine on.
         self._m_engine_tip = QWidget(left)
@@ -2311,7 +2270,6 @@ class TabMeasure(QWidget):
             "suppress":   self._m_suppress_cb.isChecked(),
             "nocal":      self._m_nocal_cb.isChecked(),
             "pbp":        self._m_pbp_cb.isChecked(),
-            "verify":     self._m_verify_cb.isChecked(),
             # "Live preview" view controls (#126) — preview-only, but saved so a
             # preset restores the whole workspace look the user prefers.
             "overlay_mode":  self._m_overlay_mode.currentData(),
@@ -2339,7 +2297,7 @@ class TabMeasure(QWidget):
         self._m_suppress_cb.setChecked(bool(data.get("suppress", True)))
         self._m_nocal_cb.setChecked(bool(data.get("nocal", False)))
         self._m_pbp_cb.setChecked(bool(data.get("pbp", False)))
-        self._m_verify_cb.setChecked(bool(data.get("verify", False)))
+        # "verify" in an older preset is ignored: the checkbox it drove is gone.
         _om = self._m_overlay_mode.findData(data.get("overlay_mode", "both"))
         if _om >= 0:
             self._m_overlay_mode.setCurrentIndex(_om)
@@ -4128,7 +4086,7 @@ class TabMeasure(QWidget):
         ctl = getattr(self, "_target_ctl", None)
         if ctl is None:
             return True
-        if not ctl.target.is_verification() or not self._is_verify_checked():
+        if not ctl.target.is_verification() or not self._is_verification_run():
             # Profiling: the run keeps one copy of the chart it was measured
             # with, in runs/runN/chart/ (#130, Knut 2026-07-27).
             return self._snapshot_profiling_chart(ctl)
@@ -4240,7 +4198,10 @@ class TabMeasure(QWidget):
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.information(
                 self, tr("Build a profile before verifying"), block)
-            self._uncheck_verification()      # auto-switch back to Profiling (Knut)
+            # The old code unticked the module's Verification box here. With
+            # that box gone the equivalent would be to change the Profile-run
+            # bar under the user, which is a bigger thing to do unasked — the
+            # message already tells them what to do, so nothing is changed.
             return
 
         # #130: keep a copy of the chart this verification measures, BEFORE any
@@ -4264,7 +4225,7 @@ class TabMeasure(QWidget):
         self._spot_session = self._is_pbp_checked()
         # Capture the verification-measurement choice now, so toggling the box
         # mid-read can't change how the finished .ti3 is handled.
-        self._verify_run = self._is_verify_checked()
+        self._verify_run = self._is_verification_run()
         self._instrument_disconnected = False
         self._device_busy = False
         self._no_instrument = False

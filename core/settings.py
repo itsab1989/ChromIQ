@@ -236,7 +236,10 @@ DEFAULTS: dict[str, Any] = {
     # UI state
     "window_geometry":           None,
     "active_tab":                0,
-    "restore_last_tab":          True,
+    # False since #130 (Knut, 2026-07-29): "When starting fresh, it should
+    # always start in first tab." Switch it on in Preferences → General to have
+    # ChromIQ reopen wherever you left off.
+    "restore_last_tab":          False,
     "restore_last_session":      False,
     "appearance":                "auto",   # "light" | "dark" | "auto"
     "language":                  "en",     # ISO code; applied on restart (core/i18n.py)
@@ -607,7 +610,7 @@ def thresholds_for_combo(
 # Bump when a shipped default changes in a way that must reach users who have
 # the OLD default persisted. Settings → Save writes every key, so a stored
 # value otherwise pins a user to the old behaviour for good.
-SETTINGS_SCHEMA = 15
+SETTINGS_SCHEMA = 16
 
 # key → the old default(s) it must no longer be stuck on. Only a stored value
 # EQUAL to one of the old defaults is dropped (so it falls through to the new
@@ -700,6 +703,8 @@ class AppSettings:
             dropped.append("save_measurement_report (now on by default)")
         if self._migrate_chartread_engine_default():
             dropped.append("chartread_engine (ChromIQ engine now the default)")
+        if self._migrate_restore_last_tab_default():
+            dropped.append("restore_last_tab (now off by default)")
         self._qs.setValue("settings_schema", SETTINGS_SCHEMA)
         if dropped:
             log.info("Settings migrated to schema %d; dropped stale defaults: %s",
@@ -719,6 +724,29 @@ class AppSettings:
                                   and raw.strip().lower() in ("true", "1", "yes"))
         if not is_true:
             self._qs.remove("save_measurement_report")
+            return True
+        return False
+
+    def _migrate_restore_last_tab_default(self) -> bool:
+        """schema 16 (#130, Knut 2026-07-29): reopening on the last-used tab is
+        now OFF by default — *"When starting fresh, it should always start in
+        first tab."*
+
+        Preferences → Save writes every key, so anyone who has opened that
+        dialog carries a stored ``True`` that is only an echo of the old
+        default; that echo is dropped so it resolves to the new value. The
+        limitation is the same as every other default change here: a ``True``
+        the user chose deliberately is indistinguishable from the echo and is
+        dropped too, so anyone who wants the old behaviour ticks the box again —
+        which is why the box is still there.
+        """
+        raw = self._qs.value("restore_last_tab", None)
+        if raw is None:
+            return False
+        is_true = raw is True or (isinstance(raw, str)
+                                  and raw.strip().lower() in ("true", "1", "yes"))
+        if is_true:
+            self._qs.remove("restore_last_tab")
             return True
         return False
 
@@ -867,6 +895,26 @@ class AppSettings:
     def set(self, key: str, value: Any) -> None:
         log.debug("settings.set %s = %r", key, value)
         self._qs.setValue(key, value)
+
+    def sync(self) -> None:
+        """Write everything to disk NOW.
+
+        ChromIQ leaves via ``os._exit`` — QtWebEngine and SIP crash if the
+        interpreter is allowed to finalize (issue #38) — and ``os._exit`` skips
+        every bit of cleanup, including the flush QSettings normally performs
+        when it is destroyed or when its timer next fires. So anything written
+        during ``closeEvent`` could simply never reach disk, and whichever value
+        happened to be flushed once stayed for good.
+
+        That is what made ChromIQ always reopen on the Measure tab whatever tab
+        you actually left it on (Knut, #130 2026-07-29). Called at the end of
+        ``closeEvent``, while the event loop is still alive, which is the only
+        safe moment.
+        """
+        try:
+            self._qs.sync()
+        except Exception:      # noqa: BLE001 — never block the app closing
+            log.warning("could not flush settings to disk", exc_info=True)
 
     def reset_to_defaults(self) -> None:
         presets = self._qs.value("manual_presets", "")

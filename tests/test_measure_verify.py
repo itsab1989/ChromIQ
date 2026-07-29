@@ -42,6 +42,24 @@ def _make_tab():
     return TabMeasure(ArgyllRunner(s), s)
 
 
+def _attach_controller(tab, tmp_path, name="P"):
+    """Give the tab a Profile-run bar controller pointed at *name*.
+
+    The three guard tests used to flip the module's Verification checkbox, which
+    needed no controller. That checkbox is gone (Knut, #130 2026-07-29) and the
+    bar's Run type is the only switch, so they need a bar.
+    """
+    from core.file_manager import FileManager
+    from ui.measurement_target_bar import MeasurementTargetController
+    tab._settings.set("custom_output_path", str(tmp_path))
+    fm = FileManager(tab._settings)
+    fm.set_target_name(name)
+    ctl = MeasurementTargetController(fm)
+    ctl.set_profile_run("run1")
+    tab.set_target_controller(ctl)
+    return ctl
+
+
 def test_verify_run_saves_tagged_verify_file(tmp_path, monkeypatch):
     # Don't let the completion dialog block or open the inspector.
     monkeypatch.setattr(QDialog, "exec", lambda self: 0)
@@ -106,9 +124,8 @@ def test_verification_guard_blocks_without_profile(tmp_path):
     run = proj.current_run(); run.ensure_dir()
     run.chart_ti2.write_text("x")
     tab._ti1_path = run.chart_ti2
-
-    # Tick the active module's verification box.
-    (tab._verify_cb if tab._current_mode() == "guided" else tab._m_verify_cb).setChecked(True)
+    _attach_controller(tab, tmp_path)
+    tab._target_ctl.set_run_type("verification")
 
     # No profile yet → blocked with a message.
     assert tab._verification_guard() is not None
@@ -120,7 +137,7 @@ def test_verification_guard_blocks_without_profile(tmp_path):
     run.verify_chart_ti2.write_text("vc")
     assert tab._verification_guard() is None
     # Not ticked → never blocked.
-    (tab._verify_cb if tab._current_mode() == "guided" else tab._m_verify_cb).setChecked(False)
+    tab._target_ctl.set_run_type("profiling")
     assert tab._verification_guard() is None
 
 
@@ -134,7 +151,8 @@ def test_verification_guard_hole2_no_verify_chart(tmp_path):
     run = proj.current_run(); run.ensure_dir()
     run.chart_ti2.write_text("x"); run.profile_icc.write_text("icc")
     tab._ti1_path = run.chart_ti2
-    (tab._verify_cb if tab._current_mode() == "guided" else tab._m_verify_cb).setChecked(True)
+    _attach_controller(tab, tmp_path)
+    tab._target_ctl.set_run_type("verification")
     msg = tab._verification_guard()
     assert msg is not None and "verification chart" in msg.lower()
     assert "doesn't have a built profile" not in msg      # not the Hole 1 text
@@ -144,7 +162,8 @@ def test_verification_guard_ignores_external_charts(tmp_path):
     tab = _make_tab()
     (tmp_path / "loose.ti2").write_text("x")
     tab._ti1_path = tmp_path / "loose.ti2"
-    (tab._verify_cb if tab._current_mode() == "guided" else tab._m_verify_cb).setChecked(True)
+    _attach_controller(tab, tmp_path)
+    tab._target_ctl.set_run_type("verification")
     # Not inside runs/runN → the verification model doesn't apply, no block.
     assert tab._verification_guard() is None
 
@@ -170,7 +189,7 @@ def test_verification_guard_keys_off_bar_run(tmp_path, monkeypatch):
     run.verifications_dir.mkdir(parents=True, exist_ok=True)
     run.verify_chart_ti2.write_text("vc")
     tab._ti1_path = run.verify_chart_ti2
-    (tab._verify_cb if tab._current_mode() == "guided" else tab._m_verify_cb).setChecked(True)
+    tab._target_ctl.set_run_type("verification")
 
     msg = tab._verification_guard()
     assert msg is not None and "doesn't have a built profile" in msg   # Hole 1 fires

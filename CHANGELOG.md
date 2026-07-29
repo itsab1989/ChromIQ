@@ -1,5 +1,25 @@
 # Changelog
 
+## v3.14.8-beta.101
+
+- **ChromIQ starts on the first tab again.** It kept reopening on Measure
+  whatever tab you left it on, and the cause was not the tab at all: ChromIQ
+  exits through `os._exit` to avoid a crash in Qt's web engine, and that skips
+  the moment when settings are normally written to disk. Everything saved as the
+  window closed — the active tab, the window geometry, the session — could
+  simply never land, so whichever value happened to be stored once stayed for
+  good. Settings are now flushed while the app is still alive.
+
+- **And a fresh install starts on the first tab by choice.** "Restore last
+  active tab on launch" is now off by default; tick it in Preferences → General
+  to have ChromIQ reopen where you left off.
+
+- **The "Profile verification" box is gone from the Measure tab.** Its checkbox,
+  its frame and its ⓘ said the same thing as Run type in the Profile-run bar,
+  and since the unified file handling arrived a second control could only ever
+  disagree with the first. Run type alone now decides whether a reading is a
+  verification. Nothing about verifying has changed otherwise.
+
 ## v3.14.8-beta.100
 
 - **Delete and Restore Used Chart now carry the icons Knut chose the shapes

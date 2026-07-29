@@ -48,7 +48,7 @@ def _env(tmp_path):
     ctl.set_profile_run("run1"); ctl.set_run_type(RUN_TYPE_VERIFICATION)
     tab = TabMeasure(ArgyllRunner(s), s)
     tab.set_target_controller(ctl)
-    tab._verify_cb.setChecked(True)
+    tab._target_ctl.set_run_type("verification")
     return s, run, ctl, tab
 
 

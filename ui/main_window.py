@@ -1205,4 +1205,9 @@ class MainWindow(QMainWindow):
             "session_project_root",
             str(self._file_mgr.project_root_override() or ""))
         self._runner.cleanup()
+        # LAST, and while the event loop is still alive: main._hard_exit calls
+        # os._exit, which skips the flush QSettings would otherwise do on
+        # destruction. Without this everything written above — the active tab,
+        # the window geometry, the session — could be lost (Knut, #130).
+        self._settings.sync()
         super().closeEvent(event)
