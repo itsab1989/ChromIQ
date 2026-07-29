@@ -6433,10 +6433,24 @@ class TabChart(QWidget):
                     pages = 1 + max((int(p.get("page", 0))
                                      for p in layout.get("patches") or []),
                                     default=-1)
+            # Read for the log only — and defensively, because a diagnostic
+            # must never be able to stop the thing it is describing.
+            try:
+                before = self._manual_pages_spin.value()
+            except Exception:      # noqa: BLE001
+                before = None
             if pages > 0 and self._manual_pages_spin is not None:
                 self._manual_pages_spin.setValue(int(pages))
             if pages > 0 and getattr(self, "_pages_spin", None) is not None:
                 self._pages_spin.setValue(int(pages))
+            # Knut asked me to find the stuck "pages = 20" in his log and it was
+            # not there to find: ChromIQ never recorded the page count, so no
+            # log could show what it held or who set it (#130, 2026-07-29).
+            # It does now.
+            log.info("chart loaded: %s page(s) counted from %s "
+                     "(field was %s, now %s)", pages,
+                     "the page images" if tiffs else "the patch geometry",
+                     before, pages if pages > 0 else before)
         except Exception:      # noqa: BLE001 — never block a chart load
             log.warning("could not show the loaded chart's page count",
                         exc_info=True)

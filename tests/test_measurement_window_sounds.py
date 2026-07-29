@@ -110,9 +110,24 @@ def test_every_deferred_instrument_window_cues_itself_as_it_opens():
     for guard in guards:
         i = next((n for n, l in enumerate(lines) if l == guard), None)
         assert i is not None, f"{guard} is gone — has the window moved?"
-        following = " ".join(lines[i + 1:i + 4])
-        assert '_cue_window("INSTRUMENT_ERROR")' in following, (
-            f"the window behind {guard} opens without its sound")
+        # Scan the whole branch — to the next guard or its return — rather
+        # than a fixed number of lines, so a comment or an extra condition
+        # cannot push the cue out of view.
+        end = len(lines)
+        for k in range(i + 1, len(lines)):
+            if lines[k] in guards or lines[k] == "return":
+                end = k + 1
+                break
+        following = " ".join(lines[i + 1:end])
+        # Either the branch cues inline, or it delegates to a window method
+        # that cues — the disconnect window is now shared with the 2-second
+        # rule (Knut, #130 2026-07-29), so it lives in one place.
+        cued = '_cue_window("INSTRUMENT_ERROR")' in following
+        if not cued and "_show_instrument_disconnected_window" in following:
+            shared = inspect.getsource(
+                TabMeasure._show_instrument_disconnected_window)
+            cued = '_cue_window("INSTRUMENT_ERROR")' in shared
+        assert cued, f"the window behind {guard} opens without its sound"
 
 
 def test_the_cue_comes_before_the_window_is_built_in_each_branch():

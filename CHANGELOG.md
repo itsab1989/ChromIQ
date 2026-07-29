@@ -1,5 +1,22 @@
 # Changelog
 
+## v3.14.8-beta.90
+
+- **A continuing instrument fault now tells you within two seconds.** Pulling the
+  cable during a measurement filled the log with the same error and showed
+  nothing until the reader stopped. The first error now starts a two-second
+  clock, every further one keeps it running, and the window opens — with its
+  sound — only if the fault is *still* being reported when the clock runs out. A
+  momentary glitch that recovers passes without interrupting you, and a fault
+  that only becomes clear once the reader stops is still reported at the end, but
+  never twice.
+
+- **ChromIQ records the page count when a chart is loaded.** Asked to find a
+  stuck page number in a log, there was nothing to find: the value was never
+  written down, so no log could show what it held or where it came from. It now
+  logs how many pages were counted, whether they came from the page images or
+  from the chart's own geometry, and what the field held before.
+
 ## v3.14.8-beta.89
 
 - **Button labels are measured against the font the platform may actually
