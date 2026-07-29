@@ -249,3 +249,86 @@ def test_the_message_never_claims_the_chart_itself_is_wrong(qapp):
     text = src[start - 400:start + 700]
     assert "put back exactly as they were" in text
     assert "(s)" not in text
+
+
+# ---- Knut's actual case, named on 2026-07-29 22:40Z -----------------------
+def test_restoring_a_printtarg_chart_turns_the_engine_toggle_off(qapp, tmp_path):
+    """*"If the stored chart in chart/ folder was made with printtarg layout
+    engine, and I change the Create Chart manual mode parameters for ChromIQ
+    layout engine, then settings from both layout engines should be restored when
+    clicking Restore Used Chart. I suspected this was the case."*
+
+    He was right, and it was the opposite way round from what I had been testing.
+    Restoring an ENGINE chart switches the engine on. Restoring a PRINTTARG chart
+    used to leave it on as well — and with the engine on, the printtarg fields
+    that had just been restored were ignored, because the build reads whichever
+    engine is selected. So the options on screen did not describe the stored
+    chart.
+    """
+    import json
+
+    _s, _fm, run, tab = _env(tmp_path)
+    tab._switch_mode("manual")
+    if not tab._manual_panel_inited:
+        tab._init_manual_layout_panel()
+
+    # A stored chart with NO layout recipe — i.e. drawn by printtarg — but with
+    # its printtarg fields saved beside it, which is what a build writes.
+    ti2 = run.chart_ti2
+    ti2.write_text(_mixed_fixed_order_ti2())
+    fields = [{"flag": pw.flag, "value": pw.get_raw_value(), "enabled": False}
+              for pw in tab._manual_widgets.get("printtarg", [])]
+    assert fields, "no printtarg fields to restore — check the panel built"
+    ti2.with_suffix(".channels.json").write_text(json.dumps({
+        "inks": ["R", "G", "B"], "printtarg_fields": fields}))
+
+    # The user has since moved to the ChromIQ engine.
+    tab._manual_engine_check.setChecked(True)
+    assert tab._manual_engine_check.isChecked()
+
+    assert tab._restore_chart_settings(ti2) is False   # no recipe to restore
+
+    assert not tab._manual_engine_check.isChecked(), (
+        "the engine stayed on after restoring a printtarg chart, so the "
+        "restored printtarg fields would be ignored")
+
+
+def test_restoring_an_engine_chart_still_turns_the_engine_on(qapp, tmp_path):
+    """The other direction must keep working — this is a symmetry fix, not a
+    switch-it-off-always."""
+    import json
+
+    from workflow.layout_engine.presets import default_recipe
+    _s, _fm, run, tab = _env(tmp_path)
+    tab._switch_mode("manual")
+    if not tab._manual_panel_inited:
+        tab._init_manual_layout_panel()
+    rec = default_recipe("i1", "A4")
+    ti2 = run.chart_ti2
+    ti2.write_text(_mixed_fixed_order_ti2())
+    ti2.with_suffix(".channels.json").write_text(json.dumps({
+        "inks": ["R", "G", "B"],
+        "layout": {"recipe": {k: v for k, v in vars(rec).items()},
+                   "seed": 1, "patches": [{"page": 0}]},
+        "engine": "chromiq", "engine_version": 2}))
+
+    tab._manual_engine_check.setChecked(False)
+    assert tab._restore_chart_settings(ti2) is True
+    assert tab._manual_engine_check.isChecked(), \
+        "an engine chart must bring the engine back on"
+
+
+def test_a_chart_with_no_sidecar_at_all_leaves_the_toggle_alone(qapp, tmp_path):
+    """Nothing is known about such a chart, so nothing should be claimed about
+    it — flipping the engine off here would be a guess, not a restore."""
+    _s, _fm, run, tab = _env(tmp_path)
+    tab._switch_mode("manual")
+    if not tab._manual_panel_inited:
+        tab._init_manual_layout_panel()
+    ti2 = run.chart_ti2
+    ti2.write_text(_mixed_fixed_order_ti2())      # no .channels.json beside it
+
+    tab._manual_engine_check.setChecked(True)
+    assert tab._restore_chart_settings(ti2) is False
+    assert tab._manual_engine_check.isChecked(), \
+        "with no sidecar there is nothing to restore, so nothing may change"

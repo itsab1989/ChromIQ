@@ -828,7 +828,12 @@ FILE_GUIDE_CARD: dict = {
     "steps": [],
     "kind": "files",
 }
-WORKFLOWS.append(FILE_GUIDE_CARD)
+# THIRD in the grid, beside "Overview of Main Actions" (Knut, #130 2026-07-29:
+# *"Move the card to be places third in the list of cards, next to 'Overview of
+# Main Actions'."*). Where your files are is a question a new user has on their
+# first build, so it belongs with the two orientation cards rather than after
+# the specialised workflows.
+WORKFLOWS.insert(2, FILE_GUIDE_CARD)
 
 
 # Profiling a printer with extra inks (CMYK+N / 6-ink, 7-ink …) — its own

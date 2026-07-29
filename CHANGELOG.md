@@ -1,5 +1,31 @@
 # Changelog
 
+## v3.14.8-beta.104
+
+- **The Restore Used Chart and Delete icons are bigger and bolder.** At the
+  height of the boxes beside them the marks were no larger than the little ⓘ
+  helpers, which is not enough for two buttons that put a chart back or delete a
+  run. The mark is now half again as tall, in a square that is a few pixels
+  taller than the selectors — clearly the most prominent thing in that part of
+  the bar, which is what it should be.
+
+- **Restoring a printtarg chart now switches the layout engine back off.**
+  Putting back a chart that had been laid out by printtarg restored its printtarg
+  settings, but left the ChromIQ layout engine switched on if that is where you
+  had been working — and with the engine on, those restored settings are not the
+  ones a rebuild would use. So the options on screen did not describe the chart
+  that had just come back. Restoring an engine chart already switched the engine
+  on; the other direction now matches it. A chart with nothing saved beside it
+  still leaves your options alone, because nothing is known about it.
+
+- **"Where are my files?" opens with a picture of the project folder.** The card
+  has moved up beside "Getting started" and "Overview of Main Actions", where a
+  question about where things live actually gets asked, and it now begins with a
+  "Project File Structure" diagram: every folder a project can contain, drawn as
+  a tree with the lines running from each folder down to the ones inside it, and
+  a plain-language note beside each one. The same diagram goes into the
+  "Where are my files.txt" file in every project folder.
+
 ## v3.14.8-beta.103
 
 - **A restored profiling chart now really is the chart that was measured.**

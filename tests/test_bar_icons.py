@@ -174,7 +174,11 @@ def test_the_marks_are_re_tinted_with_everything_else():
 
 
 def test_the_icons_have_a_size_so_the_button_reserves_room():
-    """Set by the button itself now, once, rather than at each call site."""
-    assert bi.BarIconButton.ICON == 18
+    """Set by the button itself now, once, rather than at each call site. The
+    mark grew to 27 px when Knut saw 18 px on screen and asked for about half
+    again (#130, 2026-07-29); the button's square follows it."""
+    assert bi.BarIconButton.ICON == 27
+    assert bi.BarIconButton.HEIGHT > bi.BarIconButton.ICON, \
+        "the mark would be clipped by its own button"
     assert "setIconSize(QSize(self.ICON, self.ICON))" in inspect.getsource(
         bi.BarIconButton.__init__)

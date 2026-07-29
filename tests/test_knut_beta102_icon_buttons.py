@@ -312,14 +312,22 @@ def test_the_label_is_not_painted_but_is_still_the_name(qapp, tmp_path):
         assert btn.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonIconOnly
 
 
-def test_they_keep_the_height_the_text_buttons_had(qapp, tmp_path):
-    """*"The new icons should have the same hight as the height of the previous
-    buttons (now removed)."* Those were 26 px tall — the compact bar row."""
+def test_they_are_clearly_bigger_than_the_info_icons(qapp, tmp_path):
+    """Knut asked first for the height the text buttons had (26 px), then — on
+    seeing it — for the MARK to grow by about half, *"even if that makes them a
+    little taller than the input boxes"*, and to be *"clearly bigger and more
+    prominent than the info icons"*. So the square follows the mark now, not the
+    row."""
     fm, _proj, _run = _project(tmp_path)
     _ctl, bar = _bar(fm)
-    for btn in (bar._restore_btn, bar._delete_btn):
-        assert btn.height() == 26
-        assert btn.width() == 26, "a square hit target, not a slot"
+    for btn, tip in ((bar._restore_btn, bar._restore_tip),
+                     (bar._delete_btn, bar._delete_tip)):
+        assert btn.height() == BarIconButton.HEIGHT == 34
+        assert btn.width() == 34, "a square hit target, not a slot"
+        assert btn.height() > tip.height(), "no bigger than the ⓘ beside it"
+        assert btn.iconSize().height() >= tip.height() * 1.2, (
+            "the mark is not clearly more prominent than the ⓘ: "
+            f"{btn.iconSize().height()} px of mark vs a {tip.height()} px ⓘ")
 
 
 def test_nothing_widens_them_for_a_label_they_no_longer_show(qapp, tmp_path):
@@ -333,7 +341,7 @@ def test_nothing_widens_them_for_a_label_they_no_longer_show(qapp, tmp_path):
         ctl.set_run_type(RUN_TYPE_PROFILING)
         bar.refresh()
     for btn in (bar._restore_btn, bar._delete_btn):
-        assert btn.width() == 26
+        assert btn.width() == BarIconButton.HEIGHT
 
     src = inspect.getsource(MeasurementTargetBar._fit_widths)
     assert "_restore_btn" not in src and "_delete_btn" not in src, \
@@ -358,8 +366,8 @@ def test_the_greyed_mark_is_drawn_grey_rather_than_left_coloured(qapp, tmp_path)
     fm, _proj, _run = _project(tmp_path)
     _ctl, bar = _bar(fm)
     for btn in (bar._restore_btn, bar._delete_btn):
-        normal = btn.icon().pixmap(18, 18, QIcon.Mode.Normal).toImage()
-        off = btn.icon().pixmap(18, 18, QIcon.Mode.Disabled).toImage()
+        normal = btn.icon().pixmap(BarIconButton.ICON, BarIconButton.ICON, QIcon.Mode.Normal).toImage()
+        off = btn.icon().pixmap(BarIconButton.ICON, BarIconButton.ICON, QIcon.Mode.Disabled).toImage()
         assert normal != off, "the disabled mark is the coloured one"
         # …and the grey really is grey: no channel stands out.
         greys = []
@@ -427,7 +435,7 @@ def test_the_grey_follows_a_theme_switch(qapp, tmp_path):
         pal.setColor(QPalette.ColorRole.WindowText, QColor(text_colour))
         btn.setPalette(pal)          # Qt delivers PaletteChange from here
         qapp.processEvents()
-        return btn.icon().pixmap(18, 18, QIcon.Mode.Disabled).toImage()
+        return btn.icon().pixmap(BarIconButton.ICON, BarIconButton.ICON, QIcon.Mode.Disabled).toImage()
 
     light = greyed_mark_under("#22211f")     # dark text ⇒ light theme
     dark = greyed_mark_under("#e6e6e6")     # light text ⇒ dark theme
@@ -455,10 +463,10 @@ def test_both_marks_follow_the_active_tab(qapp, tmp_path):
     from PyQt6.QtGui import QIcon
     fm, _proj, _run = _project(tmp_path)
     _ctl, bar = _bar(fm)
-    before = [btn.icon().pixmap(18, 18, QIcon.Mode.Normal).toImage()
+    before = [btn.icon().pixmap(BarIconButton.ICON, BarIconButton.ICON, QIcon.Mode.Normal).toImage()
               for btn in (bar._restore_btn, bar._delete_btn)]
     bar.set_accent("#37bcd6")
-    after = [btn.icon().pixmap(18, 18, QIcon.Mode.Normal).toImage()
+    after = [btn.icon().pixmap(BarIconButton.ICON, BarIconButton.ICON, QIcon.Mode.Normal).toImage()
              for btn in (bar._restore_btn, bar._delete_btn)]
     for a, b in zip(before, after):
         assert a != b, "a mark ignored the tab's accent colour"

@@ -86,10 +86,12 @@ def test_the_two_action_buttons_are_their_marks_and_nothing_more(qapp, tmp_path)
     asked for the mark to replace the whole button (#130, 2026-07-29), so the
     requirement is now the opposite — a square the size of the row's height, with
     no room reserved for text that is never painted."""
+    from ui.bar_icons import BarIconButton
     bar, _run = _bar(tmp_path, dates=("2026-07-20_100000",))
+    side = BarIconButton.HEIGHT
     for btn in (bar._restore_btn, bar._delete_btn):
-        assert (btn.width(), btn.height()) == (26, 26), \
-            f"{btn.text()!r} is {btn.width()}×{btn.height()}, not the 26px square"
+        assert (btn.width(), btn.height()) == (side, side), \
+            f"{btn.text()!r} is {btn.width()}×{btn.height()}, not the {side}px square"
 
 
 # ---- stable --------------------------------------------------------------

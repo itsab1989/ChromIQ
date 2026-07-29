@@ -191,13 +191,20 @@ class BarIconButton(QToolButton):
     asks what it is.
     """
 
-    #: Matches the height the "Restore Used Chart" / "Delete" text buttons had,
-    #: which is what Knut asked the icons to keep. Width follows, so the mark
-    #: sits in a square hit target rather than a slot.
-    HEIGHT = 26
-    #: The mark itself, inside that box. Bigger than the 16 px it was beside a
-    #: label, because the mark now has to carry the button on its own.
-    ICON = 18
+    #: Knut, #130 2026-07-29 on beta.103: *"The two new buttons are too small.
+    #: The symbols currently can fit inside the diameter of the circle for the
+    #: info icon image… the height of the visible part of the icon must be
+    #: increased by maybe 50%, even if that makes them a little taller than the
+    #: input boxes for profile run and run type. The buttons should be clearly
+    #: bigger and more prominent than the info icons."*
+    #:
+    #: So the square is no longer tied to the 26 px row: it is as tall as the
+    #: mark needs. A mark occupies roughly two thirds of its 24-unit box, so
+    #: 27 px of icon draws about 18 px of ink — half again the 12 px it drew at
+    #: 18 px, and comfortably more than the ⓘ beside it.
+    HEIGHT = 34
+    #: The mark itself, inside that box.
+    ICON = 27
 
     def __init__(self, draw, colour: str, text: str,
                  parent: "QWidget | None" = None) -> None:

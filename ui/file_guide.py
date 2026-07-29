@@ -52,6 +52,188 @@ def _outro() -> str:
         "folders you no longer need.")
 
 
+#: The connector pieces the tree is drawn from. Box-drawing characters rather
+#: than dotted ones: Knut asked for lines showing the hierarchy and suggested
+#: dotted, but the dotted variants (┈ ┊) are missing from many monospace faces
+#: and fall back to a box glyph of a different width, which is exactly what
+#: would break the alignment he asked for. These four are in every monospace
+#: font ChromIQ ships or can fall back to, and a test checks that.
+_TREE_BRANCH = "├─ "     # an entry with more entries after it
+_TREE_LAST = "└─ "       # the last entry at this level
+_TREE_PASS = "│  "       # a level that continues past this row
+_TREE_GAP = "   "        # a level that has already ended
+
+#: The families the tree column asks for, most-wanted first. Every one of them
+#: draws all four connector pieces at the same width; the UI font does not.
+_MONO = "Menlo,Monaco,'Courier New',monospace"
+
+
+def _structure():
+    """The project folder as a hierarchy: ``(depth, name, explanation)`` rows.
+
+    Knut, #130 2026-07-29: *"add before the first section 'Files Relating to
+    Features', a new section 'Project File Structure'. In that section, create a
+    full hierarchical overview of each folder and a brief explanation what is
+    located in each folder. The hierarchy of folders shall be shown with lines
+    pointing from higher level to next lower level folders… so that the hierarchy
+    becomes clear. Make sure all lines and folders are aligned for the same level
+    of the hierarchy."*
+
+    Only the DEPTH is written here. Which rows are last at their level, and
+    therefore where a line continues and where it stops, is worked out in
+    :func:`tree_rows` — my first attempt carried those flags by hand and drew
+    continuation lines under a branch that had already ended, which is exactly
+    the misalignment he asked to avoid.
+
+    The names are the real ones; ``test_file_guide_structure`` compares them
+    against ``core.file_manager``'s folder constants so this diagram cannot
+    drift from the folders ChromIQ actually creates.
+    """
+    return [
+        (0, "{name}/", tr(
+            "Your project folder, named after the profile. One per printer, "
+            "paper and instrument combination you profile.")),
+        (1, "project.json", tr(
+            "ChromIQ's own note of which runs exist and which one you are "
+            "working on. Small, and best left alone.")),
+        (1, "Where are my files.txt", tr(
+            "This guide, as a plain text file, refreshed whenever the layout "
+            "changes. Yours to read, edit or delete.")),
+        (1, "cal/", tr(
+            "The optional printer-calibration target and the curves measured "
+            "from it, shared by every run in this project.")),
+        (2, "exports/", tr(
+            "That calibration chart's hand-off files for other programs.")),
+        (1, "exports/", tr(
+            "Files made for other programs from the Tools menu, belonging to "
+            "the whole project rather than to one run.")),
+        (1, "runs/", tr(
+            "One folder per profile build. This is where nearly everything "
+            "lives.")),
+        (2, "run1/", tr(
+            "The first build: its chart, its measurement, its profile. "
+            "run2, run3 … follow the same shape, and the newest is the one "
+            "ChromIQ is working on.")),
+        (3, "chart/", tr(
+            "The copy of the chart this run was measured with, kept the moment "
+            "measuring starts. “Restore Used Chart” puts this back.")),
+        (3, "reads/", tr(
+            "Your individual readings, when you measure one chart several "
+            "times to average them.")),
+        (3, "reports/", tr(
+            "What ChromIQ tells you about this build: quality checks, the "
+            "re-measure list, and the dated measurement reports.")),
+        (3, "exports/", tr(
+            "This chart's files for other programs — the i1Profiler patch set "
+            "and the plain colour list.")),
+        (3, "cache/", tr(
+            "Working files from the tools. Always safe to delete: ChromIQ can "
+            "make all of it again.")),
+        (3, "old/", tr(
+            "Measurements a new chart displaced. Kept rather than deleted, so "
+            "a re-generate can never cost you ink on paper.")),
+        (3, "verifications/", tr(
+            "Checks of the FINISHED profile, over time. The shared "
+            "verification chart lives here, and each check gets its own dated "
+            "folder — which is what lets a report show how the profile holds "
+            "up, or drifts, month after month.")),
+        (4, "2026-07-15_1030/", tr(
+            "One dated check: its measurement, and the folders below.")),
+        (5, "chart/", tr(
+            "A copy of the chart that check was measured with, so its numbers "
+            "stay tied to the sheet they came from.")),
+        (5, "reads/", tr(
+            "That check's individual readings, when it was averaged.")),
+        (5, "reports/", tr(
+            "The measurement report for that check, so each date keeps its own "
+            "verdict alongside its readings.")),
+        (4, "exports/", tr(
+            "The verification chart's hand-off files for other programs.")),
+        (4, "old/", tr(
+            "Earlier verification charts, archived when the chart was "
+            "replaced. Your dated results are never moved.")),
+        (2, "run2/", tr(
+            "The next build, with exactly the same shape inside.")),
+    ]
+
+
+def tree_rows():
+    """``(drawn, name, explanation)`` for every row of :func:`_structure`, with
+    the connector column already drawn.
+
+    Standard tree drawing, and the part worth stating: a level contributes a
+    continuing ``│`` to the rows below it only while that level still has
+    entries to come. Once it has had its last child, it contributes a blank of
+    the SAME width instead — which is what keeps every depth aligned under the
+    one above rather than drifting.
+    """
+    rows = _structure()
+    # Is row i the last entry at its own depth, within its parent?
+    last = [True] * len(rows)
+    for i, (depth, _n, _m) in enumerate(rows):
+        for j in range(i + 1, len(rows)):
+            d = rows[j][0]
+            if d < depth:
+                break
+            if d == depth:
+                last[i] = False
+                break
+    out = []
+    for i, (depth, name, meaning) in enumerate(rows):
+        pieces = []
+        for level in range(1, depth):
+            # Does the ancestor at this level still have entries after us?
+            cont = False
+            for j in range(i + 1, len(rows)):
+                d = rows[j][0]
+                if d < level:
+                    break
+                if d == level:
+                    cont = True
+                    break
+            pieces.append(_TREE_PASS if cont else _TREE_GAP)
+        if depth:
+            pieces.append(_TREE_LAST if last[i] else _TREE_BRANCH)
+        out.append(("".join(pieces), name, meaning))
+    return out
+
+
+def tree_text_column() -> int:
+    """The column every explanation starts in — the widest drawn folder plus two
+    spaces of air. Exposed so a test can check the alignment against the real
+    number instead of pattern-matching runs of spaces, which is ambiguous: a
+    continuing "│" is itself followed by two spaces."""
+    return max(len(prefix + name) for prefix, name, _m in tree_rows()) + 2
+
+
+def tree_lines(text_width: int = 62) -> list:
+    """The diagram as finished text lines: connectors, folder, explanation.
+
+    Why the explanation is wrapped HERE rather than left to the renderer: in a
+    table each row is as tall as its own wrapped text, so the ``│`` glyphs of
+    consecutive rows do not meet and the vertical lines come out dashed. Wrapping
+    the text ourselves and carrying the row's own connectors onto each
+    continuation line keeps every line the same height, so the verticals run
+    unbroken from a folder down to its last child — which is what makes it read
+    as a diagram (Knut, #130 2026-07-29).
+    """
+    import textwrap
+    rows = tree_rows()
+    width = tree_text_column()
+    # A continuation line keeps the levels that are still open, and drops this
+    # row's own branch mark — the text belongs to the row above it, not to a new
+    # entry.
+    out = []
+    for prefix, name, meaning in rows:
+        cont = prefix[:-len(_TREE_BRANCH)] if prefix else ""
+        cont += _TREE_PASS if prefix.endswith(_TREE_BRANCH) else _TREE_GAP
+        wrapped = textwrap.wrap(meaning, text_width) or [""]
+        out.append((prefix + name).ljust(width) + wrapped[0])
+        for extra in wrapped[1:]:
+            out.append(cont.ljust(width) + extra)
+    return out
+
+
 def _folders():
     """The folder vocabulary: (folder, meaning) rows — the heart of the
     guide since #127. Six short explanations replace thirty file-by-file
@@ -193,8 +375,24 @@ def file_guide_html() -> str:
     # blank line is an explicit small spacer paragraph instead.
     spacer = "<p style='font-size:5px; margin:0'>&nbsp;</p>"
 
-    # Section 1 — "Files Relating to Features": what each feature reads/writes.
+    # Section 1 — "Project File Structure": the folder hierarchy as a diagram
+    # (Knut, #130 2026-07-29). The connector column is monospace and
+    # pre-formatted, which is what keeps every level aligned under the one
+    # above; a proportional font would stagger them.
     parts.append(f"<p style='margin:16px 0 0; font-size:15px'><b>"
+                 f"{esc(tr('Project File Structure'))}</b></p>")
+    parts.append(spacer)
+    _lead = tr("Every folder a project can contain, and what lives in it. "
+               "“{name}” stands for your profile's name.")
+    parts.append(f"<p style='margin:0 0 6px'>{esc(_lead)}</p>")
+    parts.append(
+        f"<pre style=\"font-family:{_MONO}; font-size:12px; margin:2px 0 0; "
+        f"line-height:100%\">"
+        + esc("\n".join(tree_lines()))
+        + "</pre>")
+
+    # Section 2 — "Files Relating to Features": what each feature reads/writes.
+    parts.append(f"<p style='margin:20px 0 0; font-size:15px'><b>"
                  f"{esc(tr('Files Relating to Features'))}</b></p>")
     parts.append(spacer)
     parts.append("<table cellspacing='0' cellpadding='4' width='100%' "
@@ -256,6 +454,14 @@ def file_guide_html() -> str:
 def file_guide_body() -> str:
     """Plain-text version for the ``Where are my files.txt`` sidecar."""
     lines = [_intro(), ""]
+    # The same hierarchy as the card, and here it is even simpler: a text file
+    # is already monospace, so the tree needs no markup at all (#130, Knut).
+    lines.append("=== " + tr("Project File Structure").upper() + " ===")
+    lines.append("")
+    # Exactly the same drawn lines as the card — one source, so the two can
+    # never disagree about the folder layout.
+    lines.extend(tree_lines())
+    lines.append("")
     lines.append("=== " + tr("Files Relating to Features").upper() + " ===")
     lines.append("")
     for feat, ins, outs in _features():

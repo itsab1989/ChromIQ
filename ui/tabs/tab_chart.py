@@ -6622,6 +6622,24 @@ class TabChart(QWidget):
         # them so toggling between two charts shows EACH chart's own printtarg
         # settings, not whichever preset was loaded last (#130 Bug 1, Knut).
         if not restored_full:
+            # This chart was drawn by printtarg: an engine chart always embeds
+            # its recipe, and a sidecar with no recipe therefore describes a
+            # printtarg layout. So the engine toggle has to come OFF, exactly as
+            # it comes ON for an engine chart a few lines above.
+            #
+            # Knut, #130 2026-07-29, naming the case he had suspected all along:
+            # *"if the stored chart in chart/ folder was made with printtarg
+            # layout engine, and I change the Create Chart manual mode parameters
+            # for ChromIQ layout engine, then settings from both layout engines
+            # should be restored when clicking Restore Used Chart."* With the
+            # engine left on, the printtarg fields restored on the next line were
+            # simply ignored — `_collect_params` reads whichever engine is
+            # selected — so the options on screen did not describe the stored
+            # chart at all. That is the asymmetry: restoring an engine chart
+            # switched the engine on, restoring a printtarg chart left it on too.
+            if (self._manual_engine_check is not None
+                    and self._manual_engine_check.isChecked()):
+                self._manual_engine_check.setChecked(False)
             self._restore_printtarg_fields(doc.get("printtarg_fields"))
         return restored_full
 
