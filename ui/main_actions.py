@@ -21,6 +21,7 @@ from __future__ import annotations
 import html
 
 from core.i18n import tr
+from core.platform_paths import file_manager_name
 
 #: (action, [route, …]) — one entry per thing a user sets out to do.
 ACTION_ROWS: "list[tuple[str, list[str]]]" = [
@@ -44,7 +45,8 @@ ACTION_ROWS: "list[tuple[str, list[str]]]" = [
         tr("Print Chart ▸ load a .ti2."),
         tr("Create Chart ▸ “Load patch set” for an Argyll .ti1, or an i1Profiler "
         "set (.pxf or CGATS .txt)."),
-        tr("Select a Profile run that already has one."),
+        tr("Select a Profile run that already has one — the run "
+        "currently chosen has no stored chart to restore."),
     ]),
     (tr("Put a chart into a particular run"), [
         tr("Set “Profile run” first, then generate."),
@@ -139,7 +141,8 @@ CANNOT_ROWS: "list[tuple[str, str]]" = [
      tr("Run numbers follow their position, and are renumbered automatically when "
      "one is deleted.")),
     (tr("Move a run into another project"),
-     tr("Move the folder yourself in Finder or Explorer.")),
+     tr("Move the folder yourself in {manager}.").format(
+         manager=file_manager_name())),
     (tr("Delete only the chart and keep the run"),
      tr("Generating a new chart replaces it, and your measurement is moved to the "
      "run's “old” folder rather than lost.")),

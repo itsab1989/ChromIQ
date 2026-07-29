@@ -36,6 +36,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.file_manager import FileManager, Run
+from core.platform_paths import file_manager_name
 from core.logger import get_logger
 from core.preset_store import (
     load_presets as _load_tab_presets,
@@ -1235,10 +1236,10 @@ class TabMeasure(QWidget):
         self._load_ti1_btn.clicked.connect(self._on_load_ti2)
         self._reveal_btn = RevealFolderButton(_TAB_COLOR, top_widget)
         self._reveal_btn.setToolTip(tr(
-            "Open this chart's folder in Finder / your file manager — where "
+            "Open this chart's folder in {manager} — where "
             "the chart, its measurements and the finished profile all live. "
             "Handy for finding the printable pages, or the ICC profile after "
-            "you build it."))
+            "you build it.").format(manager=file_manager_name()))
         self._reveal_btn.clicked.connect(self._reveal_chart_folder)
         _hdr_trailing = QWidget(top_widget)
         _ht = QHBoxLayout(_hdr_trailing)
@@ -1929,9 +1930,9 @@ class TabMeasure(QWidget):
         self._m_preset_reveal_btn.setFixedSize(28, 28)
         set_folder_icon(self._m_preset_reveal_btn, "folder_measure")
         self._m_preset_reveal_btn.setToolTip(
-            tr("Open this tab's presets folder in Finder/Explorer.\n"
+            tr("Open this tab's presets folder in {manager}.\n"
             "Each preset is a plain .json file — copy one to a colleague\n"
-            "and they can drop it into their own folder to share.")
+            "and they can drop it into their own folder to share.").format(manager=file_manager_name())
         )
         self._m_preset_reveal_btn.clicked.connect(
             lambda: reveal_in_file_manager(tab_dir("measure"))
@@ -1944,7 +1945,7 @@ class TabMeasure(QWidget):
             tr("Save and recall named snapshots of all Manual mode settings.\n\n"
             "  +  Save current parameter values as a new named preset.\n"
             "  −  Delete the currently selected preset.\n"
-            "  ▢  Open this tab's presets folder in Finder/Explorer.\n\n"
+            "  ▢  Open this tab's presets folder in {manager}.\n\n"
             "Select a preset from the dropdown to instantly restore all\n"
             "values. The Default entry always resets to built-in defaults.\n\n"
             "Presets are stored as plain .json files — one per preset —\n"
@@ -1954,7 +1955,7 @@ class TabMeasure(QWidget):
             "out of that folder and send it to a colleague; to install a\n"
             "shared preset, drop the .json into the matching folder on the\n"
             "target machine and ChromIQ will pick it up on the next launch.\n\n"
-            "Presets persist between sessions."),
+            "Presets persist between sessions.").format(manager=file_manager_name()),
             container,
             min_width=600,
         ))
@@ -4199,7 +4200,9 @@ class TabMeasure(QWidget):
             return False
         from PyQt6.QtWidgets import QMessageBox
         from core.measurement_target import new_run_guard_message
-        QMessageBox.information(self, tr("Choose a profile run to measure"),
+        QMessageBox.information(self, tr(
+            "Choose a profile run to measure — pick one in the Profile-run "
+            "bar above, or choose “New run” to start a fresh one"),
                                 new_run_guard_message("measure"))
         return True
 

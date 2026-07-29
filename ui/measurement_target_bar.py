@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout,
                              QWidget)
 
 from core.i18n import tr
+from core.platform_paths import file_manager_name
 from core.logger import get_logger
 from core.measurement_target import (
     RUN_TYPE_PROFILING, RUN_TYPE_VERIFICATION, MeasurementTarget)
@@ -229,7 +230,10 @@ class MeasurementTargetController(QObject):
         from workflow.chart_slot import slot_for
         from workflow.verify_chart_snapshot import slot_has_snapshot
         if self._measuring:
-            return False, tr("Not while a measurement is running")
+            return False, tr(
+                "Not while a measurement is running. It will be available "
+                "again as soon as the current measurement finishes or is "
+                "stopped.")
         if self._target.is_verification():
             verification = self.selected_verification()
             if verification is None:
@@ -892,9 +896,15 @@ class MeasurementTargetBar(QWidget):
         if not result.ok:
             QMessageBox.warning(
                 self, tr("The chart could not be restored"),
-                tr("Nothing was changed — the verification chart is exactly as "
-                   "it was.\n\nReason: {reason}").format(
-                       reason=result.error or tr("unknown")))
+                tr("Nothing was changed — the chart in this run is exactly as "
+                   "it was.\n\nChromIQ could not read the stored copy: "
+                   "{reason}\n\nThe stored chart is still in the run's "
+                   "“chart” folder, so nothing is lost. If this keeps "
+                   "happening, the folder may be read-only or on a drive that "
+                   "is no longer connected — have a look at it in {manager}, "
+                   "then try again.").format(
+                       reason=result.error or tr("no reason given"),
+                       manager=file_manager_name()))
             return
         if result.needs_regeneration:
             # The words live in workflow/verify_chart_snapshot so every branch

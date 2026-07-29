@@ -368,3 +368,27 @@ def native_print_supported() -> bool:
     the Qt print dialog is the only sensible way to print).
     """
     return is_macos()
+
+
+# ---------------------------------------------------------------------------
+# Naming the platform's own file manager
+# ---------------------------------------------------------------------------
+
+def file_manager_name() -> str:
+    """What this platform calls the program that browses folders.
+
+    Knut, #130 2026-07-29: *"When 'Finder' is referred to, this applies Mac
+    only. This means that this word must be made dependant on platform,
+    Windows, Mac and Linux, so correct word for the program is used."*
+
+    Telling a Windows user to look in the Finder is telling them to look for
+    something that does not exist on their machine, and "Finder/Explorer" makes
+    every reader work out which half is theirs. Linux has no single answer, so
+    it gets an honest description rather than a name that might be wrong.
+    """
+    from core.i18n import tr
+    if is_macos():
+        return tr("Finder")
+    if is_windows():
+        return tr("File Explorer")
+    return tr("your file manager")

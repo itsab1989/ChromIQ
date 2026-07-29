@@ -1,5 +1,22 @@
 # Changelog
 
+## v3.14.8-beta.99
+
+- **The file manager is called by its own name on every platform.** ChromIQ told
+  everyone to look in the Finder, which names a program that does not exist on
+  Windows or Linux; a few places said "Finder/Explorer" and left the reader to
+  work out which half was theirs. It is now Finder on macOS, File Explorer on
+  Windows and "your file manager" elsewhere, in all fourteen places it appears.
+
+- **Two error messages no longer hand you a bare technical fault and stop.** A
+  failed Restore Used Chart and a failed project copy now say what happened,
+  that nothing has been lost, what usually causes it, and what to try next.
+
+- **Eight greyed-out buttons now say what would make them work.** "This profile
+  run no longer exists", "Nothing to delete", "Not while a measurement is
+  running" and five others stated the fact and left it there. A disabled control
+  is exactly where the remedy belongs, so each one now names it.
+
 ## v3.14.8-beta.98
 
 - **Restoring a chart no longer throws you back to Profiling.** A regression

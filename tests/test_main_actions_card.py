@@ -124,14 +124,33 @@ def test_every_row_string_reaches_the_translation_catalogue():
     sys.path.insert(0, "scripts")
     from i18n_extract import extract_keys
     keys = extract_keys()
+
+    # A row may be a catalogue key outright, or the result of formatting one —
+    # the platform's file-manager name is substituted where the row is defined
+    # (#130, Knut 2026-07-29: "Finder" is Mac-only and must follow the
+    # platform). The KEY is still the tr() literal with its placeholder, which
+    # is what a translator sees; only the rendered row carries the name.
+    from core.platform_paths import file_manager_name
+    rendered = {}
+    for k in keys:
+        if "{manager}" not in k:
+            continue
+        try:
+            rendered[k.format(manager=file_manager_name())] = k
+        except (KeyError, IndexError):
+            pass          # other placeholders in the same key — not our row
+
+    def reaches_the_catalogue(s: str) -> bool:
+        return s in keys or s in rendered
+
     missing = []
     for action, routes in ACTION_ROWS:
         for s in [action, *routes]:
-            if s not in keys:
+            if not reaches_the_catalogue(s):
                 missing.append(s)
     for what, instead in CANNOT_ROWS:
         for s in (what, instead):
-            if s not in keys:
+            if not reaches_the_catalogue(s):
                 missing.append(s)
     assert not missing, f"never translatable: {missing[:3]}"
 

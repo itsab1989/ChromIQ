@@ -27,6 +27,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.logger import get_logger
+from core.platform_paths import file_manager_name
 from core.platform_paths import is_linux, is_macos, is_windows
 from ui.dialogs.preflight_dialog import PreflightDialog
 from ui.fade_scroll import FadeScrollArea
@@ -286,9 +287,9 @@ class TabPrint(QWidget):
         from ui.widgets import RevealFolderButton
         self._reveal_btn = RevealFolderButton(SPEC_AMBER, _trailing)
         self._reveal_btn.setToolTip(tr(
-            "Open this chart's folder in Finder / your file manager — where "
+            "Open this chart's folder in {manager} — where "
             "the printable pages live. Handy if you'd rather print the pages "
-            "from another application."))
+            "from another application.").format(manager=file_manager_name()))
         self._reveal_btn.clicked.connect(self._reveal_folder)
         _tl.addWidget(self._reveal_btn)
         self._header = TabHeader(

@@ -43,22 +43,37 @@ BLOCK_UNKNOWN_RUN = "unknown_run"
 BLOCK_NO_VERIFICATIONS = "no_verifications"
 BLOCK_UNKNOWN_VERIFICATION = "unknown_verification"
 
+# Each reason says WHY the button is unavailable *and* what would make it
+# available again. A disabled control is exactly where somebody needs the
+# remedy, and stating only the fact leaves them stuck (#130, Sebastian's text
+# audit of 2026-07-29, accepted by Knut).
 _BLOCK_TOOLTIPS = {
-    BLOCK_MEASURING: lambda: tr("Not while a measurement is running"),
-    BLOCK_NO_PROJECT: lambda: tr("Open or create a project first"),
+    BLOCK_MEASURING: lambda: tr(
+        "Not while a measurement is running. It will be available again as "
+        "soon as the current measurement finishes or is stopped."),
+    BLOCK_NO_PROJECT: lambda: tr(
+        "Open or create a project first — there is nothing to delete until a "
+        "profile project is loaded."),
     BLOCK_NEW_RUN: lambda: tr(
         "Select an existing profile run to delete. “New run” is not a run yet "
         "— there is nothing on disk to remove"),
-    BLOCK_UNKNOWN_RUN: lambda: tr("This profile run no longer exists"),
+    BLOCK_UNKNOWN_RUN: lambda: tr(
+        "This profile run no longer exists — it may have been deleted or "
+        "renamed outside ChromIQ. Pick another run from the Profile-run bar."),
     BLOCK_NO_VERIFICATIONS: lambda: tr(
-        "This profile run has no verification files to delete"),
+        "This profile run has no verification files to delete. Verification "
+        "files appear once you have measured a chart with Run type set to "
+        "Verification."),
     BLOCK_UNKNOWN_VERIFICATION: lambda: tr(
-        "This verification date no longer exists"),
+        "This verification date no longer exists — its folder has gone. Pick "
+        "another date, or choose “New verification” to start a fresh check."),
 }
 
 
 def block_tooltip(code: str) -> str:
-    return _BLOCK_TOOLTIPS.get(code, lambda: tr("Nothing to delete"))()
+    return _BLOCK_TOOLTIPS.get(code, lambda: tr(
+        "Nothing to delete — this run holds no files yet. Generate a chart "
+        "first, and Delete will be able to remove it."))()
 
 
 @dataclass
@@ -213,7 +228,8 @@ def _renumber_sentence(plan: DeletePlan) -> str:
 
 def title_for(plan: DeletePlan) -> str:
     if plan.kind == KIND_LAST_RUN:
-        return tr("This is the only run in the project")
+        return tr("This is the only run in the project, so deleting it would "
+                  "leave nothing behind")
     if plan.kind == KIND_RUN:
         return tr("Delete profile run {n}?").format(n=run_number(plan.run_id))
     if plan.kind == KIND_VERIFY_ALL:

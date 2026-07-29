@@ -39,6 +39,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.logger import get_logger
+from core.platform_paths import file_manager_name
 from core.preset_store import (
     load_presets as _load_tab_presets,
     reveal_in_file_manager,
@@ -2221,9 +2222,9 @@ class TabChart(QWidget):
         set_folder_icon(self._preset_reveal_btn, "folder_create")
         self._preset_reveal_btn.setIconSize(QSize(14, 14))
         self._preset_reveal_btn.setToolTip(
-            tr("Open this tab's presets folder in Finder/Explorer.\n"
+            tr("Open this tab's presets folder in {manager}.\n"
             "Each preset is a plain .json file — copy one to a colleague\n"
-            "and they can drop it into their own folder to share.")
+            "and they can drop it into their own folder to share.").format(manager=file_manager_name())
         )
         self._preset_reveal_btn.clicked.connect(
             lambda: reveal_in_file_manager(tab_dir("create_chart"))
@@ -2236,7 +2237,7 @@ class TabChart(QWidget):
             tr("Save and recall named snapshots of all Manual mode settings.\n\n"
             "  +  Save current parameter values as a new named preset.\n"
             "  −  Delete the currently selected preset.\n"
-            "  ▢  Open this tab's presets folder in Finder/Explorer.\n\n"
+            "  ▢  Open this tab's presets folder in {manager}.\n\n"
             "Select a preset from the dropdown to instantly restore all\n"
             "values. The Default entry always resets to built-in defaults.\n\n"
             "Presets are stored as plain .json files — one per preset —\n"
@@ -2247,7 +2248,7 @@ class TabChart(QWidget):
             "shared preset, drop the .json into the matching folder on the\n"
             "target machine and ChromIQ will pick it up on the next launch.\n\n"
             "The target name field is not saved with presets.\n"
-            "Presets persist between sessions."),
+            "Presets persist between sessions.").format(manager=file_manager_name()),
             w,
             min_width=600,
         ))
@@ -3734,7 +3735,14 @@ class TabChart(QWidget):
             except Exception as exc:      # noqa: BLE001
                 InfoDialog(tr("Couldn't copy the project"),
                            tr("The project could not be copied into your "
-                              "working folder:\n\n{error}").format(error=str(exc)),
+                              "working folder.\n\nWhat went wrong: {error}"
+                              "\n\nYour original project has not been "
+                              "touched, so nothing is lost. The usual causes "
+                              "are a full disk, a folder ChromIQ is not "
+                              "allowed to write to, or a drive that is no "
+                              "longer connected. Check the working folder in "
+                              "Preferences → Paths, then try again."
+                              ).format(error=str(exc)),
                            self, min_width=500).exec()
                 return
             manifest = new_root / "project.json"

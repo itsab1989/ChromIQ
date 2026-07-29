@@ -31,6 +31,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.file_manager import Run
+from core.platform_paths import file_manager_name
 from core.logger import get_logger
 from core.preset_store import (
     load_presets as _load_tab_presets,
@@ -734,9 +735,9 @@ class TabCheckRefine(QWidget):
         self._m_preset_reveal_btn.setFixedSize(28, 28)
         set_folder_icon(self._m_preset_reveal_btn, "folder_check")
         self._m_preset_reveal_btn.setToolTip(
-            tr("Open this tab's presets folder in Finder/Explorer.\n"
+            tr("Open this tab's presets folder in {manager}.\n"
             "Each preset is a plain .json file — copy one to a colleague\n"
-            "and they can drop it into their own folder to share.")
+            "and they can drop it into their own folder to share.").format(manager=file_manager_name())
         )
         self._m_preset_reveal_btn.clicked.connect(
             lambda: reveal_in_file_manager(tab_dir("check_refine"))
@@ -749,7 +750,7 @@ class TabCheckRefine(QWidget):
             tr("Save and recall named snapshots of all Manual mode settings.\n\n"
             "  +  Save current parameter values as a new named preset.\n"
             "  −  Delete the currently selected preset.\n"
-            "  ▢  Open this tab's presets folder in Finder/Explorer.\n\n"
+            "  ▢  Open this tab's presets folder in {manager}.\n\n"
             "Select a preset from the dropdown to instantly restore all\n"
             "values. The Default entry always resets to built-in defaults.\n\n"
             "Presets are stored as plain .json files — one per preset —\n"
@@ -759,7 +760,7 @@ class TabCheckRefine(QWidget):
             "out of that folder and send it to a colleague; to install a\n"
             "shared preset, drop the .json into the matching folder on the\n"
             "target machine and ChromIQ will pick it up on the next launch.\n\n"
-            "Presets persist between sessions."),
+            "Presets persist between sessions.").format(manager=file_manager_name()),
             container,
             min_width=600,
         ))

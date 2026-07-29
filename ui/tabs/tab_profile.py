@@ -31,6 +31,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.file_manager import Run
+from core.platform_paths import file_manager_name
 from core.logger import get_logger
 from core.platform_paths import is_macos
 from core.preset_store import (
@@ -360,9 +361,9 @@ class TabProfile(QWidget):
         self._load_btn.clicked.connect(self._on_load_ti3)
         self._reveal_btn = RevealFolderButton(SPEC_CYAN, self)
         self._reveal_btn.setToolTip(tr(
-            "Open this chart's folder in Finder / your file manager — where "
+            "Open this chart's folder in {manager} — where "
             "the measurement and the finished ICC profile live. Handy for "
-            "finding the profile after you build it, to install or share it."))
+            "finding the profile after you build it, to install or share it.").format(manager=file_manager_name()))
         self._reveal_btn.clicked.connect(self._reveal_folder)
         _hdr_trailing = QWidget(self)
         _ht = QHBoxLayout(_hdr_trailing)
@@ -1736,9 +1737,9 @@ class TabProfile(QWidget):
         self._m_preset_reveal_btn.setFixedSize(28, 28)
         set_folder_icon(self._m_preset_reveal_btn, "folder_build")
         self._m_preset_reveal_btn.setToolTip(
-            tr("Open this tab's presets folder in Finder/Explorer.\n"
+            tr("Open this tab's presets folder in {manager}.\n"
             "Each preset is a plain .json file — copy one to a colleague\n"
-            "and they can drop it into their own folder to share.")
+            "and they can drop it into their own folder to share.").format(manager=file_manager_name())
         )
         self._m_preset_reveal_btn.clicked.connect(
             lambda: reveal_in_file_manager(tab_dir("build_profile"))
@@ -1751,7 +1752,7 @@ class TabProfile(QWidget):
             tr("Save and recall named snapshots of all Manual mode settings.\n\n"
             "  +  Save current parameter values as a new named preset.\n"
             "  −  Delete the currently selected preset.\n"
-            "  ▢  Open this tab's presets folder in Finder/Explorer.\n\n"
+            "  ▢  Open this tab's presets folder in {manager}.\n\n"
             "Select a preset from the dropdown to instantly restore all\n"
             "values. The Default entry always resets to built-in defaults.\n\n"
             "Presets are stored as plain .json files — one per preset —\n"
@@ -1762,7 +1763,7 @@ class TabProfile(QWidget):
             "shared preset, drop the .json into the matching folder on the\n"
             "target machine and ChromIQ will pick it up on the next launch.\n\n"
             "Profile Description is not saved — it is filled from the\n"
-            ".ti3 filename. Presets persist between sessions."),
+            ".ti3 filename. Presets persist between sessions.").format(manager=file_manager_name()),
             container,
             min_width=600,
         ))
