@@ -58,7 +58,30 @@ def fit_button_width(btn) -> None:
         # QFontMetrics measures the characters given, not the capitalisation the
         # painter will apply — so measure what will really be drawn.
         text = text.upper()
+    # Measure against the WIDEST font this label could be painted in, not only
+    # the one the widget currently has.
+    #
+    # Knut's sixth clipping report (#130, 2026-07-28) came with a screenshot,
+    # and the screenshot settled it: the button was a **native macOS alert
+    # button**, painted in the system font — not the Menlo the application
+    # stylesheet asks for. A native alert does not take the app's QSS, so every
+    # width computed from Menlo metrics was a width for a font that was never
+    # used. Sometimes it was enough; on "DELETE RUN 4 PERMANENTLY" it was a
+    # quarter of a letter short at each end, which is exactly what he saw.
+    #
+    # We cannot know in advance which of the two the platform will choose, so
+    # the honest answer is to be wide enough for either.
     fm = QFontMetrics(font)
+    try:
+        from PyQt6.QtGui import QFontDatabase
+        system = QFontDatabase.systemFont(QFontDatabase.SystemFont.GeneralFont)
+        system.setPixelSize(font.pixelSize() if font.pixelSize() > 0
+                            else max(11, font.pointSize()))
+        system.setBold(font.bold())
+        if fm.horizontalAdvance("M" * 8) < QFontMetrics(system).horizontalAdvance("M" * 8):
+            fm = QFontMetrics(system)
+    except Exception:      # noqa: BLE001 — sizing must never raise
+        pass
     # A label written over two lines is drawn as two lines, so what it needs is
     # the WIDEST line — not both of them laid end to end. Measuring the whole
     # string made "Print\nCurrent Page" ask for the width of "PrintCurrent
@@ -75,7 +98,10 @@ def fit_button_width(btn) -> None:
     except Exception:      # noqa: BLE001 — sizing must never raise
         want = 0
     # A floor of its own, in case the style under-reports the frame and padding.
-    want = max(want, needed + 36)
+    # Raised from 36 after the sixth clipping report: a native alert button's
+    # bezel is not the one the style described, so the margin has to absorb the
+    # difference rather than match it exactly.
+    want = max(want, needed + 48)
     icon = btn.icon()
     if icon is not None and not icon.isNull():
         want += btn.iconSize().width() + 6

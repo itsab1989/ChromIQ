@@ -1,5 +1,25 @@
 # Changelog
 
+## v3.14.8-beta.89
+
+- **Button labels are measured against the font the platform may actually
+  paint.** A screenshot finally settled six reports of clipped text: the button
+  was a **native system alert button**, drawn in the system font — not the
+  monospaced font ChromIQ's own styling asks for. A native alert does not take
+  that styling, so every width worked out from the styled font was a width for a
+  font that was never used. On “DELETE RUN 4 PERMANENTLY” it fell about a
+  quarter of a letter short at each end, which is exactly what showed. Widths
+  are now taken from whichever of the two fonts is wider, with more room to
+  spare, and the tests check both.
+
+- **The page count in Create Chart follows the chart you loaded.** Every run
+  could show the same number — 20 — including a run with two pages, until you
+  changed a setting and it corrected itself. That number was the saved default,
+  applied over the chart's own count. The pages are countable from the chart, so
+  the field now reads them: the page images if they exist, otherwise the chart's
+  own patch geometry. A chart that says nothing about its pages leaves the field
+  untouched rather than inventing a number.
+
 ## v3.14.8-beta.88
 
 - **Building a chart for a new run no longer warns about another run's

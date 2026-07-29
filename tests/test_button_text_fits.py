@@ -346,3 +346,50 @@ def test_the_update_window_s_buttons_fit_in_every_language(qapp):
                 bad.append((lang, source, btn.text()))
     I.set_language("en")
     assert not bad, bad
+
+
+# ---- sixth clipping report: measure the font the PLATFORM may paint ------
+# His screenshot settled a year of guessing: the clipped button was a NATIVE
+# macOS alert button, painted in the system font — not the Menlo the app
+# stylesheet asks for. A native alert ignores the app's QSS, so every width
+# computed from Menlo metrics was a width for a font never used.
+def test_a_label_fits_in_the_system_font_too(qapp):
+    from PyQt6.QtGui import QFont, QFontDatabase, QFontMetrics
+    from PyQt6.QtWidgets import QPushButton
+
+    from ui.widgets import ButtonFontFilter
+
+    system = QFontDatabase.systemFont(QFontDatabase.SystemFont.GeneralFont)
+    for label in ("Delete run 4 permanently", "Delete run 10 permanently",
+                  "Delete the verification files", "Delete all 4 verifications",
+                  "Delete the whole project", "Generate the new chart",
+                  "Measure again", "Replace stored chart"):
+        btn = QPushButton(label)
+        ButtonFontFilter.fit(btn)
+        painted = label
+        if btn.font().capitalization() == QFont.Capitalization.AllUppercase:
+            painted = painted.upper()
+        system.setPixelSize(btn.font().pixelSize()
+                            if btn.font().pixelSize() > 0 else 13)
+        for font in (btn.font(), system):
+            need = QFontMetrics(font).horizontalAdvance(painted)
+            assert btn.minimumSizeHint().width() >= need, (
+                f"{label!r} needs {need}px in {font.family()} but has "
+                f"{btn.minimumSizeHint().width()}px")
+
+
+def test_the_fit_measures_the_wider_of_the_two_fonts():
+    import inspect
+
+    from ui.widgets import fit_button_width
+    src = inspect.getsource(fit_button_width)
+    assert "systemFont" in src, (
+        "the width is still computed only from the widget's own font, which "
+        "a native alert does not use")
+
+
+def test_the_padding_floor_absorbs_a_bezel_we_did_not_measure():
+    import inspect
+
+    from ui.widgets import fit_button_width
+    assert "needed + 48" in inspect.getsource(fit_button_width)

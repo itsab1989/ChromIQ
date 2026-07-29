@@ -3754,6 +3754,15 @@ class TabChart(QWidget):
         # And bring the option panels back to the settings this chart was
         # actually made with, so screen and chart tell one story.
         restored_full = self._restore_chart_settings(ti2)
+        # …and the page count comes from the chart in front of you, always.
+        #
+        # Knut, #130 2026-07-28: every run showed "pages = 20", including one
+        # with two pages, and changing any parameter made it correct again. 20
+        # was his saved default: the chart's own count is only restored inside
+        # the full-recipe branch, and a saved default could be applied over it
+        # afterwards. The pages are countable from the chart itself, so there is
+        # no reason to leave the field reading anything else.
+        self._show_loaded_page_count(list(tiffs), ti2)
         notes_too = getattr(self, "_restored_notes_stamp", False)
         if restored_full and notes_too:
             self._log.appendPlainText(tr(
@@ -6402,6 +6411,35 @@ class TabChart(QWidget):
             log.warning("Could not apply the loaded chart's settings from %s",
                         sidecar, exc_info=True)
             return False
+
+    def _show_loaded_page_count(self, tiffs: "list[Path]",
+                                ti2_path: Path) -> None:
+        """Put the loaded chart's real number of pages in the pages field.
+
+        Counted from what is actually there — the page images first, and the
+        chart's own patch geometry as a fallback when a chart is shown before
+        its pages have been rendered. Best-effort: a field that cannot be set
+        is never worth failing a chart load over.
+        """
+        try:
+            pages = len([t for t in tiffs if t.exists()])
+            if not pages:
+                import json as _json
+                sidecar = ti2_path.with_suffix("").with_suffix(".channels.json")
+                if not sidecar.exists():
+                    sidecar = ti2_path.parent / f"{ti2_path.stem}.channels.json"
+                if sidecar.exists():
+                    layout = _json.loads(sidecar.read_text()).get("layout", {})
+                    pages = 1 + max((int(p.get("page", 0))
+                                     for p in layout.get("patches") or []),
+                                    default=-1)
+            if pages > 0 and self._manual_pages_spin is not None:
+                self._manual_pages_spin.setValue(int(pages))
+            if pages > 0 and getattr(self, "_pages_spin", None) is not None:
+                self._pages_spin.setValue(int(pages))
+        except Exception:      # noqa: BLE001 — never block a chart load
+            log.warning("could not show the loaded chart's page count",
+                        exc_info=True)
 
     def _restore_chart_settings(self, ti2_path: Path) -> bool:
         """Fill the Create-Chart options with the settings the loaded chart

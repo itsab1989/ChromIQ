@@ -85,19 +85,34 @@ def test_fitting_a_message_box_widens_every_button(qapp):
         assert b.minimumSizeHint().width() >= _painted_width(b), b.text()
 
 
-def test_measuring_before_the_font_swap_is_not_enough(qapp):
-    """The failure mode itself, so the ordering cannot quietly regress: the
-    plain width helper, used on an unswapped button, leaves it too narrow for
-    what will actually be painted."""
-    from ui.widgets import fit_button_width
-    btn = QPushButton("Delete run 4 permanently")
-    fit_button_width(btn)                       # measured in the narrow font
-    narrow = btn.minimumSizeHint().width()
+def test_fitting_is_now_enough_whichever_font_paints_it(qapp):
+    """Superseded, deliberately, by the sixth clipping report (#130,
+    2026-07-28). This used to assert that measuring BEFORE the font swap was
+    insufficient — true at the time, and the reason the helper applied the
+    final font first.
 
-    ButtonFontFilter.fit(btn)                   # what the app then does
-    assert _painted_width(btn) > narrow - 36, (
-        "if this ever fails the fonts have converged and "
-        "fit_message_box_buttons could be simplified")
+    His screenshot then showed the real fault: the clipped button was a NATIVE
+    system alert, painted in the system font, which neither the swap nor the
+    application's styling ever reaches. Ordering could not fix that. The width
+    is now taken from whichever of the two fonts is wider, so a button is broad
+    enough for either — which is what this now checks.
+    """
+    from PyQt6.QtGui import QFontDatabase, QFontMetrics
+
+    from ui.widgets import fit_button_width
+    label = "Delete run 4 permanently"
+    btn = QPushButton(label)
+    fit_button_width(btn)                       # without the swap
+    room = btn.minimumSizeHint().width()
+
+    system = QFontDatabase.systemFont(QFontDatabase.SystemFont.GeneralFont)
+    system.setPixelSize(btn.font().pixelSize()
+                        if btn.font().pixelSize() > 0 else 13)
+    for font in (btn.font(), system):
+        assert room >= QFontMetrics(font).horizontalAdvance(label), font.family()
+
+    ButtonFontFilter.fit(btn)                   # and after it, still enough
+    assert btn.minimumSizeHint().width() >= _painted_width(btn)
 
 
 def test_it_survives_a_box_that_cannot_be_measured(qapp):

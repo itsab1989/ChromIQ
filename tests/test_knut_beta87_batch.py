@@ -224,3 +224,72 @@ def test_every_delete_window_label_fits(qapp):
             t = t.upper()
         need = QFontMetrics(btn.font()).horizontalAdvance(t)
         assert btn.minimumSizeHint().width() >= need, btn.text()
+
+
+# ---- the pages field follows the chart, not a saved default -------------
+# "All three runs seem to show pages = 20, even though run 1 only has 2 pages.
+# After changing parameters … this stuck 20 pages setting suddenly was gone."
+# 20 was his saved default; the chart's own count was only applied inside the
+# full-recipe branch and a default could land on top of it afterwards.
+def test_the_page_count_is_taken_from_the_chart(qapp, tmp_path):
+    import inspect
+
+    from ui.tabs.tab_chart import TabChart
+    src = inspect.getsource(TabChart._display_run_chart)
+    assert "_show_loaded_page_count" in src
+    lines = [l.strip() for l in src.splitlines()]
+    restore = next(i for i, l in enumerate(lines)
+                   if "_restore_chart_settings(" in l)
+    show = next(i for i, l in enumerate(lines) if "_show_loaded_page_count" in l)
+    assert restore < show, "a default applied later would win again"
+
+
+class _PagesTab:
+    from ui.tabs.tab_chart import TabChart
+    _show_loaded_page_count = TabChart._show_loaded_page_count
+
+    def __init__(self):
+        class _Spin:
+            def __init__(self): self.v = 20        # his saved default
+            def setValue(self, n): self.v = int(n)
+        self._manual_pages_spin = _Spin()
+        self._pages_spin = _Spin()
+
+
+def test_the_real_page_files_decide(qapp, tmp_path):
+    tab = _PagesTab()
+    tifs = []
+    for n in (1, 2):
+        t = tmp_path / f"P_{n:02d}.tif"
+        t.write_bytes(b"x")
+        tifs.append(t)
+
+    tab._show_loaded_page_count(tifs, tmp_path / "P.ti2")
+
+    assert tab._manual_pages_spin.v == 2, "the stale default survived"
+    assert tab._pages_spin.v == 2
+
+
+def test_the_geometry_decides_when_no_pages_are_rendered_yet(qapp, tmp_path):
+    import json
+    (tmp_path / "P.channels.json").write_text(json.dumps(
+        {"layout": {"patches": [{"page": 0}, {"page": 1}, {"page": 2}]}}))
+    tab = _PagesTab()
+
+    tab._show_loaded_page_count([], tmp_path / "P.ti2")
+
+    assert tab._manual_pages_spin.v == 3
+
+
+def test_a_chart_that_says_nothing_leaves_the_field_alone(qapp, tmp_path):
+    tab = _PagesTab()
+    tab._show_loaded_page_count([], tmp_path / "P.ti2")
+    assert tab._manual_pages_spin.v == 20, "it invented a page count"
+
+
+def test_it_never_breaks_a_chart_load(qapp, tmp_path):
+    import inspect
+
+    from ui.tabs.tab_chart import TabChart
+    assert "except Exception" in inspect.getsource(
+        TabChart._show_loaded_page_count)
