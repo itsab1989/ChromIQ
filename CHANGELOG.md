@@ -1,5 +1,13 @@
 # Changelog
 
+## v3.14.8-beta.95
+
+- **Small buttons keep the standard size again.** The width rule introduced in
+  beta.94 beats the application stylesheet in both directions, and on a
+  one-character label — the "✕" that closes the gamut view — it was quietly
+  shrinking a standard 72-pixel button to a tenth of that. It may now raise a
+  button above the standard width, never drop it below.
+
 ## v3.14.8-beta.94
 
 - **Buttons no longer sit on top of one another.** In the Print Chart tab three

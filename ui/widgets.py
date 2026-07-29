@@ -45,6 +45,10 @@ _MIN_CHROME = 24
 
 #: Marks the ``min-width`` rule this module adds, so a re-fit REPLACES its own
 #: previous rule instead of appending another one after it.
+#: The application stylesheet's own ``QPushButton { min-width }`` (ui/styles.py).
+#: A fitted rule may raise a button above it, never drop it below.
+_APP_MIN_BUTTON_WIDTH = 72
+
 _FITTED_WIDTH_MARK = "/* chromiq-fitted-width */"
 
 #: Where the last minimum this module set is remembered, so a re-fit can
@@ -286,7 +290,14 @@ def fit_button_width(btn) -> None:
         sheet = _without_fitted_width(btn.styleSheet() or "")
         # +2: the metrics used here and the ones the painter finally uses can
         # round apart by a pixel, and a label a pixel short is a clipped label.
-        declared = int(needed) + 2
+        #
+        # …and never BELOW the application's own standard button width. A rule
+        # written here beats the app stylesheet in both directions, and on a
+        # short label — the "✕" that closes the gamut view — it was quietly
+        # shrinking a 72 px button to 10 px worth of content box. This function
+        # exists to stop labels being clipped, not to make small buttons harder
+        # to hit.
+        declared = max(int(needed) + 2, _APP_MIN_BUTTON_WIDTH)
         if declared > _min_width_from(sheet):
             sheet = (f"{sheet}\n{_FITTED_WIDTH_MARK}\n"
                      f"QPushButton {{ min-width: {declared}px; }}")

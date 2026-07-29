@@ -171,6 +171,24 @@ def test_the_effective_minimum_is_still_enough_for_the_text(qapp):
         host.close()
 
 
+def test_a_short_label_never_drops_below_the_app_standard(qapp):
+    """A fitted rule beats the application stylesheet in BOTH directions, and on
+    a one-character label it was quietly shrinking the gamut view's "✕" from the
+    standard 72 px to 10 px of content box. This function exists to stop labels
+    being clipped, not to make small buttons harder to hit."""
+    import re
+
+    from ui.widgets import _APP_MIN_BUTTON_WIDTH
+    host = QWidget()
+    for label in ("✕", "OK", "Stop"):
+        b = QPushButton(label, host)
+        ButtonFontFilter.fit(b)
+        rule = re.search(r"min-width:\s*(\d+)px", b.styleSheet())
+        if rule:
+            assert int(rule.group(1)) >= _APP_MIN_BUTTON_WIDTH, \
+                f"{label!r} was shrunk below the app's standard button width"
+
+
 def test_a_wide_row_still_gets_the_roomy_width(qapp):
     """Nothing changes where there is space: the style's preferred width is
     still what a comfortable panel shows."""
