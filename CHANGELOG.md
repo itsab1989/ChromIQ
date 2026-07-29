@@ -1,5 +1,25 @@
 # Changelog
 
+## v3.14.8-beta.103
+
+- **A restored profiling chart now really is the chart that was measured.**
+  Putting a profile run's chart back left it marked as shuffled even when it had
+  been laid out in fixed order: the chart's own bytes were put back and then
+  re-stamped a moment later by the step that upgrades a well-mixed chart for
+  bidirectional reading. The two markings are read differently by the measuring
+  tool, so the run's measurement quietly described a sheet that no longer
+  existed. The chart is now put back after that step, not before, and comes back
+  byte for byte. An ordinary chart still gets the upgrade exactly as before.
+
+- **And a restore says so when it cannot bring your options back.** A stored
+  chart that carries its settings restores them completely — instrument, paper,
+  patch size, margins, spacers, the clip border, the notes. A copy taken before
+  those settings travelled with a chart has nothing to restore them from, so the
+  options on screen are left alone. That happened in silence, which looked
+  exactly like a restore that had not worked. ChromIQ now explains it, and says
+  plainly what is still guaranteed: the chart files themselves are the ones that
+  were measured.
+
 ## v3.14.8-beta.102
 
 - **Restore Used Chart and Delete are now their icons.** The two labelled

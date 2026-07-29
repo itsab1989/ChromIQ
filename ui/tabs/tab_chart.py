@@ -8799,6 +8799,27 @@ class TabChart(QWidget):
             # patches per pass instead of 16 and 60 sets instead of 64.
             if restored_recipe and self._current_mode() != "manual":
                 self._switch_mode("manual")
+            # SAY SO WHEN THE OPTIONS COULD NOT COME BACK.
+            #
+            # Knut, #130 2026-07-29: *"after restore of the chart the options in
+            # the Create Chart is not changed back to what they were before."*
+            # A chart whose stored copy carries its settings sidecar restores
+            # them completely — that is checked by test. But a copy taken before
+            # the sidecar was included, or a chart made without one, has nothing
+            # recording those settings, so the options on screen are simply left
+            # alone. That was happening in silence, which is indistinguishable
+            # from the restore having failed. Now it is said plainly, together
+            # with what IS guaranteed: the chart files themselves are the ones
+            # that were measured.
+            if not restored_recipe:
+                self._log.appendPlainText(tr(
+                    "The chart files have been put back exactly as they were "
+                    "measured, but this stored chart carries no record of the "
+                    "Create Chart options it was made with — so the options on "
+                    "screen have been left as they are. Only its patch count "
+                    "could be recovered. Charts created from now on always save "
+                    "their settings with them, so a later restore will bring "
+                    "those back too."))
             if proj.current_run().id != run_id:
                 proj.set_current_run(run_id)
             self._arm_verification_snapshot()
@@ -9040,12 +9061,28 @@ class TabChart(QWidget):
             # lives only in verifications/, and the two must coexist (#130, Knut).
             self._restore_profiling_chart()
         else:
-            self._release_rebuild_guard()
-            # Either a profiling build (nothing was ever armed — this no-ops), or
-            # a verification build that produced no chart because it failed or
-            # was cancelled. In that second case the run root has already been
-            # cleared, so put the snapshot back rather than dropping it — a
-            # failed verification chart must not cost the run its profiling work.
+            # ONLY when the build produced no chart: it failed or was cancelled,
+            # so the release further down (after the auto-tag) is never reached
+            # and nothing else would free the guard.
+            #
+            # A SUCCESSFUL profiling build must not release it here. This branch
+            # was written when a profiling build could never arm the guard, but
+            # since beta.42 a profiling run keeps its own chart copy and the
+            # redraw that follows Restore Used Chart arms the guard for it. This
+            # point is BEFORE `_maybe_autotag_randomised`, which upgrades a
+            # well-mixed fixed-order chart from CHART_ID to RANDOM_START — so
+            # releasing here put the restored bytes back and then re-tagged them
+            # a line later, and the restored chart came out marked as shuffled
+            # when it had been laid out in fixed order. chartread reads those two
+            # differently, so the run's measurement described a sheet that no
+            # longer existed, silently. Exactly the beta.97 fault, on the
+            # profiling path (#130, found while reproducing Knut's beta.98
+            # report).
+            if not tiffs:
+                self._release_rebuild_guard()
+            # The run root has already been cleared when a verification build
+            # failed, so put the snapshot back rather than dropping it — a failed
+            # verification chart must not cost the run its profiling work.
             self._restore_profiling_chart()
 
         # For i1iSis the load-bearing artifact is the TI1 from targen, not the
