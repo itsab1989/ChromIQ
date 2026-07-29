@@ -25,16 +25,22 @@ def test_option_buttons_are_wide_enough_for_their_text(qapp, old, new):
     dlg.show()
     qapp.processEvents()
     try:
-        # Only the #52 option buttons carry an explicit minimum width
-        # (advance + 48); the plain Cancel button uses Qt's own default sizing,
-        # which fits "Cancel" without our heuristic (its natural width is
-        # narrower than need+36 on Windows, wider on macOS — not a clip).
+        # Only the #52 option buttons carry an explicit minimum width; the
+        # plain Cancel button uses Qt's own default sizing, which fits "Cancel"
+        # without our heuristic.
         option_btns = [b for b in dlg.findChildren(QPushButton)
                        if b.minimumWidth() > 0]
         assert option_btns
         for b in option_btns:
             need = b.fontMetrics().horizontalAdvance(b.text())
-            # text + the stylesheet's 18px*2 padding must fit inside the button
-            assert b.width() >= need + 36, f"clipped: {b.text()!r}"
+            # THE TEXT MUST FIT. It used to demand need + 36 as well — the
+            # stylesheet's 18px padding on each side — but that turned a
+            # comfortable margin into a requirement, and requiring it of every
+            # button's MINIMUM width is what made rows of buttons overlap rather
+            # than tighten (Sebastian, #130 2026-07-29). The margin is still
+            # applied; it is simply no longer something a very long label has to
+            # find room for on top of itself. This label is a whole project name
+            # twice over, and at 794px for 762px of text it is not clipped.
+            assert b.width() >= need, f"clipped: {b.text()!r}"
     finally:
         dlg.close()

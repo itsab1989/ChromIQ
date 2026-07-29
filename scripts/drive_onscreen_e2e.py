@@ -37,7 +37,7 @@ def stage(text: str) -> None:
 
 
 import PyQt6.QtWebEngineWidgets  # noqa: F401,E402  — before QApplication
-from PyQt6.QtCore import QTimer  # noqa: E402
+from PyQt6.QtCore import QRect, QTimer  # noqa: E402
 from PyQt6.QtGui import QFont, QFontDatabase, QFontMetrics  # noqa: E402
 from PyQt6.QtWidgets import (QApplication, QDialog, QMessageBox,  # noqa: E402
                              QPushButton)
@@ -77,14 +77,49 @@ def shot(widget, name: str) -> None:
 
 
 def painted_width(btn: QPushButton) -> int:
-    """What the button's text will actually take, in the font it is painted in."""
+    """What the button's text will actually take, in the font it is painted in.
+
+    The WIDEST LINE, not the whole string. A label written over two lines is
+    drawn as two lines, so measuring "Save as\nDefaults" end to end asks for the
+    width of "SAVE ASDEFAULTS" and reports a perfectly good button as clipped —
+    which is exactly what this script did on its second run. It is the same rule
+    fit_button_width applies, and the two must agree or the check is worthless.
+    """
     text = btn.text().replace("&&", "\x00").replace("&", "").replace("\x00", "&")
     if btn.font().capitalization() == QFont.Capitalization.AllUppercase:
         text = text.upper()
-    return QFontMetrics(btn.font()).horizontalAdvance(text)
+    fm = QFontMetrics(btn.font())
+    return max(fm.horizontalAdvance(line) for line in text.split("\n"))
 
 
 REPORT: list[str] = []
+
+
+def check_overlap(window, label: str) -> None:
+    """Do any two visible buttons sit on top of one another?
+
+    A DIFFERENT question from "is each button wide enough", and the one nobody
+    asked until Sebastian read it off the screenshots (#130, 2026-07-29). Print
+    Chart overlapped in three places and Measure in one while every button was
+    individually wide enough for its text.
+    """
+    btns = [b for b in window.findChildren(QPushButton)
+            if b.isVisible() and b.text().strip()]
+    hits = []
+    for i in range(len(btns)):
+        for j in range(i + 1, len(btns)):
+            a = QRect(btns[i].mapTo(window, btns[i].rect().topLeft()),
+                      btns[i].size())
+            b = QRect(btns[j].mapTo(window, btns[j].rect().topLeft()),
+                      btns[j].size())
+            if a.intersects(b):
+                hits.append(f"{btns[i].text()!r} over {btns[j].text()!r} by "
+                            f"{a.intersected(b).width()}px")
+    if hits:
+        REPORT.append(f"OVERLAP in {label}: " + "; ".join(hits))
+        stage(f"!! {len(hits)} overlapping pair(s) in {label}")
+    else:
+        REPORT.append(f"OK {label}: no buttons overlap")
 
 
 def check_buttons(window, label: str) -> None:
@@ -124,6 +159,7 @@ pump(1.2)
 stage(f"MainWindow visible={win.isVisible()} size={win.width()}x{win.height()}")
 shot(win, "01_main_window")
 check_buttons(win, "main window")
+check_overlap(win, "main window")
 
 # ---- every tab, on screen -------------------------------------------------
 tabs = win.tabs if hasattr(win, "tabs") else None
@@ -138,6 +174,7 @@ if tabs is not None:
         name = tabs.tabText(i).replace(" ", "_").replace("&", "")
         shot(win, f"02_tab_{i}_{name}")
         check_buttons(win, f"tab “{tabs.tabText(i)}”")
+        check_overlap(win, f"tab “{tabs.tabText(i)}”")
 else:
     REPORT.append("could not find the tab widget")
 
@@ -158,6 +195,7 @@ if inner:
 pump(0.6)
 shot(dlg, "03_preferences_measurement")
 check_buttons(dlg, "Preferences")
+check_overlap(dlg, "Preferences")
 rows = []
 for key in ("i1pro", "i1pro2", "i1pro3", "i1pro3plus", "colormunki", "spectroscan"):
     rows.append(f"{key}: patches={dlg._pace_patches[key].text()} "

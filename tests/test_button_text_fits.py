@@ -388,8 +388,39 @@ def test_the_fit_measures_the_wider_of_the_two_fonts():
         "a native alert does not use")
 
 
-def test_the_padding_floor_absorbs_a_bezel_we_did_not_measure():
+def test_the_margin_absorbs_a_bezel_we_did_not_measure():
+    """Superseded, with the reason recorded (Sebastian, #130 2026-07-29).
+
+    This used to pin the literal ``needed + 48``. That floor was raised from 36
+    to 48 after the sixth clipping report, as insurance against a native alert
+    bezel the style had not described — and then it was applied to the MINIMUM
+    width of every button in the application, including four in a row inside a
+    580 px panel. Four buttons wanting 675 px in 580 px cannot compress below
+    their minimums, so Qt overlapped them: Print Chart by up to 47 px, Measure
+    by 6 px. He saw it in the screenshots and was right.
+
+    What matters is not the number but that a fixed, generous margin is added to
+    the measured text — enough to frame the label in either candidate font. It
+    is now a named constant so it can be reasoned about, and the style's roomier
+    idea of the width survives where it belongs: in the size hint, which is what
+    a layout uses when there IS room.
+    """
+    import inspect
+
+    from ui.widgets import _COMFORTABLE_CHROME, fit_button_width
+    src = inspect.getsource(fit_button_width)
+    assert "needed + _COMFORTABLE_CHROME" in src
+    assert _COMFORTABLE_CHROME >= 36, (
+        "too tight to absorb a bezel the style did not describe")
+
+
+def test_the_minimum_is_not_the_styles_decorative_width():
+    """The regression that caused the overlap, stated directly: the minimum must
+    not be taken from ``sizeFromContents``, or a row of buttons cannot tighten."""
     import inspect
 
     from ui.widgets import fit_button_width
-    assert "needed + 48" in inspect.getsource(fit_button_width)
+    src = inspect.getsource(fit_button_width)
+    body = src.split("want = needed + _COMFORTABLE_CHROME")[1]
+    assert "sizeFromContents" not in body, (
+        "the style's decorative width is being folded back into the minimum")

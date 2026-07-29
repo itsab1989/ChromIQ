@@ -1,5 +1,37 @@
 # Changelog
 
+## v3.14.8-beta.94
+
+- **Buttons no longer sit on top of one another.** In the Print Chart tab three
+  pairs overlapped — by up to 47 pixels — and in the Measure tab the right-hand
+  end of "Start Measurement" ran under "Stop". It happened at every window size,
+  and it was visible in the screenshots of the on-screen run before anyone
+  measured it.
+
+- **They are also no longer wider than they need to be.** Each button used to
+  carry between 78 and 94 pixels of width beyond the text inside it; it is now a
+  consistent 38, which is the padding the stylesheet asks for and nothing more.
+  Four buttons in a row went from wanting 675 pixels to wanting 496, inside a
+  panel that is 580 wide.
+
+- **Three separate mistakes were behind it**, and all three are fixed. A
+  stylesheet's `min-width` sets the minimum of the *content* box and Qt adds the
+  padding on top, so writing an already-padded number there counted the padding
+  twice. The extra allowance for a native alert's system font — which those
+  windows genuinely need — was being applied to every button in the main window,
+  where the application's own font is a certainty rather than a guess. And a
+  button kept a minimum width measured in a font it no longer used, because the
+  fitter refused to lower a number it had set itself.
+
+- **A row that runs short of space now tightens instead of stacking.** The
+  buttons keep the roomy width wherever there is room for it, so a comfortable
+  panel looks exactly as it did.
+
+- **The on-screen checker now asks whether buttons overlap**, which is a
+  different question from whether each one is wide enough for its text — every
+  button passed that check while four of them were overlapping. `python
+  scripts/drive_onscreen_e2e.py` reports both.
+
 ## v3.14.8-beta.93
 
 - **Restoring a chart that cannot be redrawn now tells you what that means for

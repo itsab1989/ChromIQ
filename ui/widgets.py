@@ -33,6 +33,84 @@ from PyQt6.QtWidgets import (
 )
 
 
+#: Chrome (frame + padding) kept around a label when the button is asked for its
+#: MINIMUM width. The style's own figure — around 87 px with this stylesheet — is
+#: what the button would like; this is what it needs to stay legible and framed
+#: when a row is short of room. Below the first value a label starts to touch the
+#: frame; the second is the absolute floor, which also covers a native alert
+#: whose bezel is not the one the style described (Knut's sixth clipping report).
+#: Kept as the floor a caller may rely on; the margin itself is _COMFORTABLE_CHROME.
+_COMFORTABLE_CHROME = 40
+_MIN_CHROME = 24
+
+#: Marks the ``min-width`` rule this module adds, so a re-fit REPLACES its own
+#: previous rule instead of appending another one after it.
+_FITTED_WIDTH_MARK = "/* chromiq-fitted-width */"
+
+#: Where the last minimum this module set is remembered, so a re-fit can
+#: replace its own number instead of treating it as somebody's decision.
+_FITTED_MIN_PROP = "chromiq_fitted_min"
+
+
+def _without_fitted_width(sheet: str) -> str:
+    """*sheet* with any rule this module previously added removed."""
+    if _FITTED_WIDTH_MARK not in sheet:
+        return sheet
+    kept, skip = [], False
+    for line in sheet.splitlines():
+        if line.strip() == _FITTED_WIDTH_MARK:
+            skip = True
+            continue
+        if skip:
+            skip = False          # the single rule line that follows the mark
+            continue
+        kept.append(line)
+    return "\n".join(kept)
+
+
+def _min_width_from(sheet: str) -> int:
+    """The minimum width *sheet* itself declares, or 0 when it declares none.
+
+    **Only the sheet.** Asking the widget would return the value of the rule we
+    are about to replace — and asking ``minimumWidth()`` returns the number
+    ``setMinimumWidth`` was just given, so the rule would never be written at
+    all. That mistake cost three green tests: a stylesheet's ``min-width`` is
+    what decides ``minimumSizeHint``, and without it a button falls back to the
+    app-wide 72 px and clips its label again.
+    """
+    import re
+    widths = [int(m) for m in re.findall(r"min-width:\s*(\d+)px", sheet)]
+    return max(widths) if widths else 0
+
+
+def _may_be_painted_by_the_platform(btn) -> bool:
+    """Whether *btn* might be drawn in the SYSTEM font rather than the app's.
+
+    Knut's sixth clipping report was a **native macOS alert**: it takes neither
+    the application stylesheet nor the font every width had been computed from,
+    so "DELETE RUN 4 PERMANENTLY" was a quarter of a letter short at each end.
+    Being wide enough for either font is the fix — for those windows.
+
+    For a button on a tab page it is not a fix, it is 38 px of dead width apiece
+    (Sebastian, #130 2026-07-29). The application stylesheet reaches those, so
+    Menlo is not a guess. A message box is the case that escapes it.
+    """
+    try:
+        if btn.parentWidget() is None:
+            # Not placed yet, so there is nothing to read. A button built loose
+            # is usually on its way into a dialog — take the wider answer.
+            return True
+        win = btn.window()
+        if isinstance(win, QMessageBox):
+            return True
+        # A QMessageBox built by another module may not be this class, but it
+        # always carries the standard button box and no layout of our own.
+        return win is not None and win.metaObject().className() in (
+            "QMessageBox", "QErrorMessage", "QInputDialog")
+    except Exception:      # noqa: BLE001 — sizing must never raise
+        return True        # when in doubt, be the wider of the two
+
+
 def fit_button_width(btn) -> None:
     """Make sure *btn* is wide enough for the label it will actually paint.
 
@@ -69,19 +147,40 @@ def fit_button_width(btn) -> None:
     # used. Sometimes it was enough; on "DELETE RUN 4 PERMANENTLY" it was a
     # quarter of a letter short at each end, which is exactly what he saw.
     #
-    # We cannot know in advance which of the two the platform will choose, so
-    # the honest answer is to be wide enough for either.
+    # …but ONLY where the platform really might choose it (Sebastian, #130
+    # 2026-07-29). The allowance was being applied to every button in the
+    # application, and the system font is around 38 px wider than Menlo on a
+    # label of this length — so four buttons in the Print Chart row asked for
+    # 648 px inside a panel fixed at 580, and could not be made to fit however
+    # the minimum was computed. A button inside the main window is painted by
+    # the application stylesheet; Menlo is not a guess there, it is a fact. It
+    # is the ALERT that escapes the stylesheet, so that is where the allowance
+    # belongs.
     fm = QFontMetrics(font)
-    try:
-        from PyQt6.QtGui import QFontDatabase
-        system = QFontDatabase.systemFont(QFontDatabase.SystemFont.GeneralFont)
-        system.setPixelSize(font.pixelSize() if font.pixelSize() > 0
-                            else max(11, font.pointSize()))
-        system.setBold(font.bold())
-        if fm.horizontalAdvance("M" * 8) < QFontMetrics(system).horizontalAdvance("M" * 8):
-            fm = QFontMetrics(system)
-    except Exception:      # noqa: BLE001 — sizing must never raise
-        pass
+    if _may_be_painted_by_the_platform(btn):
+        try:
+            from PyQt6.QtGui import QFontDatabase
+            base = QFontDatabase.systemFont(QFontDatabase.SystemFont.GeneralFont)
+            # At ITS OWN size as well as ours. A native alert does not merely
+            # swap the family — it paints in the system font at the system size,
+            # which on macOS is larger than the 9 pt the application uses. The
+            # fitter used to shrink the system font to the widget's size before
+            # measuring, which is the one thing guaranteed to under-report the
+            # very case it exists for.
+            candidates = [base]
+            sized = QFont(base)
+            if font.pixelSize() > 0:
+                sized.setPixelSize(font.pixelSize())
+            elif font.pointSizeF() > 0:
+                sized.setPointSizeF(font.pointSizeF())
+            sized.setBold(font.bold())
+            candidates.append(sized)
+            for cand in candidates:
+                cm = QFontMetrics(cand)
+                if fm.horizontalAdvance("M" * 8) < cm.horizontalAdvance("M" * 8):
+                    fm = cm
+        except Exception:      # noqa: BLE001 — sizing must never raise
+            pass
     # A label written over two lines is drawn as two lines, so what it needs is
     # the WIDEST line — not both of them laid end to end. Measuring the whole
     # string made "Print\nCurrent Page" ask for the width of "PrintCurrent
@@ -97,28 +196,103 @@ def fit_button_width(btn) -> None:
             QSize(needed, fm.height()), btn).width()
     except Exception:      # noqa: BLE001 — sizing must never raise
         want = 0
-    # A floor of its own, in case the style under-reports the frame and padding.
-    # Raised from 36 after the sixth clipping report: a native alert button's
-    # bezel is not the one the style described, so the margin has to absorb the
-    # difference rather than match it exactly.
-    want = max(want, needed + 48)
+    # ---- what the button MUST have, versus what it would LIKE ---------------
+    #
+    # These are two different numbers, and conflating them is what made the
+    # buttons collide. Sebastian, #130 2026-07-29: *"the buttons in the print
+    # chart tab are overlapping and wider than they would have to be for the
+    # text they contain … the same seems true for the measure tab's 'start
+    # measurement' button."* Both were true, and measurable: Print Chart
+    # overlapped in three places by up to 47 px and Measure by 6 px, at every
+    # window size.
+    #
+    # The cause was not the layout. The style asks for ~87 px of chrome around
+    # the text, and four such buttons want 675 px in a panel that is 580 px
+    # wide. Because the MINIMUM was set to that full decorative width, the row
+    # could not compress — and a QHBoxLayout given less room than the sum of its
+    # minimums lets its items overlap rather than shrink below them.
+    #
+    # So the minimum is now what the label genuinely needs — the widest line, in
+    # the widest font it might be painted in, plus enough chrome to draw the
+    # frame comfortably — while the style's roomier figure stays the *preferred*
+    # width. A wide panel therefore looks exactly as before; a cramped one
+    # tightens the buttons instead of stacking them on top of each other, and
+    # the text still fits, which is the invariant the whole clipping saga was
+    # about.
+    # A FIXED margin, deliberately, not the style's own figure. Deriving it from
+    # ``sizeFromContents`` made the answer depend on the ``min-width`` rule this
+    # function had written the *previous* time it ran, so a button grew on its
+    # second fit — 151 px, then 167 px, then stable. My own new test caught it.
+    # A constant is stable by construction, and the style's roomier idea is
+    # still what the layout uses when there is space, because that comes from
+    # the size hint rather than from here.
+    want = needed + _COMFORTABLE_CHROME
     icon = btn.icon()
     if icon is not None and not icon.isNull():
         want += btn.iconSize().width() + 6
-    if btn.minimumWidth() < want:
+    # Widening stays one-way for a width SOMEBODY ELSE set — but not for our
+    # own. This runs again on every Show and StyleChange, and the font can
+    # change between those: the Print Chart buttons ended up carrying a minimum
+    # measured in Menlo while the application had since restyled them to Inter,
+    # which is narrower. 38 px of the width each of them was holding belonged to
+    # a font they no longer used, and four of them then would not fit their
+    # panel (Sebastian, #130 2026-07-29). So a value this function set is
+    # replaced by the current measurement, up or down; anything else is only
+    # ever grown.
+    fitted_before = btn.property(_FITTED_MIN_PROP)
+    if fitted_before is not None and int(fitted_before) == btn.minimumWidth():
         btn.setMinimumWidth(want)
+    elif btn.minimumWidth() < want:
+        btn.setMinimumWidth(want)
+    btn.setProperty(_FITTED_MIN_PROP, btn.minimumWidth())
+    # …and let the button actually USE that minimum when its row is short of
+    # room. A QPushButton's default horizontal policy is ``Minimum``, which
+    # means "my size hint is the least I will accept": the layout may grow it
+    # but never shrink it, so a fitted minimum is decoration and the row
+    # overflows regardless. That is why Print Chart still overlapped after the
+    # minimum had been brought down — the four buttons' HINTS came to 657 px in
+    # a 580 px panel and none of them would give way.
+    #
+    # ``Preferred`` keeps the same hint — a roomy panel looks exactly as it did
+    # — while allowing the layout to compress towards the minimum computed
+    # above, which is the width the label genuinely needs.
+    try:
+        policy = btn.sizePolicy()
+        if policy.horizontalPolicy() == QSizePolicy.Policy.Minimum:
+            policy.setHorizontalPolicy(QSizePolicy.Policy.Preferred)
+            btn.setSizePolicy(policy)
+    except Exception:      # noqa: BLE001 — sizing must never raise
+        pass
     # A stylesheet's own ``min-width`` decides the button's minimum size hint,
     # and it beats setMinimumWidth — which is why the app-wide 72 px rule kept
     # winning and pop-up buttons were still clipped after all of the above
     # (Knut, #131 2026-07-27: "I thought you made a global rule … why did it
     # now happen?"). Answering in the same language is what actually sticks.
-    if want > btn.minimumSizeHint().width():
-        try:
-            btn.setStyleSheet(
-                (btn.styleSheet() or "")
-                + f"\nQPushButton {{ min-width: {int(want)}px; }}")
-        except Exception:      # noqa: BLE001 — sizing must never raise
-            pass
+    #
+    # REPLACED, never appended: this runs again on every Show and StyleChange,
+    # and appending left buttons carrying a stack of stale rules ("min-width:
+    # 145px" followed by "min-width: 149px"), with the last one winning by
+    # accident of order.
+    #
+    # And the rule carries the TEXT width, not the width computed above. A
+    # stylesheet ``min-width`` is the minimum of the CONTENT box: Qt adds the
+    # padding and the border on top of it. Writing the already-padded number
+    # there counted the stylesheet's ``padding: 6px 18px`` twice, so a button
+    # asking for 140 px ended up with a 178 px minimum — 38 px of thin air
+    # apiece, which is precisely what stopped the Print Chart row fitting its
+    # 580 px panel however the rest of the arithmetic was adjusted (Sebastian,
+    # #130 2026-07-29).
+    try:
+        sheet = _without_fitted_width(btn.styleSheet() or "")
+        # +2: the metrics used here and the ones the painter finally uses can
+        # round apart by a pixel, and a label a pixel short is a clipped label.
+        declared = int(needed) + 2
+        if declared > _min_width_from(sheet):
+            sheet = (f"{sheet}\n{_FITTED_WIDTH_MARK}\n"
+                     f"QPushButton {{ min-width: {declared}px; }}")
+        btn.setStyleSheet(sheet)
+    except Exception:      # noqa: BLE001 — sizing must never raise
+        pass
 
 
 class ButtonFontFilter(QObject):
@@ -195,7 +369,46 @@ class ButtonFontFilter(QObject):
         font.setFamilies(["Menlo", "Consolas", "Courier New", "monospace"])
         font.setCapitalization(QFont.Capitalization.AllUppercase)
         btn.setFont(font)
+        before = btn.minimumWidth()
         fit_button_width(btn)
+        if btn.minimumWidth() != before:
+            ButtonFontFilter.relayout_around(btn)
+
+    @staticmethod
+    def relayout_around(btn) -> None:
+        """Let the layouts holding *btn* place it again, now that it is wider.
+
+        **Widening a button that a layout has already placed does not move its
+        neighbours.** The row keeps the positions it computed from the narrower
+        widths and every button simply grows to the right, over the top of the
+        one beside it. Sebastian, #130 2026-07-29: *"the buttons in the print
+        chart tab are overlapping … the same seems true for the measure tab's
+        'start measurement' button. Its right side seems to be below the stop
+        button."* He was reading it exactly right — Print Chart overlapped in
+        three places and Measure in one, at every window size.
+
+        ``fit_window`` already did this, but only for objects that answer True
+        to ``isWindow()``. A button on a tab page is not in a window that is
+        being polished, so nothing ever asked its row to measure again. Doing it
+        from the button itself covers both.
+
+        Innermost outwards, so a row settles before the panel holding it is
+        asked for its own size.
+        """
+        try:
+            parent = btn.parentWidget()
+            depth = 0
+            while parent is not None and depth < 8:
+                lay = parent.layout()
+                if lay is not None:
+                    lay.invalidate()
+                    lay.activate()
+                if parent.isWindow():
+                    break
+                parent = parent.parentWidget()
+                depth += 1
+        except Exception:      # noqa: BLE001 — sizing must never raise
+            pass
 
 
 def fit_message_box_buttons(box) -> None:
