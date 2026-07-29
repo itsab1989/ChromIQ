@@ -172,8 +172,12 @@ def test_the_user_is_told_when_the_chart_had_to_be_put_back():
 def test_loading_a_project_returns_the_run_type_to_profiling():
     """Knut: *"When using the load profile button in create chart, and then
     loading a stored project.json file: Reset Run type to Profiling, so that all
-    newly loaded charts start at its profiling data."*"""
-    src = inspect.getsource(TabChart._default_bar_to_current_run)
+    newly loaded charts start at its profiling data."*
+
+    It lived in _default_bar_to_current_run at first, which every successful
+    generation also calls — see test_knut_beta97_restore for what that cost.
+    """
+    src = inspect.getsource(TabChart._reset_run_type_for_loaded_project)
     assert 'ctl.set_run_type("profiling")' in src
     assert 'ctl.set_verification_id("")' in src
 

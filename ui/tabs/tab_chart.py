@@ -3788,6 +3788,7 @@ class TabChart(QWidget):
             self._current_ti1_path = None
         # #130: default the shared bar to this project's current run.
         self._default_bar_to_current_run()
+        self._reset_run_type_for_loaded_project()
 
     def _display_run_chart(self, ti2: Path, tiffs: list[Path], ti1: Path) -> None:
         """Show an existing chart (its pages, margins and own creation settings)
@@ -3843,6 +3844,7 @@ class TabChart(QWidget):
         self._refresh_manual_command_preview()
         self._current_ti1_path = ti1 if ti1.is_file() else None
         self._shown_chart_ti2 = ti2      # track the artefact now on screen (#130)
+        self._shown_chart_stamp = self._chart_stamp(ti2)
         # Let Print / Measure pick the chart up, as if it had just been built.
         self.chart_finished.emit(list(tiffs), ti2, False)
 
@@ -8447,6 +8449,8 @@ class TabChart(QWidget):
         # after a generation or reload changed the chart out from under us
         # (Knut #130 beta-2 test: switching Run type showed the wrong chart).
         self._shown_chart_ti2: "Path | None" = None
+        #: (path, .ti2 mtime) of the chart on screen — see _chart_stamp.
+        self._shown_chart_stamp: "tuple | None" = None
         controller.changed.connect(self._on_target_changed)
 
     def _confirm_displacing_results(self) -> bool:
@@ -8627,21 +8631,37 @@ class TabChart(QWidget):
             rid = proj.current_run().id
             if ctl.target.profile_run != rid:
                 ctl.set_profile_run(rid)
-            # …and back to Profiling. Knut, #130 2026-07-29: *"When using the
-            # load profile button in create chart, and then loading a stored
-            # project.json file: Reset Run type to Profiling, so that all newly
-            # loaded charts start at its profiling data."*
-            #
-            # Run type is a working state, not a property of the project: it was
-            # simply whatever the previous project had been left on, so opening
-            # a project could land you on Verification — looking at a
-            # verification chart of a project you had only just opened, with the
-            # profiling chart you asked for nowhere in sight.
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Could not default the target bar to the current run: %s", exc)
+
+    def _reset_run_type_for_loaded_project(self) -> None:
+        """Put Run type back to Profiling when a project is OPENED.
+
+        Knut asked for this (#130, 2026-07-29): *"When using the load profile
+        button in create chart, and then loading a stored project.json file:
+        Reset Run type to Profiling, so that all newly loaded charts start at
+        its profiling data."* Run type is working state rather than a property
+        of the project, and it was simply whatever the previous project had been
+        left on.
+
+        **Only on a project load.** It lived in _default_bar_to_current_run at
+        first, which every successful generation also calls — including the
+        redraw that follows Restore Used Chart. So restoring a verification's
+        chart threw the user back to Profiling mid-task, and he could no longer
+        tell whether the chart had been replaced at all: *"This should NOT
+        happen. Going back to run type profiling automatically shall only happen
+        when loading a profile.json file from the load ti1 button in create
+        chart tab."*
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
+            return
+        try:
             if ctl.target.is_verification():
                 ctl.set_run_type("profiling")
                 ctl.set_verification_id("")
-        except Exception as exc:  # noqa: BLE001
-            log.warning("Could not default the target bar to the current run: %s", exc)
+        except Exception as exc:      # noqa: BLE001 — never block a load
+            log.warning("Could not reset the run type on project load: %s", exc)
 
     def _builds_into_project(self, proj_before) -> bool:
         """Whether the build about to run targets the project that was loaded
@@ -8856,6 +8876,7 @@ class TabChart(QWidget):
         if resolved is None:
             if self._shown_chart_ti2 is not None:
                 self._shown_chart_ti2 = None
+                self._shown_chart_stamp = None
                 self._preview.clear()
                 self._current_ti1_path = None
                 # Empty payload → main window drops the chart from Print / Measure.
@@ -8865,14 +8886,37 @@ class TabChart(QWidget):
             self._preview.set_notice(self._no_chart_guidance())
             return
         ti2, tiffs, ti1 = resolved
-        if ti2 == self._shown_chart_ti2:
+        stamp = self._chart_stamp(ti2)
+        if stamp is not None and stamp == self._shown_chart_stamp:
             return                               # already showing this exact chart
         self._shown_chart_ti2 = ti2              # set first so the dedup is robust
+        self._shown_chart_stamp = stamp
         kind = (tr("verification chart") if ctl.target.is_verification()
                 else tr("profiling chart"))
         self._log.appendPlainText(
             tr("Switched to this run's {kind}.").format(kind=kind))
         self._display_run_chart(ti2, tiffs, ti1)
+
+    @staticmethod
+    def _chart_stamp(ti2) -> "tuple | None":
+        """What makes a chart *this* chart on screen: its path AND when its
+        ``.ti2`` was last written.
+
+        The path alone is not enough. Restore Used Chart puts different bytes at
+        the SAME path — same run, same stem — so a dedup that compares paths
+        decides the chart is already showing and skips the reload. Knut, #130
+        2026-07-29: *"pressing Restore Used Chart, I get a warning message
+        (good), but the preview is not updated. I have to click NEXT and PREV
+        buttons to get the screen to redraw preview."* Regenerating a chart into
+        the same run has the same shape, and the overlay had exactly this bug in
+        beta.75.
+        """
+        if ti2 is None:
+            return None
+        try:
+            return (str(ti2), Path(ti2).stat().st_mtime_ns)
+        except OSError:
+            return (str(ti2), None)
 
     def _release_rebuild_guard(self) -> None:
         """Put the chart back if redrawing its pages changed it, and say so.
@@ -9036,6 +9080,7 @@ class TabChart(QWidget):
             # Track the just-built chart so a later Run-type switch back to it
             # doesn't needlessly reload (#130).
             self._shown_chart_ti2 = ti2
+            self._shown_chart_stamp = self._chart_stamp(ti2)
             # #130: default the shared bar to the run we just built into, so a
             # plain re-Generate OVERWRITES it instead of spuriously creating a new
             # run (the bar's empty default reads as "New run").

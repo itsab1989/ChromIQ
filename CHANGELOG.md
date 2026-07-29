@@ -1,5 +1,21 @@
 # Changelog
 
+## v3.14.8-beta.98
+
+- **Restoring a chart no longer throws you back to Profiling.** A regression
+  from beta.97: the Run-type reset that belongs to opening a project had been
+  put in a method every successful chart generation calls — including the redraw
+  that follows Restore Used Chart. Restoring a verification's chart therefore
+  moved you off the run you were working on, so you could not tell whether the
+  chart had been replaced at all. The reset now happens only when a project is
+  opened, which is where it was asked for.
+
+- **The preview redraws after a restore.** It used to keep showing the old pages
+  until you clicked Next and Prev. The refresh decided whether anything had
+  changed by comparing the chart's *path* — and a restore puts different bytes
+  at the same path, same run, same file name, so it concluded the chart was
+  already on screen. It now compares when the chart was written as well.
+
 ## v3.14.8-beta.97
 
 - **Restore Used Chart no longer replaces the chart it restores.** Putting an
