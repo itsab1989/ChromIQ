@@ -72,20 +72,23 @@ def test_strip_and_error_signals_make_sound():
     assert played == [snd.STRIP_OK, snd.STRIP_FAIL]
 
 
-def test_a_signal_that_only_raises_its_window_later_stays_silent():
-    """Changed by the completion audit of 2026-07-28 (Knut).
+def test_a_disconnect_sounds_at_once():
+    """REVERSED by Knut on 2026-07-29, and worth recording both ways.
 
-    ``instrument_disconnected`` used to sound the instrument-error cue the
-    moment it arrived. But it does not open a window — it sets a flag, and the
-    window is raised later, once the measurement process has exited. So the
-    sound came seconds before the window it belongs to, and the window itself
-    arrived silent. It is now cued where it is actually raised, which is what
-    his rule asks for: the sound at the same time as the window.
+    The completion audit of 2026-07-28 made this signal silent: it does not open
+    a window when it fires, so sounding then put the sound seconds ahead of the
+    window it belonged to. He has since ruled the other way — *"the instrument
+    sound appearing immediately, and then the instrument error window appearing
+    when the error run ends, but then keep the sound also when the window
+    appears"* — because hearing at once that something is wrong is worth more
+    than the sound and the window arriving together.
+
+    So: a sound now, a window later, and a sound with it. What is NOT restored
+    is one sound per log line — see test_a_stream_of_errors_sounds_once.
     """
     tab, played = _make_tab()
     tab._manager.instrument_disconnected.emit()
-    assert played == [], (
-        "the sound arrived while the window is still several seconds away")
+    assert played == [snd.INSTRUMENT_ERROR]
     assert tab._instrument_disconnected is True, "the flag must still be set"
 
 

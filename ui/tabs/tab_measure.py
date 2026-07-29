@@ -3663,6 +3663,66 @@ class TabMeasure(QWidget):
         self._pace = None            # rebuild the tracker with that model's rate
         if model:
             log.info("measurement: instrument reported as %s", model)
+        self._warn_if_instrument_does_not_match_chart(model)
+
+    def _warn_if_instrument_does_not_match_chart(self, model: str) -> None:
+        """Say so when the connected instrument is not the one the chart was
+        made for (#130, Knut 2026-07-29).
+
+        His case: a chart laid out for an i1Pro, measured with a ColorMunki
+        connected — no window, no sound, and the strips are the wrong size for
+        the device. There was nothing for ChromIQ to notice, either: ArgyllCMS
+        reports a *capability* failure only when a device cannot do the KIND of
+        reading asked of it, and both of these read reflective happily. The
+        mismatch that matters here is between the chart's layout and the device,
+        which only ChromIQ knows — so only ChromIQ can raise it.
+
+        A warning, not a refusal: the reading may still be what the user wants
+        (a spot check, a deliberate experiment), and the measurement is theirs
+        to make.
+        """
+        try:
+            from data.patch_db import instrument_mismatch
+            chart_code = str(self._settings.get("chart_instrument", "") or "")
+            pair = instrument_mismatch(chart_code, model)
+            if pair is None:
+                return
+            chart_label, found_label = pair
+            if getattr(self, "_mismatch_warned_for", None) == (chart_code, model):
+                return
+            self._mismatch_warned_for = (chart_code, model)
+            self._cue_window("INSTRUMENT_ERROR")
+            from PyQt6.QtWidgets import QMessageBox
+            box = QMessageBox(self)
+            box.setIcon(QMessageBox.Icon.NoIcon)
+            title = tr("This chart was made for a different instrument")
+            box.setWindowTitle(title)
+            box.setText(title + "\n\n" + tr(
+                "The chart you are about to measure was laid out for:\n"
+                "    {chart}\n\n"
+                "but the instrument connected is:\n"
+                "    {found}\n\n"
+                "Each instrument needs its own patch size and strip spacing, so "
+                "reading this chart with that device will usually misread, "
+                "skip strips, or fail to find the patches at all.\n\n"
+                "What each button does:\n\n"
+                "•  Measure anyway — goes ahead exactly as before. Use this if "
+                "you know what you are doing, or to see what happens.\n\n"
+                "•  Cancel — stops here so you can make a chart for this "
+                "instrument, or connect the one this chart expects.").format(
+                    chart=chart_label, found=found_label))
+            go = box.addButton(tr("Measure anyway"),
+                               QMessageBox.ButtonRole.AcceptRole)
+            cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+            box.setDefaultButton(cancel)
+            from ui.widgets import fit_message_box_buttons
+            fit_message_box_buttons(box)
+            box.exec()
+            if box.clickedButton() is not go:
+                self._manager.abort()
+        except Exception:      # noqa: BLE001 — never break a measurement
+            log.warning("Could not check the instrument against the chart",
+                        exc_info=True)
 
     def _on_patch_sound(self, payload: dict) -> None:
         """Per-patch sound (#131): a normal tick, or the 'looks off' sound when
@@ -4124,6 +4184,8 @@ class TabMeasure(QWidget):
         # when a strip is re-read, a chart is re-read, or measuring is stopped).
         self._clear_pace_readout()
         self._finish_sound_played = False
+        # Each run gets one immediate instrument-fault sound.
+        self._instrument_fault_sounded = False
         import time as _t
         self._measure_started_at = _t.monotonic()
 
@@ -4949,55 +5011,26 @@ class TabMeasure(QWidget):
         )
         self._log.ensureCursorVisible()
         self._manager.abort()
-        self._arm_streaming_error_window()
+        self._sound_instrument_fault_once()
 
-    #: How long a streaming instrument fault must persist before its window is
-    #: raised. Knut's rule (#130, 2026-07-29): *"wait 2 seconds, and if the
-    #: instrument error still is present, then show the instrument error
-    #: window."* Long enough that a single hiccup passes unremarked, short
-    #: enough that you are not left watching a log scroll.
-    _STREAMING_ERROR_HOLD_MS = 2000
+    def _sound_instrument_fault_once(self) -> None:
+        """Sound the instrument error the moment the fault appears — once.
 
-    def _arm_streaming_error_window(self) -> None:
-        """Show an instrument window 2 seconds into a *continuing* fault.
+        Knut reversed the 2-second design (#130, 2026-07-29): *"Leave the code
+        as it was earlier: the instrument sound appearing immediately, and then
+        the instrument error window appearing when the error run ends, but then
+        keep the sound also when the window appears."*
 
-        Faults such as pulling the cable do not arrive once — they produce a
-        stream of the same message, and until now the window waited for the
-        whole run to end. Knut pulled the cable and watched errors scroll with
-        nothing to tell him what had happened (#130, 2026-07-28/29).
-
-        Raising it on the first line would be wrong too: a momentary glitch
-        that recovers should not stop you with a window. So the first line
-        starts a clock, every further line refreshes it, and the window opens
-        only if the fault is *still* being reported when the clock runs out.
+        **Once, though, not once per line.** A pulled cable produces dozens of
+        identical messages, and the original wiring — the cue hung off the
+        signal — fired on every one of them. That is the only part of the older
+        behaviour not restored here, and deliberately: he asked for a sound when
+        the fault appears, not for a burst of them.
         """
-        from PyQt6.QtCore import QTimer
-        self._streaming_error_last = time.monotonic()
-        if getattr(self, "_streaming_error_timer", None) is not None:
-            return                      # already counting; the refresh above is enough
-        timer = QTimer(self)
-        timer.setSingleShot(True)
-        timer.timeout.connect(self._streaming_error_elapsed)
-        self._streaming_error_timer = timer
-        timer.start(self._STREAMING_ERROR_HOLD_MS)
-
-    def _streaming_error_elapsed(self) -> None:
-        """The clock ran out — show the window if the fault is still there."""
-        self._streaming_error_timer = None
-        if getattr(self, "_instrument_window_shown", False):
+        if getattr(self, "_instrument_fault_sounded", False):
             return
-        last = getattr(self, "_streaming_error_last", None)
-        if last is None:
-            return
-        # "Still present" means the reader was still reporting it recently. A
-        # fault that stopped within the first half-second has recovered.
-        if time.monotonic() - last > (self._STREAMING_ERROR_HOLD_MS / 1000.0):
-            return
-        self._instrument_window_shown = True
-        try:
-            self._show_instrument_disconnected_window()
-        except Exception:      # noqa: BLE001 — never break the end of a read
-            log.warning("Could not show the disconnect window", exc_info=True)
+        self._instrument_fault_sounded = True
+        self._cue_window("INSTRUMENT_ERROR")
 
     def _show_instrument_disconnected_window(self) -> None:
         """The "Instrument Disconnected" window, with its sound.
@@ -6234,12 +6267,9 @@ class TabMeasure(QWidget):
 
         if self._instrument_disconnected:
             self._instrument_disconnected = False
-            # …unless the 2-second rule already showed it while the cable was
-            # still out (Knut, #130 2026-07-29). Telling him twice would be
-            # worse than telling him late.
-            if not getattr(self, "_instrument_window_shown", False):
-                self._show_instrument_disconnected_window()
-            self._instrument_window_shown = False
+            # The window sounds again as it opens — his ruling: the sound comes
+            # immediately AND with the window (#130, 2026-07-29).
+            self._show_instrument_disconnected_window()
             return
 
         # Group B: friendly terminal dialogs for chartread startup failures.

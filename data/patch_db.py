@@ -1101,3 +1101,55 @@ def uses_default_layout(pt_params: dict) -> bool:
         if pt_params.get(key, default_val) != default_val:
             return False
     return True
+
+
+#: Words that identify each chart instrument family in the model string an
+#: instrument reports when it is opened (#130, Knut 2026-07-29). Lower case;
+#: a match on any word is a match on the family.
+INSTRUMENT_MODEL_WORDS: dict[str, tuple[str, ...]] = {
+    "i1": ("i1pro", "i1 pro", "eye-one", "eyeone"),
+    "p3": ("i1pro3 plus", "i1pro 3 plus", "i1 pro 3 plus"),
+    "CM": ("colormunki", "color munki", "i1studio", "i1 studio",
+           "colorchecker studio"),
+    "SS": ("spectroscan",),
+    "isis": ("i1isis", "isis"),
+}
+
+
+def instrument_family_of(model: str) -> "str | None":
+    """Which chart-instrument family a reported model belongs to, or None.
+
+    ``model`` is what the instrument itself says when it is opened — e.g.
+    "X-Rite ColorMunki". Returns the chart code ("CM", "i1", …) so a chart's
+    instrument and the connected device can be compared.
+
+    The i1Pro 3 Plus is checked before the plain i1Pro family, because its
+    model string contains "i1Pro" as well and the more specific answer is the
+    right one.
+    """
+    text = (model or "").strip().lower()
+    if not text:
+        return None
+    for code in ("p3", "CM", "SS", "isis", "i1"):
+        if any(word in text for word in INSTRUMENT_MODEL_WORDS[code]):
+            return code
+    return None
+
+
+def instrument_mismatch(chart_code: str, model: str) -> "tuple[str, str] | None":
+    """``(chart_label, connected_label)`` when the connected instrument is not
+    the one the chart was laid out for, else None.
+
+    Silent when the model cannot be recognised: an unknown device is not
+    evidence of a mismatch, and a wrong warning would be worse than none.
+    """
+    found = instrument_family_of(model)
+    if not chart_code or found is None or found == chart_code:
+        return None
+    # The i1Pro family and the 3 Plus lay out differently, but a chart made for
+    # the plain family can still be read by a 3 Plus — the patches are only
+    # larger than it needs. Everything else is a genuine mismatch.
+    if chart_code == "i1" and found == "p3":
+        return None
+    return (INSTRUMENT_LABELS.get(chart_code, chart_code),
+            INSTRUMENT_LABELS.get(found, found))

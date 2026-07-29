@@ -1,5 +1,31 @@
 # Changelog
 
+## v3.14.8-beta.91
+
+- **The instrument-error sound comes back immediately, and again with the
+  window.** The two-second wait introduced in beta.90 is withdrawn: a fault now
+  sounds the moment it appears, the window still opens when the reading stops,
+  and it sounds again as it opens. One part of the older behaviour is
+  deliberately not restored — a pulled cable reports the same error dozens of
+  times, and the sound used to fire on every one of them. It now sounds once per
+  fault.
+
+- **A chart measured with the wrong instrument now says so.** Making a chart for
+  an i1Pro and measuring it with a ColorMunki connected went ahead in silence.
+  Nothing was there to catch it: ArgyllCMS reports a problem only when a device
+  cannot do the *kind* of reading asked of it, and both of these read reflective
+  perfectly well. The mismatch that matters is between the chart's layout and
+  the device — patch size and strip spacing are chosen for one instrument — and
+  only ChromIQ knows that.
+
+  When the instrument reports itself and it is not the one the chart was made
+  for, ChromIQ now says which chart expects which instrument, and what is
+  actually connected, with the instrument-error sound. It is a warning, not a
+  refusal: “Measure anyway” goes ahead, and Cancel — the button ready to press —
+  stops so you can make the right chart or connect the right device. An
+  instrument ChromIQ does not recognise never raises it, since an unknown device
+  is not evidence of a mismatch.
+
 ## v3.14.8-beta.90
 
 - **A continuing instrument fault now tells you within two seconds.** Pulling the
