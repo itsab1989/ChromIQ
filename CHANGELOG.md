@@ -1,5 +1,18 @@
 # Changelog
 
+## v3.14.8-beta.100
+
+- **Delete and Restore Used Chart now carry the icons Knut chose the shapes
+  for.** Delete gets a plain trash can with no ribs — the bar is dense and that
+  is the one shape of the six that stays clean at the size the button really
+  uses. Restore Used Chart gets a sheet of colour patches inside a
+  counter-clockwise arc, on the undo theme he asked for: the arc encircles the
+  sheet, which is what makes an undo mark read as one at button size.
+
+- **Both are drawn rather than loaded from image files**, so they take the
+  colour of whichever tab you are looking at, exactly like the ⓘ marks beside
+  them, and stay sharp at any screen scale.
+
 ## v3.14.8-beta.99
 
 - **The file manager is called by its own name on every platform.** ChromIQ told

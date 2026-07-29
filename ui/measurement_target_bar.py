@@ -8,7 +8,7 @@ holds the state itself — the controller is the single source of truth.
 """
 from __future__ import annotations
 
-from PyQt6.QtCore import QObject, Qt, pyqtSignal
+from PyQt6.QtCore import QObject, QSize, Qt, pyqtSignal
 from PyQt6.QtWidgets import (QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout,
                              QWidget)
 
@@ -442,6 +442,10 @@ class MeasurementTargetBar(QWidget):
         self._restore_btn = QPushButton(tr("Restore Used Chart"), self)
         self._restore_btn.setObjectName("compact_input")
         self._restore_btn.setAutoDefault(False)
+        # The drawn marks Knut chose the shapes for (#130, 2026-07-29). Set
+        # here so the button has its size from the start; re-coloured for the
+        # active tab in set_accent.
+        self._restore_btn.setIconSize(QSize(16, 16))
         self._restore_btn.clicked.connect(self._on_restore_clicked)
         row.addWidget(self._restore_btn)
         self._restore_tip = TooltipButton(
@@ -476,6 +480,7 @@ class MeasurementTargetBar(QWidget):
         self._delete_btn = QPushButton(tr("Delete"), self)
         self._delete_btn.setObjectName("compact_input")
         self._delete_btn.setAutoDefault(False)
+        self._delete_btn.setIconSize(QSize(16, 16))
         self._delete_btn.clicked.connect(self._on_delete_clicked)
         row.addWidget(self._delete_btn)
         self._delete_tip = TooltipButton(
@@ -862,6 +867,11 @@ class MeasurementTargetBar(QWidget):
         # bar in future belongs in this tuple too.
         for tip in (self._tip_btn, self._restore_tip, self._delete_tip):
             tip.set_color(color)
+        # …and the two drawn button marks, for the same reason: everything on
+        # this bar follows the tab you are looking at.
+        from ui.bar_icons import restore_chart_icon, trash_can_icon
+        self._restore_btn.setIcon(restore_chart_icon(color, 16))
+        self._delete_btn.setIcon(trash_can_icon(color, 16))
 
     def _on_restore_clicked(self) -> None:
         """Restore the selected verification's used chart, warning first when
