@@ -1,5 +1,35 @@
 # Changelog
 
+## v3.14.8-beta.93
+
+- **Restoring a chart that cannot be redrawn now tells you what that means for
+  reproducing it.** When a restored chart carries no layout information and no
+  page images, ChromIQ says so — and now also says whether that chart's patches
+  were shuffled, and what can honestly be expected if you build it again. A
+  shuffled chart cannot be reproduced from its number alone: the shuffle was
+  applied to a patch set ArgyllCMS generated at the time, at the page and patch
+  sizes then in force, and none of that was stored with the chart.
+
+- **One correction that changes what you should do.** The number is not missing:
+  it is written in the restored chart file itself, as `RANDOM_START` on a
+  shuffled chart and `CHART_ID` on one that was not shuffled. On an unshuffled
+  chart it changes nothing at all, so feeding it back to the layout engine as a
+  seed cannot reproduce anything — which is exactly what happens if you try. The
+  window now names the keyword and the number it found, so there is nothing left
+  to guess at.
+
+- **Every branch of that window ends with the reassurance that matters**: your
+  measurements are safe, they still belong to the chart file that was just
+  restored, and none of this affects the report or the profile built from them.
+  It only matters if you want to print and measure that chart again.
+
+- **The demo projects are corrected.** Each dated verification's `chart/` folder
+  held only the `.ti2`, while a real ChromIQ snapshot copies every chart file
+  including the `.channels.json`. That made Restore Used Chart report a chart it
+  could not redraw — a state ChromIQ itself never produces. The builder now
+  takes its snapshots by calling the application's own snapshot code, so the
+  demo data is made the way the program makes it.
+
 ## v3.14.8-beta.92
 
 - **"This chart already has a measurement" now appears when you arrive at the

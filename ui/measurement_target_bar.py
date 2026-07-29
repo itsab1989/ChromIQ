@@ -889,13 +889,19 @@ class MeasurementTargetBar(QWidget):
                        reason=result.error or tr("unknown")))
             return
         if result.needs_regeneration:
-            QMessageBox.information(
-                self, tr("Chart restored — the pages need rebuilding"),
-                tr("The chart files are back in place, but this chart was made "
-                   "without the layout information ChromIQ needs to redraw its "
-                   "printable pages, and no page images were stored with it.\n\n"
-                   "Open the Create Chart tab and create the chart again to "
-                   "produce the pages, then print as usual."))
+            # The words live in workflow/verify_chart_snapshot so every branch
+            # can be read back in a test, and so the sentence about reproducing
+            # a shuffled chart (Knut, #130 2026-07-29) stays with the code that
+            # knows whether this chart WAS shuffled.
+            box = QMessageBox(self)
+            box.setIcon(QMessageBox.Icon.NoIcon)
+            box.setWindowTitle(tr("Chart restored — the pages need rebuilding"))
+            box.setText(tr("Chart restored — the pages need rebuilding"))
+            box.setInformativeText(result.regeneration_message)
+            box.addButton(tr("OK"), QMessageBox.ButtonRole.AcceptRole)
+            from ui.widgets import fit_message_box_buttons
+            fit_message_box_buttons(box)
+            box.exec()
         elif result.should_rebuild:
             # The pages are being redrawn from the chart's own recipe; the
             # finished build shows itself in the preview.

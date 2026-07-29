@@ -38,6 +38,7 @@ Pure file logic — no Qt — so every branch is unit-testable.
 from __future__ import annotations
 
 import hashlib
+import re
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -50,6 +51,18 @@ log = get_logger(__name__)
 CHART_SUBDIR = "chart"
 _IMAGE_SUFFIXES = (".tif", ".tiff")
 _RECIPE_SUFFIX = ".channels.json"
+
+# A chart file says which way its patches were ordered, and under which number.
+# ChromIQ's layout engine writes RANDOM_START on a shuffled chart and CHART_ID
+# on a fixed-order one (workflow/layout_engine/ti2_writer.py), following
+# printtarg. Both carry a number, and the difference between them decides what
+# can honestly be said about reproducing the chart — see :func:`chart_order_of`.
+_ORDER_RE = re.compile(r'\b(RANDOM_START|CHART_ID)\s+"?(\d+)"?')
+
+#: How a chart's patches were ordered, as reported by :func:`chart_order_of`.
+ORDER_SHUFFLED = "shuffled"
+ORDER_FIXED = "fixed"
+ORDER_UNKNOWN = ""
 
 
 # ---------------------------------------------------------------------------
@@ -71,6 +84,105 @@ def live_chart_files(run: Run) -> list[Path]:
 def has_layout_recipe(files: "list[Path]") -> bool:
     """Whether *files* carry the recipe the page images can be rebuilt from."""
     return any(p.name.endswith(_RECIPE_SUFFIX) for p in files)
+
+
+def chart_order_of(files: "list[Path]") -> "tuple[str, str]":
+    """``(order, number)`` for the ``.ti2`` among *files*.
+
+    *order* is :data:`ORDER_SHUFFLED`, :data:`ORDER_FIXED` or
+    :data:`ORDER_UNKNOWN`; *number* is the value beside the keyword, or "".
+
+    Knut asked (#130, 2026-07-29) why the number in his chart —
+    ``CHART_ID "1916078606"`` — did not reproduce the chart when he fed it to
+    the layout engine as a seed. Two reasons, and this function is what lets the
+    restore window say them:
+
+    * ``CHART_ID`` means the chart was **not** shuffled. ChromIQ writes its
+      layout seed under that keyword all the same, but with no shuffle to drive
+      the seed changes nothing at all (``location_permutation`` is the identity
+      when ``randomize`` is False).
+    * Even on a shuffled chart the number is only half the story: the shuffle is
+      applied to a patch set ArgyllCMS generated at the time, at the page and
+      patch sizes then in force. Without the layout recipe none of that comes
+      back, so the same number lands different colours in different places.
+    """
+    for p in files:
+        if p.suffix.lower() != ".ti2":
+            continue
+        try:
+            m = _ORDER_RE.search(p.read_text(encoding="utf-8", errors="replace"))
+        except OSError:
+            return ORDER_UNKNOWN, ""
+        if m is None:
+            return ORDER_UNKNOWN, ""
+        return (ORDER_SHUFFLED if m.group(1) == "RANDOM_START"
+                else ORDER_FIXED), m.group(2)
+    return ORDER_UNKNOWN, ""
+
+
+def regeneration_message(order: str = ORDER_UNKNOWN, number: str = "") -> str:
+    """What to tell the user when a restored chart cannot be redrawn.
+
+    Knut, #130 2026-07-29: *"This information does not mention that, if
+    randomisation was used on the original chart, it is likely not possible to
+    reproduce the exact chart used for measurement unless user has the exact
+    random seed number… This should be mentioned."*
+
+    It is mentioned — and one correction is folded in, because it changes what
+    the user should do. The number **is** stored: it sits in the restored
+    ``.ti2`` itself. It is simply not sufficient, for the reasons in
+    :func:`chart_order_of`. Telling someone to go and find a seed they already
+    have would send them hunting for the wrong thing.
+    """
+    from core.i18n import tr
+    parts = [tr(
+        "The chart files are back in place, but this chart was made without the "
+        "layout information ChromIQ needs to redraw its printable pages, and no "
+        "page images were stored with it.\n\n"
+        "Your measurements are safe, and they still belong to the chart file "
+        "that has just been restored. Only the printed pages are missing."), ""]
+
+    if order == ORDER_SHUFFLED:
+        parts.append(tr(
+            "One thing to know before you rebuild it: the patches on this chart "
+            "were SHUFFLED. The number ChromIQ shuffled them with is recorded "
+            "in the restored chart file as RANDOM_START “{number}”, so "
+            "you have not lost it — but that number on its own is not enough to "
+            "draw the same sheet again. The shuffle was applied to a patch set "
+            "ArgyllCMS generated at the time, at the page size, patch size and "
+            "margins then in force, and none of that was stored with the chart. "
+            "A chart you create now will almost certainly put different colours "
+            "in different places."
+        ).format(number=number or tr("not recorded")))
+    elif order == ORDER_FIXED:
+        parts.append(tr(
+            "One thing to know before you rebuild it: the patches on this chart "
+            "were NOT shuffled — they sit in the order ArgyllCMS produced them. "
+            "The number in the restored chart file, CHART_ID “{number}”, "
+            "is ChromIQ's layout number, and on an unshuffled chart it changes "
+            "nothing, so feeding it back as a seed will not reproduce anything. "
+            "The patch colours themselves came from ArgyllCMS at the time and "
+            "are not recreated from a number either, so a chart you create now "
+            "will most likely not be the same chart."
+        ).format(number=number or tr("not recorded")))
+    else:
+        parts.append(tr(
+            "One thing to know before you rebuild it: if the patches on this "
+            "chart were shuffled, the exact sheet cannot be reproduced. The "
+            "shuffle was applied to a patch set ArgyllCMS generated at the time, "
+            "at the page and patch sizes then in force, and none of that was "
+            "stored with the chart. A chart you create now will most likely put "
+            "different colours in different places."))
+
+    parts.append("")
+    parts.append(tr(
+        "This matters only if you want to PRINT and MEASURE this chart again. "
+        "It changes nothing about the measurement you already have, and nothing "
+        "about the report or the profile built from it.\n\n"
+        "To print a chart for this run again, open the Create Chart tab and "
+        "create one, then print as usual — treating it as a new chart, which is "
+        "what it will be."))
+    return "\n".join(parts)
 
 
 def files_to_snapshot(run: Run) -> list[Path]:
@@ -176,6 +288,10 @@ def restore_slot(slot) -> "RestoreResult":
         result.images_restored = any(_is_image(p) for p in result.restored)
         result.needs_regeneration = not result.images_restored and \
             not has_layout_recipe(result.restored)
+        if result.needs_regeneration:
+            # Only then is it consulted, and only then does it cost a file read.
+            result.chart_order, result.chart_number = \
+                chart_order_of(result.restored)
     except OSError as exc:
         log.warning("restore failed, rolling back: %s", exc)
         for p in result.restored:
@@ -277,6 +393,16 @@ class RestoreResult:
     needs_regeneration: bool = False   # no images and no recipe to rebuild them
     rolled_back: bool = False
     error: str = ""
+    # How the restored chart's patches were ordered, and under which number —
+    # only meaningful when needs_regeneration is True, where it decides what can
+    # honestly be said about reproducing the chart (Knut, #130 2026-07-29).
+    chart_order: str = ORDER_UNKNOWN
+    chart_number: str = ""
+
+    @property
+    def regeneration_message(self) -> str:
+        """The window's words for :attr:`needs_regeneration`."""
+        return regeneration_message(self.chart_order, self.chart_number)
 
     @property
     def ok(self) -> bool:
@@ -335,6 +461,10 @@ def restore_chart(verification: Verification) -> RestoreResult:
         result.images_restored = any(_is_image(p) for p in result.restored)
         result.needs_regeneration = not result.images_restored and \
             not has_layout_recipe(result.restored)
+        if result.needs_regeneration:
+            # Only then is it consulted, and only then does it cost a file read.
+            result.chart_order, result.chart_number = \
+                chart_order_of(result.restored)
     except OSError as exc:
         # 3. rollback — put every displaced file back, drop anything written
         log.warning("restore failed, rolling back: %s", exc)

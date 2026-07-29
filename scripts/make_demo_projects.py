@@ -289,7 +289,16 @@ def _verification(run_dir: Path, stem: str, when: datetime, de: float) -> None:
     (vdir / "reports").mkdir(parents=True, exist_ok=True)
     verify_ti2 = run_dir / "verifications" / f"{stem}-verify.ti2"
     (vdir / f"{stem}-verify.ti3").write_text(_ti3_from_ti2(verify_ti2, drift=de))
-    shutil.copy2(verify_ti2, vdir / "chart" / f"{stem}-verify.ti2")
+    # The chart snapshot is taken by the REAL application code, not by a second
+    # copy of the rule here. Knut, #130 2026-07-29: this used to copy the .ti2
+    # alone, so every dated folder was missing the .channels.json a real
+    # snapshot carries — and Restore Used Chart then reported a chart it could
+    # not redraw, a state ChromIQ itself never produces. Test data has to be
+    # made the way the program makes it, or it tests the wrong program.
+    from core.file_manager import Run
+    from workflow.verify_chart_snapshot import snapshot_chart
+    snapshot_chart(Run.for_dir(run_dir).verification(
+        when.strftime("%Y-%m-%d_%H%M%S")))
     (vdir / "reports" / f"report_{when:%Y-%m-%d_%H-%M-%S}.json").write_text(
         _report(f"{stem}-verify", when, de))
 
