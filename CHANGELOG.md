@@ -1,5 +1,17 @@
 # Changelog
 
+## v3.14.8-beta.96
+
+- **The "✕" that clears the gamut comparison matches the browse button beside
+  it again.** It is deliberately fixed at a small width so the pair reads as one
+  control; the width rule of the last two betas kept overriding that. A width
+  the code fixes on purpose is now left alone — nothing computed by the fitter
+  outranks a `setFixedWidth`, whatever it works out.
+
+- **The Profile-run bar's own buttons are measured in their final font.** They
+  were fitted before the application swapped the button font, so they carried a
+  width computed for a narrower face.
+
 ## v3.14.8-beta.95
 
 - **Small buttons keep the standard size again.** The width rule introduced in

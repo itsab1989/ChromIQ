@@ -135,6 +135,17 @@ def fit_button_width(btn) -> None:
     text = btn.text().replace("&&", "\x00").replace("&", "").replace("\x00", "&")
     if not text:
         return
+    # A width the code fixed deliberately is not ours to argue with. The "✕"
+    # that clears the gamut comparison is `setFixedWidth(28)` so it matches the
+    # browse button beside it — and the app-standard floor introduced for the
+    # opposite problem promptly blew it up to 82 px (Sebastian, #130
+    # 2026-07-29: *"I think this one is now too wide. It should have the same
+    # width as the browse button with the folder icon that is right next to it
+    # on its left."*). setFixedWidth is the clearest statement of intent there
+    # is; nothing computed here outranks it.
+    _QT_MAX = 16777215          # QWIDGETSIZE_MAX — "no maximum set"
+    if 0 < btn.maximumWidth() < _QT_MAX:
+        return
     font = btn.font()
     if font.capitalization() == QFont.Capitalization.AllUppercase:
         # QFontMetrics measures the characters given, not the capitalisation the

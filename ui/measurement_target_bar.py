@@ -813,9 +813,17 @@ class MeasurementTargetBar(QWidget):
         # ends. The shared helper decides the width — the same one every other
         # button in the app uses (Knut, #130 2026-07-26) — and the floor keeps
         # it from moving afterwards.
-        from ui.widgets import fit_button_width
+        # ButtonFontFilter.fit, not fit_button_width: the font has to be the
+        # final one BEFORE the width is measured, or the button is sized for a
+        # narrower face than it paints in. And our own cap has to come off
+        # first — a fixed width is now respected as a decision (Sebastian, #130
+        # 2026-07-29), so leaving last pass's cap in place would freeze this
+        # button at a width measured for the previous label.
+        from ui.widgets import ButtonFontFilter
         for btn in (self._restore_btn, self._delete_btn):
-            fit_button_width(btn)
+            btn.setMinimumWidth(0)
+            btn.setMaximumWidth(16777215)          # QWIDGETSIZE_MAX
+            ButtonFontFilter.fit(btn)
             want = max(btn.minimumWidth(), getattr(btn, "_cq_floor", 0))
             btn._cq_floor = want
             btn.setFixedWidth(want)

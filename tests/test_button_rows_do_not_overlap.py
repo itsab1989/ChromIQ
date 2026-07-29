@@ -189,6 +189,45 @@ def test_a_short_label_never_drops_below_the_app_standard(qapp):
                 f"{label!r} was shrunk below the app's standard button width"
 
 
+def test_a_deliberately_sized_button_is_left_alone(qapp):
+    """Sebastian, #130 2026-07-29: *"the X button behind check and refine tabs
+    compare with option … is now too wide. It should have the same width as the
+    browse button with the folder icon that is right next to it on its left."*
+
+    It is ``setFixedWidth(28)`` precisely so it matches that browse button, and
+    the app-standard floor added an hour earlier — for the opposite problem —
+    promptly blew it up to 82 px. A maximum width is a decision; nothing
+    computed here outranks it.
+    """
+    host = QWidget()
+    b = QPushButton("✕", host)
+    b.setFixedWidth(28)
+    ButtonFontFilter.fit(b)
+    assert b.maximumWidth() == 28
+    assert b.minimumWidth() <= 28, (
+        f"a fitted minimum of {b.minimumWidth()}px overrides the fixed 28px, "
+        f"and Qt then paints the wider of the two")
+    assert "min-width" not in b.styleSheet()
+
+
+@pytest.mark.parametrize("width", [22, 28, 36, 44])
+def test_any_capped_width_survives(qapp, width):
+    """Not just that one: the app is full of deliberately small buttons."""
+    host = QWidget()
+    b = QPushButton("✕", host)
+    b.setMaximumWidth(width)
+    ButtonFontFilter.fit(b)
+    assert b.minimumWidth() <= width
+
+
+def test_an_uncapped_button_is_still_fitted(qapp):
+    """The guard must not switch the whole mechanism off."""
+    host = QWidget()
+    b = QPushButton("Analyse Profile Quality", host)
+    ButtonFontFilter.fit(b)
+    assert b.minimumWidth() >= _needed(b)
+
+
 def test_a_wide_row_still_gets_the_roomy_width(qapp):
     """Nothing changes where there is space: the style's preferred width is
     still what a comfortable panel shows."""
