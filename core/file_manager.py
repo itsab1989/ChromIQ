@@ -1373,6 +1373,35 @@ class FileManager:
         self._project_root_override = None
         self.set_target_name(name)
 
+    def close_project(self) -> None:
+        """Forget the current project entirely, leaving this file manager in the
+        state a freshly started ChromIQ has.
+
+        #130 (Knut, 2026-07-29): after "Delete the whole project" the name was
+        still set here, so the very next thing that asked for the project —
+        switching to another tab was enough — CREATED the folder again, and the
+        location line proudly showed a project the user had just deleted and
+        never asked to have back.
+
+        Clearing the name is what makes that impossible: with no name there is
+        nothing for :meth:`project` to be called about, exactly as at launch.
+        """
+        self._target_name = ""
+        self._project_root_override = None
+        self._project = None
+        log.info("Project closed — back to the state a fresh start has")
+
+    def has_project(self) -> bool:
+        """Whether a project is open at all — i.e. something is named AND its
+        folder holds a manifest. Asking this never creates anything, which is
+        what makes it safe to call from a UI refresh."""
+        if not self._target_name and self._project_root_override is None:
+            return False
+        try:
+            return (self.working_dir() / "project.json").exists()
+        except OSError:
+            return False
+
     def open_project_at(self, root: "Path") -> None:
         """Open a project at its ACTUAL folder *root*, which may be nested in a
         sub-folder of the ChromIQ folder (#130, Knut). working_dir() then

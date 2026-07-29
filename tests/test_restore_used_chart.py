@@ -101,8 +101,12 @@ def test_button_hidden_unless_run_type_is_verification(qapp, tmp_path):
     assert bar._restore_btn.isVisible() is False
 
     ctl.set_run_type(RUN_TYPE_VERIFICATION)
-    # offscreen never truly shows widgets; the enable/tooltip state is the check
-    assert bar._restore_btn.toolTip().startswith("Select an existing")
+    # offscreen never truly shows widgets; the enable/tooltip state is the check.
+    # The tooltip now opens with the action's NAME, because the button carries
+    # only its drawn mark and has no label to read (#130, Knut 2026-07-29).
+    assert bar._restore_btn.toolTip() == (
+        "Restore Used Chart\n\nSelect an existing Verification run date to "
+        "restore its used chart")
 
 
 def test_confirmation_only_when_the_live_chart_differs(qapp, tmp_path):

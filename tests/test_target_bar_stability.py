@@ -80,12 +80,16 @@ def test_every_box_is_wide_enough_for_its_longest_entry(qapp, tmp_path):
             f"needs {widest}px for its longest entry — it will be elided")
 
 
-def test_the_restore_button_fits_its_own_label(qapp, tmp_path):
-    """Knut saw it drawn with the text cut off at both ends."""
+def test_the_two_action_buttons_are_their_marks_and_nothing_more(qapp, tmp_path):
+    """This used to check that "Restore Used Chart" fitted its own label, after
+    Knut saw it drawn with the text cut off at both ends. The label is gone: he
+    asked for the mark to replace the whole button (#130, 2026-07-29), so the
+    requirement is now the opposite — a square the size of the row's height, with
+    no room reserved for text that is never painted."""
     bar, _run = _bar(tmp_path, dates=("2026-07-20_100000",))
-    btn = bar._restore_btn
-    needed = btn.fontMetrics().horizontalAdvance(btn.text())
-    assert btn.width() >= needed, f"{btn.width()}px for {needed}px of text"
+    for btn in (bar._restore_btn, bar._delete_btn):
+        assert (btn.width(), btn.height()) == (26, 26), \
+            f"{btn.text()!r} is {btn.width()}×{btn.height()}, not the 26px square"
 
 
 # ---- stable --------------------------------------------------------------

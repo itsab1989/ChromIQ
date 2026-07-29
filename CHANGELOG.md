@@ -1,5 +1,29 @@
 # Changelog
 
+## v3.14.8-beta.102
+
+- **Restore Used Chart and Delete are now their icons.** The two labelled
+  buttons are gone: the trash can and the undo-arc sheet each *are* the button,
+  the way Create Chart's "open a project" icon and Print Chart's "load a chart"
+  icon already work. They keep the height the buttons had, sit in a square hit
+  target, take the accent colour of the tab you are looking at, and their ⓘ
+  helpers are untouched. Because the face no longer carries a name, every
+  tooltip now opens with the action's name before it explains itself — so a
+  greyed trash can still tells you what it is as well as why you cannot use it
+  yet. The bar also gained back about 260 px, which is room the Verification date
+  box can use on a narrow window.
+
+- **Deleting the whole project now really does leave ChromIQ empty.** Choosing
+  "Delete the whole project" removed the folder but left the interface showing
+  the project that had just gone — and worse, the very next thing that asked
+  about "the project" created it again from scratch under its old name, so
+  switching to another tab was enough to resurrect a project you never asked
+  for. ChromIQ now forgets the project completely: no name, no run, no run type,
+  no verification date, every tab emptied, the remembered session cleared, and
+  the Create Chart tab explaining in plain words where you are and how to start
+  the next project. Your chart options — instrument, paper, patch count, layout
+  — are deliberately kept, so nothing has to be typed again.
+
 ## v3.14.8-beta.101
 
 - **ChromIQ starts on the first tab again.** It kept reopening on Measure

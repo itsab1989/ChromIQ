@@ -8461,6 +8461,43 @@ class TabChart(QWidget):
         self._shown_chart_stamp: "tuple | None" = None
         controller.changed.connect(self._on_target_changed)
 
+    def clear_loaded_project(self) -> None:
+        """Forget the project this tab is showing, leaving it as at launch.
+
+        #130 (Knut, 2026-07-29): after "Delete the whole project" the name field
+        still held the deleted project's name, so the next thing that touched it
+        made the folder all over again — *"After deletion of the whole project I
+        was working in, the user interface must return to the starting state of
+        the app, empty and no loaded project. It must not create another project
+        that I did not ask for."*
+
+        Only the identity of the project is dropped. Every chart OPTION the user
+        has set — instrument, paper, patch count, layout — is deliberately left
+        alone, because those are their working preferences and re-typing them
+        after a delete would be its own annoyance.
+        """
+        self._last_target_name = ""
+        self._last_shown_project_name = None
+        for f in (getattr(self, "_target_name_edit", None),
+                  getattr(self, "_manual_target_name_edit", None)):
+            if f is None:
+                continue
+            if isinstance(f, PrefixLockedLineEdit):
+                f.set_prefix("")
+            f.clear()
+        # Nothing is on screen any more: no chart, no patch list, no preview.
+        self._shown_chart_ti2 = None
+        self._shown_chart_stamp = None
+        self._current_ti1_path = None
+        self._preview.clear()
+        self._log.appendPlainText(tr(
+            "The project was deleted, so ChromIQ is back where it starts: no "
+            "project is open. Type a name into “Printer profile project name” "
+            "and create a chart to begin a new one, or use the folder icon to "
+            "open a project you already have."))
+        # Tell Print and Measure to let go of the chart as well.
+        self.chart_finished.emit([], None, False)
+
     def _confirm_displacing_results(self) -> bool:
         """Ask before a new chart displaces this run's measurement or profile.
 

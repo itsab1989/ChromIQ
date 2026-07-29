@@ -115,6 +115,10 @@ class MainWindow(QMainWindow):
         # A restored verification chart must reach every tab, so nothing is left
         # showing or printing the pages it replaced (#130, Knut).
         self._target_ctl.chart_restored.connect(self._on_verify_chart_restored)
+        # "Delete the whole project" has to leave the app as it starts — every
+        # tab empty, nothing loaded, and no project silently made again (#130,
+        # Knut 2026-07-29).
+        self._target_bar.project_deleted.connect(self._on_project_deleted)
         for _t in (self._tab_chart, self._tab_measure, self._tab_print):
             if hasattr(_t, "set_target_controller"):
                 _t.set_target_controller(self._target_ctl)
@@ -589,6 +593,59 @@ class MainWindow(QMainWindow):
                             exc_info=True)
         if getattr(self, "_target_bar", None) is not None:
             self._target_bar.refresh()
+
+    def _on_project_deleted(self) -> None:
+        """Return the whole app to its starting state after the user deleted the
+        project they were working in (#130, Knut 2026-07-29).
+
+        *"After deletion of the whole project I was working in, the user
+        interface must return to the starting state of the app, empty and no
+        loaded project. It must not create another project that I did not ask
+        for."*
+
+        Both halves matter. Emptying the tabs is the visible half; forgetting the
+        NAME is the half that stops the folder being created again, because
+        anything that asks for "the project" makes it — which is how switching to
+        the Print Chart tab resurrected a deleted project under its old name.
+
+        The order is deliberate: the name goes first, so nothing that runs
+        afterwards can still resolve a project, and the remembered session is
+        cleared last, so a failure in between cannot leave the app reopening a
+        folder that is gone.
+        """
+        # 1. No project is named any more — exactly as at launch.
+        self._file_mgr.close_project()
+        # 2. No run, no run type, no verification date is selected any more.
+        self._target_ctl.reset_to_empty()
+        # 3. Every tab lets go of what it was showing.
+        try:
+            self._tab_chart.clear_loaded_project()
+        except Exception:      # noqa: BLE001 — a delete must never end in a crash
+            log.warning("Could not clear the Create Chart tab", exc_info=True)
+        self._tab_print.load_tiffs([])
+        self._tab_measure.clear_chart_file()
+        self._tab_profile.clear_files()
+        self._tab_check.clear_files()
+        guidance = self._no_chart_guidance_text()
+        self._tab_print.set_chart_notice(guidance)
+        self._tab_measure.set_chart_notice(guidance)
+        # 4. The bar redraws itself against an empty disk.
+        try:
+            self._target_bar.refresh()
+        except Exception:      # noqa: BLE001
+            log.warning("Could not refresh the bar after the project was deleted",
+                        exc_info=True)
+        # 5. Nothing about the deleted project is remembered for next launch.
+        for key in ("session_target_name", "session_project_root",
+                    "session_ti1_path", "session_ti3_path", "session_icc_path",
+                    "session_cal_ti3_path"):
+            self._settings.set(key, "")
+        # 6. And we are standing where a new project begins. (The statusbar line
+        #    is left alone on purpose — it carries the ArgyllCMS warning, which
+        #    must not be pushed aside by a message about something else. The
+        #    Create Chart log and both empty previews say what happened.)
+        self._tabs.setCurrentWidget(self._tab_chart)
+        log.info("Project deleted: the app is back in its starting state")
 
     def _on_profile_active(self, active: bool) -> None:
         profile_idx = self._tabs.indexOf(self._tab_profile)

@@ -156,10 +156,13 @@ def test_the_sheet_is_clipped_where_the_arc_passes_in_front():
 
 # ---- the bar wires them up and re-tints them ----------------------------
 def test_both_buttons_carry_their_mark():
+    """The marks are no longer an icon set ON a labelled button — since
+    beta.102 each mark IS its button (Knut, #130 2026-07-29), so what has to be
+    wired up is the button's accent, not an icon."""
     from ui.measurement_target_bar import MeasurementTargetBar
     src = inspect.getsource(MeasurementTargetBar.set_accent)
-    assert "restore_chart_icon(color, 16)" in src
-    assert "trash_can_icon(color, 16)" in src
+    assert "self._restore_btn.set_accent(color)" in src
+    assert "self._delete_btn.set_accent(color)" in src
 
 
 def test_the_marks_are_re_tinted_with_everything_else():
@@ -167,10 +170,11 @@ def test_the_marks_are_re_tinted_with_everything_else():
     cannot be forgotten the way the Restore and Delete ⓘ both were."""
     from ui.measurement_target_bar import MeasurementTargetBar
     src = inspect.getsource(MeasurementTargetBar.set_accent)
-    assert src.index("tip.set_color(color)") < src.index("restore_chart_icon")
+    assert src.index("tip.set_color(color)") < src.index("_restore_btn.set_accent")
 
 
 def test_the_icons_have_a_size_so_the_button_reserves_room():
-    from ui.measurement_target_bar import MeasurementTargetBar
-    src = inspect.getsource(MeasurementTargetBar)
-    assert src.count("setIconSize(QSize(16, 16))") >= 2
+    """Set by the button itself now, once, rather than at each call site."""
+    assert bi.BarIconButton.ICON == 18
+    assert "setIconSize(QSize(self.ICON, self.ICON))" in inspect.getsource(
+        bi.BarIconButton.__init__)

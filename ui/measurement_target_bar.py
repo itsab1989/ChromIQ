@@ -8,7 +8,7 @@ holds the state itself — the controller is the single source of truth.
 """
 from __future__ import annotations
 
-from PyQt6.QtCore import QObject, QSize, Qt, pyqtSignal
+from PyQt6.QtCore import QObject, Qt, pyqtSignal
 from PyQt6.QtWidgets import (QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout,
                              QWidget)
 
@@ -318,6 +318,18 @@ class MeasurementTargetController(QObject):
             return False, block_tooltip(plan)
         return True, tooltip_for(plan)
 
+    def reset_to_empty(self) -> None:
+        """Forget which run and run type were selected, as at launch.
+
+        Used after the whole project has been deleted (#130, Knut 2026-07-29):
+        the selection named runs inside a folder that no longer exists, so
+        keeping it would leave the bar describing a project the user just
+        removed."""
+        self._target = MeasurementTarget()
+        self._pending_name = ""
+        self._last_restore = None
+        self.changed.emit()
+
     def notify_changed(self) -> None:
         """Force a ``changed`` emission even when no field value differs — used
         after the working PROJECT is switched out from under the bar (e.g. a
@@ -438,14 +450,13 @@ class MeasurementTargetBar(QWidget):
         # Restore Used Chart — puts back the chart a past verification was
         # measured against (#130, Knut 2026-07-25). Sits directly right of the
         # Verification dropdown, with its own ⓘ.
-        from PyQt6.QtWidgets import QPushButton
-        self._restore_btn = QPushButton(tr("Restore Used Chart"), self)
-        self._restore_btn.setObjectName("compact_input")
-        self._restore_btn.setAutoDefault(False)
-        # The drawn marks Knut chose the shapes for (#130, 2026-07-29). Set
-        # here so the button has its size from the start; re-coloured for the
-        # active tab in set_accent.
-        self._restore_btn.setIconSize(QSize(16, 16))
+        # The mark IS the button — no label beside it (#130, Knut 2026-07-29:
+        # "The icons REPLACE the previous buttons totally… so that clicking the
+        # icon functions as a button"), the same kind of widget as Create
+        # Chart's "load profile" icon, at the height the text button had.
+        from ui.bar_icons import restore_chart_button
+        self._restore_btn = restore_chart_button(
+            self._accent, tr("Restore Used Chart"), self)
         self._restore_btn.clicked.connect(self._on_restore_clicked)
         row.addWidget(self._restore_btn)
         self._restore_tip = TooltipButton(
@@ -477,10 +488,8 @@ class MeasurementTargetBar(QWidget):
         # Delete — removes the selected profile run, or the selected run's
         # verification files (#130, Knut 2026-07-28). Sits right of Restore
         # Used Chart, with its own ⓘ; the hint text follows both.
-        self._delete_btn = QPushButton(tr("Delete"), self)
-        self._delete_btn.setObjectName("compact_input")
-        self._delete_btn.setAutoDefault(False)
-        self._delete_btn.setIconSize(QSize(16, 16))
+        from ui.bar_icons import delete_button
+        self._delete_btn = delete_button(self._accent, tr("Delete"), self)
         self._delete_btn.clicked.connect(self._on_delete_clicked)
         row.addWidget(self._delete_btn)
         self._delete_tip = TooltipButton(
@@ -620,6 +629,19 @@ class MeasurementTargetBar(QWidget):
                 "them. It is shown here so you can see where you are, and can "
                 "be changed on the Create Chart, Print Chart and Measure tabs.")
         return self._LOCK_NOTE
+
+    @staticmethod
+    def _icon_tip(btn, body: str) -> str:
+        """The tooltip for an icon-only button: its NAME, then the explanation.
+
+        A button with a label carries its name on its face, so its tooltip could
+        start straight into "why this is greyed". These two carry only a drawn
+        mark (#130, Knut 2026-07-29), so the name has to come from the tooltip —
+        otherwise the first thing a hover tells you about a greyed trash can is
+        why you can't use something you were never told the name of.
+        """
+        name = btn.text()
+        return f"{name}\n\n{body}" if name and body else (name or body)
 
     # ---- stable, readable widths (Knut, #130 2026-07-26) ------------------
     # What the compact_input stylesheet adds around a box's text: 6 px of left
@@ -817,25 +839,10 @@ class MeasurementTargetBar(QWidget):
         self._fit_box(self._verify_combo, list(verify_labels) or
                       [self._verify_combo.itemText(i)
                        for i in range(self._verify_combo.count())])
-        # The button's label never changes, but its width was being taken from
-        # an unpolished hint, so it could render with its text cut off at both
-        # ends. The shared helper decides the width — the same one every other
-        # button in the app uses (Knut, #130 2026-07-26) — and the floor keeps
-        # it from moving afterwards.
-        # ButtonFontFilter.fit, not fit_button_width: the font has to be the
-        # final one BEFORE the width is measured, or the button is sized for a
-        # narrower face than it paints in. And our own cap has to come off
-        # first — a fixed width is now respected as a decision (Sebastian, #130
-        # 2026-07-29), so leaving last pass's cap in place would freeze this
-        # button at a width measured for the previous label.
-        from ui.widgets import ButtonFontFilter
-        for btn in (self._restore_btn, self._delete_btn):
-            btn.setMinimumWidth(0)
-            btn.setMaximumWidth(16777215)          # QWIDGETSIZE_MAX
-            ButtonFontFilter.fit(btn)
-            want = max(btn.minimumWidth(), getattr(btn, "_cq_floor", 0))
-            btn._cq_floor = want
-            btn.setFixedWidth(want)
+        # Restore Used Chart and Delete need no width fitting any more: they
+        # carry no text, so their size is the fixed square BarIconButton asks
+        # for (#130, Knut 2026-07-29). Nothing here may widen them — a label
+        # that isn't painted must not reserve room.
 
         # …and if that comfortable row does not fit the rail, give way.
         self.layout().activate()
@@ -867,11 +874,11 @@ class MeasurementTargetBar(QWidget):
         # bar in future belongs in this tuple too.
         for tip in (self._tip_btn, self._restore_tip, self._delete_tip):
             tip.set_color(color)
-        # …and the two drawn button marks, for the same reason: everything on
-        # this bar follows the tab you are looking at.
-        from ui.bar_icons import restore_chart_icon, trash_can_icon
-        self._restore_btn.setIcon(restore_chart_icon(color, 16))
-        self._delete_btn.setIcon(trash_can_icon(color, 16))
+        # …and the two icon-only buttons, for the same reason: everything on
+        # this bar follows the tab you are looking at. They ARE their marks now,
+        # so this is the only place their colour comes from.
+        self._restore_btn.set_accent(color)
+        self._delete_btn.set_accent(color)
 
     def _on_restore_clicked(self) -> None:
         """Restore the selected verification's used chart, warning first when
@@ -1121,7 +1128,9 @@ class MeasurementTargetBar(QWidget):
             if show_restore:
                 enabled, tip = self._ctl.restore_state()
                 self._restore_btn.setEnabled(enabled and not locked)
-                self._restore_btn.setToolTip(self._lock_note() if locked else tip)
+                self._restore_btn.setToolTip(self._icon_tip(
+                    self._restore_btn,
+                    self._lock_note() if locked else tip))
             # Delete follows the same rule as Restore: shown wherever the bar
             # carries the Verification box, greyed with its own reason.
             self._delete_btn.setVisible(show_restore)
@@ -1129,8 +1138,9 @@ class MeasurementTargetBar(QWidget):
             if show_restore:
                 d_enabled, d_tip = self._ctl.delete_state()
                 self._delete_btn.setEnabled(d_enabled and not locked)
-                self._delete_btn.setToolTip(
-                    self._lock_note() if locked else d_tip)
+                self._delete_btn.setToolTip(self._icon_tip(
+                    self._delete_btn,
+                    self._lock_note() if locked else d_tip))
             every_label: list[str] = []
             if show:
                 self._verify_combo.clear()

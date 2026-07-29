@@ -36,8 +36,10 @@ from __future__ import annotations
 
 import math
 
-from PyQt6.QtCore import QPointF, QRectF, Qt
-from PyQt6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
+from PyQt6.QtCore import QEvent, QPointF, QRectF, QSize, Qt
+from PyQt6.QtGui import (QColor, QIcon, QPainter, QPainterPath, QPalette, QPen,
+                         QPixmap)
+from PyQt6.QtWidgets import QToolButton, QWidget  # noqa: F401 (QWidget: typing)
 
 #: Everything is laid out in this box and scaled to whatever the button asks for.
 _BOX = 24.0
@@ -143,7 +145,7 @@ def draw_restore_chart(p: QPainter, colour: str) -> None:
         p.drawLine(a, b)
 
 
-def _icon(draw, colour: str, size: int) -> QIcon:
+def _pixmap(draw, colour: str, size: int) -> QPixmap:
     pm = QPixmap(size * 2, size * 2)
     pm.setDevicePixelRatio(2.0)
     pm.fill(Qt.GlobalColor.transparent)
@@ -154,14 +156,122 @@ def _icon(draw, colour: str, size: int) -> QIcon:
         draw(p, colour)
     finally:
         p.end()
-    return QIcon(pm)
+    return pm
 
 
-def trash_can_icon(colour: str, size: int = 16) -> QIcon:
-    """The Delete button's trash can, in *colour*."""
-    return _icon(draw_trash_can, colour, size)
+# ---------------------------------------------------------------------------
+# The buttons themselves (#130, Knut 2026-07-29)
+# ---------------------------------------------------------------------------
+
+class BarIconButton(QToolButton):
+    """A Profile-run bar action shown as its mark alone — the mark IS the
+    button.
+
+    Knut, #130 2026-07-29: *"The icons REPLACE the previous buttons totally,
+    similar to the 'load profile' icon in Create Chart tab or 'load ti2' icon in
+    Print Chart tabs… so that clicking the icon functions as a button… The new
+    icons should have the same hight as the height of the previous buttons."*
+
+    So this is deliberately the same kind of widget as those load buttons — a
+    flat ``#tooltip_btn`` QToolButton with nothing but the drawn mark on it — and
+    it is sized to :data:`HEIGHT`, which is the height the text buttons had.
+
+    Everything the old ``QPushButton`` answered to still works unchanged:
+    ``setEnabled``, ``setVisible``, ``setToolTip``, ``text()`` and ``clicked``.
+    Two details are handled here rather than left to Qt:
+
+    * **Greying.** A coloured pixmap is not dimmed convincingly by Qt's own
+      disabled rendering, so the disabled look is drawn explicitly in the
+      palette's disabled text colour — a real grey in both themes.
+    * **The pointer.** A pointing hand over a greyed button promises something
+      that will not happen, so the cursor follows the enabled state.
+
+    The label text is kept on the widget (invisible, ``ToolButtonIconOnly``) so
+    the button still has a name for assistive technology and for anything that
+    asks what it is.
+    """
+
+    #: Matches the height the "Restore Used Chart" / "Delete" text buttons had,
+    #: which is what Knut asked the icons to keep. Width follows, so the mark
+    #: sits in a square hit target rather than a slot.
+    HEIGHT = 26
+    #: The mark itself, inside that box. Bigger than the 16 px it was beside a
+    #: label, because the mark now has to carry the button on its own.
+    ICON = 18
+
+    def __init__(self, draw, colour: str, text: str,
+                 parent: "QWidget | None" = None) -> None:
+        super().__init__(parent)
+        self._draw = draw
+        self._colour = colour
+        self.setObjectName("tooltip_btn")
+        self.setText(text)
+        self.setAccessibleName(text)
+        self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        self.setFixedSize(QSize(self.HEIGHT, self.HEIGHT))
+        self.setIconSize(QSize(self.ICON, self.ICON))
+        # Icon-only and mouse-operated: never take keyboard focus, so the space
+        # bar can't fire a destructive action just because a tab handed this
+        # button the initial focus — the same rule the load buttons follow.
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._apply_icon()
+        self._apply_cursor()
+
+    # ---- appearance -------------------------------------------------------
+    def set_accent(self, colour: str) -> None:
+        """Follow the active tab's accent colour, like everything else on the
+        bar."""
+        self._colour = colour
+        self._apply_icon()
+
+    #: The greys the app already uses for disabled button text — dark theme, then
+    #: light. Taken from ``QPushButton:disabled`` in ``ui/styles.py`` and
+    #: ``LM_TEXT_FAINT`` in ``ui/light_styles.py``, so a greyed mark greys exactly
+    #: like a greyed label; a test fails if either stylesheet moves away from them.
+    GREY_ON_DARK = "#505050"
+    GREY_ON_LIGHT = "#a8a4a0"
+
+    def _disabled_colour(self) -> str:
+        """The app's own disabled grey for whichever theme is on screen.
+
+        Deliberately NOT ``palette(Disabled, ButtonText)``: the light theme sets
+        that role, but the dark theme leaves it at near-white — so a mark drawn in
+        it came out *brighter* than the enabled mark beside it, which is the
+        opposite of greyed. The theme is read from the live palette's text colour
+        rather than from the settings, because that is what has just changed when
+        this is asked during a theme switch.
+        """
+        fg = self.palette().color(QPalette.ColorRole.WindowText)
+        on_dark = fg.lightness() > 127        # light text ⇒ dark background
+        return self.GREY_ON_DARK if on_dark else self.GREY_ON_LIGHT
+
+    def _apply_icon(self) -> None:
+        icon = QIcon(_pixmap(self._draw, self._colour, self.ICON))
+        icon.addPixmap(_pixmap(self._draw, self._disabled_colour(), self.ICON),
+                       QIcon.Mode.Disabled)
+        self.setIcon(icon)
+
+    def _apply_cursor(self) -> None:
+        self.setCursor(Qt.CursorShape.PointingHandCursor if self.isEnabled()
+                       else Qt.CursorShape.ArrowCursor)
+
+    def changeEvent(self, event) -> None:      # noqa: N802
+        super().changeEvent(event)
+        kind = event.type()
+        if kind == QEvent.Type.EnabledChange:
+            self._apply_cursor()
+        elif kind in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
+            # The theme switched under us, so the grey has to be re-derived.
+            self._apply_icon()
 
 
-def restore_chart_icon(colour: str, size: int = 16) -> QIcon:
-    """The Restore Used Chart icon, in *colour*."""
-    return _icon(draw_restore_chart, colour, size)
+def restore_chart_button(colour: str, text: str,
+                         parent: "QWidget | None" = None) -> BarIconButton:
+    """The Restore Used Chart button: its mark alone."""
+    return BarIconButton(draw_restore_chart, colour, text, parent)
+
+
+def delete_button(colour: str, text: str,
+                  parent: "QWidget | None" = None) -> BarIconButton:
+    """The Delete button: its mark alone."""
+    return BarIconButton(draw_trash_can, colour, text, parent)
