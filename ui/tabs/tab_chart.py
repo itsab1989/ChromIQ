@@ -1105,6 +1105,55 @@ def ti1_sidecar(src: Path) -> "Path | None":
     return cand if cand.is_file() else None
 
 
+class _ChartRebuildGuard:
+    """Keeps a chart's own files unchanged while its pages are redrawn.
+
+    **Restore Used Chart redraws pages; it must never lay the chart out again.**
+    Knut, #130 2026-07-29: he restored a verification's chart on
+    Demo-Verify-History and the sheet that came back was a different sheet —
+    shuffled where the original was in fixed order, a fresh seed, 15 patches per
+    pass instead of 16, 60 sets instead of 64. The chart files in the dated
+    ``chart/`` folder were fine; it was the redraw that replaced the live ones.
+
+    The danger is quiet: a verification's ``.ti3`` describes the sheet that was
+    measured, and if the ``.ti2`` beside it is silently swapped for another
+    layout the two stop agreeing and nothing says so. So the bytes are held here
+    and put back if the redraw changed them.
+
+    The page images are deliberately NOT guarded — redrawing them is the whole
+    point.
+    """
+
+    #: Everything that defines the chart, as opposed to how it looks on paper.
+    SUFFIXES = (".ti1", ".ti2", ".channels.json")
+
+    def __init__(self, ti2: Path) -> None:
+        stem = Path(ti2).with_suffix("")
+        self._held: dict[Path, bytes] = {}
+        for suffix in self.SUFFIXES:
+            path = Path(str(stem) + suffix)
+            try:
+                if path.is_file():
+                    self._held[path] = path.read_bytes()
+            except OSError:
+                log.warning("could not hold %s for the rebuild", path)
+
+    def put_back(self) -> list[str]:
+        """Restore any held file the rebuild changed. Returns their names."""
+        changed = []
+        for path, data in self._held.items():
+            try:
+                if not path.is_file() or path.read_bytes() != data:
+                    path.write_bytes(data)
+                    changed.append(path.name)
+            except OSError:
+                log.warning("could not put %s back after the rebuild", path)
+        if changed:
+            log.warning("the page rebuild altered the chart itself (%s) — the "
+                        "restored chart has been put back", ", ".join(changed))
+        return changed
+
+
 class TabChart(QWidget):
     """Step 1: create targen/printtarg test chart."""
 
@@ -8578,6 +8627,19 @@ class TabChart(QWidget):
             rid = proj.current_run().id
             if ctl.target.profile_run != rid:
                 ctl.set_profile_run(rid)
+            # …and back to Profiling. Knut, #130 2026-07-29: *"When using the
+            # load profile button in create chart, and then loading a stored
+            # project.json file: Reset Run type to Profiling, so that all newly
+            # loaded charts start at its profiling data."*
+            #
+            # Run type is a working state, not a property of the project: it was
+            # simply whatever the previous project had been left on, so opening
+            # a project could land you on Verification — looking at a
+            # verification chart of a project you had only just opened, with the
+            # profiling chart you asked for nowhere in sight.
+            if ctl.target.is_verification():
+                ctl.set_run_type("profiling")
+                ctl.set_verification_id("")
         except Exception as exc:  # noqa: BLE001
             log.warning("Could not default the target bar to the current run: %s", exc)
 
@@ -8654,13 +8716,38 @@ class TabChart(QWidget):
             # Build the restored chart exactly as it was made: its own recipe
             # first, then the normal build, which lays the pages at the run root
             # — and, for a verification, files them back under verifications/.
+            restored_recipe = False
             if ti2.is_file():
-                self._restore_chart_settings(ti2)
+                restored_recipe = self._restore_chart_settings(ti2)
+            # …and BUILD IN THE MODE THAT RECIPE LANDED IN.
+            #
+            # Knut, #130 2026-07-29, on Demo-Verify-History: he restored a
+            # verification's chart and *"it was clear that the restored chart
+            # was very different from the one that was in the verifications
+            # folder"*. He was right, and it was not the demo data.
+            # _restore_chart_settings fills the MANUAL panels — the engine
+            # toggle, the layout recipe, the pinned patch count — but
+            # _collect_params() reads whichever mode is on screen, and the app
+            # opens in Guided. So every one of those restored settings was
+            # discarded and the rebuild laid out a brand-new chart: shuffled
+            # where the original was in fixed order, with a fresh seed, 15
+            # patches per pass instead of 16 and 60 sets instead of 64.
+            if restored_recipe and self._current_mode() != "manual":
+                self._switch_mode("manual")
             if proj.current_run().id != run_id:
                 proj.set_current_run(run_id)
             self._arm_verification_snapshot()
             params = self._collect_params()
             params.target_name = self._file_mgr.get_target_name()
+            # THE CHART ITSELF MUST SURVIVE THE REDRAW.
+            #
+            # Redrawing pages is a rendering job; it is not licence to lay the
+            # chart out again. If the rebuild writes a different .ti2 the run's
+            # measurement no longer describes the sheet beside it, and nothing
+            # warns anybody — the files simply stop agreeing. So the chart is
+            # kept and put back if the redraw changes it (Knut, #130
+            # 2026-07-29).
+            self._rebuild_guard = _ChartRebuildGuard(ti2)
             self._preview.clear()
             self._generate_btn.setEnabled(False)
             self._creator.load_ti1_and_generate_preview(
@@ -8787,6 +8874,31 @@ class TabChart(QWidget):
             tr("Switched to this run's {kind}.").format(kind=kind))
         self._display_run_chart(ti2, tiffs, ti1)
 
+    def _release_rebuild_guard(self) -> None:
+        """Put the chart back if redrawing its pages changed it, and say so.
+
+        Called AFTER the verification chart has been filed into
+        ``verifications/`` — the build lays its files at the run root and
+        ``adopt_run_chart_as_verify`` moves them across, so releasing the guard
+        any earlier restores the bytes and then watches the move overwrite them
+        again. That is exactly what happened on the first attempt at this fix.
+        """
+        guard, self._rebuild_guard = getattr(self, "_rebuild_guard", None), None
+        if guard is None:
+            return
+        changed = guard.put_back()
+        if not changed:
+            return
+        try:
+            self._log.appendPlainText(tr(
+                "Redrawing the pages would have changed the chart itself, so "
+                "the restored chart has been put back exactly as it was. Your "
+                "measurement still matches the chart file beside it. The pages "
+                "shown here were drawn from a different layout — create the "
+                "chart again in this tab if you need printable pages."))
+        except Exception:      # noqa: BLE001 — never break a finished build
+            log.warning("could not report the rebuild guard", exc_info=True)
+
     def _on_generate_finished(self, tiffs: list[Path]) -> None:
         # Disarm the slow-chart watchdog and dismiss its dialog if it's still
         # open (targen finished/was swapped while the user was deciding).
@@ -8839,6 +8951,7 @@ class TabChart(QWidget):
             # lives only in verifications/, and the two must coexist (#130, Knut).
             self._restore_profiling_chart()
         else:
+            self._release_rebuild_guard()
             # Either a profiling build (nothing was ever armed — this no-ops), or
             # a verification build that produced no chart because it failed or
             # was cancelled. In that second case the run root has already been
@@ -8900,6 +9013,12 @@ class TabChart(QWidget):
             # layout editor does on save. No-op for the common case (printtarg
             # randomises by default → already RANDOM_START).
             self._maybe_autotag_randomised(ti2)
+            # AFTER the auto-tag, which is the last thing that writes to the
+            # chart. Releasing the guard before it meant the bytes were put back
+            # and then re-tagged a line later — the restored chart came out
+            # marked RANDOM_START when it had been laid out in fixed order, and
+            # chartread reads those two differently.
+            self._release_rebuild_guard()
             # If the patch set leaves a notably under-filled last page (or spilled
             # onto a near-empty extra page), offer to edit the patch set (#93, Knut).
             self._maybe_warn_partial_last_page(ti2)

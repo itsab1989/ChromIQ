@@ -1,5 +1,34 @@
 # Changelog
 
+## v3.14.8-beta.97
+
+- **Restore Used Chart no longer replaces the chart it restores.** Putting an
+  older verification chart back is followed by redrawing its printable pages —
+  and that redraw was laying out a brand-new chart instead of drawing the
+  restored one. On a chart that had been made in fixed order it came back
+  shuffled with a fresh seed, with 15 patches per strip instead of 16 and 60
+  patches instead of 64. Nothing said so, and the measurement in that dated
+  folder no longer described the sheet beside it.
+
+- **The cause: the redraw read the wrong panel.** The restore fills the Manual
+  side of Create Chart with the chart's own recipe — its engine settings, its
+  layout, the seed it was really shuffled with — but the build then collected
+  its parameters from whichever mode happened to be on screen, and ChromIQ opens
+  in Guided. Every restored setting was discarded. The redraw now builds in the
+  mode it restored into.
+
+- **And a chart is now held while its pages are redrawn.** Redrawing pages is a
+  rendering job, not licence to lay the chart out again, so the `.ti1`, `.ti2`
+  and `.channels.json` are kept and put back if the redraw would change them —
+  including the auto-tag step, which was turning a fixed-order chart into a
+  randomised one, and ArgyllCMS reads those two differently. If that ever
+  happens the log says so plainly rather than leaving you to notice.
+
+- **Loading a project puts the Run type back to Profiling.** Run type is working
+  state, not a property of the project: it used to be whatever the last project
+  had been left on, so opening a project could land you on Verification, looking
+  at a verification chart of a project you had only just opened.
+
 ## v3.14.8-beta.96
 
 - **The "✕" that clears the gamut comparison matches the browse button beside
