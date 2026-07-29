@@ -1,5 +1,53 @@
 # Changelog
 
+## v3.14.8-beta.92
+
+- **"This chart already has a measurement" now appears when you arrive at the
+  Measure tab, not when the chart file changes.** Knut's point: switching
+  Profile run changes the file path ChromIQ sees, but from the run's own point
+  of view nothing has changed — so keying the window to the path meant it
+  appeared for a change that had not happened, and stayed quiet when you came
+  back to a run from another tab. The window is informational, so it now shows
+  whenever the Measure tab comes on screen for a run whose readings already
+  exist. The per-run "Don't ask this again" tick is unchanged and is what keeps
+  it from becoming noise while you work through one run; it never appears over
+  another tab, over a measurement in progress, or twice in a row.
+
+- **Each instrument now has its own "Patches per strip".** The single box below
+  the table — one strip length shared by every instrument — has been replaced by
+  a column in the table, between "Readings per second" and "Minimum readings per
+  patch". Strip length follows the instrument's smallest usable patch, so one
+  common number could only ever be right for one row: an i1Pro 3 Plus needs
+  16 mm patches and fits half as many on a strip as an i1Pro 2. Each row's
+  reading speed is now worked out from that row's own three numbers, and the
+  count after the "@" is the one in that row's box. The SpectroScan reads
+  "N/A" — a motorised table places its head on each patch in turn, so a strip
+  length says nothing about it.
+
+- **The strip lengths and minimums ChromIQ starts with** (Knut's figures):
+  i1Pro 25 patches / 20 readings, i1Pro 2 25 / 20, i1Pro 3 30 / 33,
+  i1Pro 3 Plus 15 / 66, ColorMunki / i1Studio 15 / 20, SpectroScan N/A / Off.
+  They come out at a consistent 2.5 seconds per strip for the i1Pro 2 and both
+  i1Pro 3 models, 5 seconds for the first-generation i1Pro and 6 for the
+  ColorMunki. If you have ever pressed Save in Preferences you were carrying the
+  old numbers; a stored value that merely echoes an old default is dropped so
+  the new one reaches you, while a number you chose yourself is left untouched.
+
+- **Every instrument's ⓘ now explains all three of its numbers**, and works the
+  arithmetic through with that row's own figures — the explanation that used to
+  live on the removed common box, now beside each row it describes.
+
+- **The ColorMunki's spacer-width guidance is corrected.** The margin for making
+  sure a reading lands inside a spacer rather than on its edge is 40 to 60 %,
+  not 20 to 30 %: at these sizes on paper the old figure was too small. The
+  minimum spacer width that follows is roughly 1.0 to 1.1 mm, the worked example
+  ends at 1.1 to 1.3 mm, and the text now says plainly that the width you settle
+  on will most likely need verifying with a test print and read.
+
+- **Three help sentences that argued for a default have gone**, so the worked
+  examples stand on their own and a default can be changed without rewriting
+  prose around it.
+
 ## v3.14.8-beta.91
 
 - **The instrument-error sound comes back immediately, and again with the

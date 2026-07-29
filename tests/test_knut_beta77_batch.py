@@ -226,7 +226,9 @@ def test_the_offer_is_never_opened_inside_show_event():
     comes up over a half-drawn window."""
     from ui.tabs.tab_measure import TabMeasure
     src = inspect.getsource(TabMeasure.showEvent)
-    assert "QTimer.singleShot(0, self._offer_existing_overlay_now)" in src
+    assert "self._queue_overlay_offer()" in src
+    assert "QTimer.singleShot(0, self._offer_existing_overlay_now)" in \
+        inspect.getsource(TabMeasure._queue_overlay_offer)
     assert "_maybe_offer_existing_overlay()" not in src, \
         "the window is still being opened straight out of showEvent"
 
@@ -236,7 +238,7 @@ def test_the_visible_path_is_deferred_as_well():
     same window out of the same kind of handler."""
     from ui.tabs.tab_measure import TabMeasure
     src = inspect.getsource(TabMeasure.set_ti1_path)
-    assert "QTimer.singleShot(0, self._offer_existing_overlay_now)" in src
+    assert "self._queue_overlay_offer()" in src
 
 
 def test_the_deferred_offer_checks_the_tab_is_still_showing():

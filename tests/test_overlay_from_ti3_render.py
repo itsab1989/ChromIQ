@@ -119,7 +119,8 @@ def test_set_ti1_path_no_offer_when_tab_hidden(tmp_path, monkeypatch):
 
 def test_set_ti1_path_offers_when_tab_visible(tmp_path, monkeypatch):
     """The flip side: loading a chart while the Measure tab IS on screen still
-    offers the overlay."""
+    offers the overlay — and exactly once, even though being shown asks for the
+    offer too (Knut, #130 2026-07-29)."""
     tab = _make_tab()
     ti2 = tmp_path / "chart.ti2"; ti2.write_text(_TI2)
     (tmp_path / "chart.ti3").write_text(_TI3)
@@ -136,7 +137,8 @@ def test_set_ti1_path_offers_when_tab_visible(tmp_path, monkeypatch):
         QApplication.processEvents()
     finally:
         tab.hide()
-    assert calls == [1], "should auto-offer when the Measure tab is visible"
+    assert calls == [1], \
+        "should auto-offer once when the Measure tab is visible"
 
 
 def test_load_popup_ok_applies_checkboxes(tmp_path, monkeypatch):

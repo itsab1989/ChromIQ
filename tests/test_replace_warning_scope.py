@@ -278,27 +278,33 @@ def test_a_chart_loaded_from_another_tab_still_owes_the_offer():
         "the #134 rule must still hold — never over Create Chart or Print Chart"
 
 
-def test_showing_the_tab_makes_the_held_offer():
+def test_showing_the_tab_makes_the_offer():
     """Since beta.79 the window is not opened from inside showEvent — a modal
     blocks there before the tab has painted (Knut, #130 2026-07-28) — so it is
-    handed to the event loop and made a moment later."""
+    handed to the event loop and made a moment later.
+
+    Since #130 2026-07-29 it no longer waits for a chart to have changed: Knut
+    ruled the window informational, so arriving at the tab is the trigger.
+    """
     from ui.tabs.tab_measure import TabMeasure
     show = inspect.getsource(TabMeasure.showEvent)
     assert "self._pending_overlay_offer = False" in show
-    assert "QTimer.singleShot(0, self._offer_existing_overlay_now)" in show
+    assert "self._queue_overlay_offer()" in show
+    assert "QTimer.singleShot(0, self._offer_existing_overlay_now)" in \
+        inspect.getsource(TabMeasure._queue_overlay_offer)
     assert "_maybe_offer_existing_overlay()" in inspect.getsource(
         TabMeasure._offer_existing_overlay_now)
 
 
-def test_the_held_offer_is_made_only_once():
-    """The flag is cleared as the tab is shown, so re-showing does not ask
-    again even though the window itself opens a moment later."""
+def test_the_offer_is_made_only_once_per_turn():
+    """Being shown and a chart arriving both ask for it, and they usually
+    happen together — the user must not answer the same window twice."""
     from ui.tabs.tab_measure import TabMeasure
-    lines = [l.strip() for l in inspect.getsource(TabMeasure.showEvent).splitlines()]
-    cleared = next(i for i, l in enumerate(lines)
-                   if "self._pending_overlay_offer = False" in l)
-    scheduled = next(i for i, l in enumerate(lines) if "QTimer.singleShot" in l)
-    assert cleared < scheduled
+    src = inspect.getsource(TabMeasure._queue_overlay_offer)
+    assert "_offer_queued" in src
+    assert "return" in src.split("_offer_queued")[1].split("QTimer")[0]
+    assert "self._offer_queued = False" in inspect.getsource(
+        TabMeasure._offer_existing_overlay_now)
 
 
 def test_showing_the_tab_never_breaks_on_a_failed_offer():

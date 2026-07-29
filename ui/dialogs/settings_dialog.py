@@ -1362,8 +1362,9 @@ class SettingsDialog(QDialog):
         ColorMunki samples at 50 readings per second and a i1Pro 3 at 400, so
         the same swipe gives one of them eight times more light than the other.
         """
-        from core.measure_pace import (MIN_SAMPLES_RANGE, MODEL_DEFAULTS,
-                                       SAMPLE_HZ_RANGE)
+        from core.measure_pace import (ESTIMATE_PATCHES_RANGE,
+                                       MIN_SAMPLES_RANGE, MODEL_DEFAULTS,
+                                       SAMPLE_HZ_RANGE, estimate_patches_for)
         from ui.widgets import NoScrollDoubleSpinBox, NoScrollSpinBox
 
         page = QWidget()
@@ -1383,10 +1384,12 @@ class SettingsDialog(QDialog):
         note = QLabel(tr(
             "Every instrument takes a fixed number of readings per second, so "
             "how long a patch takes decides how many readings it gets. Set that "
-            "rate and the minimum readings you want per patch, and ChromIQ works "
-            "out the rest. The defaults suit each instrument; raise the minimum "
-            "for more careful measurements, or set it to “Off” to silence the "
-            "hint for that instrument."), self)
+            "rate, how many patches one of your strips holds, and the minimum "
+            "readings you want per patch — the reading speed at the end of each "
+            "row follows from those three, and each instrument's ⓘ works it "
+            "through. The defaults suit each instrument; raise the minimum for "
+            "more careful measurements, or set it to “Off” to silence the hint "
+            "for that instrument."), self)
         note.setWordWrap(True)
         note.setStyleSheet("color: #909090; font-size: 11px;")
         v.addWidget(note)
@@ -1401,11 +1404,16 @@ class SettingsDialog(QDialog):
         form.setVerticalSpacing(8)
         form.addWidget(QLabel(tr("Instrument"), self), 0, 0)
         form.addWidget(QLabel(tr("Readings per second"), self), 0, 1)
-        form.addWidget(QLabel(tr("Minimum readings per patch"), self), 0, 2)
-        # Knut, #131 2026-07-27: show what the two numbers MEAN for a real
-        # strip, live, so a threshold can be chosen without doing the
-        # arithmetic by hand.
-        form.addWidget(QLabel(tr("Min. strip reading speed"), self), 0, 4)
+        # Knut, #130 2026-07-29: the strip length belongs to the instrument, not
+        # to one box shared by all of them — an i1Pro 3 Plus needs 16 mm patches
+        # and fits half as many on a strip as an i1Pro 2, so one common number
+        # could only ever be right for one row.
+        form.addWidget(QLabel(tr("Patches per strip"), self), 0, 2)
+        form.addWidget(QLabel(tr("Minimum readings per patch"), self), 0, 3)
+        # Knut, #131 2026-07-27: show what the numbers MEAN for a real strip,
+        # live, so a threshold can be chosen without doing the arithmetic by
+        # hand.
+        form.addWidget(QLabel(tr("Min. strip reading speed"), self), 0, 5)
 
         labels = {
             "i1pro":      tr("i1Pro (first generation)"),
@@ -1416,6 +1424,7 @@ class SettingsDialog(QDialog):
             "spectroscan": tr("SpectroScan (motorised table)"),
         }
         self._pace_hz: dict = {}
+        self._pace_patches: dict = {}
         self._pace_min: dict = {}
         self._pace_estimate: dict = {}
         for row, (key, (hz_default, min_default)) in enumerate(
@@ -1436,6 +1445,24 @@ class SettingsDialog(QDialog):
             form.addWidget(hz, row, 1)
             self._pace_hz[key] = hz
 
+            # How long a strip is, for this instrument's figure. Changing it
+            # shows straight away what the row's setting means for YOUR charts.
+            pp = NoScrollSpinBox(self)
+            pp.setRange(*ESTIMATE_PATCHES_RANGE)
+            # 0 = "N/A": the SpectroScan places its head on each patch in turn,
+            # so a strip length says nothing at all about it.
+            pp.setSpecialValueText(tr("N/A"))
+            pp.setMaximumWidth(140)
+            pp_default = estimate_patches_for(key) or 0
+            pp.setValue(int(self._settings.get(
+                f"pace_estimate_patches_{key}", pp_default) or 0))
+            pp.setToolTip(tr(
+                "How many patches one strip of your charts holds for this "
+                "instrument. It is used only for the reading speed shown at the "
+                "end of this row — it changes nothing about how you measure."))
+            form.addWidget(pp, row, 2)
+            self._pace_patches[key] = pp
+
             mn = NoScrollSpinBox(self)
             # 0 means off, so the range starts one below the real minimum and
             # the special value shows as "Off" (the SpectroScan's default: a
@@ -1451,7 +1478,7 @@ class SettingsDialog(QDialog):
                 "The fewest readings a patch should get. Below this, ChromIQ "
                 "says the strip was read quickly. Set it to Off to give no "
                 "warning for this instrument."))
-            form.addWidget(mn, row, 2)
+            form.addWidget(mn, row, 3)
             self._pace_min[key] = mn
 
             # Why these two numbers, and how they were arrived at (Knut, #131
@@ -1460,62 +1487,28 @@ class SettingsDialog(QDialog):
             from core.measure_pace import explanation_for
             from ui.tooltip_button import TooltipButton
             title, body = explanation_for(key)
-            form.addWidget(TooltipButton(title, body, self), row, 3)
+            form.addWidget(TooltipButton(title, body, self), row, 4)
 
             # The live figure: patches x minimum readings / readings per second.
             est = QLabel("", self)
             est.setStyleSheet("color: #909090;")
-            form.addWidget(est, row, 4)
+            form.addWidget(est, row, 5)
             self._pace_estimate[key] = est
             hz.valueChanged.connect(self._refresh_pace_estimates)
+            pp.valueChanged.connect(self._refresh_pace_estimates)
             mn.valueChanged.connect(self._refresh_pace_estimates)
 
         # The slack goes into a column of its own on the right, so the boxes
         # keep a sensible width and the ⓘ next to each row is never squeezed
         # off the edge of the group.
-        form.setColumnStretch(5, 1)
+        form.setColumnStretch(6, 1)
 
         v.addWidget(grp)
 
-        # How long a strip is, for the figures above. Changing it shows straight
-        # away what each instrument's setting means for YOUR charts (Knut, #131
-        # 2026-07-27).
-        _pp_row = QHBoxLayout()
-        _pp_row.addWidget(QLabel(
-            tr("No. of patches per strip for estimation of speed:"), self))
-        self._pace_patches_spin = NoScrollSpinBox(self)
-        self._pace_patches_spin.setRange(2, 200)
-        self._pace_patches_spin.setValue(
-            int(self._settings.get("pace_estimate_patches", 20)))
-        self._pace_patches_spin.setMaximumWidth(110)
-        self._pace_patches_spin.valueChanged.connect(self._refresh_pace_estimates)
-        _pp_row.addWidget(self._pace_patches_spin)
-        # The ⓘ belongs beside the box it explains, not at the far edge of the
-        # window — so the stretch comes after it (Knut: "to the right of new
-        # spinbox").
-        _pp_row.addWidget(TooltipButton(
-            tr("Patches per strip for the estimate"),
-            tr("The figures to the right of each instrument answer one "
-               "question: with the settings on this row, what is the fastest a "
-               "strip may be read before ChromIQ says you were quick?\n\n"
-               "The arithmetic is the one ChromIQ uses while you measure:\n\n"
-               "  patches per strip × minimum readings per patch = readings the "
-               "strip needs\n"
-               "  readings needed ÷ readings per second = seconds the strip "
-               "needs\n\n"
-               "So a 15-patch strip at 23 readings per patch needs 345 "
-               "readings, and an instrument taking 50 readings a second needs "
-               "345 ÷ 50 = 6.9 seconds for it.\n\n"
-               "Set this to the number of patches on a strip of your own "
-               "charts — 20 is a common length — and then try different "
-               "minimum-readings values above: the seconds change as you type, "
-               "so you can pick a limit by the reading speed it implies rather "
-               "than by working it out on paper. It changes nothing about how "
-               "you measure; it is only here to make the numbers meaningful."),
-            self))
-        _pp_row.addStretch(1)
-        v.addLayout(_pp_row)
-
+        # The single "No. of patches per strip for estimation of speed" box that
+        # used to sit here is gone: each instrument now carries its own strip
+        # length in the table above, and its explanation moved into each
+        # instrument's ⓘ (Knut, #130 2026-07-29).
         self._refresh_pace_estimates()
         v.addStretch(1)
         return page
@@ -1526,13 +1519,20 @@ class SettingsDialog(QDialog):
         Live, because the point is to choose a threshold BY the reading speed it
         implies (Knut, #131 2026-07-27). An instrument whose warning is switched
         off has no such speed, and says so rather than showing a nonsense zero.
+        Each row uses its OWN strip length (Knut, #130 2026-07-29), so the
+        number after the @ is always the one in that row's box.
         """
-        patches = int(self._pace_patches_spin.value())
         for key, lbl in getattr(self, "_pace_estimate", {}).items():
             hz = float(self._pace_hz[key].value())
             mn = int(self._pace_min[key].value())
+            patches = int(self._pace_patches[key].value())
             if mn <= 0 or hz <= 0:
                 lbl.setText(tr("no limit"))
+                continue
+            if patches <= 0:
+                # The strip length is N/A — an honest "nothing to work out"
+                # rather than a figure computed from a zero.
+                lbl.setText(tr("not applicable"))
                 continue
             seconds = patches * mn / hz
             if patches == 1:
@@ -3317,7 +3317,8 @@ class SettingsDialog(QDialog):
                 s.set(f"pace_sample_hz_{_key}", float(_hz.value()))
             for _key, _mn in self._pace_min.items():
                 s.set(f"pace_min_samples_{_key}", int(_mn.value()))
-        s.set("pace_estimate_patches", int(self._pace_patches_spin.value()))
+            for _key, _pp in self._pace_patches.items():
+                s.set(f"pace_estimate_patches_{_key}", int(_pp.value()))
         from core.platform_paths import set_icc_install_override
         set_icc_install_override(self._profile_dir_edit.text())
         # Margin inspector: behaviour flags + the per-combo threshold table.

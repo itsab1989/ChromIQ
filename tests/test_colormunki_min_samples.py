@@ -1,9 +1,15 @@
-"""#131 (Knut, 2026-07-27): the ColorMunki's minimum readings per patch is 23.
+"""#131/#130 (Knut): the ColorMunki's minimum readings per patch.
 
 X-Rite's own figures imply about 34 readings per patch, and ChromIQ shipped 30.
 Knut's practical tests read an 11-patch strip well in 5-6 seconds — 250 readings
 for the strip, 23 for each patch — and the profiles built from those reads were
-good. So 30 was holding users to a pace the instrument does not need.
+good. So 30 was holding users to a pace the instrument does not need, and
+2026-07-27 settled on 23.
+
+**2026-07-29** he set the whole table again, alongside the new per-instrument
+strip lengths: the ColorMunki lands on **20**. The reasoning above is unchanged
+— this is the same instrument judged against a 15-patch strip rather than an
+11-patch one — so the file keeps testing the same things, at the new number.
 
 The number is not just a default: it decides the "too fast" verdict, the advice
 that follows a failed strip, and the closing line of the ColorMunki explanation.
@@ -23,13 +29,13 @@ from core.measure_pace import (MODEL_DEFAULTS, _target_ms,   # noqa: E402
 from core.settings import SETTINGS_SCHEMA, AppSettings        # noqa: E402
 
 
-def test_the_default_is_23():
-    assert defaults_for("colormunki") == (50.0, 23)
+def test_the_default_is_20():
+    assert defaults_for("colormunki") == (50.0, 20)
 
 
-def test_one_patch_must_last_460_ms():
-    """23 readings at 50 per second. Knut's own arithmetic: 6.9 s ÷ 15."""
-    assert _target_ms("colormunki") == 460
+def test_one_patch_must_last_400_ms():
+    """20 readings at 50 per second."""
+    assert _target_ms("colormunki") == 400
 
 
 def test_the_explanation_carries_knuts_reasoning():
@@ -51,15 +57,15 @@ def test_the_explanation_states_the_rule_and_not_only_the_round_numbers():
 def test_the_closing_line_is_computed_not_written():
     """A changed default must never leave a stale sentence behind."""
     _title, body = explanation_for("colormunki")
-    assert "at least 460 ms" in body
-    assert "23 readings at 50 readings per second" in body
+    assert "at least 400 ms" in body
+    assert "20 readings at 50 readings per second" in body
 
 
 def test_no_other_instrument_moved():
     assert MODEL_DEFAULTS["i1pro"] == (100.0, 20)
     assert MODEL_DEFAULTS["i1pro2"] == (200.0, 20)
-    assert MODEL_DEFAULTS["i1pro3"] == (400.0, 30)
-    assert MODEL_DEFAULTS["i1pro3plus"] == (400.0, 60)
+    assert MODEL_DEFAULTS["i1pro3"] == (400.0, 33)
+    assert MODEL_DEFAULTS["i1pro3plus"] == (400.0, 66)
     assert MODEL_DEFAULTS["spectroscan"] == (250.0, None)
 
 
@@ -80,7 +86,7 @@ def test_a_stored_echo_of_the_old_default_is_dropped(tmp_path):
     s.migrate()
 
     assert s._qs.value("pace_min_samples_colormunki", None) is None
-    assert defaults_for("colormunki")[1] == 23
+    assert defaults_for("colormunki")[1] == 20
 
 
 def test_a_value_the_user_chose_is_left_alone(tmp_path):
@@ -204,11 +210,11 @@ def test_the_explanation_covers_spacer_width():
     _title, body = explanation_for("colormunki")
     for phrase in ("SPACER WIDTH GOES WITH READING SPEED",
                    "230 ÷ 345 = 0.7 mm",
-                   "0.8 to 0.9 mm",
+                   "1.0 to 1.1 mm",
                    "22 × 15 = 330",
                    "330 ÷ 50 = 6.6 seconds",
                    "262 ÷ 330 ≈ 0.8 mm",
-                   "about 1 mm wide"):
+                   "1.1 to 1.3 mm wide"):
         assert phrase in body, f"missing: {phrase}"
 
 

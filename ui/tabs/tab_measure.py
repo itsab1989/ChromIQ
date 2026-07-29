@@ -874,8 +874,15 @@ class TabMeasure(QWidget):
         self._offer_silenced: set = set()
         # A chart was loaded while another tab was on screen and still owes the
         # user the "this chart already has a measurement" offer — made when this
-        # tab is next shown. See set_ti1_path / showEvent.
+        # tab is next shown. See set_ti1_path / showEvent. (Since #130
+        # 2026-07-29 showing the tab offers anyway, so this only shortens the
+        # wait when a chart arrives while another tab is up.)
         self._pending_overlay_offer: bool = False
+        # One existing-measurement window at a time — see
+        # _maybe_offer_existing_overlay — and at most one queued offer per turn
+        # of the event loop — see _queue_overlay_offer.
+        self._offer_open: bool = False
+        self._offer_queued: bool = False
         # When averaging is enabled, the "All Strips Read" dialog records the
         # user's choice here so _on_measure_done can act on it once chartread has
         # finished writing the .ti3 (the file isn't final while chartread runs).
@@ -2820,8 +2827,7 @@ class TabMeasure(QWidget):
                 # modal opened straight out of a selection change blocks inside
                 # the layout that change started, and the window comes up over a
                 # partly painted tab (Knut, #130 2026-07-28).
-                from PyQt6.QtCore import QTimer
-                QTimer.singleShot(0, self._offer_existing_overlay_now)
+                self._queue_overlay_offer()
             else:
                 # …but a chart loaded from Create Chart or Print Chart used to
                 # lose the offer altogether: it was made while another tab was
@@ -2831,16 +2837,25 @@ class TabMeasure(QWidget):
                 self._pending_overlay_offer = True
 
     def showEvent(self, event) -> None:            # noqa: N802 — Qt name
-        """Make an offer that was held back because another tab was showing.
+        """Offer the existing measurement whenever this tab comes on screen.
 
         The #134 rule stands — the window must never appear over Create Chart or
-        Print Chart — but "not now" was being implemented as "never", which is
-        why loading a chart in either of those tabs and then coming here was
-        silent (Knut, #131 2026-07-28).
+        Print Chart — and "not now" must not mean "never", which is why loading
+        a chart in either of those tabs and then coming here used to be silent
+        (Knut, #131 2026-07-28).
+
+        Knut settled the trigger itself on #130, 2026-07-29. It used to need a
+        *changed* .ti2 path, and he showed why that was wrong: **"Changing
+        profile run naturally changes the path that the app sees, but from one
+        specific run nothing has actually changed."** The window is
+        informational — it tells you this run already holds readings and lets
+        you choose what to do about them — so the moment it is useful is the
+        moment you arrive at the Measure tab, whether you came from another run
+        or from another tab of the same run. So: every time this tab is shown.
+        The per-run "don't ask this again" tick is what keeps it from becoming
+        noise while you work through one run.
         """
         super().showEvent(event)
-        if not self._pending_overlay_offer:
-            return
         self._pending_overlay_offer = False
         # NOT here and now. Opening a modal window from inside showEvent blocks
         # before the tab has finished being painted, so the window comes up over
@@ -2849,11 +2864,26 @@ class TabMeasure(QWidget):
         # panel is not at all drawn". Handing it to the event loop lets the tab
         # paint completely first, and the window then opens over a finished
         # screen.
+        self._queue_overlay_offer()
+
+    def _queue_overlay_offer(self) -> None:
+        """Ask for the existing-measurement offer on the next turn of the event
+        loop — at most once, however many things asked for it.
+
+        Being shown and having a chart handed to us usually happen together
+        (open a project, switch Profile run, come back from Print Chart), and
+        each of them wants the offer. Without this the user would answer the
+        same window twice in a row.
+        """
+        if getattr(self, "_offer_queued", False):
+            return
+        self._offer_queued = True
         from PyQt6.QtCore import QTimer
         QTimer.singleShot(0, self._offer_existing_overlay_now)
 
     def _offer_existing_overlay_now(self) -> None:
         """Make the held offer, once the tab has actually painted."""
+        self._offer_queued = False
         try:
             if self.isVisible():
                 self._maybe_offer_existing_overlay()
@@ -2874,6 +2904,12 @@ class TabMeasure(QWidget):
         """
         if self._existing_ti3_for_chart() is None:
             return
+        if self._runner.is_running:
+            return          # never over a measurement in progress
+        # Two routes can queue this in the same turn of the event loop — being
+        # shown, and a chart arriving while shown. Only one window, ever.
+        if getattr(self, "_offer_open", False):
+            return
         scope_now = self._replace_warning_scope()
         if scope_now is not None and scope_now in self._offer_silenced:
             return
@@ -2886,9 +2922,10 @@ class TabMeasure(QWidget):
         lay.setContentsMargins(22, 20, 22, 18)
         lay.setSpacing(12)
         intro = QLabel(tr(
-            "A measurement (.ti3) already exists for this chart. Choose what "
-            "you'd like to do — you can change either of these any time from the "
-            "options panel:"), dlg)
+            "A measurement (.ti3) already exists for this chart, so anything "
+            "you measure here builds on readings that are already saved. "
+            "Choose what you'd like to do — you can change either of these any "
+            "time from the options panel:"), dlg)
         intro.setWordWrap(True)
         lay.addWidget(intro)
 
@@ -2983,7 +3020,12 @@ class TabMeasure(QWidget):
         lay.addWidget(bb)
 
         from PyQt6.QtWidgets import QDialog as _QD
-        if dlg.exec() != int(_QD.DialogCode.Accepted):
+        self._offer_open = True
+        try:
+            accepted = dlg.exec() == int(_QD.DialogCode.Accepted)
+        finally:
+            self._offer_open = False
+        if not accepted:
             return
         # Remembered only when the user went ahead — ticking and then
         # cancelling means "not this time", not "never ask me again".

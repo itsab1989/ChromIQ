@@ -213,8 +213,8 @@ DEFAULTS: dict[str, Any] = {
     "pace_min_samples":          8,
     "pace_min_patch_ms":         100,
     # Strip length used for the live "fastest a strip may be read" figures in
-    # Preferences → Measurement (Knut, #131 2026-07-27).
-    "pace_estimate_patches":     20,
+    # Preferences → Measurement. Per instrument since #130 (Knut, 2026-07-29):
+    # pace_estimate_patches_<model>, seeded from measure_pace.ESTIMATE_PATCHES.
     "pace_sample_hz_i1pro":      0.0,
     "pace_sample_hz_colormunki": 0.0,
     "sound_folder":              "",     # blank = the bundled default pack
@@ -607,7 +607,7 @@ def thresholds_for_combo(
 # Bump when a shipped default changes in a way that must reach users who have
 # the OLD default persisted. Settings → Save writes every key, so a stored
 # value otherwise pins a user to the old behaviour for good.
-SETTINGS_SCHEMA = 14
+SETTINGS_SCHEMA = 15
 
 # key → the old default(s) it must no longer be stuck on. Only a stored value
 # EQUAL to one of the old defaults is dropped (so it falls through to the new
@@ -636,6 +636,15 @@ _SUPERSEDED_DEFAULTS: dict[str, tuple[float, ...]] = {
     # legitimately-vivid patches on a scanner/print workflow). A stored echo of
     # the old 20 default falls through to 50; a value the user chose is kept.
     "patch_read_warn_de": (20.0,),
+    # schema 15 (#130, Knut 2026-07-29): the minimum readings per patch were
+    # re-derived alongside the new per-instrument strip lengths. A stored echo
+    # of a shipped default falls through to the new one; a number the user
+    # chose themselves survives untouched. (The ColorMunki's earlier 30 → 23
+    # step is handled by _migrate_colormunki_min_samples, which names it in the
+    # log; 23 → 20 is just another superseded default.)
+    "pace_min_samples_i1pro3":     (30,),
+    "pace_min_samples_i1pro3plus": (60,),
+    "pace_min_samples_colormunki": (23,),
 }
 
 # Keys removed outright — replaced by a new setting, so any stored value is
@@ -644,6 +653,11 @@ _OBSOLETE_KEYS: tuple[str, ...] = (
     # schema 6: the boolean "most accurate gamut mapping" toggle became the
     # gammap_mode picker ("fast" / "argyll"); everyone defaults to "fast".
     "gammap_exact_geometry",
+    # schema 15 (#130, Knut 2026-07-29): the one strip length shared by every
+    # instrument became a per-instrument "Patches per strip" box
+    # (pace_estimate_patches_<model>), so whatever was stored for the common
+    # box is obsolete regardless of its value.
+    "pace_estimate_patches",
 )
 
 

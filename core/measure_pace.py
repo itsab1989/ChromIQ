@@ -247,14 +247,50 @@ MODEL_DEFAULTS = {
     # model key      sample_hz   min samples per patch
     "i1pro":          (100.0,   20),   # Rev A — half the Pro 2's rate
     "i1pro2":         (200.0,   20),
-    "i1pro3":         (400.0,   30),
-    "i1pro3plus":     (400.0,   60),   # 16 mm minimum patch, so fewer per strip
-    # 23, not X-Rite's implied ~34: Knut's practical tests (#131 2026-07-27)
+    "i1pro3":         (400.0,   33),
+    "i1pro3plus":     (400.0,   66),   # 16 mm minimum patch, so fewer per strip
+    # 20, not X-Rite's implied ~34: Knut's practical tests (#131 2026-07-27)
     # show the ColorMunki reads a strip well at 5-6 s where the vendor figures
-    # imply 7.5 s, and still builds good profiles.
-    "colormunki":     ( 50.0,   23),   # slowest; needs long patches
+    # imply 7.5 s, and still builds good profiles. Settled at 20 with the
+    # per-instrument strip lengths below (#130, 2026-07-29).
+    "colormunki":     ( 50.0,   20),   # slowest; needs long patches
     "spectroscan":    (250.0, None),   # motorised — no pace to judge
 }
+
+#: How many patches one strip of a typical chart holds, per instrument (Knut,
+#: #130 2026-07-29). Used **only** for the "min. strip reading speed" figure
+#: shown beside each instrument in Preferences → Measurement: it turns the two
+#: settings on that row into the seconds a strip of that length may not be read
+#: faster than. It changes nothing about how a measurement is judged.
+#:
+#: It is per instrument because strip length follows the instrument's smallest
+#: usable patch: an i1Pro 3 Plus needs 16 mm patches and so fits half as many
+#: on a strip as an i1Pro 2. ``None`` means "not applicable" — the SpectroScan
+#: is a motorised table and reads patch by patch, so a strip length says
+#: nothing about it.
+ESTIMATE_PATCHES = {
+    "i1pro":          25,
+    "i1pro2":         25,
+    "i1pro3":         30,
+    "i1pro3plus":     15,
+    "colormunki":     15,
+    "spectroscan":    None,
+}
+
+#: What a user may enter for the strip length. 0 shows as "N/A".
+ESTIMATE_PATCHES_RANGE = (0, 200)
+
+
+def estimate_patches_for(key):
+    """Patches per strip for a model key, or ``None`` when not applicable.
+
+    An unrecognised instrument borrows the i1Pro's strip length for the same
+    reason :func:`defaults_for` borrows its rate — a figure has to come from
+    somewhere, and the conservative one is the right one to guess with.
+    """
+    if key in ESTIMATE_PATCHES:
+        return ESTIMATE_PATCHES[key]
+    return ESTIMATE_PATCHES["i1pro"]
 
 #: What a user may enter, per Knut: rates 10-500 Hz, thresholds 10-100 samples
 #: (or off).
@@ -382,6 +418,55 @@ def _target_ms(key) -> int:
     return round(min_samples / hz * 1000)
 
 
+def _calculation_note(key) -> str:
+    """How the three numbers on an instrument's row work together.
+
+    This used to be the tooltip of a single common "No. of patches per strip"
+    box below the table. Knut moved the strip length onto each instrument's own
+    row (#130, 2026-07-29) — *"the information in the help icon text for this
+    common parameter should then be added to each of the instruments help text
+    icon, informing in the text how each of the three calculation values are
+    used"* — so the explanation now travels with the row it describes, worked
+    through with that instrument's own figures.
+    """
+    from core.i18n import tr
+    hz, min_samples = defaults_for(key)
+    patches = estimate_patches_for(key)
+    head = tr(
+        "\n\nHOW THE THREE NUMBERS ON THIS ROW ARE USED\n"
+        "The figure at the end of the row answers one question: with the "
+        "settings on this row, what is the fastest a strip may be read before "
+        "ChromIQ says you were quick?\n\n"
+        "  patches per strip × minimum readings per patch = readings the strip "
+        "needs\n"
+        "  readings the strip needs ÷ readings per second = seconds the strip "
+        "needs\n\n"
+        "•  Readings per second is the instrument's own sampling rate, from its "
+        "specification. It rarely needs touching.\n"
+        "•  Patches per strip is how many patches one strip of your charts "
+        "holds. It is used for the figure at the end of the row and for nothing "
+        "else — it changes nothing about how you measure.\n"
+        "•  Minimum readings per patch is the limit itself: read a patch faster "
+        "than this while measuring and ChromIQ mentions it.")
+    if not min_samples or not patches or not hz:
+        return head + tr(
+            "\n\nOn this row the minimum is Off and no strip length applies, so "
+            "nothing is judged and no speed is shown. Set a minimum above Off, "
+            "and a number of patches per strip, and this instrument is judged "
+            "like any other.")
+    readings = patches * min_samples
+    return head + tr(
+        "\n\nWith the values ChromIQ starts this row with — {patches} patches "
+        "per strip, {n} readings per patch, {hz} readings per second — a strip "
+        "needs {patches} × {n} = {readings} readings, and {readings} ÷ {hz} = "
+        "{secs} seconds. Set the patches per strip to the length of a strip on "
+        "your own charts and the figure follows as you type, so a minimum can "
+        "be chosen by the reading speed it implies rather than worked out on "
+        "paper."
+    ).format(patches=patches, n=min_samples, hz=int(hz), readings=readings,
+             secs=f"{readings / hz:.1f}")
+
+
 def explanation_for(key) -> "tuple[str, str]":
     """``(title, body)`` explaining where an instrument's two defaults come
     from, and how they were worked out (Knut, #131 2026-07-26).
@@ -410,7 +495,7 @@ def explanation_for(key) -> "tuple[str, str]":
             "seconds at 100 readings per second is 600 readings for the whole "
             "strip. A tightly packed i1Pro chart carries around 29 patches per "
             "strip, so 600 ÷ 29 ≈ 20 readings for each patch."
-        ) + closing
+        ) + closing + _calculation_note(key)
     if key == "i1pro2":
         return tr("i1Pro 2"), tr(
             "The i1Pro 2 takes 200 readings per second.\n\n"
@@ -420,7 +505,7 @@ def explanation_for(key) -> "tuple[str, str]":
             "which is a little thin. Taking 3 seconds as the sensible minimum "
             "instead gives 3 × 200 = 600 readings, and 600 ÷ 29 ≈ 20 readings "
             "for each patch."
-        ) + closing
+        ) + closing + _calculation_note(key)
     if key == "i1pro3":
         return tr("i1Pro 3"), tr(
             "The i1Pro 3 takes 400 readings per second — twice the i1Pro 2's "
@@ -431,9 +516,8 @@ def explanation_for(key) -> "tuple[str, str]":
             "save on light you lose on aim.\n\n"
             "Worked out from a chart: 2.5 seconds at 400 readings per second "
             "is 1000 readings per strip. Over 29 patches that is about 34 "
-            "readings each; a very dense chart with 33 patches gives about 30. "
-            "The stricter of the two is taken."
-        ) + closing
+            "readings each; a very dense chart with 33 patches gives about 30."
+        ) + closing + _calculation_note(key)
     if key == "i1pro3plus":
         return tr("i1Pro 3 Plus"), tr(
             "The i1Pro 3 Plus reads at the same 400 readings per second as the "
@@ -443,11 +527,10 @@ def explanation_for(key) -> "tuple[str, str]":
             "far more readings at the same hand speed.\n\n"
             "Worked out from a chart: 2.5 seconds at 400 readings per second is "
             "1000 readings, and over 15 patches that is about 66 readings each. "
-            "A brisker 2-second strip gives 800 readings, or about 53 each. The "
-            "default sits between the two.\n\n"
+            "A brisker 2-second strip gives 800 readings, or about 53 each.\n\n"
             "So this instrument asks for the most readings per patch of any of "
             "them, while still being read at about the speed of an i1Pro 2."
-        ) + closing
+        ) + closing + _calculation_note(key)
     if key == "colormunki":
         return tr("ColorMunki / i1Studio"), tr(
             "The ColorMunki takes only 50 readings per second — the slowest "
@@ -469,9 +552,6 @@ def explanation_for(key) -> "tuple[str, str]":
             "gives 250 ÷ 11 = 23 readings per patch. For a 15 patch strip this "
             "implies 15 × 23 = 345 readings per strip, and 345 ÷ 50 = approx. "
             "7 seconds reading speed.\n\n"
-            "The default is therefore 23 readings per patch, not the 34 the "
-            "vendor figures imply — measured practice, not caution on our "
-            "part.\n\n"
             "The limit is applied by calculation, never by the rounded figures "
             "above. A 15-patch strip needs 15 × 23 = 345 readings, and "
             "345 ÷ 50 = 6.9 seconds; the strips in these examples come to "
@@ -487,8 +567,8 @@ def explanation_for(key) -> "tuple[str, str]":
             "The minimum readings per patch set above fixes how many readings "
             "a whole strip gets: at 23 readings per patch, a 15-patch strip "
             "gets 345. Spread those over a 230 mm strip and there is a reading "
-            "every 230 ÷ 345 = 0.7 mm. Allow 20 to 30 % as a margin and you "
-            "arrive at a minimum spacer width of roughly 0.8 to 0.9 mm — the "
+            "every 230 ÷ 345 = 0.7 mm. Allow 40 to 60 % as a margin and you "
+            "arrive at a minimum spacer width of roughly 1.0 to 1.1 mm — the "
             "least that chart can carry and still have its spacers found "
             "reliably. Read faster than the setting allows and the spacers "
             "have to be made wider to match.\n\n"
@@ -497,9 +577,11 @@ def explanation_for(key) -> "tuple[str, str]":
             "  • readings per strip: 22 × 15 = 330\n"
             "  • fastest the strip may be read: 330 ÷ 50 = 6.6 seconds\n"
             "  • spacing between readings: 262 ÷ 330 ≈ 0.8 mm\n"
-            "  • with the margin: 0.8 × 1.2 = 0.96 and 0.8 × 1.3 = 1.04\n"
-            "  • so the spacers want to be about 1 mm wide."
-        ) + closing
+            "  • with the margin: 0.8 × 1.4 = 1.1 and 0.8 × 1.6 = 1.3\n"
+            "  • so the spacers need to be about 1.1 to 1.3 mm wide.\n"
+            "  • the spacer width you settle on will most likely need "
+            "verifying by a test print and read."
+        ) + closing + _calculation_note(key)
     if key == "spectroscan":
         return tr("SpectroScan (motorised table)"), tr(
             "The SpectroScan is not swiped by hand at all — a motorised table "
@@ -512,13 +594,13 @@ def explanation_for(key) -> "tuple[str, str]":
             "here is for. Should you ever want a remark from this instrument "
             "too, give it a minimum above Off and it will be judged like any "
             "other."
-        )
+        ) + _calculation_note(key)
     return tr("This instrument"), tr(
         "ChromIQ has no measured figures for this instrument, so it is judged "
         "by the slowest rate in the i1Pro family. Assuming a faster instrument "
         "than the one in your hand would let a hurried swipe pass unremarked, "
         "which is the failure that costs you a re-read."
-    ) + closing
+    ) + closing + _calculation_note(key)
 
 
 def defaults_for(key):

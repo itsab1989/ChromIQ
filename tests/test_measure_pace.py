@@ -177,11 +177,11 @@ def test_the_spectroscan_has_no_threshold():
 @pytest.mark.parametrize("key,expected_ms", [
     ("i1pro", 200),        # 100 Hz, 20 samples
     ("i1pro2", 100),       # 200 Hz, 20 samples — Knut derived ~103 ms
-    ("i1pro3", 75),        # 400 Hz, 30 samples — Knut derived ~76 ms
-    ("i1pro3plus", 150),   # 400 Hz, 60 samples
-    # 50 Hz, 23 samples — Knut's practical figure (#131 2026-07-27), replacing
-    # the 30 derived from X-Rite's stricter limits.
-    ("colormunki", 460),
+    # The three below were re-set by Knut on #130, 2026-07-29, alongside the
+    # per-instrument strip lengths.
+    ("i1pro3", 82),        # 400 Hz, 33 samples — 82.5 ms, rounded even
+    ("i1pro3plus", 165),   # 400 Hz, 66 samples
+    ("colormunki", 400),   # 50 Hz, 20 samples
 ])
 def test_each_models_target_matches_the_derivation(key, expected_ms):
     from core.measure_pace import PaceConfig, defaults_for
