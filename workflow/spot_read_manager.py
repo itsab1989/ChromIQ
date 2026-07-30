@@ -66,6 +66,13 @@ class SpotReadManager(QObject):
     reading_ready           = pyqtSignal(tuple, tuple)  # (xyz, lab)
     ready_to_read           = pyqtSignal()              # menu prompt — Take reading enabled
     calibration_prompt      = pyqtSignal()              # manual cal step needs a keypress
+    # …and the other half of that: spotread going back to its ready prompt after
+    # a calibration is the only signal that the calibration actually finished.
+    # Without it the tool had nothing to tell the user with, which is what Knut
+    # missed (#130, 2026-07-30): *"When I complete the calibration, there is no
+    # infomation window that calibration is done and to turn the unit back to
+    # measure mode."*
+    calibration_finished    = pyqtSignal()
     misread                 = pyqtSignal()
     sensor_wrong_position   = pyqtSignal()
     no_instrument           = pyqtSignal()
@@ -142,6 +149,10 @@ class SpotReadManager(QObject):
             return
 
         if _READY_RE.search(line):
+            if self._calib_announced:
+                # We are back at the ready prompt having been in a calibration,
+                # so that calibration is done.
+                self.calibration_finished.emit()
             self._calib_announced = False
             self.ready_to_read.emit()
             return

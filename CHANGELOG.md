@@ -1,5 +1,21 @@
 # Changelog
 
+## v3.14.8-beta.112
+
+- **Read single patches now tells you when the calibration is done.** After
+  calibrating, the tool went straight back to a ready button while the
+  instrument was still sitting on its calibration tile, with nothing to say the
+  calibration had succeeded or that the device needs moving. A window now says
+  so, and says what to do next. It is deliberately shorter than the one in the
+  Measure tab: the parts about strips and charts do not apply to reading single
+  patches, so they are left out.
+
+  On the same report: "Skip initial calibration" is already passed through to
+  ArgyllCMS, as its `-N` option. That option disables the initial calibration
+  *where the instrument allows it* — some, including the ColorMunki, require it
+  and will ask regardless. That is the instrument's rule rather than something
+  ChromIQ can bypass.
+
 ## v3.14.8-beta.111
 
 - **Pre-measurement windows are settled one at a time.** Starting a measurement

@@ -209,6 +209,7 @@ class SpotReadDialog(QDialog):
         m.reading_ready.connect(self._on_reading)
         m.ready_to_read.connect(self._on_ready)
         m.calibration_prompt.connect(self._on_calibration_prompt)
+        m.calibration_finished.connect(self._on_calibration_finished)
         m.misread.connect(lambda: self._set_status(tr("Misread — reposition and take the reading again.")))
         m.sensor_wrong_position.connect(lambda: self._set_status(tr("Instrument is in the wrong position.")))
         m.no_instrument.connect(self._on_no_instrument)
@@ -348,6 +349,48 @@ class SpotReadDialog(QDialog):
     # ------------------------------------------------------------------
     # Calibration + error pop-ups
     # ------------------------------------------------------------------
+    def _on_calibration_finished(self) -> None:
+        """Say that the calibration is done — and what to do with the device now.
+
+        Knut, #130 2026-07-30: *"When I complete the calibration, there is no
+        infomation window that calibration is done and to turn the unit back to
+        measure mode."* Patch-by-patch mode has said this for a while; single
+        patches went straight back to a ready button with the instrument still
+        sitting on its calibration tile.
+
+        Deliberately shorter than the Measure tab's version: he also said
+        *"parts of the calibration complete window is not relevant for read
+        single patches tool"*, and the parts about strips and charts are exactly
+        those, so they are left out.
+        """
+        self._read_btn.setEnabled(True)
+        dlg = QDialog(self)
+        dlg.setWindowTitle(tr("Calibration Complete"))
+        dlg.setMinimumWidth(500)
+        lay = QVBoxLayout(dlg)
+        lay.setSpacing(16)
+        lay.setContentsMargins(24, 20, 24, 20)
+        msg = QLabel(
+            tr("<b>Your instrument is calibrated and ready.</b><br><br>"
+               "Take it off the calibration tile and put it back into its "
+               "<b>measuring position</b>, then place it on the colour you want "
+               "to read.<br><br>"
+               "Click <b>Read patch</b> for each reading. The instrument stays "
+               "calibrated for the whole session, so you will not be asked "
+               "again unless it needs it."),
+            dlg,
+        )
+        msg.setWordWrap(True)
+        msg.setTextFormat(Qt.TextFormat.RichText)
+        lay.addWidget(msg)
+        box = QDialogButtonBox(dlg)
+        ok = box.addButton(tr("Start Reading"), QDialogButtonBox.ButtonRole.AcceptRole)
+        ok.setObjectName("primary")
+        box.accepted.connect(dlg.accept)
+        lay.addWidget(box)
+        tint_dialog_primary(dlg, _ACCENT)
+        dlg.exec()
+
     def _on_calibration_prompt(self) -> None:
         # Same wording as the Measure tab's calibration pop-up — generic but
         # clear — with the strip-specific tail swapped for a spot-read one.
