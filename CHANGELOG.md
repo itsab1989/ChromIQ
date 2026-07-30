@@ -1,5 +1,32 @@
 # Changelog
 
+## v3.14.8-beta.107
+
+- **"Save Partial & Quit" after a failed strip now finishes on its own.** It sent
+  the reader back to the strip menu correctly, but the keystroke that actually
+  writes the measurement was delivered on the wrong channel — as a raw keystroke,
+  which ChromIQ's own reading engine ignores — so the session sat there and the
+  instrument stopped responding. All three follow-up keystrokes in that sequence
+  now go out on whichever channel the session is really using. Pressing the key
+  by hand is no longer needed.
+
+- **An interrupted measurement that recorded nothing is no longer offered as a
+  recovery.** If a measurement stopped before any strip was read, its backup file
+  holds no readings; ChromIQ used to accept it as this run's measurement, and the
+  chart overlay then blamed a chart mismatch. It now says plainly that nothing was
+  recorded before it stopped, and leaves the run as it was.
+
+- **And the overlay tells the two cases apart.** "This measurement is empty" and
+  "this measurement belongs to a different chart" call for completely different
+  things from you, so they no longer share one message.
+
+- **After Restore Used Chart, ChromIQ says where the measurement went.** Putting a
+  chart back does not bring back a measurement that an earlier "Generate Chart"
+  moved into the run's "old" folder — which is why Measure then offers no
+  "Refine / resume" or "Show overlay". That was happening in silence. ChromIQ now
+  names the folder your readings are in and what you can do with them. Nothing is
+  moved back for you.
+
 ## v3.14.8-beta.106
 
 - **A chart that names an instrument ArgyllCMS cannot use no longer fails

@@ -776,6 +776,28 @@ class _ChartreadOption:
         return None
 
 
+def _cgats_has_no_readings(path) -> bool:
+    """Whether a CGATS file (.ti3) carries a header but no data rows.
+
+    Used before offering to recover an interrupted measurement: a backup with
+    nothing in it is not readings to carry on from (#130, Knut 2026-07-30).
+    """
+    import re
+    try:
+        text = path.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return False          # unreadable is a different problem, not emptiness
+    m = re.search(r"NUMBER_OF_SETS\s+(\d+)", text)
+    if m and int(m.group(1)) == 0:
+        return True
+    body = text.split("BEGIN_DATA", 1)
+    if len(body) < 2:
+        return True
+    rows = [ln for ln in body[1].splitlines()
+            if ln.strip() and not ln.strip().startswith("END_DATA")]
+    return not rows
+
+
 class TabMeasure(QWidget):
     """Step 3: interactive chart measurement with chartread."""
 
@@ -2884,6 +2906,21 @@ class TabMeasure(QWidget):
         if partial is None:
             return False
         if partial in getattr(self, "_partial_declined", set()):
+            return False
+        # A backup with no readings in it is not a recovery — it is an empty file
+        # that would then be reported as a measurement. Knut, #130 2026-07-30:
+        # his partial held nothing, ChromIQ "recovered" it, and the overlay then
+        # blamed a chart mismatch. Say plainly that there is nothing to carry on
+        # from, and leave the run without a measurement, which is the truth.
+        if _cgats_has_no_readings(partial):
+            if not hasattr(self, "_partial_declined"):
+                self._partial_declined = set()
+            self._partial_declined.add(partial)
+            self._log.appendPlainText(tr(
+                "An interrupted measurement left a backup file for this chart, "
+                "but it holds no readings — nothing was recorded before it "
+                "stopped, so there is nothing to carry on from. Measure the "
+                "chart when you are ready; the backup file is left where it is."))
             return False
 
         from PyQt6.QtWidgets import QMessageBox
@@ -7936,19 +7973,53 @@ class TabMeasure(QWidget):
                 "Showing the expected vs. measured colours from this chart's "
                 "existing measurement. Untick to hide them."))
             return
-        # No usable overlay data → undo the tick and guide to the tabular view.
+        # No usable overlay data → undo the tick and say WHICH of the two very
+        # different reasons applies.
+        #
+        # Knut, #130 2026-07-30: he recovered a partial measurement that turned
+        # out to hold no readings at all, and this window told him it "looks like
+        # it was made for a different chart". Nothing mismatched — there was
+        # simply nothing in the file. *"The message is wrong and it should have
+        # been detected that the measurements were empty."* He is right: one calls
+        # for measuring, the other for finding the right chart, so telling them
+        # apart is the whole value of the message.
         self._sync_overlay_checkboxes(False)
+        empty = self._measurement_is_empty()
         from PyQt6.QtWidgets import QMessageBox
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.NoIcon)      # clean style, no icon (Basti)
-        box.setWindowTitle(tr("Can't show the overlay"))
-        box.setText(
-            tr("This chart's measurement can't be shown on the patches — it "
-               "looks like it was made for a different chart (the patch layout "
-               "doesn't match).\n\nOpen it in Tools ▸ Inspect a measurement to "
-               "see the measured values as a table instead."))
+        if empty:
+            box.setWindowTitle(tr("There is nothing measured yet to show"))
+            box.setText(
+                tr("This chart's measurement file exists, but it holds no "
+                   "readings — so there is nothing to draw on the patches.\n\n"
+                   "That happens when a measurement was started and stopped "
+                   "before any strip was read successfully. Measure the chart "
+                   "and the overlay will show what you read as you go."))
+        else:
+            box.setWindowTitle(tr("Can't show the overlay"))
+            box.setText(
+                tr("This chart's measurement can't be shown on the patches — it "
+                   "looks like it was made for a different chart (the patch layout "
+                   "doesn't match).\n\nOpen it in Tools ▸ Inspect a measurement to "
+                   "see the measured values as a table instead."))
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
         box.exec()
+
+    def _measurement_is_empty(self) -> bool:
+        """Whether this chart's ``.ti3`` exists but carries no readings.
+
+        Read from the file rather than inferred from the overlay having failed:
+        an empty measurement and a foreign one both leave the overlay with
+        nothing to draw, and only the file itself says which happened (#130,
+        Knut 2026-07-30).
+        """
+        if self._ti1_path is None:
+            return False
+        ti3 = self._ti1_path.with_suffix(".ti3")
+        if not ti3.is_file():
+            return False
+        return _cgats_has_no_readings(ti3)
 
     def _on_preview_patch_clicked(self, page: int, loc: str) -> None:
         if not self._manager.engine_active or not loc:

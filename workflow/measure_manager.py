@@ -906,11 +906,21 @@ class MeasureManager(QObject):
             self.stripe_changed.emit(current)
             if self._save_partial_state == "wait_strip_menu":
                 self._save_partial_state = "wait_sure"
-                self._runner.write_stdin("d")
+                # send_key, NOT write_stdin: this branch fires on the PRINTED
+                # strip-menu line, which appears whichever reader is driving —
+                # including ChromIQ's own engine, which takes structured commands
+                # and silently ignores a raw keystroke on its stdin.
+                #
+                # Knut, #130 2026-07-30: after "Save Partial & Quit" following a
+                # misread, his log shows the Return arriving and the strip menu
+                # coming back ("Ready to read strip pass B") — and then nothing.
+                # The 'd' that saves the file was written raw, so the engine
+                # never saw it; he pressed 'd' by hand and it completed at once.
+                self.send_key("d")
             elif self._pending_post_retry_key is not None:
                 key = self._pending_post_retry_key
                 self._pending_post_retry_key = None
-                self._runner.write_stdin(key)
+                self.send_key(key)
             elif self._guided_state not in ("idle_done", "disabled"):
                 self._guided_step(current, on_line)
         # IMPORTANT: handle the user-initiated "unread patch" prompt BEFORE the
@@ -922,7 +932,10 @@ class MeasureManager(QObject):
             self.unread_confirm.emit(m.group(1).strip())
         if _ARE_YOU_SURE_RE.search(line) and self._save_partial_state == "wait_sure":
             self._save_partial_state = None
-            self._runner.write_stdin("y")
+            # Routed like the 'd' above: this handler sees the engine's printed
+            # output too, and a raw keystroke on the engine's stdin is not how it
+            # is spoken to. 'yes' is a mapped command, so both readers are served.
+            self.send_key("y")
         if _STRIP_OK_RE.search(line):
             # Something was read in this session — which is what tells a resume
             # that a later "all stripes read" is real news.

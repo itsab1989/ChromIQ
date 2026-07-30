@@ -593,6 +593,53 @@ class MainWindow(QMainWindow):
                             exc_info=True)
         if getattr(self, "_target_bar", None) is not None:
             self._target_bar.refresh()
+        self._note_archived_measurement_after_restore()
+
+    def _note_archived_measurement_after_restore(self) -> None:
+        """Say so when the restored chart's measurement is sitting in ``old/``.
+
+        Knut, #130 2026-07-30, and his ruling on how to handle it. His sequence:
+        measure a row, stop, change the chart options, **Generate Chart** — which
+        archives the measurement into ``old/<date>/`` because a new chart no
+        longer describes those readings — then Restore Used Chart. The chart comes
+        back correctly, but the Measure tab then offers neither "Refine / resume"
+        nor "Show overlay", and he read that as the tab failing to update.
+
+        It was not: the measurement really is gone from the run, and the tab was
+        telling the truth. What was missing is any word about WHERE it went. So
+        this says it, and names the folder. Nothing is moved back — he chose
+        option 1 deliberately, so that readings he displaced are never
+        resurrected behind his back.
+        """
+        try:
+            ctl = getattr(self, "_target_ctl", None)
+            proj = ctl.project_or_none() if ctl is not None else None
+            run_id = ctl.target.profile_run if ctl is not None else ""
+            if proj is None or not run_id or not proj.has_run(run_id):
+                return
+            run = proj.run(run_id)
+            if run.measurement_ti3.exists() or not run.old_dir.is_dir():
+                return          # nothing missing, or nothing archived
+            archived = sorted(
+                (d for d in run.old_dir.iterdir()
+                 if d.is_dir() and any(p.suffix == ".ti3" for p in d.iterdir())),
+                key=lambda d: d.name)
+            if not archived:
+                return
+            newest = archived[-1]
+            self._tab_chart._log.appendPlainText(tr(
+                "The chart is back exactly as it was measured — but this run's "
+                "measurement is not here any more: it was moved to “old/{folder}” "
+                "when a new chart was generated over it, because a new chart no "
+                "longer describes those readings.\n\nThat is why Measure offers "
+                "no “Refine / resume” or “Show overlay” for this run. Your "
+                "readings are safe in that folder; copy the .ti3 back beside the "
+                "chart if you want to carry on from them, or simply measure the "
+                "restored chart again."
+                ).format(folder=newest.name))
+        except Exception:      # noqa: BLE001 — a note must never break a restore
+            log.warning("Could not check for an archived measurement",
+                        exc_info=True)
 
     def _on_project_deleted(self) -> None:
         """Return the whole app to its starting state after the user deleted the
