@@ -1,5 +1,38 @@
 # Changelog
 
+## v3.14.8-beta.110
+
+- **A measurement file with no readings no longer counts as a measurement.**
+  chartread creates its output file the moment it starts, so a session that
+  ended before the first patch was read left a `.ti3` on disk holding a header
+  and nothing else. Everything in ChromIQ asked only "does this run have a
+  `.ti3`?", so that empty file claimed a measurement existed: activating the
+  Measure tab warned about one, Generate Chart warned that a measurement would
+  be displaced, and a resume tried to continue from nothing. Two changes fix it
+  from both ends. A file that holds no readings is no longer treated as an
+  existing measurement, so files already sitting in your runs stop warning about
+  something that was never taken. And when a session ends without a single
+  reading — after strip mode, patch-by-patch, a resume, or Read single patches
+  alike — the empty file is moved into that run's `old` folder and a window
+  explains what happened: nothing was measured, nothing has been deleted, and
+  your chart and any earlier measurement are exactly as they were.
+
+  The file is moved, never deleted, and this only ever happens once a session
+  has finished — never during one. A partial measurement is left completely
+  alone: one patch read is still real ink on real paper.
+
+- **The refinement sub-option no longer outlives the option it belongs to.**
+  "Use refinement strips file for guided re-measurement" sits underneath "Refine
+  / resume existing measurement", but it was only ever greyed out, never hidden.
+  So when the parent disappeared — because the chart has no measurement to
+  refine — the sub-option stayed on screen by itself, offering to refine
+  something that is not there. It is now shown only when the option it belongs
+  to is shown.
+
+- **Fresh test projects to download.** Both archives — the 3.13 layouts and the
+  current ones — are rebuilt from this build, so they exercise the folder
+  structure, verification history and reports as they stand today.
+
 ## v3.14.8-beta.109
 
 - **A chart that cannot be built now says so.** ChromIQ has always shown a window

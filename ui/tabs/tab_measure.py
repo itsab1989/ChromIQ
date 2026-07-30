@@ -3460,6 +3460,11 @@ class TabMeasure(QWidget):
                 cb.setVisible(False)
                 tip.setVisible(False)
                 cb.setChecked(False)
+                # "Use refinement strips file" is a sub-option OF the resume
+                # tick, so it goes wherever its parent goes. It used only to be
+                # greyed, which left it standing under a hidden parent (Knut,
+                # #130 2026-07-30).
+                rcb.setVisible(False)
                 rcb.setEnabled(False)
                 rcb.setChecked(False)
             for ocb, otip in [(self._overlay_cb, self._overlay_tip),
@@ -3518,6 +3523,15 @@ class TabMeasure(QWidget):
             self._strip_list = []
             for rcb in (self._refine_cb, self._m_refine_cb):
                 rcb.setEnabled(False)
+                rcb.setChecked(False)
+        # …and it is only ever on screen when the option it belongs to is.
+        # Knut, #130 2026-07-30, on an empty measurement: *"then 'Refine /
+        # resume..' and 'Show overlay...' are hidden, but the sub-level checkbox
+        # 'Use refinement strips file ....' still shows"* — a lone sub-option
+        # under nothing, offering to refine a measurement that does not exist.
+        for rcb in (self._refine_cb, self._m_refine_cb):
+            rcb.setVisible(has_ti3)
+            if not has_ti3:
                 rcb.setChecked(False)
         self._refresh_start_button_label()
 
@@ -6375,6 +6389,52 @@ class TabMeasure(QWidget):
             insp.load_measurement(dst)
             insp.exec()
 
+    def _archive_empty_measurement(self) -> None:
+        """Move a measurement file that holds no readings into ``old/``, and say so.
+
+        Nothing was measured, so nothing should be left claiming otherwise. The
+        file is moved rather than deleted — Knut asked for exactly that (#130,
+        2026-07-30) — so an empty file is never destroyed, only put where it
+        stops being mistaken for a measurement. A partial measurement, however
+        short, is real ink on real paper and is always left alone.
+        """
+        if self._ti1_path is None:
+            return
+        ti3 = self._ti1_path.with_suffix(".ti3")
+        if not ti3.is_file() or not _cgats_has_no_readings(ti3):
+            return
+        from core.file_manager import Run
+        try:
+            dest = Run.for_dir(ti3.parent).archive_to_old([ti3])
+        except OSError as exc:
+            log.warning("could not archive the empty measurement %s: %s", ti3, exc)
+            return
+        if dest is None:                      # nothing was there after all
+            return
+        log.info("archived empty measurement %s -> old/%s/", ti3.name, dest.name)
+        self._log.appendPlainText(tr(
+            "No measurements were recorded in that session. The empty file has "
+            "been moved to the run's old folder, so this chart is not treated "
+            "as measured."))
+        from PyQt6.QtWidgets import QMessageBox
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(tr("Nothing was measured"))
+        box.setText(tr(
+            "That session ended before any patch was read successfully, so "
+            "there are no readings to keep.\n\n"
+            "The empty measurement file it left behind has been moved into this "
+            "run's \u201cold\u201d folder. Nothing has been deleted, and nothing else "
+            "has changed: your chart, and any earlier measurement you had, are "
+            "exactly as they were. ChromIQ will no longer treat this chart as "
+            "measured, so you will not be warned about a measurement that was "
+            "never taken.\n\n"
+            "When you are ready, start the measurement again."))
+        box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        from ui.widgets import fit_message_box_buttons
+        fit_message_box_buttons(box)
+        box.exec()
+
     def _on_measure_done(self, code: int) -> None:
         # #131: leave measurement mode. Any completion sound (played via
         # measure_finished, below) is exempt from the at-rest gate, so it still
@@ -6401,6 +6461,26 @@ class TabMeasure(QWidget):
         self._set_settings_enabled(True)
         self._start_btn.setEnabled(True)
         self._stop_btn.setEnabled(False)
+
+        # A session that recorded nothing leaves an empty measurement file
+        # behind, and that file then makes ChromIQ claim this run HAS a
+        # measurement: the Measure tab warns about one, Generate Chart warns
+        # that a measurement would be displaced, and a resume tries to continue
+        # from it and fails. Knut asked for exactly this remedy, and for a MOVE
+        # rather than a delete (#130, 2026-07-30): *"move the empty ti3 files
+        # that do not have measurements to old/ folder right after measurement
+        # session was exited/stopped/completed … and then give user an
+        # information message window explaining that no measurements were
+        # performed or stored for that session, so file was moved to old/
+        # folder … This would have to be done before determining if 'Refine /
+        # resume' or 'Show overlay...' should be made visible after a
+        # measurement, and should never be done during measurement, and only if
+        # the created file has no measurements."*
+        #
+        # Done here, before anything else looks at the file, so every ending —
+        # strip, patch-by-patch, resume, single patches — is covered by one
+        # place rather than four.
+        self._archive_empty_measurement()
 
         # With "Show overlay from existing measurement" ticked, the overlay is
         # what the user wants to look at — including right after stopping, when
@@ -7829,7 +7909,18 @@ class TabMeasure(QWidget):
         if self._ti1_path is None:
             return None
         ti3 = self._ti1_path.with_suffix(".ti3")
-        return ti3 if ti3.is_file() else None
+        if not ti3.is_file():
+            return None
+        # A file with no readings is not a measurement, and treating it as one
+        # is what made ChromIQ warn about a measurement that was never taken —
+        # on activating the Measure tab, and again from Generate Chart (Knut,
+        # #130 2026-07-30): *"activating measure tab still detects a ti3 file so
+        # reports a warning message … while it is not really true"*. Sessions
+        # from this version onwards archive such a file the moment they end;
+        # this keeps the older ones already on disk equally quiet.
+        if _cgats_has_no_readings(ti3):
+            return None
+        return ti3
 
     def _show_overlay_from_existing_ti3(self) -> bool:
         """Paint the expected-vs-measured split-patch overlay from a measurement
