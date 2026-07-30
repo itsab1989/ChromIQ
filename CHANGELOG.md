@@ -1,5 +1,21 @@
 # Changelog
 
+## v3.14.8-beta.108
+
+- **A measurement file with no readings no longer offers to be resumed.** If a
+  measurement was stopped before any strip was read, the file it leaves behind
+  has a header but nothing in it. Ticking "Refine / resume existing measurement"
+  then asked ArgyllCMS to carry on from that file, and it refused with a
+  corrupted-file error that named an internal field — nothing anyone could act
+  on. The option is now simply not offered for a file with no readings, and the
+  overlay is hidden for the same reason: there is nothing to draw.
+
+- **Test charts can be built again.** Charts made by
+  `scripts/make_load_test_data.py` carried only one of the three tables that
+  ArgyllCMS's own targen writes, and printtarg refuses anything else — so
+  redrawing such a chart failed and left the preview empty. The generator now
+  writes all three.
+
 ## v3.14.8-beta.107
 
 - **"Save Partial & Quit" after a failed strip now finishes on its own.** It sent

@@ -253,3 +253,44 @@ def test_no_browse_handler_hard_codes_the_folder_any_more():
     body = src[src.index("def _on_browse"):]
     assert 'Path.home() / "ChromIQ"' not in body, \
         "a browse handler is ignoring Preferences → Paths again"
+
+
+# ---- beta.108: the .ti1 printtarg can actually use (Knut, #130 2026-07-30) --
+def test_the_generator_writes_the_tables_printtarg_requires(tmp_path):
+    """*"printtarg: Error - Input file doesn't contain two or three tables"* —
+    which Knut saw as a preview that silently emptied after Restore Used Chart.
+    His file had ONE table; Argyll's targen always appends two more, and printtarg
+    refuses anything else. Third defect traced to this generator, so the check is
+    on the file it writes, not on its source."""
+    import importlib.util
+    import pathlib
+    root = pathlib.Path(__file__).resolve().parents[1]
+    spec = importlib.util.spec_from_file_location(
+        "make_load_test_data", root / "scripts" / "make_load_test_data.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    ti1 = tmp_path / "c.ti1"
+    mod.write_ti1(ti1, [(100.0, 100.0, 100.0), (0.0, 0.0, 0.0), (50.0, 50.0, 50.0)])
+    text = ti1.read_text(encoding="utf-8")
+
+    assert text.count("CTI1") == 3, "printtarg needs two or three tables"
+    assert 'DENSITY_EXTREME_VALUES' in text
+    assert 'DEVICE_COMBINATION_VALUES' in text
+    # every table must carry its own data, or it is a table in name only
+    assert text.count("BEGIN_DATA_FORMAT") == 3
+    assert text.count("BEGIN_DATA") == 6      # FORMAT + data per table
+    assert text.count("END_DATA") == 6
+
+
+def test_an_empty_measurement_offers_no_resume(tmp_path, qapp=None):
+    """Item 3, which Knut diagnosed: resuming FROM an empty .ti3 makes chartread
+    reject it as corrupt ("Field SAMPLE_LOC is wrong type"), so the option must
+    not be offered for a file with no readings."""
+    import inspect
+
+    from ui.tabs.tab_measure import TabMeasure
+    src = inspect.getsource(TabMeasure._update_resume_availability)
+    assert "_cgats_has_no_readings(ti3)" in src, \
+        "resume is offered again for a measurement with no readings"
+    assert "has_ti3 = ti3.exists() and not" in src

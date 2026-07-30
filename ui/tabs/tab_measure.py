@@ -3470,7 +3470,14 @@ class TabMeasure(QWidget):
             self._strip_list = []
             return
         ti3 = self._ti1_path.with_suffix(".ti3")
-        has_ti3 = ti3.exists()
+        # A measurement file with NO READINGS must not offer "Refine / resume":
+        # chartread is then asked to resume FROM that file and rejects it with
+        # "Field SAMPLE_LOC is wrong type - corrupted file ?" — an error no user
+        # can act on. Knut worked this out himself (#130, 2026-07-30): the empty
+        # file keeps its BEGIN_DATA_FORMAT naming SAMPLE_LOC but has no rows, and
+        # unticking resume made the error disappear because the file was replaced.
+        # The overlay is hidden for the same reason: there is nothing to draw.
+        has_ti3 = ti3.exists() and not _cgats_has_no_readings(ti3)
         for cb, tip in [
             (self._resume_cb,   self._resume_tip),
             (self._m_resume_cb, self._m_resume_tip),

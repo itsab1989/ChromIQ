@@ -55,6 +55,36 @@ def _srgb_xyz(r, g, b):
     return x, y, z
 
 
+def _extra_table(keyword: str, count: str, pats) -> list:
+    """One of the two extra CGATS tables Argyll's targen always appends.
+
+    printtarg REQUIRES two or three tables and refuses a single-table file with
+    "Input file doesn't contain two or three tables" — which made every chart
+    from this script unbuildable. Knut hit it as a preview that silently emptied
+    after Restore Used Chart (#130, 2026-07-30); the rebuild was failing on the
+    .ti1 this script had written.
+    """
+    lines = ["CTI1", "",
+             'DESCRIPTOR "Argyll Calibration Target chart information 1"',
+             'ORIGINATOR "ChromIQ test data"',
+             f'{keyword} "{count}"', "",
+             "NUMBER_OF_FIELDS 7", "BEGIN_DATA_FORMAT",
+             "INDEX RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z", "END_DATA_FORMAT", "",
+             f"NUMBER_OF_SETS {len(pats)}", "BEGIN_DATA"]
+    for i, (r, g, b) in enumerate(pats):
+        x, y, z = _srgb_xyz(r, g, b)
+        lines.append(f"{i} {r:.4f} {g:.4f} {b:.4f} {x:.4f} {y:.4f} {z:.4f}")
+    lines += ["END_DATA", ""]
+    return lines
+
+
+#: The corner patches targen lists in its two extra tables. Real values, so the
+#: file is one printtarg accepts rather than one that merely looks right.
+_CORNERS = [(100.0, 100.0, 100.0), (0.0, 100.0, 100.0), (100.0, 0.0, 100.0),
+            (0.0, 0.0, 100.0), (100.0, 100.0, 0.0), (0.0, 100.0, 0.0),
+            (100.0, 0.0, 0.0), (0.0, 0.0, 0.0)]
+
+
 def write_ti1(path: Path, pats):
     lines = ["CTI1", "", 'DESCRIPTOR "Argyll Calibration Target chart information 1"',
              'ORIGINATOR "ChromIQ test data"', 'COLOR_REP "RGB"', "",
@@ -64,6 +94,10 @@ def write_ti1(path: Path, pats):
     for i, (r, g, b) in enumerate(pats, 1):
         lines.append(f"{i} {r:.4f} {g:.4f} {b:.4f}")
     lines += ["END_DATA", ""]
+    # …then the two tables printtarg insists on.
+    lines += _extra_table("DENSITY_EXTREME_VALUES", "8", _CORNERS)
+    lines += _extra_table("DEVICE_COMBINATION_VALUES", "9",
+                          _CORNERS + [(50.0, 50.0, 50.0)])
     path.write_text("\n".join(lines))
 
 
