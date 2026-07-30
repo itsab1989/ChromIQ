@@ -67,10 +67,23 @@ def write_ti1(path: Path, pats):
     path.write_text("\n".join(lines))
 
 
+#: The instrument name ArgyllCMS itself writes and recognises. NOT a ChromIQ
+#: instrument key: chartread maps this exact string to a device, and anything
+#: else is rejected outright with "Unrecognised chart target instrument".
+#:
+#: This file used to write "i1Pro" — a ChromIQ-internal key, not an ArgyllCMS
+#: name — so every chart it produced was unmeasurable: both ChromIQ's engine and
+#: stock chartread refused it before reading a single patch. Knut hit exactly
+#: that while testing beta.104 (#130, 2026-07-30) and it cost him a session.
+#: Taken from ui.ti2_loader.KNOWN_INSTRUMENTS so the two can never disagree.
+from ui.ti2_loader import KNOWN_INSTRUMENTS as _KNOWN          # noqa: E402
+TARGET_INSTRUMENT = next(n for n in _KNOWN if "i1 Pro" in n)
+
+
 def write_ti2(path: Path, pats):
     lines = ["CTI2", "", 'DESCRIPTOR "ChromIQ test chart"', 'ORIGINATOR "ChromIQ test data"',
              'DEVICE_CLASS "OUTPUT"', 'COLOR_REP "RGB_XYZ"',
-             'TARGET_INSTRUMENT "i1Pro"', "", "NUMBER_OF_FIELDS 8",
+             f'TARGET_INSTRUMENT "{TARGET_INSTRUMENT}"', "", "NUMBER_OF_FIELDS 8",
              "BEGIN_DATA_FORMAT",
              "SAMPLE_ID SAMPLE_LOC RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z",
              "END_DATA_FORMAT", "", f"NUMBER_OF_SETS {len(pats)}", "BEGIN_DATA"]
@@ -84,7 +97,7 @@ def write_ti2(path: Path, pats):
 def write_ti3(path: Path, pats, verification=False):
     hdr = ["CTI3", "", 'DESCRIPTOR "ChromIQ test measurement"',
            'ORIGINATOR "ChromIQ test data"', 'DEVICE_CLASS "OUTPUT"',
-           'COLOR_REP "RGB_XYZ"', 'TARGET_INSTRUMENT "i1Pro"']
+           'COLOR_REP "RGB_XYZ"', f'TARGET_INSTRUMENT "{TARGET_INSTRUMENT}"']
     if verification:
         hdr += ['KEYWORD "CHROMIQ_VERIFICATION"', 'CHROMIQ_VERIFICATION "true"']
     hdr += ["", "NUMBER_OF_FIELDS 8", "BEGIN_DATA_FORMAT",

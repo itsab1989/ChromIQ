@@ -3752,6 +3752,117 @@ class TabMeasure(QWidget):
             log.info("measurement: instrument reported as %s", model)
         self._warn_if_instrument_does_not_match_chart(model)
 
+    def _blocked_by_unusable_target_instrument(self) -> bool:
+        """Refuse to start when the chart's ``TARGET_INSTRUMENT`` is not a name
+        ArgyllCMS recognises — and say so properly.
+
+        Knut, #130 2026-07-30: *"chartread: Error - Unrecognised chart target
+        instrument 'i1Pro' … Normally, it is allowed to measure anyway, but here I
+        am cut off abruptly without any warning or message, beside the log info
+        that is a bit hidden."*
+
+        He is right on both counts. chartread maps that keyword to a device by an
+        exact string match and refuses the whole run if it does not know the
+        value, so the measurement was doomed before a patch was read — and ChromIQ
+        let it start anyway, then ended the session with nothing on screen but a
+        raw tool error in the log.
+
+        This is checked BEFORE anything is armed, because a run that cannot
+        possibly succeed should never begin. The chart itself is easy to repair —
+        only the keyword is wrong — so the window offers to do it rather than
+        leaving the user with an unmeasurable file and no way forward.
+        """
+        if self._ti1_path is None:
+            return False
+        from ui.ti2_loader import KNOWN_INSTRUMENTS, read_target_instrument
+        try:
+            name = read_target_instrument(self._ti1_path)
+        except Exception:      # noqa: BLE001 — never block a read on this check
+            return False
+        if name is None or name in KNOWN_INSTRUMENTS:
+            return False       # absent is fine: ArgyllCMS then uses its default
+
+        from PyQt6.QtWidgets import QMessageBox
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(tr("This chart names an instrument ArgyllCMS cannot use"))
+        box.setText(tr(
+            "The chart file records the instrument it was laid out for, and this "
+            "one says “{found}”. ArgyllCMS matches that name exactly, and it does "
+            "not know this one — so it would refuse the measurement before "
+            "reading a single patch, whichever instrument you have connected.\n\n"
+            "This is only the name in the file: the patches, the layout and your "
+            "measurements are all fine. ChromIQ can correct the name for you, "
+            "and then the chart measures normally.\n\n"
+            "Charts ChromIQ creates itself always carry a name ArgyllCMS knows, "
+            "so this usually means the file came from somewhere else."
+        ).format(found=name))
+        fix = box.addButton(tr("Correct the name and measure"),
+                            QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(fix)
+        from ui.widgets import fit_message_box_buttons
+        fit_message_box_buttons(box)
+        box.exec()
+        if box.clickedButton() is not fix:
+            self._log.appendPlainText(tr(
+                "Measurement not started: this chart names the instrument "
+                "“{found}”, which ArgyllCMS does not recognise.").format(found=name))
+            return True
+        if not self._repair_target_instrument(self._ti1_path, name):
+            return True
+        return False           # repaired — carry on and measure
+
+    def _repair_target_instrument(self, ti2, found: str) -> bool:
+        """Rewrite an unusable ``TARGET_INSTRUMENT`` to the ArgyllCMS name for the
+        same family. Returns True when the chart is now measurable.
+
+        Only the keyword line is touched, and only when the family is clear from
+        the name itself — guessing which device a chart was laid out for would be
+        far worse than saying we cannot tell.
+        """
+        import re
+        from ui.ti2_loader import KNOWN_INSTRUMENTS
+        low = found.lower().replace(" ", "")
+        wanted = None
+        if "colormunki" in low or "i1studio" in low or "ccstudio" in low:
+            wanted = next(n for n in KNOWN_INSTRUMENTS if "ColorMunki" in n)
+        elif "spectroscan" in low:
+            wanted = next(n for n in KNOWN_INSTRUMENTS if "SpectroScan" in n)
+        elif "i1pro" in low or low in ("i1", "p3", "i1pro2", "i1pro3"):
+            wanted = next(n for n in KNOWN_INSTRUMENTS if "i1 Pro" in n)
+        if wanted is None:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(
+                self, tr("ChromIQ cannot tell which instrument this chart is for"),
+                tr("The name in the file, “{found}”, does not say which device "
+                   "the chart was laid out for, and guessing would be worse than "
+                   "asking.\n\nCreate the chart again in the Create Chart tab "
+                   "for the instrument you have, and nothing about this will come "
+                   "up again. Your measurements are untouched."
+                   ).format(found=found))
+            return False
+        try:
+            for path in (ti2, ti2.with_suffix(".ti1"), ti2.with_suffix(".ti3")):
+                if not path.is_file():
+                    continue
+                text = path.read_text(encoding="utf-8", errors="ignore")
+                fixed = re.sub(r'TARGET_INSTRUMENT\s+"[^"]*"',
+                               f'TARGET_INSTRUMENT "{wanted}"', text)
+                if fixed != text:
+                    path.write_text(fixed, encoding="utf-8")
+                    self._log.appendPlainText(tr(
+                        "Corrected the instrument name in {file} to “{name}”."
+                        ).format(file=path.name, name=wanted))
+        except OSError as exc:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(
+                self, tr("Could not correct the instrument name"),
+                tr("Nothing was changed.\n\nReason: {reason}").format(reason=str(exc)))
+            return False
+        self._refresh_bidir_autodetect()
+        return True
+
     def _warn_if_instrument_does_not_match_chart(self, model: str) -> None:
         """Say so when the connected instrument is not the one the chart was
         made for (#130, Knut 2026-07-29).
@@ -4260,6 +4371,9 @@ class TabMeasure(QWidget):
         # #130 (Knut): "New run" names a run that does not exist yet, so there is
         # nothing to measure. Say so, and explain how to create one.
         if self._blocked_by_new_run():
+            return
+        # …and stop here when the chart names an instrument ArgyllCMS cannot use.
+        if self._blocked_by_unusable_target_instrument():
             return
         # #131: enter measurement mode so per-patch/strip sounds are allowed and
         # the selected clips are pre-loaded for zero-latency playback. On stock

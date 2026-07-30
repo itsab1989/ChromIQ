@@ -1,5 +1,28 @@
 # Changelog
 
+## v3.14.8-beta.106
+
+- **A chart that names an instrument ArgyllCMS cannot use no longer fails
+  mid-measurement.** ArgyllCMS records the instrument a chart was laid out for
+  and matches that name exactly; a name it does not know makes it refuse the
+  whole reading before a single patch, whichever instrument you have connected.
+  ChromIQ used to let the measurement start anyway and then end the session with
+  nothing but a tool error in the log. It now checks first, explains that only
+  the name in the file is wrong — the patches, the layout and your measurements
+  are all fine — and offers to correct it. If the name says nothing about which
+  device the chart was for, ChromIQ says it cannot tell rather than guessing,
+  because a wrong guess would hand you strips of the wrong size.
+
+- **The test-chart generator wrote a name ArgyllCMS rejects.** Charts made by
+  `scripts/make_load_test_data.py` carried an internal ChromIQ instrument key
+  instead of an ArgyllCMS name, so they could never be measured. The generator
+  now takes the name from the application's own list, and a test opens the file
+  it writes.
+
+- **"Inspect a measurement" opens in your ChromIQ folder again.** Both of its
+  browse dialogs went to `~/ChromIQ` regardless of the working folder set in
+  Preferences → Paths. They now start where your projects actually are.
+
 ## v3.14.8-beta.105
 
 - **Readings from a measurement that stopped early are no longer stranded.**

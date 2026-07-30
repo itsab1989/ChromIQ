@@ -83,6 +83,26 @@ _HELP = tr(
 )
 
 
+
+def _chromiq_root(settings) -> Path:
+    """The folder the user thinks of as "the ChromIQ folder" — their custom
+    output folder when they have set one, otherwise ~/ChromIQ.
+
+    Knut, #130 2026-07-30: *"The Inspect Measurement tool: when opening the file
+    dialog to browse for ti3 file it does not start in the default ChromIQ
+    folder."* Both browse handlers here hard-coded ``~/ChromIQ`` and so ignored
+    Preferences → Paths entirely. Every other place in the app already consults
+    the setting first; these two were the only ones that did not.
+    """
+    custom = ""
+    try:
+        custom = settings.get("custom_output_path", "") if settings else ""
+    except Exception:      # noqa: BLE001 — a browse must never fail on this
+        custom = ""
+    root = Path(custom).expanduser() if custom else Path.home() / "ChromIQ"
+    return root if root.exists() else Path.home()
+
+
 class Ti3InfoDialog(QDialog):
     def __init__(
         self,
@@ -328,9 +348,7 @@ class Ti3InfoDialog(QDialog):
 
     # ------------------------------------------------------------------
     def _on_browse(self) -> None:
-        start = str(Path.home() / "ChromIQ")
-        if not Path(start).exists():
-            start = str(Path.home())
+        start = str(_chromiq_root(self._settings))
         path = open_file_dialog(
             self, tr("Select a .ti3 measurement"),
             tr("Measurements (*.ti3);;All files (*)"), start_dir=start)
@@ -393,9 +411,7 @@ class Ti3InfoDialog(QDialog):
         else:
             title, filt = tr("Select a reference (.ti3 / table)"), \
                 tr("Reference (*.ti3 *.ti1 *.ti2 *.cie *.txt);;All files (*)")
-        start = str(Path.home() / "ChromIQ")
-        if not Path(start).exists():
-            start = str(Path.home())
+        start = str(_chromiq_root(self._settings))
         path = open_file_dialog(self, title, filt, start_dir=start)
         if not path:
             return
