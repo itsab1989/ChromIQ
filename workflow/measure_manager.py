@@ -259,8 +259,6 @@ class MeasureManager(QObject):
         self._at_retry_prompt: bool = False
         # Two-step state for "Save Partial & Quit" from the misread dialog:
         #   None             — idle
-        #   "wait_strip_menu" — waiting for the strip-menu prompt to send 'd'
-        #   "wait_sure"       — waiting for "Are you sure [y/n]" to send 'y'
         self._save_partial_state: str | None = None
         # ChromIQ chart-reading engine (#126): True while a --json helper
         # session is running; send_key() then translates keys to commands.
@@ -661,14 +659,27 @@ class MeasureManager(QObject):
     def send_save_partial_and_quit(self) -> None:
         """Save what's been scanned so far and exit chartread cleanly.
 
-        chartread only writes the .ti3 on 'd' (done). With unread patches it
-        first prompts "Are you sure [y/n]" — we answer 'y' automatically.
-        The full chain from the misread prompt is: any-key → strip-menu → 'd'
-        → ("Are you sure" → 'y') → exit. Esc/q at any of these prompts would
-        discard the readings, which is why the misread dialog no longer
-        offers a destructive path."""
-        self._save_partial_state = "wait_strip_menu"
-        self._runner.write_stdin("\r")
+        **Two 'q' commands, sent separately.** Knut established the protocol by
+        hand (#130, 2026-07-30) after three wrong theories from me, and his log is
+        unambiguous:
+
+            Trigger instrument switch or any other key to start:
+            q →  Strip read stopped at user request!
+                 Hit Esc or 'q' to give up, any other key to retry:
+            q →  [INFO] Measurement was interrupted — partial readings saved.
+
+        The first 'q' stops the strip that is armed; the second answers the
+        give-up prompt, and THAT is what makes chartread write the .ti3 and exit.
+        Sending one and waiting for the other prompt is the whole of it.
+
+        The previous chain (Return → strip menu → 'd' → "are you sure" → 'y')
+        worked only when the reader happened to be sitting at the strip menu. From
+        the misread prompt — the case this button exists for — the Return was
+        spent as "retry", the menu never came, and the session hung with the
+        instrument waiting. That is what he reported four times.
+        """
+        self._save_partial_state = "wait_give_up_prompt"
+        self.send_key("q")
 
     @property
     def save_partial_in_progress(self) -> bool:
@@ -755,11 +766,10 @@ class MeasureManager(QObject):
             self.stripe_changed.emit(strip)
             if ev.get("all_done") and self._all_done_is_news():
                 self.all_stripes_done.emit()
-            # Same follow-up logic the console path runs on the menu prompt:
-            if self._save_partial_state == "wait_strip_menu":
-                self._save_partial_state = "wait_sure"
-                self.send_key("d")
-            elif self._pending_post_retry_key is not None:
+            # Save-Partial no longer routes through the strip menu: it is two
+            # 'q' commands (see send_save_partial_and_quit), which is the
+            # sequence Knut verified by hand. Only the post-retry key is left.
+            if self._pending_post_retry_key is not None:
                 key = self._pending_post_retry_key
                 self._pending_post_retry_key = None
                 self.send_key(key)
@@ -837,12 +847,11 @@ class MeasureManager(QObject):
                                      int(ev.get("read_patches", 0)))
 
         elif kind == "unread_confirm":
-            if self._save_partial_state == "wait_sure":
-                self._save_partial_state = None
-                self.send_key("y")
-            else:
-                info = f"{ev.get('id', '?')}, {ev.get('loc', '?')}"
-                self.unread_confirm.emit(info)
+            # The old strip-menu chain answered this automatically; Save-Partial
+            # is two 'q' commands now and never reaches here, so the prompt is
+            # always the user's to answer.
+            info = f"{ev.get('id', '?')}, {ev.get('loc', '?')}"
+            self.unread_confirm.emit(info)
 
         elif kind == "strip_warning":
             if ev.get("kind") == "wrong_strip":
@@ -904,20 +913,8 @@ class MeasureManager(QObject):
         if matches:
             current = matches[-1]
             self.stripe_changed.emit(current)
-            if self._save_partial_state == "wait_strip_menu":
-                self._save_partial_state = "wait_sure"
-                # send_key, NOT write_stdin: this branch fires on the PRINTED
-                # strip-menu line, which appears whichever reader is driving —
-                # including ChromIQ's own engine, which takes structured commands
-                # and silently ignores a raw keystroke on its stdin.
-                #
-                # Knut, #130 2026-07-30: after "Save Partial & Quit" following a
-                # misread, his log shows the Return arriving and the strip menu
-                # coming back ("Ready to read strip pass B") — and then nothing.
-                # The 'd' that saves the file was written raw, so the engine
-                # never saw it; he pressed 'd' by hand and it completed at once.
-                self.send_key("d")
-            elif self._pending_post_retry_key is not None:
+            # As above: the strip menu is no longer part of Save-Partial.
+            if self._pending_post_retry_key is not None:
                 key = self._pending_post_retry_key
                 self._pending_post_retry_key = None
                 self.send_key(key)
@@ -928,14 +925,13 @@ class MeasureManager(QObject):
         # resets _save_partial_state to None and the gate here would let the
         # dialog fire even when our Save-Partial flow is in control.
         m = _UNREAD_CONFIRM_RE.search(line)
-        if m and self._save_partial_state is None:
+        if m:
+            # No state gate any more: Save-Partial is two 'q' commands and never
+            # reaches this prompt, so it is always the user's to answer.
             self.unread_confirm.emit(m.group(1).strip())
-        if _ARE_YOU_SURE_RE.search(line) and self._save_partial_state == "wait_sure":
-            self._save_partial_state = None
-            # Routed like the 'd' above: this handler sees the engine's printed
-            # output too, and a raw keystroke on the engine's stdin is not how it
-            # is spoken to. 'yes' is a mapped command, so both readers are served.
-            self.send_key("y")
+        # The "Are you sure [y/n]" auto-answer belonged to the old strip-menu
+        # chain and is unreachable now that Save-Partial is two 'q' commands. The
+        # user-driven prompt above (_UNREAD_CONFIRM_RE) is untouched.
         if _STRIP_OK_RE.search(line):
             # Something was read in this session — which is what tells a resume
             # that a later "all stripes read" is real news.
@@ -962,29 +958,19 @@ class MeasureManager(QObject):
                 self.strip_error.emit(m.group(1).strip())
             elif _STRIP_COMS_FAIL_RE.search(line):
                 self.strip_error.emit("communication problem")
-        if _USB_ERROR_RE.search(line):
-            self.instrument_disconnected.emit()
-        if _DEVICE_BUSY_RE.search(line):
-            self.device_busy.emit()
-        if _NO_INSTRUMENT_RE.search(line):
-            self.no_instrument.emit()
-        m = _WRONG_STRIP_RE.search(line)
-        if m:
-            self.wrong_strip.emit(m.group(1).upper(), m.group(2).upper())
-        m = _UNEXPECTED_RESP_RE.search(line)
-        if m:
-            self.unexpected_response.emit(m.group(1))
-        if _SENSOR_POSITION_RE.search(line):
-            self.sensor_wrong_position.emit()
-        if _USB_VM_RE.search(line):
-            self.usb_claimed_by_vm.emit()
 
         # A. Mid-measurement recovery prompts ------------------------------
         # (note: _UNREAD_CONFIRM_RE is handled above, before _ARE_YOU_SURE_RE,
         # so the Save-Partial state machine and the user-driven dialog don't
         # race each other when the prompt arrives.)
         if _STRIP_INTERRUPTED_RE.search(line):
-            self.strip_interrupted.emit()
+            # The give-up prompt that follows the first 'q' of Save-Partial: the
+            # second 'q' here is what writes the .ti3 and ends the session.
+            if self._save_partial_state == "wait_give_up_prompt":
+                self._save_partial_state = None
+                self.send_key("q")
+            else:
+                self.strip_interrupted.emit()
         m = _GENERIC_IERROR_RE.search(line)
         if m:
             self.generic_instrument_error.emit(m.group(1).strip(), m.group(2).strip())

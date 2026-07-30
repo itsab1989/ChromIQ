@@ -9204,6 +9204,32 @@ class TabChart(QWidget):
                         else "Chart Layout Failed (printtarg)"
                     )
                     InfoDialog(title, friendly, self, min_width=520).exec()
+                elif self._creator.unmatched_failure() is not None:
+                    # No pattern recognised the message — but the tool DID report
+                    # one, and the user is still owed a word rather than an empty
+                    # preview (Knut, #130 2026-07-30: printtarg refused his chart
+                    # with "Input file doesn't contain two or three tables", which
+                    # nothing here knew, so no window ever appeared).
+                    #
+                    # Gated on the tool having said something: a build that ends
+                    # with no output at all — a cancel, or a caller driving this
+                    # handler directly — has nothing to report, and a window
+                    # saying "no further detail" would be noise. It also kept a
+                    # test waiting forever on a modal nobody could dismiss.
+                    raw = self._creator.unmatched_failure()
+                    said = raw[1]
+                    InfoDialog(
+                        tr("The chart could not be built"),
+                        tr("ChromIQ could not build this chart, so the preview "
+                           "is empty. Your chart files and any measurement in "
+                           "this run are untouched.\n\n"
+                           "This is what the tool reported:\n\n{said}\n\n"
+                           "If this happened just after “Restore Used Chart”, the "
+                           "chart itself is safely back — only its printable "
+                           "pages could not be redrawn, and you can create the "
+                           "chart again in this tab when you need to print it."
+                           ).format(said=said),
+                        self, min_width=560).exec()
 
     # ------------------------------------------------------------------
     # Margin inspector

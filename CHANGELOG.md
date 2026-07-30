@@ -1,5 +1,17 @@
 # Changelog
 
+## v3.14.8-beta.109
+
+- **A chart that cannot be built now says so.** ChromIQ has always shown a window
+  when a build fails for a reason it recognises — but when the tool reported
+  something it did not have wording for, nothing appeared at all: the preview
+  simply went empty, with two lines in the log. That is exactly the case that
+  matters most, because an unfamiliar error is the one you need help with. Any
+  failed build now gets a window, quoting what the tool itself reported, saying
+  that your chart files and measurement are untouched, and — if it happened right
+  after "Restore Used Chart" — that the chart is safely back and only its
+  printable pages could not be redrawn.
+
 ## v3.14.8-beta.108
 
 - **A measurement file with no readings no longer offers to be resumed.** If a

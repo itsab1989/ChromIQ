@@ -531,6 +531,9 @@ class ChartCreator:
         # Captured structured errors/warnings from the most-recent run.
         # Tagged with the tool name so the dispatcher knows which dialog to show.
         self._matched_errors: list[tuple[str, str, str]] = []   # (tool, key, friendly)
+        #: Every line a tool called an error, in order, whether or not a friendly
+        #: pattern matched it — so a build can never fail without a word.
+        self._raw_errors: list[tuple[str, str]] = []
         self._matched_warnings: list[tuple[str, str, str]] = []
 
     # ------------------------------------------------------------------
@@ -588,6 +591,7 @@ class ChartCreator:
         self._pending_work_dir = work_dir
         self._pending_patch_count = patch_count
         self._matched_errors = []
+        self._raw_errors = []
         self._matched_warnings = []
         self._start_targen(params, patch_count, on_line, work_dir)
 
@@ -764,6 +768,7 @@ class ChartCreator:
             self._pending_on_finish = on_finish
             self._pending_on_line = on_line
             self._matched_errors = []
+            self._raw_errors = []
             self._matched_warnings = []
             self._run_engine(params, work_dir, on_line)
             return
@@ -771,6 +776,7 @@ class ChartCreator:
         pt_args = self._build_printtarg_args(params)
         log.debug("printtarg args (from ti1): %s", pt_args)
         self._matched_errors = []
+        self._raw_errors = []
         self._matched_warnings = []
 
         def _printtarg_scan(line: str) -> None:
@@ -863,6 +869,16 @@ class ChartCreator:
     # ------------------------------------------------------------------
 
     def _scan_line(self, tool: str, line: str) -> None:
+        # Remember ANY line the tool itself calls an error, matched or not.
+        # Knut, #130 2026-07-30: printtarg refused his chart with "Input file
+        # doesn't contain two or three tables" — a message no pattern here knows,
+        # so `primary_failure()` returned None and the window that reports a
+        # failed build never appeared. He was left with an empty preview and two
+        # lines in the log. An unrecognised error is still an error, and the user
+        # is still owed the tool's own words.
+        low = line.lower()
+        if ("error" in low or "failed" in low) and line.strip():
+            self._raw_errors.append((tool, line.strip()))
         if tool == "targen":
             for pattern, key, fmt in _TARGEN_ERROR_PATTERNS:
                 m = pattern.search(line)
@@ -882,6 +898,16 @@ class ChartCreator:
         """Return (tool, key, friendly_message) of the first structured error,
         or None if no known pattern matched."""
         return self._matched_errors[0] if self._matched_errors else None
+
+    def unmatched_failure(self) -> tuple[str, str] | None:
+        """``(tool, the tool's own line)`` for a failure no pattern recognised.
+
+        The fallback that makes a silent failure impossible: when nothing here
+        knows the message, the user still gets the tool's own words rather than
+        an empty preview and a log entry (#130, Knut 2026-07-30)."""
+        if self._matched_errors or not self._raw_errors:
+            return None
+        return self._raw_errors[0]
 
     def captured_warnings(self) -> list[tuple[str, str, str]]:
         return list(self._matched_warnings)

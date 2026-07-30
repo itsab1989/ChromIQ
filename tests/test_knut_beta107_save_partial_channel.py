@@ -61,65 +61,49 @@ def _menu_line() -> str:
     return "Ready to read strip pass B"
 
 
-# ---- the step that was missed ---------------------------------------------
-def test_on_a_stock_session_the_d_still_reaches_stdin():
-    """The path that always worked must keep working."""
-    m = _manager(engine=False)
-    m._handle_line(_menu_line(), lambda _l: None)
+# ---- what survives of that fix -------------------------------------------
+# The 'd' and 'y' steps this file was written for are GONE: Save-Partial is two
+# 'q' commands now (Knut established the protocol by hand — see
+# test_knut_beta109_two_q_save_partial.py), so the strip-menu chain they belonged
+# to is unreachable and has been removed rather than left to look alive.
+#
+# The channel lesson still stands for the branch that remains, and that is what
+# is tested here: this handler sees the engine's printed output too, so anything
+# it sends must go out as a command rather than a raw keystroke.
 
-    assert m._runner.stdin == ["d"]
-    assert m._save_partial_state == "wait_sure"
-
-
-def test_on_an_engine_session_the_d_goes_out_as_a_command():
-    """Knut's case. A raw keystroke on the engine's stdin is ignored, which is
-    why his instrument sat waiting until he pressed 'd' himself."""
-    m = _manager(engine=True)
-    m._handle_line(_menu_line(), lambda _l: None)
-
-    assert m._runner.stdin == [], "a raw keystroke went to the engine again"
-    assert m.sent_commands == [{"cmd": "done"}]
-    assert m._save_partial_state == "wait_sure"
-
-
-def test_a_queued_post_retry_key_takes_the_same_route():
-    """The neighbouring branch had the identical fault, so it is fixed with it —
-    otherwise the same silence would appear in strip navigation after a misread.
-    """
+def test_a_queued_post_retry_key_goes_out_as_a_command(qapp=None):
     m = _manager(engine=True)
     m._save_partial_state = None
     m._pending_post_retry_key = "f"
     m._handle_line(_menu_line(), lambda _l: None)
 
-    assert m._runner.stdin == []
+    assert m._runner.stdin == [], "a raw keystroke went to the engine again"
     assert m.sent_commands == [{"cmd": "forward"}]
     assert m._pending_post_retry_key is None
 
 
-def test_neither_branch_writes_raw_stdin_any_more():
-    """Pins the rule in the source: this handler runs for engine output too, so
-    every key it sends must go through the channel-aware sender."""
+def test_the_same_key_still_reaches_stdin_on_a_stock_session():
+    m = _manager(engine=False)
+    m._save_partial_state = None
+    m._pending_post_retry_key = "f"
+    m._handle_line(_menu_line(), lambda _l: None)
+    assert m._runner.stdin == ["f"]
+
+
+def test_the_removed_chain_is_really_gone():
+    """It only ever worked when the reader happened to be at the strip menu, and
+    left the session hanging from a misread — so it must not survive as code that
+    looks live."""
+    src = inspect.getsource(MeasureManager)
+    assert "wait_strip_menu" not in src
+    assert "wait_sure" not in src
+
+
+def test_the_handler_sends_nothing_raw():
     src = inspect.getsource(MeasureManager._handle_line)
-    # Code only: the explanation above the fix names write_stdin on purpose.
     code = "\n".join(ln for ln in src.splitlines()
                      if not ln.lstrip().startswith("#"))
-    assert "write_stdin" not in code, \
-        "a raw keystroke is being written from the printed-line handler again"
-    assert code.count("self.send_key(") >= 3, \
-        "the 'd', the queued key AND the confirming 'y' must all be routed"
-
-
-def test_the_confirming_yes_is_routed_too(qapp_not_needed=None):
-    """His log shows the auto-'y' working today, but it was written raw on the
-    same handler — the same latent gap as the 'd'. 'yes' is a mapped command, so
-    routing it serves both readers."""
-    m = _manager(engine=True)
-    m._save_partial_state = "wait_sure"
-    m._handle_line("Done ? - At least one unread patch (147, B1), "
-                   "Are you sure [y/n]: ", lambda _l: None)
-    assert m._runner.stdin == []
-    assert {"cmd": "yes"} in m.sent_commands
-    assert m._save_partial_state is None
+    assert "write_stdin" not in code
 
 
 def test_send_key_is_what_routes_by_channel():

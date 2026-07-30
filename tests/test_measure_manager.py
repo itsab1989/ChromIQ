@@ -124,28 +124,42 @@ def test_unread_confirm_fires_with_patch_info_when_state_idle():
     assert sigs.get("unread_confirm") == [("45, B12",)]
 
 
-def test_unread_confirm_suppressed_during_save_partial_flow():
+def test_unread_confirm_is_always_the_users_to_answer():
+    """Save-Partial no longer drives chartread through the strip menu, so it
+    never meets this prompt and never answers it automatically. The old chain
+    did — and it is the chain that hung the session when it was started from a
+    misread (Knut, #130 2026-07-30)."""
     mgr, runner, sigs = _make_manager()
-    # Simulate the state the Save-Partial flow leaves the manager in once
-    # chartread has been driven from the strip menu into "Are you sure".
-    mgr._save_partial_state = "wait_sure"
+    mgr._save_partial_state = "wait_give_up_prompt"
     _feed(mgr, "Done ? - At least one unread patch (45, B12), Are you sure [y/n]: ")
-    # No user-facing dialog signal, and the auto-'y' answer is sent.
-    assert not sigs.get("unread_confirm")
-    assert runner.writes == ["y"]
-    assert mgr._save_partial_state is None
+    assert sigs.get("unread_confirm") == [("45, B12",)]
+    assert runner.writes == [], "nothing may be answered on the user's behalf"
 
 
-def test_save_partial_in_progress_tracks_the_prompt_chain():
+def test_save_partial_sends_two_q_commands():
+    """The protocol Knut established by hand: 'q' stops the armed strip, and the
+    second 'q' at the give-up prompt is what makes chartread write the .ti3 and
+    exit."""
     mgr, runner, sigs = _make_manager()
     assert not mgr.save_partial_in_progress
+
     mgr.send_save_partial_and_quit()
-    assert mgr.save_partial_in_progress          # waiting for the strip menu
+    assert mgr.save_partial_in_progress          # first 'q' out, awaiting prompt
+    assert runner.writes == ["q"]
+
+    _feed(mgr, "Strip read stopped at user request!")
+    assert not mgr.save_partial_in_progress      # second 'q' sent, chain complete
+    assert runner.writes == ["q", "q"]
+
+
+def test_the_strip_menu_no_longer_drives_save_partial():
+    """A strip menu arriving mid-save must not send anything: that route is gone.
+    """
+    mgr, runner, sigs = _make_manager()
+    mgr.send_save_partial_and_quit()
+    runner.writes.clear()
     _feed(mgr, "Ready to read strip pass A")
-    assert mgr.save_partial_in_progress          # 'd' sent, waiting for confirm
-    _feed(mgr, "Are you sure [y/n]: ")
-    assert not mgr.save_partial_in_progress      # 'y' sent, chain complete
-    assert runner.writes == ["\r", "d", "y"]
+    assert runner.writes == []
 
 
 def test_generic_ierror_fires_with_friendly_and_technical():
