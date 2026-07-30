@@ -3973,9 +3973,24 @@ class TabMeasure(QWidget):
             box.setDefaultButton(cancel)
             from ui.widgets import fit_message_box_buttons
             fit_message_box_buttons(box)
-            box.exec()
+            # Nothing else may open over this until it is answered.
+            self._pre_measure_window_open = True
+            try:
+                box.exec()
+            finally:
+                self._pre_measure_window_open = False
             if box.clickedButton() is not go:
                 self._manager.abort()
+                # Measuring was declined, so a calibration for it would be a
+                # window about something that is no longer happening.
+                self._deferred_calibration = None
+                return
+            # "Measure Anyway": now, and only now, the measurement may raise the
+            # windows of its own that were waiting behind this one.
+            held = getattr(self, "_deferred_calibration", None)
+            if held is not None:
+                self._deferred_calibration = None
+                self._on_calibration_prompt(*held)
         except Exception:      # noqa: BLE001 — never break a measurement
             log.warning("Could not check the instrument against the chart",
                         exc_info=True)
@@ -5558,6 +5573,21 @@ class TabMeasure(QWidget):
 
     def _on_calibration_prompt(self, cond: str = "", message: str = "",
                                optional: bool = False) -> None:
+        # A check that must be settled before measuring is on screen — hold this
+        # window until it has been answered, and open it afterwards. Knut, #130
+        # 2026-07-30: *"Two windows popped up simultaneously, first 'This chart
+        # was made for a different instrument' … then 'Calibration Required'
+        # came on top. The window check that makes [it] appear should come
+        # first, and should be completed before progressing … Any check that has
+        # a window popup that come before going into actual measurement mode,
+        # should be handled and completed first."*
+        #
+        # They stacked because the first window runs a nested event loop, which
+        # keeps delivering chartread's output — so the second one opened on top
+        # of a question that had not been answered yet.
+        if getattr(self, "_pre_measure_window_open", False):
+            self._deferred_calibration = (cond, message, optional)
+            return
         self._cue_window("INSTRUMENT_ERROR")
         from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout
 

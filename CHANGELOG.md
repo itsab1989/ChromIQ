@@ -1,5 +1,19 @@
 # Changelog
 
+## v3.14.8-beta.111
+
+- **Pre-measurement windows are settled one at a time.** Starting a measurement
+  with a chart laid out for one instrument while a different one is connected
+  raised two windows at once: "This chart was made for a different instrument",
+  with "Calibration Required" opening on top of it before the first had been
+  answered. The check runs while ArgyllCMS is opening the device, and its window
+  keeps the program responsive to the tool's output — so the second window
+  arrived over an unanswered question. The instrument question is now answered
+  first, and a calibration prompt that arrives meanwhile waits its turn. If you
+  choose to measure anyway, the calibration window follows immediately; if you
+  cancel, it is dropped, because there is no longer a measurement for it to be
+  about.
+
 ## v3.14.8-beta.110
 
 - **A measurement file with no readings no longer counts as a measurement.**
