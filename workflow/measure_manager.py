@@ -533,6 +533,8 @@ class MeasureManager(QObject):
         Best-effort: a failed copy is logged but must not stop the fallback, or a
         full/read-only disk would turn a recoverable hiccup into a dead end."""
         try:
+            # The same name core.file_manager.Run.partial_ti3 answers with, so
+            # the run knows about this file and can archive or offer it back.
             backup = ti3.parent / (ti3.name + ".engine-partial")
             shutil.copy2(ti3, backup)
             log.info("backed up engine partial measurement to %s", backup)

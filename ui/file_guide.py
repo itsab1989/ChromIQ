@@ -107,6 +107,10 @@ def _structure():
         (1, "exports/", tr(
             "Files made for other programs from the Tools menu, belonging to "
             "the whole project rather than to one run.")),
+        (1, "reports/", tr(
+            "Measurement reports that cover the whole profile rather than one "
+            "run — see the Measurement Report row in the next section for which "
+            "reports folder a report lands in.")),
         (1, "runs/", tr(
             "One folder per profile build. This is where nearly everything "
             "lives.")),
@@ -132,6 +136,9 @@ def _structure():
         (3, "old/", tr(
             "Measurements a new chart displaced. Kept rather than deleted, so "
             "a re-generate can never cost you ink on paper.")),
+        (4, "2026-07-15_103000/", tr(
+            "One displacement, stamped with the moment it happened — so several "
+            "re-generations never overwrite each other's history.")),
         (3, "verifications/", tr(
             "Checks of the FINISHED profile, over time. The shared "
             "verification chart lives here, and each check gets its own dated "
@@ -147,8 +154,14 @@ def _structure():
         (5, "reports/", tr(
             "The measurement report for that check, so each date keeps its own "
             "verdict alongside its readings.")),
+        (5, "cache/", tr(
+            "Working files from that check. Safe to delete, like every other "
+            "cache folder.")),
         (4, "exports/", tr(
             "The verification chart's hand-off files for other programs.")),
+        (4, "reports/", tr(
+            "Reports that cover SEVERAL of this run's checks at once — the trend "
+            "across dates, rather than any single one of them.")),
         (4, "old/", tr(
             "Earlier verification charts, archived when the chart was "
             "replaced. Your dated results are never moved.")),
@@ -329,7 +342,12 @@ def _rows():
             ("Verify_Profile_1_{name}.txt", "runs/runN/reports", tr("A readable report from “Verify a profile” — verdict, scores, full output. Numbered so repeated checks keep a history."), tr("Verify a profile (Tools)")),
             ("Verify_Reference_1_{name}.txt", "runs/runN/reports", tr("A readable report from “Verify against reference” — result summary and full output."), tr("Verify against reference (Tools)")),
             ("report_*.json", "runs/runN/reports", tr("Dated PROFILING measurement reports (accuracy & drift), saved automatically after each measurement (Preferences → Reports). The Measurement Report tool reads these back — it builds its figures from the run's .ti3, needs the chart's .ti2 beside it for the ΔE, and reads the instrument name from the .ti3 — and plots how the printer drifts over time. Verification checks keep their own report points under verifications/<date>/reports/, gathered separately."), tr("Measure tab")),
-            ("measurement_report_*.pdf", "runs/runN/reports  ·  reports/ (project)", tr("A printable PDF of a measurement report, written when you press “Save report as PDF”. An all-runs report belongs to the whole printer, so it goes in a reports folder next to runs/; a single-run report goes in that run's own reports folder."), tr("Measurement Report tool")),
+            # Knut asked where the four-way rule belongs, and suggested here
+            # rather than in the hierarchy — *"maybe under the Measurement
+            # Report function's files and folders?"* (#130, 2026-07-30). He is
+            # right: the diagram should show the folders, and the rule for
+            # choosing between them belongs with the tool that applies it.
+            ("measurement_report_*.pdf", "reports/ — the one that matches the report's scope", tr("A printable PDF of a measurement report, written when you press “Save report as PDF”. It is filed with whatever the report actually covers, so a report always sits beside the measurements it describes: ONE PROFILING RUN goes in that run's reports folder (runs/runN/reports/). ONE DATED CHECK goes in that date's own folder (runs/runN/verifications/<date>/reports/). SEVERAL CHECKS OF ONE RUN — the trend across dates — go in runs/runN/verifications/reports/. SEVERAL RUNS, or the whole profile, go in the project's own reports folder next to runs/. A measurement you browsed to from outside a project gets a reports folder beside the file itself."), tr("Measurement Report tool")),
         ]),
         (tr("exports/ — files for other programs"), [
             ("{name}-colours.txt", "runs/runN/exports", tr("The chart's colours as a plain hex list (RGB charts). Can be pasted back into the New-chart dialog."), tr("Create Chart (best-effort)")),

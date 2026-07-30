@@ -2845,9 +2845,95 @@ class TabMeasure(QWidget):
         self._offer_queued = False
         try:
             if self.isVisible():
+                # Stranded readings first: recovering them is what makes the
+                # already-measured offer below have anything to offer (#130).
+                self._recover_stranded_partial()
                 self._maybe_offer_existing_overlay()
         except Exception:      # noqa: BLE001 — never break showing the tab
             log.warning("Could not offer the existing measurement", exc_info=True)
+
+    def _recover_stranded_partial(self) -> bool:
+        """Put a stranded engine partial measurement back as the run's ``.ti3``,
+        after asking. Returns True when readings were recovered.
+
+        Knut, #130 2026-07-30: *"I loaded a project that had a run with a file
+        'Test-Profiling-P.ti3.engine-partial'. But the measure tab did not
+        register that it had a partial measurement… A partial stored measurement
+        should be allowed to be continued on, and show overlay, and get warned."*
+
+        He is right, and there were two faults behind it. The backup was being
+        orphaned when a re-generation archived the measurement it belonged to
+        (fixed in :meth:`core.file_manager.Run.reset_chart_artefacts`), and
+        nothing ever read a backup back — so readings that exist on disk were
+        unreachable, which is the opposite of why the copy is taken.
+
+        Recovering it as the ordinary ``.ti3`` is deliberately the whole fix:
+        every existing feature — the resume tick, the overlay, the
+        already-measured window — then works without knowing this file was ever
+        special. Nothing is overwritten, because this only runs when there is no
+        measurement there.
+        """
+        if self._ti1_path is None or self._runner.is_running:
+            return False
+        from core.file_manager import Run
+        try:
+            run = Run.for_dir(self._ti1_path.parent)
+            partial = run.recoverable_partial_ti3()
+        except Exception:      # noqa: BLE001 — never break loading a chart
+            return False
+        if partial is None:
+            return False
+        if partial in getattr(self, "_partial_declined", set()):
+            return False
+
+        from PyQt6.QtWidgets import QMessageBox
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(tr("Part of this chart has already been measured"))
+        box.setText(tr(
+            "Some readings for this chart were saved when a measurement stopped "
+            "early, and they are still here — but they are sitting in a backup "
+            "file rather than in the run's own measurement, so ChromIQ has been "
+            "ignoring them.\n\n"
+            "Recover them and they become this run's measurement, exactly as if "
+            "the earlier session had ended there: you can carry on where it "
+            "stopped, see what was read as an overlay on the chart, and you will "
+            "be warned before anything replaces them. The backup file is kept "
+            "either way.\n\n"
+            "Nothing is overwritten — this run has no measurement of its own at "
+            "the moment."))
+        recover = box.addButton(tr("Recover the readings"),
+                               QMessageBox.ButtonRole.AcceptRole)
+        leave = box.addButton(tr("Leave them alone"),
+                              QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(recover)
+        from ui.widgets import fit_message_box_buttons
+        fit_message_box_buttons(box)
+        box.exec()
+        if box.clickedButton() is not recover:
+            # Asked and declined: don't ask again for this file while the app runs.
+            if not hasattr(self, "_partial_declined"):
+                self._partial_declined = set()
+            self._partial_declined.add(partial)
+            _ = leave
+            return False
+        import shutil
+        try:
+            shutil.copy2(partial, run.measurement_ti3)
+        except OSError as exc:
+            QMessageBox.warning(
+                self, tr("Could not recover the readings"),
+                tr("The readings are still safe in the backup file, and nothing "
+                   "has been changed.\n\nReason: {reason}").format(reason=str(exc)))
+            return False
+        log.info("recovered stranded engine partial %s -> %s",
+                 partial.name, run.measurement_ti3.name)
+        self._log.appendPlainText(tr(
+            "Recovered the readings from an interrupted measurement — they are "
+            "now this run's measurement, and you can carry on from where it "
+            "stopped."))
+        self._update_resume_availability()
+        return True
 
     def _maybe_offer_existing_overlay(self) -> None:
         """#134: when a freshly-loaded chart already has a measurement, show a

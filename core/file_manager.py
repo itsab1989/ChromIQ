@@ -513,6 +513,26 @@ class Run:
         log.info("Promoted measurement to %s", dst.name)
         return dst
 
+    # ---- the engine's partial-measurement backup
+    @property
+    def partial_ti3(self) -> Path:
+        """The engine's partial measurement, copied aside before stock chartread
+        resumes from it (#134). Named here rather than rebuilt from a string at
+        each site, so it can never be forgotten by one of them — which is how it
+        came to be left behind when a re-generation archived the .ti3 it belongs
+        to (Knut, #130 2026-07-30)."""
+        return self.dir / f"{self.stem}.ti3.engine-partial"
+
+    def recoverable_partial_ti3(self) -> "Path | None":
+        """The partial measurement when it is the ONLY record of those readings —
+        i.e. the backup is there and the measurement it was taken from is not.
+
+        Real ink on real paper that nothing in the app would otherwise offer
+        back: Knut loaded a run holding just such a file and the Measure tab
+        showed no resume, no overlay and no warning (#130, 2026-07-30)."""
+        p = self.partial_ti3
+        return p if p.is_file() and not self.measurement_ti3.exists() else None
+
     # ---- pre-conditioning (set when this run was created from a parent)
     @property
     def preconditioning_ti3(self) -> Path:    return self.dir / "preconditioning.ti3"
@@ -772,7 +792,8 @@ class Run:
         # document them) to old/<timestamp>/ first. Chart files (below) are
         # regenerated, so they may be dropped. Only archives when results exist,
         # so iterating on a not-yet-measured chart doesn't spawn old/ folders.
-        results = [self.dir / f"{s}.ti3", self.dir / f"{s}.icc",
+        results = [self.dir / f"{s}.ti3", self.partial_ti3,
+                   self.dir / f"{s}.icc",
                    self.dir / f"{s}.icm", self.dir / "merged.ti3",
                    self.dir / "merged.icc", self.dir / "calibrated.icc"]
         if keep_results:
@@ -791,6 +812,7 @@ class Run:
             f"{s}.channels.json", f"{s}.strips.json",
         ) + ((
             f"{s}.ti3",                  # the measurement (chartread output)
+            f"{s}.ti3.engine-partial",   # …and the engine partial beside it
             f"{s}.icc",                  # the profile (colprof output)
             "merged.ti3", "merged.icc",  # build-time refinement merge outputs
             "calibrated.icc",            # applycal output

@@ -1,5 +1,27 @@
 # Changelog
 
+## v3.14.8-beta.105
+
+- **Readings from a measurement that stopped early are no longer stranded.**
+  When a measurement is interrupted, ChromIQ copies what was read aside before
+  handing it back to ArgyllCMS to continue — a safety net so your readings can
+  never be lost. But nothing ever read that copy back, and a later chart
+  re-generation moved the measurement into "old" while leaving the copy behind.
+  A run could therefore hold real ink-on-paper readings that the Measure tab
+  showed no sign of: no resume, no overlay, no warning. Two fixes: the copy now
+  travels with the measurement it belongs to, and a run that holds only the copy
+  now offers to recover it. Recovered, it becomes the run's ordinary
+  measurement, so continuing, the overlay and the replace warning all work as
+  usual. Nothing is overwritten — the offer appears only when the run has no
+  measurement of its own — and the copy is kept either way.
+
+- **The folder diagram now shows every folder a project can hold.** It was
+  missing the dated folders inside "old", the project-wide reports folder, the
+  cache inside a dated verification, and the reports folder that holds a trend
+  across several checks. The rule for which reports folder a report lands in now
+  sits with the Measurement Report entry, where it is useful, rather than
+  crowding the diagram.
+
 ## v3.14.8-beta.104
 
 - **The Restore Used Chart and Delete icons are bigger and bolder.** At the
