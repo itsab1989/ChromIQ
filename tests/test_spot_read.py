@@ -81,7 +81,17 @@ def _args(**kw) -> list[str]:
 def test_reflective_has_no_mode_flag():
     a = _args(mode="reflective")
     assert "-e" not in a and "-a" not in a
-    assert a[:2] == ["-c", "1"]
+    # By position originally; -v now precedes it (#130, 2026-07-31 — spotread
+    # only names the connected instrument when asked to be verbose). What this
+    # test is really about is that the port is passed and reflective adds no
+    # mode flag, neither of which depends on where -c sits.
+    assert a[a.index("-c") + 1] == "1"
+
+
+def test_the_instrument_is_asked_for():
+    """-v is what makes spotread print "Instrument Type: …", which is the only
+    way ChromIQ can tell a ColorMunki from an i1Pro (Knut, #130)."""
+    assert "-v" in _args()
 
 
 def test_emissive_flag():

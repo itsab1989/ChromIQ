@@ -1,5 +1,27 @@
 # Changelog
 
+## v3.14.8-beta.115
+
+- **Read single patches now knows which instrument is connected.** The
+  calibration windows were meant to show wording for your device, and did not —
+  they always fell back to the generic text. ChromIQ was reading the wrong thing
+  entirely: the setting it used names a communication port, not an instrument.
+  ArgyllCMS is now asked to report the device it found, and the windows follow
+  it — the dial and gear icon for a ColorMunki or i1Studio, the calibration base
+  and white tile for an i1Pro.
+
+- **Starting a calibration with the instrument in the wrong position no longer
+  strands the session.** If the instrument is not where it needs to be, the tool
+  used to sit on "Calibrating…" indefinitely, ignoring the instrument button,
+  with Stop session the only way out. A window now says the calibration cannot
+  start yet, shows what that instrument needs, and offers Try again — which
+  carries on once you have moved it — or Cancel session.
+
+- **Two smaller corrections in the same tool.** The help mark beside "Skip
+  initial calibration" was red instead of the green used everywhere else in that
+  window, and its help text said "once the instrument has calibrated" where it
+  should read "is calibrated".
+
 ## v3.14.8-beta.114
 
 - **A read that measures nothing now changes nothing at all.** If you start a

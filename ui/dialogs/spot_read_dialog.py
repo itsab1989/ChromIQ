@@ -42,6 +42,12 @@ from ui.widgets import NoScrollComboBox, tint_dialog_primary
 from workflow.spot_read_io import SpotReading, average_readings, write_csv, write_ti3
 from workflow.spot_read_manager import SpotReadManager, SpotReadParams
 
+import logging
+
+from ui.ti2_loader import calibration_instructions_html
+
+log = logging.getLogger(__name__)
+
 if TYPE_CHECKING:
     from core.argyll_runner import ArgyllRunner
     from core.settings import AppSettings
@@ -142,13 +148,13 @@ class SpotReadDialog(QDialog):
                "the instrument protecting the accuracy of your readings, and "
                "nothing ChromIQ can overrule.\n\n"
                "Where it does help is a run of short sessions. Once the "
-               "instrument has calibrated, it stays calibrated for a while — so "
+               "instrument is calibrated, it stays calibrated for a while — so "
                "if you stop a session and start another one shortly after, "
                "ticking this lets you go straight to reading instead of "
                "calibrating again.\n\n"
                "If you are unsure, leave it unticked. Calibrating takes a few "
                "seconds and is never the wrong thing to do."),
-            self))
+            self, color=_ACCENT))
         controls.addStretch(1)
         outer.addLayout(controls)
 
@@ -234,8 +240,10 @@ class SpotReadDialog(QDialog):
         m = self._manager
         m.reading_ready.connect(self._on_reading)
         m.ready_to_read.connect(self._on_ready)
+        m.instrument_detected.connect(self._on_instrument_detected)
         m.calibration_prompt.connect(self._on_calibration_prompt)
         m.calibration_finished.connect(self._on_calibration_finished)
+        m.calibration_position_wrong.connect(self._on_calibration_position_wrong)
         m.misread.connect(lambda: self._set_status(tr("Misread — reposition and take the reading again.")))
         m.sensor_wrong_position.connect(self._on_sensor_wrong_position)
         m.no_instrument.connect(self._on_no_instrument)
@@ -375,6 +383,11 @@ class SpotReadDialog(QDialog):
     # ------------------------------------------------------------------
     # Calibration + error pop-ups
     # ------------------------------------------------------------------
+    def _on_instrument_detected(self, model: str) -> None:
+        """Remember what spotread says is attached (#130, Knut 2026-07-31)."""
+        self._detected_instrument = model or ""
+        log.info("spot read: instrument reported as %s", model)
+
     def _instrument_family(self) -> "str | None":
         """Which instrument's wording to use, or None for the generic text.
 
@@ -393,10 +406,66 @@ class SpotReadDialog(QDialog):
         """
         try:
             from ui.ti2_loader import instrument_family
-            return instrument_family(
-                str(self._settings.get("chart_instrument", "") or ""))
+            # What spotread actually found beats what the chart was made for:
+            # the whole point is describing the device in the user's hand.
+            found = getattr(self, "_detected_instrument", "") or ""
+            return (instrument_family(found) if found else
+                    instrument_family(str(self._settings.get("chart_instrument", "") or "")))
         except Exception:      # noqa: BLE001 — wording must never break a read
             return None
+
+    def _on_calibration_position_wrong(self) -> None:
+        """The calibration was asked for again — the instrument was not ready.
+
+        Knut, #130 2026-07-31: he left the dial in measurement mode, pressed
+        Start Calibration, *"got no warning that instrument was in wrong mode,
+        and window disappeared and the main Read Single Patches window now says
+        'Calibrating...' and is stuck … Had to stop session."*
+
+        spotread simply re-prints its prompt in that case, which is what this
+        reacts to. The window is deliberately general: only some instruments
+        have a dial to turn, so it says what is needed without claiming every
+        device works the same way.
+        """
+        self._set_status(tr("Waiting — the instrument is not in its calibration position."))
+        if getattr(self, "_cal_pos_open", False):
+            return
+        dlg = QDialog(self)
+        dlg.setWindowTitle(tr("Instrument Not Ready to Calibrate"))
+        dlg.setMinimumWidth(500)
+        lay = QVBoxLayout(dlg)
+        lay.setSpacing(16)
+        lay.setContentsMargins(24, 20, 24, 20)
+        msg = QLabel(
+            tr("<b>The calibration cannot start yet — the instrument is not in "
+               "its calibration position.</b><br><br>")
+            + calibration_instructions_html(self._instrument_family())
+            + tr("<br><br>Put the instrument in position, then click <b>Try "
+                 "again</b>. Nothing has gone wrong, and your session is still "
+                 "running."),
+            dlg,
+        )
+        msg.setWordWrap(True)
+        msg.setTextFormat(Qt.TextFormat.RichText)
+        lay.addWidget(msg)
+        box = QDialogButtonBox(dlg)
+        again = box.addButton(tr("Try again"), QDialogButtonBox.ButtonRole.AcceptRole)
+        again.setObjectName("primary")
+        box.addButton(tr("Cancel session"), QDialogButtonBox.ButtonRole.RejectRole)
+        box.accepted.connect(dlg.accept)
+        box.rejected.connect(dlg.reject)
+        lay.addWidget(box)
+        tint_dialog_primary(dlg, _ACCENT)
+        self._cal_pos_open = True
+        try:
+            accepted = dlg.exec() == QDialog.DialogCode.Accepted
+        finally:
+            self._cal_pos_open = False
+        if accepted:
+            self._manager.send_key("\r")          # re-try the calibration
+            self._set_status(tr("Calibrating…"))
+        else:
+            self._manager.send_key("\x1b")        # leave spotread cleanly
 
     def _on_sensor_wrong_position(self) -> None:
         """Say — properly — that the instrument is not in its reading position.

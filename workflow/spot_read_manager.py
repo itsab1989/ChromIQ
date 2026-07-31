@@ -47,6 +47,12 @@ _MISREAD_RE        = re.compile(r"Spot read failed due to misread",             
 _COMS_FAIL_RE      = re.compile(r"Spot read failed due to communication problem", re.IGNORECASE)
 _SENSOR_POS_RE     = re.compile(r"sensor being in the wrong position",            re.IGNORECASE)
 _NO_INSTRUMENT_RE  = re.compile(r"no instrument detected|no suitable instruments|no instruments connected", re.IGNORECASE)
+# spotread -v prints "Instrument Type:   ColorMunki" once it has opened the
+# device. Knut ran it in a terminal and pasted the output (#130, 2026-07-31),
+# which settled something I had got wrong: `-c 1` selects the COMMUNICATION
+# PORT, not the instrument, so ChromIQ never actually knew which device was
+# attached. This line is the only place spotread says.
+_INST_TYPE_RE      = re.compile(r"Instrument Type:\s*(.+?)\s*$", re.IGNORECASE)
 _DEVICE_BUSY_RE    = re.compile(r"Device being used",                             re.IGNORECASE)
 _USB_ERROR_RE      = re.compile(r"ReadPipeAsync\s+failed",                        re.IGNORECASE)
 _INIT_COMS_FAIL_RE = re.compile(r"Establishing communications with instrument failed with message\s+'([^']+)'", re.IGNORECASE)
@@ -65,6 +71,7 @@ class SpotReadParams:
 class SpotReadManager(QObject):
     reading_ready           = pyqtSignal(tuple, tuple)  # (xyz, lab)
     ready_to_read           = pyqtSignal()              # menu prompt — Take reading enabled
+    instrument_detected     = pyqtSignal(str)           # model name spotread reports
     calibration_prompt      = pyqtSignal()              # manual cal step needs a keypress
     # …and the other half of that: spotread going back to its ready prompt after
     # a calibration is the only signal that the calibration actually finished.
@@ -73,6 +80,12 @@ class SpotReadManager(QObject):
     # infomation window that calibration is done and to turn the unit back to
     # measure mode."*
     calibration_finished    = pyqtSignal()
+    # spotread re-prints its "set the sensor to calibration position" prompt when
+    # the key was pressed but the instrument was not actually in position. Knut
+    # pasted exactly that from a terminal (#130, 2026-07-31): the prompt simply
+    # appears a second time. Without noticing it the tool sat on "Calibrating…"
+    # for ever, and changing the dial afterwards did nothing.
+    calibration_position_wrong = pyqtSignal()
     misread                 = pyqtSignal()
     sensor_wrong_position   = pyqtSignal()
     no_instrument           = pyqtSignal()
@@ -124,7 +137,10 @@ class SpotReadManager(QObject):
 
     # ------------------------------------------------------------------
     def _build_args(self, p: SpotReadParams) -> list[str]:
-        args: list[str] = ["-c", p.instrument]
+        # -v makes spotread announce the instrument it found; without it there is
+        # no way to tell a ColorMunki from an i1Pro, and the calibration windows
+        # fall back to generic wording (Knut, #130 2026-07-31).
+        args: list[str] = ["-v", "-c", p.instrument]
         if p.mode == "emissive":
             args.append("-e")
         elif p.mode == "ambient":
@@ -148,6 +164,11 @@ class SpotReadManager(QObject):
             self.reading_ready.emit(xyz, lab)
             return
 
+        m = _INST_TYPE_RE.search(line)
+        if m:
+            self.instrument_detected.emit(m.group(1).strip())
+            return
+
         if _READY_RE.search(line):
             if self._calib_announced:
                 # We are back at the ready prompt having been in a calibration,
@@ -160,9 +181,13 @@ class SpotReadManager(QObject):
         # Calibration: fire the pop-up when spotread asks the user to position
         # the instrument and hit a key. (Reset on every ready prompt above so a
         # later calibration in the same session prompts again.)
-        if _CALIB_CONTINUE_RE.search(line) and not self._calib_announced:
-            self._calib_announced = True
-            self.calibration_prompt.emit()
+        if _CALIB_CONTINUE_RE.search(line):
+            if not self._calib_announced:
+                self._calib_announced = True
+                self.calibration_prompt.emit()
+            else:
+                # Asked again → the instrument was not where it needed to be.
+                self.calibration_position_wrong.emit()
 
         if _MISREAD_RE.search(line):
             self.misread.emit()
