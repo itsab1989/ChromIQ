@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  <path d="M 12.00 8.16 L 35.04 8.16 L 44.00 17.12 L 44.00 47.84 L 12.00 47.84 Z" fill="none" stroke="#c8c4be" stroke-width="3.0" stroke-linejoin="round"/>
+  <path d="M 35.04 8.16 L 35.04 17.12 L 44.00 17.12" fill="none" stroke="#c8c4be" stroke-width="3.0" stroke-linejoin="round"/>
+  <path d="M 20.00 16.16 h 23.04 l 8.96 8.96 v 30.72 h -32.00 Z" fill="#00000001"/>
+  <path d="M 20.00 16.16 L 43.04 16.16 L 52.00 25.12 L 52.00 55.84 L 20.00 55.84 Z" fill="none" stroke="#c8c4be" stroke-width="3.0" stroke-linejoin="round"/>
+  <path d="M 43.04 16.16 L 43.04 25.12 L 52.00 25.12" fill="none" stroke="#c8c4be" stroke-width="3.0" stroke-linejoin="round"/>
+  <rect x="26.40" y="27.40" width="4.35" height="4.35" rx="0.96" fill="#ff3a6b"/>
+  <rect x="33.82" y="27.40" width="4.35" height="4.35" rx="0.96" fill="#ffb020"/>
+  <rect x="41.25" y="27.40" width="4.35" height="4.35" rx="0.96" fill="#2bb8d4"/>
+  <rect x="26.40" y="34.82" width="4.35" height="4.35" rx="0.96" fill="#ffb020"/>
+  <rect x="33.82" y="34.82" width="4.35" height="4.35" rx="0.96" fill="#2bb8d4"/>
+  <rect x="41.25" y="34.82" width="4.35" height="4.35" rx="0.96" fill="#ff3a6b"/>
+  <rect x="26.40" y="42.25" width="4.35" height="4.35" rx="0.96" fill="#2bb8d4"/>
+  <rect x="33.82" y="42.25" width="4.35" height="4.35" rx="0.96" fill="#ff3a6b"/>
+  <rect x="41.25" y="42.25" width="4.35" height="4.35" rx="0.96" fill="#ffb020"/>
+</svg>
