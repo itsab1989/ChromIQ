@@ -293,9 +293,48 @@ def test_the_window_says_where_the_file_went_and_what_is_safe(qapp, tmp_path,
     text = seen[0]
     assert "no readings to keep" in text
     assert "old" in text                       # names where it went
-    assert "Nothing has been deleted" in text
-    assert "Nothing has been deleted, and nothing else has changed" in text
+    assert "Nothing has been deleted and nothing else has changed" in text
     assert "start the measurement again" in text
+
+
+def test_it_does_not_claim_an_earlier_measurement_survived(qapp, tmp_path,
+                                                           monkeypatch):
+    """Knut, #130 2026-07-31, after a replace destroyed his readings: *"THINGS
+    HAVE changed … the information in the widow after exiting measurement
+    session is wrong."* When a measurement WAS displaced, the window must say
+    where it went — not that everything is as it was."""
+    run = _run(tmp_path)
+    run.chart_ti2.write_text("CTI2")
+    run.measurement_ti3.write_text(empty_ti3())
+    tab = _tab(tmp_path)
+    tab._ti1_path = run.chart_ti2
+    tab._displaced_measurement = run.old_dir / "2026-07-31_000000"
+    seen = _silence(monkeypatch)
+
+    tab._archive_empty_measurement()
+
+    text = seen[0]
+    assert "moved into the same" in text
+    assert "put it back" in text
+    assert "Nothing has been deleted and nothing else has changed" not in text, \
+        "it told the user nothing changed after replacing their measurement"
+
+
+def test_the_claim_is_not_carried_into_the_next_session(qapp, tmp_path,
+                                                        monkeypatch):
+    """A stale flag would make every later window mention a displacement that
+    did not happen."""
+    run = _run(tmp_path)
+    run.chart_ti2.write_text("CTI2")
+    run.measurement_ti3.write_text(empty_ti3())
+    tab = _tab(tmp_path)
+    tab._ti1_path = run.chart_ti2
+    tab._displaced_measurement = run.old_dir / "x"
+    _silence(monkeypatch)
+
+    tab._archive_empty_measurement()
+
+    assert tab._displaced_measurement is None
 
 
 def test_the_message_has_no_bracketed_plural(qapp):
@@ -363,3 +402,50 @@ def test_a_real_measurement_still_offers_the_sub_option(qapp, tmp_path):
         assert not parent.isHidden()
         assert not sub.isHidden()
         assert sub.isEnabled()
+
+
+# ---- the stored chart is REPLACED, not merged into -----------------------
+def test_storing_a_chart_leaves_only_that_chart(tmp_path):
+    """Knut, #130 2026-07-31: *"there is a cht file that does not disappear …
+    None of the old files must survive."*
+
+    He replaced the stored chart, measured a row, stopped — and "Stored chart
+    differs" came back on the next start. It came back because the folder still
+    held a file from the chart before, so the stored chart genuinely no longer
+    matched the live one.
+    """
+    import types
+    from workflow.verify_chart_snapshot import snapshot_slot
+
+    live = tmp_path / "live"; live.mkdir()
+    snap = tmp_path / "chart"; snap.mkdir()
+    # What the previous chart left behind, including the .cht he named.
+    (snap / "Old-Chart.cht").write_text("old")
+    (snap / "Old-Chart.ti2").write_text("old")
+    new_files = []
+    for name in ("New-Chart.ti1", "New-Chart.ti2"):
+        f = live / name
+        f.write_text("new")
+        new_files.append(f)
+
+    slot = types.SimpleNamespace(snapshot_dir=snap,
+                                 files_to_copy=lambda: new_files)
+    snapshot_slot(slot)
+
+    left = sorted(p.name for p in snap.iterdir())
+    assert left == ["New-Chart.ti1", "New-Chart.ti2"], \
+        f"files from the previous chart survived: {left}"
+
+
+def test_an_empty_chart_list_leaves_the_stored_chart_alone(tmp_path):
+    """Emptying only happens when there is a new chart to put in — otherwise a
+    slot could be left holding neither."""
+    import types
+    from workflow.verify_chart_snapshot import snapshot_slot
+
+    snap = tmp_path / "chart"; snap.mkdir()
+    (snap / "Kept.ti2").write_text("keep me")
+    slot = types.SimpleNamespace(snapshot_dir=snap, files_to_copy=lambda: [])
+
+    assert snapshot_slot(slot) is None
+    assert (snap / "Kept.ti2").exists()

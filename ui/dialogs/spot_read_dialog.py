@@ -371,13 +371,22 @@ class SpotReadDialog(QDialog):
         lay.setSpacing(16)
         lay.setContentsMargins(24, 20, 24, 20)
         msg = QLabel(
+            # Knut, #130 2026-07-31, on the first version of this text: *"The
+            # text mentions 'Take it off the calibration tile', which does not
+            # exist for this instrument … the button in the Read Single Patches
+            # window is called Take Reading."* Both were mine and both were
+            # wrong: a ColorMunki is turned by a dial, and no button here has
+            # ever been called "Read patch". Named after what is actually on
+            # screen, and worded for any instrument until the per-instrument
+            # texts he asked for are wired to device detection.
             tr("<b>Your instrument is calibrated and ready.</b><br><br>"
-               "Take it off the calibration tile and put it back into its "
-               "<b>measuring position</b>, then place it on the colour you want "
-               "to read.<br><br>"
-               "Click <b>Read patch</b> for each reading. The instrument stays "
-               "calibrated for the whole session, so you will not be asked "
-               "again unless it needs it."),
+               "Put it back into its <b>measuring position</b> — on most "
+               "instruments that means turning the dial or head back from the "
+               "calibration setting — then place it on the colour you want to "
+               "read.<br><br>"
+               "Click <b>Take reading</b> for each measurement. The instrument "
+               "stays calibrated for the whole session, so you will not be "
+               "asked again unless it needs it."),
             dlg,
         )
         msg.setWordWrap(True)

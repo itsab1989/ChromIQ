@@ -209,17 +209,42 @@ def snapshot_dir(verification: Verification) -> Path:
 # (#130, Knut 2026-07-27). See workflow/chart_slot.py for what differs.
 # ---------------------------------------------------------------------------
 def snapshot_slot(slot) -> "Path | None":
-    """Copy *slot*'s live chart into its snapshot folder. Returns the folder,
-    or None when there is no chart to copy. Never moves or deletes anything."""
+    """Replace *slot*'s snapshot folder with its live chart. Returns the folder,
+    or None when there is no chart to copy.
+
+    The folder is emptied first, so what it holds afterwards is exactly one
+    chart. It used to copy over the top, which left files from the previous
+    chart behind whenever the new one had fewer or differently-named ones —
+    Knut, #130 2026-07-31: *"there is a cht file that does not disappear …
+    All old files must be replaced with the new files. None of the old files
+    must survive."* A stale file there is not merely untidy: the stored chart
+    then no longer matches the live one, which is why "Stored chart differs"
+    came back after he had already agreed to replace it.
+
+    Nothing outside the snapshot folder is touched, and the folder is only
+    emptied once there is a new chart to put in it — a failed copy can never
+    leave the slot with neither.
+    """
     sources = slot.files_to_copy()
     if not sources:
         return None
-    slot.snapshot_dir.mkdir(parents=True, exist_ok=True)
+    d = slot.snapshot_dir
+    d.mkdir(parents=True, exist_ok=True)
+    for old_file in sorted(d.iterdir()):
+        try:
+            if old_file.is_dir():
+                shutil.rmtree(old_file)
+            else:
+                old_file.unlink()
+        except OSError as exc:
+            log.warning("could not clear %s from the stored chart: %s",
+                        old_file.name, exc)
     for src in sources:
-        shutil.copy2(src, slot.snapshot_dir / src.name)
-    log.info("snapshotted %d chart file(s) into %s",
-             len(sources), slot.snapshot_dir)
-    return slot.snapshot_dir
+        shutil.copy2(src, d / src.name)
+    log.info("stored %s into %s",
+             "1 chart file" if len(sources) == 1
+             else f"{len(sources)} chart files", d)
+    return d
 
 
 def slot_snapshot_files(slot) -> "list[Path]":

@@ -2867,7 +2867,20 @@ class TabMeasure(QWidget):
         self._offer_queued = False
         try:
             if self.isVisible():
-                # Stranded readings first: recovering them is what makes the
+                # An empty measurement is dealt with before anything else looks
+                # at it. Knut set this sequence himself (#130, 2026-07-30):
+                # *"When the ti3 has no readings, the warning window … appears,
+                # then ti3 file is moved to old/ folder and window 'This chart
+                # already has a measurement' never appears. When the ti3 has
+                # readings, the file is not touched and only window 'This chart
+                # already has a measurement' appears, with all the text and
+                # choices that previously was defined."*
+                #
+                # Opening the tab is the other way a run with an empty file is
+                # met — beta.110 only handled it at the end of a session, which
+                # left files written by earlier versions sitting there.
+                self._archive_empty_measurement()
+                # Stranded readings next: recovering them is what makes the
                 # already-measured offer below have anything to offer (#130).
                 self._recover_stranded_partial()
                 self._maybe_offer_existing_overlay()
@@ -4487,6 +4500,17 @@ class TabMeasure(QWidget):
             return
         if not self._confirm_replacing_measurement():
             return
+        # Keep the measurement this read is about to replace. chartread
+        # truncates its output file the moment it starts, so without this the
+        # old readings are simply gone — Knut, #130 2026-07-31: *"The previous
+        # ti3 file that had measurements were cleared to become empty and then
+        # moved to old/ folder."* He agreed to REPLACE it, not to have it
+        # destroyed, and every other displacement in ChromIQ keeps a copy.
+        #
+        # Here rather than inside the question above: asking and archiving are
+        # different jobs, and a method called _confirm_… that quietly moves
+        # files is a surprise waiting for the next reader.
+        self._archive_measurement_before_replacing()
         self._preview.set_bidirectional(self._effective_bidirectional(params))
         self._log.clear()
         self._auto_proceed = False
@@ -6455,15 +6479,32 @@ class TabMeasure(QWidget):
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.NoIcon)
         box.setWindowTitle(tr("Nothing was measured"))
+        # What is true here depends on whether this read replaced an earlier
+        # measurement. Knut, #130 2026-07-31, on both halves of that: on a first
+        # attempt *"there are no earlier measurement file in place, so the
+        # information is a bit misleading"*, and after replacing one *"THINGS
+        # HAVE changed … the information in the widow after exiting measurement
+        # session is wrong"*. He was right twice; one sentence cannot cover both.
+        displaced = getattr(self, "_displaced_measurement", None)
+        self._displaced_measurement = None
+        if displaced is not None:
+            tail = tr(
+                "The measurement you had before this read was moved into the "
+                "same \u201cold\u201d folder when this read started, exactly as the "
+                "warning said it would be. It is still there, and you can put "
+                "it back by moving it up one level.\n\n"
+                "Your chart itself is untouched.")
+        else:
+            tail = tr(
+                "Nothing has been deleted and nothing else has changed — your "
+                "chart is exactly as it was.")
         box.setText(tr(
             "That session ended before any patch was read successfully, so "
             "there are no readings to keep.\n\n"
             "The empty measurement file it left behind has been moved into this "
-            "run's \u201cold\u201d folder. Nothing has been deleted, and nothing else "
-            "has changed: your chart, and any earlier measurement you had, are "
-            "exactly as they were. ChromIQ will no longer treat this chart as "
-            "measured, so you will not be warned about a measurement that was "
-            "never taken.\n\n"
+            "run's \u201cold\u201d folder. ") + tail + tr(
+            "\n\nChromIQ will no longer treat this chart as measured, so you "
+            "will not be warned about a measurement that was never taken.\n\n"
             "When you are ready, start the measurement again."))
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
         from ui.widgets import fit_message_box_buttons
@@ -7853,6 +7894,28 @@ class TabMeasure(QWidget):
             log.info("Replace-measurement warning silenced for %s (this session)",
                      scope)
         return agreed
+
+    def _archive_measurement_before_replacing(self) -> None:
+        """Move the current measurement into ``old/`` before a fresh read
+        overwrites it. Quiet: the window that just asked has said what happens.
+        """
+        if self._ti1_path is None:
+            return
+        ti3 = self._ti1_path.with_suffix(".ti3")
+        if not ti3.is_file() or _cgats_has_no_readings(ti3):
+            return          # nothing worth keeping
+        try:
+            from core.file_manager import Run
+            dest = Run.for_dir(ti3.parent).archive_to_old([ti3])
+        except OSError as exc:
+            log.warning("could not archive %s before replacing it: %s", ti3, exc)
+            return
+        if dest is not None:
+            self._displaced_measurement = dest
+            self._log.appendPlainText(tr(
+                "Your previous measurement has been moved to the run's old "
+                "folder before this new one starts, so it is still there if "
+                "you need it."))
 
     def _replace_warning_scope(self) -> "tuple | None":
         """What the "don't ask again" tick is remembered against, or None when

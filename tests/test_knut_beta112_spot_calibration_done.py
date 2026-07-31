@@ -54,6 +54,18 @@ def test_not_skipping_leaves_the_flag_off(qapp):
 
 
 # ---- the completion window ------------------------------------------------
+def _window_text(fn) -> str:
+    """Only what the user reads: no docstring, no comments.
+
+    Twice now an assertion has tripped on my own prose quoting Knut rather than
+    on the window text — first the docstring, then a comment repeating his
+    words. Quoting "calibration tile" is not the same as showing it.
+    """
+    src = inspect.getsource(fn).split('"""')[2]
+    return "\n".join(ln for ln in src.splitlines()
+                      if not ln.lstrip().startswith("#"))
+
+
 def test_returning_to_the_ready_prompt_ends_the_calibration(qapp):
     """The only evidence spotread gives that a calibration finished."""
     src = inspect.getsource(SpotReadManager._handle_line)
@@ -87,17 +99,30 @@ def test_the_window_says_to_move_the_instrument_back(qapp):
     src = inspect.getsource(SpotReadDialog._on_calibration_finished)
     assert "calibrated and ready" in src
     assert "measuring position" in src
-    assert "calibration tile" in src
+
+
+def test_the_window_names_the_button_that_is_really_there(qapp):
+    """Knut, #130 2026-07-31: the text said "Read patch"; the button is "Take
+    reading". Naming a button that does not exist is worse than naming none."""
+    from ui.dialogs.spot_read_dialog import SpotReadDialog
+    body = _window_text(SpotReadDialog._on_calibration_finished)
+    assert "Take reading" in body
+    assert "Read patch" not in body
+
+
+def test_it_does_not_describe_hardware_this_instrument_lacks(qapp):
+    """*"'Take it off the calibration tile', which does not exist for this
+    instrument"* — a ColorMunki is turned by a dial."""
+    from ui.dialogs.spot_read_dialog import SpotReadDialog
+    body = _window_text(SpotReadDialog._on_calibration_finished)
+    assert "calibration tile" not in body
 
 
 def test_the_window_leaves_out_what_does_not_apply(qapp):
     """*"parts of the calibration complete window is not relevant for read
     single patches tool"* — strips and charts are those parts."""
     from ui.dialogs.spot_read_dialog import SpotReadDialog
-    src = inspect.getsource(SpotReadDialog._on_calibration_finished)
-    # Only what the user reads — the docstring quotes him, and quoting the word
-    # "strip" is not the same as showing it in the window.
-    body = src.split('"""')[2]
+    body = _window_text(SpotReadDialog._on_calibration_finished)
     assert "strip" not in body.lower()
     assert "chart" not in body.lower()
     assert "(s)" not in body
