@@ -5482,9 +5482,13 @@ class TabMeasure(QWidget):
         msg.setWordWrap(True)
         layout.addWidget(msg)
 
-        # "retry" → send "\r"                                        (any key = retry)
-        # "skip"  → send "\r" then "n" via manager                   (retry → strip menu → next unread)
-        # "save"  → send "\r" then "d" then auto-"y" on Are-you-sure (retry → strip menu → done → confirm)
+        # "retry" → send "\r"                     (any key = retry)
+        # "skip"  → the manager picks the next unread strip, or simply the next
+        #           one when the chart is complete
+        # "save"  → two 'q's: the first stops the armed strip, the second
+        #           answers chartread's give-up prompt, and THAT is what makes
+        #           it write the .ti3 and exit (Knut established this by hand,
+        #           #130 2026-07-30)
         chosen = ["retry"]
 
         btn_row = QHBoxLayout()
@@ -5562,8 +5566,9 @@ class TabMeasure(QWidget):
             # 2026-07-27).
             self._manager.skip_current_strip()
         else:  # save partial and quit
-            # Three-step chain inside the manager: \r → strip menu → 'd' →
-            # ("Are you sure" → 'y') → chartread writes the .ti3 and exits.
+            # Two 'q's, sent one after the other by the manager: the first
+            # stops the armed strip, the second answers "Hit Esc or 'q' to give
+            # up" — and chartread then writes the .ti3 and exits.
             self._manager.send_save_partial_and_quit()
 
         self._arm_key_watchdog()
