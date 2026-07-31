@@ -1,5 +1,45 @@
 # Changelog
 
+## v3.14.8-beta.113
+
+- **A measurement you replace is kept.** Starting a fresh read over an existing
+  measurement warned you it would be replaced — and then let ArgyllCMS truncate
+  the file, so the old readings were gone for good. Agreeing to replace a
+  measurement is not agreeing to lose it: the previous one is now moved into the
+  run's `old` folder first, and can be put back at any time.
+
+- **The "nothing was measured" window tells the truth.** It used to say your
+  chart and any earlier measurement were exactly as they were — even when a
+  measurement had just been displaced, and even on a first read when there had
+  never been one. It now says which of those actually happened.
+
+- **An empty measurement is dealt with when you open the Measure tab**, not only
+  when a session ends, so files left by earlier versions stop claiming to be
+  measurements.
+
+- **Replacing a stored chart replaces all of it.** The chart folder was written
+  over the top of whatever was already there, so a file from the previous chart
+  could survive and leave the stored chart no longer matching the live one —
+  which is why "Stored chart differs" came back after you had already replaced
+  it. The folder is now emptied first.
+
+- **Read single patches: both calibration windows now match your instrument.**
+  They show the same wording the Measure tab uses — the dial and gear icon for a
+  ColorMunki or i1Studio, the calibration base and white tile for an i1Pro —
+  instead of one generic text that described the wrong device. The window also
+  names the button that is really there, "Take reading".
+
+- **Read single patches: three fixes to the session itself.** The Calibration
+  Required window has a Cancel button, so you can change your mind. A second
+  Calibration Complete window can no longer open on top of the first when you
+  press the instrument button again. And trying to read while the instrument is
+  still in its calibration position now opens a window telling you so, with a
+  Try again button, instead of only changing a line of status text.
+
+- **"Skip initial calibration" explains itself.** A help icon next to it sets out
+  what ChromIQ asks ArgyllCMS for, why some instruments calibrate anyway the
+  first time after being plugged in, and when skipping genuinely helps.
+
 ## v3.14.8-beta.112
 
 - **Read single patches now tells you when the calibration is done.** After

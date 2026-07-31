@@ -123,6 +123,32 @@ class SpotReadDialog(QDialog):
 
         self._skip_cal = QCheckBox(tr("Skip initial calibration"), self)
         controls.addWidget(self._skip_cal)
+        # Knut, #130 2026-07-31: *"add an help icon to the right of the checkbox
+        # text and in that help text explain how argyllcms handles this request,
+        # and that some instruments (like the ColorMunki / i1Studio) will still
+        # often require a calibration the first time, but skip calibration if
+        # you stop your measurement session and start another shortly after."*
+        # He reported the box as broken; it is not, and the honest fix is to say
+        # what it can and cannot promise.
+        from ui.tooltip_button import TooltipButton
+        controls.addWidget(TooltipButton(
+            tr("About skipping the initial calibration"),
+            tr("Ticking this asks ArgyllCMS to start measuring without "
+               "calibrating first. ChromIQ passes it on as the -N option.\n\n"
+               "It is a request, not a command. ArgyllCMS skips the calibration "
+               "only where the instrument allows it, and several do not: a "
+               "ColorMunki or i1Studio will usually still ask the first time you "
+               "use it after plugging it in, however this box is set. That is "
+               "the instrument protecting the accuracy of your readings, and "
+               "nothing ChromIQ can overrule.\n\n"
+               "Where it does help is a run of short sessions. Once the "
+               "instrument has calibrated, it stays calibrated for a while — so "
+               "if you stop a session and start another one shortly after, "
+               "ticking this lets you go straight to reading instead of "
+               "calibrating again.\n\n"
+               "If you are unsure, leave it unticked. Calibrating takes a few "
+               "seconds and is never the wrong thing to do."),
+            self))
         controls.addStretch(1)
         outer.addLayout(controls)
 
@@ -211,7 +237,7 @@ class SpotReadDialog(QDialog):
         m.calibration_prompt.connect(self._on_calibration_prompt)
         m.calibration_finished.connect(self._on_calibration_finished)
         m.misread.connect(lambda: self._set_status(tr("Misread — reposition and take the reading again.")))
-        m.sensor_wrong_position.connect(lambda: self._set_status(tr("Instrument is in the wrong position.")))
+        m.sensor_wrong_position.connect(self._on_sensor_wrong_position)
         m.no_instrument.connect(self._on_no_instrument)
         m.device_busy.connect(self._on_device_busy)
         m.instrument_disconnected.connect(self._on_disconnected)
@@ -349,6 +375,73 @@ class SpotReadDialog(QDialog):
     # ------------------------------------------------------------------
     # Calibration + error pop-ups
     # ------------------------------------------------------------------
+    def _instrument_family(self) -> "str | None":
+        """Which instrument's wording to use, or None for the generic text.
+
+        Knut, #130 2026-07-31: *"one window for each instrument, wired to the
+        detection of each instrument type during connection, so that the window
+        shows correct text for each instrument."*
+
+        spotread does not announce its model in anything ChromIQ parses, and
+        inventing a pattern for output I have not seen is how four wrong theories
+        about Save Partial happened. What IS known is the instrument the user has
+        chosen in ChromIQ — the same value the Measure tab compares a chart
+        against — and his own log confirms spotread is launched with the device
+        ChromIQ picked. So the wording follows that, and falls back to the
+        generic text whenever it is unset or unrecognised, which is exactly what
+        the SpectroScan and any unknown instrument should get anyway.
+        """
+        try:
+            from ui.ti2_loader import instrument_family
+            return instrument_family(
+                str(self._settings.get("chart_instrument", "") or ""))
+        except Exception:      # noqa: BLE001 — wording must never break a read
+            return None
+
+    def _on_sensor_wrong_position(self) -> None:
+        """Say — properly — that the instrument is not in its reading position.
+
+        Knut, #130 2026-07-31 (item 5): with the dial still on calibration,
+        *"the instrument button and Take Reading button registers ('Ready...'
+        text blinks), but nothing happens"*, and he asked for what patch-by-patch
+        does: *"a window saying 'The patch could not be read: Sensor should be
+        in surface position', then Retry button."*
+
+        This used to set a line of status text only, which is easy to miss while
+        you are looking at the instrument rather than the screen.
+        """
+        self._set_status(tr("Instrument is in the wrong position."))
+        if getattr(self, "_sensor_pos_open", False):
+            return          # one window, however many times it is reported
+        dlg = QDialog(self)
+        dlg.setWindowTitle(tr("Instrument in the Wrong Position"))
+        dlg.setMinimumWidth(500)
+        lay = QVBoxLayout(dlg)
+        lay.setSpacing(16)
+        lay.setContentsMargins(24, 20, 24, 20)
+        msg = QLabel(
+            tr("<b>That reading could not be taken — the instrument is not in "
+               "its measuring position.</b><br><br>"
+               "On most instruments this means the dial or head is still set to "
+               "calibration. Turn it back to the measuring position, place the "
+               "instrument on the colour you want to read, and try again."),
+            dlg,
+        )
+        msg.setWordWrap(True)
+        msg.setTextFormat(Qt.TextFormat.RichText)
+        lay.addWidget(msg)
+        box = QDialogButtonBox(dlg)
+        again = box.addButton(tr("Try again"), QDialogButtonBox.ButtonRole.AcceptRole)
+        again.setObjectName("primary")
+        box.accepted.connect(dlg.accept)
+        lay.addWidget(box)
+        tint_dialog_primary(dlg, _ACCENT)
+        self._sensor_pos_open = True
+        try:
+            dlg.exec()
+        finally:
+            self._sensor_pos_open = False
+
     def _on_calibration_finished(self) -> None:
         """Say that the calibration is done — and what to do with the device now.
 
@@ -363,9 +456,17 @@ class SpotReadDialog(QDialog):
         single patches tool"*, and the parts about strips and charts are exactly
         those, so they are left out.
         """
+        # Knut, #130 2026-07-31 (item 4): *"Before pressing Start Calibration in
+        # the Calibration Complete window, I press the instrument button. That
+        # results in another Calibration Complete window to appear on top of the
+        # previous, every time I click the button."* Each press makes spotread
+        # print its ready prompt again, and each one opened another window.
+        if getattr(self, "_cal_done_open", False):
+            return
         self._read_btn.setEnabled(True)
         dlg = QDialog(self)
         dlg.setWindowTitle(tr("Calibration Complete"))
+        from ui.ti2_loader import patch_measurement_instructions_html
         dlg.setMinimumWidth(500)
         lay = QVBoxLayout(dlg)
         lay.setSpacing(16)
@@ -379,14 +480,12 @@ class SpotReadDialog(QDialog):
             # ever been called "Read patch". Named after what is actually on
             # screen, and worded for any instrument until the per-instrument
             # texts he asked for are wired to device detection.
-            tr("<b>Your instrument is calibrated and ready.</b><br><br>"
-               "Put it back into its <b>measuring position</b> — on most "
-               "instruments that means turning the dial or head back from the "
-               "calibration setting — then place it on the colour you want to "
-               "read.<br><br>"
-               "Click <b>Take reading</b> for each measurement. The instrument "
-               "stays calibrated for the whole session, so you will not be "
-               "asked again unless it needs it."),
+            tr("<b>Your instrument is calibrated and ready.</b><br><br>")
+            + patch_measurement_instructions_html(self._instrument_family())
+            + tr("<br><br>Here you choose the colour yourself — there is no "
+                 "chart to follow. Click <b>Take reading</b> for each "
+                 "measurement. The instrument stays calibrated for the whole "
+                 "session, so you will not be asked again unless it needs it."),
             dlg,
         )
         msg.setWordWrap(True)
@@ -398,7 +497,11 @@ class SpotReadDialog(QDialog):
         box.accepted.connect(dlg.accept)
         lay.addWidget(box)
         tint_dialog_primary(dlg, _ACCENT)
-        dlg.exec()
+        self._cal_done_open = True
+        try:
+            dlg.exec()
+        finally:
+            self._cal_done_open = False
 
     def _on_calibration_prompt(self) -> None:
         # Same wording as the Measure tab's calibration pop-up — generic but
@@ -411,14 +514,11 @@ class SpotReadDialog(QDialog):
         lay.setSpacing(16)
         lay.setContentsMargins(24, 20, 24, 20)
 
-        msg = QLabel(
-            tr("<b>Your instrument needs to be calibrated before measuring.</b><br><br>"
-               "Place the instrument in the <b>calibration position</b> as described "
-               "in its manual, then click <b>Start Calibration</b>.<br><br>"
-               "The calibration takes only a few seconds. Once it is complete, you "
-               "can start taking readings."),
-            dlg,
-        )
+        # The same per-instrument instructions patch-by-patch has always shown
+        # (Knut asked for exactly that); generic wording when the instrument is
+        # unknown.
+        from ui.ti2_loader import calibration_instructions_html
+        msg = QLabel(calibration_instructions_html(self._instrument_family()), dlg)
         msg.setWordWrap(True)
         msg.setTextFormat(Qt.TextFormat.RichText)
         lay.addWidget(msg)
@@ -426,7 +526,15 @@ class SpotReadDialog(QDialog):
         box = QDialogButtonBox(dlg)
         ok = box.addButton(tr("Start Calibration"), QDialogButtonBox.ButtonRole.AcceptRole)
         ok.setObjectName("primary")
+        # Knut, #130 2026-07-31 (item 2): *"the Calibration Required window is
+        # lacking a Cancel Measurement button, like used in patch-by-patch mode
+        # … There should be a chance to change my mind and exit the measurement
+        # session."* Without it the only way out was the Stop session button
+        # behind the window.
+        cancel = box.addButton(tr("Cancel session"),
+                               QDialogButtonBox.ButtonRole.RejectRole)
         box.accepted.connect(dlg.accept)
+        box.rejected.connect(dlg.reject)
         lay.addWidget(box)
 
         tint_dialog_primary(dlg, _ACCENT)
