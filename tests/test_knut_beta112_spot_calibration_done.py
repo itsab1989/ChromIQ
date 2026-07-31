@@ -95,8 +95,8 @@ def test_the_dialog_listens_for_it(qapp):
 def _rendered(family):
     """The text a user of *family* actually sees in the completion window."""
     import re as _re
-    from ui.ti2_loader import patch_measurement_instructions_html
-    return _re.sub(r"<[^>]+>", " ", patch_measurement_instructions_html(family))
+    from ui.ti2_loader import spot_measurement_instructions_html
+    return _re.sub(r"<[^>]+>", " ", spot_measurement_instructions_html(family))
 
 
 def test_each_instrument_gets_its_own_instructions(qapp):
@@ -127,7 +127,7 @@ def test_an_unknown_instrument_still_gets_usable_words(qapp):
 def test_the_window_pulls_that_text_rather_than_writing_its_own(qapp):
     from ui.dialogs.spot_read_dialog import SpotReadDialog
     src = inspect.getsource(SpotReadDialog._on_calibration_finished)
-    assert "patch_measurement_instructions_html(self._instrument_family())" in src
+    assert "spot_measurement_instructions_html(self._instrument_family())" in src
 
 
 def test_the_required_window_is_instrument_specific_too(qapp):
@@ -245,3 +245,34 @@ def test_the_help_explains_the_three_things_he_asked_for(qapp):
     assert "ColorMunki" in help_text
     assert "start another one shortly after" in help_text
     assert "(s)" not in help_text
+
+
+def test_the_tool_has_its_own_wording_not_the_chart_one(qapp):
+    """Knut, #130 2026-07-31: *"separate the patch-by-patch window wording and
+    make a window with specific wording for the Read Single Patches tool."*
+
+    Patch-by-patch says "the highlighted patch" because a chart is on screen
+    there. Here you pick any colour you like, so borrowing that text described a
+    screen the user is not looking at.
+    """
+    from ui.ti2_loader import (patch_measurement_instructions_html,
+                               spot_measurement_instructions_html)
+    for fam in ("colormunki", "i1pro", None):
+        spot = spot_measurement_instructions_html(fam)
+        assert "highlighted patch" not in spot
+        assert spot != patch_measurement_instructions_html(fam)
+
+
+def test_the_chart_wording_is_left_exactly_as_it_was(qapp):
+    """Splitting must not disturb text he has already accepted elsewhere."""
+    from ui.ti2_loader import patch_measurement_instructions_html
+    assert "highlighted patch" in patch_measurement_instructions_html("colormunki")
+
+
+def test_each_instrument_still_gets_its_own_spot_wording(qapp):
+    from ui.ti2_loader import spot_measurement_instructions_html
+    munki = spot_measurement_instructions_html("colormunki")
+    i1 = spot_measurement_instructions_html("i1pro")
+    assert "dial" in munki.lower() and "tile" not in munki.lower()
+    assert "base" in i1.lower()
+    assert munki != i1

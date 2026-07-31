@@ -50,6 +50,22 @@ from workflow.verify_chart_snapshot import (snapshot_chart,     # noqa: E402
                                             snapshot_slot)
 
 
+def _live_differs(target) -> None:
+    """Edit the live chart so that restoring it would actually change something.
+
+    #130 (Knut, 2026-07-30): "Restore Used Chart" is greyed out when the loaded
+    chart is already byte-identical to the stored one — pressing it then copies
+    the files over themselves, which is why it looked like a button that does
+    nothing. A snapshot taken on the previous line is identical by definition,
+    so these tests now state the case they are really about: a stored chart that
+    differs from what is loaded.
+    """
+    from workflow.chart_slot import slot_for
+    for f in slot_for(target).files_to_copy():
+        f.write_text(f.read_text() + "  # edited since the snapshot")
+        return
+
+
 @pytest.fixture(scope="module")
 def qapp():
     return QApplication.instance() or QApplication([])
@@ -76,7 +92,7 @@ def _project(tmp_path, *, runs=1, dated=(), snapshot_dates=(),
     run.chart_ti1.write_text("TI1")
     run.chart_ti2.write_text("TI2")
     if profiling_snapshot:
-        snapshot_slot(slot_for(run))
+        snapshot_slot(slot_for(run)); _live_differs(run)
         if stale:
             meta = run.load_meta()
             meta.chart_snapshot_stale = True
@@ -90,7 +106,7 @@ def _project(tmp_path, *, runs=1, dated=(), snapshot_dates=(),
         v = run.verification(vid)
         v.ensure_dir()
         if vid in snapshot_dates:
-            snapshot_chart(v)
+            snapshot_chart(v); _live_differs(v)
     fm.set_target_name("P")
     return fm, proj, run
 

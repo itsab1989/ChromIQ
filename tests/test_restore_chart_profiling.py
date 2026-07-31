@@ -25,6 +25,22 @@ from workflow.verify_chart_snapshot import (slot_has_snapshot,     # noqa: E402
                                             snapshot_slot)
 
 
+def _live_differs(target) -> None:
+    """Edit the live chart so that restoring it would actually change something.
+
+    #130 (Knut, 2026-07-30): "Restore Used Chart" is greyed out when the loaded
+    chart is already byte-identical to the stored one — pressing it then copies
+    the files over themselves, which is why it looked like a button that does
+    nothing. A snapshot taken on the previous line is identical by definition,
+    so these tests now state the case they are really about: a stored chart that
+    differs from what is loaded.
+    """
+    from workflow.chart_slot import slot_for
+    for f in slot_for(target).files_to_copy():
+        f.write_text(f.read_text() + "  # edited since the snapshot")
+        return
+
+
 @pytest.fixture(scope="module")
 def qapp():
     return QApplication.instance() or QApplication([])
@@ -53,7 +69,7 @@ def test_it_is_offered_for_profiling_once_a_chart_is_stored(qapp, tmp_path):
     enabled, tip = ctl.restore_state()
     assert not enabled and "no stored chart yet" in tip, tip
 
-    snapshot_slot(slot_for(run))
+    snapshot_slot(slot_for(run)); _live_differs(run)
 
     enabled, tip = ctl.restore_state()
     assert enabled and "was measured with" in tip, tip
@@ -69,7 +85,7 @@ def test_a_new_run_says_to_make_the_chart_first(qapp, tmp_path):
 
 def test_it_is_unavailable_while_measuring(qapp, tmp_path):
     _s, run, ctl = _env(tmp_path)
-    snapshot_slot(slot_for(run))
+    snapshot_slot(slot_for(run)); _live_differs(run)
     ctl.set_measuring(True)
     enabled, _tip = ctl.restore_state()
     assert not enabled
@@ -79,7 +95,7 @@ def test_the_button_says_when_the_stored_chart_is_out_of_step(qapp, tmp_path):
     """After "Measure without changing the stored chart" the copy describes an
     earlier measurement — the button must not pretend otherwise."""
     _s, run, ctl = _env(tmp_path)
-    snapshot_slot(slot_for(run))
+    snapshot_slot(slot_for(run)); _live_differs(run)
     meta = run.load_meta(); meta.chart_snapshot_stale = True; run.save_meta(meta)
 
     enabled, tip = ctl.restore_state()
@@ -91,7 +107,7 @@ def test_the_button_says_when_the_stored_chart_is_out_of_step(qapp, tmp_path):
 # ---- restoring ------------------------------------------------------------
 def test_restoring_puts_the_run_chart_back(qapp, tmp_path):
     _s, run, ctl = _env(tmp_path)
-    snapshot_slot(slot_for(run))
+    snapshot_slot(slot_for(run)); _live_differs(run)
     run.chart_ti2.write_text("REPLACED")
     run.measurement_ti3.write_text("A MEASUREMENT")
 
@@ -114,7 +130,7 @@ def test_switching_run_type_switches_which_chart_the_button_means(qapp,
                                                                   tmp_path):
     """One button, two meanings — decided by Run type, with no crossover."""
     _s, run, ctl = _env(tmp_path)
-    snapshot_slot(slot_for(run))                  # a profiling copy exists
+    snapshot_slot(slot_for(run)); _live_differs(run)                  # a profiling copy exists
 
     ctl.set_run_type(RUN_TYPE_VERIFICATION)
     enabled, tip = ctl.restore_state()
@@ -162,7 +178,7 @@ def test_keep_leaves_the_copy_alone_and_records_it(qapp, tmp_path, monkeypatch):
     written down, or Restore would later put back a chart that does not
     describe the measurement."""
     s, run, ctl = _env(tmp_path)
-    snapshot_slot(slot_for(run))
+    snapshot_slot(slot_for(run)); _live_differs(run)
     run.chart_ti2.write_text("A DIFFERENT CHART")
     tab = _tab(s, ctl)
     monkeypatch.setattr(type(tab), "_profiling_overwrite_choice",
@@ -178,7 +194,7 @@ def test_keep_leaves_the_copy_alone_and_records_it(qapp, tmp_path, monkeypatch):
 def test_replace_updates_the_copy_and_clears_the_mark(qapp, tmp_path,
                                                       monkeypatch):
     s, run, ctl = _env(tmp_path)
-    snapshot_slot(slot_for(run))
+    snapshot_slot(slot_for(run)); _live_differs(run)
     meta = run.load_meta(); meta.chart_snapshot_stale = True; run.save_meta(meta)
     run.chart_ti2.write_text("A DIFFERENT CHART")
     tab = _tab(s, ctl)
@@ -196,7 +212,7 @@ def test_replace_updates_the_copy_and_clears_the_mark(qapp, tmp_path,
 def test_cancel_stops_the_measurement_and_changes_nothing(qapp, tmp_path,
                                                           monkeypatch):
     s, run, ctl = _env(tmp_path)
-    snapshot_slot(slot_for(run))
+    snapshot_slot(slot_for(run)); _live_differs(run)
     run.chart_ti2.write_text("A DIFFERENT CHART")
     tab = _tab(s, ctl)
     monkeypatch.setattr(type(tab), "_profiling_overwrite_choice",
@@ -215,7 +231,7 @@ def test_the_button_is_visible_for_profiling_as_well(qapp, tmp_path):
     Being enabled is no use if it is not on screen."""
     from ui.measurement_target_bar import MeasurementTargetBar
     _s, run, ctl = _env(tmp_path)
-    snapshot_slot(slot_for(run))
+    snapshot_slot(slot_for(run)); _live_differs(run)
     bar = MeasurementTargetBar(ctl)
     bar.show()
     QApplication.processEvents()
@@ -234,7 +250,7 @@ def test_the_button_is_visible_for_profiling_as_well(qapp, tmp_path):
 def test_its_state_follows_the_run_type_while_visible(qapp, tmp_path):
     from ui.measurement_target_bar import MeasurementTargetBar
     _s, run, ctl = _env(tmp_path)
-    snapshot_slot(slot_for(run))                  # a profiling copy only
+    snapshot_slot(slot_for(run)); _live_differs(run)                  # a profiling copy only
     bar = MeasurementTargetBar(ctl)
     bar.show(); QApplication.processEvents()
     assert bar._restore_btn.isEnabled(), "profiling: there is a copy"

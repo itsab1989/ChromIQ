@@ -175,6 +175,33 @@ def measurement_instructions_html(family: "str | None") -> str:
         "described in its manual.")
 
 
+def spot_measurement_instructions_html(family: "str | None") -> str:
+    """How to read a colour with the Read Single Patches tool.
+
+    Nearly the patch-by-patch text, but that one says "the highlighted patch" —
+    there is a chart on screen there, and here there is not: you choose whatever
+    colour you like. Knut asked for the two to be separated rather than have one
+    describe the other's screen (#130, 2026-07-31): *"separate the patch-by-patch
+    window wording and make a window with specific wording for the Read Single
+    Patches tool."*
+    """
+    if family == "colormunki":
+        return tr(
+            "Turn the dial to the <b>measurement position</b> (the target / "
+            "aperture icon). Rest the device flat on the colour you want to "
+            "read, with the aperture fully inside it, and press the side button "
+            "once. Hold it still until the reading is taken.")
+    if family == "i1pro":
+        return tr(
+            "Take the i1Pro <b>off its base</b>. Place it flat on the colour you "
+            "want to read so the aperture sits fully inside it, and press the "
+            "button once. Keep it still until the reading is taken.")
+    return tr(
+        "Place your instrument flat on the colour you want to read, with its "
+        "aperture fully inside the area, and take a single reading as described "
+        "in its manual.")
+
+
 def patch_measurement_instructions_html(family: "str | None") -> str:
     """How to read a SINGLE patch with an instrument *family*.
 

@@ -297,27 +297,29 @@ def test_the_window_says_where_the_file_went_and_what_is_safe(qapp, tmp_path,
     assert "start the measurement again" in text
 
 
-def test_it_does_not_claim_an_earlier_measurement_survived(qapp, tmp_path,
-                                                           monkeypatch):
-    """Knut, #130 2026-07-31, after a replace destroyed his readings: *"THINGS
-    HAVE changed … the information in the widow after exiting measurement
-    session is wrong."* When a measurement WAS displaced, the window must say
-    where it went — not that everything is as it was."""
+def test_a_displaced_measurement_that_vanished_is_not_claimed_to_be_safe(
+        qapp, tmp_path, monkeypatch):
+    """Superseded requirement, kept as the defensive path.
+
+    Knut first accepted the displaced measurement being left in ``old/``, then
+    ruled (#130, 2026-07-31) that it must be put BACK — see the restore tests
+    below. This covers what is left: the archive folder no longer holds the
+    file, so there is nothing to restore, and the window must not pretend
+    otherwise.
+    """
     run = _run(tmp_path)
     run.chart_ti2.write_text("CTI2")
     run.measurement_ti3.write_text(empty_ti3())
     tab = _tab(tmp_path)
     tab._ti1_path = run.chart_ti2
-    tab._displaced_measurement = run.old_dir / "2026-07-31_000000"
+    tab._displaced_measurement = run.old_dir / "gone"   # never created
     seen = _silence(monkeypatch)
 
     tab._archive_empty_measurement()
 
-    text = seen[0]
-    assert "moved into the same" in text
-    assert "put it back" in text
-    assert "Nothing has been deleted and nothing else has changed" not in text, \
-        "it told the user nothing changed after replacing their measurement"
+    assert seen, "the user was told nothing at all"
+    assert "put back exactly where it was" not in seen[0], \
+        "it claimed a restore that did not happen"
 
 
 def test_the_claim_is_not_carried_into_the_next_session(qapp, tmp_path,
@@ -449,3 +451,85 @@ def test_an_empty_chart_list_leaves_the_stored_chart_alone(tmp_path):
 
     assert snapshot_slot(slot) is None
     assert (snap / "Kept.ti2").exists()
+
+
+# ---- a read that measured nothing is a true no-op ------------------------
+def _displaced(tab, run, content):
+    """Set up exactly what a replacing read leaves behind: the old measurement
+    archived, and an empty file in its place."""
+    dest = run.old_dir / "2026-07-31_120000"
+    dest.mkdir(parents=True)
+    (dest / run.measurement_ti3.name).write_text(content)
+    run.measurement_ti3.write_text(empty_ti3())
+    tab._displaced_measurement = dest
+    return dest
+
+
+def test_measuring_nothing_puts_the_old_measurement_back(qapp, tmp_path,
+                                                         monkeypatch):
+    """Knut, #130 2026-07-31: *"the empty ti3 should be removed and the ti3 that
+    was temporarily stored in old should be returned to where it was placed."*"""
+    run = _run(tmp_path)
+    run.chart_ti2.write_text("CTI2")
+    tab = _tab(tmp_path)
+    tab._ti1_path = run.chart_ti2
+    dest = _displaced(tab, run, measured_ti3())
+    seen = _silence(monkeypatch)
+
+    tab._archive_empty_measurement()
+
+    assert run.measurement_ti3.read_text() == measured_ti3(), \
+        "the previous measurement was not put back"
+    assert not dest.exists(), "the old/<date_time> folder was left behind"
+    assert seen and "put back exactly where it was" in seen[0]
+
+
+def test_the_empty_file_is_not_left_anywhere(qapp, tmp_path, monkeypatch):
+    """It must not survive in old/ either — it is not a measurement."""
+    run = _run(tmp_path)
+    run.chart_ti2.write_text("CTI2")
+    tab = _tab(tmp_path)
+    tab._ti1_path = run.chart_ti2
+    _displaced(tab, run, measured_ti3())
+    _silence(monkeypatch)
+
+    tab._archive_empty_measurement()
+
+    leftovers = [p for p in run.old_dir.rglob("*") if p.is_file()] \
+        if run.old_dir.exists() else []
+    assert leftovers == [], f"an empty file was left behind: {leftovers}"
+
+
+def test_a_folder_holding_other_files_is_not_removed(qapp, tmp_path, monkeypatch):
+    """Only the folder this read created gets cleaned up; anything else in it
+    belongs to somebody."""
+    run = _run(tmp_path)
+    run.chart_ti2.write_text("CTI2")
+    tab = _tab(tmp_path)
+    tab._ti1_path = run.chart_ti2
+    dest = _displaced(tab, run, measured_ti3())
+    (dest / "someone-elses.icc").write_text("keep me")
+    _silence(monkeypatch)
+
+    tab._archive_empty_measurement()
+
+    assert dest.exists()
+    assert (dest / "someone-elses.icc").exists()
+
+
+def test_with_nothing_displaced_it_still_archives_the_empty_file(qapp, tmp_path,
+                                                                 monkeypatch):
+    """The first-read case he described earlier must keep working."""
+    run = _run(tmp_path)
+    run.chart_ti2.write_text("CTI2")
+    run.measurement_ti3.write_text(empty_ti3())
+    tab = _tab(tmp_path)
+    tab._ti1_path = run.chart_ti2
+    tab._displaced_measurement = None
+    seen = _silence(monkeypatch)
+
+    tab._archive_empty_measurement()
+
+    assert not run.measurement_ti3.exists()
+    assert run.measurement_ti3.name in _archived(run)
+    assert "put back exactly where it was" not in seen[0]

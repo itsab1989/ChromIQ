@@ -228,7 +228,8 @@ class MeasurementTargetController(QObject):
         """``(enabled, tooltip)`` for the Restore Used Chart button, with the
         exact wording from the specification for each reason it is unavailable."""
         from workflow.chart_slot import slot_for
-        from workflow.verify_chart_snapshot import slot_has_snapshot
+        from workflow.verify_chart_snapshot import (slot_has_snapshot,
+                                                    snapshot_matches_live)
         if self._measuring:
             return False, tr(
                 "Not while a measurement is running. It will be available "
@@ -242,6 +243,11 @@ class MeasurementTargetController(QObject):
             if not slot_has_snapshot(slot_for(verification)):
                 return False, tr("Selected Verification run date has no "
                                  "available chart to restore")
+            if snapshot_matches_live(slot_for(verification)):
+                return False, tr(
+                    "Currently loaded chart files are already identical to "
+                    "stored files in chart-folder. There is no need to restore "
+                    "the chart files.")
             return True, tr("Restore chart used for selected verification "
                             "run date")
         # Profiling: the run itself holds one copy, so there is nothing to pick
@@ -265,6 +271,14 @@ class MeasurementTargetController(QObject):
                     "with a different chart")
         except Exception:      # noqa: BLE001
             pass
+        if snapshot_matches_live(slot_for(run)):
+            # Nothing to put back — pressing it would copy the chart over
+            # itself, which is why it looked like nothing happened (Knut,
+            # #130 2026-07-30).
+            return False, tr(
+                "Currently loaded chart files are already identical to stored "
+                "files in chart-folder. There is no need to restore the chart "
+                "files.")
         return True, tr("Restore the chart this profile run was measured with")
 
     def restore_needs_confirmation(self) -> bool:

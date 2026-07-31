@@ -19,6 +19,22 @@ from ui.measurement_target_bar import (MeasurementTargetBar,       # noqa: E402
 from workflow.verify_chart_snapshot import snapshot_chart  # noqa: E402
 
 
+def _live_differs(target) -> None:
+    """Edit the live chart so that restoring it would actually change something.
+
+    #130 (Knut, 2026-07-30): "Restore Used Chart" is greyed out when the loaded
+    chart is already byte-identical to the stored one — pressing it then copies
+    the files over themselves, which is why it looked like a button that does
+    nothing. A snapshot taken on the previous line is identical by definition,
+    so these tests now state the case they are really about: a stored chart that
+    differs from what is loaded.
+    """
+    from workflow.chart_slot import slot_for
+    for f in slot_for(target).files_to_copy():
+        f.write_text(f.read_text() + "  # edited since the snapshot")
+        return
+
+
 @pytest.fixture(scope="module")
 def qapp():
     return QApplication.instance() or QApplication([])
@@ -72,7 +88,7 @@ def test_disabled_when_the_stored_chart_folder_is_empty(qapp, tmp_path):
 def test_enabled_for_a_date_that_has_a_stored_chart(qapp, tmp_path):
     ctl, run = _env(tmp_path)
     v = run.verification("2026-07-25_120000"); v.ensure_dir()
-    snapshot_chart(v)
+    snapshot_chart(v); _live_differs(v)
     ctl.set_verification_id(v.id)
 
     enabled, tip = ctl.restore_state()
@@ -83,7 +99,7 @@ def test_enabled_for_a_date_that_has_a_stored_chart(qapp, tmp_path):
 def test_disabled_while_a_measurement_is_running(qapp, tmp_path):
     ctl, run = _env(tmp_path)
     v = run.verification("2026-07-25_120000"); v.ensure_dir()
-    snapshot_chart(v); ctl.set_verification_id(v.id)
+    snapshot_chart(v); _live_differs(v); ctl.set_verification_id(v.id)
     assert ctl.restore_state()[0] is True
 
     ctl.set_measuring(True)
@@ -122,7 +138,7 @@ def test_confirmation_only_when_the_live_chart_differs(qapp, tmp_path):
 def test_restore_emits_chart_restored_and_puts_the_chart_back(qapp, tmp_path):
     ctl, run = _env(tmp_path)
     v = run.verification("2026-07-25_120000"); v.ensure_dir()
-    snapshot_chart(v); ctl.set_verification_id(v.id)
+    snapshot_chart(v); _live_differs(v); ctl.set_verification_id(v.id)
     run.verify_chart_ti2.write_text("REPLACED")
     seen = {"n": 0}
     ctl.chart_restored.connect(lambda: seen.__setitem__("n", seen["n"] + 1))
@@ -145,7 +161,7 @@ def test_dropdown_marks_a_verification_with_no_measurement(qapp, tmp_path):
     while staying selectable, because its chart can still be restored."""
     ctl, run = _env(tmp_path)
     started = run.verification("2026-07-25_120000"); started.ensure_dir()
-    snapshot_chart(started)                       # chart kept, no .ti3 written
+    snapshot_chart(started); _live_differs(started)                       # chart kept, no .ti3 written
     finished = run.verification("2026-07-25_130000"); finished.ensure_dir()
     finished.measurement_ti3.write_text("MEASURED")
 
@@ -167,7 +183,7 @@ def test_outcome_says_the_pages_can_be_redrawn(qapp, tmp_path):
     the caller to redraw them rather than leaving the user to do it."""
     ctl, run = _env(tmp_path)
     v = run.verification("2026-07-25_120000"); v.ensure_dir()
-    snapshot_chart(v); ctl.set_verification_id(v.id)
+    snapshot_chart(v); _live_differs(v); ctl.set_verification_id(v.id)
 
     result = ctl.restore_used_chart()
 
@@ -184,7 +200,7 @@ def test_outcome_needs_no_rebuild_when_the_images_came_back(qapp, tmp_path):
     run.verify_chart_ti2.write_text("TI2")
     (run.verifications_dir / f"{run.verify_stem}_01.tif").write_text("PAGE")
     v = run.verification("2026-07-25_120000"); v.ensure_dir()
-    snapshot_chart(v); ctl.set_verification_id(v.id)
+    snapshot_chart(v); _live_differs(v); ctl.set_verification_id(v.id)
     for p in run.verify_chart_tiffs():
         p.unlink()
 
@@ -209,7 +225,7 @@ def test_rebuild_is_started_for_the_restored_chart(qapp, tmp_path, monkeypatch):
         tab._init_manual_layout_panel()
     tab.set_target_controller(ctl)
     v = run.verification("2026-07-25_120000"); v.ensure_dir()
-    snapshot_chart(v); ctl.set_verification_id(v.id)
+    snapshot_chart(v); _live_differs(v); ctl.set_verification_id(v.id)
     started = {}
     monkeypatch.setattr(tab._creator, "load_ti1_and_generate_preview",
                         lambda ti1, params, **k: started.update(ti1=ti1))

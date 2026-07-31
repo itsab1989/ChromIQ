@@ -1,5 +1,25 @@
 # Changelog
 
+## v3.14.8-beta.114
+
+- **A read that measures nothing now changes nothing at all.** If you start a
+  fresh measurement over an existing one and then stop before a single patch is
+  read, the measurement that was moved aside is put straight back where it was,
+  the empty file is removed, and the folder it was parked in is cleaned up. The
+  whole attempt becomes a no-op, which is what "no readings" honestly means.
+  This works the same way for a profiling run and for a verification run.
+
+- **"Restore Used Chart" no longer offers a restore that would do nothing.**
+  When the loaded chart is already identical to the stored one, pressing it
+  copied the files over themselves — so it looked like a button that does not
+  work. It is now greyed out in that case, and says why: the loaded chart files
+  are already identical to the stored ones, so there is nothing to restore.
+
+- **Read single patches has its own wording.** It was borrowing the
+  patch-by-patch text, which talks about "the highlighted patch" — there is no
+  chart here, you choose the colour yourself. The per-instrument detail is the
+  same; the wording now describes what is actually in front of you.
+
 ## v3.14.8-beta.113
 
 - **A measurement you replace is kept.** Starting a fresh read over an existing

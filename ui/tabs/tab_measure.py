@@ -6448,6 +6448,53 @@ class TabMeasure(QWidget):
             insp.load_measurement(dst)
             insp.exec()
 
+    def _restore_displaced_measurement(self, empty_ti3) -> bool:
+        """Undo a replacement that measured nothing: drop the empty file, put the
+        previous measurement back where it was, and remove the folder it sat in.
+
+        Returns True when it did so — the caller then has nothing left to say
+        about an empty file, because there is no longer one.
+        """
+        displaced = getattr(self, "_displaced_measurement", None)
+        if displaced is None:
+            return False
+        self._displaced_measurement = None
+        saved = displaced / empty_ti3.name
+        if not saved.is_file():
+            return False                  # nothing to put back; archive as usual
+        import shutil
+        try:
+            empty_ti3.unlink()
+            shutil.move(str(saved), str(empty_ti3))
+            # Only if we emptied it — never remove a folder holding other files.
+            if not any(displaced.iterdir()):
+                displaced.rmdir()
+        except OSError as exc:
+            log.warning("could not restore the measurement from %s: %s",
+                        displaced, exc)
+            return False
+        log.info("nothing was measured — restored %s from %s",
+                 empty_ti3.name, displaced.name)
+        self._log.appendPlainText(tr(
+            "Nothing was measured, so your previous measurement has been put "
+            "back exactly where it was."))
+        from PyQt6.QtWidgets import QMessageBox
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(tr("Nothing was measured"))
+        box.setText(tr(
+            "That session ended before any patch was read successfully, so "
+            "there are no readings to keep.\n\n"
+            "Because nothing was measured, your previous measurement has been "
+            "put back exactly where it was — this read has changed nothing at "
+            "all. Your chart is untouched too.\n\n"
+            "When you are ready, start the measurement again."))
+        box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        from ui.widgets import fit_message_box_buttons
+        fit_message_box_buttons(box)
+        box.exec()
+        return True
+
     def _archive_empty_measurement(self) -> None:
         """Move a measurement file that holds no readings into ``old/``, and say so.
 
@@ -6461,6 +6508,17 @@ class TabMeasure(QWidget):
             return
         ti3 = self._ti1_path.with_suffix(".ti3")
         if not ti3.is_file() or not _cgats_has_no_readings(ti3):
+            return
+        # Nothing was measured, so a measurement this read displaced should not
+        # stay displaced. Knut, #130 2026-07-31: *"the empty ti3 should be
+        # removed and the ti3 that was temporarily stored in old should be
+        # returned to where it was placed … and the old/<date_time>/ folder
+        # removed afterwords."* The whole read becomes a no-op, which is what
+        # "no readings" honestly means.
+        #
+        # Symmetric for a run and a verification by construction: the folder
+        # being undone is the one the archive step recorded, wherever that was.
+        if self._restore_displaced_measurement(ti3):
             return
         from core.file_manager import Run
         try:

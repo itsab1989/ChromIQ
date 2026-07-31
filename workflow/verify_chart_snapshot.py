@@ -208,6 +208,37 @@ def snapshot_dir(verification: Verification) -> Path:
 # The same three operations, for a profiling run or a dated verification
 # (#130, Knut 2026-07-27). See workflow/chart_slot.py for what differs.
 # ---------------------------------------------------------------------------
+def snapshot_matches_live(slot) -> bool:
+    """Whether the stored chart is already identical to the live one.
+
+    Knut, #130 2026-07-30: *"when I press 'Restore Used Chart' seemingly nothing
+    happens … then the 'Restore Used Chart' could be disabled / greyed with a
+    tool-tip."* Restoring a copy of what is already there is a button press that
+    produces no visible effect, which reads as a broken button.
+
+    Compared by name and by bytes: same set of files, same contents. Anything
+    unreadable counts as "not identical", so the button stays available — being
+    offered a restore you did not need is a smaller fault than being denied one
+    you did.
+    """
+    d = slot.snapshot_dir
+    if not d.is_dir():
+        return False
+    live = list(slot.files_to_copy())
+    if not live:
+        return False
+    stored = [f for f in d.iterdir() if f.is_file()]
+    if {f.name for f in stored} != {f.name for f in live}:
+        return False
+    try:
+        for f in live:
+            if f.read_bytes() != (d / f.name).read_bytes():
+                return False
+    except OSError:
+        return False
+    return True
+
+
 def snapshot_slot(slot) -> "Path | None":
     """Replace *slot*'s snapshot folder with its live chart. Returns the folder,
     or None when there is no chart to copy.

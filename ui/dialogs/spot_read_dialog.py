@@ -466,7 +466,7 @@ class SpotReadDialog(QDialog):
         self._read_btn.setEnabled(True)
         dlg = QDialog(self)
         dlg.setWindowTitle(tr("Calibration Complete"))
-        from ui.ti2_loader import patch_measurement_instructions_html
+        from ui.ti2_loader import spot_measurement_instructions_html
         dlg.setMinimumWidth(500)
         lay = QVBoxLayout(dlg)
         lay.setSpacing(16)
@@ -481,11 +481,10 @@ class SpotReadDialog(QDialog):
             # screen, and worded for any instrument until the per-instrument
             # texts he asked for are wired to device detection.
             tr("<b>Your instrument is calibrated and ready.</b><br><br>")
-            + patch_measurement_instructions_html(self._instrument_family())
-            + tr("<br><br>Here you choose the colour yourself — there is no "
-                 "chart to follow. Click <b>Take reading</b> for each "
-                 "measurement. The instrument stays calibrated for the whole "
-                 "session, so you will not be asked again unless it needs it."),
+            + spot_measurement_instructions_html(self._instrument_family())
+            + tr("<br><br>Click <b>Take reading</b> for each measurement. The "
+                 "instrument stays calibrated for the whole session, so you "
+                 "will not be asked again unless it needs it."),
             dlg,
         )
         msg.setWordWrap(True)
