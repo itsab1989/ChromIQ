@@ -1,5 +1,61 @@
 # Changelog
 
+## v3.14.8-beta.118
+
+- **A restored chart comes back as the chart it was.** Putting a run's stored
+  chart back could redraw its pages differently from the sheet that was actually
+  measured. The patch order was never wrong — the chart file itself came back
+  unchanged — but two things about the *drawing* did change. The strip-indicator
+  styling from Preferences was applied over the chart's own settings, which is
+  right when you are making a chart and wrong when you are reproducing one; and
+  the record strip along the edge was stamped with today's date, so a chart
+  restored a week later claimed to have been made that day. Charts now save the
+  date they were made, and a restore rebuilds from the chart's own settings.
+
+- **"Duplicate" — a new button on the run bar.** It makes a new profile run
+  holding a copy of the selected run's chart, its measurement and the profile
+  built from it, and leaves the run you started from exactly as it is. Use it
+  when you want to measure a chart again without losing the readings you have,
+  build a different profile from a measurement you have already taken, or give
+  your verification runs a different chart. Verification runs and their chart
+  are not copied, so the new run is free to use a different one. You are shown
+  exactly what will be copied, and asked, before anything happens.
+
+- **"Skip Patch" works after a failed reading.** It did nothing when the
+  instrument was in the wrong position or when a reading came back
+  inconsistent — the keypress was being swallowed by the reader's own
+  "try again" prompt. Both are handled now, with either reading engine.
+
+- **Recovering from a misread takes one click.** When a reading is discarded as
+  inconsistent, "Take reading" now clears the error, pauses long enough for you
+  to see the status return to Ready, and then takes the reading. The status
+  messages say which control actually works: the button on the instrument
+  cannot clear this state, and now says so.
+
+- **"Calibration complete" names both ways of taking a reading** — the Take
+  reading button and the button on the instrument itself.
+
+- **The "room left on the last page" reminder only appears when the page is
+  nearly full.** It used to appear for any gap at all, so a small chart on a big
+  sheet was told there was space for hundreds more patches — arithmetically true
+  and useless as advice. It now also states how many the page holds, so the
+  number can be checked against the patch count on screen.
+
+- **A patch set printtarg cannot lay out is explained rather than quoted.**
+  "Input file doesn't contain two or three tables" now comes with what it means
+  and two ways forward, and says plainly that your chart files and measurement
+  are untouched.
+
+- **Counted messages read properly.** Eleven messages across the measure, chart,
+  print, scan and report windows said "page(s)" or "file(s)"; they now use real
+  singular and plural. This also unblocks them for translation — several
+  languages cannot express "(s)" at all.
+
+- **The "chart was made for a different instrument" warning now requires a
+  chart.** It could appear with nothing loaded, comparing the connected
+  instrument against a leftover setting and describing a chart that was not
+  there.
+
 ## v3.14.8-beta.117
 
 - **"Restore Used Chart" stops offering itself when there is nothing to
