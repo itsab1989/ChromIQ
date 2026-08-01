@@ -798,7 +798,7 @@ class TabPrint(QWidget):
         bare image can't provide patch geometry."""
         from ui.widgets import open_files_dialog
         paths = open_files_dialog(
-            self, tr("Select TIFF image(s) to print"),
+            self, tr("Select the TIFF images to print"),
             "TIFF images (*.tif *.tiff)",
             extra_path=self._settings.get("custom_output_path", ""),
             preview=True,

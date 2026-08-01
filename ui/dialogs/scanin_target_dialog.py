@@ -323,7 +323,7 @@ class ScaninTargetDialog(_ToolDialogBase):
             "on).")), 0, Qt.AlignmentFlag.AlignVCenter)
         pb.addLayout(th)
         self._tiff_field = QLineEdit(self)
-        self._tiff_field.setPlaceholderText(tr("Pick the saved chart page(s)…"))
+        self._tiff_field.setPlaceholderText(tr("Pick the saved chart pages…"))
         pb.addLayout(self._pick_row(self._tiff_field, self._pick_tiffs))
 
         mh = QHBoxLayout()
@@ -392,7 +392,7 @@ class ScaninTargetDialog(_ToolDialogBase):
 
     def _pick_tiffs(self) -> None:
         paths = open_files_dialog(
-            self, tr("Choose the chart page(s) i1Profiler saved"), _TIFF_FILTER,
+            self, tr("Choose the chart pages i1Profiler saved"), _TIFF_FILTER,
             start_dir=str(_initial_dir(self._settings, self.TOOL_KEY)),
             preview=True,
             declutter_settings=self._settings)

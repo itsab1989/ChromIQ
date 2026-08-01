@@ -301,7 +301,7 @@ def _features():
          tr("A measurement of the chart ({name}.ti3 or a reference .cie/i1Profiler file)"),
          tr("{name}.cht (recognition template) + {name}.cie (reference values)")),
         (tr("Build profile with scanner or camera"),
-         tr("Your scan/photo image(s) + the chart's {name}.cht and {name}.cie"),
+         tr("Your scan or photo images + the chart's {name}.cht and {name}.cie"),
          tr("The scanner/camera ICC profile; cache/ working copies + a -diag.tif")),
         (tr("Verify a profile (Tools)"),
          tr("{name}.icc and a verification {name}-verify.ti3 (the last step of a "

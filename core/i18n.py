@@ -88,6 +88,26 @@ def tr(text: str) -> str:
     return _catalog.get(text, text)
 
 
+def count_phrase(n: int, singular: str, plural: str) -> str:
+    """``"1 page"`` / ``"3 pages"`` — a counted phrase with a real plural.
+
+    House rule (Basti): a message that carries a count gets proper singular and
+    plural forms, never ``"page(s)"``. Both forms are separate catalogue keys,
+    which is also what a translator needs — plenty of languages do not form a
+    plural by adding a letter, and several change the noun's case after a
+    number.
+
+    Pass the two forms already written out, with ``{n}`` where the number goes::
+
+        count_phrase(len(tiffs), tr("1 page"), tr("{n} pages"))
+
+    The singular normally has no placeholder, so it is returned as-is; if it
+    does have one, it is filled in too.
+    """
+    text = singular if n == 1 else plural
+    return text.format(n=n) if "{n}" in text else text
+
+
 def current_language() -> str:
     return _language
 

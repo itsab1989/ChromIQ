@@ -1192,7 +1192,7 @@ class MeasurementReportDialog(QDialog):
         ind = "margin:0 0 0 1.6em"
         intro = (tr("The following profile verification runs are included:")
                  if verification
-                 else tr("The following profile(s) measurement runs are included:"))
+                 else tr("The following profiles' measurement runs are included:"))
         out = (_h2(tr("Report Scope"))
                + "<div>" + html.escape(intro)
                + "</div><ul style='margin:2px 0 6px'>" + items + "</ul>"

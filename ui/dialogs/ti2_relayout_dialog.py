@@ -450,7 +450,7 @@ _STRIP_INSTRUMENTS = frozenset({"i1", "3p"})
 
 # Paper sizes the new-chart dropdown offers — matches the Create Chart tab.
 from data.patch_db import PAPER_LABELS, PAPER_PRINTTARG_ARG, paper_name_token
-from core.i18n import tr
+from core.i18n import count_phrase, tr
 
 
 def _mod_keys() -> dict[str, str]:
@@ -7506,7 +7506,9 @@ class Ti2RelayoutDialog(QDialog):
         except Exception as exc:  # noqa: BLE001
             log.warning("i1Profiler export during save failed: %s", exc)
         tag_note = self._maybe_tag_randomised(res.ti2)
-        msg = f"Saved {res.ti2.name} + {len(res.tiffs)} page(s) to {target}"
+        msg = (f"Saved {res.ti2.name} + "
+               f"{count_phrase(len(res.tiffs), tr('1 page'), tr('{n} pages'))} "
+               f"to {target}")
         if colour_note:
             msg += f"\n{colour_note}"
         if i1_note:
@@ -7575,7 +7577,8 @@ class Ti2RelayoutDialog(QDialog):
                            self._options or R.LayoutOptions(), name,
                            recipe=self._chart_recipe, sync_layout=False)
         pages = len(result.tiff_paths or [])
-        msg = (f"Saved engine chart {name}.ti2 + {pages} page(s) to {target}\n"
+        msg = (f"Saved engine chart {name}.ti2 + "
+               f"{count_phrase(pages, tr('1 page'), tr('{n} pages'))} to {target}\n"
                f"ChromIQ layout engine · {recipe.instrument} · {recipe.paper} · "
                f"seed {result.seed}")
         if extras:

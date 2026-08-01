@@ -762,7 +762,9 @@ class Ti3InfoDialog(QDialog):
             "from it."))
         mono = (tr("clean — greys get lighter step by step")
                 if a.neutral_non_monotonic == 0
-                else tr("{n} reversal(s) — possible misread")
+                else tr("1 reversal — possible misread")
+                if a.neutral_non_monotonic == 1
+                else tr("{n} reversals — possible misread")
                 .format(n=a.neutral_non_monotonic))
         self._row_kv(
             tr("Neutral ramp"), mono,

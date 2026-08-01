@@ -844,7 +844,7 @@ class ScannerProfileDialog(_ToolDialogBase):
                "geometry is stored with the chart (its .channels.json), and "
                "this row just says so.\n\n"
                "For a chart you made outside ChromIQ (for example with "
-               "printtarg on the command line), pick the .cht file(s) that "
+               "printtarg on the command line), pick the .cht files that "
                "printtarg wrote next to your chart — one per page, e.g. "
                "chart_01.cht … chart_05.cht. Select all pages in one go. "
                "ChromIQ checks that the boxes match the chart's .ti2 exactly, "
@@ -1751,14 +1751,21 @@ class ScannerProfileDialog(_ToolDialogBase):
             printed = len(tifs) or (1 if base.with_suffix(".tif").is_file() else 0)
             if stored and printed and stored != printed:
                 self._layout = None
+                # Two independent counts in one sentence, so each is phrased on
+                # its own and slotted in — "(s)" would otherwise have to cover
+                # a 2x2 of singular/plural.
+                _g = (tr("1 recognition page") if stored == 1
+                      else tr("{g} recognition pages").format(g=stored))
+                _t = (tr("1 printed page") if printed == 1
+                      else tr("{t} printed pages").format(t=printed))
                 self._reject_chart(tr(
                     "⚠ This chart's stored scan geometry doesn't match the "
-                    "chart: {g} recognition page(s) for {t} printed page(s). "
+                    "chart: {g_pages} for {t_pages}. "
                     "The chart fills its pages right to the limit, and "
                     "printtarg needs slightly more room in scan mode. Reduce "
                     "the Patch Size Scale a little (e.g. 0.90 instead of "
                     "0.93) and regenerate — or use a ChromIQ layout-engine "
-                    "chart.").format(g=stored, t=printed))
+                    "chart.").format(g_pages=_g, t_pages=_t))
                 return
         # Build the .cht/.cie from the reference (measured .ti3, or .ti2 aim values).
         try:
@@ -1844,13 +1851,13 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._byo_ref = ref
         msg = tr(
             "This chart wasn't made by ChromIQ (no .channels.json) — that's "
-            "fine for a printer profile: pick the .cht page file(s) printtarg "
+            "fine for a printer profile: pick the .cht page files printtarg "
             "wrote for it under “Chart geometry (.cht)” below.")
         self._chart_reject_reason = "⚠ " + msg
         self._chart_note.setText("⚠ " + msg)
         self._log.appendPlainText("⚠ " + msg)
         self._byo_field.setPlaceholderText(
-            tr("pick the chart's .cht page file(s)…"))
+            tr("pick the chart's .cht page files…"))
         self._refresh()
 
     def _pick_byo_cht(self) -> None:
@@ -1863,7 +1870,7 @@ class ScannerProfileDialog(_ToolDialogBase):
             return
         from ui.widgets import open_files_dialog
         paths = open_files_dialog(
-            self, tr("Pick the chart's .cht page file(s)"),
+            self, tr("Pick the chart's .cht page files"),
             tr("Chart geometry (*.cht);;All files (*)"),
             start_dir=str(self._byo_base.parent),
             declutter_settings=self._settings)
@@ -1883,10 +1890,13 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._byo_field.setText(", ".join(p.name for p in cht_paths))
         self._byo_awaiting = False
         self._layout = layout
-        self._log.appendPlainText(tr(
-            "✓ Chart geometry loaded from {n} .cht file(s) — {p} patches "
-            "verified against the chart.").format(n=len(cht_paths),
-                                                  p=res.n_patches))
+        self._log.appendPlainText(
+            (tr("✓ Chart geometry loaded from 1 .cht file — {p} patches "
+                "verified against the chart.").format(p=res.n_patches)
+             if len(cht_paths) == 1 else
+             tr("✓ Chart geometry loaded from {n} .cht files — {p} patches "
+                "verified against the chart.").format(n=len(cht_paths),
+                                                      p=res.n_patches)))
         self._chart_geometry_ready()
 
     def _load_page_grid(self) -> None:
@@ -2431,7 +2441,7 @@ class ScannerProfileDialog(_ToolDialogBase):
             # why a picked chart was rejected instead of a generic hint.
             if self._byo_awaiting and self._printer_mode():
                 self._log.appendPlainText(tr(
-                    "⚠ Pick the chart's .cht page file(s) first — the “Chart "
+                    "⚠ Pick the chart's .cht page files first — the “Chart "
                     "geometry (.cht)” row above — then choose the scan."))
             elif self._chart_reject_reason and not self._standard_mode():
                 self._log.appendPlainText(tr(

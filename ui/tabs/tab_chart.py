@@ -70,7 +70,7 @@ from ui.builtin_preset_popup import BuiltinPresetButton, BuiltinPresetPopup
 from ui.tiff_preview import TiffPreview
 from ui.tooltip_button import InfoDialog, TooltipButton
 from ui.widgets import CollapsibleGroupBox, NoScrollComboBox, NoScrollSpinBox, PatchGridButton, PrefixLockedLineEdit, icc_profile_paths, load_magenta_folder_icon, make_browse_button, open_file_dialog, set_folder_icon, set_preset_icon
-from core.i18n import tr
+from core.i18n import count_phrase, tr
 from workflow.i1profiler_export import EXTRA_INK, export_from_ti1, parse_ti1
 from workflow.i1profiler_import import import_to_ti1
 from workflow.chart_creator import (
@@ -6849,7 +6849,8 @@ class TabChart(QWidget):
         self._log.clear()
         self._log.appendPlainText(
             f"Reflecting loaded chart “{ti2_path.name}” "
-            f"({len(tiffs)} page(s)). Loaded for reference only — not generated."
+            f"({count_phrase(len(tiffs), tr('1 page'), tr('{n} pages'))}). "
+            + tr("Loaded for reference only — not generated.")
         )
         if Path(ti2_path).with_suffix(".channels.json").is_file():
             self._log.appendPlainText(tr(
@@ -7078,7 +7079,8 @@ class TabChart(QWidget):
         self._last_target_name = name
         self._log.appendPlainText(
             f"Applied chart from the layout editor into {work_dir} "
-            f"({len(tiffs)} page(s)). targen and printtarg skipped."
+            f"({count_phrase(len(tiffs), tr('1 page'), tr('{n} pages'))}). "
+            + tr("targen and printtarg skipped.")
         )
         # The laid-out .ti2 may hold more patches than the designed .ti1: a
         # partial last strip is topped up with paper-white patches (printtarg
@@ -7224,7 +7226,8 @@ class TabChart(QWidget):
 
         self._last_target_name = name
         self._log.appendPlainText(
-            f"Copied prebuilt patch set into {work_dir} ({len(tiffs)} page(s)). "
+            f"Copied prebuilt patch set into {work_dir} "
+            f"({count_phrase(len(tiffs), tr('1 page'), tr('{n} pages'))}). "
             "targen and printtarg skipped."
         )
         # Prebuilt sets aren't generated from ChartParams — clear any stale

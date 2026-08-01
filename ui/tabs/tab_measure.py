@@ -1230,8 +1230,8 @@ class TabMeasure(QWidget):
         self._load_ti1_btn.setToolTip(tr(
             "Load a chart file (.ti2) to measure.\n\n"
             "This is the laid-out chart ChromIQ made for you in Create Chart — "
-            "the same one you printed. Pick it here and the preview shows the "
-            "page(s) so you can read them strip by strip. The finished "
+            "the same one you printed. Pick it here and the preview shows its "
+            "pages so you can read them strip by strip. The finished "
             "measurements are saved as a .ti3 file for building the profile."))
         self._load_ti1_btn.clicked.connect(self._on_load_ti2)
         self._reveal_btn = RevealFolderButton(_TAB_COLOR, top_widget)
@@ -5799,10 +5799,19 @@ class TabMeasure(QWidget):
             n = len(self._strip_list)
             dlg.setWindowTitle(tr("Calibration Complete — Guided Refinement Ready"))
 
-            msg = QLabel(
-                tr("<b>Calibration complete. The app will guide you to each strip.</b><br><br>There are <b>{n} strip(s)</b> to re-measure. The app will automatically navigate chartread to each one — <b>you do not need to press f or b yourself.</b>").format(n=n),
-                dlg,
-            )
+            # Real singular and plural, never "(s)": one strip to re-measure is
+            # a common case here, and "1 strip(s)" reads like a bug.
+            body = (tr("<b>Calibration complete. The app will guide you to the "
+                       "strip.</b><br><br>There is <b>1 strip</b> to re-measure. "
+                       "The app will navigate chartread to it for you — <b>you "
+                       "do not need to press f or b yourself.</b>")
+                    if n == 1 else
+                    tr("<b>Calibration complete. The app will guide you to each "
+                       "strip.</b><br><br>There are <b>{n} strips</b> to "
+                       "re-measure. The app will automatically navigate "
+                       "chartread to each one — <b>you do not need to press f "
+                       "or b yourself.</b>").format(n=n))
+            msg = QLabel(body, dlg)
             msg.setWordWrap(True)
             layout.addWidget(msg)
 
@@ -6052,8 +6061,15 @@ class TabMeasure(QWidget):
         if self._guided_refinement_active:
             n = len(self._strip_list)
             dlg.setWindowTitle(tr("Re-measurement Complete"))
+            # The rest of the window is identical either way; only the opening
+            # sentence counts, so only that varies (real plural, never "(s)").
+            _opening = (tr("<b>The chart strip has been re-measured "
+                           "successfully.</b>") if n == 1 else
+                        tr("<b>All {n} chart strips have been re-measured "
+                           "successfully.</b>").format(n=n))
             msg = QLabel(
-                tr("<b>All {n} chart strip(s) have been re-measured successfully.</b><br><br>What would you like to do next?<br><br>&nbsp;&nbsp;•&nbsp; <b>Build Profile</b> — saves the measurement and takes you straight to the Build Profile tab to create your updated ICC profile.<br><br>&nbsp;&nbsp;•&nbsp; <b>Continue Measuring Manually</b> — keeps chartread running so you can scan additional strips yourself. You will have <b>full manual control</b>: use <b>f</b>&nbsp;/&nbsp;<b>b</b> to move between strips, <b>n</b> to jump to the next unread one, and <b>d</b> when you are done. The automatic strip navigation is switched off for the rest of this session.").format(n=n),
+                _opening
+                + tr("<br><br>What would you like to do next?<br><br>&nbsp;&nbsp;•&nbsp; <b>Build Profile</b> — saves the measurement and takes you straight to the Build Profile tab to create your updated ICC profile.<br><br>&nbsp;&nbsp;•&nbsp; <b>Continue Measuring Manually</b> — keeps chartread running so you can scan additional strips yourself. You will have <b>full manual control</b>: use <b>f</b>&nbsp;/&nbsp;<b>b</b> to move between strips, <b>n</b> to jump to the next unread one, and <b>d</b> when you are done. The automatic strip navigation is switched off for the rest of this session."),
                 dlg,
             )
         elif is_cal:

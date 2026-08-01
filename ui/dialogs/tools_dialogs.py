@@ -1219,7 +1219,7 @@ class Ti1ToI1ProfilerDialog(_ToolDialogBase):
             names = ", ".join(p.name for p in existing)
             choice = confirm(
                 self,
-                tr("Overwrite existing file(s)?"),
+                tr("Overwrite the existing files?"),
                 tr("These files already exist in:\n  {folder}\n\n  {names}\n\nOverwrite?"
                    ).format(folder=out_dir, names=names),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
