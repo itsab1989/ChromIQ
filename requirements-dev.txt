@@ -12,4 +12,8 @@
 
 pytest>=8.0
 pytest-qt>=4.4      # provides the `qapp` fixture used across the UI tests
+pytest-xdist>=3.8   # parallel runs: -n 8 --dist loadfile. loadfile keeps a
+                    # file's tests in one worker — order within a file is
+                    # load-bearing in places, and this suite has had a
+                    # stylesheet leak travel 400 tests before now.
 pypdf>=4.0          # test-only: parses the vector-PDF export for fidelity checks

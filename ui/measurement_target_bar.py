@@ -923,6 +923,18 @@ class MeasurementTargetBar(QWidget):
                 return
         result = self._ctl.restore_used_chart()
         if result is None:
+            # Knut, #130: the button was enabled, he clicked it, and nothing
+            # happened at all — no chart restored and no word about why. A
+            # control that can silently do nothing is a fault whatever the
+            # cause underneath, so it now says so instead of returning quietly.
+            QMessageBox.information(
+                self, tr("There is nothing to restore right now"),
+                tr("ChromIQ could not work out which run's stored chart to put "
+                   "back, so nothing has been changed.\n\n"
+                   "This usually means the Profile run or Verification date "
+                   "selection has moved on since the button was last enabled. "
+                   "Pick the run you want in the bar and try again — your files "
+                   "are exactly as they were."))
             return
         if not result.ok:
             QMessageBox.warning(

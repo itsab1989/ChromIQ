@@ -227,7 +227,9 @@ def snapshot_matches_live(slot) -> bool:
     live = list(slot.files_to_copy())
     if not live:
         return False
-    stored = [f for f in d.iterdir() if f.is_file()]
+    # Through the same filter as everything else, so a stray .DS_Store cannot
+    # make two identical charts look different and re-enable the button.
+    stored = slot_snapshot_files(slot)
     if {f.name for f in stored} != {f.name for f in live}:
         return False
     try:
@@ -279,10 +281,19 @@ def snapshot_slot(slot) -> "Path | None":
 
 
 def slot_snapshot_files(slot) -> "list[Path]":
+    """The stored chart's files — never the operating system's own leftovers.
+
+    macOS drops ``.DS_Store`` into any folder opened in Finder, and it was being
+    snapshotted and restored as though it were part of the chart (found while
+    reproducing Knut's `.cht` report, #130 2026-08-01). Harmless in effect, but
+    it makes "the stored chart" contain something that is not the chart, and it
+    skews the comparison that decides whether a restore would change anything.
+    """
     d = slot.snapshot_dir
     if not d.exists():
         return []
-    return sorted(p for p in d.iterdir() if p.is_file())
+    return sorted(p for p in d.iterdir()
+                  if p.is_file() and not p.name.startswith("."))
 
 
 def slot_has_snapshot(slot) -> bool:

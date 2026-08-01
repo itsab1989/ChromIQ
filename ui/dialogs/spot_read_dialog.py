@@ -43,6 +43,7 @@ from workflow.spot_read_io import SpotReading, average_readings, write_csv, writ
 from workflow.spot_read_manager import SpotReadManager, SpotReadParams
 
 import logging
+import re
 
 from ui.ti2_loader import calibration_instructions_html
 
@@ -62,6 +63,18 @@ _HELP = tr(
     "its L*a*b* value and an approximate on-screen colour. Save writes a CSV (for "
     "a spreadsheet) and an Argyll .ti3 (for other tools)."
 )
+
+
+def _without_call_to_action(html: str) -> str:
+    """Drop a trailing "then click <b>Start Calibration</b>." from shared text.
+
+    `calibration_instructions_html` is written for the Measure tab, whose button
+    is Start Calibration. Reused verbatim in a window with a different button it
+    tells the user to click something that is not there (Knut, #130 2026-08-01).
+    """
+    out = re.sub(r",?\s*(?:and\s+)?then click <b>Start Calibration</b>\.?",
+                 ".", html, flags=re.IGNORECASE)
+    return re.sub(r"\.\.", ".", out)
 
 
 class SpotReadDialog(QDialog):
@@ -439,10 +452,16 @@ class SpotReadDialog(QDialog):
         msg = QLabel(
             tr("<b>The calibration cannot start yet — the instrument is not in "
                "its calibration position.</b><br><br>")
-            + calibration_instructions_html(self._instrument_family())
-            + tr("<br><br>Put the instrument in position, then click <b>Try "
-                 "again</b>. Nothing has gone wrong, and your session is still "
-                 "running."),
+            # The shared instructions end with "then click Start Calibration",
+            # which is the Measure tab's button, not this window's. Knut caught
+            # it (#130, 2026-08-01) — the same fault as naming "Read patch"
+            # earlier, so the trailing call to action is dropped here and this
+            # window names its own button. He also asked for the reassurance
+            # sentence to go; it was padding.
+            + _without_call_to_action(
+                calibration_instructions_html(self._instrument_family()))
+            + tr("<br><br>Put the instrument in position, then click "
+                 "<b>Try again</b>."),
             dlg,
         )
         msg.setWordWrap(True)

@@ -1,5 +1,27 @@
 # Changelog
 
+## v3.14.8-beta.116
+
+- **"Restore Used Chart" never does nothing in silence again.** If ChromIQ
+  cannot work out which run's stored chart to put back, it now says so and
+  points at the Profile-run bar, instead of leaving the button looking broken.
+
+- **Files the operating system leaves behind are no longer treated as part of
+  your chart.** macOS writes a hidden `.DS_Store` into any folder you open in
+  Finder, and it was being stored with the chart and copied back with it. It is
+  now ignored everywhere the stored chart is read — including the check that
+  decides whether restoring would change anything at all.
+
+- **Read single patches: the "not ready to calibrate" window names its own
+  button.** It borrowed the Measure tab's instructions, which end by telling you
+  to click Start Calibration — a button that does not exist in that window,
+  where it is called Try again.
+
+- **Stock ArgyllCMS chartread now identifies the instrument**, as the ChromIQ
+  engine already did and the single-patch tool learned in beta.115. Anything
+  written for a particular instrument now says the right thing whichever reader
+  you use.
+
 ## v3.14.8-beta.115
 
 - **Read single patches now knows which instrument is connected.** The

@@ -52,6 +52,9 @@ _ARE_YOU_SURE_RE       = re.compile(r"Are\s+you\s+sure\s+\[y/n\]",              
 
 # --- A. Mid-measurement recovery prompts ---------------------------------
 # chartread.c 3.5.0 L1608: user hit the instrument switch / Ctrl-C mid-strip.
+# The instrument line stock chartread prints under -v. Identical in
+# wording to spotread's, verified from Knut's terminal on both tools.
+_INST_TYPE_RE      = re.compile(r"Instrument Type:\s*(.+?)\s*$", re.IGNORECASE)
 _STRIP_INTERRUPTED_RE  = re.compile(r"Strip read stopped at user request",      re.IGNORECASE)
 # chartread.c 3.5.0 L1593: user pressed 'd' while patches are still unread.
 # Captures the "id, loc" payload so we can show the user which patch is missing.
@@ -692,7 +695,14 @@ class MeasureManager(QObject):
     # ------------------------------------------------------------------
 
     def _build_args(self, p: MeasureParams) -> list[str]:
-        args: list[str] = ["-c", p.instrument]
+        # -v makes stock chartread name the instrument it opened, exactly as
+        # spotread does. Until now ChromIQ identified the device ONLY when the
+        # ChromIQ engine was driving the read — on stock ArgyllCMS it knew
+        # nothing, so anything keyed on the instrument fell back to generic
+        # wording. Knut settled that -v changes nothing else by running both
+        # forms side by side (#130, 2026-07-31): the only difference is a short
+        # header, and "Instrument Type:" is the same line spotread prints.
+        args: list[str] = ["-v", "-c", p.instrument]
         # -B (disable) and -b (force enable) are mutually exclusive; -B wins
         # if both are somehow set.
         if p.disable_bidir:
@@ -909,6 +919,16 @@ class MeasureManager(QObject):
 
     def _handle_line(self, line: str, on_line: Callable[[str], None]) -> None:
         on_line(line)
+        # Stock chartread announces the device in its -v header, before any
+        # strip work begins. The engine reports the same thing as a JSON event
+        # (see the "instrument" branch above), so both readers now identify the
+        # instrument and the windows keyed on it stop falling back to generic
+        # wording (#130, Knut 2026-07-31).
+        m = _INST_TYPE_RE.search(line)
+        if m:
+            self.instrument_detected.emit(m.group(1).strip())
+            return
+
         matches = _STRIP_RE.findall(line)
         if matches:
             current = matches[-1]
