@@ -153,3 +153,56 @@ def test_the_start_path_archives_after_asking():
     assert "_archive_measurement_before_replacing" in src
     assert (src.index("_confirm_replacing_measurement")
             < src.index("_archive_measurement_before_replacing"))
+
+
+# ---- the refine-strips row is all-or-nothing -----------------------------
+def test_the_refine_row_never_shows_an_empty_space(tab_and_ti3):
+    """Knut, 2026-08-01: *"the 'Refine...' checkbox is an empty space, but its
+    help icon is there and present."*
+
+    The row and the checkbox inside it were decided in two different places —
+    the row followed the resume tick, the checkbox followed whether a
+    measurement exists. Ticking resume while the checkbox was hidden showed a
+    row containing nothing but its ⓘ, which is added straight to the layout and
+    so was never hidden with it.
+    """
+    from ui.tooltip_button import TooltipButton
+    tab, _ti3, _run = tab_and_ti3
+    guided = tab._current_mode() == "guided"
+    resume = tab._resume_cb if guided else tab._m_resume_cb
+    row = tab._refine_row if guided else tab._m_refine_row
+    cb = tab._refine_cb if guided else tab._m_refine_cb
+
+    resume.setChecked(True)
+    tab._sync_refine_rows()
+    if not row.isHidden():
+        assert not cb.isHidden(), "a visible row must show its checkbox"
+        for tip in row.findChildren(TooltipButton):
+            assert not tip.isHidden()
+
+
+def test_no_measurement_hides_the_whole_row(tab_and_ti3):
+    """The other half of the same fault (#130, 2026-07-30): a lone sub-option
+    offering to refine a measurement that does not exist."""
+    tab, ti3, _run = tab_and_ti3
+    guided = tab._current_mode() == "guided"
+    resume = tab._resume_cb if guided else tab._m_resume_cb
+    row = tab._refine_row if guided else tab._m_refine_row
+
+    resume.setChecked(True)
+    ti3.unlink()
+    tab._sync_refine_rows()
+    assert row.isHidden(), "no measurement → the whole row goes, ⓘ included"
+
+
+def test_unticking_resume_takes_the_row_with_it(tab_and_ti3):
+    tab, _ti3, _run = tab_and_ti3
+    guided = tab._current_mode() == "guided"
+    resume = tab._resume_cb if guided else tab._m_resume_cb
+    row = tab._refine_row if guided else tab._m_refine_row
+
+    resume.setChecked(True)
+    tab._sync_refine_rows()
+    resume.setChecked(False)
+    tab._sync_refine_rows()
+    assert row.isHidden()

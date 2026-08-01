@@ -1706,10 +1706,7 @@ class TabMeasure(QWidget):
         cg.addLayout(precond_row)
 
         self._resume_cb.stateChanged.connect(
-            lambda state: self._refine_row.setVisible(
-                state == Qt.CheckState.Checked.value
-            )
-        )
+            lambda _state: self._sync_refine_rows())
         self._resume_cb.toggled.connect(lambda _checked: self._refresh_start_button_label())
 
         ll.addWidget(core_grp)
@@ -2184,10 +2181,7 @@ class TabMeasure(QWidget):
         mcg.addLayout(m_precond_row)
 
         self._m_resume_cb.stateChanged.connect(
-            lambda state: self._m_refine_row.setVisible(
-                state == Qt.CheckState.Checked.value
-            )
-        )
+            lambda _state: self._sync_refine_rows())
         self._m_resume_cb.toggled.connect(lambda _checked: self._refresh_start_button_label())
 
         ll.addWidget(m_core_grp)
@@ -3537,16 +3531,39 @@ class TabMeasure(QWidget):
             for rcb in (self._refine_cb, self._m_refine_cb):
                 rcb.setEnabled(False)
                 rcb.setChecked(False)
-        # …and it is only ever on screen when the option it belongs to is.
-        # Knut, #130 2026-07-30, on an empty measurement: *"then 'Refine /
-        # resume..' and 'Show overlay...' are hidden, but the sub-level checkbox
-        # 'Use refinement strips file ....' still shows"* — a lone sub-option
-        # under nothing, offering to refine a measurement that does not exist.
-        for rcb in (self._refine_cb, self._m_refine_cb):
-            rcb.setVisible(has_ti3)
-            if not has_ti3:
+        if not has_ti3:
+            for rcb in (self._refine_cb, self._m_refine_cb):
                 rcb.setChecked(False)
+        self._sync_refine_rows()
         self._refresh_start_button_label()
+
+    def _sync_refine_rows(self) -> None:
+        """Show the "use refinement strips file" row, ⓘ and all, or hide it whole.
+
+        Knut, #130 2026-07-30: *"'Refine / resume..' and 'Show overlay...' are
+        hidden, but the sub-level checkbox 'Use refinement strips file ....'
+        still shows"* — a lone sub-option under nothing. Then, 2026-08-01, the
+        other half of the same fault: *"the 'Refine...' checkbox is an empty
+        space, but its help icon is there and present."*
+
+        Both came from the row and the checkbox inside it being decided in two
+        different places. The row followed the resume tick; the checkbox
+        followed whether a measurement exists. Tick resume while the checkbox
+        was hidden and the row appeared holding nothing but its help icon —
+        which is what he saw, because its ⓘ is added straight to the layout and
+        so was never hidden with it.
+
+        One decision now, for both modes: the row is on screen when there is a
+        measurement to refine AND the resume option it belongs to is ticked.
+        """
+        ti3 = (self._ti1_path.with_suffix(".ti3")
+               if self._ti1_path is not None else None)
+        has_ti3 = bool(ti3 and ti3.exists() and not _cgats_has_no_readings(ti3))
+        for row, resume in ((self._refine_row, self._resume_cb),
+                            (self._m_refine_row, self._m_resume_cb)):
+            if row is None or resume is None:
+                continue
+            row.setVisible(has_ti3 and resume.isChecked())
 
     def _update_precond_availability(self) -> None:
         """Show the 'also use pre-conditioning data' option when ChromIQ-style
