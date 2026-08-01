@@ -288,6 +288,10 @@ class _Box:
 class _Measure(__import__("PyQt6.QtWidgets", fromlist=["QWidget"]).QWidget):
     from ui.tabs.tab_measure import TabMeasure
     _confirm_replacing_measurement = TabMeasure._confirm_replacing_measurement
+    # Borrowed too: _confirm_replacing_measurement asks this rather than
+    # re-implementing the resume test, so the archive and the question can
+    # never disagree (#130, 2026-08-01 — they did, and it lost a measurement).
+    _read_builds_on_existing = TabMeasure._read_builds_on_existing
     # Which measurement is at risk became its own lookup in beta.76, so a
     # verification's readings are found in their dated folder rather than
     # beside the shared chart. With no target controller it falls through to
