@@ -781,7 +781,11 @@ GLOSSARY_CARD: dict = {
     "steps": [],
     "kind": "glossary",
 }
-WORKFLOWS.append(GLOSSARY_CARD)
+# Knut, #130 2026-08-01: *"in the Welcome to ChromIQ window, swap
+# position/places of help card 'Dictionary and terminology' with
+# 'Profiling a CMYK+N printer'."* The CMYK+N card is appended where the
+# glossary used to sit; the glossary now follows it (see below). Only the
+# order changes — neither card's content is touched.
 
 
 # "Where are my files?" — the project-folder guide (#125, Knut). Its own card
@@ -922,6 +926,7 @@ CMYK_N_CARD: dict = {
     "body": _cmyk_n_body(),
 }
 WORKFLOWS.append(CMYK_N_CARD)
+WORKFLOWS.append(GLOSSARY_CARD)
 
 
 # Keyboard shortcuts — its own card (Knut/Sebastian keyboard-accessibility pass),
