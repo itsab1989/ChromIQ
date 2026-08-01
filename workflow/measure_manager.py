@@ -864,6 +864,13 @@ class MeasureManager(QObject):
             self.unread_confirm.emit(info)
 
         elif kind == "strip_warning":
+            # The helper is blocked on "Hit Return to use it anyway, any other
+            # key to retry, Esc or 'q' to give up". That is a retry prompt like
+            # any other, and Skip has to acknowledge it before it can navigate
+            # — without this the navigation key is spent as the prompt's "any
+            # other key" and the reader never moves (Knut, #130 A2: Skip Patch
+            # does nothing "when the reading is inconsistent").
+            self._at_retry_prompt = True
             if ev.get("kind") == "wrong_strip":
                 self.wrong_strip.emit(str(ev.get("read", "?")).upper(),
                                       str(ev.get("expected", "?")).upper())
@@ -887,6 +894,21 @@ class MeasureManager(QObject):
                 self._at_retry_prompt = True
                 self._engine_fatal = "communication problem"
                 self.strip_error.emit("communication problem")
+            elif ekind == "read_error":
+                # The helper's generic ierror() path — where "Wrong Sensor
+                # Position" lands. It prints the same "any other key to retry"
+                # prompt as a misread and waits there, but nothing here said so,
+                # so Skip Patch sent its navigation key straight into the prompt
+                # and the reader stayed on the same patch (Knut, #130 A2, the
+                # wrong-sensor-position half: "Skip Patch does not work after a
+                # failed read").
+                #
+                # Stock chartread reaches this through the printed text instead
+                # (_GENERIC_IERROR_RE in _handle_line); this is the engine's
+                # equivalent, and both must set the flag.
+                self._at_retry_prompt = True
+                detail = str(ev.get("detail") or "")
+                self.generic_instrument_error.emit(detail or "read error", detail)
             elif ekind == "needs_cal":
                 on_line("[Engine] Instrument needs calibration…")
             elif ekind == "no_instrument":
@@ -993,6 +1015,9 @@ class MeasureManager(QObject):
                 self.strip_interrupted.emit()
         m = _GENERIC_IERROR_RE.search(line)
         if m:
+            # ierror() waits on "any other key to retry" exactly like a misread,
+            # so Skip must acknowledge the prompt before it navigates (#130 A2).
+            self._at_retry_prompt = True
             self.generic_instrument_error.emit(m.group(1).strip(), m.group(2).strip())
 
         # B. Startup / config failures -------------------------------------

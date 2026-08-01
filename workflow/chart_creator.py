@@ -97,6 +97,26 @@ _PRINTTARG_ERROR_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
      "unsupported_instrument",
      "printtarg doesn't support the selected instrument for chart layout. "
      "Pick a different chart instrument in the Chart tab."),
+    # Knut, #130 2026-08-01: "printtarg error: input file doesn't contain two or
+    # three tables". The tool's own words are accurate and tell nobody what to
+    # do — a ".ti1 with the wrong number of tables" is not a thing most people
+    # have a mental model of. What it means in practice: the patch list is only
+    # the colours, without the two extra tables printtarg needs to lay a sheet
+    # out, which is what a .ti1 exported by another program usually looks like.
+    (re.compile(r"[Ii]nput file doesn't contain two or three tables"),
+     "ti1_wrong_tables",
+     "This patch set can't be laid out by printtarg because its .ti1 file holds "
+     "only the list of colours. printtarg also needs the two extra sections that "
+     "describe how the patches are grouped, and a .ti1 exported by another "
+     "program often has just the colours.\n\n"
+     "Two ways forward:\n\n"
+     "•  Turn on “Use the ChromIQ layout engine instead of printtarg” in Manual "
+     "mode — the ChromIQ engine lays this patch set out from the colours alone, "
+     "so it does not need those sections.\n\n"
+     "•  Or generate the patch set in ChromIQ (Create Chart → Generate Chart), "
+     "which writes a .ti1 with everything printtarg expects.\n\n"
+     "Nothing has been changed or lost: your chart files and any measurement in "
+     "this run are exactly as they were."),
     # L347 / L364 / L379 (PostScript path) and L752/L768/L786 (TIFF path) and
     # L971/L987/L1005 (Render2D path)
     (re.compile(r"Device (white|black|CMY) encoding not appropriate"),

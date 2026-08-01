@@ -6742,7 +6742,16 @@ class TabChart(QWidget):
             if (self._manual_engine_check is not None
                     and self._manual_engine_check.isChecked()):
                 self._manual_engine_check.setChecked(False)
-            self._restore_printtarg_fields(doc.get("printtarg_fields"))
+        # BOTH chart kinds get their printtarg fields back, not just printtarg
+        # charts. On an engine chart these values are inert — the engine lays
+        # the sheet out and the printtarg panel is hidden — but they are still
+        # *recorded* in the sidecar, and leaving them alone meant a rebuild
+        # wrote whatever the panel happened to hold. The sidecar then differed
+        # from the stored one, the rebuild guard reported that the chart had
+        # been altered, and the warning was about nothing: the layout was
+        # identical and only this dormant history had moved (#130, seen while
+        # reproducing Knut's Second-Project-R restore).
+        self._restore_printtarg_fields(doc.get("printtarg_fields"))
         return restored_full
 
     def _snapshot_printtarg_fields(self) -> list:
