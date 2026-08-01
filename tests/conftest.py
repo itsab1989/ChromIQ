@@ -16,6 +16,8 @@ directly via ``workflow.ti2_relayout``), and tests that need bespoke behaviour
 still override ``_regenerate`` on their own instance. So default it to a no-op
 at the class level: no real subprocess, no cross-test signal leak, no modal.
 """
+from pathlib import Path
+
 import pytest
 
 # On Windows/ARM, make freetype-py find our vendored ARM64 FreeType before any
@@ -36,6 +38,49 @@ def _no_real_editor_render(monkeypatch):
         return
     monkeypatch.setattr(Ti2RelayoutDialog, "_regenerate",
                         lambda self, *a, **k: None, raising=False)
+
+
+# ---------------------------------------------------------------------------
+# The suite never writes into the user's real ChromIQ folder.
+#
+# Basti, 2026-08-01: *"some of those tests create files on my machine every time
+# they run … until now i deleted them manually"* — 77 project folders named
+# `Printer_Paper_Type_Instr_<timestamp>` had accumulated, one per gate run.
+#
+# The trap is quiet. Overriding a test's QSettings is not enough: with
+# `custom_output_path` left at its default of "", the FileManager falls back to
+# ~/ChromIQ, and anything that asks where it is working makes
+# `get_target_name()` INVENT that name and create the folder. A test can look
+# perfectly isolated and still do this.
+#
+# So it is caught here rather than left to review, and named per test. Nothing
+# is ever deleted: the folder holds real projects, and a test suite that tidies
+# a developer's data is a worse idea than one that leaves a mess.
+# ---------------------------------------------------------------------------
+_REAL_CHROMIQ = Path.home() / "ChromIQ"
+
+
+def _real_chromiq_entries() -> set:
+    try:
+        return {p.name for p in _REAL_CHROMIQ.iterdir()}
+    except OSError:
+        return set()
+
+
+@pytest.fixture(autouse=True)
+def _never_touch_the_real_chromiq_folder():
+    before = _real_chromiq_entries()
+    yield
+    new = sorted(_real_chromiq_entries() - before)
+    assert not new, (
+        "this test wrote into the real ~/ChromIQ folder: "
+        f"{new}\n"
+        "Point the settings at tmp_path — overriding QSettings alone leaves "
+        "custom_output_path at its default, which IS ~/ChromIQ:\n"
+        '    s.set("custom_output_path", str(tmp_path / "out"))\n'
+        "Nothing has been deleted; remove the stray folder(s) by hand if you "
+        "want them gone."
+    )
 
 
 # ---------------------------------------------------------------------------

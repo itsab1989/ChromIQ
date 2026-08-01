@@ -48,6 +48,13 @@ def qapp():
 def settings(tmp_path):
     s = AppSettings()
     s._qs = QSettings(str(tmp_path / "chromiq_test.ini"), QSettings.Format.IniFormat)
+    # Overriding QSettings alone is not enough: `custom_output_path` then falls
+    # back to its default of "", which means the REAL ~/ChromIQ. Seeding a
+    # preset asks the FileManager where it is working, that invents a
+    # "Printer_Paper_Type_Instr_<timestamp>" name and creates the folder — so
+    # every gate run left a project behind on the developer's machine
+    # (Basti, 2026-08-01, after deleting 77 of them by hand).
+    s.set("custom_output_path", str(tmp_path / "out"))
     return s
 
 
