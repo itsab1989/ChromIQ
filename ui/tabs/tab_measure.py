@@ -3951,6 +3951,19 @@ class TabMeasure(QWidget):
         to make.
         """
         try:
+            # THERE HAS TO BE A CHART. The window says "the chart you are about
+            # to measure", and `chart_instrument` is an app-wide setting, so
+            # with no chart loaded the comparison is between a connected device
+            # and a leftover preference — a warning about nothing, naming a
+            # chart that is not there.
+            #
+            # It was reachable: opening the Measure tab with an instrument
+            # connected and no chart raised it, and in the test suite it hung a
+            # worker outright on a modal nobody could answer (the stack in the
+            # #130 note of 2026-08-01). A warning that depends on state nobody
+            # set is a warning that appears when it should not.
+            if getattr(self, "_ti1_path", None) is None:
+                return
             from data.patch_db import instrument_mismatch
             chart_code = str(self._settings.get("chart_instrument", "") or "")
             pair = instrument_mismatch(chart_code, model)
