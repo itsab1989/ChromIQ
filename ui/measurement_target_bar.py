@@ -743,7 +743,9 @@ class MeasurementTargetBar(QWidget):
             "in. Charts you create, print or measure for this selection are "
             "read from and written to this folder, inside your ChromIQ folder. "
             "It follows the two dropdowns above, so you can always see where "
-            "your files are going before you do anything."))
+            "your files are going before you do anything.\n\n"
+            "If you would rather not see it, you can turn this line off in "
+            "Preferences → General with “Show the location being edited”."))
         # The path can be long, and it must never be what decides how wide the
         # bar has to be: a label that refuses to shrink drags the bar out past
         # the version text, or — worse — forces a minimum the rail cannot give,
@@ -1354,12 +1356,33 @@ class MeasurementTargetBar(QWidget):
                         exc_info=True)
         self._ctl.notify_changed()
 
+    def _settings_show_location(self) -> bool:
+        """Whether Preferences says to show the "Location being edited" line.
+
+        Reached through the controller's file manager: the bar has no settings
+        of its own, and giving it one would mean changing every place that
+        builds a bar. Defaults to showing it — the line is what answers "where
+        are my files?", so a lookup that fails must not silently hide it.
+        """
+        try:
+            settings = getattr(self._ctl._fm, "_settings", None)
+            if settings is None:
+                return True
+            return bool(settings.get("show_location_being_edited", True))
+        except Exception:      # noqa: BLE001 — never break the bar over a setting
+            return True
+
     def _update_location(self) -> None:
         """Refresh the "Location being edited" line for the current selection
         (#130, Knut). Hidden entirely until a profile project is open, so an
         empty app never shows a half-formed path."""
         where = self._ctl.location_being_edited()
-        self._location.setVisible(bool(where))
+        # Turned off in Preferences → General, the line goes entirely — Knut
+        # settled the polarity (#130, 2026-07-31): *"I prefer 'Show the location
+        # being edited', enabled shows."* Read here rather than cached, so the
+        # bar follows the preference the moment it is changed.
+        show = bool(self._settings_show_location())
+        self._location.setVisible(bool(where) and show)
         # Clear the text too, so a hidden label can never surface a stale path
         # if something shows it again later.
         self._location_full = (

@@ -241,6 +241,14 @@ DEFAULTS: dict[str, Any] = {
     # ChromIQ reopen wherever you left off.
     "restore_last_tab":          False,
     "restore_last_session":      False,
+    # The "Location being edited" line under the Profile-run bar. Sebastian
+    # asked (#130, 2026-07-31) whether it could be hidden to simplify the
+    # interface for people who never run verifications; Knut agreed, and settled
+    # the wording and the polarity: *"I prefer 'Show the location being edited',
+    # enabled shows."* Default ON — when file handling goes wrong that line is
+    # the first thing anyone looks at, so hiding it by default would cost the
+    # one detail that usually explains the problem.
+    "show_location_being_edited": True,
     "appearance":                "auto",   # "light" | "dark" | "auto"
     "language":                  "en",     # ISO code; applied on restart (core/i18n.py)
     # When True, file open/save/folder pickers use the OS-native dialog instead

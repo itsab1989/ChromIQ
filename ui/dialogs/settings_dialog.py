@@ -410,6 +410,31 @@ class SettingsDialog(QDialog):
             min_width=560,
         )
 
+        self._show_location_check = QCheckBox(
+            tr("Show the location being edited"), self)
+        show_location_tip = TooltipButton(
+            tr("Show the Location Being Edited"),
+            tr("Keeps the line of text under the Profile-run bar that spells "
+               "out which folder ChromIQ is working in right now — for "
+               "example “ChromIQ/My-Printer/runs/run2/”.\n\n"
+               "It follows the “Profile run” and “Run type” boxes above it, so "
+               "before you create, print or measure anything you can see "
+               "exactly where those files will be read from and written to.\n\n"
+               "WHY YOU MIGHT WANT IT ON\n"
+               "As soon as a project has more than one run — and most do, once "
+               "you make a second profile for the same printer — this line is "
+               "the quickest way to check you are working where you think you "
+               "are. It is also the first thing worth looking at if a file "
+               "ever turns up somewhere unexpected.\n\n"
+               "WHY YOU MIGHT WANT IT OFF\n"
+               "If you keep one project with one run, it answers a question "
+               "you never ask, and the interface is a little simpler without "
+               "it. Nothing changes except that the line is hidden: ChromIQ "
+               "still works in exactly the same folders."),
+            self,
+            min_width=600,
+        )
+
         self._cal_mode_check = QCheckBox(tr("Enable calibration options"), self)
         cal_tip = TooltipButton(
             tr("Enable Calibration Options"),
@@ -1063,6 +1088,7 @@ class SettingsDialog(QDialog):
             _bh_cell(self._restore_session_check, restore_session_tip),
             _bh_cell(self._update_notify_check, update_notify_tip),
             _bh_cell(self._themed_colors_check, themed_colors_tip),
+            _bh_cell(self._show_location_check, show_location_tip),
             _bh_cell(self._native_files_check, native_files_tip),
             _bh_cell(self._cal_mode_check, cal_tip),
             _bh_cell(self._chromiq_refine_check, refine_tip),
@@ -2513,6 +2539,8 @@ class SettingsDialog(QDialog):
         self._themed_colors_check.setChecked(bool(s.get("gamut_themed_colors", True)))
         self._native_files_check.setChecked(bool(s.get("use_native_file_dialogs", False)))
         self._cal_mode_check.setChecked(bool(s.get("calibration_mode", False)))
+        self._show_location_check.setChecked(
+            bool(s.get("show_location_being_edited", True)))
         # Scanner Limits — must follow Restore Factory Defaults too (Knut #108)
         self._scan_peak_spin.setValue(float(s.get("scanner_selfcheck_peak", 30.0)))
         self._scan_avg_spin.setValue(float(s.get("scanner_selfcheck_avg", 12.0)))
@@ -3264,6 +3292,8 @@ class SettingsDialog(QDialog):
         s.set("gamut_themed_colors",       self._themed_colors_check.isChecked())
         s.set("use_native_file_dialogs",   self._native_files_check.isChecked())
         s.set("calibration_mode",          self._cal_mode_check.isChecked())
+        s.set("show_location_being_edited",
+              self._show_location_check.isChecked())
         s.set("chromiq_refinement",        self._chromiq_refine_check.isChecked())
         s.set("averaging_enabled",         self._averaging_check.isChecked())
         s.set("declutter_on_load",         self._declutter_check.isChecked())
