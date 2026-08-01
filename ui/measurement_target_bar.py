@@ -339,6 +339,28 @@ class MeasurementTargetController(QObject):
     #: exist)"*.
     _DUPLICATE_REQUIRES = ("chart_ti1", "chart_ti2", "chart_channels_json")
 
+    def selection_has_measurement(self) -> bool:
+        """Whether the selected run (or dated verification) holds readings.
+
+        A run can have a stored chart and no measurement — a Save Partial that
+        read nothing removes the `.ti3` — and messages that speak about "your
+        measurements" are then untrue (Knut, #130 2026-08-01).
+        """
+        try:
+            proj = self.project_or_none()
+            run_id = self._target.profile_run
+            if proj is None or not run_id or not proj.has_run(run_id):
+                return False
+            run = proj.run(run_id)
+            if self._target.is_verification():
+                vid = self._target.verification_id
+                if not vid:
+                    return False
+                return run.verification(vid).measurement_ti3.exists()
+            return run.measurement_ti3.exists()
+        except Exception:      # noqa: BLE001 — wording, never a crash
+            return False
+
     def duplicate_source(self) -> "object | None":
         """The run Duplicate would copy, or None when it cannot run.
 
@@ -1026,17 +1048,50 @@ class MeasurementTargetBar(QWidget):
             box.setWindowTitle(
                 tr("Restore the chart this verification used?") if verif else
                 tr("Restore the chart this profile run was measured with?"))
-            box.setText(tr(
-                "The verification chart currently in this run will be replaced "
-                "by the one this verification date was measured with.\n\n"
-                "Your measurements are not affected — only the chart files are "
-                "replaced. The chart that is there now is not kept, so if you "
-                "still need it, cancel and save a copy first.") if verif else tr(
-                "The chart currently in this profile run will be replaced by "
-                "the one this run was measured with.\n\n"
-                "Your measurements are not affected — only the chart files are "
-                "replaced. The chart that is there now is not kept, so if you "
-                "still need it, cancel and save a copy first."))
+            # WHETHER THERE IS A MEASUREMENT AT ALL CHANGES WHAT IS TRUE HERE.
+            #
+            # Knut, #130 2026-08-01: he restored on a run whose `.ti3` had been
+            # removed by a Save-Partial that read nothing, and was told "Your
+            # measurements are not affected" about measurements that did not
+            # exist — and "the one this run was measured with" about a run that
+            # currently holds no measurement. *"the message is inaccurate …
+            # the message above should ask if I want to restore the previously
+            # used chart, although no measurement currently exist."*
+            has_measurement = self._ctl.selection_has_measurement()
+            if verif and has_measurement:
+                body = tr(
+                    "The verification chart currently in this run will be "
+                    "replaced by the one this verification date was measured "
+                    "with.\n\n"
+                    "Your measurements are not affected — only the chart files "
+                    "are replaced. The chart that is there now is not kept, so "
+                    "if you still need it, cancel and save a copy first.")
+            elif verif:
+                body = tr(
+                    "The verification chart currently in this run will be "
+                    "replaced by the stored copy kept for this verification "
+                    "date.\n\n"
+                    "There is no measurement in this run at the moment, so "
+                    "nothing is at risk — this simply puts the earlier chart "
+                    "back. The chart that is there now is not kept, so if you "
+                    "still need it, cancel and save a copy first.")
+            elif has_measurement:
+                body = tr(
+                    "The chart currently in this profile run will be replaced "
+                    "by the one this run was measured with.\n\n"
+                    "Your measurements are not affected — only the chart files "
+                    "are replaced. The chart that is there now is not kept, so "
+                    "if you still need it, cancel and save a copy first.")
+            else:
+                body = tr(
+                    "The chart currently in this profile run will be replaced "
+                    "by the stored copy kept when a measurement was last "
+                    "started here.\n\n"
+                    "There is no measurement in this run at the moment, so "
+                    "nothing is at risk — this simply puts that earlier chart "
+                    "back. The chart that is there now is not kept, so if you "
+                    "still need it, cancel and save a copy first.")
+            box.setText(body)
             restore = box.addButton(tr("Restore Chart"),
                                     QMessageBox.ButtonRole.AcceptRole)
             box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)

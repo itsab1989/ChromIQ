@@ -28,6 +28,11 @@ _STRIP_RE = re.compile(
     r"[Ss]trip\s+(?:pass\s+|ID:\s*'?|'?)([A-Za-z]{1,3}\d*)(?:')?(?![A-Za-z0-9])"
 )
 
+# The strip menu's own line — "Ready to read strip pass A". Distinct from
+# _STRIP_RE, which also matches "Scanning strip" and other progress chatter:
+# this one means chartread is sitting at the menu, waiting for a command.
+_STRIP_MENU_RE         = re.compile(r"Ready\s+to\s+read\s+strip",                re.IGNORECASE)
+
 _ALL_DONE_RE           = re.compile(r"ALL\s+ROWS\s+READ",                        re.IGNORECASE)
 _CALIBRATION_RE        = re.compile(r"Calibration\s+complete",                   re.IGNORECASE)
 _CALIBRATION_PROMPT_RE = re.compile(r"Set\s+instrument\s+sensor\s+to\s+calibration\s+position", re.IGNORECASE)
@@ -680,14 +685,53 @@ class MeasureManager(QObject):
         the misread prompt — the case this button exists for — the Return was
         spent as "retry", the menu never came, and the session hung with the
         instrument waiting. That is what he reported four times.
+
+        **The two-'q' protocol is the ENGINE's, and only the engine's.** It
+        works because ChromIQ's helper calls ``cq_write_ti3_atomic()`` before it
+        gives up — a ChromIQ extension, marked *"never lose readings"* in
+        ``chromiq_chartread.c``. Stock ArgyllCMS chartread has no such call:
+        ``chartread.c:1654`` treats ``q`` at a misread prompt as "give up" and
+        ``return -1``, and the file is never written.
+
+        So on stock chartread the first 'q' ended the session and threw the
+        readings away — Knut, #130 2026-08-01, having read a whole strip::
+
+            [INFO] Measurement stopped — no measurement (.ti3) file was created.
+
+        The path that *does* write on stock chartread is the strip menu's "done"
+        question: retry back to the menu, 'd', then 'y' to the "Are you sure"
+        prompt. That is what is sent there instead, one prompt at a time.
         """
-        self._save_partial_state = "wait_give_up_prompt"
-        self.send_key("q")
+        if self._engine_active:
+            self._save_partial_state = "wait_give_up_prompt"
+            self.send_key("q")
+            return
+        if self._at_retry_prompt:
+            # Any key that is not Esc/q means retry, which returns to the strip
+            # menu — where 'd' is answered by a question that saves.
+            self._save_partial_state = "wait_menu_then_done"
+            self.send_key("r")
+        else:
+            self._save_partial_state = "wait_are_you_sure"
+            self.send_key("d")
 
     @property
     def save_partial_in_progress(self) -> bool:
         """True while the Save-Partial-&-Quit prompt chain is still running."""
         return self._save_partial_state is not None
+
+    @property
+    def has_unsaved_readings(self) -> bool:
+        """True when patches have been read that chartread has not written yet.
+
+        chartread holds its readings in memory and writes the ``.ti3`` only on a
+        clean exit, so killing the process throws them away. Knut, #130
+        2026-08-01, on pressing Stop after reading a strip: *"the measurement
+        session is ended without any measurement and the ti3 file is gone"* —
+        and on patch-by-patch: *"no ti3 file is saved, even though I did read
+        one patch"*. This is what lets Stop offer to keep them.
+        """
+        return bool(self._read_something)
 
     def abort(self) -> None:
         self._runner.abort()
@@ -968,9 +1012,24 @@ class MeasureManager(QObject):
         # dialog fire even when our Save-Partial flow is in control.
         m = _UNREAD_CONFIRM_RE.search(line)
         if m:
-            # No state gate any more: Save-Partial is two 'q' commands and never
-            # reaches this prompt, so it is always the user's to answer.
-            self.unread_confirm.emit(m.group(1).strip())
+            # On the ENGINE, Save-Partial is two 'q' commands and never reaches
+            # this prompt, so it is the user's to answer. On STOCK chartread it
+            # is exactly the prompt Save-Partial steers into — 'd' raises it and
+            # 'y' is what writes the file — so there it is answered for them
+            # rather than asking a question they have already answered by
+            # pressing Save Partial (#130, 2026-08-01).
+            if self._save_partial_state == "wait_are_you_sure":
+                self._save_partial_state = None
+                self.send_key("y")
+            else:
+                self.unread_confirm.emit(m.group(1).strip())
+        elif (self._save_partial_state == "wait_are_you_sure"
+                and _ARE_YOU_SURE_RE.search(line)):
+            # The same question without the "(id, loc)" detail — chartread words
+            # it either way depending on what is unread. Only answered while a
+            # Save-Partial is steering; otherwise it is the user's.
+            self._save_partial_state = None
+            self.send_key("y")
         # The "Are you sure [y/n]" auto-answer belonged to the old strip-menu
         # chain and is unreachable now that Save-Partial is two 'q' commands. The
         # user-driven prompt above (_UNREAD_CONFIRM_RE) is untouched.
@@ -1013,6 +1072,13 @@ class MeasureManager(QObject):
                 self.send_key("q")
             else:
                 self.strip_interrupted.emit()
+        # Save-Partial on STOCK chartread: retry took us back to the strip menu,
+        # and 'd' there raises the question that actually writes the file
+        # (#130, 2026-08-01 — 'q' on stock chartread exits without writing).
+        if (self._save_partial_state == "wait_menu_then_done"
+                and _STRIP_MENU_RE.search(line)):
+            self._save_partial_state = "wait_are_you_sure"
+            self.send_key("d")
         m = _GENERIC_IERROR_RE.search(line)
         if m:
             # ierror() waits on "any other key to retry" exactly like a misread,

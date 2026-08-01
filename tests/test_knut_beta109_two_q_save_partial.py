@@ -58,20 +58,26 @@ def _manager(*, engine: bool = False):
 _GIVE_UP = "Strip read stopped at user request!"
 
 
+# The two-'q' protocol is the ENGINE's — see
+# tests/test_knut_beta118_save_partial_stock.py. Its helper writes the .ti3
+# atomically before giving up; stock chartread has no such call and 'q' there
+# exits without saving (chartread.c:1654), which is why these now say
+# engine=True explicitly instead of relying on the fixture default.
 def test_the_first_q_goes_out_when_the_button_is_pressed():
-    m = _manager()
+    m = _manager(engine=True)
     m.send_save_partial_and_quit()
-    assert m._runner.stdin == ["q"]
+    # This fixture stubs send_command, so engine commands land there.
+    assert m.sent_commands == [{"cmd": "quit"}]
     assert m._save_partial_state == "wait_give_up_prompt"
 
 
 def test_the_second_q_answers_the_give_up_prompt():
     """This is the one that writes the .ti3 — the step that never happened."""
-    m = _manager()
+    m = _manager(engine=True)
     m.send_save_partial_and_quit()
     m._handle_line(_GIVE_UP, lambda _l: None)
 
-    assert m._runner.stdin == ["q", "q"]
+    assert m.sent_commands == [{"cmd": "quit"}, {"cmd": "quit"}]
     assert m._save_partial_state is None
     assert m.interrupted == [], \
         "the recovery dialog must not also fire while we are saving"

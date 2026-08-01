@@ -139,17 +139,24 @@ def test_unread_confirm_is_always_the_users_to_answer():
 def test_save_partial_sends_two_q_commands():
     """The protocol Knut established by hand: 'q' stops the armed strip, and the
     second 'q' at the give-up prompt is what makes chartread write the .ti3 and
-    exit."""
+    exit.
+
+    ENGINE ONLY. Its helper calls cq_write_ti3_atomic() before giving up; stock
+    chartread has no such call and 'q' there exits without writing anything
+    (chartread.c:1654), which is what lost Knut a strip on 2026-08-01. The stock
+    chain is covered in tests/test_knut_beta118_save_partial_stock.py.
+    """
     mgr, runner, sigs = _make_manager()
+    mgr._engine_active = True
     assert not mgr.save_partial_in_progress
 
     mgr.send_save_partial_and_quit()
     assert mgr.save_partial_in_progress          # first 'q' out, awaiting prompt
-    assert runner.writes == ["q"]
+    assert runner.writes == ['{"cmd": "quit"}\n']
 
     _feed(mgr, "Strip read stopped at user request!")
     assert not mgr.save_partial_in_progress      # second 'q' sent, chain complete
-    assert runner.writes == ["q", "q"]
+    assert runner.writes == ['{"cmd": "quit"}\n', '{"cmd": "quit"}\n']
 
 
 def test_the_strip_menu_no_longer_drives_save_partial():

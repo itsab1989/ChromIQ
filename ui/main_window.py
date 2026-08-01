@@ -526,6 +526,20 @@ class MainWindow(QMainWindow):
             guidance = self._no_chart_guidance_text()
             self._tab_print.set_chart_notice(guidance)
             self._tab_measure.set_chart_notice(guidance)
+        # THE RUN BAR HAS TO BE TOLD THE CHART CHANGED.
+        #
+        # Building a chart changes whether the stored copy differs from the live
+        # one, which is exactly what greys or enables Restore Used Chart — but
+        # nothing here re-asked, so the button kept its previous state until
+        # some other event happened to refresh the bar. Knut, #130 2026-08-01:
+        # *"the 'Restore Used Chart' was still greyed out, but after changing
+        # tab to print chart, then it was activated (it should have been active
+        # immediately after generate chart was runned)."*
+        try:
+            self._target_bar.refresh()
+        except Exception:      # noqa: BLE001 — never fail a finished build
+            log.warning("Could not refresh the run bar after a chart build",
+                        exc_info=True)
 
     def _no_chart_guidance_text(self) -> str:
         """Guidance for the Print/Measure preview when the selected Profile-run /

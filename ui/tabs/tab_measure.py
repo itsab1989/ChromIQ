@@ -4524,6 +4524,19 @@ class TabMeasure(QWidget):
         # different jobs, and a method called _confirm_… that quietly moves
         # files is a surprise waiting for the next reader.
         self._archive_measurement_before_replacing()
+        # A FRESH READ STARTS WITH A CLEAN SHEET.
+        #
+        # Knut, #130 2026-08-01: *"the strip that has been read is shown as
+        # overlay on the first strip. The 'Show overlay...' checkbox is not
+        # visible, so why is it showing, also when I am starting a fresh
+        # reading."* The overlay draws the measurement that is being replaced,
+        # so once this read begins it describes a file that is on its way to
+        # old/ — and it was still on screen with no visible control to turn it
+        # off. Resuming is the opposite case: there the overlay is the readings
+        # being added to, so it stays.
+        if not self._read_builds_on_existing():
+            self._sync_overlay_checkboxes(False)
+            self._clear_overlay()
         self._preview.set_bidirectional(self._effective_bidirectional(params))
         self._log.clear()
         self._auto_proceed = False
@@ -4658,8 +4671,64 @@ class TabMeasure(QWidget):
         return proceed
 
     def _on_stop(self) -> None:
+        """Stop the measurement — offering to keep what has been read.
+
+        Knut, #130 2026-08-01, twice in one session: he read a strip, pressed
+        Stop, and *"the measurement session is ended without any measurement and
+        the ti3 file is gone"*; then the same patch by patch — *"no ti3 file is
+        saved, even though I did read one patch"*. And the question that names
+        the fault exactly: *"Why do I not get this warning message when pressing
+        Stop button or exiting during measurement failure?"*
+
+        The cause is not a bug in Stop so much as what Stop was: chartread keeps
+        its readings in memory and writes the ``.ti3`` only when it exits
+        cleanly, so killing the process discards them. Pressing 'd' asks "are
+        you sure" and saves; pressing Stop simply threw the work away without a
+        word.
+
+        So Stop now asks, and only when there is something to lose.
+        """
         self._key_watchdog.stop()
-        self._manager.abort()
+        if not self._manager.has_unsaved_readings:
+            self._manager.abort()
+            return
+        from PyQt6.QtWidgets import QMessageBox
+        self._cue_window("STRIP_FAIL")
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        title = tr("Keep what you have measured so far?")
+        box.setWindowTitle(title)
+        box.setText(title + "\n\n" + tr(
+            "You have read patches in this session that have not been saved "
+            "yet. Your measuring instrument holds them until the measurement "
+            "finishes, so stopping now would throw them away.\n\n"
+            "What each button does:\n\n"
+            "•  Save and stop — writes what you have read so far to this run's "
+            "measurement file and ends the session. You can carry on later "
+            "with “Refine / resume existing measurement”, reading only the "
+            "strips or patches that are still missing.\n\n"
+            "•  Discard and stop — ends the session and keeps nothing from it. "
+            "Any measurement that was already in this run before you started "
+            "is untouched.\n\n"
+            "•  Keep measuring — closes this window and carries on where you "
+            "were."))
+        save = box.addButton(tr("Save and stop"),
+                             QMessageBox.ButtonRole.AcceptRole)
+        discard = box.addButton(tr("Discard and stop"),
+                                QMessageBox.ButtonRole.DestructiveRole)
+        box.addButton(tr("Keep measuring"), QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(save)
+        from ui.widgets import fit_message_box_buttons
+        fit_message_box_buttons(box)
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked is save:
+            # The same two-'q' protocol the Save Partial button uses — it is
+            # what makes chartread write the file and exit (#130, 2026-07-30).
+            self._manager.send_save_partial_and_quit()
+        elif clicked is discard:
+            self._manager.abort()
+        # "Keep measuring" leaves the session exactly as it was.
 
     def _arm_key_watchdog(self) -> None:
         """Start the no-response watchdog after sending a keystroke from a dialog.
@@ -7901,6 +7970,38 @@ class TabMeasure(QWidget):
             self._preview.set_patch_overlay(page, its)
             self._preview.set_patch_info(page, infos[page])
 
+    def _read_builds_on_existing(self) -> bool:
+        """True when this read ADDS to the measurement already on disk.
+
+        Refine and resume both hand the existing ``.ti3`` to chartread with
+        ``-r``, so it is read, not replaced. Two things must agree about that
+        and used not to:
+
+        * the question before Start (nothing is being replaced, so nothing to
+          warn about), and
+        * whether the measurement gets moved into ``old/`` first.
+
+        They disagreed, and it destroyed measurements. Knut, #130 2026-08-01,
+        five times in one session::
+
+            Error - Unable to read chart being resumed '…/run4/<name>.ti3'
+                  : Unable to open file '…' for reading
+
+        ChromIQ archived the ``.ti3`` and then told chartread to resume from
+        it. The session died on the spot and the readings were only still there
+        because ``old/`` had them — *"Many of these errors above worked in
+        earlier betas. What has happened?"* This is what happened: the archive
+        call was moved out of the question so that asking and moving files were
+        separate jobs, and in the move it lost the condition the question
+        applies. One test now asserts both call this.
+        """
+        guided = self._current_mode() == "guided"
+        resume = (self._resume_cb if guided else self._m_resume_cb)
+        refine = (self._refine_cb if guided else self._m_refine_cb)
+        return bool(
+            (resume is not None and resume.isVisible() and resume.isChecked())
+            or (refine is not None and refine.isEnabled() and refine.isChecked()))
+
     def _confirm_replacing_measurement(self) -> bool:
         """Ask before a fresh read writes over a measurement that is already there.
 
@@ -7926,11 +8027,7 @@ class TabMeasure(QWidget):
         ti3 = self._measurement_at_risk()
         if ti3 is None:
             return True
-        guided = self._current_mode() == "guided"
-        resume = (self._resume_cb if guided else self._m_resume_cb)
-        refine = (self._refine_cb if guided else self._m_refine_cb)
-        if (resume is not None and resume.isVisible() and resume.isChecked()) \
-           or (refine is not None and refine.isEnabled() and refine.isChecked()):
+        if self._read_builds_on_existing():
             return True        # the old readings are kept and built on
 
         scope = self._replace_warning_scope()
@@ -7987,6 +8084,15 @@ class TabMeasure(QWidget):
         overwrites it. Quiet: the window that just asked has said what happens.
         """
         if self._ti1_path is None:
+            return
+        # NOTHING IS BEING REPLACED WHEN THE READ RESUMES OR REFINES.
+        #
+        # chartread is handed the existing .ti3 with -r and reads it. Moving it
+        # away first does not protect it — it removes the file the measurement
+        # is about to continue from, and the session dies with "Unable to read
+        # chart being resumed" (Knut, #130 2026-08-01). See
+        # :meth:`_read_builds_on_existing`.
+        if self._read_builds_on_existing():
             return
         ti3 = self._ti1_path.with_suffix(".ti3")
         if not ti3.is_file() or _cgats_has_no_readings(ti3):
