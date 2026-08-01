@@ -272,10 +272,67 @@ class BarIconButton(QToolButton):
             self._apply_icon()
 
 
+def draw_duplicate_run(p: QPainter, colour: str) -> None:
+    """The Duplicate mark: a chart page with a folded corner and a plus.
+
+    Variant **2c**, chosen by Knut and Sebastian (#130, 2026-08-01: *"Sebastian
+    and I agree on image 2c new now. Use that."*). It says *duplicate a chart*
+    rather than *copy a file*, which is what the button actually does.
+
+    Two details are the result of his review and are easy to undo by accident:
+
+    * **The patch block is placed, not centred.** The fold takes a bite out of
+      the top-right, so the page's optical centre is not its geometric one —
+      centring the four patches mathematically moved them visibly off.
+    * **The gap where the page edges meet the plus is measured between the
+      geometric endpoints, and allows for the round caps.** A round cap extends
+      half a stroke width past the point the line is drawn to, so both the plus
+      tip and the page edge overshoot by half a width each. The 1.5 × width
+      here is two caps plus the half-width gap Knut asked to see.
+    """
+    w = 1.9                       # stroke width, as the other bar marks
+    # Page outline, open at the bottom-right where the plus sits, with the
+    # folded corner drawn as its own two strokes.
+    _pen(p, colour, w)
+    body = QPainterPath(QPointF(3.0, 17.5))
+    body.lineTo(3.0, 2.5)
+    body.lineTo(12.4, 2.5)
+    body.lineTo(16.0, 6.1)
+    body.lineTo(16.0, 11.45)      # stops clear of the plus's upper tip
+    p.drawPath(body)
+
+    bottom = QPainterPath(QPointF(3.0, 17.5))
+    bottom.lineTo(10.45, 17.5)    # stops clear of the plus's left tip
+    p.drawPath(bottom)
+
+    fold = QPainterPath(QPointF(12.4, 2.5))
+    fold.lineTo(12.4, 6.1)
+    fold.lineTo(16.0, 6.1)
+    p.drawPath(fold)
+
+    # The four patches — the chart's own language.
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(QColor(colour))
+    for x in (6.0, 10.4):
+        for y in (7.0, 11.4):
+            p.drawRoundedRect(QRectF(x, y, 3.1, 3.1), 0.7, 0.7)
+
+    # The plus: a new one of these.
+    _pen(p, colour, w)
+    p.drawLine(QPointF(16.5, 14.3), QPointF(16.5, 20.7))
+    p.drawLine(QPointF(13.3, 17.5), QPointF(19.7, 17.5))
+
+
 def restore_chart_button(colour: str, text: str,
                          parent: "QWidget | None" = None) -> BarIconButton:
     """The Restore Used Chart button: its mark alone."""
     return BarIconButton(draw_restore_chart, colour, text, parent)
+
+
+def duplicate_run_button(colour: str, text: str,
+                         parent: "QWidget | None" = None) -> BarIconButton:
+    """The Duplicate button: its mark alone."""
+    return BarIconButton(draw_duplicate_run, colour, text, parent)
 
 
 def delete_button(colour: str, text: str,

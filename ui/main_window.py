@@ -119,6 +119,7 @@ class MainWindow(QMainWindow):
         # tab empty, nothing loaded, and no project silently made again (#130,
         # Knut 2026-07-29).
         self._target_bar.project_deleted.connect(self._on_project_deleted)
+        self._target_bar.run_duplicated.connect(self._on_run_duplicated)
         for _t in (self._tab_chart, self._tab_measure, self._tab_print):
             if hasattr(_t, "set_target_controller"):
                 _t.set_target_controller(self._target_ctl)
@@ -693,6 +694,32 @@ class MainWindow(QMainWindow):
         #    Create Chart log and both empty previews say what happened.)
         self._tabs.setCurrentWidget(self._tab_chart)
         log.info("Project deleted: the app is back in its starting state")
+
+    def _on_run_duplicated(self, run_id: str) -> None:
+        """Show the run the Duplicate button just made (#130, "course B").
+
+        Knut's point 6: *"After duplicating the Profile run should switch to the
+        new run. Create Chart tab shows its chart is good."* The controller has
+        already selected it; what is left is to put its chart in front of the
+        user on all three tabs, so the copy is visibly the thing being worked on
+        rather than an entry in a dropdown.
+        """
+        try:
+            proj = self._target_ctl.project_or_none()
+            if proj is None or not proj.has_run(run_id):
+                return
+            run = proj.run(run_id)
+            tiffs = run.chart_tiffs()
+            if not run.chart_ti2.exists() or not tiffs:
+                return              # nothing to show; the copy is still real
+            self._tab_chart.reflect_loaded_chart(run.chart_ti2, tiffs)
+            self._tab_print.load_tiffs(tiffs)
+            self._tab_measure.set_ti1_path(run.chart_ti2)
+            self._tabs.setCurrentWidget(self._tab_chart)
+            self._target_bar.refresh()
+        except Exception:      # noqa: BLE001 — the copy is made; never crash now
+            log.warning("Could not show the duplicated run %s", run_id,
+                        exc_info=True)
 
     def _on_profile_active(self, active: bool) -> None:
         profile_idx = self._tabs.indexOf(self._tab_profile)

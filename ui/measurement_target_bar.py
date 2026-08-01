@@ -332,6 +332,83 @@ class MeasurementTargetController(QObject):
             return False, block_tooltip(plan)
         return True, tooltip_for(plan)
 
+    # ---- Duplicate run (#130, Knut + Sebastian, "course B" 2026-08-01) ----
+    #: The chart files a run must have before it is worth duplicating. Knut's
+    #: point 3: *"the basic chart files exist as minimum (ti1, ti2, .tif,
+    #: .channels.json. All other specified files are copied only if they
+    #: exist)"*.
+    _DUPLICATE_REQUIRES = ("chart_ti1", "chart_ti2", "chart_channels_json")
+
+    def duplicate_source(self) -> "object | None":
+        """The run Duplicate would copy, or None when it cannot run.
+
+        Kept separate from :meth:`duplicate_state` so the button's reason and
+        the button's action can never disagree about which run they mean.
+        """
+        try:
+            proj = self.project_or_none()
+            if proj is None:
+                return None
+            if self.target.is_verification():
+                return None
+            run_id = self.target.profile_run
+            if not run_id or not proj.has_run(run_id):
+                return None
+            run = proj.run(run_id)
+            if not all(getattr(run, name).exists()
+                       for name in self._DUPLICATE_REQUIRES):
+                return None
+            if not run.chart_tiffs():
+                return None
+            return run
+        except Exception:      # noqa: BLE001 — a greyed button, never a crash
+            return None
+
+    def duplicate_state(self) -> "tuple[bool, str]":
+        """``(enabled, tooltip)`` for Duplicate — the same shape as
+        :meth:`restore_state` and :meth:`delete_state`, so all three behave
+        alike. Every disabled case names what to do about it, per Knut's
+        point 5."""
+        proj = self.project_or_none()
+        if proj is None:
+            return False, tr(
+                "Open or create a printer profile first — there is no run yet "
+                "to duplicate.")
+        if self.target.is_verification():
+            return False, tr(
+                "Duplicating works on a profiling run. Switch “Run type” to "
+                "Profiling to duplicate the run this verification belongs to.")
+        run_id = self.target.profile_run
+        if not run_id or not proj.has_run(run_id):
+            return False, tr(
+                "Select an existing profile run first — there is nothing yet "
+                "to duplicate.")
+        if self.duplicate_source() is None:
+            return False, tr(
+                "This run has no chart yet. Create or load a chart first, and "
+                "then the run can be duplicated.")
+        return True, tr(
+            "Duplicate this run. Makes a new run holding a copy of this run's "
+            "chart, its measurement and the profile built from it, so you can "
+            "carry on from here without changing anything you already have.\n\n"
+            "Nothing is moved and nothing is overwritten — this run stays "
+            "exactly as it is. Verification runs and their chart are not "
+            "copied, so the new run is free to use a different one.")
+
+    def duplicate_run(self) -> "str | None":
+        """Duplicate the selected run and select the copy. Returns its id."""
+        proj = self.project_or_none()
+        source = self.duplicate_source()
+        if proj is None or source is None:
+            return None
+        new_run = proj.duplicate_run(source)
+        # Knut's point 6: "After duplicating the Profile run should switch to
+        # the new run."
+        self.set_run_type("Profiling")
+        self.set_profile_run(new_run.id)
+        self.notify_changed()
+        return new_run.id
+
     def reset_to_empty(self) -> None:
         """Forget which run and run type were selected, as at launch.
 
@@ -362,6 +439,12 @@ class MeasurementTargetBar(QWidget):
     #: case, #130 Knut D1) — the window closes the project and returns to the
     #: state a freshly started ChromIQ has.
     project_deleted = pyqtSignal()
+
+    #: A run was duplicated (#130, "course B"): carries the NEW run's id. The
+    #: host switches to Create Chart and refreshes the preview on all three
+    #: tabs — Knut's point 6, "the Profile run should switch to the new run …
+    #: Create Chart tab shows its chart".
+    run_duplicated = pyqtSignal(str)
 
     def __init__(self, controller: MeasurementTargetController,
                  *, show_verification: bool = True,
@@ -498,6 +581,41 @@ class MeasurementTargetBar(QWidget):
                "the copy then describes an earlier measurement."),
             self)
         row.addWidget(self._restore_tip)
+
+        # Duplicate — a new run holding a copy of this one's work (#130, Knut
+        # + Sebastian 2026-08-01, "course B"). His placement: "to the right of
+        # 'Restore Used Chart' and its help icon, and to the left of 'delete'
+        # icon", with its own ⓘ, taking the active tab's colour like the rest.
+        from ui.bar_icons import duplicate_run_button
+        self._duplicate_btn = duplicate_run_button(
+            self._accent, tr("Duplicate"), self)
+        self._duplicate_btn.clicked.connect(self._on_duplicate_clicked)
+        row.addWidget(self._duplicate_btn)
+        self._duplicate_tip = TooltipButton(
+            tr("Duplicate"),
+            tr("Makes a NEW profile run containing a copy of everything in the "
+               "selected run that describes your work so far — the chart, the "
+               "measurement, and the profile built from it.\n\n"
+               "Nothing is moved and nothing is overwritten. The run you "
+               "duplicate stays exactly as it is; the copy is somewhere fresh "
+               "to carry on from.\n\n"
+               "WHAT IT IS FOR\n"
+               "•  Measuring the same chart again, without losing the "
+               "measurement you already have.\n"
+               "•  Building a different profile from a measurement you have "
+               "already taken.\n"
+               "•  Changing the chart your verification runs use — the copy "
+               "starts with no verification chart, so you can give it a new "
+               "one while the original run keeps its history.\n\n"
+               "WHAT IS NOT COPIED\n"
+               "Verification runs and their chart, and anything ChromIQ can "
+               "rebuild by itself. You are shown exactly what will be copied, "
+               "and asked, before anything happens.\n\n"
+               "It becomes available once a profile run is selected — not "
+               "“New run” — with “Run type” set to Profiling and a chart "
+               "already in that run."),
+            self)
+        row.addWidget(self._duplicate_tip)
 
         # Delete — removes the selected profile run, or the selected run's
         # verification files (#130, Knut 2026-07-28). Sits right of Restore
@@ -886,12 +1004,16 @@ class MeasurementTargetBar(QWidget):
         # else (Knut, #130 2026-07-27), and the Delete button's icon did the
         # same when it was added (Knut, #130 2026-07-28). Anything added to the
         # bar in future belongs in this tuple too.
-        for tip in (self._tip_btn, self._restore_tip, self._delete_tip):
+        # Found by hand, twice by Knut and once by Sebastian, so it is now
+        # found by looking rather than by remembering: every TooltipButton that
+        # is a child of this bar, whoever added it.
+        for tip in self.findChildren(TooltipButton):
             tip.set_color(color)
         # …and the two icon-only buttons, for the same reason: everything on
         # this bar follows the tab you are looking at. They ARE their marks now,
         # so this is the only place their colour comes from.
         self._restore_btn.set_accent(color)
+        self._duplicate_btn.set_accent(color)
         self._delete_btn.set_accent(color)
 
     def _on_restore_clicked(self) -> None:
@@ -967,6 +1089,116 @@ class MeasurementTargetBar(QWidget):
             # The pages are being redrawn from the chart's own recipe; the
             # finished build shows itself in the preview.
             log.info("restored chart: rebuilding its pages")
+
+    @staticmethod
+    def _duplicate_group_label(group: str) -> str:
+        """How each copied group is named in the confirmation window.
+
+        Written as a mapping of ``tr("…")`` calls rather than a dict of bare
+        strings translated later: ``tr(some_variable)`` is invisible to
+        ``scripts/i18n_extract.py``, so those six words would have sat in every
+        catalogue's blind spot and shipped in English for ever.
+        """
+        return {
+            "chart":       tr("Chart"),
+            "measurement": tr("Measurement"),
+            "profile":     tr("Profile"),
+            "refinement":  tr("Refinement starting point"),
+            "reports":     tr("Reports"),
+            "exports":     tr("Export files"),
+        }.get(group, group)
+
+    @staticmethod
+    def _pretty_size(n: int) -> str:
+        """A size a person can judge at a glance. Knut asked to be shown what
+        is being copied; bytes would not be showing him anything."""
+        if n >= 1024 ** 3:
+            return tr("{v:.1f} GB").format(v=n / 1024 ** 3)
+        if n >= 1024 ** 2:
+            return tr("{v:.1f} MB").format(v=n / 1024 ** 2)
+        if n >= 1024:
+            return tr("{v:.0f} KB").format(v=n / 1024)
+        return tr("{v} bytes").format(v=n)
+
+    def _duplicate_summary(self, plan) -> str:
+        """The "what will be copied" list, built from what is really there."""
+        from core.i18n import count_phrase
+        lines = []
+        for group, files, size in plan:
+            label = self._duplicate_group_label(group)
+            lines.append("    •  {name} — {count}, {size}".format(
+                name=label,
+                count=count_phrase(len(files), tr("1 file"), tr("{n} files")),
+                size=self._pretty_size(size)))
+        return "\n".join(lines)
+
+    def _on_duplicate_clicked(self) -> None:
+        """Duplicate the selected run, after showing exactly what will be copied.
+
+        Knut's point 7: *"Our principle throughout the app is that user shall be
+        informed about what will happen and the consequences of an action, so a
+        confirmation window is good. Must also allow Canceling."*
+        """
+        from PyQt6.QtWidgets import QMessageBox
+
+        source = self._ctl.duplicate_source()
+        proj = self._ctl.project_or_none()
+        if source is None or proj is None:
+            return                       # greyed; nothing to do
+        plan = proj.duplicate_run_plan(source)
+        total = sum(size for _g, _f, size in plan)
+
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        title = tr("Duplicate this run?")
+        box.setWindowTitle(title)
+        box.setText(title + "\n\n" + tr(
+            "This makes a NEW run containing a copy of everything in {run} "
+            "that describes your work so far — the chart, the measurement, and "
+            "the profile built from it.\n\n"
+            "The run you are duplicating is not changed in any way. Nothing is "
+            "moved, and nothing is overwritten.\n\n"
+            "What will be copied ({total} in total):\n\n{summary}\n\n"
+            "Not copied: verification runs and their chart, so the new run is "
+            "free to use a different one — and anything ChromIQ can rebuild by "
+            "itself.\n\n"
+            "Afterwards, ChromIQ switches to the new run and shows its chart "
+            "in Create Chart.\n\n"
+            "What each button does:\n\n"
+            "•  Duplicate run — makes the copy now, and moves you to it.\n\n"
+            "•  Cancel — nothing is copied and nothing is changed."
+        ).format(run=self._run_phrase(source.id),
+                 total=self._pretty_size(total),
+                 summary=self._duplicate_summary(plan)))
+        go = box.addButton(tr("Duplicate run"),
+                           QMessageBox.ButtonRole.AcceptRole)
+        cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(go)
+        from ui.widgets import fit_message_box_buttons
+        fit_message_box_buttons(box)
+        box.exec()
+        if box.clickedButton() is not go:
+            return
+        try:
+            new_id = self._ctl.duplicate_run()
+        except OSError as exc:
+            QMessageBox.warning(
+                self, tr("The run could not be duplicated"),
+                tr("Nothing was copied and nothing was changed — the run you "
+                   "selected is exactly as it was.\n\nReason: {reason}"
+                   ).format(reason=str(exc)))
+            return
+        if new_id:
+            self.run_duplicated.emit(new_id)
+
+    def _run_phrase(self, run_id: str) -> str:
+        """"run 3" for a run id, for use inside a sentence.
+
+        NOT ``_run_label`` — that name is already the bar's own QLabel widget.
+        """
+        import re as _re
+        m = _re.match(r"run(\d+)$", run_id or "")
+        return tr("run {n}").format(n=m.group(1)) if m else str(run_id)
 
     def _on_delete_clicked(self) -> None:
         """Delete the selected run, or the selected run's verification files.
@@ -1157,6 +1389,18 @@ class MeasurementTargetBar(QWidget):
                 self._restore_btn.setToolTip(self._icon_tip(
                     self._restore_btn,
                     self._lock_note() if locked else tip))
+            # Duplicate follows the same rule as Restore and Delete: shown
+            # wherever the bar carries the Verification box, greyed with its
+            # own reason. `locked` is a measurement in progress — Knut's point
+            # 4: not while one is running.
+            self._duplicate_btn.setVisible(show_restore)
+            self._duplicate_tip.setVisible(show_restore)
+            if show_restore:
+                u_enabled, u_tip = self._ctl.duplicate_state()
+                self._duplicate_btn.setEnabled(u_enabled and not locked)
+                self._duplicate_btn.setToolTip(self._icon_tip(
+                    self._duplicate_btn,
+                    self._lock_note() if locked else u_tip))
             # Delete follows the same rule as Restore: shown wherever the bar
             # carries the Verification box, greyed with its own reason.
             self._delete_btn.setVisible(show_restore)

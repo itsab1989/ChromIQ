@@ -291,6 +291,11 @@ class RunMeta:
     # when the chart reopens in the editor, while editor_recipe is reloaded into
     # the New chart / Add windows so the design can be tweaked / recreated.
     editor_recipe: dict | None = None
+    # #130: the run this one was made from with the Duplicate button. A new run
+    # in every other respect — its own id, its own timestamp — so this records
+    # where its files came from without letting it claim to BE the source run.
+    # Knut, 2026-08-01: "meta.json not copied. duplicated_from: runN note added."
+    duplicated_from: str | None = None
 
     @classmethod
     def fresh(cls, run_id: str, parent: str | None = None) -> "RunMeta":
@@ -1305,6 +1310,125 @@ class Project:
         self._manifest.current_run = run_id
         self.save_manifest()
         return new_run
+
+    #: What Duplicate copies, as ``(group key, [glob relative to the run])``.
+    #: Order is the order the confirmation window lists them in.
+    #:
+    #: Knut's specification (#130, 2026-08-01), settled over three exchanges:
+    #: the chart, the measurement and the profile built from it — everything
+    #: that describes the work — plus the reports and export sidecars that
+    #: describe *those*. ``{stem}`` is filled in with the run's own stem.
+    DUPLICATE_GROUPS: tuple = (
+        ("chart", ("{stem}.ti1", "{stem}.ti2", "{stem}.cht", "{stem}.cie",
+                   "{stem}.ps", "{stem}.pdf", "{stem}.channels.json",
+                   "{stem}.strips.json", "{stem}_*.tif", "{stem}.tif",
+                   "chart/**/*")),
+        ("measurement", ("{stem}.ti3", "reads/**/*")),
+        ("profile", ("{stem}.icc", "{stem}.icm", "merged.ti3", "merged.icc",
+                     "merged.icm", "calibrated.icc", "calibrated.icm",
+                     "*.x3d.html", "x3dom.css", "x3dom.js")),
+        ("refinement", ("preconditioning.ti3", "preconditioning.icc")),
+        # Knut named these three exactly (2026-08-01): the quality report, the
+        # re-measure list and the report JSONs belong with the measurement and
+        # profile they describe. Anything else under reports/ does not.
+        ("reports", ("reports/Quality_Check_*", "reports/Refine_Strips_*",
+                     "reports/report_*.json")),
+        ("exports", ("exports/**/*",)),
+    )
+
+    #: Never duplicated. ``meta.json`` is written fresh (a copy would make the
+    #: new run claim to BE the old one); ``verifications/`` is excluded because
+    #: use case 3 is precisely "carry on with a DIFFERENT verification chart";
+    #: ``old/`` and ``cache/`` are history and scratch.
+    DUPLICATE_NEVER: tuple = ("meta.json", "verifications", "old", "cache")
+
+    def duplicate_run_plan(self, source: Run) -> "list[tuple[str, list[Path], int]]":
+        """What :meth:`duplicate_run` would copy: ``[(group, files, bytes)]``.
+
+        Built from what is actually on disk, so the confirmation window states
+        the real thing rather than the specification's wish list (Knut,
+        2026-08-01: *"it is ok to show what is being copied (based on what is
+        actually found) in selected run"*). Groups with nothing in them are
+        left out entirely — a row reading "Profile — 0 files" would suggest
+        something is missing rather than simply absent.
+        """
+        plan = []
+        for group, patterns in self.DUPLICATE_GROUPS:
+            found: list[Path] = []
+            for pat in patterns:
+                for p in sorted(source.dir.glob(pat.format(stem=source.stem))):
+                    if p.is_file() and p not in found:
+                        found.append(p)
+            if found:
+                total = 0
+                for p in found:
+                    try:
+                        total += p.stat().st_size
+                    except OSError:      # vanished between glob and stat
+                        pass
+                plan.append((group, found, total))
+        return plan
+
+    def duplicate_run(self, source: Run) -> Run:
+        """Copy *source*'s work into a brand-new run and make it current.
+
+        Knut and Sebastian chose this over archiving a run's files whenever its
+        chart was regenerated (#130, 2026-08-01, "course B"). His reasoning:
+        moving everything into ``old/`` "basically means to start fresh, and
+        that is better done by making a new run". So nothing is ever moved or
+        overwritten — the source run is untouched, and the copy is somewhere
+        new to carry on from.
+
+        The new run gets a **fresh** ``meta.json`` recording ``duplicated_from``.
+        Copying the old one would have given the new folder a manifest naming
+        the old run — the exact kind of silent mismatch this model exists to
+        prevent.
+        """
+        plan = self.duplicate_run_plan(source)
+        new_run = self.new_run()
+        try:
+            for _group, files, _size in plan:
+                for src in files:
+                    rel = src.relative_to(source.dir)
+                    dst = new_run.dir / rel
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(src, dst)
+        except OSError:
+            # A half-copied run is worse than none: it would look like a real
+            # run and measure into a chart that is missing pages. Undone here
+            # directly rather than through run_delete, whose delete also
+            # RENUMBERS the remaining runs — this run never existed as far as
+            # the user is concerned, so nothing else may move.
+            log.exception("Duplicating %s failed — removing the partial run",
+                          source.id)
+            self._discard_run(new_run)
+            raise
+        meta = new_run.load_meta()
+        meta.duplicated_from = source.id
+        # The chart and its measurement come across together, so whatever the
+        # source recorded about how it was measured still describes these files.
+        meta.instrument = source.load_meta().instrument
+        meta.paper = source.load_meta().paper
+        new_run.save_meta(meta)
+        log.info("Duplicated %s into %s (%d files)", source.id, new_run.id,
+                 sum(len(f) for _g, f, _s in plan))
+        return new_run
+
+    def _discard_run(self, run: Run) -> None:
+        """Remove a run that was created but never became real.
+
+        Only for undoing a failed :meth:`duplicate_run`. Deliberately NOT the
+        Delete button's path: that one renumbers the runs after it, which is
+        right when a user deletes a run they have seen and wrong for one that
+        existed for a fraction of a second.
+        """
+        shutil.rmtree(run.dir, ignore_errors=True)
+        if run.id in self._manifest.runs:
+            self._manifest.runs.remove(run.id)
+        if self._manifest.current_run == run.id:
+            self._manifest.current_run = (self._manifest.runs[-1]
+                                          if self._manifest.runs else "")
+        self.save_manifest()
 
     def _next_run_index(self) -> int:
         n = 0
