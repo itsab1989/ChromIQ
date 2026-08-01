@@ -3553,11 +3553,20 @@ class TabMeasure(QWidget):
         ti3 = (self._ti1_path.with_suffix(".ti3")
                if self._ti1_path is not None else None)
         has_ti3 = bool(ti3 and ti3.exists() and not _cgats_has_no_readings(ti3))
-        for row, resume in ((self._refine_row, self._resume_cb),
-                            (self._m_refine_row, self._m_resume_cb)):
+        for row, resume, cb in ((self._refine_row, self._resume_cb,
+                                 self._refine_cb),
+                                (self._m_refine_row, self._m_resume_cb,
+                                 self._m_refine_cb)):
             if row is None or resume is None:
                 continue
-            row.setVisible(has_ti3 and resume.isChecked())
+            # THE ROW, never the checkbox on its own. The row carries the help
+            # icon too, so hiding it takes the whole sub-option off screen;
+            # hiding just the checkbox is what left the icon behind in an empty
+            # space. Anything inside the row is therefore left visible — the row
+            # decides, once, for all of it.
+            row.setVisible(bool(has_ti3 and resume.isChecked()))
+            if cb is not None and cb.isHidden():
+                cb.setVisible(True)
 
     def _update_precond_availability(self) -> None:
         """Show the 'also use pre-conditioning data' option when ChromIQ-style

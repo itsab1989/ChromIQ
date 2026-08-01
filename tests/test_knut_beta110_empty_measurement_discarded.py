@@ -346,7 +346,16 @@ def test_the_message_has_no_bracketed_plural(qapp):
 
 # ---- the sub-option does not outlive its parent ---------------------------
 def _resume_widgets(tab):
-    return [(tab._resume_cb, tab._refine_cb), (tab._m_resume_cb, tab._m_refine_cb)]
+    """(parent resume box, sub-option ROW) for each mode.
+
+    The ROW, not the checkbox inside it. The sub-option is a checkbox plus its
+    own help icon, and the icon is added straight to the row's layout — so
+    hiding the checkbox alone left the icon behind in an empty space (Knut,
+    #130 2026-08-01). The row is what goes, and taking it as the unit is also
+    what these tests mean by "on screen".
+    """
+    return [(tab._resume_cb, tab._refine_row),
+            (tab._m_resume_cb, tab._m_refine_row)]
 
 
 def test_the_refinement_sub_option_hides_with_its_parent(qapp, tmp_path):
@@ -371,19 +380,20 @@ def test_the_refinement_sub_option_hides_with_its_parent(qapp, tmp_path):
     # isVisible() is False for everything in a tab that was never shown, which
     # would make this pass without testing anything; isHidden() reflects the
     # explicit hide, which is what the fix sets.
-    for parent, sub in _resume_widgets(tab):
+    for parent, row in _resume_widgets(tab):
         assert parent.isHidden()
-        assert sub.isHidden(), \
+        assert row.isHidden(), \
             "the sub-option stayed on screen under a hidden parent"
-        assert not sub.isChecked()
+    assert not tab._refine_cb.isChecked()
+    assert not tab._m_refine_cb.isChecked()
 
 
 def test_no_chart_hides_the_sub_option_too(qapp, tmp_path):
     tab = _tab(tmp_path)
     tab._ti1_path = None
     tab._update_resume_availability()
-    for _parent, sub in _resume_widgets(tab):
-        assert sub.isHidden()
+    for _parent, row in _resume_widgets(tab):
+        assert row.isHidden()
 
 
 def test_a_real_measurement_still_offers_the_sub_option(qapp, tmp_path):
@@ -400,10 +410,18 @@ def test_a_real_measurement_still_offers_the_sub_option(qapp, tmp_path):
     tab._ti1_path = run.chart_ti2
     tab._update_resume_availability()
 
-    for parent, sub in _resume_widgets(tab):
+    # The sub-option belongs to the resume tick, so it is on screen once that
+    # is ticked — and available, which is the half this test guards.
+    for parent, row in _resume_widgets(tab):
         assert not parent.isHidden()
-        assert not sub.isHidden()
-        assert sub.isEnabled()
+        assert row.isHidden(), "not until the resume option it belongs to is on"
+    for cb in (tab._resume_cb, tab._m_resume_cb):
+        cb.setChecked(True)
+    tab._sync_refine_rows()
+    for _parent, row in _resume_widgets(tab):
+        assert not row.isHidden()
+    for cb in (tab._refine_cb, tab._m_refine_cb):
+        assert cb.isEnabled()
 
 
 # ---- the stored chart is REPLACED, not merged into -----------------------
