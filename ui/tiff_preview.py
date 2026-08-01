@@ -1614,7 +1614,22 @@ class TiffPreview(QWidget):
         """Honesty badge for device-native (multi-ink) pages (#72 Tier D):
         'via profile' when the preview is a true colorimetric render, or a
         clear note that the colours are approximate while the ink values in
-        the file are exact. Hidden for ordinary RGB pages."""
+        the file are exact. Hidden for ordinary RGB pages.
+
+        Guarded like :meth:`_update_display`, and for the same reason: a
+        deferred repaint can arrive after the widgets are gone. The guard there
+        checks ``_img_label`` only, and this reaches a different widget — so a
+        teardown that had already taken ``_ink_row`` got past it and raised
+        *"wrapped C/C++ object of type QWidget has been deleted"* mid-paint.
+
+        Found by running the suite in parallel (2026-08-01), which changes the
+        timing enough to expose it; it is not a test artefact, and the same
+        race can be lost when a user closes a preview while one is pending.
+        """
+        for w in (getattr(self, "_ink_row", None),
+                  getattr(self, "_ink_badge", None)):
+            if w is None or sip.isdeleted(w):
+                return
         mode = last_render_mode()
         text = ("" if not mode else
                 tr("True colours — via the chart's profile") if mode == "profile"

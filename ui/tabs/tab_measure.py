@@ -7345,6 +7345,32 @@ class TabMeasure(QWidget):
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
         if event.type() == QEvent.Type.KeyPress:
             key = event.key()
+            # A SHORTCUT IS NOT AN INSTRUMENT KEY.
+            #
+            # This filter is installed on the whole application while a
+            # measurement waits for a keypress, and it used to forward
+            # `event.text()` for anything it did not recognise — which for
+            # ⌘C is the bare letter "c". So copying text out of the log window
+            # sent a 'c' to the reader, and consuming the event meant the copy
+            # did not happen either.
+            #
+            # Knut, #130 2026-08-01, seeing exactly that in his log: *"the
+            # stray c was part of the log window. No keys were pressed. only
+            # the sequence I told you, so the code generated these extra key
+            # strokes."* He was right and my first answer — that these were his
+            # own keystrokes — was wrong: they were his *shortcuts*, turned
+            # into instrument keys here. His log shows a Tab two minutes later
+            # for the same reason.
+            #
+            # Anything carrying Ctrl / ⌘ / Alt is left for the application, and
+            # Tab is left for focus navigation.
+            mods = event.modifiers()
+            if (mods & (Qt.KeyboardModifier.ControlModifier
+                        | Qt.KeyboardModifier.MetaModifier
+                        | Qt.KeyboardModifier.AltModifier)):
+                return False
+            if key in (Qt.Key.Key_Tab, Qt.Key.Key_Backtab):
+                return False
             sent = True
             if key == Qt.Key.Key_Escape:
                 self._manager.send_key("\x1b")

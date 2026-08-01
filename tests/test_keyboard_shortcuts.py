@@ -97,6 +97,18 @@ def test_cmd_tab_focuses_bar_so_arrows_move_between_tabs(win, qapp):
     from PyQt6.QtCore import Qt
     from PyQt6.QtTest import QTest
 
+    # Arrow navigation only moves between ENABLED tabs, and the tab strip must
+    # be in the ACTIVE window for the key to reach it. Both are established
+    # here rather than inherited: another window built earlier in the same
+    # process can hold the application's active-window slot, and a measurement
+    # test can leave tabs disabled — either way the arrow silently does
+    # nothing. The suite happened to run in an order where this held; running
+    # in parallel it did not (2026-08-01).
+    for i in range(win._tabs.count()):
+        win._tabs.setTabEnabled(i, True)
+    win.activateWindow()
+    qapp.setActiveWindow(win)
+
     win._go_to_tab(2)                                  # ⌘3
     assert win._tabs.currentIndex() == 2
     assert win._tabs.tabBar().hasFocus()
