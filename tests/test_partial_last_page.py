@@ -43,11 +43,19 @@ def _engine_chart(dir_: Path, n_patches: int) -> Path:
     return ti2
 
 
-def test_blank_reported_for_near_empty_overflow(tab, tmp_path):
-    # 5 patches on an i1/A4 layout that holds hundreds → last page nearly empty.
+def test_no_warning_for_a_nearly_empty_page(tab, tmp_path):
+    """This test used to assert the opposite, and the behaviour it pinned is
+    the one Knut reported as wrong (#130, 2026-08-01): on a 12-patch chart the
+    hint offered to help fill "about 670 more patches".
+
+    5 patches on an i1/A4 layout that holds hundreds is not a page that
+    "doesn't quite fill" — it is a page that is essentially empty, and the
+    hint's advice (add or remove a few patches) cannot be acted on. The gap is
+    only worth mentioning once the page is at least half full; see
+    tests/test_knut_beta118_partial_page_hint.py for the full boundary set.
+    """
     ti2 = _engine_chart(tmp_path / "few", 5)
-    blank = tab._partial_last_page_blank(ti2)
-    assert blank is not None and blank > 50
+    assert tab._partial_last_page_blank(ti2) is None
 
 
 def test_no_warning_for_a_full_page(tab, tmp_path):
