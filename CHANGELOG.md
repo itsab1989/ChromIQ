@@ -1,5 +1,20 @@
 # Changelog
 
+## v3.14.8-beta.117
+
+- **"Restore Used Chart" stops offering itself when there is nothing to
+  restore.** On some runs the button stayed available no matter what, and
+  pressing it changed nothing you could see. The cause was a two-byte difference
+  in the run's `meta.json` — a file that travels with a chart but does not
+  describe it. One check ignored that file, as it always has; the newer check
+  did not, so they disagreed about whether the stored and current charts were
+  the same. They now agree.
+
+- **Files your computer leaves in a folder are never mistaken for chart files.**
+  Anything beginning with a dot — `.DS_Store`, and the `._name` companions macOS
+  writes when unzipping — is ignored on both sides of that comparison, so a
+  project that has been through Finder or a zip behaves like any other.
+
 ## v3.14.8-beta.116
 
 - **"Restore Used Chart" never does nothing in silence again.** If ChromIQ

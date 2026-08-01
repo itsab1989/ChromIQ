@@ -230,6 +230,15 @@ def snapshot_matches_live(slot) -> bool:
     # Through the same filter as everything else, so a stray .DS_Store cannot
     # make two identical charts look different and re-enable the button.
     stored = slot_snapshot_files(slot)
+    # meta.json and its kind travel WITH the chart but do not define it —
+    # `slot_live_differs` has always skipped them for exactly that reason, and
+    # this check must agree or the two disagree about whether a restore would
+    # change anything. Knut's run4 differed from its stored copy by two bytes of
+    # meta.json, which kept "Restore Used Chart" enabled for ever while runs 1-3
+    # behaved (#130, 2026-08-01).
+    from workflow.chart_slot import CHART_SIDE_FILES
+    stored = [f for f in stored if f.name not in CHART_SIDE_FILES]
+    live = [f for f in live if f.name not in CHART_SIDE_FILES]
     if {f.name for f in stored} != {f.name for f in live}:
         return False
     try:

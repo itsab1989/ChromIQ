@@ -91,3 +91,49 @@ def test_that_message_tells_the_user_what_to_do(qapp=None):
             "has moved on since the button was last enabled. Pick the run you "
             "want in the bar and try again — your files are exactly as they "
             "were.") in extract_keys()
+
+
+# ---- run 4 stayed enabled for ever: two bytes of meta.json ---------------
+def test_side_files_do_not_decide_whether_a_restore_would_change_anything(tmp_path):
+    """Knut, #130 2026-08-01, with a project of four runs: runs 1-3 greyed the
+    button correctly, run 4 never did. Same file names on both sides — the whole
+    difference was two bytes of `meta.json`.
+
+    `slot_live_differs` has always skipped `meta.json` and its kind: they travel
+    WITH the chart but do not define it. The greying check added in beta.114 did
+    not, so the two disagreed and the button stayed enabled for ever.
+    """
+    snap = tmp_path / "chart"; snap.mkdir()
+    live_dir = tmp_path / "live"; live_dir.mkdir()
+    for d in (snap, live_dir):
+        (d / "P.ti1").write_text("identical chart")
+    (snap / "meta.json").write_text('{"a": 1}')
+    (live_dir / "meta.json").write_text('{"a": 11}')      # the two-byte drift
+    slot = types.SimpleNamespace(
+        snapshot_dir=snap, files_to_copy=lambda: [live_dir / "P.ti1",
+                                                  live_dir / "meta.json"])
+    assert snapshot_matches_live(slot) is True, \
+        "a side file made two identical charts look different"
+
+
+def test_a_real_chart_difference_is_still_seen(tmp_path):
+    """The fix must not blind the check to what it is actually for."""
+    snap = tmp_path / "chart"; snap.mkdir()
+    live_dir = tmp_path / "live"; live_dir.mkdir()
+    (snap / "P.ti1").write_text("stored chart")
+    (live_dir / "P.ti1").write_text("DIFFERENT chart")
+    for d in (snap, live_dir):
+        (d / "meta.json").write_text("{}")
+    slot = types.SimpleNamespace(
+        snapshot_dir=snap, files_to_copy=lambda: [live_dir / "P.ti1",
+                                                  live_dir / "meta.json"])
+    assert snapshot_matches_live(slot) is False
+
+
+def test_the_two_checks_agree_about_side_files():
+    """They disagreed, which is the bug. Neither may drift again."""
+    import inspect
+    from workflow.verify_chart_snapshot import (slot_live_differs,
+                                                snapshot_matches_live as m)
+    assert "CHART_SIDE_FILES" in inspect.getsource(slot_live_differs)
+    assert "CHART_SIDE_FILES" in inspect.getsource(m)

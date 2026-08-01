@@ -76,7 +76,13 @@ class ChartSlot:
         verification runs, ``old/`` and ``reports/`` are safe."""
         if not self.live_dir.exists():
             return []
-        files = sorted(p for p in self.live_dir.iterdir() if p.is_file())
+        # Dot-files are the operating system's, not the chart's — macOS leaves
+        # `.DS_Store` in any folder opened in Finder and `._name` shadow files
+        # in anything unzipped. The stored side already skips them; without the
+        # same rule here the two sides disagree about what the chart contains
+        # (#130, 2026-08-01).
+        files = sorted(p for p in self.live_dir.iterdir()
+                       if p.is_file() and not p.name.startswith("."))
         if self.suffixes is None:
             return files
         return [p for p in files if p.name.endswith(self.suffixes)
