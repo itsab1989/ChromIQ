@@ -236,9 +236,29 @@ def snapshot_matches_live(slot) -> bool:
     # change anything. Knut's run4 differed from its stored copy by two bytes of
     # meta.json, which kept "Restore Used Chart" enabled for ever while runs 1-3
     # behaved (#130, 2026-08-01).
-    from workflow.chart_slot import CHART_SIDE_FILES
+    from workflow.chart_slot import CHART_SIDE_FILES, _is_image
     stored = [f for f in stored if f.name not in CHART_SIDE_FILES]
     live = [f for f in live if f.name not in CHART_SIDE_FILES]
+    # A SNAPSHOT MAY HOLD MORE THAN A COPY WOULD TAKE TODAY.
+    #
+    # `files_to_copy` leaves the page images out when the chart carries a
+    # layout recipe — they can be redrawn from it. But snapshots taken before
+    # that rule, or from a chart that had no recipe, DO contain them, and
+    # comparing "what a copy would take now" against "everything in the folder"
+    # then finds extra files on the stored side and calls two identical charts
+    # different. The button was enabled for ever, and pressing it did nothing
+    # visible — the very fault greying it was meant to cure.
+    #
+    # Knut, #130 2026-08-01, on a duplicated run whose files are identical on
+    # both sides: *"files in chart/ folder seem identical as the chart files in
+    # run5/. The chart/ folder has tif files in this case. Why is still 'Restore
+    # Used Chart' button enabled?"* Because of those .tif files.
+    #
+    # The chart is what defines it, not the pictures of it: when the live side
+    # has dropped its images, drop them from the stored side too and compare
+    # like with like.
+    if len(live) < len(stored) and not any(_is_image(f) for f in live):
+        stored = [f for f in stored if not _is_image(f)]
     if {f.name for f in stored} != {f.name for f in live}:
         return False
     try:
