@@ -189,17 +189,14 @@ def spot_measurement_instructions_html(family: "str | None") -> str:
         return tr(
             "Turn the dial to the <b>measurement position</b> (the target / "
             "aperture icon). Rest the device flat on the colour you want to "
-            "read, with the aperture fully inside it, and press the side button "
-            "once. Hold it still until the reading is taken.")
+            "read, with the aperture fully inside it.")
     if family == "i1pro":
         return tr(
             "Take the i1Pro <b>off its base</b>. Place it flat on the colour you "
-            "want to read so the aperture sits fully inside it, and press the "
-            "button once. Keep it still until the reading is taken.")
+            "want to read so the aperture sits fully inside it.")
     return tr(
         "Place your instrument flat on the colour you want to read, with its "
-        "aperture fully inside the area, and take a single reading as described "
-        "in its manual.")
+        "aperture fully inside the area.")
 
 
 def patch_measurement_instructions_html(family: "str | None") -> str:

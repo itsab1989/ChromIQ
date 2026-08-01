@@ -15,7 +15,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QAbstractItemView,
@@ -59,9 +59,14 @@ _HELP = tr(
     "Read individual colour patches with your measuring instrument, off any "
     "material — printed sheets, fabric, paint chips, or even a display.\n\n"
     "Click Start session, calibrate the instrument if prompted, then place it "
-    "on a colour and click Take reading. Each reading is added to the table with "
+    "on a colour and click Take reading — or press the button on the instrument "
+    "itself, which does the same thing. Each reading is added to the table with "
     "its L*a*b* value and an approximate on-screen colour. Save writes a CSV (for "
-    "a spreadsheet) and an Argyll .ti3 (for other tools)."
+    "a spreadsheet) and an Argyll .ti3 (for other tools).\n\n"
+    "If a reading comes out inconsistent — usually because the instrument moved "
+    "while it was measuring — it is discarded and the status line says so. Click "
+    "Take reading to clear that and measure again; the instrument's own button "
+    "cannot clear it."
 )
 
 
@@ -90,6 +95,9 @@ class SpotReadDialog(QDialog):
         self._settings = settings
         self._manager = SpotReadManager(runner, self)
         self._readings: list[SpotReading] = []
+        #: True between a misread and the next ready prompt. While set, Take
+        #: reading clears the error before it reads (see _on_take_reading).
+        self._misread = False
 
         self.setWindowTitle(tr("Read single patches"))
         self.setMinimumWidth(960)
@@ -215,7 +223,7 @@ class SpotReadDialog(QDialog):
 
         self._read_btn = QPushButton(tr("Take reading"), self)
         self._read_btn.setEnabled(False)
-        self._read_btn.clicked.connect(self._manager.take_reading)
+        self._read_btn.clicked.connect(self._on_take_reading)
         bottom.addWidget(self._read_btn)
 
         self._avg_btn = QPushButton(tr("Average selected"), self)
@@ -257,7 +265,7 @@ class SpotReadDialog(QDialog):
         m.calibration_prompt.connect(self._on_calibration_prompt)
         m.calibration_finished.connect(self._on_calibration_finished)
         m.calibration_position_wrong.connect(self._on_calibration_position_wrong)
-        m.misread.connect(lambda: self._set_status(tr("Misread — reposition and take the reading again.")))
+        m.misread.connect(self._on_misread)
         m.sensor_wrong_position.connect(self._on_sensor_wrong_position)
         m.no_instrument.connect(self._on_no_instrument)
         m.device_busy.connect(self._on_device_busy)
@@ -294,8 +302,67 @@ class SpotReadDialog(QDialog):
         self._set_status(tr("Session ended."))
 
     def _on_ready(self) -> None:
+        # spotread's menu prompt is the only proof the error mode is over, so
+        # it — not a timer — is what ends the misread state.
+        self._misread = False
         self._read_btn.setEnabled(True)
-        self._set_status(tr("Ready — place the instrument on a colour and click Take reading."))
+        # Knut, #130 2026-08-01: *"the 'Ready ….' message is inaccurate, as
+        # using instrument button is also possible. Revise text."* Both ways of
+        # reading are named now.
+        self._set_status(tr("Ready — place the instrument on a colour, then "
+                            "click Take reading or press the button on the "
+                            "instrument."))
+
+    # ------------------------------------------------------------------
+    # Misread recovery
+    # ------------------------------------------------------------------
+    #: How long the "Ready" line stays visible between clearing the error and
+    #: taking the reading. Knut asked for 0.3 s so the change is *seen*: without
+    #: a pause the two steps collapse into one and the user cannot tell that the
+    #: error was cleared at all.
+    _MISREAD_CLEAR_PAUSE_MS = 300
+
+    def _on_misread(self) -> None:
+        """spotread discarded a reading as inconsistent.
+
+        Knut, #130 2026-08-01: *"if I try to press instrument button nothing
+        happens … if I click Take Reading, then the message changes to Ready.
+        The misread text is a little lacking in information, as it gives the
+        impression that pressing take reading will try again. This is not what
+        happens."*
+
+        He was right on both counts. spotread leaves a retry prompt that only a
+        keypress clears — the instrument's own button is not read there — so one
+        click used to cost the user a reading without saying why. The button now
+        does both steps (see :meth:`_on_take_reading`), which is what the text
+        always implied, and the text says which control works.
+        """
+        self._misread = True
+        self._read_btn.setEnabled(True)
+        self._set_status(tr(
+            "Misread — that reading was inconsistent and has been discarded, "
+            "usually because the instrument moved while it was measuring. Place "
+            "it on the colour again and click Take reading. The button on the "
+            "instrument cannot clear this."))
+
+    def _on_take_reading(self) -> None:
+        """Take a reading — clearing a misread first, when there is one."""
+        if not getattr(self, "_misread", False):
+            self._manager.take_reading()
+            return
+        # Two keypresses with a visible gap: the first leaves spotread's retry
+        # prompt (which is what puts "Ready" on screen), the second is the
+        # reading itself. Disabled in between so a second click cannot queue a
+        # third keypress and read twice.
+        self._read_btn.setEnabled(False)
+        self._manager.send_key("\r")
+
+        def _then_read() -> None:
+            self._misread = False
+            self._read_btn.setEnabled(True)
+            self._manager.take_reading()
+
+        QTimer.singleShot(self._MISREAD_CLEAR_PAUSE_MS, _then_read)
 
     # ------------------------------------------------------------------
     # Readings
@@ -570,8 +637,13 @@ class SpotReadDialog(QDialog):
             # texts he asked for are wired to device detection.
             tr("<b>Your instrument is calibrated and ready.</b><br><br>")
             + spot_measurement_instructions_html(self._instrument_family())
-            + tr("<br><br>Click <b>Take reading</b> for each measurement. The "
-                 "instrument stays calibrated for the whole session, so you "
+            # Knut's own wording (#130, 2026-08-01): the old text described only
+            # the instrument's side button, which is one of two ways to read and
+            # not the one on screen. Both are named now.
+            + tr("<br><br>Use <b>Take reading</b> for each measurement, or press "
+                 "and hold the side button on the instrument, then hold still "
+                 "until the reading is taken.<br><br>"
+                 "The instrument stays calibrated for the whole session, so you "
                  "will not be asked again unless it needs it."),
             dlg,
         )

@@ -488,6 +488,11 @@ class ChartParams:
     # right-margin command/notes stamp is skipped because its target area
     # gets pushed off the page by the shift.
     chromiq_clip_style: bool = False
+    # The date the chart's record strip should carry, ``YYYY-MM-DD``. Empty for
+    # a new chart, which is stamped with today. A chart being REBUILT from its
+    # stored copy sets this to the date it was originally made, so the sheet
+    # that comes back matches the one that was measured (Knut, #130).
+    chart_date: str = ""
     # When True, this run targets the calibration chart (writes to ``cal/``
     # with stem ``calibration``). When False, writes to the project's current
     # run folder with stem ``chart``. See ``FileManager.cwd_for_chart``.
@@ -998,6 +1003,9 @@ class ChartCreator:
             sscale=float(params.spacer_scale or 1.0),
             border=float(params.margin_mm),
             nolimit=bool(params.no_strip_limit),
+            # Empty for a new chart (the engine stamps today); set only when a
+            # stored chart is being rebuilt and must keep its original date.
+            chart_date=str(params.chart_date or ""),
         )
         # Guided/basic path: bracket each strip with a leading + trailing spacer
         # for the strip-reader instruments (i1Pro / i1Pro 3+ / ColorMunki), so the
@@ -1064,6 +1072,10 @@ class ChartCreator:
             kw["instrument"] = params.instrument
             kw["paper"] = params.paper
             kw["project"] = params.target_name   # {project} → profile name
+            # Empty unless a stored chart is being rebuilt, in which case it is
+            # the date that chart was made — the record strip must not claim
+            # the sheet was produced on the day it was restored (Knut, #130).
+            kw["chart_date"] = str(params.chart_date or "")
             if params.engine_cal_path:
                 kw["cal_path"] = params.engine_cal_path
                 kw["apply_cal"] = bool(params.engine_apply_cal)
@@ -1176,6 +1188,12 @@ class ChartCreator:
             layout["engine_version"] = 1
             layout["seed"] = result.seed
             layout["color_rep"] = result.color_rep
+            # The date printed on the sheet's record strip. Saved so Restore
+            # Used Chart can redraw the SAME date rather than the day it ran —
+            # without it a restored chart claims to have been made today
+            # (Knut, #130 2026-08-01).
+            if getattr(result, "chart_date", ""):
+                layout["date"] = result.chart_date
             # Persist the FULL recipe so loading / preset-creation / built-in
             # presets can reconstruct the exact engine layout (round-trip).
             if params.layout_recipe is not None and hasattr(params.layout_recipe, "to_dict"):

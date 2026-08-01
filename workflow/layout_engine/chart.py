@@ -27,6 +27,9 @@ class ChartResult:
     low_contrast_passes: list[int] | None = None
     cht_paths: list[Path] | None = None
     pdf_path: Path | None = None
+    #: The date drawn on the record strip (``YYYY-MM-DD``). Saved with the chart
+    #: so a rebuild can reproduce it instead of stamping the day it ran.
+    chart_date: str = ""
 
 
 def build_ti2_from_ti1(
@@ -145,6 +148,12 @@ def build_chart(
     use_instrument_margins: bool = False,
     stamp_command: bool = False,
     project: str = "",
+    # The date the chart's record strip carries, as ``YYYY-MM-DD``. Left unset
+    # it is today — right for a chart being made. A chart being REBUILT from a
+    # stored copy must pass the date it was originally made on, or the sheet
+    # that comes back is stamped with the day it was restored rather than the
+    # day it was measured (Knut, #130 2026-08-01).
+    chart_date: str = "",
     nolpcbord: bool = False,
     nolimit: bool = False,
     clip_border_width: float = 26.0,
@@ -254,7 +263,7 @@ def build_chart(
         "dpi": f"{dpi} dpi",
         "patchcount": f"{layout.total_patches} patches",
         "pages": str(layout.pages),                     # total; {page} = "page X/Y"
-        "date": _time.strftime("%Y-%m-%d"),
+        "date": chart_date or _time.strftime("%Y-%m-%d"),
         "seed": f"seed {seed}",
     }
     stamp_text = (f"ChromIQ engine · {_ctx['instrument']} · {_ctx['paper']} · "
@@ -357,6 +366,9 @@ def build_chart(
         tiff_paths=tiff_paths, strip_rects=rects,
         low_contrast_passes=render.low_contrast_passes,
         cht_paths=cht_paths, pdf_path=pdf_path,
+        # The date actually drawn, so it can be saved with the chart and handed
+        # back to a later rebuild.
+        chart_date=_ctx["date"],
     )
 
 

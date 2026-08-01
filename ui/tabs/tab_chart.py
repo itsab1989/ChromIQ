@@ -1106,6 +1106,49 @@ def ti1_sidecar(src: Path) -> "Path | None":
     return cand if cand.is_file() else None
 
 
+def _chart_date_from_ti2(ti2: Path) -> str:
+    """The day a chart was made, as ``YYYY-MM-DD``, read from its ``.ti2``.
+
+    Charts written from now on save the record strip's date in their sidecar,
+    so a rebuild can redraw it. Charts made before that — every project already
+    on disk, including Knut's — have no such key, and their ``.ti2`` header is
+    the only record of when the chart was created:
+
+        CREATED "Thu Jul 30 17:45:54 2026"
+
+    Returns "" when there is no usable date, which leaves the caller to stamp
+    today: a guess would be worse than the honest current date.
+    """
+    import re as _re
+    from datetime import datetime
+    try:
+        head = Path(ti2).read_text(errors="replace")[:4000]
+    except OSError:
+        return ""
+    m = _re.search(r'CREATED\s+"([^"]+)"', head)
+    if not m:
+        return ""
+    raw = m.group(1).strip()
+    # ArgyllCMS and the engine both write C's asctime format. The weekday and
+    # month names are locale-dependent when written (a German run produces
+    # "Sa Aug 01 …"), so parse the numbers and ignore the words.
+    m2 = _re.search(r"([A-Za-z]{3})\w*\s+(\d{1,2})\s+[\d:]+\s+(\d{4})", raw)
+    if m2:
+        months = {"jan": 1, "feb": 2, "mar": 3, "mär": 3, "apr": 4, "may": 5,
+                  "mai": 5, "jun": 6, "jul": 7, "aug": 8, "sep": 9, "oct": 10,
+                  "okt": 10, "nov": 11, "dec": 12, "dez": 12}
+        mon = months.get(m2.group(1).lower())
+        if mon:
+            try:
+                return datetime(int(m2.group(3)), mon,
+                                int(m2.group(2))).strftime("%Y-%m-%d")
+            except ValueError:
+                return ""
+    # Some writers use an ISO date directly.
+    m3 = _re.match(r"(\d{4}-\d{2}-\d{2})", raw)
+    return m3.group(1) if m3 else ""
+
+
 class _ChartRebuildGuard:
     """Keeps a chart's own files unchanged while its pages are redrawn.
 
@@ -3324,6 +3367,52 @@ class TabChart(QWidget):
         reaches the next build/preview immediately, on any recipe (#93)."""
         return self._settings.apply_indicator_style(
             self._manual_layout_panel.get_recipe())
+
+    def _pin_restored_recipe(self, params) -> bool:
+        """Rebuild a restored chart from the recipe it was BUILT with.
+
+        Knut, #130 (2026-07-28, and again 2026-08-01: *"every time I clicked
+        restore a new random sequence was shown in the preview"*): the sheet
+        that comes back from Restore Used Chart is not the sheet that was
+        measured. Driving the real app over his four-run project showed every
+        page image changing — while the ``.ti2`` beside it stayed byte-identical
+        apart from its ``CREATED`` line. So the patch order was never the
+        problem; the *drawing* of it was.
+
+        The cause is :meth:`_current_layout_recipe`, which deliberately overlays
+        the ten strip-indicator styling fields from Preferences → Chart Layout
+        on top of whatever the panel holds. That is right for a chart being
+        made: the styling is app-wide and a change there should reach the next
+        build. It is wrong for a chart being *reproduced*. His run had been
+        drawn with a 4.23 mm indicator; Preferences said "auto", so the rebuild
+        drew it at auto, the label band grew from 64 to 86 px, and every page
+        came out different.
+
+        A second, quieter source of drift: the size spinbox is whole points, so
+        a recipe that went through the panel comes back rounded (4.23 mm →
+        12 pt → 4.233 mm). Small, but a rebuild that must match cannot afford
+        even that. Both are avoided the same way — by using the recipe read
+        straight from the chart's own sidecar rather than anything the widgets
+        have touched.
+
+        Returns True when a stored recipe was pinned, so callers can tell the
+        exact case from the best-effort one.
+        """
+        recipe = getattr(self, "_restored_exact_recipe", None)
+        # Only meaningful for an engine chart: a printtarg chart has no recipe,
+        # and `layout_recipe` is None unless the engine path is the active one.
+        if recipe is None or getattr(params, "layout_recipe", None) is None:
+            return False
+        params.layout_recipe = recipe
+        params.instrument = recipe.instrument
+        params.paper = recipe.paper
+        params.tiff_dpi = recipe.dpi
+        # The record strip prints the date the chart was made. Rebuilt without
+        # it, a restored sheet claims to have been made on the day it was
+        # restored — so the paper in the user's hand and the paper on screen
+        # disagree about their own history.
+        params.chart_date = getattr(self, "_restored_chart_date", "") or ""
+        return True
 
     @staticmethod
     def _layout_recipe_values(r) -> dict:
@@ -6536,6 +6625,11 @@ class TabChart(QWidget):
         whether they were, for an accurate log line (mavtop, forum)."""
         import json as _json
         import re as _re
+        # Forget the previous chart's recipe first: a chart that carries none
+        # must not inherit the last one's layout (it would be rebuilt as some
+        # other sheet entirely).
+        self._restored_exact_recipe = None
+        self._restored_chart_date = ""
         # Patch count from the .ti2 itself — works for every chart kind.
         try:
             txt = Path(ti2_path).read_text(errors="replace")
@@ -6577,6 +6671,14 @@ class TabChart(QWidget):
                 # one that reproduces this chart.
                 if isinstance(layout.get("seed"), int):
                     recipe.seed = int(layout["seed"])
+                # Keep the recipe EXACTLY as the chart recorded it, before any
+                # widget has rounded it and before Preferences has had its say.
+                # A rebuild that must reproduce this chart reads this, not the
+                # panel — see _restored_exact_recipe's use in the Restore path.
+                self._restored_exact_recipe = recipe
+                self._restored_chart_date = (
+                    str(layout.get("date") or "")
+                    or _chart_date_from_ti2(Path(ti2_path)))
                 # Engine on first (builds/updates the panel), then the recipe.
                 if (self._manual_engine_check is not None
                         and not self._manual_engine_check.isChecked()):
@@ -8843,6 +8945,7 @@ class TabChart(QWidget):
             self._arm_verification_snapshot()
             params = self._collect_params()
             params.target_name = self._file_mgr.get_target_name()
+            self._pin_restored_recipe(params)
             # THE CHART ITSELF MUST SURVIVE THE REDRAW.
             #
             # Redrawing pages is a rendering job; it is not licence to lay the
