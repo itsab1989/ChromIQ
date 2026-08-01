@@ -102,18 +102,31 @@ class ReplaySession:
         self.proc.stdin.flush()
 
     def wait_event(self, name: str, timeout: float = 10.0,
-                   after: int = 0) -> dict:
-        """Return the first `name` event with index >= after."""
+                   after: int = 0, **fields) -> dict:
+        """Return the first `name` event with index >= after.
+
+        ``fields`` narrows it: ``wait_event("strip_ready", strip="B")`` waits
+        for the strip_ready that names B rather than for whichever arrives
+        first. That matters after a ``goto`` — the helper can still be
+        finishing with the strip it was on, so the next strip_ready is not
+        necessarily the one the goto asked for, and a test that takes the first
+        one passes or fails on timing. (Seen on a full-suite run, 2026-08-01:
+        ``assert 'A' == 'B'`` in test_goto_jumps_and_allows_remeasure.)
+        """
         deadline = time.time() + timeout
         while time.time() < deadline:
             with self._lock:
                 for i, ev in enumerate(self.events):
-                    if i >= after and ev.get("event") == name:
+                    if i < after or ev.get("event") != name:
+                        continue
+                    if all(ev.get(k) == v for k, v in fields.items()):
                         return ev
             time.sleep(0.02)
         with self._lock:
             tail = "\n".join(self.raw_lines[-15:])
-        raise TimeoutError(f"no '{name}' event within {timeout}s; tail:\n{tail}")
+        want = "".join(f" {k}={v!r}" for k, v in fields.items())
+        raise TimeoutError(
+            f"no '{name}'{want} event within {timeout}s; tail:\n{tail}")
 
     def event_index(self) -> int:
         with self._lock:

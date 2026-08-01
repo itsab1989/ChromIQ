@@ -142,14 +142,17 @@ def test_goto_jumps_and_allows_remeasure(fixed_chart):
     s.wait_event("strip_ready")
     idx = s.event_index()
     s.send(cmd="goto", strip="B")
-    ev = s.wait_event("strip_ready", after=idx)
+    # Wait for the strip_ready that names B, not merely the next one: the
+    # helper can still be settling the strip it was on, and taking the first
+    # event made this pass or fail on timing (2026-08-01, full-suite run).
+    ev = s.wait_event("strip_ready", after=idx, strip="B")
     assert ev["strip"] == "B"
     s.send(cmd="swipe")
-    assert s.wait_event("strip_read", after=idx)["strip"] == "B"
+    assert s.wait_event("strip_read", after=idx, strip="B")["strip"] == "B"
     # jump back to a read strip and measure it again
     idx = s.event_index()
     s.send(cmd="goto", strip="B")
-    ev = s.wait_event("strip_ready", after=idx)
+    ev = s.wait_event("strip_ready", after=idx, strip="B")
     assert ev["strip"] == "B" and ev["read"] is True
     _quit(s)
 
