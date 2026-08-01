@@ -42,7 +42,7 @@ def _areas() -> "list[tuple[str, str, str]]":
         (tr("Profile-run bar"), tr("in the middle of the masthead"),
          tr("The most important control in ChromIQ: it decides what every tab "
             "acts on. “Profile run”, “Run type”, “Verification”, an ⓘ, and the "
-            "“Restore Used Chart” and “Delete” buttons.")),
+            "“Restore Used Chart”, “Duplicate” and “Delete” buttons.")),
         (tr("Location being edited"), tr("just under the bar"),
          tr("The exact folder the next action will write to. When you are not "
             "sure where something will land, read this line.")),
@@ -159,6 +159,21 @@ def _keeping() -> "list[tuple[str, str]]":
          tr("A chart can be generated again in seconds; a measurement is real "
             "ink on real paper and cannot be. ChromIQ warns you before "
             "anything would overwrite one.")),
+        (tr("“Duplicate” is the safe way to carry on"),
+         tr("When you want to measure a chart again, build a different profile "
+            "from readings you already have, or give your verification runs a "
+            "different chart, duplicate the run first. It makes a new run "
+            "holding a copy of the chart, the measurement and the profile, and "
+            "leaves the run you started from exactly as it is — so you can try "
+            "something without putting the work behind it at risk.")),
+        (tr("Why re-creating a chart mid-run is worth avoiding"),
+         tr("A run is meant to hold one chart, the measurement of that chart, "
+            "and the profile built from it. Re-create the chart after "
+            "measuring and those three stop describing each other: the "
+            "measurement refers to a sheet you no longer have, and any "
+            "verification run checked against the old profile is no longer "
+            "comparing like with like. Duplicate the run instead, and change "
+            "the chart in the copy.")),
     ]
 
 

@@ -58,9 +58,26 @@ ACTION_ROWS: "list[tuple[str, list[str]]]" = [
         tr("“Restore Used Chart” puts a run's stored copy back over the live one."),
     ]),
     (tr("Copy a run"), [
+        # The Duplicate button (#130, "course B") is the direct answer to this
+        # question, so it goes first — the pre-conditioning route below seeds a
+        # refinement, which is a different intention.
+        tr("“Duplicate” on the run bar — makes a new run holding a copy of this "
+        "run's chart, measurement and profile, leaving this one untouched. Use "
+        "it before re-measuring, before building a different profile from the "
+        "same readings, or to give verification runs a different chart."),
         tr("Create a New run, then “← Use as Pre-conditioning” on Build Profile "
         "or Check & Refine — that copies the run's profile and measurement in "
         "as seeds."),
+    ]),
+    (tr("Keep a measurement you already have"), [
+        tr("“Duplicate” the run first, then measure in the copy — the original "
+        "run keeps its measurement and the profile built from it."),
+        tr("Tick “Refine / resume existing measurement (-r)” to add to the "
+        "readings instead of replacing them."),
+        tr("Re-creating a chart in a run that has been measured leaves the "
+        "measurement describing a chart you no longer have, and any profile "
+        "built from it no longer matches the verification runs checked against "
+        "it. ChromIQ warns before that happens."),
     ]),
     (tr("Print a chart"), [
         tr("Print Chart ▸ “Print All Pages” or “Print Current Page”."),
