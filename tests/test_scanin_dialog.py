@@ -1058,7 +1058,9 @@ def test_page_count_mismatch_geometry_is_rejected(_app, tmp_path):
         dlg._printer_cb.setChecked(True)
         dlg._set_chart(tmp_path / "chart.ti2")
         assert dlg._layout is None
-        assert "3 recognition page(s) for 2 printed page(s)" \
+        # Real plurals since 2026-08-01 — both counts are phrased separately
+        # so "(s)" never has to cover a 2x2 of singular/plural.
+        assert "3 recognition pages for 2 printed pages" \
             in dlg._chart_note.text()
         assert "Patch Size Scale" in dlg._chart_note.text()
     finally:

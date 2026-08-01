@@ -41,23 +41,47 @@ def qapp():
 
 
 # ---- 1. every ⓘ in the bar follows the tab ------------------------------
-def test_the_delete_info_icon_follows_the_tab_colour():
-    from ui.measurement_target_bar import MeasurementTargetBar
-    src = inspect.getsource(MeasurementTargetBar.set_accent)
-    assert "self._delete_tip" in src, "the Delete ⓘ keeps the last tab's colour"
+#: Both checks below used to read `set_accent`'s SOURCE for the name of each ⓘ.
+#: That guard did its job twice and then failed a third time (Sebastian,
+#: 2026-08-01, on the Duplicate button's ⓘ), because a list of names in the
+#: source is still a list somebody has to remember to extend. `set_accent` now
+#: finds the ⓘ buttons with `findChildren`, so there are no names to look for —
+#: and these assert the behaviour instead, which is what was actually wanted.
+#: The exhaustive version lives in tests/test_bar_accent_covers_every_icon.py.
+_MAGENTA = "#d4499b"
 
 
-def test_every_tooltip_button_in_the_bar_is_tinted():
-    """A guard against the next one being forgotten: every ⓘ the bar creates
-    must appear in set_accent."""
-    from ui.measurement_target_bar import MeasurementTargetBar
-    built = inspect.getsource(MeasurementTargetBar.__init__)
-    tinted = inspect.getsource(MeasurementTargetBar.set_accent)
-    names = {ln.split("=")[0].strip()
-             for ln in built.splitlines()
-             if "= TooltipButton(" in ln and ln.strip().startswith("self.")}
-    missing = [n for n in names if n not in tinted]
-    assert not missing, f"these ⓘ are never tinted: {missing}"
+def _tinted_bar(tmp_path, colour=_MAGENTA):
+    from PyQt6.QtCore import QSettings
+    from core.file_manager import FileManager
+    from core.settings import AppSettings
+    from ui.measurement_target_bar import (MeasurementTargetBar,
+                                           MeasurementTargetController)
+    s = AppSettings()
+    s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    s.set("custom_output_path", str(tmp_path / "out"))
+    bar = MeasurementTargetBar(MeasurementTargetController(FileManager(s)),
+                               show_verification=True)
+    bar.set_accent(colour)
+    return bar
+
+
+def test_the_delete_info_icon_follows_the_tab_colour(qapp, tmp_path):
+    bar = _tinted_bar(tmp_path)
+    assert (bar._delete_tip._color_override or "").lower() == _MAGENTA, \
+        "the Delete ⓘ keeps the last tab's colour"
+
+
+def test_every_tooltip_button_in_the_bar_is_tinted(qapp, tmp_path):
+    """A guard against the next one being forgotten: every ⓘ the bar builds
+    must actually take the accent."""
+    from ui.tooltip_button import TooltipButton
+    bar = _tinted_bar(tmp_path)
+    tips = bar.findChildren(TooltipButton)
+    assert tips, "the bar should carry several ⓘ buttons"
+    missing = [t for t in tips
+               if (t._color_override or "").lower() != _MAGENTA]
+    assert not missing, f"{len(missing)} of {len(tips)} ⓘ are never tinted"
 
 
 # ---- 2. the universal button rule, applied to these windows -------------

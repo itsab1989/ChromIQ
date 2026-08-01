@@ -33,15 +33,34 @@ def _creator():
     return c
 
 
-def test_his_printtarg_message_is_remembered(qapp=None):
-    """The exact line from his log."""
+def test_his_printtarg_message_now_has_a_real_explanation():
+    """This line USED to be the example of an unrecognised error, because no
+    pattern knew it — which is why the raw-message fallback below exists.
+
+    It is recognised now (#130, 2026-08-01): repeating "doesn't contain two or
+    three tables" back at somebody tells them nothing they can act on, so it
+    has its own explanation. The fallback is still needed for the next unknown
+    message, which is what the tests below cover with one.
+    See tests/test_knut_beta118_ti1_tables_error.py for the explanation itself.
+    """
     c = _creator()
     c._scan_line("printtarg",
                  "printtarg: Error - Input file doesn't contain two or three tables")
+    assert c.primary_failure() is not None
+    assert c.primary_failure()[1] == "ti1_wrong_tables"
+    assert c.unmatched_failure() is None, \
+        "a recognised error must not also surface as an unrecognised one"
+
+
+def test_an_unknown_printtarg_message_is_still_remembered():
+    """The fallback that makes a silent failure impossible — the point of this
+    file. Any message no pattern knows must still reach the user."""
+    c = _creator()
+    c._scan_line("printtarg", "printtarg: Error - something nobody has seen yet")
     assert c.primary_failure() is None, "no friendly pattern knows this one"
     tool, said = c.unmatched_failure()
     assert tool == "printtarg"
-    assert "two or three tables" in said
+    assert "something nobody has seen yet" in said
 
 
 def test_a_recognised_error_still_wins():
@@ -61,11 +80,15 @@ def test_ordinary_output_is_not_treated_as_a_failure():
 
 
 def test_the_first_error_is_the_one_reported():
-    """Later noise must not replace the message that explains the failure."""
+    """Later noise must not replace the message that explains the failure.
+
+    Uses an unrecognised first message on purpose: with a recognised one the
+    fallback is bypassed entirely, so this would be testing nothing.
+    """
     c = _creator()
-    c._scan_line("printtarg", "printtarg: Error - Input file doesn't contain two or three tables")
+    c._scan_line("printtarg", "printtarg: Error - the real reason it stopped")
     c._scan_line("printtarg", "printtarg: Error - giving up")
-    assert "two or three tables" in c.unmatched_failure()[1]
+    assert "the real reason it stopped" in c.unmatched_failure()[1]
 
 
 def test_the_window_appears_when_nothing_was_recognised():

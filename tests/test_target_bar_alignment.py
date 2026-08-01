@@ -115,7 +115,11 @@ def test_verification_adds_its_boxes_on_the_right(qapp, tmp_path):
     # the end of the row, so it and BOTH buttons with their own ⓘ are pushed
     # along when the Verification boxes appear. All five are shown for either
     # run type, so none of them is a "new" box.
+    # Seven since the Duplicate button and its ⓘ joined them (#130, 2026-08-01,
+    # "course B") — same reasoning: shown for either run type, so pushed along
+    # rather than added.
     pushed = {id(bar._tip_btn), id(bar._restore_btn), id(bar._restore_tip),
+              id(bar._duplicate_btn), id(bar._duplicate_tip),
               id(bar._delete_btn), id(bar._delete_tip)}
     for w in after:
         if id(w) in before and id(w) not in pushed:
