@@ -59,6 +59,9 @@ class MastheadHeader(QWidget):
     settings_clicked = pyqtSignal()
     help_clicked     = pyqtSignal()
     tools_clicked    = pyqtSignal()
+    #: The two left-hand buttons moved out of the tabs (#130).
+    load_project_clicked = pyqtSignal()
+    load_ti2_clicked     = pyqtSignal()
 
     STRIPE_H  = 6
     VERSION_H = 28      # tall enough to seat the compact target bar with margin
@@ -105,6 +108,42 @@ class MastheadHeader(QWidget):
         self._help_btn = WelcomeButton(self)
         self._help_btn.help_clicked.connect(self.help_clicked)
 
+        # ---- Load Project / Load .ti2 (absolute children, far LEFT) ----
+        #
+        # Moved here out of the tabs (#130, spec agreed 2026-07-31): Load
+        # Project used to sit in Create Chart and Load .ti2 in BOTH Print Chart
+        # and Measure. They act on the whole app rather than on one tab, so the
+        # masthead is where they belong — and one Load .ti2 button replaces two.
+        #
+        # These icons do NOT follow the active tab's colour. Sebastian,
+        # 2026-07-31: *"In the masthead the icons don't have to follow the color
+        # of the active tab anymore. That's why we asked you for multi-color
+        # versions."* So they are static, and set_appearance only swaps the
+        # light/dark artwork.
+        self._load_project_btn = QToolButton(self)
+        self._load_project_btn.setObjectName("tooltip_btn")
+        self._load_project_btn.setToolTip(tr(
+            "Open a printer profile project you have already made.\n\n"
+            "Brings back its runs, its charts and its measurements, and picks "
+            "up where you left off. Unavailable while a measurement is "
+            "running."))
+        self._load_project_btn.setFixedSize(QSize(44, 44))
+        self._load_project_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._load_project_btn.clicked.connect(self.load_project_clicked)
+
+        self._load_ti2_btn = QToolButton(self)
+        self._load_ti2_btn.setObjectName("tooltip_btn")
+        self._load_ti2_btn.setToolTip(tr(
+            "Open a chart file (.ti2) to print or measure.\n\n"
+            "This is the laid-out chart ChromIQ made for you — the same one you "
+            "printed. Loading it here shows its pages in Create Chart, Print "
+            "Chart and Measure, so all three are working on the same chart. "
+            "Unavailable while a measurement is running."))
+        self._load_ti2_btn.setFixedSize(QSize(44, 44))
+        self._load_ti2_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._load_ti2_btn.clicked.connect(self.load_ti2_clicked)
+        self._load_masthead_left_icons()
+
         # ---- Optional centred widget on the version rail (the shared
         # Profile-run / Run-type bar, #130) ----
         self._center_widget: QWidget | None = None
@@ -120,6 +159,7 @@ class MastheadHeader(QWidget):
         self._palette = _PALETTE_LIGHT if new_mode == "light" else _PALETTE_DARK
         self._load_settings_icon()
         self._load_tools_icon()
+        self._load_masthead_left_icons()
         self.update()
 
     # ------------------------------------------------------------------
@@ -140,6 +180,12 @@ class MastheadHeader(QWidget):
         self._help_btn.move(help_x, btn_y)
         self._btn.move(help_x - bw - 8, btn_y)
         self._tools_btn.move(help_x - bw - 8 - self._tools_btn.width() - 8, btn_y)
+        # Left edge: [ Load Project ] [ Load .ti2 ], mirroring the right-hand
+        # group. Knut's spec (#130, 2026-07-31): the same icon size, the gap
+        # between them equal to the Tools↔Preferences gap (8 px), and the left
+        # margin equal to the Help icon's right margin (12 px).
+        self._load_project_btn.move(12, btn_y)
+        self._load_ti2_btn.move(12 + self._load_project_btn.width() + 8, btn_y)
         self.reposition_center()
 
     # ------------------------------------------------------------------
@@ -395,6 +441,46 @@ class MastheadHeader(QWidget):
         return self._tools_btn
 
     # ------------------------------------------------------------------
+    def _load_masthead_left_icons(self) -> None:
+        """Draw the Load Project / Load .ti2 marks for the current theme.
+
+        Multi-colour by design — they keep their own palette whatever tab is on
+        screen (Sebastian, 2026-07-31). Each ships a light variant whose strokes
+        are heavier, because the dark artwork disappears on a pale background.
+        """
+        suffix = "_light" if self._mode == "light" else ""
+        for btn, name in ((self._load_project_btn, "load_project"),
+                          (self._load_ti2_btn, "load_ti2")):
+            path = resource_path(f"assets/{name}{suffix}.svg")
+            if not path.exists():
+                continue
+            renderer = QSvgRenderer(str(path))
+            if not renderer.isValid():
+                continue
+            size = 40
+            dpr = self.devicePixelRatioF() or 1.0
+            pm = QPixmap(int(size * dpr), int(size * dpr))
+            pm.setDevicePixelRatio(dpr)
+            pm.fill(Qt.GlobalColor.transparent)
+            p = QPainter(pm)
+            p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            renderer.render(p, QRectF(0, 0, size, size))
+            p.end()
+            btn.setIcon(QIcon(pm))
+            btn.setIconSize(QSize(size, size))
+
+    def set_load_buttons_enabled(self, enabled: bool) -> None:
+        """Grey both left-hand buttons while a measurement is running.
+
+        Knut, #130 2026-07-31: *"Remember that also the Load Project icon should
+        be Disabled while a measurement runs."* Load .ti2 already had that guard
+        on the Measure tab; Load Project never did.
+        """
+        for btn in (self._load_project_btn, self._load_ti2_btn):
+            btn.setEnabled(enabled)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor if enabled
+                          else Qt.CursorShape.ArrowCursor)
+
     def _load_tools_icon(self) -> None:
         """Render the tools toolbox SVG to fill the button.
 

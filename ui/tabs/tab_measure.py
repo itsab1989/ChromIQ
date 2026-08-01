@@ -1225,15 +1225,10 @@ class TabMeasure(QWidget):
         # Load-chart + reveal-folder icons in the header's upper-right, like the
         # Create Chart and Print Chart tabs (Knut/Basti). The selected file still
         # shows in the Chart File frame below.
-        from ui.widgets import PatchGridButton, RevealFolderButton
-        self._load_ti1_btn = PatchGridButton(_TAB_COLOR, top_widget, page=True)
-        self._load_ti1_btn.setToolTip(tr(
-            "Load a chart file (.ti2) to measure.\n\n"
-            "This is the laid-out chart ChromIQ made for you in Create Chart — "
-            "the same one you printed. Pick it here and the preview shows its "
-            "pages so you can read them strip by strip. The finished "
-            "measurements are saved as a .ti3 file for building the profile."))
-        self._load_ti1_btn.clicked.connect(self._on_load_ti2)
+        from ui.widgets import RevealFolderButton
+        # "Load .ti2" MOVED TO THE MASTHEAD (#130, spec agreed 2026-07-31): one
+        # button for the whole app, top-left, replacing the one that used to be
+        # here and the one on the Print tab. The reveal-folder icon stays.
         self._reveal_btn = RevealFolderButton(_TAB_COLOR, top_widget)
         self._reveal_btn.setToolTip(tr(
             "Open this chart's folder in {manager} — where "
@@ -1245,7 +1240,6 @@ class TabMeasure(QWidget):
         _ht = QHBoxLayout(_hdr_trailing)
         _ht.setContentsMargins(0, 0, 0, 0)
         _ht.setSpacing(6)
-        _ht.addWidget(self._load_ti1_btn)
         _ht.addWidget(self._reveal_btn)
         top_layout.addWidget(TabHeader(
             tr("STEP 03 · MEASURE CHART"), tr("Measure printed chart"), "#56d6a5", top_widget,

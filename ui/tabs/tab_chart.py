@@ -1365,8 +1365,10 @@ class TabChart(QWidget):
         _ht = QHBoxLayout(_hdr_trailing)
         _ht.setContentsMargins(0, 0, 0, 0)
         _ht.setSpacing(6)
-        self._load_profile_btn = self._make_load_profile_button(_hdr_trailing)
-        _ht.addWidget(self._load_profile_btn)
+        # MOVED TO THE MASTHEAD (#130, spec agreed 2026-07-31). These acted on
+        # the whole app rather than on one tab, and Load .ti2 existed twice —
+        # once here and once on the other tab. Both now live top-left in the
+        # masthead; see MastheadHeader.load_project_clicked / load_ti2_clicked.
         self._load_ti1_btn = PatchGridButton(SPEC_MAGENTA, _hdr_trailing)
         self._load_ti1_btn.setToolTip(
             tr("Load patch set.\n"
@@ -6870,8 +6872,75 @@ class TabChart(QWidget):
         self._refresh_manual_command_preview()
         self._maybe_warn_reflected_backfill(ti2_path)
 
+    def announce_duplicated_run(self, ti2_path: Path, run_label: str,
+                                source_label: str) -> None:
+        """Say what a Duplicate just did — in the words of a duplicate.
+
+        Knut, #130 2026-08-01, on the window that used to appear here: *"Why
+        mention safe in its own project folder, or that ti2 file can be opened
+        again from Print or Measure?? First, Duplicate action was performed, so
+        we are still inside the same open project. No need to say it is safe."*
+        He is right; that text is written for a chart loaded from elsewhere, and
+        every reassurance in it answers a worry a duplicate does not raise.
+
+        He also caught the last paragraph describing how to build a new chart
+        from these settings — *"This sounds like creating a verification run
+        chart, without mentioning that it is, and that run type must be set
+        correctly to do so."* So the verification route is named explicitly,
+        with the step that actually matters.
+        """
+        if bool(self._settings.get("duplicate_notice_hide", False)):
+            return
+        dlg = QDialog(self)
+        dlg.setWindowTitle(tr("Your duplicated run is ready"))
+        dlg.setMinimumWidth(560)
+        lay = QVBoxLayout(dlg)
+        lay.setContentsMargins(24, 20, 24, 16)
+        lay.setSpacing(12)
+        heading = QLabel(
+            tr("{run} is a copy of {source}, and it is now the run you are "
+               "working in").format(run=run_label, source=source_label), dlg)
+        heading.setWordWrap(True)
+        heading.setStyleSheet("font-weight: 600; font-size: 14px;")
+        lay.addWidget(heading)
+        body = QLabel(
+            tr("Create Chart is showing the copied chart — “{name}” — and the "
+               "Print and Measure tabs are on it too, so every tab is working "
+               "on the new run.\n\n"
+               "{source} has not changed. Its chart, its measurement and its "
+               "profile are exactly as they were, and you can go back to it at "
+               "any time from the “Profile run” box.\n\n"
+               "WHAT YOU CAN DO NOW\n"
+               "•  Measure this chart again — the copied measurement is here, "
+               "so tick “Refine / resume existing measurement” to add to it, or "
+               "leave it unticked to start fresh.\n"
+               "•  Build a different profile from the copied measurement, on "
+               "the Build Profile tab.\n"
+               "•  Give this run a different verification chart: set “Run "
+               "type” to “Verification” first, then create the chart — the "
+               "copy deliberately starts with none, which is why duplicating "
+               "is the way to change one.").format(name=ti2_path.name), dlg)
+        body.setWordWrap(True)
+        lay.addWidget(body)
+        hide_cb = QCheckBox(tr("Don't show this again"), dlg)
+        lay.addWidget(hide_cb)
+        bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok, dlg)
+        bb.accepted.connect(dlg.accept)
+        lay.addWidget(bb)
+        dlg.exec()
+        if hide_cb.isChecked():
+            self._settings.set("duplicate_notice_hide", True)
+
     def _maybe_warn_reflected_backfill(self, ti2_path: Path) -> None:
-        """One-time, friendly heads-up that a loaded chart now shows here."""
+        """One-time, friendly heads-up that a loaded chart now shows here.
+
+        Skipped after a Duplicate: that path shows its own window, because this
+        one is written for a chart loaded from somewhere else and every
+        reassurance in it is wrong for a copy made inside the open project
+        (Knut, #130 2026-08-01 — see :meth:`announce_duplicated_run`).
+        """
+        if getattr(self, "_suppress_reflect_notice", False):
+            return
         if bool(self._settings.get("reflect_backfill_hide_warning", False)):
             return
         dlg = QDialog(self)

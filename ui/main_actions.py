@@ -53,8 +53,16 @@ ACTION_ROWS: "list[tuple[str, list[str]]]" = [
         tr("Load a chart file and answer the destination window: New run, "
         "Replace, or “Replace only the chart”."),
     ]),
-    (tr("Duplicate a chart"), [
-        tr("Load its .ti1 and build into a New run — same patches, fresh layout."),
+    (tr("Duplicate a run, or a chart"), [
+        # Knut, #130 2026-08-01: this row is where anyone looks for "duplicate",
+        # and it talked only about charts while the Duplicate button was about
+        # runs. The run answer goes first because it is the one people mean.
+        tr("“Duplicate” on the run bar copies the whole run — chart, "
+        "measurement and profile — into a new one, leaving this run untouched. "
+        "That is the safe way to re-measure, to try a different profile from "
+        "the same readings, or to change the chart your verification runs use."),
+        tr("For the chart alone: load its .ti1 and build into a New run — same "
+        "patches, fresh layout."),
         tr("“Restore Used Chart” puts a run's stored copy back over the live one."),
     ]),
     (tr("Copy a run"), [

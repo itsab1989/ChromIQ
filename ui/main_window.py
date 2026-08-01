@@ -32,6 +32,7 @@ from ui.tabs.tab_measure import TabMeasure
 from ui.tabs.tab_print import TabPrint
 from ui.tabs.tab_profile import TabProfile
 from core.i18n import tr
+from core.measurement_target import RUN_TYPE_PROFILING
 
 log = get_logger(__name__)
 
@@ -84,6 +85,8 @@ class MainWindow(QMainWindow):
         self._masthead.settings_clicked.connect(self._open_settings)
         self._masthead.help_clicked.connect(self.open_welcome_dialog)
         self._masthead.tools_clicked.connect(self._open_tools_menu)
+        self._masthead.load_project_clicked.connect(self._on_masthead_load_project)
+        self._masthead.load_ti2_clicked.connect(self._on_masthead_load_ti2)
         main_layout.addWidget(self._masthead)
 
         # Tabs
@@ -583,6 +586,11 @@ class MainWindow(QMainWindow):
         ctl = getattr(self, "_target_ctl", None)
         if ctl is not None:
             ctl.set_measuring(active)
+        # …and so do the masthead's Load buttons. Load .ti2 always had this
+        # guard on the Measure tab; Load Project never did, and Knut asked for
+        # it when he accepted the move (#130, 2026-07-31): *"Remember that also
+        # the Load Project icon should be Disabled while a measurement runs."*
+        self._masthead.set_load_buttons_enabled(not active)
 
     def _on_verify_chart_restored(self) -> None:
         """React to Restore Used Chart having put an older verification chart
@@ -709,6 +717,40 @@ class MainWindow(QMainWindow):
         self._tabs.setCurrentWidget(self._tab_chart)
         log.info("Project deleted: the app is back in its starting state")
 
+    def _on_masthead_load_project(self) -> None:
+        """Open an existing project — the button moved out of Create Chart."""
+        self._tabs.setCurrentWidget(self._tab_chart)
+        self._tab_chart._load_existing_profile()
+
+    def _on_masthead_load_ti2(self) -> None:
+        """Open a chart file — ONE button where Print and Measure each had one.
+
+        Knut's spec (#130, 2026-07-31) settles which of the two routes survives:
+        the Measure one. Its ``set_ti1_path`` drives the preview, the resume
+        tick and the overlay offer, where Print's only recorded the path — so
+        taking Print's would have quietly dropped all three.
+
+        Print's own contribution is kept: it is the tab that tells you when a
+        .ti2 has no page images beside it, and that message is worth having.
+        """
+        before = getattr(self._tab_measure, "_ti1_path", None)
+        self._tab_measure._on_load_ti2()
+        loaded = getattr(self._tab_measure, "_ti1_path", None)
+        if loaded is None or loaded == before:
+            return                       # cancelled, or nothing changed
+        # Every tab shows the chart that was just opened, and Create Chart is
+        # the one brought to the front — the tabs are numbered in workflow
+        # order, so that is where a freshly opened chart is looked at first.
+        if not self._tab_print.has_pages():
+            self._tab_print.set_chart_notice(tr(
+                "No TIFF files found matching the selected .ti2 file.\n\n"
+                "The chart's pages live beside it as “{stem}_01.tif” and so on. "
+                "If they were moved or renamed, put them back next to the .ti2 "
+                "— or open the chart again from the project it belongs to."
+            ).format(stem=Path(loaded).stem))
+        self._tabs.setCurrentWidget(self._tab_chart)
+        self._target_bar.refresh()
+
     def _on_run_duplicated(self, run_id: str) -> None:
         """Show the run the Duplicate button just made (#130, "course B").
 
@@ -726,11 +768,32 @@ class MainWindow(QMainWindow):
             tiffs = run.chart_tiffs()
             if not run.chart_ti2.exists() or not tiffs:
                 return              # nothing to show; the copy is still real
-            self._tab_chart.reflect_loaded_chart(run.chart_ti2, tiffs)
+            source_id = (run.load_meta().duplicated_from or "")
+            # The generic "a loaded chart now shows here" notice is wrong for a
+            # duplicate — it reassures about a project you never left. Suppress
+            # it and say something true instead (Knut, #130 2026-08-01).
+            self._tab_chart._suppress_reflect_notice = True
+            try:
+                self._tab_chart.reflect_loaded_chart(run.chart_ti2, tiffs)
+            finally:
+                self._tab_chart._suppress_reflect_notice = False
             self._tab_print.load_tiffs(tiffs)
             self._tab_measure.set_ti1_path(run.chart_ti2)
             self._tabs.setCurrentWidget(self._tab_chart)
+            # A DUPLICATE IS A PROFILING RUN.
+            #
+            # Knut, #130 2026-08-01: *"After duplicate is complete and Create
+            # Chart opens and loads chart etc, the 'Run type' must start in
+            # 'Profiling', not in Verification."* Reasserted after the tabs have
+            # loaded, because showing the chart runs through paths that can put
+            # the bar back to whatever it was before.
+            self._target_ctl.set_run_type(RUN_TYPE_PROFILING)
             self._target_bar.refresh()
+            self._tab_chart.announce_duplicated_run(
+                run.chart_ti2,
+                self._target_bar._run_phrase(run_id),
+                self._target_bar._run_phrase(source_id) if source_id
+                else tr("the run it was copied from"))
         except Exception:      # noqa: BLE001 — the copy is made; never crash now
             log.warning("Could not show the duplicated run %s", run_id,
                         exc_info=True)

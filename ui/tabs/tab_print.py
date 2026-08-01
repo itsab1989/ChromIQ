@@ -257,12 +257,10 @@ class TabPrint(QWidget):
         # target's .ti2 so it can be reprinted. Mirrors the Create Chart tab's
         # folder/grid/star trio, in this tab's amber accent (#70, Knut). Replaces
         # the old bottom-row "Load existing target" button.
-        self._load_btn = PatchGridButton(SPEC_AMBER, left, page=True)
-        self._load_btn.setToolTip(
-            tr("Load test chart.\n"
-               "Open a chart you already created (its .ti2 file) and\n"
-               "load it so you can print it again."))
-        self._load_btn.clicked.connect(self._on_load_ti2)
+        # MOVED TO THE MASTHEAD (#130, spec agreed 2026-07-31). These acted on
+        # the whole app rather than on one tab, and Load .ti2 existed twice —
+        # once here and once on the other tab. Both now live top-left in the
+        # masthead; see MastheadHeader.load_project_clicked / load_ti2_clicked.
         # "Load image" (#117, Knut): print ANY TIFF through ChromIQ's raw,
         # colour-management-free pipeline — charts made by other tools, test
         # images. Print-only: measuring still needs the chart's .ti2.
@@ -280,9 +278,9 @@ class TabPrint(QWidget):
         _tl = QHBoxLayout(_trailing)
         _tl.setContentsMargins(0, 0, 0, 0)
         _tl.setSpacing(6)
-        # Order: load test chart, then load image, then reveal folder — the load
-        # image icon sits in the middle, left of the folder icon (Knut).
-        _tl.addWidget(self._load_btn)
+        # Order: load image, then reveal folder. "Load test chart" used to lead
+        # this row; it moved to the masthead (#130) so one button serves the
+        # whole app instead of one per tab.
         _tl.addWidget(self._load_image_btn)
         from ui.widgets import RevealFolderButton
         self._reveal_btn = RevealFolderButton(SPEC_AMBER, _trailing)
@@ -477,6 +475,15 @@ class TabPrint(QWidget):
             self._preview.set_notice(None)     # a real chart — drop guidance
         self._preview.load_tiff(paths)
         self._set_print_buttons_enabled(bool(paths))
+
+    def has_pages(self) -> bool:
+        """Whether this tab currently holds printable page images.
+
+        Asked by the masthead's Load .ti2 button, which took over from the two
+        per-tab buttons: Print is the tab that notices a .ti2 arriving without
+        its pages, and that message had to survive the move (#130).
+        """
+        return bool(self._tiff_pages)
 
     def set_chart_notice(self, text: "str | None") -> None:
         """Show guidance in the preview when there's no chart to print for the

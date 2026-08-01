@@ -49,16 +49,66 @@ class _Settings:
         self._d[k] = v
 
 
-def test_measure_load_button_is_icon_only_grid(_app):
+def test_the_load_buttons_now_live_in_the_masthead(_app):
+    """Load .ti2 used to sit on BOTH the Print and Measure tabs, and Load
+    Project on Create Chart. All three moved to the masthead (#130, spec agreed
+    2026-07-31): they act on the whole app, and one Load .ti2 replaces two.
+    """
     from core.argyll_runner import ArgyllRunner
+    from core.file_manager import FileManager
+    from core.settings import AppSettings
     from ui.tabs.tab_measure import TabMeasure
-    from ui.widgets import PatchGridButton
-    tab = TabMeasure(ArgyllRunner(_Settings()), _Settings())
-    # Same grid-of-patches glyph the Print tab uses, in page mode (Basti/Knut).
-    assert isinstance(tab._load_ti1_btn, PatchGridButton)
-    assert tab._load_ti1_btn._page is True        # the document-around-grid variant
-    assert tab._load_ti1_btn.text() == ""         # no label, just the glyph
-    assert tab._load_ti1_btn.toolTip()            # but a helpful tooltip
+    from ui.tabs.tab_print import TabPrint
+    from ui.tabs.tab_chart import TabChart
+
+    assert not hasattr(TabMeasure(ArgyllRunner(_Settings()), _Settings()),
+                       "_load_ti1_btn")
+    s = AppSettings()
+    assert not hasattr(TabChart(ArgyllRunner(s), FileManager(s), s),
+                       "_load_profile_btn")
+    assert not hasattr(TabPrint(_Settings()), "_load_btn")
+
+
+def test_the_masthead_carries_both_load_buttons(_app):
+    from ui.masthead_header import MastheadHeader
+    m = MastheadHeader()
+    m.resize(1400, 130)
+    for btn in (m._load_project_btn, m._load_ti2_btn):
+        assert btn.text() == ""                   # icon-only, like the rest
+        assert btn.toolTip()
+        assert not btn.icon().isNull()
+        assert btn.size() == m._tools_btn.size()  # same size as Tools/Prefs/?
+
+
+def test_the_masthead_load_buttons_follow_the_agreed_geometry(_app):
+    """Knut's spec: same icon size, the gap between them equal to the
+    Tools<->Preferences gap, and the left margin equal to the Help icon's
+    right margin."""
+    from PyQt6.QtWidgets import QApplication
+    from ui.masthead_header import MastheadHeader
+    m = MastheadHeader()
+    m.resize(1400, 130)
+    m.show()                      # resizeEvent is what places them
+    QApplication.processEvents()
+    lp, lt = m._load_project_btn, m._load_ti2_btn
+    right_margin = m.width() - (m._help_btn.x() + m._help_btn.width())
+    assert lp.x() == right_margin
+    assert lt.x() - (lp.x() + lp.width()) == m._btn.x() - (
+        m._tools_btn.x() + m._tools_btn.width())
+    assert lp.y() == lt.y() == m._tools_btn.y()   # one row with the rest
+
+
+def test_the_masthead_load_buttons_grey_while_measuring(_app):
+    """Knut, 2026-07-31: "Remember that also the Load Project icon should be
+    Disabled while a measurement runs." """
+    from ui.masthead_header import MastheadHeader
+    m = MastheadHeader()
+    m.set_load_buttons_enabled(False)
+    assert not m._load_project_btn.isEnabled()
+    assert not m._load_ti2_btn.isEnabled()
+    m.set_load_buttons_enabled(True)
+    assert m._load_project_btn.isEnabled()
+    assert m._load_ti2_btn.isEnabled()
 
 
 def test_stacked_pages_button_paints(_app):
@@ -70,17 +120,7 @@ def test_stacked_pages_button_paints(_app):
     assert _paints_without_error(btn)
 
 
-def test_create_chart_load_profile_is_stacked_pages(_app):
-    from core.settings import AppSettings
-    from core.argyll_runner import ArgyllRunner
-    from core.file_manager import FileManager
-    from ui.tabs.tab_chart import TabChart
-    from ui.widgets import StackedPagesButton
-    s = AppSettings()
-    tab = TabChart(ArgyllRunner(s), FileManager(s), s)
-    assert isinstance(tab._load_profile_btn, StackedPagesButton)
-    assert tab._load_profile_btn.text() == ""     # icon-only
-    assert tab._load_profile_btn.toolTip()        # friendly tooltip
+
 
 
 def test_build_load_buttons_are_icon_only_measured_glyph(_app):
