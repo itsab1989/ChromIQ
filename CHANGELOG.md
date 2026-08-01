@@ -1,5 +1,55 @@
 # Changelog
 
+## v3.14.8-beta.119
+
+- **Resuming a measurement no longer destroys the measurement it is resuming
+  from.** With "Refine / resume existing measurement" ticked, starting a read
+  moved the existing measurement into the run's `old` folder and then asked the
+  reader to continue from it — which failed, ended the session, and left the run
+  with no measurement. Nothing is moved aside now when a read adds to what is
+  already there.
+
+- **Stopping a measurement offers to keep what you have read.** Your instrument
+  holds its readings until the measurement finishes, so pressing Stop used to
+  discard them without a word. You are now asked, with three clear choices, and
+  only when there is something to lose.
+
+- **"Save Partial & Quit" saves on both readers.** With ArgyllCMS's own
+  chartread it ended the session without writing anything.
+
+- **The "Use refinement strips file" option no longer leaves an empty space
+  behind.** Its help icon could be left standing on its own where the checkbox
+  should be.
+
+- **"Restore Used Chart" greys out when the stored chart really is identical.**
+  A stored chart that also kept its page images could never match the live one,
+  so the button stayed available and pressing it appeared to do nothing.
+
+- **"Restore Used Chart" becomes available as soon as a chart is generated**,
+  instead of waiting for you to switch tabs.
+
+- **The restore warning no longer mentions measurements a run does not have.**
+
+- **A fresh measurement starts with a clean preview**, instead of keeping the
+  overlay of the measurement it is about to replace.
+
+- **Keyboard shortcuts no longer reach the measuring instrument.** While a
+  measurement was waiting, ⌘C (and any other shortcut) was passed to the reader
+  as a bare letter — and the copy itself did not happen.
+
+- **"Duplicate" explains itself.** Duplicating a run now shows a window written
+  for that, naming the run it copied and what you can do next, and the copy
+  always starts as a Profiling run.
+
+- **Load Project and Load chart file (.ti2) have moved to the top-left of the
+  masthead.** One "Load .ti2" button now serves the whole app instead of one on
+  Print Chart and another on Measure. Both are unavailable while a measurement
+  is running.
+
+- **New option: "Show the location being edited"** (Preferences → General, on by
+  default). Turn it off to hide the folder line under the Profile-run bar; the
+  line's own tooltip says where to find the switch.
+
 ## v3.14.8-beta.118
 
 - **A restored chart comes back as the chart it was.** Putting a run's stored
