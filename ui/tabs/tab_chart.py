@@ -9812,10 +9812,52 @@ class TabChart(QWidget):
         self._update_margin_inspector()
         self._update_layout_info()
 
+    def _last_page_capacity(self, ti2: Path) -> int:
+        """How many patches a sheet of this chart's layout holds, or 0.
+
+        Reported beside the free-slot count so the number in the window can be
+        checked against the patch count already on screen.
+        """
+        try:
+            from workflow.layout_engine.presets import LayoutRecipe
+            from workflow.layout_engine import instruments, geometry, papers
+            rec = LayoutRecipe.from_channels_json(
+                Path(ti2).with_suffix(".channels.json"))
+            if rec is None:
+                return 0
+            geom = instruments.geom_from_build_kwargs(rec.build_kwargs())
+            w_mm, h_mm = papers.dimensions_mm(rec.paper)
+            return max(0, int(geometry.patches_per_sheet(geom, w_mm, h_mm)))
+        except Exception as exc:  # noqa: BLE001 — never block a hint
+            log.debug("last-page capacity unavailable: %s", exc)
+            return 0
+
+    #: How full the last page must be before "it doesn't quite fill" is a fair
+    #: description of it. Below this the chart is not *almost* full, it is
+    #: mostly empty, and the hint is noise (see _partial_last_page_blank).
+    _PARTIAL_PAGE_MIN_FILL = 0.5
+
     def _partial_last_page_blank(self, ti2: Path) -> "int | None":
         """Engine charts only: the number of unused patch slots on the last page
-        when that's at least one full empty strip (so a notable under-fill or a
-        near-empty overflow page), else None. Pure so it's unit-testable (#93)."""
+        when that page is nearly — but not quite — full, else None. Pure so it's
+        unit-testable (#93).
+
+        The gap used to be "at least one empty strip", which is true of an
+        almost-full page and equally true of an almost-empty one. Knut, #130
+        2026-08-01, on a 12-patch chart:
+
+            *"I get message 'Your patch set doesn't quite fill the last page -
+            there's space for about 670 more patches'. Simultaneously the total
+            patches count below the preview says 12 patches … The number in the
+            message is wrong."*
+
+        The arithmetic was right — the sheet really did have room for 670 more —
+        but nothing else about it was. A 12-patch chart has not *almost* filled
+        its page, and "add a few more patches to fill the gap" is not advice
+        anybody can act on when the gap is fifty times the chart. So the hint
+        now only appears once the page is at least half full, which is what
+        "doesn't quite fill" means to a reader.
+        """
         try:
             from workflow.layout_engine.presets import LayoutRecipe
             from workflow.layout_engine import instruments, geometry, papers
@@ -9835,8 +9877,13 @@ class TabChart(QWidget):
                 return None
             lay = geometry.compute(geom, w_mm, h_mm, total)
             steps = lay.steps_in_pass or 1
-            blank = per - (total - (lay.pages - 1) * per)
-            return blank if blank >= steps else None
+            on_last = total - (lay.pages - 1) * per
+            blank = per - on_last
+            if blank < steps:
+                return None            # full enough; nothing worth saying
+            if on_last < per * self._PARTIAL_PAGE_MIN_FILL:
+                return None            # mostly empty — not an almost-full page
+            return blank
         except Exception as exc:  # noqa: BLE001
             log.debug("partial-last-page check skipped: %s", exc)
             return None
@@ -9945,6 +9992,11 @@ class TabChart(QWidget):
         blank = self._partial_last_page_blank(ti2)
         if not blank:
             return
+        # A bare "space for about N more" is unverifiable from the screen, and
+        # an N that looks wrong is indistinguishable from one that is wrong
+        # (Knut, #130 2026-08-01). Saying how many the page holds lets anyone
+        # check the arithmetic against the patch count already on display.
+        capacity = self._last_page_capacity(ti2)
         try:
             from PyQt6.QtWidgets import QMessageBox
             box = QMessageBox(self)
@@ -9952,7 +10004,8 @@ class TabChart(QWidget):
             box.setWindowTitle(tr("There's a little room left on the last page"))
             box.setText(tr(
                 "Your patch set doesn't quite fill the last page — there's space "
-                "for about {n} more patches.\n\n"
+                "for about {n} more patches on it (the page holds about {cap} "
+                "in total).\n\n"
                 "That's perfectly fine to print as it is; the empty area is just "
                 "blank paper. If you'd rather have a tidy, completely full page, "
                 "you have two easy options in the patch-set editor:\n\n"
@@ -9962,7 +10015,7 @@ class TabChart(QWidget):
                 "size — stays exactly as you've set it here in Create Chart; only "
                 "the colours in the set change. Click “Edit patch set…” to open "
                 "the editor now, or “OK” to keep the chart as it is."
-            ).format(n=blank))
+            ).format(n=blank, cap=capacity))
             edit_btn = box.addButton(tr("Edit patch set…"),
                                      QMessageBox.ButtonRole.ActionRole)
             box.addButton(QMessageBox.StandardButton.Ok)
