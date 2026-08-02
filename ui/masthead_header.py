@@ -481,6 +481,35 @@ class MastheadHeader(QWidget):
             btn.setCursor(Qt.CursorShape.PointingHandCursor if enabled
                           else Qt.CursorShape.ArrowCursor)
 
+    #: The right-hand icons that must also go quiet mid-measurement. Help is
+    #: deliberately not among them — Knut, beta.120: *"Help button can be
+    #: active still."*
+    def set_measuring(self, running: bool) -> None:
+        """Grey the Tools and Preferences icons while a measurement runs.
+
+        Both open windows that change what the app is working on — Preferences
+        can switch the chart-reading engine, Tools can rewrite files under the
+        run — and neither is safe to reach for with an instrument mid-read
+        (Knut, #130 beta.120). Help stays available, because reading is always
+        safe.
+        """
+        self.set_load_buttons_enabled(not running)
+        for btn in (self._tools_btn, self._btn):
+            if btn is None:
+                continue
+            btn.setEnabled(not running)
+            btn.setCursor(Qt.CursorShape.ArrowCursor if running
+                          else Qt.CursorShape.PointingHandCursor)
+            if not hasattr(btn, "_cq_tip"):
+                btn._cq_tip = btn.toolTip()
+            btn.setToolTip(tr(
+                "Not while a measurement is running. It will be available "
+                "again as soon as the current measurement finishes or is "
+                "stopped.\n\n"
+                "This opens a window that can change what ChromIQ is working "
+                "on, and the instrument is reading a chart right now.")
+                if running else btn._cq_tip)
+
     def _load_tools_icon(self) -> None:
         """Render the tools toolbox SVG to fill the button.
 

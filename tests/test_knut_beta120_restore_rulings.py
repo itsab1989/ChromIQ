@@ -128,6 +128,18 @@ def test_the_warning_names_the_files_and_both_folders():
     from ui.measurement_target_bar import MeasurementTargetBar
     src = inspect.getsource(MeasurementTargetBar._confirm_restore_losing_pages)
     assert "{names}" in src, "the files at risk must be listed by name"
+    # Knut, beta.120 review: he asked for "so the following images would be
+    # removed and can not be recreated", dropping the count — which also drops
+    # the singular/plural pair, since the sentence no longer carries a number.
+    # Checked against the extracted catalogue key rather than the source, since
+    # the sentence is split across several source lines and a literal match
+    # would break the next time the wrapping moves.
+    import sys as _sys
+    _sys.path.insert(0, ".")
+    from scripts.i18n_extract import extract_keys
+    joined = "\n".join(extract_keys())
+    assert "the following images would be removed and can not be recreated" in joined
+    assert "{count}" not in src
     assert "{run}" in src and "{stored}" in src, "both folders must be named"
     assert "look at both folders before you decide" in src
 

@@ -312,6 +312,17 @@ class MeasurementTargetController(QObject):
             self._measuring = running
             self.changed.emit()
 
+    def is_measuring(self) -> bool:
+        """Whether a measurement is running right now.
+
+        The bar asks, because everything on it changes which chart is being
+        worked on — and doing that under a running measurement is what let
+        Knut duplicate a run mid-read (#130, beta.120): the copy was made, the
+        selection jumped to the new run, and the preview emptied while the
+        instrument was still going.
+        """
+        return bool(self._measuring)
+
     def delete_plan(self):
         """What Delete would do for the current selection, or a ``BLOCK_*``
         code saying why the button is greyed (#130, Knut 2026-07-28)."""
@@ -796,6 +807,21 @@ class MeasurementTargetBar(QWidget):
 
     _LOCK_NOTE = None       # built lazily so tr() runs after the language loads
 
+    _MEASURING_NOTE = None
+
+    def _measuring_note(self) -> str:
+        """Why everything on the bar is greyed while a measurement runs."""
+        if self._MEASURING_NOTE is None:
+            type(self)._MEASURING_NOTE = tr(
+                "Not while a measurement is running. It will be available "
+                "again as soon as the current measurement finishes or is "
+                "stopped.\n\n"
+                "Everything on this bar changes which chart is being worked "
+                "on, and the instrument is reading one right now. Your place "
+                "is kept: the same profile run and run type are still "
+                "selected when it comes back.")
+        return self._MEASURING_NOTE
+
     def _lock_note(self) -> str:
         if self._LOCK_NOTE is None:
             type(self)._LOCK_NOTE = tr(
@@ -1080,7 +1106,6 @@ class MeasurementTargetBar(QWidget):
             return True
         if not at_risk:
             return True
-        from core.i18n import count_phrase
         names = "\n".join(f"    •  {p.name}" for p in at_risk)
         run_folder = at_risk[0].parent
         box = QMessageBox(self)
@@ -1090,8 +1115,8 @@ class MeasurementTargetBar(QWidget):
         box.setText(title + "\n\n" + tr(
             "Restoring replaces everything in the run with the stored copy. "
             "The stored copy has no page images, and this chart carries no "
-            "layout recipe for ChromIQ to redraw them from — so these "
-            "{count} would be removed and could not be recreated:\n\n"
+            "layout recipe for ChromIQ to redraw them from — so the "
+            "following images would be removed and can not be recreated:\n\n"
             "{names}\n\n"
             "Please look at both folders before you decide:\n\n"
             "    the run:           {run}\n"
@@ -1103,8 +1128,6 @@ class MeasurementTargetBar(QWidget):
             "•  Cancel and keep the current chart files — nothing is changed. "
             "The run keeps the chart and the pages it has now."
         ).format(
-            count=count_phrase(len(at_risk), tr("1 page image"),
-                               tr("{n} page images")),
             names=names, run=run_folder,
             stored=run_folder / CHART_SNAPSHOT_DIRNAME))
         go = box.addButton(tr("Restore chart files anyway"),
@@ -1504,7 +1527,16 @@ class MeasurementTargetBar(QWidget):
             # Hole 7 (State B): with no profile project loaded, grey the
             # selectors and show the hint; enable + hide it once a project exists.
             has_project = self._ctl.project_or_none() is not None
-            locked = getattr(self, "_locked", False)
+            # Two different reasons to go quiet, and they read differently:
+            # the tab-lock says "this selection isn't used here", measuring
+            # says "not right now". Either disables; measuring explains.
+            measuring = bool(self._ctl.is_measuring())
+            tab_locked = getattr(self, "_locked", False)
+            locked = tab_locked or measuring
+            # Restore and Delete already explain the measurement lock through
+            # their own state(); the boxes and Duplicate had nothing, so they
+            # get the same words rather than a second phrasing of them.
+            note = self._measuring_note() if measuring else self._lock_note()
             for w in (self._run_label, self._run_combo, self._type_label,
                       self._type_combo, self._verify_label, self._verify_combo):
                 w.setEnabled(has_project and not locked)
@@ -1514,7 +1546,7 @@ class MeasurementTargetBar(QWidget):
             for w in (self._run_combo, self._type_combo, self._verify_combo):
                 if not hasattr(w, "_cq_tip"):
                     w._cq_tip = w.toolTip()
-                w.setToolTip(self._lock_note() if locked else w._cq_tip)
+                w.setToolTip(note if locked else w._cq_tip)
             self._hint_wanted = not has_project
             self._hint.setVisible(self._hint_wanted)
             self._place_hint()
@@ -1545,7 +1577,7 @@ class MeasurementTargetBar(QWidget):
                 self._restore_btn.setEnabled(enabled and not locked)
                 self._restore_btn.setToolTip(self._icon_tip(
                     self._restore_btn,
-                    self._lock_note() if locked else tip))
+                    self._lock_note() if tab_locked else tip))
             # Duplicate follows the same rule as Restore and Delete: shown
             # wherever the bar carries the Verification box, greyed with its
             # own reason. `locked` is a measurement in progress — Knut's point
@@ -1557,7 +1589,7 @@ class MeasurementTargetBar(QWidget):
                 self._duplicate_btn.setEnabled(u_enabled and not locked)
                 self._duplicate_btn.setToolTip(self._icon_tip(
                     self._duplicate_btn,
-                    self._lock_note() if locked else u_tip))
+                    note if locked else u_tip))
             # Delete follows the same rule as Restore: shown wherever the bar
             # carries the Verification box, greyed with its own reason.
             self._delete_btn.setVisible(show_restore)
@@ -1567,7 +1599,7 @@ class MeasurementTargetBar(QWidget):
                 self._delete_btn.setEnabled(d_enabled and not locked)
                 self._delete_btn.setToolTip(self._icon_tip(
                     self._delete_btn,
-                    self._lock_note() if locked else d_tip))
+                    self._lock_note() if tab_locked else d_tip))
             every_label: list[str] = []
             if show:
                 self._verify_combo.clear()

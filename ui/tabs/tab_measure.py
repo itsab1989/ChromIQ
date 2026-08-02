@@ -1165,6 +1165,34 @@ class TabMeasure(QWidget):
             "  7. Measure it here with “Run type” = “Verification” — the result "
             "is kept in a dated folder under this run's “verifications” folder.")
 
+
+    #: How many lines of chartread output the log shows at once.
+    _log_visible_lines = 9
+
+    def _fit_log_height(self) -> None:
+        """Size the log to exactly ``_log_visible_lines`` lines of its own font.
+
+        QSS sets the log's family and size, and a stylesheet reaches a widget
+        only at polish — so a height measured in __init__ is measured against
+        the wrong font. This runs after polish and again on every style change,
+        which is also what makes it follow a theme or font switch.
+        """
+        log = getattr(self, "_log", None)
+        if log is None:
+            return
+        fm = log.fontMetrics()
+        doc_margin = int(log.document().documentMargin()) * 2
+        frame = log.frameWidth() * 2
+        h = fm.lineSpacing() * self._log_visible_lines + doc_margin + frame
+        log.setMinimumHeight(h)
+        log.setMaximumHeight(h)
+
+    def changeEvent(self, event) -> None:      # noqa: N802
+        super().changeEvent(event)
+        from PyQt6.QtCore import QEvent as _QEvent
+        if event.type() in (_QEvent.Type.StyleChange, _QEvent.Type.FontChange):
+            self._fit_log_height()
+
     def set_calibration_mode(self, enabled: bool) -> None:
         """Hide guided mode toggle and lock to manual when calibration mode is active."""
         self._mode_row_widget.setVisible(not enabled)
@@ -1416,8 +1444,12 @@ class TabMeasure(QWidget):
         self._log = QPlainTextEdit(log_outer)
         self._log.setObjectName("log")
         self._log.setReadOnly(True)
-        self._log.setMinimumHeight(100)
-        self._log.setMaximumHeight(100)
+        # Height in LINES, not pixels (Knut, beta.120: "only 6 lines of text
+        # are visible, but showing 9 is better"). A pixel number cannot promise
+        # a line count — the log's font comes from the stylesheet and is only
+        # applied at polish — so it is measured from the widget's own metrics
+        # once that has happened. See _fit_log_height.
+        self._log_visible_lines = 9
         self._log.setPlaceholderText(tr("chartread output will appear here…"))
         lo_layout.addWidget(self._log)
         lc_layout.addWidget(log_outer)
@@ -2825,6 +2857,9 @@ class TabMeasure(QWidget):
         noise while you work through one run.
         """
         super().showEvent(event)
+        # Polish has run by now, so the log's stylesheet font is real and its
+        # nine lines can be measured (Knut, beta.120).
+        self._fit_log_height()
         self._pending_overlay_offer = False
         # NOT here and now. Opening a modal window from inside showEvent blocks
         # before the tab has finished being painted, so the window comes up over

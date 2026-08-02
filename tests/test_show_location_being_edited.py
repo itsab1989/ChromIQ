@@ -149,3 +149,27 @@ def test_the_preferences_tooltip_explains_both_choices(qapp):
     assert "WHY YOU MIGHT WANT IT ON" in body
     assert "WHY YOU MIGHT WANT IT OFF" in body
     assert "runs/run2" in body, "a concrete example of the path it shows"
+
+
+def test_closing_preferences_refreshes_the_bar(qapp):
+    """#130 (Knut, beta.120): *"Preferences → General 'Show the location being
+    edited' OFF still shows the 'Location being edited' label, path and whole
+    row."*
+
+    The reading side was right all along — ``_update_location`` consults the
+    preference on every refresh. Nothing refreshed the bar when Preferences
+    closed, though, so the change only appeared once the run selection happened
+    to move. MainWindow refreshes a long list of widgets there; the bar simply
+    was not on it.
+    """
+    import inspect
+    from ui.main_window import MainWindow
+    src = inspect.getsource(MainWindow._open_settings_dialog) \
+        if hasattr(MainWindow, "_open_settings_dialog") else None
+    if src is None:
+        # The method name has moved; find whichever one opens SettingsDialog.
+        whole = inspect.getsource(MainWindow)
+        i = whole.index("dlg = SettingsDialog(")
+        src = whole[i:i + 3000]
+    assert "_target_bar.refresh()" in src, \
+        "closing Preferences must refresh the bar, or the setting appears dead"

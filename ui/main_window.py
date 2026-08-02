@@ -590,7 +590,13 @@ class MainWindow(QMainWindow):
         # guard on the Measure tab; Load Project never did, and Knut asked for
         # it when he accepted the move (#130, 2026-07-31): *"Remember that also
         # the Load Project icon should be Disabled while a measurement runs."*
-        self._masthead.set_load_buttons_enabled(not active)
+        # Tools and Preferences go with them: both open windows that can change
+        # what the app is working on. Help stays live — Knut, beta.120: *"Help
+        # button can be active still."*
+        if hasattr(self._masthead, "set_measuring"):
+            self._masthead.set_measuring(active)
+        else:
+            self._masthead.set_load_buttons_enabled(not active)
 
     def _on_verify_chart_restored(self) -> None:
         """React to Restore Used Chart having put an older verification chart
@@ -1117,6 +1123,12 @@ class MainWindow(QMainWindow):
         # live at each read).
         if hasattr(self._tab_measure, "refresh_engine_visibility"):
             self._tab_measure.refresh_engine_visibility()
+        # "Show the location being edited" (#130, Knut): the bar reads the
+        # preference every time it refreshes, but nothing refreshed it when
+        # Preferences closed — so turning the line off appeared to do nothing
+        # until the run selection happened to change.
+        if getattr(self, "_target_bar", None) is not None:
+            self._target_bar.refresh()
 
     def _apply_calibration_mode(self) -> None:
         enabled = bool(self._settings.get("calibration_mode", False))
