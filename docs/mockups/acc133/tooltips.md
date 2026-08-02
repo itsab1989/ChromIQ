@@ -50,6 +50,36 @@ Neither is more correct; they answer different questions. Both are always availa
 
 Default: the paper's own white (media-relative).
 
+## Print Chart ▸ how this chart is printed (amber ⓘ)
+
+### Printing this chart somewhere other than ChromIQ
+
+Says how this chart reaches the paper, so the report can record it and so ChromIQ can tell you what the other application has to do.
+
+Print it here — ChromIQ sends the sheet straight to the printer with colour management switched off, which is what a chart needs. This is the reliable route and it stays the default.
+
+I will print it in another application — pick this when you would rather drive the printer from an application you trust. ChromIQ then shows you where the sheet files are and exactly what that application must be set to. It does not try to print anything.
+
+There is one rule, and everything depends on it: **nothing between here and the paper may convert the colours.** A chart is not a photograph. The numbers in the file are already the exact ink amounts to lay down — for a verification chart they are what your profile said would produce the colours being tested. If another application converts them through a profile on the way out, it prints different colours, the measurement describes those different colours, and nothing anywhere can detect that it happened. The report simply reads as though the profile were poor.
+
+So in the other application: no output profile, no "let the printer manage colours", no proofing or simulation, no scaling or fitting to page, and no driver enhancement, auto-tone or vivid mode. The sheet must go out at its own size, unaltered.
+
+This applies just as much to a profiling chart as to a verification chart. A profiling chart printed through a colour conversion produces a profile that is wrong in a way nothing later will reveal.
+
+Default: print it here.
+
+### Why ChromIQ asks instead of working it out
+
+ChromIQ can see whether it printed a chart itself. What it cannot see is whether an application it never spoke to had colour management switched on.
+
+That matters because the two failures look identical on the report. A chart printed through an unwanted colour conversion and a genuinely inaccurate profile both produce large errors in the same places, and no measurement can tell them apart afterwards.
+
+So the report states which route was used, in your words rather than a guess. A run that says "printed outside ChromIQ" carries a short reminder of the settings that route depends on, and a surprising result has somewhere obvious to start. A run that says "printed by ChromIQ" needs no such caveat.
+
+Nothing is blocked either way, and you can change the answer later if you printed it differently than you planned.
+
+Default: filled in for you as "printed by ChromIQ" once ChromIQ has printed the chart.
+
 ## Check & Refine ▸ ACCURACY (violet ⓘ)
 
 ### Which measurement is being analysed
