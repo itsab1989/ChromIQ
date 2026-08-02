@@ -1,5 +1,25 @@
 # Changelog
 
+## v3.14.8-beta.120
+
+- **The help cards now describe where the load buttons actually are.** "Getting
+  started" and "Overview of Main Actions" still told you to use buttons on the
+  Print Chart and Measure tabs, and the Welcome window's step-by-step guides
+  sent you to click something that had moved to the top-left of the window.
+
+- **A changed page image is noticed again.** If the stored chart and the run
+  both have page images, they are now compared — so a page that differs from
+  its stored copy counts as a difference, whether or not the chart could be
+  redrawn from its layout recipe. Images present on only one side are still not
+  a difference: the stored copy of a chart with a recipe leaves them out on
+  purpose, because they can be redrawn.
+
+- **Restoring a chart can no longer throw away pages it cannot recreate.** If
+  the stored copy holds no page images and the chart has no layout recipe to
+  redraw them from, restoring used to delete the run's printed pages for good,
+  without a word. ChromIQ now names the files at risk and both folders involved
+  so you can look before deciding, and lets you go ahead or keep what you have.
+
 ## v3.14.8-beta.119
 
 - **Resuming a measurement no longer destroys the measurement it is resuming
