@@ -1,5 +1,54 @@
 # Changelog
 
+## v3.14.8-beta.123
+
+- **Patch-by-patch readings are no longer thrown away when you press Stop.**
+  With the stock ArgyllCMS reading engine, patches you had read were lost
+  without a word: ChromIQ counted "Strip read OK" as a reading but not "Patch
+  read OK", so in patch-by-patch mode it believed nothing had been measured and
+  ended the session without offering to keep anything. Stopping now always asks
+  first, in both modes and on both engines.
+
+- **An instrument that will not open now says so.** ArgyllCMS reports a
+  communications failure but still exits reporting success, so ChromIQ treated
+  it as a normal end and said nothing at all — which looked exactly like the
+  instrument having died. The message that appears now leads with the thing
+  that actually works: wait a moment and press Start Measurement again. This
+  happens for a few seconds after a measurement ends, while the instrument is
+  still letting go of the previous session.
+
+- **Nothing on the profile bar can be changed while a measurement is running.**
+  Profile run, Run type, Duplicate, Delete and Restore, plus the Tools and
+  Preferences buttons, are all greyed for the duration and say why. Pressing
+  Duplicate mid-measurement used to complete the copy, jump to the new run and
+  empty the preview. Help stays available.
+
+- **Features that only the ChromIQ reading engine can provide are hidden when
+  it is off** — the measurement overlay, measurement sounds, and the "click a
+  patch to jump to it" instruction — instead of being offered and then not
+  working.
+
+- **"Show the location being edited" takes effect immediately.** Turning it off
+  in Preferences appeared to do nothing until you happened to change run.
+
+- **The log window shows nine lines instead of six**, measured from the text
+  size so nine really do fit.
+
+- **Buttons are called by their names.** The two buttons at the top left are
+  "Open Project" and "Open Chart File (.ti2)", and the help cards, the welcome
+  guides and the messages now use those names rather than describing where they
+  sit — including several that still sent you to the Print and Measure tabs,
+  where they no longer are.
+
+- **Duplicate explains what it needs.** When the button is greyed, its tooltip
+  lists the four files a run must have to be copied — the patch list, the
+  laid-out chart, the layout recipe and at least one printed page — and names
+  which of them this run is missing.
+
+- **"Loaded chart is now shown in Create Chart" no longer appears when nothing
+  was loaded from elsewhere** — choosing a chart that already lives in the open
+  project copies nothing, so there was nothing to announce.
+
 ## v3.14.8-beta.122
 
 - **The Measurement Report is readable again on the dark theme.** The report
