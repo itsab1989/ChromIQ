@@ -5286,9 +5286,17 @@ class TabMeasure(QWidget):
     # a friendly terminal dialog instead of the generic "measurement failed".
     def _on_coms_init_failed(self, msg: str) -> None:
         self._coms_init_failed_msg = msg
+        # chartread EXITS 0 when it cannot open the instrument (Knut's log,
+        # #130 beta.120: "Initialising instrument failed with message
+        # 'Communications failure'" followed by "finished with code 0"). So
+        # the exit code alone reads as success and the dialog below was never
+        # reached — ChromIQ simply did nothing, which is how the instrument
+        # came to look dead. It is a failure; say so.
+        self._measure_failed = True
 
     def _on_inst_init_failed(self, msg: str) -> None:
         self._inst_init_failed_msg = msg
+        self._measure_failed = True      # exits 0 — see _on_coms_init_failed
 
     def _on_instrument_wrong_type(self, capability: str) -> None:
         self._instrument_wrong_type = capability
@@ -6941,7 +6949,7 @@ class TabMeasure(QWidget):
             layout.setSpacing(16)
             layout.setContentsMargins(24, 20, 24, 20)
             msg = QLabel(
-                tr("<b>The instrument could not be initialised.</b><br><br>Argyll reported: <i>{_b_init_msg}</i><br><br>Try the following:<br>&nbsp;&nbsp;• Unplug and replug the USB cable<br>&nbsp;&nbsp;• Make sure the instrument is switched on<br>&nbsp;&nbsp;• Close any other application that might be using it<br><br>Then press <b>Start Measurement</b> again.").format(_b_init_msg=_b_init_msg),
+                tr("<b>The instrument could not be initialised.</b><br><br>Argyll reported: <i>{_b_init_msg}</i><br><br><b>Try again first.</b> This often happens for a few seconds straight after a measurement ends, while the instrument is still letting go of the previous session — waiting a moment and pressing <b>Start Measurement</b> again is usually all it takes.<br><br>If it keeps happening:<br>&nbsp;&nbsp;• Unplug and replug the USB cable<br>&nbsp;&nbsp;• Make sure the instrument is switched on<br>&nbsp;&nbsp;• Close any other application that might be using it").format(_b_init_msg=_b_init_msg),
                 dlg,
             )
             msg.setWordWrap(True)

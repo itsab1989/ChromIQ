@@ -48,7 +48,15 @@ _DEVICE_BUSY_RE        = re.compile(r"Device being used",                       
 _NO_INSTRUMENT_RE      = re.compile(r"no instrument detected|no suitable instruments|no instruments connected", re.IGNORECASE)
 _WRONG_STRIP_RE        = re.compile(r"Seem to have read strip pass (\w+) rather than (\w+)", re.IGNORECASE)
 _UNEXPECTED_RESP_RE    = re.compile(r"unexpected response.*\(DeltaE\s*([\d.]+)\)",            re.IGNORECASE)
-_STRIP_OK_RE           = re.compile(r"strip\s+read\s+ok",                                    re.IGNORECASE)
+#: A successful read, in EITHER of stock chartread's two modes. It prints
+#: " Strip read OK" per strip and " Patch read OK" per patch, and matching only
+#: the first meant patch-by-patch never recorded that anything had been read
+#: (Knut, #130 beta.120). The consequence was severe rather than cosmetic:
+#: `has_unsaved_readings` stayed False, so Stop skipped the "keep what you have
+#: measured?" window entirely and killed chartread — which holds its readings in
+#: memory and writes the .ti3 only on a clean exit. The patches were simply
+#: gone, with "[ERROR] Measurement failed" as the only clue.
+_STRIP_OK_RE           = re.compile(r"(?:strip|patch)\s+read\s+ok",                          re.IGNORECASE)
 _SENSOR_POSITION_RE    = re.compile(r"sensor.*wrong\s+position|sensor should be in surface", re.IGNORECASE)
 _USB_VM_RE             = re.compile(r"Failed to get piif for USB device",                    re.IGNORECASE)
 # chartread asks this when 'd' (done) is pressed with unread patches remaining;
