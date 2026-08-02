@@ -1,5 +1,29 @@
 # Changelog
 
+## v3.14.8-beta.122
+
+- **The Measurement Report is readable again on the dark theme.** The report
+  window and the saved PDF are built from one and the same HTML, and that HTML
+  carried fixed light-theme colours — which beat the window's own styling. On
+  the dark theme it came out as near-black text on a near-black background
+  (a contrast ratio of 1.29:1, where readable text wants at least 4.5:1), so
+  only the parts that happened to sit on a pale panel could be read at all.
+  Headings, tables, results and per-run detail are now all legible in both
+  themes, and the PDF keeps its light colours because it goes on white paper.
+  Three colours used for small print, passes and failures were also a little
+  too faint on paper, and are now stronger there too.
+
+- **"Also export a PDF" now explains itself properly, on every platform.** The
+  previous text named only macOS, and read as though a chart PDF could never be
+  printed safely. Neither was right. Whether a PDF's colours survive is decided
+  by whatever opens the file — that is true on macOS, Windows and Linux alike,
+  and it is the one thing that differs from the TIFF, whose numbers are passed
+  along untouched. Printing a chart PDF properly is entirely possible, and the
+  tooltip now names the three ways to be sure of it: send it straight to the
+  print queue (what ChromIQ itself does), give it to a RIP with colour
+  management off, or print from an application with an explicit "no colour
+  management" setting. If none of those applies, print the TIFF sheets.
+
 ## v3.14.8-beta.121
 
 - **"Also export a PDF" now warns about the one thing that can silently ruin a
