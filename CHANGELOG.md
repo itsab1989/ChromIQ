@@ -1,5 +1,20 @@
 # Changelog
 
+## v3.14.8-beta.121
+
+- **"Also export a PDF" now warns about the one thing that can silently ruin a
+  chart.** The tooltip told you to print the PDF from a RIP with colour
+  management off, which is right, but it did not say what happens if you print
+  it from an ordinary Mac application instead — and that is not the same as for
+  the TIFF. Both files hold raw device values with no colour profile, but macOS
+  leaves a TIFF's numbers alone and converts a PDF's into whatever colour space
+  the application is working in. Measured on macOS 15, a pure red patch of
+  255,0,0 came back as 234,51,35, and how far it moves depends on the Mac and
+  the application — so the same file can look fine on one machine and be badly
+  wrong on another. Neutral greys survive, which is why nothing looks amiss.
+  The tooltip now says all of this, and says plainly: send the PDF to a RIP, and
+  print the TIFF sheets from anything else.
+
 ## v3.14.8-beta.120
 
 - **The help cards now describe where the load buttons actually are.** "Getting
