@@ -37,8 +37,12 @@ def _areas() -> "list[tuple[str, str, str]]":
     """(area, where it is, what it is for)."""
     return [
         (tr("Masthead"), tr("across the top"),
-         tr("ChromIQ's name on the left; on the right the three buttons "
-            "“Tools”, “Settings” and “?” — which opens this window.")),
+         tr("ChromIQ's name in the middle. On the LEFT two buttons that act on "
+            "the whole app: “Open a project” and “Open a chart file (.ti2)” — "
+            "open a chart there and Create Chart, Print Chart and Measure all "
+            "show it. On the RIGHT “Tools”, “Settings” and “?”, which opens "
+            "this window. The two on the left are unavailable while a "
+            "measurement is running.")),
         (tr("Profile-run bar"), tr("in the middle of the masthead"),
          tr("The most important control in ChromIQ: it decides what every tab "
             "acts on. “Profile run”, “Run type”, “Verification”, an ⓘ, and the "
@@ -103,13 +107,16 @@ def _steps() -> "list[tuple[str, str]]":
 def _alternatives() -> "list[tuple[str, str]]":
     return [
         (tr("Open an existing chart"),
-         tr("Measure ▸ “Load .ti2 file”, or the same on Print Chart, or Create "
-            "Chart ▸ “Load patch set” for an Argyll .ti1 or an i1Profiler set. "
+         tr("The chart icon at the top left of the window, beside the ChromIQ "
+            "name — it opens a chart file (.ti2) for the whole app, so Create "
+            "Chart, Print Chart and Measure all show it. Or Create Chart ▸ "
+            "“Load patch set” for an Argyll .ti1 or an i1Profiler set. "
             "Choosing a Profile run that already has a chart opens that one.")),
         (tr("Open a project"),
-         tr("Create Chart ▸ “Open a printer profile project”, or load a chart "
-            "that lives inside a project folder — which adopts that project — "
-            "or simply start ChromIQ, which reopens the last one you used.")),
+         tr("The project icon at the top left of the window, left of the chart "
+            "icon. Or open a chart that lives inside a project folder, which "
+            "adopts that project — or simply start ChromIQ, which reopens the "
+            "last one you used.")),
         (tr("Put a chart into a particular run"),
          tr("Set “Profile run” first, then generate. If you load a chart file "
             "instead, ChromIQ asks where it should go: a new run, replacing "

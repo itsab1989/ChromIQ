@@ -274,9 +274,10 @@ WORKFLOWS: list[dict] = [
         "title": tr("Print an existing test chart"),
         "subtitle": tr("You already have a chart on disk and just want to print it."),
         "steps": [
-            (2, tr("On the Print Chart tab, click “Load .ti2” and pick the "
-                "chart definition file. ChromIQ finds the matching TIFF "
-                "pages automatically — you don't pick them by hand.")),
+            (2, tr("Click the chart icon at the top left of the window and pick "
+                "the chart definition file (.ti2). ChromIQ finds the matching "
+                "TIFF pages automatically — you don't pick them by hand — and "
+                "shows the chart on the Print Chart tab.")),
             (2, tr("Choose your printer, paper type and any quality settings "
                 "the print dialog exposes. Make sure driver colour "
                 "management is OFF, just like a fresh print.")),
@@ -326,10 +327,10 @@ WORKFLOWS: list[dict] = [
         "title": tr("Measure a chart I already printed"),
         "subtitle": tr("Jump straight to reading patches with your spectrophotometer."),
         "steps": [
-            (3, tr("On the Measure tab, click “Load Chart File” and pick the "
-                ".ti1 or .ti2 that matches your printed chart. The .ti2 is "
-                "preferred where available — it contains the exact patch "
-                "positions printtarg used.")),
+            (3, tr("Click the chart icon at the top left of the window and pick "
+                "the .ti2 that matches your printed chart — it holds the exact "
+                "patch positions. The chart then appears on the Measure tab, "
+                "and on Create Chart and Print Chart too.")),
             (3, tr("Connect and switch on the spectrophotometer. ChromIQ "
                 "detects it automatically; a green status pill appears in "
                 "the toolbar when it's ready.")),

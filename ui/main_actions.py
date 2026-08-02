@@ -30,7 +30,9 @@ ACTION_ROWS: "list[tuple[str, list[str]]]" = [
         "build creates the project folder."),
     ]),
     (tr("Open an existing project"), [
-        tr("Create Chart ▸ “Open a printer profile project”."),
+        # Moved out of Create Chart to the masthead (#130, 2026-08-01).
+        tr("The project icon at the top left of the window, left of the chart "
+        "icon — it brings back the project's runs, charts and measurements."),
         tr("Load a chart that lives inside a project folder — that adopts the "
         "project."),
         tr("Start ChromIQ, which reopens the last project you used."),
@@ -41,8 +43,12 @@ ACTION_ROWS: "list[tuple[str, list[str]]]" = [
         tr("Tools ▸ “Edit / create chart patch set”, then apply it."),
     ]),
     (tr("Open an existing chart"), [
-        tr("Measure ▸ “Load .ti2 file”."),
-        tr("Print Chart ▸ load a .ti2."),
+        # The two load buttons moved to the masthead (#130, 2026-08-01), so the
+        # per-tab instructions here were wrong; Knut asked for every card to be
+        # brought up to date.
+        tr("The chart icon at the top left of the window — one button for the "
+        "whole app, so Create Chart, Print Chart and Measure all show what you "
+        "open."),
         tr("Create Chart ▸ “Load patch set” for an Argyll .ti1, or an i1Profiler "
         "set (.pxf or CGATS .txt)."),
         tr("Select a Profile run that already has one — the run "
