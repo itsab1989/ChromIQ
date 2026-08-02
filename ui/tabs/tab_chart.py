@@ -6931,6 +6931,23 @@ class TabChart(QWidget):
         if hide_cb.isChecked():
             self._settings.set("duplicate_notice_hide", True)
 
+    def _ti2_is_inside_current_project(self, ti2_path: Path) -> bool:
+        """Whether *ti2_path* already lives under the project that is open.
+
+        Used to keep the "loaded chart is now shown here" window for the case
+        it was written for — a chart brought in from somewhere else — and out
+        of the case where the user simply picked a file the project already
+        owned.
+        """
+        try:
+            project = self._file_mgr.project()
+            root = getattr(project, "root", None) or getattr(project, "dir", None)
+            if root is None:
+                return False
+            return Path(root).resolve() in Path(ti2_path).resolve().parents
+        except Exception:      # noqa: BLE001 — a missing project is not "inside"
+            return False
+
     def _maybe_warn_reflected_backfill(self, ti2_path: Path) -> None:
         """One-time, friendly heads-up that a loaded chart now shows here.
 
@@ -6942,6 +6959,13 @@ class TabChart(QWidget):
         if getattr(self, "_suppress_reflect_notice", False):
             return
         if bool(self._settings.get("reflect_backfill_hide_warning", False)):
+            return
+        # Nothing was imported, so there is nothing to announce. Knut, #130
+        # beta.120: choosing a .ti2 that already lives in the open project and
+        # picking "Continue" copies no files and moves nothing — *"This is
+        # strange, as no import action was performed in this case, so this
+        # window could be removed"*. Same reasoning as the Duplicate skip above.
+        if self._ti2_is_inside_current_project(ti2_path):
             return
         dlg = QDialog(self)
         dlg.setWindowTitle(tr("Loaded chart is now shown in Create Chart"))
@@ -6962,8 +6986,8 @@ class TabChart(QWidget):
                "already exists; ChromIQ won't change it.\n\n"
                "Nothing you built before is lost: any chart you'd generated "
                "earlier is still safe in its own project folder under "
-               "~/ChromIQ, and you can open it again any time from Print or "
-               "Measure.\n\n"
+               "~/ChromIQ, and you can open it again at any time with “Open "
+               "Chart File (.ti2)” at the top left of the window.\n\n"
                "If you'd like to build a NEW chart starting from these "
                "settings, tick the “Edit patch recipe (override preset)” or "
                "“Edit page layout (override preset)” checkbox in the Create "
@@ -7910,9 +7934,10 @@ class TabChart(QWidget):
             if not unlocked:
                 InfoDialog(
                     "This chart is loaded from elsewhere",
-                    "This chart was loaded in the Print or Measure tab, so it's "
-                    "shown here just for reference — it already lives in its own "
-                    "folder and there's nothing to generate.\n\n"
+                    "This chart was opened with “Open Chart File (.ti2)” at the "
+                    "top left of the window, so it's shown here just for "
+                    "reference — it already lives in its own folder and there's "
+                    "nothing to generate.\n\n"
                     "If you want to build your own chart from these settings, "
                     "tick “Edit patch recipe (override preset)” or “Edit page "
                     "layout (override preset)” above, make your changes, then "

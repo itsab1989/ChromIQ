@@ -123,7 +123,8 @@ class MastheadHeader(QWidget):
         self._load_project_btn = QToolButton(self)
         self._load_project_btn.setObjectName("tooltip_btn")
         self._load_project_btn.setToolTip(tr(
-            "Open a printer profile project you have already made.\n\n"
+            "Open Project\n\n"
+            "Opens a printer profile project you have already made.\n\n"
             "Brings back its runs, its charts and its measurements, and picks "
             "up where you left off. Unavailable while a measurement is "
             "running."))
@@ -134,7 +135,8 @@ class MastheadHeader(QWidget):
         self._load_ti2_btn = QToolButton(self)
         self._load_ti2_btn.setObjectName("tooltip_btn")
         self._load_ti2_btn.setToolTip(tr(
-            "Open a chart file (.ti2) to print or measure.\n\n"
+            "Open Chart File (.ti2)\n\n"
+            "Opens a laid-out chart to print or measure.\n\n"
             "This is the laid-out chart ChromIQ made for you — the same one you "
             "printed. Loading it here shows its pages in Create Chart, Print "
             "Chart and Measure, so all three are working on the same chart. "
