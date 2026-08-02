@@ -64,6 +64,8 @@ There is one rule, and everything depends on it: **nothing between here and the 
 
 So in the other application: no output profile, no "let the printer manage colours", no proofing or simulation, no scaling or fitting to page, and no driver enhancement, auto-tone or vivid mode. The sheet must go out at its own size, unaltered.
 
+Use the TIFF sheets for this. If you also exported a PDF, that one is meant for a RIP: measured on macOS, an ordinary application converts the PDF's colours while leaving the TIFF's alone. The ⓘ on "Also export a PDF" has the detail.
+
 This applies just as much to a profiling chart as to a verification chart. A profiling chart printed through a colour conversion produces a profile that is wrong in a way nothing later will reveal.
 
 Default: print it here.
@@ -79,6 +81,24 @@ So the report states which route was used, in your words rather than a guess. A 
 Nothing is blocked either way, and you can change the answer later if you printed it differently than you planned.
 
 Default: filled in for you as "printed by ChromIQ" once ChromIQ has printed the chart.
+
+## Create Chart ▸ ChromIQ layout ▸ Expert — rewrite of a tooltip that already ships (magenta ⓘ)
+
+### Also export a PDF
+
+Saves the chart as a vector PDF next to the usual TIFF sheets. The TIFF is still made — this only adds a PDF copy.
+
+When it helps: your print shop or RIP asks for PDF; you want a file that prints at the exact paper size with no print dialog quietly scaling it; or you are printing a multi-ink chart, where the PDF carries each ink as its own named channel so a RIP knows exactly which is which.
+
+The PDF is true vector — the patches are exact device colours and the labels stay crisp at any zoom — and all pages are in one file.
+
+**Send it to a RIP, and switch that RIP's colour management off.** This is worth being precise about, because it is not the same advice as for the TIFF. Both files hold raw device values with no colour profile attached, which is what a chart needs. But macOS treats the two differently once something opens them: it leaves a TIFF's numbers alone, and it converts a PDF's into whatever colour space the application happens to be working in. Measured on this machine, a pure red patch of 255,0,0 came back as 234,51,35 — and how far it moves depends on the Mac and the application, so the same file can look fine on one and be badly wrong on another.
+
+None of that troubles a RIP, which is built to send device values straight through. It does mean that **if you are going to print from an ordinary Mac application, print the TIFF sheets instead.** A chart printed through a colour conversion measures the conversion rather than your printer, and nothing afterwards can tell that it happened.
+
+Leave this off if you only print through ChromIQ or just need the TIFF.
+
+Default: off.
 
 ## Check & Refine ▸ ACCURACY (violet ⓘ)
 

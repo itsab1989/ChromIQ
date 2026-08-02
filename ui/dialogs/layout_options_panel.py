@@ -1058,12 +1058,28 @@ class LayoutOptionsPanel(QWidget):
                        "device colours and the labels stay crisp at any zoom — and "
                        "it uses the same fonts as the chart. All pages are in one "
                        "file.\n\n"
+                       "Send it to a RIP, and switch that RIP's colour management "
+                       "off. This is worth being precise about, because it is not "
+                       "the same advice as for the TIFF. Both files hold raw device "
+                       "values with no colour profile attached, which is what a "
+                       "chart needs. But macOS treats the two differently once "
+                       "something opens them: it leaves a TIFF's numbers alone, and "
+                       "it converts a PDF's into whatever colour space the "
+                       "application happens to be working in. Measured here, a pure "
+                       "red patch of 255,0,0 came back as 234,51,35 — and how far it "
+                       "moves depends on the Mac and the application, so the same "
+                       "file can look fine on one and be badly wrong on another.\n\n"
+                       "None of that troubles a RIP, which is built to send device "
+                       "values straight through. It does mean that if you are going "
+                       "to print from an ordinary Mac application, print the TIFF "
+                       "sheets instead. A chart printed through a colour conversion "
+                       "measures the conversion rather than your printer, and "
+                       "nothing afterwards can tell that it happened.\n\n"
                        "How to use it: tick this, build the chart as usual, and "
-                       "you'll find a .pdf beside the .tif in the chart folder. "
-                       "Print it from your RIP with colour management OFF at 100 % "
-                       "size — same as the TIFF.\n\n"
+                       "you'll find a .pdf beside the .tif in the chart folder.\n\n"
                        "Leave it off if you only print through ChromIQ or just need "
-                       "the TIFF."), self))
+                       "the TIFF.\n\n"
+                       "Default: off."), self))
         _expert_v.addWidget(og)
 
         # ---- Sheet text ----

@@ -20,8 +20,8 @@ python main.py
 
 ```bash
 source .venv/bin/activate
-QT_QPA_PLATFORM=offscreen pytest            # everyday tier, ~2050 tests
-QT_QPA_PLATFORM=offscreen pytest --runslow  # FULL suite — the release gate
+QT_QPA_PLATFORM=offscreen pytest            # everyday tier, ~3830 tests, ~10 min
+QT_QPA_PLATFORM=offscreen pytest --runslow  # FULL suite, ~3870 tests, ~17 min — the release gate
 ```
 
 The suite is two-tiered: ~20 heavy end-to-end profile-build tests carry
@@ -31,10 +31,20 @@ run** — the everyday tier alone is not a gate.
 
 `pytest.ini` scopes collection to `tests/` (via `testpaths`). Without it a
 bare `pytest` recurses into `.venv/` and — with `pytest-qt` active —
-collection appears to hang for many minutes. The everyday tier takes
-~10 minutes, `--runslow` a few minutes more; anything far beyond that
-means something is wrong (a test opening a modal dialog `.exec()`, or
+collection appears to hang for many minutes. Anything far beyond the times
+above means something is wrong (a test opening a modal dialog `.exec()`, or
 `.venv` being scanned again), not just "slow tests".
+
+**Anything that shells out to Argyll in a test needs a `timeout=`.** A
+`subprocess.run` without one waits for ever, and `targen -G` can wedge: the
+suite once sat on that single call for two and a half hours with no output.
+When a run does appear stuck, `pytest --timeout=300 --timeout-method=thread`
+(pytest-timeout) makes the stack name the test instead of guessing.
+
+**Real Argyll builds are the expensive part.** The demo projects in
+`scripts/make_demo_projects.py` cost 30-70 s each; build them once per session
+and copy per test (see `tests/test_legacy_migration.py`) rather than per test —
+that one change took the gate from 29 to 17 minutes.
 
 ## Build distributable
 
