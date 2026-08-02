@@ -31,11 +31,13 @@ ACTION_ROWS: "list[tuple[str, list[str]]]" = [
     ]),
     (tr("Open an existing project"), [
         # Moved out of Create Chart to the masthead (#130, 2026-08-01).
-        tr("The project icon at the top left of the window, left of the chart "
-        "icon — it brings back the project's runs, charts and measurements."),
+        tr("“Open Project” at the top left of the window — it brings back the "
+        "project's runs, charts and measurements."),
         tr("Load a chart that lives inside a project folder — that adopts the "
         "project."),
-        tr("Start ChromIQ, which reopens the last project you used."),
+        tr("Start ChromIQ, which reopens the last project you used, providing "
+        "“Restore last session on launch” is enabled in Preferences ▸ "
+        "General."),
     ]),
     (tr("Create a chart"), [
         tr("Create Chart ▸ “Generate Chart”, in Guided or Manual."),
@@ -46,9 +48,9 @@ ACTION_ROWS: "list[tuple[str, list[str]]]" = [
         # The two load buttons moved to the masthead (#130, 2026-08-01), so the
         # per-tab instructions here were wrong; Knut asked for every card to be
         # brought up to date.
-        tr("The chart icon at the top left of the window — one button for the "
-        "whole app, so Create Chart, Print Chart and Measure all show what you "
-        "open."),
+        tr("“Open Chart File (.ti2)” at the top left of the window — one "
+        "button for the whole app, so Create Chart, Print Chart and Measure "
+        "all show what you open."),
         tr("Create Chart ▸ “Load patch set” for an Argyll .ti1, or an i1Profiler "
         "set (.pxf or CGATS .txt)."),
         tr("Select a Profile run that already has one — the run "
@@ -67,6 +69,12 @@ ACTION_ROWS: "list[tuple[str, list[str]]]" = [
         "measurement and profile — into a new one, leaving this run untouched. "
         "That is the safe way to re-measure, to try a different profile from "
         "the same readings, or to change the chart your verification runs use."),
+        tr("Duplicate needs a complete chart in the run: the patch list "
+        "(.ti1), the laid-out chart (.ti2), the layout recipe "
+        "(.channels.json) and at least one printed page (.tif). The layout "
+        "recipe is what lets ChromIQ redraw the pages, so a run without it "
+        "cannot be copied into a working chart. When the button is greyed, its "
+        "tooltip names whichever of the four is missing."),
         tr("For the chart alone: load its .ti1 and build into a New run — same "
         "patches, fresh layout."),
         tr("“Restore Used Chart” puts a run's stored copy back over the live one."),
@@ -161,10 +169,6 @@ ACTION_ROWS: "list[tuple[str, list[str]]]" = [
 #: be kept with the actions, and for printing through a profile to sit here as
 #: a possible future improvement rather than a missing feature.
 CANNOT_ROWS: "list[tuple[str, str]]" = [
-    (tr("Duplicate a run complete with its chart, measurement and profile"),
-     tr("Create a New run and seed it with “← Use as Pre-conditioning”, which "
-     "copies the profile and measurement in as a starting point. A full copy "
-     "is a possible future improvement.")),
     (tr("Rename a run, or a verification date"),
      tr("Run numbers and verification dates are what identify them, so they are "
      "not free text. Rename the project instead.")),

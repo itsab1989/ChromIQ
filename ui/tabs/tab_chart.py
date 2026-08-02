@@ -1384,7 +1384,8 @@ class TabChart(QWidget):
         self._reveal_folder_btn = RevealFolderButton(SPEC_MAGENTA, _hdr_trailing)
         self._reveal_folder_btn.setToolTip(tr(
             "Open the folder holding the generated chart's files (the TIFF "
-            "pages, .ti1/.ti2 and sidecars) in your file manager."))
+            "pages, .ti1/.ti2 and sidecars) in {manager}.").format(
+                manager=file_manager_name()))
         self._reveal_folder_btn.clicked.connect(self._reveal_chart_folder)
         _ht.addWidget(self._reveal_folder_btn)
         left_layout.addWidget(TabHeader(

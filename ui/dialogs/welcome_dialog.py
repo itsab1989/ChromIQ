@@ -274,10 +274,13 @@ WORKFLOWS: list[dict] = [
         "title": tr("Print an existing test chart"),
         "subtitle": tr("You already have a chart on disk and just want to print it."),
         "steps": [
-            (2, tr("Click the chart icon at the top left of the window and pick "
-                "the chart definition file (.ti2). ChromIQ finds the matching "
-                "TIFF pages automatically — you don't pick them by hand — and "
-                "shows the chart on the Print Chart tab.")),
+            (2, tr("Click “Open Chart File (.ti2)” at the top left of the "
+                "window and pick the chart definition file (.ti2). ChromIQ "
+                "finds the matching TIFF pages automatically — you don't pick "
+                "them by hand — and shows the chart on the Print Chart tab.\n\n"
+                "If the chart was made in ChromIQ, “Open Project” beside it "
+                "opens the whole project instead, and its chart comes with "
+                "it.")),
             (2, tr("Choose your printer, paper type and any quality settings "
                 "the print dialog exposes. Make sure driver colour "
                 "management is OFF, just like a fresh print.")),
@@ -287,10 +290,10 @@ WORKFLOWS: list[dict] = [
             (3, tr("Once the print is dry, head to the Measure tab and connect "
                 "your spectrophotometer, then place the chart on a white "
                 "surface (a plain sheet of paper underneath works). Before "
-                "scanning, check the “Disable bidirectional reading” option "
-                "— it's ON by default which is safest, but if you use an "
-                "i1Pro and you're used to scanning each strip in one "
-                "continuous left-and-right motion, turn it OFF first. "
+                "scanning, look at the “Disable bidirectional reading” option "
+                "— it is ticked by default, which is the safest setting. If "
+                "you use an i1Pro and you are used to scanning each strip in "
+                "one continuous left-and-right motion, untick it first. "
                 "Click “Measure Chart” and follow the strip-by-strip "
                 "prompts.")),
             (4, tr("On the Build Profile tab the new .ti3 is already loaded. "
@@ -327,18 +330,18 @@ WORKFLOWS: list[dict] = [
         "title": tr("Measure a chart I already printed"),
         "subtitle": tr("Jump straight to reading patches with your spectrophotometer."),
         "steps": [
-            (3, tr("Click the chart icon at the top left of the window and pick "
+            (3, tr("Click “Open Chart File (.ti2)” at the top left of the window and pick "
                 "the .ti2 that matches your printed chart — it holds the exact "
                 "patch positions. The chart then appears on the Measure tab, "
                 "and on Create Chart and Print Chart too.")),
             (3, tr("Connect and switch on the spectrophotometer. ChromIQ "
                 "detects it automatically; a green status pill appears in "
                 "the toolbar when it's ready.")),
-            (3, tr("Check the “Disable bidirectional reading” option before "
-                "you start. It's ON by default — safe for any spectro but "
-                "slower. If you use an i1Pro and you're used to scanning "
-                "each strip in one continuous left-and-right sweep, turn "
-                "it OFF first; leaving it on while you scan bidirectionally "
+            (3, tr("Look at the “Disable bidirectional reading” option before "
+                "you start. It is ticked by default — safe for any spectro "
+                "but slower. If you use an i1Pro and you are used to scanning "
+                "each strip in one continuous left-and-right sweep, untick it "
+                "first; leaving it ticked while you scan bidirectionally "
                 "causes mis-recognised strips and bad measurements.")),
             (3, tr("Click “Measure Chart” and follow the strip-by-strip "
                 "prompts. Results save as a .ti3 next to the chart, "

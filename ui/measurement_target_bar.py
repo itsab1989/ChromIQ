@@ -398,6 +398,32 @@ class MeasurementTargetController(QObject):
         except Exception:      # noqa: BLE001 — a greyed button, never a crash
             return None
 
+    def _duplicate_missing_phrase(self) -> str:
+        """"What is missing here" — named, so the rule is not a guessing game."""
+        labels = {
+            "chart_ti1":           tr("the patch list (.ti1)"),
+            "chart_ti2":           tr("the laid-out chart (.ti2)"),
+            "chart_channels_json": tr("the chart's layout recipe (.channels.json)"),
+        }
+        try:
+            proj = self.project_or_none()
+            run = proj.run(self.target.profile_run)
+        except Exception:      # noqa: BLE001 — a tooltip, never a crash
+            return tr("This run is missing some of them.")
+        missing = [labels[n] for n in self._DUPLICATE_REQUIRES
+                   if not getattr(run, n).exists()]
+        try:
+            if not run.chart_tiffs():
+                missing.append(tr("at least one printed page (.tif)"))
+        except Exception:      # noqa: BLE001
+            pass
+        if not missing:
+            return tr("This run is missing some of them.")
+        if len(missing) == 1:
+            return tr("This run is missing {item}.").format(item=missing[0])
+        return tr("This run is missing: {items}.").format(
+            items=", ".join(missing))
+
     def duplicate_state(self) -> "tuple[bool, str]":
         """``(enabled, tooltip)`` for Duplicate — the same shape as
         :meth:`restore_state` and :meth:`delete_state`, so all three behave
@@ -418,9 +444,29 @@ class MeasurementTargetController(QObject):
                 "Select an existing profile run first — there is nothing yet "
                 "to duplicate.")
         if self.duplicate_source() is None:
+            # Knut, #130 beta.120: *"the tool-tip should also mention the
+            # minimum requirement for a duplicate to be possible (Which chart
+            # files must minimum be present for the button to activate)."* He
+            # had worked out the rule himself from the greyed button; it should
+            # not have taken working out.
             return False, tr(
-                "This run has no chart yet. Create or load a chart first, and "
-                "then the run can be duplicated.")
+                "This run does not have a complete chart yet, so there is "
+                "nothing to copy.\n\n"
+                "Duplicate needs all four of these in the run:\n"
+                "  •  the patch list (.ti1)\n"
+                "  •  the laid-out chart (.ti2)\n"
+                "  •  the chart's layout recipe (.channels.json)\n"
+                "  •  at least one printed page (.tif)\n\n"
+                "{missing}\n\n"
+                "The layout recipe is the one people are most often missing. "
+                "It is what lets ChromIQ redraw the pages, so a run without it "
+                "cannot be copied into a working chart — a .ti1 and .ti2 on "
+                "their own would give you a run whose pages could never be "
+                "printed. Charts made in older versions of ChromIQ, or brought "
+                "in from elsewhere, may not have one.\n\n"
+                "Create the chart in this run — or load it with “Open Chart "
+                "File (.ti2)” at the top left — and Duplicate becomes "
+                "available.").format(missing=self._duplicate_missing_phrase())
         return True, tr(
             "Duplicate this run. Makes a new run holding a copy of this run's "
             "chart, its measurement and the profile built from it, so you can "

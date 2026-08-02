@@ -99,8 +99,12 @@ def test_each_alternative_really_gives_more_than_one_route(qapp):
     for title, body in _alternatives():
         if title in single_by_design:
             continue
-        # More than one control named: either two "▸" paths or an explicit "or".
-        if body.count("▸") < 2 and " or " not in body:
+        # More than one control named: either two "▸" paths, or an explicit
+        # alternative. "Or" starting a sentence counts — splitting a long list
+        # of routes into separate sentences is easier to read than chaining
+        # them with commas, and says exactly the same thing.
+        alt = (" or " in body) or (". Or " in body) or body.startswith("Or ")
+        if body.count("▸") < 2 and not alt:
             single.append(title)
     assert not single, f"only one route given for: {single}"
 

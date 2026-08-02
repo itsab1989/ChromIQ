@@ -107,16 +107,17 @@ def _steps() -> "list[tuple[str, str]]":
 def _alternatives() -> "list[tuple[str, str]]":
     return [
         (tr("Open an existing chart"),
-         tr("The chart icon at the top left of the window, beside the ChromIQ "
-            "name — it opens a chart file (.ti2) for the whole app, so Create "
-            "Chart, Print Chart and Measure all show it. Or Create Chart ▸ "
-            "“Load patch set” for an Argyll .ti1 or an i1Profiler set. "
-            "Choosing a Profile run that already has a chart opens that one.")),
+         tr("“Open Chart File (.ti2)” at the top left of the window — it opens "
+            "the chart for the whole app, so Create Chart, Print Chart and "
+            "Measure all show it. Or Create Chart ▸ “Load patch set” for an "
+            "Argyll .ti1 or an i1Profiler set. Choosing a Profile run that "
+            "already has a chart opens that one.")),
         (tr("Open a project"),
-         tr("The project icon at the top left of the window, left of the chart "
-            "icon. Or open a chart that lives inside a project folder, which "
-            "adopts that project — or simply start ChromIQ, which reopens the "
-            "last one you used.")),
+         tr("“Open Project” at the top left of the window. Or open a chart "
+            "that lives inside a project folder, which adopts that project. "
+            "Or start ChromIQ, which reopens the last project you used, "
+            "provided “Restore last session on launch” is enabled in "
+            "Preferences ▸ General.")),
         (tr("Put a chart into a particular run"),
          tr("Set “Profile run” first, then generate. If you load a chart file "
             "instead, ChromIQ asks where it should go: a new run, replacing "
@@ -172,7 +173,11 @@ def _keeping() -> "list[tuple[str, str]]":
             "different chart, duplicate the run first. It makes a new run "
             "holding a copy of the chart, the measurement and the profile, and "
             "leaves the run you started from exactly as it is — so you can try "
-            "something without putting the work behind it at risk.")),
+            "something without putting the work behind it at risk.\n\n"
+            "It needs a complete chart to copy: the patch list (.ti1), the "
+            "laid-out chart (.ti2), the layout recipe (.channels.json) and at "
+            "least one printed page (.tif). If the button is greyed, hover it "
+            "— the tooltip names which of the four this run is missing.")),
         (tr("Why re-creating a chart mid-run is worth avoiding"),
          tr("A run is meant to hold one chart, the measurement of that chart, "
             "and the profile built from it. Re-create the chart after "

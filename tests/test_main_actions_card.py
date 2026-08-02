@@ -105,8 +105,17 @@ def test_printing_through_a_profile_is_recorded_as_a_future_improvement():
 
 
 def test_the_future_improvements_are_marked_as_such():
+    """The list shrinks as things get built, and that is the point of it.
+
+    Knut, #130 beta.120: *"Remove row 1, as this now exists as button
+    Duplicate."* So this checks the PROPERTY — anything held out as coming
+    later says so in the same words — rather than a count, which a shipped
+    feature is supposed to reduce.
+    """
     marked = [w for w, i in CANNOT_ROWS if "possible future improvement" in i]
-    assert len(marked) >= 3, "the ones worth revisiting should say so"
+    assert marked, "the ones worth revisiting should say so"
+    assert not any("Duplicate a run complete" in w for w, _i in CANNOT_ROWS), \
+        "Duplicate exists now; it cannot still be listed as something ChromIQ cannot do"
 
 
 def test_no_bracketed_plural(qapp):
