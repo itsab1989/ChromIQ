@@ -1423,7 +1423,7 @@ class TabMeasure(QWidget):
         # Tooltip icon sits at the far right of the panel (Basti), not hugging
         # the checkbox label.
         sound_row.addStretch()
-        sound_row.addWidget(TooltipButton(
+        self._sound_tip = TooltipButton(
             tr("Play sounds during measurement"),
             tr("Plays a short sound at each step of a measurement — a tick as "
                "each patch is read, a bell when a strip is finished, a warning "
@@ -1433,7 +1433,8 @@ class TabMeasure(QWidget):
                "Choose which sound plays for each event, and add your own, in "
                "Preferences → Sounds. This switch is remembered between "
                "sessions."),
-            btn_outer, min_width=460))
+            btn_outer, min_width=460)
+        sound_row.addWidget(self._sound_tip)
         bo_layout.addLayout(sound_row)
         lc_layout.addWidget(btn_outer)
 
@@ -3039,11 +3040,19 @@ class TabMeasure(QWidget):
         lay = QVBoxLayout(dlg)
         lay.setContentsMargins(22, 20, 22, 18)
         lay.setSpacing(12)
+        # #130 (Knut, beta.120): the overlay is drawn from the ChromIQ reading
+        # engine's per-patch reporting, so with stock chartread there is only
+        # ONE choice here — and the window has to stop describing two.
+        engine_on = self._engine_selected()
         intro = QLabel(tr(
             "A measurement (.ti3) already exists for this chart, so anything "
             "you measure here builds on readings that are already saved. "
             "Choose what you'd like to do — you can change either of these any "
-            "time from the options panel:"), dlg)
+            "time from the options panel:") if engine_on else tr(
+            "A measurement (.ti3) already exists for this chart, so anything "
+            "you measure here builds on readings that are already saved. "
+            "Choose what you'd like to do — you can change this any time from "
+            "the options panel:"), dlg)
         intro.setWordWrap(True)
         lay.addWidget(intro)
 
@@ -3079,7 +3088,14 @@ class TabMeasure(QWidget):
             dlg)
         show_sub.setWordWrap(True); show_sub.setObjectName("overlay_note")
         show_sub.setStyleSheet(_info_css)
-        lay.addWidget(show_cb); lay.addWidget(show_sub)
+        if engine_on:
+            lay.addWidget(show_cb); lay.addWidget(show_sub)
+        else:
+            # Kept alive (the caller reads its state) but never shown, and
+            # forced off so a stale saved preference cannot switch on a feature
+            # this engine does not have.
+            show_cb.setChecked(False)
+            show_cb.setVisible(False); show_sub.setVisible(False)
 
         resume_cb = QCheckBox(
             tr("Refine / resume this measurement (keep the strips already "
@@ -3112,7 +3128,15 @@ class TabMeasure(QWidget):
             "Measurement when you are ready.\n\n"
             "•  Cancel — changes nothing at all. The chart stays loaded, your "
             "existing measurement is untouched, and both settings stay as they "
-            "were. You can set either of them later in the options panel."), dlg)
+            "were. You can set either of them later in the options panel.")
+            if engine_on else tr(
+            "What each button does:\n\n"
+            "•  OK — applies the choice above to this chart. Nothing is "
+            "measured and nothing is written yet; you still press Start "
+            "Measurement when you are ready.\n\n"
+            "•  Cancel — changes nothing at all. The chart stays loaded, your "
+            "existing measurement is untouched, and the setting stays as it "
+            "was. You can set it later in the options panel."), dlg)
         buttons_note.setWordWrap(True)
         buttons_note.setObjectName("overlay_note")
         buttons_note.setStyleSheet(_info_css)
@@ -3529,16 +3553,22 @@ class TabMeasure(QWidget):
                 cb.setChecked(False)
         # #134: the "Show overlay from existing measurement" toggle appears only
         # when a matching .ti3 is present; hide + untick it otherwise.
+        # #130 (Knut, beta.120): and only with the ChromIQ reading engine. The
+        # overlay is drawn from the engine's per-patch reporting, which stock
+        # chartread does not provide — *"All 'Show overlay...' related
+        # functionality is not supported for the stock argyllcms chartread
+        # measurement engine and must be removed and in OFF state"*.
+        show_overlay = has_ti3 and self._engine_selected()
         for ocb, otip in [(self._overlay_cb, self._overlay_tip),
                           (self._m_overlay_cb, self._m_overlay_tip)]:
-            ocb.setVisible(has_ti3); otip.setVisible(has_ti3)
-            if not has_ti3:
+            ocb.setVisible(show_overlay); otip.setVisible(show_overlay)
+            if not show_overlay:
                 ocb.setChecked(False)
         # The box remembers its setting, so after loading a project it can come
         # up already ticked — and nothing painted the overlay, so the preview
         # stayed empty until it was switched off and on again (Knut, #131
         # 2026-07-27). Paint it now, so what the box says is what you see.
-        if has_ti3:
+        if show_overlay:
             self._restore_overlay_after_measurement()
         # Auto-detect Refine_Strips file — reports/ since #127, with a
         # fallback to the flat pre-v2 location (an external chart folder that
@@ -5913,7 +5943,13 @@ class TabMeasure(QWidget):
                 ("f", tr("Move to the next patch")),
                 ("b", tr("Move back to the previous patch")),
                 ("n", tr("Jump to the next unread patch")),
-                (tr("click"), tr("Click a patch in the preview to jump to it")),
+                # Click-to-jump is the ChromIQ reading engine's own feature —
+                # it needs the engine's patch positions. Listing it under stock
+                # chartread promises something that cannot happen (Knut,
+                # #130 beta.120).
+                *(((tr("click"),
+                    tr("Click a patch in the preview to jump to it")),)
+                  if self._engine_selected() else ()),
                 ("d", tr("Finish and save when all patches are done")),
                 ("Esc / q", tr("Quit without saving")),
             ]
@@ -7501,6 +7537,34 @@ class TabMeasure(QWidget):
                     getattr(self, "_m_view_grp", None)):
             if grp is not None:
                 grp.setVisible(on)
+        # #130 (Knut, beta.120): the overlay toggles and the sounds switch are
+        # engine-only too. Hidden AND unticked — a box that is off-screen but
+        # still ticked would paint an overlay nobody asked for the next time
+        # the engine came back on.
+        for ocb, otip in ((getattr(self, "_overlay_cb", None),
+                           getattr(self, "_overlay_tip", None)),
+                          (getattr(self, "_m_overlay_cb", None),
+                           getattr(self, "_m_overlay_tip", None))):
+            if ocb is None:
+                continue
+            if not on:
+                ocb.setChecked(False)
+                ocb.setVisible(False)
+                if otip is not None:
+                    otip.setVisible(False)
+        for w in (getattr(self, "_sound_cb", None),
+                  getattr(self, "_sound_tip", None)):
+            if w is not None:
+                w.setVisible(on)
+        if not on and getattr(self, "_sound_cb", None) is not None:
+            self._sound_cb.setChecked(False)
+        # The overlay boxes come back only if a measurement is there to draw,
+        # which _sync_resume_and_overlay decides.
+        if on:
+            try:
+                self._update_resume_availability()
+            except Exception:      # noqa: BLE001 — visibility, never a crash
+                pass
 
     def _locate_strip(self, letter: str) -> "tuple[int, int, QRect | None]":
         """(page, local index, image-px rect) for a strip letter — the same
