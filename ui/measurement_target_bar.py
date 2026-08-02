@@ -12,6 +12,7 @@ from PyQt6.QtCore import QObject, Qt, pyqtSignal
 from PyQt6.QtWidgets import (QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout,
                              QWidget)
 
+from core.file_manager import CHART_SNAPSHOT_DIRNAME
 from core.i18n import tr
 from core.platform_paths import file_manager_name
 from core.logger import get_logger
@@ -430,6 +431,24 @@ class MeasurementTargetController(QObject):
         self.set_profile_run(new_run.id)
         self.notify_changed()
         return new_run.id
+
+    def restore_slot_or_none(self):
+        """The ChartSlot the Restore button would act on, or None.
+
+        Same choice `restore_state` makes — the dated verification when the run
+        type is Verification, otherwise the run itself — kept in one place so a
+        warning about a restore can never describe a different slot from the
+        one that gets restored.
+        """
+        try:
+            from workflow.chart_slot import slot_for
+            if self._target.is_verification():
+                verification = self.selected_verification()
+                return slot_for(verification) if verification else None
+            run = self.selected_run()
+            return slot_for(run) if run else None
+        except Exception:      # noqa: BLE001
+            return None
 
     def reset_to_empty(self) -> None:
         """Forget which run and run type were selected, as at launch.
@@ -1040,6 +1059,64 @@ class MeasurementTargetBar(QWidget):
         self._duplicate_btn.set_accent(color)
         self._delete_btn.set_accent(color)
 
+    def _confirm_restore_losing_pages(self) -> bool:
+        """Ask before a restore removes page images it cannot put back.
+
+        Knut ruled on this (#130, 2026-08-02): *"I prefer option '1. Warn and
+        let it proceed', but that the warning allow user to make the informed
+        choice (The warning window must ask the user to investigate the
+        specific files in question to make an informed decision)"* — so the
+        files are named, the folders are named, and each button says what it
+        does.
+
+        Returns True to go ahead.
+        """
+        from PyQt6.QtWidgets import QMessageBox
+        from workflow.verify_chart_snapshot import restore_would_lose_pages
+        try:
+            slot = self._ctl.restore_slot_or_none()
+            at_risk = restore_would_lose_pages(slot) if slot else []
+        except Exception:      # noqa: BLE001 — never block a restore on this
+            return True
+        if not at_risk:
+            return True
+        from core.i18n import count_phrase
+        names = "\n".join(f"    •  {p.name}" for p in at_risk)
+        run_folder = at_risk[0].parent
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        title = tr("The printable pages of this chart cannot be brought back")
+        box.setWindowTitle(title)
+        box.setText(title + "\n\n" + tr(
+            "Restoring replaces everything in the run with the stored copy. "
+            "The stored copy has no page images, and this chart carries no "
+            "layout recipe for ChromIQ to redraw them from — so these "
+            "{count} would be removed and could not be recreated:\n\n"
+            "{names}\n\n"
+            "Please look at both folders before you decide:\n\n"
+            "    the run:           {run}\n"
+            "    the stored chart:  {stored}\n\n"
+            "What each button does:\n\n"
+            "•  Restore chart files anyway — the stored chart files are put "
+            "back and the page images listed above are deleted. You would need "
+            "to create the chart again to print it.\n\n"
+            "•  Cancel and keep the current chart files — nothing is changed. "
+            "The run keeps the chart and the pages it has now."
+        ).format(
+            count=count_phrase(len(at_risk), tr("1 page image"),
+                               tr("{n} page images")),
+            names=names, run=run_folder,
+            stored=run_folder / CHART_SNAPSHOT_DIRNAME))
+        go = box.addButton(tr("Restore chart files anyway"),
+                           QMessageBox.ButtonRole.DestructiveRole)
+        keep = box.addButton(tr("Cancel and keep the current chart files"),
+                             QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(keep)
+        from ui.widgets import fit_message_box_buttons
+        fit_message_box_buttons(box)
+        box.exec()
+        return box.clickedButton() is go
+
     def _on_restore_clicked(self) -> None:
         """Restore the selected verification's used chart, warning first when
         the chart currently in place is a different one (#130)."""
@@ -1100,6 +1177,8 @@ class MeasurementTargetBar(QWidget):
             box.exec()
             if box.clickedButton() is not restore:
                 return
+        if not self._confirm_restore_losing_pages():
+            return
         result = self._ctl.restore_used_chart()
         if result is None:
             # Knut, #130: the button was enabled, he clicked it, and nothing

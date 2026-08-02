@@ -35,7 +35,8 @@ def _slot(tmp_path, live_names, stored):
         live.append(f)
     for name, body in stored.items():
         (snap / name).write_text(body)
-    return types.SimpleNamespace(snapshot_dir=snap, files_to_copy=lambda: live)
+    return types.SimpleNamespace(snapshot_dir=snap, files_to_copy=lambda: live,
+                                 live_files=lambda: live)
 
 
 def test_identical_files_need_no_restore(tmp_path):
@@ -65,13 +66,13 @@ def test_no_stored_chart_is_not_a_match(tmp_path):
     live_dir = tmp_path / "live"; live_dir.mkdir()
     f = live_dir / "a.ti1"; f.write_text("one")
     slot = types.SimpleNamespace(snapshot_dir=tmp_path / "chart",
-                                 files_to_copy=lambda: [f])
+                                 files_to_copy=lambda: [f], live_files=lambda: [f])
     assert snapshot_matches_live(slot) is False
 
 
 def test_nothing_loaded_is_not_a_match(tmp_path):
     snap = tmp_path / "chart"; snap.mkdir()
-    slot = types.SimpleNamespace(snapshot_dir=snap, files_to_copy=lambda: [])
+    slot = types.SimpleNamespace(snapshot_dir=snap, files_to_copy=lambda: [], live_files=lambda: [])
     assert snapshot_matches_live(slot) is False
 
 

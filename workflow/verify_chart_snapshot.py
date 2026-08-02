@@ -224,7 +224,14 @@ def snapshot_matches_live(slot) -> bool:
     d = slot.snapshot_dir
     if not d.is_dir():
         return False
-    live = list(slot.files_to_copy())
+    # EVERYTHING THE RUN HOLDS, not just what a copy would take today.
+    #
+    # Knut, #130 2026-08-02, ruling on which files decide this: *"I prefer
+    # images are always counted when both sides have them — even with a
+    # recipe."* `files_to_copy()` answers a different question (what to put IN
+    # the folder), and using it here meant a page image that had changed under
+    # a recipe-carrying chart was never noticed.
+    live = [p for p in slot.live_files()]
     if not live:
         return False
     # Through the same filter as everything else, so a stray .DS_Store cannot
@@ -254,11 +261,20 @@ def snapshot_matches_live(slot) -> bool:
     # run5/. The chart/ folder has tif files in this case. Why is still 'Restore
     # Used Chart' button enabled?"* Because of those .tif files.
     #
-    # The chart is what defines it, not the pictures of it: when the live side
-    # has dropped its images, drop them from the stored side too and compare
-    # like with like.
-    if len(live) < len(stored) and not any(_is_image(f) for f in live):
+    # THE RULE, as Knut settled it (#130, 2026-08-02):
+    #
+    #   Both sides have page images  → the images are compared. A page that
+    #                                  differs from its stored copy means
+    #                                  something diverged, recipe or not.
+    #   Only one side has them       → they are left out. The snapshot of a
+    #                                  recipe-carrying chart deliberately omits
+    #                                  them (they can be redrawn), so their
+    #                                  absence is not a difference.
+    stored_imgs = any(_is_image(f) for f in stored)
+    live_imgs = any(_is_image(f) for f in live)
+    if not (stored_imgs and live_imgs):
         stored = [f for f in stored if not _is_image(f)]
+        live = [f for f in live if not _is_image(f)]
     if {f.name for f in stored} != {f.name for f in live}:
         return False
     try:
@@ -349,6 +365,31 @@ def slot_live_differs(slot) -> bool:
         if counterpart is None or _digest(counterpart) != _digest(s):
             return True
     return False
+
+
+def restore_would_lose_pages(slot) -> "list[Path]":
+    """Page images a restore would remove and be unable to put back.
+
+    A restore replaces the whole live chart with the stored one. If the run has
+    page images, the snapshot has none, and there is no layout recipe to redraw
+    them from, those pages are gone for good — the chart becomes unprintable,
+    silently. Found by enumerating every recipe / images combination for Knut
+    (#130, 2026-08-02); he asked for a warning that lets the user decide, so
+    this is what the warning is built from.
+
+    Returns the images at risk, newest first — an empty list when there is
+    nothing to lose, which is the normal case.
+    """
+    from workflow.chart_slot import _is_image, has_layout_recipe
+    snap = slot_snapshot_files(slot)
+    if not snap:
+        return []
+    if any(_is_image(p) for p in snap):
+        return []                      # the copy brings its own pages back
+    live = slot.live_files()
+    if has_layout_recipe(snap) or has_layout_recipe(live):
+        return []                      # they can be redrawn
+    return [p for p in live if _is_image(p)]
 
 
 def restore_slot(slot) -> "RestoreResult":

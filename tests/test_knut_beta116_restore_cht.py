@@ -68,7 +68,8 @@ def test_a_stray_dot_file_no_longer_makes_charts_look_different(tmp_path):
         (d / "P.ti1").write_text("same")
     (snap / ".DS_Store").write_text("junk")
     slot = types.SimpleNamespace(
-        snapshot_dir=snap, files_to_copy=lambda: [live_dir / "P.ti1"])
+        snapshot_dir=snap, files_to_copy=lambda: [live_dir / "P.ti1"],
+        live_files=lambda: [live_dir / "P.ti1"])
     assert snapshot_matches_live(slot) is True
 
 
@@ -109,9 +110,10 @@ def test_side_files_do_not_decide_whether_a_restore_would_change_anything(tmp_pa
         (d / "P.ti1").write_text("identical chart")
     (snap / "meta.json").write_text('{"a": 1}')
     (live_dir / "meta.json").write_text('{"a": 11}')      # the two-byte drift
+    _live = [live_dir / "P.ti1", live_dir / "meta.json"]
     slot = types.SimpleNamespace(
-        snapshot_dir=snap, files_to_copy=lambda: [live_dir / "P.ti1",
-                                                  live_dir / "meta.json"])
+        snapshot_dir=snap, files_to_copy=lambda: _live,
+        live_files=lambda: _live)
     assert snapshot_matches_live(slot) is True, \
         "a side file made two identical charts look different"
 
@@ -124,9 +126,10 @@ def test_a_real_chart_difference_is_still_seen(tmp_path):
     (live_dir / "P.ti1").write_text("DIFFERENT chart")
     for d in (snap, live_dir):
         (d / "meta.json").write_text("{}")
+    _live = [live_dir / "P.ti1", live_dir / "meta.json"]
     slot = types.SimpleNamespace(
-        snapshot_dir=snap, files_to_copy=lambda: [live_dir / "P.ti1",
-                                                  live_dir / "meta.json"])
+        snapshot_dir=snap, files_to_copy=lambda: _live,
+        live_files=lambda: _live)
     assert snapshot_matches_live(slot) is False
 
 
