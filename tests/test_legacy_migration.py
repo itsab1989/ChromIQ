@@ -20,6 +20,7 @@ does not imagine — which is why a real one was asked for on the issue.
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -36,11 +37,43 @@ def _schema(root: Path) -> int:
     return json.loads((root / "project.json").read_text())["schema_version"]
 
 
+# ---- built once, copied per test ---------------------------------------
+@pytest.fixture(scope="session")
+def _demo_originals(tmp_path_factory):
+    """Build each demo project exactly once for the whole session.
+
+    Every builder shells out to real ArgyllCMS — ``targen`` for the chart,
+    ``colprof`` for the profile — and costs 30-70 seconds. Built per test, the
+    thirteen uses in this file came to about fourteen minutes of a
+    twenty-nine-minute release gate, all of it spent regenerating identical
+    input for tests that only ever read it.
+
+    Copying is safe precisely because the thing under test writes: ``Project
+    .load`` migrates **in place**, so every test still needs its own untouched
+    copy — it just does not need its own build.
+    """
+    root = tmp_path_factory.mktemp("demo-originals")
+    for build in (build_full, build_verify_history,
+                  build_legacy_v1, build_legacy_v2):
+        build(root)
+    return root
+
+
+@pytest.fixture
+def demo(_demo_originals, tmp_path):
+    """Give this test its own copy of a demo project, by name."""
+    def _copy(name: str) -> Path:
+        dst = tmp_path / name
+        if not dst.exists():
+            shutil.copytree(_demo_originals / name, dst)
+        return dst
+    return _copy
+
+
 # ---- v1 (the 3.13 layout) ----------------------------------------------
 @pytest.fixture
-def legacy_v1(tmp_path):
-    build_legacy_v1(tmp_path)
-    return tmp_path / "Demo-Legacy-v1"
+def legacy_v1(demo):
+    return demo("Demo-Legacy-v1")
 
 
 def test_the_fixture_really_is_the_old_layout(legacy_v1):
@@ -119,9 +152,8 @@ def test_the_runs_survive_with_their_numbering(legacy_v1):
 
 # ---- v2 → v3 (the one-slot verification) --------------------------------
 @pytest.fixture
-def legacy_v2(tmp_path):
-    build_legacy_v2(tmp_path)
-    return tmp_path / "Demo-Legacy-v2"
+def legacy_v2(demo):
+    return demo("Demo-Legacy-v2")
 
 
 def test_a_flat_verification_becomes_a_dated_one(legacy_v2):
@@ -143,9 +175,8 @@ def test_the_shared_verify_chart_moves_beside_the_dates(legacy_v2):
 
 
 # ---- the demo projects themselves ---------------------------------------
-def test_the_full_demo_opens_and_has_what_it_claims(tmp_path):
-    build_full(tmp_path)
-    root = tmp_path / "Demo-Full-RGB"
+def test_the_full_demo_opens_and_has_what_it_claims(demo):
+    root = demo("Demo-Full-RGB")
     proj = Project.load(root)
 
     assert [r.id for r in proj.all_runs()] == ["run1", "run2", "run3"]
@@ -159,9 +190,8 @@ def test_the_full_demo_opens_and_has_what_it_claims(tmp_path):
     assert run3.chart_ti2.is_file() and not run3.measurement_ti3.exists()
 
 
-def test_the_history_demo_gives_the_report_something_to_trend(tmp_path):
-    build_verify_history(tmp_path)
-    proj = Project.load(tmp_path / "Demo-Verify-History")
+def test_the_history_demo_gives_the_report_something_to_trend(demo):
+    proj = Project.load(demo("Demo-Verify-History"))
     run = proj.run("run1")
     dates = run.verifications()
     assert len(dates) == 5, "a trend needs several"
@@ -172,12 +202,10 @@ def test_the_history_demo_gives_the_report_something_to_trend(tmp_path):
         assert list(v.reports_dir.glob("report_*.json")), v.id
 
 
-def test_every_demo_project_opens_without_migration_warnings(tmp_path):
-    for build in (build_full, build_verify_history, build_legacy_v1,
-                  build_legacy_v2):
-        build(tmp_path)
+def test_every_demo_project_opens_without_migration_warnings(demo):
     for name in ("Demo-Full-RGB", "Demo-Verify-History", "Demo-Legacy-v1",
                  "Demo-Legacy-v2"):
-        proj = Project.load(tmp_path / name)
+        root = demo(name)
+        proj = Project.load(root)
         assert not proj.schema_too_new, name
-        assert _schema(tmp_path / name) == 3, name
+        assert _schema(root) == 3, name

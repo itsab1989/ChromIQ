@@ -244,8 +244,13 @@ def _chart_files(into: Path, stem: str, *, patches: int, rows: int,
 
     into.mkdir(parents=True, exist_ok=True)
     base = into / stem
+    # A timeout, because -G is an optimising generator and can wedge: a run of
+    # the suite under four parallel workers sat here for two and a half hours
+    # with no output, since subprocess.run without one waits for ever. A cap
+    # turns a silent hang into a named failure. colprof below has had one all
+    # along; this call was simply missed.
     subprocess.run([_argyll("targen"), "-v0", "-d2", "-G", f"-f{patches}", stem],
-                   cwd=into, check=True, capture_output=True)
+                   cwd=into, check=True, capture_output=True, timeout=300)
     kwargs = dict(instrument=instrument, paper="A4", randomize=False)
     result = build_chart(base.with_suffix(".ti1"), base, **kwargs)
 
