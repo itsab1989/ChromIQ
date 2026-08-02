@@ -19,8 +19,23 @@ def _qapp():
 
 
 class _Settings:
+    """A settings stub that falls back to the app's REAL defaults.
+
+    It used to fall back to whatever default the caller passed, which is not
+    the same thing: ``get("chartread_engine", "argyll")`` then answered
+    "argyll" while the shipped default is "chromiq". Harmless until something
+    keyed on it — and when the overlay became engine-only (#130, Knut
+    beta.120) these tests started asserting the behaviour of a configuration
+    no user has.
+    """
     def __init__(self): self._d = {"appearance": "dark"}
-    def get(self, k, d=None): return self._d.get(k, d)
+
+    def get(self, k, d=None):
+        from core.settings import DEFAULTS
+        if k in self._d:
+            return self._d[k]
+        return DEFAULTS.get(k, d)
+
     def set(self, k, v): self._d[k] = v
 
 

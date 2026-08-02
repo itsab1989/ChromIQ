@@ -80,7 +80,12 @@ def test_a_remembered_overlay_is_painted_when_a_chart_is_loaded():
     toggled off and on again."""
     from ui.tabs.tab_measure import TabMeasure
     src = inspect.getsource(TabMeasure)
-    marker = "ocb.setVisible(has_ti3); otip.setVisible(has_ti3)"
+    # The condition gained a second half in beta.123 — the overlay is engine-only
+    # (Knut, beta.120) — so it is now `show_overlay = has_ti3 and engine`. What
+    # this test is actually about is unchanged: whatever decides the box's
+    # visibility must also repaint the overlay, or the box comes up ticked over
+    # an empty preview.
+    marker = "ocb.setVisible(show_overlay); otip.setVisible(show_overlay)"
     assert marker in src
     after = src[src.index(marker):src.index(marker) + 700]
     assert "_restore_overlay_after_measurement()" in after
