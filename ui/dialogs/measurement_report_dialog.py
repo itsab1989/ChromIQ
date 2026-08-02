@@ -69,8 +69,35 @@ _METRIC_LINE = {
     "max_all":   "#e0574b", "max_low95": "#9f82ff",
 }
 
-# Section heading colour / a thin heading rule, shared by window + PDF.
-_HEAD = "#2a2a2a"
+# The report body is one self-contained HTML document, shown in a QTextBrowser
+# AND saved to PDF. Inline colours beat any widget stylesheet, so a fixed
+# light-theme palette rendered the on-screen report as #333 text on the dark
+# theme's #1f1f1f background — a contrast ratio of 1.29:1, where readable body
+# text needs 4.5:1. Only the parts that happen to sit on a light panel could be
+# read at all.
+#
+# So the palette is chosen per render: light for the PDF (it goes on white
+# paper) and for the light theme, legible-on-dark for the dark theme. Every
+# value below clears 4.5:1 against its own background.
+_LIGHT_REPORT = {
+    "text": "#333333", "head": "#2a2a2a", "dim": "#555555", "faint": "#757575",
+    "rule": "#bbbbbb", "hair": "#dddddd", "zebra": "#f2f2f2", "panel": "#f4f7f6",
+    # Nudged darker than the greens and reds this file used to carry: on white
+    # #1e8e3e reached 4.20:1, #d9534f 3.96:1 and #888888 3.54:1, all short of
+    # the 4.5:1 body-text minimum on the very paper the PDF is printed on.
+    "pass": "#197a35", "fail": "#c0392b", "error": "#c0392b",
+    "swatch_edge": "#999999",
+}
+_DARK_REPORT = {
+    "text": "#e6e6e6", "head": "#e6e6e6", "dim": "#b8b8b8", "faint": "#9a9a9a",
+    "rule": "#5a5a5a", "hair": "#3a3a3a", "zebra": "#272727", "panel": "#232323",
+    "pass": "#4fd77a", "fail": "#ff6f61", "error": "#ff6f61",
+    "swatch_edge": "#6a6a6a",
+}
+#: The palette the HTML builders are currently rendering with. Set by
+#: ``_report_body_html`` before it builds anything, so the module-level
+#: heading helpers below pick it up too.
+_C = dict(_LIGHT_REPORT)
 # Max dated columns (runs) per table before it continues below — a portrait page
 # fits six run columns plus the Metric column without the dates wrapping (Knut).
 _MAX_RUN_COLS = 6
@@ -82,7 +109,7 @@ def _swatch(hexc: str) -> str:
     spaces hidden by matching the text colour to the fill."""
     c = html.escape(hexc or "#ffffff")
     return (f"<span style='background-color:{c};color:{c};"
-            f"border:1px solid #999'>&nbsp;&nbsp;&nbsp;</span>")
+            f"border:1px solid {_C["swatch_edge"]}'>&nbsp;&nbsp;&nbsp;</span>")
 
 
 def _colour_line_html(height: int = 5) -> str:
@@ -97,12 +124,13 @@ def _colour_line_html(height: int = 5) -> str:
 def _h2(text: str, *, page_break: bool = False) -> str:
     """A main section heading, matching 'Trend over time (this printer)' etc."""
     brk = "page-break-before:always;" if page_break else ""
-    return (f"<h2 style='color:{_HEAD};{brk}margin:14px 0 4px'>"
+    return (f"<h2 style='color:{_C["head"]};{brk}margin:14px 0 4px'>"
             f"{html.escape(text)}</h2>")
 
 
 def _h3(text: str) -> str:
-    return f"<h3 style='color:{_HEAD};margin:12px 0 3px'>{html.escape(text)}</h3>"
+    return (f"<h3 style='color:{_C["head"]};margin:12px 0 3px'>"
+            f"{html.escape(text)}</h3>")
 
 
 def _fmt(v, dec: int = 2) -> str:
@@ -1113,7 +1141,14 @@ class MeasurementReportDialog(QDialog):
         return [(u + " ") if u.endswith(",") else u for u in units]
 
     # ---- report composition (shared by the window and the PDF) --------------
-    _ZEBRA_BG = "#f2f2f2"
+    @property
+    def _ZEBRA_BG(self) -> str:
+        """The alternate-row band, read at render time.
+
+        It was a class attribute, which bound the light-theme colour once at
+        import and could never follow the palette — leaving every second row
+        of every table a light band under light text."""
+        return _C["zebra"]
 
     def _thresholds(self) -> "tuple[float, float]":
         """The (average, maximum) ΔE00 Pass thresholds from the input fields, or
@@ -1137,7 +1172,7 @@ class MeasurementReportDialog(QDialog):
         """One metric×run table: a wide, no-wrap Metric column, dated run columns,
         a rule under the header row and a light-grey background on every other
         data row (Knut)."""
-        thb = "border-bottom:1.5px solid #bbb;white-space:nowrap"
+        thb = f"border-bottom:1.5px solid {_C['rule']};white-space:nowrap"
         # Date headers inherit the table cellpadding (4 px) like the number cells
         # below them, so they line up on the right; the Metric header keeps its
         # own wide right pad to match the metric column (Knut #PDF3).
@@ -1184,7 +1219,7 @@ class MeasurementReportDialog(QDialog):
         items = "".join(
             "<li>" + html.escape(p["name"]) + ", "
             + html.escape(tr("Instrument: {inst}").format(inst=p["instrument"]))
-            + f" <span style='color:#888'>· {p['n']} "
+            + f" <span style='color:{_C['faint']}'>· {p['n']} "
             + html.escape(_count_label(p["n"]))
             + "</span></li>"
             for p in sc["profiles"])
@@ -1234,7 +1269,7 @@ class MeasurementReportDialog(QDialog):
                         "These runs are missing one or more of the eight cube "
                         "corners, so their cube-corner figures are less meaningful:"))
                     + "</div><ul>" + lis + "</ul>")
-        return ("<div style='color:#c0392b;margin-top:10px'>"
+        return (f"<div style='color:{_C['fail']};margin-top:10px'>"
                 + "".join(blocks) + "</div>")
 
     def _how_to_read_html(self) -> str:
@@ -1286,7 +1321,8 @@ class MeasurementReportDialog(QDialog):
                 "exact.")) + "</p>")
         return (_h2(tr("How to read this report"))
                 + "<table width='100%' cellpadding='12' cellspacing='0'>"
-                "<tr><td style='background:#f4f7f6'>" + body + "</td></tr></table>")
+                f"<tr><td style='background:{_C['panel']}'>" + body
+                + "</td></tr></table>")
 
     def _report_results_html(self, runs: list) -> str:
         """Report Results: a Pass/Fail grid, rows = the five threshold metrics,
@@ -1302,7 +1338,7 @@ class MeasurementReportDialog(QDialog):
             p = verd[id(r)].get(key)
             if p is None:
                 return "<td align='center'>—</td>"
-            col = "#1e8e3e" if p else "#c0392b"
+            col = _C["pass"] if p else _C["fail"]
             txt = tr("Pass") if p else tr("Fail")
             return (f"<td align='center' style='color:{col};font-weight:bold'>"
                     f"{html.escape(txt)}</td>")
@@ -1326,7 +1362,7 @@ class MeasurementReportDialog(QDialog):
         # Always start Report Results on a fresh page — the how-to-read section
         # can be long, so it reads cleaner on its own page (Knut).
         return (_h2(tr("Report Results"), page_break=True)
-                + "<div style='color:#555;margin-bottom:4px'>" + html.escape(intro)
+                + f"<div style='color:{_C['dim']};margin-bottom:4px'>" + html.escape(intro)
                 + "</div>" + self._chunked_metric_tables(runs, row_getters))
 
     def _comparison_table_html(self, runs: list) -> str:
@@ -1405,6 +1441,14 @@ class MeasurementReportDialog(QDialog):
         (Knut): Created → Report Scope → How to read → Report Results → trend
         charts (PDF) → Overview of Measurement Metrics (>1 run) → Detailed
         (opt-in). The profile names / date range live in Report Scope now."""
+        # Choose the palette before anything is built: the PDF is printed on
+        # white paper so it is always the light one, and the window follows the
+        # theme. Global because the module-level heading helpers use it too.
+        global _C
+        _C = dict(_LIGHT_REPORT if for_pdf
+                  else (_DARK_REPORT
+                        if resolve_mode(self._settings.get("appearance", "auto")) == "dark"
+                        else _LIGHT_REPORT))
         if not runs:
             return self._empty_html()
         # A plain "Created: …" line — at the top of the window body, and under
@@ -1414,7 +1458,7 @@ class MeasurementReportDialog(QDialog):
         created_line = ("<div style='margin:2px 0 0'>"
                         + html.escape(tr("Created:")) + " " + when + "</div>")
         if for_pdf:
-            head = (f"<div style='font-size:22px;font-weight:bold;color:{_HEAD}'>"
+            head = (f"<div style='font-size:22px;font-weight:bold;color:{_C["head"]}'>"
                     + html.escape(self._report_title(runs)) + "</div>"
                     + _colour_line_html() + created_line + "<br>")
         else:
@@ -1424,7 +1468,7 @@ class MeasurementReportDialog(QDialog):
         if for_pdf and charts_html:
             parts.append(
                 _h2(tr("Trend over time (this printer)"), page_break=True)
-                + "<div style='color:#555;margin-bottom:6px'>" + html.escape(tr(
+                + f"<div style='color:{_C['dim']};margin-bottom:6px'>" + html.escape(tr(
                     "A rising average or shifting white/black/colour over time "
                     "points to ageing inks, printer drift, or instrument drift."))
                 + "</div>" + charts_html)
@@ -1433,7 +1477,8 @@ class MeasurementReportDialog(QDialog):
         if getattr(self, "_detail_check", None) is not None \
                 and self._detail_check.isChecked():
             parts.append(self._detailed_section_html(runs))
-        return ("<div style='font-family:sans-serif;color:#333;font-size:12px'>"
+        return (f"<div style='font-family:sans-serif;color:{_C['text']};"
+                f"font-size:12px'>"
                 + "".join(parts) + "</div>")
 
     def _pdf_html(self, runs: list, charts_html: str) -> str:
@@ -1454,13 +1499,27 @@ class MeasurementReportDialog(QDialog):
         self._trend_tabs.setVisible(show)
 
     # ------------------------------------------------------------------
+    def _use_theme_palette(self) -> None:
+        """Point the HTML builders at the window's palette.
+
+        ``_report_body_html`` does this itself, but the empty and error bodies
+        are set straight onto the view, so they need it too — otherwise a
+        message shown after a PDF save would still be wearing the PDF's
+        light-on-white colours."""
+        global _C
+        _C = dict(_DARK_REPORT
+                  if resolve_mode(self._settings.get("appearance", "auto")) == "dark"
+                  else _LIGHT_REPORT)
+
     def _empty_html(self) -> str:
-        return ("<div style='color:#888;padding:24px'>"
+        self._use_theme_palette()
+        return (f"<div style='color:{_C['faint']};padding:24px'>"
                 + html.escape(tr("Open a measurement file to see its report."))
                 + "</div>")
 
     def _error_html(self, msg: str) -> str:
-        return ("<div style='color:#d9534f;padding:24px'>"
+        self._use_theme_palette()
+        return (f"<div style='color:{_C['error']};padding:24px'>"
                 + html.escape(tr("Could not read this measurement: {msg}")
                               .format(msg=msg)) + "</div>")
 
@@ -1474,14 +1533,14 @@ class MeasurementReportDialog(QDialog):
             from workflow.measurement_report import accuracy_verdict
             avg_thr, max_thr = self._thresholds()
             rows, _ = accuracy_verdict(de, avg_thr, max_thr)
-            head = ("<tr style='color:#888'>"
-                    "<th align='left' style='border-bottom:1.5px solid #bbb'>"
+            head = (f"<tr style='color:{_C['faint']}'>"
+                    f"<th align='left' style='border-bottom:1.5px solid {_C['rule']}'>"
                     + html.escape(tr("Metric")) + "</th>"
-                    "<th align='right' style='border-bottom:1.5px solid #bbb'>"
+                    f"<th align='right' style='border-bottom:1.5px solid {_C['rule']}'>"
                     + html.escape(tr("Measured ΔE00")) + "</th>"
-                    "<th align='right' style='border-bottom:1.5px solid #bbb'>"
+                    f"<th align='right' style='border-bottom:1.5px solid {_C['rule']}'>"
                     + html.escape(tr("Threshold")) + "</th>"
-                    "<th align='center' style='border-bottom:1.5px solid #bbb'>"
+                    f"<th align='center' style='border-bottom:1.5px solid {_C['rule']}'>"
                     + html.escape(tr("Result")) + "</th></tr>")
             trs = [head]
 
@@ -1490,7 +1549,7 @@ class MeasurementReportDialog(QDialog):
                 if verdict is None:
                     res = "—"
                 else:
-                    col = "#1e8e3e" if verdict else "#c0392b"
+                    col = _C["pass"] if verdict else _C["fail"]
                     res = (f"<span style='color:{col};font-weight:bold'>"
                            + html.escape(tr("Pass") if verdict else tr("Fail"))
                            + "</span>")
@@ -1514,7 +1573,7 @@ class MeasurementReportDialog(QDialog):
                          "style='border-collapse:collapse;font-size:11px'>"
                          + "".join(trs) + "</table>")
             if device_ref:
-                parts.append("<p style='color:#888;font-size:10px'>" + html.escape(tr(
+                parts.append(f"<p style='color:{_C['faint']};font-size:10px'>" + html.escape(tr(
                     "No design file (.ti2) sits next to this measurement, so the "
                     "expected colour of each patch is the sRGB estimate of its "
                     "device values — the fixed code values sent to the printer, "
@@ -1522,7 +1581,7 @@ class MeasurementReportDialog(QDialog):
                     "the reference a .ti2 would carry, so it stays static across "
                     "runs. Typical for imported i1Profiler measurements.")) + "</p>")
         else:
-            parts.append("<p style='color:#888'>" + html.escape(tr(
+            parts.append(f"<p style='color:{_C['faint']}'>" + html.escape(tr(
                 "This measurement has no device values to compare against, so "
                 "colour-accuracy statistics aren't available — only the paper white "
                 "and black below.")) + "</p>")
@@ -1539,7 +1598,7 @@ class MeasurementReportDialog(QDialog):
         corners = r.get("corners") or []
         if corners:
             parts.append(_h3(tr("Cube corners (the eight ink extremes)")))
-            head = ("<tr style='color:#888'><th align='left'>" + html.escape(tr("Corner"))
+            head = (f"<tr style='color:{_C['faint']}'><th align='left'>" + html.escape(tr("Corner"))
                     + "</th><th>" + html.escape(tr("Expected")) + "</th><th>"
                     + html.escape(tr("Measured")) + "</th><th align='right'>ΔE00</th></tr>")
             crows = [head]
@@ -1548,12 +1607,12 @@ class MeasurementReportDialog(QDialog):
                 exp = _swatch(c["expected_hex"]) if c.get("expected_hex") else "—"
                 de_c = f"<b>{_fmt(c.get('de'))}</b>" if c.get("de") is not None else "—"
                 miss = "" if c.get("present", True) else (
-                    " <span style='color:#c0392b'>(" + html.escape(tr("missing"))
+                    f" <span style='color:{_C['fail']}'>(" + html.escape(tr("missing"))
                     + ")</span>")
                 bg = f" style='background:{self._ZEBRA_BG}'" if i % 2 == 1 else ""
                 crows.append(
                     f"<tr{bg}><td>{html.escape(lbl)}{miss} "
-                    f"<span style='color:#888'>({html.escape(str(c['loc']))})</span></td>"
+                    f"<span style='color:{_C['faint']}'>({html.escape(str(c['loc']))})</span></td>"
                     f"<td align='center'>{exp}</td>"
                     f"<td align='center'>{_swatch(c['hex'])}</td>"
                     f"<td align='right'>{de_c}</td></tr>")
@@ -1582,7 +1641,7 @@ class MeasurementReportDialog(QDialog):
                    + html.escape(tr("Measured")) + "</th><th align='right'>ΔE00</th>")
             half = (len(worst) + 1) // 2
             left, right = worst[:half], worst[half:]
-            rows = ["<tr style='color:#888'>" + hdr
+            rows = [f"<tr style='color:{_C['faint']}'>" + hdr
                     + "<th style='width:16px'></th>" + hdr + "</tr>"]
             for i in range(half):
                 lp = left[i] if i < len(left) else None
@@ -1602,12 +1661,13 @@ class MeasurementReportDialog(QDialog):
         for idx, run in enumerate(runs):
             brk = "page-break-before:always;" if idx > 0 else ""
             out.append(
-                f"<h3 style='color:{_HEAD};{brk}border-bottom:1px solid #ddd;"
+                f"<h3 style='color:{_C["head"]};{brk}"
+                f"border-bottom:1px solid {_C['hair']};"
                 f"margin:12px 0 2px'>"
                 + html.escape(tr("Measurement run — {date} — {n} patches").format(
                     date=str(run.get("created") or ""), n=run.get("patches", 0)))
                 + "</h3>"
-                "<div style='color:#555;margin-bottom:4px'>"
+                f"<div style='color:{_C['dim']};margin-bottom:4px'>"
                 + html.escape(tr("Profile name: {name}").format(
                     name=run.get("chart") or "")) + "</div>"
                 + self._run_detail_html(run))
