@@ -109,6 +109,10 @@ class Tab(QWidget):
     _replace_warning_silence_label = TabMeasure._replace_warning_silence_label
     _offer_silence_label = TabMeasure._offer_silence_label
     _measurement_at_risk = TabMeasure._measurement_at_risk
+    # Which of the three §5 messages this is depends on what the measurement
+    # file holds, so the chooser is borrowed too rather than stubbed — a stub
+    # here would let the real one drift without a test noticing.
+    _replace_message = TabMeasure._replace_message
 
     def __init__(self, tmp_path, target=None, ti3=True):
         super().__init__()

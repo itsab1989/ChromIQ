@@ -8340,6 +8340,77 @@ class TabMeasure(QWidget):
             (resume is not None and resume.isVisible() and resume.isChecked())
             or (refine is not None and refine.isEnabled() and refine.isChecked()))
 
+    def _replace_message(self, facts, ti3) -> "tuple[str, str]":
+        """M-REPLACE-PARTIAL / M-REPLACE-COMPLETE / M-TI3-MISMATCH — §5.
+
+        One of three, chosen by what the measurement file actually holds. The
+        numbers are the point: "a measurement" tells the user nothing they can
+        weigh, while "38 of 400 patches" does.
+        """
+        from workflow.measurement_state import Ti3State
+        a = facts.expected
+        c = facts.held or 0
+
+        if facts.state is Ti3State.MISMATCHED:
+            extra = ""
+            if facts.claimed is not None and facts.claimed != c:
+                extra = " " + tr(
+                    "The file's own header claims {b} readings, which does not "
+                    "match the {c} it contains — so this file may be damaged as "
+                    "well as mismatched.").format(b=facts.claimed, c=c)
+            return (
+                tr("This run's measurement and its chart do not match"),
+                tr("This run's measurement and its chart do not match\n\n"
+                   "The measurement file holds {c} readings, and the chart "
+                   "describes {a} patches.{extra}\n\n"
+                   "ChromIQ cannot tell which of the two is the wrong one. A "
+                   "measurement can be cut short by an interrupted session, and "
+                   "a chart can be replaced or edited outside ChromIQ — both "
+                   "look the same from here.\n\n"
+                   "What each button does:\n\n"
+                   "•  Measure again — starts fresh. The existing measurement "
+                   "is moved to the run's “old” folder and nothing is lost.\n\n"
+                   "•  Cancel — nothing is measured and nothing is written. "
+                   "This run's “chart” folder holds the copy of the chart that "
+                   "was stored when it was last measured, and “Restore Used "
+                   "Chart” puts that copy back.\n\n"
+                   "Resuming is not offered here: resuming into a mismatch "
+                   "would write readings against patch positions that may not "
+                   "be the ones on your paper.").format(
+                       c=c, a=a if a is not None else "?", extra=extra))
+
+        if facts.state is Ti3State.COMPLETE:
+            return (
+                tr("This chart is fully measured"),
+                tr("This chart is fully measured\n\n"
+                   "All {a} patches have been read.\n\n"
+                   "Starting a new measurement replaces that. The finished "
+                   "measurement is moved to the run's “old” folder and nothing "
+                   "is deleted — but any profile built from it will no longer "
+                   "match the measurement beside it until you build it "
+                   "again.\n\n"
+                   "What each button does:\n\n"
+                   "•  Measure again — starts the measurement now, replacing "
+                   "the finished one.\n\n"
+                   "•  Cancel — nothing is measured and nothing is written.")
+                .format(a=a if a is not None else c))
+
+        return (
+            tr("This run already holds part of a measurement"),
+            tr("This run already holds part of a measurement\n\n"
+               "{c} of the chart's {a} patches have been read. Starting now "
+               "without “Refine / resume existing measurement (-r)” replaces "
+               "them.\n\n"
+               "Tick that option in the options panel to keep what you have "
+               "and read only the patches that are still missing. The existing "
+               "measurement is moved to the run's “old” folder either way, so "
+               "nothing is lost.\n\n"
+               "What each button does:\n\n"
+               "•  Measure again — starts the measurement now, replacing the "
+               "{c} readings above.\n\n"
+               "•  Cancel — nothing is measured and nothing is written.")
+            .format(c=c, a=a if a is not None else "?"))
+
     def _confirm_replacing_measurement(self) -> bool:
         """Ask before a fresh read writes over a measurement that is already there.
 
@@ -8375,20 +8446,18 @@ class TabMeasure(QWidget):
         from PyQt6.QtWidgets import QCheckBox, QMessageBox
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.NoIcon)
-        box.setWindowTitle(tr("This chart already has a measurement"))
-        box.setText(tr(
-            "Reading this chart again writes a new measurement over the one "
-            "that is already here:\n\n{file}\n\n"
-            "If you want to keep those readings and add to them instead, stop "
-            "here and tick “Refine / resume existing measurement (-r)” in the "
-            "options panel first — then the strips you read now are merged with "
-            "what is already measured, rather than replacing it.\n\n"
-            "What each button does:\n\n"
-            "•  Measure again — starts the measurement now. When it finishes, "
-            "the file above is overwritten by what you read this time.\n\n"
-            "•  Cancel — nothing is measured and nothing is written. Your "
-            "existing measurement stays exactly as it is.").format(
-                file=str(ti3)))
+        # §5: which of the three this is depends on what the file actually
+        # holds, so the message says the real numbers rather than "a
+        # measurement". Resume is deliberately NOT offered as a checkbox here —
+        # Knut: *"the Resume setting should be as the user set it before
+        # pressing start measurement, and the message should not show a separate
+        # Resume checkbox to change the users choice."*
+        from workflow.measurement_state import Ti3State, classify
+        _ti1 = getattr(self, "_ti1_path", None)
+        facts = classify(ti3, _ti1.with_suffix(".ti2") if _ti1 else None)
+        title, body = self._replace_message(facts, ti3)
+        box.setWindowTitle(title)
+        box.setText(body)
         # Only offered where it can be scoped to one run — with no run selected
         # there is nothing to remember it against, and a blanket "never ask"
         # is exactly what this must not become.

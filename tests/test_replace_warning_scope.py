@@ -378,10 +378,14 @@ def test_the_two_labels_name_which_window_they_silence(qapp, tmp_path):
 # for all windows."*
 def test_the_replace_warning_explains_its_buttons():
     from ui.tabs.tab_measure import TabMeasure
-    src = inspect.getsource(TabMeasure._confirm_replacing_measurement)
-    assert "What each button does" in src
-    assert "Measure again — starts the measurement now" in src
-    assert "Cancel — nothing is measured and nothing is written" in src
+    # The wording moved into _replace_message, which picks one of three
+    # depending on what the measurement file actually holds (spec §5) — so the
+    # promise is checked in ALL of them rather than in the one that used to
+    # exist.
+    src = inspect.getsource(TabMeasure._replace_message)
+    assert src.count("What each button does") == 3
+    assert src.count("Measure again — starts") == 3
+    assert src.count("Cancel — nothing is measured and nothing is written") == 3
 
 
 def test_the_offer_window_explains_its_buttons():
