@@ -235,3 +235,15 @@ def test_the_tooltip_nudge_has_a_ceiling_and_delete_is_at_it(qapp):
     t.set_nudge(-3.0, 0.0)
     assert t.iconSize().width() > t.width(), \
         "…and beyond it the widget would do the clipping"
+
+
+def test_the_nudges_are_theme_independent():
+    """The offsets live in the drawing and in the layout, not in either
+    stylesheet — so light and dark place the marks identically and only their
+    colours differ. Verified on screen in both themes (#130, 2026-08-03);
+    this keeps a future theme-only change from moving one of them."""
+    from ui.light_styles import LIGHT_STYLESHEET
+    from ui.styles import APP_STYLESHEET
+    for sheet in (APP_STYLESHEET, LIGHT_STYLESHEET):
+        for token in ("NUDGE", "CLUSTER_SHIFT", "margin-left", "margin-right"):
+            assert f"#target_bar {token}" not in sheet
