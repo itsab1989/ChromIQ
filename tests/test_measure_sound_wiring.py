@@ -123,3 +123,46 @@ def test_checkbox_persists_enabled():
     assert tab._settings.get("sound_enabled") is False
     tab._sound_cb.setChecked(True)
     assert tab._settings.get("sound_enabled") is True
+
+
+def test_the_audio_probe_holds_off_the_collector():
+    """#131, 2026-08-03: a gate worker segfaulted inside the first QtMultimedia
+    import — a collection ran mid-import and a widget's C++ destructor re-entered
+    Python. The probe now defers the sweep across the import.
+    """
+    import gc
+    import inspect
+
+    from core import sound
+
+    src = inspect.getsource(sound._sound_effect_cls)
+    assert "gc.disable()" in src and "gc.enable()" in src
+    assert "finally:" in src, "the collector must come back even if the import raises"
+
+    # …and it really does come back.
+    sound._QSOUND_EFFECT = ...
+    was = gc.isenabled()
+    try:
+        gc.enable()
+        sound._sound_effect_cls()
+        assert gc.isenabled(), "the collector was left switched off"
+    finally:
+        if not was:
+            gc.disable()
+
+
+def test_the_probe_leaves_the_collector_off_if_it_was_off():
+    """Never switch the collector ON behind the caller's back either."""
+    import gc
+
+    from core import sound
+
+    sound._QSOUND_EFFECT = ...
+    was = gc.isenabled()
+    try:
+        gc.disable()
+        sound._sound_effect_cls()
+        assert not gc.isenabled()
+    finally:
+        if was:
+            gc.enable()

@@ -98,33 +98,32 @@ def test_the_reason_is_recorded_where_someone_would_change_it_back():
 
 
 # ---- every message keeps the house rules --------------------------------
-@pytest.mark.parametrize("state,kw", [
+ALL_MESSAGES = [
     (Ti3State.PARTIAL, {"held": 5, "expected": 9}),
     (Ti3State.COMPLETE, {"held": 9, "expected": 9}),
     (Ti3State.MISMATCHED, {"held": 5, "expected": 9}),
-])
+    # A measurement with readings but no chart to count patches from…
+    (Ti3State.PARTIAL, {"held": 5, "expected": None}),
+    # …and one with nothing readable in it at all.
+    (Ti3State.EMPTY, {"held": 0, "expected": 9}),
+]
+
+
+@pytest.mark.parametrize("state,kw", ALL_MESSAGES)
 def test_every_message_explains_its_buttons(state, kw):
     _t, body = _msg(state, **kw)
     assert "What each button does" in body
     assert "Cancel — nothing is measured and nothing is written" in body
 
 
-@pytest.mark.parametrize("state,kw", [
-    (Ti3State.PARTIAL, {"held": 5, "expected": 9}),
-    (Ti3State.COMPLETE, {"held": 9, "expected": 9}),
-    (Ti3State.MISMATCHED, {"held": 5, "expected": 9}),
-])
+@pytest.mark.parametrize("state,kw", ALL_MESSAGES)
 def test_every_message_says_nothing_is_deleted(state, kw):
     """The rule the whole specification serves: archive, never delete."""
     _t, body = _msg(state, **kw)
     assert "“old” folder" in body
 
 
-@pytest.mark.parametrize("state,kw", [
-    (Ti3State.PARTIAL, {"held": 5, "expected": 9}),
-    (Ti3State.COMPLETE, {"held": 9, "expected": 9}),
-    (Ti3State.MISMATCHED, {"held": 5, "expected": 9}),
-])
+@pytest.mark.parametrize("state,kw", ALL_MESSAGES)
 def test_no_placeholder_reaches_the_screen(state, kw):
     title, body = _msg(state, **kw)
     for text in (title, body):
@@ -134,3 +133,19 @@ def test_no_placeholder_reaches_the_screen(state, kw):
 def test_an_unknown_patch_count_does_not_print_none():
     _t, body = _msg(Ti3State.PARTIAL, held=5, expected=None)
     assert "None" not in body
+
+
+# ---- how it reaches the screen ------------------------------------------
+def test_the_headline_is_bold_and_the_explanation_is_not():
+    """These messages run to a screenful. All of it in QMessageBox's bold
+    ``setText`` is a wall nobody reads, so the headline goes there and the
+    explanation goes in ``setInformativeText`` at normal weight — the pattern
+    the rest of the app already uses."""
+    src = inspect.getsource(TabMeasure._confirm_replacing_measurement)
+    assert "box.setText(title)" in src
+    assert "setInformativeText" in src
+
+
+def test_the_headline_is_not_printed_twice():
+    src = inspect.getsource(TabMeasure._confirm_replacing_measurement)
+    assert "body[len(title):]" in src, "the body repeats its own title"

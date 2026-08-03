@@ -1,5 +1,66 @@
 # Changelog
 
+## v3.14.8-beta.125
+
+The measurement model from issue #130 is now implemented in full. The design is
+in the repository at `docs/design/unified_measurement_management.md`; this
+release closes its last two chapters.
+
+- **Building a profile over a run that already has verification measurements
+  now asks first.** A verification chart is printed *through* the profile in
+  its run, so every dated verification measurement records how that particular
+  profile behaved on that day. Replacing the profile does not make those
+  measurements wrong — but nothing on disk would then say which profile they
+  belong to, and comparing them with later ones means comparing across two
+  different profiles.
+
+  The window says how many measurements are involved and how far back they go,
+  then offers three ways forward: duplicate the run and build in the copy
+  (recommended — this run keeps everything it has), build here anyway (the
+  profile moves to the run's `old` folder and the dated verification
+  measurements move to the `old` folder inside `verifications`, because they
+  describe the profile being replaced — nothing is deleted), or cancel. A
+  "don't show this again for this run" box quiets it for that one run until you
+  close ChromIQ.
+
+  Where a run cannot be duplicated, the button is not offered and the message
+  says which file is missing and what to do instead, rather than pointing at a
+  control that would be greyed out.
+
+- **Replacing a chart now says what it would cost, in numbers.** The old
+  warning said this run "already has a measurement". It now lists exactly what
+  stops matching: how many patches were read, whether that measurement is
+  finished, whether a profile was built from it, and — the case that matters
+  most — whether the run has dated verification measurements underneath, which
+  are the one thing here that cannot be made again.
+
+- **Replacing the verification chart warned about nothing at all.** It now
+  does. The dated verification measurements in the run were made with that
+  chart, and replacing it leaves nothing on disk saying what they were readings
+  *of*; a trend across the change also compares two different charts, which is
+  not the same measurement made twice.
+
+- **Charts made by a preset, an imported chart or the live preview go through
+  the same question.** Only the Generate Chart button asked before; a preset or
+  an imported chart could replace a chart with work under it silently. The live
+  auto-update preview cannot open a window on every turn of a knob, so instead
+  it declines to re-draw a run that holds work and says so once in the log.
+
+- **A measurement file ChromIQ cannot read is described honestly.** A `.ti3`
+  with no readable data used to produce "0 of the chart's ? patches have been
+  read". There are now three messages: a real fraction when both numbers are
+  known, a reading count when there is no chart beside it to count patches
+  from, and a plain statement that the file holds no readable measurement data.
+  The last one does not suggest resuming, because there would be nothing to
+  resume from. All three name the file.
+
+- **Ticking the measurement-sound box could crash ChromIQ.** The first time
+  sounds are switched on, ChromIQ loads Qt's audio module. That load can
+  trigger a garbage collection, and if a window you just closed is waiting to
+  be collected at that moment, its teardown re-enters Python mid-load and the
+  application dies. Found when it killed a test worker outright. The collector
+  is now held off for the length of that one load.
+
 ## v3.14.8-beta.124
 
 - **The profile bar no longer sits on a paler block in dark mode.** The bar is

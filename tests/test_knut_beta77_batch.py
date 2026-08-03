@@ -151,7 +151,10 @@ def test_it_survives_a_box_that_cannot_be_measured(qapp):
 @pytest.mark.parametrize("where,method", [
     ("measurement_target_bar", "_on_delete_clicked"),
     ("tab_measure", "_confirm_replacing_measurement"),
-    ("tab_chart", "_confirm_displacing_results"),
+    # §4 gave the Create Chart warning two messages (profiling and
+    # verification) that share one window builder, so the rule is checked where
+    # the window is actually made.
+    ("tab_chart", "_ask_chart_question"),
 ])
 def test_every_new_window_applies_the_universal_rule(where, method):
     """His standing rule: "all windows created must follow the universal rules

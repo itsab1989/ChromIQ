@@ -383,9 +383,13 @@ def test_the_replace_warning_explains_its_buttons():
     # promise is checked in ALL of them rather than in the one that used to
     # exist.
     src = inspect.getsource(TabMeasure._replace_message)
-    assert src.count("What each button does") == 3
-    assert src.count("Measure again — starts") == 3
-    assert src.count("Cancel — nothing is measured and nothing is written") == 3
+    n = src.count("What each button does")
+    assert n >= 3, "there is a message for every state a measurement can be in"
+    # Every one of them carries the same two promises. Counting them against
+    # each other rather than against a number means adding a variant cannot
+    # quietly ship without its button explanations — which is the actual rule.
+    assert src.count("Measure again — starts") == n
+    assert src.count("Cancel — nothing is measured and nothing is written") == n
 
 
 def test_the_offer_window_explains_its_buttons():

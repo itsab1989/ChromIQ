@@ -193,6 +193,12 @@ class _Tab(__import__("PyQt6.QtWidgets", fromlist=["QWidget"]).QWidget):
 
     from ui.tabs.tab_chart import TabChart
     _confirm_displacing_results = TabChart._confirm_displacing_results
+    # §4 split the one message into two, sharing a window builder.
+    _ask_chart_question = TabChart._ask_chart_question
+    _profiling_chart_message = TabChart._profiling_chart_message
+    _verify_chart_message = TabChart._verify_chart_message
+    _duplicate_advice = TabChart._duplicate_advice
+    _pages_paragraph = TabChart._pages_paragraph
 
     def __init__(self, run, verification=False):
         super().__init__()
@@ -242,7 +248,9 @@ def test_results_in_the_run_do_raise_the_question(qapp, tmp_path, ti3, icc):
     real = QtW.QMessageBox.exec
 
     def _fake(self):
-        seen["text"] = self.text()
+        # §4 split the window: headline in setText (bold), explanation in
+        # setInformativeText. The promise below has to be in one of them.
+        seen["text"] = self.text() + "\n" + self.informativeText()
         seen["buttons"] = [b.text() for b in self.buttons()]
         # Answer "Cancel" — the build must not go ahead.
         self.setClickedButtonForTest = None
@@ -263,12 +271,20 @@ def test_results_in_the_run_do_raise_the_question(qapp, tmp_path, ti3, icc):
 
 
 def test_the_wording_counts_one_result_and_two_differently(qapp, tmp_path):
-    """Real singular and plural, never "(s)" — and never "1 item(s)"."""
+    """Real singular and plural, never "(s)" — and never "1 item(s)".
+
+    §4 replaced "this run already has a measurement" with a list of exactly
+    what is at risk, so the counting moved into those bullets — one reading
+    against several, one verification against several.
+    """
     from ui.tabs.tab_chart import TabChart
-    src = inspect.getsource(TabChart._confirm_displacing_results)
-    assert "already has {item}" in src
-    assert "already has {first} and {second}" in src
+    src = inspect.getsource(TabChart._profiling_chart_message)
+    assert "the one reading taken so far" in src
+    assert "{c} patches taken so far" in src
+    assert "the one dated verification measurement under this" in src
+    assert "{v} dated verification measurements under this" in src
     assert "(s)" not in src
+    assert "(s)" not in inspect.getsource(TabChart._pages_paragraph)
 
 
 # ---- 4. Start Measurement warns before it replaces readings ---------------
@@ -288,6 +304,7 @@ class _Box:
 class _Measure(__import__("PyQt6.QtWidgets", fromlist=["QWidget"]).QWidget):
     from ui.tabs.tab_measure import TabMeasure
     _confirm_replacing_measurement = TabMeasure._confirm_replacing_measurement
+    _replace_message = TabMeasure._replace_message
     # Borrowed too: _confirm_replacing_measurement asks this rather than
     # re-implementing the resume test, so the archive and the question can
     # never disagree (#130, 2026-08-01 — they did, and it lost a measurement).
@@ -327,14 +344,20 @@ def test_refining_or_resuming_is_not_replacing(qapp, tmp_path, resume, refine):
 
 def test_a_plain_re_read_does_raise_the_question(qapp, tmp_path):
     ti3 = tmp_path / "chart.ti3"
-    ti3.write_text("x")
+    # Real readings, because the pointer this test is about — "tick Refine /
+    # resume to keep them" — is only true advice when there are readings to
+    # keep. A file with none gets its own message, covered in
+    # test_replace_messages.py.
+    ti3.write_text("CTI3\nNUMBER_OF_SETS 3\nBEGIN_DATA\n"
+                   "P1 1 1 1 5 5 5\nP2 1 1 1 5 5 5\nP3 1 1 1 5 5 5\n"
+                   "END_DATA\n")
 
     seen = {}
     import PyQt6.QtWidgets as QtW
     real = QtW.QMessageBox.exec
 
     def _fake(self):
-        seen["text"] = self.text()
+        seen["text"] = self.text() + "\n" + self.informativeText()
         return 0
 
     QtW.QMessageBox.exec = _fake

@@ -264,6 +264,10 @@ class TabProfile(QWidget):
     check_requested  = pyqtSignal()             # user clicked "Check Quality" in the result dialog
     preconditioning_requested = pyqtSignal(Path)  # user clicked "Use as pre-conditioning profile"
     profile_active   = pyqtSignal(bool)         # True while colprof is running, False when done
+    #: §6: the user chose "Duplicate the run and build there" in the
+    #: rebuild warning. The main window forwards this to the target bar, which
+    #: owns the one duplicate implementation and selects the copy afterwards.
+    duplicate_run_requested = pyqtSignal()
     ti2_found           = pyqtSignal(Path)  # emitted when a matching .ti2 exists next to the loaded .ti3
     ti3_manually_loaded = pyqtSignal()      # emitted when the user manually loads a .ti3 file
     about_to_load_ti3   = pyqtSignal()      # emitted before state changes, for snapshot saving
@@ -3983,6 +3987,182 @@ class TabProfile(QWidget):
         )
         return replace(params, ti3_path=merged)
 
+    #: Runs silenced for this session — §6d. Per run and in memory only, the
+    #: same shape as the Measure tab's "don't ask again": quiet while you work
+    #: on one run, back on the next launch.
+    _rebuild_warning_silenced: "set" = None
+
+    def _run_being_built_into(self):
+        """The run this build would write its profile into, or None.
+
+        None is the ordinary case for a measurement loaded from anywhere — that
+        has no run and no verification history, so §6 never applies to it.
+        """
+        try:
+            from core.file_manager import Run
+            if not self._ti3_path:
+                return None
+            run = Run.for_dir(self._ti3_path.parent)
+            return run if run.dir.parent.name == "runs" else None
+        except Exception:      # noqa: BLE001
+            return None
+
+    def _confirm_rebuild_over_verifications(self) -> bool:
+        """M-PROFILE-VERIFY — §6. True when the build may go ahead."""
+        from workflow.profile_rebuild_guard import assess
+
+        if self._rebuild_warning_silenced is None:
+            self._rebuild_warning_silenced = set()
+        run = self._run_being_built_into()
+        key = str(getattr(run, "dir", "")) or None
+        w = assess(run, silenced=bool(key and key in self._rebuild_warning_silenced))
+        if not w.needed:
+            return True
+
+        from PyQt6.QtWidgets import QCheckBox, QMessageBox
+        from ui.widgets import fit_message_box_buttons
+
+        n = w.dated
+        title = tr("The verification measurements in this run were made "
+                   "against the profile you are about to replace")
+        blocked = ""
+        if not w.can_duplicate:
+            blocked = "\n\n" + tr(
+                "Why there is no Duplicate button here: duplicating a run "
+                "needs all four of the files that make a chart printable — the "
+                "patch list (.ti1), the laid-out chart (.ti2), the layout "
+                "recipe (.channels.json) and at least one printed page (.tif). "
+                "This run is missing {missing}, so there is nothing complete "
+                "to copy.\n\n"
+                "That leaves you two ways forward: build here anyway, which "
+                "keeps everything in the “old” folder so nothing is lost; or "
+                "press Cancel, create the chart in this run again so all four "
+                "files are present, and then come back — Duplicate will be "
+                "offered.").format(missing=", ".join(w.duplicate_blocked_by))
+
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        # Real singular and plural — one measurement gets its own sentence
+        # rather than a bracketed plural nobody reads aloud.
+        if n == 1:
+            opening = tr(
+                "This run holds one dated verification measurement, made on "
+                "{date}. It was printed through the profile in this run and "
+                "measured against it, so it records how that profile behaved "
+                "on that day.").format(date=w.oldest)
+            moved = tr(
+                "•  Build here anyway — replaces this run's profile. The "
+                "current profile is moved to the run's “old” folder, and the "
+                "dated verification measurement is moved to the “old” folder "
+                "inside “verifications”, because it describes the profile "
+                "being replaced. Nothing is deleted.")
+        else:
+            opening = tr(
+                "This run holds {n} dated verification measurements, going "
+                "back to {date}. Each was printed through the profile in this "
+                "run and measured against it, so each records how that profile "
+                "behaved on that day.").format(n=n, date=w.oldest)
+            moved = tr(
+                "•  Build here anyway — replaces this run's profile. The "
+                "current profile is moved to the run's “old” folder, and the "
+                "{n} dated verification measurements are moved to the “old” "
+                "folder inside “verifications”, because they describe the "
+                "profile being replaced. Nothing is deleted.").format(n=n)
+
+        # Headline bold in setText, the explanation in setInformativeText at
+        # normal weight — the pattern the rest of the app uses. This message is
+        # long on purpose, and a whole screen of bold is a wall nobody reads.
+        box.setText(title)
+        box.setInformativeText(opening + "\n\n" + tr(
+            "Building a new profile here does not make those measurements "
+            "wrong, and it deletes nothing — but they will no longer say which "
+            "profile they belong to, and comparing them with verification "
+            "measurements made afterwards means comparing against two "
+            "different profiles.\n\n"
+            "Nothing here is an emergency, and nothing is lost either way — "
+            "it is only worth a moment's thought, because a verification "
+            "history is the one thing in a run that cannot be made again: "
+            "those sheets were printed on days that will not come back.\n\n"
+            "What each button does:\n\n"
+            "•  Duplicate the run and build there (recommended) — copies this "
+            "run's chart, measurement and profile into a new run and builds "
+            "there. This run keeps its profile and its verification "
+            "measurements exactly as they are, and the copy starts fresh. This "
+            "is the clean way to try a different profile from the same "
+            "readings.\n\n") + moved + tr(
+            "\n\n•  Cancel — changes nothing.{blocked}").format(blocked=blocked))
+
+        dup = None
+        if w.can_duplicate:
+            dup = box.addButton(tr("Duplicate the run and build there"),
+                                QMessageBox.ButtonRole.AcceptRole)
+        go = box.addButton(tr("Build here anyway"),
+                           QMessageBox.ButtonRole.DestructiveRole)
+        box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        ask = QCheckBox(tr("Don't show this again for this run"), box)
+        ask.setToolTip(tr(
+            "Only for this one run, and only until you close ChromIQ. Every "
+            "other run keeps asking, and so does this one the next time you "
+            "start the program."))
+        box.setCheckBox(ask)
+        box.setDefaultButton(dup or go)
+        fit_message_box_buttons(box)
+        box.exec()
+        clicked = box.clickedButton()
+
+        # Cancel means "I have not decided yet", so it never silences the
+        # question — only a choice that goes ahead does.
+        if key and ask.isChecked() and clicked in (dup, go) and clicked is not None:
+            self._rebuild_warning_silenced.add(key)
+
+        if dup is not None and clicked is dup:
+            # The Duplicate lives on the target bar (one implementation, one
+            # set of guards); the main window forwards this to it and then
+            # selects the copy, which becomes the run this build writes into.
+            self.duplicate_run_requested.emit()
+            return False
+        if clicked is not go:
+            return False
+        self._archive_superseded_profile(run)
+        return True
+
+    def _archive_superseded_profile(self, run) -> None:
+        """“Build here anyway”: move the profile being replaced and the dated
+        verification measurements that describe it out of the way (§6).
+
+        Two destinations, the same rule the rest of the app already follows: a
+        run's own files go to ``runs/runN/old/``, and anything that lives inside
+        ``verifications/`` archives inside ``verifications/old/`` so a
+        verification's history never lands in the run's. Both get the same
+        timestamp, so it is visible that they were archived together.
+
+        Nothing is deleted, and a failure here never stops the build — the
+        profile is about to be overwritten by colprof either way, and saying so
+        in the log beats refusing to work.
+        """
+        from datetime import datetime
+
+        when = datetime.now()
+        try:
+            dest = run.archive_to_old([run.built_profile_icc()], when)
+            dated = [v.dir for v in run.verifications() if v.exists()]
+            vdest = run.archive_to_old(
+                dated, when, into=run.verifications_old_dir) if dated else None
+        except Exception as exc:      # noqa: BLE001
+            self._log.appendPlainText(tr(
+                "[WARNING] Could not move the previous profile and its "
+                "verification measurements out of the way: {error}"
+            ).format(error=exc))
+            return
+        if dest is not None:
+            self._log.appendPlainText(tr(
+                "The previous profile was moved to: {folder}").format(folder=dest))
+        if vdest is not None:
+            self._log.appendPlainText(tr(
+                "The verification measurements made against it were moved to: "
+                "{folder}").format(folder=vdest))
+
     def _on_build(self) -> None:
         if not self._ti3_path or not self._ti3_path.exists():
             self._log.appendPlainText("[ERROR] No valid .ti3 file selected.")
@@ -3993,6 +4173,10 @@ class TabProfile(QWidget):
 
         params = self._collect_params()
         if not self._validate_gamut_source(params):
+            return
+        # §6: a run whose verification measurements were made against the
+        # profile about to be replaced.
+        if not self._confirm_rebuild_over_verifications():
             return
         # ChromIQ-style refinement: build from fresh + pre-conditioning data when
         # opted in. Returns params unchanged otherwise. self._ti3_path stays the

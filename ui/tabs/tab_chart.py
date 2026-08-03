@@ -7376,15 +7376,25 @@ class TabChart(QWidget):
             return Path(ti1).stem
         return None
 
-    def _generate_from_ti1(self, ti1_path: Path) -> None:
+    def _generate_from_ti1(self, ti1_path: Path, *, ask: bool = True) -> None:
         """Create the target by running printtarg only on an existing .ti1.
 
         Used by the TC9.18 preset both for its initial creation and for every
         later "Generate Chart" click while the bundled patch set is still the
         active source. Shares _on_generate_finished with the normal path.
+
+        *ask* is False only for the live auto-update preview, which cannot open
+        a window on every turn of a knob — see :meth:`_auto_regenerate_preview`,
+        which does its own §4 check and simply does not re-lay-out a run that
+        holds work.
         """
         if self._runner.is_running:
             log.warning("A process is already running")
+            return
+        # §4: every path that lays out a new chart asks first, not just the
+        # Generate Chart button — a preset, an imported chart and a bundled
+        # patch set all replace the chart a measurement describes.
+        if ask and not self._confirm_displacing_results():
             return
         if not ti1_path.is_file():
             InfoDialog(
@@ -7966,7 +7976,8 @@ class TabChart(QWidget):
                 self._leave_applied()
             elif printtarg_changed:
                 self._generate_from_ti1(
-                    self._applied_src_dir / f"{self._applied_stem}.ti1")
+                    self._applied_src_dir / f"{self._applied_stem}.ti1",
+                    ask=False)
                 return
             else:
                 self._import_applied_chart()
@@ -7990,7 +8001,7 @@ class TabChart(QWidget):
             elif printtarg_changed:
                 stem_rel = PREBUILT_PRESETS[self._prebuilt_key][0]
                 bundled_ti1 = resource_path(f"{stem_rel}.ti1")
-                self._generate_from_ti1(bundled_ti1)
+                self._generate_from_ti1(bundled_ti1, ask=False)
                 return
             else:
                 name = (self._manual_target_name_edit.text().strip()
@@ -8008,7 +8019,7 @@ class TabChart(QWidget):
                               and self._targen_signature() != self._preset_ti1_targen_sig)
             if not targen_changed:
                 if self._preset_ti1_path.is_file():
-                    self._generate_from_ti1(self._preset_ti1_path)
+                    self._generate_from_ti1(self._preset_ti1_path, ask=False)
                     return
                 log.warning("attached preset .ti1 vanished: %s", self._preset_ti1_path)
                 self._preset_ti1_path = None
@@ -8022,7 +8033,7 @@ class TabChart(QWidget):
         # setting changes the user has opted into a fresh chart, so fall through.
         if self._tc918_active and self._current_mode() == "manual":
             if self._targen_signature() == self._tc918_targen_sig:
-                self._generate_from_ti1(self._tc918_ti1_path())
+                self._generate_from_ti1(self._tc918_ti1_path(), ask=False)
                 return
             self._tc918_active = False
             self._tc918_targen_sig = None
@@ -8036,7 +8047,7 @@ class TabChart(QWidget):
                 p = KNUT_PRESETS_BY_KEY.get(self._knut_active_key or "")
                 ti1 = (resource_path(p.ti1_asset) if p is not None
                        else self._knut_ti1_path())
-                self._generate_from_ti1(ti1)
+                self._generate_from_ti1(ti1, ask=False)
                 return
             self._knut_active = False
             self._knut_targen_sig = None
@@ -8726,20 +8737,22 @@ class TabChart(QWidget):
         self.chart_finished.emit([], None, False)
 
     def _confirm_displacing_results(self) -> bool:
-        """Ask before a new chart displaces this run's measurement or profile.
+        """Ask before a new chart displaces work made with the one it replaces.
+
+        §4 of ``docs/design/unified_measurement_management.md``. A `.ti3`
+        describes one chart and a profile describes one `.ti3`, so replacing a
+        chart can break a chain three links deep — measurement, profile, and the
+        dated verification measurements printed *through* that profile.
 
         Knut, #131 2026-07-28: he read one strip of a chart, went to Create
         Chart, changed the column count and re-generated. The measurement was
         archived to ``old/`` — correctly, and without a word — so back on the
-        Measure tab the run simply had no measurement any more. The "Refine /
-        resume" and "Show overlay" boxes were gone (there was nothing left to
-        resume or show), no "this chart already has a measurement" window came,
-        and none of that was wrong; it was just unexplained, and he spent a long
-        time thinking the checkboxes were broken.
+        Measure tab the run simply had no measurement any more, and he spent a
+        long time thinking the checkboxes were broken.
 
-        Nothing is ever deleted — this only makes the move visible, and only
-        when there is something to move. A run with no results yet (the ordinary
-        case while you are still settling on chart options) never sees it.
+        Nothing is ever deleted; this only makes the move visible, and only when
+        there is something to move. A run with no results yet — the ordinary case
+        while you are still settling on chart options — never sees it.
         """
         ctl = getattr(self, "_target_ctl", None)
         if ctl is not None and not ctl.target.profile_run:
@@ -8753,54 +8766,201 @@ class TabChart(QWidget):
             run = self._file_mgr.project().current_run()
         except Exception:      # noqa: BLE001 — no project yet: nothing at risk
             return True
-        if self._is_verification_target():
-            return True        # a verification build protects the run root
-        # Indefinite articles: "already has A measurement" reads as English,
-        # "already has THE measurement" does not (Knut, #130 2026-07-28 —
-        # "a bit convoluted and not so user friendly").
-        names = {run.measurement_ti3: tr("a measurement"),
-                 run.profile_icc:     tr("a printer profile")}
-        present = [label for path, label in names.items() if path.exists()]
-        if not present:
-            return True
 
+        from workflow.chart_integrity import (assess_profiling_chart,
+                                              assess_verification_chart)
+        if self._is_verification_target():
+            cost = assess_verification_chart(run)
+            if not cost.warn:
+                return True
+            return self._ask_chart_question(*self._verify_chart_message(cost),
+                                            tr("Generate the new chart"))
+
+        cost = assess_profiling_chart(run)
+        if not cost.warn:
+            return True
+        return self._ask_chart_question(*self._profiling_chart_message(run, cost),
+                                        tr("Generate the new chart"))
+
+    def _ask_chart_question(self, title: str, body: str, go_label: str) -> bool:
+        """One window for both §4 messages: headline, explanation, two buttons."""
         from PyQt6.QtWidgets import QMessageBox
-        if len(present) == 1:
-            what = tr("This profile run already has {item}.").format(
-                item=present[0])
-        else:
-            what = tr("This profile run already has {first} and {second}.").format(
-                first=present[0], second=present[1])
+        from ui.widgets import fit_message_box_buttons
 
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.NoIcon)
-        title = tr("This run already has results")
-        box.setWindowTitle(title)
         # macOS paints no title on a message box, so a window the user can name
-        # is one whose title is IN it — the same rule as "Stored chart differs"
-        # (Knut, #131 2026-07-27, and again here: "The window does not have a
-        # title").
-        box.setText(title + "\n\n" + what + "\n\n" + tr(
-            "A new chart replaces the patches this run is about to be measured "
-            "with, so what you measured earlier no longer describes it. Nothing "
-            "is deleted — it is moved into the run's “old” folder, where you can "
-            "always get it back:\n\n{folder}\n\n"
-            "Afterwards this run starts empty, so the Measure tab will no longer "
-            "offer to refine, resume or overlay that measurement — there will be "
-            "nothing left in the run to refine or show.\n\n"
-            "If you would rather keep it, choose “New run” in the Profile-run bar "
-            "and build the new chart there instead.").format(
-                folder=str(run.old_dir)))
-        go = box.addButton(tr("Generate the new chart"),
-                           QMessageBox.ButtonRole.AcceptRole)
+        # is one whose title is IN it (Knut, #131 2026-07-27). The headline goes
+        # in setText, which is bold, and the explanation in setInformativeText
+        # at normal weight — a whole screen of bold is a wall nobody reads.
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        go = box.addButton(go_label, QMessageBox.ButtonRole.AcceptRole)
         box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(go)
-        # Long labels clip once the font swap widens them, and polish
-        # does not happen offscreen — so fit them here (Knut, #130).
-        from ui.widgets import fit_message_box_buttons
+        # Long labels clip once the font swap widens them, and polish does not
+        # happen offscreen — so fit them here (Knut, #130).
         fit_message_box_buttons(box)
         box.exec()
         return box.clickedButton() is go
+
+    def _duplicate_advice(self, cost, what: str) -> str:
+        """The closing paragraph both §4 messages end on.
+
+        Duplicating is the way to have both — this run's work and a different
+        chart — so it is the recommendation. When the run cannot be duplicated
+        the message says why and what to do instead, because recommending a
+        button the user would find greyed out is worse than saying nothing
+        (M-DUPLICATE-BLOCKED).
+        """
+        if cost.can_duplicate:
+            return "\n\n" + tr(
+                "If you would rather keep {what}, there are two ways to have "
+                "both: choose “New run” in the Profile-run bar and build the "
+                "new chart there, or press Cancel and use the Duplicate button "
+                "in that bar — the copy is somewhere fresh to try a different "
+                "chart, while this run stays exactly as it is."
+            ).format(what=what)
+        return "\n\n" + tr(
+            "If you would rather keep {what}, choose “New run” in the "
+            "Profile-run bar and build the new chart there instead.\n\n"
+            "Duplicating this run is not offered: that needs all four of the "
+            "files a chart is printed from — the patch list (.ti1), the "
+            "laid-out chart (.ti2), the layout recipe (.channels.json) and at "
+            "least one printed page (.tif) — and this run is missing "
+            "{missing}."
+        ).format(what=what, missing=", ".join(cost.duplicate_blocked_by))
+
+    def _pages_paragraph(self, cost) -> str:
+        """M-CHART-NOPAGES — §4a rows 3 and 5.
+
+        Losing pages that can be redrawn costs a reprint. Losing pages that
+        cannot costs them for good, and that is a different sentence.
+        """
+        if cost.can_redraw_pages or not cost.pages:
+            return ""
+        if cost.pages == 1:
+            pages = tr("The one page image in this run is the only one there "
+                       "will be.")
+        else:
+            pages = tr("The {n} page images in this run are the only ones "
+                       "there will be.").format(n=cost.pages)
+        return "\n\n" + tr(
+            "This chart has no layout recipe (.channels.json), so ChromIQ "
+            "cannot draw its pages again. {pages} They are moved to the “old” "
+            "folder rather than deleted, and if you have the printed sheets, "
+            "keep them — they are the only copy."
+        ).format(pages=pages)
+
+    def _profiling_chart_message(self, run, cost) -> "tuple[str, str]":
+        """M-CHART-PROFILING, and §4's W4 when the run has a history."""
+        from workflow.chart_integrity import Blast
+
+        items = []
+        if cost.readings == 1:
+            items.append(tr("•  the one reading taken so far no longer "
+                            "describes the chart in this run;"))
+        elif cost.readings:
+            if cost.complete:
+                items.append(tr(
+                    "•  the finished measurement of {c} patches no longer "
+                    "describes the chart in this run, so the whole chart would "
+                    "have to be printed and measured again;").format(
+                        c=cost.readings))
+            else:
+                items.append(tr(
+                    "•  the measurement of {c} patches taken so far no longer "
+                    "describes the chart in this run;").format(c=cost.readings))
+        elif cost.has_measurement:
+            # The file is there but its readings could not be counted (§3a's
+            # empty, headerless and unreadable states). Say what is true rather
+            # than invent a number or, worse, say nothing at all.
+            items.append(tr("•  the measurement file in this run no longer "
+                            "describes the chart in this run;"))
+        if cost.has_profile:
+            items.append(tr("•  the printer profile built from that "
+                            "measurement no longer describes anything on "
+                            "disk;"))
+
+        if cost.blast is Blast.RUN_AND_HISTORY:
+            title = tr("This would undo the whole run, not just its chart")
+            if cost.verifications == 1:
+                items.append(tr(
+                    "•  and the one dated verification measurement under this "
+                    "run was printed through that profile, so it stops "
+                    "describing a profile that exists."))
+            else:
+                items.append(tr(
+                    "•  and the {v} dated verification measurements under this "
+                    "run were printed through that profile, so they stop "
+                    "describing a profile that exists.").format(
+                        v=cost.verifications))
+            closing = tr(
+                "Everything is moved into the run's “old” folder and nothing "
+                "is deleted — but this run would no longer hold a set of files "
+                "that belong together, and its verification history could not "
+                "be carried on. A history is the one thing here that cannot be "
+                "made again: those sheets were printed on days that will not "
+                "come back.")
+            what = tr("this run's work and its verification history")
+        else:
+            title = tr("This run already holds work made with the chart you "
+                       "are about to replace")
+            closing = tr(
+                "Everything is moved into the run's “old” folder, where you "
+                "can always get it back, and nothing is deleted — but this run "
+                "would no longer hold a matching set of files, and the Measure "
+                "tab will no longer offer to refine, resume or overlay that "
+                "measurement, because there would be nothing left in the run "
+                "to refine or show.")
+            what = tr("what this run already holds")
+
+        # The bullets are written to be read as one sentence in a list, so the
+        # last one ends the sentence however many there are.
+        if items and items[-1].rstrip().endswith(";"):
+            items[-1] = items[-1].rstrip().rstrip(";") + "."
+        body = tr(
+            "A new chart changes the patches this run is measured with, so "
+            "what is here stops describing it:\n\n{items}\n\n{closing}\n\n"
+            "The “old” folder is here:\n{folder}"
+        ).format(items="\n".join(items), closing=closing,
+                 folder=str(run.old_dir))
+        return title, body + self._pages_paragraph(cost) \
+            + self._duplicate_advice(cost, what)
+
+    def _verify_chart_message(self, cost) -> "tuple[str, str]":
+        """M-CHART-VERIFY — §4's W5.
+
+        One level down from W4 and a different loss: no measurement in the run
+        stops matching, but the dated verification measurements lose the chart
+        they were readings *of*.
+        """
+        title = tr("The verification measurements already made in this run "
+                   "used the chart you are about to replace")
+        if cost.verifications == 1:
+            opening = tr(
+                "The one dated verification measurement in this run was made "
+                "with this verification chart.")
+        else:
+            opening = tr(
+                "The {v} dated verification measurements in this run were all "
+                "made with this verification chart.").format(
+                    v=cost.verifications)
+        body = opening + " " + tr(
+            "Replacing it does not make them wrong, and the report can still "
+            "compare their figures — but those measurements would no longer "
+            "have the chart they were made with, so nothing on disk would say "
+            "what they were readings of.\n\n"
+            "A trend across the change also compares two different charts, "
+            "which is not the same measurement made twice. The figures stay "
+            "comparable, but a difference between them could be the print, or "
+            "it could be the change of chart, and afterwards there is no way "
+            "to tell which.\n\n"
+            "The chart is moved to the “old” folder inside “verifications” and "
+            "no measurement is touched. Nothing is deleted.")
+        return title, body + self._pages_paragraph(cost) + self._duplicate_advice(
+            cost, tr("this run's verification history"))
 
     def _is_verification_target(self) -> bool:
         ctl = getattr(self, "_target_ctl", None)
@@ -10066,8 +10226,28 @@ class TabChart(QWidget):
             return
         # Record the signature we're about to render so the post-render refresh
         # (same layout) doesn't immediately re-schedule another render.
+        # §4: the auto-update preview re-lays out the chart in the run, which
+        # would leave the measurement describing patch positions that are no
+        # longer on the sheet. A window here would open on every turn of a
+        # layout knob, so this path declines instead and says so once — the
+        # Generate Chart button still offers the full choice.
+        from workflow.chart_integrity import assess_profiling_chart
+        try:
+            _run = self._file_mgr.project().current_run()
+        except Exception:      # noqa: BLE001
+            _run = None
+        if assess_profiling_chart(_run).warn:
+            if not getattr(self, "_said_auto_update_paused", False):
+                self._said_auto_update_paused = True
+                self._log.appendPlainText(tr(
+                    "The live preview is not being re-drawn, because this run "
+                    "already holds work made with the chart it would replace. "
+                    "Press “Generate Chart” when you want the new layout — you "
+                    "will be told exactly what moves to the “old” folder "
+                    "first, and nothing is deleted."))
+            return
         self._last_auto_sig = self._layout_signature()
-        self._generate_from_ti1(ti1)
+        self._generate_from_ti1(ti1, ask=False)
 
     def _maybe_warn_partial_last_page(self, ti2: Path) -> None:
         """If the patch set leaves a notably under-filled last page (or spilled

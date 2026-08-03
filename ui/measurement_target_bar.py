@@ -1365,6 +1365,15 @@ class MeasurementTargetBar(QWidget):
                 size=self._pretty_size(size)))
         return "\n".join(lines)
 
+    def request_duplicate(self) -> None:
+        """Run the bar's Duplicate from somewhere else in the app (§6).
+
+        The Build Profile warning offers "Duplicate the run and build there";
+        it comes here rather than duplicating on its own, so there is one
+        implementation, one confirmation window and one set of guards.
+        """
+        self._on_duplicate_clicked()
+
     def _on_duplicate_clicked(self) -> None:
         """Duplicate the selected run, after showing exactly what will be copied.
 

@@ -46,9 +46,24 @@ _QSOUND_EFFECT = ...          # ... = "not probed yet"; None = unavailable
 
 def _sound_effect_cls():
     """The ``QSoundEffect`` class, or ``None`` when audio isn't available in
-    this build/environment. Probed once, then cached."""
+    this build/environment. Probed once, then cached.
+
+    **The garbage collector is held off for the duration of the import**, and
+    that is not a micro-optimisation. Importing QtMultimedia allocates enough to
+    trip a collection, and if a Qt widget happens to be waiting to be collected
+    at that moment, its C++ destructor re-enters Python — an event filter, a
+    resize handler — while the interpreter is in the middle of building the new
+    module. That crashed a test worker outright (segfault in ``sipQWidget::
+    eventFilter`` under ``gc_collect_main``, #131, 2026-08-03), and it can
+    happen in the app too: this probe runs when the user ticks the sound box,
+    which is exactly the moment after a dialog they just closed is due for
+    collection. The import is short, so nothing is lost by deferring the sweep.
+    """
     global _QSOUND_EFFECT
     if _QSOUND_EFFECT is ...:
+        import gc
+        was_enabled = gc.isenabled()
+        gc.disable()
         try:
             from PyQt6.QtMultimedia import QSoundEffect
             _QSOUND_EFFECT = QSoundEffect
@@ -56,6 +71,9 @@ def _sound_effect_cls():
             log.warning("Measurement sounds disabled — QtMultimedia "
                         "unavailable: %s", exc)
             _QSOUND_EFFECT = None
+        finally:
+            if was_enabled:
+                gc.enable()
     return _QSOUND_EFFECT
 
 

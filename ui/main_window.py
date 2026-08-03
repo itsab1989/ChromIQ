@@ -123,6 +123,11 @@ class MainWindow(QMainWindow):
         # Knut 2026-07-29).
         self._target_bar.project_deleted.connect(self._on_project_deleted)
         self._target_bar.run_duplicated.connect(self._on_run_duplicated)
+        # §6: "Duplicate the run and build there" in the Build Profile warning
+        # runs the bar's own Duplicate — same confirmation, same guards, and the
+        # copy is selected afterwards, so the next build lands in it.
+        self._tab_profile.duplicate_run_requested.connect(
+            self._target_bar.request_duplicate)
         for _t in (self._tab_chart, self._tab_measure, self._tab_print):
             if hasattr(_t, "set_target_controller"):
                 _t.set_target_controller(self._target_ctl)

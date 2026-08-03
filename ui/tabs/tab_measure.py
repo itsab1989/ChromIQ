@@ -8395,6 +8395,51 @@ class TabMeasure(QWidget):
                    "•  Cancel — nothing is measured and nothing is written.")
                 .format(a=a if a is not None else c))
 
+        if c == 0:
+            # The file is there but holds nothing readable (§3a's empty,
+            # headerless and unreadable states). "0 of the chart's ? patches
+            # have been read" is worse than useless — it looks like a bug. Say
+            # what is actually known instead, and do not point at resume, which
+            # would have nothing to resume from.
+            return (
+                tr("This run already holds a measurement file"),
+                tr("This run already holds a measurement file\n\n"
+                   "ChromIQ cannot tell how many readings it contains — the "
+                   "file is there, but it holds no readable measurement data. "
+                   "That usually means a session ended before the first patch "
+                   "was read, or the file was changed outside ChromIQ.\n\n"
+                   "Starting now writes a new measurement in its place. The "
+                   "file you have is moved to the run's “old” folder and "
+                   "nothing is deleted, so you can always look at it "
+                   "afterwards.\n\n"
+                   "The file is:\n{path}\n\n"
+                   "What each button does:\n\n"
+                   "•  Measure again — starts the measurement now.\n\n"
+                   "•  Cancel — nothing is measured and nothing is written.")
+                .format(path=str(ti3)))
+
+        if a is None:
+            # Readings, but no chart to measure them against — so the fraction
+            # cannot be stated. The advice is unchanged; only the arithmetic is
+            # missing, and inventing a denominator would be a lie.
+            return (
+                tr("This run already holds part of a measurement"),
+                tr("This run already holds part of a measurement\n\n"
+                   "{c} readings have been taken. ChromIQ cannot tell how many "
+                   "patches the chart has, because there is no chart file "
+                   "beside this measurement to count them from.\n\n"
+                   "Starting now without “Refine / resume existing measurement "
+                   "(-r)” replaces those readings. Tick that option in the "
+                   "options panel to keep what you have. The existing "
+                   "measurement is moved to the run's “old” folder either way, "
+                   "so nothing is lost.\n\n"
+                   "The file is:\n{path}\n\n"
+                   "What each button does:\n\n"
+                   "•  Measure again — starts the measurement now, replacing "
+                   "the {c} readings above.\n\n"
+                   "•  Cancel — nothing is measured and nothing is written.")
+                .format(c=c, path=str(ti3)))
+
         return (
             tr("This run already holds part of a measurement"),
             tr("This run already holds part of a measurement\n\n"
@@ -8405,11 +8450,12 @@ class TabMeasure(QWidget):
                "and read only the patches that are still missing. The existing "
                "measurement is moved to the run's “old” folder either way, so "
                "nothing is lost.\n\n"
+               "The file is:\n{path}\n\n"
                "What each button does:\n\n"
                "•  Measure again — starts the measurement now, replacing the "
                "{c} readings above.\n\n"
                "•  Cancel — nothing is measured and nothing is written.")
-            .format(c=c, a=a if a is not None else "?"))
+            .format(c=c, a=a, path=str(ti3)))
 
     def _confirm_replacing_measurement(self) -> bool:
         """Ask before a fresh read writes over a measurement that is already there.
@@ -8457,7 +8503,12 @@ class TabMeasure(QWidget):
         facts = classify(ti3, _ti1.with_suffix(".ti2") if _ti1 else None)
         title, body = self._replace_message(facts, ti3)
         box.setWindowTitle(title)
-        box.setText(body)
+        # The headline goes in setText (bold) and the explanation in
+        # setInformativeText (normal weight) — the pattern the rest of the app
+        # already uses. A whole screen of bold is a wall nobody reads, and the
+        # message is long on purpose.
+        box.setText(title)
+        box.setInformativeText(body[len(title):].lstrip("\n"))
         # Only offered where it can be scoped to one run — with no run selected
         # there is nothing to remember it against, and a blanket "never ask"
         # is exactly what this must not become.
