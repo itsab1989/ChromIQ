@@ -95,7 +95,7 @@ def test_duplicate_and_delete_carry_the_values_basti_chose():
     from ui.bar_icons import delete_button, duplicate_run_button
     from ui.styles import SPEC_MAGENTA
     assert duplicate_run_button(SPEC_MAGENTA, "d").NUDGE == (6.0, 1.0)
-    assert delete_button(SPEC_MAGENTA, "x").NUDGE == (5.0, -2.0)
+    assert delete_button(SPEC_MAGENTA, "x").NUDGE == (4.0, -2.0)
 
 
 def test_restore_moves_right_but_not_vertically():
@@ -118,10 +118,42 @@ def test_the_nudge_moves_the_mark_and_not_the_button(qapp):
         assert btn.size().height() == BarIconButton.HEIGHT
 
 
-def test_the_tooltip_icons_are_not_nudged(qapp):
-    """Tried and reverted (#130, Basti 2026-08-03): *"the tooltip icons now
-    looked cut off"*. The ⓘ circle nearly fills its own pixmap — about 7 % of
-    margin — so a 2 px shift clipped its edge. The same gap is closed from the
-    mark's side instead, where the glyph has room to move."""
+def test_an_unnudged_tooltip_icon_keeps_its_plain_size(qapp):
+    """Every other ⓘ in the app is untouched, and pays nothing for the
+    mechanism: no nudge means no growth and the original pixmap."""
     from ui.tooltip_button import TooltipButton
-    assert not hasattr(TooltipButton("t", "b"), "_nudge")
+    t = TooltipButton("t", "b")
+    assert t._nudge == (0.0, 0.0)
+    assert t._grow() == (0, 0)
+
+
+def test_a_nudged_tooltip_icon_grows_instead_of_clipping(qapp):
+    """#130, Basti 2026-08-03: *"the tooltip icons now looked cut off"*.
+
+    The first attempt translated the painter inside a fixed pixmap. The circle
+    is drawn with a margin of about 7 % — roughly two physical pixels at 2× —
+    so the shift ate its edge. The pixmap now GROWS by twice the nudge and the
+    circle is drawn off-centre inside it, so the same visual shift costs
+    nothing."""
+    from ui.tooltip_button import TooltipButton
+    t = TooltipButton("t", "b")
+    t.set_nudge(-1.0, 0.0)
+    assert t._grow() == (2, 0), "twice the nudge, so the circle always fits"
+    assert t.iconSize().width() > t.iconSize().height(), \
+        "the extra room is on the axis that moved"
+
+
+def test_only_the_delete_tip_is_nudged(qapp, tmp_path):
+    """Basti asked for the bin AND its ⓘ to move together, and for nothing
+    else to move with them."""
+    from PyQt6.QtCore import QSettings
+    from core.file_manager import FileManager
+    from core.settings import AppSettings
+    from ui.measurement_target_bar import (MeasurementTargetBar,
+                                           MeasurementTargetController)
+    s = AppSettings()
+    s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    bar = MeasurementTargetBar(MeasurementTargetController(FileManager(s)))
+    assert bar._delete_tip._nudge == (-1.0, 0.0)
+    assert bar._restore_tip._nudge == (0.0, 0.0)
+    assert bar._duplicate_tip._nudge == (0.0, 0.0)

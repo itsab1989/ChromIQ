@@ -65,6 +65,10 @@ class TooltipButton(QToolButton):
         if color is not None:
             self._color_override = color
 
+        #: An OPTICAL offset for the drawn ⓘ, in device-independent pixels.
+        #: See :meth:`set_nudge` — and note that it grows the pixmap rather than
+        #: shifting inside it, because the circle nearly fills its own box.
+        self._nudge: "tuple[float, float]" = (0.0, 0.0)
         self.setObjectName("tooltip_btn")
         self.setToolTip(title + "\n\n" + tr("Click for details"))
         self.setFixedSize(QSize(_ICON_SIZE + 4, _ICON_SIZE + 4))
@@ -92,6 +96,24 @@ class TooltipButton(QToolButton):
                 and not self._explicitly_disabled):
             super().setEnabled(True)
 
+    def set_nudge(self, dx: float, dy: float) -> None:
+        """Shift the drawn ⓘ inside its button, without moving the button.
+
+        Used where an ⓘ has to travel with the control it explains rather than
+        keep even spacing of its own (#130, Basti 2026-08-03).
+
+        **The first attempt at this translated the painter inside a fixed
+        pixmap, and Basti saw the result at once: the icons looked cut off.**
+        The circle is drawn with a margin of about 7 % of its pixmap — roughly
+        two physical pixels at 2× — so any offset eats its edge. So the pixmap
+        grows by the offset instead and the circle is drawn off-centre inside
+        it: same visual shift, nothing clipped.
+        """
+        if (dx, dy) == self._nudge:
+            return
+        self._nudge = (float(dx), float(dy))
+        self._set_icon()
+
     def set_color(self, color: str) -> None:
         """Override the ⓘ icon colour (e.g. to match a dialog's own accent)."""
         self._color_override = color
@@ -100,26 +122,45 @@ class TooltipButton(QToolButton):
     def _set_icon(self) -> None:
         color = getattr(self, "_color_override", None) or self.__class__.ACCENT
         self.setIcon(self._draw_icon(QColor(color)))
-        self.setIconSize(QSize(_ICON_SIZE, _ICON_SIZE))
+        # The icon is as wide/tall as the nudge made it; Qt centres it in the
+        # button, so the extra room on one side is what produces the shift.
+        gx, gy = self._grow()
+        self.setIconSize(QSize(_ICON_SIZE + gx, _ICON_SIZE + gy))
+
+    def _grow(self) -> "tuple[int, int]":
+        """How much bigger the pixmap has to be to hold a nudged circle."""
+        import math
+        return (2 * math.ceil(abs(self._nudge[0])),
+                2 * math.ceil(abs(self._nudge[1])))
 
     def _draw_icon(self, color: QColor) -> QIcon:
         dpr  = QGuiApplication.primaryScreen().devicePixelRatio()
-        key  = (color.rgba(), round(dpr, 4))
+        # The nudge changes what the pixmap looks like AND how big it is, so it
+        # belongs in the key — otherwise the first ⓘ drawn in a colour hands its
+        # icon to every later one and the offset silently disappears.
+        key  = (color.rgba(), round(dpr, 4), self._nudge)
         cached = TooltipButton._ICON_CACHE.get(key)
         if cached is not None:
             return cached
         phys = round(_ICON_SIZE * dpr)
-        px   = QPixmap(phys, phys)
+        gx, gy = self._grow()
+        w_ph, h_ph = phys + round(gx * dpr), phys + round(gy * dpr)
+        px   = QPixmap(w_ph, h_ph)
         px.fill(Qt.GlobalColor.transparent)
 
         p = QPainter(px)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        # Centre the circle in the grown pixmap, then move it by the nudge. The
+        # growth is twice the nudge, so the circle always lands fully inside.
+        ox = (w_ph - phys) / 2 + self._nudge[0] * dpr
+        oy = (h_ph - phys) / 2 + self._nudge[1] * dpr
 
         pen = QPen(color, max(1.0, phys * 0.10))
         p.setPen(pen)
         p.setBrush(Qt.BrushStyle.NoBrush)
         margin = int(phys * 0.07)
-        p.drawEllipse(margin, margin, phys - 2 * margin, phys - 2 * margin)
+        p.drawEllipse(int(ox) + margin, int(oy) + margin,
+                      phys - 2 * margin, phys - 2 * margin)
 
         # Italic "i" glyph
         font = QFont()
@@ -130,7 +171,7 @@ class TooltipButton(QToolButton):
         p.setFont(font)
         p.setPen(color)
         p.drawText(
-            QRect(0, 0, phys, int(phys * 1.05)),
+            QRect(int(ox), int(oy), phys, int(phys * 1.05)),
             int(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter),
             "i",
         )
