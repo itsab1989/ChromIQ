@@ -1,5 +1,27 @@
 # Changelog
 
+## v3.14.8-beta.124
+
+- **The profile bar no longer sits on a paler block in dark mode.** The bar is
+  hosted on the masthead's version rail, which the masthead paints itself —
+  but the app-wide widget background was being painted over it, three shades
+  lighter, so the labels, the dropdowns and the "Location being edited" line
+  appeared on a rectangle of their own. Light mode never had this, and that is
+  what pointed at the cause: its widget rule sets no background at all. Dark
+  mode now behaves the same way.
+
+- **The three action icons on the bar sit where they look right.** Restore,
+  Duplicate and Delete are drawn identically inside their buttons — measured,
+  their marks occupy the same rows to the pixel — and they still did not look
+  aligned, because the weight in each mark is spread differently: the "+" hangs
+  off the bottom-right of the duplicate page, and the bin's lid is a solid bar
+  across the top. Each mark, and each ⓘ beside it, has been placed by eye so
+  the row reads as three pairs rather than six evenly spaced things.
+
+  This also fixed something nobody had noticed: the marks had been losing
+  pixels off their right edge, because each was drawn on a canvas exactly its
+  own size. They now have room to move without any of them being cut.
+
 ## v3.14.8-beta.123
 
 - **Patch-by-patch readings are no longer thrown away when you press Stop.**
