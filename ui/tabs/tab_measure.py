@@ -4641,6 +4641,11 @@ class TabMeasure(QWidget):
         self._ti3_mtime_before = (
             _ti3_pre.stat().st_mtime if (_ti3_pre and _ti3_pre.exists()) else None
         )
+        # §2a: copy the measurement aside and record C₀ before anything can
+        # touch it. chartread writes its .ti3 only on a clean exit and a resume
+        # overwrites the file it resumed from, so this is the last moment the
+        # previous readings still exist to be protected.
+        self._begin_session_guard(_ti3_pre)
         if sys.platform == "win32":
             subprocess.run(
                 ["taskkill", "/F", "/IM", "chartread.exe"],
@@ -4754,6 +4759,90 @@ class TabMeasure(QWidget):
         if hide_cb.isChecked():
             self._settings.set("measure_hide_nonrandom_bidir_warning", True)
         return proceed
+
+    def _begin_session_guard(self, ti3: "Path | None") -> None:
+        """Start the §2a guard for this measurement."""
+        from workflow.measurement_session import MeasurementSession
+        self._session_guard = None
+        if ti3 is None:
+            return
+        try:
+            run = Run.for_dir(ti3.parent)
+            old_dir = run.old_dir
+        except Exception:      # noqa: BLE001 — a chart outside a project
+            old_dir = ti3.parent / "old"
+        try:
+            guard = MeasurementSession(
+                ti3, self._ti1_path.with_suffix(".ti2") if self._ti1_path else None,
+                old_dir)
+            guard.begin()
+            self._session_guard = guard
+        except Exception:      # noqa: BLE001 — never block a measurement
+            log.warning("could not start the measurement guard", exc_info=True)
+
+    def _finish_session_guard(self) -> None:
+        """Judge what the session left behind and say so — §3b, §S3.
+
+        At most one of the outcomes applies, which is what keeps §S3 to a single
+        window after a measurement.
+        """
+        guard = getattr(self, "_session_guard", None)
+        if guard is None:
+            return
+        self._session_guard = None
+        try:
+            resumed = bool(self._resume_is_active())
+            out = guard.finish(resumed=resumed)
+        except Exception:      # noqa: BLE001
+            log.warning("could not judge the measurement session", exc_info=True)
+            return
+
+        if out.message_id == "M-TI3-EMPTY":
+            self._say_on_screen(
+                tr("The measurement file was empty, so it has been put aside"),
+                tr("The file this session wrote contains no readings. It has "
+                   "been moved to the run's “old” folder, and {restored}.")
+                .format(restored=(
+                    tr("your previous measurement of {m} patches has been put "
+                       "back").format(m=out.before) if out.restored
+                    else tr("this run has no measurement, as before"))))
+        elif out.message_id == "M-TI3-SHRANK":
+            self._say_on_screen(
+                tr("This session ended with fewer readings than it started with"),
+                tr("The measurement held {c0} patches when this session began "
+                   "and {c} when it ended. A resume should only ever add "
+                   "readings, so something has gone wrong.\n\n"
+                   "Your earlier measurement has been put back, and the file "
+                   "this session wrote is kept beside it so nothing is lost. "
+                   "Nothing needs doing right now — measure again when you are "
+                   "ready.").format(c0=out.before, c=out.after))
+        elif out.added:
+            # §3: every outcome is reported ON SCREEN, not only in the log —
+            # Knut: "The user should always be informed on-screen on events, or
+            # it will seem like hidden information."
+            self._flash_status(tr(
+                "{added} patches added — {total} in the measurement now.")
+                .format(added=out.added, total=out.after))
+
+    def _resume_is_active(self) -> bool:
+        for name in ("_resume_cb", "_m_resume_cb"):
+            cb = getattr(self, name, None)
+            if cb is not None and cb.isVisible() and cb.isChecked():
+                return True
+        return False
+
+    def _say_on_screen(self, title: str, body: str) -> None:
+        """One informational window, with the title repeated in the body so it
+        reads the same in a screenshot as on screen."""
+        from PyQt6.QtWidgets import QMessageBox
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title + "\n\n" + body)
+        box.addButton(QMessageBox.StandardButton.Ok)
+        from ui.widgets import fit_message_box_buttons
+        fit_message_box_buttons(box)
+        box.exec()
 
     #: Sentinel put in a failure window's "chosen" slot when the user asked to
     #: save instead of giving up. Not a key: saving is a protocol, not a
@@ -6896,6 +6985,17 @@ class TabMeasure(QWidget):
         # Done here, before anything else looks at the file, so every ending —
         # strip, patch-by-patch, resume, single patches — is covered by one
         # place rather than four.
+        #
+        # §S3: the session's own verdict comes FIRST. The guard both sets an
+        # empty file aside and puts the previous measurement back, and both have
+        # to happen before anything reads the file — the overlay, the resume
+        # checkbox and the report all describe whatever is on disk when they
+        # look. A test pins this order; it caught the mistake of judging at the
+        # END of this method, by which point the resume checkbox had already
+        # refreshed itself from the file that was about to be replaced.
+        self._finish_session_guard()
+        # Superseded by the guard for any run it protects; still the only
+        # handler for a session that never got one.
         self._archive_empty_measurement()
 
         # With "Show overlay from existing measurement" ticked, the overlay is
