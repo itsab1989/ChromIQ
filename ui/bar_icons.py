@@ -344,20 +344,29 @@ def draw_duplicate_run(p: QPainter, colour: str) -> None:
 def restore_chart_button(colour: str, text: str,
                          parent: "QWidget | None" = None) -> BarIconButton:
     """The Restore Used Chart button: its mark alone."""
-    return BarIconButton(draw_restore_chart, colour, text, parent)
+    return _RestoreButton(draw_restore_chart, colour, text, parent)
+
+
+class _RestoreButton(BarIconButton):
+    #: Right 1 (#130, Basti 2026-08-03). The arrow tail sweeps left and the head
+    #: sits high-right, so the mark's weight is left of its box centre and it sat
+    #: further from its own ⓘ than the other two.
+    NUDGE = (1.0, 0.0)
 
 
 class _DuplicateButton(BarIconButton):
-    #: Down 1 and right 2 (#130, Basti 2026-08-03). The mark carries its weight
-    #: low and left — the "+" hangs off the bottom-right of a page that sits
-    #: left in its box — so it read as high and far from its own ⓘ.
-    NUDGE = (2.0, 1.0)
+    #: Right 4, down 1 (#130, Basti 2026-08-03, in two passes: right 2 / down 1,
+    #: then a further right 2 once he saw the whole row). The mark carries its
+    #: weight low and left — the "+" hangs off the bottom-right of a page that
+    #: sits left in its box.
+    NUDGE = (4.0, 1.0)
 
 
 class _DeleteButton(BarIconButton):
-    #: Up 2 and right 1 (#130, Basti 2026-08-03). The lid is a solid horizontal
-    #: stroke across the top, which makes the bin read as sitting low.
-    NUDGE = (1.0, -2.0)
+    #: Right 3, up 2 (#130, Basti 2026-08-03, in two passes: right 1 / up 2, then
+    #: a further right 2). The lid is a solid horizontal stroke across the top,
+    #: which makes the bin read as sitting low.
+    NUDGE = (3.0, -2.0)
 
 
 def duplicate_run_button(colour: str, text: str,
