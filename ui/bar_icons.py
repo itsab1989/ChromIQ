@@ -145,18 +145,27 @@ def draw_restore_chart(p: QPainter, colour: str) -> None:
         p.drawLine(a, b)
 
 
-def _pixmap(draw, colour: str, size: int, nudge: "tuple[float, float]" = (0.0, 0.0)) -> QPixmap:
-    pm = QPixmap(size * 2, size * 2)
+def _pixmap(draw, colour: str, size: int, nudge: "tuple[float, float]" = (0.0, 0.0),
+            canvas: "int | None" = None) -> QPixmap:
+    """The mark at *size*, drawn on a *canvas*-wide pixmap and offset by *nudge*.
+
+    **The canvas is deliberately bigger than the mark.** Drawn edge to edge, a
+    nudged mark loses whatever crosses the boundary — and it did: at right 6 the
+    duplicate mark had lost five pixels of its width before anyone noticed,
+    which is the same fault Basti spotted on the ⓘ (#130, 2026-08-03). Giving
+    the pixmap the button's full width leaves about 6 px of slack on each side,
+    which is enough for every offset the bar uses, and Qt centres the larger
+    icon in the same button so nothing else moves.
+    """
+    canvas = canvas or size
+    pm = QPixmap(canvas * 2, canvas * 2)
     pm.setDevicePixelRatio(2.0)
     pm.fill(Qt.GlobalColor.transparent)
     p = QPainter(pm)
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
+    # Centre the mark's own box on the canvas, then move it by the nudge.
+    p.translate((canvas - size) / 2 + nudge[0], (canvas - size) / 2 + nudge[1])
     p.scale(size / _BOX, size / _BOX)
-    # *nudge* is in device-independent pixels, applied before the glyph is
-    # drawn — so the mark moves inside its box and the button itself does not.
-    # The hit area, the layout and every neighbour stay exactly where they are.
-    if nudge != (0.0, 0.0):
-        p.translate(nudge[0] * _BOX / size, nudge[1] * _BOX / size)
     try:
         draw(p, colour)
     finally:
@@ -233,7 +242,8 @@ class BarIconButton(QToolButton):
         self.setAccessibleName(text)
         self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         self.setFixedSize(QSize(self.HEIGHT, self.HEIGHT))
-        self.setIconSize(QSize(self.ICON, self.ICON))
+        # The icon is canvas-sized; the MARK inside it is still ICON.
+        self.setIconSize(QSize(self.HEIGHT, self.HEIGHT))
         # Icon-only and mouse-operated: never take keyboard focus, so the space
         # bar can't fire a destructive action just because a tab handed this
         # button the initial focus — the same rule the load buttons follow.
@@ -270,9 +280,10 @@ class BarIconButton(QToolButton):
         return self.GREY_ON_DARK if on_dark else self.GREY_ON_LIGHT
 
     def _apply_icon(self) -> None:
-        icon = QIcon(_pixmap(self._draw, self._colour, self.ICON, self.NUDGE))
+        icon = QIcon(_pixmap(self._draw, self._colour, self.ICON, self.NUDGE,
+                             self.HEIGHT))
         icon.addPixmap(_pixmap(self._draw, self._disabled_colour(), self.ICON,
-                               self.NUDGE),
+                               self.NUDGE, self.HEIGHT),
                        QIcon.Mode.Disabled)
         self.setIcon(icon)
 
@@ -357,7 +368,7 @@ class _RestoreButton(BarIconButton):
     #: the mark's side because moving the ⓘ CLIPPED it: that circle fills all but
     #: about 7 % of its pixmap, while a mark uses roughly two thirds of its box
     #: and has room to move. The gap closes by the same amount either way.
-    NUDGE = (3.0, 0.0)
+    NUDGE = (4.0, 0.0)
 
 
 class _DuplicateButton(BarIconButton):
@@ -365,7 +376,7 @@ class _DuplicateButton(BarIconButton):
     #: then a further right 2 once he saw the whole row). The mark carries its
     #: weight low and left — the "+" hangs off the bottom-right of a page that
     #: sits left in its box.
-    NUDGE = (6.0, 1.0)
+    NUDGE = (7.0, 1.0)
 
 
 class _DeleteButton(BarIconButton):
@@ -373,7 +384,7 @@ class _DeleteButton(BarIconButton):
     #: a further right 2). The lid is a solid horizontal stroke across the top,
     #: which makes the bin read as sitting low. Right 3 after two passes moving
     #: the bin and its ⓘ left together, a pixel at a time (5 → 4 → 3).
-    NUDGE = (3.0, -2.0)
+    NUDGE = (4.0, -2.0)
 
 
 def duplicate_run_button(colour: str, text: str,

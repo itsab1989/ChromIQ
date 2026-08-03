@@ -94,8 +94,8 @@ def test_the_marks_are_geometrically_identical_which_is_the_whole_point():
 def test_duplicate_and_delete_carry_the_values_basti_chose():
     from ui.bar_icons import delete_button, duplicate_run_button
     from ui.styles import SPEC_MAGENTA
-    assert duplicate_run_button(SPEC_MAGENTA, "d").NUDGE == (6.0, 1.0)
-    assert delete_button(SPEC_MAGENTA, "x").NUDGE == (3.0, -2.0)
+    assert duplicate_run_button(SPEC_MAGENTA, "d").NUDGE == (7.0, 1.0)
+    assert delete_button(SPEC_MAGENTA, "x").NUDGE == (4.0, -2.0)
 
 
 def test_restore_moves_right_but_not_vertically():
@@ -103,7 +103,7 @@ def test_restore_moves_right_but_not_vertically():
     keeps its baseline — only its distance to its own ⓘ was corrected."""
     from ui.bar_icons import restore_chart_button
     from ui.styles import SPEC_MAGENTA
-    assert restore_chart_button(SPEC_MAGENTA, "r").NUDGE == (3.0, 0.0)
+    assert restore_chart_button(SPEC_MAGENTA, "r").NUDGE == (4.0, 0.0)
 
 
 def test_the_nudge_moves_the_mark_and_not_the_button(qapp):
@@ -143,9 +143,9 @@ def test_a_nudged_tooltip_icon_grows_instead_of_clipping(qapp):
         "the extra room is on the axis that moved"
 
 
-def test_only_the_delete_tip_is_nudged(qapp, tmp_path):
-    """Basti asked for the bin AND its ⓘ to move together, and for nothing
-    else to move with them."""
+def test_each_tip_travels_with_its_mark(qapp, tmp_path):
+    """Each ⓘ moves with the mark it explains, so the gap within each pair is
+    unchanged and the cluster shifts as a whole."""
     from PyQt6.QtCore import QSettings
     from core.file_manager import FileManager
     from core.settings import AppSettings
@@ -154,6 +154,6 @@ def test_only_the_delete_tip_is_nudged(qapp, tmp_path):
     s = AppSettings()
     s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
     bar = MeasurementTargetBar(MeasurementTargetController(FileManager(s)))
-    assert bar._delete_tip._nudge == (-2.0, 0.0)
-    assert bar._restore_tip._nudge == (0.0, 0.0)
-    assert bar._duplicate_tip._nudge == (0.0, 0.0)
+    assert bar._delete_tip._nudge == (-1.0, 0.0)
+    assert bar._restore_tip._nudge == (1.0, 0.0)
+    assert bar._duplicate_tip._nudge == (1.0, 0.0)

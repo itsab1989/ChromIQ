@@ -838,10 +838,13 @@ class MeasurementTargetBar(QWidget):
                                      QSizePolicy.Policy.Preferred)
         column.addWidget(self._location)
 
-        # Delete and its ⓘ move left together (#130, Basti 2026-08-03, two
-        # passes of one pixel) — the pair travels, so the gap between them is
-        # unchanged. The mark carries its own half in _DeleteButton.NUDGE.
-        self._delete_tip.set_nudge(-2.0, 0.0)
+        # Each ⓘ travels with the mark it explains, so the gaps within each pair
+        # stay as they are and the whole cluster shifts (#130, Basti 2026-08-03,
+        # over several passes). The marks carry their own half in the NUDGE of
+        # each button class in ui/bar_icons.py.
+        self._restore_tip.set_nudge(1.0, 0.0)
+        self._duplicate_tip.set_nudge(1.0, 0.0)
+        self._delete_tip.set_nudge(-1.0, 0.0)
 
         self._ctl.changed.connect(self._sync_from_controller)
         self.refresh()

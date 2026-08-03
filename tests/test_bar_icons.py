@@ -180,5 +180,9 @@ def test_the_icons_have_a_size_so_the_button_reserves_room():
     assert bi.BarIconButton.ICON == 27
     assert bi.BarIconButton.HEIGHT > bi.BarIconButton.ICON, \
         "the mark would be clipped by its own button"
-    assert "setIconSize(QSize(self.ICON, self.ICON))" in inspect.getsource(
+    # The ICON is the size of the MARK; the icon pixmap handed to Qt is the
+    # button's full square, so a nudged mark has room to move without losing
+    # its edge (#130, Basti 2026-08-03 — at right 6 the duplicate mark had
+    # already lost five pixels of width).
+    assert "setIconSize(QSize(self.HEIGHT, self.HEIGHT))" in inspect.getsource(
         bi.BarIconButton.__init__)
