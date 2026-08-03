@@ -101,3 +101,42 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         if "slow" in item.keywords:
             item.add_marker(skip)
+
+# ---------------------------------------------------------------------------
+# Demo projects: built ONCE for the whole session, shared by every test file.
+# ---------------------------------------------------------------------------
+@pytest.fixture(scope="session")
+def demo_projects_root(tmp_path_factory):
+    """Every demo project, built once per session.
+
+    Each builder shells out to real ArgyllCMS (targen, colprof) and costs
+    30-70 seconds. They were being built per test, then per file — two separate
+    session fixtures in two files, so the same project was built twice in one
+    gate run. One fixture here means one build for the whole suite.
+
+    Tests must COPY what they use: ``Project.load`` migrates in place, so a
+    shared tree would let one test's migration change what the next one sees.
+    """
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    from make_demo_projects import (build_full, build_legacy_v1,
+                                    build_legacy_v2, build_verify_history)
+    root = tmp_path_factory.mktemp("demo-projects")
+    for build in (build_full, build_verify_history,
+                  build_legacy_v1, build_legacy_v2):
+        build(root)
+    return root
+
+
+@pytest.fixture
+def demo_project(demo_projects_root, tmp_path):
+    """Give this test its own copy of a demo project, by name."""
+    import shutil
+
+    def _copy(name: str) -> Path:
+        dst = tmp_path / name
+        if not dst.exists():
+            shutil.copytree(demo_projects_root / name, dst)
+        return dst
+
+    return _copy

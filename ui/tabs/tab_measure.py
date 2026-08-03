@@ -4755,6 +4755,43 @@ class TabMeasure(QWidget):
             self._settings.set("measure_hide_nonrandom_bidir_warning", True)
         return proceed
 
+    #: Sentinel put in a failure window's "chosen" slot when the user asked to
+    #: save instead of giving up. Not a key: saving is a protocol, not a
+    #: keystroke, and which protocol depends on the engine.
+    END_SAVE = "\x00save"
+
+    def _give_up_or_save(self) -> str:
+        """What "Give Up" should do — specification §1a.
+
+        Five failure windows offered Retry or Give Up, and Give Up sent Esc,
+        which for chartread means quit WITHOUT saving. They said so honestly,
+        but they asked the user to choose between retrying and losing the
+        session when saving was available all along — the same fault as the Esc
+        key, wearing a button.
+
+        So Give Up now asks the one ending question, and maps the answer back
+        into what the failure window has to send:
+
+        * save → :data:`END_SAVE`, and the caller runs the save protocol
+        * discard → Esc, as before
+        * keep measuring → Return, which is "retry" at every one of these
+          prompts — the user changed their mind about ending, and at a failure
+          prompt not ending means trying again
+        """
+        choice = self._confirm_end_of_session(self.END_FAILURE_WINDOW)
+        if choice == "save":
+            return self.END_SAVE
+        if choice == "discard":
+            return "\x1b"
+        return "\r"
+
+    def _send_failure_choice(self, key: str) -> None:
+        """Send what a failure window decided, honouring :data:`END_SAVE`."""
+        if key == self.END_SAVE:
+            self._manager.send_save_partial_and_quit()
+        else:
+            self._manager.send_key(key)
+
     #: What ended the session, for the one window that asks about it (§S2).
     END_STOP = "stop"
     END_DONE_KEY = "done"
@@ -5019,7 +5056,7 @@ class TabMeasure(QWidget):
             dlg.accept()
 
         def _give_up():
-            chosen[0] = "\x1b"
+            chosen[0] = self._give_up_or_save()
             dlg.accept()
 
         use_btn.clicked.connect(_use)
@@ -5034,10 +5071,10 @@ class TabMeasure(QWidget):
 
         tint_dialog_primary(dlg, _TAB_COLOR)
         dlg.exec()
-        self._manager.send_key(chosen[0])
+        self._send_failure_choice(chosen[0])
         self._arm_key_watchdog()
 
-        if chosen[0] != "\x1b":
+        if chosen[0] not in ("\x1b", self.END_SAVE):
             QApplication.instance().installEventFilter(self)
         # If giving up, chartread will exit and _on_measure_done re-enables UI.
 
@@ -5084,7 +5121,7 @@ class TabMeasure(QWidget):
             dlg.accept()
 
         def _give_up():
-            chosen[0] = "\x1b"
+            chosen[0] = self._give_up_or_save()
             dlg.accept()
 
         use_btn.clicked.connect(_use)
@@ -5099,10 +5136,10 @@ class TabMeasure(QWidget):
 
         tint_dialog_primary(dlg, _TAB_COLOR)
         dlg.exec()
-        self._manager.send_key(chosen[0])
+        self._send_failure_choice(chosen[0])
         self._arm_key_watchdog()
 
-        if chosen[0] != "\x1b":
+        if chosen[0] not in ("\x1b", self.END_SAVE):
             QApplication.instance().installEventFilter(self)
 
     def _on_sensor_wrong_position(self) -> None:
@@ -5180,7 +5217,7 @@ class TabMeasure(QWidget):
             dlg.accept()
 
         def _give_up():
-            chosen[0] = "\x1b"
+            chosen[0] = self._give_up_or_save()
             dlg.accept()
 
         resume_btn.clicked.connect(_resume)
@@ -5193,10 +5230,10 @@ class TabMeasure(QWidget):
 
         tint_dialog_primary(dlg, _TAB_COLOR)
         dlg.exec()
-        self._manager.send_key(chosen[0])
+        self._send_failure_choice(chosen[0])
         self._arm_key_watchdog()
 
-        if chosen[0] != "\x1b":
+        if chosen[0] not in ("\x1b", self.END_SAVE):
             QApplication.instance().installEventFilter(self)
 
     def _on_unread_confirm(self, patch_info: str) -> None:
@@ -5258,7 +5295,7 @@ class TabMeasure(QWidget):
 
         tint_dialog_primary(dlg, _TAB_COLOR)
         dlg.exec()
-        self._manager.send_key(chosen[0])
+        self._send_failure_choice(chosen[0])
         self._arm_key_watchdog()
 
         # 'y' makes chartread write the partial .ti3 and exit; 'n' returns
@@ -5300,7 +5337,7 @@ class TabMeasure(QWidget):
             dlg.accept()
 
         def _give_up():
-            chosen[0] = "\x1b"
+            chosen[0] = self._give_up_or_save()
             dlg.accept()
 
         retry_btn.clicked.connect(_retry)
@@ -5313,10 +5350,10 @@ class TabMeasure(QWidget):
 
         tint_dialog_primary(dlg, _TAB_COLOR)
         dlg.exec()
-        self._manager.send_key(chosen[0])
+        self._send_failure_choice(chosen[0])
         self._arm_key_watchdog()
 
-        if chosen[0] != "\x1b":
+        if chosen[0] not in ("\x1b", self.END_SAVE):
             QApplication.instance().installEventFilter(self)
 
     def _on_device_busy(self) -> None:
@@ -5436,7 +5473,7 @@ class TabMeasure(QWidget):
             dlg.accept()
 
         def _give_up():
-            chosen[0] = "\x1b"
+            chosen[0] = self._give_up_or_save()
             dlg.accept()
 
         cont_btn.clicked.connect(_cont)
@@ -5449,9 +5486,9 @@ class TabMeasure(QWidget):
 
         tint_dialog_primary(dlg, _TAB_COLOR)
         dlg.exec()
-        self._manager.send_key(chosen[0])
+        self._send_failure_choice(chosen[0])
         self._arm_key_watchdog()
-        if chosen[0] != "\x1b":
+        if chosen[0] not in ("\x1b", self.END_SAVE):
             QApplication.instance().installEventFilter(self)
 
     def _on_spot_ready(self, patch_id: str) -> None:
@@ -5512,7 +5549,7 @@ class TabMeasure(QWidget):
 
         tint_dialog_primary(dlg, _TAB_COLOR)
         dlg.exec()
-        self._manager.send_key(chosen[0])
+        self._send_failure_choice(chosen[0])
         self._arm_key_watchdog()
         if chosen[0] == "n":
             QApplication.instance().installEventFilter(self)

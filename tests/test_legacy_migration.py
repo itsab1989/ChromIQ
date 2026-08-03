@@ -37,37 +37,12 @@ def _schema(root: Path) -> int:
     return json.loads((root / "project.json").read_text())["schema_version"]
 
 
-# ---- built once, copied per test ---------------------------------------
-@pytest.fixture(scope="session")
-def _demo_originals(tmp_path_factory):
-    """Build each demo project exactly once for the whole session.
-
-    Every builder shells out to real ArgyllCMS — ``targen`` for the chart,
-    ``colprof`` for the profile — and costs 30-70 seconds. Built per test, the
-    thirteen uses in this file came to about fourteen minutes of a
-    twenty-nine-minute release gate, all of it spent regenerating identical
-    input for tests that only ever read it.
-
-    Copying is safe precisely because the thing under test writes: ``Project
-    .load`` migrates **in place**, so every test still needs its own untouched
-    copy — it just does not need its own build.
-    """
-    root = tmp_path_factory.mktemp("demo-originals")
-    for build in (build_full, build_verify_history,
-                  build_legacy_v1, build_legacy_v2):
-        build(root)
-    return root
-
-
+# ---- built once for the whole SUITE, copied per test ---------------------
+# The session fixture moved to tests/conftest.py so this file and the report
+# tests share one build instead of making the same projects twice per gate run.
 @pytest.fixture
-def demo(_demo_originals, tmp_path):
-    """Give this test its own copy of a demo project, by name."""
-    def _copy(name: str) -> Path:
-        dst = tmp_path / name
-        if not dst.exists():
-            shutil.copytree(_demo_originals / name, dst)
-        return dst
-    return _copy
+def demo(demo_project):
+    return demo_project
 
 
 # ---- v1 (the 3.13 layout) ----------------------------------------------

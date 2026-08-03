@@ -28,12 +28,19 @@ WANT_LINES = 9
 
 
 def _log_widget(qapp):
-    """A QPlainTextEdit wearing the app's own #log styling."""
-    from ui.styles import APP_STYLESHEET, make_dark_palette
-    qapp.setPalette(make_dark_palette())
-    qapp.setStyleSheet(APP_STYLESHEET)
+    """A QPlainTextEdit wearing the app's own #log styling.
+
+    The stylesheet is applied to the WIDGET, not the application. Setting it on
+    the QApplication forces Qt to re-polish every widget that exists — the app's
+    own theme code notes ~2 s for its 2 500-widget tree — so in a full suite run,
+    where thousands of widgets from other tests are still alive, these two tests
+    cost 29 s between them while taking 0.2 s on their own. Scoping it to the
+    widget under test measures exactly the same thing.
+    """
+    from ui.styles import APP_STYLESHEET
     log = QPlainTextEdit()
     log.setObjectName("log")
+    log.setStyleSheet(APP_STYLESHEET)
     log.show()
     qapp.processEvents()
     return log
