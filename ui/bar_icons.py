@@ -145,13 +145,18 @@ def draw_restore_chart(p: QPainter, colour: str) -> None:
         p.drawLine(a, b)
 
 
-def _pixmap(draw, colour: str, size: int) -> QPixmap:
+def _pixmap(draw, colour: str, size: int, nudge: "tuple[float, float]" = (0.0, 0.0)) -> QPixmap:
     pm = QPixmap(size * 2, size * 2)
     pm.setDevicePixelRatio(2.0)
     pm.fill(Qt.GlobalColor.transparent)
     p = QPainter(pm)
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
     p.scale(size / _BOX, size / _BOX)
+    # *nudge* is in device-independent pixels, applied before the glyph is
+    # drawn — so the mark moves inside its box and the button itself does not.
+    # The hit area, the layout and every neighbour stay exactly where they are.
+    if nudge != (0.0, 0.0):
+        p.translate(nudge[0] * _BOX / size, nudge[1] * _BOX / size)
     try:
         draw(p, colour)
     finally:
@@ -206,6 +211,18 @@ class BarIconButton(QToolButton):
     #: The mark itself, inside that box.
     ICON = 27
 
+    #: An OPTICAL nudge for this mark, in device-independent pixels, applied to
+    #: the glyph inside its box.
+    #:
+    #: These are not a geometry fix. Measured, all three marks occupy rows 6-25
+    #: of their 32 px button with their centre on 15.5 — pixel-identical, and a
+    #: future reader who checks will find them perfectly aligned and be tempted
+    #: to take these out again. Please do not: the marks are aligned, and they
+    #: still did not LOOK aligned, because their weight is not evenly spread.
+    #: Basti judged the row by eye across four rendered variants (#130,
+    #: 2026-08-03) and chose these values.
+    NUDGE = (0.0, 0.0)
+
     def __init__(self, draw, colour: str, text: str,
                  parent: "QWidget | None" = None) -> None:
         super().__init__(parent)
@@ -253,8 +270,9 @@ class BarIconButton(QToolButton):
         return self.GREY_ON_DARK if on_dark else self.GREY_ON_LIGHT
 
     def _apply_icon(self) -> None:
-        icon = QIcon(_pixmap(self._draw, self._colour, self.ICON))
-        icon.addPixmap(_pixmap(self._draw, self._disabled_colour(), self.ICON),
+        icon = QIcon(_pixmap(self._draw, self._colour, self.ICON, self.NUDGE))
+        icon.addPixmap(_pixmap(self._draw, self._disabled_colour(), self.ICON,
+                               self.NUDGE),
                        QIcon.Mode.Disabled)
         self.setIcon(icon)
 
@@ -329,13 +347,26 @@ def restore_chart_button(colour: str, text: str,
     return BarIconButton(draw_restore_chart, colour, text, parent)
 
 
+class _DuplicateButton(BarIconButton):
+    #: Down 1 and right 2 (#130, Basti 2026-08-03). The mark carries its weight
+    #: low and left — the "+" hangs off the bottom-right of a page that sits
+    #: left in its box — so it read as high and far from its own ⓘ.
+    NUDGE = (2.0, 1.0)
+
+
+class _DeleteButton(BarIconButton):
+    #: Up 2 and right 1 (#130, Basti 2026-08-03). The lid is a solid horizontal
+    #: stroke across the top, which makes the bin read as sitting low.
+    NUDGE = (1.0, -2.0)
+
+
 def duplicate_run_button(colour: str, text: str,
                          parent: "QWidget | None" = None) -> BarIconButton:
     """The Duplicate button: its mark alone."""
-    return BarIconButton(draw_duplicate_run, colour, text, parent)
+    return _DuplicateButton(draw_duplicate_run, colour, text, parent)
 
 
 def delete_button(colour: str, text: str,
                   parent: "QWidget | None" = None) -> BarIconButton:
     """The Delete button: its mark alone."""
-    return BarIconButton(draw_trash_can, colour, text, parent)
+    return _DeleteButton(draw_trash_can, colour, text, parent)

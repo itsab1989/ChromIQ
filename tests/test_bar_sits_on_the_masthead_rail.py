@@ -75,3 +75,43 @@ def test_the_masthead_rail_is_darker_than_the_panel_colour():
         return int(h.lstrip("#")[0:2], 16)
 
     assert grey(_PALETTE_DARK["ver_bg"]) < grey(BG_PANEL)
+
+
+# ---- the optical nudge (#130, Basti 2026-08-03) --------------------------
+def test_the_marks_are_geometrically_identical_which_is_the_whole_point():
+    """The reason the nudges exist, and the reason they must not be "fixed".
+
+    All three marks are drawn into the same box and occupy the same rows, so
+    anyone measuring them finds them perfectly aligned — and they still did not
+    look aligned, because their weight is not evenly spread. This test states
+    that so the next reader meets the reasoning before the constants.
+    """
+    from ui.bar_icons import BarIconButton
+    assert BarIconButton.NUDGE == (0.0, 0.0), \
+        "the base class stays honest; only the two that need it are nudged"
+
+
+def test_duplicate_and_delete_carry_the_values_basti_chose():
+    from ui.bar_icons import delete_button, duplicate_run_button
+    from ui.styles import SPEC_MAGENTA
+    assert duplicate_run_button(SPEC_MAGENTA, "d").NUDGE == (2.0, 1.0)
+    assert delete_button(SPEC_MAGENTA, "x").NUDGE == (1.0, -2.0)
+
+
+def test_restore_is_not_nudged():
+    """It was the reference the other two were judged against."""
+    from ui.bar_icons import restore_chart_button
+    from ui.styles import SPEC_MAGENTA
+    assert restore_chart_button(SPEC_MAGENTA, "r").NUDGE == (0.0, 0.0)
+
+
+def test_the_nudge_moves_the_mark_and_not_the_button(qapp):
+    """A layout nudge would have shifted the hit area and every neighbour. This
+    one is applied to the glyph inside its own pixmap, so the widget is
+    untouched."""
+    from ui.bar_icons import BarIconButton, delete_button, duplicate_run_button
+    from ui.styles import SPEC_MAGENTA
+    for btn in (duplicate_run_button(SPEC_MAGENTA, "d"),
+                delete_button(SPEC_MAGENTA, "x")):
+        assert btn.size().width() == BarIconButton.HEIGHT
+        assert btn.size().height() == BarIconButton.HEIGHT
