@@ -94,8 +94,8 @@ def test_the_marks_are_geometrically_identical_which_is_the_whole_point():
 def test_duplicate_and_delete_carry_the_values_basti_chose():
     from ui.bar_icons import delete_button, duplicate_run_button
     from ui.styles import SPEC_MAGENTA
-    assert duplicate_run_button(SPEC_MAGENTA, "d").NUDGE == (4.0, 1.0)
-    assert delete_button(SPEC_MAGENTA, "x").NUDGE == (3.0, -2.0)
+    assert duplicate_run_button(SPEC_MAGENTA, "d").NUDGE == (6.0, 1.0)
+    assert delete_button(SPEC_MAGENTA, "x").NUDGE == (5.0, -2.0)
 
 
 def test_restore_moves_right_but_not_vertically():
@@ -103,7 +103,7 @@ def test_restore_moves_right_but_not_vertically():
     keeps its baseline — only its distance to its own ⓘ was corrected."""
     from ui.bar_icons import restore_chart_button
     from ui.styles import SPEC_MAGENTA
-    assert restore_chart_button(SPEC_MAGENTA, "r").NUDGE == (1.0, 0.0)
+    assert restore_chart_button(SPEC_MAGENTA, "r").NUDGE == (3.0, 0.0)
 
 
 def test_the_nudge_moves_the_mark_and_not_the_button(qapp):
@@ -116,3 +116,12 @@ def test_the_nudge_moves_the_mark_and_not_the_button(qapp):
                 delete_button(SPEC_MAGENTA, "x")):
         assert btn.size().width() == BarIconButton.HEIGHT
         assert btn.size().height() == BarIconButton.HEIGHT
+
+
+def test_the_tooltip_icons_are_not_nudged(qapp):
+    """Tried and reverted (#130, Basti 2026-08-03): *"the tooltip icons now
+    looked cut off"*. The ⓘ circle nearly fills its own pixmap — about 7 % of
+    margin — so a 2 px shift clipped its edge. The same gap is closed from the
+    mark's side instead, where the glyph has room to move."""
+    from ui.tooltip_button import TooltipButton
+    assert not hasattr(TooltipButton("t", "b"), "_nudge")
