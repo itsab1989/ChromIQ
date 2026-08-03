@@ -71,6 +71,15 @@ def make_dark_palette() -> QPalette:
 
 APP_STYLESHEET = f"""
 /* ---- Base --------------------------------------------------------- */
+/* The profile bar is hosted ON the masthead's version rail, which the masthead
+   paints itself (#070707). The app-wide QWidget background below is lighter
+   than that, so without this the bar showed as a pale block across the rail —
+   labels, boxes and the location line all sitting on #181818 (Basti, #130
+   2026-08-03). The light stylesheet never had this fault because its QWidget
+   rule sets no background at all; this makes dark behave the same way. */
+QWidget#target_bar, QWidget#target_bar > QLabel {{
+    background: transparent;
+}}
 QWidget {{
     background: {BG_PANEL};
     color: {TEXT_MAIN};

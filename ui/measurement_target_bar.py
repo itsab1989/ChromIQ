@@ -808,6 +808,12 @@ class MeasurementTargetBar(QWidget):
                             c.sizePolicy().verticalPolicy())
         self.set_accent(self._accent)
 
+        # The bar sits ON the masthead's version rail, which the masthead paints
+        # itself. Named so the dark stylesheet can keep the app-wide QWidget
+        # background off it — see the rule in ui/styles.py (#130, Basti
+        # 2026-08-03: the bar came out lighter than the rail in dark mode).
+        self.setObjectName("target_bar")
+
         # The folder this selection writes into, spelled out from the ChromIQ
         # folder down so "where are my files?" is answered on the spot.
         self._location = QLabel("", self)
