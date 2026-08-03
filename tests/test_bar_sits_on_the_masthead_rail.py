@@ -154,7 +154,7 @@ def test_each_tip_travels_with_its_mark(qapp, tmp_path):
     s = AppSettings()
     s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
     bar = MeasurementTargetBar(MeasurementTargetController(FileManager(s)))
-    assert bar._delete_tip._nudge == (-1.0, 0.0)
+    assert bar._delete_tip._nudge == (-2.0, 0.0)
     assert bar._restore_tip._nudge == (1.0, 0.0)
     assert bar._duplicate_tip._nudge == (1.0, 0.0)
 
@@ -212,3 +212,21 @@ def test_the_cluster_shift_is_layout_not_another_drawn_pixel(qapp):
     i = src.index("row.addSpacing(self.CLUSTER_SHIFT)")
     assert "restore_chart_button" in src[i:i + 400], \
         "the spacing must sit immediately before the first of the three pairs"
+
+
+def test_the_tooltip_nudge_has_a_ceiling_and_delete_is_at_it(qapp):
+    """The grown icon may not exceed the button, or Qt clips it there instead —
+    which is the same fault in a different place.
+
+    At −2 the icon is exactly the button's width, so this is as far as an ⓘ can
+    travel by drawing. Anything further has to be a layout move, like
+    CLUSTER_SHIFT.
+    """
+    from ui.tooltip_button import TooltipButton
+    t = TooltipButton("t", "b")
+    t.set_nudge(-2.0, 0.0)
+    assert t.iconSize().width() == t.width(), \
+        "−2 is the ceiling: the icon exactly fills the button"
+    t.set_nudge(-3.0, 0.0)
+    assert t.iconSize().width() > t.width(), \
+        "…and beyond it the widget would do the clipping"

@@ -852,7 +852,7 @@ class MeasurementTargetBar(QWidget):
         # each button class in ui/bar_icons.py.
         self._restore_tip.set_nudge(1.0, 0.0)
         self._duplicate_tip.set_nudge(1.0, 0.0)
-        self._delete_tip.set_nudge(-1.0, 0.0)
+        self._delete_tip.set_nudge(-2.0, 0.0)
 
         self._ctl.changed.connect(self._sync_from_controller)
         self.refresh()
