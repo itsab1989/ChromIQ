@@ -157,3 +157,39 @@ def test_each_tip_travels_with_its_mark(qapp, tmp_path):
     assert bar._delete_tip._nudge == (-1.0, 0.0)
     assert bar._restore_tip._nudge == (1.0, 0.0)
     assert bar._duplicate_tip._nudge == (1.0, 0.0)
+
+
+def test_the_bin_is_a_pixel_taller_at_the_bottom(qapp):
+    """#130, Basti 2026-08-03: *"increase the height of the delete icon by 1px
+    adding it to the bottom? so basically stretching it by one px"*.
+
+    Anchored on the ink's TOP, which is what puts the extra height at the
+    bottom — scaling about the box origin instead would have moved the whole
+    mark down as well as stretched it, and the first attempt did exactly that
+    (the top drifted half a pixel and only half the height arrived).
+    """
+    import numpy as np
+    from PyQt6.QtGui import QImage
+    from ui.bar_icons import BarIconButton, _DeleteButton, _pixmap, draw_trash_can
+    from ui.styles import SPEC_MAGENTA
+
+    def ink(stretch, ink_top):
+        pm = _pixmap(draw_trash_can, SPEC_MAGENTA, BarIconButton.ICON,
+                     _DeleteButton.NUDGE, BarIconButton.HEIGHT, stretch, ink_top)
+        img = pm.toImage().convertToFormat(QImage.Format.Format_RGBA8888)
+        w, h = img.width(), img.height()
+        ptr = img.bits(); ptr.setsize(h * img.bytesPerLine())
+        a = np.frombuffer(ptr, np.uint8).reshape(
+            h, img.bytesPerLine() // 4, 4)[:, :w, :]
+        ys = np.nonzero((a[:, :, 3] > 20).any(1))[0]
+        return int(ys.min()), int(ys.max())
+
+    t0, b0 = ink(1.0, 0.0)
+    t1, b1 = ink(_DeleteButton.STRETCH_Y, _DeleteButton.INK_TOP)
+    assert t1 == t0, "the top must not move — the pixel goes on the bottom"
+    assert (b1 - t1) - (b0 - t0) == 2, "one device-independent pixel, at 2× dpr"
+
+
+def test_no_other_mark_is_stretched():
+    from ui.bar_icons import BarIconButton
+    assert BarIconButton.STRETCH_Y == 1.0

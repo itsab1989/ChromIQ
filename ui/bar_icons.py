@@ -146,7 +146,8 @@ def draw_restore_chart(p: QPainter, colour: str) -> None:
 
 
 def _pixmap(draw, colour: str, size: int, nudge: "tuple[float, float]" = (0.0, 0.0),
-            canvas: "int | None" = None) -> QPixmap:
+            canvas: "int | None" = None,
+            stretch_y: float = 1.0, ink_top: float = 0.0) -> QPixmap:
     """The mark at *size*, drawn on a *canvas*-wide pixmap and offset by *nudge*.
 
     **The canvas is deliberately bigger than the mark.** Drawn edge to edge, a
@@ -165,6 +166,14 @@ def _pixmap(draw, colour: str, size: int, nudge: "tuple[float, float]" = (0.0, 0
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
     # Centre the mark's own box on the canvas, then move it by the nudge.
     p.translate((canvas - size) / 2 + nudge[0], (canvas - size) / 2 + nudge[1])
+    # *stretch_y* makes the mark taller. It is anchored on the ink's TOP — that
+    # is where *ink_top* comes in, measured from the mark box's origin — so the
+    # extra height appears at the BOTTOM and the mark does not appear to drift
+    # upward (#130, Basti 2026-08-03: "increase the height of the delete icon
+    # by 1 px adding it to the bottom").
+    if stretch_y != 1.0:
+        p.translate(0.0, ink_top * (1.0 - stretch_y))
+        p.scale(1.0, stretch_y)
     p.scale(size / _BOX, size / _BOX)
     try:
         draw(p, colour)
@@ -232,6 +241,14 @@ class BarIconButton(QToolButton):
     #: 2026-08-03) and chose these values.
     NUDGE = (0.0, 0.0)
 
+    #: A vertical stretch for this mark, anchored on the top of its ink so the
+    #: extra height lands at the bottom. 1.0 leaves it alone.
+    STRETCH_Y = 1.0
+    #: Where this mark's ink starts, in device-independent pixels from the top
+    #: of its ICON box — the anchor :data:`STRETCH_Y` scales about. Only needed
+    #: by a mark that is stretched.
+    INK_TOP = 0.0
+
     def __init__(self, draw, colour: str, text: str,
                  parent: "QWidget | None" = None) -> None:
         super().__init__(parent)
@@ -281,9 +298,10 @@ class BarIconButton(QToolButton):
 
     def _apply_icon(self) -> None:
         icon = QIcon(_pixmap(self._draw, self._colour, self.ICON, self.NUDGE,
-                             self.HEIGHT))
+                             self.HEIGHT, self.STRETCH_Y, self.INK_TOP))
         icon.addPixmap(_pixmap(self._draw, self._disabled_colour(), self.ICON,
-                               self.NUDGE, self.HEIGHT),
+                               self.NUDGE, self.HEIGHT, self.STRETCH_Y,
+                               self.INK_TOP),
                        QIcon.Mode.Disabled)
         self.setIcon(icon)
 
@@ -382,9 +400,14 @@ class _DuplicateButton(BarIconButton):
 class _DeleteButton(BarIconButton):
     #: Right 3, up 2 (#130, Basti 2026-08-03, in two passes: right 1 / up 2, then
     #: a further right 2). The lid is a solid horizontal stroke across the top,
-    #: which makes the bin read as sitting low. Right 3 after two passes moving
-    #: the bin and its ⓘ left together, a pixel at a time (5 → 4 → 3).
+    #: which makes the bin read as sitting low.
     NUDGE = (4.0, -2.0)
+    #: One device-independent pixel taller, added at the bottom (#130, Basti
+    #: 2026-08-03). Its ink is 20.5 px tall, so the factor is 21.5/20.5.
+    STRETCH_Y = 21.5 / 20.5
+    #: Measured: the bin's ink starts 3.5 px below its box origin at ICON = 27.
+    #: (Canvas origin 5.0, box origin (34-27)/2 + NUDGE_y = 1.5.)
+    INK_TOP = 3.5
 
 
 def duplicate_run_button(colour: str, text: str,
