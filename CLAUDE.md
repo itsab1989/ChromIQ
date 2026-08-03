@@ -20,8 +20,8 @@ python main.py
 
 ```bash
 source .venv/bin/activate
-QT_QPA_PLATFORM=offscreen pytest            # everyday tier, ~3830 tests, ~10 min
-QT_QPA_PLATFORM=offscreen pytest --runslow  # FULL suite, ~3870 tests, ~17 min — the release gate
+QT_QPA_PLATFORM=offscreen pytest -n 4 --dist loadfile            # everyday tier
+QT_QPA_PLATFORM=offscreen pytest --runslow -n 4 --dist loadfile  # THE RELEASE GATE, ~4030 tests, ~6 min
 ```
 
 The suite is two-tiered: ~20 heavy end-to-end profile-build tests carry
@@ -35,6 +35,17 @@ collection appears to hang for many minutes. Anything far beyond the times
 above means something is wrong (a test opening a modal dialog `.exec()`, or
 `.venv` being scanned again), not just "slow tests".
 
+**Run the gate in parallel — it is 3x faster and the reason it was unsafe is
+fixed.** `-n 4 --dist loadfile` is 6:20 against 18:57 serial for the same 4030
+tests. `--dist loadfile` keeps each file on one worker, which the session-scoped
+fixtures need. Parallel was avoided because a run once hung for 2.5 h; that was
+`targen` without a `timeout=`, now fixed.
+
+**Do not edit source files while a gate is running.** Many tests asserts on
+`inspect.getsource(...)`, which reads from disk — an edit mid-run shifts line
+offsets and produces dozens of failures that look like real regressions and are
+not. It cost one full run to learn.
+
 **Anything that shells out to Argyll in a test needs a `timeout=`.** A
 `subprocess.run` without one waits for ever, and `targen -G` can wedge: the
 suite once sat on that single call for two and a half hours with no output.
@@ -42,9 +53,15 @@ When a run does appear stuck, `pytest --timeout=300 --timeout-method=thread`
 (pytest-timeout) makes the stack name the test instead of guessing.
 
 **Real Argyll builds are the expensive part.** The demo projects in
-`scripts/make_demo_projects.py` cost 30-70 s each; build them once per session
-and copy per test (see `tests/test_legacy_migration.py`) rather than per test —
-that one change took the gate from 29 to 17 minutes.
+`scripts/make_demo_projects.py` cost 30-70 s each. There is ONE session-scoped
+build for the whole suite — the `demo_projects_root` / `demo_project` fixtures
+in `tests/conftest.py`. Use those; a second fixture of your own means the same
+projects get built twice per run. Tests copy what they use, because
+`Project.load` migrates in place.
+
+**Never call `qapp.setStyleSheet()` in a test.** It re-polishes every widget the
+suite has alive — two tests that took 0.2 s alone cost 29 s inside a full run.
+Style the widget under test instead; it measures the same thing.
 
 ## Build distributable
 
