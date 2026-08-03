@@ -34,6 +34,7 @@ import shutil
 import subprocess
 import sys
 import zipfile
+import re
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -83,47 +84,143 @@ def _strip(path: Path) -> None:
     path.unlink(missing_ok=True)
 
 
-def _truncate_ti3(path: Path, keep: int) -> None:
-    """Cut a measurement down to *keep* readings, header included — what an
-    interrupted session leaves behind."""
+# ---------------------------------------------------------------------------
+# measurements — made by Argyll, not by hand
+# ---------------------------------------------------------------------------
+def _measure(chart_dir: Path, stem: str, *, seed_icc: Path,
+             strips: "int | None" = None) -> Path:
+    """A real measurement of ``<stem>.ti2``, as ``chartread`` would leave it.
+
+    Knut, #130 beta.125: *"The demo ti3 file does not have the SAMPLE_LOC
+    field. […] Make sure demo project files look real and are accepted as
+    real."* He was right, and the first version deserved the complaint: it
+    wrote plausible-looking rows by hand. ``chartread -r`` needs SAMPLE_LOC to
+    know which patches are still to read, so a resume against those files could
+    not work at all.
+
+    So the numbers come from Argyll's own ``fakeread``, which looks the patch
+    set up in a profile exactly as a measurement would. ``fakeread`` reads the
+    ``.ti1``, though, and SAMPLE_LOC only exists in the laid-out ``.ti2`` — so
+    the sheet positions are merged back in here, by SAMPLE_ID, giving a file
+    with the same fields in the same order as the real one Knut attached.
+
+    *strips* makes it a **partial** measurement: chartread writes whole strips,
+    never a fraction of one, so this keeps every patch whose sheet position is
+    on one of the first *strips* rows and drops the rest. His attached partial
+    file is exactly that shape — fifteen readings, all of them "A1" to "A15".
+    """
+    base = chart_dir / stem
+    subprocess.run([_argyll("fakeread"), str(seed_icc), stem],
+                   cwd=chart_dir, check=True, capture_output=True, timeout=300)
+    ti3 = base.with_suffix(".ti3")
+    _merge_sample_loc(ti3, base.with_suffix(".ti2"))
+    if strips is not None:
+        _keep_first_strips(ti3, strips)
+    return ti3
+
+
+def _cgats(path: Path) -> "tuple[list[str], list[str], list[str]]":
+    """(header lines, data rows, trailer lines) of a CGATS file."""
     lines = path.read_text().splitlines()
-    out, kept, in_data = [], 0, False
-    for line in lines:
-        if line.startswith("NUMBER_OF_SETS"):
-            out.append(f"NUMBER_OF_SETS {keep}")
-            continue
-        if line.strip() == "BEGIN_DATA":
-            in_data = True
-            out.append(line)
-            continue
-        if line.strip() == "END_DATA":
-            in_data = False
-            out.append(line)
-            continue
-        if in_data:
-            if kept < keep:
-                out.append(line)
-                kept += 1
-            continue
-        out.append(line)
-    path.write_text("\n".join(out) + "\n")
+    i = lines.index("BEGIN_DATA")
+    j = lines.index("END_DATA")
+    return lines[:i + 1], [l for l in lines[i + 1:j] if l.strip()], lines[j:]
 
 
-def _lie_in_the_header(path: Path, claim: int) -> None:
-    """Make the header disagree with the rows — §3a's ``B ≠ C``."""
-    lines = [f"NUMBER_OF_SETS {claim}" if l.startswith("NUMBER_OF_SETS") else l
-             for l in path.read_text().splitlines()]
-    path.write_text("\n".join(lines) + "\n")
+def _write_cgats(path: Path, head, rows, tail) -> None:
+    """Write a CGATS file back with its declared set count matching its rows.
+
+    The count is recomputed rather than carried over, because a header that
+    disagrees with the body is the fault that produced *"Read 34 sets, expected
+    38 sets"* — Argyll reads values, not lines, so one wrong number makes it
+    run fields across line boundaries and the file is unusable.
+    """
+    head = [f"NUMBER_OF_SETS {len(rows)}" if l.startswith("NUMBER_OF_SETS")
+            else l for l in head]
+    path.write_text("\n".join(head + rows + tail) + "\n")
+
+
+def _merge_sample_loc(ti3: Path, ti2: Path) -> None:
+    """Put each patch's sheet position into the measurement, as chartread does.
+
+    Without it ``chartread`` refuses to resume: *"Resumed file … doesn't contain
+    SAMPLE_LOC field"*.
+    """
+    loc = {}
+    head2, rows2, _tail2 = _cgats(ti2)
+    fmt2 = _fields(head2)
+    id_i, loc_i = fmt2.index("SAMPLE_ID"), fmt2.index("SAMPLE_LOC")
+    for row in rows2:
+        parts = row.split()
+        # The .ti2 value already carries its quotes; re-quoting
+        # produced ""A1"" and no position matched anything.
+        loc[parts[id_i]] = parts[loc_i].strip('"')
+
+    head, rows, tail = _cgats(ti3)
+    fmt = _fields(head)
+    if "SAMPLE_LOC" in fmt:
+        return
+    head = [l.replace("SAMPLE_ID ", "SAMPLE_ID SAMPLE_LOC ", 1)
+            if l.startswith("SAMPLE_ID ") else l for l in head]
+    head = [f"NUMBER_OF_FIELDS {len(fmt) + 1}"
+            if l.startswith("NUMBER_OF_FIELDS") else l for l in head]
+    out = []
+    for row in rows:
+        parts = row.split()
+        where = loc.get(parts[0])
+        if where is None:
+            continue
+        out.append(" ".join([parts[0], f'"{where}"', *parts[1:]]))
+    _write_cgats(ti3, head, out, tail)
+
+
+def _fields(head: "list[str]") -> "list[str]":
+    """The DATA_FORMAT field names."""
+    i = head.index("BEGIN_DATA_FORMAT")
+    return head[i + 1].split()
+
+
+def _keep_first_strips(ti3: Path, strips: int) -> None:
+    """Cut a measurement down to the first *strips* rows of the sheet."""
+    head, rows, tail = _cgats(ti3)
+    fmt = _fields(head)
+    loc_i = fmt.index("SAMPLE_LOC")
+    wanted = {chr(ord("A") + i) for i in range(strips)}
+    kept = [r for r in rows
+            if r.split()[loc_i].strip('"')[:1] in wanted]
+    _write_cgats(ti3, head, kept, tail)
+
+
+def _break_measurement(ti3: Path, how: str) -> None:
+    """Damage a measurement in one specific, documented way.
+
+    Used only by the projects whose whole purpose is a file ChromIQ must
+    complain about — everything else in the package is intact.
+    """
+    head, rows, tail = _cgats(ti3)
+    if how == "header_lies":
+        head = [f"NUMBER_OF_SETS {len(rows) + 961}"
+                if l.startswith("NUMBER_OF_SETS") else l for l in head]
+        ti3.write_text("\n".join(head + rows + tail) + "\n")
+    elif how == "no_data":
+        i = head.index("BEGIN_DATA")
+        ti3.write_text("\n".join(head[:i]) + "\n")
+    else:                                        # pragma: no cover
+        raise ValueError(how)
 
 
 def _verification(run_dir: Path, stem: str, when: datetime, de: float,
-                  *, source_ti2: Path) -> None:
-    """One dated verification measurement, measured against the smaller
-    verification chart that lives beside it."""
+                  *, source_ti3: Path) -> None:
+    """One dated verification measurement of the smaller verification chart.
+
+    A copy of a real measurement of that chart, so every dated folder holds a
+    file with the same fields — SAMPLE_LOC included — as the one the instrument
+    would have written.
+    """
     vid = when.strftime("%Y-%m-%d_%H%M%S")
     v = run_dir / "verifications" / vid
     (v / "reports").mkdir(parents=True, exist_ok=True)
-    (v / f"{stem}-verify.ti3").write_text(_ti3_from_ti2(source_ti2, drift=de / 10))
+    shutil.copy2(source_ti3, v / f"{stem}-verify.ti3")
     (v / "reports" / f"report_{when:%Y-%m-%d_%H-%M-%S}.json").write_text(
         _report(f"{stem}-verify", when, de))
 
@@ -131,6 +228,35 @@ def _verification(run_dir: Path, stem: str, when: datetime, de: float,
 # ---------------------------------------------------------------------------
 # the projects, one case of the model each
 # ---------------------------------------------------------------------------
+#: A real profile, built once, that every fakeread looks its values up in.
+#: Using one model throughout means the demo measurements are consistent with
+#: each other — the same "printer" measured in every project.
+_SEED: "Path | None" = None
+_SEED_DIR: "Path | None" = None
+
+
+def _seed_profile(_unused: Path) -> Path:
+    """Build the model printer profile the demo measurements are read through."""
+    import tempfile
+
+    global _SEED
+    if _SEED is not None and _SEED.exists():
+        return _SEED
+    work = _SEED_DIR or Path(tempfile.mkdtemp(prefix="chromiq_demo_seed_"))
+    work.mkdir(parents=True, exist_ok=True)
+    stem = "seed"
+    _chart_files(work, stem, patches=120, rows=12)
+    # colprof needs a measurement to build from, and there is no profile yet to
+    # fake one through — so this first one is synthesised, and it is the only
+    # one in the package that is. Everything the user sees comes from fakeread
+    # against the profile it produces.
+    (work / f"{stem}.ti3").write_text(_ti3_from_ti2(work / f"{stem}.ti2"))
+    if not _build_icc(work, stem):
+        raise SystemExit("could not build the seed profile — is colprof on PATH?")
+    _SEED = work / f"{stem}.icc"
+    return _SEED
+
+
 CASES: "list[dict]" = []
 
 
@@ -144,6 +270,7 @@ def case(**kw):
 
 
 @case(name="Demo-01-Chart-Only",
+      messages=[],
       layout="ChromIQ layout engine",
       covers=["§4 row 2 — a chart with nothing measured: no warning",
               "§6e row 1 — no profile yet: no warning"],
@@ -161,31 +288,32 @@ def build_chart_only(root: Path) -> None:
 
 
 @case(name="Demo-02-Partial-Measurement",
+      messages=['M-REPLACE-PARTIAL', 'M-CHART-PROFILING'],
       layout="ChromIQ layout engine",
       covers=["§5 M-REPLACE-PARTIAL — starting over a partial measurement",
               "§4 chart + partial .ti3 (Profiling)"],
       steps=["Set Profile run = run 1, Run type = Profiling.",
              "Go to Measure and press **Start Measurement**. *Expected:* “This "
-             "run already holds part of a measurement”, saying **38 of the "
-             "chart's {n} patches**, pointing at “Refine / resume existing "
-             "measurement (-r)” in the options panel, and naming the file. "
-             "Press Cancel.",
+             "run already holds part of a measurement”, saying **{c1} of the "
+             "chart's {n} patches**, naming “Refine / resume existing "
+             "measurement” and the measurement file. "
+             "Press Cancel. [[M-REPLACE-PARTIAL]]",
              "Tick **Refine / resume existing measurement (-r)** and press "
              "Start Measurement again. *Expected: no window* — resuming adds "
              "to the readings instead of replacing them.",
              "Untick it again, go to Create Chart and press **Generate "
              "Chart**. *Expected:* “This run already holds work made with the "
-             "chart you are about to replace”, listing the measurement of 38 "
-             "patches. Press Cancel."])
+             "chart you are about to replace”, listing a measurement of {c1} "
+             "patches. Press Cancel. [[M-CHART-PROFILING]]"])
 def build_partial(root: Path) -> None:
     name = "Demo-02-Partial-Measurement"
     p = root / name
     _write_manifest(p, name, ["run1"], "run1", 3)
     r = p / "runs" / "run1"
     _chart_files(r, name, patches=RUN_PATCHES, rows=RUN_ROWS)
-    ti3 = r / f"{name}.ti3"
-    ti3.write_text(_ti3_from_ti2(r / f"{name}.ti2"))
-    _truncate_ti3(ti3, 38)
+    # Two strips read and the rest still to do — the shape chartread leaves
+    # behind, and the shape "Refine / resume" is there to continue.
+    _measure(r, name, seed_icc=_seed_profile(root / ".seed"), strips=2)
     (r / "chart").mkdir(exist_ok=True)
     for f in r.glob(f"{name}.*"):
         if f.suffix != ".ti3":
@@ -194,6 +322,7 @@ def build_partial(root: Path) -> None:
 
 
 @case(name="Demo-03-Complete-And-Profiled",
+      messages=['M-REPLACE-COMPLETE', 'M-CHART-PROFILING', 'M-CHART-NOPAGES'],
       layout="printtarg",
       covers=["§5 M-REPLACE-COMPLETE — starting over a finished measurement",
               "§4 chart + complete .ti3 + profile (Profiling)",
@@ -202,13 +331,13 @@ def build_partial(root: Path) -> None:
       steps=["Set Profile run = run 1, Run type = Profiling.",
              "Press **Start Measurement**. *Expected:* “This chart is fully "
              "measured”, All {n} patches have been read, and the warning that "
-             "the profile beside it will no longer match. Press Cancel.",
+             "the profile beside it will no longer match. Press Cancel. [[M-REPLACE-COMPLETE]]",
              "Go to Create Chart and press **Generate Chart**. *Expected:* the "
              "chart warning listing **both** the finished measurement and the "
              "profile built from it, **plus** a paragraph saying the pages "
              "cannot be drawn again (this chart came from printtarg, so it has "
              "no layout recipe), **plus** an explanation that Duplicate is not "
-             "available and which file is missing. Press Cancel.",
+             "available and which file is missing. Press Cancel. [[M-CHART-PROFILING]]",
              "Look at the Profile-run bar: the **Duplicate** button is greyed "
              "out, exactly as the message said."])
 def build_complete(root: Path) -> None:
@@ -217,36 +346,40 @@ def build_complete(root: Path) -> None:
     _write_manifest(p, name, ["run1"], "run1", 3)
     r = p / "runs" / "run1"
     _chart_files_printtarg(r, name, patches=RUN_PATCHES)
-    (r / f"{name}.ti3").write_text(_ti3_from_ti2(r / f"{name}.ti2"))
+    _measure(r, name, seed_icc=_seed_profile(root / ".seed"))
     _build_icc(r, name)
     _meta(r, "run1")
 
 
 @case(name="Demo-04-Mismatched",
+      messages=['M-TI3-MISMATCH'],
       layout="ChromIQ layout engine",
       covers=["§5 / §3a M-TI3-MISMATCH — the measurement and the chart disagree",
               "§3a B ≠ C — the file's header disagrees with its own rows"],
       steps=["Set Profile run = **run 1**, Run type = Profiling.",
              "Press **Start Measurement**. *Expected:* “This run's measurement "
-             "and its chart do not match” — 40 readings against {n} patches, "
+             "and its chart do not match” — {c1} readings against {n} "
+             "patches, "
              "the statement that ChromIQ cannot tell which of the two is "
              "wrong, and a pointer to “Restore Used Chart”. Resume is **not** "
-             "offered. Press Cancel.",
+             "offered. Press Cancel. [[M-TI3-MISMATCH]]",
              "Switch to **run 2** and press Start Measurement. *Expected:* the "
              "same window, plus the extra sentence that the file's own header "
-             "claims 999 readings, so it may be damaged as well as mismatched."])
+             "disagrees with the rows it contains, so it may be damaged as "
+             "well as mismatched. [[M-TI3-MISMATCH]]"])
 def build_mismatched(root: Path) -> None:
     name = "Demo-04-Mismatched"
     p = root / name
     _write_manifest(p, name, ["run1", "run2"], "run1", 3)
-    for rid, claim in (("run1", None), ("run2", 999)):
+    for rid, lies in (("run1", False), ("run2", True)):
         r = p / "runs" / rid
         _chart_files(r, name, patches=RUN_PATCHES, rows=RUN_ROWS)
-        ti3 = r / f"{name}.ti3"
-        ti3.write_text(_ti3_from_ti2(r / f"{name}.ti2"))
-        _truncate_ti3(ti3, 40)
-        if claim is not None:
-            _lie_in_the_header(ti3, claim)
+        # A real partial measurement, then the chart replaced under it — which
+        # is what a mismatch actually is. run 2 additionally has a header that
+        # disagrees with its own rows (§3a's B ≠ C).
+        ti3 = _measure(r, name, seed_icc=_seed_profile(root / ".seed"), strips=3)
+        if lies:
+            _break_measurement(ti3, "header_lies")
         (r / "chart").mkdir(exist_ok=True)
         for f in r.glob(f"{name}.*"):
             if f.suffix != ".ti3":
@@ -255,6 +388,7 @@ def build_mismatched(root: Path) -> None:
 
 
 @case(name="Demo-05-Unreadable-Measurements",
+      messages=['M-REPLACE-UNCOUNTABLE', 'M-REPLACE-NO-CHART', 'M-CHART-PROFILING'],
       layout="ChromIQ layout engine",
       covers=["§3a empty / header-only — a measurement file with nothing in it",
               "§5 a measurement with readings but no chart to count against"],
@@ -263,39 +397,39 @@ def build_mismatched(root: Path) -> None:
              "already holds a measurement file”, saying ChromIQ cannot tell "
              "how many readings it contains and naming the file. It must "
              "**not** suggest Refine / resume — there is nothing to resume "
-             "from. Press Cancel.",
+             "from. Press Cancel. [[M-REPLACE-UNCOUNTABLE]]",
              "Switch to **run 2** (readings, but the chart file has been "
              "removed) and press Start Measurement. *Expected:* “This run "
-             "already holds part of a measurement” saying **60 readings have "
+             "already holds part of a measurement” saying **{c2} readings have "
              "been taken** and that ChromIQ cannot tell how many patches the "
-             "chart has. Never “60 of ? patches”.",
+             "chart has. Never “{c2} of ? patches”. [[M-REPLACE-NO-CHART]]",
              "In run 2, press **Generate Chart**. *Expected:* the chart "
-             "warning still appears, and its bullet says the measurement file "
-             "no longer describes the chart — the measurement is protected "
-             "even though the chart files are incomplete."])
+             "warning still appears, and its item list names the measurement "
+             "file — the measurement is protected even though the chart files "
+             "are incomplete. [[M-CHART-PROFILING]]"])
 def build_unreadable(root: Path) -> None:
     name = "Demo-05-Unreadable-Measurements"
     p = root / name
     _write_manifest(p, name, ["run1", "run2"], "run1", 3)
 
+    seed = _seed_profile(root / ".seed")
+
     r1 = p / "runs" / "run1"
     _chart_files(r1, name, patches=RUN_PATCHES, rows=RUN_ROWS)
-    (r1 / f"{name}.ti3").write_text(
-        "CTI3\n\nDESCRIPTOR \"Argyll Calibration Target chart information 3\"\n"
-        "KEYWORD \"DEVICE_CLASS\"\nDEVICE_CLASS \"OUTPUT\"\n"
-        "NUMBER_OF_FIELDS 7\n")            # a header and then nothing at all
+    # A real file with its data block removed: what a session that died before
+    # the first patch leaves behind.
+    _break_measurement(_measure(r1, name, seed_icc=seed), "no_data")
     _meta(r1, "run1")
 
     r2 = p / "runs" / "run2"
     _chart_files(r2, name, patches=RUN_PATCHES, rows=RUN_ROWS)
-    ti3 = r2 / f"{name}.ti3"
-    ti3.write_text(_ti3_from_ti2(r2 / f"{name}.ti2"))
-    _truncate_ti3(ti3, 60)
+    _measure(r2, name, seed_icc=seed, strips=4)
     _strip(r2 / f"{name}.ti2")             # readings with nothing to count against
     _meta(r2, "run2")
 
 
 @case(name="Demo-06-Verification-History",
+      messages=['M-PROFILE-VERIFY', 'M-CHART-W4', 'M-CHART-VERIFY'],
       layout="ChromIQ layout engine (run chart) + printtarg (verification chart)",
       covers=["§6e rows 5 and 6 — M-PROFILE-VERIFY",
               "§4 W4 — regenerating the chart of a run with a history",
@@ -306,48 +440,54 @@ def build_unreadable(root: Path) -> None:
              "“The verification measurements in this run were made against the "
              "profile you are about to replace”, saying **4 dated verification "
              "measurements, going back to 2026-02-14**, with three buttons. "
-             "Press Cancel.",
+             "Press Cancel. [[M-PROFILE-VERIFY]]",
              "Press Build Profile again, tick **Don't show this again for this "
              "run**, then press Cancel. *Expected:* Cancel never silences the "
-             "question — press Build Profile once more and it is still there.",
+             "question — press Build Profile once more and it is still there. "
+             "[[M-PROFILE-VERIFY]]",
              "Press Build Profile, tick the box and press **Build here "
              "anyway**. *Expected:* the build runs; afterwards `runs/run1/old/` "
              "holds the previous profile and "
              "`runs/run1/verifications/old/` holds the four dated folders, "
-             "both under the same timestamp. Nothing is deleted.",
+             "both under the same timestamp. Nothing is deleted. "
+             "[[M-PROFILE-VERIFY]]",
              "**Undo by re-copying the project from the zip**, then try the "
              "other branch: press Build Profile and choose **Duplicate the run "
              "and build there**. *Expected:* the bar's own Duplicate "
              "confirmation appears, the copy becomes the selected run, and "
-             "run 1 keeps its profile and all four verifications.",
+             "run 1 keeps its profile and all four verifications. "
+             "[[M-PROFILE-VERIFY]]",
              "Back on the original copy: Create Chart, Run type = Profiling, "
              "press **Generate Chart**. *Expected:* the W4 window — “This "
              "would undo the whole run, not just its chart” — naming the "
-             "measurement, the profile **and** the 4 verifications.",
+             "measurement, the profile **and** the 4 verifications. [[M-CHART-W4]]",
              "Set Run type = **Verification** and press Generate Chart. "
              "*Expected:* the W5 window — “The verification measurements "
              "already made in this run used the chart you are about to "
-             "replace”, which before this release said nothing at all."])
+             "replace”, which before this release said nothing at all. "
+             "[[M-CHART-VERIFY]]"])
 def build_verify_history(root: Path) -> None:
     name = "Demo-06-Verification-History"
     p = root / name
     _write_manifest(p, name, ["run1"], "run1", 3)
     r = p / "runs" / "run1"
     _chart_files(r, name, patches=RUN_PATCHES, rows=RUN_ROWS)
-    (r / f"{name}.ti3").write_text(_ti3_from_ti2(r / f"{name}.ti2"))
+    _measure(r, name, seed_icc=_seed_profile(root / ".seed"))
     _build_icc(r, name)
     # …and a verification chart that is smaller than the run's, from printtarg.
     _chart_files_printtarg(r / "verifications", f"{name}-verify",
                            patches=VERIFY_PATCHES)
-    vti2 = r / "verifications" / f"{name}-verify.ti2"
+    vti3 = _measure(r / "verifications", f"{name}-verify",
+                    seed_icc=_seed_profile(root / ".seed"))
     start = datetime(2026, 2, 14, 10, 30)
     for i, de in enumerate((0.7, 1.1, 1.4, 2.2)):
         _verification(r, name, start + timedelta(days=45 * i), de,
-                      source_ti2=vti2)
+                      source_ti3=vti3)
     _meta(r, "run1")
 
 
 @case(name="Demo-07-Nothing-To-Lose",
+      messages=[],
       layout="targen only / images only",
       covers=["§4a row 1 — nothing on disk",
               "§4a row 2 — a patch list is not a chart",
@@ -377,6 +517,7 @@ def build_nothing_to_lose(root: Path) -> None:
 
 
 @case(name="Demo-08-Many-Runs",
+      messages=['M-CHART-PROFILING', 'M-CHART-W4', 'M-CHART-NOPAGES', 'M-PROFILE-VERIFY', 'M-PREVIEW-PAUSED'],
       layout="mixed — printtarg and ChromIQ layout engine",
       covers=["a project with a real history: six runs in every state at once",
               "§6e row 4 — the silence is per run, not global",
@@ -392,11 +533,13 @@ def build_nothing_to_lose(root: Path) -> None:
              "Step through runs 1 to 6 pressing **Generate Chart** in each, "
              "cancelling every time. *Expected:* silence, then the partial "
              "wording, the finished wording, the profile added, the W4 "
-             "wording, and finally the “pages cannot be redrawn” paragraph.",
+             "wording, and finally the “pages cannot be redrawn” paragraph. "
+             "[[M-CHART-PROFILING]] [[M-CHART-W4]] [[M-CHART-NOPAGES]]",
              "In run 5, silence the Build Profile question with the checkbox, "
              "then switch to a different run and press Build Profile there. "
              "*Expected:* it asks again — the silence is remembered for one "
-             "run only, and only until you close ChromIQ."])
+             "run only, and only until you close ChromIQ. "
+             "[[M-PROFILE-VERIFY]]"])
 def build_many_runs(root: Path) -> None:
     name = "Demo-08-Many-Runs"
     p = root / name
@@ -409,29 +552,28 @@ def build_many_runs(root: Path) -> None:
 
     r = p / "runs" / "run2"
     _chart_files(r, name, patches=RUN_PATCHES, rows=RUN_ROWS)
-    ti3 = r / f"{name}.ti3"
-    ti3.write_text(_ti3_from_ti2(r / f"{name}.ti2"))
-    _truncate_ti3(ti3, 120)
+    _measure(r, name, seed_icc=_seed_profile(root / ".seed"), strips=8)
     _meta(r, "run2", status="in_progress")
 
     for rid, profile in (("run3", False), ("run4", True)):
         r = p / "runs" / rid
         _chart_files(r, name, patches=RUN_PATCHES, rows=RUN_ROWS)
-        (r / f"{name}.ti3").write_text(_ti3_from_ti2(r / f"{name}.ti2"))
+        _measure(r, name, seed_icc=_seed_profile(root / ".seed"))
         if profile:
             _build_icc(r, name)
         _meta(r, rid)
 
     r = p / "runs" / "run5"
     _chart_files(r, name, patches=RUN_PATCHES, rows=RUN_ROWS)
-    (r / f"{name}.ti3").write_text(_ti3_from_ti2(r / f"{name}.ti2"))
+    _measure(r, name, seed_icc=_seed_profile(root / ".seed"))
     _build_icc(r, name)
     _chart_files(r / "verifications", f"{name}-verify",
                  patches=VERIFY_PATCHES, rows=VERIFY_ROWS)
-    vti2 = r / "verifications" / f"{name}-verify.ti2"
+    vti3 = _measure(r / "verifications", f"{name}-verify",
+                    seed_icc=_seed_profile(root / ".seed"))
     for i, de in enumerate((0.9, 1.6)):
         _verification(r, name, datetime(2026, 4, 3, 9, 0) + timedelta(days=60 * i),
-                      de, source_ti2=vti2)
+                      de, source_ti3=vti3)
     (r / "reports").mkdir(exist_ok=True)
     (r / "reports" / "report_2026-04-01_09-00-00.json").write_text(
         _report(name, datetime(2026, 4, 1, 9, 0), 1.2))
@@ -439,7 +581,7 @@ def build_many_runs(root: Path) -> None:
 
     r = p / "runs" / "run6"
     _chart_files_printtarg(r, name, patches=RUN_PATCHES)
-    (r / f"{name}.ti3").write_text(_ti3_from_ti2(r / f"{name}.ti2"))
+    _measure(r, name, seed_icc=_seed_profile(root / ".seed"))
     _meta(r, "run6")
 
 
@@ -471,6 +613,24 @@ def _patch_count(ti2: Path) -> "int | None":
                 return int(line.split()[1])
     except Exception:      # noqa: BLE001
         pass
+    return None
+
+
+def _readings(dest: Path, name: str, rid: str) -> "int | None":
+    """How many readings a run's measurement really holds.
+
+    The document quotes it, so it is read back rather than assumed: the first
+    version said "38 of the chart's 224 patches" while the file held 32, and a
+    test guide whose numbers do not match the screen is worse than one with no
+    numbers at all.
+    """
+    run = dest / name / "runs" / rid
+    for ti3 in run.glob("*.ti3"):
+        try:
+            _head, rows, _tail = _cgats(ti3)
+            return len(rows)
+        except Exception:      # noqa: BLE001
+            return None
     return None
 
 
@@ -536,13 +696,40 @@ def _document(cases, dest: Path) -> str:
 
     for c in cases:
         out += [f"## {c['name']}", "",
-                f"*Chart made by: {c['layout']}.*", "",
-                "**Cases covered**", ""]
+                f"*Chart made by: {c['layout']}.*", ""]
+        ids = c.get("messages", [])
+        if ids:
+            out += ["**Messages this project should raise**", "",
+                    "| ID | Headline as approved in the model |", "|---|---|"]
+            for mid in ids:
+                msg = _catalogue().get(mid)
+                out.append(f"| `{mid}` | {msg.title if msg else '—'}"
+                           + (" *(PROPOSED)*" if msg and not msg.approved
+                              else "") + " |")
+            out += [""]
+        out += ["**Cases covered**", ""]
         out += [f"- {x}" for x in c["covers"]]
-        out += ["", "**Step by step**", ""]
+        out += ["", "**Step by step**", "",
+                "| # | What to do, and what to expect | Message expected |",
+                "|---|---|---|"]
         n, _v = _real_counts(dest, c["name"])
-        out += [f"{i}. {step.replace('{n}', str(n))}"
-                for i, step in enumerate(c["steps"], 1)]
+        for i, step in enumerate(c["steps"], 1):
+            text = step.replace("{n}", str(n))
+            for rid in ("run1", "run2"):
+                got = _readings(dest, c["name"], rid)
+                if got is not None:
+                    text = text.replace("{c%s}" % rid[-1], str(got))
+            ids = re.findall(r"\[\[(M-[A-Z0-9-]+)\]\]", text)
+            text = re.sub(r"\s*\[\[M-[A-Z0-9-]+\]\]", "", text)
+            if ids:
+                cell = " ".join(
+                    f"`{m}`" + (" *(PROPOSED)*"
+                                if not _catalogue()[m].approved else "")
+                    for m in ids if m in _catalogue())
+            else:
+                cell = "*none — silence is the expected result*"
+            out.append(f"| {i} | {text} | {cell} |")
+        out += [""]
         out += [""]
 
     out += ["## What this package deliberately does not cover", "",
@@ -560,6 +747,14 @@ def _document(cases, dest: Path) -> str:
     return "\n".join(out)
 
 
+def _catalogue():
+    """The approved message catalogue, so the guide quotes the model rather
+    than a copy of it — Knut: *"make sure the test guide document […] contains
+    exactly which message code/name is expected from the model."*"""
+    from workflow.measurement_messages import CATALOGUE
+    return CATALOGUE
+
+
 def _app_version() -> str:
     ns: dict = {}
     exec((ROOT / "core" / "version.py").read_text(), ns)
@@ -568,9 +763,16 @@ def _app_version() -> str:
 
 # ---------------------------------------------------------------------------
 def build_all(dest: Path) -> Path:
+    import tempfile
+
     if dest.exists():
         shutil.rmtree(dest)
     dest.mkdir(parents=True)
+    # The seed profile is scaffolding, not part of the package — it is the one
+    # synthesised measurement in the whole build, and shipping it would put a
+    # file in the zip that is not what it claims to be.
+    global _SEED_DIR
+    _SEED_DIR = Path(tempfile.mkdtemp(prefix="chromiq_demo_seed_"))
     for i, c in enumerate(CASES, 1):
         print(f"[{i}/{len(CASES)}] {c['name']} …", flush=True)
         c["fn"](dest)
@@ -626,6 +828,67 @@ EXPECTED = {
 }
 
 
+def _check_measurements_are_real(dest: Path) -> "list[str]":
+    """Every measurement in the package is one Argyll would accept.
+
+    Exactly the two faults Knut hit in beta.125, checked so neither can ship
+    again:
+
+    * *"Resumed file … doesn't contain SAMPLE_LOC field"* — chartread needs the
+      sheet positions to know what is left to read.
+    * *"Read 34 sets, expected 38 sets"* — a header whose count disagrees with
+      the body. Argyll reads values rather than lines, so one wrong number
+      makes it run fields across line boundaries and the file is unusable.
+
+    Files that are broken **on purpose** are skipped by name: two runs exist to
+    make ChromIQ complain about them, and a checker that failed on those would
+    be checking the wrong thing.
+    """
+    deliberately_broken = {
+        "Demo-04-Mismatched/runs/run2",       # header disagrees with its rows
+        "Demo-05-Unreadable-Measurements/runs/run1",   # no data block at all
+    }
+    problems = []
+    for ti3 in sorted(dest.rglob("*.ti3")):
+        rel = ti3.relative_to(dest).as_posix()
+        if any(rel.startswith(b) for b in deliberately_broken):
+            continue
+        try:
+            head, rows, _tail = _cgats(ti3)
+        except ValueError:
+            problems.append(f"{rel}: has no BEGIN_DATA/END_DATA block")
+            continue
+        fmt = _fields(head)
+        if "SAMPLE_LOC" not in fmt:
+            problems.append(
+                f"{rel}: no SAMPLE_LOC field — chartread cannot resume it")
+        declared = next((int(l.split()[1]) for l in head
+                         if l.startswith("NUMBER_OF_SETS")), None)
+        if declared != len(rows):
+            problems.append(
+                f"{rel}: says NUMBER_OF_SETS {declared} but holds {len(rows)} "
+                "rows")
+        if len(fmt) != len(rows[0].split()) if rows else False:
+            problems.append(
+                f"{rel}: {len(fmt)} fields declared, {len(rows[0].split())} "
+                "values per row")
+        if not any(l.startswith("ORIGINATOR") and "Argyll" in l for l in head):
+            problems.append(f"{rel}: was not written by an Argyll tool")
+        # …and the positions must be ones this chart actually has.
+        ti2 = ti3.with_suffix(".ti2")
+        if ti2.exists() and "SAMPLE_LOC" in fmt:
+            head2, rows2, _t2 = _cgats(ti2)
+            fmt2 = _fields(head2)
+            known = {r.split()[fmt2.index("SAMPLE_LOC")] for r in rows2}
+            loc_i = fmt.index("SAMPLE_LOC")
+            unknown = {r.split()[loc_i] for r in rows} - known
+            if unknown:
+                problems.append(
+                    f"{rel}: positions not on this chart: "
+                    f"{sorted(unknown)[:3]}")
+    return problems
+
+
 def verify(dest: Path) -> "list[str]":
     """Ask the real decision code what each run would do, and compare it with
     what the document says. Returns the disagreements."""
@@ -635,10 +898,35 @@ def verify(dest: Path) -> "list[str]":
     from workflow.profile_rebuild_guard import assess as assess_rebuild
 
     problems = []
+    # A step that names a message ID which is not in the catalogue would send
+    # the tester looking for a window that cannot appear.
+    for c in CASES:
+        for i, step in enumerate(c["steps"], 1):
+            # A step that describes a window but names no message ID would
+            # leave the tester guessing which one the model means — Knut asked
+            # for the ID "for every step where a message is expected".
+            promises = ("*Expected:*" in step
+                        and "no window" not in step
+                        and "no warning" not in step)
+            if promises and "[[" not in step:
+                problems.append(
+                    f"{c['name']} step {i} expects a window but names no "
+                    "message ID")
+        for step in c["steps"]:
+            for mid in re.findall(r"\[\[(M-[A-Z0-9-]+)\]\]", step):
+                if mid not in _catalogue():
+                    problems.append(
+                        f"{c['name']}: a step expects {mid}, which is not in "
+                        "the message catalogue")
+        for mid in c.get("messages", []):
+            if mid not in _catalogue():
+                problems.append(
+                    f"{c['name']}: lists {mid}, which is not in the catalogue")
+    problems += _check_measurements_are_real(dest)
     readme = dest / "README.md"
     if readme.exists():
         text = readme.read_text()
-        for token in ("{n}", "{v}", "None patches", "{c}"):
+        for token in ("{n}", "{v}", "{c}", "{c1}", "{c2}", "None patches"):
             if token in text:
                 problems.append(
                     f"README.md still contains the placeholder {token!r} — "

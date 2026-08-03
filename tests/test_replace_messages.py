@@ -34,9 +34,12 @@ def test_a_partial_measurement_says_how_far_it_got():
 
 
 def test_a_partial_measurement_points_at_resume():
+    """The approved M-REPLACE-PARTIAL names the option and says what ticking it
+    does. Saying where the control lives was an addition of mine, and the model
+    is Knut's — it is raised on the issue rather than added here."""
     _t, body = _msg(Ti3State.PARTIAL, held=38, expected=400)
     assert "Refine / resume existing measurement" in body
-    assert "options panel" in body, "say where the option is, not just its name"
+    assert "read only the patches that are still missing" in body
 
 
 def test_a_complete_measurement_warns_about_the_profile():
@@ -45,7 +48,7 @@ def test_a_complete_measurement_warns_about_the_profile():
     title, body = _msg(Ti3State.COMPLETE, held=400, expected=400)
     assert "fully measured" in title
     assert "All 400 patches" in body
-    assert "profile built from it will no longer match" in body
+    assert "the profile in this run will no longer match" in body
 
 
 def test_a_mismatch_refuses_to_resume_and_says_why():
@@ -111,9 +114,11 @@ ALL_MESSAGES = [
 
 @pytest.mark.parametrize("state,kw", ALL_MESSAGES)
 def test_every_message_explains_its_buttons(state, kw):
+    """The approved catalogue spells the buttons out in M-TI3-MISMATCH; the
+    other messages describe the choice in prose instead, which is the model's
+    wording and therefore the wording that ships."""
     _t, body = _msg(state, **kw)
-    assert "What each button does" in body
-    assert "Cancel — nothing is measured and nothing is written" in body
+    assert "Starting" in body or "What each button does" in body
 
 
 @pytest.mark.parametrize("state,kw", ALL_MESSAGES)

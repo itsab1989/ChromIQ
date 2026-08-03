@@ -50,7 +50,7 @@ class _Tab(__import__("PyQt6.QtWidgets", fromlist=["QWidget"]).QWidget):
     _ask_chart_question = TabChart._ask_chart_question
     _profiling_chart_message = TabChart._profiling_chart_message
     _verify_chart_message = TabChart._verify_chart_message
-    _duplicate_advice = TabChart._duplicate_advice
+    _duplicate_blocked_note = TabChart._duplicate_blocked_note
     _pages_paragraph = TabChart._pages_paragraph
 
     def __init__(self, tmp_path, profile_run):

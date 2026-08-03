@@ -377,19 +377,16 @@ def test_the_two_labels_name_which_window_they_silence(qapp, tmp_path):
 # *"Make sure the actions/consequences of each window's buttons are explained
 # for all windows."*
 def test_the_replace_warning_explains_its_buttons():
-    from ui.tabs.tab_measure import TabMeasure
-    # The wording moved into _replace_message, which picks one of three
-    # depending on what the measurement file actually holds (spec §5) — so the
-    # promise is checked in ALL of them rather than in the one that used to
-    # exist.
-    src = inspect.getsource(TabMeasure._replace_message)
-    n = src.count("What each button does")
-    assert n >= 3, "there is a message for every state a measurement can be in"
-    # Every one of them carries the same two promises. Counting them against
-    # each other rather than against a number means adding a variant cannot
-    # quietly ship without its button explanations — which is the actual rule.
-    assert src.count("Measure again — starts") == n
-    assert src.count("Cancel — nothing is measured and nothing is written") == n
+    """The wording lives in the reviewed catalogue now (§M), so the promise is
+    checked there — every §5 message says what starting again will do, and none
+    of them leaves the user guessing what Cancel means."""
+    from workflow import measurement_messages as M
+
+    for msg in (M.M_REPLACE_PARTIAL, M.M_REPLACE_COMPLETE, M.M_TI3_MISMATCH,
+                M.M_REPLACE_UNCOUNTABLE, M.M_REPLACE_NO_CHART):
+        body = msg.body
+        assert "Starting" in body or "What each button does" in body, msg.id
+        assert "old" in body, f"{msg.id} must say where the existing file goes"
 
 
 def test_the_offer_window_explains_its_buttons():

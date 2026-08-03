@@ -44,7 +44,7 @@ from core.resource_path import resource_path
 from ui.fade_scroll import FadeScrollArea
 from ui.tab_header import TabHeader
 from ui.tooltip_button import InfoDialog, TooltipButton
-from ui.widgets import GatedOption, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, make_browse_button, open_file_dialog, replace_log_line, set_folder_icon, set_preset_icon, tint_dialog_primary
+from ui.widgets import fit_log_height, GatedOption, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, make_browse_button, open_file_dialog, replace_log_line, set_folder_icon, set_preset_icon, tint_dialog_primary
 from ui.ti2_loader import has_spectral_data, instrument_label, is_colormunki, read_target_instrument
 from ui.spectrum_progress import SpectrumSegmentsBar
 from workflow.engine_builder import (EngineProfileBuilder, engine_support,
@@ -535,7 +535,9 @@ class TabProfile(QWidget):
         self._log = QPlainTextEdit(colprof_container)
         self._log.setObjectName("log")
         self._log.setReadOnly(True)
-        self._log.setMaximumHeight(67)
+        # Nine lines of the font this really gets, measured after polish
+        # — not 67 pixels, which was six (Knut, beta.125).
+        fit_log_height(self._log)
         self._log.setPlaceholderText(tr("colprof output will appear here…"))
         cc.addWidget(self._log)
 
@@ -602,6 +604,26 @@ class TabProfile(QWidget):
     def showEvent(self, event) -> None:  # noqa: N802 (Qt override)
         super().showEvent(event)
         self._refresh_engine_rows()
+        self._refit_logs()
+
+    def _refit_logs(self) -> None:
+        """Re-measure every log panel here in the font it actually has.
+
+        Sizing in ``__init__`` happens before polish, so the stylesheet font is
+        not yet applied and the measurement is against the wrong metrics. This
+        runs once the widget is shown and again on any style or font change,
+        which is also what makes the panels follow a theme switch.
+        """
+        for attr in ("_log", "_pc_log", "_ac_log"):
+            panel = getattr(self, attr, None)
+            if panel is not None:
+                fit_log_height(panel)
+
+    def changeEvent(self, event) -> None:      # noqa: N802 (Qt override)
+        super().changeEvent(event)
+        from PyQt6.QtCore import QEvent as _QEvent
+        if event.type() in (_QEvent.Type.StyleChange, _QEvent.Type.FontChange):
+            self._refit_logs()
 
     def set_calibration_mode(self, enabled: bool) -> None:
         """Switch between normal (GUIDED/MANUAL) and calibration (3-module) mode."""
@@ -971,7 +993,9 @@ class TabProfile(QWidget):
         self._pc_log = QPlainTextEdit(container)
         self._pc_log.setObjectName("log")
         self._pc_log.setReadOnly(True)
-        self._pc_log.setMaximumHeight(67)
+        # Nine lines of the font this really gets, measured after polish
+        # — not 67 pixels, which was six (Knut, beta.125).
+        fit_log_height(self._pc_log)
         self._pc_log.setPlaceholderText(tr("printcal output will appear here…"))
         cc.addWidget(self._pc_log)
 
@@ -1419,7 +1443,9 @@ class TabProfile(QWidget):
         self._ac_log = QPlainTextEdit(container)
         self._ac_log.setObjectName("log")
         self._ac_log.setReadOnly(True)
-        self._ac_log.setMaximumHeight(67)
+        # Nine lines of the font this really gets, measured after polish
+        # — not 67 pixels, which was six (Knut, beta.125).
+        fit_log_height(self._ac_log)
         self._ac_log.setPlaceholderText(tr("applycal output will appear here…"))
         cc.addWidget(self._ac_log)
 
@@ -4020,78 +4046,28 @@ class TabProfile(QWidget):
             return True
 
         from PyQt6.QtWidgets import QCheckBox, QMessageBox
+
         from ui.widgets import fit_message_box_buttons
+        from workflow import measurement_messages as M
 
         n = w.dated
-        title = tr("The verification measurements in this run were made "
-                   "against the profile you are about to replace")
         blocked = ""
         if not w.can_duplicate:
-            blocked = "\n\n" + tr(
-                "Why there is no Duplicate button here: duplicating a run "
-                "needs all four of the files that make a chart printable — the "
-                "patch list (.ti1), the laid-out chart (.ti2), the layout "
-                "recipe (.channels.json) and at least one printed page (.tif). "
-                "This run is missing {missing}, so there is nothing complete "
-                "to copy.\n\n"
-                "That leaves you two ways forward: build here anyway, which "
-                "keeps everything in the “old” folder so nothing is lost; or "
-                "press Cancel, create the chart in this run again so all four "
-                "files are present, and then come back — Duplicate will be "
-                "offered.").format(missing=", ".join(w.duplicate_blocked_by))
+            blocked = tr(M.M_DUPLICATE_BLOCKED).format(
+                missing=", ".join(w.duplicate_blocked_by))
+        # The text is the reviewed catalogue's (§M) — Knut, beta.125: "Only
+        # approved message text shall be used in any of the windows."
+        title, body = M.M_PROFILE_VERIFY.render(n=n, date=w.oldest,
+                                                blocked=blocked)
 
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.NoIcon)
         box.setWindowTitle(title)
-        # Real singular and plural — one measurement gets its own sentence
-        # rather than a bracketed plural nobody reads aloud.
-        if n == 1:
-            opening = tr(
-                "This run holds one dated verification measurement, made on "
-                "{date}. It was printed through the profile in this run and "
-                "measured against it, so it records how that profile behaved "
-                "on that day.").format(date=w.oldest)
-            moved = tr(
-                "•  Build here anyway — replaces this run's profile. The "
-                "current profile is moved to the run's “old” folder, and the "
-                "dated verification measurement is moved to the “old” folder "
-                "inside “verifications”, because it describes the profile "
-                "being replaced. Nothing is deleted.")
-        else:
-            opening = tr(
-                "This run holds {n} dated verification measurements, going "
-                "back to {date}. Each was printed through the profile in this "
-                "run and measured against it, so each records how that profile "
-                "behaved on that day.").format(n=n, date=w.oldest)
-            moved = tr(
-                "•  Build here anyway — replaces this run's profile. The "
-                "current profile is moved to the run's “old” folder, and the "
-                "{n} dated verification measurements are moved to the “old” "
-                "folder inside “verifications”, because they describe the "
-                "profile being replaced. Nothing is deleted.").format(n=n)
-
         # Headline bold in setText, the explanation in setInformativeText at
         # normal weight — the pattern the rest of the app uses. This message is
         # long on purpose, and a whole screen of bold is a wall nobody reads.
         box.setText(title)
-        box.setInformativeText(opening + "\n\n" + tr(
-            "Building a new profile here does not make those measurements "
-            "wrong, and it deletes nothing — but they will no longer say which "
-            "profile they belong to, and comparing them with verification "
-            "measurements made afterwards means comparing against two "
-            "different profiles.\n\n"
-            "Nothing here is an emergency, and nothing is lost either way — "
-            "it is only worth a moment's thought, because a verification "
-            "history is the one thing in a run that cannot be made again: "
-            "those sheets were printed on days that will not come back.\n\n"
-            "What each button does:\n\n"
-            "•  Duplicate the run and build there (recommended) — copies this "
-            "run's chart, measurement and profile into a new run and builds "
-            "there. This run keeps its profile and its verification "
-            "measurements exactly as they are, and the copy starts fresh. This "
-            "is the clean way to try a different profile from the same "
-            "readings.\n\n") + moved + tr(
-            "\n\n•  Cancel — changes nothing.{blocked}").format(blocked=blocked))
+        box.setInformativeText(body)
 
         dup = None
         if w.can_duplicate:
@@ -4100,11 +4076,8 @@ class TabProfile(QWidget):
         go = box.addButton(tr("Build here anyway"),
                            QMessageBox.ButtonRole.DestructiveRole)
         box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
-        ask = QCheckBox(tr("Don't show this again for this run"), box)
-        ask.setToolTip(tr(
-            "Only for this one run, and only until you close ChromIQ. Every "
-            "other run keeps asking, and so does this one the next time you "
-            "start the program."))
+        ask = QCheckBox(tr(M.M_SILENCE_LABEL), box)
+        ask.setToolTip(tr(M.M_SILENCE_TOOLTIP))
         box.setCheckBox(ask)
         box.setDefaultButton(dup or go)
         fit_message_box_buttons(box)

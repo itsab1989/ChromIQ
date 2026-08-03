@@ -69,7 +69,7 @@ from ui.tab_header import TabHeader
 from ui.builtin_preset_popup import BuiltinPresetButton, BuiltinPresetPopup
 from ui.tiff_preview import TiffPreview
 from ui.tooltip_button import InfoDialog, TooltipButton
-from ui.widgets import CollapsibleGroupBox, NoScrollComboBox, NoScrollSpinBox, PatchGridButton, PrefixLockedLineEdit, icc_profile_paths, load_magenta_folder_icon, make_browse_button, open_file_dialog, set_folder_icon, set_preset_icon
+from ui.widgets import fit_log_height, CollapsibleGroupBox, NoScrollComboBox, NoScrollSpinBox, PatchGridButton, PrefixLockedLineEdit, icc_profile_paths, load_magenta_folder_icon, make_browse_button, open_file_dialog, set_folder_icon, set_preset_icon
 from core.i18n import count_phrase, tr
 from workflow.i1profiler_export import EXTRA_INK, export_from_ti1, parse_ti1
 from workflow.i1profiler_import import import_to_ti1
@@ -1546,7 +1546,9 @@ class TabChart(QWidget):
         self._log = QPlainTextEdit(self)
         self._log.setObjectName("log")
         self._log.setReadOnly(True)
-        self._log.setMaximumHeight(67)
+        # Nine lines of the font this really gets, measured after polish
+        # — not 67 pixels, which was six (Knut, beta.125).
+        fit_log_height(self._log)
         self._log.setPlaceholderText(tr("Output will appear here…"))
         left_layout.addWidget(self._log)
 
@@ -3495,6 +3497,29 @@ class TabChart(QWidget):
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    def showEvent(self, event) -> None:      # noqa: N802 (Qt override)
+        super().showEvent(event)
+        self._refit_logs()
+
+    def _refit_logs(self) -> None:
+        """Re-measure every log panel here in the font it actually has.
+
+        Sizing in ``__init__`` happens before polish, so the stylesheet font is
+        not yet applied and the measurement is against the wrong metrics. This
+        runs once the widget is shown and again on any style or font change,
+        which is also what makes the panels follow a theme switch.
+        """
+        for attr in ("_log", "_pc_log", "_ac_log"):
+            panel = getattr(self, attr, None)
+            if panel is not None:
+                fit_log_height(panel)
+
+    def changeEvent(self, event) -> None:      # noqa: N802 (Qt override)
+        super().changeEvent(event)
+        from PyQt6.QtCore import QEvent as _QEvent
+        if event.type() in (_QEvent.Type.StyleChange, _QEvent.Type.FontChange):
+            self._refit_logs()
 
     def set_calibration_mode(self, enabled: bool) -> None:
         """Show/hide calibration-specific UI and lock to manual mode when enabled."""
@@ -8473,6 +8498,20 @@ class TabChart(QWidget):
                 if ctl is not None:
                     ctl.set_profile_run("")            # "New run"
             self._align_current_run_to_target()
+            # §4: loading a patch set into a run that already holds work is the
+            # same replacement the Generate Chart button makes, so it asks the
+            # same question. Knut, beta.125: *"Step 3 in test, but now loading a
+            # ti1 file from button in Create Chart. Preview updates, but no
+            # message comes. Bug again."* Both destinations that land on an
+            # existing run are covered — "replace the run" and "replace only the
+            # chart" — because either one leaves the measurement describing
+            # patches that are no longer on the sheet.
+            if dest in ("into_replace", "into_chart") \
+                    and not self._confirm_displacing_results():
+                self._preset_ti1_path = None
+                self._preview.clear()
+                self._generate_btn.setEnabled(True)
+                return
             if dest == "into_replace":
                 # #130 §5a/§5b: a Replace archives what it displaces — the same
                 # rule, and the same helper, as a Print/Measure chart import.
@@ -8805,162 +8844,63 @@ class TabChart(QWidget):
         box.exec()
         return box.clickedButton() is go
 
-    def _duplicate_advice(self, cost, what: str) -> str:
-        """The closing paragraph both §4 messages end on.
-
-        Duplicating is the way to have both — this run's work and a different
-        chart — so it is the recommendation. When the run cannot be duplicated
-        the message says why and what to do instead, because recommending a
-        button the user would find greyed out is worse than saying nothing
-        (M-DUPLICATE-BLOCKED).
-        """
-        if cost.can_duplicate:
-            return "\n\n" + tr(
-                "If you would rather keep {what}, there are two ways to have "
-                "both: choose “New run” in the Profile-run bar and build the "
-                "new chart there, or press Cancel and use the Duplicate button "
-                "in that bar — the copy is somewhere fresh to try a different "
-                "chart, while this run stays exactly as it is."
-            ).format(what=what)
-        return "\n\n" + tr(
-            "If you would rather keep {what}, choose “New run” in the "
-            "Profile-run bar and build the new chart there instead.\n\n"
-            "Duplicating this run is not offered: that needs all four of the "
-            "files a chart is printed from — the patch list (.ti1), the "
-            "laid-out chart (.ti2), the layout recipe (.channels.json) and at "
-            "least one printed page (.tif) — and this run is missing "
-            "{missing}."
-        ).format(what=what, missing=", ".join(cost.duplicate_blocked_by))
-
     def _pages_paragraph(self, cost) -> str:
-        """M-CHART-NOPAGES — §4a rows 3 and 5.
+        """M-CHART-NOPAGES — §4a rows 3 and 5, appended when it applies."""
+        from workflow import measurement_messages as M
 
-        Losing pages that can be redrawn costs a reprint. Losing pages that
-        cannot costs them for good, and that is a different sentence.
-        """
-        if cost.can_redraw_pages or not cost.pages:
+        if cost.can_redraw_pages:
             return ""
-        if cost.pages == 1:
-            pages = tr("The one page image in this run is the only one there "
-                       "will be.")
-        else:
-            pages = tr("The {n} page images in this run are the only ones "
-                       "there will be.").format(n=cost.pages)
-        return "\n\n" + tr(
-            "This chart has no layout recipe (.channels.json), so ChromIQ "
-            "cannot draw its pages again. {pages} They are moved to the “old” "
-            "folder rather than deleted, and if you have the printed sheets, "
-            "keep them — they are the only copy."
-        ).format(pages=pages)
+        pages = (tr(M.M_CHART_NOPAGES_SOME).format(n=cost.pages) if cost.pages
+                 else tr(M.M_CHART_NOPAGES_NONE))
+        _title, body = M.M_CHART_NOPAGES.render(pages=pages)
+        return "\n\n" + tr(M.M_CHART_NOPAGES.title) + "\n" + body
+
+    def _duplicate_blocked_note(self, cost) -> str:
+        """M-DUPLICATE-BLOCKED — appended to any message recommending Duplicate
+        when this run cannot be duplicated (§4a, §6)."""
+        from workflow import measurement_messages as M
+
+        if cost.can_duplicate:
+            return ""
+        return tr(M.M_DUPLICATE_BLOCKED).format(
+            missing=", ".join(cost.duplicate_blocked_by))
 
     def _profiling_chart_message(self, run, cost) -> "tuple[str, str]":
-        """M-CHART-PROFILING, and §4's W4 when the run has a history."""
+        """M-CHART-PROFILING, or M-CHART-W4 when the run has a history.
+
+        The text is the reviewed catalogue's (§M); this only chooses the ID and
+        fills the numbers.
+        """
+        from workflow import measurement_messages as M
         from workflow.chart_integrity import Blast
 
-        items = []
-        if cost.readings == 1:
-            items.append(tr("•  the one reading taken so far no longer "
-                            "describes the chart in this run;"))
-        elif cost.readings:
-            if cost.complete:
-                items.append(tr(
-                    "•  the finished measurement of {c} patches no longer "
-                    "describes the chart in this run, so the whole chart would "
-                    "have to be printed and measured again;").format(
-                        c=cost.readings))
-            else:
-                items.append(tr(
-                    "•  the measurement of {c} patches taken so far no longer "
-                    "describes the chart in this run;").format(c=cost.readings))
-        elif cost.has_measurement:
-            # The file is there but its readings could not be counted (§3a's
-            # empty, headerless and unreadable states). Say what is true rather
-            # than invent a number or, worse, say nothing at all.
-            items.append(tr("•  the measurement file in this run no longer "
-                            "describes the chart in this run;"))
-        if cost.has_profile:
-            items.append(tr("•  the printer profile built from that "
-                            "measurement no longer describes anything on "
-                            "disk;"))
-
         if cost.blast is Blast.RUN_AND_HISTORY:
-            title = tr("This would undo the whole run, not just its chart")
-            if cost.verifications == 1:
-                items.append(tr(
-                    "•  and the one dated verification measurement under this "
-                    "run was printed through that profile, so it stops "
-                    "describing a profile that exists."))
-            else:
-                items.append(tr(
-                    "•  and the {v} dated verification measurements under this "
-                    "run were printed through that profile, so they stop "
-                    "describing a profile that exists.").format(
-                        v=cost.verifications))
-            closing = tr(
-                "Everything is moved into the run's “old” folder and nothing "
-                "is deleted — but this run would no longer hold a set of files "
-                "that belong together, and its verification history could not "
-                "be carried on. A history is the one thing here that cannot be "
-                "made again: those sheets were printed on days that will not "
-                "come back.")
-            what = tr("this run's work and its verification history")
+            title, body = M.M_CHART_W4.render(
+                c=cost.readings, v=cost.verifications, folder=str(run.old_dir))
         else:
-            title = tr("This run already holds work made with the chart you "
-                       "are about to replace")
-            closing = tr(
-                "Everything is moved into the run's “old” folder, where you "
-                "can always get it back, and nothing is deleted — but this run "
-                "would no longer hold a matching set of files, and the Measure "
-                "tab will no longer offer to refine, resume or overlay that "
-                "measurement, because there would be nothing left in the run "
-                "to refine or show.")
-            what = tr("what this run already holds")
-
-        # The bullets are written to be read as one sentence in a list, so the
-        # last one ends the sentence however many there are.
-        if items and items[-1].rstrip().endswith(";"):
-            items[-1] = items[-1].rstrip().rstrip(";") + "."
-        body = tr(
-            "A new chart changes the patches this run is measured with, so "
-            "what is here stops describing it:\n\n{items}\n\n{closing}\n\n"
-            "The “old” folder is here:\n{folder}"
-        ).format(items="\n".join(items), closing=closing,
-                 folder=str(run.old_dir))
+            items = []
+            if cost.readings:
+                items.append(tr(M.M_CHART_ITEM_MEASUREMENT).format(
+                    c=cost.readings))
+            elif cost.has_measurement:
+                # §M's {items} list has no entry for a measurement whose
+                # readings cannot be counted, and "a measurement of 0 patches"
+                # would be false. PROPOSED — on the issue for approval.
+                items.append(tr(M.M_CHART_ITEM_MEASUREMENT_UNCOUNTABLE))
+            if cost.has_profile:
+                items.append(tr(M.M_CHART_ITEM_PROFILE))
+            title, body = M.M_CHART_PROFILING.render(
+                items="\n".join(items), folder=str(run.old_dir))
         return title, body + self._pages_paragraph(cost) \
-            + self._duplicate_advice(cost, what)
+            + self._duplicate_blocked_note(cost)
 
     def _verify_chart_message(self, cost) -> "tuple[str, str]":
-        """M-CHART-VERIFY — §4's W5.
+        """M-CHART-VERIFY — §4's W5."""
+        from workflow import measurement_messages as M
 
-        One level down from W4 and a different loss: no measurement in the run
-        stops matching, but the dated verification measurements lose the chart
-        they were readings *of*.
-        """
-        title = tr("The verification measurements already made in this run "
-                   "used the chart you are about to replace")
-        if cost.verifications == 1:
-            opening = tr(
-                "The one dated verification measurement in this run was made "
-                "with this verification chart.")
-        else:
-            opening = tr(
-                "The {v} dated verification measurements in this run were all "
-                "made with this verification chart.").format(
-                    v=cost.verifications)
-        body = opening + " " + tr(
-            "Replacing it does not make them wrong, and the report can still "
-            "compare their figures — but those measurements would no longer "
-            "have the chart they were made with, so nothing on disk would say "
-            "what they were readings of.\n\n"
-            "A trend across the change also compares two different charts, "
-            "which is not the same measurement made twice. The figures stay "
-            "comparable, but a difference between them could be the print, or "
-            "it could be the change of chart, and afterwards there is no way "
-            "to tell which.\n\n"
-            "The chart is moved to the “old” folder inside “verifications” and "
-            "no measurement is touched. Nothing is deleted.")
-        return title, body + self._pages_paragraph(cost) + self._duplicate_advice(
-            cost, tr("this run's verification history"))
+        title, body = M.M_CHART_VERIFY.render(v=cost.verifications)
+        return title, body + self._pages_paragraph(cost) \
+            + self._duplicate_blocked_note(cost)
 
     def _is_verification_target(self) -> bool:
         ctl = getattr(self, "_target_ctl", None)
@@ -10162,6 +10102,9 @@ class TabChart(QWidget):
         """Persist the auto-update-preview choice; confirm with the user the first
         time they turn it on so they know what it does (Knut)."""
         self._settings.set("auto_update_preview", bool(on))
+        # Knut's rule: the "preview is not being re-drawn" window comes once per
+        # switch-on, so switching on re-arms it (see _say_preview_is_paused).
+        self._said_auto_update_paused = False
         if on:
             InfoDialog(
                 tr("Auto-update preview is on"),
@@ -10237,17 +10180,57 @@ class TabChart(QWidget):
         except Exception:      # noqa: BLE001
             _run = None
         if assess_profiling_chart(_run).warn:
-            if not getattr(self, "_said_auto_update_paused", False):
-                self._said_auto_update_paused = True
-                self._log.appendPlainText(tr(
-                    "The live preview is not being re-drawn, because this run "
-                    "already holds work made with the chart it would replace. "
-                    "Press “Generate Chart” when you want the new layout — you "
-                    "will be told exactly what moves to the “old” folder "
-                    "first, and nothing is deleted."))
+            self._say_preview_is_paused()
             return
         self._last_auto_sig = self._layout_signature()
         self._generate_from_ti1(ti1, ask=False)
+
+    #: Message text — the same sentences on screen and in the log, so a user
+    #: comparing the two never wonders whether they mean different things.
+    PREVIEW_PAUSED_TITLE = "The live preview is not being re-drawn"
+
+    def _preview_paused_body(self) -> str:
+        return tr(
+            "This run already holds work made with the chart the preview would "
+            "replace, so the preview is left as it is rather than re-drawn "
+            "over it.\n\n"
+            "Press “Generate Chart” when you want the new layout. You will be "
+            "told exactly what moves to the run's “old” folder first, and "
+            "nothing is deleted.\n\n"
+            "This window appears once each time you switch “Auto-update "
+            "preview” on. While it stays on, the same note goes to the log "
+            "instead, so your layout work is not interrupted.")
+
+    def _say_preview_is_paused(self) -> None:
+        """§4, auto-update — Knut's ruling in beta.125.
+
+        He accepted that a window on every turn of a knob would be unusable,
+        and set the rule: *"the popup window saying 'The live preview is not
+        being re-drawn...' should come once only, then again the next time
+        'auto-update preview ...' is enabled. At the same time it can come in
+        the log window until 'auto-update preview ...' is disabled."*
+
+        So: the log line every time, the window only on the first refusal after
+        the option was switched on. :meth:`_on_auto_preview_toggled` re-arms it.
+        """
+        self._log.appendPlainText(
+            tr(self.PREVIEW_PAUSED_TITLE) + " — " + self._preview_paused_body()
+            .replace("\n\n", " "))
+        if getattr(self, "_said_auto_update_paused", False):
+            return
+        self._said_auto_update_paused = True
+        from PyQt6.QtWidgets import QMessageBox
+
+        from ui.widgets import fit_message_box_buttons
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        title = tr(self.PREVIEW_PAUSED_TITLE)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(self._preview_paused_body())
+        box.addButton(tr("OK"), QMessageBox.ButtonRole.AcceptRole)
+        fit_message_box_buttons(box)
+        box.exec()
 
     def _maybe_warn_partial_last_page(self, ti2: Path) -> None:
         """If the patch set leaves a notably under-filled last page (or spilled

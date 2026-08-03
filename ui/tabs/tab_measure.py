@@ -8341,121 +8341,47 @@ class TabMeasure(QWidget):
             or (refine is not None and refine.isEnabled() and refine.isChecked()))
 
     def _replace_message(self, facts, ti3) -> "tuple[str, str]":
-        """M-REPLACE-PARTIAL / M-REPLACE-COMPLETE / M-TI3-MISMATCH — §5.
+        """One of §5's messages, chosen by what the measurement file holds.
 
-        One of three, chosen by what the measurement file actually holds. The
-        numbers are the point: "a measurement" tells the user nothing they can
-        weigh, while "38 of 400 patches" does.
+        The **text** comes from ``workflow/measurement_messages.py``, which is
+        the reviewed catalogue (§M) — Knut, beta.125: *"Only approved message
+        text shall be used in any of the windows."* This method's job is to
+        pick the right ID and supply the numbers, nothing else.
         """
+        from workflow import measurement_messages as M
         from workflow.measurement_state import Ti3State
+
         a = facts.expected
         c = facts.held or 0
+        path = str(ti3)
 
         if facts.state is Ti3State.MISMATCHED:
             extra = ""
             if facts.claimed is not None and facts.claimed != c:
-                extra = " " + tr(
-                    "The file's own header claims {b} readings, which does not "
-                    "match the {c} it contains — so this file may be damaged as "
-                    "well as mismatched.").format(b=facts.claimed, c=c)
-            return (
-                tr("This run's measurement and its chart do not match"),
-                tr("This run's measurement and its chart do not match\n\n"
-                   "The measurement file holds {c} readings, and the chart "
-                   "describes {a} patches.{extra}\n\n"
-                   "ChromIQ cannot tell which of the two is the wrong one. A "
-                   "measurement can be cut short by an interrupted session, and "
-                   "a chart can be replaced or edited outside ChromIQ — both "
-                   "look the same from here.\n\n"
-                   "What each button does:\n\n"
-                   "•  Measure again — starts fresh. The existing measurement "
-                   "is moved to the run's “old” folder and nothing is lost.\n\n"
-                   "•  Cancel — nothing is measured and nothing is written. "
-                   "This run's “chart” folder holds the copy of the chart that "
-                   "was stored when it was last measured, and “Restore Used "
-                   "Chart” puts that copy back.\n\n"
-                   "Resuming is not offered here: resuming into a mismatch "
-                   "would write readings against patch positions that may not "
-                   "be the ones on your paper.").format(
-                       c=c, a=a if a is not None else "?", extra=extra))
+                extra = tr(M.M_TI3_MISMATCH_EXTRA).format(b=facts.claimed, c=c)
+            stem = Path(ti3).stem
+            return M.M_TI3_MISMATCH.render(
+                c=c, a=a if a is not None else "?", extra=extra,
+                stem=stem, path=str(Path(ti3).parent))
 
         if facts.state is Ti3State.COMPLETE:
-            return (
-                tr("This chart is fully measured"),
-                tr("This chart is fully measured\n\n"
-                   "All {a} patches have been read.\n\n"
-                   "Starting a new measurement replaces that. The finished "
-                   "measurement is moved to the run's “old” folder and nothing "
-                   "is deleted — but any profile built from it will no longer "
-                   "match the measurement beside it until you build it "
-                   "again.\n\n"
-                   "What each button does:\n\n"
-                   "•  Measure again — starts the measurement now, replacing "
-                   "the finished one.\n\n"
-                   "•  Cancel — nothing is measured and nothing is written.")
-                .format(a=a if a is not None else c))
+            return M.M_REPLACE_COMPLETE.render(a=a if a is not None else c,
+                                               path=path)
 
         if c == 0:
             # The file is there but holds nothing readable (§3a's empty,
-            # headerless and unreadable states). "0 of the chart's ? patches
-            # have been read" is worse than useless — it looks like a bug. Say
-            # what is actually known instead, and do not point at resume, which
-            # would have nothing to resume from.
-            return (
-                tr("This run already holds a measurement file"),
-                tr("This run already holds a measurement file\n\n"
-                   "ChromIQ cannot tell how many readings it contains — the "
-                   "file is there, but it holds no readable measurement data. "
-                   "That usually means a session ended before the first patch "
-                   "was read, or the file was changed outside ChromIQ.\n\n"
-                   "Starting now writes a new measurement in its place. The "
-                   "file you have is moved to the run's “old” folder and "
-                   "nothing is deleted, so you can always look at it "
-                   "afterwards.\n\n"
-                   "The file is:\n{path}\n\n"
-                   "What each button does:\n\n"
-                   "•  Measure again — starts the measurement now.\n\n"
-                   "•  Cancel — nothing is measured and nothing is written.")
-                .format(path=str(ti3)))
+            # headerless and unreadable states). The approved catalogue has no
+            # message for this, and the partial one would print "0 of the
+            # chart's ? patches have been read" — which reads as a bug rather
+            # than a fact. M-REPLACE-UNCOUNTABLE is flagged PROPOSED and is on
+            # the issue for Knut to approve or reword.
+            return M.M_REPLACE_UNCOUNTABLE.render(path=path)
 
         if a is None:
-            # Readings, but no chart to measure them against — so the fraction
-            # cannot be stated. The advice is unchanged; only the arithmetic is
-            # missing, and inventing a denominator would be a lie.
-            return (
-                tr("This run already holds part of a measurement"),
-                tr("This run already holds part of a measurement\n\n"
-                   "{c} readings have been taken. ChromIQ cannot tell how many "
-                   "patches the chart has, because there is no chart file "
-                   "beside this measurement to count them from.\n\n"
-                   "Starting now without “Refine / resume existing measurement "
-                   "(-r)” replaces those readings. Tick that option in the "
-                   "options panel to keep what you have. The existing "
-                   "measurement is moved to the run's “old” folder either way, "
-                   "so nothing is lost.\n\n"
-                   "The file is:\n{path}\n\n"
-                   "What each button does:\n\n"
-                   "•  Measure again — starts the measurement now, replacing "
-                   "the {c} readings above.\n\n"
-                   "•  Cancel — nothing is measured and nothing is written.")
-                .format(c=c, path=str(ti3)))
+            # Readings, but no chart beside them to state a fraction against.
+            return M.M_REPLACE_NO_CHART.render(c=c, path=path)
 
-        return (
-            tr("This run already holds part of a measurement"),
-            tr("This run already holds part of a measurement\n\n"
-               "{c} of the chart's {a} patches have been read. Starting now "
-               "without “Refine / resume existing measurement (-r)” replaces "
-               "them.\n\n"
-               "Tick that option in the options panel to keep what you have "
-               "and read only the patches that are still missing. The existing "
-               "measurement is moved to the run's “old” folder either way, so "
-               "nothing is lost.\n\n"
-               "The file is:\n{path}\n\n"
-               "What each button does:\n\n"
-               "•  Measure again — starts the measurement now, replacing the "
-               "{c} readings above.\n\n"
-               "•  Cancel — nothing is measured and nothing is written.")
-            .format(c=c, a=a, path=str(ti3)))
+        return M.M_REPLACE_PARTIAL.render(c=c, a=a, path=path)
 
     def _confirm_replacing_measurement(self) -> bool:
         """Ask before a fresh read writes over a measurement that is already there.

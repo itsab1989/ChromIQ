@@ -160,6 +160,14 @@ You are right that this is the same problem from the other end: a `.ti3` describ
 
 **Triggers:** Generate Chart · loading a `.ti1` · applying a patch set from the editor · auto-update · any preset change that regenerates.
 
+**Every one of them asks** (Knut, 2026-08-03, after beta.125 shipped with only two of them wired): *"the warning messages defined for section 4 … should then arrive for all these cases: Generate Chart, loading a .ti1, applying a patch set from the editor, any preset change that regenerates."*
+
+**The auto-update preview is the one exception, and it is an exception about *how often*, not about *whether*.** A window on every turn of a layout knob would make the option unusable, so Knut set the rule:
+
+> *"the popup window saying 'The live preview is not being re-drawn...' should come once only, then again the next time 'auto-update preview ...' is enabled. At the same time it can come in the log window until 'auto-update preview ...' is disabled."*
+
+So the live preview **declines to re-draw** a run that holds work, writes the note to the log every time, and shows the window once per switch-on of the option. See **M-PREVIEW-PAUSED**.
+
 | What the run holds | Run type | Warning |
 |---|---|---|
 | Nothing | either | none — nothing to break |
@@ -476,6 +484,24 @@ Every window this specification can raise, in one place. **ID → where it is us
 > • "a measurement of {c} patches"
 > • "the profile built from it"
 
+### M-CHART-W4 · regenerating the chart of a run that has a verification history — §4 (W4)
+
+*The text is §4's W4 block, unchanged; the ID was assigned when the catalogue was moved into `workflow/measurement_messages.py` so that every window could be checked against it.*
+
+> **This would undo the whole run, not just its chart**
+>
+> Replacing this run's chart breaks the chain three links deep:
+>
+> • the measurement of {c} patches no longer describes the chart in this run;
+> • the profile built from that measurement no longer describes anything on disk;
+> • and the {v} dated verification runs under this run were printed through that profile, so they stop describing a profile that exists.
+>
+> Everything is kept in the run's `old/` folder and nothing is deleted — but the run would no longer hold a set of files that belong together, and its verification history could not be continued.
+>
+> Duplicate the run and change the chart in the copy if you want a different chart while keeping this one's work and its history.
+>
+> The `old/` folder is here: {folder}
+
 ### M-CHART-NOPAGES · the pages cannot be redrawn — §4a rows 3 and 5
 
 > **This chart's printed pages cannot be recreated**
@@ -510,6 +536,56 @@ Every window this specification can raise, in one place. **ID → where it is us
 > • **Cancel** — changes nothing.
 >
 > ☐ Don't show this again for this run
+
+---
+
+## M-PROPOSED. Messages awaiting review
+
+*These three are **PROPOSED**, not approved. They cover cases the reviewed model does not have a message for, and each exists because the alternative was a window that says something false. They are flagged in `workflow/measurement_messages.py` with `approved=False`, and `tests/test_message_catalogue.py` fails if that flag is dropped without the model being updated. Knut to approve, reword or reject.*
+
+### M-REPLACE-UNCOUNTABLE · PROPOSED · a measurement file with nothing readable in it — §3a
+
+*Why: with §5's partial message this case printed "**0 of the chart's ? patches have been read**", which reads as a fault in ChromIQ rather than a fact about the file. It must also not point at Refine / resume, because there is nothing in the file to resume from.*
+
+> **This run already holds a measurement file**
+>
+> ChromIQ cannot tell how many readings it contains — the file is there, but it holds no readable measurement data. That usually means a session ended before the first patch was read, or the file was changed outside ChromIQ.
+>
+> Starting now writes a new measurement in its place. The file you have is moved to the run's "old" folder and nothing is deleted, so you can always look at it afterwards.
+>
+> Refine / resume is not offered for this file, because there is nothing in it to resume from.
+>
+> The measurement file is: {path}
+
+### M-REPLACE-NO-CHART · PROPOSED · readings with no chart to count them against — §5
+
+*Why: §5's partial message states a fraction, and the denominator comes from the chart. With no `.ti2` beside the measurement there is no denominator, and inventing one would be a lie.*
+
+> **This run already holds part of a measurement**
+>
+> {c} readings have been taken. ChromIQ cannot tell how many patches the chart has, because there is no chart file beside this measurement to count them from.
+>
+> Starting now without "Refine / resume existing measurement" replaces those readings. Tick that option to keep what you have. The existing measurement is moved to the run's "old" folder either way, so nothing is lost.
+>
+> The measurement file is: {path}
+
+### M-PREVIEW-PAUSED · PROPOSED · the auto-update preview declines to re-draw — §4
+
+*Why, and Knut's ruling of 2026-08-03: the auto-update preview re-lays out the chart in the run, so it is a §4 trigger — but a window on every turn of a layout knob would be unusable. He accepted the exception and set the rule: "the popup window … should come once only, then again the next time 'auto-update preview …' is enabled. At the same time it can come in the log window until 'auto-update preview …' is disabled."*
+
+> **The live preview is not being re-drawn**
+>
+> This run already holds work made with the chart the preview would replace, so the preview is left as it is rather than re-drawn over it.
+>
+> Press "Generate Chart" when you want the new layout. You will be told exactly what moves to the run's "old" folder first, and nothing is deleted.
+>
+> This window appears once each time you switch "Auto-update preview" on. While it stays on, the same note goes to the log instead, so your layout work is not interrupted.
+
+### M-CHART-PROFILING, extra item · PROPOSED
+
+*The `{items}` list of M-CHART-PROFILING has entries for "a measurement of {c} patches" and "the profile built from it". A run can also hold a measurement file whose readings cannot be counted, where "a measurement of 0 patches" would be false. Proposed third entry:*
+
+> • the measurement file in this run
 
 ### M-DUPLICATE-BLOCKED · Duplicate is recommended but unavailable — §4a, §6
 

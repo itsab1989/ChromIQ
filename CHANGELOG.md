@@ -1,5 +1,53 @@
 # Changelog
 
+## v3.14.8-beta.126
+
+Everything Knut reported against beta.125, and the demo package rebuilt so it
+can actually be used.
+
+- **The demo measurements were not real measurement files.** They had no
+  `SAMPLE_LOC` field, so ChromIQ could not resume any of them: *"chartread:
+  Error - Resumed file … doesn't contain SAMPLE_LOC field"*. Every measurement
+  in the package is now produced by Argyll's own `fakeread` against a real
+  profile, with the sheet positions merged in from the laid-out chart exactly
+  as `chartread` writes them — and a partial measurement is whole strips, which
+  is the only shape a real interrupted read can leave behind.
+
+  The second error in that report — *"Read 34 sets, expected 38 sets"* — came
+  from the hand-edit that added the field name without adding a value to each
+  row: 38 rows of 7 values read as 8 fields is 33 complete sets and a remainder.
+  The build now checks both faults itself and refuses to package a measurement
+  Argyll would reject.
+
+- **Replacing a chart asks on every path that replaces one.** Loading a `.ti1`
+  laid a new chart over a run's work without a word; presets asked, the button
+  asked, that one did not. It does now, for both "replace the run" and "replace
+  only the chart".
+
+- **The live preview says so on screen, once.** It declines to re-draw a run
+  that holds work — but it used to say so only in the log, and only once ever.
+  Now the note goes to the log every time and a window appears once each time
+  you switch "Auto-update preview" on, which is the rule Knut set.
+
+- **Every window now uses the approved text, and that is checked.** The
+  messages had been written in the tabs, in wording close to the reviewed model
+  but not the same as it, with no way to compare the two. The reviewed
+  catalogue now lives in one file, every window renders from it, and a test
+  parses the design document and fails if the two disagree. Three messages the
+  model does not cover yet are marked **PROPOSED** in both places rather than
+  passing for approved.
+
+- **The log panels really do show nine lines.** The change had been made to the
+  Measure tab only; Create Chart and Build Profile still pinned their logs to
+  67 pixels, which is where the six lines Knut kept seeing came from. All five
+  log panels now measure themselves in lines of the font they actually get,
+  after the stylesheet has been applied.
+
+- **The demo guide names the message ID for every step.** Each step says which
+  message from the model it should raise, marked `(PROPOSED)` where that
+  applies, and the build fails if a step promises a window without naming one —
+  or names one that does not exist.
+
 ## v3.14.8-beta.125
 
 The measurement model from issue #130 is now implemented in full. The design is

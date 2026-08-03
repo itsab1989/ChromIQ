@@ -219,7 +219,7 @@ from ui.tabs.tab_chart import TabChart            # noqa: E402
 
 class _Talker:
     """Just enough of the tab to build message text."""
-    _duplicate_advice = TabChart._duplicate_advice
+    _duplicate_blocked_note = TabChart._duplicate_blocked_note
     _pages_paragraph = TabChart._pages_paragraph
     _profiling_chart_message = TabChart._profiling_chart_message
     _verify_chart_message = TabChart._verify_chart_message
@@ -233,28 +233,29 @@ def _profiling_text(run, cost):
 def test_the_message_says_how_many_readings(tmp_path):
     run = _run(tmp_path, ti1=True, ti2=True, recipe=True, tifs=1, readings=3)
     text = _profiling_text(run, assess_profiling_chart(run))
-    assert "measurement of 3 patches" in text
+    assert "a measurement of 3 patches" in text
 
 
-def test_one_reading_reads_as_one_reading(tmp_path):
+def test_the_item_list_carries_the_reading_count(tmp_path):
+    """§M: "{items} lists only what is actually present"."""
     run = _run(tmp_path, ti1=True, ti2=True, recipe=True, tifs=1, readings=1)
     text = _profiling_text(run, assess_profiling_chart(run))
-    assert "the one reading taken so far" in text
+    assert "a measurement of 1 patches" in text
     assert "(s)" not in text
 
 
-def test_a_finished_measurement_says_it_must_be_measured_again(tmp_path):
+def test_a_finished_measurement_is_listed_like_any_other(tmp_path):
     run = _run(tmp_path, ti1=True, ti2=True, recipe=True, tifs=1, readings=9,
                expected=9)
     text = _profiling_text(run, assess_profiling_chart(run))
-    assert "printed and measured again" in text
+    assert "a measurement of 9 patches" in text
 
 
 def test_the_profile_is_named_when_there_is_one(tmp_path):
     run = _run(tmp_path, ti1=True, ti2=True, recipe=True, tifs=1, readings=9,
                profile=True)
     text = _profiling_text(run, assess_profiling_chart(run))
-    assert "printer profile built from that measurement" in text
+    assert "the profile built from it" in text
 
 
 def test_w4_gets_its_own_headline_and_names_the_history(tmp_path):
@@ -263,16 +264,19 @@ def test_w4_gets_its_own_headline_and_names_the_history(tmp_path):
     title, body = _Talker()._profiling_chart_message(
         run, assess_profiling_chart(run))
     assert title == "This would undo the whole run, not just its chart"
-    assert "3 dated verification measurements" in body
-    assert "days that will not come back" in body
+    assert "3 dated verification runs" in body
+    assert "verification history could not be continued" in body
 
 
-def test_w4_says_one_verification_in_the_singular(tmp_path):
+def test_w4_names_the_three_links_of_the_chain(tmp_path):
+    """§M's M-CHART-W4: measurement, profile, verification history."""
     run = _run(tmp_path, ti1=True, ti2=True, recipe=True, tifs=1, readings=9,
                profile=True, verifications=1)
     _t, body = _Talker()._profiling_chart_message(
         run, assess_profiling_chart(run))
-    assert "the one dated verification measurement" in body
+    assert "no longer describes the chart in this run" in body
+    assert "no longer describes anything on disk" in body
+    assert "stop describing a profile that exists" in body
     assert "(s)" not in body
 
 
@@ -282,6 +286,7 @@ def test_pages_that_cannot_be_redrawn_are_called_out(tmp_path):
     assert "no layout recipe" in text
     assert "The 2 page images in this run are the only ones there will be." in text
     assert "keep them — they are the only copy" in text
+    assert "This chart's printed pages cannot be recreated" in text
 
 
 def test_pages_that_can_be_redrawn_are_not_mentioned(tmp_path):
@@ -293,15 +298,16 @@ def test_pages_that_can_be_redrawn_are_not_mentioned(tmp_path):
 def test_duplicate_is_recommended_when_it_would_work(tmp_path):
     run = _run(tmp_path, ti1=True, ti2=True, recipe=True, tifs=1, readings=3)
     text = _profiling_text(run, assess_profiling_chart(run))
-    assert "Duplicate button" in text and "New run" in text
+    assert "Duplicate the run and make the new chart in the copy" in text
+    assert "Duplicate is not available" not in text
 
 
 def test_duplicate_is_explained_away_when_it_would_not(tmp_path):
+    """M-DUPLICATE-BLOCKED, appended to any message that recommends it."""
     run = _run(tmp_path, ti1=True, ti2=True, readings=3)
     text = _profiling_text(run, assess_profiling_chart(run))
-    assert "Duplicating this run is not offered" in text
-    assert "layout recipe (.channels.json)" in text
-    assert "New run" in text, "there is still a way to keep this run's work"
+    assert "Duplicate is not available for this run" in text
+    assert "the layout recipe (.channels.json)" in text
 
 
 def test_every_profiling_message_promises_the_old_folder(tmp_path):
@@ -328,14 +334,14 @@ def test_w5_does_not_call_the_measurements_wrong(tmp_path):
     title, body = _Talker()._verify_chart_message(assess_verification_chart(run))
     assert "already made in this run used the chart" in title
     assert "does not make them wrong" in body
-    assert "2 dated verification measurements" in body
+    assert "The 2 dated verification measurements" in body
 
 
 def test_w5_explains_what_a_trend_across_the_change_costs(tmp_path):
     run = _run(tmp_path, ti1=True, ti2=True, verifications=2)
     _t, body = _Talker()._verify_chart_message(assess_verification_chart(run))
     assert "two different charts" in body
-    assert "no way to tell which" in body, "say what it costs, concretely"
+    assert "not the same measurement made twice" in body
 
 
 def test_w5_says_no_measurement_is_touched(tmp_path):
@@ -345,10 +351,10 @@ def test_w5_says_no_measurement_is_touched(tmp_path):
     assert "“old” folder inside “verifications”" in body
 
 
-def test_w5_in_the_singular(tmp_path):
+def test_w5_points_at_duplicate_as_the_way_to_keep_both(tmp_path):
     run = _run(tmp_path, ti1=True, ti2=True, verifications=1)
     _t, body = _Talker()._verify_chart_message(assess_verification_chart(run))
-    assert "The one dated verification measurement" in body
+    assert "Duplicate the run instead" in body
     assert "(s)" not in body
 
 
@@ -374,24 +380,21 @@ def test_a_new_run_is_still_never_warned_about():
     assert "return True" in src[i:i + 700]
 
 
-def test_the_last_bullet_ends_the_sentence(tmp_path):
-    """A list of one that ends in a semicolon reads like a dropped clause."""
+def test_the_item_list_holds_only_what_is_present(tmp_path):
+    """§M: "{items} lists only what is actually present"."""
     run = _run(tmp_path, ti1=True, ti2=True, recipe=True, tifs=1, readings=3)
     _t, body = _Talker()._profiling_chart_message(
         run, assess_profiling_chart(run))
     bullets = [l for l in body.splitlines() if l.startswith("•")]
-    assert len(bullets) == 1
-    assert bullets[-1].endswith("."), bullets[-1]
+    assert bullets == ["•  a measurement of 3 patches"]
 
-
-def test_the_last_bullet_of_several_also_ends_the_sentence(tmp_path):
-    run = _run(tmp_path, ti1=True, ti2=True, recipe=True, tifs=1, readings=9,
-               profile=True)
+    run2 = _run(tmp_path / "b", ti1=True, ti2=True, recipe=True, tifs=1,
+                readings=9, profile=True)
     _t, body = _Talker()._profiling_chart_message(
-        run, assess_profiling_chart(run))
+        run2, assess_profiling_chart(run2))
     bullets = [l for l in body.splitlines() if l.startswith("•")]
-    assert len(bullets) == 2
-    assert bullets[0].endswith(";") and bullets[-1].endswith(".")
+    assert bullets == ["•  a measurement of 9 patches",
+                       "•  the profile built from it"]
 
 
 # ---- every path that lays out a chart asks first -------------------------
@@ -435,8 +438,32 @@ def test_the_live_preview_declines_rather_than_clobbering(tmp_path):
         "it must return before it re-lays-out anything"
 
 
-def test_the_live_preview_says_why_it_stopped_but_only_once():
+def test_the_live_preview_says_why_it_stopped():
     src = inspect.getsource(TabChart._auto_regenerate_preview)
-    assert "_said_auto_update_paused" in src
-    assert "not being re-drawn" in src
-    assert "Generate Chart" in src, "and where the full choice still lives"
+    assert "_say_preview_is_paused()" in src
+
+
+def test_the_pause_window_comes_once_per_switch_on():
+    """Knut's ruling, beta.125: *"the popup window … should come once only,
+    then again the next time 'auto-update preview ...' is enabled. At the same
+    time it can come in the log window until 'auto-update preview ...' is
+    disabled."*"""
+    src = inspect.getsource(TabChart._say_preview_is_paused)
+    # the log line every time…
+    i_log = src.index("appendPlainText")
+    i_gate = src.index("_said_auto_update_paused")
+    assert i_log < i_gate, "the log line must not be behind the once-only gate"
+    # …the window only once.
+    assert "box.exec()" in src
+    assert "return" in src[i_gate:src.index("box.exec()")]
+
+    # …and switching the option on re-arms it.
+    toggled = inspect.getsource(TabChart._on_auto_preview_toggled)
+    assert "_said_auto_update_paused = False" in toggled
+
+
+def test_the_pause_window_and_the_log_line_say_the_same_thing():
+    """A user comparing the two must not wonder whether they differ."""
+    src = inspect.getsource(TabChart._say_preview_is_paused)
+    assert "_preview_paused_body()" in src
+    assert src.count("_preview_paused_body()") >= 2

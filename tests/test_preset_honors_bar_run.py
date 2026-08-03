@@ -187,6 +187,9 @@ def test_patch_set_replace_archives_what_it_displaces(qapp, tmp_path, monkeypatc
     monkeypatch.setattr(tab, "_ti1_load_destination", lambda _s: "into_replace")
     monkeypatch.setattr(tab._creator, "load_ti1_and_generate_preview",
                         lambda *a, **k: None)
+    # §4, and Knut's beta.125 report: loading a patch set into a run that holds
+    # work now asks first, exactly as Generate Chart does. Answer it.
+    monkeypatch.setattr(tab, "_confirm_displacing_results", lambda: True)
 
     tab._on_load_ti1()
 
@@ -195,6 +198,57 @@ def test_patch_set_replace_archives_what_it_displaces(qapp, tmp_path, monkeypatc
     assert "P.ti3" in archived and "P.icc" in archived and "P.ti2" in archived
     assert not r.measurement_ti3.exists()      # moved, not left behind
     assert not r.profile_icc.exists()
+
+
+def test_a_patch_set_load_asks_before_it_displaces_anything(qapp, tmp_path,
+                                                            monkeypatch):
+    """Knut, beta.125: *"loading a ti1 file from button in Create Chart.
+    Preview updates, but no message comes. Bug again."*"""
+    import ui.tabs.tab_chart as tc
+    tab, fm, ctl = _tab_with_three_runs(tmp_path)
+    ctl.set_profile_run("run1"); ctl.set_run_type(RUN_TYPE_PROFILING)
+    proj = Project.load(tmp_path / "P"); proj.set_current_run("run1")
+    run = proj.run("run1")
+    run.chart_ti2.write_text("OLD-CHART")
+    run.measurement_ti3.write_text("OLD-MEASUREMENT")
+    src = tmp_path / "patchset.ti1"; src.write_text("CTI1\n")
+    monkeypatch.setattr(tc, "open_file_dialog", lambda *a, **k: str(src))
+    monkeypatch.setattr(tab, "_ti1_load_destination", lambda _s: "into_replace")
+    generated = []
+    monkeypatch.setattr(tab._creator, "load_ti1_and_generate_preview",
+                        lambda *a, **k: generated.append(True))
+    asked = []
+    monkeypatch.setattr(tab, "_confirm_displacing_results",
+                        lambda: asked.append(True) or False)   # user cancels
+
+    tab._on_load_ti1()
+
+    assert asked, "the question was not asked at all"
+    assert not generated, "cancelling must not lay out the new chart"
+    r = Project.load(tmp_path / "P").run("run1")
+    assert r.measurement_ti3.read_text() == "OLD-MEASUREMENT"
+    assert not r.old_dir.exists(), "nothing was displaced, so nothing archived"
+
+
+def test_replacing_only_the_chart_asks_too(qapp, tmp_path, monkeypatch):
+    """"Replace only the chart" leaves the measurement in place but changes the
+    patches under it, which is the same loss."""
+    import ui.tabs.tab_chart as tc
+    tab, fm, ctl = _tab_with_three_runs(tmp_path)
+    ctl.set_profile_run("run1"); ctl.set_run_type(RUN_TYPE_PROFILING)
+    proj = Project.load(tmp_path / "P"); proj.set_current_run("run1")
+    proj.run("run1").measurement_ti3.write_text("OLD-MEASUREMENT")
+    src = tmp_path / "patchset.ti1"; src.write_text("CTI1\n")
+    monkeypatch.setattr(tc, "open_file_dialog", lambda *a, **k: str(src))
+    monkeypatch.setattr(tab, "_ti1_load_destination", lambda _s: "into_chart")
+    monkeypatch.setattr(tab._creator, "load_ti1_and_generate_preview",
+                        lambda *a, **k: None)
+    asked = []
+    monkeypatch.setattr(tab, "_confirm_displacing_results",
+                        lambda: asked.append(True) or True)
+
+    tab._on_load_ti1()
+    assert asked
 
 
 def test_patch_set_new_run_leaves_the_selected_run_alone(qapp, tmp_path, monkeypatch):

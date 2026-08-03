@@ -44,55 +44,64 @@ def test_saying_no_stops_the_build():
 
 
 def test_the_message_explains_every_button():
-    src = inspect.getsource(TabProfile._confirm_rebuild_over_verifications)
-    assert "What each button does" in src
+    """The text lives in the reviewed catalogue now, so that is where it is
+    checked; the window is checked for using it (test_message_catalogue.py)."""
+    from workflow.measurement_messages import M_PROFILE_VERIFY
+    body = M_PROFILE_VERIFY.body
+    assert "What each button does" in body
     for button in ("Duplicate the run and build there", "Build here anyway",
                    "Cancel"):
-        assert button in src
+        assert button in body
 
 
 def test_the_message_carries_the_numbers():
     """§6c: "a few verification measurements" is not something a user can weigh."""
-    src = inspect.getsource(TabProfile._confirm_rebuild_over_verifications)
-    assert "{n} dated verification measurements" in src
-    assert "back to {date}" in src
+    from workflow.measurement_messages import M_PROFILE_VERIFY
+    assert "{n} dated verification measurements" in M_PROFILE_VERIFY.body
+    assert "back to {date}" in M_PROFILE_VERIFY.body
 
 
-def test_one_measurement_reads_as_one_measurement():
-    """House rule: real singular and plural, never "measurement(s)"."""
-    src = inspect.getsource(TabProfile._confirm_rebuild_over_verifications)
-    assert "if n == 1:" in src
-    assert "one dated verification measurement, made on" in src
-    assert "(s)" not in src
+def test_no_message_uses_a_bracketed_plural():
+    """The model's approved text is plural-only here — "1 dated verification
+    measurements" is a wording point raised with Knut rather than fixed in the
+    code, because the text is his to approve. What must never appear is the
+    bracketed form."""
+    from workflow.measurement_messages import M_PROFILE_VERIFY
+    assert "(s)" not in M_PROFILE_VERIFY.body
 
 
 def test_the_message_does_not_call_the_old_measurements_wrong():
     """Knut's correction: replacing the profile does not invalidate them; it
     removes the record of which profile they belong to."""
-    src = inspect.getsource(TabProfile._confirm_rebuild_over_verifications)
-    assert "does not make those measurements" in src and "wrong" in src
-    assert "no longer say which" in src and "profile they belong to" in src
+    from workflow.measurement_messages import M_PROFILE_VERIFY
+    body = M_PROFILE_VERIFY.body
+    assert "does not make those measurements wrong" in body
+    assert "no longer say which profile they belong to" in body
 
 
 def test_the_message_promises_nothing_is_deleted():
-    src = inspect.getsource(TabProfile._confirm_rebuild_over_verifications)
-    assert src.count("Nothing is deleted") >= 1
+    from workflow.measurement_messages import M_PROFILE_VERIFY
+    assert "Nothing is deleted" in M_PROFILE_VERIFY.body
 
 
 def test_duplicate_is_not_offered_when_it_cannot_work():
-    """§4a: never recommend a control the user would find greyed out."""
+    """§4a: never recommend a control the user would find greyed out.
+    M-DUPLICATE-BLOCKED is appended to whichever message recommends it."""
+    from workflow.measurement_messages import M_DUPLICATE_BLOCKED
+    assert "Duplicate is not available for this run" in M_DUPLICATE_BLOCKED
+    assert "{missing}" in M_DUPLICATE_BLOCKED, "and say which file is missing"
+
     src = inspect.getsource(TabProfile._confirm_rebuild_over_verifications)
     assert "if w.can_duplicate" in src
-    assert "Why there is no Duplicate button here" in src
-    assert "{missing}" in src, "and say which file is missing"
-    assert "That leaves you two ways forward" in src, \
-        "explaining an absence without a next step leaves the user stuck"
+    assert "M_DUPLICATE_BLOCKED" in src
 
 
 def test_the_silence_checkbox_is_scoped_and_says_so():
-    src = inspect.getsource(TabProfile._confirm_rebuild_over_verifications)
-    assert "Don't show this again for this run" in src
-    assert "until you close ChromIQ" in src, "the scope has to be visible"
+    from workflow.measurement_messages import (M_SILENCE_LABEL,
+                                               M_SILENCE_TOOLTIP)
+    assert M_SILENCE_LABEL == "Don't show this again for this run"
+    assert "until you close ChromIQ" in M_SILENCE_TOOLTIP, \
+        "the scope has to be visible"
 
 
 def test_cancel_never_silences_the_question():

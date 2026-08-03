@@ -433,6 +433,37 @@ class ButtonFontFilter(QObject):
             pass
 
 
+#: How many lines of its own text every log panel in the app shows.
+#: Knut, beta.120: *"only 6 lines of text are visible, but showing 9 is
+#: better."*
+LOG_VISIBLE_LINES = 9
+
+
+def fit_log_height(log, lines: int = LOG_VISIBLE_LINES) -> None:
+    """Size a log panel to exactly *lines* lines of the font it really has.
+
+    A pixel number cannot promise a line count: the log's family and size come
+    from the stylesheet, and a stylesheet reaches a widget only at polish — so a
+    height set in ``__init__`` is measured against the wrong font. The tabs used
+    to hard-code 67 px, which was about six lines and stayed six lines after the
+    fix that was supposed to make it nine (Knut, beta.125: *"The log window at
+    the bottom left still has only space for 6 lines of text"* — he was on
+    Create Chart, and only the Measure tab had been changed).
+
+    Call it once after polish and again on every style change. Never raises:
+    a log that cannot be measured keeps whatever height it has.
+    """
+    try:
+        fm = log.fontMetrics()
+        doc_margin = int(log.document().documentMargin()) * 2
+        frame = log.frameWidth() * 2
+        h = fm.lineSpacing() * lines + doc_margin + frame
+        log.setMinimumHeight(h)
+        log.setMaximumHeight(h)
+    except Exception:      # noqa: BLE001 — sizing must never raise
+        pass
+
+
 def fit_message_box_buttons(box) -> None:
     """Fit **every** button of a QMessageBox to the label it will paint.
 

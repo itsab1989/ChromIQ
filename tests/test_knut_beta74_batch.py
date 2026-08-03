@@ -197,7 +197,7 @@ class _Tab(__import__("PyQt6.QtWidgets", fromlist=["QWidget"]).QWidget):
     _ask_chart_question = TabChart._ask_chart_question
     _profiling_chart_message = TabChart._profiling_chart_message
     _verify_chart_message = TabChart._verify_chart_message
-    _duplicate_advice = TabChart._duplicate_advice
+    _duplicate_blocked_note = TabChart._duplicate_blocked_note
     _pages_paragraph = TabChart._pages_paragraph
 
     def __init__(self, run, verification=False):
@@ -266,8 +266,10 @@ def test_results_in_the_run_do_raise_the_question(qapp, tmp_path, ti3, icc):
     # It names where the files go, and promises nothing is deleted.
     assert "old" in seen["text"]
     assert "deleted" in seen["text"]
-    # …and it offers the non-destructive way out.
-    assert "New run" in seen["text"]
+    # …and it offers the non-destructive way out. The reviewed model (§M,
+    # M-CHART-PROFILING) names Duplicate for this rather than "New run"; both
+    # keep the run's work, and the model's wording is the one that ships.
+    assert "Duplicate the run" in seen["text"]
 
 
 def test_the_wording_counts_one_result_and_two_differently(qapp, tmp_path):
@@ -277,14 +279,15 @@ def test_the_wording_counts_one_result_and_two_differently(qapp, tmp_path):
     what is at risk, so the counting moved into those bullets — one reading
     against several, one verification against several.
     """
-    from ui.tabs.tab_chart import TabChart
-    src = inspect.getsource(TabChart._profiling_chart_message)
-    assert "the one reading taken so far" in src
-    assert "{c} patches taken so far" in src
-    assert "the one dated verification measurement under this" in src
-    assert "{v} dated verification measurements under this" in src
-    assert "(s)" not in src
-    assert "(s)" not in inspect.getsource(TabChart._pages_paragraph)
+    from workflow import measurement_messages as M
+
+    # The item list names the count; the W4 message names the verifications.
+    assert "{c} patches" in M.M_CHART_ITEM_MEASUREMENT
+    assert "{c} patches" in M.M_CHART_W4.body
+    assert "{v} dated verification runs" in M.M_CHART_W4.body
+    for msg in M.CATALOGUE.values():
+        assert "(s)" not in msg.title + msg.body, msg.id
+    assert "(s)" not in M.M_CHART_NOPAGES_SOME + M.M_CHART_NOPAGES_NONE
 
 
 # ---- 4. Start Measurement warns before it replaces readings ---------------
