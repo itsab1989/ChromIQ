@@ -159,14 +159,13 @@ def test_each_tip_travels_with_its_mark(qapp, tmp_path):
     assert bar._duplicate_tip._nudge == (1.0, 0.0)
 
 
-def test_the_bin_is_a_pixel_taller_at_the_bottom(qapp):
-    """#130, Basti 2026-08-03: *"increase the height of the delete icon by 1px
-    adding it to the bottom? so basically stretching it by one px"*.
+def test_the_stretch_mechanism_still_works_though_nothing_uses_it(qapp):
+    """The one-pixel stretch of the bin was tried and reverted (#130, Basti
+    2026-08-03). The mechanism stays, so this checks it still does what it
+    claims: anchored on the ink's TOP, so extra height lands at the BOTTOM.
 
-    Anchored on the ink's TOP, which is what puts the extra height at the
-    bottom — scaling about the box origin instead would have moved the whole
-    mark down as well as stretched it, and the first attempt did exactly that
-    (the top drifted half a pixel and only half the height arrived).
+    That anchor is the whole subtlety — scaling about the box origin makes a
+    mark taller AND lower, which is what the first attempt did.
     """
     import numpy as np
     from PyQt6.QtGui import QImage
@@ -185,9 +184,15 @@ def test_the_bin_is_a_pixel_taller_at_the_bottom(qapp):
         return int(ys.min()), int(ys.max())
 
     t0, b0 = ink(1.0, 0.0)
-    t1, b1 = ink(_DeleteButton.STRETCH_Y, _DeleteButton.INK_TOP)
-    assert t1 == t0, "the top must not move — the pixel goes on the bottom"
+    t1, b1 = ink(21.5 / 20.5, 3.5)
+    assert t1 == t0, "the top must not move — extra height goes on the bottom"
     assert (b1 - t1) - (b0 - t0) == 2, "one device-independent pixel, at 2× dpr"
+
+
+def test_the_bin_is_not_stretched_now():
+    """Reverted at Basti's word."""
+    from ui.bar_icons import _DeleteButton
+    assert _DeleteButton.STRETCH_Y == 1.0
 
 
 def test_no_other_mark_is_stretched():
