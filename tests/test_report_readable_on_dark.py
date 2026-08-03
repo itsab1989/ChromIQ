@@ -97,15 +97,35 @@ def _dialog(qapp, mode, ti3):
     return M.MeasurementReportDialog(s, None, initial_ti3=ti3)
 
 
-@pytest.fixture
-def report_ti3(tmp_path):
-    """A real measurement to render — the demo project's newest verification."""
+@pytest.fixture(scope="session")
+def _report_project(tmp_path_factory):
+    """Build the demo project ONCE for the whole session.
+
+    It shells out to real ArgyllCMS and costs about 35 seconds. Function-scoped,
+    the three tests below paid that three times over — the very waste that was
+    taken out of test_legacy_migration.py earlier the same day, quietly put back
+    in a new file. Session-scoped and copied per test instead.
+    """
     import sys
     from pathlib import Path
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
     from make_demo_projects import build_verify_history
-    build_verify_history(tmp_path)
-    found = sorted((tmp_path / "Demo-Verify-History").rglob("*-verify.ti3"))
+    root = tmp_path_factory.mktemp("report-demo")
+    build_verify_history(root)
+    return root / "Demo-Verify-History"
+
+
+@pytest.fixture
+def report_ti3(_report_project, tmp_path):
+    """This test's own copy of the demo project's newest verification.
+
+    Copied rather than shared: these tests only read, but a shared tree that
+    something later writes to would couple them invisibly.
+    """
+    import shutil
+    dst = tmp_path / _report_project.name
+    shutil.copytree(_report_project, dst)
+    found = sorted(dst.rglob("*-verify.ti3"))
     assert found, "the demo project grew no verification measurements"
     return found[-1]
 
