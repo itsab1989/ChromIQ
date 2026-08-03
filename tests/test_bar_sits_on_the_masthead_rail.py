@@ -95,7 +95,7 @@ def test_duplicate_and_delete_carry_the_values_basti_chose():
     from ui.bar_icons import delete_button, duplicate_run_button
     from ui.styles import SPEC_MAGENTA
     assert duplicate_run_button(SPEC_MAGENTA, "d").NUDGE == (6.0, 1.0)
-    assert delete_button(SPEC_MAGENTA, "x").NUDGE == (4.0, -2.0)
+    assert delete_button(SPEC_MAGENTA, "x").NUDGE == (3.0, -2.0)
 
 
 def test_restore_moves_right_but_not_vertically():
@@ -154,6 +154,6 @@ def test_only_the_delete_tip_is_nudged(qapp, tmp_path):
     s = AppSettings()
     s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
     bar = MeasurementTargetBar(MeasurementTargetController(FileManager(s)))
-    assert bar._delete_tip._nudge == (-1.0, 0.0)
+    assert bar._delete_tip._nudge == (-2.0, 0.0)
     assert bar._restore_tip._nudge == (0.0, 0.0)
     assert bar._duplicate_tip._nudge == (0.0, 0.0)

@@ -371,9 +371,9 @@ class _DuplicateButton(BarIconButton):
 class _DeleteButton(BarIconButton):
     #: Right 3, up 2 (#130, Basti 2026-08-03, in two passes: right 1 / up 2, then
     #: a further right 2). The lid is a solid horizontal stroke across the top,
-    #: which makes the bin read as sitting low. Right 4 after the fourth pass,
-    #: where Basti moved the bin and its ⓘ one pixel left together.
-    NUDGE = (4.0, -2.0)
+    #: which makes the bin read as sitting low. Right 3 after two passes moving
+    #: the bin and its ⓘ left together, a pixel at a time (5 → 4 → 3).
+    NUDGE = (3.0, -2.0)
 
 
 def duplicate_run_button(colour: str, text: str,

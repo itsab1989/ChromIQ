@@ -838,10 +838,10 @@ class MeasurementTargetBar(QWidget):
                                      QSizePolicy.Policy.Preferred)
         column.addWidget(self._location)
 
-        # Delete and its ⓘ move one pixel left together (#130, Basti
-        # 2026-08-03) — the pair travels, so the gap between them is unchanged.
-        # The mark carries its own half of it in _DeleteButton.NUDGE.
-        self._delete_tip.set_nudge(-1.0, 0.0)
+        # Delete and its ⓘ move left together (#130, Basti 2026-08-03, two
+        # passes of one pixel) — the pair travels, so the gap between them is
+        # unchanged. The mark carries its own half in _DeleteButton.NUDGE.
+        self._delete_tip.set_nudge(-2.0, 0.0)
 
         self._ctl.changed.connect(self._sync_from_controller)
         self.refresh()
