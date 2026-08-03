@@ -36,22 +36,37 @@ from core.i18n import tr
 
 @dataclass(frozen=True)
 class Message:
-    """One entry of §M: an ID, a headline, and the body under it."""
+    """One entry of §M: an ID, a headline, and the body under it.
+
+    Where a message states a count it carries **two** bodies. Knut, #130
+    2026-08-03: *"Yes, use house rule with real singular and plural. You do not
+    need to ask about this."* — so "1 dated verification measurements" never
+    reaches the screen, and neither does the bracketed "(s)".
+    """
 
     id: str
     title: str
     body: str
     #: False while the reviewed model does not carry this message yet.
     approved: bool = True
+    #: The body used when :attr:`count_key` is exactly 1.
+    body_one: "str | None" = None
+    #: Which placeholder decides singular from plural.
+    count_key: str = ""
 
     def render(self, **kw) -> "tuple[str, str]":
         """(title, body) with the placeholders filled and nothing left over."""
+        body = self.body
+        if (self.body_one is not None and self.count_key
+                and kw.get(self.count_key) == 1):
+            body = self.body_one
         title = tr(self.title).format(**kw) if "{" in self.title else tr(self.title)
-        return title, tr(self.body).format(**kw)
+        return title, tr(body).format(**kw)
 
 
-def _m(id_: str, title: str, body: str, *, approved: bool = True) -> Message:
-    return Message(id_, title, body, approved)
+def _m(id_: str, title: str, body: str, *, approved: bool = True,
+       body_one: "str | None" = None, count_key: str = "") -> Message:
+    return Message(id_, title, body, approved, body_one, count_key)
 
 
 # ---------------------------------------------------------------------------
@@ -62,6 +77,14 @@ M_REPLACE_PARTIAL = _m(
     "This run already holds part of a measurement",
     "{c} of the chart's {a} patches have been read. Starting now without "
     "“Refine / resume existing measurement” replaces them.\n\n"
+    "Tick that option to keep what you have and read only the patches that are "
+    "still missing. The existing measurement is moved to the run's “old” "
+    "folder either way, so nothing is lost.\n\n"
+    "The measurement file is:\n{path}",
+    count_key="c",
+    body_one=
+    "One of the chart's {a} patches has been read. Starting now without "
+    "“Refine / resume existing measurement” replaces it.\n\n"
     "Tick that option to keep what you have and read only the patches that are "
     "still missing. The existing measurement is moved to the run's “old” "
     "folder either way, so nothing is lost.\n\n"
@@ -84,6 +107,24 @@ M_TI3_MISMATCH = _m(
     "M-TI3-MISMATCH",
     "This run's measurement and its chart do not match",
     "The measurement file holds {c} readings, and the chart ({stem}.ti2) "
+    "describes {a} patches. {extra}\n\n"
+    "ChromIQ cannot tell which of the two is the wrong one. A measurement can "
+    "be cut short by an interrupted session, and a chart can be replaced or "
+    "edited outside ChromIQ — both look the same from here.\n\n"
+    "What each button does:\n\n"
+    "•  Start a fresh measurement — the safe choice if this chart is the one "
+    "you printed. The existing measurement is moved to the run's “old” folder "
+    "and nothing is lost.\n\n"
+    "•  Cancel and look at the files first — the run is at {path}. This run's "
+    "“chart” folder holds the copy of the chart that was stored when it was "
+    "last measured, and “Restore Used Chart” puts that copy back. There is "
+    "exactly one; ChromIQ does not keep earlier versions of a chart.\n\n"
+    "Resuming is not offered here, because resuming into a mismatch would "
+    "write readings against patch positions that may not be the ones on your "
+    "paper.",
+    count_key="c",
+    body_one=
+    "The measurement file holds one reading, and the chart ({stem}.ti2) "
     "describes {a} patches. {extra}\n\n"
     "ChromIQ cannot tell which of the two is the wrong one. A measurement can "
     "be cut short by an interrupted session, and a chart can be replaced or "
@@ -133,7 +174,17 @@ M_REPLACE_NO_CHART = _m(
     "measurement is moved to the run's “old” folder either way, so nothing is "
     "lost.\n\n"
     "The measurement file is:\n{path}",
-    approved=False)
+    approved=False,
+    count_key="c",
+    body_one=
+    "One reading has been taken. ChromIQ cannot tell how many patches the "
+    "chart has, because there is no chart file beside this measurement to "
+    "count it against.\n\n"
+    "Starting now without “Refine / resume existing measurement” replaces that "
+    "reading. Tick that option to keep what you have. The existing "
+    "measurement is moved to the run's “old” folder either way, so nothing is "
+    "lost.\n\n"
+    "The measurement file is:\n{path}")
 
 
 # ---------------------------------------------------------------------------
@@ -153,6 +204,7 @@ M_CHART_PROFILING = _m(
 #: The {items} of M-CHART-PROFILING. §M: *"{items} lists only what is actually
 #: present"*.
 M_CHART_ITEM_MEASUREMENT = "•  a measurement of {c} patches"
+M_CHART_ITEM_MEASUREMENT_ONE = "•  a measurement of one patch"
 M_CHART_ITEM_PROFILE = "•  the profile built from it"
 #: PROPOSED — the model's list has no entry for a measurement whose readings
 #: cannot be counted, and printing "a measurement of 0 patches" would be false.
@@ -168,6 +220,21 @@ M_CHART_W4 = _m(
     "on disk;\n"
     "•  and the {v} dated verification runs under this run were printed "
     "through that profile, so they stop describing a profile that exists.\n\n"
+    "Everything is kept in the run's “old” folder and nothing is deleted — but "
+    "the run would no longer hold a set of files that belong together, and its "
+    "verification history could not be continued.\n\n"
+    "Duplicate the run and change the chart in the copy if you want a "
+    "different chart while keeping this one's work and its history.\n\n"
+    "The “old” folder is here:\n{folder}",
+    count_key="v",
+    body_one=
+    "Replacing this run's chart breaks the chain three links deep:\n\n"
+    "•  the measurement of {c} patches no longer describes the chart in this "
+    "run;\n"
+    "•  the profile built from that measurement no longer describes anything "
+    "on disk;\n"
+    "•  and the one dated verification run under this run was printed "
+    "through that profile, so it stops describing a profile that exists.\n\n"
     "Everything is kept in the run's “old” folder and nothing is deleted — but "
     "the run would no longer hold a set of files that belong together, and its "
     "verification history could not be continued.\n\n"
@@ -189,6 +256,19 @@ M_CHART_VERIFY = _m(
     "The chart is moved to the “old” folder inside “verifications” and no "
     "measurement is touched. Duplicate the run instead if you want a different "
     "verification chart while keeping this run's verification measurements "
+    "intact.",
+    count_key="v",
+    body_one=
+    "The one dated verification measurement in this run was made with this "
+    "verification chart. Replacing it does not make it wrong, and the report "
+    "can still compare its figures — but that measurement would no longer have "
+    "the chart it was made with, so nothing on disk would say what it was "
+    "readings of.\n\n"
+    "A trend across the change also compares two different charts, which is "
+    "not the same measurement made twice.\n\n"
+    "The chart is moved to the “old” folder inside “verifications” and no "
+    "measurement is touched. Duplicate the run instead if you want a different "
+    "verification chart while keeping this run's verification measurements "
     "intact.")
 
 M_CHART_NOPAGES = _m(
@@ -200,6 +280,7 @@ M_CHART_NOPAGES = _m(
     "Everything is moved to the run's “old” folder rather than deleted.")
 
 M_CHART_NOPAGES_SOME = "The {n} page images in this run are the only ones there will be."
+M_CHART_NOPAGES_ONE = "The one page image in this run is the only one there will be."
 M_CHART_NOPAGES_NONE = "This run has no page images to lose."
 
 # --- PROPOSED --------------------------------------------------------------
@@ -242,6 +323,26 @@ M_PROFILE_VERIFY = _m(
     "measurements are moved to the “old” folder inside “verifications” with "
     "it, because they describe the profile being replaced. Nothing is "
     "deleted.\n\n"
+    "•  Cancel — changes nothing.{blocked}",
+    count_key="n",
+    body_one=
+    "This run holds one dated verification measurement, made on {date}. It "
+    "was printed through the profile in this run and measured against it, so "
+    "it records how that profile behaved on that day.\n\n"
+    "Building a new profile here does not make that measurement wrong, and it "
+    "deletes nothing — but it will no longer say which profile it belongs to, "
+    "and comparing it with verification measurements made afterwards means "
+    "comparing against two different profiles.\n\n"
+    "What each button does:\n\n"
+    "•  Duplicate the run and build there (recommended) — copies this run's "
+    "chart, measurement and profile into a new run and builds there. This run "
+    "keeps its profile and its verification measurement exactly as they are, "
+    "and the copy starts fresh. This is the clean way to try a different "
+    "profile from the same readings.\n\n"
+    "•  Build here anyway — replaces this run's profile. The current profile "
+    "is moved to the run's “old” folder, and the dated verification "
+    "measurement is moved to the “old” folder inside “verifications” with it, "
+    "because it describes the profile being replaced. Nothing is deleted.\n\n"
     "•  Cancel — changes nothing.{blocked}")
 
 #: The checkbox on M-PROFILE-VERIFY (§6d) and its tooltip. In the catalogue
@@ -266,6 +367,16 @@ CATALOGUE = {m.id: m for m in (
     M_CHART_PROFILING, M_CHART_W4, M_CHART_VERIFY, M_CHART_NOPAGES,
     M_PREVIEW_PAUSED, M_PROFILE_VERIFY,
 )}
+
+#: Paragraphs appended to another message rather than shown on their own.
+#: They have an ID in the model and are quoted in the demo guide, so they are
+#: listed here too — a lookup that missed them would call a real ID unknown.
+FRAGMENTS = {
+    "M-DUPLICATE-BLOCKED": M_DUPLICATE_BLOCKED,
+}
+
+#: Every ID the model defines, message or fragment.
+ALL_IDS = tuple(sorted(set(CATALOGUE) | set(FRAGMENTS)))
 
 #: The IDs the reviewed model has not approved yet — listed on the issue.
 PROPOSED = tuple(sorted(m.id for m in CATALOGUE.values() if not m.approved))

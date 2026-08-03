@@ -56,7 +56,51 @@ def extract_keys() -> set[str]:
                 keys.add(arg.value)
             elif isinstance(arg, ast.Name) and arg.id in consts:
                 keys.add(consts[arg.id])
+    keys |= _message_catalogue_keys()
     return keys
+
+
+def _message_catalogue_keys() -> set[str]:
+    """Every text in ``workflow/measurement_messages.py``.
+
+    That module holds the reviewed §M catalogue and hands its strings to
+    ``tr()`` as ``tr(self.body)`` — an attribute, not a literal, so the walk
+    above cannot see any of them. Without this the whole catalogue silently
+    dropped out of the translations: 4009 keys became 3966, and every window in
+    the Measurement Management model would have shown English in every
+    language. Read the values from the module itself rather than trying to
+    pattern-match the source, so a new message cannot be missed.
+    """
+    sys.path.insert(0, str(ROOT))
+    try:
+        from workflow.measurement_messages import (CATALOGUE, FRAGMENTS,
+                                                   M_CHART_ITEM_MEASUREMENT,
+                                                   M_CHART_ITEM_MEASUREMENT_ONE,
+                                                   M_CHART_ITEM_MEASUREMENT_UNCOUNTABLE,
+                                                   M_CHART_ITEM_PROFILE,
+                                                   M_CHART_NOPAGES_NONE,
+                                                   M_CHART_NOPAGES_ONE,
+                                                   M_CHART_NOPAGES_SOME,
+                                                   M_SILENCE_LABEL,
+                                                   M_SILENCE_TOOLTIP,
+                                                   M_TI3_MISMATCH_EXTRA)
+    except Exception as exc:      # noqa: BLE001 — never break the extractor
+        print(f"# WARNING: message catalogue not readable: {exc}",
+              file=sys.stderr)
+        return set()
+
+    out: set[str] = set()
+    for msg in CATALOGUE.values():
+        out.add(msg.title)
+        out.add(msg.body)
+        if msg.body_one:
+            out.add(msg.body_one)
+    out |= set(FRAGMENTS.values())
+    out |= {M_CHART_ITEM_MEASUREMENT, M_CHART_ITEM_MEASUREMENT_ONE,
+            M_CHART_ITEM_MEASUREMENT_UNCOUNTABLE, M_CHART_ITEM_PROFILE,
+            M_CHART_NOPAGES_NONE, M_CHART_NOPAGES_ONE, M_CHART_NOPAGES_SOME,
+            M_SILENCE_LABEL, M_SILENCE_TOOLTIP, M_TI3_MISMATCH_EXTRA}
+    return out
 
 
 def load_catalog(code: str) -> dict[str, str]:

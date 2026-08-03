@@ -1,5 +1,7 @@
 # Unified Measurement Management — Design Specification
 
+> **Revision 2026-08-04 — what to review.** Four messages are marked **PROPOSED** and await approval. They appear in three places: the condition tables of **§3a** and **§4** (which say exactly when each one arises), the map in **§M-x**, and **§M-PROPOSED**, which carries the complete text of each. Everything marked 🆕 in this document is part of that set. Singular and plural are now real throughout, per Knut's ruling of 2026-08-03.
+
 > **Status:** specification, agreed on [issue #130](https://github.com/itsab1989/ChromIQ/issues/130).
 > Written by the ChromIQ assistant, reviewed and directed by Knut (soul-traveller)
 > and Sebastian, 2026-08-02/03.
@@ -126,15 +128,20 @@ Proposed, and it makes §3 possible:
 
 ### 3a. Every state a `.ti3` can be in
 
-| State | B | C | Reading | Action |
-|---|---|---|---|---|
-| No `.ti3` at all | — | — | nothing measured yet | normal for a fresh run; C₀ = 0 |
-| Header only, **no `BEGIN_DATA`/`END_DATA`** | any | — | **no measurements** — treat as empty | delete, restore the archived copy, say so |
-| Empty (`C = 0`) | 0 | 0 | nothing was saved | delete, restore, say so |
-| `B ≠ C` | ✓ | ✓ | **corrupt or truncated** | never offer for resume; keep the file, restore the archived copy, explain |
-| Partial (`0 < C < A`) | ✓ | ✓ | expected after a partial session | offer resume, name the count |
-| Complete (`C = A`) | ✓ | ✓ | fully measured | §6 warning before re-measuring |
-| `C > A` | ✓ | ✓ | **does not belong to this chart** | refuse, explain |
+| State | B | C | Reading | Action | Message when Start Measurement is pressed |
+|---|---|---|---|---|---|
+| No `.ti3` at all | — | — | nothing measured yet | normal for a fresh run; C₀ = 0 | none |
+| Header only, **no `BEGIN_DATA`/`END_DATA`** | any | — | **no measurements** — treat as empty | delete, restore the archived copy, say so | **M-REPLACE-UNCOUNTABLE** 🆕 |
+| Empty (`C = 0`) | 0 | 0 | nothing was saved | delete, restore, say so | **M-REPLACE-UNCOUNTABLE** 🆕 |
+| `B ≠ C` | ✓ | ✓ | **corrupt or truncated** | never offer for resume; keep the file, restore the archived copy, explain | **M-TI3-MISMATCH** (with its `{extra}` sentence) |
+| Partial (`0 < C < A`) | ✓ | ✓ | expected after a partial session | offer resume, name the count | **M-REPLACE-PARTIAL** |
+| Partial, **and no `.ti2` beside it** | ✓ | ✓ | readings with nothing to count them against | offer resume; state the count without a fraction | **M-REPLACE-NO-CHART** 🆕 |
+| Complete (`C = A`) | ✓ | ✓ | fully measured | §6 warning before re-measuring | **M-REPLACE-COMPLETE** |
+| `C > A` | ✓ | ✓ | **does not belong to this chart** | refuse, explain | **M-TI3-MISMATCH** |
+
+🆕 = **PROPOSED**, awaiting review. Full text in **§M-PROPOSED** below.
+
+**Why the two proposed rows exist.** The first three rows of this table all describe a file with nothing readable in it, and the model gave them no message of their own — so they fell through to M-REPLACE-PARTIAL, which states a fraction and produced **"0 of the chart's ? patches have been read"**. That reads as a fault in ChromIQ rather than a fact about the file, and it points at Refine / resume, which cannot work when there is nothing to resume from. The "no `.ti2` beside it" row is the same problem from the other side: the fraction's denominator comes from the chart, and with no chart there is no denominator to state.
 
 ### 3b. Judging the session by C₀ → C
 
@@ -168,15 +175,23 @@ You are right that this is the same problem from the other end: a `.ti3` describ
 
 So the live preview **declines to re-draw** a run that holds work, writes the note to the log every time, and shows the window once per switch-on of the option. See **M-PREVIEW-PAUSED**.
 
-| What the run holds | Run type | Warning |
-|---|---|---|
-| Nothing | either | none — nothing to break |
-| Chart only | either | none |
-| Chart + partial `.ti3` | Profiling | "This run holds a partial measurement of {n} patches. A new chart cannot be measured with it — the patches would no longer match. The measurement is moved to `old/` and kept." |
-| Chart + complete `.ti3` | Profiling | as above, plus: "…and you would have to measure the whole chart again." |
-| Chart + `.ti3` + profile | Profiling | as above, plus: "The profile built from it is moved to `old/` too, because it describes a chart this run will no longer have." |
-| **Chart + `.ti3` + profile, AND the run has verifications with readings** | **Profiling** | **W4 — the widest blast radius of the three; see below** |
-| Chart + `.ti3` (+ profile) | Verification | **W5** — the same shape as W4, one level down |
+| What the run holds | Run type | Warning | Message |
+|---|---|---|---|
+| Nothing | either | none — nothing to break | none |
+| Chart only | either | none | none |
+| Chart + partial `.ti3` | Profiling | "This run holds a partial measurement of {n} patches. A new chart cannot be measured with it — the patches would no longer match. The measurement is moved to `old/` and kept." | **M-CHART-PROFILING** |
+| Chart + complete `.ti3` | Profiling | as above, plus: "…and you would have to measure the whole chart again." | **M-CHART-PROFILING** |
+| Chart + `.ti3` + profile | Profiling | as above, plus: "The profile built from it is moved to `old/` too, because it describes a chart this run will no longer have." | **M-CHART-PROFILING** |
+| **Chart + `.ti3` + profile, AND the run has verifications with readings** | **Profiling** | **W4 — the widest blast radius of the three; see below** | **M-CHART-W4** |
+| Chart + `.ti3` (+ profile) | Verification | **W5** — the same shape as W4, one level down | **M-CHART-VERIFY** |
+| Chart + a `.ti3` whose readings **cannot be counted** | Profiling | the same warning; the item list cannot state a number | **M-CHART-PROFILING** with the proposed extra item 🆕 |
+| Any of the above, **and the trigger is the auto-update preview** | either | the preview declines to re-draw instead of asking | **M-PREVIEW-PAUSED** 🆕 |
+| Any of the above, **and the chart has no `.channels.json`** | either | the §4 message, **plus** a paragraph about the pages | **M-CHART-NOPAGES**, appended |
+| Any of the above, **and the run cannot be duplicated** | either | the §4 message, **plus** a paragraph about Duplicate | **M-DUPLICATE-BLOCKED**, appended |
+
+🆕 = **PROPOSED**, awaiting review. Full text in **§M-PROPOSED** below.
+
+**Messages combine.** A single window can be one base message with one or two paragraphs appended: M-CHART-PROFILING is the window, and M-CHART-NOPAGES and M-DUPLICATE-BLOCKED are paragraphs added to it when they apply. Nothing else in this specification stacks; these two do, because both describe the *same* replacement from a different angle.
 
 **W4 — regenerating the profiling chart of a run that has a verification history**
 
@@ -615,6 +630,15 @@ Every window this specification can raise, in one place. **ID → where it is us
 | §6e Rebuilding | rows 5, 6 | **M-PROFILE-VERIFY** |
 | §6e | rows 1–4, 7 | none |
 | any recommending Duplicate while it is unavailable | — | **M-DUPLICATE-BLOCKED** appended |
+| §3a header-only, empty | Start Measurement | **M-REPLACE-UNCOUNTABLE** 🆕 |
+| §3a partial with no `.ti2` beside it | Start Measurement | **M-REPLACE-NO-CHART** 🆕 |
+| §4, trigger = auto-update preview | — | **M-PREVIEW-PAUSED** 🆕 |
+| §4, chart with no `.channels.json` | — | **M-CHART-NOPAGES** appended |
+| §4, run with a verification history | Profiling | **M-CHART-W4** |
+
+🆕 = **PROPOSED**, awaiting review — see **§M-PROPOSED**.
+
+**Singular and plural.** Every message that states a count carries two bodies, and the one that reads correctly is chosen — "one dated verification measurement" against "4 dated verification measurements". Knut, 2026-08-03: *"Yes, use house rule with real singular and plural. You do not need to ask about this."* The bracketed "(s)" appears nowhere, and a test fails on it.
 
 
 ## S. Sequences — what happens, in what order, for every entry condition

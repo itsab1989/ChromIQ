@@ -185,3 +185,39 @@ def test_qt_fallback_translates_norwegian_buttons(qapp):
         if i18n._qt_translator is not None:
             qapp.removeTranslator(i18n._qt_translator)
             i18n._qt_translator = None
+
+
+# ---- the message catalogue is translatable at all ------------------------
+def test_the_message_catalogue_reaches_the_translations():
+    """The §M catalogue hands its strings to ``tr()`` as ``tr(self.body)`` —
+    an attribute, not a literal — so the extractor cannot find them by walking
+    the source. It reads them from the module instead.
+
+    Without that the whole catalogue silently dropped out: 4009 keys became
+    3966, and every window in the Measurement Management model would have shown
+    English in every language while every test stayed green.
+    """
+    import sys
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from i18n_extract import extract_keys
+
+    from workflow.measurement_messages import CATALOGUE
+
+    keys = extract_keys()
+    for mid, msg in sorted(CATALOGUE.items()):
+        assert msg.title in keys, f"{mid}: headline is not translatable"
+        assert msg.body in keys, f"{mid}: body is not translatable"
+        if msg.body_one:
+            assert msg.body_one in keys, f"{mid}: singular body is not translatable"
+
+
+def test_the_catalogue_is_actually_translated_into_german():
+    from core.i18n import tr, set_language
+    from workflow.measurement_messages import CATALOGUE
+
+    set_language("de")
+    try:
+        for mid, msg in sorted(CATALOGUE.items()):
+            assert tr(msg.title) != msg.title, f"{mid}: headline still English"
+    finally:
+        set_language("en")

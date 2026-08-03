@@ -1,5 +1,30 @@
 # Changelog
 
+## v3.14.8-beta.127
+
+- **Real singular and plural, everywhere in the measurement messages.** Knut's
+  ruling: every message that states a count now carries two forms, and the one
+  that reads correctly is shown — "one dated verification measurement" against
+  "4 dated verification measurements", "a measurement of one patch" against "a
+  measurement of 224 patches", "The one page image in this run is the only one
+  there will be." The bracketed "(s)" appears nowhere, and a test fails on it.
+
+- **The measurement messages were about to ship untranslated.** Moving them
+  into one catalogue in beta.126 also moved them out of reach of the string
+  extractor, which finds text by looking for `tr("…")` in the source — and the
+  catalogue hands its strings over as `tr(self.body)`. The key count had
+  quietly fallen from 4009 to 3966, so every one of those windows would have
+  been English in all twelve languages while every test stayed green. The
+  extractor now reads the catalogue from the module itself, all 36 texts are
+  translated into German, and two tests make sure a new message cannot slip
+  out of the translations again.
+
+- **The demo guide distinguishes a window from a paragraph inside it.** A
+  single window can be one message with one or two paragraphs appended — for
+  instance the chart warning with the "pages cannot be redrawn" paragraph
+  inside it. The guide marks appended paragraphs as such, and the walk through
+  six runs is now one step per run, so each row names exactly one window.
+
 ## v3.14.8-beta.126
 
 Everything Knut reported against beta.125, and the demo package rebuilt so it

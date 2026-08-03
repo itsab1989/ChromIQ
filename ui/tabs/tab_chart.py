@@ -8850,8 +8850,12 @@ class TabChart(QWidget):
 
         if cost.can_redraw_pages:
             return ""
-        pages = (tr(M.M_CHART_NOPAGES_SOME).format(n=cost.pages) if cost.pages
-                 else tr(M.M_CHART_NOPAGES_NONE))
+        if not cost.pages:
+            pages = tr(M.M_CHART_NOPAGES_NONE)
+        elif cost.pages == 1:
+            pages = tr(M.M_CHART_NOPAGES_ONE)
+        else:
+            pages = tr(M.M_CHART_NOPAGES_SOME).format(n=cost.pages)
         _title, body = M.M_CHART_NOPAGES.render(pages=pages)
         return "\n\n" + tr(M.M_CHART_NOPAGES.title) + "\n" + body
 
@@ -8879,7 +8883,9 @@ class TabChart(QWidget):
                 c=cost.readings, v=cost.verifications, folder=str(run.old_dir))
         else:
             items = []
-            if cost.readings:
+            if cost.readings == 1:
+                items.append(tr(M.M_CHART_ITEM_MEASUREMENT_ONE))
+            elif cost.readings:
                 items.append(tr(M.M_CHART_ITEM_MEASUREMENT).format(
                     c=cost.readings))
             elif cost.has_measurement:

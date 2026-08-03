@@ -337,7 +337,9 @@ def build_partial(root: Path) -> None:
              "profile built from it, **plus** a paragraph saying the pages "
              "cannot be drawn again (this chart came from printtarg, so it has "
              "no layout recipe), **plus** an explanation that Duplicate is not "
-             "available and which file is missing. Press Cancel. [[M-CHART-PROFILING]]",
+             "available and which file is missing. Press Cancel. "
+             "[[M-CHART-PROFILING]] [[M-CHART-NOPAGES]] "
+             "[[M-DUPLICATE-BLOCKED]]",
              "Look at the Profile-run bar: the **Duplicate** button is greyed "
              "out, exactly as the message said."])
 def build_complete(root: Path) -> None:
@@ -530,11 +532,22 @@ def build_nothing_to_lose(root: Path) -> None:
              "complete measurement. run 4 — measurement and profile. run 5 — "
              "measurement, profile and two verifications. run 6 — a printtarg "
              "chart with no layout recipe.",
-             "Step through runs 1 to 6 pressing **Generate Chart** in each, "
-             "cancelling every time. *Expected:* silence, then the partial "
-             "wording, the finished wording, the profile added, the W4 "
-             "wording, and finally the “pages cannot be redrawn” paragraph. "
-             "[[M-CHART-PROFILING]] [[M-CHART-W4]] [[M-CHART-NOPAGES]]",
+             "**run 1** — press **Generate Chart**. *Expected: no window* — "
+             "nothing has been measured here.",
+             "**run 2** — press Generate Chart. *Expected:* the chart warning, "
+             "listing a measurement. Press Cancel. [[M-CHART-PROFILING]]",
+             "**run 3** — press Generate Chart. *Expected:* the same window "
+             "with the full patch count. Press Cancel. [[M-CHART-PROFILING]]",
+             "**run 4** — press Generate Chart. *Expected:* the same window, "
+             "now listing the profile as well. Press Cancel. "
+             "[[M-CHART-PROFILING]]",
+             "**run 5** — press Generate Chart. *Expected:* the W4 window "
+             "instead, because this run has a verification history. Press "
+             "Cancel. [[M-CHART-W4]]",
+             "**run 6** — press Generate Chart. *Expected:* the chart warning "
+             "**plus** the paragraph about pages that cannot be redrawn, "
+             "because this chart came from printtarg. Press Cancel. "
+             "[[M-CHART-PROFILING]] [[M-CHART-NOPAGES]]",
              "In run 5, silence the Build Profile question with the checkbox, "
              "then switch to a different run and press Build Profile there. "
              "*Expected:* it asks again — the silence is remembered for one "
@@ -684,6 +697,15 @@ def _document(cases, dest: Path) -> str:
         out.append(f"| `{c['name']}` | {c['layout']} | {c['covers'][0]} |")
     run_n, verify_n = _real_counts(dest, "Demo-06-Verification-History")
     out += ["",
+            "**How to read the “Message expected” column.** A window can be "
+            "one message with a paragraph or two appended to it — for example "
+            "`M-CHART-PROFILING` is the window, and `M-CHART-NOPAGES` is a "
+            "paragraph added inside it when the chart has no layout recipe. "
+            "The first ID in a cell is the window; anything marked "
+            "*(appended)* is a paragraph within that same window, not a "
+            "second window. IDs marked *(PROPOSED)* are awaiting review and "
+            "are listed in §M-PROPOSED of the model.",
+            "",
             "Verification charts are deliberately **smaller** than the run "
             f"charts they sit under ({verify_n} patches against {run_n} in "
             "`Demo-06-Verification-History`), so the two are never confused on "
@@ -722,10 +744,19 @@ def _document(cases, dest: Path) -> str:
             ids = re.findall(r"\[\[(M-[A-Z0-9-]+)\]\]", text)
             text = re.sub(r"\s*\[\[M-[A-Z0-9-]+\]\]", "", text)
             if ids:
-                cell = " ".join(
-                    f"`{m}`" + (" *(PROPOSED)*"
-                                if not _catalogue()[m].approved else "")
-                    for m in ids if m in _catalogue())
+                # Knut, 2026-08-04: *"You say 'The window you saw is
+                # M-CHART-PROFILING'. however, the test description document
+                # … said the test case is M-CHART-NOPAGES. Which one is it?"*
+                # Both, and the guide has to say so: the first ID is the
+                # window, the rest are paragraphs appended to it.
+                parts = []
+                for j, m in enumerate(ids):
+                    if m not in _catalogue():
+                        continue
+                    mark = " *(PROPOSED)*" if not _catalogue()[m].approved else ""
+                    role = "" if j == 0 else " *(appended)*"
+                    parts.append(f"`{m}`{mark}{role}")
+                cell = "<br>".join(parts)
             else:
                 cell = "*none — silence is the expected result*"
             out.append(f"| {i} | {text} | {cell} |")
@@ -748,11 +779,20 @@ def _document(cases, dest: Path) -> str:
 
 
 def _catalogue():
-    """The approved message catalogue, so the guide quotes the model rather
-    than a copy of it — Knut: *"make sure the test guide document […] contains
-    exactly which message code/name is expected from the model."*"""
-    from workflow.measurement_messages import CATALOGUE
-    return CATALOGUE
+    """Every ID the model defines — messages and the paragraphs that attach to
+    them — so the guide quotes the model rather than a copy of it. Knut:
+    *"make sure the test guide document […] contains exactly which message
+    code/name is expected from the model."*"""
+    from workflow.measurement_messages import CATALOGUE, FRAGMENTS
+
+    out = dict(CATALOGUE)
+    for mid, text in FRAGMENTS.items():
+        # A fragment has no headline of its own; the guide shows its ID and
+        # marks it as appended, so the first line stands in for a title.
+        out[mid] = type("_Fragment", (), {
+            "title": text.strip().split(".")[0].lstrip(),
+            "approved": True, "id": mid})()
+    return out
 
 
 def _app_version() -> str:

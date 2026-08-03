@@ -236,12 +236,12 @@ def test_the_message_says_how_many_readings(tmp_path):
     assert "a measurement of 3 patches" in text
 
 
-def test_the_item_list_carries_the_reading_count(tmp_path):
-    """§M: "{items} lists only what is actually present"."""
+def test_one_patch_reads_as_one_patch(tmp_path):
+    """Knut, 2026-08-03: *"use house rule with real singular and plural."*"""
     run = _run(tmp_path, ti1=True, ti2=True, recipe=True, tifs=1, readings=1)
     text = _profiling_text(run, assess_profiling_chart(run))
-    assert "a measurement of 1 patches" in text
-    assert "(s)" not in text
+    assert "a measurement of one patch" in text
+    assert "1 patches" not in text and "(s)" not in text
 
 
 def test_a_finished_measurement_is_listed_like_any_other(tmp_path):
@@ -269,15 +269,33 @@ def test_w4_gets_its_own_headline_and_names_the_history(tmp_path):
 
 
 def test_w4_names_the_three_links_of_the_chain(tmp_path):
-    """§M's M-CHART-W4: measurement, profile, verification history."""
+    """§M's M-CHART-W4: measurement, profile, verification history — and one
+    verification reads as one, not as "1 dated verification runs"."""
     run = _run(tmp_path, ti1=True, ti2=True, recipe=True, tifs=1, readings=9,
                profile=True, verifications=1)
     _t, body = _Talker()._profiling_chart_message(
         run, assess_profiling_chart(run))
     assert "no longer describes the chart in this run" in body
     assert "no longer describes anything on disk" in body
-    assert "stop describing a profile that exists" in body
+    assert "the one dated verification run under this run was printed" in body
+    assert "it stops describing a profile that exists" in body
     assert "(s)" not in body
+
+
+def test_w4_in_the_plural(tmp_path):
+    run = _run(tmp_path, ti1=True, ti2=True, recipe=True, tifs=1, readings=9,
+               profile=True, verifications=3)
+    _t, body = _Talker()._profiling_chart_message(
+        run, assess_profiling_chart(run))
+    assert "the 3 dated verification runs" in body
+    assert "they stop describing a profile that exists" in body
+
+
+def test_one_page_image_reads_as_one(tmp_path):
+    run = _run(tmp_path, ti1=True, ti2=True, tifs=1, readings=3)
+    text = _profiling_text(run, assess_profiling_chart(run))
+    assert "The one page image in this run is the only one there will be." in text
+    assert "1 page images" not in text
 
 
 def test_pages_that_cannot_be_redrawn_are_called_out(tmp_path):
