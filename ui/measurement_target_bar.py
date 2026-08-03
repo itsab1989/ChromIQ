@@ -649,6 +649,14 @@ class MeasurementTargetBar(QWidget):
         # "The icons REPLACE the previous buttons totally… so that clicking the
         # icon functions as a button"), the same kind of widget as Create
         # Chart's "load profile" icon, at the height the text button had.
+        # The three action pairs move right as a GROUP by this much (#130,
+        # Basti 2026-08-03). Done as real spacing rather than another pixel of
+        # glyph offset: the duplicate mark had reached the edge of its canvas,
+        # so one more drawn pixel would have clipped it — and a whole-group
+        # shift is a layout move by nature. Nothing before this point is
+        # touched; only the cluster and the hint after it travel.
+        row.addSpacing(self.CLUSTER_SHIFT)
+
         from ui.bar_icons import restore_chart_button
         self._restore_btn = restore_chart_button(
             self._accent, tr("Restore Used Chart"), self)
@@ -864,6 +872,12 @@ class MeasurementTargetBar(QWidget):
             return
         self._locked = locked
         self._sync_from_controller()
+
+    #: How far right the three action pairs sit as a group, in pixels. Grown a
+    #: pixel at a time by eye (#130, Basti 2026-08-03). Kept apart from the
+    #: per-mark NUDGE values in ui/bar_icons.py, which set the marks' positions
+    #: RELATIVE to one another; this moves all of them together.
+    CLUSTER_SHIFT = 1
 
     _LOCK_NOTE = None       # built lazily so tr() runs after the language loads
 

@@ -193,3 +193,22 @@ def test_the_bin_is_a_pixel_taller_at_the_bottom(qapp):
 def test_no_other_mark_is_stretched():
     from ui.bar_icons import BarIconButton
     assert BarIconButton.STRETCH_Y == 1.0
+
+
+def test_the_cluster_shift_is_layout_not_another_drawn_pixel(qapp):
+    """#130, Basti 2026-08-03: another pixel right for all six.
+
+    The duplicate mark had reached the edge of its canvas — one more DRAWN
+    pixel would have clipped it, which is the fault he had already caught twice.
+    A whole-group move is a layout move by nature, so it is real spacing: no
+    canvas, no edge, nothing to lose. The per-mark NUDGE values keep doing what
+    they are for — the marks' positions relative to one another.
+    """
+    import inspect
+    from ui.measurement_target_bar import MeasurementTargetBar
+    assert MeasurementTargetBar.CLUSTER_SHIFT >= 1
+    src = inspect.getsource(MeasurementTargetBar.__init__)
+    assert "row.addSpacing(self.CLUSTER_SHIFT)" in src
+    i = src.index("row.addSpacing(self.CLUSTER_SHIFT)")
+    assert "restore_chart_button" in src[i:i + 400], \
+        "the spacing must sit immediately before the first of the three pairs"
