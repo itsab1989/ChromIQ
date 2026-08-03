@@ -254,6 +254,8 @@ class MeasureManager(QObject):
         #: offers the strip menu — and the completion window came up before the
         #: user had re-read anything (Knut, #131 2026-07-27).
         self._read_something: bool = False
+        #: How many patches this session has read — see readings_this_session.
+        self._readings_count: int = 0
         self._spot_mode: bool = False
         #: whether every strip already held a reading when the session opened.
         self._chart_was_complete: bool = False
@@ -303,6 +305,7 @@ class MeasureManager(QObject):
         cwd  = params.ti1_path.parent
         self._is_resume      = params.resume
         self._read_something = False
+        self._readings_count = 0
         #: patch-by-patch (spot) reading, which answers keys differently — see
         #: :meth:`skip_current_strip`.
         self._spot_mode      = bool(params.patch_by_patch)
@@ -729,6 +732,16 @@ class MeasureManager(QObject):
         return self._save_partial_state is not None
 
     @property
+    def readings_this_session(self) -> int:
+        """How many patches this session has read.
+
+        Counted here rather than inferred from the file, because the file does
+        not exist yet — chartread holds its readings until it exits (§0). The
+        ending window needs the number to say what is at stake.
+        """
+        return int(getattr(self, "_readings_count", 0) or 0)
+
+    @property
     def has_unsaved_readings(self) -> bool:
         """True when patches have been read that chartread has not written yet.
 
@@ -847,6 +860,7 @@ class MeasureManager(QObject):
         elif kind == "strip_read":
             self._engine_progress = True
             self._read_something = True
+            self._readings_count += int(ev.get("patches") or 1)
             self.strip_measured.emit(ev)
             on_line(f" Strip read OK — {ev.get('strip', '?')} "
                     f"(worst patch ΔE {ev.get('worst_de', 0):.1f})")
@@ -881,6 +895,7 @@ class MeasureManager(QObject):
         elif kind == "patch_read":
             self._engine_progress = True
             self._read_something = True
+            self._readings_count += 1
             self.patch_measured.emit(ev)
 
         elif kind == "mode_fallback":
@@ -1045,6 +1060,7 @@ class MeasureManager(QObject):
             # Something was read in this session — which is what tells a resume
             # that a later "all stripes read" is real news.
             self._read_something = True
+            self._readings_count += 1
             if self._guided_state == "waiting":
                 self._advance_guided_strip(on_line)
         if (_ALL_DONE_RE.search(line)

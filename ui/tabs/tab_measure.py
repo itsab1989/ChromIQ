@@ -4755,65 +4755,101 @@ class TabMeasure(QWidget):
             self._settings.set("measure_hide_nonrandom_bidir_warning", True)
         return proceed
 
-    def _on_stop(self) -> None:
-        """Stop the measurement — offering to keep what has been read.
+    #: What ended the session, for the one window that asks about it (§S2).
+    END_STOP = "stop"
+    END_DONE_KEY = "done"
+    END_ABORT_KEY = "abort"
+    END_FAILURE_WINDOW = "failure"
 
-        Knut, #130 2026-08-01, twice in one session: he read a strip, pressed
-        Stop, and *"the measurement session is ended without any measurement and
-        the ti3 file is gone"*; then the same patch by patch — *"no ti3 file is
-        saved, even though I did read one patch"*. And the question that names
-        the fault exactly: *"Why do I not get this warning message when pressing
-        Stop button or exiting during measurement failure?"*
+    def _confirm_end_of_session(self, how: str = END_STOP) -> "str | None":
+        """M-END / M-END-EMPTY — the one window every ending route goes through.
 
-        The cause is not a bug in Stop so much as what Stop was: chartread keeps
-        its readings in memory and writes the ``.ti3`` only when it exits
-        cleanly, so killing the process discards them. Pressing 'd' asks "are
-        you sure" and saves; pressing Stop simply threw the work away without a
-        word.
+        Specification §1, §1a and §2 (docs/design/unified_measurement_management.md).
+        Stop, the 'd' key, Esc/'q' and every failure window that can end a
+        session all arrive here, so there is no longer a safe way and an unsafe
+        way to stop measuring — which is what Knut asked for after finding that
+        Stop threw readings away while 'd' saved them.
 
-        So Stop now asks, and only when there is something to lose.
+        Returns ``"save"``, ``"discard"`` or ``None`` for "carry on". The caller
+        performs the action; this only asks.
         """
-        self._key_watchdog.stop()
-        if not self._manager.has_unsaved_readings:
-            self._manager.abort()
-            return
         from PyQt6.QtWidgets import QMessageBox
+        from ui.widgets import fit_message_box_buttons
+
+        if not self._manager.has_unsaved_readings:
+            # M-END-EMPTY. Nothing to lose, so nothing to ask — but say so,
+            # because silence after pressing Stop is what has to be interpreted.
+            self._log.appendPlainText(
+                "\n" + tr("Nothing was measured, so nothing was saved."))
+            self._log.ensureCursorVisible()
+            return "discard"
+
         self._cue_window("STRIP_FAIL")
+        n = self._manager.readings_this_session
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.NoIcon)
         title = tr("Keep what you have measured so far?")
         box.setWindowTitle(title)
+        had = self._readings_before_session()
+        kept = ("" if not had else "\n\n" + tr(
+            "Your previous measurement of {m} patches is put back exactly as "
+            "it was.").format(m=had))
         box.setText(title + "\n\n" + tr(
-            "You have read patches in this session that have not been saved "
-            "yet. Your measuring instrument holds them until the measurement "
-            "finishes, so stopping now would throw them away.\n\n"
+            "You have read {n} patches in this session. They are not in your "
+            "measurement file yet — ChromIQ can write them now, or end the "
+            "session without them.\n\n"
             "What each button does:\n\n"
             "•  Save and stop — writes what you have read so far to this run's "
             "measurement file and ends the session. You can carry on later "
             "with “Refine / resume existing measurement”, reading only the "
             "strips or patches that are still missing.\n\n"
-            "•  Discard and stop — ends the session and keeps nothing from it. "
-            "Any measurement that was already in this run before you started "
-            "is untouched.\n\n"
+            "•  Discard and stop — ends the session and keeps nothing from "
+            "it.{kept}\n\n"
             "•  Keep measuring — closes this window and carries on where you "
-            "were."))
+            "were.").format(n=n, kept=kept))
         save = box.addButton(tr("Save and stop"),
                              QMessageBox.ButtonRole.AcceptRole)
         discard = box.addButton(tr("Discard and stop"),
                                 QMessageBox.ButtonRole.DestructiveRole)
         box.addButton(tr("Keep measuring"), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(save)
-        from ui.widgets import fit_message_box_buttons
         fit_message_box_buttons(box)
         box.exec()
         clicked = box.clickedButton()
         if clicked is save:
-            # The same two-'q' protocol the Save Partial button uses — it is
-            # what makes chartread write the file and exit (#130, 2026-07-30).
+            return "save"
+        if clicked is discard:
+            return "discard"
+        return None
+
+    def _readings_before_session(self) -> int:
+        """C₀ — how many readings the run held when this session began."""
+        sess = getattr(self, "_session_guard", None)
+        return int(getattr(sess, "before", 0) or 0)
+
+    def _end_session(self, choice: "str | None") -> None:
+        """Carry out what :meth:`_confirm_end_of_session` returned."""
+        if choice == "save":
             self._manager.send_save_partial_and_quit()
-        elif clicked is discard:
+        elif choice == "discard":
             self._manager.abort()
-        # "Keep measuring" leaves the session exactly as it was.
+        # None → the user is carrying on; nothing changes.
+
+    def _on_stop(self) -> None:
+        """Stop the measurement — through the one ending window (§S2.4/S2.5).
+
+        Knut, #130 2026-08-01, twice in one session: he read a strip, pressed
+        Stop, and *"the measurement session is ended without any measurement and
+        the ti3 file is gone"*; then the same patch by patch — *"no ti3 file is
+        saved, even though I did read one patch"*.
+
+        The cause was never Stop itself: chartread keeps its readings in memory
+        and writes the ``.ti3`` only when it exits cleanly, so killing the
+        process discards them. Pressing 'd' asked and saved; pressing Stop threw
+        the work away without a word. Both now ask the same question.
+        """
+        self._key_watchdog.stop()
+        self._end_session(self._confirm_end_of_session(self.END_STOP))
 
     def _arm_key_watchdog(self) -> None:
         """Start the no-response watchdog after sending a keystroke from a dialog.
@@ -5167,6 +5203,18 @@ class TabMeasure(QWidget):
         self._cue_window("STRIP_FAIL")
         QApplication.instance().removeEventFilter(self)
 
+        # §S2.6: the 'd' key ends a session exactly as Stop does, so it asks the
+        # same question. Knut: *"These two ways of stopping should have same
+        # window. I prefer warning message 'Keep what you have measured so far?'
+        # for both cases."* The patch it used to name in its title is in the
+        # body of that window instead.
+        choice = self._confirm_end_of_session(self.END_DONE_KEY)
+        if choice is not None:
+            self._end_session(choice)
+            return "y" if choice == "save" else "n"
+        return "n"
+
+    def _legacy_patches_still_unread(self, patch_info: str) -> str:
         dlg = QDialog(self)
         dlg.setWindowTitle(tr("Patches Still Unread"))
         dlg.setMinimumWidth(500)

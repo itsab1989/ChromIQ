@@ -90,9 +90,12 @@ def test_stop_only_offers_to_save_when_there_is_something_to_save():
     """Why the regex mattered so much: this is the gate it feeds."""
     import inspect
     from ui.tabs.tab_measure import TabMeasure
-    src = inspect.getsource(TabMeasure._on_stop)
+    # The gate lives in the shared ending window now — every route reaches
+    # it (spec §S2), so the check moved with it rather than being duplicated.
+    src = inspect.getsource(TabMeasure._confirm_end_of_session)
     assert "if not self._manager.has_unsaved_readings:" in src
-    assert "self._manager.abort()" in src, "…and abort() is a kill, which loses them"
+    act = inspect.getsource(TabMeasure._end_session)
+    assert "self._manager.abort()" in act, "…and abort() is a kill, which loses them"
 
 
 # ---- fault 2: a zero exit code that means failure ------------------------

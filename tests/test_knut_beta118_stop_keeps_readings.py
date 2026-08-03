@@ -152,7 +152,7 @@ def test_keep_measuring_changes_nothing(qapp, monkeypatch, tmp_path):
 # ---- the words --------------------------------------------------------
 def test_the_window_says_what_each_button_does():
     src = inspect.getsource(
-        __import__("ui.tabs.tab_measure", fromlist=["x"]).TabMeasure._on_stop)
+        __import__("ui.tabs.tab_measure", fromlist=["x"]).TabMeasure._confirm_end_of_session)
     assert "Save and stop" in src
     assert "Discard and stop" in src
     assert "Keep measuring" in src
@@ -165,5 +165,5 @@ def test_the_window_says_what_each_button_does():
 def test_saving_is_the_default_button():
     """The safe choice is the one that keeps the work."""
     src = inspect.getsource(
-        __import__("ui.tabs.tab_measure", fromlist=["x"]).TabMeasure._on_stop)
+        __import__("ui.tabs.tab_measure", fromlist=["x"]).TabMeasure._confirm_end_of_session)
     assert "setDefaultButton(save)" in src
