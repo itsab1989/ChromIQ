@@ -383,7 +383,7 @@ def test_the_replace_warning_explains_its_buttons():
     from workflow import measurement_messages as M
 
     for msg in (M.M_REPLACE_PARTIAL, M.M_REPLACE_COMPLETE, M.M_TI3_MISMATCH,
-                M.M_REPLACE_UNCOUNTABLE, M.M_REPLACE_NO_CHART):
+                M.M_REPLACE_UNCOUNTABLE):
         body = msg.body
         assert "Starting" in body or "What each button does" in body, msg.id
         assert "old" in body, f"{msg.id} must say where the existing file goes"

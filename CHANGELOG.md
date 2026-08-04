@@ -1,5 +1,35 @@
 # Changelog
 
+## v3.14.8-beta.128
+
+- **Start Measurement was offered when there was no chart to measure.** Knut
+  asked whether a read can even begin without a `.ti2`, expecting the answer to
+  be no. Measured: the button *was* available. The Measure tab is loaded from
+  the `.ti1` when a project is opened, and that alone enabled it — so pressing
+  Start ran chartread against a chart file that was not there. Start now needs
+  the `.ti2`, and the greyed button's tooltip says what is missing and where to
+  make it.
+
+- **A corrupt or empty measurement file is described as one.** Replacing a
+  chart in a run whose `.ti3` cannot be read used to list "the measurement file
+  in this run" among the things that stop matching. It now says the file is
+  corrupt or empty, tells you it goes to the "old" folder rather than being
+  deleted, and asks you to look at it there first — ChromIQ cannot tell whether
+  it holds anything worth keeping. When the run also has a profile, the message
+  explains that the profile moves with it and that nothing on disk then
+  connects the profile to the chart it came from.
+
+- **Real singular and plural now reach every count**, including the page
+  images, the item list and the verification runs.
+
+- **The demo package covers every message and every sequence, or says why
+  not.** Two generated tables: one listing each message in the model against
+  the steps that raise it, one listing each of §S's 35 sequences against the
+  project that drives it — 22 of them — with the reason spelled out for the
+  rest, which need an instrument or a reading in progress. The build fails if a
+  message is never exercised, if a sequence is neither driven nor excused, or
+  if a step promises a window without naming which.
+
 ## v3.14.8-beta.127
 
 - **Real singular and plural, everywhere in the measurement messages.** Knut's

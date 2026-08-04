@@ -160,33 +160,16 @@ M_REPLACE_UNCOUNTABLE = _m(
     "look at it afterwards.\n\n"
     "Refine / resume is not offered for this file, because there is nothing in "
     "it to resume from.\n\n"
-    "The measurement file is:\n{path}",
-    approved=False)
+    "The measurement file is:\n{path}")      # approved by Knut, 2026-08-04
 
-M_REPLACE_NO_CHART = _m(
-    "M-REPLACE-NO-CHART",
-    "This run already holds part of a measurement",
-    "{c} readings have been taken. ChromIQ cannot tell how many patches the "
-    "chart has, because there is no chart file beside this measurement to "
-    "count them from.\n\n"
-    "Starting now without “Refine / resume existing measurement” replaces "
-    "those readings. Tick that option to keep what you have. The existing "
-    "measurement is moved to the run's “old” folder either way, so nothing is "
-    "lost.\n\n"
-    "The measurement file is:\n{path}",
-    approved=False,
-    count_key="c",
-    body_one=
-    "One reading has been taken. ChromIQ cannot tell how many patches the "
-    "chart has, because there is no chart file beside this measurement to "
-    "count it against.\n\n"
-    "Starting now without “Refine / resume existing measurement” replaces that "
-    "reading. Tick that option to keep what you have. The existing "
-    "measurement is moved to the run's “old” folder either way, so nothing is "
-    "lost.\n\n"
-    "The measurement file is:\n{path}")
-
-
+#: **Removed 2026-08-04.** There was a proposed M-REPLACE-NO-CHART for
+#: "readings, but no chart beside them to count against". Knut asked whether
+#: that condition can arise at all — *"Can a chart read at all be initiated if
+#: a ti2 file does not exist? I thought it could not."* Measured: Start
+#: Measurement **was** offered without a `.ti2`, because the Measure tab can be
+#: loaded from the `.ti1`. That was a bug, not a case needing a message, and it
+#: is fixed in `TabMeasure.set_ti1_path`. With Start unavailable the condition
+#: cannot occur, so the message is gone rather than unused.
 # ---------------------------------------------------------------------------
 # §4 — chart integrity
 # ---------------------------------------------------------------------------
@@ -206,9 +189,37 @@ M_CHART_PROFILING = _m(
 M_CHART_ITEM_MEASUREMENT = "•  a measurement of {c} patches"
 M_CHART_ITEM_MEASUREMENT_ONE = "•  a measurement of one patch"
 M_CHART_ITEM_PROFILE = "•  the profile built from it"
-#: PROPOSED — the model's list has no entry for a measurement whose readings
-#: cannot be counted, and printing "a measurement of 0 patches" would be false.
-M_CHART_ITEM_MEASUREMENT_UNCOUNTABLE = "•  the measurement file in this run"
+#: PROPOSED — the model's list has no entry for a measurement file with
+#: nothing readable in it. Knut, 2026-08-04: *"If the {c}-value is equal to
+#: zero … then why not just say the ti3 file is corrupt or empty."* Quite so.
+M_CHART_ITEM_MEASUREMENT_UNCOUNTABLE = (
+    "•  a measurement file that is corrupt or empty")
+
+# --- PROPOSED: the corrupt-or-empty measurement, and what it costs ---------
+M_CHART_CORRUPT = _m(
+    "M-CHART-CORRUPT",
+    "The measurement file in this run cannot be read",
+    "It has no readable measurement data in it — no readings, or a structure "
+    "ChromIQ cannot make sense of. That can happen when a session ended before "
+    "the first patch was read, or when the file was changed outside "
+    "ChromIQ.\n\n"
+    "It is moved to the run's “old” folder rather than deleted. **Look at it "
+    "there before you measure again** — ChromIQ cannot tell whether it holds "
+    "anything you would want to keep, and only you can judge that.",
+    approved=False)
+
+#: Appended to M-CHART-CORRUPT when the run also holds a profile. Knut,
+#: 2026-08-04: *"the connection between chart and profile built is broken and
+#: new measurements may be only way to rebuild the continuity of information."*
+M_CHART_CORRUPT_WITH_PROFILE = (
+    "\n\nThe profile in this run moves to the “old” folder with it. That "
+    "profile was built from a measurement, and the measurement file that "
+    "should describe it can no longer be read — so nothing on disk now "
+    "connects the profile to the chart it came from. ChromIQ cannot tell "
+    "whether the file was always like this or became so later, and it cannot "
+    "repair it. Measuring the chart again is the way to get a run whose chart, "
+    "measurement and profile describe each other once more.")
+
 
 M_CHART_W4 = _m(
     "M-CHART-W4",
@@ -294,8 +305,7 @@ M_PREVIEW_PAUSED = _m(
     "deleted.\n\n"
     "This window appears once each time you switch “Auto-update preview” on. "
     "While it stays on, the same note goes to the log instead, so your layout "
-    "work is not interrupted.",
-    approved=False)
+    "work is not interrupted.")      # approved by Knut, 2026-08-04
 
 
 # ---------------------------------------------------------------------------
@@ -363,8 +373,9 @@ M_DUPLICATE_BLOCKED = (
 # ---------------------------------------------------------------------------
 CATALOGUE = {m.id: m for m in (
     M_REPLACE_PARTIAL, M_REPLACE_COMPLETE, M_TI3_MISMATCH,
-    M_REPLACE_UNCOUNTABLE, M_REPLACE_NO_CHART,
+    M_REPLACE_UNCOUNTABLE,
     M_CHART_PROFILING, M_CHART_W4, M_CHART_VERIFY, M_CHART_NOPAGES,
+    M_CHART_CORRUPT,
     M_PREVIEW_PAUSED, M_PROFILE_VERIFY,
 )}
 

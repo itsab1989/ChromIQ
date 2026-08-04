@@ -95,11 +95,7 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 def test_nothing_is_quietly_proposed():
     """The proposed set is small and deliberate — if it grows, it is because
     someone added a message rather than getting one approved."""
-    assert set(M.PROPOSED) == {
-        "M-CHART-NOPAGES" if False else "M-PREVIEW-PAUSED",
-        "M-REPLACE-NO-CHART",
-        "M-REPLACE-UNCOUNTABLE",
-    }, M.PROPOSED
+    assert set(M.PROPOSED) == {"M-CHART-CORRUPT"}, M.PROPOSED
 
 
 # ---- 2. the windows render from the catalogue ----------------------------
@@ -163,12 +159,12 @@ def test_no_message_reaches_the_screen_with_a_placeholder_left():
         M.M_REPLACE_COMPLETE.render(a=224, path="/x/y.ti3"),
         M.M_TI3_MISMATCH.render(c=9, a=224, extra="", stem="y", path="/x"),
         M.M_REPLACE_UNCOUNTABLE.render(path="/x/y.ti3"),
-        M.M_REPLACE_NO_CHART.render(c=60, path="/x/y.ti3"),
         M.M_CHART_PROFILING.render(items="•  a measurement of 3 patches",
                                    folder="/x/old"),
         M.M_CHART_W4.render(c=224, v=4, folder="/x/old"),
         M.M_CHART_VERIFY.render(v=4),
         M.M_CHART_NOPAGES.render(pages="…"),
+        M.M_CHART_CORRUPT.render(),
         M.M_PREVIEW_PAUSED.render(),
         M.M_PROFILE_VERIFY.render(n=4, date="2026-03-14", blocked=""),
     ]

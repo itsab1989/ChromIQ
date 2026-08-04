@@ -143,6 +143,35 @@ def test_a_measurement_is_protected_even_where_the_chart_is_incomplete(tmp_path)
         assert cost.readings == 3
 
 
+def test_a_corrupt_measurement_is_named_as_corrupt(tmp_path):
+    """Knut, 2026-08-04: *"If the {c}-value is equal to zero … then why not
+    just say the ti3 file is corrupt or empty."*"""
+    run = _run(tmp_path, ti1=True, ti2=True, recipe=True, tifs=1)
+    run.measurement_ti3.write_text("not a CGATS file at all")
+    text = _profiling_text(run, assess_profiling_chart(run))
+    assert "a measurement file that is corrupt or empty" in text
+    assert "The measurement file in this run cannot be read" in text
+    assert "Look at it there before you measure again" in text
+    assert "a measurement of 0 patches" not in text
+
+
+def test_a_corrupt_measurement_with_a_profile_says_what_it_costs(tmp_path):
+    """His point: the profile moves too, and nothing on disk then connects it
+    to the chart it came from."""
+    run = _run(tmp_path, ti1=True, ti2=True, recipe=True, tifs=1, profile=True)
+    run.measurement_ti3.write_text("not a CGATS file at all")
+    text = _profiling_text(run, assess_profiling_chart(run))
+    assert "The profile in this run moves to the “old” folder with it" in text
+    assert "nothing on disk now connects the profile to the chart" in text
+    assert "Measuring the chart again is the way" in text
+
+
+def test_a_readable_measurement_gets_no_corruption_note(tmp_path):
+    run = _run(tmp_path, ti1=True, ti2=True, recipe=True, tifs=1, readings=9)
+    text = _profiling_text(run, assess_profiling_chart(run))
+    assert "corrupt or empty" not in text
+
+
 def test_a_measurement_file_that_cannot_be_read_still_warns(tmp_path):
     """§3a's empty and unreadable states. The file is there, the archive would
     move it, so the user hears about it — with no invented number."""
@@ -220,6 +249,7 @@ from ui.tabs.tab_chart import TabChart            # noqa: E402
 class _Talker:
     """Just enough of the tab to build message text."""
     _duplicate_blocked_note = TabChart._duplicate_blocked_note
+    _corrupt_measurement_note = TabChart._corrupt_measurement_note
     _pages_paragraph = TabChart._pages_paragraph
     _profiling_chart_message = TabChart._profiling_chart_message
     _verify_chart_message = TabChart._verify_chart_message

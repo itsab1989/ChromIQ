@@ -105,9 +105,10 @@ ALL_MESSAGES = [
     (Ti3State.PARTIAL, {"held": 5, "expected": 9}),
     (Ti3State.COMPLETE, {"held": 9, "expected": 9}),
     (Ti3State.MISMATCHED, {"held": 5, "expected": 9}),
-    # A measurement with readings but no chart to count patches from…
+    # A chart whose patch count cannot be read (defensive — Start is blocked
+    # without a .ti2 since beta.128).
     (Ti3State.PARTIAL, {"held": 5, "expected": None}),
-    # …and one with nothing readable in it at all.
+    # …and a measurement with nothing readable in it at all.
     (Ti3State.EMPTY, {"held": 0, "expected": 9}),
 ]
 
@@ -136,8 +137,12 @@ def test_no_placeholder_reaches_the_screen(state, kw):
 
 
 def test_an_unknown_patch_count_does_not_print_none():
+    """Defensive path: since beta.128 Start Measurement needs a `.ti2`, so a
+    missing patch count means a chart file that cannot be parsed. It must never
+    print a fraction with a missing denominator."""
     _t, body = _msg(Ti3State.PARTIAL, held=5, expected=None)
-    assert "None" not in body
+    assert "None" not in body and "{a}" not in body
+    assert "cannot tell how many readings" in body
 
 
 # ---- how it reaches the screen ------------------------------------------

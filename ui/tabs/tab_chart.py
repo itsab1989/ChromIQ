@@ -8859,6 +8859,24 @@ class TabChart(QWidget):
         _title, body = M.M_CHART_NOPAGES.render(pages=pages)
         return "\n\n" + tr(M.M_CHART_NOPAGES.title) + "\n" + body
 
+    def _corrupt_measurement_note(self, cost) -> str:
+        """M-CHART-CORRUPT — §4, when the run's measurement cannot be read.
+
+        Knut, 2026-08-04: a corrupt or empty `.ti3` is not "a measurement of 0
+        patches"; it is a file the user should look at before it is archived,
+        and — when a profile is there too — the moment the chain from chart to
+        profile stops being describable on disk.
+        """
+        from workflow import measurement_messages as M
+
+        if not (cost.has_measurement and cost.readings == 0):
+            return ""
+        _title, body = M.M_CHART_CORRUPT.render()
+        note = "\n\n" + tr(M.M_CHART_CORRUPT.title) + "\n" + body
+        if cost.has_profile:
+            note += tr(M.M_CHART_CORRUPT_WITH_PROFILE)
+        return note
+
     def _duplicate_blocked_note(self, cost) -> str:
         """M-DUPLICATE-BLOCKED — appended to any message recommending Duplicate
         when this run cannot be duplicated (§4a, §6)."""
@@ -8897,8 +8915,8 @@ class TabChart(QWidget):
                 items.append(tr(M.M_CHART_ITEM_PROFILE))
             title, body = M.M_CHART_PROFILING.render(
                 items="\n".join(items), folder=str(run.old_dir))
-        return title, body + self._pages_paragraph(cost) \
-            + self._duplicate_blocked_note(cost)
+        return title, body + self._corrupt_measurement_note(cost) \
+            + self._pages_paragraph(cost) + self._duplicate_blocked_note(cost)
 
     def _verify_chart_message(self, cost) -> "tuple[str, str]":
         """M-CHART-VERIFY — §4's W5."""

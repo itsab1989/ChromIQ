@@ -198,6 +198,7 @@ class _Tab(__import__("PyQt6.QtWidgets", fromlist=["QWidget"]).QWidget):
     _profiling_chart_message = TabChart._profiling_chart_message
     _verify_chart_message = TabChart._verify_chart_message
     _duplicate_blocked_note = TabChart._duplicate_blocked_note
+    _corrupt_measurement_note = TabChart._corrupt_measurement_note
     _pages_paragraph = TabChart._pages_paragraph
 
     def __init__(self, run, verification=False):

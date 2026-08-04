@@ -278,7 +278,11 @@ def case(**kw):
              "Press **Generate Chart**. *Expected: no warning at all* — nothing "
              "has been measured, so a new chart costs only a reprint.",
              "Go to Build Profile. *Expected: no warning* — there is no profile "
-             "to replace and no verification history."])
+             "to replace and no verification history.",
+             "Set Run type = **Verification** and press **Start Measurement** "
+             "in the Measure tab. *Expected:* the guard explaining that a "
+             "verification checks a finished profile and this run has none "
+             "— sequence S1.2. Nothing is written. [[GUARD]]"])
 def build_chart_only(root: Path) -> None:
     name = "Demo-01-Chart-Only"
     p = root / name
@@ -341,7 +345,14 @@ def build_partial(root: Path) -> None:
              "[[M-CHART-PROFILING]] [[M-CHART-NOPAGES]] "
              "[[M-DUPLICATE-BLOCKED]]",
              "Look at the Profile-run bar: the **Duplicate** button is greyed "
-             "out, exactly as the message said."])
+             "out, exactly as the message said.",
+             "Set Run type = **Verification** and press Start Measurement. "
+             "*Expected:* the guard's second form — this run has a profile but "
+             "no verification chart yet — sequence S1.3. [[GUARD]]",
+             "In Build Profile, use its own **Load** button to open this run's "
+             ".ti3 directly. *Expected: no window* — pressing Build Profile "
+             "asks nothing, because the target is a file rather than a run "
+             "(sequence S5.1)."])
 def build_complete(root: Path) -> None:
     name = "Demo-03-Complete-And-Profiled"
     p = root / name
@@ -390,44 +401,60 @@ def build_mismatched(root: Path) -> None:
 
 
 @case(name="Demo-05-Unreadable-Measurements",
-      messages=['M-REPLACE-UNCOUNTABLE', 'M-REPLACE-NO-CHART', 'M-CHART-PROFILING'],
+      messages=["M-REPLACE-UNCOUNTABLE", "M-CHART-CORRUPT",
+                "M-CHART-PROFILING"],
       layout="ChromIQ layout engine",
-      covers=["§3a empty / header-only — a measurement file with nothing in it",
-              "§5 a measurement with readings but no chart to count against"],
+      covers=["§3a header-only / empty — a measurement file with nothing in it",
+              "§4 — a corrupt or empty measurement when a chart is replaced",
+              "§4 — the same, with a profile in the run as well",
+              "S1.1 — no chart to measure: Start is not offered at all"],
       steps=["Set Profile run = **run 1** (a .ti3 that holds no readable "
              "data) and press **Start Measurement**. *Expected:* “This run "
              "already holds a measurement file”, saying ChromIQ cannot tell "
              "how many readings it contains and naming the file. It must "
              "**not** suggest Refine / resume — there is nothing to resume "
              "from. Press Cancel. [[M-REPLACE-UNCOUNTABLE]]",
-             "Switch to **run 2** (readings, but the chart file has been "
-             "removed) and press Start Measurement. *Expected:* “This run "
-             "already holds part of a measurement” saying **{c2} readings have "
-             "been taken** and that ChromIQ cannot tell how many patches the "
-             "chart has. Never “{c2} of ? patches”. [[M-REPLACE-NO-CHART]]",
-             "In run 2, press **Generate Chart**. *Expected:* the chart "
-             "warning still appears, and its item list names the measurement "
-             "file — the measurement is protected even though the chart files "
-             "are incomplete. [[M-CHART-PROFILING]]"])
+             "Still in run 1, go to Create Chart and press **Generate "
+             "Chart**. *Expected:* the chart warning, whose item list says "
+             "**a measurement file that is corrupt or empty** rather than "
+             "inventing a patch count, followed by a paragraph telling you to "
+             "look at the file in the “old” folder before measuring again. "
+             "Press Cancel. [[M-CHART-PROFILING]] [[M-CHART-CORRUPT]]",
+             "Switch to **run 2** — the same corrupt file, but this run also "
+             "has a profile. Press Generate Chart. *Expected:* the same "
+             "window, **plus** the paragraph explaining that the profile moves "
+             "to the “old” folder too and that nothing on disk then connects "
+             "it to the chart it came from. Press Cancel. "
+             "[[M-CHART-PROFILING]] [[M-CHART-CORRUPT]]",
+             "Switch to **run 3**, which has a patch list but no laid-out "
+             "chart. *Expected:* **Start Measurement is greyed out**, and its "
+             "tooltip says there is no laid-out chart to measure and where to "
+             "make one — *no window*, because the condition is prevented "
+             "rather than reported. Before beta.128 the button was available "
+             "here and pressing it failed inside chartread."])
 def build_unreadable(root: Path) -> None:
     name = "Demo-05-Unreadable-Measurements"
     p = root / name
-    _write_manifest(p, name, ["run1", "run2"], "run1", 3)
-
+    _write_manifest(p, name, ["run1", "run2", "run3"], "run1", 3)
     seed = _seed_profile(root / ".seed")
 
-    r1 = p / "runs" / "run1"
-    _chart_files(r1, name, patches=RUN_PATCHES, rows=RUN_ROWS)
-    # A real file with its data block removed: what a session that died before
-    # the first patch leaves behind.
-    _break_measurement(_measure(r1, name, seed_icc=seed), "no_data")
-    _meta(r1, "run1")
+    for rid, profile in (("run1", False), ("run2", True)):
+        r = p / "runs" / rid
+        _chart_files(r, name, patches=RUN_PATCHES, rows=RUN_ROWS)
+        ti3 = _measure(r, name, seed_icc=seed)
+        if profile:
+            _build_icc(r, name)
+        # A real file with its data block removed: what a session that died
+        # before the first patch leaves behind.
+        _break_measurement(ti3, "no_data")
+        _meta(r, rid)
 
-    r2 = p / "runs" / "run2"
-    _chart_files(r2, name, patches=RUN_PATCHES, rows=RUN_ROWS)
-    _measure(r2, name, seed_icc=seed, strips=4)
-    _strip(r2 / f"{name}.ti2")             # readings with nothing to count against
-    _meta(r2, "run2")
+    # …and a run that cannot be measured at all, because it has no `.ti2`.
+    r3 = p / "runs" / "run3"
+    _chart_files(r3, name, patches=RUN_PATCHES, rows=RUN_ROWS)
+    for suffix in (".ti2", ".channels.json"):
+        _strip(r3 / f"{name}{suffix}")
+    _meta(r3, "run3")
 
 
 @case(name="Demo-06-Verification-History",
@@ -548,6 +575,12 @@ def build_nothing_to_lose(root: Path) -> None:
              "**plus** the paragraph about pages that cannot be redrawn, "
              "because this chart came from printtarg. Press Cancel. "
              "[[M-CHART-PROFILING]] [[M-CHART-NOPAGES]]",
+             "In **run 2**, turn on **Auto-update preview** in Create Chart "
+             "and change a layout setting. *Expected:* a window saying the "
+             "live preview is not being re-drawn, **once**; change more "
+             "settings and only the log repeats it. Switch the option off and "
+             "on again and the window returns once more. "
+             "[[M-PREVIEW-PAUSED]]",
              "In run 5, silence the Build Profile question with the checkbox, "
              "then switch to a different run and press Build Profile there. "
              "*Expected:* it asks again — the silence is remembered for one "
@@ -596,6 +629,71 @@ def build_many_runs(root: Path) -> None:
     _chart_files_printtarg(r, name, patches=RUN_PATCHES)
     _measure(r, name, seed_icc=_seed_profile(root / ".seed"))
     _meta(r, "run6")
+
+
+# ---------------------------------------------------------------------------
+# sequence coverage — §S, row by row
+# ---------------------------------------------------------------------------
+SPEC_DOC = ROOT / "docs" / "design" / "unified_measurement_management.md"
+
+#: Which demo project drives each §S sequence, or why it cannot be driven.
+#: Knut, 2026-08-04: *"make sure the demo project package is updated to detect
+#: every occurrence of messages, as well as every sequence for every condition
+#: … (unless detection is impossible to replicate … but then inform of which
+#: conditions cannot be replicated on-screen in the app)."*
+#:
+#: A value of ``None`` means *not replicable*, and the reason is required.
+SEQUENCES = {
+    "S1.1": ("Demo-05-Unreadable-Measurements", "run 3 — Start is greyed out"),
+    "S1.2": ("Demo-01-Chart-Only",
+             "run 1 with Run type = Verification — no profile to verify"),
+    "S1.3": ("Demo-03-Complete-And-Profiled",
+             "run 1 with Run type = Verification — a profile, but no "
+             "verification chart"),
+    "S1.4": ("Demo-01-Chart-Only", "run 1 — a chart with no measurement"),
+    "S1.5": ("Demo-02-Partial-Measurement", "run 1 with Refine / resume ticked"),
+    "S1.6": ("Demo-02-Partial-Measurement", "run 1 with Refine / resume clear"),
+    "S1.7": ("Demo-03-Complete-And-Profiled", "run 1"),
+    "S1.8": ("Demo-04-Mismatched", "run 1 and run 2"),
+    "S1.9": (None, "the instrument cannot be opened — hardware"),
+    "S2.1": (None, "a patch being read — hardware"),
+    "S2.2": (None, "a reading failure — hardware"),
+    "S2.3": (None, "two reading failures in succession — hardware"),
+    "S2.4": (None, "Stop pressed with nothing read — needs a live session"),
+    "S2.5": (None, "Stop pressed mid-read — needs a live session"),
+    "S2.6": (None, "the same window from the keyboard — needs a live session"),
+    "S2.7": (None, "a Give-Up window — hardware"),
+    "S2.8": (None, "controls disabled during a read — needs a live session"),
+    "S3.1": (None, "reading the file a session wrote — needs a live session"),
+    "S3.2": (None, "a session that saved nothing — needs a live session"),
+    "S3.3": (None, "a resume that ended smaller — needs a live session"),
+    "S3.4": ("Demo-04-Mismatched", "run 2 — B ≠ C, reported and never resumed"),
+    "S3.5": (None, "the count added by a session — needs a live session"),
+    "S3.6": ("Demo-06-Verification-History", "the four dated folders are the "
+                                             "result of this step"),
+    "S3.7": ("Demo-06-Verification-History", "Tools → Measurement Report"),
+    "S4.1": ("Demo-07-Nothing-To-Lose", "run 1 — nothing to displace"),
+    "S4.2": ("Demo-01-Chart-Only", "run 1 — chart only"),
+    "S4.3": ("Demo-02-Partial-Measurement", "run 1"),
+    "S4.4": ("Demo-06-Verification-History", "run 1 — W4"),
+    "S4.5": ("Demo-06-Verification-History", "run 1, Run type = Verification"),
+    "S4.6": ("Demo-03-Complete-And-Profiled", "run 1 — Duplicate unavailable"),
+    "S5.1": ("Demo-03-Complete-And-Profiled",
+             "open its .ti3 with Build Profile's own Load button, so the "
+             "target is a file rather than a run"),
+    "S5.2": ("Demo-03-Complete-And-Profiled", "run 1 — no verification chart"),
+    "S5.3": ("Demo-06-Verification-History", "run 1"),
+    "S5.4": ("Demo-06-Verification-History", "run 1, after ticking the box"),
+    "S5.5": ("Demo-03-Complete-And-Profiled", "run 1 — Duplicate unavailable"),
+}
+
+
+def _spec_sequences() -> "list[str]":
+    """Every sequence ID the model defines, read from the document."""
+    text = SPEC_DOC.read_text()
+    body = text[text.index("## S. Sequences"):]
+    body = body[:body.index("## T. Test plan")]
+    return sorted(set(re.findall(r"^\| (S\d\.\d)", body, re.M)))
 
 
 # ---------------------------------------------------------------------------
@@ -743,6 +841,15 @@ def _document(cases, dest: Path) -> str:
                     text = text.replace("{c%s}" % rid[-1], str(got))
             ids = re.findall(r"\[\[(M-[A-Z0-9-]+)\]\]", text)
             text = re.sub(r"\s*\[\[M-[A-Z0-9-]+\]\]", "", text)
+            if "[[GUARD]]" in text:
+                # An existing guard window that §M does not catalogue. Named
+                # rather than hidden: it is reported to the issue as a gap in
+                # the model, not quietly dressed up as one of §M's messages.
+                text = text.replace(" [[GUARD]]", "")
+                cell = ("*not in §M — an existing guard window; "
+                        "reported as a gap in the model*")
+                out.append(f"| {i} | {text} | {cell} |")
+                continue
             if ids:
                 # Knut, 2026-08-04: *"You say 'The window you saw is
                 # M-CHART-PROFILING'. however, the test description document
@@ -762,6 +869,46 @@ def _document(cases, dest: Path) -> str:
             out.append(f"| {i} | {text} | {cell} |")
         out += [""]
         out += [""]
+
+    # ---- message coverage ------------------------------------------------
+    used = {}
+    for c in cases:
+        for i, step in enumerate(c["steps"], 1):
+            for mid in re.findall(r"\[\[(M-[A-Z0-9-]+)\]\]", step):
+                used.setdefault(mid, []).append(f"`{c['name']}` step {i}")
+    out += ["## Every message in the model, and where to see it", "",
+            "Knut asked for the package to *\"detect every occurrence of "
+            "messages\"*. This table is generated from the model's catalogue, "
+            "so a message that exists and is not exercised here shows up as a "
+            "gap rather than being quietly missed.", "",
+            "| Message | Where in this package |", "|---|---|"]
+    for mid in sorted(_catalogue()):
+        where = "<br>".join(used.get(mid, [])) or "— *not exercised*"
+        out.append(f"| `{mid}` | {where} |")
+    out += [""]
+
+    # ---- sequence coverage -------------------------------------------------
+    out += ["## Every sequence in §S, and where to see it", "",
+            "The model's §S lists what happens, in what order, for every entry "
+            "condition. Each row below is one of those sequences. The ones "
+            "that cannot be driven from a demo project say why — they need an "
+            "instrument on the desk or a reading in progress, which no set of "
+            "files can supply.", "",
+            "| Sequence | Where in this package | If not: why |",
+            "|---|---|---|"]
+    for sid in _spec_sequences():
+        project, note = SEQUENCES[sid]
+        if project is None:
+            out.append(f"| `{sid}` | — | {note} |")
+        else:
+            out.append(f"| `{sid}` | `{project}` — {note} | |")
+    covered = sum(1 for sid in _spec_sequences() if SEQUENCES[sid][0])
+    out += ["",
+            f"**{covered} of {len(_spec_sequences())} sequences can be driven "
+            "from these projects.** The rest are listed above with the reason; "
+            "they are covered by the automated suite instead, which replays a "
+            "simulated instrument.",
+            ""]
 
     out += ["## What this package deliberately does not cover", "",
             "Knut, #130: *\"Some warnings cannot be reproduced, as they are "
@@ -886,7 +1033,10 @@ def _check_measurements_are_real(dest: Path) -> "list[str]":
     """
     deliberately_broken = {
         "Demo-04-Mismatched/runs/run2",       # header disagrees with its rows
-        "Demo-05-Unreadable-Measurements/runs/run1",   # no data block at all
+        # Both of these exist to be complained about: a data block removed,
+        # with and without a profile beside it.
+        "Demo-05-Unreadable-Measurements/runs/run1",
+        "Demo-05-Unreadable-Measurements/runs/run2",
     }
     problems = []
     for ti3 in sorted(dest.rglob("*.ti3")):
@@ -948,7 +1098,7 @@ def verify(dest: Path) -> "list[str]":
             promises = ("*Expected:*" in step
                         and "no window" not in step
                         and "no warning" not in step)
-            if promises and "[[" not in step:
+            if promises and "[[" not in step and "[[GUARD]]" not in step:
                 problems.append(
                     f"{c['name']} step {i} expects a window but names no "
                     "message ID")
@@ -962,6 +1112,28 @@ def verify(dest: Path) -> "list[str]":
             if mid not in _catalogue():
                 problems.append(
                     f"{c['name']}: lists {mid}, which is not in the catalogue")
+    # Every message in the catalogue is exercised somewhere, or the package
+    # is not doing what its own document claims.
+    used = set()
+    for c in CASES:
+        for step in c["steps"]:
+            used |= set(re.findall(r"\[\[(M-[A-Z0-9-]+)\]\]", step))
+    for mid in _catalogue():
+        if mid not in used:
+            problems.append(
+                f"{mid} is in the model but no step in the package raises it")
+    # …and every sequence the model defines is either driven or excused.
+    for sid in _spec_sequences():
+        if sid not in SEQUENCES:
+            problems.append(f"sequence {sid} is in the model but not in the "
+                            "package's coverage table")
+        elif SEQUENCES[sid][0] is None and not SEQUENCES[sid][1]:
+            problems.append(f"sequence {sid} is marked not replicable with no "
+                            "reason given")
+    for sid in SEQUENCES:
+        if sid not in _spec_sequences():
+            problems.append(f"the coverage table lists {sid}, which the model "
+                            "does not define")
     problems += _check_measurements_are_real(dest)
     readme = dest / "README.md"
     if readme.exists():

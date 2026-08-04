@@ -2812,7 +2812,19 @@ class TabMeasure(QWidget):
             self._averaging_active = False   # new chart → fresh averaging session
         self._ti1_path = path
         self._ti1_lbl.setText(str(path))
-        self._start_btn.setEnabled(True)
+        # Only when there is a laid-out chart to read. chartread measures the
+        # `.ti2` — it is the file that says where each patch sits on the sheet —
+        # so without one there is nothing a measurement could do.
+        #
+        # Knut, #130 2026-08-04: *"Can a chart read at all be initiated if a ti2
+        # file does not exist? I thought it could not. Thus the Start
+        # Measurement button should not be available at all."* He was right
+        # about what should happen and, as it turned out, wrong about what did:
+        # the tab is loaded from the `.ti1` in one path (a project opened with
+        # no `.ti2`), and Start was offered anyway. Measured, not assumed —
+        # the button was enabled and chartread would have failed.
+        self._start_btn.setEnabled(self._chart_file_for(path).exists())
+        self._update_start_tooltip()
         self._try_load_tiffs(path)
         self._update_resume_availability()
         self._update_precond_availability()
@@ -4530,6 +4542,44 @@ class TabMeasure(QWidget):
             log.warning("Could not snapshot the profiling chart", exc_info=True)
         return True
 
+    @staticmethod
+    def _chart_file_for(path: "Path | None") -> Path:
+        """The `.ti2` that goes with whatever chart file the tab was given.
+
+        Most paths hand this tab the `.ti2` already; opening a project can hand
+        it the `.ti1` instead, so both are accepted and resolved to the one file
+        chartread actually reads.
+        """
+        from pathlib import Path as _P
+        if path is None:
+            return _P("")
+        path = _P(path)
+        return path if path.suffix.lower() == ".ti2" else path.with_suffix(".ti2")
+
+    def _update_start_tooltip(self) -> None:
+        """Say why Start is unavailable, rather than leaving it greyed in
+        silence — the rule the rest of the app follows."""
+        if self._start_btn.isEnabled():
+            self._start_btn.setToolTip("")
+            return
+        self._start_btn.setToolTip(tr(
+            "There is no laid-out chart to measure. ChromIQ measures the "
+            "chart's .ti2 file, which says where every patch sits on the "
+            "sheet, and this run does not have one.\n\n"
+            "Create the chart in the “Create Chart” tab — or load a .ti2 with "
+            "“Open Chart File (.ti2)” — and this button becomes available."))
+
+    def _blocked_by_missing_chart_file(self) -> bool:
+        """A last guard for the same thing, in case Start is reached anyway."""
+        if self._chart_file_for(self._ti1_path).exists():
+            return False
+        self._say_on_screen(
+            tr("There is no laid-out chart to measure"),
+            self._start_btn.toolTip() or tr(
+                "ChromIQ measures the chart's .ti2 file, and this run does not "
+                "have one."))
+        return True
+
     def _blocked_by_new_run(self) -> bool:
         """True — and the explaining pop-up has been shown — when the bar's
         **Profile run** is "New run" (#130, Knut). A run has to exist before its
@@ -4555,6 +4605,9 @@ class TabMeasure(QWidget):
         # #130 (Knut): "New run" names a run that does not exist yet, so there is
         # nothing to measure. Say so, and explain how to create one.
         if self._blocked_by_new_run():
+            return
+        # …and nothing to measure without the laid-out chart (Knut, 2026-08-04).
+        if self._blocked_by_missing_chart_file():
             return
         # …and stop here when the chart names an instrument ArgyllCMS cannot use.
         if self._blocked_by_unusable_target_instrument():
@@ -8378,8 +8431,21 @@ class TabMeasure(QWidget):
             return M.M_REPLACE_UNCOUNTABLE.render(path=path)
 
         if a is None:
-            # Readings, but no chart beside them to state a fraction against.
-            return M.M_REPLACE_NO_CHART.render(c=c, path=path)
+            # The chart's patch count could not be read. Since beta.128 Start
+            # Measurement is unavailable without a `.ti2`, so the only way here
+            # is a `.ti2` that exists but cannot be parsed — which chartread
+            # would refuse as well. Try the `.ti1`, which carries the same
+            # count, before giving up.
+            from workflow.measurement_state import expected_patches
+            _ti1 = getattr(self, "_ti1_path", None)
+            a = expected_patches(
+                Path(_ti1).with_suffix(".ti1") if _ti1 else None)
+        if a is None:
+            # Still unknown: say what is true rather than state a fraction with
+            # a missing denominator. Defensive — the condition Knut asked about
+            # ("readings with no chart") is prevented, not messaged.
+            log.warning("chart patch count unreadable for %s", ti3)
+            return M.M_REPLACE_UNCOUNTABLE.render(path=path)
 
         return M.M_REPLACE_PARTIAL.render(c=c, a=a, path=path)
 

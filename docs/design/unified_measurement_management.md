@@ -131,17 +131,22 @@ Proposed, and it makes §3 possible:
 | State | B | C | Reading | Action | Message when Start Measurement is pressed |
 |---|---|---|---|---|---|
 | No `.ti3` at all | — | — | nothing measured yet | normal for a fresh run; C₀ = 0 | none |
-| Header only, **no `BEGIN_DATA`/`END_DATA`** | any | — | **no measurements** — treat as empty | delete, restore the archived copy, say so | **M-REPLACE-UNCOUNTABLE** 🆕 |
-| Empty (`C = 0`) | 0 | 0 | nothing was saved | delete, restore, say so | **M-REPLACE-UNCOUNTABLE** 🆕 |
+| Header only, **no `BEGIN_DATA`/`END_DATA`** | any | — | **no measurements** — treat as empty | delete, restore the archived copy, say so | **M-REPLACE-UNCOUNTABLE** ✅ |
+| Empty (`C = 0`), or `NUMBER_OF_SETS` absent or 0 | 0 | 0 | nothing was saved | delete, restore, say so | **M-REPLACE-UNCOUNTABLE** ✅ |
 | `B ≠ C` | ✓ | ✓ | **corrupt or truncated** | never offer for resume; keep the file, restore the archived copy, explain | **M-TI3-MISMATCH** (with its `{extra}` sentence) |
 | Partial (`0 < C < A`) | ✓ | ✓ | expected after a partial session | offer resume, name the count | **M-REPLACE-PARTIAL** |
-| Partial, **and no `.ti2` beside it** | ✓ | ✓ | readings with nothing to count them against | offer resume; state the count without a fraction | **M-REPLACE-NO-CHART** 🆕 |
 | Complete (`C = A`) | ✓ | ✓ | fully measured | §6 warning before re-measuring | **M-REPLACE-COMPLETE** |
 | `C > A` | ✓ | ✓ | **does not belong to this chart** | refuse, explain | **M-TI3-MISMATCH** |
 
-🆕 = **PROPOSED**, awaiting review. Full text in **§M-PROPOSED** below.
+✅ = approved by Knut, 2026-08-04. 🆕 = **PROPOSED**, awaiting review — full text in **§M-PROPOSED**.
 
-**Why the two proposed rows exist.** The first three rows of this table all describe a file with nothing readable in it, and the model gave them no message of their own — so they fell through to M-REPLACE-PARTIAL, which states a fraction and produced **"0 of the chart's ? patches have been read"**. That reads as a fault in ChromIQ rather than a fact about the file, and it points at Refine / resume, which cannot work when there is nothing to resume from. The "no `.ti2` beside it" row is the same problem from the other side: the fraction's denominator comes from the chart, and with no chart there is no denominator to state.
+**Why M-REPLACE-UNCOUNTABLE exists.** The first three rows all describe a file with nothing readable in it, and the model gave them no message of their own — so they fell through to M-REPLACE-PARTIAL, which states a fraction and produced **"0 of the chart's ? patches have been read"**. That reads as a fault in ChromIQ rather than a fact about the file, and it points at Refine / resume, which cannot work when there is nothing to resume from.
+
+**Removed 2026-08-04: the "no `.ti2` beside it" row, and its message M-REPLACE-NO-CHART.** Knut asked whether that condition can arise at all: *"Can a chart read at all be initiated if a ti2 file does not exist? I thought it could not. Thus the Start Measurement button should not be available at all."*
+
+He was right about what *should* happen, and — measured, not assumed — wrong about what *did*: **Start Measurement was offered without a `.ti2`.** The Measure tab can be loaded from the `.ti1` when a project is opened, and the button was enabled from that alone; chartread would then have failed with the chart file missing. That is a bug, not a case needing a message. Fixed in beta.128: Start is available only when the `.ti2` exists, and its tooltip says why when it is not. With the condition prevented, the message is gone from the model and from the code.
+
+**C₀ and a corrupt file.** When the `.ti3` present *at the start of a measurement* is corrupt or empty, `C₀ = 0` — there is nothing in it to resume from and nothing to lose by measuring again, and it is treated exactly as "no measurement" for §3b's purposes. The file itself is still archived rather than deleted, because ChromIQ cannot judge whether it holds something the user would want.
 
 ### 3b. Judging the session by C₀ → C
 
@@ -184,12 +189,23 @@ So the live preview **declines to re-draw** a run that holds work, writes the no
 | Chart + `.ti3` + profile | Profiling | as above, plus: "The profile built from it is moved to `old/` too, because it describes a chart this run will no longer have." | **M-CHART-PROFILING** |
 | **Chart + `.ti3` + profile, AND the run has verifications with readings** | **Profiling** | **W4 — the widest blast radius of the three; see below** | **M-CHART-W4** |
 | Chart + `.ti3` (+ profile) | Verification | **W5** — the same shape as W4, one level down | **M-CHART-VERIFY** |
-| Chart + a `.ti3` whose readings **cannot be counted** | Profiling | the same warning; the item list cannot state a number | **M-CHART-PROFILING** with the proposed extra item 🆕 |
+| Chart + a `.ti3` that is **corrupt or empty**, no profile | Profiling | the same warning, **plus** a paragraph naming the file as corrupt or empty | **M-CHART-PROFILING** + **M-CHART-CORRUPT** 🆕, appended |
+| Chart + a `.ti3` that is **corrupt or empty**, **and a profile** | Profiling | as above, **plus** what it costs the profile | **M-CHART-PROFILING** + **M-CHART-CORRUPT** 🆕 with its profile paragraph |
 | Any of the above, **and the trigger is the auto-update preview** | either | the preview declines to re-draw instead of asking | **M-PREVIEW-PAUSED** 🆕 |
 | Any of the above, **and the chart has no `.channels.json`** | either | the §4 message, **plus** a paragraph about the pages | **M-CHART-NOPAGES**, appended |
 | Any of the above, **and the run cannot be duplicated** | either | the §4 message, **plus** a paragraph about Duplicate | **M-DUPLICATE-BLOCKED**, appended |
 
-🆕 = **PROPOSED**, awaiting review. Full text in **§M-PROPOSED** below.
+✅ = approved by Knut, 2026-08-04. 🆕 = **PROPOSED**, awaiting review — full text in **§M-PROPOSED**.
+
+**What "`.ti3` exists" means in this table**, since Knut asked for it plainly: the rows above distinguish three things, and they are not the same.
+
+| In the table | On disk | How ChromIQ decides |
+|---|---|---|
+| no `.ti3` | the file is not there | `Path.exists()` |
+| a `.ti3` that is **corrupt or empty** | the file is there, but holds no readable readings — no `BEGIN_DATA`/`END_DATA`, no rows between them, or `NUMBER_OF_SETS` absent or 0 | §3a's *header only* and *empty* states |
+| a `.ti3` with `{c}` readings | the file is there and `{c}` rows can be read | §3a's *partial*, *complete* and `B ≠ C` states |
+
+**At this point no measurement is running**, so every count here is the state *before* anything is measured — `C₀` in §3b's terms.
 
 **Messages combine.** A single window can be one base message with one or two paragraphs appended: M-CHART-PROFILING is the window, and M-CHART-NOPAGES and M-DUPLICATE-BLOCKED are paragraphs added to it when they apply. Nothing else in this specification stacks; these two do, because both describe the *same* replacement from a different angle.
 
@@ -572,17 +588,22 @@ Every window this specification can raise, in one place. **ID → where it is us
 >
 > The measurement file is: {path}
 
-### M-REPLACE-NO-CHART · PROPOSED · readings with no chart to count them against — §5
+### M-CHART-CORRUPT · PROPOSED · the run's measurement file cannot be read — §4
 
-*Why: §5's partial message states a fraction, and the denominator comes from the chart. With no `.ti2` beside the measurement there is no denominator, and inventing one would be a lie.*
+**When it arises:** a §4 chart replacement, where the run holds a `.ti3` that is corrupt or empty. Appended to M-CHART-PROFILING, in the same window.
+**Why it is needed:** Knut, 2026-08-04 — *"If the {c}-value is equal to zero … then why not just say the ti3 file is corrupt or empty."* The `{items}` list cannot state a count for such a file, and the user needs two things the model did not say: that the file is worth looking at before it is archived, and — when a profile is present — what its loss costs.
 
-> **This run already holds part of a measurement**
+> **The measurement file in this run cannot be read**
 >
-> {c} readings have been taken. ChromIQ cannot tell how many patches the chart has, because there is no chart file beside this measurement to count them from.
+> It has no readable measurement data in it — no readings, or a structure ChromIQ cannot make sense of. That can happen when a session ended before the first patch was read, or when the file was changed outside ChromIQ.
 >
-> Starting now without "Refine / resume existing measurement" replaces those readings. Tick that option to keep what you have. The existing measurement is moved to the run's "old" folder either way, so nothing is lost.
->
-> The measurement file is: {path}
+> It is moved to the run's "old" folder rather than deleted. **Look at it there before you measure again** — ChromIQ cannot tell whether it holds anything you would want to keep, and only you can judge that.
+
+*Appended to that when the run also holds a profile:*
+
+> The profile in this run moves to the "old" folder with it. That profile was built from a measurement, and the measurement file that should describe it can no longer be read — so nothing on disk now connects the profile to the chart it came from. ChromIQ cannot tell whether the file was always like this or became so later, and it cannot repair it. Measuring the chart again is the way to get a run whose chart, measurement and profile describe each other once more.
+
+*The `{items}` entry that goes with it, replacing the earlier proposal:* "• a measurement file that is corrupt or empty".
 
 ### M-PREVIEW-PAUSED · PROPOSED · the auto-update preview declines to re-draw — §4
 
@@ -630,9 +651,9 @@ Every window this specification can raise, in one place. **ID → where it is us
 | §6e Rebuilding | rows 5, 6 | **M-PROFILE-VERIFY** |
 | §6e | rows 1–4, 7 | none |
 | any recommending Duplicate while it is unavailable | — | **M-DUPLICATE-BLOCKED** appended |
-| §3a header-only, empty | Start Measurement | **M-REPLACE-UNCOUNTABLE** 🆕 |
-| §3a partial with no `.ti2` beside it | Start Measurement | **M-REPLACE-NO-CHART** 🆕 |
-| §4, trigger = auto-update preview | — | **M-PREVIEW-PAUSED** 🆕 |
+| §3a header-only, empty | Start Measurement | **M-REPLACE-UNCOUNTABLE** ✅ |
+| §4, trigger = auto-update preview | — | **M-PREVIEW-PAUSED** ✅ |
+| §4, run holds a corrupt or empty `.ti3` | Profiling | **M-CHART-CORRUPT** 🆕 appended |
 | §4, chart with no `.channels.json` | — | **M-CHART-NOPAGES** appended |
 | §4, run with a verification history | Profiling | **M-CHART-W4** |
 
