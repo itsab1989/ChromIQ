@@ -80,6 +80,25 @@ def _chart_files_printtarg(into: Path, stem: str, *, patches: int,
                    cwd=into, check=True, capture_output=True, timeout=300)
 
 
+def _row_count(ti3: Path) -> int:
+    """How many data rows a measurement holds (used while building)."""
+    text = ti3.read_text(errors="ignore")
+    body = text.partition("BEGIN_DATA")[2].partition("END_DATA")[0]
+    return len([l for l in body.splitlines() if l.strip()])
+
+
+def _shrink_chart(ti2: Path, *, keep: int) -> None:
+    """Cut a laid-out chart down to *keep* patches, leaving the measurement
+    beside it describing more readings than the chart has — §3a's "C > A", the
+    row that says the measurement does not belong to this chart."""
+    text = ti2.read_text(errors="ignore")
+    head, sep, rest = text.partition("BEGIN_DATA\n")
+    body, sep2, tail = rest.partition("END_DATA")
+    rows = [l for l in body.splitlines() if l.strip()][:keep]
+    head = re.sub(r"NUMBER_OF_SETS\s+\d+", f"NUMBER_OF_SETS {len(rows)}", head)
+    ti2.write_text(head + sep + "\n".join(rows) + "\n" + sep2 + tail)
+
+
 def _strip(path: Path) -> None:
     path.unlink(missing_ok=True)
 
@@ -405,10 +424,18 @@ def build_mismatched(root: Path) -> None:
         ti3 = _measure(r, name, seed_icc=_seed_profile(root / ".seed"), strips=3)
         if lies:
             _break_measurement(ti3, "header_lies")
+        # The stored copy is the chart that was MEASURED — it is what "Restore
+        # Used Chart" puts back, and the step points at it.
         (r / "chart").mkdir(exist_ok=True)
         for f in r.glob(f"{name}.*"):
             if f.suffix != ".ti3":
                 shutil.copy2(f, r / "chart" / f.name)
+        # …and NOW the chart is replaced under the measurement, which is what a
+        # mismatch actually is. Without this the run was merely partial, and the
+        # step promising "the measurement and its chart do not match" described
+        # a window that could not appear — found by walking the package on
+        # screen (Knut, 2026-08-04).
+        _shrink_chart(r / f"{name}.ti2", keep=_row_count(ti3) // 2 or 1)
         _meta(r, rid)
 
 
@@ -1045,6 +1072,10 @@ def _check_measurements_are_real(dest: Path) -> "list[str]":
     be checking the wrong thing.
     """
     deliberately_broken = {
+        # Its chart was deliberately replaced under the measurement, so the
+        # positions it names are no longer on the sheet — which is the whole
+        # point of the run: §3a's "C > A, does not belong to this chart".
+        "Demo-04-Mismatched/runs/run1",
         "Demo-04-Mismatched/runs/run2",       # header disagrees with its rows
         # Both of these exist to be complained about: a data block removed,
         # with and without a profile beside it.

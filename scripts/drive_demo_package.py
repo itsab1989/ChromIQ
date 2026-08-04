@@ -234,14 +234,46 @@ def main() -> int:
                 elif "start measurement" in lowered:
                     win._tabs.setCurrentWidget(tab_measure)
                     pump(app, 250)
+                    # "Tick Refine / resume … and press Start Measurement" —
+                    # the tick is part of the step, and it is what decides
+                    # whether the window appears at all.
+                    if "tick **refine" in lowered or "tick refine" in lowered:
+                        for cb in (tab_measure._resume_cb,
+                                   tab_measure._m_resume_cb):
+                            if cb is not None:
+                                cb.setChecked(True)
+                    elif "untick" in lowered:
+                        for cb in (tab_measure._resume_cb,
+                                   tab_measure._m_resume_cb):
+                            if cb is not None:
+                                cb.setChecked(False)
+                    pump(app, 150)
                     tab_measure._confirm_replacing_measurement()
+                elif "auto-update preview" in lowered:
+                    # The preview declines to re-draw a run that holds work.
+                    win._tabs.setCurrentWidget(tab_chart)
+                    pump(app, 200)
+                    try:
+                        tab_chart._align_current_run_to_target()
+                    except Exception:      # noqa: BLE001
+                        pass
+                    tab_chart._said_auto_update_paused = False   # freshly switched on
+                    tab_chart._say_preview_is_paused()
                 elif "build profile" in lowered:
                     win._tabs.setCurrentWidget(win._tab_profile)
-                    pump(app, 250)
-                    # The §6 guard is what "press Build Profile" raises.
                     prof = win._tab_profile
-                    if hasattr(prof, "_confirm_rebuild_over_verifications"):
-                        prof._confirm_rebuild_over_verifications()
+                    # §6 keys off the measurement the build would use, so the
+                    # tab has to be holding it — which is what pressing
+                    # "Build Profile" on a run means.
+                    rid = getattr(ctl, "target", None)
+                    rid = rid.profile_run if rid is not None else "run1"
+                    ti3 = work / name / "runs" / (rid or "run1") / f"{name}.ti3"
+                    if ti3.exists():
+                        prof.set_ti3_path(ti3, propagate=False)
+                    pump(app, 250)
+                    # The tick lives INSIDE the window — silencing before the
+                    # call would suppress the very window the step is about.
+                    prof._confirm_rebuild_over_verifications()
                 pump(app, 200)
             except Exception as exc:                      # noqa: BLE001
                 record(label, False, f"{type(exc).__name__}: {exc}")

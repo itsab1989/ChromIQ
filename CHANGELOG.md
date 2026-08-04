@@ -1,5 +1,15 @@
 # Changelog
 
+## v3.14.8-beta.132
+
+- **Every one of the demo package's 40 steps now does what it says**, checked by
+  driving the real app through them. Two of them described windows that could
+  not appear: `Demo-04-Mismatched` run 1 held a plain partial measurement rather
+  than one belonging to a different chart, so the mismatch window it promises
+  had nothing to fire on — the chart is now genuinely replaced under the
+  measurement, which is what a mismatch is. `Demo-01` and `Demo-03` asked you to
+  press a button that is correctly greyed out.
+
 ## v3.14.8-beta.131
 
 - **The greyed Start Measurement button had no tooltip in the very case it was
