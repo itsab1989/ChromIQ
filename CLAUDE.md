@@ -201,3 +201,6 @@ the user can't delete (e.g. "TC9.18 by Pharmacist", which loads a bundled `.ti1`
 and runs printtarg only). The full mechanism, file/function map, gotchas, and a
 step-by-step recipe are in **`docs/dev_builtin_presets.md`** — read it before
 adding another.
+
+MONITOR MODE: before every monitor cycle and after any context
+ compaction, re-read MONITOR.md in full and follow it.
