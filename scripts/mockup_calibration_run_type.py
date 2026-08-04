@@ -165,6 +165,28 @@ def chart_tab_as_calibration(win) -> None:
     tab._cal_target_grp.setVisible(False)
     # …but its knob preset still applies: this is what ticking it did.
     tab._on_cal_target_toggled(True)
+    # AND THE TARGEN SECTION OPENS. Sebastian, 2026-08-04: *"When run type is
+    # set to calibration then the targen settings in create chart should not be
+    # collapsed so the user directly sees where to dial in the desired
+    # settings."* It starts collapsed because most charts never touch the patch
+    # recipe — but a calibration chart is nothing BUT the patch recipe: the
+    # single-channel steps are the setting that decides the calibration.
+    if getattr(tab, "_manual_targen_grp", None) is not None:
+        tab._manual_targen_grp.set_collapsed(False)
+    pump(300)
+    # …and the row that decides the calibration is scrolled into view. Opening
+    # the section is not enough on its own: "Single Channel Steps" — the ramp
+    # this chart is — sits below the fold, which is the part of his point that
+    # only shows up in a picture.
+    from PyQt6.QtWidgets import QAbstractScrollArea
+    for pw in tab._manual_widgets.get("targen", []):
+        if pw.flag == "-s":
+            node = pw.parentWidget()
+            while node is not None and not isinstance(node, QAbstractScrollArea):
+                node = node.parentWidget()
+            if node is not None:
+                node.ensureWidgetVisible(pw, 60, 140)
+            break
     for f in (getattr(tab, "_manual_target_name_edit", None),
               getattr(tab, "_target_name_edit", None)):
         if f is not None:
@@ -262,6 +284,15 @@ def profile_tab(win, *, target: str) -> None:
         p._switch_cal_mode(1)                    # printcal
         p._header.set_texts("STEP 04 · CREATE CALIBRATION FILE",
                             "Calibration")
+        # The in-section loader goes, as it already has everywhere else.
+        # Sebastian, 2026-08-04: *"in the screenshot that show the create
+        # calibration file module there is still the loading button / icon in
+        # the measurement data section. Is this still needed here as we moved
+        # the button out of this section for all other tabs…?"* It is not: the
+        # header's loader is the one button, and Build Profile's own frame is
+        # already just a label (tab_profile.py:451-458).
+        if getattr(p, "_pc_load_btn", None) is not None:
+            p._pc_load_btn.setVisible(False)
     else:
         p._cal_create_btn.setVisible(False)
         p._cal_profile_btn.setVisible(True)

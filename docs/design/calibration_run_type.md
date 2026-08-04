@@ -1,6 +1,8 @@
 # Calibration as a Run type — feasibility analysis and design draft
 
-> **Status:** DRAFT for review. No code has been written. Requested by Sebastian
+> **Status:** DRAFT. No code has been written. **Questions 1, 2 and 6 are
+> decided** (Sebastian, 2026-08-04); 3, 4, 5 and 7 carry a recommendation
+> awaiting his word, and 8 is new. See §9. Requested by Sebastian
 > on [issue #130](https://github.com/itsab1989/ChromIQ/issues/130), 2026-08-04:
 > *"I wonder if it would be possible to offer a third 'calibration' run type in
 > the bar — only when calibration options are turned on."*
@@ -203,6 +205,15 @@ Profile run: [ Project calibration ▾ ]   Run type: [ Calibration ▾ ]   ⓘ
 - The calibration knob preset (`-f 0 -e 0 -B 0 -s 20`, `-G` off, `-r` on) moves
   from the checkbox's handler to the run-type switch, unchanged, and still
   restores the previous values when the target changes back.
+- **The "targen parameters" section opens.** It starts collapsed
+  (`ui/tabs/tab_chart.py:2426-2428`) because most charts never touch the patch
+  recipe — but a calibration chart *is* the patch recipe: **Single Channel
+  Steps** is the ramp being printed, and it decides how finely the calibration
+  can describe each ink. Sebastian, 2026-08-04: *"the targen settings in create
+  chart should not be collapsed so the user directly sees where to dial in the
+  desired settings."* Opening it is not quite enough on its own — that row sits
+  below the fold — so the panel also scrolls to it, which is what mockup 03
+  shows.
 - `_resolve_target_chart` gains a third branch returning `cal/`'s `.ti2`, `.ti1`
   and TIFFs — which **fixes D3 for free**: preview, Print and Measure all flow
   from that one function.
@@ -250,6 +261,17 @@ Implemented in `TabProfile.set_calibration_mode` / `_switch_cal_mode`
 (`ui/tabs/tab_profile.py:628-652`) by hiding rather than disabling: a module
 that cannot apply to the selected target is noise, and the header already
 re-titles itself per mode.
+
+**The Measurement Data frame loses its own load button.** Everywhere else the
+loader moved to the header's upper-right — Build Profile's frame is already just
+a label saying which file is selected (`ui/tabs/tab_profile.py:451-458`, *"The
+load + reveal buttons now live in the header's upper-right"*). The Create
+Calibration File module is the one place that kept an in-section loader
+(`_pc_load_btn`, `:821-827`). Sebastian, 2026-08-04: *"Is this still needed here
+as we moved the button out of this section for all other tabs and the build
+profile module in this tab as well?"* It is not — the header's loader loads the
+calibration measurement while this module is on screen, and the frame says which
+file that is. Mockup 06 shows it gone.
 
 **Not hidden, but explained:** if the user is in a Calibration target and tab 4
 would be empty of anything actionable (no cal `.ti3` measured yet), the panel
@@ -335,6 +357,33 @@ chart and its printed pages" · "• the calibration measurement of {c} patches"
 > file: make the calibration chart, print it, measure it, then create the .cal
 > from those readings. It is not a profile run — nothing is built from it — but
 > every profile run in the project can use its result.
+
+---
+
+## 4a. The N-channel TIFF option — asked in the mockups
+
+Sebastian, seeing it beside `-K` and `-I` in mockup 04: *"Is this (in general)
+automatically enabled when the user creates charts for cmy+n devices?"*
+
+**No. Nothing sets it.** `-N` is an expert checkbox in the printtarg panel
+(`data/parameters.yaml:868-885`), `default: false`, and no code path keys it to
+anything — the only automatic values ChromIQ writes into that panel are the
+calibration preset and the `.cal` prefill. A user who picks **Device Type =
+"CMYK + Orange + Green"** (targen `-d9`) gets a chart whose TIFF cannot carry
+those extra inks unless they know to tick a box in Expert Options.
+
+What the flag does, from the source: *"-N   Use TIFF alpha N channels more than
+4"* (printtarg.c:2958) — the extra inks ride in the TIFF's alpha slots, which
+only a driver or RIP expecting that layout can read.
+
+**Recommendation — worth doing, but not as part of this feature.** It belongs
+with the device type, not with calibration: tick `-N` automatically when targen's
+Device Type has more than four channels (`-d6` and above), leave it editable, and
+say in the tooltip that ChromIQ set it because of the device type. The reason to
+keep it separate is that it is not obviously right for everyone: a >4-ink chart
+printed through ChromIQ's own PostScript path is RGB, so the flag would be set
+for a file that does not need it. **This is Q8 below** — it needs your answer
+before anything changes, and nothing in the calibration design depends on it.
 
 ---
 
@@ -458,31 +507,60 @@ new persistence.
 
 ---
 
-## 9. Open questions — answers needed before any code
+## 9. Decisions — answered 2026-08-04, with the reasoning kept
 
-1. **The name.** "Calibration" as a Run type value, or "Printer calibration"?
-   The Dictionary distinguishes calibration from profiling already; the longer
-   label widens the combo for every language.
-2. **Retiring the "Create chart for calibration" checkbox** — replace it
-   outright (recommended: two controls for one state is exactly the confusion
-   this feature removes), or keep it for one release as a synonym?
-3. **Restore Used Chart for a calibration** (E9): out of the first version, or
-   worth adding `cal/chart/` snapshots at the same time?
-4. **When the preference is off and a project has a `cal/`** — say nothing (the
-   current behaviour), or mention in the file guide that the project carries a
-   calibration the interface is currently hiding?
-5. **Should a run record which `.cal` it was built with?** Nothing does today.
-   It would make "this profile was built on calibration X" answerable, and it is
-   a `RunMeta` field plus a migration — worth its own decision.
-6. **D1 as a separate fix.** The archive-instead-of-delete fix is small,
-   independent, and protects users *now*. Ship it before the feature, or as part
-   of it?
-7. **D4 — what should the prefill do?** Fill both and leave both off (the user
-   picks), or switch **-K** on deliberately and say so? And is re-titling tab 4's
-   header enough to show which target its modules belong to, given the bar is
-   not on that tab?
+Sebastian answered 1, 2 and 6 outright and asked for a recommendation on the
+rest. Recommendations are marked **R**; they stand unless he says otherwise.
 
----
+**1 · The label is "Calibration."** ✅ *Decided.* Short enough not to widen the
+combo in any language, and it matches the Dictionary entry and the folder name.
+
+**2 · The "Create chart for calibration" checkbox is retired.** ✅ *Decided.*
+Two controls for one state is the confusion this feature removes; `cal_target`
+is transient, so nothing needs migrating. Its tooltip — which still promises
+`cal_` filename prefixes that #127 removed — goes with it (§14, item 6).
+
+**3 · Restore Used Chart for a calibration — R: include it, in the first
+version.** The chart snapshot is what makes the button work, and the helper
+already exists (`workflow/verify_chart_snapshot.py`); a calibration chart would
+be snapshotted at the same moment as any other — when its measurement starts.
+Two reasons to do it now rather than later: the calibration chart is the one
+chart whose loss is *unrecoverable today* (D3 — it cannot even be reloaded), and
+leaving it out means the button needs an exception to explain, which costs a
+sentence in a tooltip every user reads and buys nothing.
+
+**4 · A project with a `cal/` while the preference is off — R: say it in the
+file guide, and nowhere else.** The interface should not advertise a mode the
+user has switched off; but "where are my files?" must always be answerable, and
+the file guide is exactly where that is asked. With D6 fixed the hidden
+calibration no longer *does* anything, so there is nothing to warn about — only
+something to find.
+
+**5 · Recording which `.cal` a run was built with — R: yes, one `RunMeta`
+field.** It is the only way to answer "was this profile built on the calibration
+that is in the project now?" once a calibration has been replaced — and with D1
+fixed the older ones live on in `cal/old/<date>/`, so a stored stem stays
+resolvable instead of dangling. Migration is nothing: absent means unknown,
+which is the honest state of every run built before it. It also makes a future
+warning possible ("this run was built on a calibration that has since been
+replaced") without another schema change. Cost: a field, one write at build
+time, one line in the file guide.
+
+**6 · D1 ships with the feature, not before it.** ✅ *Decided* — "all together
+when we build it."
+
+**7 · The `.cal` prefill — R: gate it on the preference, fill both fields,
+switch neither on, and say so.** Three parts, one principle: ChromIQ may offer,
+not choose. `-K` reprints every patch value through the calibration and `-I`
+only records it — that is a decision about what lands on paper, and the user is
+the one who knows whether their printer or RIP applies curves itself. Switching
+`-I` on silently (D4) makes that choice for them; doing it while calibration
+options are switched off (D6) makes it invisibly. The status line becomes:
+*"Calibration file found: {name} — filled into the -K and -I fields below.
+Switch on the one you want; they cannot both be used at once."*
+
+**8 · NEW — should `-N` follow the device type?** See §4a. Not part of this
+feature, and it needs a decision of its own before anything changes.
 
 ## 10. Rating of this design
 
@@ -521,10 +599,10 @@ pixel. Re-run it after any change to the design.
 |---|---|
 | `01-bar-today-profiling.png` | The bar as it is today, for comparison. |
 | `02-bar-proposed-calibration.png` | Run type = **Calibration**: the fixed, disabled "Project calibration", no Verification box, the three run buttons greyed with reasons. |
-| `03-create-chart-calibration.png` | The whole window in a Calibration target — the bar, the retired checkbox, and the empty-preview guidance written for this case. |
+| `03-create-chart-calibration.png` | The whole window in a Calibration target — the bar, the retired checkbox, the empty-preview guidance written for this case, and the **targen section open at "Single Channel Steps"**, the setting that decides the calibration. |
 | `04-create-chart-prefill.png` | **Today's** prefill, unmodified: the status line, and `-I` already switched on with `-K` off — the evidence for D4, and the clipped `-I` label of D5. |
 | `05-replace-warning.png` | The §4.7 data-safety window, rendered as the real `QMessageBox` the §4 windows use. |
-| `06-tab4-calibration-run.png` | Tab 4 in a Calibration target: **CREATE CALIBRATION FILE** alone, header re-titled. |
+| `06-tab4-calibration-run.png` | Tab 4 in a Calibration target: **CREATE CALIBRATION FILE** alone, header re-titled, and the Measurement Data frame **without its own load button** — the header's loader is the one button, as everywhere else. |
 | `07-tab4-profiling-run.png` | Tab 4 in a Profiling target with calibration options on: **BUILD PROFILE** + **APPLY CALIBRATION**. |
 
 Two of this document's findings came out of building them rather than out of
