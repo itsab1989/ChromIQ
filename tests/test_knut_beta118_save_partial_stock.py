@@ -52,13 +52,32 @@ def _mgr(engine: bool, at_prompt: bool = False):
 # ---- the engine keeps its protocol --------------------------------------
 def test_the_engine_still_sends_two_q():
     """Its helper writes the file atomically before giving up, so this works —
-    and it is the sequence Knut established by hand."""
+    and it is the sequence Knut established by hand.
+
+    **Driven through the entry point the app actually uses.** The first version
+    of this test called ``_handle_line``, which in engine mode never runs: prose
+    goes straight to the log and the typed events go to ``_handle_engine_line``.
+    So it proved the chain against a path that does not exist, and the second
+    quit was never sent in the real app — Knut, beta.135, on Stop → "Save and
+    stop": *"The session still did not exit"*.
+    """
     m = _mgr(engine=True, at_prompt=True)
     m.send_save_partial_and_quit()
     # The engine speaks JSON commands rather than raw keys.
     assert m._runner.out == ['{"cmd": "quit"}\n']
-    m._handle_line("Strip read stopped at user request!", lambda _l: None)
+    m._handle_engine_line('{"event":"strip_interrupted"}', lambda _l: None)
     assert m._runner.out == ['{"cmd": "quit"}\n', '{"cmd": "quit"}\n']
+    assert m.save_partial_in_progress is False
+
+
+def test_the_give_up_prompt_still_reaches_the_user_when_not_saving():
+    """Outside a Save-Partial the same event is the user's to answer — it opens
+    the "Strip Read Interrupted" window rather than quitting for them."""
+    m = _mgr(engine=True)
+    seen = []
+    m.strip_interrupted.connect(lambda: seen.append(True))
+    m._handle_engine_line('{"event":"strip_interrupted"}', lambda _l: None)
+    assert seen and m._runner.out == []
 
 
 # ---- stock chartread gets the chain that actually saves ------------------

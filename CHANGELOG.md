@@ -1,5 +1,34 @@
 # Changelog
 
+## v3.14.8-beta.136
+
+- **"Save and stop" now ends an engine measurement.** Its second quit command
+  waits for the give-up prompt, which in engine mode arrives as an *event* —
+  and nothing was listening for it, because the code that listens only runs on
+  stock chartread's printed output. The test that covered it called that stock
+  parser directly, which the app never does in engine mode, so it proved the
+  chain against a path that does not run.
+
+- **The dial being in the wrong position raises a window again, in both engines
+  and both modes.** chartread prints it as "Spot read failed due to the sensor
+  being in the wrong position" — even in strip mode, and with no parenthesised
+  reason — so no pattern matched it and only patch-by-patch happened to get a
+  window. Its own "Patch read failed due unexpected error" line was missed for
+  the same reason.
+
+- **`F` and `B` move ten patches on the ChromIQ engine.** They had no command
+  at all there, and the log said so: "engine: no command mapping for key 'F'".
+  Stock chartread implements them itself. (The stray semicolon in chartread's
+  help line, `'B; to move back 10`, is Argyll's own.)
+
+- **A failure window no longer opens on top of an unanswered question.** The
+  "chart was made for a different instrument" window runs its own event loop, so
+  a strip failure arriving meanwhile could stack on top of it. It waits its turn
+  now, as the calibration prompt already did.
+
+- §1b of the design document gains the movement keys and says which of the two
+  endings hangs off an event rather than a printed line.
+
 ## v3.14.8-beta.135
 
 - **Every strip in engine mode was crashing before it reached the screen.** The

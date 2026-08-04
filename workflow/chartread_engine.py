@@ -103,5 +103,22 @@ KEY_TO_COMMAND: dict[str, dict] = {
 }
 
 
+#: Keys that move ten units at a time. chartread implements them itself
+#: ('F' → incflag 2, 'B' → −2, chartread.c:2319-2327); the ChromIQ helper's
+#: command vocabulary has only single steps, so ten of those are sent instead —
+#: the same movement, without waiting on a helper rebuild. Knut, beta.135:
+#: *"'F' move forward 10, and 'B; to move back 10 does not work at all"*, and
+#: his log names the reason: "engine: no command mapping for key 'F'".
+KEY_TO_REPEATED_COMMAND: dict[str, tuple[dict, int]] = {
+    "F": ({"cmd": "forward"}, 10),
+    "B": ({"cmd": "back"}, 10),
+}
+
+
 def command_for_key(key: str) -> dict | None:
     return KEY_TO_COMMAND.get(key)
+
+
+def repeated_command_for_key(key: str) -> "tuple[dict, int] | None":
+    """(command, how many times) for a key that moves in tens, or None."""
+    return KEY_TO_REPEATED_COMMAND.get(key)

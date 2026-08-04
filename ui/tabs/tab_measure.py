@@ -4152,6 +4152,11 @@ class TabMeasure(QWidget):
                 box.exec()
             finally:
                 self._pre_measure_window_open = False
+            # Anything that arrived while the question was open now has its turn.
+            deferred = getattr(self, "_deferred_strip_error", None)
+            if deferred is not None:
+                self._deferred_strip_error = None
+                self._on_strip_error(deferred)
             if box.clickedButton() is not go:
                 self._manager.abort()
                 # Measuring was declined, so a calibration for it would be a
@@ -5870,6 +5875,19 @@ class TabMeasure(QWidget):
 
     def _on_strip_error(self, reason: str) -> None:
         from PyQt6.QtWidgets import QDialog, QLabel, QVBoxLayout
+
+        # ONE QUESTION AT A TIME. A pre-measurement window — "This chart was
+        # made for a different instrument" — runs its own event loop, so
+        # chartread's output keeps arriving while it waits for an answer, and a
+        # failure window could open on top of a question nobody had answered
+        # yet. Knut, beta.135: *"Then I touched the button by accident, and
+        # another window came on top, the 'Strip Read Failed'. The first window
+        # must be terminated/finished before other windows should be allowed."*
+        # The calibration prompt already deferred itself this way; this is the
+        # same rule for the same reason.
+        if getattr(self, "_pre_measure_window_open", False):
+            self._deferred_strip_error = reason
+            return
 
         # Sound FIRST: this handler opens a modal dialog and blocks inside its
         # own slot, so anything connected after it could not be heard until the

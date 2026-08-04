@@ -99,8 +99,8 @@ and whether a prompt is open.**
 
 | Engine | Mode | Where it starts | What ChromIQ sends | What ends it |
 |---|---|---|---|---|
-| ChromIQ | strip | any | `{"cmd":"quit"}` → helper prints *"Strip read stopped at user request!"* + the give-up prompt → `{"cmd":"quit"}` | the helper writes the `.ti3` (`cq_write_ti3_atomic`) and exits |
-| ChromIQ | patch | any | the same two commands — but the helper says *"**Spot** read stopped at user request!"* | as above |
+| ChromIQ | strip | any | `{"cmd":"quit"}` → the helper answers with the **event** `{"event":"strip_interrupted"}` (and prints the give-up prompt) → `{"cmd":"quit"}` | the helper writes the `.ti3` (`cq_write_ti3_atomic`) and exits |
+| ChromIQ | patch | any | the same two commands; the printed line reads *"**Spot** read stopped at user request!"* | as above |
 | stock | strip | a failure prompt | `r` → *"Ready to read strip pass X"* → `d` → *"Are you sure [y/n]"* → `y` | chartread writes the `.ti3` and exits |
 | stock | patch | a failure prompt | `r` → *"Ready to read patch 'N' at 'LOC'"* → `d` → *"Done ? — At least one unread patch (…) Are you sure [y/n]"* → `y` | as above |
 | stock | either | the menu | `d` → *"Are you sure [y/n]"* → `y` | as above |
@@ -109,6 +109,25 @@ and whether a prompt is open.**
 or `q` as "retry"** (chartread.c:1652-1654), so a `d` sent there is swallowed
 and the reader simply carries on. The retry key has to be spent first, and only
 then does `d` reach the menu that raises the saving question.
+
+**In engine mode the second command hangs off the EVENT, not the printed line.**
+Prose never reaches the stock parser there — it goes straight to the log — so a
+chain waiting for *"Strip read stopped at user request"* waits for ever. Knut,
+beta.135, pressing Stop → "Save and stop": *"The session still did not exit."*
+The test that covered it called the stock parser directly, which the app never
+does in engine mode, so it proved the chain against a path that does not run.
+
+### Moving about while reading
+
+| Key | stock chartread | ChromIQ engine |
+|---|---|---|
+| `f` / `b` | one unit forward / back | `{"cmd":"forward"}` / `{"cmd":"back"}` |
+| `F` / `B` | ten units (chartread.c:2319-2327) | the helper has no ten-step command, so **ten single steps** are sent |
+| `n` | next unread | `{"cmd":"next_unread"}` |
+| `g` | go to a patch | `{"cmd":"goto", …}` |
+
+*(The stray semicolon in chartread's own help line — `'B; to move back 10` — is
+Argyll's, at chartread.c:2122.)*
 
 ### What the user's own keys do
 
@@ -127,6 +146,13 @@ and why the two engines cannot share one sequence.
 - **beta.130** taught the stock path that a failed *strip* read leaves a retry
   prompt open. Before that, Save Partial sent `d` straight into that prompt,
   which ate it — Knut's beta.128 report.
+- **beta.136** made the engine's own ending work at all: its give-up prompt
+  arrives as an event, and nothing was listening for it, so the second `quit`
+  was never sent. It also gave `F` / `B` a meaning in engine mode, and made the
+  wrong-dial-position message raise a window in **both** engines and **both**
+  modes — chartread prints it as *"Spot read failed due to the sensor being in
+  the wrong position"* (chartread.c:1644) even in strip mode, with no
+  parenthesised reason, so no other pattern saw it.
 - **beta.134** does the same for **patch-by-patch**: its menu line is *"Ready to
   read patch 'N' at 'LOC'"*, which the chain did not recognise, so it walked
   back to the menu and then waited for a line that never came. And the ChromIQ

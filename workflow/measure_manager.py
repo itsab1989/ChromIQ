@@ -36,7 +36,12 @@ _STRIP_MENU_RE         = re.compile(r"Ready\s+to\s+read\s+strip",               
 _ALL_DONE_RE           = re.compile(r"ALL\s+ROWS\s+READ",                        re.IGNORECASE)
 _CALIBRATION_RE        = re.compile(r"Calibration\s+complete",                   re.IGNORECASE)
 _CALIBRATION_PROMPT_RE = re.compile(r"Set\s+instrument\s+sensor\s+to\s+calibration\s+position", re.IGNORECASE)
-_STRIP_ERROR_RE        = re.compile(r"Strip\s+read\s+failed[^(]*\(([^)]+)\)",   re.IGNORECASE)
+# chartread prints "Strip read failed …" from the shared path even patch by
+# patch, but its own unexpected-error line says "Patch read failed due
+# unexpected error :'…' (…)" (chartread.c:2278). Matching only "Strip" meant
+# the wrong-sensor-position case raised no window at all reading patch by patch
+# on stock chartread — Knut, beta.135.
+_STRIP_ERROR_RE        = re.compile(r"(?:Strip|Patch)\s+read\s+failed[^(]*\(([^)]+)\)", re.IGNORECASE)
 # chartread.c 3.5.0 L1671/L2238: a comms failure mid-strip. Unlike the misread
 # and unexpected-error variants it prints no "(reason)" in parentheses, so
 # _STRIP_ERROR_RE never matches it — hence this dedicated pattern. The prompt
@@ -57,6 +62,13 @@ _UNEXPECTED_RESP_RE    = re.compile(r"unexpected response.*\(DeltaE\s*([\d.]+)\)
 #: memory and writes the .ti3 only on a clean exit. The patches were simply
 #: gone, with "[ERROR] Measurement failed" as the only clue.
 _STRIP_OK_RE           = re.compile(r"(?:strip|patch)\s+read\s+ok",                          re.IGNORECASE)
+#: chartread.c:1644, printed in STRIP mode: "Spot read failed due to the sensor
+#: being in the wrong position\n(Sensor should be in surface position)". It says
+#: "Spot" whatever the mode, and it carries no "(reason)" on the same line, so
+#: neither _STRIP_ERROR_RE nor the ierror pattern sees it. Until beta.136 this
+#: pattern was defined and never used, which is why the dial being in the wrong
+#: position was silent in strip mode while patch-by-patch got a window
+#: (Knut, beta.135).
 _SENSOR_POSITION_RE    = re.compile(r"sensor.*wrong\s+position|sensor should be in surface", re.IGNORECASE)
 _USB_VM_RE             = re.compile(r"Failed to get piif for USB device",                    re.IGNORECASE)
 # chartread asks this when 'd' (done) is pressed with unread patches remaining;
@@ -579,12 +591,21 @@ class MeasureManager(QObject):
             # failure worth retrying on stock chartread.
             self._user_quit = True
         if self._engine_active:
-            from workflow.chartread_engine import command_for_key
+            from workflow.chartread_engine import (command_for_key,
+                                                   repeated_command_for_key)
             cmd = command_for_key(key)
             if cmd is not None:
                 self.send_command(cmd)
-            else:
-                log.warning("engine: no command mapping for key %r", key)
+                return
+            # 'F' / 'B' move ten at a time. The helper's vocabulary has only
+            # single steps, so ten of those go out instead — the same movement.
+            repeated = repeated_command_for_key(key)
+            if repeated is not None:
+                cmd, times = repeated
+                for _ in range(times):
+                    self.send_command(cmd)
+                return
+            log.warning("engine: no command mapping for key %r", key)
             return
         self._runner.write_stdin(key)
 
@@ -826,6 +847,17 @@ class MeasureManager(QObject):
         if ev is None:
             if line.strip():
                 on_line(line)
+                # The helper prints chartread's own prose alongside its events,
+                # and one sentence in it needs more than the log: the dial being
+                # in the wrong position (chartread.c:1644). There is no event for
+                # it, so this is the only place it can be caught in engine mode.
+                if _SENSOR_POSITION_RE.search(line):
+                    self._at_retry_prompt = True
+                    self.generic_instrument_error.emit(
+                        tr("Wrong Sensor Position"),
+                        tr("The instrument's dial is not in the reading "
+                           "position. Turn it to the surface-reading position "
+                           "and try again."))
             return
 
         self._engine_saw_event = True
@@ -965,6 +997,27 @@ class MeasureManager(QObject):
             else:
                 self.unexpected_response.emit(f"{ev.get('worst_de', 0):.2f}")
 
+        elif kind == "strip_interrupted":
+            # THE GIVE-UP PROMPT, AS AN EVENT.
+            #
+            # In engine mode chartread's prose never reaches _handle_line — this
+            # method handles the typed events and passes prose straight to the
+            # log. So the second half of Save Partial & Quit, which waits for
+            # "Strip read stopped at user request", was never triggered here:
+            # the state machine sat in wait_give_up_prompt while the helper sat
+            # at "Hit Esc or 'q' to give up". Knut, beta.135, pressing Stop →
+            # "Save and stop": *"The session still did not exit"*, and pressing
+            # q by hand did.
+            #
+            # The test that covered this called _handle_line directly, which the
+            # app never does in engine mode — so it proved the chain worked
+            # against a path that does not run. It drives this one now.
+            if self._save_partial_state == "wait_give_up_prompt":
+                self._save_partial_state = None
+                self.send_key("q")
+            else:
+                self.strip_interrupted.emit()
+
         elif kind == "strip_misaligned":            # #50 safety net (opt-in)
             self.strip_misaligned.emit(
                 str(ev.get("strip", "?")).upper(),
@@ -1098,6 +1151,22 @@ class MeasureManager(QObject):
         # replaced whatever the user had chosen in the first (Knut, #130
         # 2026-07-27: his Save Partial & Quit ended up retrying instead). In
         # engine mode the JSON event is the authoritative one.
+        # THE DIAL IS IN THE WRONG POSITION — in either engine, either mode.
+        #
+        # chartread.c:1644 prints this in strip mode and carries no "(reason)"
+        # on the line, so no other pattern sees it. It is a retry prompt like
+        # any other, and the user needs to be told to turn the dial rather than
+        # left looking at a log line. Checked before the engine branch because
+        # the helper prints the same sentence, and prose is all that reaches us
+        # for it (Knut, beta.135: patch-by-patch got a window, strip mode did
+        # not).
+        if _SENSOR_POSITION_RE.search(line):
+            self._at_retry_prompt = True
+            self.generic_instrument_error.emit(
+                tr("Wrong Sensor Position"),
+                tr("The instrument's dial is not in the reading position. Turn "
+                   "it to the surface-reading position and try again."))
+
         if not self._engine_active:
             m = _STRIP_ERROR_RE.search(line)
             if m:

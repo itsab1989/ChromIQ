@@ -156,3 +156,43 @@ def test_the_filter_removes_itself_when_no_session_is_live(tab, qapp):
     # …and it really has taken itself off the application.
     tab._manager.sent.clear()
     assert tab.eventFilter(tab, ev) is False
+
+
+# ---- the keys that move ten at a time ------------------------------------
+def test_shift_f_and_shift_b_reach_the_reader(tab, qapp):
+    """Knut, beta.135: *"'F' move forward 10, and 'B; to move back 10 does not
+    work at all (Shift+f and Shift+b)."*
+
+    The filter forwards them correctly — his log names the real cause a line
+    later: "engine: no command mapping for key 'F'". Stock chartread implements
+    both itself (chartread.c:2319-2327); the ChromIQ helper's command
+    vocabulary has only single steps, so ten of those are sent instead.
+
+    (The stray ";" he noticed in "'B; to move back 10" is Argyll's own printf,
+    chartread.c:2122 — not ChromIQ's.)
+    """
+    for key, text in ((Qt.Key.Key_F, "F"), (Qt.Key.Key_B, "B")):
+        tab._manager.sent.clear()
+        ev = QKeyEvent(QEvent.Type.KeyPress, key,
+                       Qt.KeyboardModifier.ShiftModifier, text)
+        assert tab.eventFilter(tab, ev) is True
+        assert tab._manager.sent == [text], \
+            "Shift is not a shortcut modifier — the character must go through"
+
+
+def test_the_engine_moves_ten_for_a_capital():
+    """One command per unit, because the helper has no ten-step command."""
+    from workflow.measure_manager import MeasureManager
+
+    class _Runner:
+        def __init__(self): self.out = []
+        def write_stdin(self, data): self.out.append(data)
+        def __getattr__(self, _n): return lambda *a, **k: None
+
+    m = MeasureManager(_Runner())
+    m._engine_active = True
+    m.send_key("F")
+    assert m._runner.out == ['{"cmd": "forward"}\n'] * 10
+    m._runner.out.clear()
+    m.send_key("b")
+    assert m._runner.out == ['{"cmd": "back"}\n']
