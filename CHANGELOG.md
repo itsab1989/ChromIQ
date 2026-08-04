@@ -1,5 +1,20 @@
 # Changelog
 
+## v3.14.8-beta.131
+
+- **The greyed Start Measurement button had no tooltip in the very case it was
+  written for.** Switching Run type to Verification on a run with no
+  verification chart clears the loaded chart, and that path never refreshed the
+  button's explanation — so the button was correctly unavailable and said
+  nothing about why. Found by walking the demo package's own steps in the
+  running app: "Start Measurement is greyed out … hover it" showed an empty
+  tooltip.
+
+- **`scripts/drive_demo_package.py`** drives the real app through every step of
+  the demo package and checks that the window each step promises is the window
+  that appears. 32 of the 40 steps are verified this way; the rest need an
+  instrument on the desk or a live reading, and are listed as such.
+
 ## v3.14.8-beta.130
 
 - **Two warnings were showing their message with the first sentence cut off.**

@@ -3221,6 +3221,12 @@ class TabMeasure(QWidget):
         self._ti1_lbl.setText(tr("No file selected"))
         self._ti1_lbl.setStyleSheet("color: #909090; font-size: 11px;")
         self._start_btn.setEnabled(False)
+        # …and SAY WHY. This is the path a Run-type switch takes when the new
+        # target has no chart — the very case where the greyed button needs its
+        # explanation — and it left the tooltip from the previous chart, or
+        # none at all. Found by walking the demo package on screen: "Start
+        # Measurement is greyed out … hover it" showed an empty tooltip.
+        self._update_start_tooltip()
         self._tiff_pages = []
         self._page_stripe_rects = []
         self._strips_per_page = []
