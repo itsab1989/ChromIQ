@@ -208,8 +208,9 @@ M_CHART_CORRUPT = _m(
     # sentence in bold; the string the user reads may not.
     "It is moved to the run's “old” folder rather than deleted. Look at it "
     "there before you measure again — ChromIQ cannot tell whether it holds "
-    "anything you would want to keep, and only you can judge that.",
-    approved=False)
+    "anything you would want to keep, and only you can judge that.")
+    # Approved by Knut, 2026-08-04: "Message M-CHART-CORRUPT is accepted. move
+    # into model."
 
 #: Appended to M-CHART-CORRUPT when the run also holds a profile. Knut,
 #: 2026-08-04: *"the connection between chart and profile built is broken and
@@ -358,6 +359,45 @@ M_PROFILE_VERIFY = _m(
     "because it describes the profile being replaced. Nothing is deleted.\n\n"
     "•  Cancel — changes nothing.{blocked}")
 
+# --- PROPOSED: the two verification guards, §S1.2 and §S1.3 ---------------
+# Knut, beta.128: *"The S1.2 / S1.3 guard windows: bring them into §M so the
+# model owns their text."* They existed in the Measure tab as inline prose,
+# which is exactly what the catalogue rule forbids. The words are the ones that
+# shipped, so nothing changes on screen by moving them here — only who owns
+# them. Both await review.
+M_VERIFY_NO_PROFILE = _m(
+    "M-VERIFY-NO-PROFILE",
+    "This run has no profile to verify yet",
+    "A verification checks a finished profile — but this profile run doesn't "
+    "have a built profile yet.\n\n"
+    "To build the profile first:\n"
+    "  1. Set “Run type” to “Profiling”.\n"
+    "  2. Create, print and measure the profiling chart as normal — its "
+    "measurement is stored in the run folder.\n"
+    "  3. Build the profile on the Build Profile tab (this makes the profile's "
+    ".icc / .icm file).\n\n"
+    "Once the profile exists, you can verify it:\n"
+    "  4. Set “Run type” back to “Verification”.\n"
+    "  5. Create a verification chart in the Create Chart tab.\n"
+    "  6. Print that chart THROUGH the finished profile (with colour "
+    "management on).\n"
+    "  7. Measure it here with “Run type” = “Verification” — the result is "
+    "kept in a dated folder under this run's “verifications” folder.",
+    approved=False)
+
+M_VERIFY_NO_CHART = _m(
+    "M-VERIFY-NO-CHART",
+    "No verification chart for this run yet",
+    "This run has a finished profile, but you haven't created its "
+    "verification chart.\n\n"
+    "  1. Go to the Create Chart tab and, with “Run type” = “Verification”, "
+    "create the verification chart (a smaller chart is fine).\n"
+    "  2. Print it through this run's profile (with colour management on).\n"
+    "  3. Come back here with “Run type” = “Verification” and measure it — the "
+    "result is stored in a dated folder under this run's “verifications” "
+    "folder.",
+    approved=False)
+
 #: The checkbox on M-PROFILE-VERIFY (§6d) and its tooltip. In the catalogue
 #: because it is text the window shows, and the window shows nothing that is
 #: not here.
@@ -380,6 +420,7 @@ CATALOGUE = {m.id: m for m in (
     M_CHART_PROFILING, M_CHART_W4, M_CHART_VERIFY, M_CHART_NOPAGES,
     M_CHART_CORRUPT,
     M_PREVIEW_PAUSED, M_PROFILE_VERIFY,
+    M_VERIFY_NO_PROFILE, M_VERIFY_NO_CHART,
 )}
 
 #: Paragraphs appended to another message rather than shown on their own.

@@ -125,3 +125,56 @@ def test_a_stock_save_does_not_answer_the_menu_twice():
     m._handle_line("Ready to read strip pass A", lambda _l: None)
     m._handle_line("Ready to read strip pass B", lambda _l: None)
     assert m._runner.out.count("d") == 1
+
+
+# ---- and the flag it all hangs on is now SET by the stock output ---------
+# Knut, beta.128, with "ChromIQ chart reading engine" switched OFF: he read a
+# strip with too few patches, got "Not enough patches", pressed Save Partial &
+# Quit — and *"which then SHOULD have exited measurement without any readings,
+# but did not exit. Had to press stop button."*
+#
+# Every test above sets ``_at_retry_prompt`` by hand, so the chain looked
+# healthy while nothing on the stock path ever set it. chartread.c:1652-1654
+# prints the failure and then "Hit Esc to give up, any other key to retry:" and
+# blocks there, so Save Partial sent 'd' straight into a prompt that reads any
+# key but Esc/q as "retry" — the session simply carried on.
+@pytest.mark.parametrize("line,case", [
+    ("Strip read failed due to misread (Not enough patches)",
+     "his own case, chartread.c:1652"),
+    ("Strip read failed due to misread (Misread)", "any other misread"),
+    ("Strip read failed due to communication problem.",
+     "the coms failure, chartread.c:1671"),
+])
+def test_stock_output_marks_the_retry_prompt_open(line, case):
+    m = _mgr(engine=False)
+    assert m._at_retry_prompt is False
+    m._handle_line(line, lambda _l: None)
+    assert m._at_retry_prompt is True, f"not recognised: {case}"
+
+
+def test_save_partial_after_his_exact_failure_leaves_the_prompt_first():
+    """End to end from the line he saw: the chain must start with the retry
+    key, or 'd' is eaten by the prompt and nothing happens."""
+    m = _mgr(engine=False)
+    m._handle_line("Strip read failed due to misread (Not enough patches)",
+                   lambda _l: None)
+    m.send_save_partial_and_quit()
+    assert m._runner.out == ["r"], \
+        "'d' sent into the retry prompt is read as 'retry' — the session hangs"
+
+    m._handle_line("Ready to read strip pass A", lambda _l: None)
+    assert m._runner.out[-1] == "d"
+    m._handle_line("Done ? - At least one unread patch (3, A3), "
+                   "Are you sure [y/n]: ", lambda _l: None)
+    assert m._runner.out[-1] == "y"
+    assert m.save_partial_in_progress is False
+
+
+def test_the_flag_clears_again_at_the_menu():
+    """It describes a prompt that is open now; leaving it must clear it, or a
+    later Save Partial would spend a key it does not need to."""
+    m = _mgr(engine=False)
+    m._handle_line("Strip read failed due to misread (Not enough patches)",
+                   lambda _l: None)
+    m._handle_line("Ready to read strip pass A", lambda _l: None)
+    assert m._at_retry_prompt is False

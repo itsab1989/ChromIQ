@@ -1080,8 +1080,23 @@ class MeasureManager(QObject):
         if not self._engine_active:
             m = _STRIP_ERROR_RE.search(line)
             if m:
+                # STOCK CHARTREAD IS NOW BLOCKED ON A RETRY PROMPT.
+                #
+                # chartread.c:1652-1654 prints "Strip read failed due to misread
+                # (…)" and then "Hit Esc to give up, any other key to retry:",
+                # where it waits. The engine's equivalent sets this flag; the
+                # stock path never did, so Save Partial & Quit took the branch
+                # that sends 'd' — which the prompt swallowed as "any other key
+                # = retry". Knut, beta.128, with the engine switched off: *"Then
+                # I pressed 'Save Partial and Quit' button, which then SHOULD
+                # have exited measurement without any readings, but did not
+                # exit. Had to press stop button."* With the flag set, the
+                # retry-first chain runs and the strip menu's 'd' → 'y' is what
+                # writes the file and ends the session.
+                self._at_retry_prompt = True
                 self.strip_error.emit(m.group(1).strip())
             elif _STRIP_COMS_FAIL_RE.search(line):
+                self._at_retry_prompt = True      # chartread.c:1671-1673, same prompt
                 self.strip_error.emit("communication problem")
 
         # A. Mid-measurement recovery prompts ------------------------------
@@ -1099,10 +1114,16 @@ class MeasureManager(QObject):
         # Save-Partial on STOCK chartread: retry took us back to the strip menu,
         # and 'd' there raises the question that actually writes the file
         # (#130, 2026-08-01 — 'q' on stock chartread exits without writing).
-        if (self._save_partial_state == "wait_menu_then_done"
-                and _STRIP_MENU_RE.search(line)):
-            self._save_partial_state = "wait_are_you_sure"
-            self.send_key("d")
+        if _STRIP_MENU_RE.search(line):
+            # Back at the menu, so whatever prompt was open is closed. The
+            # engine clears this on its `strip_ready` event; the stock path had
+            # no equivalent, so once a failure had been seen the flag stayed set
+            # for the rest of the session and every later Save Partial spent a
+            # retry key it did not need.
+            self._at_retry_prompt = False
+            if self._save_partial_state == "wait_menu_then_done":
+                self._save_partial_state = "wait_are_you_sure"
+                self.send_key("d")
         m = _GENERIC_IERROR_RE.search(line)
         if m:
             # ierror() waits on "any other key to retry" exactly like a misread,

@@ -58,6 +58,11 @@ def tab(qapp, tmp_path):
     t = TabMeasure(ArgyllRunner(s), s)
     t._manager = _Mgr()
     t._arm_key_watchdog = lambda: None
+    # These tests are about a reader that is WAITING FOR A KEY, which is the
+    # only state in which the app-wide filter forwards anything. Since
+    # beta.130 the filter says so itself: with no session live it removes
+    # itself rather than swallowing keys the rest of the app needs.
+    t._session_live = True
     return t
 
 
@@ -127,3 +132,27 @@ def test_shift_alone_does_not_block_a_letter(tab):
     tab.eventFilter(tab, _key(Qt.Key.Key_F, "F",
                               Qt.KeyboardModifier.ShiftModifier))
     assert tab._manager.sent == ["F"]
+
+
+# ---- and it lets go when there is nothing to forward to ------------------
+def test_the_filter_removes_itself_when_no_session_is_live(tab, qapp):
+    """A filter installed on the whole application must not outlive the reader
+    it forwards to.
+
+    Every ending removes it, but the recovery windows re-install it as they
+    close — so a session that ended inside one could leave it behind, and from
+    then on an arrow key anywhere in ChromIQ was eaten and logged as "send_key
+    LEFT: no active process". A keyboard-navigation test lost its arrow keys to
+    a Measure tab left over from an earlier test in the same process; a user
+    would lose them to the tab they had just measured in.
+    """
+    tab._session_live = False
+    QApplication.instance().installEventFilter(tab)
+    ev = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Left, Qt.KeyboardModifier.NoModifier)
+
+    assert tab.eventFilter(tab, ev) is False, "the key must reach the app"
+    assert tab._manager.sent == [], "nothing may be sent with no reader running"
+
+    # …and it really has taken itself off the application.
+    tab._manager.sent.clear()
+    assert tab.eventFilter(tab, ev) is False

@@ -1,5 +1,65 @@
 # Changelog
 
+## v3.14.8-beta.130
+
+- **Two warnings were showing their message with the first sentence cut off.**
+  "This run already holds part of a measurement" began at *". Starting now
+  without…"*, and "This chart is fully measured" at *"ad, and this run's
+  profile…"* — in both cases exactly the length of the headline had been sliced
+  off the front. The window still cut the body the way it had to when headline
+  and body arrived as one string; they have been separate for some time. The
+  test that covered it asserted the cut was there, so it guarded the bug rather
+  than the behaviour. It now reads what the window puts on screen.
+
+- **A measurement moved aside at the start of a session now comes back when
+  that session writes nothing.** Cancelling the "chart was made for a different
+  instrument" window — or an instrument that never opens — ended the read
+  before ChromIQ had written anything, and the previous measurement stayed in
+  the run's "old" folder with nothing to say so. Archiving at the start is
+  right, because chartread truncates its output the moment it opens it; but it
+  is only a replacement once something takes the file's place.
+
+- **"Save Partial & Quit" works again on stock ArgyllCMS chartread.** After a
+  failed strip read, chartread waits at "Hit Esc to give up, any other key to
+  retry" — and nothing told ChromIQ that prompt was open, so the key that
+  should have walked back to the strip menu was swallowed as "retry" and the
+  session simply carried on. The engine had always reported it; the stock path
+  never did.
+
+- **The "Refine / resume" option no longer disappears while the measurement is
+  there.** The "This chart already has a measurement" window applied your
+  choice to a control whose visibility had last been decided before the
+  measurement arrived — so the box could stay hidden while its sub-option, "Use
+  refinement strips file", appeared underneath it. Visibility is decided in one
+  place now, from the file on disk, and the window asks for that decision to be
+  re-made rather than making one of its own.
+
+- **Cancelling a chart load leaves your chart on screen.** Loading a `.ti1`,
+  choosing "Replace only the Chart" and then pressing Cancel cleared the Create
+  Chart preview, even though nothing had been replaced — the chart was still in
+  the run, and still showed in Print Chart. Every way of backing out of a load
+  now puts the tab back exactly as it was.
+
+- **"Play sounds during measurement" is hidden from the first frame** when the
+  stock chartread engine is selected, instead of only after Preferences had
+  been opened once. ChromIQ stays quiet on stock chartread — Argyll beeps for
+  itself there — and the switch says so by not being there.
+
+- **The two verification guards are part of the model now.** "This run has no
+  profile to verify yet" and "No verification chart for this run yet" lived as
+  prose inside the Measure tab; they are `M-VERIFY-NO-PROFILE` and
+  `M-VERIFY-NO-CHART` in the reviewed catalogue, and each carries its own
+  headline — the window used to be titled "Build a profile before verifying"
+  even when a profile was exactly what the run already had. Since Start
+  Measurement needs a laid-out chart, a verification run without its chart
+  meets these as the greyed button's tooltip rather than a window, and the
+  tooltip now carries the right one of the two.
+
+- **M-CHART-CORRUPT is approved** and has moved into §M with
+  M-REPLACE-UNCOUNTABLE and M-PREVIEW-PAUSED. The demo package's steps for
+  Demo-01 and Demo-03 described pressing a button that is correctly greyed out;
+  they now describe what is really there.
+
 ## v3.14.8-beta.129
 
 - **A message showed its own asterisks.** The new corrupt-measurement warning

@@ -1016,6 +1016,16 @@ class TabMeasure(QWidget):
         self._build_ui()
         self._restore_defaults()
         self._start_btn.setEnabled(False)
+        # THE ENGINE-ONLY CONTROLS MUST START IN THE RIGHT STATE.
+        #
+        # This ran only after Preferences was closed, so a session that began
+        # with the chart-reading engine switched off still showed the
+        # engine-only rows until the user happened to open Settings — Knut,
+        # beta.128: *"'Play sounds during measurements' was not hidden when
+        # starting up ChromIQ with the stock argyllcms chartread engine."*
+        # The two "Live preview" groups were set at construction; the sounds
+        # switch and the overlay boxes were not, which is the whole difference.
+        self.refresh_engine_visibility(initial=True)
 
     # ------------------------------------------------------------------
     # Mode switching
@@ -1130,40 +1140,19 @@ class TabMeasure(QWidget):
             return None        # external chart / no project run — model doesn't apply
         if run.dir.parent.name != "runs":
             return None
+        # The text is the catalogue's — Knut, beta.128: *"The S1.2 / S1.3 guard
+        # windows: bring them into §M so the model owns their text."* This
+        # method's job is to pick which of the two applies, nothing else.
+        from workflow import measurement_messages as M
+
         if run.built_profile_icc().exists():
             # Hole 1 satisfied. Hole 2: a verification needs a verification chart
             # to measure. If the run has a profile but no verify chart yet, guide
             # the user to create one (a distinct message from Hole 1).
             if not run.has_verify_chart():
-                return tr(
-                    "No verification chart for this run yet.\n\n"
-                    "This run has a finished profile, but you haven't created its "
-                    "verification chart.\n\n"
-                    "  1. Go to the Create Chart tab and, with “Run type” = "
-                    "“Verification”, create the verification chart (a smaller "
-                    "chart is fine).\n"
-                    "  2. Print it through this run's profile (with colour "
-                    "management on).\n"
-                    "  3. Come back here with “Run type” = “Verification” and "
-                    "measure it — the result is stored in a dated folder under "
-                    "this run's “verifications” folder.")
+                return M.M_VERIFY_NO_CHART
             return None
-        return tr(
-            "A verification checks a finished profile — but this profile run "
-            "doesn't have a built profile yet.\n\n"
-            "To build the profile first:\n"
-            "  1. Set “Run type” to “Profiling”.\n"
-            "  2. Create, print and measure the profiling chart as normal — its "
-            "measurement is stored in the run folder.\n"
-            "  3. Build the profile on the Build Profile tab (this makes the "
-            "profile's .icc / .icm file).\n\n"
-            "Once the profile exists, you can verify it:\n"
-            "  4. Set “Run type” back to “Verification”.\n"
-            "  5. Create a verification chart in the Create Chart tab.\n"
-            "  6. Print that chart THROUGH the finished profile (with colour "
-            "management on).\n"
-            "  7. Measure it here with “Run type” = “Verification” — the result "
-            "is kept in a dated folder under this run's “verifications” folder.")
+        return M.M_VERIFY_NO_PROFILE
 
 
     #: How many lines of chartread output the log shows at once.
@@ -3192,13 +3181,34 @@ class TabMeasure(QWidget):
         # Remember the choice for next time.
         self._settings.set("overlay_prompt_show_overlay", want_overlay)
         self._settings.set("overlay_prompt_resume", want_resume)
+        # THE CONTROLS THIS WINDOW DECIDES MUST EXIST BEFORE THEY ARE SET.
+        #
+        # This used to assume the resume box was already on screen, and it is
+        # only put there by _update_resume_availability(), which last ran
+        # whenever the chart was loaded — before the measurement was recovered,
+        # or while it was archived. So the window could offer a choice about a
+        # measurement and then set it on a hidden control. Knut, beta.128, both
+        # halves of it: with resume OFF, *"the measure tab options area is
+        # missing the 'Refine / Resume ...' checkbox, although the ti3 file is
+        # present"*; with resume ON, *"the measure tab options area is missing
+        # the 'Refine / Resume ...' checkbox (but the 'Use refinement strips
+        # file for guided re-measurement' is visible)"* — because ticking a
+        # hidden box still let _sync_refine_rows show the sub-option under it.
+        #
+        # And his question — *"The visibility … is controlled on activating the
+        # measure tab, but in addition also when the window comes up. Is that
+        # correct?"* — has one answer: visibility is decided in ONE place, from
+        # the file on disk. This window sets values and asks for that decision
+        # to be re-made; it never decides visibility itself.
+        self._update_resume_availability()
         # Apply: overlay toggle (paints, or explains + unticks if not placeable).
         self._sync_overlay_checkboxes(want_overlay)
         self._on_overlay_toggled(want_overlay)
-        # Refine/resume: tick the (already-visible) resume box in both modes.
+        # Refine/resume: tick the resume box in both modes, now that it is there.
         for cb in (self._resume_cb, self._m_resume_cb):
-            if cb is not None:
+            if cb is not None and cb.isVisibleTo(self):
                 cb.setChecked(want_resume)
+        self._sync_refine_rows()
 
     def set_chart_notice(self, text: "str | None") -> None:
         """Show guidance in the preview when there's no chart to measure for the
@@ -4562,6 +4572,22 @@ class TabMeasure(QWidget):
         if self._start_btn.isEnabled():
             self._start_btn.setToolTip("")
             return
+        # A VERIFICATION HAS ITS OWN REASONS, AND THEY ARE IN §M.
+        #
+        # Since Start needs a `.ti2` (beta.128), a verification target with no
+        # verification chart greys the button — and the two guard messages
+        # written for exactly that situation could no longer be reached. Knut,
+        # beta.128, on Demo-01: *"Start Measurement button is not available, so
+        # test cannot be performed. You have not counted for that a verification
+        # run must have a chart first."* The guidance belongs where he met it.
+        try:
+            block = self._verification_guard()
+        except Exception:      # noqa: BLE001 — a tooltip is never worth a crash
+            block = None
+        if block is not None:
+            title, body = block.render()
+            self._start_btn.setToolTip(f"{title}\n\n{body}")
+            return
         self._start_btn.setToolTip(tr(
             "There is no laid-out chart to measure. ChromIQ measures the "
             "chart's .ti2 file, which says where every patch sits on the "
@@ -4633,8 +4659,20 @@ class TabMeasure(QWidget):
         block = self._verification_guard()
         if block:
             from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.information(
-                self, tr("Build a profile before verifying"), block)
+            # Each guard carries its own headline now that both are in §M. The
+            # window used to say "Build a profile before verifying" for both,
+            # which was wrong for the run that HAS a profile and only lacks its
+            # verification chart.
+            title, body = block.render()
+            box = QMessageBox(self)
+            box.setIcon(QMessageBox.Icon.NoIcon)
+            box.setWindowTitle(title)
+            box.setText(title)
+            box.setInformativeText(body)
+            box.setStandardButtons(QMessageBox.StandardButton.Ok)
+            from ui.widgets import fit_message_box_buttons
+            fit_message_box_buttons(box)
+            box.exec()
             # The old code unticked the module's Verification box here. With
             # that box gone the equivalent would be to change the Profile-run
             # bar under the user, which is a bigger thing to do unasked — the
@@ -4715,6 +4753,9 @@ class TabMeasure(QWidget):
         self._set_settings_enabled(False)
         self._start_btn.setEnabled(False)
         self._stop_btn.setEnabled(True)
+        #: True while a reader is waiting for keys — what makes the app-wide
+        #: event filter below legitimate. Cleared in _on_measure_done.
+        self._session_live = True
         QApplication.instance().installEventFilter(self)
 
         if self._current_mode() == "guided":
@@ -6888,7 +6929,12 @@ class TabMeasure(QWidget):
             return False                  # nothing to put back; archive as usual
         import shutil
         try:
-            empty_ti3.unlink()
+            # The file may not exist at all: a session that was cancelled in a
+            # window (or whose instrument never opened) leaves nothing behind,
+            # and there is then nothing to remove before putting the previous
+            # measurement back.
+            if empty_ti3.is_file():
+                empty_ti3.unlink()
             shutil.move(str(saved), str(empty_ti3))
             # Only if we emptied it — never remove a folder holding other files.
             if not any(displaced.iterdir()):
@@ -6931,7 +6977,20 @@ class TabMeasure(QWidget):
         if self._ti1_path is None:
             return
         ti3 = self._ti1_path.with_suffix(".ti3")
-        if not ti3.is_file() or not _cgats_has_no_readings(ti3):
+        # A SESSION THAT WROTE NOTHING NEVER REPLACED ANYTHING.
+        #
+        # Knut, beta.128: cancelling the instrument-mismatch window (and the
+        # same for an instrument that never opens) ends the session before
+        # chartread writes a thing — so there is no empty file to judge, and the
+        # measurement moved aside at Start stayed in `old/` for ever. *"when
+        # action/session was cancelled in a window, the ti3 file is not
+        # returned."* Archiving at Start is right — chartread truncates its
+        # output file the moment it opens it — but the archive is only a
+        # replacement once something takes its place.
+        if not ti3.is_file():
+            self._restore_displaced_measurement(ti3)
+            return
+        if not _cgats_has_no_readings(ti3):
             return
         # Nothing was measured, so a measurement this read displaced should not
         # stay displaced. Knut, #130 2026-07-31: *"the empty ti3 should be
@@ -7046,6 +7105,7 @@ class TabMeasure(QWidget):
         # look. A test pins this order; it caught the mistake of judging at the
         # END of this method, by which point the resume checkbox had already
         # refreshed itself from the file that was about to be replaced.
+        self._session_live = False
         self._finish_session_guard()
         # Superseded by the guard for any run it protects; still the only
         # handler for a session that never got one.
@@ -7661,6 +7721,20 @@ class TabMeasure(QWidget):
 
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
         if event.type() == QEvent.Type.KeyPress:
+            # NO PROCESS, NO BUSINESS SWALLOWING KEYS.
+            #
+            # This filter exists to route keystrokes to a running chartread, and
+            # it is installed on the whole application. Every ending removes it
+            # — but the recovery windows re-install it as they close, so a
+            # session that ended inside one could leave it behind, and from then
+            # on an arrow key anywhere in the app was eaten and logged as
+            # "send_key LEFT: no active process". Found by a keyboard-navigation
+            # test that lost its arrow keys to a Measure tab from an earlier
+            # test in the same process; the same could happen to a user after a
+            # session that ended in one of those windows.
+            if not getattr(self, "_session_live", False):
+                QApplication.instance().removeEventFilter(self)
+                return False
             key = event.key()
             # A SHORTCUT IS NOT AN INSTRUMENT KEY.
             #
@@ -7772,7 +7846,7 @@ class TabMeasure(QWidget):
     def _engine_selected(self) -> bool:
         return str(self._settings.get("chartread_engine", "argyll")) == "chromiq"
 
-    def refresh_engine_visibility(self) -> None:
+    def refresh_engine_visibility(self, *, initial: bool = False) -> None:
         """Re-apply the chart-reading-engine beta flag to the engine-only UI so
         turning it on/off in Preferences takes effect the moment you click OK — no
         app restart. Called by MainWindow after the Settings dialog closes; the
@@ -7802,11 +7876,22 @@ class TabMeasure(QWidget):
                   getattr(self, "_sound_tip", None)):
             if w is not None:
                 w.setVisible(on)
-        if not on and getattr(self, "_sound_cb", None) is not None:
-            self._sound_cb.setChecked(False)
+        # HIDDEN, BUT NOT SWITCHED OFF — unlike the overlay boxes above.
+        #
+        # A hidden overlay tick would paint an overlay nobody asked for, so it
+        # is cleared. The sound switch is different: it is also the master
+        # switch for ChromIQ's WINDOW sounds, which do play on stock chartread —
+        # Knut, #130 2026-07-28: *"when starting a measurement without the
+        # colormunki connected, the window 'No instrument Found' comes, but
+        # without any sound."* Turning it off here silenced those too. The
+        # per-patch and per-strip sounds are already held back for stock
+        # chartread inside Sound.play(), which is where that rule belongs.
         # The overlay boxes come back only if a measurement is there to draw,
-        # which _sync_resume_and_overlay decides.
-        if on:
+        # which _sync_resume_and_overlay decides. Skipped at construction:
+        # there is no chart yet, so it has nothing to decide — and re-entering
+        # the availability pass from inside __init__ pulls a good deal of the
+        # tab's machinery into a half-built widget for no result.
+        if on and not initial:
             try:
                 self._update_resume_availability()
             except Exception:      # noqa: BLE001 — visibility, never a crash
@@ -8500,7 +8585,15 @@ class TabMeasure(QWidget):
         # already uses. A whole screen of bold is a wall nobody reads, and the
         # message is long on purpose.
         box.setText(title)
-        box.setInformativeText(body[len(title):].lstrip("\n"))
+        # THE BODY IS ALREADY THE BODY. Slicing `len(title)` characters off it
+        # here is a leftover from when render() returned one string with the
+        # headline on the front; it now returns the two separately, so the cut
+        # ate the opening sentence of every §5 message — Knut, beta.128: *"the
+        # text starts with '. Starting now without …'"* and *"first sentence
+        # after title is 'ad, and this run's profile was built …'"*. Exactly
+        # len("This run already holds part of a measurement") and
+        # len("This chart is fully measured") characters, respectively.
+        box.setInformativeText(body)
         # Only offered where it can be scoped to one run — with no run selected
         # there is nothing to remember it against, and a blanket "never ask"
         # is exactly what this must not become.

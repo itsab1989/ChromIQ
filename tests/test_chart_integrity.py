@@ -515,3 +515,68 @@ def test_the_pause_window_and_the_log_line_say_the_same_thing():
     src = inspect.getsource(TabChart._say_preview_is_paused)
     assert "_preview_paused_body()" in src
     assert src.count("_preview_paused_body()") >= 2
+
+
+# ---- cancelling a load leaves the chart on screen ------------------------
+# Knut, beta.128: he loaded a .ti1, chose "Replace only the Chart", got the §4
+# window and pressed Cancel — *"Now my chart … is gone from the preview. The ti1
+# file is still in the run folder, and if I go to Print Chart Tab the chart is
+# showing in preview, but not in Create Chart tab. I am able to refresh the
+# preview by changing the Profile run parameter to New run and back to run 1."*
+#
+# Every cancel path cleared the preview, and the remembered "already showing"
+# stamp then blocked the redraw until the selection changed. Nothing was
+# replaced, so nothing should have disappeared.
+def test_a_cancelled_load_puts_the_chart_back(qapp, tmp_path):
+    import inspect
+
+    from ui.tabs.tab_chart import TabChart
+
+    calls = []
+
+    class _Preview:
+        def clear(self): calls.append("cleared")
+
+    class _Tab:
+        _abandon_ti1_load = TabChart._abandon_ti1_load
+
+        def __init__(self):
+            self._preview = _Preview()
+            self._shown_chart_ti2 = "something"
+            self._shown_chart_stamp = "a-stamp"
+            self._generate_btn = type("B", (), {"setEnabled": lambda *_: None})()
+
+        def _on_target_changed(self):
+            calls.append("redrawn")
+
+    tab = _Tab()
+    tab._abandon_ti1_load()
+
+    assert calls == ["redrawn"], f"expected a redraw, not {calls}"
+    assert tab._shown_chart_stamp is None, \
+        "the stamp must be dropped, or the redraw is skipped as a duplicate"
+
+    # …and every cancel really does go through it.
+    src = inspect.getsource(TabChart._on_ti1_chosen) \
+        if hasattr(TabChart, "_on_ti1_chosen") else ""
+    del src
+
+
+def test_every_cancel_in_the_loader_goes_through_the_one_helper(qapp):
+    """One helper owns what a cancelled load leaves behind. A bare
+    ``_preview.clear()`` beside a ``return`` is how the chart vanished."""
+    import inspect
+    import re
+
+    from ui.tabs.tab_chart import TabChart
+
+    src = inspect.getsource(TabChart._on_load_ti1)
+    # Three ways to back out: the destination question, the new-project name
+    # prompt, and the §4 replacement warning.
+    assert src.count("_abandon_ti1_load()") == 3, \
+        "a cancel exit that does not restore the chart has crept back in"
+    # The only legitimate clear is the one just before the new chart is built.
+    for m in re.finditer(r"self\._preview\.clear\(\)", src):
+        after = src[m.end():m.end() + 400]
+        assert "load_ti1_and_generate_preview" in after, \
+            "the preview is cleared on a path that builds nothing"

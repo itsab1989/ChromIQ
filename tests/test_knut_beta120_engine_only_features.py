@@ -75,14 +75,35 @@ def test_sounds_are_hidden_for_stock_chartread(tab, qapp):
     assert not t._sound_tip.isVisibleTo(t), "the ⓘ goes with its checkbox"
 
 
-def test_sounds_are_switched_off_too_not_just_hidden(tab, qapp):
+def test_hiding_the_sounds_switch_does_not_silence_the_windows(tab, qapp):
+    """Hidden, but NOT switched off — and that is a change from beta.120.
+
+    Knut asked for the switch to be *"hidden when [the engine] = OFF"*, and it
+    was also unticked, by analogy with the overlay boxes below. The analogy
+    does not hold: an overlay box left ticked off-screen paints something, while
+    this switch is also the master for ChromIQ's own **window** sounds — which
+    do play on stock chartread, and which he asked for separately (#130,
+    2026-07-28: the "No instrument Found" window arriving in silence was a bug).
+
+    It went unnoticed because nothing called ``refresh_engine_visibility`` until
+    Preferences had been opened once. Making it run at startup — his beta.128
+    report, *"'Play sounds during measurements' was not hidden when starting
+    up"* — would have silenced every window sound for stock-chartread users.
+
+    The per-patch and per-strip sounds are held back for stock chartread inside
+    ``Sound.play()``, which is where that rule belongs. Raised on the issue for
+    Knut to overrule if he wants the switch cleared as well.
+    """
     t, s = tab
     s.set("chartread_engine", "chromiq")
+    s.set("sound_enabled", True)
     _tick_quietly(t._sound_cb)
     s.set("chartread_engine", "argyll")
     t.refresh_engine_visibility()
     qapp.processEvents()
-    assert not t._sound_cb.isChecked()
+    assert not t._sound_cb.isVisibleTo(t), "it must still be hidden"
+    assert s.get("sound_enabled") is True, \
+        "hiding the control must not turn ChromIQ's window sounds off"
 
 
 def test_sounds_come_back_with_the_engine(tab, qapp):

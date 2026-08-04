@@ -94,8 +94,14 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 
 def test_nothing_is_quietly_proposed():
     """The proposed set is small and deliberate — if it grows, it is because
-    someone added a message rather than getting one approved."""
-    assert set(M.PROPOSED) == {"M-CHART-CORRUPT"}, M.PROPOSED
+    someone added a message rather than getting one approved.
+
+    Currently the two §S1.2 / §S1.3 guard windows, brought into the catalogue
+    at Knut's request in beta.130. M-CHART-CORRUPT left this set the same day,
+    approved.
+    """
+    assert set(M.PROPOSED) == {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART"}, \
+        M.PROPOSED
 
 
 # ---- 1b. approval flows the other way too --------------------------------

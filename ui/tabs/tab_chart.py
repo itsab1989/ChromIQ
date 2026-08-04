@@ -8468,8 +8468,7 @@ class TabChart(QWidget):
         dest = self._ti1_load_destination(src)
         if dest is None:                       # Cancel — load nothing
             self._preset_ti1_path = None
-            self._preview.clear()
-            self._generate_btn.setEnabled(True)
+            self._abandon_ti1_load()
             return
         if dest == "new":
             # Bug 4 (Knut): starting a new project from a patch set must let the
@@ -8482,8 +8481,7 @@ class TabChart(QWidget):
                 self._file_mgr.root_dir())
             if name is None:                      # cancelled the name prompt
                 self._preset_ti1_path = None
-                self._preview.clear()
-                self._generate_btn.setEnabled(True)
+                self._abandon_ti1_load()
                 return
             self._file_mgr.start_new_project(name)
             self._update_name_fields()
@@ -8509,8 +8507,7 @@ class TabChart(QWidget):
             if dest in ("into_replace", "into_chart") \
                     and not self._confirm_displacing_results():
                 self._preset_ti1_path = None
-                self._preview.clear()
-                self._generate_btn.setEnabled(True)
+                self._abandon_ti1_load()
                 return
             if dest == "into_replace":
                 # #130 §5a/§5b: a Replace archives what it displaces — the same
@@ -8979,6 +8976,34 @@ class TabChart(QWidget):
                         "generation", exc_info=True)
         finally:
             shutil.rmtree(bak, ignore_errors=True)
+
+    def _abandon_ti1_load(self) -> None:
+        """Cancel a patch-set load and leave the tab exactly as it was.
+
+        Every one of these exits used to clear the preview, which is wrong for
+        a cancel: nothing was replaced, so the chart that was on screen is still
+        the chart in the run. Knut, beta.128, after cancelling the §4 window on
+        a "Replace only the Chart": *"Now my chart for
+        'Demo-03-Complete-And-Profiled' is gone from the preview. The ti1 file
+        is still in the run folder, and if I go to Print Chart Tab the chart is
+        showing in preview, but not in Create Chart tab. I am able to refresh
+        the preview by changing the Profile run parameter to New run and back to
+        run 1."*
+
+        That workaround is the fix: re-resolve the selected target and draw its
+        chart. The remembered stamp has to go first, or the redraw is skipped as
+        "already showing this exact chart" — which is precisely why the preview
+        stayed blank until the selection changed.
+        """
+        self._generate_btn.setEnabled(True)
+        self._shown_chart_ti2 = None
+        self._shown_chart_stamp = None
+        try:
+            self._on_target_changed()
+        except Exception:      # noqa: BLE001 — a cancel must never raise
+            log.warning("could not put the chart back after a cancelled load",
+                        exc_info=True)
+            self._preview.clear()
 
     def _resolve_target_chart(self) -> "tuple[Path, list[Path], Path] | None":
         """``(ti2, tiffs, ti1)`` for the current Profile-run / Run-type target's

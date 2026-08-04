@@ -221,6 +221,64 @@ def test_a_move_that_fails_does_not_crash_or_lie(qapp, tmp_path, monkeypatch):
     assert run.measurement_ti3.exists(), "the file went missing after a failure"
 
 
+# ---- a session that wrote nothing never replaced anything ----------------
+# Knut, beta.128: *"If I then choose to cancel, the measurement exits, and the
+# ti3 file is not returned to the run1 folder from old/ folder."* Archiving at
+# Start is correct — chartread truncates its output the moment it opens it — but
+# it is only a *replacement* once something takes the file's place. Cancelling
+# the instrument-mismatch window, or an instrument that never opens, ends the
+# session before chartread writes anything at all, so there is no empty file for
+# the empty-file path to judge and the archive used to stay in old/ for ever.
+def _replaced_then_cancelled(tmp_path, monkeypatch):
+    """Set up exactly that: a real measurement, archived by the real Start-path
+    method, and then a session that writes nothing."""
+    run = _run(tmp_path)
+    run.chart_ti2.write_text("CTI2")
+    run.measurement_ti3.write_text(measured_ti3(12))
+    tab = _tab(tmp_path)
+    tab._ti1_path = run.chart_ti2
+    tab._archive_measurement_before_replacing()          # the real Start step
+    assert not run.measurement_ti3.exists(), "setup: it should have been moved"
+    return run, tab
+
+
+def test_a_cancelled_session_puts_the_measurement_back(qapp, tmp_path,
+                                                       monkeypatch):
+    run, tab = _replaced_then_cancelled(tmp_path, monkeypatch)
+    seen = _silence(monkeypatch)
+
+    tab._archive_empty_measurement()      # the session ended, having written nothing
+
+    assert run.measurement_ti3.is_file(), "the measurement never came back"
+    assert "NUMBER_OF_SETS 12" in run.measurement_ti3.read_text()
+    assert seen, "the user was not told the read changed nothing"
+    assert "put back exactly where it was" in seen[0]
+
+
+def test_the_emptied_archive_folder_is_tidied_away(qapp, tmp_path, monkeypatch):
+    """Nothing is left behind claiming to hold something."""
+    run, tab = _replaced_then_cancelled(tmp_path, monkeypatch)
+    _silence(monkeypatch)
+
+    tab._archive_empty_measurement()
+
+    assert not _archived(run), f"left in old/: {_archived(run)}"
+
+
+def test_nothing_is_put_back_when_the_session_did_measure(qapp, tmp_path,
+                                                          monkeypatch):
+    """The guard is for sessions that wrote nothing. A real measurement stands,
+    and the copy it displaced stays archived."""
+    run, tab = _replaced_then_cancelled(tmp_path, monkeypatch)
+    run.measurement_ti3.write_text(measured_ti3(5))       # this session's file
+    _silence(monkeypatch)
+
+    tab._archive_empty_measurement()
+
+    assert "NUMBER_OF_SETS 5" in run.measurement_ti3.read_text()
+    assert _archived(run), "the displaced measurement should still be in old/"
+
+
 # ---- every ending is covered, which is why it sits in one place ----------
 def test_it_runs_on_every_way_a_session_can_end(qapp):
     """Strip, patch-by-patch, resume and single patches all finish through the

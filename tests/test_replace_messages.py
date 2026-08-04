@@ -156,6 +156,77 @@ def test_the_headline_is_bold_and_the_explanation_is_not():
     assert "setInformativeText" in src
 
 
-def test_the_headline_is_not_printed_twice():
-    src = inspect.getsource(TabMeasure._confirm_replacing_measurement)
-    assert "body[len(title):]" in src, "the body repeats its own title"
+class _Tab(__import__("PyQt6.QtWidgets", fromlist=["QWidget"]).QWidget):
+    """A real QWidget (the window needs a parent) carrying the real methods.
+
+    Everything about *choosing* and *rendering* the message is TabMeasure's own
+    code; only the surroundings a measurement tab would provide are stubbed.
+    """
+
+    _confirm_replacing_measurement = TabMeasure._confirm_replacing_measurement
+    _replace_message = TabMeasure._replace_message
+
+    def __init__(self, ti3, ti1):
+        super().__init__()
+        self._ti3, self._ti1_path = ti3, ti1
+        self._replace_warning_silenced = set()
+
+    def _measurement_at_risk(self):     return self._ti3
+    def _read_builds_on_existing(self):  return False
+    def _replace_warning_scope(self):    return None
+
+
+def _shown(monkeypatch, tmp_path, *, held, expected):
+    """Drive the real window and return what it actually put on screen."""
+    from PyQt6.QtWidgets import QMessageBox
+
+    ti1 = tmp_path / "chart.ti1"
+    ti1.write_text("x")
+    (tmp_path / "chart.ti2").write_text(
+        "CGATS.17\nNUMBER_OF_SETS %d\nBEGIN_DATA\n%s\nEND_DATA\n"
+        % (expected, "\n".join(f"P{i+1} 100 100 100" for i in range(expected))))
+    ti3 = tmp_path / "chart.ti3"
+    ti3.write_text(
+        "CTI3\nNUMBER_OF_SETS %d\nBEGIN_DATA\n%s\nEND_DATA\n"
+        % (held, "\n".join(f"P{i+1} 100 100 100 50 50 50" for i in range(held))))
+
+    seen = {}
+
+    def _capture(self):
+        seen["title"] = self.text()
+        seen["body"] = self.informativeText()
+        return QMessageBox.StandardButton.Ok
+
+    monkeypatch.setattr(QMessageBox, "exec", _capture)
+    _Tab(ti3, ti1)._confirm_replacing_measurement()
+    return seen
+
+
+def test_the_window_shows_the_whole_message(qapp, monkeypatch, tmp_path):
+    """What reaches the screen is the catalogue's body, from its first word.
+
+    The test that stood here asserted the *opposite* — it required the body to
+    be sliced by ``len(title)``, which was right when ``render()`` returned one
+    string with the headline on the front and wrong from the moment it returned
+    the two separately. Nothing noticed, and two messages shipped in beta.128
+    with their opening sentence cut off: Knut got *". Starting now without …"*
+    and *"ad, and this run's profile was built …"*. A test that reads the
+    source cannot see that; this one reads the window.
+    """
+    shown = _shown(monkeypatch, tmp_path, held=38, expected=400)
+    assert shown["title"] == "This run already holds part of a measurement"
+    assert shown["body"].startswith("38 of the chart's 400 patches have been read")
+
+
+def test_the_window_shows_the_whole_message_for_a_finished_one(
+        qapp, monkeypatch, tmp_path):
+    shown = _shown(monkeypatch, tmp_path, held=400, expected=400)
+    assert shown["title"] == "This chart is fully measured"
+    assert shown["body"].startswith("All 400 patches have been read")
+
+
+def test_the_headline_is_not_repeated_in_the_body(qapp, monkeypatch, tmp_path):
+    """The reason the slice existed in the first place — the headline must not
+    appear twice on screen."""
+    shown = _shown(monkeypatch, tmp_path, held=38, expected=400)
+    assert shown["title"] not in shown["body"]

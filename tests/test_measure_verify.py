@@ -154,8 +154,10 @@ def test_verification_guard_hole2_no_verify_chart(tmp_path):
     _attach_controller(tab, tmp_path)
     tab._target_ctl.set_run_type("verification")
     msg = tab._verification_guard()
-    assert msg is not None and "verification chart" in msg.lower()
-    assert "doesn't have a built profile" not in msg      # not the Hole 1 text
+    # §M owns the text now (Knut, beta.128) — the guard picks the message.
+    assert msg is not None and msg.id == "M-VERIFY-NO-CHART"
+    assert "verification chart" in msg.body.lower()
+    assert "doesn't have a built profile" not in msg.body   # not the Hole 1 text
 
 
 def test_verification_guard_ignores_external_charts(tmp_path):
@@ -192,4 +194,5 @@ def test_verification_guard_keys_off_bar_run(tmp_path, monkeypatch):
     tab._target_ctl.set_run_type("verification")
 
     msg = tab._verification_guard()
-    assert msg is not None and "doesn't have a built profile" in msg   # Hole 1 fires
+    assert msg is not None and msg.id == "M-VERIFY-NO-PROFILE"
+    assert "doesn't have a built profile" in msg.body                  # Hole 1 fires

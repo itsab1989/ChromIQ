@@ -206,3 +206,67 @@ def test_unticking_resume_takes_the_row_with_it(tab_and_ti3):
     resume.setChecked(False)
     tab._sync_refine_rows()
     assert row.isHidden()
+
+
+# ---- the offer window and the options panel must agree -------------------
+# Knut, beta.128, after copying a measurement back from old/ and re-entering
+# the tab, with "This chart already has a measurement" answered:
+#
+#   resume OFF → *"the measure tab options area is missing the 'Refine / Resume
+#   ...' checkbox, although the ti3 file is present."*
+#   resume ON  → *"the measure tab options area is missing the 'Refine / Resume
+#   ...' checkbox (but the 'Use refinement strips file for guided
+#   re-measurement' is visible)."*
+#
+# The window applied the user's choice to controls whose visibility had last
+# been decided when the chart was loaded — before the file came back. Ticking a
+# hidden box then let the sub-option appear underneath nothing.
+def _answer_offer(tab, monkeypatch, *, resume: bool, overlay: bool = False):
+    """Drive the real window and press OK with those two boxes set."""
+    from PyQt6.QtWidgets import QCheckBox, QDialog
+
+    def _exec(self):
+        boxes = self.findChildren(QCheckBox)
+        # The window's own two: "show as overlay" and "refine / resume".
+        for cb in boxes:
+            text = cb.text().lower()
+            if "overlay" in text:
+                cb.setChecked(overlay)
+            elif "refine" in text or "resume" in text:
+                cb.setChecked(resume)
+        return int(QDialog.DialogCode.Accepted)
+
+    monkeypatch.setattr(QDialog, "exec", _exec)
+    tab._maybe_offer_existing_overlay()
+
+
+@pytest.mark.parametrize("resume", [True, False])
+def test_the_offer_leaves_the_resume_box_on_screen(tab_and_ti3, monkeypatch,
+                                                   resume):
+    tab, _ti3, _run = tab_and_ti3
+    guided = tab._current_mode() == "guided"
+    box = tab._resume_cb if guided else tab._m_resume_cb
+    # The state the bug needed: the file is there, the control is not, because
+    # visibility was last decided while the measurement was elsewhere.
+    box.setVisible(False)
+
+    _answer_offer(tab, monkeypatch, resume=resume)
+
+    assert not box.isHidden(), \
+        "the measurement is on disk, so its option must be on screen"
+    assert box.isChecked() is resume
+
+
+def test_the_sub_option_never_outlives_its_parent(tab_and_ti3, monkeypatch):
+    """His second case exactly: refine visible, resume not."""
+    tab, _ti3, _run = tab_and_ti3
+    guided = tab._current_mode() == "guided"
+    box = tab._resume_cb if guided else tab._m_resume_cb
+    row = tab._refine_row if guided else tab._m_refine_row
+    box.setVisible(False)
+
+    _answer_offer(tab, monkeypatch, resume=True)
+
+    if not row.isHidden():
+        assert not box.isHidden(), \
+            "the refinement row is showing under a resume box that is not there"

@@ -1,8 +1,8 @@
 # Unified Measurement Management — Design Specification
 
-> **Revision 2026-08-04 — what to review.**
-> **Awaiting review:** M-CHART-CORRUPT.
-> That is the only message still marked **PROPOSED**; M-REPLACE-UNCOUNTABLE and M-PREVIEW-PAUSED were approved on 2026-08-04 and have moved into **§M** with the rest of the approved catalogue. A proposed message appears in three places: the condition tables of **§3a** and **§4** (which say exactly when it arises), the map in **§M-x**, and **§M-PROPOSED**, which carries its complete text. Everything marked 🆕 in this document is part of that set; ✅ marks a message approved by Knut. `tests/test_message_catalogue.py` checks this list against the `approved=` flags in the code, so the two cannot drift apart again. Singular and plural are real throughout, per Knut's ruling of 2026-08-03.
+> **Revision 2026-08-04 (b) — what to review.**
+> **Awaiting review:** M-VERIFY-NO-PROFILE, M-VERIFY-NO-CHART.
+> Those two are the §S1.2 / §S1.3 guard windows, brought into the catalogue at Knut's request — *"bring them into §M so the model owns their text"*. Their words are the ones that already shipped; only ownership changes. **M-CHART-CORRUPT is approved** (*"Message M-CHART-CORRUPT is accepted. move into model."*) and has joined §M, together with M-REPLACE-UNCOUNTABLE and M-PREVIEW-PAUSED, approved earlier the same day. ✅ marks a message Knut has approved; 🆕 marks one still in the queue. `tests/test_message_catalogue.py` checks this list against the `approved=` flags in the code, so the two cannot drift apart.
 
 > **Status:** specification, agreed on [issue #130](https://github.com/itsab1989/ChromIQ/issues/130).
 > Written by the ChromIQ assistant, reviewed and directed by Knut (soul-traveller)
@@ -191,8 +191,8 @@ So the live preview **declines to re-draw** a run that holds work, writes the no
 | Chart + `.ti3` + profile | Profiling | as above, plus: "The profile built from it is moved to `old/` too, because it describes a chart this run will no longer have." | **M-CHART-PROFILING** |
 | **Chart + `.ti3` + profile, AND the run has verifications with readings** | **Profiling** | **W4 — the widest blast radius of the three; see below** | **M-CHART-W4** |
 | Chart + `.ti3` (+ profile) | Verification | **W5** — the same shape as W4, one level down | **M-CHART-VERIFY** |
-| Chart + a `.ti3` that is **corrupt or empty**, no profile | Profiling | the same warning, **plus** a paragraph naming the file as corrupt or empty | **M-CHART-PROFILING** + **M-CHART-CORRUPT** 🆕, appended |
-| Chart + a `.ti3` that is **corrupt or empty**, **and a profile** | Profiling | as above, **plus** what it costs the profile | **M-CHART-PROFILING** + **M-CHART-CORRUPT** 🆕 with its profile paragraph |
+| Chart + a `.ti3` that is **corrupt or empty**, no profile | Profiling | the same warning, **plus** a paragraph naming the file as corrupt or empty | **M-CHART-PROFILING** + **M-CHART-CORRUPT** ✅, appended |
+| Chart + a `.ti3` that is **corrupt or empty**, **and a profile** | Profiling | as above, **plus** what it costs the profile | **M-CHART-PROFILING** + **M-CHART-CORRUPT** ✅ with its profile paragraph |
 | Any of the above, **and the trigger is the auto-update preview** | either | the preview declines to re-draw instead of asking | **M-PREVIEW-PAUSED** ✅ |
 | Any of the above, **and the chart has no `.channels.json`** | either | the §4 message, **plus** a paragraph about the pages | **M-CHART-NOPAGES**, appended |
 | Any of the above, **and the run cannot be duplicated** | either | the §4 message, **plus** a paragraph about Duplicate | **M-DUPLICATE-BLOCKED**, appended |
@@ -561,6 +561,22 @@ Every window this specification can raise, in one place. **ID → where it is us
 >
 > *{pages}:* "The {n} page images in this run are the only ones there will be." · "This run has no page images to lose."
 
+### M-CHART-CORRUPT · the run's measurement file cannot be read — §4
+
+*Approved by Knut, 2026-08-04 ("Message M-CHART-CORRUPT is accepted. move into model."). It is appended to M-CHART-PROFILING, in the same window, when the run holds a `.ti3` that is corrupt or empty — the `{items}` list cannot state a count for such a file, and "a measurement of 0 patches" would be false.*
+
+> **The measurement file in this run cannot be read**
+>
+> It has no readable measurement data in it — no readings, or a structure ChromIQ cannot make sense of. That can happen when a session ended before the first patch was read, or when the file was changed outside ChromIQ.
+>
+> It is moved to the run's "old" folder rather than deleted. **Look at it there before you measure again** — ChromIQ cannot tell whether it holds anything you would want to keep, and only you can judge that.
+
+*Appended to that when the run also holds a profile:*
+
+> The profile in this run moves to the "old" folder with it. That profile was built from a measurement, and the measurement file that should describe it can no longer be read — so nothing on disk now connects the profile to the chart it came from. ChromIQ cannot tell whether the file was always like this or became so later, and it cannot repair it. Measuring the chart again is the way to get a run whose chart, measurement and profile describe each other once more.
+
+*The `{items}` entry that goes with it:* "•  a measurement file that is corrupt or empty".
+
 ### M-PREVIEW-PAUSED · the auto-update preview declines to re-draw — §4
 
 *Approved by Knut, 2026-08-04 ("Accepted message"). The auto-update preview re-lays out the chart in the run, so it is a §4 trigger — but a window on every turn of a layout knob would be unusable. Knut accepted the exception on 2026-08-03 and set the rule: "the popup window … should come once only, then again the next time 'auto-update preview …' is enabled. At the same time it can come in the log window until 'auto-update preview …' is disabled."*
@@ -608,28 +624,41 @@ Every window this specification can raise, in one place. **ID → where it is us
 
 ## M-PROPOSED. Messages awaiting review
 
-*Everything in this section is **PROPOSED**, not approved: it covers a case the reviewed model has no message for, and it exists because the alternative was a window that says something false. Proposed messages are flagged in `workflow/measurement_messages.py` with `approved=False`, and `tests/test_message_catalogue.py` fails if that flag is dropped without the model being updated — or if this section still holds a message that has since been approved. Knut to approve, reword or reject.*
+*Everything in this section is **PROPOSED**, not approved. Proposed messages are flagged in `workflow/measurement_messages.py` with `approved=False`, and `tests/test_message_catalogue.py` fails if that flag is dropped without the model being updated — or if this section still holds a message that has since been approved. Knut to approve, reword or reject.*
 
-*Approved on 2026-08-04 and therefore **moved out of this section** into §M above: **M-REPLACE-UNCOUNTABLE** and **M-PREVIEW-PAUSED**.*
+*Approved and therefore **moved out of this section** into §M above: **M-REPLACE-UNCOUNTABLE**, **M-PREVIEW-PAUSED** and **M-CHART-CORRUPT** (all 2026-08-04).*
 
-### M-CHART-CORRUPT · PROPOSED · the run's measurement file cannot be read — §4
+### M-VERIFY-NO-PROFILE · PROPOSED · a verification with no profile to check — §S1.2
 
-**When it arises:** a §4 chart replacement, where the run holds a `.ti3` that is corrupt or empty. Appended to M-CHART-PROFILING, in the same window.
-**Why it is needed:** Knut, 2026-08-04 — *"If the {c}-value is equal to zero … then why not just say the ti3 file is corrupt or empty."* The `{items}` list cannot state a count for such a file, and the user needs two things the model did not say: that the file is worth looking at before it is archived, and — when a profile is present — what its loss costs.
+**When it arises:** Run type = Verification, Start Measurement pressed, and the selected run has no built profile. Also the greyed Start button's tooltip, which is where a user meets it when the run has no verification chart either.
+**Why it is here:** Knut, 2026-08-04 — *"The S1.2 / S1.3 guard windows: bring them into §M so the model owns their text."* The words below are the ones that have shipped since beta.87; moving them changes nothing on screen.
 
-> **The measurement file in this run cannot be read**
+> **This run has no profile to verify yet**
 >
-> It has no readable measurement data in it — no readings, or a structure ChromIQ cannot make sense of. That can happen when a session ended before the first patch was read, or when the file was changed outside ChromIQ.
+> A verification checks a finished profile — but this profile run doesn't have a built profile yet.
 >
-> It is moved to the run's "old" folder rather than deleted. **Look at it there before you measure again** — ChromIQ cannot tell whether it holds anything you would want to keep, and only you can judge that.
+> To build the profile first:
+>   1. Set "Run type" to "Profiling".
+>   2. Create, print and measure the profiling chart as normal — its measurement is stored in the run folder.
+>   3. Build the profile on the Build Profile tab (this makes the profile's .icc / .icm file).
+>
+> Once the profile exists, you can verify it:
+>   4. Set "Run type" back to "Verification".
+>   5. Create a verification chart in the Create Chart tab.
+>   6. Print that chart THROUGH the finished profile (with colour management on).
+>   7. Measure it here with "Run type" = "Verification" — the result is kept in a dated folder under this run's "verifications" folder.
 
-*Appended to that when the run also holds a profile:*
+### M-VERIFY-NO-CHART · PROPOSED · a verification with no chart to measure — §S1.3
 
-> The profile in this run moves to the "old" folder with it. That profile was built from a measurement, and the measurement file that should describe it can no longer be read — so nothing on disk now connects the profile to the chart it came from. ChromIQ cannot tell whether the file was always like this or became so later, and it cannot repair it. Measuring the chart again is the way to get a run whose chart, measurement and profile describe each other once more.
+**When it arises:** Run type = Verification and the run has a profile but no verification chart. **Since beta.128 this is met as a greyed Start button rather than a window** — Start needs a `.ti2`, and a run without a verification chart has none. Knut found exactly that on Demo-01: *"Start Measurement button is not available, so test cannot be performed. You have not counted for that a verification run must have a chart first."* So the message is what the button's tooltip says, and the window remains for the case where a chart exists but the profile does not.
 
-**The `{items}` entry that goes with it — also PROPOSED.** The `{items}` list of M-CHART-PROFILING names "a measurement of {c} patches" and "the profile built from it". Neither fits a file whose readings cannot be counted, and "a measurement of 0 patches" would be false, so this case contributes its own line to the list instead:
-
-> •  a measurement file that is corrupt or empty
+> **No verification chart for this run yet**
+>
+> This run has a finished profile, but you haven't created its verification chart.
+>
+>   1. Go to the Create Chart tab and, with "Run type" = "Verification", create the verification chart (a smaller chart is fine).
+>   2. Print it through this run's profile (with colour management on).
+>   3. Come back here with "Run type" = "Verification" and measure it — the result is stored in a dated folder under this run's "verifications" folder.
 
 ---
 
@@ -655,7 +684,9 @@ Every window this specification can raise, in one place. **ID → where it is us
 | any recommending Duplicate while it is unavailable | — | **M-DUPLICATE-BLOCKED** appended |
 | §3a header-only, empty | Start Measurement | **M-REPLACE-UNCOUNTABLE** ✅ |
 | §4, trigger = auto-update preview | — | **M-PREVIEW-PAUSED** ✅ |
-| §4, run holds a corrupt or empty `.ti3` | Profiling | **M-CHART-CORRUPT** 🆕 appended |
+| §4, run holds a corrupt or empty `.ti3` | Profiling | **M-CHART-CORRUPT** ✅ appended |
+| §S1.2, Verification with no built profile | Start Measurement | **M-VERIFY-NO-PROFILE** 🆕 |
+| §S1.3, Verification with a profile but no verification chart | the greyed Start button's tooltip | **M-VERIFY-NO-CHART** 🆕 |
 | §4, chart with no `.channels.json` | — | **M-CHART-NOPAGES** appended |
 | §4, run with a verification history | Profiling | **M-CHART-W4** |
 
@@ -675,8 +706,8 @@ Read each row top to bottom: that is the order the code must perform it in.
 | # | Condition | Sequence |
 |---|---|---|
 | S1.1 | no chart loaded | 1 refuse, inline hint. No window. |
-| S1.2 | Verification run type, run has no profile | 1 **guard message** (`tab_measure.py:1120`) → 2 return. Nothing is written. |
-| S1.3 | Verification, profile exists, no verification chart | 1 guard message (second form) → 2 return. |
+| S1.2 | Verification run type, run has no profile | 1 **M-VERIFY-NO-PROFILE** 🆕 → 2 return. Nothing is written. Reachable when the run has a verification chart but no profile; otherwise met as the greyed Start button's tooltip. |
+| S1.3 | Verification, profile exists, no verification chart | **M-VERIFY-NO-CHART** 🆕, as the greyed Start button's tooltip — since beta.128 Start needs a `.ti2`, so this is met before a window can open. Knut, beta.128: *"Start Measurement button is not available, so test cannot be performed."* |
 | S1.4 | no `.ti3` | 1 archive step (§2a) is a no-op → 2 record C₀ = 0 → 3 launch |
 | S1.5 | `.ti3` partial, Resume ticked | 1 **archive `.ti3` → `old/{date}/`** → 2 record C₀ → 3 launch. No window. |
 | S1.6 | `.ti3` partial, Resume **not** ticked | 1 **M-REPLACE-PARTIAL** → 2 *if cancelled, stop here* → 3 archive → 4 record C₀ → 5 launch |

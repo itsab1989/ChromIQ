@@ -166,3 +166,39 @@ def test_the_probe_leaves_the_collector_off_if_it_was_off():
     finally:
         if was:
             gc.enable()
+
+
+# ---- the switch is engine-only, from the first frame ---------------------
+# Knut, beta.128: *"'Play sounds during measurements' was not hidden when
+# starting up ChromIQ with the stock argyllcms chartread engine."* ChromIQ stays
+# quiet on stock chartread — Argyll beeps for itself there and cannot be
+# silenced, so ours would only double it — and the switch is hidden to say so.
+# It was hidden by refresh_engine_visibility(), which nothing called until
+# Preferences had been opened and closed, so a session that started with the
+# engine off showed a switch that did nothing.
+@pytest.mark.parametrize("engine,visible", [("argyll", False), ("chromiq", True)])
+def test_the_sound_switch_matches_the_engine_at_startup(engine, visible):
+    from core.argyll_runner import ArgyllRunner
+    from ui.tabs.tab_measure import TabMeasure
+    s = _Settings({"sound_enabled": True, "chartread_engine": engine})
+    tab = TabMeasure(ArgyllRunner(s), s)
+    assert tab._sound_cb.isHidden() is (not visible)
+    assert tab._sound_tip.isHidden() is (not visible)
+
+
+def test_hiding_the_switch_does_not_silence_the_windows():
+    """Hidden is not off — unlike the overlay boxes beside it.
+
+    The same switch is the master for ChromIQ's own WINDOW sounds, and those
+    do play on stock chartread (Knut, #130 2026-07-28: the "No instrument
+    Found" window arriving in silence was a bug). The per-patch and per-strip
+    sounds are held back for stock chartread inside Sound.play(), which is
+    where that rule belongs — not here.
+    """
+    from core.argyll_runner import ArgyllRunner
+    from ui.tabs.tab_measure import TabMeasure
+    s = _Settings({"sound_enabled": True, "chartread_engine": "argyll"})
+    tab = TabMeasure(ArgyllRunner(s), s)
+    assert tab._sound_cb.isHidden() is True
+    assert s.get("sound_enabled") is True, \
+        "hiding the control must not turn window sounds off"

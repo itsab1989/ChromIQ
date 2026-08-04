@@ -270,7 +270,7 @@ def case(**kw):
 
 
 @case(name="Demo-01-Chart-Only",
-      messages=[],
+      messages=['M-VERIFY-NO-PROFILE'],
       layout="ChromIQ layout engine",
       covers=["§4 row 2 — a chart with nothing measured: no warning",
               "§6e row 1 — no profile yet: no warning"],
@@ -279,10 +279,14 @@ def case(**kw):
              "has been measured, so a new chart costs only a reprint.",
              "Go to Build Profile. *Expected: no warning* — there is no profile "
              "to replace and no verification history.",
-             "Set Run type = **Verification** and press **Start Measurement** "
-             "in the Measure tab. *Expected:* the guard explaining that a "
-             "verification checks a finished profile and this run has none "
-             "— sequence S1.2. Nothing is written. [[GUARD]]"])
+             "Set Run type = **Verification** and go to the Measure tab. "
+             "*Expected:* **Start Measurement is greyed out**, because this "
+             "run has no verification chart — since beta.128 Start needs a "
+             "laid-out chart, so the guard cannot be reached by pressing it. "
+             "**Hover the greyed button**: its tooltip is the message, and it "
+             "is the one for the state this run is in — no profile to verify "
+             "yet. Sequence S1.2/S1.3; nothing is written. "
+             "[[M-VERIFY-NO-PROFILE]]"])
 def build_chart_only(root: Path) -> None:
     name = "Demo-01-Chart-Only"
     p = root / name
@@ -326,7 +330,8 @@ def build_partial(root: Path) -> None:
 
 
 @case(name="Demo-03-Complete-And-Profiled",
-      messages=['M-REPLACE-COMPLETE', 'M-CHART-PROFILING', 'M-CHART-NOPAGES'],
+      messages=['M-REPLACE-COMPLETE', 'M-CHART-PROFILING', 'M-CHART-NOPAGES',
+                'M-VERIFY-NO-CHART'],
       layout="printtarg",
       covers=["§5 M-REPLACE-COMPLETE — starting over a finished measurement",
               "§4 chart + complete .ti3 + profile (Profiling)",
@@ -346,9 +351,16 @@ def build_partial(root: Path) -> None:
              "[[M-DUPLICATE-BLOCKED]]",
              "Look at the Profile-run bar: the **Duplicate** button is greyed "
              "out, exactly as the message said.",
-             "Set Run type = **Verification** and press Start Measurement. "
-             "*Expected:* the guard's second form — this run has a profile but "
-             "no verification chart yet — sequence S1.3. [[GUARD]]",
+             "Set Run type = **Verification** and go to the Measure tab. "
+             "*Expected:* **Start Measurement is greyed out** — this run has a "
+             "profile but no verification chart, and Start needs a laid-out "
+             "chart. **Hover the greyed button**: the tooltip is the message, "
+             "telling you to create the verification chart first. Sequence "
+             "S1.3. [[M-VERIFY-NO-CHART]]\n\n"
+             "    *If you go on and create that chart, pressing Start then "
+             "begins a real measurement — with an instrument connected you may "
+             "first be told the chart was made for a different one, which is "
+             "the instrument warning, not a guard.*",
              "In Build Profile, use its own **Load** button to open this run's "
              ".ti3 directly. *Expected: no window* — pressing Build Profile "
              "asks nothing, because the target is a file rather than a run "
@@ -646,10 +658,11 @@ SPEC_DOC = ROOT / "docs" / "design" / "unified_measurement_management.md"
 SEQUENCES = {
     "S1.1": ("Demo-05-Unreadable-Measurements", "run 3 — Start is greyed out"),
     "S1.2": ("Demo-01-Chart-Only",
-             "run 1 with Run type = Verification — no profile to verify"),
+             "run 1 with Run type = Verification — no profile to verify; met "
+             "as the greyed Start button's tooltip, since Start needs a chart"),
     "S1.3": ("Demo-03-Complete-And-Profiled",
              "run 1 with Run type = Verification — a profile, but no "
-             "verification chart"),
+             "verification chart; likewise the greyed Start button's tooltip"),
     "S1.4": ("Demo-01-Chart-Only", "run 1 — a chart with no measurement"),
     "S1.5": ("Demo-02-Partial-Measurement", "run 1 with Refine / resume ticked"),
     "S1.6": ("Demo-02-Partial-Measurement", "run 1 with Refine / resume clear"),
