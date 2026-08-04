@@ -18,7 +18,7 @@ the file guide says so to the user too, `ui/file_guide.py:261`). So
 "Profile run = Run 3 · Run type = Calibration" has no meaning, and the design
 below makes the bar say what is actually true. The work is contained — the
 folder model, both Argyll runners, the chart routing and the auto-prefill all
-exist already — and the research turned up **three real defects in today's
+exist already — and the research turned up **five real defects in today's
 calibration path**, one of which destroys the user's calibration without a word.
 That last one is an argument *for* the feature: bringing calibration under the
 same rules as runs is what fixes it.
@@ -40,7 +40,7 @@ same rules as runs is what fixes it.
 | printcal | `workflow/printcal_runner.py` | Modes initial / recalibrate / verify / imitation, per-channel targets, its own error catalogue. |
 | applycal | `workflow/applycal_runner.py` | apply / remove / check. |
 | The auto-prefill | `_check_for_cal_file`, `ui/tabs/tab_chart.py:3545-3573` | If `cal/<project>-cal.cal` exists, its path is filled into printtarg **-K** and **-I**, and a green line says so. |
-| -K / -I mutual exclusion | `_connect_cal_mutex`, `ui/tabs/tab_chart.py:4788-4794` | Enabling one switches the other off. The prefill only fills *values*; a parameter contributes its flag only when the user enables it (`ParameterWidget.build_args`, `ui/parameter_widget.py:225-227`). |
+| -K / -I mutual exclusion | `_connect_cal_mutex`, `ui/tabs/tab_chart.py:4788-4794` | Enabling one switches the other off. **Note the prefill does not leave both off — see D4.** |
 | Glossary + file guide | `ui/dialogs/welcome_dialog.py:599`, `ui/file_guide.py:49,102,261,377` | "Calibration" is defined; `cal/` is described. |
 
 **So the request is almost entirely a navigation-model change.** The one thing
@@ -80,10 +80,11 @@ Everything in §3 and §4 follows from this.
 
 ---
 
-## 3. Three defects found while researching (evidence, not opinion)
+## 3. Five defects found while researching (evidence, not opinion)
 
-All three were reproduced with the real classes and real files
-(`scratchpad/probe_cal.py`); none is speculative.
+D1–D3 were reproduced with the real classes and real files; D4 and D5 turned up
+while building the mockups in §12, in the real running app. None is speculative,
+and none is fixed — this is a design draft.
 
 ### D1 · Regenerating a calibration chart deletes the calibration, silently
 
@@ -145,6 +146,27 @@ belongs**, which is the shape of the fix.
 
 ---
 
+### D4 · The auto-prefill silently switches **-I** on
+
+Found by building the mockups, not by reading: `ParameterWidget.set_value`
+**ticks the enable checkbox** for a `file_path` parameter when the value is
+non-empty (`ui/parameter_widget.py:175-178`). `_check_for_cal_file` sets `-K`
+first and `-I` second, and the mutex then switches `-K` back off — so the
+calibration ends up **included but not applied**, chosen for the user, while the
+status line says only *"auto-filled into -I and -K fields below"*.
+
+The mockup `04-create-chart-prefill.png` is the real panel: `-I` is ticked, `-K`
+is not. Either default is defensible — `-I` changes nothing about what is
+printed — but the user is not told a choice was made for them, and the two
+options mean different things on paper (printtarg.c:2962-2963). §4.6 and Q7
+cover it.
+
+### D5 · The `-I` row's label is clipped
+
+Same mockup: *"Include Calibration File (no"* — the label is cut mid-word where
+`-K`'s fits. A one-line width fix, but it is the row a user is being asked to
+choose between.
+
 ## 4. The design
 
 ### 4.1 The bar
@@ -159,7 +181,11 @@ Profile run: [ Project calibration ▾ ]   Run type: [ Calibration ▾ ]   ⓘ
   `MeasurementTarget.is_calibration()` beside `is_verification()`.
 - When it is selected, **Profile run** shows one entry, *"Project calibration"*,
   and is disabled — because there is one calibration per project and no choice
-  to make. Its tooltip says so in words. The **Verification** box hides, exactly
+  to make. Its tooltip says so in words. **The box has to be re-fitted for that
+  label**: its floor is sized for `"Run 8 (overwrite)"`
+  (`ui/measurement_target_bar.py:585-587`), and the first mockup clipped to
+  *"Project calibratior"* until `_fit_box` was given the new text. The bar grows
+  by 16 px, once, at construction. The **Verification** box hides, exactly
   as it does for Profiling.
 - Turning the preference off while Calibration is selected drops the target back
   to Profiling, and the value disappears from the combo.
@@ -228,6 +254,13 @@ re-titles itself per mode.
 would be empty of anything actionable (no cal `.ti3` measured yet), the panel
 says what to do rather than showing a dead button — the pattern agreed for #133.
 
+**Tab 4 does not carry the bar** (it is shared by tabs 1–3 only), so nothing on
+that tab would say which target its modules belong to. The mockup answers this
+by re-titling the header — *"STEP 04 · CREATE CALIBRATION FILE / Calibration"*
+against *"STEP 04 · CALIBRATE & PROFILE / Calibration & Profiling"* — which is
+free, because the header already re-titles itself per mode
+(`ui/tabs/tab_profile.py:634-640`). Q7 asks whether that is enough.
+
 ### 4.6 The prefill
 
 `_check_for_cal_file` already fills `-K` and `-I`. Two gaps to close:
@@ -241,6 +274,12 @@ says what to do rather than showing a dead button — the pattern agreed for #13
 2. The green status line uses a hard-coded `color: #56d6a5`
    (`ui/tabs/tab_chart.py:2082`). It must be read from the palette so it is
    legible in light mode as well as dark.
+3. **D4:** it must stop switching `-I` on silently. Two honest options, and Q7
+   asks which: fill both values and leave **both off**, with the line saying
+   *"Switch on the one you want — they cannot both be used at once"*; or switch
+   **-K** on deliberately (the option that actually applies the calibration to
+   what is printed) and say so in the same line. What it may not do is choose
+   the weaker of the two without a word.
 
 ### 4.7 Draft user-facing text
 
@@ -437,6 +476,10 @@ new persistence.
 6. **D1 as a separate fix.** The archive-instead-of-delete fix is small,
    independent, and protects users *now*. Ship it before the feature, or as part
    of it?
+7. **D4 — what should the prefill do?** Fill both and leave both off (the user
+   picks), or switch **-K** on deliberately and say so? And is re-titling tab 4's
+   header enough to show which target its modules belong to, given the bar is
+   not on that tab?
 
 ---
 
@@ -462,3 +505,28 @@ the finished thing on screen before calling it done.
 The second risk is smaller and worth naming: **a user who has been ticking
 "Create chart for calibration" will find it gone.** The release note has to say
 where it went, in one sentence, without a history lesson in the interface itself.
+
+---
+
+## 12. Mockups — the real app, in the proposed state
+
+`scripts/mockup_calibration_run_type.py` launches the **real** `MainWindow` with
+the real fonts, the real theme and the real widgets, puts the live widgets into
+the proposed state and grabs them. Nothing is drawn: only the state is invented,
+never the styling, so what these show is what the app would look like at the
+pixel. Re-run it after any change to the design.
+
+| Image | What it shows |
+|---|---|
+| `01-bar-today-profiling.png` | The bar as it is today, for comparison. |
+| `02-bar-proposed-calibration.png` | Run type = **Calibration**: the fixed, disabled "Project calibration", no Verification box, the three run buttons greyed with reasons. |
+| `03-create-chart-calibration.png` | The whole window in a Calibration target — the bar, the retired checkbox, and the empty-preview guidance written for this case. |
+| `04-create-chart-prefill.png` | **Today's** prefill, unmodified: the status line, and `-I` already switched on with `-K` off — the evidence for D4, and the clipped `-I` label of D5. |
+| `05-replace-warning.png` | The §4.7 data-safety window, rendered as the real `QMessageBox` the §4 windows use. |
+| `06-tab4-calibration-run.png` | Tab 4 in a Calibration target: **CREATE CALIBRATION FILE** alone, header re-titled. |
+| `07-tab4-profiling-run.png` | Tab 4 in a Profiling target with calibration options on: **BUILD PROFILE** + **APPLY CALIBRATION**. |
+
+Two of this document's findings came out of building them rather than out of
+reading the code (D4, D5), and one layout consequence did too — the Profile-run
+box has to be re-fitted for its new label, or it clips (§4.1). That is the
+argument for making mockups from the running app rather than from a drawing.
