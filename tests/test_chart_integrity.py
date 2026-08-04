@@ -143,16 +143,25 @@ def test_a_measurement_is_protected_even_where_the_chart_is_incomplete(tmp_path)
         assert cost.readings == 3
 
 
-def test_a_corrupt_measurement_is_named_as_corrupt(tmp_path):
+def test_a_corrupt_measurement_gets_its_own_window(tmp_path):
     """Knut, 2026-08-04: *"If the {c}-value is equal to zero … then why not
-    just say the ti3 file is corrupt or empty."*"""
+    just say the ti3 file is corrupt or empty"* — and, on beta.133 seeing it
+    hung under the ordinary chart warning: *"M-CHART-CORRUPT (ONLY THIS
+    MESSAGE as defined below, and in the unified measurement management
+    model)."*
+
+    So the window IS M-CHART-CORRUPT: its own headline, and none of
+    M-CHART-PROFILING's {items} list, which cannot describe a file whose
+    readings will not count.
+    """
     run = _run(tmp_path, ti1=True, ti2=True, recipe=True, tifs=1)
     run.measurement_ti3.write_text("not a CGATS file at all")
-    text = _profiling_text(run, assess_profiling_chart(run))
-    assert "a measurement file that is corrupt or empty" in text
-    assert "The measurement file in this run cannot be read" in text
+    title, text = _profiling_parts(run, assess_profiling_chart(run))
+    assert title == "The measurement file in this run cannot be read"
     assert "Look at it there before you measure again" in text
     assert "a measurement of 0 patches" not in text
+    assert "This run already holds work made with the chart" not in title + text
+    assert "Replacing the chart in this run means" not in text
 
 
 def test_a_corrupt_measurement_with_a_profile_says_what_it_costs(tmp_path):
@@ -258,6 +267,11 @@ class _Talker:
 def _profiling_text(run, cost):
     title, body = _Talker()._profiling_chart_message(run, cost)
     return title + "\n\n" + body
+
+
+def _profiling_parts(run, cost):
+    """(headline, body) — for the cases where WHICH window matters."""
+    return _Talker()._profiling_chart_message(run, cost)
 
 
 def test_the_message_says_how_many_readings(tmp_path):

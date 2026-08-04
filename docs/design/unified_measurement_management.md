@@ -85,6 +85,56 @@ You asked me to generalise rows 10 and 11 to all failure windows. Doing that tur
 
 ---
 
+## 1b. The exact sequence each ending sends
+
+Knut, beta.133: *"The save partial and quit and stop buttons worked before. Even
+the q and d keys worked before. What is different now? … Update the … document
+with the sequences to use to exit windows and measurement session."*
+
+Here is every one, because they are not the same and the difference is not
+visible on screen. **Two things decide the sequence: which engine is reading,
+and whether a prompt is open.**
+
+### Save Partial & Quit
+
+| Engine | Mode | Where it starts | What ChromIQ sends | What ends it |
+|---|---|---|---|---|
+| ChromIQ | strip | any | `{"cmd":"quit"}` → helper prints *"Strip read stopped at user request!"* + the give-up prompt → `{"cmd":"quit"}` | the helper writes the `.ti3` (`cq_write_ti3_atomic`) and exits |
+| ChromIQ | patch | any | the same two commands — but the helper says *"**Spot** read stopped at user request!"* | as above |
+| stock | strip | a failure prompt | `r` → *"Ready to read strip pass X"* → `d` → *"Are you sure [y/n]"* → `y` | chartread writes the `.ti3` and exits |
+| stock | patch | a failure prompt | `r` → *"Ready to read patch 'N' at 'LOC'"* → `d` → *"Done ? — At least one unread patch (…) Are you sure [y/n]"* → `y` | as above |
+| stock | either | the menu | `d` → *"Are you sure [y/n]"* → `y` | as above |
+
+**Why the first key differs.** A failure prompt reads **any key that is not Esc
+or `q` as "retry"** (chartread.c:1652-1654), so a `d` sent there is swallowed
+and the reader simply carries on. The retry key has to be spent first, and only
+then does `d` reach the menu that raises the saving question.
+
+### What the user's own keys do
+
+| Key | ChromIQ engine | stock chartread |
+|---|---|---|
+| `d` at the menu | asks *"Are you sure"*, then writes | the same |
+| `d` at a failure prompt | read as "retry" | read as "retry" |
+| `q` / Esc at a failure prompt | the helper **writes the `.ti3` first**, then gives up | **gives up without writing** — `chartread.c:1654` returns −1 and the readings die with the process |
+| Stop | §2's window: *Save and stop* runs the sequence above; *Discard and stop* ends the session and keeps nothing | the same |
+
+That last row is the whole reason ChromIQ never sends `q` on stock chartread,
+and why the two engines cannot share one sequence.
+
+### What changed, and when
+
+- **beta.130** taught the stock path that a failed *strip* read leaves a retry
+  prompt open. Before that, Save Partial sent `d` straight into that prompt,
+  which ate it — Knut's beta.128 report.
+- **beta.134** does the same for **patch-by-patch**: its menu line is *"Ready to
+  read patch 'N' at 'LOC'"*, which the chain did not recognise, so it walked
+  back to the menu and then waited for a line that never came. And the ChromIQ
+  engine's patch mode never matched *"Spot read stopped at user request"* at
+  all, so its second `quit` was never sent — that one had never worked.
+
+---
+
 ## 2. The proposed unified ending
 
 **One window, one set of words, every route** — Stop, `d`, `Esc`/`q`, and every failure window in §1a:
@@ -195,8 +245,8 @@ So the live preview **declines to re-draw** a run that holds work, writes the no
 | Chart + `.ti3` + profile | Profiling | as above, plus: "The profile built from it is moved to `old/` too, because it describes a chart this run will no longer have." | **M-CHART-PROFILING** |
 | **Chart + `.ti3` + profile, AND the run has verifications with readings** | **Profiling** | **W4 — the widest blast radius of the three; see below** | **M-CHART-W4** |
 | Chart + `.ti3` (+ profile) | Verification | **W5** — the same shape as W4, one level down | **M-CHART-VERIFY** |
-| Chart + a `.ti3` that is **corrupt or empty**, no profile | Profiling | the same warning, **plus** a paragraph naming the file as corrupt or empty | **M-CHART-PROFILING** + **M-CHART-CORRUPT** ✅, appended |
-| Chart + a `.ti3` that is **corrupt or empty**, **and a profile** | Profiling | as above, **plus** what it costs the profile | **M-CHART-PROFILING** + **M-CHART-CORRUPT** ✅ with its profile paragraph |
+| Chart + a `.ti3` that is **corrupt or empty**, no profile | Profiling | a window of its own, naming the file as corrupt or empty | **M-CHART-CORRUPT** ✅ (not M-CHART-PROFILING) |
+| Chart + a `.ti3` that is **corrupt or empty**, **and a profile** | Profiling | as above, **plus** what it costs the profile | **M-CHART-CORRUPT** ✅ with its profile paragraph |
 | Any of the above, **and the trigger is the auto-update preview** | either | the preview declines to re-draw instead of asking | **M-PREVIEW-PAUSED** ✅ |
 | Any of the above, **and the chart has no `.channels.json`** | either | the §4 message, **plus** a paragraph about the pages | **M-CHART-NOPAGES**, appended |
 | Any of the above, **and the run cannot be duplicated** | either | the §4 message, **plus** a paragraph about Duplicate | **M-DUPLICATE-BLOCKED**, appended |
@@ -567,7 +617,7 @@ Every window this specification can raise, in one place. **ID → where it is us
 
 ### M-CHART-CORRUPT · the run's measurement file cannot be read — §4
 
-*Approved by Knut, 2026-08-04 ("Message M-CHART-CORRUPT is accepted. move into model."). It is appended to M-CHART-PROFILING, in the same window, when the run holds a `.ti3` that is corrupt or empty — the `{items}` list cannot state a count for such a file, and "a measurement of 0 patches" would be false.*
+*Approved by Knut, 2026-08-04. **It is the window**, not a paragraph inside another one — his ruling on beta.133: "M-CHART-CORRUPT (ONLY THIS MESSAGE …)". It replaces M-CHART-PROFILING whenever the run holds a `.ti3` that is corrupt or empty, because M-CHART-PROFILING's `{items}` list cannot describe a file whose readings will not count — "a measurement of 0 patches" would be false, and naming it in a list under a headline about matching files says less than the message below says on its own. M-CHART-NOPAGES and M-DUPLICATE-BLOCKED still append to it when they apply; they are about other things.*
 
 > **The measurement file in this run cannot be read**
 >
@@ -579,7 +629,7 @@ Every window this specification can raise, in one place. **ID → where it is us
 
 > The profile in this run moves to the "old" folder with it. That profile was built from a measurement, and the measurement file that should describe it can no longer be read — so nothing on disk now connects the profile to the chart it came from. ChromIQ cannot tell whether the file was always like this or became so later, and it cannot repair it. Measuring the chart again is the way to get a run whose chart, measurement and profile describe each other once more.
 
-*The `{items}` entry that goes with it:* "•  a measurement file that is corrupt or empty".
+*(The `{items}` entry that once went with it is gone: with the message standing on its own there is no list to fill.)*
 
 ### M-PREVIEW-PAUSED · the auto-update preview declines to re-draw — §4
 
@@ -709,7 +759,7 @@ sitting in it.*
 | any recommending Duplicate while it is unavailable | — | **M-DUPLICATE-BLOCKED** appended |
 | §3a header-only, empty | Start Measurement | **M-REPLACE-UNCOUNTABLE** ✅ |
 | §4, trigger = auto-update preview | — | **M-PREVIEW-PAUSED** ✅ |
-| §4, run holds a corrupt or empty `.ti3` | Profiling | **M-CHART-CORRUPT** ✅ appended |
+| §4, run holds a corrupt or empty `.ti3` | Profiling | **M-CHART-CORRUPT** ✅ — the window itself, replacing M-CHART-PROFILING |
 | §S1.2, Verification with no built profile | Start Measurement | **M-VERIFY-NO-PROFILE** ✅ |
 | §S1.3, Verification with a profile but no verification chart | the greyed Start button's tooltip | **M-VERIFY-NO-CHART** ✅ |
 | §6, the measurement is not in the selected run | Build Profile | **M-BUILD-ELSEWHERE** ✅ |

@@ -68,7 +68,12 @@ _ARE_YOU_SURE_RE       = re.compile(r"Are\s+you\s+sure\s+\[y/n\]",              
 # The instrument line stock chartread prints under -v. Identical in
 # wording to spotread's, verified from Knut's terminal on both tools.
 _INST_TYPE_RE      = re.compile(r"Instrument Type:\s*(.+?)\s*$", re.IGNORECASE)
-_STRIP_INTERRUPTED_RE  = re.compile(r"Strip read stopped at user request",      re.IGNORECASE)
+# …and "Spot read stopped at user request!" in patch-by-patch mode, which is
+# the same prompt for the same reason. Matching only "Strip" meant the second
+# 'q' of Save Partial & Quit was never sent there, so the session sat at
+# "Hit Esc or 'q' to give up" until the user pressed q by hand (Knut,
+# beta.133, engine + patch-by-patch).
+_STRIP_INTERRUPTED_RE  = re.compile(r"(?:Strip|Spot) read stopped at user request", re.IGNORECASE)
 # chartread.c 3.5.0 L1593: user pressed 'd' while patches are still unread.
 # Captures the "id, loc" payload so we can show the user which patch is missing.
 _UNREAD_CONFIRM_RE     = re.compile(r"Done\s*\?\s*-\s*At least one unread patch \(([^)]+)\)", re.IGNORECASE)
@@ -860,7 +865,23 @@ class MeasureManager(QObject):
         elif kind == "strip_read":
             self._engine_progress = True
             self._read_something = True
-            self._readings_count += int(ev.get("patches") or 1)
+            # "patches" IS THE LIST OF PATCHES, not a count.
+            #
+            # int(list) raises, and the raise happened one line before
+            # strip_measured was emitted — so in engine strip mode every single
+            # strip died here, silently as far as the screen was concerned:
+            # no strip-completion sound, no pace figure under the preview, no
+            # "read too fast" window, no split-patch overlay. Knut's beta.133
+            # log, once per strip:
+            #
+            #   [CRITICAL] chromiq: Uncaught exception:
+            #     File "workflow/measure_manager.py", line 863
+            #   TypeError: int() argument must be … not 'list'
+            #
+            # He reported the four symptoms; they are one line.
+            _patches = ev.get("patches")
+            self._readings_count += (len(_patches) if isinstance(_patches, list)
+                                     else int(_patches or 1))
             self.strip_measured.emit(ev)
             on_line(f" Strip read OK — {ev.get('strip', '?')} "
                     f"(worst patch ΔE {ev.get('worst_de', 0):.1f})")
@@ -1114,8 +1135,13 @@ class MeasureManager(QObject):
         # Save-Partial on STOCK chartread: retry took us back to the strip menu,
         # and 'd' there raises the question that actually writes the file
         # (#130, 2026-08-01 — 'q' on stock chartread exits without writing).
-        if _STRIP_MENU_RE.search(line):
-            # Back at the menu, so whatever prompt was open is closed. The
+        if _STRIP_MENU_RE.search(line) or _SPOT_READY_RE.search(line):
+            # Back at the menu — strip mode's "Ready to read strip pass A" or
+            # patch-by-patch's "Ready to read patch '66' at 'A2'". Only the
+            # first was recognised, so on stock chartread reading patch by
+            # patch, Save Partial & Quit walked back to the menu and then
+            # waited for a line that never came (Knut, beta.133). The
+            # remaining prompt is closed either way.
             # engine clears this on its `strip_ready` event; the stock path had
             # no equivalent, so once a failure had been seen the flag stayed set
             # for the rest of the session and every later Save Partial spent a

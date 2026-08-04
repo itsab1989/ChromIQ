@@ -178,3 +178,54 @@ def test_the_flag_clears_again_at_the_menu():
                    lambda _l: None)
     m._handle_line("Ready to read strip pass A", lambda _l: None)
     assert m._at_retry_prompt is False
+
+
+# ---- patch-by-patch has a menu too --------------------------------------
+# Knut, beta.133, stock chartread + patch-by-patch. His log, after Save Partial
+# & Quit:
+#
+#   Strip read failed due to misread (Reading is inconsistent)
+#   Hit Esc or 'q' to give up, any other key to retry:
+#   Ready to read patch '66' at 'A2'          ← the retry key worked
+#   … 'd' when done …                          ← and then nothing happened
+#
+# The chain waits for "back at the menu", and only the STRIP menu line was
+# recognised. Reading one patch at a time, chartread says "Ready to read patch
+# '66' at 'A2'" instead — the same state, a different sentence.
+def test_the_patch_menu_carries_the_chain_too():
+    m = _mgr(engine=False)
+    m._handle_line("Strip read failed due to misread (Reading is inconsistent)",
+                   lambda _l: None)
+    m.send_save_partial_and_quit()
+    assert m._runner.out == ["r"]
+
+    m._handle_line("Ready to read patch '66' at 'A2'", lambda _l: None)
+    assert m._runner.out[-1] == "d", \
+        "the patch menu is a menu: 'd' is what raises the saving question"
+
+    m._handle_line("Done ? - At least one unread patch (66, A2), "
+                   "Are you sure [y/n]: ", lambda _l: None)
+    assert m._runner.out[-1] == "y"
+    assert m.save_partial_in_progress is False
+
+
+def test_the_patch_menu_also_closes_the_retry_prompt():
+    m = _mgr(engine=False)
+    m._handle_line("Strip read failed due to misread (Not enough patches)",
+                   lambda _l: None)
+    assert m._at_retry_prompt is True
+    m._handle_line("Ready to read patch '3' at 'A3'", lambda _l: None)
+    assert m._at_retry_prompt is False
+
+
+def test_the_engine_recognises_a_spot_read_being_stopped():
+    """Its helper says "Spot read stopped at user request!" reading patch by
+    patch, and "Strip read stopped…" in strip mode. Matching only the second
+    left the second 'q' unsent, so the session waited at "Hit Esc or 'q' to
+    give up" until Knut pressed q himself (beta.133)."""
+    m = _mgr(engine=True, at_prompt=True)
+    m.send_save_partial_and_quit()
+    assert m._runner.out == ['{"cmd": "quit"}\n']
+    m._handle_line("Spot read stopped at user request!", lambda _l: None)
+    assert m._runner.out == ['{"cmd": "quit"}\n', '{"cmd": "quit"}\n'], \
+        "the second quit is what writes the .ti3 and ends the session"

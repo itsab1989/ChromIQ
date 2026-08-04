@@ -173,7 +173,14 @@ class _Run:
         self.dir = tmp_path
         self.stem = "chart"
         if ti3:
-            self.measurement_ti3.write_text("x")
+            # A REAL measurement, not a placeholder byte. Since beta.134 a file
+            # whose readings cannot be counted raises M-CHART-CORRUPT — its own
+            # window, which rightly does not offer Duplicate — so "x" would
+            # test a different case from the one this file is about (Knut,
+            # beta.133: "M-CHART-CORRUPT (ONLY THIS MESSAGE …)").
+            rows = "\n".join(f"{i} 50 50 50 20 20 20" for i in range(1, 5))
+            self.measurement_ti3.write_text(
+                "CTI3\nNUMBER_OF_SETS 4\nBEGIN_DATA\n" + rows + "\nEND_DATA\n")
         if icc:
             self.profile_icc.write_bytes(b"x")
 

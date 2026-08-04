@@ -1,5 +1,35 @@
 # Changelog
 
+## v3.14.8-beta.135
+
+- **Every strip in engine mode was crashing before it reached the screen.** The
+  handler counted the strip's patches with `int(ev["patches"])` — and that key
+  holds the *list* of patches, so it raised one statement before the strip was
+  announced. Four things went missing at once and looked like four bugs: no
+  strip-completion sound, no pace figure under the preview, no "read too fast"
+  window, and no split-patch overlay. Knut's log carried the same traceback once
+  per strip.
+
+- **Turning "Play sounds during measurement" on during a measurement silenced
+  it.** The handler pre-loaded the clips and then left measurement mode, which
+  is right before a read and wrong during one — window sounds kept working,
+  which is exactly what he heard. It also decided whether ChromIQ may make any
+  sound at all by casting the engine setting to a boolean, and every non-empty
+  string is true, so stock chartread was treated as the ChromIQ engine.
+
+- **"Save Partial & Quit" now works reading patch by patch.** On stock
+  chartread the chain waits to be back at the menu, and only the strip menu's
+  wording was recognised — patch-by-patch says "Ready to read patch '66' at
+  'A2'". On the ChromIQ engine the second quit command waited for "Strip read
+  stopped at user request", which in patch mode reads "**Spot** read stopped".
+  Both are recognised now, and §1b of the design document lists every exit
+  sequence, per engine and mode, with what each key does.
+
+- **A corrupt or empty measurement gets its own window.** It was appended to the
+  ordinary chart warning, whose list of what is about to move cannot describe a
+  file with no countable readings. It now replaces that window: its own
+  headline, no list, and the paragraph about the profile when there is one.
+
 ## v3.14.8-beta.134
 
 - **Every message in the Unified Measurement Management model is now approved.**

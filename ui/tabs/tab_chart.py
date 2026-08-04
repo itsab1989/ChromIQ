@@ -8953,6 +8953,22 @@ class TabChart(QWidget):
         if cost.blast is Blast.RUN_AND_HISTORY:
             title, body = M.M_CHART_W4.render(
                 c=cost.readings, v=cost.verifications, folder=str(run.old_dir))
+        elif cost.has_measurement and cost.readings == 0:
+            # A CORRUPT OR EMPTY MEASUREMENT GETS ITS OWN WINDOW, NOT AN
+            # APPENDED PARAGRAPH.
+            #
+            # Knut, beta.133: *"M-CHART-CORRUPT (ONLY THIS MESSAGE as defined
+            # below, and in the unified measurement management model)."* The
+            # first implementation followed the model's earlier note and hung it
+            # under M-CHART-PROFILING, whose {items} list then had to describe a
+            # file it cannot count. With the message standing on its own there
+            # is no list to fill and nothing to contradict: it says what the
+            # file is, and what happens to it.
+            title, body = M.M_CHART_CORRUPT.render()
+            if cost.has_profile:
+                body += tr(M.M_CHART_CORRUPT_WITH_PROFILE)
+            return title, body + self._pages_paragraph(cost) \
+                + self._duplicate_blocked_note(cost)
         else:
             items = []
             if cost.readings == 1:

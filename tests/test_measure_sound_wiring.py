@@ -202,3 +202,73 @@ def test_hiding_the_switch_does_not_silence_the_windows():
     assert tab._sound_cb.isHidden() is True
     assert s.get("sound_enabled") is True, \
         "hiding the control must not turn window sounds off"
+
+
+# ---- one strip, one signal — and it used to die on the way ---------------
+def test_a_strip_read_reaches_the_tab(monkeypatch):
+    """Knut, beta.133, engine + strip mode: no completion sound, no pace figure,
+    no "read too fast" window, no overlay — four symptoms, one line.
+
+    ``ev["patches"]`` is the LIST of patches, and the handler did
+    ``int(ev.get("patches") or 1)``. That raises, one statement before
+    ``strip_measured.emit`` — so every strip died there. His log carries the
+    traceback once per strip::
+
+        TypeError: int() argument must be … not 'list'
+    """
+    tab, played = _make_tab()
+    ev = {"event": "strip_read", "strip": "B", "worst_de": 1.2,
+          "patches": [{"id": str(i), "loc": f"B{i}", "de": 0.5}
+                      for i in range(1, 16)]}
+
+    tab._manager._engine_active = True
+    tab._manager._handle_engine_line(__import__("json").dumps(ev),
+                                     lambda _l: None)
+
+    assert snd.STRIP_OK in played or snd.SLOW_DOWN in played, \
+        "the strip made no sound at all"
+    assert tab._manager.readings_this_session == 15, \
+        "the patches in the strip must be counted, not int()-ed"
+
+
+# ---- switching the master on mid-measurement must not silence it ---------
+def test_turning_sounds_on_while_measuring_keeps_them_on():
+    """Knut, beta.133: *"Enabling of 'Play sounds during measurement' does NOT
+    enable the sounds when measuring. Error sound comes on Reading Failure
+    window, but when clicking instrument button the sound is no longer
+    present."*
+
+    The handler armed the clips and then disarmed — "preload only; not in a
+    measurement yet" — which is true before a read and false during one.
+    Sound.play() drops everything but completion and window sounds when
+    disarmed, which is exactly the shape of what he heard.
+    """
+    tab, played = _make_tab()
+    tab._settings.set("chartread_engine", "chromiq")
+    tab._session_live = True
+    tab._sound._in_measurement = False           # as if it had been off
+
+    tab._on_sound_toggled(True)
+
+    assert tab._sound._in_measurement is True, \
+        "the running measurement was left disarmed"
+    tab._on_patch_sound({"de": 1.0})
+    assert played == [snd.PATCH_OK]
+
+
+def test_turning_sounds_on_outside_a_measurement_only_preloads():
+    tab, _played = _make_tab()
+    tab._session_live = False
+    tab._sound._in_measurement = False
+    tab._on_sound_toggled(True)
+    assert tab._sound._in_measurement is False
+
+
+@pytest.mark.parametrize("engine,wanted", [("chromiq", True), ("argyll", False)])
+def test_the_engine_flag_is_compared_not_cast(engine, wanted):
+    """`bool("argyll")` is True. The flag decides whether ChromIQ makes any
+    measurement sound at all — on stock chartread it must not, because Argyll
+    beeps for itself and cannot be silenced."""
+    tab, _played = _make_tab()
+    tab._settings.set("chartread_engine", engine)
+    assert tab._engine_wanted() is wanted

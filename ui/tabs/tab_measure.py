@@ -3874,8 +3874,19 @@ class TabMeasure(QWidget):
         first play during a measurement isn't delayed by a disk read."""
         self._settings.set("sound_enabled", on)
         if on and getattr(self, "_sound", None) is not None:
-            self._sound.arm()
-            self._sound.disarm()      # preload only; not in a measurement yet
+            # DISARMING DURING A MEASUREMENT SILENCES IT.
+            #
+            # arm() pre-loads the clips; disarm() leaves measurement mode, and
+            # Sound.play() then drops everything that is not a completion or
+            # window sound. Switching the master on WHILE measuring therefore
+            # turned the measurement's own sounds off — Knut, beta.133: *"Enabling
+            # of 'Play sounds during measurement' does NOT enable the sounds when
+            # measuring. Error sound comes on Reading Failure window, but when
+            # clicking instrument button the sound is no longer present."* The
+            # window sound survived because windows are exempt from that gate.
+            self._sound.arm(reading_engine=self._engine_wanted())
+            if not getattr(self, "_session_live", False):
+                self._sound.disarm()      # preload only; no measurement running
 
     def _engine_wanted(self) -> bool:
         """Whether this measurement will run on ChromIQ's own reading engine.
@@ -3886,9 +3897,15 @@ class TabMeasure(QWidget):
         happens (see :meth:`_on_engine_fell_back`).
         """
         try:
-            return bool(self._settings.get("chartread_engine", True))
+            # A STRING IS ALWAYS TRUTHY. The setting holds "argyll" or
+            # "chromiq", so bool() of it was True either way — which armed the
+            # sounds as if the engine were running even on stock chartread,
+            # where ChromIQ deliberately stays quiet because Argyll beeps for
+            # itself (Knut, #131 2026-07-27). Same comparison as
+            # _engine_selected(), which is the one that was right.
+            return str(self._settings.get("chartread_engine", "argyll")) == "chromiq"
         except Exception:      # noqa: BLE001
-            return True
+            return False
 
     def _pace_config(self):
         """Build the pace thresholds for the instrument this chart was laid out

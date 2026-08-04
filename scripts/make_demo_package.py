@@ -440,8 +440,7 @@ def build_mismatched(root: Path) -> None:
 
 
 @case(name="Demo-05-Unreadable-Measurements",
-      messages=["M-REPLACE-UNCOUNTABLE", "M-CHART-CORRUPT",
-                "M-CHART-PROFILING"],
+      messages=["M-REPLACE-UNCOUNTABLE", "M-CHART-CORRUPT"],
       layout="ChromIQ layout engine",
       covers=["§3a header-only / empty — a measurement file with nothing in it",
               "§4 — a corrupt or empty measurement when a chart is replaced",
@@ -454,17 +453,18 @@ def build_mismatched(root: Path) -> None:
              "**not** suggest Refine / resume — there is nothing to resume "
              "from. Press Cancel. [[M-REPLACE-UNCOUNTABLE]]",
              "Still in run 1, go to Create Chart and press **Generate "
-             "Chart**. *Expected:* the chart warning, whose item list says "
-             "**a measurement file that is corrupt or empty** rather than "
-             "inventing a patch count, followed by a paragraph telling you to "
-             "look at the file in the “old” folder before measuring again. "
-             "Press Cancel. [[M-CHART-PROFILING]] [[M-CHART-CORRUPT]]",
+             "Chart**. *Expected:* **“The measurement file in this run cannot "
+             "be read”** — a window of its own, not the ordinary chart "
+             "warning: a file with no readings has nothing to list, so there "
+             "is no item list. It says the file goes to the run's “old” folder "
+             "and to look at it there before measuring again. "
+             "Press Cancel. [[M-CHART-CORRUPT]]",
              "Switch to **run 2** — the same corrupt file, but this run also "
              "has a profile. Press Generate Chart. *Expected:* the same "
              "window, **plus** the paragraph explaining that the profile moves "
              "to the “old” folder too and that nothing on disk then connects "
              "it to the chart it came from. Press Cancel. "
-             "[[M-CHART-PROFILING]] [[M-CHART-CORRUPT]]",
+             "[[M-CHART-CORRUPT]]",
              "Switch to **run 3**, which has a patch list but no laid-out "
              "chart. *Expected:* **Start Measurement is greyed out**, and its "
              "tooltip says there is no laid-out chart to measure and where to "
