@@ -363,27 +363,69 @@ chart and its printed pages" · "• the calibration measurement of {c} patches"
 ## 4a. The N-channel TIFF option — asked in the mockups
 
 Sebastian, seeing it beside `-K` and `-I` in mockup 04: *"Is this (in general)
-automatically enabled when the user creates charts for cmy+n devices?"*
+automatically enabled when the user creates charts for cmy+n devices?"* — and,
+on my first answer: *"I don't even really understand why this is an option
+because not setting it would give the user a tiff file that is useless for his
+purpose."*
 
-**No. Nothing sets it.** `-N` is an expert checkbox in the printtarg panel
-(`data/parameters.yaml:868-885`), `default: false`, and no code path keys it to
-anything — the only automatic values ChromIQ writes into that panel are the
-calibration preset and the `.cal` prefill. A user who picks **Device Type =
-"CMYK + Orange + Green"** (targen `-d9`) gets a chart whose TIFF cannot carry
-those extra inks unless they know to tick a box in Expert Options.
+**First, a correction of my own.** I wrote that a >4-ink chart printed through
+ChromIQ's own PostScript path "is RGB". That is wrong. `PostScriptGenerator`
+picks its colour space from the channel count and has a **DeviceN branch** with
+a tint transform for anything that is not 1, 3 or 4 channels
+(`workflow/postscript_generator.py:208-233`), and the PDF path has the same
+(`:417-431`). He was right to question it.
 
-What the flag does, from the source: *"-N   Use TIFF alpha N channels more than
-4"* (printtarg.c:2958) — the extra inks ride in the TIFF's alpha slots, which
-only a driver or RIP expecting that layout can read.
+**Second, what the flag actually does — from the Argyll 3.5.0 sources, not from
+assumption.** For a Device-N chart printtarg always renders **every** ink
+channel: `nc = icx_noofinks(nmask)` (printtarg.c:1010-1016), and the renderer
+writes `samplesperpixel = s->ncc` in both modes (render.c:403-421). The only
+difference `-N` makes:
 
-**Recommendation — worth doing, but not as part of this feature.** It belongs
-with the device type, not with calibration: tick `-N` automatically when targen's
-Device Type has more than four channels (`-d6` and above), leave it editable, and
-say in the tooltip that ChromIQ set it because of the device type. The reason to
-keep it separate is that it is not obviously right for everyone: a >4-ink chart
-printed through ChromIQ's own PostScript path is RGB, so the flag would be set
-for a file that does not need it. **This is Q8 below** — it needs your answer
-before anything changes, and nothing in the calibration design depends on it.
+| | without `-N` (`ncol_2d`) | with `-N` (`ncol_a_2d`) |
+|---|---|---|
+| SamplesPerPixel | every ink | every ink |
+| PhotometricInterpretation | `SEPARATED` | `SEPARATED` |
+| ExtraSamples | not written | samples 5…N declared `EXTRASAMPLE_UNASSALPHA` |
+| InkSet / InkNames | not written | not written |
+
+(render.c:403-421 for the two branches, :455-456 for the ExtraSamples tag, and
+:458-462 for the ink names — which neither mode writes, carrying Argyll's own
+`~~99 should fix this` comment. `NumberOfInks` is never written either.)
+
+**So the file is not truncated and not useless without it.** All the ink values
+are in it both ways. What `-N` adds is a *declaration* that samples beyond the
+fourth are unassociated alpha — which is how TIFF's SEPARATED photometric
+accounts for components past the ink set, and therefore how a strict reader
+knows what to do with them.
+
+**And for ChromIQ's own printing it changes nothing**: the PostScript/PDF
+generator reads the sample count from the image itself
+(`postscript_generator.py:98`, `h, w, n_ch = arr.shape`), so both files print
+identically.
+
+**Where it can matter is in someone else's software** — a RIP or driver reading
+the TIFF. Whether such a reader wants the extra samples declared as alpha, or
+would rather have them undeclared, is a fact about that reader, and neither the
+ChromIQ code nor the Argyll sources can tell us. That is why Argyll made it a
+flag rather than a rule.
+
+**Revised recommendation — surface it, do not decide it.** When targen's Device
+Type has more than four inks (`-d6` and above), lift `-N` out of Expert Options
+and put it beside Device Type, still defaulting to off, with a label and tooltip
+that say plainly: every ink is written either way; tick this if the RIP or
+driver you hand the TIFF to expects the extra inks declared as alpha channels;
+ChromIQ's own printing does not need it. Auto-ticking it would be ChromIQ
+guessing about a program it cannot see — and the guess is not free, because a
+reader that honours ExtraSamples may treat those channels as transparency
+rather than ink.
+
+**The bigger gap, if N-channel charts are to be handed over at all:** neither
+mode names the inks in the TIFF. A receiving RIP is told "SEPARATED, 7 samples"
+and nothing about which ink is which; the order is the `.ti2`'s, which ChromIQ
+also writes into `<stem>.channels.json`. Worth saying in the help text, and
+worth a look before anyone relies on that hand-off.
+
+**This is Q8.** Nothing in the calibration design depends on it.
 
 ---
 
@@ -559,8 +601,14 @@ options are switched off (D6) makes it invisibly. The status line becomes:
 *"Calibration file found: {name} — filled into the -K and -I fields below.
 Switch on the one you want; they cannot both be used at once."*
 
-**8 · NEW — should `-N` follow the device type?** See §4a. Not part of this
-feature, and it needs a decision of its own before anything changes.
+**8 · Should `-N` follow the device type? — R: surface it, don't decide it.**
+Corrected after Sebastian pushed back, and the correction went both ways: my
+"the PostScript path is RGB" was wrong, and "without it the TIFF is useless" is
+not what Argyll does either — every ink is written in both modes, and `-N` only
+declares samples 5…N as unassociated alpha. Full evidence in §4a. So: lift the
+control out of Expert Options when the device type has more than four inks,
+explain it, and leave the choice with the user, because the answer depends on
+the RIP at the other end and nothing in either codebase knows it.
 
 ## 10. Rating of this design
 
