@@ -18,7 +18,7 @@ the file guide says so to the user too, `ui/file_guide.py:261`). So
 "Profile run = Run 3 · Run type = Calibration" has no meaning, and the design
 below makes the bar say what is actually true. The work is contained — the
 folder model, both Argyll runners, the chart routing and the auto-prefill all
-exist already — and the research turned up **five real defects in today's
+exist already — and the research turned up **six real defects in today's
 calibration path**, one of which destroys the user's calibration without a word.
 That last one is an argument *for* the feature: bringing calibration under the
 same rules as runs is what fixes it.
@@ -80,11 +80,12 @@ Everything in §3 and §4 follows from this.
 
 ---
 
-## 3. Five defects found while researching (evidence, not opinion)
+## 3. Six defects found while researching (evidence, not opinion)
 
 D1–D3 were reproduced with the real classes and real files; D4 and D5 turned up
-while building the mockups in §12, in the real running app. None is speculative,
-and none is fixed — this is a design draft.
+while building the mockups in §12, in the real running app; D6 came out of
+answering Sebastian's question in §13. None is speculative, and none is fixed —
+this is a design draft.
 
 ### D1 · Regenerating a calibration chart deletes the calibration, silently
 
@@ -530,3 +531,75 @@ Two of this document's findings came out of building them rather than out of
 reading the code (D4, D5), and one layout consequence did too — the Profile-run
 box has to be re-fitted for its new label, or it clips (§4.1). That is the
 argument for making mockups from the running app rather than from a drawing.
+
+---
+
+## 13. With calibration options switched OFF
+
+**Short answer: yes for the feature, no for today.** The design changes nothing while the preference is off — but ChromIQ already does one thing there that it should not, and it is worth fixing whether or not the feature is greenlit.
+
+**What the feature would do with the preference off:** nothing at all. The third Run type is only in the combo while the preference is on; `_resolve_target_chart`'s calibration branch is only reached by that target; the §4 calibration warning only fires for a build routed to `cal/`; and the archive-instead-of-delete fix (D1) only applies to a calibration build, which needs the preference. The retired checkbox was already hidden. A project that carries a `cal/` folder is untouched and still opens exactly as it does now.
+
+**What ChromIQ does today with the preference off — D6.** I set a project up with a `cal/…-cal.cal` on disk, left "Enable calibration options" **off**, and typed the project name into "Printer profile project name":
+
+```
+calibration_mode: False | cal group visible: False | status line visible: False
+-K enabled: False | -I enabled: True
+printtarg would receive: ['-I', '…/My-Printer/cal/My-Printer-cal.cal']
+```
+
+`_check_for_cal_file` is wired to the name field unconditionally (`ui/tabs/tab_chart.py:2711`), and `set_value` on a `file_path` parameter **ticks its enable box** (`ui/parameter_widget.py:175-178`). So the chart is built with the calibration embedded in its `.ti2` — silently, because the green line that would say so lives inside the group the preference hides.
+
+`-I` embeds the curves without applying them, so nothing about the printed sheet changes; but the `.ti2` carries a calibration the user never chose and cannot see, and `colprof` can reference it later. **The fix is one line either way: gate the prefill on the preference.** That, plus Q7's decision, is what makes "unchanged when off" actually true.
+
+---
+
+## 14. Help text this would touch, with the wording drafted
+
+Ten places mention calibration. Four need new words, four need a correction they already deserve, and two are additions. All of it is drafted here so nothing is invented at implementation time.
+
+### A · Needs new wording because of the feature
+
+**1. Settings → "Enable calibration options" ⓘ** (`ui/dialogs/settings_dialog.py:440`). Its last paragraph promises the control this feature retires — *"a calibration target option appears in Create Chart"*. Replace that paragraph with:
+
+> When active: the guided modes in all tabs are hidden, **"Calibration" is added to the "Run type" list** in the bar above the tabs, and the Calibration & Profiling tab gains the Create Calibration File and Apply Calibration modules. Your projects are not changed by switching this on or off — a calibration you have already made stays in the project's "cal" folder either way.
+
+**2. "Run type" ⓘ** (`ui/measurement_target_bar.py:596`) — a third bullet after Profiling and Verification:
+
+> • **Calibration** — measure a special chart that brings the printer itself to a known, repeatable state before any profile is built. It produces a calibration file (.cal) which every profile run of this project can then use. One calibration is shared by the whole project, so there is nothing to choose under "Profile run" while this is selected. This step is optional; use it when you want your printer to behave the same way today and in six months.
+
+**3. "Profile run and Run type" ⓘ** (`ui/measurement_target_bar.py:629`) — it currently describes two values. Second paragraph becomes:
+
+> "Profile run" picks which profile build you're working on (or a new one). "Run type" switches between building the profile (Profiling), checking a finished profile (Verification) and preparing the printer itself (Calibration). Verification adds a box for choosing a dated check; Calibration replaces the "Profile run" choice with the project's one calibration, because there is only ever one.
+
+**4. "Profile run", while Calibration is selected** — the box is disabled, so its tooltip is all the user has:
+
+> A calibration describes your printer, your paper and your inks — not one particular profile — so a project keeps exactly one, in its "cal" folder, and every profile run can use it. There is no run to pick here.
+
+**5. Restore Used Chart / Duplicate / Delete ⓘ** — each already explains itself per Run type; each gains one line:
+
+> RUN TYPE = CALIBRATION — *(Restore)* a calibration chart keeps no stored copy, so there is nothing to put back. *(Duplicate)* duplicating works on a profile run; switch "Run type" to "Profiling". *(Delete)* a project has one calibration and it is replaced rather than deleted — making a new calibration chart moves the old one to "cal/old".
+
+### B · Corrections these already need, feature or no feature
+
+**6. "Create Chart for Calibration" ⓘ** (`ui/tabs/tab_chart.py:2062`) — retired by the feature, and **wrong since #127**: it promises *"Output files are prefixed with 'cal_' (e.g. cal_MyChart.ti1)"* and *"The resulting cal_*.ti3 file"*. There are no `cal_` prefixes any more; the files are `cal/<project>-cal.*`. If the feature is not greenlit, this paragraph still has to be corrected to:
+
+> The calibration chart and its measurement are saved in this project's "cal" folder, as `<project>-cal.ti1`, `-cal.ti2`, `-cal.ti3` and `-cal.cal`. They are shared by every profile run of the project.
+
+**7. Calibration & Profiling header ⓘ** (`ui/tabs/tab_profile.py:171`, step 1 and step 2). Step 1 says *"with 'Calibration Target' ticked on tab 1"* → **"with 'Run type' set to 'Calibration' in the bar above the tabs"**. Step 2 ends *"ChromIQ auto-fills these fields when it finds a matching cal_ file"* → **"ChromIQ fills both fields in when the project already has a calibration, and tells you which one it switched on."** (Which is the honest sentence only after Q7 is answered — see D4.)
+
+**8. printtarg -K and -I ⓘ** (`data/parameters.yaml:886` and `:915`) — both are accurate about what the flags do and say nothing about the auto-fill. One sentence each, at the end:
+
+> When this project already has a calibration, ChromIQ fills this field in for you. **-K** and **-I** cannot both be active: switching one on switches the other off.
+
+### C · Additions
+
+**9. Dictionary** (`ui/dialogs/welcome_dialog.py:599`) — beside the existing "Calibration" entry:
+
+> **Calibration run** — the round trip that produces your printer's calibration file: make the calibration chart, print it, measure it, then create the .cal from those readings. It is not a profile run — nothing is built from it — but every profile run in the project can use its result.
+
+**10. File guide** (`ui/file_guide.py:261`) — the `cal/` row gains its archive:
+
+> `cal/old/` — earlier calibrations. Making a new calibration chart moves what was there into a dated folder here rather than deleting it, so an earlier .cal can always be read back — which is also what "Re-calibrate" and "Verify" compare against.
+
+**Not touched:** the guided Create Chart / Measure / Build Profile help cards, which never mention calibration; and the Measure tab's no-chart guidance, which is Run-type-aware already and gains its calibration case with the rest of the feature.
