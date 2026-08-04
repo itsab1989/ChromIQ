@@ -1,5 +1,26 @@
 # Changelog
 
+## v3.14.8-beta.137
+
+- **The overlay now shows everything the measurement file holds**, not only the
+  strips read since Start. A resumed session cleared it and rebuilt it from its
+  own readings, so strips measured earlier lost their split patches — and their
+  hover values — until the session ended and the file was read again.
+
+- **"Save Partial & Quit" saves when reading patch by patch on the ChromIQ
+  engine.** The helper answers the first quit with an event in strip mode and
+  with a printed line in patch-by-patch; only the event was handled, so one
+  quit went out — which is Esc — and the session ended without writing.
+
+- **Skip Patch moves on with stock chartread reading patch by patch.** Skip
+  acknowledges the prompt and queues the move; the queue was flushed on the
+  strip menu's line, which patch-by-patch never prints. It was the one
+  combination of four where Skip did nothing.
+
+- **The wrong-dial-position warning opens one window, not two.** chartread
+  prints the fault and its reason on separate lines and both matched the
+  pattern.
+
 ## v3.14.8-beta.136
 
 - **"Save and stop" now ends an engine measurement.** Its second quit command

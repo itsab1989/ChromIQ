@@ -8000,7 +8000,21 @@ class TabMeasure(QWidget):
         self._engine_strips = list(strips)
         self._engine_read = {s.get("strip", ""): bool(s.get("read"))
                              for s in strips}
+        # THE OVERLAY SHOWS EVERYTHING THE .ti3 HOLDS, not only this session.
+        #
+        # Clearing it here left a resumed session showing only the strips read
+        # *since Start* — so the strips measured earlier lost their split
+        # patches (and their hover values) the moment a re-read began, and got
+        # them back when the session ended and the file was read again. Knut,
+        # beta.135: *"That immediately caused the split expected/measured
+        # overlay for strip A+B to disappear … After measurement session stopped
+        # the overlay updated to also include strip A+B."* He and Sebastian
+        # agreed the rule: *"the overlay shall always show everything the .ti3
+        # holds, not only what this session read."* So it is cleared and then
+        # immediately re-drawn from the file, and this session's strips add to
+        # it as they are read.
         self._preview.clear_patch_overlay()
+        self._repaint_overlay_from_disk()
         self._patch_geom_warned = False
         if self._spot_session:
             # Patch-by-patch mode drives the preview via spot_ready/patch_read
@@ -8954,6 +8968,22 @@ class TabMeasure(QWidget):
             self._show_overlay_from_existing_ti3()
         except Exception:      # noqa: BLE001 — never break the end of a read
             log.warning("Could not adopt the overlay after the measurement",
+                        exc_info=True)
+
+    def _repaint_overlay_from_disk(self) -> None:
+        """Draw the overlay for everything the run's measurement already holds.
+
+        Used at the start of a session (and after one), so a resumed read never
+        shows less than the file does.
+        """
+        try:
+            cb = (self._overlay_cb if self._current_mode() == "guided"
+                  else self._m_overlay_cb)
+            if cb is None or not cb.isChecked():
+                return
+            self._show_overlay_from_existing_ti3()
+        except Exception:      # noqa: BLE001 — an overlay is never worth a crash
+            log.warning("Could not draw the overlay from the measurement",
                         exc_info=True)
 
     def _restore_overlay_after_measurement(self) -> None:

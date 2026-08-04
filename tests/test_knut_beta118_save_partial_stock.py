@@ -248,3 +248,66 @@ def test_the_engine_recognises_a_spot_read_being_stopped():
     m._handle_line("Spot read stopped at user request!", lambda _l: None)
     assert m._runner.out == ['{"cmd": "quit"}\n', '{"cmd": "quit"}\n'], \
         "the second quit is what writes the .ti3 and ends the session"
+
+
+# ---- Skip Patch, stock chartread, patch by patch -------------------------
+def test_skip_patch_moves_on_after_the_patch_menu():
+    """Knut, beta.136, testing all four combinations: only this one failed —
+    *"For stock chartread engine, patch-by-patch mode, the patch ID in the log
+    window does NOT jump to next patch ID when clicking 'Skip Patch'."*
+
+    Skip is two steps: acknowledge the prompt, then move. The queued move was
+    flushed on the STRIP menu line, which never matches "Ready to read patch
+    '21' at 'A3'" — so the acknowledgement went out and nothing followed it.
+    """
+    m = _mgr(engine=False)
+    m._handle_line("Strip read failed due to misread (Reading is inconsistent)",
+                   lambda _l: None)
+    m.skip_current_strip()
+    assert m._runner.out == ["\r"], "first acknowledge the prompt"
+
+    m._handle_line("Ready to read patch '49' at 'A4'", lambda _l: None)
+    assert m._runner.out == ["\r", "f"], "then move on, at the patch menu"
+
+
+def test_the_queued_move_is_sent_once():
+    m = _mgr(engine=False)
+    m._handle_line("Strip read failed due to misread (Reading is inconsistent)",
+                   lambda _l: None)
+    m.skip_current_strip()
+    m._handle_line("Ready to read patch '49' at 'A4'", lambda _l: None)
+    m._handle_line("Ready to read patch '50' at 'A5'", lambda _l: None)
+    assert m._runner.out.count("f") == 1
+
+
+# ---- the dial warning is one window, not one per line --------------------
+def test_the_wrong_dial_raises_a_single_window():
+    """chartread prints the fault and its reason on two lines, and both match
+    the pattern. Knut, beta.136: *"TWO 'Instrument Error' windows comes
+    simultaneously."*"""
+    m = _mgr(engine=False)
+    seen = []
+    m.generic_instrument_error.connect(lambda title, _d: seen.append(title))
+    m._handle_line("Spot read failed due to the sensor being in the wrong "
+                   "position", lambda _l: None)
+    m._handle_line("(Sensor should be in surface position)", lambda _l: None)
+    assert len(seen) == 1
+
+    # …and the next prompt may raise it again.
+    m._handle_line("Ready to read strip pass B", lambda _l: None)
+    m._handle_line("Spot read failed due to the sensor being in the wrong "
+                   "position", lambda _l: None)
+    assert len(seen) == 2
+
+
+def test_the_engine_completes_save_partial_from_prose_too():
+    """Reading patch by patch the helper answers the first quit with a printed
+    line rather than an event, and only the event was handled — so one quit
+    went out, which is Esc, and the session ended without writing. Knut,
+    beta.136: *"[INFO] Measurement stopped — no measurement (.ti3) file was
+    created"*, with readings on disk."""
+    m = _mgr(engine=True, at_prompt=True)
+    m.send_save_partial_and_quit()
+    m._handle_engine_line("Spot read stopped at user request!", lambda _l: None)
+    assert m._runner.out == ['{"cmd": "quit"}\n', '{"cmd": "quit"}\n']
+    assert m.save_partial_in_progress is False

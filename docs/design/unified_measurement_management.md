@@ -117,6 +117,18 @@ beta.135, pressing Stop → "Save and stop": *"The session still did not exit."*
 The test that covered it called the stock parser directly, which the app never
 does in engine mode, so it proved the chain against a path that does not run.
 
+### Skipping the unit that just failed
+
+Two steps, always: the retry prompt has to be answered before anything can
+move, because it reads any key but Esc/`q` as *retry*.
+
+| Engine | Mode | What Skip sends | Where the move is flushed |
+|---|---|---|---|
+| ChromIQ | strip | `{"cmd":"ok"}` → then `f` | on the `strip_ready` event |
+| ChromIQ | patch | `{"cmd":"retry"}` → then `f` | on the `spot_ready` event |
+| stock | strip | `\r` → then `f` | on *"Ready to read strip pass X"* |
+| stock | patch | `\r` → then `f` | on *"Ready to read patch 'N' at 'LOC'"* — **added in beta.137**; the flush hung off the strip line alone, so this was the one combination of the four where Skip acknowledged the prompt and then never moved (Knut, beta.136) |
+
 ### Moving about while reading
 
 | Key | stock chartread | ChromIQ engine |
@@ -146,6 +158,13 @@ and why the two engines cannot share one sequence.
 - **beta.130** taught the stock path that a failed *strip* read leaves a retry
   prompt open. Before that, Save Partial sent `d` straight into that prompt,
   which ate it — Knut's beta.128 report.
+- **beta.137** finished the same story in the two places it still ran out: the
+  helper answers the first quit with an **event** in strip mode and with a
+  **printed line** in patch-by-patch, and only the event was handled — so
+  reading patch by patch, Save Partial & Quit sent one `quit`, which is Esc, and
+  the session ended without writing. Both are handled now. It also stopped the
+  wrong-dial window opening twice (chartread prints the fault and its reason on
+  two lines, and both matched), and gave Skip its missing flush above.
 - **beta.136** made the engine's own ending work at all: its give-up prompt
   arrives as an event, and nothing was listening for it, so the second `quit`
   was never sent. It also gave `F` / `B` a meaning in engine mode, and made the

@@ -286,6 +286,9 @@ class MeasureManager(QObject):
         # Queued key dispatched once chartread returns to the strip menu after
         # a misread retry — see send_post_retry_key().
         self._pending_post_retry_key: str | None = None
+        #: True while the wrong-dial-position window is on screen, so the
+        #: two lines chartread prints for it raise one window, not two.
+        self._sensor_warning_open: bool = False
         # True while the helper is blocked on a failure prompt ("Hit Esc or 'q'
         # to give up, any other key to retry"). Whatever we send there is spent
         # as that "any other key", so a navigation command sent while this is
@@ -851,13 +854,28 @@ class MeasureManager(QObject):
                 # and one sentence in it needs more than the log: the dial being
                 # in the wrong position (chartread.c:1644). There is no event for
                 # it, so this is the only place it can be caught in engine mode.
-                if _SENSOR_POSITION_RE.search(line):
+                if _SENSOR_POSITION_RE.search(line) \
+                        and not self._sensor_warning_open:
+                    self._sensor_warning_open = True
                     self._at_retry_prompt = True
                     self.generic_instrument_error.emit(
                         tr("Wrong Sensor Position"),
                         tr("The instrument's dial is not in the reading "
                            "position. Turn it to the surface-reading position "
                            "and try again."))
+                # --- c: the give-up prompt as PROSE, in engine mode ---------
+                # The helper answers the first quit with an event in strip mode
+                # and with this sentence in patch-by-patch. Only the event was
+                # handled, so Save Partial & Quit reading patch by patch sent
+                # one quit — which is Esc — and the session ended without
+                # writing. Knut, beta.136: *"[INFO] Measurement stopped — no
+                # measurement (.ti3) file was created"*, with readings on disk.
+                if _STRIP_INTERRUPTED_RE.search(line):
+                    if self._save_partial_state == "wait_give_up_prompt":
+                        self._save_partial_state = None
+                        self.send_key("q")
+                    else:
+                        self.strip_interrupted.emit()
             return
 
         self._engine_saw_event = True
@@ -1161,11 +1179,19 @@ class MeasureManager(QObject):
         # for it (Knut, beta.135: patch-by-patch got a window, strip mode did
         # not).
         if _SENSOR_POSITION_RE.search(line):
-            self._at_retry_prompt = True
-            self.generic_instrument_error.emit(
-                tr("Wrong Sensor Position"),
-                tr("The instrument's dial is not in the reading position. Turn "
-                   "it to the surface-reading position and try again."))
+            # ONE WINDOW PER PROMPT. chartread prints the fault and its reason on
+            # two lines — "Spot read failed due to the sensor being in the wrong
+            # position" then "(Sensor should be in surface position)" — and the
+            # pattern matches both, so beta.136 opened two identical windows.
+            # Knut: *"TWO 'Instrument Error' windows comes simultaneously."*
+            if not self._sensor_warning_open:
+                self._sensor_warning_open = True
+                self._at_retry_prompt = True
+                self.generic_instrument_error.emit(
+                    tr("Wrong Sensor Position"),
+                    tr("The instrument's dial is not in the reading position. "
+                       "Turn it to the surface-reading position and try "
+                       "again."))
 
         if not self._engine_active:
             m = _STRIP_ERROR_RE.search(line)
@@ -1204,7 +1230,20 @@ class MeasureManager(QObject):
         # Save-Partial on STOCK chartread: retry took us back to the strip menu,
         # and 'd' there raises the question that actually writes the file
         # (#130, 2026-08-01 — 'q' on stock chartread exits without writing).
+        if _SPOT_READY_RE.search(line):
+            # Skip Patch, second half. The queued key is flushed on the STRIP
+            # menu by the _STRIP_RE branch above, which never matches "Ready to
+            # read patch '21' at 'A3'" — so on stock chartread, reading patch by
+            # patch, Skip acknowledged the prompt and then never moved. Knut,
+            # beta.136: every other combination jumped to the next unit; this
+            # one *"does NOT jump to next patch ID"*.
+            if self._pending_post_retry_key is not None:
+                key = self._pending_post_retry_key
+                self._pending_post_retry_key = None
+                self.send_key(key)
+
         if _STRIP_MENU_RE.search(line) or _SPOT_READY_RE.search(line):
+            self._sensor_warning_open = False      # the prompt is closed
             # Back at the menu — strip mode's "Ready to read strip pass A" or
             # patch-by-patch's "Ready to read patch '66' at 'A2'". Only the
             # first was recognised, so on stock chartread reading patch by
