@@ -203,8 +203,11 @@ M_CHART_CORRUPT = _m(
     "ChromIQ cannot make sense of. That can happen when a session ended before "
     "the first patch was read, or when the file was changed outside "
     "ChromIQ.\n\n"
-    "It is moved to the run's “old” folder rather than deleted. **Look at it "
-    "there before you measure again** — ChromIQ cannot tell whether it holds "
+    # No Markdown here: these windows show plain text, so a **bold** span
+    # would reach the screen as asterisks. The document may set the same
+    # sentence in bold; the string the user reads may not.
+    "It is moved to the run's “old” folder rather than deleted. Look at it "
+    "there before you measure again — ChromIQ cannot tell whether it holds "
     "anything you would want to keep, and only you can judge that.",
     approved=False)
 

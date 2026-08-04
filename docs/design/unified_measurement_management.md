@@ -1,6 +1,8 @@
 # Unified Measurement Management — Design Specification
 
-> **Revision 2026-08-04 — what to review.** Four messages are marked **PROPOSED** and await approval. They appear in three places: the condition tables of **§3a** and **§4** (which say exactly when each one arises), the map in **§M-x**, and **§M-PROPOSED**, which carries the complete text of each. Everything marked 🆕 in this document is part of that set. Singular and plural are now real throughout, per Knut's ruling of 2026-08-03.
+> **Revision 2026-08-04 — what to review.**
+> **Awaiting review:** M-CHART-CORRUPT.
+> That is the only message still marked **PROPOSED**; M-REPLACE-UNCOUNTABLE and M-PREVIEW-PAUSED were approved on 2026-08-04 and have moved into **§M** with the rest of the approved catalogue. A proposed message appears in three places: the condition tables of **§3a** and **§4** (which say exactly when it arises), the map in **§M-x**, and **§M-PROPOSED**, which carries its complete text. Everything marked 🆕 in this document is part of that set; ✅ marks a message approved by Knut. `tests/test_message_catalogue.py` checks this list against the `approved=` flags in the code, so the two cannot drift apart again. Singular and plural are real throughout, per Knut's ruling of 2026-08-03.
 
 > **Status:** specification, agreed on [issue #130](https://github.com/itsab1989/ChromIQ/issues/130).
 > Written by the ChromIQ assistant, reviewed and directed by Knut (soul-traveller)
@@ -138,7 +140,7 @@ Proposed, and it makes §3 possible:
 | Complete (`C = A`) | ✓ | ✓ | fully measured | §6 warning before re-measuring | **M-REPLACE-COMPLETE** |
 | `C > A` | ✓ | ✓ | **does not belong to this chart** | refuse, explain | **M-TI3-MISMATCH** |
 
-✅ = approved by Knut, 2026-08-04. 🆕 = **PROPOSED**, awaiting review — full text in **§M-PROPOSED**.
+✅ = approved by Knut, 2026-08-04 — full text in **§M**, with the rest of the approved catalogue. 🆕 = **PROPOSED**, awaiting review — full text in **§M-PROPOSED**. Every message not marked here was approved earlier.
 
 **Why M-REPLACE-UNCOUNTABLE exists.** The first three rows all describe a file with nothing readable in it, and the model gave them no message of their own — so they fell through to M-REPLACE-PARTIAL, which states a fraction and produced **"0 of the chart's ? patches have been read"**. That reads as a fault in ChromIQ rather than a fact about the file, and it points at Refine / resume, which cannot work when there is nothing to resume from.
 
@@ -191,11 +193,11 @@ So the live preview **declines to re-draw** a run that holds work, writes the no
 | Chart + `.ti3` (+ profile) | Verification | **W5** — the same shape as W4, one level down | **M-CHART-VERIFY** |
 | Chart + a `.ti3` that is **corrupt or empty**, no profile | Profiling | the same warning, **plus** a paragraph naming the file as corrupt or empty | **M-CHART-PROFILING** + **M-CHART-CORRUPT** 🆕, appended |
 | Chart + a `.ti3` that is **corrupt or empty**, **and a profile** | Profiling | as above, **plus** what it costs the profile | **M-CHART-PROFILING** + **M-CHART-CORRUPT** 🆕 with its profile paragraph |
-| Any of the above, **and the trigger is the auto-update preview** | either | the preview declines to re-draw instead of asking | **M-PREVIEW-PAUSED** 🆕 |
+| Any of the above, **and the trigger is the auto-update preview** | either | the preview declines to re-draw instead of asking | **M-PREVIEW-PAUSED** ✅ |
 | Any of the above, **and the chart has no `.channels.json`** | either | the §4 message, **plus** a paragraph about the pages | **M-CHART-NOPAGES**, appended |
 | Any of the above, **and the run cannot be duplicated** | either | the §4 message, **plus** a paragraph about Duplicate | **M-DUPLICATE-BLOCKED**, appended |
 
-✅ = approved by Knut, 2026-08-04. 🆕 = **PROPOSED**, awaiting review — full text in **§M-PROPOSED**.
+✅ = approved by Knut, 2026-08-04 — full text in **§M**, with the rest of the approved catalogue. 🆕 = **PROPOSED**, awaiting review — full text in **§M-PROPOSED**. Every message not marked here was approved earlier.
 
 **What "`.ti3` exists" means in this table**, since Knut asked for it plainly: the rows above distinguish three things, and they are not the same.
 
@@ -431,6 +433,8 @@ Three of the windows are driven by strings printed elsewhere, and that is worth 
 
 Every window this specification can raise, in one place. **ID → where it is used → the text.**
 
+**Bold in the quoted texts below is this document's typography, not the window's.** The windows show the headline in bold — it is the one line the user must read first — and everything under it at normal weight, because a screen of bold is a wall nobody reads. Emphasis inside a message is therefore carried by the words, and a test fails if a `**bold**` span ever reaches a message string, where it would show on screen as asterisks.
+
 ### M-END · ending a measurement — §1, §1a, §2
 
 > **Keep what you have measured so far?**
@@ -500,6 +504,20 @@ Every window this specification can raise, in one place. **ID → where it is us
 >
 > *Refine / resume is left exactly as you set it before pressing Start; this window does not change your choice.*
 
+### M-REPLACE-UNCOUNTABLE · a measurement file with nothing readable in it — §3a
+
+*Approved by Knut, 2026-08-04 ("Accepted message"). Why it exists: with §5's partial message this case printed "**0 of the chart's ? patches have been read**", which reads as a fault in ChromIQ rather than a fact about the file. It must also not point at Refine / resume, because there is nothing in the file to resume from.*
+
+> **This run already holds a measurement file**
+>
+> ChromIQ cannot tell how many readings it contains — the file is there, but it holds no readable measurement data. That usually means a session ended before the first patch was read, or the file was changed outside ChromIQ.
+>
+> Starting now writes a new measurement in its place. The file you have is moved to the run's "old" folder and nothing is deleted, so you can always look at it afterwards.
+>
+> Refine / resume is not offered for this file, because there is nothing in it to resume from.
+>
+> The measurement file is: {path}
+
 ### M-CHART-PROFILING · regenerating a chart with work under it — §4
 
 > **This run already holds work made with the chart you are about to replace**
@@ -543,6 +561,24 @@ Every window this specification can raise, in one place. **ID → where it is us
 >
 > *{pages}:* "The {n} page images in this run are the only ones there will be." · "This run has no page images to lose."
 
+### M-PREVIEW-PAUSED · the auto-update preview declines to re-draw — §4
+
+*Approved by Knut, 2026-08-04 ("Accepted message"). The auto-update preview re-lays out the chart in the run, so it is a §4 trigger — but a window on every turn of a layout knob would be unusable. Knut accepted the exception on 2026-08-03 and set the rule: "the popup window … should come once only, then again the next time 'auto-update preview …' is enabled. At the same time it can come in the log window until 'auto-update preview …' is disabled."*
+
+> **The live preview is not being re-drawn**
+>
+> This run already holds work made with the chart the preview would replace, so the preview is left as it is rather than re-drawn over it.
+>
+> Press "Generate Chart" when you want the new layout. You will be told exactly what moves to the run's "old" folder first, and nothing is deleted.
+>
+> This window appears once each time you switch "Auto-update preview" on. While it stays on, the same note goes to the log instead, so your layout work is not interrupted.
+
+### M-DUPLICATE-BLOCKED · Duplicate is recommended but unavailable — §4a, §6
+
+*A paragraph appended to whichever message recommends Duplicate, when the run cannot be duplicated.*
+
+> **Duplicate is not available for this run.** It needs all four of these: the patch list (.ti1), the laid-out chart (.ti2), the layout recipe (.channels.json) and at least one printed page (.tif). This run is missing {missing}.
+
 ### M-CHART-VERIFY · replacing the verification chart — §4 (W5)
 
 > **The verification measurements already made in this run used the chart you are about to replace**
@@ -572,21 +608,9 @@ Every window this specification can raise, in one place. **ID → where it is us
 
 ## M-PROPOSED. Messages awaiting review
 
-*These three are **PROPOSED**, not approved. They cover cases the reviewed model does not have a message for, and each exists because the alternative was a window that says something false. They are flagged in `workflow/measurement_messages.py` with `approved=False`, and `tests/test_message_catalogue.py` fails if that flag is dropped without the model being updated. Knut to approve, reword or reject.*
+*Everything in this section is **PROPOSED**, not approved: it covers a case the reviewed model has no message for, and it exists because the alternative was a window that says something false. Proposed messages are flagged in `workflow/measurement_messages.py` with `approved=False`, and `tests/test_message_catalogue.py` fails if that flag is dropped without the model being updated — or if this section still holds a message that has since been approved. Knut to approve, reword or reject.*
 
-### M-REPLACE-UNCOUNTABLE · PROPOSED · a measurement file with nothing readable in it — §3a
-
-*Why: with §5's partial message this case printed "**0 of the chart's ? patches have been read**", which reads as a fault in ChromIQ rather than a fact about the file. It must also not point at Refine / resume, because there is nothing in the file to resume from.*
-
-> **This run already holds a measurement file**
->
-> ChromIQ cannot tell how many readings it contains — the file is there, but it holds no readable measurement data. That usually means a session ended before the first patch was read, or the file was changed outside ChromIQ.
->
-> Starting now writes a new measurement in its place. The file you have is moved to the run's "old" folder and nothing is deleted, so you can always look at it afterwards.
->
-> Refine / resume is not offered for this file, because there is nothing in it to resume from.
->
-> The measurement file is: {path}
+*Approved on 2026-08-04 and therefore **moved out of this section** into §M above: **M-REPLACE-UNCOUNTABLE** and **M-PREVIEW-PAUSED**.*
 
 ### M-CHART-CORRUPT · PROPOSED · the run's measurement file cannot be read — §4
 
@@ -603,31 +627,9 @@ Every window this specification can raise, in one place. **ID → where it is us
 
 > The profile in this run moves to the "old" folder with it. That profile was built from a measurement, and the measurement file that should describe it can no longer be read — so nothing on disk now connects the profile to the chart it came from. ChromIQ cannot tell whether the file was always like this or became so later, and it cannot repair it. Measuring the chart again is the way to get a run whose chart, measurement and profile describe each other once more.
 
-*The `{items}` entry that goes with it, replacing the earlier proposal:* "• a measurement file that is corrupt or empty".
+**The `{items}` entry that goes with it — also PROPOSED.** The `{items}` list of M-CHART-PROFILING names "a measurement of {c} patches" and "the profile built from it". Neither fits a file whose readings cannot be counted, and "a measurement of 0 patches" would be false, so this case contributes its own line to the list instead:
 
-### M-PREVIEW-PAUSED · PROPOSED · the auto-update preview declines to re-draw — §4
-
-*Why, and Knut's ruling of 2026-08-03: the auto-update preview re-lays out the chart in the run, so it is a §4 trigger — but a window on every turn of a layout knob would be unusable. He accepted the exception and set the rule: "the popup window … should come once only, then again the next time 'auto-update preview …' is enabled. At the same time it can come in the log window until 'auto-update preview …' is disabled."*
-
-> **The live preview is not being re-drawn**
->
-> This run already holds work made with the chart the preview would replace, so the preview is left as it is rather than re-drawn over it.
->
-> Press "Generate Chart" when you want the new layout. You will be told exactly what moves to the run's "old" folder first, and nothing is deleted.
->
-> This window appears once each time you switch "Auto-update preview" on. While it stays on, the same note goes to the log instead, so your layout work is not interrupted.
-
-### M-CHART-PROFILING, extra item · PROPOSED
-
-*The `{items}` list of M-CHART-PROFILING has entries for "a measurement of {c} patches" and "the profile built from it". A run can also hold a measurement file whose readings cannot be counted, where "a measurement of 0 patches" would be false. Proposed third entry:*
-
-> • the measurement file in this run
-
-### M-DUPLICATE-BLOCKED · Duplicate is recommended but unavailable — §4a, §6
-
-*Appended to whichever message recommends Duplicate, when the run cannot be duplicated.*
-
-> **Duplicate is not available for this run.** It needs all four of these: the patch list (.ti1), the laid-out chart (.ti2), the layout recipe (.channels.json) and at least one printed page (.tif). This run is missing {missing}.
+> •  a measurement file that is corrupt or empty
 
 ---
 
@@ -657,7 +659,7 @@ Every window this specification can raise, in one place. **ID → where it is us
 | §4, chart with no `.channels.json` | — | **M-CHART-NOPAGES** appended |
 | §4, run with a verification history | Profiling | **M-CHART-W4** |
 
-🆕 = **PROPOSED**, awaiting review — see **§M-PROPOSED**.
+✅ = approved by Knut, 2026-08-04. 🆕 = **PROPOSED**, awaiting review — see **§M-PROPOSED**.
 
 **Singular and plural.** Every message that states a count carries two bodies, and the one that reads correctly is chosen — "one dated verification measurement" against "4 dated verification measurements". Knut, 2026-08-03: *"Yes, use house rule with real singular and plural. You do not need to ask about this."* The bracketed "(s)" appears nowhere, and a test fails on it.
 

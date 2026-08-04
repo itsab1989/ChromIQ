@@ -1,5 +1,29 @@
 # Changelog
 
+## v3.14.8-beta.129
+
+- **A message showed its own asterisks.** The new corrupt-measurement warning
+  had one sentence set in bold — `**Look at it there before you measure
+  again**` — and these windows show plain text, so the asterisks would have
+  reached the screen exactly as written. Found by rendering the window rather
+  than by reading the source. The sentence now carries its emphasis in the
+  words, and a test fails if any message string ever gets Markdown in it again.
+
+- **The design specification stopped asking for approvals it already had.**
+  M-REPLACE-UNCOUNTABLE and M-PREVIEW-PAUSED were accepted on 2026-08-04 and
+  the code was updated, but the document still filed both under "§M-PROPOSED —
+  Messages awaiting review", and its opening note still said four messages were
+  awaiting review when one was. Both messages have moved into §M with the rest
+  of the approved catalogue, M-DUPLICATE-BLOCKED moved with them, and the
+  superseded "extra item" proposal is folded into M-CHART-CORRUPT, which is now
+  the only thing left to review.
+
+- **Four new tests hold the document and the code together**, so that drift
+  cannot happen again: an approved message may not be headed PROPOSED; the
+  review-queue section must hold exactly the messages the code marks
+  `approved=False`; the note at the top of the document must name them; and
+  §M-x may not point at a message the code does not have.
+
 ## v3.14.8-beta.128
 
 - **Start Measurement was offered when there was no chart to measure.** Knut

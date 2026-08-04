@@ -98,6 +98,77 @@ def test_nothing_is_quietly_proposed():
     assert set(M.PROPOSED) == {"M-CHART-CORRUPT"}, M.PROPOSED
 
 
+# ---- 1b. approval flows the other way too --------------------------------
+# Knut approved two messages on 2026-08-04 and the code was updated, but the
+# document went on filing them under "§M-PROPOSED. Messages awaiting review"
+# with "· PROPOSED ·" in their headings — so the next review round would have
+# been asked to approve them a second time. The three tests below make that
+# impossible in either direction.
+
+def _proposed_section(text: str) -> str:
+    """The text of §M-PROPOSED, which is the only place a message awaiting
+    review may be defined."""
+    start = text.index("## M-PROPOSED.")
+    return text[start:text.index("### M-x.", start)]
+
+
+def _defining_headings(section: str) -> "set[str]":
+    return set(re.findall(r"^### (M-[A-Z0-9-]+) ·", section, re.M))
+
+
+def test_an_approved_message_is_not_still_headed_proposed():
+    """The mirror of the test above: once Knut approves a message, its heading
+    must stop saying PROPOSED, or he is asked to approve it again."""
+    text = SPEC.read_text()
+    for mid, msg in sorted(M.CATALOGUE.items()):
+        if not msg.approved:
+            continue
+        heading = f"### {mid} ·"
+        if heading not in text:      # covered by the headline test above
+            continue
+        line = text[text.index(heading):].split("\n", 1)[0]
+        assert "PROPOSED" not in line, (
+            f"{mid} is approved in the code but its heading in the model still "
+            f"reads as awaiting review:\n  {line}")
+
+
+def test_the_awaiting_review_section_holds_exactly_the_proposed_messages():
+    """§M-PROPOSED is the review queue. A message that has been approved must
+    move out of it into §M, and one that has not must be in it."""
+    section = _proposed_section(SPEC.read_text())
+    assert _defining_headings(section) == set(M.PROPOSED), (
+        "§M-PROPOSED defines "
+        f"{sorted(_defining_headings(section))}, the code proposes "
+        f"{sorted(M.PROPOSED)}")
+
+
+def test_the_map_names_no_message_the_code_does_not_have():
+    """§M-x is the map from table to message. An ID in it that the code has
+    never heard of is a row nobody can follow."""
+    text = SPEC.read_text()
+    mx = text[text.index("### M-x."):]
+    mx = mx[:mx.index("## S.")]
+    named = set(re.findall(r"\*\*(M-[A-Z0-9-]+)\*\*", mx))
+    # The measuring session builds its own four in the Measure tab — see
+    # test_every_message_in_the_document_exists_in_the_code above.
+    session = {"M-END", "M-END-EMPTY", "M-TI3-EMPTY", "M-TI3-SHRANK"}
+    assert not (named - set(M.ALL_IDS) - session), sorted(named - set(M.ALL_IDS) - session)
+
+
+def test_the_revision_note_names_what_awaits_review():
+    """The note at the top of the document is what Knut reads first, so it is
+    checked too — it once said "four messages" when the code had one."""
+    text = SPEC.read_text()
+    note = re.search(r"^> \*\*Awaiting review:\*\* (.+?)\.?\s*$", text, re.M)
+    assert note, ('the document must open with a line of the form '
+                  '"> **Awaiting review:** M-…", so the review queue is stated '
+                  'where it is read')
+    named = set(re.findall(r"M-[A-Z0-9-]+", note.group(1)))
+    assert named == set(M.PROPOSED), (
+        f"the revision note names {sorted(named)}, the code proposes "
+        f"{sorted(M.PROPOSED)}")
+
+
 # ---- 2. the windows render from the catalogue ----------------------------
 WINDOW_SOURCES = [
     ("ui.tabs.tab_measure", "TabMeasure", "_replace_message"),
@@ -178,6 +249,26 @@ def test_every_message_has_a_headline_and_a_body():
         assert msg.title and msg.body, mid
         assert not msg.title.endswith("."), \
             f"{mid}: a headline is not a sentence"
+
+
+def test_no_message_carries_markdown_that_would_reach_the_screen():
+    """These windows show plain text. `**bold**` renders as asterisks.
+
+    Found by rendering M-CHART-CORRUPT rather than by reading it: the model
+    sets one sentence of it in bold, which is right for a document and wrong
+    for a QMessageBox that never calls ``setTextFormat``. Emphasis in these
+    messages is carried by the words.
+    """
+    import re
+    strings = []
+    for mid, msg in sorted(M.CATALOGUE.items()):
+        strings += [(mid, msg.title), (mid, msg.body), (mid, msg.body_one or "")]
+    strings += list(M.FRAGMENTS.items())
+    strings += [(k, v) for k, v in vars(M).items()
+                if k.startswith("M_") and isinstance(v, str)]
+    for mid, text in strings:
+        found = re.findall(r"\*\*[^*]+\*\*|`[^`]+`", text)
+        assert not found, f"{mid} would show Markdown on screen: {found}"
 
 
 def test_no_message_uses_a_bracketed_plural():
