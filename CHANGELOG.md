@@ -1,5 +1,19 @@
 # Changelog
 
+## v3.14.8-beta.134
+
+- **Every message in the Unified Measurement Management model is now approved.**
+  `M-BUILD-ELSEWHERE` was the last one waiting, and §M-PROPOSED is empty. It
+  stays in the document as the place a new message waits: the tests fail if one
+  is added to the code without being written there, and equally if an approved
+  one is left sitting in the queue.
+
+- **Settled: who answers a measurement file with nothing readable in it.** The
+  rule that a session archives what it left behind had been extended to files
+  merely *found* when the Measure tab opens, which took the file away before
+  Start Measurement could mention it. §3a says Start is where it is answered,
+  and that is what happens now — the archive belongs to the end of a session.
+
 ## v3.14.8-beta.133
 
 - **The chart warning described the wrong run.** It asked the project which run

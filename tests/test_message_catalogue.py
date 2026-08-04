@@ -93,14 +93,15 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 
 
 def test_nothing_is_quietly_proposed():
-    """The proposed set is small and deliberate — if it grows, it is because
-    someone added a message rather than getting one approved.
+    """The proposed set is deliberate — if it grows, it is because someone
+    added a message rather than getting one approved.
 
-    Currently the guard for a build whose measurement belongs to another run
-    (beta.133). The two §S1.2 / §S1.3 guards left this set when Knut accepted
-    them, as M-CHART-CORRUPT had the day before.
+    **It is empty.** Every message in the catalogue carries Knut's approval as
+    of 2026-08-04. Adding one to this set is a decision: write it in the
+    document's §M-PROPOSED, list it on the issue, and change this test in the
+    same commit, so a message can never reach a user unreviewed by accident.
     """
-    assert set(M.PROPOSED) == {"M-BUILD-ELSEWHERE"}, M.PROPOSED
+    assert set(M.PROPOSED) == set(), M.PROPOSED
 
 
 # ---- 1b. approval flows the other way too --------------------------------
@@ -167,8 +168,12 @@ def test_the_revision_note_names_what_awaits_review():
     note = re.search(r"^> \*\*Awaiting review:\*\* (.+?)\.?\s*$", text, re.M)
     assert note, ('the document must open with a line of the form '
                   '"> **Awaiting review:** M-…", so the review queue is stated '
-                  'where it is read')
+                  'where it is read — "none" when it is empty')
     named = set(re.findall(r"M-[A-Z0-9-]+", note.group(1)))
+    if not M.PROPOSED:
+        assert note.group(1).strip().lower().startswith("none"), (
+            "nothing awaits review, so the note must say so in as many words: "
+            f"it says {note.group(1)!r}")
     assert named == set(M.PROPOSED), (
         f"the revision note names {sorted(named)}, the code proposes "
         f"{sorted(M.PROPOSED)}")

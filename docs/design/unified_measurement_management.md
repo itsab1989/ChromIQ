@@ -1,8 +1,8 @@
 # Unified Measurement Management — Design Specification
 
-> **Revision 2026-08-04 (c) — what to review.**
-> **Awaiting review:** M-BUILD-ELSEWHERE.
-> M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART were **accepted** on 2026-08-04 and have joined §M; M-CHART-CORRUPT, M-REPLACE-UNCOUNTABLE and M-PREVIEW-PAUSED were accepted earlier the same day. The one new message guards a build whose measurement belongs to a different run — Knut, beta.132: *"I created a profile for run 6 via standing in run 5. A guard for this should be made."* ✅ marks a message Knut has approved; 🆕 marks one still in the queue. `tests/test_message_catalogue.py` checks this list against the `approved=` flags in the code.
+> **Revision 2026-08-04 (d) — the catalogue is fully approved.**
+> **Awaiting review:** none.
+> Every message in §M has been approved by Knut. The last one, **M-BUILD-ELSEWHERE**, was accepted on 2026-08-04 — *"Message M-BUILD-ELSEWHERE accepted"* — together with M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART that morning, and M-CHART-CORRUPT, M-REPLACE-UNCOUNTABLE and M-PREVIEW-PAUSED the day before. §M-PROPOSED is therefore empty; a new message goes there first, and `tests/test_message_catalogue.py` fails if one is added to the code without it.
 
 > **Status:** specification, agreed on [issue #130](https://github.com/itsab1989/ChromIQ/issues/130).
 > Written by the ChromIQ assistant, reviewed and directed by Knut (soul-traveller)
@@ -141,6 +141,10 @@ Proposed, and it makes §3 possible:
 | `C > A` | ✓ | ✓ | **does not belong to this chart** | refuse, explain | **M-TI3-MISMATCH** |
 
 ✅ = approved by Knut, 2026-08-04 — full text in **§M**, with the rest of the approved catalogue. 🆕 = **PROPOSED**, awaiting review — full text in **§M-PROPOSED**. Every message not marked here was approved earlier.
+
+**Who answers a file with nothing readable in it — settled 2026-08-04.** Two rules met on the same file. Beta.110: a session that measured nothing archives what it left behind, *"right after measurement session was exited/stopped/completed"*. That had been extended to files merely **found when the Measure tab opens**, which archived them before Start Measurement could mention them — and §3a's two rows above say Start is exactly where they are answered.
+
+Knut's ruling: **"leave as is, use §3a."** So the archive happens at the end of a session, never on tab-open, and a header-only or empty `.ti3` already on disk is met by **M-REPLACE-UNCOUNTABLE** when Start Measurement is pressed. That message is also why the older complaint does not return: it never claims a measurement exists — it says ChromIQ cannot tell how many readings the file contains.
 
 **Why M-REPLACE-UNCOUNTABLE exists.** The first three rows all describe a file with nothing readable in it, and the model gave them no message of their own — so they fell through to M-REPLACE-PARTIAL, which states a fraction and produced **"0 of the chart's ? patches have been read"**. That reads as a fault in ChromIQ rather than a fact about the file, and it points at Refine / resume, which cannot work when there is nothing to resume from.
 
@@ -636,6 +640,21 @@ Every window this specification can raise, in one place. **ID → where it is us
 > &nbsp;&nbsp;2\. Print it through this run's profile (with colour management on).
 > &nbsp;&nbsp;3\. Come back here with "Run type" = "Verification" and measure it — the result is stored in a dated folder under this run's "verifications" folder.
 
+### M-BUILD-ELSEWHERE · the measurement belongs to another run — §6
+
+*Approved by Knut, 2026-08-04. Raised when Build Profile is pressed while the measurement loaded in the tab sits in a different run's folder from the one the bar shows — his Demo-08 step 10: "I created a profile for run 6 via standing in run 5."*
+
+> **This measurement is not in the run you have selected**
+>
+> The bar shows {run}, but the measurement loaded here comes from:
+> {folder}
+>
+> A profile is always built beside the measurement it is built from, so pressing Build Profile now writes the profile into that folder — not into {run}. The run you have selected would be left exactly as it is.
+>
+> **What each button does:**
+> • **Build anyway** — builds from this measurement and puts the profile beside it. Choose this when you meant to work on that run.
+> • **Cancel** — changes nothing. To build into {run}, load that run's own measurement first: switching "Profile run" in the bar loads it for you when the run has one.
+
 ### M-PROFILE-VERIFY · rebuilding under existing verification measurements — §6
 
 > **The verification measurements in this run were made against the profile you are about to replace**
@@ -655,25 +674,16 @@ Every window this specification can raise, in one place. **ID → where it is us
 
 ## M-PROPOSED. Messages awaiting review
 
-*Everything in this section is **PROPOSED**, not approved. Proposed messages are flagged in `workflow/measurement_messages.py` with `approved=False`, and `tests/test_message_catalogue.py` fails if that flag is dropped without the model being updated — or if this section still holds a message that has since been approved.*
+***Empty.** Every message in §M carries Knut's approval. This section is where a
+new one waits: add it to `workflow/measurement_messages.py` with
+`approved=False`, write it here, and list it on the issue.
+`tests/test_message_catalogue.py` holds the two in step — it fails if a proposed
+message is missing from this section, and equally if an approved one is left
+sitting in it.*
 
-*Approved and therefore **moved out of this section** into §M above: **M-REPLACE-UNCOUNTABLE**, **M-PREVIEW-PAUSED**, **M-CHART-CORRUPT**, **M-VERIFY-NO-PROFILE**, **M-VERIFY-NO-CHART** (all 2026-08-04).*
-
-### M-BUILD-ELSEWHERE · PROPOSED · the measurement belongs to another run — §6
-
-**When it arises:** Build Profile is pressed while the measurement loaded in the tab sits in a different run's folder from the one the bar shows.
-**Why it is needed:** Knut, beta.132, Demo-08 step 10 — *"going to run 5, Build Profile tab. The measurement data field … has a file with path to run 6, not run 5. Pressing Build Profile starts building without any warning. The icc file was then placed in the run6 folder. What happened here? I created a profile for run 6 via standing in run 5."* A profile is written beside the measurement it is built from; nothing said so, and nothing checked.
-
-> **This measurement is not in the run you have selected**
->
-> The bar shows {run}, but the measurement loaded here comes from:
-> {folder}
->
-> A profile is always built beside the measurement it is built from, so pressing Build Profile now writes the profile into that folder — not into {run}. The run you have selected would be left exactly as it is.
->
-> **What each button does:**
-> • **Build anyway** — builds from this measurement and puts the profile beside it. Choose this when you meant to work on that run.
-> • **Cancel** — changes nothing. To build into {run}, load that run's own measurement first: switching "Profile run" in the bar loads it for you when the run has one.
+*Approved and moved into §M: **M-REPLACE-UNCOUNTABLE**, **M-PREVIEW-PAUSED**,
+**M-CHART-CORRUPT**, **M-VERIFY-NO-PROFILE**, **M-VERIFY-NO-CHART**,
+**M-BUILD-ELSEWHERE** (all 2026-08-04).*
 
 ---
 
@@ -702,7 +712,7 @@ Every window this specification can raise, in one place. **ID → where it is us
 | §4, run holds a corrupt or empty `.ti3` | Profiling | **M-CHART-CORRUPT** ✅ appended |
 | §S1.2, Verification with no built profile | Start Measurement | **M-VERIFY-NO-PROFILE** ✅ |
 | §S1.3, Verification with a profile but no verification chart | the greyed Start button's tooltip | **M-VERIFY-NO-CHART** ✅ |
-| §6, the measurement is not in the selected run | Build Profile | **M-BUILD-ELSEWHERE** 🆕 |
+| §6, the measurement is not in the selected run | Build Profile | **M-BUILD-ELSEWHERE** ✅ |
 | §4, chart with no `.channels.json` | — | **M-CHART-NOPAGES** appended |
 | §4, run with a verification history | Profiling | **M-CHART-W4** |
 

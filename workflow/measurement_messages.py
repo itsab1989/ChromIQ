@@ -420,8 +420,8 @@ M_BUILD_ELSEWHERE = _m(
     "it. Choose this when you meant to work on that run.\n\n"
     "•  Cancel — changes nothing. To build into {run}, load that run's own "
     "measurement first: switching “Profile run” in the bar loads it for you "
-    "when the run has one.",
-    approved=False)
+    "when the run has one.")
+    # Approved by Knut, 2026-08-04: "Message M-BUILD-ELSEWHERE accepted".
 
 #: The checkbox on M-PROFILE-VERIFY (§6d) and its tooltip. In the catalogue
 #: because it is text the window shows, and the window shows nothing that is
