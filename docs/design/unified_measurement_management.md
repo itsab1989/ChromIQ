@@ -1,8 +1,8 @@
 # Unified Measurement Management — Design Specification
 
-> **Revision 2026-08-04 (b) — what to review.**
-> **Awaiting review:** M-VERIFY-NO-PROFILE, M-VERIFY-NO-CHART.
-> Those two are the §S1.2 / §S1.3 guard windows, brought into the catalogue at Knut's request — *"bring them into §M so the model owns their text"*. Their words are the ones that already shipped; only ownership changes. **M-CHART-CORRUPT is approved** (*"Message M-CHART-CORRUPT is accepted. move into model."*) and has joined §M, together with M-REPLACE-UNCOUNTABLE and M-PREVIEW-PAUSED, approved earlier the same day. ✅ marks a message Knut has approved; 🆕 marks one still in the queue. `tests/test_message_catalogue.py` checks this list against the `approved=` flags in the code, so the two cannot drift apart.
+> **Revision 2026-08-04 (c) — what to review.**
+> **Awaiting review:** M-BUILD-ELSEWHERE.
+> M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART were **accepted** on 2026-08-04 and have joined §M; M-CHART-CORRUPT, M-REPLACE-UNCOUNTABLE and M-PREVIEW-PAUSED were accepted earlier the same day. The one new message guards a build whose measurement belongs to a different run — Knut, beta.132: *"I created a profile for run 6 via standing in run 5. A guard for this should be made."* ✅ marks a message Knut has approved; 🆕 marks one still in the queue. `tests/test_message_catalogue.py` checks this list against the `approved=` flags in the code.
 
 > **Status:** specification, agreed on [issue #130](https://github.com/itsab1989/ChromIQ/issues/130).
 > Written by the ChromIQ assistant, reviewed and directed by Knut (soul-traveller)
@@ -605,6 +605,37 @@ Every window this specification can raise, in one place. **ID → where it is us
 >
 > The chart is moved to `old/{date}/` and no measurement is touched. **Duplicate the run** instead if you want a different verification chart while keeping this run's verification measurements intact.
 
+### M-VERIFY-NO-PROFILE · a verification with no profile to check — §S1.2
+
+*Approved by Knut, 2026-08-04. Raised when Run type = Verification and the selected run has no built profile; also what the greyed Start button's tooltip says. The numbers below are escaped so both halves of the list line up exactly as they do on screen — Knut, beta.132: "the numbered list from 4 to 7 does not have the same indent as points 1 to 3".*
+
+> **This run has no profile to verify yet**
+>
+> A verification checks a finished profile — but this profile run doesn't have a built profile yet.
+>
+> To build the profile first:
+> &nbsp;&nbsp;1\. Set "Run type" to "Profiling".
+> &nbsp;&nbsp;2\. Create, print and measure the profiling chart as normal — its measurement is stored in the run folder.
+> &nbsp;&nbsp;3\. Build the profile on the Build Profile tab (this makes the profile's .icc / .icm file).
+>
+> Once the profile exists, you can verify it:
+> &nbsp;&nbsp;4\. Set "Run type" back to "Verification".
+> &nbsp;&nbsp;5\. Create a verification chart in the Create Chart tab.
+> &nbsp;&nbsp;6\. Print that chart THROUGH the finished profile (with colour management on).
+> &nbsp;&nbsp;7\. Measure it here with "Run type" = "Verification" — the result is kept in a dated folder under this run's "verifications" folder.
+
+### M-VERIFY-NO-CHART · a verification with no chart to measure — §S1.3
+
+*Approved by Knut, 2026-08-04. Since beta.128 Start Measurement needs a `.ti2`, so a run without its verification chart meets this as the greyed button's tooltip; the window remains for the case where a chart exists but the profile does not.*
+
+> **No verification chart for this run yet**
+>
+> This run has a finished profile, but you haven't created its verification chart.
+>
+> &nbsp;&nbsp;1\. Go to the Create Chart tab and, with "Run type" = "Verification", create the verification chart (a smaller chart is fine).
+> &nbsp;&nbsp;2\. Print it through this run's profile (with colour management on).
+> &nbsp;&nbsp;3\. Come back here with "Run type" = "Verification" and measure it — the result is stored in a dated folder under this run's "verifications" folder.
+
 ### M-PROFILE-VERIFY · rebuilding under existing verification measurements — §6
 
 > **The verification measurements in this run were made against the profile you are about to replace**
@@ -624,41 +655,25 @@ Every window this specification can raise, in one place. **ID → where it is us
 
 ## M-PROPOSED. Messages awaiting review
 
-*Everything in this section is **PROPOSED**, not approved. Proposed messages are flagged in `workflow/measurement_messages.py` with `approved=False`, and `tests/test_message_catalogue.py` fails if that flag is dropped without the model being updated — or if this section still holds a message that has since been approved. Knut to approve, reword or reject.*
+*Everything in this section is **PROPOSED**, not approved. Proposed messages are flagged in `workflow/measurement_messages.py` with `approved=False`, and `tests/test_message_catalogue.py` fails if that flag is dropped without the model being updated — or if this section still holds a message that has since been approved.*
 
-*Approved and therefore **moved out of this section** into §M above: **M-REPLACE-UNCOUNTABLE**, **M-PREVIEW-PAUSED** and **M-CHART-CORRUPT** (all 2026-08-04).*
+*Approved and therefore **moved out of this section** into §M above: **M-REPLACE-UNCOUNTABLE**, **M-PREVIEW-PAUSED**, **M-CHART-CORRUPT**, **M-VERIFY-NO-PROFILE**, **M-VERIFY-NO-CHART** (all 2026-08-04).*
 
-### M-VERIFY-NO-PROFILE · PROPOSED · a verification with no profile to check — §S1.2
+### M-BUILD-ELSEWHERE · PROPOSED · the measurement belongs to another run — §6
 
-**When it arises:** Run type = Verification, Start Measurement pressed, and the selected run has no built profile. Also the greyed Start button's tooltip, which is where a user meets it when the run has no verification chart either.
-**Why it is here:** Knut, 2026-08-04 — *"The S1.2 / S1.3 guard windows: bring them into §M so the model owns their text."* The words below are the ones that have shipped since beta.87; moving them changes nothing on screen.
+**When it arises:** Build Profile is pressed while the measurement loaded in the tab sits in a different run's folder from the one the bar shows.
+**Why it is needed:** Knut, beta.132, Demo-08 step 10 — *"going to run 5, Build Profile tab. The measurement data field … has a file with path to run 6, not run 5. Pressing Build Profile starts building without any warning. The icc file was then placed in the run6 folder. What happened here? I created a profile for run 6 via standing in run 5."* A profile is written beside the measurement it is built from; nothing said so, and nothing checked.
 
-> **This run has no profile to verify yet**
+> **This measurement is not in the run you have selected**
 >
-> A verification checks a finished profile — but this profile run doesn't have a built profile yet.
+> The bar shows {run}, but the measurement loaded here comes from:
+> {folder}
 >
-> To build the profile first:
->   1. Set "Run type" to "Profiling".
->   2. Create, print and measure the profiling chart as normal — its measurement is stored in the run folder.
->   3. Build the profile on the Build Profile tab (this makes the profile's .icc / .icm file).
+> A profile is always built beside the measurement it is built from, so pressing Build Profile now writes the profile into that folder — not into {run}. The run you have selected would be left exactly as it is.
 >
-> Once the profile exists, you can verify it:
->   4. Set "Run type" back to "Verification".
->   5. Create a verification chart in the Create Chart tab.
->   6. Print that chart THROUGH the finished profile (with colour management on).
->   7. Measure it here with "Run type" = "Verification" — the result is kept in a dated folder under this run's "verifications" folder.
-
-### M-VERIFY-NO-CHART · PROPOSED · a verification with no chart to measure — §S1.3
-
-**When it arises:** Run type = Verification and the run has a profile but no verification chart. **Since beta.128 this is met as a greyed Start button rather than a window** — Start needs a `.ti2`, and a run without a verification chart has none. Knut found exactly that on Demo-01: *"Start Measurement button is not available, so test cannot be performed. You have not counted for that a verification run must have a chart first."* So the message is what the button's tooltip says, and the window remains for the case where a chart exists but the profile does not.
-
-> **No verification chart for this run yet**
->
-> This run has a finished profile, but you haven't created its verification chart.
->
->   1. Go to the Create Chart tab and, with "Run type" = "Verification", create the verification chart (a smaller chart is fine).
->   2. Print it through this run's profile (with colour management on).
->   3. Come back here with "Run type" = "Verification" and measure it — the result is stored in a dated folder under this run's "verifications" folder.
+> **What each button does:**
+> • **Build anyway** — builds from this measurement and puts the profile beside it. Choose this when you meant to work on that run.
+> • **Cancel** — changes nothing. To build into {run}, load that run's own measurement first: switching "Profile run" in the bar loads it for you when the run has one.
 
 ---
 
@@ -685,8 +700,9 @@ Every window this specification can raise, in one place. **ID → where it is us
 | §3a header-only, empty | Start Measurement | **M-REPLACE-UNCOUNTABLE** ✅ |
 | §4, trigger = auto-update preview | — | **M-PREVIEW-PAUSED** ✅ |
 | §4, run holds a corrupt or empty `.ti3` | Profiling | **M-CHART-CORRUPT** ✅ appended |
-| §S1.2, Verification with no built profile | Start Measurement | **M-VERIFY-NO-PROFILE** 🆕 |
-| §S1.3, Verification with a profile but no verification chart | the greyed Start button's tooltip | **M-VERIFY-NO-CHART** 🆕 |
+| §S1.2, Verification with no built profile | Start Measurement | **M-VERIFY-NO-PROFILE** ✅ |
+| §S1.3, Verification with a profile but no verification chart | the greyed Start button's tooltip | **M-VERIFY-NO-CHART** ✅ |
+| §6, the measurement is not in the selected run | Build Profile | **M-BUILD-ELSEWHERE** 🆕 |
 | §4, chart with no `.channels.json` | — | **M-CHART-NOPAGES** appended |
 | §4, run with a verification history | Profiling | **M-CHART-W4** |
 
@@ -706,8 +722,8 @@ Read each row top to bottom: that is the order the code must perform it in.
 | # | Condition | Sequence |
 |---|---|---|
 | S1.1 | no chart loaded | 1 refuse, inline hint. No window. |
-| S1.2 | Verification run type, run has no profile | 1 **M-VERIFY-NO-PROFILE** 🆕 → 2 return. Nothing is written. Reachable when the run has a verification chart but no profile; otherwise met as the greyed Start button's tooltip. |
-| S1.3 | Verification, profile exists, no verification chart | **M-VERIFY-NO-CHART** 🆕, as the greyed Start button's tooltip — since beta.128 Start needs a `.ti2`, so this is met before a window can open. Knut, beta.128: *"Start Measurement button is not available, so test cannot be performed."* |
+| S1.2 | Verification run type, run has no profile | 1 **M-VERIFY-NO-PROFILE** ✅ → 2 return. Nothing is written. Reachable when the run has a verification chart but no profile; otherwise met as the greyed Start button's tooltip. |
+| S1.3 | Verification, profile exists, no verification chart | **M-VERIFY-NO-CHART** ✅, as the greyed Start button's tooltip — since beta.128 Start needs a `.ti2`, so this is met before a window can open. Knut, beta.128: *"Start Measurement button is not available, so test cannot be performed."* |
 | S1.4 | no `.ti3` | 1 archive step (§2a) is a no-op → 2 record C₀ = 0 → 3 launch |
 | S1.5 | `.ti3` partial, Resume ticked | 1 **archive `.ti3` → `old/{date}/`** → 2 record C₀ → 3 launch. No window. |
 | S1.6 | `.ti3` partial, Resume **not** ticked | 1 **M-REPLACE-PARTIAL** → 2 *if cancelled, stop here* → 3 archive → 4 record C₀ → 5 launch |

@@ -4018,6 +4018,69 @@ class TabProfile(QWidget):
     #: on one run, back on the next launch.
     _rebuild_warning_silenced: "set" = None
 
+    # ------------------------------------------------------------------
+    # The shared Profile-run bar (#130)
+    # ------------------------------------------------------------------
+    def set_target_controller(self, controller) -> None:
+        """Follow the shared bar, like tabs 1-3 do.
+
+        This tab had no idea which run was selected. Knut, beta.132, Demo-06
+        step 2: *"when changing to measure tab, after loading project, the
+        measurement data ti3 file is not pre-filled in for the run … Now I had
+        to load manually."* And the sharp end of the same gap, Demo-08 step 10:
+        *"going to run 5, Build Profile tab. The measurement data field … has a
+        file with path to run 6, not run 5. Pressing Build Profile starts
+        building without any warning. The icc file was then placed in the run6
+        folder."*
+        """
+        self._target_ctl = controller
+        controller.changed.connect(self._on_target_changed)
+
+    def _on_target_changed(self) -> None:
+        """Show the selected run's measurement, if it has one.
+
+        Only ever *offers* what is on disk for the selected run; a measurement
+        the user loaded by hand from somewhere else is left alone until the
+        selection moves to a run that has one of its own.
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
+            return
+        try:
+            from core.measurement_target import resolve_run
+            proj = ctl.project_or_none()
+            if proj is None or ctl.target.is_verification():
+                return
+            run = resolve_run(proj, ctl.target)
+            ti3 = run.measurement_ti3
+            if ti3.is_file() and ti3 != self._ti3_path:
+                self.set_ti3_path(ti3, propagate=False)
+                log.info("Build Profile: measurement follows the bar → %s", ti3)
+        except Exception:      # noqa: BLE001 — never break a selection change
+            log.warning("Could not follow the bar in Build Profile", exc_info=True)
+
+    def _measurement_is_outside_the_selected_run(self) -> "tuple[str, str] | None":
+        """``(run_id, folder)`` when the loaded measurement is NOT in the run the
+        bar shows — the state in which a build silently lands somewhere else.
+
+        None when there is nothing to warn about: no bar, no project, no
+        measurement, or a measurement that belongs to the selected run.
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None or not self._ti3_path:
+            return None
+        try:
+            from core.measurement_target import resolve_run
+            proj = ctl.project_or_none()
+            if proj is None:
+                return None
+            run = resolve_run(proj, ctl.target)
+            if Path(self._ti3_path).parent == run.dir:
+                return None
+            return run.id, str(Path(self._ti3_path).parent)
+        except Exception:      # noqa: BLE001
+            return None
+
     def _run_being_built_into(self):
         """The run this build would write its profile into, or None.
 
@@ -4032,6 +4095,32 @@ class TabProfile(QWidget):
             return run if run.dir.parent.name == "runs" else None
         except Exception:      # noqa: BLE001
             return None
+
+    def _confirm_building_outside_the_selected_run(self) -> bool:
+        """M-BUILD-ELSEWHERE — ask before a build lands in a run the bar does
+        not show. True when the build may go ahead."""
+        where = self._measurement_is_outside_the_selected_run()
+        if where is None:
+            return True
+        run_id, folder = where
+
+        from PyQt6.QtWidgets import QMessageBox
+
+        from ui.widgets import fit_message_box_buttons
+        from workflow import measurement_messages as M
+
+        title, body = M.M_BUILD_ELSEWHERE.render(run=run_id, folder=folder)
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        go = box.addButton(tr("Build anyway"), QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(go)
+        fit_message_box_buttons(box)
+        box.exec()
+        return box.clickedButton() is go
 
     def _confirm_rebuild_over_verifications(self) -> bool:
         """M-PROFILE-VERIFY — §6. True when the build may go ahead."""
@@ -4146,6 +4235,10 @@ class TabProfile(QWidget):
 
         params = self._collect_params()
         if not self._validate_gamut_source(params):
+            return
+        # The profile is written beside the measurement it is built from, so a
+        # measurement belonging to another run quietly builds into that run.
+        if not self._confirm_building_outside_the_selected_run():
             return
         # §6: a run whose verification measurements were made against the
         # profile about to be replaced.

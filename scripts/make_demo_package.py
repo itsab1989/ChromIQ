@@ -542,9 +542,14 @@ def build_verify_history(root: Path) -> None:
     _chart_files(r, name, patches=RUN_PATCHES, rows=RUN_ROWS)
     _measure(r, name, seed_icc=_seed_profile(root / ".seed"))
     _build_icc(r, name)
-    # …and a verification chart that is smaller than the run's, from printtarg.
-    _chart_files_printtarg(r / "verifications", f"{name}-verify",
-                           patches=VERIFY_PATCHES)
+    # …and a verification chart that is smaller than the run's, made the way a
+    # user makes one — with the engine, so it carries its layout recipe.
+    # Knut, beta.132, step 7: the printtarg version had no `.channels.json`, so
+    # the log answered a step about the W5 window with a note about a chart
+    # whose pages cannot be redrawn. The printtarg case still has its home:
+    # Demo-03 and Demo-08 run 6 exist to exercise exactly that.
+    _chart_files(r / "verifications", f"{name}-verify",
+                 patches=VERIFY_PATCHES, rows=VERIFY_ROWS)
     vti3 = _measure(r / "verifications", f"{name}-verify",
                     seed_icc=_seed_profile(root / ".seed"))
     start = datetime(2026, 2, 14, 10, 30)
@@ -585,7 +590,8 @@ def build_nothing_to_lose(root: Path) -> None:
 
 
 @case(name="Demo-08-Many-Runs",
-      messages=['M-CHART-PROFILING', 'M-CHART-W4', 'M-CHART-NOPAGES', 'M-PROFILE-VERIFY', 'M-PREVIEW-PAUSED'],
+      messages=['M-CHART-PROFILING', 'M-CHART-W4', 'M-CHART-NOPAGES',
+                'M-PROFILE-VERIFY', 'M-PREVIEW-PAUSED', 'M-BUILD-ELSEWHERE'],
       layout="mixed — printtarg and ChromIQ layout engine",
       covers=["a project with a real history: six runs in every state at once",
               "§6e row 4 — the silence is per run, not global",
@@ -624,7 +630,14 @@ def build_nothing_to_lose(root: Path) -> None:
              "then switch to a different run and press Build Profile there. "
              "*Expected:* it asks again — the silence is remembered for one "
              "run only, and only until you close ChromIQ. "
-             "[[M-PROFILE-VERIFY]]"])
+             "[[M-PROFILE-VERIFY]]",
+             "Switch the bar to **run 5**, then use Build Profile's own "
+             "**Load** button to open a DIFFERENT run's measurement (run 6's "
+             "will do) and press **Build Profile**. *Expected:* ChromIQ says "
+             "the measurement is not in the run you selected, and that the "
+             "profile would be written beside it rather than into run 5. Press "
+             "Cancel — switching “Profile run” away and back loads the selected "
+             "run's own measurement again. [[M-BUILD-ELSEWHERE]]"])
 def build_many_runs(root: Path) -> None:
     name = "Demo-08-Many-Runs"
     p = root / name

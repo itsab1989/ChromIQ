@@ -1,5 +1,51 @@
 # Changelog
 
+## v3.14.8-beta.133
+
+- **The chart warning described the wrong run.** It asked the project which run
+  was "current", which only follows the Profile-run bar at build time — so on a
+  project with several runs, every run you selected raised the warning belonging
+  to whichever run happened to be current, and the run that deserved the widest
+  warning got the mildest. It now resolves the run the bar shows, and asking can
+  never create a run as a side effect.
+
+- **The "TC9.18 by Pharmacist" preset replaced a chart without asking.** It runs
+  no Argyll tool — it copies a bundled chart into the run — which is how it
+  slipped past the guard every other route goes through, archiving the run's
+  measurement in silence. It now asks the same question as Generate Chart.
+
+- **Build Profile follows the Profile-run bar.** It had no idea which run was
+  selected: the measurement stayed on whatever was last loaded, so a build could
+  land in another run's folder without a word. Selecting a run now loads that
+  run's measurement, and building from a measurement that lives somewhere else
+  asks first, saying where the profile would actually go.
+
+- **"Refine / resume" no longer appears for a file with nothing readable in
+  it.** The window said it was not offered while the checkbox for it was on
+  screen: the window asked the model, the checkbox asked a second parser that
+  split on the bare text "BEGIN_DATA" — which also matches "BEGIN_DATA_FORMAT",
+  so a header-only file looked like a data block holding its own format line.
+  Both now ask the model.
+
+- **A run's own chart is no longer treated as "loaded from elsewhere".** That
+  state belongs to a chart opened with "Open Chart File (.ti2)" and blocks
+  Generate Chart with a window offering only Cancel; showing a run's own chart
+  left it standing, so a later Run-type switch inherited it. Entering and
+  leaving the state is now in the log, because nothing about it was visible
+  until it blocked something.
+
+- **The Start Measurement window says "Measure anyway".** Nothing has started
+  when it opens — it is the last chance to stop — so "Measure again" named the
+  wrong thing.
+
+- **New:** ChromIQ asks before building a profile from a measurement that is not
+  in the selected run (`M-BUILD-ELSEWHERE`, awaiting review). Two messages Knut
+  accepted — the two verification guards — moved into §M.
+
+- **Demo package:** Demo-06's verification chart is now made with the engine, so
+  it carries its layout recipe; Demo-08 gained the step that exercises the new
+  guard. All 41 steps verified by driving the real app.
+
 ## v3.14.8-beta.132
 
 - **Every one of the demo package's 40 steps now does what it says**, checked by

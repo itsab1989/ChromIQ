@@ -46,6 +46,10 @@ class _Ctl:
 class _Tab(__import__("PyQt6.QtWidgets", fromlist=["QWidget"]).QWidget):
     from ui.tabs.tab_chart import TabChart
     _confirm_displacing_results = TabChart._confirm_displacing_results
+    # Since beta.133 the guard asks the run the BAR points at, through
+    # core.measurement_target.resolve_run — so the stub project answers
+    # has_run/run as well as current_run.
+    _target_run = TabChart._target_run
     # §4 split the one message into two, sharing a window builder.
     _ask_chart_question = TabChart._ask_chart_question
     _profiling_chart_message = TabChart._profiling_chart_message
@@ -64,6 +68,8 @@ class _Tab(__import__("PyQt6.QtWidgets", fromlist=["QWidget"]).QWidget):
             old_dir = tmp_path / "old"
         class _P:
             def current_run(_s): return _Run()
+            def has_run(_s, rid): return bool(rid)
+            def run(_s, rid): return _Run()
         class _FM:
             def project(_s): return _P()
         self._file_mgr = _FM()
@@ -110,11 +116,13 @@ def test_an_existing_run_with_results_still_warns(qapp, tmp_path):
 
 
 def test_the_new_run_check_comes_before_the_run_is_read():
+    """A "New run" displaces nothing, so it must return before any run is
+    resolved — resolving one is also what could create it."""
     from ui.tabs.tab_chart import TabChart
     lines = [l.strip() for l in
              inspect.getsource(TabChart._confirm_displacing_results).splitlines()]
     guard = next(i for i, l in enumerate(lines) if "ctl.target.profile_run" in l)
-    read = next(i for i, l in enumerate(lines) if "current_run()" in l)
+    read = next(i for i, l in enumerate(lines) if "_target_run()" in l)
     assert guard < read
 
 

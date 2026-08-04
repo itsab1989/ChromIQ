@@ -382,8 +382,8 @@ M_VERIFY_NO_PROFILE = _m(
     "  6. Print that chart THROUGH the finished profile (with colour "
     "management on).\n"
     "  7. Measure it here with “Run type” = “Verification” — the result is "
-    "kept in a dated folder under this run's “verifications” folder.",
-    approved=False)
+    "kept in a dated folder under this run's “verifications” folder.")
+    # Approved by Knut, 2026-08-04.
 
 M_VERIFY_NO_CHART = _m(
     "M-VERIFY-NO-CHART",
@@ -395,7 +395,32 @@ M_VERIFY_NO_CHART = _m(
     "  2. Print it through this run's profile (with colour management on).\n"
     "  3. Come back here with “Run type” = “Verification” and measure it — the "
     "result is stored in a dated folder under this run's “verifications” "
-    "folder.",
+    "folder.")
+    # Approved by Knut, 2026-08-04.
+
+# --- PROPOSED: building from a measurement that is not in the selected run --
+# Knut, beta.132, Demo-08 step 10: *"going to run 5, Build Profile tab. The
+# measurement data field does not have the file pre-selected for that run, it
+# has a file with path to run 6 … Pressing Build Profile starts building
+# without any warning. The icc file was then placed in the run6 folder. What
+# happened here? I created a profile for run 6 via standing in run 5. A guard
+# for this should be made."* His wording for what it must say is followed
+# closely: where the profile will go, that it is not the selected run, and the
+# two buttons.
+M_BUILD_ELSEWHERE = _m(
+    "M-BUILD-ELSEWHERE",
+    "This measurement is not in the run you have selected",
+    "The bar shows {run}, but the measurement loaded here comes from:\n"
+    "{folder}\n\n"
+    "A profile is always built beside the measurement it is built from, so "
+    "pressing Build Profile now writes the profile into that folder — not into "
+    "{run}. The run you have selected would be left exactly as it is.\n\n"
+    "What each button does:\n\n"
+    "•  Build anyway — builds from this measurement and puts the profile beside "
+    "it. Choose this when you meant to work on that run.\n\n"
+    "•  Cancel — changes nothing. To build into {run}, load that run's own "
+    "measurement first: switching “Profile run” in the bar loads it for you "
+    "when the run has one.",
     approved=False)
 
 #: The checkbox on M-PROFILE-VERIFY (§6d) and its tooltip. In the catalogue
@@ -420,7 +445,7 @@ CATALOGUE = {m.id: m for m in (
     M_CHART_PROFILING, M_CHART_W4, M_CHART_VERIFY, M_CHART_NOPAGES,
     M_CHART_CORRUPT,
     M_PREVIEW_PAUSED, M_PROFILE_VERIFY,
-    M_VERIFY_NO_PROFILE, M_VERIFY_NO_CHART,
+    M_VERIFY_NO_PROFILE, M_VERIFY_NO_CHART, M_BUILD_ELSEWHERE,
 )}
 
 #: Paragraphs appended to another message rather than shown on their own.

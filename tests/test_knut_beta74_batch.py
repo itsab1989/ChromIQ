@@ -193,6 +193,10 @@ class _Tab(__import__("PyQt6.QtWidgets", fromlist=["QWidget"]).QWidget):
 
     from ui.tabs.tab_chart import TabChart
     _confirm_displacing_results = TabChart._confirm_displacing_results
+    # Since beta.133 the guard asks the run the BAR points at, through
+    # core.measurement_target.resolve_run — so the stub project answers
+    # has_run/run as well as current_run.
+    _target_run = TabChart._target_run
     # §4 split the one message into two, sharing a window builder.
     _ask_chart_question = TabChart._ask_chart_question
     _profiling_chart_message = TabChart._profiling_chart_message
@@ -205,6 +209,8 @@ class _Tab(__import__("PyQt6.QtWidgets", fromlist=["QWidget"]).QWidget):
         super().__init__()
         class _P:
             def current_run(_s): return run
+            def has_run(_s, rid): return bool(rid) and run is not None
+            def run(_s, rid): return run
         class _FM:
             def project(_s): return _P()
         self._file_mgr = _FM()

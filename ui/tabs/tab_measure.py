@@ -777,25 +777,30 @@ class _ChartreadOption:
 
 
 def _cgats_has_no_readings(path) -> bool:
-    """Whether a CGATS file (.ti3) carries a header but no data rows.
+    """Whether a CGATS file (.ti3) carries a header but no readable readings.
 
-    Used before offering to recover an interrupted measurement: a backup with
-    nothing in it is not readings to carry on from (#130, Knut 2026-07-30).
+    Used before offering to recover an interrupted measurement, and — since
+    beta.133 — to decide whether "Refine / resume" is offered at all: a file
+    with nothing countable in it is not readings to carry on from (#130, Knut
+    2026-07-30).
+
+    **It asks the model, rather than parsing again.** Its own parse split on the
+    bare string ``"BEGIN_DATA"``, which also matches ``BEGIN_DATA_FORMAT`` — so
+    a header-only file (§3a's *no data block*) looked like a data block holding
+    one row, the format line. Knut, beta.132, on Demo-05: the window correctly
+    said *"Refine / resume is not offered for this file"* while the checkbox for
+    it was still on screen. He asked the right question — *"same check for ti3
+    used for model?"* — and this is that check: ``count_sets`` anchors
+    BEGIN_DATA/END_DATA to whole lines.
     """
-    import re
-    try:
-        text = path.read_text(encoding="utf-8", errors="ignore")
-    except OSError:
+    from workflow.measurement_state import count_sets
+    counts = count_sets(path)
+    if counts is None:
         return False          # unreadable is a different problem, not emptiness
-    m = re.search(r"NUMBER_OF_SETS\s+(\d+)", text)
-    if m and int(m.group(1)) == 0:
+    claimed, held = counts
+    if held is None:          # no data block at all — §3a "header only"
         return True
-    body = text.split("BEGIN_DATA", 1)
-    if len(body) < 2:
-        return True
-    rows = [ln for ln in body[1].splitlines()
-            if ln.strip() and not ln.strip().startswith("END_DATA")]
-    return not rows
+    return held == 0
 
 
 class TabMeasure(QWidget):
@@ -2901,10 +2906,22 @@ class TabMeasure(QWidget):
                 # already has a measurement' appears, with all the text and
                 # choices that previously was defined."*
                 #
-                # Opening the tab is the other way a run with an empty file is
-                # met — beta.110 only handled it at the end of a session, which
-                # left files written by earlier versions sitting there.
-                self._archive_empty_measurement()
+                # NO LONGER ARCHIVED AT TAB-OPEN — §3a owns this file.
+                #
+                # Two rulings of Knut's meet here. Beta.110: a session that
+                # measured nothing must archive the file it left behind, *"right
+                # after measurement session was exited/stopped/completed"* —
+                # still done, at the end of a session (_on_measure_done).
+                # Extending it to files FOUND at tab-open was my addition, and
+                # it pre-empts the model: §3a's "header only" and "empty" rows
+                # say such a file is answered at **Start Measurement**, with
+                # M-REPLACE-UNCOUNTABLE, which is the message that says what is
+                # true — *"ChromIQ cannot tell how many readings it contains"* —
+                # rather than claiming a measurement exists, which was his July
+                # complaint. Archiving it here made that message unreachable:
+                # the file was gone before Start could mention it (beta.132,
+                # Demo-05 step 1). Raised on the issue; the reviewed model wins
+                # until he says otherwise.
                 # Stranded readings next: recovering them is what makes the
                 # already-measured offer below have anything to offer (#130).
                 self._recover_stranded_partial()
@@ -8611,7 +8628,12 @@ class TabMeasure(QWidget):
                 "other run keeps asking, and so does this one the next time you "
                 "start the program."))
             box.setCheckBox(ask)
-        go = box.addButton(tr("Measure again"), QMessageBox.ButtonRole.AcceptRole)
+        # NOTHING HAS STARTED YET. Knut, beta.132: *"Measurement has not yet
+        # started, so it is wrong name for the 'MEASURE AGAIN' button. Call
+        # button instead 'MEASURE ANYWAY'."* This window opens on the way IN to
+        # a measurement — it is the last chance to stop — so the button says
+        # what pressing it does now, not what happened before.
+        go = box.addButton(tr("Measure anyway"), QMessageBox.ButtonRole.AcceptRole)
         box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(go)
         # Long labels clip once the font swap widens them, and polish
@@ -8644,8 +8666,13 @@ class TabMeasure(QWidget):
         if self._read_builds_on_existing():
             return
         ti3 = self._ti1_path.with_suffix(".ti3")
-        if not ti3.is_file() or _cgats_has_no_readings(ti3):
-            return          # nothing worth keeping
+        if not ti3.is_file():
+            return          # nothing to keep
+        # An unreadable file is archived too, because M-REPLACE-UNCOUNTABLE has
+        # just promised it would be: *"The file you have is moved to the run's
+        # 'old' folder and nothing is deleted, so you can always look at it
+        # afterwards."* If the session then writes nothing, the archive comes
+        # straight back — see _restore_displaced_measurement.
         try:
             from core.file_manager import Run
             dest = Run.for_dir(ti3.parent).archive_to_old([ti3])
@@ -8742,7 +8769,21 @@ class TabMeasure(QWidget):
                 return ti3 if ti3.is_file() else None
         except Exception:      # noqa: BLE001
             pass
-        return self._existing_ti3_for_chart()
+        # NOT _existing_ti3_for_chart(): that one hides a file with no readings
+        # on purpose, so the tab and Generate Chart stop warning about a
+        # measurement that was never taken (Knut, #130 2026-07-30). Pressing
+        # Start is the one place where such a file must still be mentioned —
+        # §3a's "header only" and "empty" rows are exactly what
+        # M-REPLACE-UNCOUNTABLE is for, and it promises the file is moved to
+        # "old" rather than quietly overwritten.
+        ti3 = self._existing_ti3_for_chart()
+        if ti3 is not None:
+            return ti3
+        path = getattr(self, "_ti1_path", None)
+        if path is None:
+            return None
+        cand = Path(path).with_suffix(".ti3")
+        return cand if cand.is_file() else None
 
     def _existing_ti3_for_chart(self) -> "Path | None":
         """The measured .ti3 sitting next to the loaded chart (#134), or None."""

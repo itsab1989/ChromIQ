@@ -96,12 +96,11 @@ def test_nothing_is_quietly_proposed():
     """The proposed set is small and deliberate — if it grows, it is because
     someone added a message rather than getting one approved.
 
-    Currently the two §S1.2 / §S1.3 guard windows, brought into the catalogue
-    at Knut's request in beta.130. M-CHART-CORRUPT left this set the same day,
-    approved.
+    Currently the guard for a build whose measurement belongs to another run
+    (beta.133). The two §S1.2 / §S1.3 guards left this set when Knut accepted
+    them, as M-CHART-CORRUPT had the day before.
     """
-    assert set(M.PROPOSED) == {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART"}, \
-        M.PROPOSED
+    assert set(M.PROPOSED) == {"M-BUILD-ELSEWHERE"}, M.PROPOSED
 
 
 # ---- 1b. approval flows the other way too --------------------------------

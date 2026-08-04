@@ -128,7 +128,11 @@ class MainWindow(QMainWindow):
         # copy is selected afterwards, so the next build lands in it.
         self._tab_profile.duplicate_run_requested.connect(
             self._target_bar.request_duplicate)
-        for _t in (self._tab_chart, self._tab_measure, self._tab_print):
+        # Build Profile joins them (#130, beta.133): it had no idea which run
+        # was selected, so its measurement could point at another run entirely
+        # — and the profile then landed there.
+        for _t in (self._tab_chart, self._tab_measure, self._tab_print,
+                   self._tab_profile):
             if hasattr(_t, "set_target_controller"):
                 _t.set_target_controller(self._target_ctl)
 

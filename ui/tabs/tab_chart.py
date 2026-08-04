@@ -3920,6 +3920,19 @@ class TabChart(QWidget):
         in the Create-Chart tab and hand it to Print / Measure. Shared by
         project-load (:meth:`_load_existing_profile`) and the Run-type switch
         (:meth:`_on_target_changed`), so both paths tell one story."""
+        # THIS RUN'S OWN CHART IS NOT "LOADED FROM ELSEWHERE".
+        #
+        # The reflected state belongs to a chart opened with "Open Chart File
+        # (.ti2)", and it blocks Generate Chart with a window saying the chart
+        # "already lives in its own folder". Showing a run's own chart left that
+        # state standing, so switching Profile run or Run type afterwards
+        # inherited it. Knut, beta.132, Demo-06 step 7: Run type = Verification,
+        # press Generate Chart, and *"This chart is loaded from elsewhere …
+        # There is also only a Cancel option, so it is not possible to progress
+        # to generate chart."* — with the log line above it saying ChromIQ had
+        # just switched to this run's verification chart.
+        if self._reflected_active:
+            self._leave_reflected()
         self._preview.set_notice(None)     # a real chart is showing — drop guidance
         self._preview.load_tiff(list(tiffs))
         # Feed the Chart-layout-information panel and the margin inspector, so
@@ -6567,6 +6580,11 @@ class TabChart(QWidget):
 
     def _leave_reflected(self) -> None:
         """Clear the reflected-chart state and re-enable the param panels."""
+        if self._reflected_active:
+            # Logged because the state is invisible until it blocks something:
+            # Knut's beta.132 report of "This chart is loaded from elsewhere" on
+            # a run's own verification chart had no trace in the log at all.
+            log.info("Create Chart: leaving the loaded-from-elsewhere state")
         self._reflected_active = False
         self._reflected_ti2 = None
         self._reset_override_checks()
@@ -6854,6 +6872,8 @@ class TabChart(QWidget):
         if self._applied_active:
             self._leave_applied()
         self._reflected_active = True
+        log.info("Create Chart: showing a chart loaded from elsewhere: %s",
+                 ti2_path)
         self._reflected_ti2 = ti2_path
         self._reset_override_checks()
         # Seed the instrument + page the chart was laid out for, so an
@@ -7287,6 +7307,22 @@ class TabChart(QWidget):
                 f"{src_dir}\n\nThe app bundle may be incomplete.",
                 self, min_width=520,
             ).exec()
+            return
+
+        # §4: THIS REPLACES THE RUN'S CHART LIKE ANY OTHER BUILD.
+        #
+        # It copies a bundled chart into the run and calls
+        # reset_chart_artefacts() below, which archives the measurement — so it
+        # displaces exactly what Generate Chart displaces and must ask exactly
+        # the same question. Knut, beta.132: *"when selecting a preset that says
+        # 'by pharmacist', then the chart is loaded without any
+        # M-CHART-PROFILING message, but instead runs a full replace of the
+        # chart, which also moved ti3 file to old/."* Every other preset path
+        # asks — the params-based ones through _on_generate, the .ti1 ones
+        # through _generate_from_ti1 — and this one, which runs no Argyll tool,
+        # was the single way in that did not.
+        if not self._confirm_displacing_results():
+            self._revert_preset_combo()
             return
 
         self.target_started.emit()
@@ -8772,6 +8808,27 @@ class TabChart(QWidget):
         # Tell Print and Measure to let go of the chart as well.
         self.chart_finished.emit([], None, False)
 
+    def _target_run(self):
+        """The run the BAR points at, without creating anything.
+
+        The §4 guard used ``project.current_run()``, which is the project's own
+        idea of "current" and only follows the bar when a build aligns it. Knut,
+        beta.132, on Demo-08: every run he selected raised the W4 window,
+        because run 5 — the one with a verification history — was still the
+        project's current run. And the other way round on Demo-06 step 6, where
+        W4 was due and M-CHART-PROFILING came instead.
+
+        ``resolve_run`` is the model's own resolution, and with ``create=False``
+        it never makes a run the way ``_align_current_run_to_target`` does — a
+        question must not have side effects.
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        proj = self._file_mgr.project()
+        if ctl is None:
+            return proj.current_run()
+        from core.measurement_target import resolve_run
+        return resolve_run(proj, ctl.target)
+
     def _confirm_displacing_results(self) -> bool:
         """Ask before a new chart displaces work made with the one it replaces.
 
@@ -8799,7 +8856,7 @@ class TabChart(QWidget):
             # being created, so this message should not happen").
             return True
         try:
-            run = self._file_mgr.project().current_run()
+            run = self._target_run()
         except Exception:      # noqa: BLE001 — no project yet: nothing at risk
             return True
 
@@ -10225,7 +10282,7 @@ class TabChart(QWidget):
         # Generate Chart button still offers the full choice.
         from workflow.chart_integrity import assess_profiling_chart
         try:
-            _run = self._file_mgr.project().current_run()
+            _run = self._target_run()          # the bar's run, not the project's
         except Exception:      # noqa: BLE001
             _run = None
         if assess_profiling_chart(_run).warn:

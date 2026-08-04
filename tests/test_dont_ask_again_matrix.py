@@ -152,7 +152,9 @@ def _answer(monkeypatch, *, accept=True, tick=False):
         picked = None
         for b in self.buttons():
             label = b.text().lower()
-            if accept and "measure again" in label:
+            # "Measure anyway" since beta.133 — nothing has started yet when
+            # this window opens, which is Knut's point (beta.132).
+            if accept and "measure anyway" in label:
                 picked = b
             elif not accept and "cancel" in label:
                 picked = b
@@ -173,7 +175,7 @@ def test_repl_asks_the_first_time(qapp, tmp_path, monkeypatch):
     seen = _answer(monkeypatch)
     assert tab._confirm_replacing_measurement() is True
     assert seen["shown"] and seen["tick_offered"]
-    assert seen["buttons"] == ["Measure again", "Cancel"]
+    assert seen["buttons"] == ["Measure anyway", "Cancel"]
 
 
 def test_repl_cancel_stops_the_measurement(qapp, tmp_path, monkeypatch):

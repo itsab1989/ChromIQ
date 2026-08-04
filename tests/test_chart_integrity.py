@@ -580,3 +580,134 @@ def test_every_cancel_in_the_loader_goes_through_the_one_helper(qapp):
         after = src[m.end():m.end() + 400]
         assert "load_ti1_and_generate_preview" in after, \
             "the preview is cleared on a path that builds nothing"
+
+
+# ---- the guard describes the run the BAR points at -----------------------
+# Knut, beta.132, walking Demo-08: every run he selected raised the W4 window —
+# "This would undo the whole run, not just its chart" — because run 5, the one
+# with a verification history, was still the project's *current* run. And the
+# same fault the other way on Demo-06 step 6, where W4 was due and the plain
+# chart warning came instead. The guard asked project.current_run(); the bar's
+# selection only reaches that at build time.
+def test_the_guard_reads_the_selected_run_not_the_project_s_current_one(
+        qapp, tmp_path):
+    from core.file_manager import Project
+    from ui.tabs.tab_chart import TabChart
+
+    proj = Project.create(tmp_path, "P")
+    plain = proj.current_run()                       # run1 — chart only
+    plain.ensure_dir()
+    _write_ti2(plain.chart_ti2, 9)
+    loaded = proj.new_run()                          # run2 — the works
+    loaded.ensure_dir()
+    _write_ti2(loaded.chart_ti2, 9)
+    _write_ti3(loaded.measurement_ti3, 9)
+    loaded.profile_icc.write_bytes(b"icc")
+    proj.set_current_run(loaded.id)                  # …and it is "current"
+
+    class _Target:
+        run_type = "profiling"
+        def __init__(self, rid): self.profile_run = rid
+        def is_verification(self): return False
+
+    class _Ctl:
+        def __init__(self, rid): self.target = _Target(rid)
+
+    class _FM:
+        def project(self): return proj
+
+    tab = TabChart.__new__(TabChart)
+    tab._file_mgr = _FM()
+    tab._target_ctl = _Ctl(plain.id)                 # the bar says run1
+
+    assert tab._target_run().id == plain.id, \
+        "the guard asked the project which run is current, not the bar"
+
+    tab._target_ctl = _Ctl(loaded.id)
+    assert tab._target_run().id == loaded.id
+
+
+def test_asking_which_run_never_creates_one(qapp, tmp_path):
+    """Resolving must have no side effect: _align_current_run_to_target makes a
+    run when the bar says "New run", and a *question* may not do that."""
+    from core.file_manager import Project
+    from ui.tabs.tab_chart import TabChart
+
+    proj = Project.create(tmp_path, "P")
+    runs_dir = proj.current_run().ensure_dir().parent
+    before = len(list(runs_dir.iterdir()))
+
+    class _Ctl:
+        class target:
+            profile_run = ""                          # "New run"
+            run_type = "profiling"
+            @staticmethod
+            def is_verification(): return False
+
+    class _FM:
+        def project(self): return proj
+
+    tab = TabChart.__new__(TabChart)
+    tab._file_mgr = _FM()
+    tab._target_ctl = _Ctl()
+    tab._target_run()
+
+    assert len(list(runs_dir.iterdir())) == before
+
+
+# ---- every way a chart is replaced asks the §4 question ------------------
+def test_the_prebuilt_preset_asks_before_replacing_a_chart(qapp):
+    """Knut, beta.132: *"when selecting a preset that says 'by pharmacist',
+    then the chart is loaded without any M-CHART-PROFILING message, but instead
+    runs a full replace of the chart, which also moved ti3 file to old/."*
+
+    It runs no Argyll tool — it copies a bundled chart into the run — which is
+    how it slipped past a guard every other path goes through. It displaces
+    exactly what Generate Chart displaces: the same `reset_chart_artefacts()`
+    call, the same archive.
+    """
+    import inspect
+
+    from ui.tabs.tab_chart import TabChart
+
+    src = inspect.getsource(TabChart._create_prebuilt_target)
+    assert "_confirm_displacing_results()" in src
+    # …and it must ask BEFORE it touches anything. Compare the CALLS, not the
+    # prose: the comment above the guard names reset_chart_artefacts too.
+    ask = src.index("if not self._confirm_displacing_results()")
+    assert ask < src.index("self.target_started.emit()")
+    assert ask < src.index("run.reset_chart_artefacts()")
+
+
+def test_no_chart_replacing_path_is_left_unguarded(qapp):
+    """The whole set, in one place: a new way in must join it deliberately."""
+    import inspect
+
+    from ui.tabs.tab_chart import TabChart
+
+    entry_points = ("_on_generate", "_generate_from_ti1", "_create_prebuilt_target")
+    for name in entry_points:
+        src = inspect.getsource(getattr(TabChart, name))
+        assert "_confirm_displacing_results" in src, \
+            f"{name} replaces a chart without asking"
+
+
+# ---- a run's own chart is never "loaded from elsewhere" ------------------
+def test_showing_a_runs_own_chart_leaves_the_reflected_state(qapp):
+    """Knut, beta.132, Demo-06 step 7: Run type = Verification, Generate Chart,
+    and *"This chart is loaded from elsewhere … There is also only a Cancel
+    option, so it is not possible to progress to generate chart."*
+
+    The reflected state belongs to a chart opened with "Open Chart File (.ti2)"
+    and blocks Generate. Showing a run's own chart left it standing, so the
+    next Run-type switch inherited it.
+    """
+    import inspect
+
+    from ui.tabs.tab_chart import TabChart
+
+    src = inspect.getsource(TabChart._display_run_chart)
+    assert "_leave_reflected()" in src, \
+        "showing a run's own chart must drop the foreign-chart state"
+    # …and before anything else, so nothing in between reads a stale flag.
+    assert src.index("_leave_reflected") < src.index("load_tiff")

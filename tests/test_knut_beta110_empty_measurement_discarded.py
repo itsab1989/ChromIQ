@@ -609,3 +609,38 @@ def test_with_nothing_displaced_it_still_archives_the_empty_file(qapp, tmp_path,
     assert not run.measurement_ti3.exists()
     assert run.measurement_ti3.name in _archived(run)
     assert "put back exactly where it was" not in seen[0]
+
+
+# ---- "no readings" means what the MODEL means by it ----------------------
+# Knut, beta.132, on Demo-05 run 1: M-REPLACE-UNCOUNTABLE came up and said
+# *"Refine / resume is not offered for this file, because there is nothing in it
+# to resume from"* — while the "Refine / resume" checkbox was still on screen.
+#
+# The window asks the model (classify → NO_DATA_BLOCK); the checkbox asked a
+# second, hand-rolled parser that split on the bare string "BEGIN_DATA" — which
+# also matches BEGIN_DATA_FORMAT. So a header-only file looked like a data block
+# holding one row: its format line.
+def test_a_header_only_file_holds_no_readings(tmp_path):
+    """§3a's "header only": NUMBER_OF_SETS, a data FORMAT block, and no data."""
+    from ui.tabs.tab_measure import _cgats_has_no_readings
+    ti3 = tmp_path / "headeronly.ti3"
+    ti3.write_text(headerless_ti3())
+    assert _cgats_has_no_readings(ti3) is True
+
+
+def test_the_two_checks_agree(tmp_path):
+    """The window and the checkbox must never disagree about the same file."""
+    from workflow.measurement_state import Ti3State, classify
+    from ui.tabs.tab_measure import _cgats_has_no_readings
+
+    cases = {
+        "empty.ti3": empty_ti3(),
+        "headeronly.ti3": headerless_ti3(),
+        "measured.ti3": measured_ti3(4),
+    }
+    for name, text in cases.items():
+        ti3 = tmp_path / name
+        ti3.write_text(text)
+        facts = classify(ti3, None)
+        uncountable = facts.state in (Ti3State.EMPTY, Ti3State.NO_DATA_BLOCK)
+        assert _cgats_has_no_readings(ti3) is uncountable, name

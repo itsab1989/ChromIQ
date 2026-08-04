@@ -363,7 +363,7 @@ def test_a_label_fits_in_the_system_font_too(qapp):
     for label in ("Delete run 4 permanently", "Delete run 10 permanently",
                   "Delete the verification files", "Delete all 4 verifications",
                   "Delete the whole project", "Generate the new chart",
-                  "Measure again", "Replace stored chart"):
+                  "Measure anyway", "Replace stored chart"):
         btn = QPushButton(label)
         ButtonFontFilter.fit(btn)
         painted = label

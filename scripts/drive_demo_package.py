@@ -214,12 +214,15 @@ def main() -> int:
                     ctl.set_run_type(RUN_TYPE_VERIFICATION)
                     pump(app, 250)
                 if "generate chart" in lowered and "press" in lowered:
-                    # The §4 guard assesses project.current_run(), which the
-                    # tab aligns to the bar before it asks.
-                    try:
-                        tab_chart._align_current_run_to_target()
-                    except Exception:      # noqa: BLE001
-                        pass
+                    # NOTHING IS ALIGNED HERE ON PURPOSE.
+                    #
+                    # The first version of this driver called
+                    # _align_current_run_to_target() before asking, which made
+                    # every step pass while the app itself warned about whatever
+                    # run happened to be "current" — the fault Knut then found by
+                    # hand on Demo-08. A driver that helps the app along tests
+                    # the help, not the app. The guard resolves the bar's run
+                    # itself since beta.133.
                     tab_chart._confirm_displacing_results()
                 elif "start measurement" in lowered and "greyed" in lowered:
                     win._tabs.setCurrentWidget(tab_measure)
@@ -259,6 +262,18 @@ def main() -> int:
                         pass
                     tab_chart._said_auto_update_paused = False   # freshly switched on
                     tab_chart._say_preview_is_paused()
+                elif "build profile" in lowered and "load" in lowered \
+                        and "different run" in lowered:
+                    # The step deliberately loads ANOTHER run's measurement and
+                    # presses Build Profile — the state that used to build into
+                    # the wrong run without a word.
+                    win._tabs.setCurrentWidget(win._tab_profile)
+                    prof = win._tab_profile
+                    other = work / name / "runs" / "run6" / f"{name}.ti3"
+                    if other.exists():
+                        prof.set_ti3_path(other, propagate=False)
+                    pump(app, 250)
+                    prof._confirm_building_outside_the_selected_run()
                 elif "build profile" in lowered:
                     win._tabs.setCurrentWidget(win._tab_profile)
                     prof = win._tab_profile
