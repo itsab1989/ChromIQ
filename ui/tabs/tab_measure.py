@@ -1172,22 +1172,23 @@ class TabMeasure(QWidget):
     _log_visible_lines = 9
 
     def _fit_log_height(self) -> None:
-        """Size the log to exactly ``_log_visible_lines`` lines of its own font.
+        """Size the log the same way every other log panel in the app is sized.
 
         QSS sets the log's family and size, and a stylesheet reaches a widget
         only at polish — so a height measured in __init__ is measured against
         the wrong font. This runs after polish and again on every style change,
         which is also what makes it follow a theme or font switch.
+
+        It used to do that arithmetic itself, against a private line count.
+        That made this the one panel that ignored the user's own size: dragging
+        any other log resized every panel except this one, because nothing here
+        went through the shared helper or registered with it.
         """
         log = getattr(self, "_log", None)
         if log is None:
             return
-        fm = log.fontMetrics()
-        doc_margin = int(log.document().documentMargin()) * 2
-        frame = log.frameWidth() * 2
-        h = fm.lineSpacing() * self._log_visible_lines + doc_margin + frame
-        log.setMinimumHeight(h)
-        log.setMaximumHeight(h)
+        from ui.widgets import fit_log_height
+        fit_log_height(log)
 
     def changeEvent(self, event) -> None:      # noqa: N802
         super().changeEvent(event)

@@ -100,6 +100,12 @@ DEFAULTS: dict[str, Any] = {
     # Suppresses the "forcing bidirectional on a non-randomised chart" warning
     # dialog once the user ticks "Don't show this again".
     "measure_hide_nonrandom_bidir_warning": False,
+    # How many lines of its own text every log panel shows. Knut asked for 9
+    # (beta.120: "only 6 lines of text are visible, but showing 9 is better");
+    # it is a setting rather than a constant now because Basti asked for the
+    # panels to be draggable, remembered, shared by every tab, and reset by
+    # Restore Factory Defaults — all four of which fall out of one shared key.
+    "log_visible_lines":           9,
     "measure_suppress_warnings":   True,
     "measure_extra_args":          "",
     # -T IS ON BY DEFAULT, AT 0.7.

@@ -44,7 +44,7 @@ from ui.fade_scroll import FadeScrollArea
 from ui.gamut_panel import GamutPanel
 from ui.tab_header import TabHeader
 from ui.tooltip_button import InfoDialog, TooltipButton
-from ui.widgets import GatedOption, NoScrollComboBox, NoScrollDoubleSpinBox, make_browse_button, open_file_dialog, replace_log_line, set_folder_icon, set_preset_icon, tint_dialog_primary
+from ui.widgets import fit_log_height, GatedOption, NoScrollComboBox, NoScrollDoubleSpinBox, make_browse_button, open_file_dialog, replace_log_line, set_folder_icon, set_preset_icon, tint_dialog_primary
 from ui.ti2_loader import has_spectral_data, instrument_label, is_colormunki, read_target_instrument
 
 _TAB_COLOR = "#9f82ff"  # Check & Refine tab accent
@@ -423,7 +423,11 @@ class TabCheckRefine(QWidget):
         self._log = QPlainTextEdit(self)
         self._log.setObjectName("log")
         self._log.setReadOnly(True)
-        self._log.setMaximumHeight(67)
+        # Sized like every other log panel, and resizable with them (Basti:
+        # "resizing them on one tab should resize them on all"). It used to be
+        # pinned at 67 px — about four lines — which made it the one panel that
+        # ignored both Knut's nine-line request and the user's own size.
+        fit_log_height(self._log)
         self._log.setPlaceholderText(tr("profcheck output will appear here…"))
         left_layout.addWidget(self._log, stretch=1)
 

@@ -61,6 +61,11 @@ class MainWindow(QMainWindow):
     def __init__(self, settings: AppSettings) -> None:
         super().__init__()
         self._settings  = settings
+        # The log panels are user-resizable and share one remembered size, so
+        # the helpers need somewhere to read and write it (Basti). Bound before
+        # any tab is built, because each log registers itself as it is sized.
+        from ui.widgets import bind_log_settings
+        bind_log_settings(settings)
         self._runner    = ArgyllRunner(settings, self)
         self._file_mgr  = FileManager(settings)
 

@@ -3633,6 +3633,12 @@ class SettingsDialog(QDialog):
     def _restore_defaults(self) -> None:
         self._settings.reset_to_defaults()
         self._load_settings()
+        # The log panels are sized from a setting that has just been reset, and
+        # they are showing whatever the user dragged them to — so they have to
+        # be told, or the reset would change the value and leave the screen as
+        # it was (Basti: "resetting to factory defaults should restore it").
+        from ui.widgets import refresh_log_panes_from_settings
+        refresh_log_panes_from_settings()
         log.info("Factory defaults restored")
 
     def _check_for_updates(self) -> None:

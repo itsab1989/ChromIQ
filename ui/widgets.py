@@ -10,6 +10,8 @@ from PyQt6.QtCore import QEvent, QModelIndex, QObject, QPointF, QRect, QRectF, Q
 from PyQt6.QtGui import QColor, QFont, QIcon, QPainter, QPainterPath, QPalette, QPen, QPixmap, QTextCursor
 
 from core.i18n import tr
+import weakref
+
 from PyQt6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -433,13 +435,88 @@ class ButtonFontFilter(QObject):
             pass
 
 
-#: How many lines of its own text every log panel in the app shows.
-#: Knut, beta.120: *"only 6 lines of text are visible, but showing 9 is
-#: better."*
+#: How many lines of its own text every log panel in the app shows, unless the
+#: user has dragged one to a different size. Knut, beta.120: *"only 6 lines of
+#: text are visible, but showing 9 is better."*
 LOG_VISIBLE_LINES = 9
 
+#: How far a log may be dragged. Three lines still shows a message and its
+#: continuation; forty is about as tall as a log can get before it is the tab.
+LOG_MIN_LINES = 3
+LOG_MAX_LINES = 40
 
-def fit_log_height(log, lines: int = LOG_VISIBLE_LINES) -> None:
+#: Every live log panel, so dragging one resizes them all — Basti: *"resizing
+#: them on one tab should resize them on all"*. A weak set, so a log belonging
+#: to a closed window is collected instead of being kept alive by this.
+_LIVE_LOGS: "weakref.WeakSet" = weakref.WeakSet()
+
+#: Set once, by the main window, so the helpers can read and write the user's
+#: chosen size without every call site having to pass it down.
+_LOG_SETTINGS = None
+
+#: The size currently ON SCREEN, which is not always the saved one: during a
+#: drag the panels follow the mouse while the setting still holds the size the
+#: drag started from. Without this, each mouse-move measured its delta against
+#: the old value and the release saved that old value back — so a drag applied
+#: itself and was then thrown away.
+_LIVE_LINES: "int | None" = None
+
+
+def refresh_log_panes_from_settings() -> None:
+    """Re-read the saved size and apply it to every panel.
+
+    Called after Restore Factory Defaults: the panels are showing a size the
+    user chose, and the setting behind it has just been reset, so without this
+    the reset would change the stored value and leave the screen alone.
+    """
+    global _LIVE_LINES
+    _LIVE_LINES = None
+    set_log_visible_lines(log_visible_lines(), save=False)
+
+
+def bind_log_settings(settings) -> None:
+    """Give the log helpers somewhere to remember the user's chosen size."""
+    global _LOG_SETTINGS, _LIVE_LINES
+    _LOG_SETTINGS = settings
+    _LIVE_LINES = None          # re-read from whatever was just bound
+
+
+def log_visible_lines() -> int:
+    """The line count every log panel should use right now."""
+    if _LIVE_LINES is not None:
+        return _LIVE_LINES
+    if _LOG_SETTINGS is None:
+        return LOG_VISIBLE_LINES
+    try:
+        n = int(_LOG_SETTINGS.get("log_visible_lines", LOG_VISIBLE_LINES))
+    except (TypeError, ValueError):
+        return LOG_VISIBLE_LINES
+    return max(LOG_MIN_LINES, min(LOG_MAX_LINES, n))
+
+
+def set_log_visible_lines(n: int, *, save: bool = True) -> int:
+    """Resize every log panel in the app at once, and remember the size.
+
+    ``save=False`` is the middle of a drag: the panels move, but the setting is
+    left alone until the mouse is released.
+
+    Returns the value actually used, after clamping — the caller may want to
+    show it, and a silently ignored request would read as a stuck drag.
+    """
+    global _LIVE_LINES
+    n = max(LOG_MIN_LINES, min(LOG_MAX_LINES, int(n)))
+    _LIVE_LINES = n
+    if save and _LOG_SETTINGS is not None:
+        _LOG_SETTINGS.set("log_visible_lines", n)
+    for widget in list(_LIVE_LOGS):
+        try:
+            fit_log_height(widget, n)
+        except RuntimeError:               # its C++ side is already gone
+            pass
+    return n
+
+
+def fit_log_height(log, lines: "int | None" = None) -> None:
     """Size a log panel to exactly *lines* lines of the font it really has.
 
     A pixel number cannot promise a line count: the log's family and size come
@@ -452,7 +529,18 @@ def fit_log_height(log, lines: int = LOG_VISIBLE_LINES) -> None:
 
     Call it once after polish and again on every style change. Never raises:
     a log that cannot be measured keeps whatever height it has.
+
+    With *lines* left as None the user's own size is used, so every panel in
+    the app follows one setting and dragging any of them moves them all. The
+    log also registers itself here, which is why no call site had to change.
     """
+    if lines is None:
+        lines = log_visible_lines()
+    try:
+        _LIVE_LOGS.add(log)
+        LogResizeGrip.install(log)
+    except (TypeError, RuntimeError):      # not a weak-referenceable widget
+        pass
     try:
         fm = log.fontMetrics()
         doc_margin = int(log.document().documentMargin()) * 2
@@ -462,6 +550,120 @@ def fit_log_height(log, lines: int = LOG_VISIBLE_LINES) -> None:
         log.setMaximumHeight(h)
     except Exception:      # noqa: BLE001 — sizing must never raise
         pass
+
+
+class LogResizeGrip(QObject):
+    """Lets a log panel be resized by dragging its top edge.
+
+    Basti: *"the fields for log output became pretty big now. would it be
+    possible to make them resizeable by the user (clicking and dragging) and
+    the app should remember the size? … resizing them on one tab should resize
+    them on all."*
+
+    Implemented as an event filter rather than a handle widget on purpose. The
+    five log panels sit in five differently-built layouts, and adding a widget
+    above each one would mean touching all of them — the change with the most
+    ways to go quietly wrong. Filtering the log's own events adds nothing to
+    any layout and behaves identically everywhere.
+
+    What the user sees: the cursor becomes a vertical resize arrow near the top
+    edge of the log, and dragging there makes every log panel in the app taller
+    or shorter together. The size is remembered, and Restore Factory Defaults
+    puts it back to nine lines.
+    """
+
+    #: How close to the top edge counts as "on the handle", in pixels.
+    GRAB_BAND = 6
+
+    _INSTALLED = "_cq_log_grip"
+
+    @classmethod
+    def install(cls, log) -> None:
+        """Attach one grip to *log*, once."""
+        if getattr(log, cls._INSTALLED, None) is not None:
+            return
+        grip = cls(log)
+        setattr(log, cls._INSTALLED, grip)
+        log.installEventFilter(grip)
+        log.setMouseTracking(True)
+        if log.viewport() is not None:
+            log.viewport().installEventFilter(grip)
+            log.viewport().setMouseTracking(True)
+        # Never over-write a tooltip a tab set for its own reasons — say this
+        # only where there is nothing else to say.
+        if log.toolTip():
+            return
+        log.setToolTip(tr(
+            "Drag the top edge of this panel to make it taller or shorter. "
+            "Every log panel in ChromIQ changes with it, the size is "
+            "remembered, and “Restore Factory Defaults” in Preferences puts it "
+            "back to nine lines."))
+
+    def __init__(self, log) -> None:
+        super().__init__(log)
+        self._log = log
+        self._dragging = False
+        self._press_y = 0
+        self._press_lines = LOG_VISIBLE_LINES
+        #: The size this drag is currently showing, so releasing keeps it.
+        self._live = LOG_VISIBLE_LINES
+
+    @staticmethod
+    def _global_y(event) -> int:
+        """The pointer's y on the screen, which a resize cannot move."""
+        try:
+            return int(event.globalPosition().y())
+        except AttributeError:             # a synthesised event in a test
+            return int(event.position().y())
+
+    def _on_handle(self, pos_y: int) -> bool:
+        return 0 <= pos_y <= self.GRAB_BAND
+
+    def eventFilter(self, obj, event) -> bool:      # noqa: N802 (Qt naming)
+        try:
+            etype = event.type()
+            if etype == QEvent.Type.MouseMove:
+                if self._dragging:
+                    # MEASURED ON THE SCREEN, NOT INSIDE THE WIDGET.
+                    #
+                    # The panel's top edge moves as it grows, so the same screen
+                    # position has a different y inside the log after every
+                    # step. Measuring locally fed each resize back into the next
+                    # delta and the panel juddered — Basti: *"dragging works but
+                    # looks jumpy"*. A global reference cannot move under us.
+                    y = self._global_y(event)
+                    step = max(1, self._log.fontMetrics().lineSpacing())
+                    # Dragging UP (a smaller y) makes the panel taller.
+                    delta_lines = int(round((self._press_y - y) / step))
+                    self._live = set_log_visible_lines(
+                        self._press_lines + delta_lines, save=False)
+                    return True
+                self._log.viewport().setCursor(
+                    Qt.CursorShape.SizeVerCursor
+                    if self._on_handle(int(event.position().y()))
+                    else Qt.CursorShape.IBeamCursor)
+                return False
+            if etype == QEvent.Type.MouseButtonPress:
+                if (event.button() == Qt.MouseButton.LeftButton
+                        and self._on_handle(int(event.position().y()))):
+                    self._dragging = True
+                    self._press_y = self._global_y(event)
+                    self._press_lines = log_visible_lines()
+                    self._live = self._press_lines
+                    return True
+            elif etype == QEvent.Type.MouseButtonRelease and self._dragging:
+                self._dragging = False
+                # Save the size the DRAG ended on. Reading it back from the
+                # setting here is what made a finished drag snap straight back
+                # to where it started — the setting still held the old value,
+                # because a drag deliberately does not write on every pixel.
+                set_log_visible_lines(self._live)
+                return True
+            elif etype == QEvent.Type.Leave and not self._dragging:
+                self._log.viewport().unsetCursor()
+        except Exception:      # noqa: BLE001 — a resize must never break a log
+            self._dragging = False
+        return False
 
 
 def fit_message_box_buttons(box) -> None:
