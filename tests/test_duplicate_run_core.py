@@ -64,7 +64,10 @@ def project(tmp_path):
 
 
 def _names(run):
-    return {str(p.relative_to(run.dir))
+    # as_posix() so subfolder paths use "/" on every platform — the assertions
+    # below compare against forward-slash literals ("chart/…", "reads/…"), which
+    # str() breaks on Windows by joining with os.sep ("\").
+    return {p.relative_to(run.dir).as_posix()
             for p in run.dir.rglob("*") if p.is_file()}
 
 

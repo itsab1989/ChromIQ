@@ -98,16 +98,25 @@ def test_no_user_text_pairs_them_by_hand():
 
 def test_every_manager_placeholder_is_actually_filled():
     """A ``{manager}`` left unformatted would be shown to the user verbatim."""
-    import subprocess
-    src = subprocess.run(
-        ["grep", "-rn", "{manager}", "--include=*.py", "ui", "core", "workflow"],
-        cwd=ROOT, capture_output=True, text=True).stdout
-    assert src.strip(), "the placeholder has vanished — did the strings change?"
+    # Scan for the *literal* "{manager}" in Python, not via `grep`: the pattern
+    # is a regex to grep, and the two greps disagree — BSD grep (macOS) treats
+    # "{manager}" as literal braces, GNU grep (Windows/Linux) matches the bare
+    # word "manager", dragging in every file that says "manager" in prose. A
+    # plain substring test is deterministic on every platform (and needs no
+    # grep on PATH, nor a locale-correct decode of its output).
+    files = set()
+    for entry in SCANNED:
+        for path in (ROOT / entry).rglob("*.py"):
+            if "__pycache__" in path.parts:
+                continue
+            if "{manager}" in path.read_text(encoding="utf-8"):
+                files.add(path)
+    assert files, "the placeholder has vanished — did the strings change?"
     # every file that mentions the placeholder must also call the helper
-    files = {line.split(":")[0] for line in src.splitlines() if line.strip()}
-    for f in files:
-        text = (ROOT / f).read_text(encoding="utf-8")
-        assert "file_manager_name()" in text, f"{f} never fills {{manager}}"
+    for path in sorted(files):
+        text = path.read_text(encoding="utf-8")
+        assert "file_manager_name()" in text, \
+            f"{path.relative_to(ROOT)} never fills {{manager}}"
 
 
 @pytest.mark.parametrize("platform_name", ["Finder", "File Explorer",

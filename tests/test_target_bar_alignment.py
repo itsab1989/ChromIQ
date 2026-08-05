@@ -63,6 +63,8 @@ def _visible_row_widgets(bar):
 
 def test_the_row_does_not_stretch_across_the_window(qapp, tmp_path):
     """Profiling shows two boxes; they must sit at the left, not at the edges."""
+    from _fontcheck import skip_without_fonts
+    skip_without_fonts()                 # box positions pivot on real text widths
     bar = _bar(tmp_path)
     widgets = _visible_row_widgets(bar)
     assert widgets, "the row should have visible widgets"
@@ -93,6 +95,8 @@ def test_neighbours_stay_at_the_row_spacing(qapp, tmp_path):
 def test_verification_adds_its_boxes_on_the_right(qapp, tmp_path):
     """Knut's requirement stated positively: the extra boxes appear to the
     right of the existing ones, which do not move."""
+    from _fontcheck import skip_without_fonts
+    skip_without_fonts()                 # box positions pivot on real text widths
     bar = _bar(tmp_path)
     before = {id(w): w.x() for w in _visible_row_widgets(bar)}
     # Measured up to the last *selector* — the bar's ⓘ closes the row and the
@@ -136,6 +140,8 @@ def test_verification_adds_its_boxes_on_the_right(qapp, tmp_path):
 def test_a_long_location_line_does_not_spread_the_row(qapp, tmp_path):
     """The location line is the widest thing in the bar — its width must not
     reach the row above it."""
+    from _fontcheck import skip_without_fonts
+    skip_without_fonts()                 # row width pivots on real text widths
     bar = _bar(tmp_path)
     bar._location.setText("ChromIQ/" + "a-very-long-project-name/" * 6)
     QApplication.processEvents()

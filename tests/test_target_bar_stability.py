@@ -203,6 +203,8 @@ def test_the_hint_takes_the_room_up_to_the_version_text(qapp, tmp_path):
     is left of it rather than share it with the row's trailing stretch, which is
     what wrapped it into a narrow column of four lines.
     """
+    from _fontcheck import skip_without_fonts
+    skip_without_fonts()                 # hint width pivots on real text widths
     bar = _hint_bar(tmp_path, 1400)
     row = bar.layout().itemAt(0).layout()
     boxes_end = max(row.itemAt(i).widget().geometry().right()
@@ -229,6 +231,8 @@ def test_the_box_follows_the_window_width(qapp, tmp_path):
     # test_a_narrow_bar_puts_the_sentence_under_the_row. What THIS test is
     # about is unchanged: while it does sit beside, its width follows the
     # window.
+    from _fontcheck import skip_without_fonts
+    skip_without_fonts()                 # box width pivots on real text widths
     widths = []
     for avail in (1400, 1600, 1800):
         bar = _hint_bar(tmp_path, avail)
@@ -254,6 +258,8 @@ def test_a_rail_too_narrow_for_it_puts_it_under_the_row_instead(qapp, tmp_path):
     give the sentence forty pixels — one word wide and twenty-one lines tall
     (measured). It goes under the row at that point, and comes back up as soon
     as there is room."""
+    from _fontcheck import skip_without_fonts
+    skip_without_fonts()                 # beside/below pivots on real text widths
     narrow = _hint_bar(tmp_path, 700)
     assert not narrow._hint_beside
     assert narrow._hint.y() > narrow.layout().itemAt(0).layout().geometry().bottom() - 1
@@ -271,6 +277,8 @@ def test_the_bar_never_grows_absurdly_tall(qapp, tmp_path):
 
 
 def test_only_the_location_line_is_below_when_it_fits_beside(qapp, tmp_path):
+    from _fontcheck import skip_without_fonts
+    skip_without_fonts()                 # beside/below pivots on real text widths
     bar = _hint_bar(tmp_path, 1600)
     assert bar._hint_beside
     assert bar._hint.y() < bar._location.y()

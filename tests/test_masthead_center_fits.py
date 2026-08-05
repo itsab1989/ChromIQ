@@ -212,6 +212,8 @@ def test_a_narrow_rail_squeezes_the_bar_instead_of_letting_it_overrun(qapp,
                                                                       tmp_path):
     """With more to show than the rail can hold, the widest box gives up width
     — the bar never runs under the version text, and never over itself."""
+    from _fontcheck import skip_without_fonts
+    skip_without_fonts()                 # layout pivots on real text widths
     from core.measurement_target import RUN_TYPE_VERIFICATION
     from ui.styles import APP_STYLESHEET
     mast, bar, ctl = _mast_with_bar(
@@ -241,6 +243,8 @@ def test_a_narrow_rail_squeezes_the_bar_instead_of_letting_it_overrun(qapp,
 
 def test_the_comfortable_width_comes_back_when_there_is_room(qapp, tmp_path):
     """Squeezing is a concession to a narrow window, not a new normal."""
+    from _fontcheck import skip_without_fonts
+    skip_without_fonts()                 # layout pivots on real text widths
     from core.measurement_target import RUN_TYPE_VERIFICATION
     from ui.styles import APP_STYLESHEET
     mast, bar, ctl = _mast_with_bar(
