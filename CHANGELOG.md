@@ -1,5 +1,26 @@
 # Changelog
 
+## v3.14.8-beta.145
+
+### Fixed
+
+- **The help text for “Run N Description” named a tab that may not exist under
+  that name.** Tab 4 is called **“4. Build Profile”**, and only becomes
+  **“4. Calibration & Profiling”** when calibration options are switched on in
+  Preferences — so half of readers were being sent to look for a tab they did
+  not have. Both the tooltip and the Dictionary entry now give both names and
+  say what makes it change, so the tab is recognisable either way.
+
+- **The test suite no longer writes to your ChromIQ log.** Running the tests
+  used to append to the application's own log file. On Windows this was worse
+  than untidy: four parallel workers each tried to rotate the same 5 MB file,
+  and Windows will not rename a file another process still holds open — about
+  1,155 swallowed errors per run. (PR #139)
+
+- **Two rail-geometry tests skip themselves where no fonts exist**, instead of
+  failing on a system whose offscreen Qt exposes no font families at all — the
+  measurements they make are of real text widths. (PR #139)
+
 ## v3.14.8-beta.144
 
 ### New
