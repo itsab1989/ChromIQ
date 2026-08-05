@@ -1,5 +1,74 @@
 # Changelog
 
+## v3.14.8-beta.141
+
+### New
+
+- **"Calibration" is now a Run type.** With calibration options switched on in
+  Preferences, the bar above the tabs offers Profiling, Verification and
+  **Calibration**. Choosing it sets Create Chart up for a calibration chart on
+  its own — the four automatic patch counts switch off, Single Channel Steps
+  goes to 20, and the targen section opens at the rows that matter — and the
+  Calibration & Profiling tab shows just Create Calibration File. Switching back
+  to Profiling puts every one of those settings back exactly as you left it,
+  including the run you had selected. The old "Create chart for calibration"
+  checkbox is retired: the Run type says it now, and two controls for one state
+  was the confusion this removes.
+
+- **"Restore Used Chart" works for the calibration chart.** A copy is kept from
+  the moment you start measuring it, so you can put it back and reprint the
+  sheet or read it again even after the chart has been regenerated.
+
+- **Each profile run records which calibration it was built with**, so ChromIQ
+  can tell you which one a given profile came from after you have made a new
+  one. Runs made before this simply say it is unknown.
+
+- **"Declare extra inks as alpha channels" is easier to find**, and only appears
+  for charts with more than four inks, where it can matter.
+
+### Fixed
+
+- **Your calibration is never deleted.** Making a new calibration chart used to
+  wipe the project's "cal" folder without a word — a whole printed and measured
+  sheet's worth of work, and with it printcal's "Re-calibrate" and "Verify"
+  modes, which read the previous .cal. Everything now moves to "cal/old", in a
+  folder named with the date, and a window says exactly what is moving and which
+  runs were built on it.
+
+- **Generating a calibration chart no longer warns about the wrong files.** It
+  used to say your run's measurement and profile were about to move, while the
+  build left both exactly where they were and said nothing about the calibration
+  it really was replacing.
+
+- **A calibration chart can be reloaded.** Its preview, printing and measuring
+  now resolve the same way every other chart does.
+
+- **ChromIQ no longer switches "Apply Calibration File" or "Include Calibration
+  File" on for you.** When a project already has a calibration, both fields are
+  filled in and both are left off — whether the calibration should be applied is
+  your decision. It also stops doing this entirely while calibration options are
+  switched off, where the fields it was filling are hidden.
+
+- **"Patch consistency tolerance" is on by default again, at 0.7**, and its help
+  text explains what it is for: it checks how even each printed patch is, so a
+  stricter setting warns you sooner about a clogging nozzle or a banding roller
+  — worth having when you are about to build a profile from that print. The
+  text now gives the trade-offs in both directions, including when to raise it
+  for coarse, matte or fabric media and for laser printers.
+
+- **The wrong-dial warning no longer traps you in a loop.** Reading patch by
+  patch with the dial in the wrong position, answering the "Instrument Error"
+  window brought up "Patch Read Failed", and answering that brought back
+  "Instrument Error", with no way out but Stop. The reader was reporting one
+  failure twice and ChromIQ was believing both.
+
+- **Failure windows no longer stack.** Pressing the instrument button again
+  while a window was open put another one on top of it.
+
+- **Strips are clickable again after paging back.** On a chart spread over more
+  than one sheet, jumping to a strip on another page and then paging back left
+  only the first strip clickable until you clicked it.
+
 ## v3.14.8-beta.140
 
 ### New
