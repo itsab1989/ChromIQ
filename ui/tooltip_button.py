@@ -210,7 +210,17 @@ class _BodyScrollArea(QScrollArea):
         w = self.widget()
         if w is not None:
             h = max(w.sizeHint().height(), w.minimumHeight()) + 2 * self.frameWidth()
-            return QSize(base.width(), h)
+            # The WIDTH matters too, or the dialog can only ever be as wide as
+            # its caller's `min_width` and a body written wider than that shows
+            # a strip of empty frame beside it (Knut, beta.144). The content
+            # sets its own minimum width when it has been hand-wrapped; passing
+            # that up — with the frame and the scrollbar that will sit next to
+            # it — lets `adjustSize()` do the arithmetic instead of guessing at
+            # the chrome, which is what got it four pixels wrong on macOS.
+            wd = max(base.width(),
+                     w.minimumWidth() + 2 * self.frameWidth()
+                     + self.verticalScrollBar().sizeHint().width())
+            return QSize(wd, h)
         return base
 
 
@@ -280,6 +290,23 @@ class _InfoDialog(QDialog):
                            else Qt.TextFormat.PlainText)
         text.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
 
+        # WIDEN THE WINDOW TO THE TEXT IT ALREADY HAS.
+        #
+        # A help body is written as prose and hand-wrapped in the source, so its
+        # lines have the width its author chose. Nothing carried that width to
+        # the dialog, so a card could only ever be as wide as its caller's
+        # `min_width`: too narrow and every line re-wrapped, leaving single words
+        # stranded; too wide and a strip of empty frame sat beside the text.
+        # Knut, beta.144: *"Help text for 'Patch consistency threshold' uses only
+        # three quarters of the window width."*
+        #
+        # Asking the body for a minimum width is all it takes — `_BodyScrollArea`
+        # passes it up and `adjustSize()` works out the frame and the scrollbar
+        # itself, which is the part a hand-computed answer got wrong.
+        _wrapped_w = self._hand_wrapped_width(text, body) if not _rich else 0
+        if _wrapped_w:
+            text.setMinimumWidth(_wrapped_w)
+
         scroll = _BodyScrollArea(self)
         scroll.setWidget(text)
         scroll.setWidgetResizable(True)
@@ -329,6 +356,31 @@ class _InfoDialog(QDialog):
                if screen is not None else desired)
         self.setMaximumHeight(cap)
         self.resize(self.width(), min(desired, cap))
+
+    #: A hand-wrapped help body runs to about 60-70 characters a line. Past this
+    #: the body is free-flowing prose that was never wrapped by hand, and its
+    #: "longest line" is a whole paragraph — a useless measurement, and one that
+    #: would stretch every such card to the maximum width. Those keep the width
+    #: their caller asked for.
+    _MAX_MEASURED_BODY_PX = 700
+
+    @staticmethod
+    def _hand_wrapped_width(label: QLabel, body: str) -> int:
+        """Width the body's longest written line needs, or 0 to leave it alone.
+
+        0 for anything that was never hand-wrapped and for anything wrapped
+        wider than a help card should be — those keep the width their caller
+        asked for.
+        """
+        lines = [ln for ln in body.split("\n") if ln.strip()]
+        if len(lines) < 2:
+            return 0
+        fm = label.fontMetrics()
+        widest = max(fm.horizontalAdvance(ln) for ln in lines)
+        # +2: `horizontalAdvance` is the pen advance, and a glyph's rightmost
+        # ink can sit a hair beyond it. Two pixels keeps the last word off the
+        # wrap point without opening a visible gap.
+        return widest + 2 if widest <= _InfoDialog._MAX_MEASURED_BODY_PX else 0
 
 
 InfoDialog = _InfoDialog  # public alias for use outside this module

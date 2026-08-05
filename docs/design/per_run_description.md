@@ -37,26 +37,56 @@ to green tests and appeared only on screen.
 
 Two fields, each of which changes its label and its home according to Run type.
 
-| # | Run type | Label | Working value | Authoritative copy | Shown in |
-|---|---|---|---|---|---|
-| F1 | Profiling | **Run N Description:** | `runs/runN/meta.json` | the run | Guided + Manual |
-| F2 | Profiling | **Run N Chart Notes:** | `runs/runN/meta.json` | the chart's `.channels.json` | Manual only |
-| F3 | Verification | **Run N Description:** | `runs/runN/meta.json` of the run being verified | the run | Guided + Manual |
-| F4 | Verification | **Run N Chart Notes:** | `runs/runN/meta.json` | the **verification** chart's sidecar | Manual only |
-| F5 | Calibration | **Calibration Description:** | `cal/meta.json` | the calibration | Manual only¹ |
-| F6 | Calibration | **Chart Notes:** — no run number | `cal/meta.json` | the calibration chart's sidecar | Manual only¹ |
+🆕 **The labels were rewritten after Knut's beta.144 report.** Three kinds of
+chart can be under the notes field — the run's chart, the verification chart,
+the calibration chart — and the label has to say which:
+
+> *"each time the 'Profile run' and 'Run type' changes, the correct text field
+> shall be shown, which is specific for the run's chart, the verification run's
+> chart and the calibration's chart. The 'Run N Description' is specific only
+> for Profiling run and for Calibration."*
+
+| # | Profile run | Run type | Label | Working value | Authoritative copy | Shown in |
+|---|---|---|---|---|---|---|
+| F1 | run N | Profiling | **Run N Description:** | `runs/runN/meta.json` | the run | Guided + Manual |
+| F2 | run N | Profiling | **Run N Chart Notes:** | `runs/runN/meta.json` | the chart's `.channels.json` | Manual only |
+| F3 | run N | Verification | **Run N Description:** | `runs/runN/meta.json` of the run being verified | the run | Guided + Manual |
+| F4 | run N | Verification | 🆕 **Verification Chart Notes:** — no run number | `runs/runN/meta.json` | the **verification** chart's sidecar | Manual only |
+| F5 | — | Calibration | **Calibration Description:** | `cal/meta.json` | the calibration | Manual only¹ |
+| F6 | — | Calibration | 🆕 **Calibration Chart Notes:** — no run number | `cal/meta.json` | the calibration chart's sidecar | Manual only¹ |
+| F7 | 🆕 New run | Profiling | 🆕 **Run N+1 Description:** / **Run N+1 Chart Notes:** | held until the run exists | — | Guided + Manual |
+| F8 | 🆕 New run | Verification | 🆕 **Run N+1 Description:** / **Verification Chart Notes:** | held until the run exists | — | Guided + Manual |
 
 ¹ Calibration is manual-only by #137, so "Manual only" is the whole of it.
+
+🆕 **N+1, not "New run".** The earlier agreement was that a run which does not
+exist yet says "New run Description:". Knut superseded it, and gave the reason:
+
+> *"when i look at 'Location being edited' that updates to /run N+1/ in the
+> path, to signify the expected new run number. This could be done also for the
+> labels so that they become 'Run N+1 Description' or 'Run N+1 Chart Notes'."*
+
+So the number comes from `Project._next_run_index()` — **the same call the
+folder line uses** — and the two cannot disagree.
+
+🆕 **Why the verification notes carry no number**: *"only one verification chart
+and we know it is for the run it belongs to"*. The run is already named by the
+description row directly above.
 
 **T1.1 (U)** `RunMeta` gains `description: str = ""` and `chart_notes: str = ""`.
 A `meta.json` written before this feature loads with both empty and is not
 rewritten until something changes.
 **T1.2 (U)** `Calibration` meta gains the same two keys, same defaults.
 **T1.3 (I/S)** The label text follows Run type on the same signal the rest of
-the bar follows, with no tab switch needed to see it change.
-**T1.4 (I)** With the run not yet created, the labels read **"New run
-Description:"** / **"New run Chart Notes:"**, and both show the real number the
-moment the run exists (§7 Q1 of the spec).
+the bar follows, with no tab switch needed to see it change. Profiling →
+Verification → Profiling on one run changes the notes label each time.
+**T1.4 (I/S)** 🆕 With the run not yet created, both labels read **N+1**, and
+the number equals the one in "Location being edited".
+**T1.5 (I)** 🆕 The rows are labelled for the selection the app OPENS on, not
+only after the first change — they are built before the bar exists, so the tab
+re-labels them when the controller is attached.
+**T1.6 (I)** 🆕 The fixed-width label column fits every label in the table; a
+column measured for one of them clips the rest.
 
 ---
 
@@ -261,6 +291,10 @@ value to type, and what must then be visible.
 | S12 | put `{rundescription}` in the sheet text and generate | T7.6 |
 | S13 | delete run 6 of 10 | T5.4, T5.7 |
 | S14 | turn the calibration feature off, check `-D` | T6.11, T8.1–T8.4 |
+| S15 | 🆕 set Profile run = New run and read both labels | F7, T1.4 |
+| S16 | 🆕 with New run selected, switch Run type to Verification | F8 |
+| S17 | 🆕 compare the label's number with "Location being edited" | T1.4 |
+| S18 | 🆕 open the app cold and read the labels before touching the bar | T1.5 |
 
 **Every S row is walked in the real app**, with the app's own fonts and style
 applied as `main.py` applies them — a run without them measures a different

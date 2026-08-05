@@ -2595,11 +2595,6 @@ class TabMeasure(QWidget):
                 "families do); on others it is quietly ignored.")
             ),
             widget=_tol_spin,
-            # This body is hard-wrapped at ~62 characters like its neighbours,
-            # which is wider than the 420 px default — at that width Qt re-wraps
-            # every line and leaves single words stranded on their own. Only
-            # rendering the dialog shows it.
-            tooltip_width=560,
         ))
 
         opts.append(_ChartreadOption(
@@ -2767,7 +2762,6 @@ class TabMeasure(QWidget):
                 "families do); on others it is quietly ignored.")
             ),
             widget=_spinbox(0.1, 10.0, 0.1, 0.7, decimals=1),
-            tooltip_width=560,          # see the guided copy above
         ))
 
         opts.append(_ChartreadOption(

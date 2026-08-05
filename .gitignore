@@ -73,3 +73,8 @@ assets/app_icon.ico
 /mxfdlg/
 /mxf_*.ti3
 /scratch_*.py
+
+# Monitor (local, do not commit)
+.claude/monitor_state.json
+.claude/monitor_stop_blocks
+.claude/settings.local.json

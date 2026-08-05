@@ -14,13 +14,35 @@ different widget (learned the hard way in beta.143).
 """
 from __future__ import annotations
 
+import os
+import signal
 import sys
 import tempfile
 import shutil
+import threading
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+
+#: This builds a real MainWindow on the developer's screen. If anything blocks
+#: — a modal window nobody asked for, a dialog waiting on a button — the screen
+#: is taken hostage until the process is killed by hand. It has happened twice.
+#: So the kill is armed here, before Qt is even imported.
+HARD_STOP_S = 180
+
+
+def _arm_hard_stop() -> None:
+    def _die() -> None:
+        print(f"\n!! hard stop after {HARD_STOP_S}s — the app blocked; "
+              f"whatever window is on screen is the reason", flush=True)
+        os.kill(os.getpid(), signal.SIGKILL)
+    t = threading.Timer(HARD_STOP_S, _die)
+    t.daemon = True
+    t.start()
+
+
+_arm_hard_stop()
 
 PASS, FAIL = [], []
 
@@ -81,7 +103,8 @@ def main() -> int:
     apply_appearance(app, None, "light")
 
     from core.measurement_target import (RUN_TYPE_CALIBRATION,
-                                         RUN_TYPE_PROFILING)
+                                         RUN_TYPE_PROFILING,
+                                         RUN_TYPE_VERIFICATION)
     from ui.main_window import MainWindow
     w = MainWindow(s)
     apply_appearance(app, w, "light")
@@ -102,7 +125,7 @@ def main() -> int:
 
     def select(run_id, run_type=RUN_TYPE_PROFILING):
         ctl.set_run_type(run_type)
-        if run_type == RUN_TYPE_PROFILING:
+        if run_type != RUN_TYPE_CALIBRATION:
             ctl.set_profile_run(run_id)
         tab._on_target_changed()
         settle()
@@ -164,13 +187,41 @@ def main() -> int:
     select("run1", RUN_TYPE_CALIBRATION)
     check("calibration description label", tab._manual_run_desc_lbl.text(),
           "Calibration Description:")
-    check("calibration notes label (no run number)",
-          tab._manual_chart_notes_lbl.text(), "Chart Notes:")
+    check("calibration notes label (names the calibration chart)",
+          tab._manual_chart_notes_lbl.text(), "Calibration Chart Notes:")
     check("the calibration's own description", tab._manual_run_desc_edit.text(),
           "Canson Baryta, new ink set, warm room")
     select("run1", RUN_TYPE_PROFILING)
     check("run 1 is untouched by the visit", tab._manual_run_desc_edit.text(),
           "PhotoRag Baryta, gloss, large chart")
+
+    print("\n--- README step 10: a verification chart says so ---")
+    select("run2", RUN_TYPE_VERIFICATION)
+    check("verification notes label", tab._manual_chart_notes_lbl.text(),
+          "Verification Chart Notes:")
+    check("…and the description still names the run being verified",
+          tab._manual_run_desc_lbl.text(), "Run 2 Description:")
+
+    print("\n--- README step 11: back to Profiling, with no tab switch ---")
+    ctl.set_run_type(RUN_TYPE_PROFILING)
+    settle()
+    check("the notes label returns at once",
+          tab._manual_chart_notes_lbl.text(), "Run 2 Chart Notes:")
+
+    print("\n--- README steps 12-13: a New run is labelled N+1 ---")
+    select("", RUN_TYPE_PROFILING)
+    check("new run description label", tab._manual_run_desc_lbl.text(),
+          "Run 4 Description:")
+    check("new run notes label", tab._manual_chart_notes_lbl.text(),
+          "Run 4 Chart Notes:")
+    where = ctl.location_being_edited()
+    check("…the folder line agrees", "/run4/" in where, True)
+    ctl.set_run_type(RUN_TYPE_VERIFICATION)
+    settle()
+    check("new run + verification notes label",
+          tab._manual_chart_notes_lbl.text(), "Verification Chart Notes:")
+    check("…with the run it will belong to on the row above",
+          tab._manual_run_desc_lbl.text(), "Run 4 Description:")
 
     print(f"\n{len(PASS)} passed, {len(FAIL)} failed")
     for f in FAIL:

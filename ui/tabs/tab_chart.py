@@ -9048,6 +9048,11 @@ class TabChart(QWidget):
         #: (path, .ti2 mtime) of the chart on screen — see _chart_stamp.
         self._shown_chart_stamp: "tuple | None" = None
         controller.changed.connect(self._on_target_changed)
+        # …and label the two text rows for the selection the bar STARTS on.
+        # They were built before the controller existed, so without this the
+        # opening selection — "New run", Profiling — wore whatever labels the
+        # constructor guessed at, and only became right after the first change.
+        self._refresh_target_text()
 
     def clear_loaded_project(self) -> None:
         """Forget the project this tab is showing, leaving it as at launch.
@@ -9125,39 +9130,81 @@ class TabChart(QWidget):
         return [
             tr("Run {n} Description:").format(n=88),
             tr("Run {n} Chart Notes:").format(n=88),
-            tr("New run Description:"),
-            tr("New run Chart Notes:"),
+            tr("Verification Chart Notes:"),
             tr("Calibration Description:"),
-            tr("Chart Notes:"),
+            tr("Calibration Chart Notes:"),
         ]
+
+    def _target_text_number(self) -> str:
+        """The run number the labels name — including the one a New run will get.
+
+        Knut, beta.144: *"when i look at 'Location being edited' that updates to
+        /run N+1/ in the path, to signify the expected new run number. This could
+        be done also for the labels."* So the number comes from the SAME place
+        that line takes it from, ``Project._next_run_index()``, and the two can
+        never disagree about which run is being described.
+
+        Returns "" only when there is no project to count runs in — and then the
+        answer is run 1, because that is what a Generate would create.
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        # "New run" is asked FIRST, and never of the store: `resolve_run` falls
+        # back to the project's current run when the selection names none, so
+        # asking it here labelled a New run with the number of the run that
+        # already exists.
+        new_run = ctl is not None and ctl.target.is_new_run()
+        if not new_run:
+            run = None
+            try:
+                run = self._target_text_store()
+            except Exception:  # noqa: BLE001 — a label must never break the tab
+                run = None
+            # "run1" -> "1", the same derivation the bar's own dropdown uses
+            # (MeasurementTargetBar._pretty_run) so the two can never disagree
+            # about what a run is called.
+            rid = getattr(run, "id", "") if run is not None else ""
+            if isinstance(rid, str) and rid.startswith("run") and rid[3:]:
+                return rid[3:]
+        # The run that does not exist yet. Asked of project_or_none, never
+        # project(), because a label must not conjure a project into being just
+        # by being drawn.
+        try:
+            project = ctl.project_or_none() if ctl is not None else None
+            if project is not None:
+                return str(project._next_run_index())
+        except Exception:      # noqa: BLE001
+            pass
+        return "1"
 
     def _target_text_labels(self) -> "tuple[str, str]":
         """``(description label, notes label)`` for what the bar points at.
 
-        A calibration is not a run, so it carries no run number — Knut's ruling
-        (#130 §3a): the notes label drops the "Run N " and the description says
-        what it is. A run that does not exist yet says "New run", and shows its
-        real number the moment it is created.
+        Knut set these out in full (#130, beta.144 report). Each of the three
+        run types edits a DIFFERENT chart, so the notes label names the chart it
+        belongs to, while the description belongs to the run or to the
+        calibration:
+
+        | Profile run | Run type | Description | Chart Notes |
+        |---|---|---|---|
+        | run N | Profiling | Run N Description: | Run N Chart Notes: |
+        | New run | Profiling | Run N+1 Description: | Run N+1 Chart Notes: |
+        | run N | Verification | Run N Description: | Verification Chart Notes: |
+        | New run | Verification | Run N+1 Description: | Verification Chart Notes: |
+        | — | Calibration | Calibration Description: | Calibration Chart Notes: |
+
+        *"only one verification chart and we know it is for the run it belongs
+        to"* — which is why the verification notes carry no run number, and why
+        a New run says N+1 rather than "New run": the folder line above it
+        already says ``/run N+1/``.
         """
         ctl = getattr(self, "_target_ctl", None)
         if ctl is not None and ctl.target.is_calibration():
-            return tr("Calibration Description:"), tr("Chart Notes:")
-        # Also via _target_text_store, for the same reason: a label is a
-        # question, and asking _target_run() would create a project.
-        run = None
-        try:
-            run = self._target_text_store()
-        except Exception:      # noqa: BLE001 — a label must never break the tab
-            run = None
-        # "run1" -> "1", the same derivation the bar's own dropdown uses
-        # (MeasurementTargetBar._pretty_run) so the two can never disagree
-        # about what a run is called.
-        rid = getattr(run, "id", "") if run is not None else ""
-        number = rid[3:] if isinstance(rid, str) and rid.startswith("run") else ""
-        if not number:
-            return tr("New run Description:"), tr("New run Chart Notes:")
-        return (tr("Run {n} Description:").format(n=number),
-                tr("Run {n} Chart Notes:").format(n=number))
+            return tr("Calibration Description:"), tr("Calibration Chart Notes:")
+        number = self._target_text_number()
+        desc = tr("Run {n} Description:").format(n=number)
+        if ctl is not None and ctl.target.is_verification():
+            return desc, tr("Verification Chart Notes:")
+        return desc, tr("Run {n} Chart Notes:").format(n=number)
 
     def _target_text_store(self):
         """Where this selection's two texts are read from and written to.

@@ -56,13 +56,20 @@ def test_the_labels_name_the_run_they_belong_to(tab):
     assert widget._manual_chart_notes_lbl.text() == "Run 1 Chart Notes:"
 
 
-def test_a_calibration_drops_the_run_number(tab):
-    """Knut, §3a: a calibration is not a run, so it carries no run number."""
+def test_a_calibration_names_itself_on_both_rows(tab):
+    """Knut, §3a: a calibration is not a run, so it carries no run number.
+
+    His beta.144 report sharpened the second half of it — the bare "Chart
+    Notes:" this once asserted did not say WHICH chart, and a calibration
+    chart is one of three the field can be editing: *"When 'Run type' =
+    'Calibration' I also said to Change 'Run N Chart Notes' to 'Calibration
+    Chart Notes', which matches the 'Calibration Description' field."*
+    """
     widget, ctl, project = tab
     ctl.set_run_type(RUN_TYPE_CALIBRATION)
     widget._refresh_target_text()
     assert widget._manual_run_desc_lbl.text() == "Calibration Description:"
-    assert widget._manual_chart_notes_lbl.text() == "Chart Notes:"
+    assert widget._manual_chart_notes_lbl.text() == "Calibration Chart Notes:"
 
 
 # ---- T2: one file per keystroke -----------------------------------------

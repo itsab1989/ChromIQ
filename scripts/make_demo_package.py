@@ -751,7 +751,10 @@ SEQUENCES = {
       covers=["§1/§2 — each run's own description and chart notes",
               "§4/§4a — what the Profile Description is built from",
               "§7 — the {rundescription} marker on a printed sheet",
-              "§3a — a calibration has a description of its own"],
+              "§3a — a calibration has a description of its own",
+              "F1-F8 — every label the two rows can show, and when",
+              "T1.4 — a New run is labelled N+1, the number the "
+              "folder line shows"],
       steps=["This project is about telling runs apart. It has three runs, "
              "each already described, and a calibration with a description of "
              "its own. Nothing here needs an instrument.",
@@ -780,11 +783,28 @@ SEQUENCES = {
              "back to ChromIQ, and the suggestion returns. [[ON-SCREEN]]",
              "Set Run type = **Calibration** (switch calibration options on in "
              "Preferences first if the entry is missing). *Expected:* the "
-             "boxes now read **“Calibration Description”** and **“Chart "
-             "Notes”** — no run number, because a calibration is not a run — "
-             "and they hold the calibration's own text, not run 1's. [[ON-SCREEN]]",
+             "boxes now read **“Calibration Description”** and **“Calibration "
+             "Chart Notes”** — no run number, because a calibration is not a "
+             "run — and they hold the calibration's own text, not run 1's. [[ON-SCREEN]]",
              "Switch back to Profiling. *Expected:* run 1's description and "
              "notes are back, untouched by the visit. [[ON-SCREEN]]",
+             "With run 2 selected, set Run type = **Verification**. "
+             "*Expected:* the notes box is now labelled **“Verification Chart "
+             "Notes”** — it is editing the verification chart, which is a "
+             "different sheet of paper from the run's own chart. The "
+             "description above it still says **“Run 2 Description”**, "
+             "because the verification belongs to run 2. [[ON-SCREEN]]",
+             "Set Run type back to **Profiling**, still on run 2. *Expected:* "
+             "the notes label returns to **“Run 2 Chart Notes”** immediately — "
+             "you should not have to leave the tab and come back. [[ON-SCREEN]]",
+             "Set Profile run = **New run**, Run type = Profiling. *Expected:* "
+             "the boxes read **“Run 4 Description”** and **“Run 4 Chart "
+             "Notes”** — the number of the run a Generate would create. Check "
+             "it against the **“Location being edited”** line just under the "
+             "bar: it says **/run4/**, and the two must always agree. [[ON-SCREEN]]",
+             "Still on **New run**, set Run type = **Verification**. "
+             "*Expected:* **“Run 4 Description”** and **“Verification Chart "
+             "Notes”**. [[ON-SCREEN]]",
              "In Create Chart (Manual), open the layout options and use "
              "**Insert ▾** to put **{rundescription}** into the sheet text, "
              "then press **Generate Chart**. *Expected:* the run's description "
