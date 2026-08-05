@@ -815,6 +815,15 @@ class ArgyllRunner(QObject):
         for line in text.splitlines():
             log.debug("[argyll] %s", line)
             self.line_received.emit(line)
+            # A SLOT MAY HAVE ENDED THE RUN. Some of these lines open a modal
+            # window, which spins its own event loop — and the button in it can
+            # stop the measurement, killing the process and dropping the object
+            # this method is iterating output from. Carrying on then walks into
+            # a deleted C++ object: Knut, beta.138, segfaulted here after
+            # answering two windows in a row (crash log:
+            # "argyll_runner.py, line 817 in _on_ready_read").
+            if not self._process:
+                return
 
     def _on_finished(self, exit_code: int, _exit_status: object) -> None:
         log.info("ArgyllRunner: finished with code %d", exit_code)

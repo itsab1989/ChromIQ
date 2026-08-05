@@ -1,5 +1,40 @@
 # Changelog
 
+## v3.14.8-beta.139
+
+- **"Save and stop" no longer opens a second window at all.** beta.138 silenced
+  the printed copy of the give-up prompt, but the helper also reports it as an
+  event — so whichever of the two arrived *second* still raised "Strip Read
+  Interrupted" behind an ending that had already been answered. One per-session
+  flag is now set by whichever arrives first and checked by both, in strip mode
+  and patch-by-patch alike. A genuine interruption you caused yourself still
+  opens its window.
+
+- **Fixed a crash when a window ended the session.** `ArgyllRunner._on_ready_read`
+  emits the process output line by line; ending the session deletes the
+  QProcess, and a window opened from one of those lines does exactly that — so
+  the loop went back for the next line and dereferenced a deleted object. It
+  re-checks after every line now.
+
+- **Retry works on the ChromIQ engine again.** chartread's rule at a failure or
+  warning prompt is *Return = use it, any other key = retry*, and the Retry
+  button spells "any other key" as a space. The engine's key→command table had
+  no entry for it, so the keystroke was dropped and the instrument stopped
+  responding until Stop was pressed. Space and `r` now both send
+  `{"cmd":"retry"}`, and a test walks every key a window or the keyboard can
+  send and fails if any one of them has no command.
+
+- **The arrow keys no longer abandon a measurement.** Left and Right were sent
+  as their raw terminal sequences, whose first character is Escape — which stock
+  chartread reads as *give up without saving*. They send `b` and `f` now, the
+  keys chartread prints in its own menu, which work on both engines.
+
+- **Guided and Manual show the same settings.** Refine / resume existing
+  measurement, Suppress warning messages, Strip recognition and its Auto box,
+  Patch consistency tolerance, and the three Live-preview controls (Each patch
+  shows, Show only measured patches, Show patch values on hover) now follow each
+  other in both directions, the way Show overlay already did.
+
 ## v3.14.8-beta.138
 
 - **"Save and stop" no longer opens a second window behind itself.** The old

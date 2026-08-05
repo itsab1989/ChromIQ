@@ -272,3 +272,51 @@ def test_the_engine_flag_is_compared_not_cast(engine, wanted):
     tab, _played = _make_tab()
     tab._settings.set("chartread_engine", engine)
     assert tab._engine_wanted() is wanted
+
+
+# ---- Guided and Manual show the same settings ---------------------------
+# Knut, beta.138: *"When enabling 'Refine / resume existing measurement' or
+# 'Suppress warning messages' in Guided mode, the same checkboxes in Manual mode
+# do not follow. 'Show overlay...' checkbox does follow in both directions …
+# They all shall be linked between Guided mode and Manual mode."*
+@pytest.mark.parametrize("guided,manual", [
+    ("_resume_cb", "_m_resume_cb"),
+    ("_suppress_cb", "_m_suppress_cb"),
+    ("_g_only_measured", "_m_only_measured"),
+    ("_g_patch_tile", "_m_patch_tile"),
+    # "Show overlay" is deliberately NOT here: it was already linked, by
+    # _on_overlay_toggled → _sync_overlay_checkboxes, and ticking it without a
+    # measurement on disk opens a window. tests/test_knut_beta134_overlay.py
+    # covers that pair.
+])
+def test_the_paired_checkboxes_follow_each_other(guided, manual):
+    from core.argyll_runner import ArgyllRunner
+    from ui.tabs.tab_measure import TabMeasure
+
+    s = _Settings({"chartread_engine": "chromiq"})
+    tab = TabMeasure(ArgyllRunner(s), s)
+    a, b = getattr(tab, guided, None), getattr(tab, manual, None)
+    assert a is not None and b is not None, f"{guided}/{manual} not built"
+
+    start = b.isChecked()
+    a.setChecked(not start)
+    assert b.isChecked() is (not start), "Guided did not reach Manual"
+    b.setChecked(start)
+    assert a.isChecked() is start, "Manual did not reach Guided"
+
+
+def test_the_tolerance_follows_too():
+    """Built from one table into two lists, so it is matched by key rather
+    than by attribute name."""
+    from core.argyll_runner import ArgyllRunner
+    from ui.tabs.tab_measure import TabMeasure
+
+    s = _Settings({"chartread_engine": "chromiq"})
+    tab = TabMeasure(ArgyllRunner(s), s)
+    g = {o.key: o for o in tab._chartread_opts}["tolerance"]
+    m = {o.key: o for o in tab._m_chartread_opts}["tolerance"]
+
+    g.widget.setValue(3.5)
+    assert m.widget.value() == 3.5
+    m.widget.setValue(1.5)
+    assert g.widget.value() == 1.5

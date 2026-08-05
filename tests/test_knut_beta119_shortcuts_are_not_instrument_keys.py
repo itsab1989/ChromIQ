@@ -113,10 +113,15 @@ def test_escape_still_gives_up(tab):
     assert tab._manager.sent == ["\x1b"]
 
 
-def test_the_arrows_still_navigate(tab):
+def test_the_arrows_navigate_with_the_keys_chartread_documents(tab):
+    """An arrow used to go out as its raw terminal sequence, whose first
+    character is Escape — which chartread reads as give up without saving
+    (chartread.c:1611). 'b' and 'f' are the keys chartread prints in its own
+    menu, and the engine has commands for both."""
     tab.eventFilter(tab, _key(Qt.Key.Key_Left, ""))
     tab.eventFilter(tab, _key(Qt.Key.Key_Right, ""))
-    assert tab._manager.sent == ["\x1b[D", "\x1b[C"]
+    assert tab._manager.sent == ["b", "f"]
+    assert "\x1b" not in "".join(tab._manager.sent)
 
 
 def test_a_plain_letter_still_reaches_chartread(tab):
@@ -196,3 +201,48 @@ def test_the_engine_moves_ten_for_a_capital():
     m._runner.out.clear()
     m.send_key("b")
     assert m._runner.out == ['{"cmd": "back"}\n']
+
+
+# ---- a slot that ends the run must not be read past ----------------------
+def test_output_stops_being_delivered_once_the_process_is_gone(qapp):
+    """Knut, beta.138, segfault:
+
+        Fatal Python error: Segmentation fault
+          File "core/argyll_runner.py", line 817 in _on_ready_read
+
+    Some of those lines open a modal window, which spins its own event loop —
+    and a button in it can stop the measurement, dropping the QProcess this
+    method is iterating output from. Carrying on walked into a deleted C++
+    object.
+    """
+    import inspect
+
+    from core.argyll_runner import ArgyllRunner
+
+    src = inspect.getsource(ArgyllRunner._on_ready_read)
+    body = src[src.index("for line in"):]
+    assert "if not self._process:" in body, \
+        "the loop must stop when a slot has ended the run"
+
+
+# ---- "any other key to retry" has to reach the engine too -----------------
+# Knut, beta.138, after "Wrong Strip Read" → Retry on the ChromIQ engine:
+# *"The instrument now stopped responding (no button press reacting and no
+# sound), so I cannot measure strips anymore."*  Retry sends a space, which is
+# chartread's "any other key"; the engine had no command for it, so nothing was
+# sent and the prompt stayed open for ever.
+@pytest.mark.parametrize("key", [" ", "r"])
+def test_the_retry_key_has_an_engine_command(key):
+    from workflow.chartread_engine import command_for_key
+
+    assert command_for_key(key) == {"cmd": "retry"}
+
+
+@pytest.mark.parametrize("key", [" ", "r", "b", "f"])
+def test_every_key_a_window_or_the_keyboard_sends_is_mapped(key):
+    """Whatever a failure window or the keyboard forwarder can send must have
+    an engine command — an unmapped key is a silently ignored keystroke."""
+    from workflow.chartread_engine import (command_for_key,
+                                           repeated_command_for_key)
+
+    assert (command_for_key(key) or repeated_command_for_key(key)) is not None

@@ -95,6 +95,18 @@ KEY_TO_COMMAND: dict[str, dict] = {
     "f":  {"cmd": "forward"},
     "b":  {"cmd": "back"},
     "n":  {"cmd": "next_unread"},  # doubles as 'no' — same key in chartread
+    # "Hit Return to use it anyway, ANY OTHER KEY to retry" (chartread.c:1855).
+    # The failure and warning windows spell that "any other key" as a space, and
+    # the keyboard forwarder passes a real space through unchanged — so on stock
+    # chartread both retry. Neither was mapped here, so on the engine they went
+    # nowhere and the prompt stayed open with the instrument waiting.
+    #
+    # Knut, beta.138, after "Wrong Strip Read" → Retry: *"The instrument now
+    # stopped responding (no button press reacting and no sound), so I cannot
+    # measure strips anymore."* His log ends on ChromIQ's own watchdog line,
+    # "No response from chartread after sending a key".
+    " ":  {"cmd": "retry"},
+    "r":  {"cmd": "retry"},
     "d":  {"cmd": "done"},
     "y":  {"cmd": "yes"},
     "s":  {"cmd": "skip"},

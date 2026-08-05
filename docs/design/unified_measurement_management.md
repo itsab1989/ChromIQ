@@ -137,6 +137,13 @@ move, because it reads any key but Esc/`q` as *retry*.
 | `F` / `B` | ten units (chartread.c:2319-2327) | the helper has no ten-step command, so **ten single steps** are sent |
 | `n` | next unread | `{"cmd":"next_unread"}` |
 | `g` | go to a patch | `{"cmd":"goto", …}` |
+| ← / → | `b` / `f` — **not** the raw arrow sequence | `{"cmd":"back"}` / `{"cmd":"forward"}` |
+
+An arrow key is three characters and the first one is Escape. chartread reads
+**one character at a time**, and Escape there is *give up without saving*
+(chartread.c:1611, :1654, :1857) — so sending `\x1b[D` for a Left arrow
+abandoned the session, and on the engine it matched no command and did nothing.
+Both arrows send the keys chartread prints in its own menu (beta.139).
 
 *(The stray semicolon in chartread's own help line — `'B; to move back 10` — is
 Argyll's, at chartread.c:2122.)*
@@ -156,6 +163,7 @@ copy now only completes the chain, never raises a window.
 |---|---|---|
 | `d` at the menu | asks *"Are you sure"*, then writes | the same |
 | `d` at a failure prompt | read as "retry" | read as "retry" |
+| space, `r` at a failure or warning prompt | `{"cmd":"retry"}` | *any key that is not Return/Esc/`q`* means retry (chartread.c:1855) |
 | `q` / Esc at a failure prompt | the helper **writes the `.ti3` first**, then gives up | **gives up without writing** — `chartread.c:1654` returns −1 and the readings die with the process |
 | Stop | §2's window: *Save and stop* runs the sequence above; *Discard and stop* ends the session and keeps nothing | the same |
 
@@ -164,6 +172,17 @@ and why the two engines cannot share one sequence.
 
 ### What changed, and when
 
+- **beta.139** gave the retry key a command. Every failure and warning window
+  spells chartread's *"any other key to retry"* as a **space**; stock chartread
+  takes it, but the engine's key→command table had no entry for it, so Retry
+  sent nothing and the helper sat at its prompt for ever — Knut, beta.138:
+  *"The instrument now stopped responding (no button press reacting and no
+  sound), so I cannot measure strips anymore."* It also gave the arrow keys the
+  row above, and closed the last door on the duplicate ending window: the
+  give-up prompt arrives both as an event and as a printed line, beta.138 
+  silenced only the printed one, so whichever arrived **second** still opened a
+  window. One per-session flag — *this ending has been answered* — is now set by
+  whichever arrives first and checked by both.
 - **beta.130** taught the stock path that a failed *strip* read leaves a retry
   prompt open. Before that, Save Partial sent `d` straight into that prompt,
   which ate it — Knut's beta.128 report.

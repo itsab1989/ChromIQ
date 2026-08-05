@@ -1020,6 +1020,7 @@ class TabMeasure(QWidget):
         self._key_watchdog.timeout.connect(self._on_key_watchdog_timeout)
         self._build_ui()
         self._restore_defaults()
+        self._link_mode_controls()
         self._start_btn.setEnabled(False)
         # THE ENGINE-ONLY CONTROLS MUST START IN THE RIGHT STATE.
         #
@@ -7828,9 +7829,17 @@ class TabMeasure(QWidget):
             elif key == Qt.Key.Key_Space:
                 self._manager.send_key(" ")
             elif key == Qt.Key.Key_Left:
-                self._manager.send_key("\x1b[D")
+                # AN ARROW KEY IS THREE CHARACTERS, AND THE FIRST ONE IS ESCAPE.
+                # Left used to go out as the raw terminal sequence "\x1b[D".
+                # chartread reads one character at a time and 0x1b is give-up
+                # (chartread.c:1611, :1654, :1857) — so a Left arrow at any
+                # prompt abandoned the session without saving, and on the engine
+                # it matched no command at all and did nothing. The movement
+                # keys chartread itself prints are 'b' and 'f', and those work
+                # on both engines.
+                self._manager.send_key("b")
             elif key == Qt.Key.Key_Right:
-                self._manager.send_key("\x1b[C")
+                self._manager.send_key("f")
             else:
                 text = event.text()
                 if text:
@@ -8928,6 +8937,76 @@ class TabMeasure(QWidget):
         except Exception:      # noqa: BLE001 — never block a chart change
             log.warning("Could not clear the previous chart's readout",
                         exc_info=True)
+
+    # ------------------------------------------------------------------
+    # Guided and Manual show the same settings (Knut, beta.138)
+    # ------------------------------------------------------------------
+    #: Every control that exists once per module and means the same thing in
+    #: both. "Show overlay" was already linked; Knut asked for the rest:
+    #: *"They all shall be linked between Guided mode and Manual mode, so same
+    #: parameter in both modes follow each other when changed."*
+    _LINKED_PAIRS: tuple = (
+        ("_resume_cb", "_m_resume_cb"),
+        ("_suppress_cb", "_m_suppress_cb"),
+        ("_bidir_combo", "_m_bidir_combo"),
+        ("_bidir_auto_cb", "_m_bidir_auto_cb"),
+        ("_g_overlay_mode", "_m_overlay_mode"),
+        ("_g_only_measured", "_m_only_measured"),
+        ("_g_patch_tile", "_m_patch_tile"),
+    )
+
+    def _link_mode_controls(self) -> None:
+        """Make each pair follow the other, in both directions.
+
+        Signals are blocked on the receiving side, so a change travels once and
+        no pair can bounce. The **tolerance** and the rest of the chartread
+        option rows are linked by key rather than by attribute, because they are
+        built from one table into two lists.
+        """
+        from PyQt6.QtWidgets import (QAbstractSpinBox, QCheckBox, QComboBox)
+
+        def _mirror(src, dst) -> None:
+            if src is None or dst is None:
+                return
+            dst.blockSignals(True)
+            try:
+                if isinstance(src, QCheckBox) and isinstance(dst, QCheckBox):
+                    dst.setChecked(src.isChecked())
+                elif isinstance(src, QComboBox) and isinstance(dst, QComboBox):
+                    i = dst.findData(src.currentData())
+                    dst.setCurrentIndex(i if i >= 0 else dst.currentIndex())
+                elif isinstance(src, QAbstractSpinBox) \
+                        and isinstance(dst, QAbstractSpinBox):
+                    dst.setValue(src.value())
+            finally:
+                dst.blockSignals(False)
+
+        def _pair(a, b) -> None:
+            if a is None or b is None:
+                return
+            for src, dst in ((a, b), (b, a)):
+                if isinstance(src, QCheckBox):
+                    src.toggled.connect(
+                        lambda _c, s=src, d=dst: _mirror(s, d))
+                elif isinstance(src, QComboBox):
+                    src.currentIndexChanged.connect(
+                        lambda _i, s=src, d=dst: _mirror(s, d))
+                elif isinstance(src, QAbstractSpinBox):
+                    src.valueChanged.connect(
+                        lambda _v, s=src, d=dst: _mirror(s, d))
+
+        for a_name, b_name in self._LINKED_PAIRS:
+            _pair(getattr(self, a_name, None), getattr(self, b_name, None))
+
+        # The chartread option rows — tolerance and its neighbours — come from
+        # one table built twice, so they are matched by their key.
+        guided = {o.key: o for o in getattr(self, "_chartread_opts", [])}
+        for opt in getattr(self, "_m_chartread_opts", []):
+            twin = guided.get(opt.key)
+            if twin is None:
+                continue
+            _pair(opt.checkbox, twin.checkbox)
+            _pair(opt.widget, twin.widget)
 
     def _sync_overlay_checkboxes(self, checked: bool) -> None:
         """Keep the guided + manual 'Show overlay' boxes in step (#134)."""

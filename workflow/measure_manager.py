@@ -292,6 +292,9 @@ class MeasureManager(QObject):
         #: Whether this session has seen its first spot_ready yet — the
         #: event that says whether the chart was already complete.
         self._saw_spot_ready: bool = False
+        #: True once an ending has been answered, so the second form of the
+        #: give-up prompt cannot re-ask about an ending already decided.
+        self._ending_already_answered: bool = False
         # True while the helper is blocked on a failure prompt ("Hit Esc or 'q'
         # to give up, any other key to retry"). Whatever we send there is spent
         # as that "any other key", so a navigation command sent while this is
@@ -874,6 +877,8 @@ class MeasureManager(QObject):
                 # writing. Knut, beta.136: *"[INFO] Measurement stopped — no
                 # measurement (.ti3) file was created"*, with readings on disk.
                 if _STRIP_INTERRUPTED_RE.search(line):
+                    if self._ending_already_answered:
+                        return
                     # ONLY to finish a save-partial. The helper PRINTS this
                     # sentence and, in strip mode, also reports it as an event —
                     # so emitting the window from here as well raised "Strip
@@ -885,6 +890,7 @@ class MeasureManager(QObject):
                     # the strip-error path already follows.
                     if self._save_partial_state == "wait_give_up_prompt":
                         self._save_partial_state = None
+                        self._ending_already_answered = True
                         self.send_key("q")
             return
 
@@ -893,6 +899,7 @@ class MeasureManager(QObject):
 
         if kind == "session_start":
             self._saw_spot_ready = False
+            self._ending_already_answered = False
             strips = ev.get("strips", [])
             # Was there anything left to read when we opened it? That is what
             # decides whether "all strips read" can ever be news in this
@@ -1051,6 +1058,18 @@ class MeasureManager(QObject):
                 self.unexpected_response.emit(f"{ev.get('worst_de', 0):.2f}")
 
         elif kind == "strip_interrupted":
+            # WHICHEVER FORM ARRIVES FIRST ENDS IT; the other is spent.
+            #
+            # The helper prints this sentence AND reports it as an event. Since
+            # beta.137 the printed copy completes a pending save-partial, so by
+            # the time the event arrives the state is already clear — and the
+            # branch below then treated it as the user's own interruption and
+            # opened the window all over again. Knut, beta.138: *"Window 'Strip
+            # Read Interrupted' came again … You did not remove it."* Answering
+            # that window a second time crashed the app, which is the other half
+            # of this fix (see ArgyllRunner._on_ready_read).
+            if self._ending_already_answered:
+                return
             # THE GIVE-UP PROMPT, AS AN EVENT.
             #
             # In engine mode chartread's prose never reaches _handle_line — this
@@ -1067,6 +1086,7 @@ class MeasureManager(QObject):
             # against a path that does not run. It drives this one now.
             if self._save_partial_state == "wait_give_up_prompt":
                 self._save_partial_state = None
+                self._ending_already_answered = True
                 self.send_key("q")
             else:
                 self.strip_interrupted.emit()
@@ -1259,6 +1279,7 @@ class MeasureManager(QObject):
             # second 'q' here is what writes the .ti3 and ends the session.
             if self._save_partial_state == "wait_give_up_prompt":
                 self._save_partial_state = None
+                self._ending_already_answered = True
                 self.send_key("q")
             else:
                 self.strip_interrupted.emit()

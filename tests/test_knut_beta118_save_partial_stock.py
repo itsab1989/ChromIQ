@@ -392,3 +392,40 @@ def test_the_last_patch_still_completes_the_chart():
     assert _run(first_all_done=False) == 1, "the last patch completed the chart"
     assert _run(first_all_done=True) == 0, \
         "a chart that was already complete has not been completed by opening it"
+
+
+# ---- an ending is answered once, whichever form arrives first ------------
+@pytest.mark.parametrize("order", ["prose-first", "event-first"])
+def test_save_and_stop_asks_nothing_afterwards(order):
+    """Knut, beta.138: *"Window 'Strip Read Interrupted' came again … You did
+    not remove it."* — and answering it a second time crashed the app.
+
+    The helper both prints the give-up prompt and reports it as an event.
+    beta.137 taught the printed copy to finish the save, so by the time the
+    event arrived the state was clear and the event opened the window instead.
+    Removing it from one form alone just moved the fault to the other.
+    """
+    m = _mgr(engine=True)
+    seen = []
+    m.strip_interrupted.connect(lambda: seen.append(True))
+    m._handle_engine_line('{"event":"session_start","strips":[]}', lambda _l: None)
+    m.send_save_partial_and_quit()
+
+    prose = "Spot read stopped at user request!"
+    event = '{"event":"strip_interrupted"}'
+    for line in ((prose, event) if order == "prose-first" else (event, prose)):
+        m._handle_engine_line(line, lambda _l: None)
+
+    assert m._runner.out == ['{"cmd": "quit"}\n', '{"cmd": "quit"}\n']
+    assert seen == [], "a window asked about an ending already answered"
+
+
+def test_a_strip_the_user_stopped_still_opens_its_window():
+    """The window exists for this: the give-up prompt arriving because YOU
+    stopped a strip, outside an ending you had already answered."""
+    m = _mgr(engine=True)
+    seen = []
+    m.strip_interrupted.connect(lambda: seen.append(True))
+    m._handle_engine_line('{"event":"session_start","strips":[]}', lambda _l: None)
+    m._handle_engine_line('{"event":"strip_interrupted"}', lambda _l: None)
+    assert seen == [True]
