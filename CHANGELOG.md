@@ -1,5 +1,22 @@
 # Changelog
 
+## v3.14.8-beta.146
+
+### Fixed
+
+- **A measurement that resumed could end the instant it started, with nothing
+  but “Measurement failed” to show for it.** With “Refine / resume existing
+  measurement” ticked, ChromIQ could archive the very measurement it was about
+  to continue from — and since the reader was still told to resume, it opened
+  the chart, found every strip already accounted for, and stopped before the
+  instrument was ever switched on. No sound, no device, no explanation.
+
+  Two parts of ChromIQ were asking the same question in different ways: one
+  looked at whether the “Refine / resume” box was ticked, the other also
+  required the box to be on screen at that moment. A ticked box could therefore
+  mean “resume” to one and “replace” to the other. They now ask the same
+  question.
+
 ## v3.14.8-beta.145
 
 ### Fixed
