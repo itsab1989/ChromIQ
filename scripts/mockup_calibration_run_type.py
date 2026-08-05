@@ -165,6 +165,32 @@ def chart_tab_as_calibration(win) -> None:
     tab._cal_target_grp.setVisible(False)
     # …but its knob preset still applies: this is what ticking it did.
     tab._on_cal_target_toggled(True)
+    # EVERY "Auto" GOES OFF, AND SINGLE CHANNEL STEPS GOES TO 20.
+    #
+    # Sebastian, 2026-08-05: *"setting run type to calibration turns the auto
+    # settings off … total patch count, white, black patches, grey axis steps.
+    # Single channel steps should be set to 20 on a calibration run by default
+    # … and then also be reset to how it was before when the user sets another
+    # runtype again."*
+    #
+    # This is the half the checkbox never did: it wrote -f 0 into a spinbox
+    # that "Auto" owns and had disabled, so the 0 was cosmetic and the
+    # page-filling estimate overrode it at Generate (D7). A calibration chart's
+    # size comes from the ramp, not from how many pages you want to fill, so
+    # the Auto boxes are unticked AND disabled — visibly not in charge — and
+    # the Pages control goes with them.
+    tab._on_auto_patches_toggled(False)
+    for cb in (tab._manual_auto_patches_check, tab._manual_auto_white_check,
+               tab._manual_auto_black_check, tab._manual_auto_grey_check):
+        if cb is not None:
+            cb.setChecked(False)
+            cb.setEnabled(False)
+    for which in ("white", "black", "grey"):
+        tab._on_auto_neutral_toggled(which, False)
+    if tab._manual_pages_spin is not None:
+        tab._manual_pages_spin.setEnabled(False)
+    if getattr(tab, "_manual_pages_lbl", None) is not None:
+        tab._manual_pages_lbl.setEnabled(False)
     # AND THE TARGEN SECTION OPENS. Sebastian, 2026-08-04: *"When run type is
     # set to calibration then the targen settings in create chart should not be
     # collapsed so the user directly sees where to dial in the desired
@@ -174,19 +200,31 @@ def chart_tab_as_calibration(win) -> None:
     if getattr(tab, "_manual_targen_grp", None) is not None:
         tab._manual_targen_grp.set_collapsed(False)
     pump(300)
-    # …and the row that decides the calibration is scrolled into view. Opening
+    # …and the rows that decide the calibration are scrolled into view. Opening
     # the section is not enough on its own: "Single Channel Steps" — the ramp
     # this chart is — sits below the fold, which is the part of his point that
     # only shows up in a picture.
+    #
+    # Frame the WHOLE block, -f through -s: Total Patch Count, White Patches,
+    # Black Patches and Grey Axis Steps are the four "Auto" boxes the run type
+    # switches off, so a picture that crops any of them does not show the
+    # change. Scroll to the last row first, then back to the first — the second
+    # call wins, and lands the block at the top of the viewport.
     from PyQt6.QtWidgets import QAbstractScrollArea
-    for pw in tab._manual_widgets.get("targen", []):
-        if pw.flag == "-s":
-            node = pw.parentWidget()
-            while node is not None and not isinstance(node, QAbstractScrollArea):
-                node = node.parentWidget()
-            if node is not None:
-                node.ensureWidgetVisible(pw, 60, 140)
-            break
+
+    def _reveal(flag: str, y_margin: int) -> None:
+        for pw in tab._manual_widgets.get("targen", []):
+            if pw.flag == flag:
+                node = pw.parentWidget()
+                while node is not None and not isinstance(node, QAbstractScrollArea):
+                    node = node.parentWidget()
+                if node is not None:
+                    node.ensureWidgetVisible(pw, 60, y_margin)
+                return
+
+    _reveal("-s", 140)
+    pump(120)
+    _reveal("-f", 40)
     for f in (getattr(tab, "_manual_target_name_edit", None),
               getattr(tab, "_target_name_edit", None)):
         if f is not None:
