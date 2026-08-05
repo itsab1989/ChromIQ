@@ -1,5 +1,24 @@
 # Changelog
 
+## v3.14.8-beta.138
+
+- **"Save and stop" no longer opens a second window behind itself.** The old
+  "Strip Read Interrupted" question appeared after the ending window had already
+  been answered — and its "Give Up" then re-asked the first question. The helper
+  both prints and reports the give-up prompt; the printed copy now only finishes
+  the save, and never raises a window of its own.
+
+- **The wrong-dial-position warning can be raised more than once per session on
+  the ChromIQ engine.** Its one-per-prompt flag was cleared on chartread's
+  printed menu line, which the engine never prints — so after the first warning
+  the dial could be wrong all day in silence.
+
+- **A chart with one patch left announces its completion.** Whether the chart
+  was already finished was read from the strip flags, and reading patch by
+  patch a strip whose last patch is unread still reports itself as read — so a
+  chart one patch short looked complete and its completion was silenced. With
+  two patches left it worked, which is how Knut found it.
+
 ## v3.14.8-beta.137
 
 - **The overlay now shows everything the measurement file holds**, not only the

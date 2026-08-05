@@ -289,6 +289,9 @@ class MeasureManager(QObject):
         #: True while the wrong-dial-position window is on screen, so the
         #: two lines chartread prints for it raise one window, not two.
         self._sensor_warning_open: bool = False
+        #: Whether this session has seen its first spot_ready yet — the
+        #: event that says whether the chart was already complete.
+        self._saw_spot_ready: bool = False
         # True while the helper is blocked on a failure prompt ("Hit Esc or 'q'
         # to give up, any other key to retry"). Whatever we send there is spent
         # as that "any other key", so a navigation command sent while this is
@@ -871,17 +874,25 @@ class MeasureManager(QObject):
                 # writing. Knut, beta.136: *"[INFO] Measurement stopped — no
                 # measurement (.ti3) file was created"*, with readings on disk.
                 if _STRIP_INTERRUPTED_RE.search(line):
+                    # ONLY to finish a save-partial. The helper PRINTS this
+                    # sentence and, in strip mode, also reports it as an event —
+                    # so emitting the window from here as well raised "Strip
+                    # Read Interrupted" straight after "Save and stop" had
+                    # already been answered. Knut, beta.137: *"This is not the
+                    # right window on exit of measurement … After clicking
+                    # 'Save and Stop' I have already decided to save and
+                    # stop."* The event is the authoritative one, the same rule
+                    # the strip-error path already follows.
                     if self._save_partial_state == "wait_give_up_prompt":
                         self._save_partial_state = None
                         self.send_key("q")
-                    else:
-                        self.strip_interrupted.emit()
             return
 
         self._engine_saw_event = True
         kind = ev["event"]
 
         if kind == "session_start":
+            self._saw_spot_ready = False
             strips = ev.get("strips", [])
             # Was there anything left to read when we opened it? That is what
             # decides whether "all strips read" can ever be news in this
@@ -893,6 +904,13 @@ class MeasureManager(QObject):
         elif kind == "strip_ready":
             strip = ev.get("strip", "")
             self._at_retry_prompt = False        # back at the menu
+            # …and the dial warning may be raised again next time. Its one-per-
+            # prompt flag was cleared only on chartread's printed menu line,
+            # which engine mode never produces — so after the first wrong-dial
+            # window the flag stayed set and no further warning ever appeared.
+            # Knut, beta.137, strip mode: *"Strip Read Failed window does NOT
+            # come! Missing."* — with only the log line to show for it.
+            self._sensor_warning_open = False
             self.stripe_changed.emit(strip)
             if ev.get("all_done") and self._all_done_is_news():
                 self.all_stripes_done.emit()
@@ -943,6 +961,23 @@ class MeasureManager(QObject):
             # patch. Drives the current-patch highlight + page flip.
             # Reaching the patch menu also means any failure prompt is closed.
             self._at_retry_prompt = False
+            self._sensor_warning_open = False
+            # WAS THE CHART ALREADY COMPLETE? In patch-by-patch the strip flags
+            # in `session_start` are too coarse to say: a strip whose last
+            # patch is unread still comes back read=true, so a chart with ONE
+            # patch left looked complete and the completion window was silenced
+            # as "not news". Knut, beta.137, measured it exactly: with two
+            # patches left the window came, with one it did not. The first
+            # spot_ready of a session is the honest answer — it arrives before
+            # anything has been read in this session.
+            if not self._saw_spot_ready:
+                self._saw_spot_ready = True
+                # Only when nothing has been read yet in this session, and only
+                # for a resume: that is the moment the answer describes what was
+                # on disk beforehand rather than what this session has done. A
+                # fresh measurement announces its completion either way.
+                if self._is_resume and not self._read_something:
+                    self._chart_was_complete = bool(ev.get("all_done"))
             self.patch_ready.emit(ev)
             # The second half of Skip Patch after a failed read: the retry
             # prompt has just been acknowledged, the menu is listening again,

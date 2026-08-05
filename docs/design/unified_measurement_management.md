@@ -141,6 +141,15 @@ move, because it reads any key but Esc/`q` as *retry*.
 *(The stray semicolon in chartread's own help line — `'B; to move back 10` — is
 Argyll's, at chartread.c:2122.)*
 
+### After the ending window, nothing else asks
+
+"Save and stop" is an answer, not a question. Once it has been given, the
+session ends and **no further window may open about the same ending** — the old
+"Strip Read Interrupted" window appearing behind it was pre-model and is gone
+(Knut, beta.137: *"I have already decided to save and stop, so this is what must
+happen"*). The helper both prints and reports the give-up prompt; the printed
+copy now only completes the chain, never raises a window.
+
 ### What the user's own keys do
 
 | Key | ChromIQ engine | stock chartread |
@@ -158,6 +167,12 @@ and why the two engines cannot share one sequence.
 - **beta.130** taught the stock path that a failed *strip* read leaves a retry
   prompt open. Before that, Save Partial sent `d` straight into that prompt,
   which ate it — Knut's beta.128 report.
+- **beta.138** removed the second window after "Save and stop", let the
+  wrong-dial warning be raised again in engine mode (its one-per-prompt flag was
+  cleared only on chartread's printed menu line, which the engine never emits),
+  and fixed the completion window for a chart with **one** patch left: whether
+  the chart was already complete was read from the strip flags, and in
+  patch-by-patch a strip whose last patch is unread still reports itself read.
 - **beta.137** finished the same story in the two places it still ran out: the
   helper answers the first quit with an **event** in strip mode and with a
   **printed line** in patch-by-patch, and only the event was handled — so

@@ -311,3 +311,84 @@ def test_the_engine_completes_save_partial_from_prose_too():
     m._handle_engine_line("Spot read stopped at user request!", lambda _l: None)
     assert m._runner.out == ['{"cmd": "quit"}\n', '{"cmd": "quit"}\n']
     assert m.save_partial_in_progress is False
+
+
+# ---- "Save and stop" must not be followed by a second question ------------
+def test_save_and_stop_raises_no_interrupted_window():
+    """Knut, beta.137: after answering "Save and stop", the old "Strip Read
+    Interrupted" window appeared on top of the decision he had just made —
+    *"After clicking 'Save and Stop' I have already decided to save and
+    stop."*
+
+    The helper both PRINTS "Strip read stopped at user request!" and reports it
+    as an event. The event finishes the chain; the printed line was raising the
+    window as well.
+    """
+    m = _mgr(engine=True, at_prompt=True)
+    seen = []
+    m.strip_interrupted.connect(lambda: seen.append(True))
+
+    m.send_save_partial_and_quit()
+    m._handle_engine_line('{"event":"strip_interrupted"}', lambda _l: None)
+    m._handle_engine_line("Strip read stopped at user request!", lambda _l: None)
+
+    assert m._runner.out == ['{"cmd": "quit"}\n', '{"cmd": "quit"}\n']
+    assert seen == [], "the window opened over a decision already taken"
+
+
+# ---- the dial warning re-arms on the engine's own menu events -------------
+def test_the_dial_warning_can_be_raised_again_in_engine_mode():
+    """Its one-per-prompt flag was cleared on chartread's printed menu line,
+    which engine mode never produces — so after the first wrong-dial window no
+    further warning ever appeared. Knut, beta.137, strip mode: *"Strip Read
+    Failed window does NOT come! Missing."*"""
+    m = _mgr(engine=True)
+    seen = []
+    m.generic_instrument_error.connect(lambda title, _d: seen.append(title))
+
+    m._handle_engine_line("Spot read failed due to the sensor being in the "
+                          "wrong position", lambda _l: None)
+    assert len(seen) == 1
+    m._handle_engine_line('{"event":"strip_ready","strip":"B","read":false,'
+                          '"all_done":false}', lambda _l: None)
+    m._handle_engine_line("Spot read failed due to the sensor being in the "
+                          "wrong position", lambda _l: None)
+    assert len(seen) == 2
+
+
+# ---- the completion window with ONE patch left ---------------------------
+def test_the_last_patch_still_completes_the_chart():
+    """Knut, beta.137, measured both ways: with two patches left the "All
+    Patches Read" window came, with one it did not.
+
+    "Was the chart already complete?" was read from the strip flags in
+    ``session_start``, and in patch-by-patch a strip whose last patch is unread
+    still comes back ``read: true`` — so a chart with one patch outstanding
+    looked complete, and its completion was silenced as "not news". The first
+    ``spot_ready`` of the session is the honest answer.
+    """
+    import json
+
+    def _run(first_all_done: bool) -> int:
+        m = _mgr(engine=True)
+        m._spot_mode = True
+        m._is_resume = True
+        fired = []
+        m.all_stripes_done.connect(lambda: fired.append(True))
+        m._handle_engine_line(json.dumps(
+            {"event": "session_start",
+             "strips": [{"strip": "A", "read": True},
+                        {"strip": "F", "read": True}]}), lambda _l: None)
+        m._handle_engine_line(json.dumps(
+            {"event": "spot_ready", "id": "1", "loc": "F12",
+             "read": False, "all_done": first_all_done}), lambda _l: None)
+        m._handle_engine_line(json.dumps(
+            {"event": "patch_read", "id": "1", "loc": "F12"}), lambda _l: None)
+        m._handle_engine_line(json.dumps(
+            {"event": "spot_ready", "id": "2", "loc": "F13",
+             "read": True, "all_done": True}), lambda _l: None)
+        return len(fired)
+
+    assert _run(first_all_done=False) == 1, "the last patch completed the chart"
+    assert _run(first_all_done=True) == 0, \
+        "a chart that was already complete has not been completed by opening it"
