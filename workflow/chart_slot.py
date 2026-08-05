@@ -29,7 +29,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from core.file_manager import CHART_SNAPSHOT_DIRNAME, Run, Verification
+from core.file_manager import (CHART_SNAPSHOT_DIRNAME, Calibration, Run,
+                               Verification)
 
 _IMAGE_SUFFIXES = (".tif", ".tiff")
 _RECIPE_SUFFIX = ".channels.json"
@@ -129,7 +130,35 @@ def slot_for_verification(verification: Verification) -> ChartSlot:
                      suffixes=None)
 
 
+def slot_for_calibration(calibration: Calibration) -> ChartSlot:
+    """The project's calibration chart, copied into ``cal/chart/`` (#137).
+
+    A calibration chart is the one chart whose loss could not be undone: it
+    cannot be reloaded, and rebuilding it starts the print-and-measure round
+    again from nothing. Giving it the same slot every other chart has means
+    Restore Used Chart works for it with no new snapshot logic at all — the
+    copying, the "already identical" check and the restore are the ones runs and
+    verifications already use.
+
+    The suffix filter is the profiling one: a calibration folder also holds the
+    measurement (``.ti3``) and the calibration itself (``.cal``), and neither is
+    part of *the chart* — restoring a chart must never put back a stale
+    measurement over a fresh one.
+    """
+    return ChartSlot(live_dir=calibration.dir,
+                     snapshot_dir=calibration.snapshot_dir,
+                     stem=calibration.stem,
+                     suffixes=PROFILING_CHART_SUFFIXES)
+
+
 def slot_for(target) -> ChartSlot:
-    """The slot for whichever of the two *target* is."""
-    return (slot_for_verification(target) if isinstance(target, Verification)
-            else slot_for_run(target))
+    """The slot for whichever of the three *target* is.
+
+    Matched by explicit type rather than by duck-typing, so a new kind of target
+    fails loudly here instead of quietly being treated as a run.
+    """
+    if isinstance(target, Calibration):
+        return slot_for_calibration(target)
+    if isinstance(target, Verification):
+        return slot_for_verification(target)
+    return slot_for_run(target)

@@ -2609,6 +2609,12 @@ class TabChart(QWidget):
                     self._manual_c_pw = pw
                 if tool == "printtarg" and flag == "-A":
                     self._manual_A_pw = pw
+                if tool == "printtarg" and flag == "-N":
+                    # Shown only for charts that actually have extra inks —
+                    # see _update_n_channel_visibility (#137 decision 8).
+                    self._manual_ncal_pw = pw
+                if tool == "targen" and flag == "-d":
+                    self._manual_devtype_pw = pw
 
                 if tool == "targen" and flag == "-D":
                     self._d_cascade_widgets.append(pw)
@@ -2705,6 +2711,15 @@ class TabChart(QWidget):
         self._connect_spacer_mutex()
         self._connect_neutral_dep()
         self._connect_d_cascade()
+        # "Declare extra inks as alpha channels" belongs beside the ink choice,
+        # and only when there ARE extra inks (#137 decision 8: surface it, do
+        # not decide it). An RGB user never needs it and should never see it;
+        # somebody printing CMYK + Orange + Green should not have to go hunting
+        # in Expert Options for the flag their RIP asked them for.
+        _dev = getattr(self, "_manual_devtype_pw", None)
+        if _dev is not None:
+            _dev.value_changed.connect(self._update_n_channel_visibility)
+        self._update_n_channel_visibility()
         self._preset_combo.currentIndexChanged.connect(self._on_preset_selected)
         self._preset_add_btn.clicked.connect(self._on_preset_save)
         self._preset_del_btn.clicked.connect(self._on_preset_delete)
@@ -3522,15 +3537,19 @@ class TabChart(QWidget):
             self._refit_logs()
 
     def set_calibration_mode(self, enabled: bool) -> None:
-        """Show/hide calibration-specific UI and lock to manual mode when enabled."""
+        """Show/hide calibration-specific UI and lock to manual mode when enabled.
+
+        The "Create chart for calibration" checkbox is retired (#137): the bar's
+        Run type says whether a chart is a calibration chart, and two controls
+        for one state is the confusion this removes. Its group stays hidden in
+        both modes.
+        """
         self._mode_row_widget.setVisible(not enabled)
-        self._cal_target_grp.setVisible(enabled)
+        self._cal_target_grp.setVisible(False)
+        self._cal_target_check.setChecked(False)
         if enabled:
             self._switch_mode("manual")
-            if not self._cal_target_check.isChecked():
-                self._check_for_cal_file(self._manual_target_name_edit.text())
-        else:
-            self._cal_target_check.setChecked(False)
+            self._check_for_cal_file(self._manual_target_name_edit.text())
 
     def set_cal_file_paths(self, cal_path: "Path") -> None:
         """Pre-fill the -I and -K parameter widgets with the given .cal path."""
@@ -3540,16 +3559,60 @@ class TabChart(QWidget):
             self._manual_cal_k_pw.set_value(cal_str)
         if self._manual_cal_i_pw is not None:
             self._manual_cal_i_pw.set_value(cal_str)
-        self._cal_target_check.setChecked(False)
+
+    @staticmethod
+    def _fill_without_enabling(pw, value: str) -> None:
+        """Put a path in a file parameter without switching the option on.
+
+        ``ParameterWidget.set_value`` **ticks the enable checkbox** for a
+        ``file_path`` parameter whenever the value is non-empty. That is right
+        when the user picked the file; it is wrong when ChromIQ is only
+        offering one, and it is why the app used to arrive silently at
+        "-I on, -K off": ``-K`` was filled (and ticked), then ``-I`` was filled
+        (and ticked), and the mutual exclusion switched ``-K`` back off (#137
+        D4). Nobody chose that.
+
+        Unticking afterwards is not a fix — it re-fires the mutex. The tick has
+        to never happen, so the enable box is held still while the value goes in.
+        """
+        if pw is None:
+            return
+        box = getattr(pw, "_enable_check", None)
+        if box is None:
+            pw.set_value(value)
+            return
+        was = box.isChecked()
+        blocked = box.blockSignals(True)
+        try:
+            pw.set_value(value)
+            box.setChecked(was)
+        finally:
+            box.blockSignals(blocked)
 
     def _check_for_cal_file(self, name: str) -> None:
-        """Live check: if this project already has a calibration, prefill -I and -K.
+        """Offer this project's calibration to the -K and -I fields.
 
         Calibration lives at ``<project>/cal/<project>-cal.cal`` (one per
         project, shared across runs) — see ``Calibration.cal_path``.
+
+        Two rules, one principle — **ChromIQ may offer, not choose**:
+
+        * It does nothing at all while Preferences → Calibration options is off.
+          The fields it fills live inside a group that preference hides, so
+          filling them there put a calibration into the built chart invisibly
+          (#137 D6). With the preference off this method is a no-op and the app
+          behaves exactly as it did before the feature existed.
+        * It fills both fields and switches **neither** on. ``-K`` reprints every
+          patch value through the calibration and ``-I`` only records it — that
+          is a decision about what lands on paper, and only the user knows
+          whether their printer or RIP applies curves itself (#137 D4).
         """
         name = name.strip()
         if not name:
+            self._cal_status_lbl.setVisible(False)
+            return
+        # THE PREFERENCE GATE (D6). Nothing below may run with it off.
+        if not bool(self._settings.get("calibration_mode", False)):
             self._cal_status_lbl.setVisible(False)
             return
         from core.file_manager import Calibration
@@ -3560,13 +3623,15 @@ class TabChart(QWidget):
         cal_file = Calibration(proj_root).cal_path
         if cal_file.exists():
             cal_str = str(cal_file)
-            if self._manual_cal_k_pw is not None:
-                self._manual_cal_k_pw.set_value(cal_str)
-            if self._manual_cal_i_pw is not None:
-                self._manual_cal_i_pw.set_value(cal_str)
+            self._fill_without_enabling(self._manual_cal_k_pw, cal_str)
+            self._fill_without_enabling(self._manual_cal_i_pw, cal_str)
             self._cal_status_lbl.setText(
-                tr("Calibration file found: {name} — auto-filled into -I and -K "
-                   "fields below.").format(name=cal_file.name)
+                tr("Calibration file found: {name} — filled into the “Apply "
+                   "Calibration File” and “Include Calibration File” fields "
+                   "below. Neither is switched on yet: turn on the one you "
+                   "want. “Apply” reprints every patch through the "
+                   "calibration; “Include” only records it in the chart file. "
+                   "They cannot both be used at once.").format(name=cal_file.name)
             )
             self._cal_status_lbl.setVisible(True)
         else:
@@ -3609,31 +3674,136 @@ class TabChart(QWidget):
                 return "calibration"
         return "chart"
 
-    def _on_cal_target_toggled(self, checked: bool) -> None:
-        _CAL_VALUES: list[tuple[str, str, Any]] = [
-            ("targen",    "-f",  0),
-            ("targen",    "-e",  0),
-            ("targen",    "-B",  0),
-            ("targen",    "-s",  20),
-            ("targen",    "-G",  False),
-            ("printtarg", "-r",  True),
-        ]
-        if checked:
-            self._pre_cal_snapshot = {}
-            for tool, flag, val in _CAL_VALUES:
+    #: What a calibration chart is: a plain ramp of one channel at a time.
+    #: `-s 20` IS the calibration; everything else is turned off so nothing
+    #: pads it. Applied when Run type becomes Calibration, undone when it
+    #: stops being Calibration.
+    _CAL_VALUES: "list[tuple[str, str, Any]]" = [
+        ("targen",    "-f",  0),
+        ("targen",    "-e",  0),
+        ("targen",    "-B",  0),
+        ("targen",    "-s",  20),
+        ("targen",    "-G",  False),
+        ("printtarg", "-r",  True),
+    ]
+
+    #: The four "Auto" boxes that must go off with them, by attribute name.
+    #: Writing 0 into the spinboxes is not enough on its own: while "Auto" is
+    #: ticked it owns the box, has disabled it, and the page-filling estimate
+    #: overrides the value at Generate — which is exactly how a calibration
+    #: chart came to be built as a general test chart (#137 D7).
+    _CAL_AUTO_CHECKS = ("_manual_auto_patches_check", "_manual_auto_white_check",
+                        "_manual_auto_black_check", "_manual_auto_grey_check")
+
+    def _apply_calibration_knobs(self, on: bool) -> None:
+        """Set (or put back) everything Run type = Calibration decides.
+
+        Sebastian, 2026-08-05: *"setting run type to calibration turns the auto
+        settings off … total patch count, white, black patches, grey axis
+        steps. Single channel steps should be set to 20 … and then also be
+        reset to how it was before when the user sets another runtype again."*
+
+        Restoring means the **tick state and the value**, both, so a user who
+        had set Single Channel Steps by hand gets their number back and not the
+        calibration's 20. The snapshot is taken once, on the way in; going to
+        Calibration twice must not overwrite the originals with calibration
+        values (#137 R1), which is what the ``is not None`` guard below is for.
+        """
+        if on:
+            if self._pre_cal_snapshot is not None:
+                return                      # already in calibration state (R1)
+            snap: dict = {}
+            for tool, flag, val in self._CAL_VALUES:
                 for pw in self._manual_widgets.get(tool, []):
                     if pw.flag == flag:
-                        self._pre_cal_snapshot[(tool, flag)] = pw.get_raw_value()
+                        snap[(tool, flag)] = pw.get_raw_value()
                         pw.set_value(val)
+            # The Auto boxes: remember the tick, untick it, then disable it, so
+            # the row reads as "not yours to set right now" rather than as an
+            # invitation to tick it and get a chart printcal cannot use.
+            for name in self._CAL_AUTO_CHECKS:
+                cb = getattr(self, name, None)
+                if cb is None:
+                    continue
+                snap[("auto", name)] = cb.isChecked()
+                snap[("tip", name)] = cb.toolTip()
+                cb.setChecked(False)        # fires the handler → re-enables -f
+                cb.setEnabled(False)
+                # The literal lives HERE, inside tr(), on purpose: tr() with a
+                # variable is invisible to scripts/i18n_extract.py, so the
+                # string would never reach a catalogue and never be translated.
+                cb.setToolTip(tr(
+                    "A calibration chart is a plain ramp of one channel at a "
+                    "time, so its size is decided by “Single Channel Steps” "
+                    "below — not by filling a number of pages. That is why the "
+                    "automatic patch counts are switched off here.\n\n"
+                    "Change “Run type” back to “Profiling” and your previous "
+                    "settings come back exactly as you left them."))
+            # Pages only means anything while Auto patch count is deciding the
+            # total, so it goes quiet with them.
+            for name in ("_manual_pages_spin", "_manual_pages_lbl"):
+                w = getattr(self, name, None)
+                if w is not None:
+                    w.setEnabled(False)
+            self._pre_cal_snapshot = snap
+            self._open_targen_section_for_calibration()
         else:
-            if self._pre_cal_snapshot:
-                for tool, flag, _ in _CAL_VALUES:
-                    saved = self._pre_cal_snapshot.get((tool, flag))
-                    if saved is not None:
-                        for pw in self._manual_widgets.get(tool, []):
-                            if pw.flag == flag:
-                                pw.set_value(saved)
+            snap = self._pre_cal_snapshot
+            if not snap:
+                self._pre_cal_snapshot = None
+                return
+            for name in self._CAL_AUTO_CHECKS:
+                cb = getattr(self, name, None)
+                if cb is None:
+                    continue
+                cb.setEnabled(True)
+                tip = snap.get(("tip", name))
+                if tip is not None:
+                    cb.setToolTip(tip)
+                was = snap.get(("auto", name))
+                if was is not None:
+                    cb.setChecked(bool(was))
+            for tool, flag, _ in self._CAL_VALUES:
+                saved = snap.get((tool, flag))
+                if saved is not None:
+                    for pw in self._manual_widgets.get(tool, []):
+                        if pw.flag == flag:
+                            pw.set_value(saved)
+            # Pages follows Auto patch count again, exactly as it always did.
+            auto_cb = getattr(self, "_manual_auto_patches_check", None)
+            self._on_auto_patches_toggled(
+                bool(auto_cb.isChecked()) if auto_cb is not None else False)
             self._pre_cal_snapshot = None
+
+    def _open_targen_section_for_calibration(self) -> None:
+        """Open the targen section and bring the ramp rows into view.
+
+        Sebastian: *"the targen settings in create chart should not be
+        collapsed so the user directly sees where to dial in the desired
+        settings."* Opening it is not enough on its own — "Single Channel
+        Steps", the row that decides the calibration, sits below the fold.
+        """
+        grp = getattr(self, "_manual_targen_grp", None)
+        if grp is not None and hasattr(grp, "set_collapsed"):
+            grp.set_collapsed(False)
+        from PyQt6.QtWidgets import QAbstractScrollArea
+
+        def _reveal(flag: str, y_margin: int) -> None:
+            for pw in self._manual_widgets.get("targen", []):
+                if pw.flag == flag:
+                    node = pw.parentWidget()
+                    while node is not None and not isinstance(node, QAbstractScrollArea):
+                        node = node.parentWidget()
+                    if node is not None:
+                        node.ensureWidgetVisible(pw, 60, y_margin)
+                    return
+        # Last row first, then the first — so the whole block lands in view.
+        _reveal("-s", 140)
+        _reveal("-f", 40)
+
+    def _on_cal_target_toggled(self, checked: bool) -> None:
+        """Kept for the retired checkbox's call sites; the run type drives it."""
+        self._apply_calibration_knobs(bool(checked))
 
     def _make_lineedit(self, text: str, parent: QWidget) -> Any:
         # Target-name fields support a locked, auto-updated descriptive prefix
@@ -4865,6 +5035,37 @@ class TabChart(QWidget):
             if n.is_enabled_by_user:
                 n.set_user_enabled(False)
             n.setEnabled(False)
+
+    #: targen -d values whose ink set is bigger than CMYK. From the parameter's
+    #: own label list: 0 grey, 1 video grey, 2 RGB, 3 video RGB, 4 CMYK, 5 CMY —
+    #: everything from 6 up adds inks on top of CMYK.
+    _N_CHANNEL_FIRST_DEVICE_TYPE = 6
+
+    def _update_n_channel_visibility(self, *_args) -> None:
+        """Show the "-N" row only for a chart with more than four inks.
+
+        Every ink is written to the TIFF either way; the flag only changes how
+        the extras are LABELLED, and a reader that honours it may treat those
+        channels as transparency rather than ink. So it is offered where it can
+        matter and hidden where it cannot, and it is never switched on for the
+        user — that is a fact about their RIP, not something ChromIQ can read
+        out of the chart.
+        """
+        pw = getattr(self, "_manual_ncal_pw", None)
+        dev = getattr(self, "_manual_devtype_pw", None)
+        if pw is None:
+            return
+        wanted = False
+        if dev is not None:
+            try:
+                wanted = int(dev.get_raw_value() or 0) >= self._N_CHANNEL_FIRST_DEVICE_TYPE
+            except (TypeError, ValueError):
+                wanted = False
+        pw.setVisible(wanted)
+        if not wanted and pw.get_raw_value():
+            # Leaving it ticked but invisible would put a flag on the command
+            # line that nothing on screen explains.
+            pw.set_value(False)
 
     def _connect_d_cascade(self) -> None:
         for i, pw in enumerate(self._d_cascade_widgets):
@@ -8148,11 +8349,20 @@ class TabChart(QWidget):
         # alone — it routes chart_creator to cal/ (stem "calibration") vs the
         # current run folder (stem "chart"). The project folder is always
         # base_name; the file stem no longer carries a cal_ prefix.
-        cal_target_active = (
-            hasattr(self, "_cal_target_check")
-            and self._cal_target_check.isChecked()
-            and self._cal_target_grp.isVisible()
-        )
+        # WHERE THE BUILD GOES: cal/ or the run folder. Driven by the bar's Run
+        # type (#137); the old "Create chart for calibration" checkbox is kept
+        # only as a fallback for a window with no bar attached, so a build can
+        # never silently lose its calibration routing.
+        _ctl_cal = getattr(self, "_target_ctl", None)
+        if _ctl_cal is not None:
+            cal_target_active = bool(
+                getattr(_ctl_cal.target, "is_calibration", bool)())
+        else:
+            cal_target_active = (
+                hasattr(self, "_cal_target_check")
+                and self._cal_target_check.isChecked()
+                and self._cal_target_grp.isVisible()
+            )
         params.cal_target = cal_target_active
         params.target_name = base_name
         self._last_target_name = base_name
@@ -8208,6 +8418,15 @@ class TabChart(QWidget):
         # custom layouts (binary search shells out to targen/printtarg
         # via subprocess.run), so we defer to the click.
         if (self._current_mode() == "manual"
+                # A CALIBRATION CHART'S SIZE COMES FROM THE RAMP, NOT THE PAGES.
+                # Belt and braces beside the UI state: the Auto boxes are
+                # already off and disabled while Run type = Calibration, and
+                # this guard keeps the built command right even if some future
+                # path reaches Generate with Auto still on. Without it the
+                # command preview (which reads the disabled -f widget and
+                # prints -f0) and the real build disagree in silence — which is
+                # exactly how #137 D7 went unnoticed.
+                and not cal_target_active
                 and self._manual_auto_patches_check is not None
                 and self._manual_auto_patches_check.isChecked()):
             self._log.appendPlainText("Calculating patch count…")
@@ -8848,6 +9067,18 @@ class TabChart(QWidget):
         while you are still settling on chart options — never sees it.
         """
         ctl = getattr(self, "_target_ctl", None)
+        # Duck-typed: several tests (and any other host) supply a target double
+        # that predates the calibration run type. Asking for the attribute
+        # rather than assuming it keeps them all working, and a target that
+        # cannot be a calibration answers "no" — which is the honest default.
+        if ctl is not None and getattr(ctl.target, "is_calibration", bool)():
+            # A CALIBRATION BUILD TOUCHES cal/, NOT THE RUN (#137 D2).
+            # Asking assess_profiling_chart() about the run here warned the user
+            # that their measurement and profile were about to move — while the
+            # build left both exactly where they were, and said nothing about
+            # the calibration it really was replacing. Wrong in both directions
+            # at once.
+            return self._confirm_replacing_calibration()
         if ctl is not None and not ctl.target.profile_run:
             # "New run" — the build makes a fresh, empty run, so nothing at all
             # is displaced. The results belong to whichever run happened to be
@@ -9078,6 +9309,105 @@ class TabChart(QWidget):
                         exc_info=True)
             self._preview.clear()
 
+    def _confirm_replacing_calibration(self) -> bool:
+        """Ask before a new calibration chart replaces the one in ``cal/``.
+
+        A calibration is a whole printed and measured sheet's worth of work, and
+        it is what ``printcal``'s Re-calibrate and Verify modes read back — so
+        losing it silently costs the user the round trip AND those two modes.
+        Nothing is deleted: everything moves to ``cal/old/<date>/`` and can be
+        gone back to at any time. This only makes the move visible.
+        """
+        from PyQt6.QtWidgets import QMessageBox
+        from ui.widgets import fit_message_box_buttons
+
+        try:
+            proj = self._file_mgr.project()
+            cal = proj.calibration
+        except Exception:      # noqa: BLE001 — no project yet: nothing at risk
+            return True
+        if not cal.live_files():
+            return True                     # nothing there to replace
+
+        measured = cal.ti3.exists() or cal.cal_path.exists()
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        if measured:
+            box.setWindowTitle(tr("Replace this project's calibration?"))
+            box.setText(tr(
+                "This project already has a finished calibration, and "
+                "generating a new chart starts that work again from the "
+                "beginning."))
+            body = [tr(
+                "You would need to print the new chart and measure it before "
+                "this project has a calibration once more."), "",
+                tr("These move to the project's \u201ccal/old\u201d folder, in a "
+                   "folder named with today's date — nothing is deleted, and "
+                   "you can go back to them at any time:"),
+                tr("  •  the calibration chart"),
+                tr("  •  its measurement"),
+                tr("  •  the calibration file (.cal) made from it")]
+            runs = self._runs_built_on_calibration(proj)
+            if len(runs) == 1:
+                body += ["", tr(
+                    "{run} was built using this calibration. It is not changed, "
+                    "and its profile keeps working — but it was made with the "
+                    "calibration you are about to replace.").format(
+                        run=self._pretty_run_name(runs[0]))]
+            elif len(runs) > 1:
+                body += ["", tr(
+                    "{runs} were built using this calibration. They are not "
+                    "changed, and their profiles keep working — but they were "
+                    "made with the calibration you are about to replace."
+                ).format(runs=self._join_run_names(runs))]
+            go = tr("Replace the calibration")
+        else:
+            box.setWindowTitle(tr("Replace this project's calibration chart?"))
+            box.setText(tr(
+                "You already made a calibration chart for this project, but it "
+                "has not been measured yet."))
+            body = [tr(
+                "Generating a new one replaces it. Nothing is deleted: the "
+                "chart you have now moves to the project's \u201ccal/old\u201d "
+                "folder, in a folder named with today's date, and you can go "
+                "back to it at any time.")]
+            go = tr("Replace the chart")
+        box.setInformativeText("\n".join(body))
+        ok = box.addButton(go, QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(ok)
+        fit_message_box_buttons(box)
+        box.exec()
+        return box.clickedButton() is ok
+
+    @staticmethod
+    def _pretty_run_name(run_id: str) -> str:
+        n = run_id[3:] if run_id.startswith("run") else run_id
+        return tr("Run {n}").format(n=n)
+
+    def _join_run_names(self, run_ids: "list[str]") -> str:
+        """"Runs 3, 5 and 6" — a real list, never "Run(s)"."""
+        names = [self._pretty_run_name(r) for r in run_ids]
+        head = ", ".join(names[:-1])
+        return tr("{head} and {last}").format(head=head, last=names[-1])
+
+    def _runs_built_on_calibration(self, proj) -> "list[str]":
+        """Runs whose profile was built with the calibration now in ``cal/``.
+
+        Absent means unknown — every run built before ChromIQ recorded this
+        simply does not say, and guessing would be worse than staying quiet.
+        """
+        out: list[str] = []
+        try:
+            stem = proj.calibration.stem
+            for run in proj.all_runs():
+                if getattr(run.meta, "calibration_used", "") == stem:
+                    out.append(run.id)
+        except Exception:      # noqa: BLE001 — never block a build on this
+            log.debug("could not list runs built on the calibration",
+                      exc_info=True)
+        return out
+
     def _resolve_target_chart(self) -> "tuple[Path, list[Path], Path] | None":
         """``(ti2, tiffs, ti1)`` for the current Profile-run / Run-type target's
         EXISTING chart — the verification chart for Run type = Verification, the
@@ -9091,6 +9421,16 @@ class TabChart(QWidget):
             if proj is None:
                 return None
             t = ctl.target
+            if getattr(t, "is_calibration", bool)():
+                # THE CALIBRATION CHART IS A CHART LIKE ANY OTHER (#137 D3).
+                # Resolving it here means the preview, Print Chart and Measure
+                # all follow with no change of their own — and it is what makes
+                # a calibration chart reloadable at all, which it was not.
+                cal = proj.calibration
+                tiffs = cal.chart_tiffs()
+                if cal.ti2.is_file() and tiffs:
+                    return cal.ti2, list(tiffs), cal.ti1
+                return None
             run_id = t.profile_run
             if not run_id or not proj.has_run(run_id):
                 return None                      # "New run" / no such run yet
@@ -9388,6 +9728,12 @@ class TabChart(QWidget):
         if cur_name and cur_name != getattr(self, "_last_shown_project_name", None):
             self._last_shown_project_name = cur_name
             self._update_name_fields()
+        # RUN TYPE = CALIBRATION SETS THE CHART UP (#137). Applied here, in the
+        # one place a target change lands, so the knobs can never disagree with
+        # the bar. Idempotent: _apply_calibration_knobs returns immediately if
+        # the state is already what is asked for (R1).
+        self._apply_calibration_knobs(
+            bool(getattr(ctl.target, "is_calibration", bool)()))
         resolved = self._resolve_target_chart()
         if resolved is None:
             if self._shown_chart_ti2 is not None:

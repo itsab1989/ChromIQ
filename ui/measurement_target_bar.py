@@ -17,13 +17,17 @@ from core.i18n import tr
 from core.platform_paths import file_manager_name
 from core.logger import get_logger
 from core.measurement_target import (
-    RUN_TYPE_PROFILING, RUN_TYPE_VERIFICATION, MeasurementTarget)
+    RUN_TYPE_CALIBRATION, RUN_TYPE_PROFILING, RUN_TYPE_VERIFICATION,
+    MeasurementTarget, coerce_run_type)
 from ui.tooltip_button import TooltipButton
 from ui.widgets import NoScrollComboBox
 
 log = get_logger(__name__)
 
 _NEW = "\x00new"          # sentinel userData for the "New …" combo entries
+#: "Profile run" while Run type = Calibration — a project has exactly one
+#: calibration, so the box shows this single, unselectable entry (#137).
+_CAL = "__calibration__"
 
 #: The hint sentence against the row's trailing stretch. Ratios, not pixels: the
 #: sentence gets the room, the stretch gets what is left of it.
@@ -53,6 +57,36 @@ class MeasurementTargetController(QObject):
         # exists on disk, so the location line can answer "where will this go?"
         # while the user is still setting up (#130, Knut).
         self._pending_name = ""
+        #: Preferences → Calibration options (#137). WITH THIS OFF THE APP MUST
+        #: BEHAVE EXACTLY AS IT DID BEFORE: the third run type is not offered,
+        #: cannot be reached, and a stored one is coerced away on the next
+        #: read. Every calibration branch in this file is guarded by it.
+        self._calibration_allowed = False
+
+    def set_calibration_allowed(self, allowed: bool) -> None:
+        """Follow Preferences → Calibration options.
+
+        Switching it OFF while Calibration is selected drops back to Profiling —
+        the selection would otherwise be unreachable but still active, which is
+        the one way this feature could change behaviour for somebody who has it
+        switched off.
+        """
+        allowed = bool(allowed)
+        if allowed == self._calibration_allowed:
+            return
+        self._calibration_allowed = allowed
+        if not allowed and self._target.is_calibration():
+            self._target.run_type = RUN_TYPE_PROFILING
+        self.changed.emit()
+
+    @property
+    def calibration_allowed(self) -> bool:
+        return self._calibration_allowed
+
+    def calibration_or_none(self):
+        """The project's one calibration, or None when no project is open."""
+        p = self.project_or_none()
+        return None if p is None else p.calibration
 
     def set_pending_project_name(self, raw: str) -> None:
         """Track the profile-project name being typed, so the bar's location
@@ -116,6 +150,11 @@ class MeasurementTargetController(QObject):
 
     # ---- mutators (each emits changed only on a real change) --------------
     def set_run_type(self, value: str) -> None:
+        # Coerced, never trusted: the value can arrive from a settings file
+        # written while the preference was on, and Profiling is the only safe
+        # landing place (#137 E21).
+        value = coerce_run_type(value,
+                                calibration_allowed=self._calibration_allowed)
         if value != self._target.run_type:
             self._target.run_type = value
             self.changed.emit()
@@ -236,6 +275,28 @@ class MeasurementTargetController(QObject):
                 "Not while a measurement is running. It will be available "
                 "again as soon as the current measurement finishes or is "
                 "stopped.")
+        if self._target.is_calibration():
+            cal = self.calibration_or_none()
+            if cal is None:
+                return False, tr(
+                    "Open or create a printer profile project first — there is "
+                    "no calibration chart to put back yet.")
+            slot = slot_for(cal)
+            if not slot_has_snapshot(slot):
+                return False, tr(
+                    "This project has no stored copy of a calibration chart "
+                    "yet. A copy is kept as soon as you start measuring the "
+                    "calibration chart, and this button can put it back "
+                    "afterwards.")
+            if snapshot_matches_live(slot):
+                return False, tr(
+                    "The calibration chart on disk is already identical to the "
+                    "stored copy, so there is nothing to put back.")
+            return True, tr(
+                "Put back the calibration chart this project's calibration was "
+                "measured with, exactly as it was printed — the pages, the "
+                "patch layout and the .ti2 behind them. Use this when you want "
+                "to reprint the sheet or read it again.")
         if self._target.is_verification():
             verification = self.selected_verification()
             if verification is None:
@@ -338,6 +399,13 @@ class MeasurementTargetController(QObject):
     def delete_state(self) -> "tuple[bool, str]":
         """``(enabled, tooltip)`` for the Delete button — the same shape as
         :meth:`restore_state`, so the two buttons behave alike."""
+        if self._target.is_calibration():
+            return False, tr(
+                "A project has exactly one calibration, and it is replaced "
+                "rather than deleted: making a new calibration chart moves the "
+                "one you have into the project's “cal/old” folder, named with "
+                "the date, so you can always go back to it. Switch “Run type” "
+                "to Profiling to delete a run.")
         from core.run_delete import block_tooltip, tooltip_for
         plan = self.delete_plan()
         if isinstance(plan, str):
@@ -434,6 +502,11 @@ class MeasurementTargetController(QObject):
             return False, tr(
                 "Open or create a printer profile first — there is no run yet "
                 "to duplicate.")
+        if self.target.is_calibration():
+            return False, tr(
+                "Duplicating works on a profiling run. A project has exactly "
+                "one calibration, so there is nothing to duplicate here — "
+                "switch “Run type” to Profiling to duplicate a run.")
         if self.target.is_verification():
             return False, tr(
                 "Duplicating works on a profiling run. Switch “Run type” to "
@@ -572,7 +645,21 @@ class MeasurementTargetBar(QWidget):
             "“run”, kept in its own folder. Pick an existing run to work on it "
             "again — that overwrites that run's files — or choose “New run” to "
             "start a fresh profile alongside the ones you already have. Your "
-            "older runs are never touched unless you select them here."))
+            "older runs are never touched unless you select them here.\n\n"
+            "While “Run type” is set to Calibration this shows “Project "
+            "calibration” and cannot be changed: a calibration describes your "
+            "printer, your paper and your inks — not one particular profile — "
+            "so a project keeps exactly one, in its “cal” folder, and every "
+            "profile run can use it. There is no run to pick."))
+        #: The Calibration tooltip, swapped in while that run type is selected
+        #: so the disabled box explains itself where the user tries to click.
+        self._run_combo_cal_tip = tr(
+            "A calibration describes your printer, your paper and your inks — "
+            "not one particular profile — so a project keeps exactly one, in "
+            "its “cal” folder, and every profile run can use it. There is no "
+            "run to pick here.\n\n"
+            "Switch “Run type” to Profiling or Verification to choose a run "
+            "again.")
         self._run_combo.currentIndexChanged.connect(self._on_run_changed)
         # Wide enough that its content ("Run N (overwrite)", "New run") stays
         # fully readable instead of being truncated (Basti); grows to fit longer
@@ -594,8 +681,8 @@ class MeasurementTargetBar(QWidget):
         self._type_combo.addItem(tr("Profiling"), RUN_TYPE_PROFILING)
         self._type_combo.addItem(tr("Verification"), RUN_TYPE_VERIFICATION)
         self._type_combo.setToolTip(tr(
-            "Are you building the printer profile itself, or checking a "
-            "finished one?\n\n"
+            "Are you building the printer profile itself, checking a finished "
+            "one, or preparing the printer first?\n\n"
             "• Profiling — measure a chart printed with colour management OFF, "
             "so ChromIQ can learn your printer and build a profile from it. "
             "This is the normal choice.\n\n"
@@ -603,7 +690,16 @@ class MeasurementTargetBar(QWidget):
             "a finished profile, with colour management ON, to check how "
             "accurate that profile still is. A verification never builds a "
             "profile; it is kept as a dated record so you can watch a profile "
-            "hold up — or drift — over time."))
+            "hold up — or drift — over time.\n\n"
+            "• Calibration — measure a special chart that brings the printer "
+            "itself to a known, repeatable state before any profile is built. "
+            "It produces a calibration file (.cal) which every profile run of "
+            "this project can then use. One calibration is shared by the whole "
+            "project, so there is nothing to choose under “Profile run” while "
+            "this is selected. This step is optional; use it when you want "
+            "your printer to behave the same way today and in six months.\n\n"
+            "“Calibration” is offered only while calibration options are "
+            "switched on in Preferences."))
         self._type_combo.currentIndexChanged.connect(self._on_type_changed)
         row.addWidget(self._type_combo)
 
@@ -1104,7 +1200,13 @@ class MeasurementTargetBar(QWidget):
         self._last_labels = tuple(verify_labels)
         self._fit_box(self._run_combo,
                       [self._run_combo.itemText(i)
-                       for i in range(self._run_combo.count())])
+                       for i in range(self._run_combo.count())]
+                      # "Project calibration" is longer than "Run 8
+                      # (overwrite)", which is what this box's floor was sized
+                      # for. Included whatever is selected, so the box does not
+                      # resize as the user moves between run types.
+                      + ([tr("Project calibration")]
+                         if self._ctl.calibration_allowed else []))
         self._fit_box(self._type_combo,
                       [self._type_combo.itemText(i)
                        for i in range(self._type_combo.count())])
@@ -1630,18 +1732,42 @@ class MeasurementTargetBar(QWidget):
                 if not hasattr(w, "_cq_tip"):
                     w._cq_tip = w.toolTip()
                 w.setToolTip(note if locked else w._cq_tip)
+            # …and the run box goes quiet while Calibration is selected: there
+            # is exactly one calibration, so there is nothing to choose. AFTER
+            # the loop above, which would otherwise put the general tooltip
+            # straight back over this one.
+            if self._ctl.target.is_calibration():
+                self._run_combo.setEnabled(False)
+                if not locked:
+                    self._run_combo.setToolTip(self._run_combo_cal_tip)
             self._hint_wanted = not has_project
             self._hint.setVisible(self._hint_wanted)
             self._place_hint()
             # Run dropdown: "Run N (overwrite)" per existing run + "New run".
             self._run_combo.clear()
-            for rid in self._ctl.run_ids():
-                self._run_combo.addItem(
-                    tr("{run} (overwrite)").format(run=self._pretty_run(rid)), rid)
-            self._run_combo.addItem(tr("New run"), _NEW)
-            self._select_data(self._run_combo, t.profile_run or _NEW)
+            is_cal = t.is_calibration()
+            if is_cal:
+                # ONE CALIBRATION PER PROJECT, so there is no run to pick
+                # (#137 A1). The box stays visible and shows what will be
+                # worked on, rather than disappearing and moving everything
+                # else along the bar.
+                #
+                # t.profile_run is deliberately NOT written back from here:
+                # the user's run selection has to survive the round trip to
+                # Calibration and back (#137 R3).
+                self._run_combo.addItem(tr("Project calibration"), _CAL)
+                self._run_combo.setCurrentIndex(0)
+            else:
+                for rid in self._ctl.run_ids():
+                    self._run_combo.addItem(
+                        tr("{run} (overwrite)").format(run=self._pretty_run(rid)), rid)
+                self._run_combo.addItem(tr("New run"), _NEW)
+                self._select_data(self._run_combo, t.profile_run or _NEW)
 
-            # Run type.
+            # Run type. The third value is offered only while the preference is
+            # on; with it off this loop rebuilds the two-value box the app has
+            # always had, so nothing about that case changes (#137 E1).
+            self._rebuild_type_combo()
             self._select_data(self._type_combo, t.run_type)
 
             # Verification dropdown (only for verification + when allowed here).
@@ -1713,7 +1839,43 @@ class MeasurementTargetBar(QWidget):
         if self._syncing:
             return
         data = self._run_combo.currentData()
+        if data == _CAL:
+            # THE ONE THING THAT MUST NEVER HAPPEN (#137 R3): writing the
+            # calibration sentinel into profile_run would destroy the run the
+            # user had selected, and they would come back from Calibration to
+            # the wrong one. The box is disabled while Calibration is selected,
+            # so this is belt and braces — but it is the failure that would be
+            # silent and would cost work, so it is guarded rather than assumed.
+            return
         self._ctl.set_profile_run("" if data == _NEW else str(data))
+
+    def _rebuild_type_combo(self) -> None:
+        """Repopulate "Run type", with Calibration only while it is allowed.
+
+        Rebuilt rather than shown/hidden because a QComboBox cannot hide one
+        item; and rebuilt in place (signals blocked by the caller's _syncing
+        guard) so no spurious selection change escapes to the tabs.
+        """
+        want = [(tr("Profiling"), RUN_TYPE_PROFILING),
+                (tr("Verification"), RUN_TYPE_VERIFICATION)]
+        if self._ctl.calibration_allowed:
+            want.append((tr("Calibration"), RUN_TYPE_CALIBRATION))
+        have = [(self._type_combo.itemText(i), self._type_combo.itemData(i))
+                for i in range(self._type_combo.count())]
+        if have == want:
+            return
+        self._type_combo.clear()
+        for label, data in want:
+            self._type_combo.addItem(label, data)
+
+    def set_calibration_allowed(self, allowed: bool) -> None:
+        """Follow Preferences → Calibration options (#137).
+
+        Called by MainWindow's existing fan-out, so the bar changes at exactly
+        the same moment the tabs do.
+        """
+        self._ctl.set_calibration_allowed(allowed)
+        self.refresh()
 
     def _on_type_changed(self, _i: int) -> None:
         if self._syncing:

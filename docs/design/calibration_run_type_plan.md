@@ -152,7 +152,7 @@ Read at the run-type change handler (**T6**, the code moving out of `_on_cal_tar
 | 3 Measure | unchanged — measures whatever tab 1 resolved; writes `cal/<stem>.ti3` | — | (no change; **T8**) |
 | 4 Calibration & Profiling | **Create Calibration File only** | `t.run_type` | **T11** — `TabProfile.set_calibration_mode` (`ui/tabs/tab_profile.py:628`) gains a run-type input |
 | 4, Run type = Profiling **with** the preference on | Build Profile **and** Apply Calibration | same | **T11** |
-| 5 Check & Refine | unchanged | — | — |
+| 5 Check & Refine | unchanged | — | *(nothing to do — no calibration branch)* |
 
 ### Table E · Restore / Duplicate / Delete × Run type
 
@@ -201,7 +201,7 @@ Inputs: `calibration_mode` × does `cal/<stem>.cal` exist × what the user has a
 | E17 | Switch to Calibration in **Guided** mode | Calibration forces Manual (as `set_calibration_mode` already does, `:3527`) | **T6** |
 | E18 | A preset is loaded while Calibration is selected | Preset values land in the snapshot, not on screen; calibration values win until the type changes | **T6** |
 | E19 | N-channel device type (`-d6`+) with Calibration | `-s` ramp per channel; `-N` visible and off (decision 8) | **T11** |
-| E20 | Two ChromIQ windows on one project | Out of scope — unchanged from today (no file locking exists) | — |
+| E20 | Two ChromIQ windows on one project | Out of scope — unchanged from today (no file locking exists) | *(nothing to do — pre-existing, not introduced here)* |
 | E21 | `Run type = Calibration` persisted in settings, preference later off | On load, coerce to Profiling (E2 path) | **T5** |
 
 ### Table H · Every user-facing string, and where it lives

@@ -866,22 +866,29 @@ parameters:
         printing.
 
     - flag: "-N"
-      name: "N-Channel TIFF (>4 inks)"
+      name: "Declare extra inks as alpha channels"
       type: boolean
       default: false
       affects_preview: false
-      expert_only: true
-      tooltip_title: "N-Channel TIFF (-N)"
+      expert_only: false
+      tooltip_title: "Declare Extra Inks as Alpha Channels (-N)"
       tooltip_body: |
-        For printers with more than 4 ink channels (e.g. CMYK plus
-        additional spot colours), standard TIFF only supports up to
-        4 channels.  This flag makes printtarg encode the extra
-        channels using TIFF's alpha-channel slots so that all ink
-        values are preserved in a single file.
+        Only for charts with more than four inks, and only if the
+        software you hand the TIFF to asks for it.
 
-        Enable this only if your printer driver or RIP expects a
-        multi-channel TIFF.  For standard RGB or CMYK profiling
-        you do not need this option.
+        A TIFF says what its first channels are, but has no standard
+        way to name a fifth, sixth or seventh ink.  This option marks
+        the extra ones as "alpha" channels, which is the flag some
+        RIPs look for.
+
+        EVERY INK IS WRITTEN TO THE FILE EITHER WAY.  This changes how
+        they are labelled, not what is in them, and ChromIQ's own
+        printing does not need it.
+
+        Leave it off unless your RIP's documentation asks for the
+        extra inks to be declared.  Some readers treat an alpha
+        channel as transparency rather than ink, so switching it on
+        blindly can do more harm than leaving it alone.
 
     - flag: "-K"
       name: "Apply Calibration File"

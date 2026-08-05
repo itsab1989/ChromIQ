@@ -1144,6 +1144,12 @@ class MainWindow(QMainWindow):
         for tab in (self._tab_chart, self._tab_measure, self._tab_profile, self._tab_check):
             if hasattr(tab, "set_calibration_mode"):
                 tab.set_calibration_mode(enabled)
+        # The bar is the fifth listener (#137): the "Calibration" run type is
+        # offered only while this preference is on, and switching the
+        # preference off while it is selected drops back to Profiling. One
+        # fan-out, so the bar and the tabs can never disagree about the mode.
+        if getattr(self, "_target_bar", None) is not None:
+            self._target_bar.set_calibration_allowed(enabled)
         # Same refresh moment for the profile-engine beta selector (#122).
         profile_idx = self._tabs.indexOf(self._tab_profile)
         self._tabs.setTabText(

@@ -258,7 +258,9 @@ def _folders():
         ("runs/runN/exports/", tr("Files made for use in other programs — the i1Profiler patch set and the plain colour list.")),
         ("runs/runN/cache/", tr("Temporary working files from the tools. Always safe to delete — ChromIQ can recreate everything in here.")),
         ("runs/runN/reads/", tr("Your individual readings when you measure a chart more than once to average.")),
-        ("cal/", tr("The optional printer-calibration target and its curves, shared by every run of this project.")),
+        ("cal/", tr("The optional printer-calibration target and its curves, shared by every run of this project. A project can contain this folder even when calibration options are switched off in Preferences — nothing is using it then, your charts and profiles are built without it, and switching calibration options back on makes it available again exactly as you left it. Nothing needs deleting.")),
+        ("cal/chart/", tr("A copy of the calibration chart exactly as it was printed, kept from the moment you start measuring it. “Restore Used Chart” puts this back, so you can reprint the sheet or read it again even after the chart has been regenerated.")),
+        ("cal/old/", tr("Earlier calibrations. Making a new calibration chart moves what was there into a folder named with the date rather than deleting it, so an earlier .cal can always be read back — which is also what printcal's “Re-calibrate” and “Verify” modes compare against. Each run also records which calibration it was built with, so ChromIQ can tell you which of them a given profile came from; runs made before ChromIQ started recording that simply say it is unknown.")),
         ("exports/", tr("Files made for other programs from the Tools menu (project-wide, not tied to one run).")),
     ]
 

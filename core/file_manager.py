@@ -276,6 +276,12 @@ class RunMeta:
     # Set to "merged.ti3" when a refinement merge ran; otherwise the canonical
     # measurement carries the (project-name) chart stem.
     profile_built_from: str = ""
+    # #137: which calibration this run's profile was built with, by stem. Absent
+    # (empty) means UNKNOWN — the honest state of every run built before ChromIQ
+    # recorded it, and of every run built without a calibration at all. Once a
+    # calibration is replaced the older one lives on in cal/old/<date>/, so a
+    # stored stem stays resolvable rather than dangling.
+    calibration_used: str = ""
     status: str = "in_progress"          # in_progress | complete
     # TI2 layout editor only: the printtarg layout knobs (a LayoutOptions dict)
     # the chart was rendered with + its file basename, so reopening the chart in
@@ -377,11 +383,81 @@ class Calibration:
         self.dir.mkdir(parents=True, exist_ok=True)
         return self.dir
 
+    # ---- the archive (#137 D1) -------------------------------------------
+    @property
+    def old_dir(self) -> Path:                return self.dir / "old"
+
+    @property
+    def snapshot_dir(self) -> Path:
+        """Where the calibration chart's stored copy lives (#137 decision 3).
+
+        The same idea as a run's ``chart/``: a copy of the chart exactly as it
+        was printed, so "Restore Used Chart" can put it back after the chart has
+        been regenerated. See :func:`workflow.chart_slot.slot_for_calibration`.
+        """
+        return self.dir / "chart"
+
+    def live_files(self) -> "list[Path]":
+        """Everything in ``cal/`` that is the calibration itself.
+
+        Files only, so ``old/``, ``chart/`` and ``exports/`` are never swept
+        into an archive of themselves — which would nest a previous archive
+        inside the next one and make "go back to it" a dig rather than a look.
+        """
+        if not self.dir.exists():
+            return []
+        return sorted(p for p in self.dir.iterdir()
+                      if p.is_file() and not p.name.startswith("."))
+
+    def archive_to_old(self, when: "datetime | None" = None) -> "Path | None":
+        """Move the current calibration into ``cal/old/<date>/`` — never delete.
+
+        A calibration is a whole printed and measured chart's worth of work, and
+        it is what ``printcal``'s Re-calibrate and Verify modes read back
+        (``printcal.c:110``); deleting it makes both impossible. Runs have had
+        this protection since #130 §2a; ``cal/`` never did, and rebuilding a
+        calibration chart called :meth:`reset`, which was ``rmtree``.
+
+        Returns the archive folder, or None when there was nothing to keep.
+        """
+        existing = self.live_files()
+        # The stored chart copy travels with it: restoring a calibration you
+        # have archived should give you the chart it was measured with, not the
+        # chart that replaced it.
+        if self.snapshot_dir.is_dir():
+            existing.append(self.snapshot_dir)
+        if not existing:
+            return None
+        when = when or datetime.now()
+        # ONE FOLDER PER ARCHIVE, always. Two rebuilds inside the same second
+        # would otherwise share a dated folder and merge, and the user could no
+        # longer tell which calibration was which — the whole point of keeping
+        # them is being able to go back to a particular one.
+        stamp = when.strftime("%Y-%m-%d_%H%M%S")
+        dest = self.old_dir / stamp
+        n = 2
+        while dest.exists():
+            dest = self.old_dir / f"{stamp}_{n}"
+            n += 1
+        dest.mkdir(parents=True, exist_ok=True)
+        for p in existing:
+            target = dest / p.name
+            k = 1
+            while target.exists():
+                target = dest / f"{p.stem}_{k}{p.suffix}"
+                k += 1
+            shutil.move(str(p), str(target))
+            log.info("archived calibration %s -> cal/old/%s/", p.name, dest.name)
+        return dest
+
     def reset(self) -> None:
-        """Wipe all calibration artefacts (delete ``cal/``)."""
-        if self.dir.exists():
-            shutil.rmtree(self.dir)
-            log.debug("Calibration reset: removed %s", self.dir)
+        """Archive the calibration, then clear the folder — **never delete**.
+
+        Kept under its old name because that is what the callers say, but the
+        behaviour is archive-then-replace now (#137 D1). Anything already in
+        ``cal/old/`` is left alone: an archive of archives helps nobody.
+        """
+        self.archive_to_old()
 
 
 # ---------------------------------------------------------------------------

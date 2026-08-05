@@ -140,3 +140,10 @@ def demo_project(demo_projects_root, tmp_path):
         return dst
 
     return _copy
+
+
+# ---- #137 calibration run type -------------------------------------------
+# Imported so every calibration test file gets them without repeating the
+# temp-folder isolation, which is the one thing they must not get wrong.
+from tests.conftest_calibration import (      # noqa: E402,F401
+    CalSettings, cal_home, cal_settings, cal_project)

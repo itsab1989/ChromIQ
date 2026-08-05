@@ -445,9 +445,14 @@ class SettingsDialog(QDialog):
             "Enable this only if you know your printer requires linearisation curves "
             "before profiling, or if you are an advanced user following an explicit "
             "ArgyllCMS calibration guide.\n\n"
-            "When active: the guided modes in all tabs are hidden, a calibration "
-            "target option appears in Create Chart, and a full printcal → applycal "
-            "workflow is added to the Calibration & Profiling tab."),
+            "When active: the guided modes in all tabs are hidden, "
+            "“Calibration” is added to the “Run type” list in the bar above the "
+            "tabs, and the Calibration & Profiling tab gains the Create "
+            "Calibration File and Apply Calibration modules.\n\n"
+            "Your projects are not changed by switching this on or off — a "
+            "calibration you have already made stays in the project's “cal” "
+            "folder either way, and switching this back on makes it available "
+            "again exactly as you left it."),
             self,
             min_width=620,
         )

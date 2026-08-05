@@ -17,6 +17,15 @@ from core.file_manager import Project, Run, Verification
 
 RUN_TYPE_PROFILING = "profiling"
 RUN_TYPE_VERIFICATION = "verification"
+#: Preparing the printer itself, before any profile is built (#137). Offered
+#: only while Preferences → Calibration options is on; with that switched off
+#: the value can never be selected, and a stored one is coerced back to
+#: profiling on load, so the app behaves exactly as it did before.
+RUN_TYPE_CALIBRATION = "calibration"
+
+#: Every value the combo may hold. Anything else in a settings file is a
+#: downgrade artefact and coerces to profiling — see `coerce_run_type`.
+RUN_TYPES = (RUN_TYPE_PROFILING, RUN_TYPE_VERIFICATION, RUN_TYPE_CALIBRATION)
 
 # verification_blocked_reason() codes:
 BLOCK_NEW_RUN = "new_run"        # can't verify a run that doesn't exist yet
@@ -28,7 +37,8 @@ BLOCK_NO_CHART = "no_chart"      # no verification chart defined for the run
 class MeasurementTarget:
     """The active selection shared across the first three tabs.
 
-    - ``run_type``        — ``"profiling"`` | ``"verification"``
+    - ``run_type``        — ``"profiling"`` | ``"verification"`` |
+      ``"calibration"``
     - ``profile_run``     — an existing run id to overwrite, or ``""`` = new run
     - ``verification_id`` — an existing dated verification id to overwrite, or
       ``""`` = a new verification (only meaningful for ``"verification"``)
@@ -41,6 +51,16 @@ class MeasurementTarget:
     def is_verification(self) -> bool:
         return self.run_type == RUN_TYPE_VERIFICATION
 
+    def is_calibration(self) -> bool:
+        """Preparing the printer, not building or checking a profile (#137).
+
+        A calibration belongs to the PROJECT, not to a run — there is exactly
+        one, in ``cal/`` — so ``profile_run`` is meaningless while this is set.
+        It is deliberately left untouched rather than cleared, so switching back
+        to Profiling returns the user to the run they had selected.
+        """
+        return self.run_type == RUN_TYPE_CALIBRATION
+
     def is_new_run(self) -> bool:
         return not self.profile_run
 
@@ -49,11 +69,29 @@ class MeasurementTarget:
 
     def status_label(self) -> str:
         """The short status-strip text, e.g. "run 1 · verification · new"."""
+        if self.is_calibration():
+            return "project calibration"
         run = self.profile_run or "new run"
         if not self.is_verification():
             return f"{run} · profiling"
         when = self.verification_id or "new"
         return f"{run} · verification · {when}"
+
+
+def coerce_run_type(value: object, *, calibration_allowed: bool) -> str:
+    """The run type to actually use, given what was stored and what is allowed.
+
+    Two things reach this: a settings file written by a newer build (which may
+    hold ``"calibration"`` after the user has since switched the preference off,
+    or downgraded), and anything unrecognised. Both must land somewhere usable
+    rather than raise, and the only safe landing place is Profiling — the
+    behaviour of the app with calibration options off is exactly the behaviour
+    it had before this feature existed.
+    """
+    text = str(value or "")
+    if text == RUN_TYPE_CALIBRATION and not calibration_allowed:
+        return RUN_TYPE_PROFILING
+    return text if text in RUN_TYPES else RUN_TYPE_PROFILING
 
 
 # ---------------------------------------------------------------------------

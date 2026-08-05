@@ -625,8 +625,40 @@ class TabProfile(QWidget):
         if event.type() in (_QEvent.Type.StyleChange, _QEvent.Type.FontChange):
             self._refit_logs()
 
+    def _apply_run_type_modules(self) -> None:
+        """Show only the modules that belong to the selected Run type.
+
+        A Calibration target is one job — make the calibration file — so Build
+        Profile and Apply Calibration are put away rather than left as two
+        buttons that cannot do anything useful yet. A Profiling target with
+        calibration options on gets the other two, because that is the moment
+        the calibration is put to work.
+
+        With calibration options OFF this does nothing at all: the row it hides
+        is not shown in that mode either, so the tab behaves exactly as before.
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None or not getattr(self, "_cal_mode_row_widget", None):
+            return
+        # GATED ON THE MODE, NOT ON isVisible(). A widget reports itself
+        # invisible whenever its parent is — which for a tab is most of the
+        # time, since only one tab is current. Reading visibility here made the
+        # gating silently do nothing until tab 4 happened to be open, and only
+        # driving the real window showed it.
+        if not getattr(self, "_cal_mode_on", False):
+            return                       # calibration options are off
+        is_cal = bool(getattr(ctl.target, "is_calibration", bool)())
+        self._cal_create_btn.setVisible(True)
+        for btn in (self._cal_profile_btn, self._cal_apply_btn):
+            btn.setVisible(not is_cal)
+        if is_cal:
+            self._switch_cal_mode(1)     # Create Calibration File
+        elif self._outer_stack.currentIndex() == 1:
+            self._switch_cal_mode(0)     # back to Build Profile
+
     def set_calibration_mode(self, enabled: bool) -> None:
         """Switch between normal (GUIDED/MANUAL) and calibration (3-module) mode."""
+        self._cal_mode_on = bool(enabled)
         self._cal_mode_row_widget.setVisible(enabled)
         self._mode_row_widget.setVisible(not enabled)
         if enabled:
@@ -634,10 +666,16 @@ class TabProfile(QWidget):
             self._header.set_tooltip(tr(_TOOLTIP_TITLE_CAL), tr(_TOOLTIP_BODY_CAL))
             self._switch_mode("manual")
             self._switch_cal_mode(0)  # default to Build Profile
+            self._apply_run_type_modules()
         else:
             self._header.set_texts(tr("STEP 04 · CREATE ICC PROFILE"), tr("Build ICC profile"))
             self._header.set_tooltip(tr(_TOOLTIP_TITLE_NORMAL), tr(_TOOLTIP_BODY_NORMAL))
             self._outer_stack.setCurrentIndex(0)
+            # Leave the row as it was found, so switching the preference back on
+            # never shows a module missing for a reason that no longer applies.
+            for btn in (self._cal_create_btn, self._cal_profile_btn,
+                        self._cal_apply_btn):
+                btn.setVisible(True)
 
     def _switch_cal_mode(self, page: int) -> None:
         """Switch the outer stack page and update the 3 calibration mode buttons.
@@ -4035,6 +4073,12 @@ class TabProfile(QWidget):
         """
         self._target_ctl = controller
         controller.changed.connect(self._on_target_changed)
+        # …and the Run type decides which modules this tab offers (#137).
+        # A second connection rather than a call inside _on_target_changed, so
+        # the two concerns stay separable — one is about which run's files to
+        # show, the other about which buttons make sense at all.
+        controller.changed.connect(self._apply_run_type_modules)
+        self._apply_run_type_modules()
 
     def _on_target_changed(self) -> None:
         """Show the selected run's measurement, if it has one.

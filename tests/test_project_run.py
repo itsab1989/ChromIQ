@@ -443,14 +443,29 @@ def test_calibration_exists_true_after_cal_written(tmp_path: Path) -> None:
     assert cal.exists()
 
 
-def test_calibration_reset_removes_dir(tmp_path: Path) -> None:
+def test_calibration_reset_archives_instead_of_deleting(tmp_path: Path) -> None:
+    """#137 D1. This used to assert the folder was GONE — ``reset()`` was
+    ``shutil.rmtree(cal/)``, so regenerating a calibration chart destroyed a
+    whole printed and measured sheet's worth of work with no warning and no way
+    back, and took printcal's Re-calibrate and Verify modes with it (both read
+    the previous ``.cal``). Runs have had archive-instead-of-delete since #130
+    §2a; ``cal/`` never did.
+    """
     proj = Project.create(tmp_path / "P", "P")
     cal = proj.calibration
     cal.ensure_dir()
     cal.cal_path.write_text("CAL")
     cal.ti3.write_text("TI3")
     cal.reset()
-    assert not cal.dir.exists()
+
+    # Cleared, so the new chart has somewhere to land…
+    assert cal.live_files() == []
+    assert not cal.cal_path.exists()
+    # …and every byte of it is still there, in a dated folder.
+    archives = list(cal.old_dir.iterdir())
+    assert len(archives) == 1
+    kept = {p.name: p.read_text() for p in archives[0].iterdir() if p.is_file()}
+    assert kept == {f"{cal.stem}.cal": "CAL", f"{cal.stem}.ti3": "TI3"}
 
 
 # ---------------------------------------------------------------------------

@@ -598,6 +598,8 @@ GLOSSARY: list[tuple[str, str]] = [
      tr("The darkest colour a printer and paper can produce. Everything darker in an image gets squeezed up to this level.")),
     (tr("Calibration"),
      tr("Bringing a device to a fixed, repeatable state (e.g. printer ink limits or a monitor's brightness). Done BEFORE profiling — a profile describes a device, calibration sets it.")),
+    (tr("Calibration run"),
+     tr("The round trip that produces your printer's calibration file: make the calibration chart, print it, measure it, then create the .cal from those readings. It is not a profile run — nothing is built from it — but every profile run in the project can use its result. Choose it under “Run type” in the bar above the tabs; a project keeps exactly one calibration, in its “cal” folder.")),
     (tr("Chart / test chart"),
      tr("A printed page of colour patches with known device values. Measuring what the printer actually made of them is the raw material of a profile. Also called a target.")),
     (tr("chartread"),

@@ -89,10 +89,20 @@ def test_the_button_uses_his_exact_tooltip_wording(tmp_path):
             "files.") in extract_keys()
 
 
-def test_both_run_types_are_covered(tmp_path):
+def test_every_run_type_is_covered(tmp_path):
     """*"either in runs/runN/chart/ or runs/runN/verifications chart/"* — he
-    asked for both, and the profiling branch alone would have looked done."""
+    asked for both, and the profiling branch alone would have looked done.
+
+    #137 added a third: a calibration chart is restorable too, and it is the
+    one chart whose loss could not otherwise be undone. Each branch must do the
+    "already identical" check, or that run type gets a button that looks alive
+    and does nothing visible.
+    """
     import inspect
     from ui.measurement_target_bar import MeasurementTargetController
-    src = inspect.getsource(MeasurementTargetController)
-    assert src.count("snapshot_matches_live(") == 2
+    src = inspect.getsource(MeasurementTargetController.restore_state)
+    # One per run type: calibration, verification, profiling.
+    assert src.count("snapshot_matches_live(") == 3, (
+        "a run type is missing the already-identical check")
+    for marker in ("is_calibration()", "is_verification()"):
+        assert marker in src, f"restore_state does not branch on {marker}"
