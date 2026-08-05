@@ -402,11 +402,20 @@ class _DeleteButton(BarIconButton):
     #: a further right 2). The lid is a solid horizontal stroke across the top,
     #: which makes the bin read as sitting low.
     #:
-    #: A one-pixel vertical stretch was tried here and reverted at Basti's word
-    #: (#130, 2026-08-03). The mechanism it used is still in place — see
-    #: :data:`BarIconButton.STRETCH_Y` — because it is small, tested, and the
-    #: kind of thing that gets asked for again.
     NUDGE = (4.0, -2.0)
+
+    #: One device-independent pixel taller, all of it at the BOTTOM (#130,
+    #: Basti 2026-08-05: *"the delete icon in the bar should be stretched. it
+    #: needs 1px more in height. the topmost position should stay where it is
+    #: and the additional 1px should be added at the bottom"*).
+    #:
+    #: Tried once before and reverted at his word (2026-08-03); the mechanism
+    #: was kept because it is small, tested, and the kind of thing that gets
+    #: asked for again — which it now has been. The ratio is the mark's ink
+    #: height plus one over its ink height, and :data:`INK_TOP` is where that
+    #: ink starts, so the scale is anchored there and the top does not drift.
+    STRETCH_Y = 21.5 / 20.5
+    INK_TOP = 3.5
 
 
 def duplicate_run_button(colour: str, text: str,

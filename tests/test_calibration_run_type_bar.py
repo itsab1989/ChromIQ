@@ -73,8 +73,33 @@ def test_a_stored_run_type_lands_somewhere_usable(stored, allowed, expected):
 def test_the_third_type_appears_with_the_preference(bar):
     widget, ctl = bar
     widget.set_calibration_allowed(True)
-    assert _types(widget) == [RUN_TYPE_PROFILING, RUN_TYPE_VERIFICATION,
-                              RUN_TYPE_CALIBRATION]
+    assert _types(widget) == [RUN_TYPE_CALIBRATION, RUN_TYPE_PROFILING,
+                              RUN_TYPE_VERIFICATION]
+
+
+def test_calibration_is_listed_first_but_is_not_the_default(bar):
+    """Basti, beta.142: *"I want calibration to be the first item in this list
+    — however profiling should still be the default one that is selected."*
+
+    The list reads as the order of the work — calibrate, profile, verify —
+    rather than the order the features were built. What is *selected* is a
+    different question, and the answer is unchanged: most sessions are
+    profiling sessions, and a calibration is an occasional thing.
+    """
+    widget, ctl = bar
+    widget.set_calibration_allowed(True)
+    assert _types(widget)[0] == RUN_TYPE_CALIBRATION
+    assert widget._type_combo.currentData() == RUN_TYPE_PROFILING
+    assert ctl.target.run_type == RUN_TYPE_PROFILING
+
+
+def test_turning_the_preference_off_leaves_profiling_selected(bar):
+    """The item that was first disappears; the selection must not slide onto
+    whatever takes its place."""
+    widget, ctl = bar
+    widget.set_calibration_allowed(True)
+    widget.set_calibration_allowed(False)
+    assert widget._type_combo.currentData() == RUN_TYPE_PROFILING
 
 
 def test_the_run_box_shows_one_fixed_entry(bar):

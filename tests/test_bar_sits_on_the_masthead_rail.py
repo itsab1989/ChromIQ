@@ -189,10 +189,35 @@ def test_the_stretch_mechanism_still_works_though_nothing_uses_it(qapp):
     assert (b1 - t1) - (b0 - t0) == 2, "one device-independent pixel, at 2× dpr"
 
 
-def test_the_bin_is_not_stretched_now():
-    """Reverted at Basti's word."""
-    from ui.bar_icons import _DeleteButton
-    assert _DeleteButton.STRETCH_Y == 1.0
+def test_the_bin_is_one_pixel_taller_and_grew_downward(qapp):
+    """#130, Basti 2026-08-05, asked for a second time and granted this time.
+
+    Not a check that the constants have particular values — a check that the
+    MARK, once drawn, is one device-independent pixel taller than it was and
+    that its topmost row has not moved. That is the whole of what he asked for,
+    and it is what a wrong anchor would break.
+    """
+    import numpy as np
+    from PyQt6.QtGui import QImage
+    from ui.bar_icons import BarIconButton, _DeleteButton, _pixmap, draw_trash_can
+    from ui.styles import SPEC_MAGENTA
+
+    def ink(stretch, ink_top):
+        pm = _pixmap(draw_trash_can, SPEC_MAGENTA, BarIconButton.ICON,
+                     _DeleteButton.NUDGE, BarIconButton.HEIGHT, stretch, ink_top)
+        img = pm.toImage().convertToFormat(QImage.Format.Format_RGBA8888)
+        w, h = img.width(), img.height()
+        ptr = img.bits(); ptr.setsize(h * img.bytesPerLine())
+        a = np.frombuffer(ptr, np.uint8).reshape(
+            h, img.bytesPerLine() // 4, 4)[:, :w, :]
+        ys = np.nonzero((a[:, :, 3] > 20).any(1))[0]
+        return int(ys.min()), int(ys.max())
+
+    was_top, was_bottom = ink(1.0, 0.0)
+    now_top, now_bottom = ink(_DeleteButton.STRETCH_Y, _DeleteButton.INK_TOP)
+    assert now_top == was_top, "the topmost position must stay where it is"
+    assert (now_bottom - now_top) - (was_bottom - was_top) == 2, \
+        "one device-independent pixel taller, measured at 2x device pixels"
 
 
 def test_no_other_mark_is_stretched():
@@ -247,3 +272,90 @@ def test_the_nudges_are_theme_independent():
     for sheet in (APP_STYLESHEET, LIGHT_STYLESHEET):
         for token in ("NUDGE", "CLUSTER_SHIFT", "margin-left", "margin-right"):
             assert f"#target_bar {token}" not in sheet
+
+
+# ---- hiding the location line must not move the row -----------------------
+#
+# Basti, beta.142: *"when location being edited is on then the distance of the
+# elements in the bar to the masthead above it is smaller than with location
+# being edited is off. i want this smaller distance as well when location being
+# edited is off and the same distance then at the bottom as well."*
+#
+# With the line shown the column has two things to fit and the selection row
+# settles at the height its controls need. With the line hidden the row is the
+# only item, takes the whole bar, and centres its controls in the slack — so the
+# boxes drifted down and the space under them stopped matching the space over
+# them. Asserted as a RELATION between the two states, never as a pixel count:
+# the row is 34 px in the styled app and 40 px unstyled, and a test that hard-
+# coded either would be measuring the test's own environment.
+
+def _bar_on_a_rail(qapp, *, show_location: bool):
+    from core.file_manager import FileManager
+    from core.settings import AppSettings
+    from ui.masthead_header import MastheadHeader
+    from ui.measurement_target_bar import (MeasurementTargetBar,
+                                           MeasurementTargetController)
+
+    class _Settings(AppSettings):
+        def get(self, key, default=None):
+            if key == "show_location_being_edited":
+                return show_location
+            return super().get(key, default)
+
+    st = _Settings()
+    ctl = MeasurementTargetController(FileManager(st))
+    # A real path to show, so the line has something to be. The bar's own
+    # handler is then driven — not the pinning helper directly, or the test
+    # would pass with the fix disconnected from the code path that uses it.
+    ctl.location_being_edited = lambda: "/somewhere/real/runs/run1"
+    bar = MeasurementTargetBar(ctl)
+    head = MastheadHeader(version="1.0")
+    head.resize(1400, 200)
+    head.set_center_widget(bar)
+    head.show()
+    qapp.processEvents()
+    bar._update_location()
+    head._fit_rail_to_center()
+    head.reposition_center()
+    qapp.processEvents()
+    assert bar._location.isVisible() is show_location
+    rail_top = head.height() - head._rail_h
+    mark = bar._delete_btn
+    return {
+        "top": mark.mapTo(head, mark.rect().topLeft()).y() - rail_top,
+        "bottom": head.height() - mark.mapTo(head, mark.rect().bottomLeft()).y(),
+        "masthead": head.height(),
+        "head": head,
+    }
+
+
+def test_the_row_sits_the_same_distance_below_the_masthead_either_way(qapp):
+    on = _bar_on_a_rail(qapp, show_location=True)
+    off = _bar_on_a_rail(qapp, show_location=False)
+    assert off["top"] == on["top"], (
+        f"the marks sit {off['top']} px below the rail with the location line "
+        f"off and {on['top']} px with it on — hiding the line must not move the "
+        f"row, only remove the line"
+    )
+    on["head"].deleteLater()
+    off["head"].deleteLater()
+
+
+def test_the_space_under_the_row_matches_the_space_over_it(qapp):
+    """…and with the line gone, nothing is left standing in for it."""
+    off = _bar_on_a_rail(qapp, show_location=False)
+    assert abs(off["bottom"] - off["top"]) <= 1, (
+        f"{off['top']} px above the marks and {off['bottom']} below — a bar "
+        f"centred on its rail can be a pixel out from integer division, no more"
+    )
+    off["head"].deleteLater()
+
+
+def test_hiding_the_line_makes_the_masthead_shorter(qapp):
+    on = _bar_on_a_rail(qapp, show_location=True)
+    off = _bar_on_a_rail(qapp, show_location=False)
+    assert off["masthead"] < on["masthead"], (
+        "the point of the preference is to give the space back to the tabs"
+    )
+    on["head"].deleteLater()
+    off["head"].deleteLater()

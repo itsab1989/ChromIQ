@@ -600,6 +600,12 @@ class MeasurementTargetController(QObject):
         self.changed.emit()
 
 
+#: Qt's own "no maximum height" value. Setting a maximum and then clearing it
+#: has to put back exactly this, or the widget keeps whatever ceiling it was
+#: last given.
+_QWIDGETSIZE_MAX = (1 << 24) - 1
+
+
 class MeasurementTargetBar(QWidget):
     """A compact row: **Profile run** (a friendly single dropdown), **Run type**
     (Profiling / Verification), and — when ``show_verification`` and the type is
@@ -681,25 +687,28 @@ class MeasurementTargetBar(QWidget):
         self._type_combo.addItem(tr("Profiling"), RUN_TYPE_PROFILING)
         self._type_combo.addItem(tr("Verification"), RUN_TYPE_VERIFICATION)
         self._type_combo.setToolTip(tr(
-            "Are you building the printer profile itself, checking a finished "
-            "one, or preparing the printer first?\n\n"
-            "• Profiling — measure a chart printed with colour management OFF, "
-            "so ChromIQ can learn your printer and build a profile from it. "
-            "This is the normal choice.\n\n"
-            "• Verification — measure a (usually smaller) chart printed THROUGH "
-            "a finished profile, with colour management ON, to check how "
-            "accurate that profile still is. A verification never builds a "
-            "profile; it is kept as a dated record so you can watch a profile "
-            "hold up — or drift — over time.\n\n"
-            "• Calibration — measure a special chart that brings the printer "
-            "itself to a known, repeatable state before any profile is built. "
-            "It produces a calibration file (.cal) which every profile run of "
-            "this project can then use. One calibration is shared by the whole "
-            "project, so there is nothing to choose under “Profile run” while "
-            "this is selected. This step is optional; use it when you want "
-            "your printer to behave the same way today and in six months.\n\n"
-            "“Calibration” is offered only while calibration options are "
-            "switched on in Preferences."))
+"Are you preparing the printer first, building the profile "
+            "itself, or checking a finished one?\n\n"
+            "The list follows the order of the work: you calibrate, then "
+            "you profile, then you verify. Most of the time you want "
+            "Profiling, which is why it stays the one already selected.\n\n"
+            "• Calibration — measure a special chart that brings the "
+            "printer itself to a known, repeatable state before any profile "
+            "is built. It produces a calibration file (.cal) which every "
+            "profile run of this project can then use. One calibration is "
+            "shared by the whole project, so there is nothing to choose "
+            "under “Profile run” while this is selected. This step is "
+            "optional; use it when you want your printer to behave the same "
+            "way today and in six months. It is offered only while "
+            "calibration options are switched on in Preferences.\n\n"
+            "• Profiling — measure a chart printed with colour management "
+            "OFF, so ChromIQ can learn your printer and build a profile "
+            "from it. This is the normal choice.\n\n"
+            "• Verification — measure a (usually smaller) chart printed "
+            "THROUGH a finished profile, with colour management ON, to "
+            "check how accurate that profile still is. A verification never "
+            "builds a profile; it is kept as a dated record so you can "
+            "watch a profile hold up — or drift — over time."))
         self._type_combo.currentIndexChanged.connect(self._on_type_changed)
         row.addWidget(self._type_combo)
 
@@ -1643,6 +1652,69 @@ class MeasurementTargetBar(QWidget):
                         exc_info=True)
         self._ctl.notify_changed()
 
+    #: Space above and below the tallest control in the selection row, on top
+    #: of the control itself. **Zero**, and measured rather than chosen: with
+    #: the location line shown — the state Basti judged as right — the row is
+    #: exactly as tall as the tallest mark in it (34 px, the icon buttons), and
+    #: the rail's own padding provides all the breathing room there is.
+    #:
+    #: Six was tried first, from a run of the app that had not been given
+    #: main.py's fonts and Fusion style. Unstyled, the same row measures 40, and
+    #: building the fix on that number reproduced the very gap it was meant to
+    #: remove (Basti: *"with location being edited on the distance on top is
+    #: still smaller than with it off"*). Measure the styled app.
+    ROW_BREATHING = 0
+
+    def _row_content_height(self) -> int:
+        """How tall the selection row needs to be for the controls in it.
+
+        With the location line shown, the column has two things to fit and the
+        row ends up at exactly this height. With the line hidden the row is the
+        only thing in the column, so it takes all of the bar and centres its
+        controls in the slack — which pushes them 5 px further from the masthead
+        than they sit with the line on. Basti, beta.142: *"when location being
+        edited is on then the distance of the elements in the bar to the
+        masthead above it is smaller than with location being edited is off. i
+        want this smaller distance as well when location being edited is off and
+        the same distance then at the bottom as well."*
+
+        So the row is pinned to what it needs, and the two states differ only by
+        the line itself.
+        """
+        # Only the controls that draw the row's visual band are asked. A label
+        # in a QHBoxLayout is given the whole row height, so including labels
+        # would measure the slack this method exists to remove — and the hint
+        # sentence, which is a wrapped label, reports a height for a width it
+        # has not got.
+        band = (self._run_combo, self._type_combo, self._verify_combo,
+                self._restore_btn, self._duplicate_btn, self._delete_btn)
+        tallest = 0
+        for control in band:
+            if control is None or not control.isVisibleTo(self):
+                continue
+            # Its real height, not its hint: these controls are pinned — the
+            # marks by setFixedSize, the boxes by #compact_input's max-height —
+            # and a QToolButton's hint is ten pixels above what it is drawn at.
+            tallest = max(tallest, control.height() or control.sizeHint().height())
+        return tallest + self.ROW_BREATHING if tallest else 0
+
+    def _pin_row_when_alone(self) -> None:
+        """Stop the selection row taking the whole bar when it is alone in it.
+
+        With the location line shown, the column has two things to fit and the
+        row settles at exactly the height its controls need. With the line
+        hidden the row is the only item, takes the whole bar, and centres its
+        controls in the slack — which is why the boxes sat further from the
+        masthead with the line off than with it on, and why the space under
+        them did not match the space over them.
+        """
+        needed = self._row_content_height()
+        if self._location.isVisible() or needed <= 0:
+            self.setMaximumHeight(_QWIDGETSIZE_MAX)
+        else:
+            self.setMaximumHeight(needed)
+        self.updateGeometry()
+
     def _settings_show_location(self) -> bool:
         """Whether Preferences says to show the "Location being edited" line.
 
@@ -1670,6 +1742,7 @@ class MeasurementTargetBar(QWidget):
         # bar follows the preference the moment it is changed.
         show = bool(self._settings_show_location())
         self._location.setVisible(bool(where) and show)
+        self._pin_row_when_alone()
         # Clear the text too, so a hidden label can never surface a stale path
         # if something shows it again later.
         self._location_full = (
@@ -1856,10 +1929,17 @@ class MeasurementTargetBar(QWidget):
         item; and rebuilt in place (signals blocked by the caller's _syncing
         guard) so no spurious selection change escapes to the tabs.
         """
-        want = [(tr("Profiling"), RUN_TYPE_PROFILING),
-                (tr("Verification"), RUN_TYPE_VERIFICATION)]
+        # Calibration first, because it comes first in the work: you calibrate
+        # the printer, then you profile it, then you verify the profile. The
+        # list reads as the order of the job rather than as the order the
+        # features were built (Basti, beta.142). It is not the default — that
+        # is still Profiling, set by the controller, because most sessions are
+        # profiling sessions and a calibration is an occasional thing.
+        want = []
         if self._ctl.calibration_allowed:
             want.append((tr("Calibration"), RUN_TYPE_CALIBRATION))
+        want += [(tr("Profiling"), RUN_TYPE_PROFILING),
+                 (tr("Verification"), RUN_TYPE_VERIFICATION)]
         have = [(self._type_combo.itemText(i), self._type_combo.itemData(i))
                 for i in range(self._type_combo.count())]
         if have == want:

@@ -72,12 +72,36 @@ def test_a_missing_version_is_an_error_not_an_empty_note(monkeypatch):
 
 
 # ---- the real CHANGELOG --------------------------------------------------
-def test_the_current_release_renders_with_all_three_sections():
-    from core.version import APP_VERSION
+def test_the_current_release_renders_every_section_it_actually_has():
+    """The real CHANGELOG's newest entry renders, with each section it has.
 
+    This used to demand "What's new" and "Fixed" from every release, which held
+    only for as long as every release happened to have both. A release that
+    fixes things and changes nothing else is a normal release — beta.142 was
+    one — and a test that forces a "New" heading is a test that asks for an
+    invented feature entry. What matters is that nothing in the changelog is
+    dropped on the way to the note, so that is what is checked; that the
+    renderer can produce all three headings is covered by the synthetic
+    fixtures above, where a body with all three can be written on purpose.
+    """
+    import re
+
+    from core.version import APP_VERSION
+    import scripts.release_notes as rn
+
+    body = "\n".join(dict(
+        (v, lines) for v, lines in rn._versions())[f"v{APP_VERSION}"])
     note = build([f"v{APP_VERSION}"], f"v{APP_VERSION}")
-    for heading in ("✨ What's new", "🔧 Fixed"):
-        assert heading in note, f"{heading} missing from the current note"
+
+    rendered = {"New": "✨ What's new", "Fixed": "🔧 Fixed",
+                "Changed": "🔁 Changed"}
+    present = set(re.findall(r"^### (New|Fixed|Changed)\s*$", body, re.M))
+    assert present, f"v{APP_VERSION} has no sections at all in the CHANGELOG"
+    for section in present:
+        assert rendered[section] in note, (
+            f"the CHANGELOG's “{section}” section is missing from the "
+            f"generated note for v{APP_VERSION}"
+        )
     assert "in this release." in note.splitlines()[2]
 
 

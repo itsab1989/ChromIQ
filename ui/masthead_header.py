@@ -211,10 +211,24 @@ class MastheadHeader(QWidget):
         self._fit_rail_to_center()
         self.reposition_center()
 
+    @staticmethod
+    def _center_height(w) -> int:
+        """The height the centre widget will actually be given.
+
+        Its hint, but never more than it is allowed to be. The Profile-run bar
+        caps itself when its location line is hidden, and sizing the rail to
+        the uncapped hint left a band of empty rail under it — the space below
+        the boxes no longer matched the space above them.
+        """
+        hint = w.sizeHint().height()
+        ceiling = w.maximumHeight()
+        return min(hint, ceiling) if ceiling > 0 else hint
+
     def _fit_rail_to_center(self) -> None:
         """Size the version rail to the centre widget, never below the default."""
         w = self._center_widget
-        needed = (w.sizeHint().height() + 2 * self.RAIL_PAD) if w is not None else 0
+        needed = ((self._center_height(w) + 2 * self.RAIL_PAD)
+                  if w is not None else 0)
         rail = max(self.VERSION_H, needed)
         if rail != self._rail_h:
             self._rail_h = rail
@@ -275,7 +289,7 @@ class MastheadHeader(QWidget):
         if hasattr(w, "set_available_width") and room0 > 0:
             w.set_available_width(room0)
         cw = w.sizeHint().width()
-        ch = w.sizeHint().height()      # provisional: refined once width is known
+        ch = self._center_height(w)     # provisional: refined once width is known
         ver_y = self.height() - self._rail_h
         # Left-aligned immediately after the "PRINTER PROFILING" tag, not
         # centred (Knut, #130 2026-07-26): a centred widget slides sideways
@@ -303,6 +317,10 @@ class MastheadHeader(QWidget):
         # into a column of its own (Knut, #131 2026-07-27).
         if w.hasHeightForWidth():
             ch = max(ch, w.heightForWidth(width))
+            # …but still never taller than it is allowed to be, or a wrapped
+            # label re-inflates a widget that has just capped itself.
+            if w.maximumHeight() > 0:
+                ch = min(ch, w.maximumHeight())
         w.setGeometry(x, y, width, ch)
         # …and re-lay its children at that size, so the label inside is measured
         # against the width it actually has.

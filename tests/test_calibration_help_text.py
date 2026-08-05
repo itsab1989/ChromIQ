@@ -23,11 +23,20 @@ def test_the_run_type_tooltip_explains_calibration(qapp):
     from core.file_manager import FileManager
 
     keys = _catalog_keys()
-    tip = next(k for k in keys if k.startswith("Are you building the printer"))
+    tip = next(k for k in keys if k.startswith("Are you preparing the printer"))
     assert "• Calibration" in tip
     assert "one particular profile" not in tip        # that is the run box's job
     assert "optional" in tip, "the user must know they can skip it"
     assert "Preferences" in tip, "say where the option lives"
+    # The bullets follow the dropdown, which follows the order of the work
+    # (Basti, beta.142). A help text that lists them in a different order than
+    # the list it explains is a help text that has to be read twice.
+    assert (tip.index("• Calibration") < tip.index("• Profiling")
+            < tip.index("• Verification")), "the bullets must match the list"
+    assert "already selected" in tip, (
+        "say that Profiling is still the default, or being first reads as "
+        "being the normal choice"
+    )
 
 
 def test_the_profile_run_tooltip_says_why_it_is_locked():
