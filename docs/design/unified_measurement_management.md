@@ -83,6 +83,18 @@ You asked me to generalise rows 10 and 11 to all failure windows. Doing that tur
 
 **Proposal: every one of these gets the same three choices as §2**, so "Give Up" stops meaning "throw away the last twenty minutes".
 
+**BUILT — beta.140/141.** Every window in this table offers Save · Discard · Keep
+Measuring. Two things had to be settled while building it, and both are rules
+now rather than accidents:
+
+- **A window that is already open is never covered by another one.** Every
+  during-a-read window signs into one register, so "is one already open?" is a
+  question the app can answer — Knut: *"I can also click the instrument button
+  more times, and this window comes on top of previous windows, all at the same
+  time. This should not be allowed."* Same rule as the instrument-mismatch
+  window in beta.136, now applied to all of them.
+- **One failure is one window, however many times it is reported.** See §7c.
+
 ---
 
 ## 1b. The exact sequence each ending sends
@@ -554,6 +566,32 @@ Three of the windows are driven by strings printed elsewhere, and that is worth 
 | Device being used | `spectro/usbio_ox.c:380, 387` (macOS), `usbio_dk.c:544` (Windows) | the USB backend, **per platform**. Line 380 is `a1logd` — a *debug*-level message that may not reach the terminal at normal verbosity, so this one is the least reliable detector in the table |
 | Strip may be misaligned | — | **not an Argyll string at all.** It is ChromIQ's own reading of a failed strip plus its reason. `"Bad strip"` exists in Argyll only for the DTP41/DTP20 (`dtp41.c:1026`, `dtp20.c:1251`) and never reaches a ColorMunki or i1 user |
 
+### 7c. One failure, reported twice — the helper prints it AND sends it (beta.141)
+
+Knut's beta.140 log has it exactly:
+
+```
+Patch read failed due unexpected error :'Wrong Sensor Position' (Sensor should be in surface position)
+send_key '{"cmd": "ok"}'                                   <- Retry was pressed
+{"event":"error","kind":"misread","detail":"Sensor should be in surface position"}
+```
+
+The helper **prints** the failure in the same prose stock chartread uses, and
+then — once the window it raised has been answered — reports the same failure
+again as a **JSON event**. Both parsers were reading independently, so each
+raised a window: Instrument Error -> Retry -> Patch Read Failed -> Retry ->
+Instrument Error, with no way out but Stop.
+
+**The rule:** while a sensor-position window is open, an event describing that
+same sensor position is the failure already on screen, not a new one, and is
+dropped. Anything else — a different misread, or the dial being wrong *again*
+after the reader has moved on — still opens its own window, because silencing
+those was the opposite bug in beta.136. Both directions have tests
+(`tests/test_knut_beta140_no_window_loop.py`).
+
+This is the general shape of every engine-parity problem in §7: **the two
+parsers see one event, and whichever notices first owns it.**
+
 ### 7b. What this table changes
 
 1. **`Device being used` is detected in both of its forms**, per Knut: either one raises the "Instrument Not Available" window. The error-level form (`usbio_ox.c:387`) reaches the terminal reliably; the debug-level one (`usbio_ox.c:380`) may not, so the pattern must match both rather than assuming which arrives, and the same window stays reachable from the generic error path as a third route.
@@ -882,6 +920,8 @@ Read each row top to bottom: that is the order the code must perform it in.
 | S2.6 | user presses `d` | identical to S2.5 — same window, same three buttons |
 | S2.7 | user presses `Esc`/`q` | identical to S2.5 |
 | S2.8 | bar / Tools / Preferences clicked | disabled for the duration; tooltip explains. No window. |
+| S2.9 (beta.141) | the same failure arrives twice — once printed, once as an event (§7c) | 1 first arrival opens the window → 2 the second is recognised as the failure already reported and is **dropped**. A genuinely different failure still opens its own window |
+| S2.10 (beta.141) | a second failure arrives while a window is open | 1 nothing stacks on top → 2 it waits, per S2.3. Enforced by the register, not by each window remembering to check |
 
 ### S3 · After a measurement ends
 
