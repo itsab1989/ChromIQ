@@ -1,5 +1,28 @@
 # Changelog
 
+## v3.14.8-beta.142
+
+### Fixed
+
+- **The log output panel no longer grows through the bottom of the window.**
+  Dragging it larger used to push it past the window's edge — the panel was
+  clipped, and the border between it and the frame of the window disappeared
+  with it. It now stops where the space it lives in runs out: about 12 lines in
+  a short window, more in a tall one, with the same margin underneath it at
+  every size. Making the window taller gives back the size you asked for, and
+  each tab shows as much of it as that tab has room for.
+
+### Changed
+
+- **The Unified Measurement Management model and its design document** now carry
+  what beta.140 and beta.141 changed, rather than only the release notes: every
+  window that can end a measurement offers Save · Discard · Keep Measuring, no
+  window is ever covered by another one, and one failure raises one window even
+  when the reader reports it twice — once printed and once as an event.
+
+- **The file guide's "Project File Structure"** shows `cal/chart/` and `cal/old/`
+  in the drawn tree, not only in the list of descriptions below it.
+
 ## v3.14.8-beta.141
 
 ### New
