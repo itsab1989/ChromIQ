@@ -25,6 +25,12 @@ import tempfile
 
 import pytest
 
+# Make helper modules that live beside the tests (e.g. ``tests/_fontcheck.py``)
+# importable with a bare ``import _fontcheck`` from any test. pytest puts the
+# rootdir on sys.path but not reliably this directory, so without it such an
+# import fails depending on the import mode.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 # On Windows/ARM, make freetype-py find our vendored ARM64 FreeType before any
 # test imports `freetype` (e.g. test_vector_pdf collects it at module load), so
 # the vector-PDF tests actually run there instead of skipping (#72). No-op on

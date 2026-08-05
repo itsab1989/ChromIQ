@@ -124,6 +124,8 @@ def test_fitting_is_now_enough_whichever_font_paints_it(qapp):
     from PyQt6.QtGui import QFontDatabase, QFontMetrics
 
     from ui.widgets import fit_button_width
+    from _fontcheck import skip_without_fonts
+    skip_without_fonts()                        # needs real font metrics
     label = "Delete run 4 permanently"
     btn = QPushButton(label)
     fit_button_width(btn)                       # without the swap

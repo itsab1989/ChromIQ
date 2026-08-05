@@ -93,6 +93,8 @@ def test_the_connectors_are_equal_width_in_the_faces_the_card_asks_for():
     from PyQt6.QtGui import QFont, QFontInfo, QFontMetrics
     from PyQt6.QtWidgets import QApplication
     _app = QApplication.instance() or QApplication([])
+    from _fontcheck import skip_without_fonts
+    skip_without_fonts()                  # no fonts here → none to measure
     checked = 0
     for family in ("Menlo", "Monaco", "Courier New"):
         f = QFont(family)

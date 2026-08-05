@@ -59,6 +59,8 @@ def test_a_button_is_wide_enough_for_the_font_it_paints_with(qapp, label):
 def test_the_uppercase_swap_is_what_the_width_is_measured_against(qapp):
     """The bug in one assertion: sizing against the *pre-swap* font is not
     enough, so a width taken before the filter runs must not be trusted."""
+    from _fontcheck import skip_without_fonts
+    skip_without_fonts()                 # the swap only widens if Menlo is real
     btn = QPushButton("Replace the stored chart")
     before = QFontMetrics(btn.font()).horizontalAdvance(btn.text())
     ButtonFontFilter.fit(btn)
@@ -358,6 +360,8 @@ def test_a_label_fits_in_the_system_font_too(qapp):
     from PyQt6.QtWidgets import QPushButton
 
     from ui.widgets import ButtonFontFilter
+    from _fontcheck import skip_without_fonts
+    skip_without_fonts()                 # needs the system font's real metrics
 
     system = QFontDatabase.systemFont(QFontDatabase.SystemFont.GeneralFont)
     for label in ("Delete run 4 permanently", "Delete run 10 permanently",

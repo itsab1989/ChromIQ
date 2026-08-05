@@ -174,7 +174,17 @@ def _build_icc(run_dir: Path, stem: str) -> bool:
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
         print(f"    (colprof failed for {stem}: {exc}) — no profile written")
         return False
-    return (run_dir / f"{stem}.icc").is_file()
+    # ArgyllCMS writes the Windows ICC extension (.icm) on Windows and .icc on
+    # macOS/Linux. ChromIQ's demo layout — and Run.profile_icc — is spelled .icc
+    # everywhere, so canonicalise the output. Without this a demo built on
+    # Windows has <stem>.icm and looks profile-less to any test that checks
+    # Run.profile_icc (#130, Windows gate). The app itself tolerates either name
+    # via ProfileBuilder.expected_icc_path(); the demo just picks the canonical one.
+    icc = run_dir / f"{stem}.icc"
+    icm = run_dir / f"{stem}.icm"
+    if not icc.is_file() and icm.is_file():
+        icm.replace(icc)
+    return icc.is_file()
 
 
 def _write_tiff(path: Path, page: int) -> None:
@@ -217,6 +227,18 @@ def _argyll(tool: str) -> str:
     found = shutil.which(tool)
     if found:
         return found
+    # Fall back to ChromIQ's own cross-platform detection. On Windows Argyll
+    # lives under %LOCALAPPDATA%\ArgyllCMS\Argyll_V*\bin — neither a macOS path
+    # above nor on PATH — so without this the demo fixtures could not build and
+    # every test that needs them errored (#130, Windows gate). find_argyll_bin_path()
+    # is the same resolver the app uses; argyll_binary() adds the .exe on Windows.
+    from core.argyll_detect import find_argyll_bin_path
+    from core.resource_path import argyll_binary
+    bin_dir = find_argyll_bin_path()
+    if bin_dir is not None:
+        exe = bin_dir / argyll_binary(tool)
+        if exe.exists():
+            return str(exe)
     raise SystemExit(f"ArgyllCMS {tool} not found — install it, or set PATH.")
 
 
