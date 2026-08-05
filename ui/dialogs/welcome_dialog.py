@@ -880,9 +880,11 @@ GLOSSARY += [
         "type it in the “Run N Description” box on the Create Chart tab, and it "
         "stays with that run, so bringing back an earlier chart with “Restore "
         "Used Chart” never changes it. ChromIQ also offers it at the end of the "
-        "profile's own description in the Calibration & Profiling tab, so the "
-        "finished .icc carries it too. It is a label for you and changes no "
-        "file name.")),
+        "profile's own description in the tab where you build the profile — "
+        "called “4. Build Profile”, or “4. Calibration & Profiling” when "
+        "calibration options are switched on in Preferences — so the finished "
+        ".icc carries it too. It is a label for you and changes no file "
+        "name.")),
     (tr("Chart notes"),
      tr("A short note printed ON the chart itself, so you can tell one printed "
         "sheet from another after they have been lying on the desk for a week "

@@ -218,3 +218,37 @@ def test_both_chart_snapshot_folders_are_real():
     assert "run.dir / CHART_SNAPSHOT_DIRNAME" in inspect.getsource(slot_for_run)
     assert "verification.dir / CHART_SNAPSHOT_DIRNAME" in inspect.getsource(
         slot_for_verification)
+
+
+# ---- help text must name the tab correctly in BOTH states ----------------
+def test_no_help_text_assumes_the_calibration_tab_name(qapp):
+    """Tab 4 is called “Build Profile” — and “Calibration & Profiling” only
+    while calibration options are switched on (``ui/main_window.py``).
+
+    Basti, beta.144: *"the run descriptions tooltip mentions the calibration
+    and profiling tab. but without calibration options enabled in preferences
+    the tab is called build profile."* Any text that names one of those two
+    without saying so sends half the users looking for a tab they do not have.
+
+    Text that is only ever SHOWN with calibration on may name it freely; this
+    checks the two that are shown either way.
+    """
+    from ui.dialogs.welcome_dialog import GLOSSARY
+    from ui.tabs.tab_chart import TabChart
+
+    both_names = ("Build Profile", "Calibration & Profiling")
+
+    entry = next(body for term, body in GLOSSARY if term == "Run description")
+    assert all(n in entry for n in both_names), (
+        "the Dictionary's “Run description” entry names one tab name but not "
+        "the other, and it is read whether or not calibration is switched on"
+    )
+
+    tip = TabChart._run_description_tooltip(None)
+    assert all(n in tip for n in both_names), (
+        "the “Run N Description” tooltip names one tab name but not the other"
+    )
+    assert "Preferences" in tip, (
+        "say WHY the tab has two names, or the reader is left guessing which "
+        "one they should be seeing"
+    )
