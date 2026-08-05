@@ -4072,5 +4072,7 @@
   "⟳ Rotate 90°": "⟳ Roter 90°",
   "⤢ Dock back": "⤢ Dokk tilbake",
   "⤢ Pop out for a bigger view": "⤢ Åpne i større vindu",
-  "＋ Add another scan to average": "＋ Legg til enda et skann å midle"
+  "＋ Add another scan to average": "＋ Legg til enda et skann å midle",
+  "A copy of the calibration chart exactly as it was printed, kept from the moment you start measuring it — “Restore Used Chart” puts it back.": "A copy of the calibration chart exactly as it was printed, kept from the moment you start measuring it — “Restore Used Chart” puts it back.",
+  "Earlier calibrations, each in a folder named with its date. Making a new calibration chart moves what was here rather than deleting it, so you can always go back to one.": "Earlier calibrations, each in a folder named with its date. Making a new calibration chart moves what was here rather than deleting it, so you can always go back to one."
 }

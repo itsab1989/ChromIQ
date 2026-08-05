@@ -4072,5 +4072,7 @@
   "⟳ Rotate 90°": "⟳ Obróć o 90°",
   "⤢ Dock back": "⤢ Zadokuj z powrotem",
   "⤢ Pop out for a bigger view": "⤢ Otwórz w większym oknie",
-  "＋ Add another scan to average": "＋ Dodaj kolejny skan do uśrednienia"
+  "＋ Add another scan to average": "＋ Dodaj kolejny skan do uśrednienia",
+  "A copy of the calibration chart exactly as it was printed, kept from the moment you start measuring it — “Restore Used Chart” puts it back.": "A copy of the calibration chart exactly as it was printed, kept from the moment you start measuring it — “Restore Used Chart” puts it back.",
+  "Earlier calibrations, each in a folder named with its date. Making a new calibration chart moves what was here rather than deleting it, so you can always go back to one.": "Earlier calibrations, each in a folder named with its date. Making a new calibration chart moves what was here rather than deleting it, so you can always go back to one."
 }

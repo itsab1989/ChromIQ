@@ -4072,5 +4072,7 @@
   "⟳ Rotate 90°": "⟳ 旋转 90°",
   "⤢ Dock back": "⤢ 收回停靠",
   "⤢ Pop out for a bigger view": "⤢ 弹出放大视图",
-  "＋ Add another scan to average": "＋ 添加另一次扫描以求平均"
+  "＋ Add another scan to average": "＋ 添加另一次扫描以求平均",
+  "A copy of the calibration chart exactly as it was printed, kept from the moment you start measuring it — “Restore Used Chart” puts it back.": "A copy of the calibration chart exactly as it was printed, kept from the moment you start measuring it — “Restore Used Chart” puts it back.",
+  "Earlier calibrations, each in a folder named with its date. Making a new calibration chart moves what was here rather than deleting it, so you can always go back to one.": "Earlier calibrations, each in a folder named with its date. Making a new calibration chart moves what was here rather than deleting it, so you can always go back to one."
 }

@@ -4072,5 +4072,7 @@
   "⟳ Rotate 90°": "⟳ Ruota di 90°",
   "⤢ Dock back": "⤢ Riaggancia",
   "⤢ Pop out for a bigger view": "⤢ Apri in una finestra più grande",
-  "＋ Add another scan to average": "＋ Aggiungi un'altra scansione da mediare"
+  "＋ Add another scan to average": "＋ Aggiungi un'altra scansione da mediare",
+  "A copy of the calibration chart exactly as it was printed, kept from the moment you start measuring it — “Restore Used Chart” puts it back.": "A copy of the calibration chart exactly as it was printed, kept from the moment you start measuring it — “Restore Used Chart” puts it back.",
+  "Earlier calibrations, each in a folder named with its date. Making a new calibration chart moves what was here rather than deleting it, so you can always go back to one.": "Earlier calibrations, each in a folder named with its date. Making a new calibration chart moves what was here rather than deleting it, so you can always go back to one."
 }

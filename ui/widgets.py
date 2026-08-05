@@ -496,6 +496,100 @@ def log_visible_lines() -> int:
     return max(LOG_MIN_LINES, min(LOG_MAX_LINES, n))
 
 
+def _max_lines_for(log) -> int:
+    """The tallest this panel can be and still fit the space it lives in.
+
+    Basti, beta.141: *"when I expand the log output field to maximum then at
+    the bottom of it the border to the frame of the app's main window is gone
+    and it looks strange."* Measured, it began long before the maximum — at 20
+    lines the panel's bottom was already below the window, so it was being
+    clipped and the margin under it went with it. There is no scroll area under
+    a tab, so nothing was going to bring that back into view.
+
+    The panel shares a column with the tab's header, its panels and the status
+    line below it. Everything else in that column has a minimum height, and the
+    sum of those minimums does not change when the panel is resized — so the
+    room left for the panel is simply the column's height minus that sum. That
+    makes the ceiling a property of the layout and the window's height, not of
+    the panel's current size: shrinking and growing again lands back where it
+    started, and making the window taller hands the space back.
+    """
+    try:
+        pane = log.parentWidget()
+        lay = pane.layout() if pane is not None else None
+        # Only a panel that is actually on screen can be measured: a stacked
+        # page that has never been shown reports a column height from before it
+        # was laid out, and trusting it once collapsed every log to two lines.
+        if lay is None or not log.isVisible() or pane.height() <= 0:
+            return LOG_MAX_LINES
+        # minimumSize() carries nested layouts too, so it does not matter how
+        # deeply the panel is nested — only that it is somewhere in this column.
+        others = lay.minimumSize().height() - log.minimumHeight()
+        room = pane.height() - others
+        fm = log.fontMetrics()
+        extra = int(log.document().documentMargin()) * 2 + log.frameWidth() * 2
+        fits = (room - extra) // max(1, fm.lineSpacing())
+        return max(LOG_MIN_LINES, min(LOG_MAX_LINES, int(fits)))
+    except (RuntimeError, AttributeError, TypeError):
+        return LOG_MAX_LINES        # a ceiling must never break a resize
+
+
+def _apply_lines(n: int) -> int:
+    """Give every panel *n* lines, capped by what each visible one can show.
+
+    Every visible panel gets a say, so growing the log on one tab can never
+    clip it on another.
+    """
+    global _LIVE_LINES, _APPLYING
+    if _APPLYING:               # see _APPLYING
+        return n
+    _APPLYING = True
+    try:
+        # The tab on screen sets how far the drag can go — it is the one the
+        # user is watching, and the only one whose column can be measured.
+        for widget in list(_LIVE_LOGS):
+            try:
+                if widget.isVisible():
+                    n = min(n, _max_lines_for(widget))
+            except RuntimeError:
+                pass
+        n = max(LOG_MIN_LINES, n)
+        _LIVE_LINES = n
+        # Tabs have different amounts of room — Measure gives its preview more
+        # and its log less. So every panel follows the one chosen size but
+        # stops at its own ceiling, and none of them is ever clipped. Tabs that
+        # are hidden now settle when they are shown; see refit_log_panes().
+        for widget in list(_LIVE_LOGS):
+            try:
+                fit_log_height(widget, n)
+            except RuntimeError:           # its C++ side is already gone
+                pass
+        return n
+    finally:
+        _APPLYING = False
+
+
+#: Set while a resize is being applied. Growing the panels can grow the
+#: window's own minimum, which makes Qt resize the window, whose resizeEvent
+#: asks for a refit — landing a second run inside the first, each shrinking the
+#: other's result. Left unguarded, every request collapsed to the two-line floor.
+_APPLYING = False
+
+
+def refit_log_panes() -> None:
+    """Re-apply the user's saved size within what the window can show now.
+
+    Called when the main window is resized: making it taller should give back
+    the size that was asked for, and making it shorter must not push the panel
+    through the bottom of the frame.
+    """
+    global _LIVE_LINES
+    if _APPLYING:
+        return
+    _LIVE_LINES = None                  # so the SAVED size is the starting point
+    _apply_lines(log_visible_lines())
+
+
 def set_log_visible_lines(n: int, *, save: bool = True) -> int:
     """Resize every log panel in the app at once, and remember the size.
 
@@ -505,16 +599,12 @@ def set_log_visible_lines(n: int, *, save: bool = True) -> int:
     Returns the value actually used, after clamping — the caller may want to
     show it, and a silently ignored request would read as a stuck drag.
     """
-    global _LIVE_LINES
-    n = max(LOG_MIN_LINES, min(LOG_MAX_LINES, int(n)))
-    _LIVE_LINES = n
+    n = _apply_lines(max(LOG_MIN_LINES, min(LOG_MAX_LINES, int(n))))
+    # Save what was APPLIED, never what was asked for: a size the window could
+    # not show is not a size the user chose, and storing it would make the
+    # panel jump the next time the app opened on a taller screen.
     if save and _LOG_SETTINGS is not None:
         _LOG_SETTINGS.set("log_visible_lines", n)
-    for widget in list(_LIVE_LOGS):
-        try:
-            fit_log_height(widget, n)
-        except RuntimeError:               # its C++ side is already gone
-            pass
     return n
 
 
@@ -544,6 +634,7 @@ def fit_log_height(log, lines: "int | None" = None) -> None:
     except (TypeError, RuntimeError):      # not a weak-referenceable widget
         pass
     try:
+        lines = max(LOG_MIN_LINES, min(int(lines), _max_lines_for(log)))
         fm = log.fontMetrics()
         doc_margin = int(log.document().documentMargin()) * 2
         frame = log.frameWidth() * 2

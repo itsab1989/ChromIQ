@@ -224,3 +224,144 @@ def test_it_can_be_made_smaller_than_three_lines(bound, qapp):
     assert w.maximumHeight() < tall
     # …and no further, or the panel stops being a panel.
     assert set_log_visible_lines(1) == 2
+
+
+# ---- and it never grows through the bottom of the window ----------------
+#
+# Basti, beta.141: *"i also noticed when i expand the log output field to
+# maximum then at the bottom of it the border to the frame of the apps main
+# window is gone and it looks strange. happens only at maximum size."*
+#
+# Measured in the real window it began well before the maximum: at 20 lines in
+# a 900 px window the panel's bottom was already 75 px BELOW the window. There
+# is no scroll area under a tab, so the clipped part was simply gone, and the
+# margin under the panel went with it.
+
+def _column(qapp, *, height, above=300, below=30):
+    """A log near the bottom of a fixed-height column, like a tab's left side.
+
+    The column is a CHILD of a fixed-size host, not a window of its own. A
+    top-level widget grows itself to satisfy its layout's minimum, which is
+    exactly what the app's window cannot do — it is the size the user made it,
+    on a screen of a certain height — so a top-level column here would quietly
+    absorb the bug instead of showing it.
+    """
+    from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget
+
+    host = QWidget()
+    host.setFixedSize(400, height)
+    pane = QWidget(host)
+    pane.setGeometry(0, 0, 400, height)
+    lay = QVBoxLayout(pane)
+    lay.setContentsMargins(0, 0, 0, 0)
+    lay.setSpacing(0)
+    top = QLabel()
+    top.setMinimumHeight(above)
+    lay.addWidget(top)
+    log = QPlainTextEdit()
+    lay.addWidget(log)
+    foot = QLabel()
+    foot.setMinimumHeight(below)
+    lay.addWidget(foot)
+    host.show()
+    lay.activate()
+    fit_log_height(log)
+    pane._host, pane._foot = host, foot
+    return pane, log
+
+
+def _fits(pane, log):
+    """True when the panel AND the status line under it are still on screen.
+
+    Checking only the panel is not enough: what the user sees go missing is the
+    space below it — Basti's *"the border to the frame of the app's main window
+    is gone"*.
+    """
+    pane.layout().activate()
+    foot = pane._foot
+    log_inside = log.mapTo(pane, log.rect().bottomLeft()).y() <= pane.height()
+    # An over-tall panel does not push the status line out of the column — Qt
+    # crushes it to nothing and leaves it pinned at the bottom. So its position
+    # proves nothing and its height proves everything.
+    foot_alive = foot.height() >= foot.minimumHeight()
+    return log_inside and foot_alive
+
+
+def test_a_log_cannot_be_dragged_past_the_bottom_of_its_column(bound):
+    pane, log = _column(qapp=None, height=520)
+    set_log_visible_lines(LOG_MAX_LINES)
+    pane.layout().activate()
+    assert _fits(pane, log), (
+        f"panel bottom {log.mapTo(pane, log.rect().bottomLeft()).y()} "
+        f"is past the column's {pane.height()} px — this is the clipping Basti saw"
+    )
+    pane._host.deleteLater()
+
+
+def test_a_taller_window_allows_more_lines_than_a_short_one(bound):
+    """Measured one at a time: every live panel caps the shared size, so two
+    columns on screen together would both settle on the shorter one's ceiling
+    (which is the point of the cap, and is its own test below)."""
+    from ui.widgets import _max_lines_for
+
+    short, short_log = _column(qapp=None, height=460)
+    ceiling_short = _max_lines_for(short_log)
+    short.hide()
+    short._host.deleteLater()
+    tall, tall_log = _column(qapp=None, height=900)
+    ceiling_tall = _max_lines_for(tall_log)
+    assert ceiling_tall > ceiling_short, (
+        "the ceiling has to follow the window's height, or making the window "
+        "bigger would not give the user the size they asked for"
+    )
+    tall._host.deleteLater()
+
+
+def test_the_tab_with_the_least_room_sets_the_size_for_all_of_them(bound):
+    """Tabs have different amounts of room — Measure gives its preview more and
+    its log less. The size is shared, so it has to fit the tightest one, or it
+    would clip the moment the user changed tab."""
+    roomy, roomy_log = _column(qapp=None, height=900)
+    tight, tight_log = _column(qapp=None, height=460)
+    used = set_log_visible_lines(LOG_MAX_LINES)
+    roomy.layout().activate()
+    tight.layout().activate()
+    assert _fits(tight, tight_log) and _fits(roomy, roomy_log)
+    assert used <= _max_lines_for_or_max(tight_log)
+    roomy._host.deleteLater()
+    tight._host.deleteLater()
+
+
+def _max_lines_for_or_max(log):
+    from ui.widgets import _max_lines_for
+
+    return _max_lines_for(log)
+
+
+def test_shrinking_then_growing_lands_back_on_the_same_size(bound):
+    """The ceiling is a property of the layout, not of the current size.
+
+    An earlier attempt measured how far the panel currently overflowed, which
+    made growth one-way: once shrunk, the space was taken by the widgets above
+    and every later request collapsed to the two-line floor.
+    """
+    pane, log = _column(qapp=None, height=700)
+    big = set_log_visible_lines(LOG_MAX_LINES)
+    set_log_visible_lines(LOG_MIN_LINES)
+    pane.layout().activate()
+    again = set_log_visible_lines(LOG_MAX_LINES)
+    assert again == big
+    pane._host.deleteLater()
+
+
+def test_the_size_that_is_saved_is_the_size_that_was_shown(bound):
+    """A size the column could not show is not a size the user chose.
+
+    Storing the asked-for number would make the panel jump the next time the
+    app opened on a taller screen.
+    """
+    pane, log = _column(qapp=None, height=520)
+    used = set_log_visible_lines(LOG_MAX_LINES)
+    assert used < LOG_MAX_LINES              # the column is too short for 40
+    assert bound.get("log_visible_lines") == used
+    pane._host.deleteLater()

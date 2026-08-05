@@ -170,3 +170,42 @@ def test_it_covers_both_ways_to_apply_a_calibration():
     body = " ".join(str(s[1]) for s in _card()["steps"])
     assert "RIP" in body                      # the printer/RIP applies it
     assert "bake" in body or "Apply" in body  # …or ChromIQ bakes it in
+
+
+# ---- the folder guide must not drift from the folders that exist ---------
+# Knut, beta.141: *"Help card 'Where are my files?' is not fully updated with
+# regards to folder locations."* He was right — #137 created cal/chart/ and
+# cal/old/ and they reached the descriptions list but not the drawn tree, so
+# the card showed a calibration folder with one child instead of three.
+def test_the_tree_shows_every_calibration_folder():
+    from ui.file_guide import tree_rows
+
+    drawn = {name for _prefix, name, _meaning in tree_rows()}
+    for folder in ("cal/", "chart/", "old/", "exports/"):
+        assert folder in drawn, f"the folder tree never shows {folder}"
+
+
+def test_the_tree_and_the_descriptions_agree_about_cal():
+    """Two lists describing one layout is how they drift; this ties them."""
+    from ui.file_guide import _folders, tree_rows
+
+    described = {path for path, _ in _folders()}
+    for path in ("cal/", "cal/chart/", "cal/old/"):
+        assert path in described, f"{path} has no description"
+    # …and each has a row in the tree (matched by its own last segment).
+    drawn = {name for _p, name, _m in tree_rows()}
+    assert {"cal/", "chart/", "old/"} <= drawn
+
+
+def test_both_chart_snapshot_folders_are_real():
+    """Knut asked whether run1/chart/ AND verifications/<date>/chart/ both
+    exist, or only the one under a verification date. Both do, and they hold
+    different charts — this asserts it against the code, not the document."""
+    from core.file_manager import CHART_SNAPSHOT_DIRNAME
+    from workflow.chart_slot import slot_for_run, slot_for_verification
+    import inspect
+
+    assert CHART_SNAPSHOT_DIRNAME == "chart"
+    assert "run.dir / CHART_SNAPSHOT_DIRNAME" in inspect.getsource(slot_for_run)
+    assert "verification.dir / CHART_SNAPSHOT_DIRNAME" in inspect.getsource(
+        slot_for_verification)

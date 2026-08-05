@@ -4072,5 +4072,7 @@
   "⟳ Rotate 90°": "⟳ Повернуть на 90°",
   "⤢ Dock back": "⤢ Вернуть на место",
   "⤢ Pop out for a bigger view": "⤢ Открыть в большом окне",
-  "＋ Add another scan to average": "＋ Добавить ещё скан для усреднения"
+  "＋ Add another scan to average": "＋ Добавить ещё скан для усреднения",
+  "A copy of the calibration chart exactly as it was printed, kept from the moment you start measuring it — “Restore Used Chart” puts it back.": "A copy of the calibration chart exactly as it was printed, kept from the moment you start measuring it — “Restore Used Chart” puts it back.",
+  "Earlier calibrations, each in a folder named with its date. Making a new calibration chart moves what was here rather than deleting it, so you can always go back to one.": "Earlier calibrations, each in a folder named with its date. Making a new calibration chart moves what was here rather than deleting it, so you can always go back to one."
 }

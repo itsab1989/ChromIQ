@@ -307,6 +307,28 @@ class MainWindow(QMainWindow):
     def resizeEvent(self, event) -> None:  # type: ignore[override]
         super().resizeEvent(event)
         self._refit_accent_line()
+        if event.oldSize().height() != event.size().height():
+            self._refit_log_panes()
+
+    def _refit_log_panes(self) -> None:
+        """Keep the log panels inside the window when its height changes.
+
+        A shorter window must not push the panel through the bottom of the
+        frame (Basti, beta.141: *"the border to the frame of the app's main
+        window is gone and it looks strange"*), and a taller one should give
+        back the size that was asked for. Re-entrant by nature — resizing the
+        panels resizes the window's contents — so it is guarded rather than
+        left to recurse.
+        """
+        if getattr(self, "_refitting_logs", False):
+            return
+        self._refitting_logs = True
+        try:
+            from ui.widgets import refit_log_panes
+
+            refit_log_panes()
+        finally:
+            self._refitting_logs = False
 
     def _refit_accent_line(self) -> None:
         y = self._masthead.height() + self._tabs.tabBar().height()
@@ -317,6 +339,9 @@ class MainWindow(QMainWindow):
         from ui.styles import TAB_COLORS
 
         log.info("---- Tab → %s ----", self._tabs.tabText(index))
+        # A tab that has just become visible can be measured for the first
+        # time, so its log panel settles into whatever room this tab has.
+        QTimer.singleShot(0, self._refit_log_panes)
         # #130: keep the shared Profile-run list current (a run may have been
         # created since the bar last populated). Cheap; the picked run/type stay.
         color = TAB_COLORS[index] if index < len(TAB_COLORS) else TAB_COLORS[-1]

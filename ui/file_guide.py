@@ -102,6 +102,14 @@ def _structure():
         (1, "cal/", tr(
             "The optional printer-calibration target and the curves measured "
             "from it, shared by every run in this project.")),
+        (2, "chart/", tr(
+            "A copy of the calibration chart exactly as it was printed, kept "
+            "from the moment you start measuring it — “Restore Used Chart” "
+            "puts it back.")),
+        (2, "old/", tr(
+            "Earlier calibrations, each in a folder named with its date. "
+            "Making a new calibration chart moves what was here rather than "
+            "deleting it, so you can always go back to one.")),
         (2, "exports/", tr(
             "That calibration chart's hand-off files for other programs.")),
         (1, "exports/", tr(
