@@ -27,6 +27,23 @@ import tempfile
 import pytest
 
 
+# Keep the suite off the user's real application log. core.logger's
+# configure_logging() installs a RotatingFileHandler on the real
+# ~/.../ChromIQ/Logs/chromiq.log and returns early if the root logger already
+# has a handler. Pre-install a NullHandler here — BEFORE the first `core` import
+# below triggers configure_logging() — so the app never attaches its file
+# handler during tests: the real log is left untouched, and nothing is written
+# to disk to clean up afterwards. On Windows this also removes ~1000 lines of
+# swallowed "PermissionError: [WinError 32]" per gate run — the four xdist
+# workers were each rotating that one shared 5 MB file, and Windows refuses to
+# rename a file another process still holds open. pytest's own log capture
+# (caplog) attaches its handler independently and is unaffected.
+import logging as _logging
+_root_logger = _logging.getLogger()
+if not _root_logger.handlers:
+    _root_logger.addHandler(_logging.NullHandler())
+    _root_logger.setLevel(_logging.DEBUG)
+
 
 #: The highest worker count this suite is currently RELIABLE at — see CLAUDE.md
 #: for the measurements. Kept here as a fact, not enforced: capping ``-n auto``

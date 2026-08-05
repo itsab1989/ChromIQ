@@ -69,6 +69,8 @@ def test_rail_grows_so_a_taller_widget_still_fits(qapp, h):
 
 def test_the_real_target_bar_fits_on_the_rail(qapp, tmp_path):
     """The case that actually broke: the two-line Profile-run bar."""
+    from _fontcheck import skip_without_fonts
+    skip_without_fonts()                 # rail/bar geometry pivots on real text widths
     s = AppSettings(); s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
     root = tmp_path / "ChromIQ"; root.mkdir()
     s.set("custom_output_path", str(root))
