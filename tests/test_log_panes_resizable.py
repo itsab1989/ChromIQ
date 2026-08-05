@@ -110,7 +110,7 @@ def test_restore_factory_defaults_puts_it_back(bound, qapp):
 # ---- bounds --------------------------------------------------------------
 @pytest.mark.parametrize("asked,expected", [
     (1, LOG_MIN_LINES), (0, LOG_MIN_LINES), (-5, LOG_MIN_LINES),
-    (999, LOG_MAX_LINES), (9, 9),
+    (999, LOG_MAX_LINES), (9, 9), (2, 2),
 ])
 def test_it_cannot_be_dragged_to_a_useless_size(bound, qapp, asked, expected):
     assert set_log_visible_lines(asked) == expected
@@ -211,3 +211,16 @@ def test_the_drag_reference_does_not_move_with_the_panel(bound, qapp):
     assert "globalPosition" in src, "the drag is measured in local coordinates"
     # …and every drag reference goes through the one helper.
     assert src.count("self._global_y(event)") == 2
+
+
+def test_it_can_be_made_smaller_than_three_lines(bound, qapp):
+    """Basti: *"I want to be able to make the log output field even smaller
+    (one line of output less should be possible)"*. Two lines still shows a
+    message and the one after it, so you can see something arrive."""
+    assert LOG_MIN_LINES == 2
+    w = _log(qapp)
+    tall = w.maximumHeight()
+    assert set_log_visible_lines(2) == 2
+    assert w.maximumHeight() < tall
+    # …and no further, or the panel stops being a panel.
+    assert set_log_visible_lines(1) == 2

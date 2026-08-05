@@ -590,6 +590,17 @@ class MeasureManager(QObject):
         self._guided_idx    = 0
         self._guided_state  = "idle" if strips else "disabled"
 
+    def mark_ending_answered(self) -> None:
+        """Record that the user has already answered how this session ends.
+
+        The reader reports an interruption in its own words a moment after the
+        key that caused it — as an event in strip mode and as a printed line in
+        patch-by-patch. Without this, a Give Up answered in a failure window
+        was followed by "Strip Read Interrupted" asking about the very same
+        ending (Knut, beta.141).
+        """
+        self._ending_already_answered = True
+
     def send_key(self, key: str) -> None:
         """Send a keystroke to the running chartread process.
 
@@ -856,6 +867,10 @@ class MeasureManager(QObject):
         if ev is None:
             if line.strip():
                 on_line(line)
+                # The helper prints chartread's own startup failures as prose,
+                # and they have to raise their window here too — this parser is
+                # the only one that runs in engine mode (Knut, beta.141).
+                self._check_startup_failures(line)
                 # The helper prints chartread's own prose alongside its events,
                 # and one sentence in it needs more than the log: the dial being
                 # in the wrong position (chartread.c:1644). There is no event for
@@ -1173,6 +1188,30 @@ class MeasureManager(QObject):
 
         # "aborted" needs no handling: the process exit drives on_finish.
 
+    def _check_startup_failures(self, line: str) -> None:
+        """Raise the "Instrument Failed to Initialize" window from either reader.
+
+        These failures happen BEFORE a measurement session exists — the
+        instrument never came up — so there is nothing to send a key to and
+        nothing to save. The window that explains them (unplug the cable, make
+        sure it is switched on, try again) has existed since #130, but its
+        trigger lived only in the stock-chartread parser. In engine mode the
+        helper's prose goes straight to the log and never through that parser,
+        so Knut saw the failure in the log window with no window at all
+        (beta.141): *"Initialising instrument failed with message
+        'Communications failure' … this message did not pop up with a window
+        message, only in log window."*
+
+        Called from both parsers now, so which reader is running cannot decide
+        whether the user is told.
+        """
+        m = _INIT_COMS_FAIL_RE.search(line)
+        if m:
+            self.coms_init_failed.emit(m.group(1).strip())
+        m = _INIT_INST_FAIL_RE.search(line)
+        if m:
+            self.inst_init_failed.emit(m.group(1).strip())
+
     def _handle_line(self, line: str, on_line: Callable[[str], None]) -> None:
         on_line(line)
         # Stock chartread announces the device in its -v header, before any
@@ -1342,12 +1381,7 @@ class MeasureManager(QObject):
             self.generic_instrument_error.emit(m.group(1).strip(), m.group(2).strip())
 
         # B. Startup / config failures -------------------------------------
-        m = _INIT_COMS_FAIL_RE.search(line)
-        if m:
-            self.coms_init_failed.emit(m.group(1).strip())
-        m = _INIT_INST_FAIL_RE.search(line)
-        if m:
-            self.inst_init_failed.emit(m.group(1).strip())
+        self._check_startup_failures(line)
         m = _CAPABILITY_FAIL_RE.search(line)
         if m:
             self.instrument_wrong_type.emit(m.group(1).lower())

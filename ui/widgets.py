@@ -440,9 +440,11 @@ class ButtonFontFilter(QObject):
 #: text are visible, but showing 9 is better."*
 LOG_VISIBLE_LINES = 9
 
-#: How far a log may be dragged. Three lines still shows a message and its
-#: continuation; forty is about as tall as a log can get before it is the tab.
-LOG_MIN_LINES = 3
+#: How far a log may be dragged. Two lines is the smallest that still shows a
+#: message and the one after it, so you can see something arrive — Basti asked
+#: for one line less than the old floor of three. Forty is about as tall as a
+#: log can get before it is the tab.
+LOG_MIN_LINES = 2
 LOG_MAX_LINES = 40
 
 #: Every live log panel, so dragging one resizes them all — Basti: *"resizing

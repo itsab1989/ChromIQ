@@ -5074,6 +5074,33 @@ class TabMeasure(QWidget):
     #: keystroke, and which protocol depends on the engine.
     END_SAVE = "\x00save"
 
+    #: "The user pressed Give Up" — resolved into a real answer only once the
+    #: window they pressed it in has closed. See _resolve_give_up.
+    GIVE_UP_PENDING = "__give_up_pending__"
+
+    def _resolve_give_up(self, choice: str) -> str:
+        """Turn a pending Give Up into the ending the user actually wants.
+
+        Called after the failure window has closed, so the ending question is
+        the only thing on screen — and, when the answer is to stop, the manager
+        is told the ending has been answered, so the reader's own report of the
+        interruption cannot raise a second window about it.
+
+        Knut, beta.141, strip mode: *"clicking 'Give Up' called both
+        'Instrument Error' and 'Strip Read Interrupted' windows simultaneously.
+        The 'Strip Read Interrupted' window should not come at all."*
+        """
+        if choice != self.GIVE_UP_PENDING:
+            return choice
+        answer = self._give_up_or_save()
+        if answer in ("\x1b", self.END_SAVE):
+            # Stopping, either way. Whatever the reader says about it next is
+            # about the ending the user has just chosen, not news.
+            mark = getattr(self._manager, "mark_ending_answered", None)
+            if callable(mark):
+                mark()
+        return answer
+
     def _give_up_or_save(self) -> str:
         """What "Give Up" should do — specification §1a.
 
@@ -5412,7 +5439,13 @@ class TabMeasure(QWidget):
             dlg.accept()
 
         def _give_up():
-            chosen[0] = self._give_up_or_save()
+            # ASK AFTER THIS WINDOW HAS CLOSED, never before.
+            # _give_up_or_save() opens the ending question, and dlg.accept()
+            # only runs after it returns — so the question appeared ON TOP of
+            # the failure window it belongs to. Knut, beta.141: *"it appears on
+            # top of the previous window (the window was not closed, or it came
+            # more than once)"*, on all three of these windows.
+            chosen[0] = self.GIVE_UP_PENDING
             dlg.accept()
 
         use_btn.clicked.connect(_use)
@@ -5427,6 +5460,7 @@ class TabMeasure(QWidget):
 
         tint_dialog_primary(dlg, _TAB_COLOR)
         self._exec_measurement_window(dlg)
+        chosen[0] = self._resolve_give_up(chosen[0])
         self._send_failure_choice(chosen[0])
         self._arm_key_watchdog()
 
@@ -5477,7 +5511,13 @@ class TabMeasure(QWidget):
             dlg.accept()
 
         def _give_up():
-            chosen[0] = self._give_up_or_save()
+            # ASK AFTER THIS WINDOW HAS CLOSED, never before.
+            # _give_up_or_save() opens the ending question, and dlg.accept()
+            # only runs after it returns — so the question appeared ON TOP of
+            # the failure window it belongs to. Knut, beta.141: *"it appears on
+            # top of the previous window (the window was not closed, or it came
+            # more than once)"*, on all three of these windows.
+            chosen[0] = self.GIVE_UP_PENDING
             dlg.accept()
 
         use_btn.clicked.connect(_use)
@@ -5492,6 +5532,7 @@ class TabMeasure(QWidget):
 
         tint_dialog_primary(dlg, _TAB_COLOR)
         self._exec_measurement_window(dlg)
+        chosen[0] = self._resolve_give_up(chosen[0])
         self._send_failure_choice(chosen[0])
         self._arm_key_watchdog()
 
@@ -5573,7 +5614,13 @@ class TabMeasure(QWidget):
             dlg.accept()
 
         def _give_up():
-            chosen[0] = self._give_up_or_save()
+            # ASK AFTER THIS WINDOW HAS CLOSED, never before.
+            # _give_up_or_save() opens the ending question, and dlg.accept()
+            # only runs after it returns — so the question appeared ON TOP of
+            # the failure window it belongs to. Knut, beta.141: *"it appears on
+            # top of the previous window (the window was not closed, or it came
+            # more than once)"*, on all three of these windows.
+            chosen[0] = self.GIVE_UP_PENDING
             dlg.accept()
 
         resume_btn.clicked.connect(_resume)
@@ -5586,6 +5633,7 @@ class TabMeasure(QWidget):
 
         tint_dialog_primary(dlg, _TAB_COLOR)
         self._exec_measurement_window(dlg)
+        chosen[0] = self._resolve_give_up(chosen[0])
         self._send_failure_choice(chosen[0])
         self._arm_key_watchdog()
 
@@ -5651,6 +5699,7 @@ class TabMeasure(QWidget):
 
         tint_dialog_primary(dlg, _TAB_COLOR)
         self._exec_measurement_window(dlg)
+        chosen[0] = self._resolve_give_up(chosen[0])
         self._send_failure_choice(chosen[0])
         self._arm_key_watchdog()
 
@@ -5708,7 +5757,13 @@ class TabMeasure(QWidget):
             dlg.accept()
 
         def _give_up():
-            chosen[0] = self._give_up_or_save()
+            # ASK AFTER THIS WINDOW HAS CLOSED, never before.
+            # _give_up_or_save() opens the ending question, and dlg.accept()
+            # only runs after it returns — so the question appeared ON TOP of
+            # the failure window it belongs to. Knut, beta.141: *"it appears on
+            # top of the previous window (the window was not closed, or it came
+            # more than once)"*, on all three of these windows.
+            chosen[0] = self.GIVE_UP_PENDING
             dlg.accept()
 
         retry_btn.clicked.connect(_retry)
@@ -5721,6 +5776,7 @@ class TabMeasure(QWidget):
 
         tint_dialog_primary(dlg, _TAB_COLOR)
         self._exec_measurement_window(dlg)
+        chosen[0] = self._resolve_give_up(chosen[0])
         self._send_failure_choice(chosen[0])
         self._arm_key_watchdog()
 
@@ -5844,7 +5900,13 @@ class TabMeasure(QWidget):
             dlg.accept()
 
         def _give_up():
-            chosen[0] = self._give_up_or_save()
+            # ASK AFTER THIS WINDOW HAS CLOSED, never before.
+            # _give_up_or_save() opens the ending question, and dlg.accept()
+            # only runs after it returns — so the question appeared ON TOP of
+            # the failure window it belongs to. Knut, beta.141: *"it appears on
+            # top of the previous window (the window was not closed, or it came
+            # more than once)"*, on all three of these windows.
+            chosen[0] = self.GIVE_UP_PENDING
             dlg.accept()
 
         cont_btn.clicked.connect(_cont)
@@ -5857,6 +5919,7 @@ class TabMeasure(QWidget):
 
         tint_dialog_primary(dlg, _TAB_COLOR)
         self._exec_measurement_window(dlg)
+        chosen[0] = self._resolve_give_up(chosen[0])
         self._send_failure_choice(chosen[0])
         self._arm_key_watchdog()
         if chosen[0] not in ("\x1b", self.END_SAVE):

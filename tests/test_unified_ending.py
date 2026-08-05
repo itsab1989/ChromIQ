@@ -51,9 +51,21 @@ def test_patches_still_unread_is_no_longer_a_separate_window():
 
 
 def test_every_give_up_offers_to_save():
-    """The five that did not. `Give Up` now asks first."""
+    """The five that did not. `Give Up` now asks first.
+
+    The question is asked AFTER the window has closed, not from inside the
+    button handler — otherwise it opens on top of the window it belongs to
+    (Knut, beta.141). So each button records a pending decision and the caller
+    resolves it once ``exec()`` has returned; both halves are asserted here,
+    because either one alone would let the other rot.
+    """
     whole = inspect.getsource(TabMeasure)
-    assert whole.count("chosen[0] = self._give_up_or_save()") == 5
+    assert whole.count("chosen[0] = self.GIVE_UP_PENDING") == 5, \
+        "a Give Up button no longer defers its question"
+    assert whole.count("self._resolve_give_up(chosen[0])") >= 5, \
+        "a deferred Give Up is never resolved"
+    assert "self._give_up_or_save()" in inspect.getsource(
+        TabMeasure._resolve_give_up), "Give Up stopped offering to save"
     assert 'chosen[0] = "\\x1b"' not in whole, \
         "no window may still send Esc straight from a button"
 

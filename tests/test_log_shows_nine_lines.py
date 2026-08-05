@@ -59,13 +59,22 @@ def test_the_measure_tab_asks_for_nine_lines(qapp):
 
 
 def test_the_height_is_measured_not_hard_coded(qapp):
-    """The whole point: a number cannot promise a line count."""
+    """The whole point: a number cannot promise a line count.
+
+    The arithmetic lives in ``ui.widgets.fit_log_height`` — the one helper every
+    log panel goes through, including this tab's, which used to keep a private
+    copy and was therefore the one panel that ignored the user's own size.
+    """
     import inspect
     from ui.tabs.tab_measure import TabMeasure
-    src = inspect.getsource(TabMeasure._fit_log_height)
+    from ui.widgets import fit_log_height
+
+    src = inspect.getsource(fit_log_height)
     assert "fontMetrics()" in src and "lineSpacing()" in src
     assert "documentMargin()" in src, "the document's own margin counts too"
     assert "frameWidth()" in src, "so does the frame"
+    # …and this tab uses it rather than measuring on its own again.
+    assert "fit_log_height(log)" in inspect.getsource(TabMeasure._fit_log_height)
 
 
 def test_nine_lines_actually_fit_at_the_app_font(qapp):

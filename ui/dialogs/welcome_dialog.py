@@ -1100,6 +1100,31 @@ class WorkflowIcon(QWidget):
                     p.setPen(QPen(fg, stroke))
                 p.drawEllipse(int(cx - r), int(cy - r), 2 * r, 2 * r)
 
+        elif self._key == "calibrate_printer":
+            # A stepped ramp — which is literally what a calibration chart is:
+            # one ink channel walked from light to dark. Bars rise left to
+            # right, the last one filled, so it reads as "bring the printer to
+            # a known response" rather than as another sheet-of-patches icon.
+            margin = 14
+            bars = 6
+            gap = 4
+            usable = s - 2 * margin
+            bw = (usable - gap * (bars - 1)) / bars
+            base = s - margin
+            p.setPen(QPen(fg, stroke))
+            for i in range(bars):
+                # Lowest bar a stub, tallest nearly the full height.
+                frac = (i + 1) / bars
+                h = max(6.0, usable * frac)
+                x = margin + i * (bw + gap)
+                if i == bars - 1:
+                    p.setBrush(accent)
+                    p.setPen(Qt.PenStyle.NoPen)
+                else:
+                    p.setBrush(QColor(0, 0, 0, 0))
+                    p.setPen(QPen(fg, stroke))
+                p.drawRoundedRect(QRectF(x, base - h, bw, h), 2, 2)
+
         elif self._key == "print_chart":
             # Sheet (rectangle) with a 4x6 patch grid; one accent patch
             margin = 14
