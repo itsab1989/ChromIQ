@@ -1,5 +1,40 @@
 # Changelog
 
+## v3.14.8-beta.143
+
+### New
+
+- **"Calibration" can be chosen before any project exists.** It is the first
+  step of the work — you calibrate the printer, then you profile it, then you
+  verify the profile — and it was the one step you could not start from a clean
+  app without first generating a profiling chart you may not have wanted. The
+  Profile run box stays greyed, because a calibration does not belong to a run;
+  generating the calibration chart creates the project from the name you type
+  in Create Chart, exactly as a first profiling chart does.
+
+- **"Calibration" is now first in the Run type list**, so the list reads in the
+  order of the work rather than the order the features were built. **Profiling
+  is still what is selected**, because most sessions are profiling sessions.
+
+### Fixed
+
+- **The bar no longer shifts about while the app is starting.** The Profile run
+  box was measured before the app's stylesheet reached it and before it knew
+  whether calibration was switched on, so it grew from 147 to 176 px on the
+  first pass of the event loop and dragged the six controls to its right 29 px
+  sideways — which looked like the Run type box resizing itself. Both facts are
+  now known before the first paint.
+
+- **The bar is no longer taller than what is in it.** With the location line
+  hidden, the row took the whole bar and centred the boxes in the leftover
+  space; the sentence shown before a project is loaded then inflated it again
+  from the other direction, because a wrapped label reports a height for a
+  width it is not given. The row is now as tall as the tallest thing actually
+  in it, in every combination.
+
+- **The Delete mark is one pixel taller**, added at the bottom, with its top
+  edge where it was.
+
 ## v3.14.8-beta.142
 
 ### Fixed
