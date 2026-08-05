@@ -20,8 +20,8 @@ python main.py
 
 ```bash
 source .venv/bin/activate
-QT_QPA_PLATFORM=offscreen pytest -n 4 --dist loadfile            # everyday tier
-QT_QPA_PLATFORM=offscreen pytest --runslow -n 4 --dist loadfile  # THE RELEASE GATE, ~4030 tests, ~6 min
+QT_QPA_PLATFORM=offscreen pytest -n 12 --dist loadfile            # everyday tier
+QT_QPA_PLATFORM=offscreen pytest --runslow -n 12 --dist loadfile  # THE RELEASE GATE, ~4370 tests, ~2.5 min
 ```
 
 The suite is two-tiered: ~20 heavy end-to-end profile-build tests carry
@@ -35,11 +35,39 @@ collection appears to hang for many minutes. Anything far beyond the times
 above means something is wrong (a test opening a modal dialog `.exec()`, or
 `.venv` being scanned again), not just "slow tests".
 
-**Run the gate in parallel — it is 3x faster and the reason it was unsafe is
-fixed.** `-n 4 --dist loadfile` is 6:20 against 18:57 serial for the same 4030
-tests. `--dist loadfile` keeps each file on one worker, which the session-scoped
+**Run the gate in parallel — it is the difference between 2.5 minutes and 19.**
+`--dist loadfile` keeps each file on one worker, which the session-scoped
 fixtures need. Parallel was avoided because a run once hung for 2.5 h; that was
 `targen` without a `timeout=`, now fixed.
+
+**Measured on a 16-core M-series (12 performance cores), 4367 tests:**
+
+| | wall time |
+|---|---|
+| serial | 18:57 |
+| `-n 4 --dist loadfile` | 6:25 |
+| `-n 12 --dist loadfile` | 4:20 |
+| `-n 12` + the demo-project cache, **cold** | 4:06 |
+| `-n 12` + the demo-project cache, **warm** | **2:29** |
+
+**Worker count was never the real limit — the demo-project build was.**
+"Session-scoped" means *per worker process* under `pytest-xdist`, so every
+worker that touched `demo_projects_root` built its own copy: two files need it,
+so the gate paid ~4 minutes twice, in parallel, and could not finish faster than
+one of them:
+
+```
+234.26s setup  tests/test_report_readable_on_dark.py
+229.38s setup  tests/test_legacy_migration.py
+ 89.99s call   <the next slowest thing in the whole suite>
+```
+
+`tests/conftest.py` now caches that tree on disk, keyed by the generator
+(`scripts/make_demo_projects.py`) **and** the ArgyllCMS binaries that built it,
+so an Argyll upgrade or a generator edit rebuilds it and nothing else does.
+Delete `$TMPDIR/chromiq-demo-projects-cache`, or point `CHROMIQ_DEMO_CACHE`
+elsewhere, to force a rebuild. Every consumer still copies what it uses, because
+`Project.load` migrates in place.
 
 **Do not edit source files while a gate is running.** Many tests asserts on
 `inspect.getsource(...)`, which reads from disk — an edit mid-run shifts line

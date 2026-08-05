@@ -18,6 +18,11 @@ at the class level: no real subprocess, no cross-test signal leak, no modal.
 """
 from pathlib import Path
 
+import os
+import shutil
+import sys
+import tempfile
+
 import pytest
 
 # On Windows/ARM, make freetype-py find our vendored ARM64 FreeType before any
@@ -103,28 +108,108 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(skip)
 
 # ---------------------------------------------------------------------------
-# Demo projects: built ONCE for the whole session, shared by every test file.
+# Demo projects: built once, then CACHED ON DISK across workers and runs.
 # ---------------------------------------------------------------------------
-@pytest.fixture(scope="session")
-def demo_projects_root(tmp_path_factory):
-    """Every demo project, built once per session.
+def _demo_cache_key() -> str:
+    """What the built projects actually depend on.
 
-    Each builder shells out to real ArgyllCMS (targen, colprof) and costs
-    30-70 seconds. They were being built per test, then per file — two separate
-    session fixtures in two files, so the same project was built twice in one
-    gate run. One fixture here means one build for the whole suite.
-
-    Tests must COPY what they use: ``Project.load`` migrates in place, so a
-    shared tree would let one test's migration change what the next one sees.
+    Two things decide whether a cached tree is still the right answer: the
+    generator that produced it, and the ArgyllCMS that did the work. Anything
+    else changing (a test, the app) does not alter these files, so the cache
+    survives it — which is the whole point.
     """
-    import sys
+    import hashlib
+
+    h = hashlib.sha256()
+    h.update(_DEMO_GENERATOR.read_bytes())
+    # The Argyll binaries: identity by size + mtime, so an upgrade invalidates
+    # the cache rather than silently testing yesterday's output.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    try:
+        from make_demo_projects import _argyll
+        for tool in ("targen", "colprof", "printtarg", "fakeread"):
+            try:
+                st = Path(_argyll(tool)).stat()
+                h.update(f"{tool}:{st.st_size}:{int(st.st_mtime)}".encode())
+            except Exception:            # noqa: BLE001 — a missing tool is
+                h.update(f"{tool}:missing".encode())   # itself part of the key
+    except Exception:                    # noqa: BLE001
+        h.update(b"argyll-unresolvable")
+    return h.hexdigest()[:16]
+
+
+#: Where the cache lives. Beside the repo rather than in it, so it is never
+#: committed and never confuses a `git status` before a release.
+_DEMO_GENERATOR = Path(__file__).resolve().parents[1] / "scripts" / "make_demo_projects.py"
+_DEMO_CACHE_HOME = Path(
+    os.environ.get("CHROMIQ_DEMO_CACHE",
+                   Path(tempfile.gettempdir()) / "chromiq-demo-projects-cache"))
+
+
+def _build_demo_projects(into: Path) -> None:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
     from make_demo_projects import (build_full, build_legacy_v1,
                                     build_legacy_v2, build_verify_history)
-    root = tmp_path_factory.mktemp("demo-projects")
     for build in (build_full, build_verify_history,
                   build_legacy_v1, build_legacy_v2):
-        build(root)
+        build(into)
+
+
+@pytest.fixture(scope="session")
+def demo_projects_root(tmp_path_factory):
+    """Every demo project, built once and then reused.
+
+    Each builder shells out to real ArgyllCMS (targen, colprof) and costs
+    30-70 seconds; the four together are around **four minutes**, and that
+    setup is the single longest thing in the whole suite.
+
+    "Session-scoped" is not enough on its own. Under ``pytest-xdist`` a session
+    is **per worker process**, so every worker that touches this fixture built
+    its own copy: with ``--dist loadfile`` and two files needing it, the gate
+    paid for the same four minutes twice, in parallel, and could never finish
+    faster than one of them. Measured on the beta.141 tree:
+
+        234.26s setup  tests/test_report_readable_on_dark.py
+        229.38s setup  tests/test_legacy_migration.py
+         89.99s call   <the next slowest thing in the entire suite>
+
+    So the tree is cached on disk instead, keyed by the generator and the
+    ArgyllCMS that built it (see :func:`_demo_cache_key`). The first run after
+    either changes pays the four minutes; every run after that starts with the
+    projects already there. Delete the folder, or point ``CHROMIQ_DEMO_CACHE``
+    somewhere else, to force a rebuild.
+
+    Tests must still COPY what they use: ``Project.load`` migrates in place, so
+    a shared tree would let one test's migration change what the next one sees.
+    That is also why the cache is only ever READ from — every consumer copies.
+    """
+    cached = _DEMO_CACHE_HOME / _demo_cache_key()
+    ready = cached / ".complete"
+    if ready.is_file():
+        return cached
+
+    # Build into a private folder and move it into place atomically, so a
+    # half-built tree can never be picked up — by another worker racing us, or
+    # by a later run after this one was interrupted.
+    cached.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix="demo-build-", dir=str(cached.parent)))
+    try:
+        _build_demo_projects(staging)
+        (staging / ".complete").write_text(_demo_cache_key())
+        try:
+            os.replace(staging, cached)
+        except OSError:
+            # Another worker got there first — theirs is as good as ours.
+            shutil.rmtree(staging, ignore_errors=True)
+    except Exception:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+    if ready.is_file():
+        return cached
+    # Cache unusable for some reason: fall back to a throwaway build rather
+    # than failing the suite over an optimisation.
+    root = tmp_path_factory.mktemp("demo-projects")
+    _build_demo_projects(root)
     return root
 
 
