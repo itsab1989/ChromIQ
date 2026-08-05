@@ -563,7 +563,7 @@ Project `~/ChromIQ/My-Printer/`.
 | E6 | Measuring a calibration chart when `cal/` holds a complete `.ti3` | The §5 "starting over" rules apply unchanged — the same messages, against the calibration measurement. |
 | E7 | A corrupt or empty calibration `.ti3` | Same as a run's: `M-CHART-CORRUPT` (already in the catalogue, pending approval). |
 | E8 | Duplicate / Delete pressed with a Calibration target | Both are about runs. They grey out with a sentence saying which Run type they need — the pattern `duplicate_state` already uses (`ui/measurement_target_bar.py:427-440`). |
-| E9 | Restore Used Chart with a Calibration target | Out of scope for the first version: no chart snapshot is kept for `cal/`. The button greys with a reason. Adding snapshots later is a small, separate step. |
+| E9 | Restore Used Chart with a Calibration target | **In the first version** (decision 3, answered 2026-08-05). The calibration chart is snapshotted at the same moment as any other — when its measurement starts — which also **fixes D3**, the one chart whose loss is unrecoverable today. Before a calibration has been measured there is nothing stored yet, so the button greys with that reason and no other. |
 | E10 | printcal Re-calibrate / Verify with no previous `.cal` | Already handled: `no_prev_cal`, `workflow/printcal_runner.py:44-49`. With E5 in place, the previous `.cal` is in `cal/old/` and can be pointed at. |
 | E11 | The `.cal` is deleted outside ChromIQ while prefilled | The prefill only fills a value; the flag is off unless the user enables it. Enabling with a missing file must say so rather than let printtarg fail. |
 | E12 | Two projects, one calibrated, one not | `_check_for_cal_file` resolves per project root — already correct. |
@@ -629,7 +629,13 @@ new persistence.
 
 ---
 
-## 9. Decisions — answered 2026-08-04, with the reasoning kept
+## 9. Decisions — all answered, with the reasoning kept
+
+1, 2 and 6 were settled on 2026-08-04; **3, 4, 5, 7 and 8 on 2026-08-05**
+(*"regarding open questions to this issue: 3,4,5,7,8 → i follow your
+recommendations"*); 9 on 2026-08-05 as well (§4.2a). **Nothing in this design
+is open any more** — it is waiting on a green light to build, not on an
+answer.
 
 Sebastian answered 1, 2 and 6 outright and asked for a recommendation on the
 rest. Recommendations are marked **R**; they stand unless he says otherwise.
@@ -642,8 +648,8 @@ Two controls for one state is the confusion this feature removes; `cal_target`
 is transient, so nothing needs migrating. Its tooltip — which still promises
 `cal_` filename prefixes that #127 removed — goes with it (§14, item 6).
 
-**3 · Restore Used Chart for a calibration — R: include it, in the first
-version.** The chart snapshot is what makes the button work, and the helper
+**3 · Restore Used Chart for a calibration — include it, in the first
+version.** ✅ *Decided 2026-08-05: "i follow your recommendations".* The chart snapshot is what makes the button work, and the helper
 already exists (`workflow/verify_chart_snapshot.py`); a calibration chart would
 be snapshotted at the same moment as any other — when its measurement starts.
 Two reasons to do it now rather than later: the calibration chart is the one
@@ -651,15 +657,15 @@ chart whose loss is *unrecoverable today* (D3 — it cannot even be reloaded), a
 leaving it out means the button needs an exception to explain, which costs a
 sentence in a tooltip every user reads and buys nothing.
 
-**4 · A project with a `cal/` while the preference is off — R: say it in the
-file guide, and nowhere else.** The interface should not advertise a mode the
+**4 · A project with a `cal/` while the preference is off — say it in the
+file guide, and nowhere else.** ✅ *Decided 2026-08-05.* The interface should not advertise a mode the
 user has switched off; but "where are my files?" must always be answerable, and
 the file guide is exactly where that is asked. With D6 fixed the hidden
 calibration no longer *does* anything, so there is nothing to warn about — only
 something to find.
 
-**5 · Recording which `.cal` a run was built with — R: yes, one `RunMeta`
-field.** It is the only way to answer "was this profile built on the calibration
+**5 · Recording which `.cal` a run was built with — yes, one `RunMeta`
+field.** ✅ *Decided 2026-08-05.* It is the only way to answer "was this profile built on the calibration
 that is in the project now?" once a calibration has been replaced — and with D1
 fixed the older ones live on in `cal/old/<date>/`, so a stored stem stays
 resolvable instead of dangling. Migration is nothing: absent means unknown,
@@ -671,8 +677,9 @@ time, one line in the file guide.
 **6 · D1 ships with the feature, not before it.** ✅ *Decided* — "all together
 when we build it."
 
-**7 · The `.cal` prefill — R: gate it on the preference, fill both fields,
-switch neither on, and say so.** Three parts, one principle: ChromIQ may offer,
+**7 · The `.cal` prefill — gate it on the preference, fill both fields,
+switch neither on, and say so.** ✅ *Decided 2026-08-05. This is the fix for
+D4 and half of D6.* Three parts, one principle: ChromIQ may offer,
 not choose. `-K` reprints every patch value through the calibration and `-I`
 only records it — that is a decision about what lands on paper, and the user is
 the one who knows whether their printer or RIP applies curves itself. Switching
@@ -681,7 +688,7 @@ options are switched off (D6) makes it invisibly. The status line becomes:
 *"Calibration file found: {name} — filled into the -K and -I fields below.
 Switch on the one you want; they cannot both be used at once."*
 
-**8 · Should `-N` follow the device type? — R: surface it, don't decide it.**
+**8 · Should `-N` follow the device type? — surface it, don't decide it.** ✅ *Decided 2026-08-05.*
 Corrected after Sebastian pushed back, and the correction went both ways: my
 "the PostScript path is RGB" was wrong, and "without it the TIFF is useless" is
 not what Argyll does either — every ink is written in both modes, and `-N` only
@@ -784,7 +791,7 @@ Ten places mention calibration. Four need new words, four need a correction they
 
 **5. Restore Used Chart / Duplicate / Delete ⓘ** — each already explains itself per Run type; each gains one line:
 
-> RUN TYPE = CALIBRATION — *(Restore)* a calibration chart keeps no stored copy, so there is nothing to put back. *(Duplicate)* duplicating works on a profile run; switch "Run type" to "Profiling". *(Delete)* a project has one calibration and it is replaced rather than deleted — making a new calibration chart moves the old one to "cal/old".
+> RUN TYPE = CALIBRATION — *(Restore)* puts back the calibration chart this project's calibration was measured with, exactly as it was printed — the pages, the patch layout and the .ti2 behind them. Use it when you want to reprint the sheet or read it again. Available once a calibration has been measured. *(Duplicate)* duplicating works on a profile run; switch "Run type" to "Profiling". *(Delete)* a project has one calibration and it is replaced rather than deleted — making a new calibration chart moves the old one to "cal/old".
 
 ### B · Corrections these already need, feature or no feature
 

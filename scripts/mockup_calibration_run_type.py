@@ -140,11 +140,18 @@ def bar_as_calibration(win) -> None:
                       "moves the old one to “cal/old”.")):
         btn.setEnabled(False)
         btn.setToolTip(why)
-    bar._restore_btn.setEnabled(False)
+    # RESTORE STAYS AVAILABLE. Sebastian, 2026-08-05, answering decision 3:
+    # Restore Used Chart is in the first version, so the calibration chart is
+    # snapshotted like any other — which also fixes D3, the one chart whose
+    # loss is unrecoverable today. Enabled, with the wording for the case that
+    # matters: a project that has not measured its calibration yet.
+    bar._restore_btn.setEnabled(True)
     bar._restore_btn.setToolTip(
-        "A calibration chart keeps no stored copy yet, so there is nothing to "
-        "put back. Switch “Run type” to “Profiling” or “Verification” to use "
-        "this.")
+        "Put back the calibration chart this project's calibration was "
+        "measured with, exactly as it was printed — the pages, the patch "
+        "layout and the .ti2 behind them. Use it when you want to reprint the "
+        "sheet or read it again. Available once a calibration has been "
+        "measured.")
 
 
 def bar_as_profiling(win) -> None:
