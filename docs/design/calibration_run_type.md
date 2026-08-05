@@ -799,11 +799,11 @@ Ten places mention calibration. Four need new words, four need a correction they
 
 > The calibration chart and its measurement are saved in this project's "cal" folder, as `<project>-cal.ti1`, `-cal.ti2`, `-cal.ti3` and `-cal.cal`. They are shared by every profile run of the project.
 
-**7. Calibration & Profiling header ⓘ** (`ui/tabs/tab_profile.py:171`, step 1 and step 2). Step 1 says *"with 'Calibration Target' ticked on tab 1"* → **"with 'Run type' set to 'Calibration' in the bar above the tabs"**. Step 2 ends *"ChromIQ auto-fills these fields when it finds a matching cal_ file"* → **"ChromIQ fills both fields in when the project already has a calibration, and tells you which one it switched on."** (Which is the honest sentence only after Q7 is answered — see D4.)
+**7. Calibration & Profiling header ⓘ** (`ui/tabs/tab_profile.py:171`, step 1 and step 2). Step 1 says *"with 'Calibration Target' ticked on tab 1"* → **"with 'Run type' set to 'Calibration' in the bar above the tabs"**. Step 2 ends *"ChromIQ auto-fills these fields when it finds a matching cal_ file"* → **"ChromIQ fills both fields in when the project already has a calibration, and leaves both switched off so the choice of which to use stays yours."** (Which is the honest sentence only after Q7 is answered — see D4.)
 
 **8. printtarg -K and -I ⓘ** (`data/parameters.yaml:886` and `:915`) — both are accurate about what the flags do and say nothing about the auto-fill. One sentence each, at the end:
 
-> When this project already has a calibration, ChromIQ fills this field in for you. **-K** and **-I** cannot both be active: switching one on switches the other off.
+> When this project already has a calibration, ChromIQ fills this field in for you but leaves it switched off — whether the calibration should be applied is your decision, not ChromIQ's. **-K** and **-I** cannot both be active: switching one on switches the other off.
 
 ### C · Additions
 
@@ -814,5 +814,57 @@ Ten places mention calibration. Four need new words, four need a correction they
 **10. File guide** (`ui/file_guide.py:261`) — the `cal/` row gains its archive:
 
 > `cal/old/` — earlier calibrations. Making a new calibration chart moves what was there into a dated folder here rather than deleting it, so an earlier .cal can always be read back — which is also what "Re-calibrate" and "Verify" compare against.
+
+**11. File guide — the calibration chart's stored copy** (decision 3 puts
+Restore Used Chart in the first version):
+
+> `cal/chart/` — a copy of the calibration chart exactly as it was printed,
+> kept from the moment you start measuring it. "Restore Used Chart" puts this
+> back, so you can reprint the sheet or read it again even after the chart has
+> been regenerated.
+
+**12. File guide — which calibration a profile run used** (decision 5, the new
+`RunMeta` field):
+
+> Each run also records which calibration it was built with. If you later make a
+> new calibration, the old one is still in "cal/old", so ChromIQ can always tell
+> you which of them a given profile came from. Runs built before ChromIQ started
+> recording this simply say "unknown", which is the honest answer.
+
+**13. File guide — a project with a "cal" folder while calibration options are
+off** (decision 4: say it here, and nowhere else):
+
+> A project can contain a "cal" folder even when calibration options are
+> switched off in Preferences. Nothing is using it — your charts and profiles
+> are built without it — and switching calibration options back on in
+> Preferences makes it available again, exactly as you left it. Nothing needs
+> deleting.
+
+**14. "Declare extra inks as alpha channels (-N)"** (decision 8) — lifted out of
+Expert Options and placed beside Device Type once the chart has more than four
+inks, off by default:
+
+> Only for charts with more than four inks, and only if the software you hand
+> the TIFF to asks for it.
+>
+> A TIFF says what its first channels are, but has no standard way to name a
+> fifth, sixth or seventh ink. This option marks the extra ones as "alpha"
+> channels, which is the flag some RIPs look for.
+>
+> **Every ink is written to the file either way** — this changes how they are
+> labelled, not what is in them. ChromIQ's own printing does not need it.
+>
+> Leave it off unless your RIP's documentation asks for the extra inks to be
+> declared. Some readers treat an alpha channel as transparency rather than ink,
+> so switching it on blindly can do more harm than leaving it alone.
+
+**15. The `.cal` prefill status line** (decision 7) — today it says a file was
+found and silently switches `-I` on (D4):
+
+> Calibration file found: {name} — filled into the "Apply Calibration File" and
+> "Include Calibration File" fields below. Neither is switched on yet: turn on
+> the one you want. "Apply" reprints every patch through the calibration;
+> "Include" only records it in the chart file. They cannot both be used at once.
+
 
 **Not touched:** the guided Create Chart / Measure / Build Profile help cards, which never mention calibration; and the Measure tab's no-chart guidance, which is Run-type-aware already and gains its calibration case with the rest of the feature.
