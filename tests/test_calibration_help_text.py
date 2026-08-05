@@ -112,3 +112,61 @@ def test_the_affected_runs_line_has_real_singular_and_plural():
     assert "It is not changed" in one and "its profile keeps working" in one
     assert "They are not changed" in many and "their profiles keep working" in many
     assert not any("(s)" in k for k in (one, many))
+
+
+# ---- the "how do I calibrate?" card (Knut, 2026-08-05) -------------------
+# *"You really should make a help card for how to perform a printer
+# calibration, also describing for a user how this is different from a printer
+# profile."*
+def _card():
+    from ui.dialogs.welcome_dialog import WORKFLOWS
+    return next(w for w in WORKFLOWS if w["key"] == "calibrate_printer")
+
+
+def test_the_calibration_card_exists():
+    card = _card()
+    assert "calibrat" in card["title"].lower()
+    assert card["steps"], "a card with no steps teaches nothing"
+
+
+def test_it_explains_how_a_calibration_differs_from_a_profile():
+    """The half of the request that is easy to skip: not just HOW, but WHAT it
+    is and why it is not the other thing."""
+    body = " ".join(str(s[1]) for s in _card()["steps"])
+    assert "NOT A PROFILE" in body or "not a profile" in body.lower()
+    # The distinction itself, in both directions.
+    assert "changes the printer" in body
+    assert "changes nothing about the printer" in body
+    # Both file endings, so the user can tell them apart on disk.
+    assert ".cal" in body and ".icc" in body
+
+
+def test_it_says_who_actually_needs_this():
+    """Most people do not, and the card must say so — advertising a step
+    nobody needs is how people end up with worse results, not better."""
+    body = " ".join(str(s[1]) for s in _card()["steps"])
+    assert "Most people do not" in body
+
+
+def test_it_names_the_exact_controls():
+    """House rule: name the element to click, never "tick the box"."""
+    body = " ".join(str(s[1]) for s in _card()["steps"])
+    for label in ("Enable calibration options", "Run type", "Generate Chart",
+                  "Create Calibration File", "Single Channel Steps",
+                  "Apply Calibration File", "Include Calibration File"):
+        assert label in body, f"the card never names {label!r}"
+
+
+def test_it_warns_that_recalibrating_dates_the_profile():
+    """The trap that costs real work: a profile describes the printer as it
+    was, so a new calibration silently makes old profiles inaccurate."""
+    body = " ".join(str(s[1]) for s in _card()["steps"])
+    assert "no longer" in body and "Build a fresh profile" in body
+    # …and the reassurance that nothing is destroyed while doing it.
+    assert "cal/old" in body
+
+
+def test_it_covers_both_ways_to_apply_a_calibration():
+    body = " ".join(str(s[1]) for s in _card()["steps"])
+    assert "RIP" in body                      # the printer/RIP applies it
+    assert "bake" in body or "Apply" in body  # …or ChromIQ bakes it in

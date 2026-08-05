@@ -448,6 +448,103 @@ WORKFLOWS: list[dict] = [
         ],
     },
     {
+        "key": "calibrate_printer",
+        "title": tr("Calibrate my printer (and how that differs from a profile)"),
+        "subtitle": tr("Bring the printer itself to a known, repeatable state — "
+            "an optional step BEFORE profiling, and not the same thing as a "
+            "profile."),
+        "steps": [
+            (4, tr("WHAT THIS IS, AND WHY IT IS NOT A PROFILE\n\n"
+                "These two words get used as if they meant the same thing, and "
+                "they do not.\n\n"
+                "A CALIBRATION changes the printer. It measures how much ink "
+                "each channel actually lays down and works out a correction, so "
+                "that from then on the printer responds evenly and predictably "
+                "— and, importantly, the SAME way next month as it does today. "
+                "The result is a small file with the ending “.cal”.\n\n"
+                "A PROFILE changes nothing about the printer. It is a "
+                "description of what your printer does with your paper and your "
+                "inks, which colour-managed software reads so it can convert "
+                "your images correctly. The result is a file with the ending "
+                "“.icc”.\n\n"
+                "If it helps: calibrating is tuning the instrument, and the "
+                "profile is the music written for an instrument tuned that way. "
+                "That is also why the order matters — calibrate first, then "
+                "profile — and why re-calibrating means the old profile now "
+                "describes a printer that no longer exists. See the last step.\n\n"
+                "DO YOU NEED IT? Most people do not. Consumer and prosumer "
+                "inkjet printers usually give better results from a plain "
+                "profiling run with no calibration step at all. Reach for this "
+                "when your printer's own documentation asks for linearisation, "
+                "when you are following an ArgyllCMS guide that calls for it, or "
+                "when you want the printer to behave the same way over months "
+                "rather than days.")),
+            (4, tr("Switch the feature on first: Preferences → “Enable "
+                "calibration options”. Until you do, none of this appears — "
+                "which is deliberate, because most people never need it. "
+                "Switching it on adds “Calibration” to the “Run type” list in "
+                "the bar above the tabs, and adds two modules to the "
+                "Calibration & Profiling tab.")),
+            (1, tr("In the bar above the tabs, set “Run type” to “Calibration”. "
+                "“Profile run” changes to “Project calibration” and greys out — "
+                "that is expected. A calibration describes your printer, your "
+                "paper and your inks rather than one particular profile, so a "
+                "project keeps exactly one and every profile run in it can use "
+                "the same one.")),
+            (1, tr("On the Create Chart tab, ChromIQ has already set the chart "
+                "up for you: a plain ramp of one ink channel at a time, which "
+                "is what a calibration needs. The automatic patch counts switch "
+                "off and grey out, because a calibration chart's size is "
+                "decided by “Single Channel Steps” instead of by filling a "
+                "number of pages. 20 steps is a good starting point — more "
+                "steps measure the printer's response more finely and take "
+                "longer to read. Then click “Generate Chart”.")),
+            (2, tr("Print it from the Print Chart tab exactly as you print any "
+                "chart, with the driver's colour management OFF. This is the "
+                "same rule as profiling and for the same reason: if the driver "
+                "re-maps the colours, you are measuring the driver instead of "
+                "the printer.")),
+            (3, tr("Measure it on the Measure tab, the same way you measure any "
+                "chart. The readings are saved in the project's “cal” folder, "
+                "beside the chart they came from.")),
+            (4, tr("Go to the Calibration & Profiling tab. With Run type set to "
+                "Calibration it offers one module — “Create Calibration File”. "
+                "Click it, and ChromIQ turns your readings into the “.cal” "
+                "file. That file is your calibration, and it is shared by every "
+                "profile run in this project.")),
+            (1, tr("Now put it to work, and there are two ways depending on your "
+                "equipment.\n\n"
+                "If your printer or RIP can apply a calibration itself, load "
+                "the “.cal” file there and let it do the work. ChromIQ then "
+                "prints charts normally and the calibration is already in "
+                "effect.\n\n"
+                "If it cannot, ChromIQ can bake the correction into the chart "
+                "instead. Switch “Run type” back to “Profiling” and, on the "
+                "Create Chart tab, you will find the calibration already filled "
+                "into two fields: “Apply Calibration File” and “Include "
+                "Calibration File”. Neither is switched on for you, because "
+                "which one you want depends on your setup. “Apply” reprints "
+                "every patch value through the calibration; “Include” only "
+                "records it in the chart file. They cannot both be used at "
+                "once.")),
+            (4, tr("Then carry on and build your profile exactly as usual. The "
+                "profile you get now describes a calibrated printer, which is "
+                "the point of the whole exercise.")),
+            (4, tr("KEEP THESE TWO IN STEP.\n\n"
+                "A profile describes the printer as it was when you measured "
+                "it. So if you later make a NEW calibration, every profile you "
+                "built on the old one now describes a printer that no longer "
+                "behaves that way — those profiles keep working, but they are "
+                "no longer accurate. Build a fresh profile after re-calibrating.\n\n"
+                "ChromIQ helps you keep track: each run records which "
+                "calibration it was built with, and making a new calibration "
+                "chart never deletes the old one — it moves into the project's "
+                "“cal/old” folder, in a folder named with the date, so you can "
+                "always go back to it. Runs made before ChromIQ started "
+                "recording this simply say it is unknown.")),
+        ],
+    },
+    {
         "key": "verify",
         "title": tr("Check a finished profile (verification run)"),
         "subtitle": tr("Print a chart THROUGH the profile and measure it to see "
