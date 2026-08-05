@@ -289,7 +289,7 @@ def test_the_nudges_are_theme_independent():
 # the row is 34 px in the styled app and 40 px unstyled, and a test that hard-
 # coded either would be measuring the test's own environment.
 
-def _bar_on_a_rail(qapp, *, show_location: bool):
+def _bar_on_a_rail(qapp, tmp_path, *, show_location: bool):
     from core.file_manager import FileManager
     from core.settings import AppSettings
     from ui.masthead_header import MastheadHeader
@@ -300,10 +300,19 @@ def _bar_on_a_rail(qapp, *, show_location: bool):
         def get(self, key, default=None):
             if key == "show_location_being_edited":
                 return show_location
+            if key == "custom_output_path":
+                return str(tmp_path)
             return super().get(key, default)
 
     st = _Settings()
-    ctl = MeasurementTargetController(FileManager(st))
+    fm = FileManager(st)
+    # A REAL project, so the State B hint is not on screen. That sentence is a
+    # wrapped label living in the same row, and a row that has to hold it is a
+    # different question from the one this file asks (see
+    # test_the_hint_is_not_squeezed_by_the_row_pin in the calibration file).
+    fm.set_target_name("Bar-Geometry")
+    fm.project()
+    ctl = MeasurementTargetController(fm)
     # A real path to show, so the line has something to be. The bar's own
     # handler is then driven — not the pinning helper directly, or the test
     # would pass with the fix disconnected from the code path that uses it.
@@ -329,9 +338,9 @@ def _bar_on_a_rail(qapp, *, show_location: bool):
     }
 
 
-def test_the_row_sits_the_same_distance_below_the_masthead_either_way(qapp):
-    on = _bar_on_a_rail(qapp, show_location=True)
-    off = _bar_on_a_rail(qapp, show_location=False)
+def test_the_row_sits_the_same_distance_below_the_masthead_either_way(qapp, tmp_path):
+    on = _bar_on_a_rail(qapp, tmp_path, show_location=True)
+    off = _bar_on_a_rail(qapp, tmp_path, show_location=False)
     assert off["top"] == on["top"], (
         f"the marks sit {off['top']} px below the rail with the location line "
         f"off and {on['top']} px with it on — hiding the line must not move the "
@@ -341,9 +350,9 @@ def test_the_row_sits_the_same_distance_below_the_masthead_either_way(qapp):
     off["head"].deleteLater()
 
 
-def test_the_space_under_the_row_matches_the_space_over_it(qapp):
+def test_the_space_under_the_row_matches_the_space_over_it(qapp, tmp_path):
     """…and with the line gone, nothing is left standing in for it."""
-    off = _bar_on_a_rail(qapp, show_location=False)
+    off = _bar_on_a_rail(qapp, tmp_path, show_location=False)
     assert abs(off["bottom"] - off["top"]) <= 1, (
         f"{off['top']} px above the marks and {off['bottom']} below — a bar "
         f"centred on its rail can be a pixel out from integer division, no more"
@@ -351,9 +360,9 @@ def test_the_space_under_the_row_matches_the_space_over_it(qapp):
     off["head"].deleteLater()
 
 
-def test_hiding_the_line_makes_the_masthead_shorter(qapp):
-    on = _bar_on_a_rail(qapp, show_location=True)
-    off = _bar_on_a_rail(qapp, show_location=False)
+def test_hiding_the_line_makes_the_masthead_shorter(qapp, tmp_path):
+    on = _bar_on_a_rail(qapp, tmp_path, show_location=True)
+    off = _bar_on_a_rail(qapp, tmp_path, show_location=False)
     assert off["masthead"] < on["masthead"], (
         "the point of the preference is to give the space back to the tabs"
     )

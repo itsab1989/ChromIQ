@@ -282,6 +282,17 @@ class RunMeta:
     # calibration is replaced the older one lives on in cal/old/<date>/, so a
     # stored stem stays resolvable rather than dangling.
     calibration_used: str = ""
+    # #130 (Knut): what this run is FOR, in the user's own words — "PhotoRag
+    # Baryta, gloss, large chart". Optional and empty by default; it names no
+    # file and changes no path. It belongs to the RUN, so restoring an earlier
+    # chart never touches it.
+    description: str = ""
+    # #130: the working copy of the chart notes for the chart being edited.
+    # The chart's own `.channels.json` is authoritative for a chart that
+    # exists — the notes are PRINTED on that sheet, so they describe the paper
+    # in your hand — and this is what lets the field survive a run change and
+    # exist before any chart has been generated at all.
+    chart_notes: str = ""
     status: str = "in_progress"          # in_progress | complete
     # TI2 layout editor only: the printtarg layout knobs (a LayoutOptions dict)
     # the chart was rendered with + its file basename, so reopening the chart in
@@ -321,6 +332,27 @@ class RunMeta:
 # Calibration — shared across all runs in a project
 # ---------------------------------------------------------------------------
 
+@dataclass
+class CalibrationMeta:
+    """The contents of ``cal/meta.json`` (#130).
+
+    A calibration is not a run, but it IS a printed sheet, and Knut's ruling is
+    that a sheet you cannot label is a sheet you cannot tell apart six months
+    later. So it gets the same two fields a run has, in its own file — never
+    in a run's, because two writable copies is how they come to disagree.
+
+    Unknown keys are dropped on load rather than raising, so a file written by
+    a newer build opens in an older one.
+    """
+    description: str = ""
+    chart_notes: str = ""
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "CalibrationMeta":
+        known = {f.name for f in fields(cls)}
+        return cls(**{k: v for k, v in (data or {}).items() if k in known})
+
+
 class Calibration:
     """The ``cal/`` folder. One calibration set is shared by every run."""
 
@@ -357,6 +389,22 @@ class Calibration:
     def channels_json(self) -> Path:          return self.dir / f"{self.stem}.channels.json"
     @property
     def meta_path(self) -> Path:              return self.dir / "meta.json"
+
+    # ---- meta (#130): the calibration's own description and chart notes
+    def load_meta(self) -> "CalibrationMeta":
+        """``cal/meta.json``, or an empty one when there is none yet."""
+        if not self.meta_path.exists():
+            return CalibrationMeta()
+        try:
+            raw = json.loads(self.meta_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return CalibrationMeta()      # unreadable is the same as absent here
+        return CalibrationMeta.from_dict(raw)
+
+    def save_meta(self, meta: "CalibrationMeta") -> None:
+        self.dir.mkdir(parents=True, exist_ok=True)
+        self.meta_path.write_text(json.dumps(asdict(meta), indent=2),
+                                  encoding="utf-8")
 
     # ---- v2 sub-folders (#127)
     @property

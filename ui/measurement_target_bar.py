@@ -919,6 +919,10 @@ class MeasurementTargetBar(QWidget):
             # the trailing stretch is the only thing that grows.
             c.setSizePolicy(QSizePolicy.Policy.Preferred,
                             c.sizePolicy().verticalPolicy())
+        # Know the calibration preference BEFORE the first widths are worked
+        # out; MainWindow's fan-out arrives a paint too late. See
+        # _settings_calibration_allowed.
+        self._ctl.set_calibration_allowed(self._settings_calibration_allowed())
         self.set_accent(self._accent)
 
         # The bar sits ON the masthead's version rail, which the masthead paints
@@ -1062,6 +1066,16 @@ class MeasurementTargetBar(QWidget):
         or a date gaining a measurement cannot change the layout under the
         user's hands.
         """
+        # Measure against the font the box will actually be PAINTED with. A
+        # stylesheet reaches a widget at polish, which without this happens
+        # after the first fit — so the box was sized with the pre-stylesheet
+        # font, then re-fitted when the real one arrived, and everything to its
+        # right slid sideways as it grew. Measured: the Profile run box went
+        # 147 -> 176 px on the first event pass, and the six controls after it
+        # moved by exactly that 29 px (Basti, beta.142: *"directly after
+        # loading it seems that the run type combobox is adjusting its width a
+        # bit. looks like a jump"* — it was its neighbour pushing it).
+        box.ensurePolished()
         fm = box.fontMetrics()
         widest = max((fm.horizontalAdvance(t) for t in texts if t), default=0)
         # +4 px of air so a text that measures exactly the field width is not
@@ -1689,6 +1703,14 @@ class MeasurementTargetBar(QWidget):
         band = (self._run_combo, self._type_combo, self._verify_combo,
                 self._restore_btn, self._duplicate_btn, self._delete_btn)
         tallest = 0
+        # The hint is a wrapped label in the same row, and its sizeHint is
+        # computed for some other width — 48 px (three lines) where the text
+        # actually needs 16 at the width it is given. Left to inflate the row,
+        # it puts the controls back in the middle of slack, which is the
+        # complaint this method exists to answer (Basti, beta.142, twice). So
+        # the row is made as tall as the hint REALLY needs and no taller.
+        if getattr(self, "_hint_wanted", False) and self._hint.width() > 0:
+            tallest = max(tallest, self._hint.heightForWidth(self._hint.width()))
         for control in band:
             if control is None or not control.isVisibleTo(self):
                 continue
@@ -1697,6 +1719,57 @@ class MeasurementTargetBar(QWidget):
             # and a QToolButton's hint is ten pixels above what it is drawn at.
             tallest = max(tallest, control.height() or control.sizeHint().height())
         return tallest + self.ROW_BREATHING if tallest else 0
+
+    def showEvent(self, event) -> None:        # noqa: N802
+        """Re-measure the boxes the first time the bar is shown.
+
+        The widths are first worked out in ``__init__``, where the widget has
+        no stylesheet yet — one reaches a widget at polish, and the app's is
+        applied after this window is built. The re-fit did happen, on the
+        StyleChange that followed, but that lands during the first pass of the
+        event loop, which is to say AFTER the first paint: the Profile run box
+        went 147 -> 176 px on screen and the six controls to its right slid
+        29 px sideways with it (Basti, beta.142: *"directly after loading it
+        seems that the run type combobox is adjusting its width a bit. looks
+        like a jump"* — it was its neighbour pushing it).
+
+        ``showEvent`` runs after polish and before the first paint, so the
+        numbers are right the first time they are drawn.
+        """
+        super().showEvent(event)
+        if not getattr(self, "_fitted_on_show", False):
+            self._fitted_on_show = True
+            self.ensurePolished()
+            self._fit_widths(getattr(self, "_last_labels", ()))
+            self._pin_row_when_alone()
+
+    def resizeEvent(self, event) -> None:      # noqa: N802
+        """Re-pin when the width changes — the hint wraps differently, so the
+        height it needs changes with it."""
+        super().resizeEvent(event)
+        if event.oldSize().width() != event.size().width():
+            self._pin_row_when_alone()
+
+    def _apply_hint_text(self) -> None:
+        """Say what can be done from here, which depends on the preference.
+
+        With calibration switched on, "Run type" is live even before a project
+        exists (Knut's option 2), so the hint has to say so — a sentence that
+        tells you to go and make a chart first, beside a dropdown you can use
+        right now, is worse than no sentence at all.
+        """
+        if self._ctl.calibration_allowed:
+            # Kept to the length of the sentence beside it, which has never
+            # clipped: the hint wraps against the version text in a row whose
+            # width it does not control, and a longer sentence is how you find
+            # that out (Basti, beta.142).
+            self._hint.setText(tr(
+                "Load a project, or name one in Create Chart and generate a "
+                "chart, then choose a run. Calibration needs no run."))
+        else:
+            self._hint.setText(tr(
+                "Load a profile project, or specify a profile project name and "
+                "create your first chart, then you may choose a profile run."))
 
     def _pin_row_when_alone(self) -> None:
         """Stop the selection row taking the whole bar when it is alone in it.
@@ -1708,12 +1781,39 @@ class MeasurementTargetBar(QWidget):
         masthead with the line off than with it on, and why the space under
         them did not match the space over them.
         """
+        # `_row_content_height` already accounts for the hint when it is shown,
+        # so the pin no longer has to stand down for it — standing down was
+        # what let the hint's inflated sizeHint push the controls apart again.
         needed = self._row_content_height()
+        # The hint's width is only known once it has been laid out. Until then
+        # there is nothing trustworthy to pin to, so this pass is skipped and
+        # the next one — a resize, or the refresh that follows — does it.
+        if getattr(self, "_hint_wanted", False) and self._hint.width() <= 0:
+            return
         if self._location.isVisible() or needed <= 0:
             self.setMaximumHeight(_QWIDGETSIZE_MAX)
         else:
             self.setMaximumHeight(needed)
         self.updateGeometry()
+
+    def _settings_calibration_allowed(self) -> bool:
+        """Whether Preferences offers the Calibration run type.
+
+        Read here as well as being fanned out by MainWindow, because the
+        fan-out is deferred to the first pass of the event loop — which is
+        after the first paint. The Profile run box is measured against
+        "Project calibration" when this is on, so learning it late made the box
+        grow from 147 to 176 px on screen and shoved the six controls to its
+        right 29 px sideways (Basti, beta.142). Defaults to OFF, which is the
+        preference's own default.
+        """
+        try:
+            settings = getattr(self._ctl._fm, "_settings", None)
+            if settings is None:
+                return False
+            return bool(settings.get("calibration_mode", False))
+        except Exception:      # noqa: BLE001 — never break the bar over a setting
+            return False
 
     def _settings_show_location(self) -> bool:
         """Whether Preferences says to show the "Location being edited" line.
@@ -1795,9 +1895,20 @@ class MeasurementTargetBar(QWidget):
             # their own state(); the boxes and Duplicate had nothing, so they
             # get the same words rather than a second phrasing of them.
             note = self._measuring_note() if measuring else self._lock_note()
-            for w in (self._run_label, self._run_combo, self._type_label,
-                      self._type_combo, self._verify_label, self._verify_combo):
+            for w in (self._run_label, self._run_combo,
+                      self._verify_label, self._verify_combo):
                 w.setEnabled(has_project and not locked)
+            # …but "Run type" stays live with no project open, so a calibration
+            # can be started from a clean app (Knut, #130 2026-08-05, ruling on
+            # option 2). Calibration is the first step of the work and the one
+            # run type that does not use the Profile run box — requiring a
+            # profiling chart first in order to reach it had the order of the
+            # job backwards. The project is created at Generate from the name
+            # field, exactly as a first profiling chart creates it.
+            type_live = ((has_project or self._ctl.calibration_allowed)
+                         and not locked)
+            self._type_label.setEnabled(type_live)
+            self._type_combo.setEnabled(type_live)
             # A disabled widget still shows its tooltip, so the explanation is
             # reachable exactly where the user tries to click. The box's own
             # tooltip is put back the moment the bar is live again.
@@ -1814,7 +1925,18 @@ class MeasurementTargetBar(QWidget):
                 if not locked:
                     self._run_combo.setToolTip(self._run_combo_cal_tip)
             self._hint_wanted = not has_project
+            self._apply_hint_text()
             self._hint.setVisible(self._hint_wanted)
+            # Pin AGAIN, now that the hint's state is actually known. The first
+            # attempt happens inside _update_location(), which runs at the TOP
+            # of this method — 46 lines before `_hint_wanted` is worked out —
+            # so it can only ever act on the previous refresh's answer. That
+            # one-beat lag is visible: Basti, beta.142, *"when loading the app
+            # now something in the bar changes its size. first it seems to look
+            # good and then it gets bigger."* Idempotent, so running it twice
+            # costs nothing and is far cheaper than reordering a method this
+            # much of the bar depends on.
+            self._pin_row_when_alone()
             self._place_hint()
             # Run dropdown: "Run N (overwrite)" per existing run + "New run".
             self._run_combo.clear()
