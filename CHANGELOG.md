@@ -1,5 +1,34 @@
 # Changelog
 
+## v3.14.8-beta.147
+
+### Fixed
+
+- **The two text boxes in Create Chart now say which chart they belong to.**
+  Three different sheets of paper can be under the “Chart Notes” box — the
+  run's own chart, the verification chart, and the calibration chart — and it
+  said “Run N Chart Notes” for all three. It now reads **“Verification Chart
+  Notes”** or **“Calibration Chart Notes”** when that is what you are editing,
+  and the label changes the moment you change “Run type”, without leaving the
+  tab and coming back.
+
+- **A run that does not exist yet is named by its number.** With “Profile run”
+  set to “New run”, the boxes read **“Run 4 Description”** and **“Run 4 Chart
+  Notes”** — the number of the run a Generate would create, and the same number
+  the “Location being edited” line shows just above. Both now take it from one
+  place, so they cannot disagree.
+
+- **Both boxes are labelled correctly the moment ChromIQ opens**, not only
+  after you first change the selection.
+
+- **A help card is as wide as the text written into it.** The card for “Patch
+  consistency tolerance (-T)” used about three quarters of its window and left
+  the rest empty. Help text is wrapped by hand as it is written, and nothing
+  passed that width on to the window — so cards came out either too narrow, and
+  re-wrapped every line into stranded single words, or too wide, with a strip
+  of empty frame beside the text. Every card now sizes itself to the text it
+  holds.
+
 ## v3.14.8-beta.146
 
 ### Fixed
