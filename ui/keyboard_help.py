@@ -65,8 +65,8 @@ def _reader_label(which: str) -> str:
     if which == STOCK:
         return tr("ArgyllCMS chartread")
     if which == CHROMIQ:
-        return tr("ChromIQ reader")
-    return tr("Both readers")
+        return tr("ChromIQ engine")
+    return tr("Both engines")
 
 
 def _measurement_keys() -> list[tuple[str, str, str]]:
@@ -88,7 +88,7 @@ def _measurement_keys() -> list[tuple[str, str, str]]:
          BOTH),
         (tr("⇧F  ·  ⇧B"),
          tr("Move ten strips at a time. ArgyllCMS chartread does this itself; "
-            "the ChromIQ reader is sent ten single steps instead, which comes "
+            "the ChromIQ engine is sent ten single steps instead, which comes "
             "to the same move."),
          BOTH),
         ("←  ·  →",
@@ -103,18 +103,20 @@ def _measurement_keys() -> list[tuple[str, str, str]]:
          BOTH),
         (tr("Click a strip in the preview"),
          tr("Jump straight to that strip — handy for measuring one again. "
-            "Needs the ChromIQ reader, which can be told where to go."),
+            "Needs the ChromIQ engine, which can be told where to go."),
          CHROMIQ),
         ("D",
-         tr("Finish: write what has been measured so far and close the "
-            "reader. You are asked to confirm if patches are still unread."),
+         tr("Finish: write what has been measured so far and end the "
+            "measurement. If any patches are still unread you are asked to "
+            "confirm first."),
          BOTH),
         (tr("Esc  ·  Q"),
-         tr("Give up. WITH ONE IMPORTANT DIFFERENCE: ArgyllCMS chartread "
-            "throws away everything you measured, while the ChromIQ reader "
-            "writes it out first. Use Stop rather than Esc if you want to "
-            "keep your readings whichever reader is running — Stop always "
-            "offers to save them."),
+         tr("Give up — and the two engines differ here, which is worth "
+            "knowing before you press it. ArgyllCMS chartread throws away "
+            "everything you measured; the ChromIQ engine writes it out "
+            "first. If you want to keep your readings, press Stop instead of "
+            "Esc: Stop always offers to save them, whichever engine is "
+            "running."),
          BOTH),
     ]
 
@@ -157,7 +159,7 @@ def keyboard_shortcuts_html() -> str:
         "<tr style='color:#888'>"
         f"<th align='left'>{esc(tr('Key'))}</th>"
         f"<th align='left'>{esc(tr('What it does'))}</th>"
-        f"<th align='left'>{esc(tr('Which reader'))}</th></tr>")
+        f"<th align='left'>{esc(tr('Which engine'))}</th></tr>")
     for keys, action, which in _measurement_keys():
         parts.append(
             "<tr>"
@@ -166,5 +168,5 @@ def keyboard_shortcuts_html() -> str:
             f"<td valign='top'>{esc(_reader_label(which))}</td></tr>")
     parts.append("</table>")
     parts.append(
-        f"<p style='margin-top:12px'>{esc(tr('You can change which reader ChromIQ uses in Preferences → Beta features.'))}</p>")
+        f"<p style='margin-top:12px'>{esc(tr('You can change which engine ChromIQ uses in Preferences → Beta.'))}</p>")
     return "".join(parts)

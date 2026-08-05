@@ -2546,35 +2546,52 @@ class TabMeasure(QWidget):
         opts.append(_ChartreadOption(
             key="tolerance", flag="-T",
             label=tr("Patch consistency tolerance (-T)"),
-            tooltip_title=tr("Patch Tolerance Multiplier (-T)"),
+            tooltip_title=tr("Patch consistency tolerance (-T)"),
             tooltip_body=(
-                tr("LEAVE THIS OFF UNLESS YOU HAVE A REASON.\n\n"
-                "This is not a warning threshold, and it is not a delta-E\n"
-                "value. The number is handed to your instrument, where it\n"
-                "multiplies the driver's own patch-recognition threshold —\n"
-                "the rule that decides where one patch ends and the next\n"
-                "begins while you slide the instrument along a strip.\n\n"
+                tr("How fussy your instrument is about reading a strip.\n\n"
+                "Leave this off unless you have a reason. Off means your\n"
+                "instrument uses the setting its maker chose, which is what\n"
+                "ArgyllCMS does when nobody asks otherwise, and it is right\n"
+                "for almost everybody.\n\n"
+                "WHAT THE NUMBER ACTUALLY DOES\n"
+                "It is not a warning threshold and not a colour-difference\n"
+                "value. ChromIQ hands it to your instrument, where it\n"
+                "multiplies the instrument's own patch-recognition threshold\n"
+                "— the rule deciding where one patch ends and the next begins\n"
+                "while you slide along a strip.\n\n"
                 "So a low value does not merely make ChromIQ fussier about\n"
                 "the numbers. It makes the instrument itself less willing to\n"
-                "accept the swipe at all, and a strip that would have read\n"
-                "perfectly can come back as \"Strip Read Failed\" —\n"
-                "\"Swipe didn't start and end on the media\" or \"Not enough\n"
-                "patches\" — however carefully you scanned it.\n\n"
-                "Off means your instrument uses the threshold its maker chose,\n"
-                "which is what ArgyllCMS does when nobody asks otherwise. That\n"
-                "is the right setting for almost everybody.\n\n"
-                "If you do switch it on, 1.0 is that same maker's setting.\n"
-                "  • Below 1.0 — stricter. Some i1 Pro 2 / 3 owners run 0.4 to\n"
-                "      catch a clogged nozzle or drifting toner early, and\n"
-                "      accept re-swiping more often as the price.\n"
+                "accept your swipe at all, and a strip that would have read\n"
+                "perfectly can come back as \"Strip Read Failed\" — \"Swipe\n"
+                "didn't start and end on the media\" or \"Not enough patches\"\n"
+                "— however carefully you scanned it.\n\n"
+                "IF YOUR STRIPS KEEP FAILING TO READ\n"
+                "Switch this option OFF first and try again; that alone fixes\n"
+                "most of it. If it still happens, tick it and try 1.2, then\n"
+                "1.5. Also check that you start the swipe on the paper before\n"
+                "the first patch, finish it after the last, keep the\n"
+                "instrument flat, and slide at a steady speed.\n\n"
+                "IF YOU DO SWITCH IT ON\n"
+                "1.0 is your instrument maker's own setting — the same as\n"
+                "leaving it off.\n"
+                "  • Below 1.0 — stricter. Some i1 Pro 2 / 3 owners run 0.4\n"
+                "      to catch a clogged nozzle or drifting toner early, and\n"
+                "      accept re-scanning strips more often as the price.\n"
                 "  • Above 1.0 — more forgiving. Try 1.2–1.5 on textured,\n"
                 "      matte or fine-art paper, where the surface itself adds\n"
                 "      real variation. Above 2 you are mostly hiding genuine\n"
-                "      problems.\n\n"
-                "ColorMunki, i1Studio and ColorChecker Studio are the fussiest\n"
-                "about swipe recognition, so they feel a low value first.")
+                "      problems rather than solving them.\n\n"
+                "ColorMunki, i1Studio and ColorChecker Studio are the\n"
+                "fussiest about recognising a swipe, so they feel a low value\n"
+                "first — they are usually the ones failing when this is set\n"
+                "too strictly.")
             ),
             widget=_tol_spin,
+            # This body is hard-wrapped at ~62 characters like its neighbours,
+            # which is wider than the 420 px default — at that width Qt re-wraps
+            # every line and leaves single words stranded on their own. Only
+            # rendering the dialog shows it.
+            tooltip_width=560,
         ))
 
         opts.append(_ChartreadOption(
@@ -2697,35 +2714,48 @@ class TabMeasure(QWidget):
         opts.append(_ChartreadOption(
             key="tolerance", flag="-T",
             label=tr("Patch consistency tolerance (-T)"),
-            tooltip_title=tr("Patch Tolerance Multiplier (-T)"),
+            tooltip_title=tr("Patch consistency tolerance (-T)"),
             tooltip_body=(
-                tr("LEAVE THIS OFF UNLESS YOU HAVE A REASON.\n\n"
-                "This is not a warning threshold, and it is not a delta-E\n"
-                "value. The number is handed to your instrument, where it\n"
-                "multiplies the driver's own patch-recognition threshold —\n"
-                "the rule that decides where one patch ends and the next\n"
-                "begins while you slide the instrument along a strip.\n\n"
+                tr("How fussy your instrument is about reading a strip.\n\n"
+                "Leave this off unless you have a reason. Off means your\n"
+                "instrument uses the setting its maker chose, which is what\n"
+                "ArgyllCMS does when nobody asks otherwise, and it is right\n"
+                "for almost everybody.\n\n"
+                "WHAT THE NUMBER ACTUALLY DOES\n"
+                "It is not a warning threshold and not a colour-difference\n"
+                "value. ChromIQ hands it to your instrument, where it\n"
+                "multiplies the instrument's own patch-recognition threshold\n"
+                "— the rule deciding where one patch ends and the next begins\n"
+                "while you slide along a strip.\n\n"
                 "So a low value does not merely make ChromIQ fussier about\n"
                 "the numbers. It makes the instrument itself less willing to\n"
-                "accept the swipe at all, and a strip that would have read\n"
-                "perfectly can come back as \"Strip Read Failed\" —\n"
-                "\"Swipe didn't start and end on the media\" or \"Not enough\n"
-                "patches\" — however carefully you scanned it.\n\n"
-                "Off means your instrument uses the threshold its maker chose,\n"
-                "which is what ArgyllCMS does when nobody asks otherwise. That\n"
-                "is the right setting for almost everybody.\n\n"
-                "If you do switch it on, 1.0 is that same maker's setting.\n"
-                "  • Below 1.0 — stricter. Some i1 Pro 2 / 3 owners run 0.4 to\n"
-                "      catch a clogged nozzle or drifting toner early, and\n"
-                "      accept re-swiping more often as the price.\n"
+                "accept your swipe at all, and a strip that would have read\n"
+                "perfectly can come back as \"Strip Read Failed\" — \"Swipe\n"
+                "didn't start and end on the media\" or \"Not enough patches\"\n"
+                "— however carefully you scanned it.\n\n"
+                "IF YOUR STRIPS KEEP FAILING TO READ\n"
+                "Switch this option OFF first and try again; that alone fixes\n"
+                "most of it. If it still happens, tick it and try 1.2, then\n"
+                "1.5. Also check that you start the swipe on the paper before\n"
+                "the first patch, finish it after the last, keep the\n"
+                "instrument flat, and slide at a steady speed.\n\n"
+                "IF YOU DO SWITCH IT ON\n"
+                "1.0 is your instrument maker's own setting — the same as\n"
+                "leaving it off.\n"
+                "  • Below 1.0 — stricter. Some i1 Pro 2 / 3 owners run 0.4\n"
+                "      to catch a clogged nozzle or drifting toner early, and\n"
+                "      accept re-scanning strips more often as the price.\n"
                 "  • Above 1.0 — more forgiving. Try 1.2–1.5 on textured,\n"
                 "      matte or fine-art paper, where the surface itself adds\n"
                 "      real variation. Above 2 you are mostly hiding genuine\n"
-                "      problems.\n\n"
-                "ColorMunki, i1Studio and ColorChecker Studio are the fussiest\n"
-                "about swipe recognition, so they feel a low value first.")
+                "      problems rather than solving them.\n\n"
+                "ColorMunki, i1Studio and ColorChecker Studio are the\n"
+                "fussiest about recognising a swipe, so they feel a low value\n"
+                "first — they are usually the ones failing when this is set\n"
+                "too strictly.")
             ),
             widget=_spinbox(0.1, 10.0, 0.1, 1.0, decimals=1),
+            tooltip_width=560,          # see the guided copy above
         ))
 
         opts.append(_ChartreadOption(

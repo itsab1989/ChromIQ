@@ -167,16 +167,29 @@ def test_the_card_documents_the_measurement_keys(qapp):
         assert token in measure_table, f"missing measurement key {token}"
 
 
-def test_the_card_says_which_reader_each_key_belongs_to(qapp):
+def test_the_card_says_which_engine_each_key_belongs_to(qapp):
     from ui.keyboard_help import keyboard_shortcuts_html
 
     h = keyboard_shortcuts_html()
     measure_table = h.split("</table>")[1]
-    assert "Which reader" in measure_table
-    assert "ChromIQ reader" in measure_table, "the engine-only key is unmarked"
-    assert "Both readers" in measure_table
+    assert "Which engine" in measure_table
+    assert "ChromIQ engine" in measure_table, "the engine-only key is unmarked"
+    assert "Both engines" in measure_table
     # The one difference that can cost readings must be spelled out.
     assert "ArgyllCMS chartread" in h and "throws away" in h
+
+
+def test_the_card_uses_the_words_the_rest_of_the_app_uses(qapp):
+    """The app calls it an *engine* everywhere — "ChromIQ's own measuring
+    engine", "the ChromIQ chart-reading engine" — and Settings labels the choice
+    that way. An invented synonym leaves the reader hunting Preferences for a
+    word that is not there."""
+    from ui.keyboard_help import keyboard_shortcuts_html
+
+    h = keyboard_shortcuts_html().replace("chart-reading", "")
+    assert "reader" not in h.lower(), "the card invented a word for 'engine'"
+    # …and it points at the tab by its real name.
+    assert "Preferences → Beta." in h
 
 
 def test_keyboard_help_icon_paints(qapp):
