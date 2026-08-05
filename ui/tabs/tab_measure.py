@@ -1475,6 +1475,9 @@ class TabMeasure(QWidget):
         # The times are kept for the whole measurement, so turning to another
         # page of a multi-page chart must redraw them for THAT page (Knut,
         # #131 2026-07-26).
+        # THE CLICKABLE STRIPS BELONG TO THE PAGE ON SCREEN, not to the page
+        # the reader is on. See _on_preview_page_changed.
+        self._preview.page_changed.connect(self._on_preview_page_changed)
         self._preview.page_changed.connect(lambda _i: self._refresh_pace_panel(
             getattr(self, "_pace_verdict", ""),
             getattr(self, "_pace_verdict_colour", "#909090")))
@@ -2541,50 +2544,54 @@ class TabMeasure(QWidget):
             widget=filter_combo,
         ))
 
-        _tol_spin = _spinbox(0.1, 10.0, 0.1, 1.0, decimals=1)
+        _tol_spin = _spinbox(0.1, 10.0, 0.1, 0.7, decimals=1)
         _tol_spin.setObjectName("")
         opts.append(_ChartreadOption(
             key="tolerance", flag="-T",
             label=tr("Patch consistency tolerance (-T)"),
             tooltip_title=tr("Patch consistency tolerance (-T)"),
             tooltip_body=(
-                tr("How fussy your instrument is about reading a strip.\n\n"
-                "Leave this off unless you have a reason. Off means your\n"
-                "instrument uses the setting its maker chose, which is what\n"
-                "ArgyllCMS does when nobody asks otherwise, and it is right\n"
-                "for almost everybody.\n\n"
-                "WHAT THE NUMBER ACTUALLY DOES\n"
-                "It is not a warning threshold and not a colour-difference\n"
-                "value. ChromIQ hands it to your instrument, where it\n"
-                "multiplies the instrument's own patch-recognition threshold\n"
-                "— the rule deciding where one patch ends and the next begins\n"
-                "while you slide along a strip.\n\n"
-                "So a low value does not merely make ChromIQ fussier about\n"
-                "the numbers. It makes the instrument itself less willing to\n"
-                "accept your swipe at all, and a strip that would have read\n"
-                "perfectly can come back as \"Strip Read Failed\" — \"Swipe\n"
-                "didn't start and end on the media\" or \"Not enough patches\"\n"
-                "— however carefully you scanned it.\n\n"
-                "IF YOUR STRIPS KEEP FAILING TO READ\n"
-                "Switch this option OFF first and try again; that alone fixes\n"
-                "most of it. If it still happens, tick it and try 1.2, then\n"
-                "1.5. Also check that you start the swipe on the paper before\n"
-                "the first patch, finish it after the last, keep the\n"
-                "instrument flat, and slide at a steady speed.\n\n"
-                "IF YOU DO SWITCH IT ON\n"
-                "1.0 is your instrument maker's own setting — the same as\n"
-                "leaving it off.\n"
-                "  • Below 1.0 — stricter. Some i1 Pro 2 / 3 owners run 0.4\n"
-                "      to catch a clogged nozzle or drifting toner early, and\n"
-                "      accept re-scanning strips more often as the price.\n"
-                "  • Above 1.0 — more forgiving. Try 1.2–1.5 on textured,\n"
-                "      matte or fine-art paper, where the surface itself adds\n"
-                "      real variation. Above 2 you are mostly hiding genuine\n"
-                "      problems rather than solving them.\n\n"
-                "ColorMunki, i1Studio and ColorChecker Studio are the\n"
-                "fussiest about recognising a swipe, so they feel a low value\n"
-                "first — they are usually the ones failing when this is set\n"
-                "too strictly.")
+                tr("How much colour variation ChromIQ accepts WITHIN a\n"
+                "single patch.\n\n"
+                "Reading a strip, your instrument does not take one reading\n"
+                "per patch — it takes many as it slides along, then divides\n"
+                "them up. It can then compare the readings that belong to the\n"
+                "same patch. On an evenly printed patch they agree closely. If\n"
+                "they disagree by more than this tolerance, the strip is\n"
+                "rejected and you are asked to read it again.\n\n"
+                "WHY THAT IS WORTH HAVING\n"
+                "Patches that are not an even colour are telling you something\n"
+                "about the print, not about your scanning: a nozzle starting\n"
+                "to clog, ink running low, a toner roller leaving banding, a\n"
+                "sheet that was handled. Catching that while you measure is\n"
+                "much cheaper than discovering it in a finished profile — and\n"
+                "the better the print you measure, the better the profile you\n"
+                "get. That is why this is switched on by default.\n\n"
+                "CHOOSING A VALUE\n"
+                "The number multiplies your instrument's own built-in\n"
+                "threshold, so 1.0 means exactly what the manufacturer set.\n"
+                "ChromIQ starts you at 0.7, a little stricter than that, which\n"
+                "has proved comfortable in practice: it still accepts quite\n"
+                "large variation and catches real problems.\n\n"
+                "  • Lower (0.4–0.7) — stricter, and a useful thing to want.\n"
+                "      You are told sooner when a patch is uneven, so a poor\n"
+                "      print gets reprinted rather than profiled. The cost is\n"
+                "      re-reading a strip more often, especially on textured\n"
+                "      or matte papers where the surface itself varies.\n\n"
+                "  • Higher (1.0–2.0) — more forgiving. The right choice for\n"
+                "      coarse-screened media, fabric, canvas and art papers,\n"
+                "      and for laser printers, whose patches vary more than an\n"
+                "      inkjet's by nature. Raise it if you are being asked to\n"
+                "      re-read strips that look perfectly good to you;\n"
+                "      ArgyllCMS suggests 1.5 or 2.0 where the default is\n"
+                "      unreasonably tight for the medium.\n\n"
+                "There is no single right answer — it depends on your printer,\n"
+                "your paper and your instrument. Start at the default; if you\n"
+                "are stopped on strips that look fine, raise it a little, and\n"
+                "if you want earlier warning about print quality, lower it a\n"
+                "little.\n\n"
+                "Only some instruments support this (the i1 Pro and ColorMunki\n"
+                "families do); on others it is quietly ignored.")
             ),
             widget=_tol_spin,
             # This body is hard-wrapped at ~62 characters like its neighbours,
@@ -2716,45 +2723,49 @@ class TabMeasure(QWidget):
             label=tr("Patch consistency tolerance (-T)"),
             tooltip_title=tr("Patch consistency tolerance (-T)"),
             tooltip_body=(
-                tr("How fussy your instrument is about reading a strip.\n\n"
-                "Leave this off unless you have a reason. Off means your\n"
-                "instrument uses the setting its maker chose, which is what\n"
-                "ArgyllCMS does when nobody asks otherwise, and it is right\n"
-                "for almost everybody.\n\n"
-                "WHAT THE NUMBER ACTUALLY DOES\n"
-                "It is not a warning threshold and not a colour-difference\n"
-                "value. ChromIQ hands it to your instrument, where it\n"
-                "multiplies the instrument's own patch-recognition threshold\n"
-                "— the rule deciding where one patch ends and the next begins\n"
-                "while you slide along a strip.\n\n"
-                "So a low value does not merely make ChromIQ fussier about\n"
-                "the numbers. It makes the instrument itself less willing to\n"
-                "accept your swipe at all, and a strip that would have read\n"
-                "perfectly can come back as \"Strip Read Failed\" — \"Swipe\n"
-                "didn't start and end on the media\" or \"Not enough patches\"\n"
-                "— however carefully you scanned it.\n\n"
-                "IF YOUR STRIPS KEEP FAILING TO READ\n"
-                "Switch this option OFF first and try again; that alone fixes\n"
-                "most of it. If it still happens, tick it and try 1.2, then\n"
-                "1.5. Also check that you start the swipe on the paper before\n"
-                "the first patch, finish it after the last, keep the\n"
-                "instrument flat, and slide at a steady speed.\n\n"
-                "IF YOU DO SWITCH IT ON\n"
-                "1.0 is your instrument maker's own setting — the same as\n"
-                "leaving it off.\n"
-                "  • Below 1.0 — stricter. Some i1 Pro 2 / 3 owners run 0.4\n"
-                "      to catch a clogged nozzle or drifting toner early, and\n"
-                "      accept re-scanning strips more often as the price.\n"
-                "  • Above 1.0 — more forgiving. Try 1.2–1.5 on textured,\n"
-                "      matte or fine-art paper, where the surface itself adds\n"
-                "      real variation. Above 2 you are mostly hiding genuine\n"
-                "      problems rather than solving them.\n\n"
-                "ColorMunki, i1Studio and ColorChecker Studio are the\n"
-                "fussiest about recognising a swipe, so they feel a low value\n"
-                "first — they are usually the ones failing when this is set\n"
-                "too strictly.")
+                tr("How much colour variation ChromIQ accepts WITHIN a\n"
+                "single patch.\n\n"
+                "Reading a strip, your instrument does not take one reading\n"
+                "per patch — it takes many as it slides along, then divides\n"
+                "them up. It can then compare the readings that belong to the\n"
+                "same patch. On an evenly printed patch they agree closely. If\n"
+                "they disagree by more than this tolerance, the strip is\n"
+                "rejected and you are asked to read it again.\n\n"
+                "WHY THAT IS WORTH HAVING\n"
+                "Patches that are not an even colour are telling you something\n"
+                "about the print, not about your scanning: a nozzle starting\n"
+                "to clog, ink running low, a toner roller leaving banding, a\n"
+                "sheet that was handled. Catching that while you measure is\n"
+                "much cheaper than discovering it in a finished profile — and\n"
+                "the better the print you measure, the better the profile you\n"
+                "get. That is why this is switched on by default.\n\n"
+                "CHOOSING A VALUE\n"
+                "The number multiplies your instrument's own built-in\n"
+                "threshold, so 1.0 means exactly what the manufacturer set.\n"
+                "ChromIQ starts you at 0.7, a little stricter than that, which\n"
+                "has proved comfortable in practice: it still accepts quite\n"
+                "large variation and catches real problems.\n\n"
+                "  • Lower (0.4–0.7) — stricter, and a useful thing to want.\n"
+                "      You are told sooner when a patch is uneven, so a poor\n"
+                "      print gets reprinted rather than profiled. The cost is\n"
+                "      re-reading a strip more often, especially on textured\n"
+                "      or matte papers where the surface itself varies.\n\n"
+                "  • Higher (1.0–2.0) — more forgiving. The right choice for\n"
+                "      coarse-screened media, fabric, canvas and art papers,\n"
+                "      and for laser printers, whose patches vary more than an\n"
+                "      inkjet's by nature. Raise it if you are being asked to\n"
+                "      re-read strips that look perfectly good to you;\n"
+                "      ArgyllCMS suggests 1.5 or 2.0 where the default is\n"
+                "      unreasonably tight for the medium.\n\n"
+                "There is no single right answer — it depends on your printer,\n"
+                "your paper and your instrument. Start at the default; if you\n"
+                "are stopped on strips that look fine, raise it a little, and\n"
+                "if you want earlier warning about print quality, lower it a\n"
+                "little.\n\n"
+                "Only some instruments support this (the i1 Pro and ColorMunki\n"
+                "families do); on others it is quietly ignored.")
             ),
-            widget=_spinbox(0.1, 10.0, 0.1, 1.0, decimals=1),
+            widget=_spinbox(0.1, 10.0, 0.1, 0.7, decimals=1),
             tooltip_width=560,          # see the guided copy above
         ))
 
@@ -5648,6 +5659,21 @@ class TabMeasure(QWidget):
             QApplication.instance().installEventFilter(self)
 
     def _on_generic_instrument_error(self, friendly: str, technical: str) -> None:
+        # ONE WINDOW AT A TIME. Each of these runs its own event loop, so the
+        # reader's output keeps arriving while one is up — and pressing the
+        # instrument button again raises another failure, which used to open a
+        # second window on top of the first. Knut, beta.140: *"I can also click
+        # the instrument button more times, and this window comes on top of
+        # previous windows, all at the same time. This should not be allowed."*
+        #
+        # The rule was already agreed for the instrument-mismatch window in
+        # beta.136 — *"The first window must be terminated/finished before other
+        # windows should be allowed"* — and the register that makes it checkable
+        # is the one every during-a-read window registers itself in.
+        if self._live_measure_windows:
+            log.debug("instrument error while a window is open — not stacking "
+                      "a second one: %s", friendly)
+            return
         QApplication.instance().removeEventFilter(self)
 
         dlg = QDialog(self)
@@ -8175,6 +8201,33 @@ class TabMeasure(QWidget):
                 tr("[Engine] Note: some rows of this chart are too similar "
                    "for automatic row identification — for those, take the "
                    "usual care to swipe the row shown in the preview."))
+
+    def _on_preview_page_changed(self, page: int) -> None:
+        """Re-point the clickable strip rects at the page now on screen.
+
+        ``TiffPreview`` keeps rects for ONE page — the one it was last told
+        about — and ``show_page`` only changes which image is drawn. Those rects
+        were set in exactly one place: ``_on_stripe_changed``, i.e. when the
+        READER moves. So paging by hand left the previous page's rects in place.
+
+        Knut, beta.140, on a chart with A-E on sheet 1 and F on sheet 2: he read
+        D, the reader jumped to F on page 2, and he pressed PREV to come back.
+        *"Now I am unable to click any of the strips to select them, except
+        strip A. When I select strip A, then all the others suddenly allow for
+        selecting them."* Page 2 has one strip, so one rect survived — sitting
+        over strip A — and clicking it moved the reader, which recomputed the
+        rects and made the page whole again.
+
+        Not caused by anything in beta.139/140: it needs the reader and the
+        viewer to be on different pages, which is what jumping to a strip on
+        another sheet finally made easy to do.
+        """
+        rects = getattr(self, "_page_stripe_rects", None)
+        if not rects:
+            return
+        idx = max(0, min(int(page), len(rects) - 1))
+        self._preview.set_stripe_rects(rects[idx],
+                                       getattr(self, "_stripe_arrow_mode", "base"))
 
     def _on_preview_strip_clicked(self, page: int, local_idx: int) -> None:
         if not self._manager.engine_active:

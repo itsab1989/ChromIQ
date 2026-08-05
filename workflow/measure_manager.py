@@ -1103,7 +1103,27 @@ class MeasureManager(QObject):
             if ekind == "misread":
                 # The helper is now blocked on "…any other key to retry".
                 self._at_retry_prompt = True
-                self.strip_error.emit(ev.get("detail") or "misread")
+                detail = str(ev.get("detail") or "")
+                # ONE WINDOW PER FAILURE — the printed line and this event are
+                # the SAME physical failure, reported twice.
+                #
+                # The helper prints "Patch read failed … 'Wrong Sensor Position'
+                # (Sensor should be in surface position)" and then, a moment
+                # after the user answers that window, reports the same thing as
+                # {"event":"error","kind":"misread"}. Raising a window for both
+                # made an inescapable loop: Instrument Error → Retry → Patch
+                # Read Failed → Retry → Instrument Error … Knut, beta.140:
+                # *"An infinite loop. This was introduced in last betas."*
+                #
+                # _sensor_warning_open is still set at this point (spot_ready,
+                # which clears it, arrives afterwards), so it is exactly the
+                # "already told them" flag this needs.
+                if self._sensor_warning_open and _SENSOR_POSITION_RE.search(detail):
+                    log.debug("engine: misread event is the sensor-position "
+                              "failure already reported — not raising a second "
+                              "window")
+                    return
+                self.strip_error.emit(detail or "misread")
             elif ekind == "coms":
                 self._at_retry_prompt = True
                 self._engine_fatal = "communication problem"
