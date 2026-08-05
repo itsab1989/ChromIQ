@@ -8792,8 +8792,26 @@ class TabMeasure(QWidget):
         guided = self._current_mode() == "guided"
         resume = (self._resume_cb if guided else self._m_resume_cb)
         refine = (self._refine_cb if guided else self._m_refine_cb)
+        # ASK EXACTLY WHAT THE COMMAND LINE ASKS.
+        #
+        # `params.resume` is `resume_cb.isChecked()` and nothing else, so this
+        # cannot add a condition of its own without the two disagreeing — and
+        # the one it used to add was `isVisible()`, which Qt reports False
+        # whenever ANY ancestor is hidden. A ticked box therefore meant
+        # "resume" to the command line and "replace" to the archive step, which
+        # is the one combination that cannot work: the archive COPIES the .ti3
+        # and leaves the original, so `-r` then resumes against readings that
+        # are already complete and the session ends before the instrument is
+        # ever opened. Knut, beta.144: *"Not possible to do any measurement …
+        # No sound, no initiation of instrument (it seems)"* — five times, and
+        # each attempt archived the file again.
+        #
+        # The mode has already been chosen above, so which box to look at is
+        # settled; whether it is on screen says nothing about what the user
+        # asked for. Refine keeps `isEnabled()` because a disabled box really
+        # cannot have been chosen — it is greyed for a reason.
         return bool(
-            (resume is not None and resume.isVisible() and resume.isChecked())
+            (resume is not None and resume.isChecked())
             or (refine is not None and refine.isEnabled() and refine.isChecked()))
 
     def _replace_message(self, facts, ti3) -> "tuple[str, str]":
