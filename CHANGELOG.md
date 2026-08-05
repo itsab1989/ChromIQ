@@ -1,5 +1,59 @@
 # Changelog
 
+## v3.14.8-beta.144
+
+### New
+
+- **Every run can have a description of its own.** Under the project name on
+  the Create Chart tab there are now two optional boxes: **“Run N
+  Description”** — what this run is for, in your own words, like “PhotoRag
+  Baryta, gloss, large chart” — and **“Run N Chart Notes”**, which is printed
+  on the chart itself so you can tell two printed sheets apart on the desk.
+  Both start empty and neither changes a file name.
+
+  The difference between them is worth knowing: the description belongs to the
+  **run**, so bringing back an earlier chart with “Restore Used Chart” never
+  changes it. The notes belong to the **chart**, because they are printed on
+  that sheet — so restoring a chart brings its notes back with it.
+
+- **The Profile Description writes itself.** In the Calibration & Profiling tab
+  it is filled in as `<project name>-<run description>-<calibration
+  description>`, and any part you have left empty simply drops out along with
+  its hyphen. The calibration part appears only for a profile actually built
+  using a calibration.
+
+  **It is only a suggestion:** the moment you type your own text there it is
+  yours, and ChromIQ never overwrites it again — however you change the run,
+  the description or the measurement. Clear the box to get the suggestion back.
+
+- **A calibration has a description too**, labelled “Calibration Description”,
+  kept with the calibration rather than with any run.
+
+- **`{rundescription}`** can be placed in a chart's sheet text or clip border
+  from the “Insert ▾” menu, and prints the run's description — or the
+  calibration's, on a calibration chart.
+
+- **Three new Dictionary entries** (Run description, Chart notes, and the
+  `{rundescription}` marker), and the “Run type” entry now describes all three
+  types rather than two.
+
+### Fixed
+
+- **The “No chart for this profile run yet” box matches the theme.** It was a
+  fixed dark panel: slightly brighter than its surroundings in dark mode, and a
+  grey slab in light mode. It now takes the colours of whichever theme is on.
+
+- **“Stamp settings used on the chart”** — the checkbox label was too long for
+  its column and was cut off mid-word. What it stamps is explained in the ⓘ
+  beside it, where there is room to say it properly.
+
+- **The test suite cleans up after itself.** A passing run now deletes its own
+  temporary files the moment it finishes, and anything left by a run that
+  crashed is swept at the start of the next one. A run that FAILS keeps its
+  files and prints where they are, because those files are the evidence.
+  Recovered 8.9 GB on the development machine, where three separate leaks had
+  been quietly accumulating for weeks.
+
 ## v3.14.8-beta.143
 
 ### New
