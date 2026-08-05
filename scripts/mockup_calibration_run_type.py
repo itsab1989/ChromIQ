@@ -163,7 +163,8 @@ def chart_tab_as_calibration(win) -> None:
     pump(200)
     # The checkbox the run type replaces.
     tab._cal_target_grp.setVisible(False)
-    # …but its knob preset still applies: this is what ticking it did.
+    # …but its knob preset still applies — the handler moves to the run-type
+    # switch, so calling it here reproduces what the Run type will do.
     tab._on_cal_target_toggled(True)
     # EVERY "Auto" GOES OFF, AND SINGLE CHANNEL STEPS GOES TO 20.
     #

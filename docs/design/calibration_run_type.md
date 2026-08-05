@@ -172,7 +172,11 @@ choose between.
 
 ### D7 · The page-based auto patch count is not disabled for a calibration chart
 
-Measured 2026-08-05 in the running app, ticking "Create chart for calibration":
+Measured 2026-08-05 in the running app. The evidence goes through today's
+"Create chart for calibration" checkbox because that is the only route to a
+calibration chart that exists right now — **this design retires that checkbox**
+(§4.2) and hangs the behaviour off `Run type = Calibration` instead, per §4.2a.
+Ticking the checkbox as it stands today:
 
 ```
 Auto patch count still ticked : True      ← nothing turns it off
@@ -188,8 +192,11 @@ The command preview reads the disabled widget and prints `-f0` while the build
 uses the estimate, so the two disagree invisibly.
 
 A calibration chart is a single-channel ramp; built this way it is a general
-test chart with a ramp bolted on, which is not what printcal wants. Settled by
-§4.2a.
+test chart with a ramp bolted on, which is not what printcal wants.
+
+Settled by §4.2a, attached to the Run type. If the feature is not built, the
+same fix is still needed on the checkbox — identical behaviour, different
+trigger.
 
 
 ## 4. The design
@@ -272,9 +279,10 @@ chart printcal cannot use.
 value both, including a Single Channel Steps the user had set by hand.
 
 `_pre_cal_snapshot` (`ui/tabs/tab_chart.py:3621-3636`) already does this for
-the six targen *values*. It must also record the four **Auto tick states** and
-the Pages enablement, because those are what actually decide the build — which
-is D7.
+the six targen *values*, in the checkbox handler this feature inherits — that
+logic **moves to the run-type switch** along with the knob preset (§4.2). It
+must also record the four **Auto tick states** and the Pages enablement,
+because those are what actually decide the build — which is D7.
 
 **And the guard that is not a UI state.** `_on_generate`'s auto-patch estimate
 (`:8210`) must skip when `cal_target` is set:
