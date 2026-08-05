@@ -20,8 +20,8 @@ python main.py
 
 ```bash
 source .venv/bin/activate
-QT_QPA_PLATFORM=offscreen pytest -n auto            # everyday tier, ~4320 tests, ~1 min
-QT_QPA_PLATFORM=offscreen pytest --runslow -n auto  # THE RELEASE GATE, ~4370 tests, ~2.5 min
+QT_QPA_PLATFORM=offscreen pytest -n 4            # everyday tier, ~4370 tests, ~1.5 min
+QT_QPA_PLATFORM=offscreen pytest --runslow -n 4  # THE RELEASE GATE, ~4400 tests, ~3.7 min
 ```
 
 The suite is two-tiered: ~20 heavy end-to-end profile-build tests carry
@@ -40,26 +40,29 @@ above means something is wrong (a test opening a modal dialog `.exec()`, or
 fixtures need. Parallel was avoided because a run once hung for 2.5 h; that was
 `targen` without a `timeout=`, now fixed.
 
-**`-n auto` asks the machine, so the same command is right everywhere** — 16
-workers on the 16-core host, however many a smaller VM has. Measured identical
-to a hand-tuned `-n 12` here (gate 151s vs 153s, everyday 69s vs 68s), so
-adapting costs this machine nothing and stops the numbers below being a lie on
-weaker hardware. `--dist loadfile` is in `pytest.ini`'s `addopts` because it is
-not optional: 150 test files use module-scoped fixtures, and distributing
-individual tests would scatter a module across workers. A plain serial `pytest`
-is unaffected by it.
+**Use `-n 4`, and do not raise it.** More is faster and NOT reliable — measured on a 16-core
+machine, same tree, same day:
 
-**Both tiers now sit within ~10s of their structural floor**, which is the
-single heaviest FILE — `--dist loadfile` cannot split one:
+| workers | result | wall |
+|---|---|---|
+| **4** | **4406 passed** | **3:42** |
+| 8 | 30 failed + 11 errors | 2:39 |
+| 12 | 45 failed (and green on the next run) | 2:30 |
+| auto (16) | 17 failed | 2:35 |
 
-| tier | total work | ideal split | floor (heaviest file) | actual |
-|---|---|---|---|---|
-| everyday | 452s | 38s | **57s** `test_scan_alignment_real_targets.py` | 69s |
-| release gate | 881s | 73s | **145s** `test_engine_v2_options.py` | 151s |
+Every affected test passes on its own and the failing set changes run to run,
+so this is shared state between tests, not one bad test. **Do not raise the
+worker count to make the gate faster** — a release decision rests on this
+number, and a gate that reports "45 failed" when nothing is wrong is worse
+than a slow one. Fixing it means finding that shared state (101 test files
+construct `AppSettings()`, which is the real `QSettings` store — so a test run
+also writes to the developer's own preferences) — worth doing, but as its own
+piece of work. Capping `-n auto` from a conftest hook does **not** work:
+pytest-xdist has already read the option by then, and the run goes ahead at
+full parallelism anyway.
 
-So more workers cannot help either tier. The only remaining lever is making
-those two files faster (the gate's is dominated by one ~90s test), and that is
-a test-content change, not a scheduling one.
+**The real saving was the demo-project cache**, and it is independent of the
+worker count: 6:25 → 3:42 at the same `-n 4`.
 
 **Measured on a 16-core M-series (12 performance cores), 4367 tests:**
 

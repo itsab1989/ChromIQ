@@ -19,11 +19,23 @@ at the class level: no real subprocess, no cross-test signal leak, no modal.
 from pathlib import Path
 
 import os
+import pathlib
 import shutil
 import sys
 import tempfile
 
 import pytest
+
+
+
+#: The highest worker count this suite is currently RELIABLE at — see CLAUDE.md
+#: for the measurements. Kept here as a fact, not enforced: capping ``-n auto``
+#: from a conftest hook does not work, because pytest-xdist has already read
+#: the option by the time any hook here can change it (tried, and it silently
+#: ran at full parallelism anyway). So the number lives in the documented
+#: command instead, where it cannot fail quietly.
+SAFE_WORKERS = 4
+
 
 # Make helper modules that live beside the tests (e.g. ``tests/_fontcheck.py``)
 # importable with a bare ``import _fontcheck`` from any test. pytest puts the
