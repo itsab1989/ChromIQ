@@ -82,7 +82,7 @@ Everything in §3 and §4 follows from this.
 
 ---
 
-## 3. Six defects found while researching (evidence, not opinion)
+## 3. Seven defects found while researching (evidence, not opinion)
 
 D1–D3 were reproduced with the real classes and real files; D4 and D5 turned up
 while building the mockups in §12, in the real running app; D6 came out of
@@ -170,6 +170,28 @@ Same mockup: *"Include Calibration File (no"* — the label is cut mid-word wher
 `-K`'s fits. A one-line width fix, but it is the row a user is being asked to
 choose between.
 
+### D7 · The page-based auto patch count is not disabled for a calibration chart
+
+Measured 2026-08-05 in the running app, ticking "Create chart for calibration":
+
+```
+Auto patch count still ticked : True      ← nothing turns it off
+Pages spin still enabled      : True
+-f widget value               : 0         ← the toggle did set it…
+-f widget enabled             : False     ← …but Auto owns the widget, so the 0 is cosmetic
+```
+
+`_on_cal_target_toggled` writes `-f 0` into a spinbox that Auto has disabled,
+and at Generate `params.patches = estimate_patches(...)` (`:8210`) overwrites it
+without ever consulting `cal_target` (computed 60 lines earlier at `:8151`).
+The command preview reads the disabled widget and prints `-f0` while the build
+uses the estimate, so the two disagree invisibly.
+
+A calibration chart is a single-channel ramp; built this way it is a general
+test chart with a ramp bolted on, which is not what printcal wants. Settled by
+§4.2a.
+
+
 ## 4. The design
 
 ### 4.1 The bar
@@ -203,8 +225,9 @@ Profile run: [ Project calibration ▾ ]   Run type: [ Calibration ▾ ]   ⓘ
   (`workflow/chart_creator.py:519`) — it is in no preset and no settings key —
   so nothing needs migrating.
 - The calibration knob preset (`-f 0 -e 0 -B 0 -s 20`, `-G` off, `-r` on) moves
-  from the checkbox's handler to the run-type switch, unchanged, and still
-  restores the previous values when the target changes back.
+  from the checkbox's handler to the run-type switch, and **gains the half it
+  was missing** — see 4.2a. It still restores the previous values when the
+  target changes back, and now restores the tick states too.
 - **The "targen parameters" section opens.** It starts collapsed
   (`ui/tabs/tab_chart.py:2426-2428`) because most charts never touch the patch
   recipe — but a calibration chart *is* the patch recipe: **Single Channel
@@ -219,6 +242,55 @@ Profile run: [ Project calibration ▾ ]   Run type: [ Calibration ▾ ]   ⓘ
   from that one function.
 - `_confirm_displacing_results` learns the calibration case (**fixes D2**) and
   asks about the right files (§4.4).
+
+### 4.2a The Auto counts, and putting them back (Sebastian, 2026-08-05)
+
+> *"setting run type to calibration turns the auto settings off (choosing
+> another runtype then should restore the auto options to how they were before
+> → total patch count, white, black patches, grey axis steps). Single channel
+> steps should be set to 20 on a calibration run by default like it is supposed
+> to be now already and then also be reset to how it was before when the user
+> sets another runtype again."*
+
+**Switching to Calibration:**
+
+| Control | targen | Becomes |
+|---|---|---|
+| Total Patch Count · Auto | `-f` | unticked **and disabled**, value `0` |
+| White Patches · Auto | `-e` | unticked **and disabled**, value `0` |
+| Black Patches · Auto | `-B` | unticked **and disabled**, value `0` |
+| Grey Axis Steps · Auto | `-g` | unticked **and disabled**, value `0` |
+| Single Channel Steps | `-s` | **`20`** |
+| Pages | printtarg | disabled |
+
+A calibration chart's size comes from the ramp, not from filling pages.
+Disabled rather than merely unticked: a greyed box says *this is not yours to
+set right now*, where an unticked one invites the user to tick it and get a
+chart printcal cannot use.
+
+**Switching away:** all six go back to exactly what they were — tick state and
+value both, including a Single Channel Steps the user had set by hand.
+
+`_pre_cal_snapshot` (`ui/tabs/tab_chart.py:3621-3636`) already does this for
+the six targen *values*. It must also record the four **Auto tick states** and
+the Pages enablement, because those are what actually decide the build — which
+is D7.
+
+**And the guard that is not a UI state.** `_on_generate`'s auto-patch estimate
+(`:8210`) must skip when `cal_target` is set:
+
+```python
+if (self._current_mode() == "manual"
+        and not cal_target_active                 # ← added
+        and self._manual_auto_patches_check is not None
+        and self._manual_auto_patches_check.isChecked()):
+```
+
+Belt and braces on purpose: the UI state is what the user sees, this guard is
+what keeps the built command correct if any future path reaches Generate with
+Auto still on. Without it the preview and the build can drift apart again in
+silence — which is precisely how D7 stayed invisible.
+
 
 ### 4.3 Print and Measure
 
