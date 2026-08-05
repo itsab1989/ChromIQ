@@ -1017,6 +1017,13 @@ class TabMeasure(QWidget):
         self._key_watchdog = QTimer(self)
         self._key_watchdog.setSingleShot(True)
         self._key_watchdog.setInterval(12000)
+        #: Windows opened while a read is in progress. Knut, beta.139:
+        #: *"When the measurement session ends, everything relating to
+        #: measurements should end, I would think. Restarted when starting a
+        #: measurement."* Each one runs its own event loop, so without this a
+        #: window could outlive the process it belongs to and its buttons then
+        #: sent keys to nothing.
+        self._live_measure_windows: list = []
         self._key_watchdog.timeout.connect(self._on_key_watchdog_timeout)
         self._build_ui()
         self._restore_defaults()
@@ -1764,10 +1771,22 @@ class TabMeasure(QWidget):
 
         for opt in self._chartread_opts:
             if opt.key == "tolerance":
-                opt.checkbox.setChecked(True)
+                # -T IS NOT FORCED ON ANY MORE. It used to be ticked here at
+                # 0.7 for everybody, and chartread hands that number to the
+                # instrument, where it scales the driver's own
+                # patch-recognition threshold while a strip is being swiped
+                # (munki_imp.c:5353). Every measurement anybody made was
+                # therefore judged stricter than the manufacturer's setting,
+                # and on a ColorMunki that reads as a swipe the driver will not
+                # recognise at all — Knut, beta.139: *"no strip is ever
+                # finished without the 'Strip Read Failed' window"*. The row
+                # stays visible so the option is still one tick away.
+                opt.checkbox.setChecked(
+                    bool(self._settings.get("measure_tolerance_enabled", False)))
                 if opt.widget is not None:
-                    opt.widget.setValue(0.7)
-                    opt.widget.setEnabled(True)
+                    opt.widget.setValue(
+                        float(self._settings.get("measure_tolerance_value", 1.0)))
+                    opt.widget.setEnabled(opt.checkbox.isChecked())
             else:
                 if opt.row_widget is not None:
                     opt.row_widget.setVisible(False)
@@ -2522,26 +2541,38 @@ class TabMeasure(QWidget):
             widget=filter_combo,
         ))
 
-        _tol_spin = _spinbox(0.1, 10.0, 0.1, 0.5, decimals=1)
+        _tol_spin = _spinbox(0.1, 10.0, 0.1, 1.0, decimals=1)
         _tol_spin.setObjectName("")
         opts.append(_ChartreadOption(
             key="tolerance", flag="-T",
             label=tr("Patch consistency tolerance (-T)"),
             tooltip_title=tr("Patch Tolerance Multiplier (-T)"),
             tooltip_body=(
-                tr("A multiplier on chartread's built-in patch consistency\n"
-                "threshold — not a delta-E value. chartread re-reads each patch\n"
-                "and rejects strips where the readings disagree by more than\n"
-                "the threshold × this number.\n\n"
-                "Lower = stricter. A strict setting catches real problems early:\n"
-                "clogged inkjet nozzles, low ink, dirty drum rollers, drifting\n"
-                "laser toner. On a healthy printer + spectrophotometer combo\n"
-                "the default of 0.7 leaves comfortable headroom; experienced\n"
-                "users on printerknowledge.com run 0.4 with i1 Pro 2 / 3.\n\n"
-                "Raise to 0.8–1.5 if you get false \"inconsistent patch\" errors\n"
-                "on textured, matte, or fine-art papers — the surface itself\n"
-                "contributes real variance there. Values above 2 mostly mask\n"
-                "genuine issues; if you need them, fix the printer first.")
+                tr("LEAVE THIS OFF UNLESS YOU HAVE A REASON.\n\n"
+                "This is not a warning threshold, and it is not a delta-E\n"
+                "value. The number is handed to your instrument, where it\n"
+                "multiplies the driver's own patch-recognition threshold —\n"
+                "the rule that decides where one patch ends and the next\n"
+                "begins while you slide the instrument along a strip.\n\n"
+                "So a low value does not merely make ChromIQ fussier about\n"
+                "the numbers. It makes the instrument itself less willing to\n"
+                "accept the swipe at all, and a strip that would have read\n"
+                "perfectly can come back as \"Strip Read Failed\" —\n"
+                "\"Swipe didn't start and end on the media\" or \"Not enough\n"
+                "patches\" — however carefully you scanned it.\n\n"
+                "Off means your instrument uses the threshold its maker chose,\n"
+                "which is what ArgyllCMS does when nobody asks otherwise. That\n"
+                "is the right setting for almost everybody.\n\n"
+                "If you do switch it on, 1.0 is that same maker's setting.\n"
+                "  • Below 1.0 — stricter. Some i1 Pro 2 / 3 owners run 0.4 to\n"
+                "      catch a clogged nozzle or drifting toner early, and\n"
+                "      accept re-swiping more often as the price.\n"
+                "  • Above 1.0 — more forgiving. Try 1.2–1.5 on textured,\n"
+                "      matte or fine-art paper, where the surface itself adds\n"
+                "      real variation. Above 2 you are mostly hiding genuine\n"
+                "      problems.\n\n"
+                "ColorMunki, i1Studio and ColorChecker Studio are the fussiest\n"
+                "about swipe recognition, so they feel a low value first.")
             ),
             widget=_tol_spin,
         ))
@@ -2668,21 +2699,33 @@ class TabMeasure(QWidget):
             label=tr("Patch consistency tolerance (-T)"),
             tooltip_title=tr("Patch Tolerance Multiplier (-T)"),
             tooltip_body=(
-                tr("A multiplier on chartread's built-in patch consistency\n"
-                "threshold — not a delta-E value. chartread re-reads each patch\n"
-                "and rejects strips where the readings disagree by more than\n"
-                "the threshold × this number.\n\n"
-                "Lower = stricter. A strict setting catches real problems early:\n"
-                "clogged inkjet nozzles, low ink, dirty drum rollers, drifting\n"
-                "laser toner. On a healthy printer + spectrophotometer combo\n"
-                "the default of 0.7 leaves comfortable headroom; experienced\n"
-                "users on printerknowledge.com run 0.4 with i1 Pro 2 / 3.\n\n"
-                "Raise to 0.8–1.5 if you get false \"inconsistent patch\" errors\n"
-                "on textured, matte, or fine-art papers — the surface itself\n"
-                "contributes real variance there. Values above 2 mostly mask\n"
-                "genuine issues; if you need them, fix the printer first.")
+                tr("LEAVE THIS OFF UNLESS YOU HAVE A REASON.\n\n"
+                "This is not a warning threshold, and it is not a delta-E\n"
+                "value. The number is handed to your instrument, where it\n"
+                "multiplies the driver's own patch-recognition threshold —\n"
+                "the rule that decides where one patch ends and the next\n"
+                "begins while you slide the instrument along a strip.\n\n"
+                "So a low value does not merely make ChromIQ fussier about\n"
+                "the numbers. It makes the instrument itself less willing to\n"
+                "accept the swipe at all, and a strip that would have read\n"
+                "perfectly can come back as \"Strip Read Failed\" —\n"
+                "\"Swipe didn't start and end on the media\" or \"Not enough\n"
+                "patches\" — however carefully you scanned it.\n\n"
+                "Off means your instrument uses the threshold its maker chose,\n"
+                "which is what ArgyllCMS does when nobody asks otherwise. That\n"
+                "is the right setting for almost everybody.\n\n"
+                "If you do switch it on, 1.0 is that same maker's setting.\n"
+                "  • Below 1.0 — stricter. Some i1 Pro 2 / 3 owners run 0.4 to\n"
+                "      catch a clogged nozzle or drifting toner early, and\n"
+                "      accept re-swiping more often as the price.\n"
+                "  • Above 1.0 — more forgiving. Try 1.2–1.5 on textured,\n"
+                "      matte or fine-art paper, where the surface itself adds\n"
+                "      real variation. Above 2 you are mostly hiding genuine\n"
+                "      problems.\n\n"
+                "ColorMunki, i1Studio and ColorChecker Studio are the fussiest\n"
+                "about swipe recognition, so they feel a low value first.")
             ),
-            widget=_spinbox(0.1, 10.0, 0.1, 0.5, decimals=1),
+            widget=_spinbox(0.1, 10.0, 0.1, 1.0, decimals=1),
         ))
 
         opts.append(_ChartreadOption(
@@ -4361,7 +4404,7 @@ class TabMeasure(QWidget):
         # #131 2026-07-26). Held back here and released below.
         self._pace_prompt_open = True
         try:
-            dlg.exec()
+            self._exec_measurement_window(dlg)
         finally:
             self._pace_prompt_open = False
         if quiet.isChecked():
@@ -5014,8 +5057,50 @@ class TabMeasure(QWidget):
             return "\x1b"
         return "\r"
 
+    def _exec_measurement_window(self, dlg) -> int:
+        """Run a during-the-read window, remembering it while it is up.
+
+        Every window here belongs to a live measurement, so it must not survive
+        the measurement — see _close_measurement_windows.
+        """
+        self._live_measure_windows.append(dlg)
+        try:
+            return dlg.exec()
+        finally:
+            try:
+                self._live_measure_windows.remove(dlg)
+            except ValueError:
+                pass
+
+    def _close_measurement_windows(self) -> None:
+        """Close every window that belongs to the measurement that just ended.
+
+        Knut's rule (beta.139): *"When the measurement session ends, everything
+        relating to measurements should end."* Each of these windows spins its
+        own event loop, so one could still be on screen after chartread had
+        gone — and pressing its buttons then wrote keys to a process that no
+        longer existed, which is where the *"no active process"* warnings in his
+        logs came from. Rejecting them unwinds those loops; the choice each one
+        would have sent is dropped by _send_failure_choice, because there is
+        nothing left to send it to.
+        """
+        for dlg in list(self._live_measure_windows):
+            try:
+                dlg.reject()
+            except RuntimeError:
+                pass            # already gone with its parent
+        self._live_measure_windows.clear()
+
     def _send_failure_choice(self, key: str) -> None:
-        """Send what a failure window decided, honouring :data:`END_SAVE`."""
+        """Send what a failure window decided, honouring :data:`END_SAVE`.
+
+        Silent when the measurement has already ended: the window may have been
+        closed *by* that ending (see _close_measurement_windows), and a key sent
+        into a finished process is not a warning worth showing anybody.
+        """
+        if not self._runner.is_running:
+            log.debug("measurement already ended; not sending %r", key)
+            return
         if key == self.END_SAVE:
             self._manager.send_save_partial_and_quit()
         else:
@@ -5218,7 +5303,7 @@ class TabMeasure(QWidget):
         layout.addLayout(row)
 
         tint_dialog_primary(dlg, _TAB_COLOR)
-        dlg.exec()
+        self._exec_measurement_window(dlg)
         if choice[0] == "remeasure":
             self._manager.goto_strip(strip)     # re-read this strip next
         elif choice[0] == "stop":
@@ -5299,7 +5384,7 @@ class TabMeasure(QWidget):
         layout.addLayout(btn_row)
 
         tint_dialog_primary(dlg, _TAB_COLOR)
-        dlg.exec()
+        self._exec_measurement_window(dlg)
         self._send_failure_choice(chosen[0])
         self._arm_key_watchdog()
 
@@ -5364,7 +5449,7 @@ class TabMeasure(QWidget):
         layout.addLayout(btn_row)
 
         tint_dialog_primary(dlg, _TAB_COLOR)
-        dlg.exec()
+        self._exec_measurement_window(dlg)
         self._send_failure_choice(chosen[0])
         self._arm_key_watchdog()
 
@@ -5404,7 +5489,7 @@ class TabMeasure(QWidget):
         layout.addWidget(btn_box)
 
         tint_dialog_primary(dlg, _TAB_COLOR)
-        dlg.exec()
+        self._exec_measurement_window(dlg)
         QApplication.instance().installEventFilter(self)
 
     def _on_strip_interrupted(self) -> None:
@@ -5458,7 +5543,7 @@ class TabMeasure(QWidget):
         layout.addLayout(btn_row)
 
         tint_dialog_primary(dlg, _TAB_COLOR)
-        dlg.exec()
+        self._exec_measurement_window(dlg)
         self._send_failure_choice(chosen[0])
         self._arm_key_watchdog()
 
@@ -5523,7 +5608,7 @@ class TabMeasure(QWidget):
         layout.addLayout(btn_row)
 
         tint_dialog_primary(dlg, _TAB_COLOR)
-        dlg.exec()
+        self._exec_measurement_window(dlg)
         self._send_failure_choice(chosen[0])
         self._arm_key_watchdog()
 
@@ -5578,7 +5663,7 @@ class TabMeasure(QWidget):
         layout.addLayout(btn_row)
 
         tint_dialog_primary(dlg, _TAB_COLOR)
-        dlg.exec()
+        self._exec_measurement_window(dlg)
         self._send_failure_choice(chosen[0])
         self._arm_key_watchdog()
 
@@ -5714,7 +5799,7 @@ class TabMeasure(QWidget):
         layout.addLayout(btn_row)
 
         tint_dialog_primary(dlg, _TAB_COLOR)
-        dlg.exec()
+        self._exec_measurement_window(dlg)
         self._send_failure_choice(chosen[0])
         self._arm_key_watchdog()
         if chosen[0] not in ("\x1b", self.END_SAVE):
@@ -5854,7 +5939,7 @@ class TabMeasure(QWidget):
         tint_dialog_primary(dlg, _TAB_COLOR)
         from ui.widgets import ButtonFontFilter
         ButtonFontFilter.fit_window(dlg)
-        dlg.exec()
+        self._exec_measurement_window(dlg)
 
     def _is_last_unread_strip(self) -> bool:
         """True when the strip that just failed is the only one still unread.
@@ -6071,7 +6156,7 @@ class TabMeasure(QWidget):
         layout.addLayout(btn_row)
 
         tint_dialog_primary(dlg, _TAB_COLOR)
-        dlg.exec()
+        self._exec_measurement_window(dlg)
         self._pace_prompt_open = False
         if getattr(self, "_all_done_deferred", False) and chosen[0] not in (
                 "retry", "skip"):
@@ -6450,7 +6535,7 @@ class TabMeasure(QWidget):
         layout.addWidget(btn_box)
 
         tint_dialog_primary(dlg, _TAB_COLOR)
-        dlg.exec()
+        self._exec_measurement_window(dlg)
         QApplication.instance().installEventFilter(self)
 
     def _on_all_stripes_done(self) -> None:
@@ -7112,6 +7197,11 @@ class TabMeasure(QWidget):
         box.exec()
 
     def _on_measure_done(self, code: int) -> None:
+        # EVERYTHING THAT BELONGS TO THE MEASUREMENT GOES WITH IT (Knut,
+        # beta.139). First, before any of the tidying below, so a window that
+        # is still spinning its own event loop cannot answer into a process
+        # that has already gone.
+        self._close_measurement_windows()
         # #131: leave measurement mode. Any completion sound (played via
         # measure_finished, below) is exempt from the at-rest gate, so it still
         # fires; per-patch/strip sounds can no longer sound outside a read.

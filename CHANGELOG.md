@@ -1,5 +1,57 @@
 # Changelog
 
+## v3.14.8-beta.140
+
+### New
+
+- **The Help window's keyboard card now lists the keys that drive a
+  measurement**, in the order you meet them, and says which chart reader each
+  one belongs to. It also spells out the one difference that can cost you
+  readings: Esc on ArgyllCMS chartread throws away everything measured so far,
+  while the ChromIQ reader writes it out first.
+
+- **The demo project package ships a printable `README.pdf`**, rebuilt every
+  time the package is, so the step-by-step tests can be read on a tablet next to
+  the instrument or printed and ticked off.
+
+- **Release notes are grouped and summarised.** Every note now opens with a
+  one-line summary and separates *What's new* from *Fixed*, and each fixed entry
+  leads with what you would have noticed rather than what caused it — so a
+  problem that was annoying you is findable without knowing its cause.
+
+### Changed
+
+- **Patch consistency tolerance (`-T`) is off by default**, and offers Argyll's
+  own 1.0 when you switch it on. It used to be forced on at 0.7 for everybody.
+  See the first entry under Fixed for why that mattered. Anyone whose settings
+  still carry the old value is moved to the new default automatically; a value
+  you chose yourself is left alone.
+
+### Fixed
+
+- **Strips failed to read over and over — "Swipe didn't start and end on the
+  media" — however carefully you scanned them.** ChromIQ was switching on
+  chartread's `-T` option for everyone at 0.7. That number is not a warning
+  threshold: it is handed to the instrument, where it multiplies the driver's
+  own patch-recognition threshold — the rule that decides where one patch ends
+  and the next begins while you slide across a strip. So every measurement
+  anybody ever made was judged about a third stricter than the manufacturer's
+  own setting, and the fussiest instruments about swipe recognition
+  (ColorMunki, i1Studio, ColorChecker Studio) simply refused swipes that were
+  perfectly good. The option is off by default now, so your instrument uses the
+  threshold its maker chose.
+
+- **A measurement window could stay on screen after the measurement had
+  ended**, and pressing its buttons then did nothing except put "no active
+  process" in the log. Every window that belongs to a read now closes with the
+  read, and a choice made as one closes is quietly dropped rather than sent into
+  a finished process.
+
+- **The tooltip for patch consistency tolerance described the wrong thing** — it
+  called it a re-read threshold and quoted a default the app did not use. It now
+  explains that the number goes to the instrument and that a low value can make
+  good strips fail outright.
+
 ## v3.14.8-beta.139
 
 - **"Save and stop" no longer opens a second window at all.** beta.138 silenced

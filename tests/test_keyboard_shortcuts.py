@@ -141,12 +141,42 @@ def test_keyboard_help_html_is_alphabetical_and_complete(qapp):
 
     h = keyboard_shortcuts_html()
     assert "<table" in h
-    # Action cells are the second column; they must be sorted case-insensitively.
-    actions = re.findall(r"<td valign='top'>([^<]+)</td>", h)
+    # The card has TWO tables: the app shortcuts, then the keys that drive a
+    # measurement (Knut, beta.139). Only the first is alphabetical — the
+    # measurement keys are in the order you meet them while reading a chart.
+    first_table = h.split("</table>")[0]
+    actions = re.findall(r"<td valign='top'>([^<]+)</td>", first_table)
     assert actions == sorted(actions, key=str.lower)
     # Every documented shortcut family is present.
     for token in ("⌘1", "⌘,", "⌘T", "F1", "⌘Z"):
         assert token in h, f"missing shortcut {token} in card"
+
+
+def test_the_card_documents_the_measurement_keys(qapp):
+    """Knut, beta.139: *"Make sure the help card with keyboard shortcuts are
+    updated with new keys to use during measurement, also showing which
+    chartread engine it applies to."*"""
+    from ui.keyboard_help import keyboard_shortcuts_html
+
+    h = keyboard_shortcuts_html()
+    assert h.count("<table") == 2, "the measurement-key table is missing"
+    measure_table = h.split("</table>")[1]
+    # The keys a measurement actually listens for, including the two that
+    # beta.139 gave a meaning to.
+    for token in ("Space", "Esc", "⇧F", "Click a strip"):
+        assert token in measure_table, f"missing measurement key {token}"
+
+
+def test_the_card_says_which_reader_each_key_belongs_to(qapp):
+    from ui.keyboard_help import keyboard_shortcuts_html
+
+    h = keyboard_shortcuts_html()
+    measure_table = h.split("</table>")[1]
+    assert "Which reader" in measure_table
+    assert "ChromIQ reader" in measure_table, "the engine-only key is unmarked"
+    assert "Both readers" in measure_table
+    # The one difference that can cost readings must be spelled out.
+    assert "ArgyllCMS chartread" in h and "throws away" in h
 
 
 def test_keyboard_help_icon_paints(qapp):

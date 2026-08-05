@@ -102,9 +102,26 @@ DEFAULTS: dict[str, Any] = {
     "measure_hide_nonrandom_bidir_warning": False,
     "measure_suppress_warnings":   True,
     "measure_extra_args":          "",
-    "measure_tolerance_enabled":           True,
-    "measure_tolerance_value":             0.7,
-    "manual2_chartread_tolerance_enabled": True,
+    # -T IS OFF BY DEFAULT, AND ITS VALUE IS ARGYLL'S OWN.
+    #
+    # chartread's -T does not merely relax a warning: it is pushed straight into
+    # the instrument, where it scales the driver's patch-recognition threshold
+    # (munki_imp.c:5353 and i1pro_imp.c:6666, `PATCH_CONS_THR * scan_toll_ratio`).
+    # That threshold is what decides where one patch ends and the next begins
+    # during a swipe. ChromIQ used to force the option ON at 0.7 for everyone —
+    # so every strip anybody ever measured was judged around a third stricter
+    # than the manufacturer's own setting, whether or not they had ever opened
+    # the option. On a ColorMunki that shows up as a swipe the driver refuses to
+    # recognise at all: Knut, beta.139, *"no strip is ever finished without the
+    # 'Strip Read Failed' window … 'Swipe didn't start and end on the media',
+    # but that is never the case when I tested."* His beta.138 log carries the
+    # same fault at a lower rate — 29 misreads against 25 good strips — which is
+    # how long this had been quietly costing him re-swipes.
+    #
+    # Off by default now, and 1.0 (Argyll's own) when somebody does turn it on.
+    "measure_tolerance_enabled":           False,
+    "measure_tolerance_value":             1.0,
+    "manual2_chartread_tolerance_enabled": False,
     # TI2 layout editor — randomised tagging. Well-mixed charts are tagged
     # automatically on save; this remembers whether to FORCE the tag on a
     # layout the safety check considers structured, and whether the user has
@@ -618,7 +635,7 @@ def thresholds_for_combo(
 # Bump when a shipped default changes in a way that must reach users who have
 # the OLD default persisted. Settings → Save writes every key, so a stored
 # value otherwise pins a user to the old behaviour for good.
-SETTINGS_SCHEMA = 16
+SETTINGS_SCHEMA = 17
 
 # key → the old default(s) it must no longer be stuck on. Only a stored value
 # EQUAL to one of the old defaults is dropped (so it falls through to the new
@@ -713,11 +730,50 @@ class AppSettings:
             dropped.append("chartread_engine (ChromIQ engine now the default)")
         if self._migrate_restore_last_tab_default():
             dropped.append("restore_last_tab (now off by default)")
+        if self._migrate_scan_tolerance_default():
+            dropped.append("measure_tolerance (-T no longer forced on)")
         self._qs.setValue("settings_schema", SETTINGS_SCHEMA)
         if dropped:
             log.info("Settings migrated to schema %d; dropped stale defaults: %s",
                      SETTINGS_SCHEMA, ", ".join(dropped))
         return dropped
+
+    def _migrate_scan_tolerance_default(self) -> bool:
+        """schema 17: stop forcing chartread's -T on.
+
+        The option used to ship enabled at 0.7, and the value spinbox was built
+        at 0.5 — so a saved settings file could carry either. Both are stricter
+        than Argyll's 1.0, and -T is not a warning threshold: the driver scales
+        its own patch-recognition threshold by it while reading a strip, so a low
+        value makes swipes fail to be recognised at all. Anyone who never touched
+        the option was measuring under it anyway.
+
+        A stored echo of one of the old defaults is dropped in both modules, so
+        it resolves to the new off/1.0. A value the user chose deliberately —
+        anything that is not one of the two old defaults — is left alone, and so
+        is the enable flag once its value is the user's own.
+        """
+        changed = False
+        old_defaults = (0.5, 0.7)
+        raw = self._qs.value("measure_tolerance_value", None)
+        deliberate = True
+        if raw is None:
+            deliberate = False
+        else:
+            try:
+                deliberate = not any(abs(float(raw) - o) < 1e-9
+                                     for o in old_defaults)
+            except (TypeError, ValueError):
+                deliberate = False
+        if not deliberate:
+            for key in ("measure_tolerance_value",
+                        "measure_tolerance_enabled",
+                        "manual2_chartread_tolerance_enabled",
+                        "manual2_chartread_tolerance_value"):
+                if self._qs.value(key, None) is not None:
+                    self._qs.remove(key)
+                    changed = True
+        return changed
 
     def _migrate_save_report_default(self) -> bool:
         """schema 10: saving a measurement report after each measurement is now on

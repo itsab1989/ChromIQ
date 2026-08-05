@@ -1017,7 +1017,59 @@ def build_all(dest: Path) -> Path:
         print(f"[{i}/{len(CASES)}] {c['name']} …", flush=True)
         c["fn"](dest)
     (dest / "README.md").write_text(_document(CASES, dest))
+    write_readme_pdf(dest / "README.md")
     return dest
+
+
+def write_readme_pdf(readme: Path) -> "Path | None":
+    """Write README.pdf beside README.md, every time the package is rebuilt.
+
+    Knut, beta.139: *"Also, in the demo project package, make a pdf version of
+    the readme.md file, every time it is rebuilt."* A PDF is the copy you can
+    read on a tablet next to the instrument, or print and tick off — which is
+    how these steps are actually walked.
+
+    Rendered through Qt, which is already a hard dependency, so the build gains
+    no new one. If a headless machine cannot start Qt at all the Markdown is
+    still written and the build carries on — the PDF is a convenience, never the
+    source of truth.
+    """
+    try:
+        from PyQt6.QtCore import QMarginsF
+        from PyQt6.QtGui import (QGuiApplication, QPageLayout, QPageSize,
+                                 QPdfWriter, QTextDocument)
+    except ImportError:                        # pragma: no cover - no Qt
+        print("  (PyQt6 unavailable — README.pdf skipped)")
+        return None
+
+    import os
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    app = QGuiApplication.instance() or QGuiApplication([])   # noqa: F841
+
+    doc = QTextDocument()
+    doc.setDefaultStyleSheet(
+        "body { font-family: Helvetica, Arial, sans-serif; font-size: 10pt; }"
+        "h1 { font-size: 17pt; } h2 { font-size: 13pt; } h3 { font-size: 11pt; }"
+        "code, pre { font-family: Menlo, Consolas, monospace; font-size: 9pt; }"
+        "th { text-align: left; }"
+    )
+    # setMarkdown understands the GitHub dialect the README is written in
+    # (tables, fenced code), so the PDF keeps the step tables readable.
+    doc.setMarkdown(readme.read_text())
+
+    pdf = readme.with_suffix(".pdf")
+    writer = QPdfWriter(str(pdf))
+    writer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
+    writer.setPageMargins(QMarginsF(15, 15, 15, 15), QPageLayout.Unit.Millimeter)
+    # The document is laid out in ~96-dpi pixels, so match the writer to it;
+    # text stays vector-crisp either way.
+    writer.setResolution(96)
+    doc.setPageSize(__import__("PyQt6.QtCore", fromlist=["QSizeF"]).QSizeF(
+        float(writer.width()), float(writer.height())))
+    doc.print(writer)
+    print(f"  README.pdf written ({pdf.stat().st_size // 1024} KB, "
+          f"{doc.pageCount()} pages)")
+    return pdf
 
 
 def zip_up(folder: Path) -> Path:
@@ -1201,6 +1253,14 @@ def verify(dest: Path) -> "list[str]":
                     f"README.md still contains the placeholder {token!r} — "
                     "the same rule the windows follow: no placeholder reaches "
                     "the reader")
+    # The PDF ships beside it, every rebuild (Knut, beta.139).
+    pdf = dest / "README.pdf"
+    if not pdf.exists():
+        problems.append("README.pdf is missing — the package must carry a "
+                        "printable copy of the steps")
+    elif pdf.stat().st_size < 4096:
+        problems.append(f"README.pdf is only {pdf.stat().st_size} bytes, which "
+                        "is too small to be the rendered steps")
     for project, wants in EXPECTED.items():
         for key, want in wants.items():
             rid, _, aspect = key.partition(":")

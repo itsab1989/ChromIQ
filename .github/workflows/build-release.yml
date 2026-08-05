@@ -476,7 +476,17 @@ jobs:
             *-alpha*|*-beta*|*-rc*|*-pre*) PRERELEASE_FLAG="--prerelease" ;;
           esac
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            body=$(awk "/^## ${TAG}$/{found=1; next} found && /^## /{exit} found{print}" CHANGELOG.md 2>/dev/null | sed '/^[[:space:]]*$/d' || true)
+            # Knut, beta.139: *"the release note must give a great overview of
+            # all added features, and the list of bugfixes must be shown in a
+            # comprehensive manner so that users can recognise if a bug they
+            # have been annoyed by has been fixed."* scripts/release_notes.py
+            # groups the entry into What's new / Changed / Fixed and puts a
+            # one-line summary on top. The old awk extraction stays as the
+            # fallback, so a note is never empty.
+            body=$(python3 scripts/release_notes.py --tag "$TAG" 2>/dev/null || true)
+            if [ -z "$body" ]; then
+              body=$(awk "/^## ${TAG}$/{found=1; next} found && /^## /{exit} found{print}" CHANGELOG.md 2>/dev/null | sed '/^[[:space:]]*$/d' || true)
+            fi
             if [ -z "$body" ]; then
               # No CHANGELOG.md entry for this tag — fall back to commit subjects
               # since the previous tag so release notes are never empty.
