@@ -66,8 +66,39 @@ def write_replay_script(ti2_path: Path, out_path: Path,
                 fp.write(f"{x + noise:.4f} {y + noise:.4f} {z + noise:.4f}\n")
 
 
+#: Every session that has been started and not yet finished. A test that fails
+#: or raises before calling ``finish()`` used to leave its helper running for
+#: good — the process sits waiting on stdin, and nothing reaps it. Measured
+#: 2026-08-05: 162 of them alive at once, which starved a gate worker into a
+#: segmentation fault at 97%. ``tests/conftest.py`` empties this after every
+#: test, so a leak is now impossible rather than merely unlikely.
+_LIVE: "list[ReplaySession]" = []
+
+
+def reap_live_sessions() -> int:
+    """Kill any helper still running and return how many there were."""
+    killed = 0
+    for session in list(_LIVE):
+        try:
+            if session.proc.poll() is None:
+                session.proc.kill()
+                killed += 1
+        except Exception:      # noqa: BLE001 — cleanup must not raise
+            pass
+        finally:
+            try:
+                _LIVE.remove(session)
+            except ValueError:
+                pass
+    return killed
+
+
 class ReplaySession:
-    """Drive chromiq-chartread --json --replay as a live subprocess."""
+    """Drive chromiq-chartread --json --replay as a live subprocess.
+
+    Usable as a context manager — ``with ReplaySession(...) as s:`` — which is
+    the better habit, because it does not depend on the safety net above.
+    """
 
     def __init__(self, chart_base: Path, replay: Path,
                  extra_args: list[str] | None = None) -> None:
@@ -83,6 +114,13 @@ class ReplaySession:
         self._lock = threading.Lock()
         self._reader = threading.Thread(target=self._read, daemon=True)
         self._reader.start()
+        _LIVE.append(self)
+
+    def __enter__(self) -> "ReplaySession":
+        return self
+
+    def __exit__(self, *_exc) -> None:
+        self.finish()
 
     def _read(self) -> None:
         assert self.proc.stdout is not None
@@ -138,3 +176,7 @@ class ReplaySession:
         finally:
             if self.proc.poll() is None:
                 self.proc.kill()
+            try:
+                _LIVE.remove(self)
+            except ValueError:
+                pass

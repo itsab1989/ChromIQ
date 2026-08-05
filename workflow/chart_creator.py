@@ -491,6 +491,11 @@ class ChartParams:
 
     target_name: str = "chart"
     chart_notes: str = ""             # free-text user notes stamped onto the TIFF
+    # #130: the RUN's description, carried so the chart can stamp it and record
+    # it. Written into the sidecar as provenance and never read back from
+    # there — the run's own meta.json is the only copy that decides, and a
+    # second readable copy is how the two come to disagree (Knut, §2).
+    run_description: str = ""
     stamp_commands: bool = True       # also stamp the targen + printtarg commands used
     # When the chart was laid out from an existing patch set (a preset, a loaded
     # .ti1, a prebuilt chart, or one applied from the editor), targen was NOT run
@@ -1092,6 +1097,12 @@ class ChartCreator:
             kw["instrument"] = params.instrument
             kw["paper"] = params.paper
             kw["project"] = params.target_name   # {project} → profile name
+            # {rundescription} → the run's own description, or the
+            # calibration's when this is a calibration chart (Knut, R2: it must
+            # NOT be empty there — a calibration chart is a printed sheet like
+            # any other and deserves a label). Empty renders as nothing, the
+            # way {seed} does on a chart with no seed.
+            kw["rundescription"] = params.run_description
             # Empty unless a stored chart is being rebuilt, in which case it is
             # the date that chart was made — the record strip must not claim
             # the sheet was produced on the day it was restored (Knut, #130).
@@ -1417,6 +1428,10 @@ class ChartCreator:
                 # again — the TIFF stamp itself can't be read back (mavtop,
                 # forum). Recorded for engine and printtarg charts alike.
                 "chart_notes": params.chart_notes,
+                # A record only — see ChartParams.run_description. It travels
+                # with a chart that is exported or sent to somebody, and it is
+                # what {rundescription} stamps; nothing ever reads it back.
+                "run_description": params.run_description,
                 "stamp_commands": bool(params.stamp_commands),
             }))
             log.debug("Wrote channel sidecar %s: %s", sidecar.name, channels)

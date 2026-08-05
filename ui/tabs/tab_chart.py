@@ -1699,10 +1699,34 @@ class TabChart(QWidget):
             min_width=540,
         ))
         folder_layout.addLayout(name_row)
+        # #130: the guided twin of "Run N Description:". One value, two
+        # widgets — see _on_run_description_edited.
+        g_desc_row = QHBoxLayout()
+        self._guided_run_desc_lbl = QLabel(
+            tr("Run {n} Description:").format(n=1), inner)
+        g_desc_row.addWidget(self._guided_run_desc_lbl)
+        self._guided_run_desc_edit = self._make_lineedit("", inner)
+        self._guided_run_desc_edit.setPlaceholderText(
+            tr("e.g. PhotoRag Baryta, gloss, large chart"))
+        self._guided_run_desc_edit.textChanged.connect(
+            self._on_run_description_edited)
+        self._guided_run_desc_edit.editingFinished.connect(self._save_target_text)
+        g_desc_row.addWidget(self._guided_run_desc_edit, stretch=1)
+        g_desc_row.addWidget(TooltipButton(
+            tr("Run Description"), self._run_description_tooltip(), inner,
+            min_width=560))
+        folder_layout.addLayout(g_desc_row)
         # Pin the label to its natural width (matches the manual fixed-width
         # label trick, keeping the two modes' fields aligned).
-        _guided_lbl_w = _guided_name_lbl.sizeHint().width()
+        # Wide enough for the name label AND for every label the description
+        # row can show — the run number moves and Calibration drops it, so a
+        # column measured for one of them would clip or jump (#130).
+        _guided_lbl_w = max(
+            [_guided_name_lbl.sizeHint().width()]
+            + [QLabel(_t).sizeHint().width()
+               for _t in self._target_text_label_candidates()])
         _guided_name_lbl.setFixedWidth(_guided_lbl_w)
+        self._guided_run_desc_lbl.setFixedWidth(_guided_lbl_w)
         self._target_name_hint = QLabel("", inner)
         self._target_name_hint.setWordWrap(True)
         self._target_name_hint.setStyleSheet("color: #d08a3a; font-size: 11px;")
@@ -2097,9 +2121,15 @@ class TabChart(QWidget):
         # Label column = the wider label's full sizeHint (the same measure guided
         # uses) — its natural width incl. margins, so the column matches guided's
         # left edge without clipping the label's trailing ":".
-        _notes_probe = QLabel(tr("Chart notes:"))   # no parent → measure only
-        _OUTPUT_LBL_W = max(_name_lbl.sizeHint().width(),
-                            _notes_probe.sizeHint().width())
+        # #130: the two rows below carry labels that CHANGE at runtime — the run
+        # number moves, and Calibration drops the number altogether — so the
+        # column is sized for the widest label they can ever show. A column
+        # measured for whichever label happened to be first would clip, or jump
+        # the moment the user changed Run type.
+        _probe_widths = [_name_lbl.sizeHint().width()]
+        for _text in self._target_text_label_candidates():
+            _probe_widths.append(QLabel(_text).sizeHint().width())
+        _OUTPUT_LBL_W = max(_probe_widths)
         _name_lbl.setFixedWidth(_OUTPUT_LBL_W)
         name_row.addWidget(_name_lbl)
         self._manual_target_name_edit = self._make_lineedit("", w)
@@ -2126,17 +2156,39 @@ class TabChart(QWidget):
             )
         )
 
+        # #130: "Run N Description:" — what this run is FOR, in the user's own
+        # words. Above Chart notes because it is the more general of the two,
+        # and shown in BOTH modes: the two frames are separate, so this widget
+        # has a twin in the guided one and they mirror each other.
+        desc_row = QHBoxLayout()
+        self._manual_run_desc_lbl = QLabel(tr("Run {n} Description:").format(n=1), w)
+        self._manual_run_desc_lbl.setFixedWidth(_OUTPUT_LBL_W)
+        desc_row.addWidget(self._manual_run_desc_lbl)
+        self._manual_run_desc_edit = self._make_lineedit("", w)
+        self._manual_run_desc_edit.setPlaceholderText(
+            tr("e.g. PhotoRag Baryta, gloss, large chart"))
+        self._manual_run_desc_edit.textChanged.connect(
+            self._on_run_description_edited)
+        self._manual_run_desc_edit.editingFinished.connect(self._save_target_text)
+        desc_row.addWidget(self._manual_run_desc_edit, stretch=1)
+        desc_row.addWidget(TooltipButton(
+            tr("Run Description"), self._run_description_tooltip(), w,
+            min_width=560))
+        output_layout.addLayout(desc_row)
+
         # Chart notes row — wrapped in a QWidget so it can be hidden when
         # ChromIQ-style clipping border is on (the right margin it targets
         # gets pushed off-page by the patch shift).
         self._manual_chart_notes_row = QWidget(w)
         m_notes_row = QHBoxLayout(self._manual_chart_notes_row)
         m_notes_row.setContentsMargins(0, 0, 0, 0)
-        _notes_lbl = QLabel(tr("Chart notes:"), self._manual_chart_notes_row)
-        _notes_lbl.setFixedWidth(_OUTPUT_LBL_W)
-        m_notes_row.addWidget(_notes_lbl)
+        self._manual_chart_notes_lbl = QLabel(
+            tr("Run {n} Chart Notes:").format(n=1), self._manual_chart_notes_row)
+        self._manual_chart_notes_lbl.setFixedWidth(_OUTPUT_LBL_W)
+        m_notes_row.addWidget(self._manual_chart_notes_lbl)
         self._manual_chart_notes_edit = self._make_lineedit("", self._manual_chart_notes_row)
         self._manual_chart_notes_edit.setPlaceholderText(tr("e.g. Canon Pro-1000 / Hahnemühle Photo Rag 308"))
+        self._manual_chart_notes_edit.editingFinished.connect(self._save_target_text)
         m_notes_row.addWidget(self._manual_chart_notes_edit, stretch=1)
         m_notes_row.addWidget(TooltipButton(
             tr("Chart Notes"),
@@ -2159,21 +2211,26 @@ class TabChart(QWidget):
         _stamp_lbl_spacer.setFixedWidth(_OUTPUT_LBL_W)
         stamp_row.addWidget(_stamp_lbl_spacer)
         self._manual_stamp_cmd_check = QCheckBox(
-            tr("Stamp targen and printtarg commands on the chart"), self._manual_stamp_cmd_row
+            tr("Stamp settings used on the chart"), self._manual_stamp_cmd_row
         )
         self._manual_stamp_cmd_check.setChecked(True)
         stamp_row.addWidget(self._manual_stamp_cmd_check)
         stamp_row.addStretch()
         stamp_row.addWidget(TooltipButton(
             tr("Stamp Commands"),
-            tr("When enabled, the exact targen and printtarg commands used to "
-            "produce the chart — plus the ChromIQ version — are stamped onto "
-            "the right edge of the generated TIFF (alongside Argyll's own "
-            "vertical ID line). This makes the chart self-documenting: months "
-            "later you can read the printed sheet and recreate the same chart "
-            "exactly. Disable if you'd rather keep the right margin clean and "
-            "only stamp your own notes (or leave the chart fully unstamped if "
-            "you also clear the notes field)."),
+            tr("Prints the exact settings that produced this chart along its "
+            "right edge, so the sheet explains itself.\n\n"
+            "What is stamped depends on how the chart was laid out: with the "
+            "ChromIQ layout engine it is the targen command and the engine's "
+            "own layout settings, and with printtarg it is the targen and "
+            "printtarg command lines. The ChromIQ version is included either "
+            "way, beside Argyll's own vertical ID line.\n\n"
+            "WHY YOU MIGHT WANT IT: months later you can read the printed "
+            "sheet and make exactly the same chart again, without having to "
+            "remember what you chose.\n\n"
+            "Switch it off if you would rather keep the right margin clean and "
+            "print only your own chart notes — or leave the sheet completely "
+            "unmarked by clearing the notes box as well."),
             self._manual_stamp_cmd_row,
             min_width=540,
         ))
@@ -3252,9 +3309,11 @@ class TabChart(QWidget):
         # engine becomes active — the stamp is most useful for the printtarg
         # command line, less so for the engine.
         if getattr(self, "_manual_stamp_cmd_check", None) is not None:
+            # Short enough for the column it sits in — the previous wording was
+            # cut off mid-word (Basti, beta.143). Which tool made the layout is
+            # in the ⓘ beside it, where there is room to say it properly.
             self._manual_stamp_cmd_check.setText(
-                tr("Stamp targen and layout-engine info on the chart") if use_engine
-                else tr("Stamp targen and printtarg commands on the chart"))
+                tr("Stamp settings used on the chart"))
             if getattr(self, "_stamp_engine_state", None) != use_engine:
                 self._stamp_engine_state = use_engine
                 self._manual_stamp_cmd_check.setChecked(not use_engine)
@@ -9027,6 +9086,213 @@ class TabChart(QWidget):
         # Tell Print and Measure to let go of the chart as well.
         self.chart_finished.emit([], None, False)
 
+    # ------------------------------------------------------------------
+    # #130: the run's own description, and the chart's notes
+    # ------------------------------------------------------------------
+    #: Every label the description row can ever carry, so the label column can
+    #: be sized once for the widest of them. The row's label CHANGES at runtime
+    #: — the run number moves, and Calibration drops the number entirely — and
+    #: a column measured for whichever label happened to be first would clip or
+    #: jump the moment the user changed Run type.
+    def _run_description_tooltip(self) -> str:
+        """The help for "Run N Description" — Knut reviewed this wording in the
+        specification (#130 §7a) before it was built."""
+        return tr(
+            "Optional, and empty unless you fill it in.\n\n"
+            "A project usually holds several runs, and they are easy to confuse "
+            "once there are a few. This is where you say what makes this one "
+            "different: the paper, the finish, the chart size, or whatever you "
+            "vary. It is only a description — it does not change any file "
+            "name.\n\n"
+            "Many people find it easiest to settle on a pattern and stick to "
+            "it. For example, with the project named for the printer, paper "
+            "make, size and instrument:\n\n"
+            "    Printer profile project name:  Canon_Pro1000_Hahnemuehle_A4_i1Pro\n"
+            "    Run 1 Description:  PhotoRagBaryta_Glossy_Large\n"
+            "    Run 2 Description:  PhotoRagBaryta_Glossy_Small\n"
+            "    Run 3 Description:  PhotoRagBaryta_Matte_Large\n\n"
+            "Whatever you type here is added to the end of the profile's own "
+            "description in the Calibration & Profiling tab, so the finished "
+            ".icc carries it too — unless you have written your own description "
+            "there, which is never overwritten.\n\n"
+            "THIS STAYS WITH THE RUN. Restoring an earlier chart with "
+            "“Restore Used Chart” does not change it, because it describes the "
+            "run and not the sheet of paper.")
+
+    def _target_text_label_candidates(self) -> "list[str]":
+        return [
+            tr("Run {n} Description:").format(n=88),
+            tr("Run {n} Chart Notes:").format(n=88),
+            tr("New run Description:"),
+            tr("New run Chart Notes:"),
+            tr("Calibration Description:"),
+            tr("Chart Notes:"),
+        ]
+
+    def _target_text_labels(self) -> "tuple[str, str]":
+        """``(description label, notes label)`` for what the bar points at.
+
+        A calibration is not a run, so it carries no run number — Knut's ruling
+        (#130 §3a): the notes label drops the "Run N " and the description says
+        what it is. A run that does not exist yet says "New run", and shows its
+        real number the moment it is created.
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is not None and ctl.target.is_calibration():
+            return tr("Calibration Description:"), tr("Chart Notes:")
+        # Also via _target_text_store, for the same reason: a label is a
+        # question, and asking _target_run() would create a project.
+        run = None
+        try:
+            run = self._target_text_store()
+        except Exception:      # noqa: BLE001 — a label must never break the tab
+            run = None
+        # "run1" -> "1", the same derivation the bar's own dropdown uses
+        # (MeasurementTargetBar._pretty_run) so the two can never disagree
+        # about what a run is called.
+        rid = getattr(run, "id", "") if run is not None else ""
+        number = rid[3:] if isinstance(rid, str) and rid.startswith("run") else ""
+        if not number:
+            return tr("New run Description:"), tr("New run Chart Notes:")
+        return (tr("Run {n} Description:").format(n=number),
+                tr("Run {n} Chart Notes:").format(n=number))
+
+    def _target_text_store(self):
+        """Where this selection's two texts are read from and written to.
+
+        Knut, #130 §9 Q4: **the Profile run picks the folder, the Run type picks
+        the file, and exactly one file is written.** Returns the object with
+        ``load_meta`` / ``save_meta``, or None when there is nowhere yet — a new
+        run before it exists, or no project at all.
+
+        **Never creates anything.** ``_target_run()`` reaches ``project()``,
+        which INVENTS a project name when none is set — so asking it here would
+        conjure a project back into existence the moment the user deleted one
+        (Knut's beta.102 sequence). A question must not have side effects; this
+        one asks ``project_or_none``.
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
+            return None
+        try:
+            project = ctl.project_or_none()
+            if project is None:
+                return None
+            if ctl.target.is_calibration():
+                return project.calibration
+            from core.measurement_target import resolve_run
+            return resolve_run(project, ctl.target)
+        except Exception:      # noqa: BLE001
+            return None
+
+    def _refresh_target_text(self) -> None:
+        """Re-label both rows and re-read their text for the current selection."""
+        try:
+            desc_label, notes_label = self._target_text_labels()
+            for name in ("_manual_run_desc_lbl", "_guided_run_desc_lbl"):
+                lbl = getattr(self, name, None)
+                if lbl is not None:
+                    lbl.setText(desc_label)
+            lbl = getattr(self, "_manual_chart_notes_lbl", None)
+            if lbl is not None:
+                lbl.setText(notes_label)
+            self._load_target_text()
+        except Exception:      # noqa: BLE001 — never break the tab over a label
+            log.warning("Could not refresh the run description fields",
+                        exc_info=True)
+
+    def _load_target_text(self) -> None:
+        """Fill both fields from whatever the bar points at.
+
+        Called whenever the Profile run or the Run type changes, which is the
+        whole of Knut's *"the chart notes must also be a field that is specific
+        for each run"* — the storage was already per run, and nothing reloaded
+        it when the selection moved.
+        """
+        store = self._target_text_store()
+        description = notes = ""
+        if store is not None:
+            try:
+                meta = store.load_meta()
+                description = getattr(meta, "description", "") or ""
+                notes = getattr(meta, "chart_notes", "") or ""
+            except Exception:      # noqa: BLE001 — unreadable is empty, not fatal
+                description = notes = ""
+        self._set_target_text_fields(description, notes)
+
+    def _set_target_text_fields(self, description: str, notes: str) -> None:
+        """Put text into the fields without that looking like the user typing.
+
+        The guard matters in both directions: the write-back is driven by the
+        fields' own signals, so filling them from disk without it would save
+        the value straight back into whichever run was selected next.
+        """
+        self._loading_target_text = True
+        try:
+            for edit in (getattr(self, "_manual_run_desc_edit", None),
+                         getattr(self, "_guided_run_desc_edit", None)):
+                if edit is not None and edit.text() != description:
+                    edit.setText(description)
+            edit = getattr(self, "_manual_chart_notes_edit", None)
+            if edit is not None and edit.text() != notes:
+                edit.setText(notes)
+        finally:
+            self._loading_target_text = False
+
+    def _on_run_description_edited(self, text: str) -> None:
+        """Keep the two description fields in step, and remember the text.
+
+        Guided and Manual have separate Output frames, so the one value has two
+        widgets. They are mirrored rather than left to diverge: a run has one
+        description, and two boxes showing different text for it would be two
+        truths for one run.
+        """
+        if getattr(self, "_loading_target_text", False):
+            return
+        self._set_target_text_fields(text, self._current_chart_notes())
+        self._save_target_text()
+
+    def _current_chart_notes(self) -> str:
+        edit = getattr(self, "_manual_chart_notes_edit", None)
+        return edit.text() if edit is not None else ""
+
+    def _current_run_description(self) -> str:
+        for name in ("_manual_run_desc_edit", "_guided_run_desc_edit"):
+            edit = getattr(self, name, None)
+            if edit is not None:
+                return edit.text()
+        return ""
+
+    def _save_target_text(self) -> None:
+        """Write both texts to the ONE file this selection points at.
+
+        Knut, #130 §9 Q4: the Profile run picks the folder and the Run type
+        picks the file — never both files, because two writable copies of the
+        same text is how they come to disagree.
+
+        Silently does nothing when there is nowhere to write yet (a new run
+        before it exists, or no project at all). The text stays in the fields
+        and is written when the run is created, so nothing the user typed is
+        lost by typing it early.
+        """
+        if getattr(self, "_loading_target_text", False):
+            return
+        store = self._target_text_store()
+        if store is None:
+            return
+        try:
+            meta = store.load_meta()
+            description = self._current_run_description()
+            notes = self._current_chart_notes()
+            if (getattr(meta, "description", "") == description
+                    and getattr(meta, "chart_notes", "") == notes):
+                return                      # nothing changed; do not touch disk
+            meta.description = description
+            meta.chart_notes = notes
+            store.save_meta(meta)
+        except Exception:      # noqa: BLE001 — never lose the tab over a write
+            log.warning("Could not save the run's description", exc_info=True)
+
     def _target_run(self):
         """The run the BAR points at, without creating anything.
 
@@ -9714,6 +9980,12 @@ class TabChart(QWidget):
         ctl = getattr(self, "_target_ctl", None)
         if ctl is None:
             return
+        # #130: the two text fields belong to whatever the bar now points at.
+        # This IS the half of Knut's request that was a missing refresh rather
+        # than new storage — chart notes have always been stored per run, in
+        # the run's own .channels.json, and simply were not re-read when the
+        # Profile run changed, which is what made them look project-wide.
+        self._refresh_target_text()
         # #130 Bug C (Knut): if the loaded PROJECT changed (e.g. a Print/Measure
         # load copied a new project into the working folder), reflect its name in
         # the "Printer profile project name" field so it's visibly loaded. Gated
@@ -11093,6 +11365,10 @@ class TabChart(QWidget):
             p.extra_printtarg_args = shlex.join(extra_pt)
 
         p.chart_notes          = self._manual_chart_notes_edit.text().strip()
+        # #130: carried into the chart so {rundescription} can stamp it and the
+        # sidecar can record it. Taken from the field rather than from disk, so
+        # what is stamped is what is on screen at the moment Generate is pressed.
+        p.run_description      = self._current_run_description().strip()
         p.stamp_commands       = self._manual_stamp_cmd_check.isChecked()
         p.left_clip_info       = self._manual_left_clip_check.isChecked()
         p.chromiq_clip_style   = bool(self._settings.get("i1pro_chromiq_clip_style", False))

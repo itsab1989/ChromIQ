@@ -117,16 +117,17 @@ def test_nothing_is_shown_before_a_strip_is_read(tab):
     assert not tab._pace_verdict_lbl.isVisible()
 
 
-def test_the_gaps_and_the_alignment_are_the_ones_asked_for(tab):
+def test_the_gaps_and_the_alignment_are_the_ones_asked_for(tab, tmp_path):
     """The frame lines up with PREV and NEXT and keeps its air above and below.
 
     Needs the preview's page controls on screen, which is what the two pages
     below are for.
     """
     from PIL import Image
-    import tempfile
     from pathlib import Path
-    tmp = Path(tempfile.mkdtemp())
+    # tmp_path, not tempfile.mkdtemp(): mkdtemp is never cleaned up by anyone,
+    # so every run of this test left two TIFFs behind for good.
+    tmp = tmp_path
     pages = []
     for i in range(2):
         f = tmp / f"p{i}.tif"

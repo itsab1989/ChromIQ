@@ -214,9 +214,11 @@ def test_check_page_alignment_flags_and_logs(tmp_path, _app):
     f = ["SAMPLE_ID", "RGB_R", "RGB_G", "RGB_B", "XYZ_X", "XYZ_Y", "XYZ_Z"]
     rows = [[n, v, v, v, v, v, v] for n, v in exp.items()]
     _write_cgats(scan.parent / f"{scan.stem}-scanner.ti3", f, rows)
-    import tempfile
+    # tmp_path, not tempfile.mkdtemp(): nothing ever removes an mkdtemp tree,
+    # and these had grown to thousands of folders on disk (see the note in
+    # tests/test_scanin_dialog.py).
     dlg = ScannerProfileDialog(object(), _FakeSettings(
-        custom_output_path=tempfile.mkdtemp(prefix="chromiq-test-out-")))
+        custom_output_path=str(tmp_path / "out")))
     try:
         params = ScaninParams(scan, tmp_path / "x.cht", corners=corners)
         dlg._check_page_alignment({"params": params, "page": 2})
@@ -234,14 +236,16 @@ def test_check_page_alignment_flags_and_logs(tmp_path, _app):
 
 
 @pytest.mark.parametrize("press_stop", [True, False])
-def test_confirm_despite_misalignment(press_stop, _app, monkeypatch):
+def test_confirm_despite_misalignment(press_stop, _app, monkeypatch, tmp_path):
     """The modal gate: Stop (the default) aborts the build; Build anyway
     continues. Only the blocking exec edge is stubbed — the real handler,
     buttons and _finish path run."""
     from ui.dialogs.scanin_dialog import ScannerProfileDialog
-    import tempfile
+    # tmp_path, not tempfile.mkdtemp(): nothing ever removes an mkdtemp tree,
+    # and these had grown to thousands of folders on disk (see the note in
+    # tests/test_scanin_dialog.py).
     dlg = ScannerProfileDialog(object(), _FakeSettings(
-        custom_output_path=tempfile.mkdtemp(prefix="chromiq-test-out-")))
+        custom_output_path=str(tmp_path / "out")))
     try:
         dlg._align_warnings = ["Page 1: scrambled"]
         finished = []

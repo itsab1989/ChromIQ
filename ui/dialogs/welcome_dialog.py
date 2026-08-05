@@ -65,7 +65,15 @@ WORKFLOWS: list[dict] = [
                 "“EpsonP900_HahnemuhlePhotoRag_2026-05”; avoid spaces and "
                 "special characters. Click “Create Chart”. ChromIQ writes a "
                 "chart TIFF plus a .ti2 file that records exactly where every "
-                "patch sits on the page.")),
+                "patch sits on the page.\n\n"
+                "Two boxes there are worth filling in while you are at it, "
+                "both optional and both empty until you do. “Run 1 "
+                "Description” is your own note about what this attempt is — "
+                "“PhotoRag Baryta, gloss, large chart” — and it follows the "
+                "run, so you can tell run 1 from run 2 months later; ChromIQ "
+                "also offers it at the end of the profile's description in "
+                "step 5. “Run 1 Chart Notes” is printed ON the sheet, which is "
+                "what lets you tell two printed charts apart on the desk.")),
             (2, tr("Move to the Print Chart tab and pick your printer and media. "
                 "Driver colour management must be OFF — if the driver re-maps "
                 "colours the patches won't match their definition and the "
@@ -865,11 +873,44 @@ GLOSSARY += [
         "project can hold several — run1, run2, … — so you can try again "
         "without losing earlier work. The Profile-run bar chooses which one "
         "you're working in.")),
-    (tr("Run type (Profiling / Verification)"),
-     tr("What a profile run is for. Profiling builds the profile (chart → "
-        "measurement → .icc). Verification checks a finished profile by "
-        "measuring a chart printed through it; its results live in the run's "
-        "“verifications” folder and never change the profile.")),
+    (tr("Run description"),
+     tr("Your own words for what one particular run is: the paper, the finish, "
+        "the chart size — whatever makes it different from the other runs in "
+        "the project. It is optional and stays empty until you fill it in. You "
+        "type it in the “Run N Description” box on the Create Chart tab, and it "
+        "stays with that run, so bringing back an earlier chart with “Restore "
+        "Used Chart” never changes it. ChromIQ also offers it at the end of the "
+        "profile's own description in the Calibration & Profiling tab, so the "
+        "finished .icc carries it too. It is a label for you and changes no "
+        "file name.")),
+    (tr("Chart notes"),
+     tr("A short note printed ON the chart itself, so you can tell one printed "
+        "sheet from another after they have been lying on the desk for a week "
+        "— the paper, the date, the printer settings, whatever you would want "
+        "to read off the page. You type it in the “Run N Chart Notes” box on "
+        "the Create Chart tab in Manual mode. It belongs to the chart rather "
+        "than to the run: if you later use “Restore Used Chart” to bring back "
+        "the chart a measurement was made with, its notes come back with it, "
+        "because they are what is printed on that sheet.")),
+    (tr("{rundescription} (chart text marker)"),
+     tr("A marker you can put into a chart's sheet text or its clip border, "
+        "which ChromIQ replaces with that run's description when the chart is "
+        "made — or with the calibration's description on a calibration chart. "
+        "Add it from the “Insert ▾” menu rather than typing it, so it is "
+        "spelled the way ChromIQ expects. If the description is empty the "
+        "marker simply prints nothing, so a saved layout is safe to reuse on a "
+        "run you have not described.")),
+    (tr("Run type (Calibration / Profiling / Verification)"),
+     tr("What you are working on right now, chosen in the bar above the tabs. "
+        "The list reads in the order of the work. **Calibration** prepares the "
+        "printer itself, before any profile is built; there is one per "
+        "project, and it needs no run. **Profiling** builds the profile — "
+        "chart, measurement, .icc — and is what you want most of the time, "
+        "which is why it is the one already selected. **Verification** checks "
+        "a finished profile by measuring a chart printed through it; its "
+        "results are kept in the run's “verifications” folder, dated, and "
+        "never change the profile. Calibration appears only while calibration "
+        "options are switched on in Preferences.")),
     (tr("old/ folder"),
      tr("Where ChromIQ moves files it would otherwise overwrite — every "
         "displaced chart, measurement or profile is kept in a dated “old” "

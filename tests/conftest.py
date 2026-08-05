@@ -90,6 +90,191 @@ def _real_chromiq_entries() -> set:
         return set()
 
 
+#: Only a BACKSTOP now. A run that finishes deletes its own files (see
+#: pytest_sessionfinish), so the only trees this can find are from a run that
+#: never got that far: a crash, a kill, a power cut. One hour is comfortably
+#: longer than the slowest gate, so a run in progress is never touched.
+_STALE_AFTER_HOURS = 1
+
+#: Never swept, whatever its age: rebuilding it costs about four minutes per
+#: gate, which is the whole reason it exists.
+_KEEP_FOREVER = ("chromiq-demo-projects-cache",)
+
+
+def _folder_size(folder: pathlib.Path) -> int:
+    """Bytes under *folder*, ignoring anything unreadable.
+
+    Measured separately from the delete, and never allowed to raise: a file we
+    cannot stat is a reason to report a smaller number, not a reason to leave
+    the folder on disk.
+    """
+    total = 0
+    for item in folder.rglob("*"):
+        try:
+            if item.is_file():
+                total += item.stat().st_size
+        except OSError:
+            continue
+    return total
+
+
+def _force_writable(func, path, _exc) -> None:
+    """rmtree error handler: clear the read-only bit and try once more.
+
+    Windows refuses to delete a read-only file, and ``ignore_errors=True``
+    would simply leave it — which on Basti's VM would mean the sweep reporting
+    success while the disk stayed full. Everything else is swallowed, because
+    a folder that cannot be removed now is retried by the next run.
+    """
+    import stat as _stat
+
+    try:
+        os.chmod(path, _stat.S_IWRITE)
+        func(path)
+    except Exception:      # noqa: BLE001 — cleanup must never fail a test run
+        pass
+
+
+def _sweep_stale_temp_dirs() -> "tuple[int, int]":
+    """Delete what earlier test runs left in the system temp folder.
+
+    Returns ``(folders, bytes)`` removed. Basti, 2026-08-05, having found 5.0 GB
+    of them: *"can you modify the tests in a way that they clean the created
+    files up when done (either successful or failed) and that they also check
+    and clean the files from older runs so the disk space is freed again?"*
+
+    The leak was ``tempfile.mkdtemp()``, which nothing ever removes — unlike
+    pytest's own ``tmp_path``, which is cleaned up whether a test passes or
+    fails and keeps only the last few runs. Those call sites now use
+    ``tmp_path``; this sweeps the history, and catches any that come back.
+    """
+    import time
+
+    root = pathlib.Path(tempfile.gettempdir())
+    cutoff = time.time() - _STALE_AFTER_HOURS * 3600
+    keep = set(_KEEP_FOREVER)
+    cache = os.environ.get("CHROMIQ_DEMO_CACHE")
+    if cache:
+        keep.add(pathlib.Path(cache).name)
+
+    folders = freed = 0
+    # pytest's OWN trees, which it is supposed to prune to the last few — but
+    # it skips any directory whose .lock file is still there, and a run that
+    # CRASHES leaves its lock behind. Measured 2026-08-05: a tree from three
+    # days earlier still sitting at 1.0 GB, and this afternoon's segfaulted
+    # worker leaving another. So every crash quietly costs a gigabyte, which is
+    # how 2.3 GB accumulated without anyone noticing.
+    candidates = list(root.glob("chromiq[-_]*"))
+    for base in root.glob("pytest-of-*"):
+        if base.is_dir():
+            candidates += [d for d in base.glob("pytest-*") if d.is_dir()]
+
+    for entry in candidates:
+        if entry.name in keep or not entry.is_dir():
+            continue
+        if entry.name == "pytest-current" or entry.is_symlink():
+            continue                         # pytest's pointer at the live run
+        try:
+            if entry.stat().st_mtime > cutoff:
+                continue                     # a run in progress
+        except OSError:
+            continue                         # vanished between glob and stat
+        size = _folder_size(entry)
+        shutil.rmtree(entry, onerror=_force_writable)
+        if not entry.exists():
+            folders += 1
+            freed += size
+    return folders, freed
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Delete THIS run's temp tree the moment it is over — if it passed.
+
+    Basti, 2026-08-05: *"is this 2 hour safety really required? i don't want
+    this much left on my machine. can't there be an automatism that deletes
+    this stuff automatically when the test run is done and checked?"* — and he
+    is right that an age threshold is the wrong instrument. The run itself
+    knows when it is finished, and knowing beats guessing.
+
+    **A green run leaves nothing behind.** A run with failures keeps its tree
+    and says where it is, because that tree is the evidence: the chart that
+    came out wrong, the .ti3 that would not parse, the profile that was built
+    from it. Deleting it would throw away the only copy of what went wrong.
+
+    Master process only — under xdist the workers share one tree, and a worker
+    removing it while the others are still writing would fail the run.
+    """
+    if hasattr(session.config, "workerinput"):
+        return
+    factory = getattr(session.config, "_tmp_path_factory", None)
+    if factory is None:
+        return
+    try:
+        base = pathlib.Path(factory.getbasetemp())
+    except Exception:      # noqa: BLE001 — never fail a run over cleanup
+        return
+    if exitstatus != 0:
+        print(f"\n[cleanup] run did not pass — its files are kept for you at\n"
+              f"          {base}")
+        return
+    freed = _folder_size(base)
+    shutil.rmtree(base, onerror=_force_writable)
+    # pytest's "newest run" symlink now points at nothing; tidy it away too.
+    for link in base.parent.glob("pytest-current*"):
+        try:
+            if link.is_symlink() and not link.resolve().exists():
+                link.unlink()
+        except OSError:
+            pass
+    if not base.exists() and freed:
+        print(f"\n[cleanup] removed this run's temp files ({freed / 1e9:.2f} GB)")
+
+
+def pytest_sessionstart(session):
+    """Free what earlier runs left behind, once per run.
+
+    Guarded on the master process: under xdist every worker runs this hook, and
+    four of them sweeping the same folders at once would race each other.
+    """
+    if hasattr(session.config, "workerinput"):
+        return                               # an xdist worker, not the master
+    folders, freed = _sweep_stale_temp_dirs()
+    if folders:
+        print(f"\n[cleanup] removed {folders} leftover temp folder(s) from "
+              f"earlier runs, freeing {freed / 1e9:.2f} GB")
+
+
+@pytest.fixture(autouse=True)
+def _no_leaked_replay_helpers():
+    """Kill any chromiq-chartread helper a test left running.
+
+    ``ReplaySession.finish()`` kills it, and the engine tests call that at the
+    end of the happy path — so a test that FAILS or raises first leaves the
+    helper alive, waiting on stdin, for ever. Measured 2026-08-05 after a day
+    of runs that included several failures: **162 alive at once**, which
+    starved a gate worker into a segmentation fault at 97% and wedged the run.
+
+    Looked up in ``sys.modules`` rather than imported, so the ~4,400 tests that
+    never touch the replay helper do not pay for it.
+    """
+    yield
+    # BOTH names: tests/helpers is on sys.path, so some files import it as
+    # ``replay_tools`` and others as ``tests.helpers.replay_tools``. Python
+    # then holds two separate module objects with a registry each, and looking
+    # up only one of them silently reaped nothing — which is how the first
+    # version of this fixture passed while helpers kept leaking.
+    leaked = 0
+    for name, module in list(sys.modules.items()):
+        if name.rsplit(".", 1)[-1] != "replay_tools":
+            continue
+        reap = getattr(module, "reap_live_sessions", None)
+        if callable(reap):
+            leaked += reap()
+    if leaked:
+        print(f"\n[cleanup] killed {leaked} leaked chromiq-chartread "
+              f"helper(s) — a session was not finished")
+
+
 @pytest.fixture(autouse=True)
 def _never_touch_the_real_chromiq_folder():
     before = _real_chromiq_entries()

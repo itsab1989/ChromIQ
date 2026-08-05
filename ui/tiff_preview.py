@@ -1397,10 +1397,15 @@ class TiffPreview(QWidget):
         self._notice_lbl = QLabel("", self)
         self._notice_lbl.setWordWrap(True)
         self._notice_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # No colours of its own. This notice sits BELOW the preview, in the
+        # panel — it is not a badge floating over the image — so a fixed dark
+        # slab was a little brighter than its surroundings in dark mode and a
+        # grey block against a light panel in light mode (Basti, beta.143).
+        # Leaving background and text to the palette makes it match whichever
+        # theme is on, and keeps matching when the theme is switched at runtime.
         self._notice_lbl.setStyleSheet(
-            "QLabel { background: rgba(30, 30, 30, 185); color: #f4f2ef;"
-            " border-radius: 4px; padding: 4px 10px; margin: 4px 8px;"
-            " font-size: 11px; }")
+            "QLabel { background: transparent; border-radius: 4px;"
+            " padding: 4px 10px; margin: 4px 8px; font-size: 11px; }")
         self._notice_lbl.setVisible(False)
         layout.addWidget(self._notice_lbl)
 

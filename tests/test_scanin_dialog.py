@@ -41,24 +41,38 @@ class _FakeSettings:
         self._store[key] = value
 
 
-def _dialog(_app):
+@pytest.fixture(scope="module")
+def _out_dir(tmp_path_factory):
+    """One output folder for this module's dialogs, cleaned up by pytest.
+
+    Every call used to make its own ``tempfile.mkdtemp()``, which nothing ever
+    removes: measured 2026-08-05, 9,576 leftover folders totalling 5.0 GB going
+    back three weeks. pytest's own temp trees are removed automatically and only
+    the last few runs are kept.
+    """
+    return tmp_path_factory.mktemp("scanin-out")
+
+
+def _dialog(_app, out_dir):
     from ui.dialogs.scanin_dialog import ScannerProfileDialog
     # Hermetic output root: the dialog provisions <root>/scanner-test-targets
     # on open (#127 beta.6) and must never write into the real ~/ChromIQ from
     # a test run.
-    import tempfile
+    # tmp_path, NOT tempfile.mkdtemp(): mkdtemp is never cleaned up by anyone,
+    # so every run left a directory behind for good. Measured 2026-08-05:
+    # 9,576 of them, 5.0 GB, going back three weeks. pytest removes tmp_path
+    # trees automatically and keeps only the last few runs.
     return ScannerProfileDialog(
-        object(), _FakeSettings(custom_output_path=tempfile.mkdtemp(
-            prefix="chromiq-test-out-")))
+        object(), _FakeSettings(custom_output_path=str(out_dir)))
 
 
-def test_marquee_receives_initial_sample_fraction(_app):
+def test_marquee_receives_initial_sample_fraction(_app, _out_dir):
     """#119 (Knut's beta-5 measurement): the spinbox default is set BEFORE its
     valueChanged connect, so the marquee silently kept its built-in 50 % while
     scanin read the spinbox's 60 % — the drawn sample boxes were one size
     smaller than everything the diagnostic image showed. The dialog must push
     the initial value explicitly."""
-    dlg = _dialog(_app)
+    dlg = _dialog(_app, _out_dir)
     try:
         assert abs(dlg._marquee._sample_frac
                    - dlg._sample_area.value() / 100.0) < 1e-9
@@ -66,11 +80,11 @@ def test_marquee_receives_initial_sample_fraction(_app):
         dlg.deleteLater()
 
 
-def test_profile_type_options_and_mapping(_app):
+def test_profile_type_options_and_mapping(_app, _out_dir):
     """#121: profile type (-a) + quality (-q). Type IS the -a letter (XYZ/Lab are
     the two cLUT entries, no separate 'colour space' control — Knut). Defaults
     keep the previous scanner output (shaper+matrix, medium)."""
-    dlg = _dialog(_app)
+    dlg = _dialog(_app, _out_dir)
     try:
         assert [dlg._ptype.itemData(i) for i in range(dlg._ptype.count())] == \
             ["s", "m", "x", "l"]
@@ -84,7 +98,7 @@ def test_profile_type_options_and_mapping(_app):
         dlg.deleteLater()
 
 
-def test_gridspec_from_cht_it8(_app):
+def test_gridspec_from_cht_it8(_app, _out_dir):
     """GridSpec.from_cht parses a standard IT8 .cht into normalised patch rects
     in the fiducial frame (288 patches; missing fiducials → empty)."""
     from ui.scan_grid_marquee import GridSpec
@@ -100,7 +114,7 @@ def test_gridspec_from_cht_it8(_app):
     assert GridSpec.from_cht("not a cht").rects == []
 
 
-def test_gapped_grid_reports_structure_and_float_rects(_app):
+def test_gapped_grid_reports_structure_and_float_rects(_app, _out_dir):
     """A gapped grid (Hutchcolor, 528 of a 29×22 grid) reports its col/row
     structure, and its drawn rects are the .cht's own float boxes — the
     integer-edge rebuild is gone (#119, Knut's CMP Studio find: it only
@@ -114,7 +128,7 @@ def test_gapped_grid_reports_structure_and_float_rects(_app):
     assert len(g.cells) == len(g.rects)
 
 
-def test_gridspec_carries_fiducial_frame(_app):
+def test_gridspec_carries_fiducial_frame(_app, _out_dir):
     """The consolidated geometry: from_cht returns the grid AND the fiducial frame
     in one normalised space (extends outside [0,1] since fiducials wrap the
     patches) — driving the on-screen frame and the scanin -F from one source."""
@@ -127,7 +141,7 @@ def test_gridspec_carries_fiducial_frame(_app):
     assert GridSpec.from_cht("not a cht").fiducial_rect is None
 
 
-def test_extrapolate_to_fiducials_derives_marks_from_patch_quad(_app):
+def test_extrapolate_to_fiducials_derives_marks_from_patch_quad(_app, _out_dir):
     """The unified fix: the marquee is aligned to the patch bbox; ON derives the
     scanin -F by extrapolating that quad out to the fiducial frame (so it lands on
     the marks without the user placing them). Grows outward by the exact ratio."""
@@ -151,12 +165,12 @@ def test_extrapolate_to_fiducials_derives_marks_from_patch_quad(_app):
     assert extrapolate_to_fiducials([(0, 0)], txt) is None    # need four corners
 
 
-def test_printer_mode_switches_default_profile_type(_app):
+def test_printer_mode_switches_default_profile_type(_app, _out_dir):
     """#121 (Knut): the colprof settings drive the printer profile too when
     'Profile my printer from this scan' is ticked. Since a printer wants a cLUT,
     the type defaults to Lab cLUT in printer mode and shaper+matrix for a scanner
     — unless the user has picked a type by hand."""
-    dlg = _dialog(_app)
+    dlg = _dialog(_app, _out_dir)
     try:
         assert dlg._ptype.currentData() == "s"           # scanner default
         dlg._printer_cb.setChecked(True)
@@ -175,11 +189,11 @@ def test_printer_mode_switches_default_profile_type(_app):
         dlg.deleteLater()
 
 
-def test_profile_type_clut_lab_high_maps_and_previews(_app):
+def test_profile_type_clut_lab_high_maps_and_previews(_app, _out_dir):
     """#121: cLUT — Lab + High → -al -qh, quality becomes active, and the command
     preview follows. Persistence is now explicit (the Save-as-Defaults button),
     not silent-on-change (Basti)."""
-    dlg = _dialog(_app)
+    dlg = _dialog(_app, _out_dir)
     try:
         dlg._ptype.setCurrentIndex(dlg._ptype.findData("l"))   # cLUT — Lab
         dlg._pq.setCurrentIndex(dlg._pq.findData("h"))
@@ -204,13 +218,13 @@ def _has_it8():
     return cht is not None and cht.is_file()
 
 
-def test_standard_mode_lists_targets_and_loads_grid(_app):
+def test_standard_mode_lists_targets_and_loads_grid(_app, _out_dir):
     """Switching to standard-target mode lists Argyll's ref/ targets and
     auto-loads the first one's patch grid."""
     if not _has_it8():
         import pytest as _pt
         _pt.skip("Argyll ref/ not present")
-    dlg = _dialog(_app)
+    dlg = _dialog(_app, _out_dir)
     try:
         # Argyll ships 25 targets + the "Other…" entry.
         assert dlg._target_combo.count() >= 2
@@ -222,14 +236,14 @@ def test_standard_mode_lists_targets_and_loads_grid(_app):
         dlg.deleteLater()
 
 
-def test_standard_multipage_set_is_one_entry_with_per_page_chts(_app, tmp_path):
+def test_standard_multipage_set_is_one_entry_with_per_page_chts(_app, _out_dir, tmp_path):
     """The ISO 12641-2 3-page set shows as ONE dropdown entry that opens a
     3-page selector, each page locked to its own .cht, and needs a scan on every
     page before it can build — like a multi-page ChromIQ chart (Knut)."""
     if not _has_it8():
         import pytest as _pt
         _pt.skip("Argyll ref/ not present")
-    dlg = _dialog(_app)
+    dlg = _dialog(_app, _out_dir)
     try:
         dlg._mode_standard.setChecked(True)
         idx = dlg._target_combo.findData("ISO12641_2_3")
@@ -266,13 +280,13 @@ def test_standard_multipage_set_is_one_entry_with_per_page_chts(_app, tmp_path):
         dlg.deleteLater()
 
 
-def test_standard_mode_execute_uses_chosen_cht_and_reference(_app, tmp_path):
+def test_standard_mode_execute_uses_chosen_cht_and_reference(_app, _out_dir, tmp_path):
     """_execute_standard pairs the chosen .cht with the target's reference file,
     reads the scan, and writes the profile next to the scan."""
     if not _has_it8():
         import pytest as _pt
         _pt.skip("Argyll ref/ not present")
-    dlg = _dialog(_app)
+    dlg = _dialog(_app, _out_dir)
     try:
         dlg._mode_standard.setChecked(True)
         scan = tmp_path / "myscan.tif"
@@ -310,13 +324,13 @@ def test_standard_mode_execute_uses_chosen_cht_and_reference(_app, tmp_path):
         dlg.deleteLater()
 
 
-def test_multi_scan_averaging_pipeline(_app, tmp_path):
+def test_multi_scan_averaging_pipeline(_app, _out_dir, tmp_path):
     """Two scans of a page → two scanin jobs + an average job whose output feeds
     colprof (Knut #98, ask 1c). The averaging method flows through."""
     if not _has_it8():
         import pytest as _pt
         _pt.skip("Argyll ref/ not present")
-    dlg = _dialog(_app)
+    dlg = _dialog(_app, _out_dir)
     try:
         dlg._mode_standard.setChecked(True)
         dlg._set_std_targets([_it8()])
@@ -342,12 +356,12 @@ def test_multi_scan_averaging_pipeline(_app, tmp_path):
         dlg.deleteLater()
 
 
-def test_multipage_multiscan_pipeline(_app):
+def test_multipage_multiscan_pipeline(_app, _out_dir):
     """A multi-page ChromIQ chart with several scans per page: each page reads
     its scans with that page's own .cht, averages *within* the page, then colprof
     combines the per-page averages (Knut #98 — pages × averaging together)."""
     from pathlib import Path
-    dlg = _dialog(_app)
+    dlg = _dialog(_app, _out_dir)
     try:
         # Simulate a loaded 2-page engine chart (stay in ChromIQ mode).
         dlg._ti3 = Path("/tmp/proj/mychart.ti3")
@@ -377,7 +391,7 @@ def test_multipage_multiscan_pipeline(_app):
         dlg.deleteLater()
 
 
-def test_demo_scan_button_loads_files(_app, tmp_path, monkeypatch):
+def test_demo_scan_button_loads_files(_app, _out_dir, tmp_path, monkeypatch):
     """"Try with a demo scan" generates a test scan + reference from the chosen
     target and LOADS them into the scan/reference fields — regression for the
     QPlainTextEdit.append crash (the log has no .append; must be appendPlainText)
@@ -385,7 +399,7 @@ def test_demo_scan_button_loads_files(_app, tmp_path, monkeypatch):
     from pathlib import Path
     import workflow.standard_targets as st
 
-    dlg = _dialog(_app)
+    dlg = _dialog(_app, _out_dir)
     dlg._mode_standard.setChecked(True)
     dlg._on_mode_changed()
     dlg._set_std_targets([Path("data/scanner_targets/it8Wolf.cht").resolve()])
@@ -433,12 +447,12 @@ def test_sanitize_ti3_zeros_stdev_and_drops_bad_reads():
 # #102 — one diagnostic image PER SCAN, not just the first
 # ---------------------------------------------------------------------------
 
-def test_every_scan_gets_its_own_diag_image(_app):
+def test_every_scan_gets_its_own_diag_image(_app, _out_dir):
     """Five scans of one page with the diagnostic option on → five scanin jobs,
     each writing its own <scan>-diag.tif (Knut got only one, #102). Exactly the
     per-scan alignment check averaging is for."""
     from pathlib import Path
-    dlg = _dialog(_app)
+    dlg = _dialog(_app, _out_dir)
     try:
         dlg._ti3 = Path("/tmp/proj/mychart.ti3")
         dlg._layout = {"patches": [{"page": 0}]}
@@ -461,9 +475,9 @@ def test_every_scan_gets_its_own_diag_image(_app):
         dlg.deleteLater()
 
 
-def test_diag_off_writes_none(_app):
+def test_diag_off_writes_none(_app, _out_dir):
     from pathlib import Path
-    dlg = _dialog(_app)
+    dlg = _dialog(_app, _out_dir)
     try:
         dlg._ti3 = Path("/tmp/proj/mychart.ti3")
         dlg._layout = {"patches": [{"page": 0}]}
@@ -482,11 +496,11 @@ def test_diag_off_writes_none(_app):
         dlg.deleteLater()
 
 
-def test_printer_mode_diag_on_every_page(_app, tmp_path):
+def test_printer_mode_diag_on_every_page(_app, _out_dir, tmp_path):
     """Printer mode, two pages, diag on → both pages' scanin jobs write a diag
     (only page 1 got one before, #102)."""
     from pathlib import Path
-    dlg = _dialog(_app)
+    dlg = _dialog(_app, _out_dir)
     try:
         base = tmp_path / "mychart"
         (tmp_path / "mychart.ti2").write_text("CTI2\n")
@@ -550,7 +564,7 @@ END_DATA
 """)
 
 
-def test_chart_without_sidecar_is_rejected_loudly(_app, tmp_path):
+def test_chart_without_sidecar_is_rejected_loudly(_app, _out_dir, tmp_path):
     """Picking a chart with no .channels.json anywhere → the reason lands in
     the chart note AND the status log, and the scan Browse repeats it instead
     of the old generic hint (#101). (In printer mode a sidecar-less .ti2 now
@@ -559,7 +573,7 @@ def test_chart_without_sidecar_is_rejected_loudly(_app, tmp_path):
     locs = ["A1", "A2", "A3", "A4"]
     _tiny_ti2(tmp_path / "mychart.ti2", locs)
     (tmp_path / "mychart.ti3").write_text("CTI3\n")   # "measured", no sidecar
-    dlg = _dialog(_app)
+    dlg = _dialog(_app, _out_dir)
     try:
         assert not dlg._printer_cb.isChecked()        # scanner-profile mode
         dlg._set_chart(tmp_path / "mychart.ti3")
@@ -575,13 +589,13 @@ def test_chart_without_sidecar_is_rejected_loudly(_app, tmp_path):
         dlg.deleteLater()
 
 
-def test_sidecar_found_by_folder_fallback(_app, tmp_path):
+def test_sidecar_found_by_folder_fallback(_app, _out_dir, tmp_path):
     """A .ti2 whose sidecar doesn't share its stem (files copied/renamed) still
     loads when the folder holds exactly one usable .channels.json (#101)."""
     locs = ["A1", "A2", "A3", "A4"]
     _tiny_ti2(tmp_path / "renamed-copy.ti2", locs)
     _engine_channels(tmp_path / "original.channels.json", locs)
-    dlg = _dialog(_app)
+    dlg = _dialog(_app, _out_dir)
     try:
         dlg._printer_cb.setChecked(True)
         dlg._set_chart(tmp_path / "renamed-copy.ti2")
@@ -592,13 +606,13 @@ def test_sidecar_found_by_folder_fallback(_app, tmp_path):
         dlg.deleteLater()
 
 
-def test_matching_sidecar_still_wins(_app, tmp_path):
+def test_matching_sidecar_still_wins(_app, _out_dir, tmp_path):
     """The exact-stem sidecar is preferred; the fallback only fires when it's
     missing (#101)."""
     locs = ["A1", "A2", "A3", "A4"]
     _tiny_ti2(tmp_path / "mychart.ti2", locs)
     _engine_channels(tmp_path / "mychart.channels.json", locs)
-    dlg = _dialog(_app)
+    dlg = _dialog(_app, _out_dir)
     try:
         dlg._printer_cb.setChecked(True)
         dlg._set_chart(tmp_path / "mychart.ti2")
@@ -611,10 +625,10 @@ def test_matching_sidecar_still_wins(_app, tmp_path):
 # Nelson — name the profile yourself + install it for the user
 # ---------------------------------------------------------------------------
 
-def test_profile_name_renames_ti3_and_description(_app, tmp_path):
+def test_profile_name_renames_ti3_and_description(_app, _out_dir, tmp_path):
     """A chosen profile name drives the .icc file name (via the .ti3 stem
     colprof names it after) and the embedded description."""
-    dlg = _dialog(_app)
+    dlg = _dialog(_app, _out_dir)
     try:
         src = tmp_path / "Moab_Satin_240-p1s1-scanner.ti3"
         src.write_text("CTI3\n")
@@ -636,11 +650,11 @@ def test_profile_name_renames_ti3_and_description(_app, tmp_path):
         dlg.deleteLater()
 
 
-def test_install_profile_copies_into_user_dir(_app, tmp_path, monkeypatch):
+def test_install_profile_copies_into_user_dir(_app, _out_dir, tmp_path, monkeypatch):
     import ui.dialogs.scanin_dialog as M
     dest_dir = tmp_path / "ColorSync" / "Profiles"
     monkeypatch.setattr(M, "_user_profile_dir", lambda: dest_dir)
-    dlg = _dialog(_app)
+    dlg = _dialog(_app, _out_dir)
     try:
         icc = tmp_path / "Epson ET-8550 scanner.icc"
         icc.write_bytes(b"\0" * 2048)
@@ -652,7 +666,7 @@ def test_install_profile_copies_into_user_dir(_app, tmp_path, monkeypatch):
         dlg.deleteLater()
 
 
-def test_explicit_ti2_pick_is_not_swapped_for_sibling_ti3(_app, tmp_path):
+def test_explicit_ti2_pick_is_not_swapped_for_sibling_ti3(_app, _out_dir, tmp_path):
     """Knut picked Printer.ti2 but the field showed Printer.ti3 — an unrelated
     scanner .ti3 sharing the folder was silently preferred (#101). The picked
     file wins; the sibling only backs a '-verify' style indirect pick."""
@@ -660,7 +674,7 @@ def test_explicit_ti2_pick_is_not_swapped_for_sibling_ti3(_app, tmp_path):
     _tiny_ti2(tmp_path / "Printer.ti2", locs)
     (tmp_path / "Printer.ti3").write_text("CTI3\n")   # stale plain-scanin ti3
     _engine_channels(tmp_path / "Printer.channels.json", locs)
-    dlg = _dialog(_app)
+    dlg = _dialog(_app, _out_dir)
     try:
         dlg._printer_cb.setChecked(True)
         dlg._set_chart(tmp_path / "Printer.ti2")
@@ -689,7 +703,7 @@ BOX_SHRINK 2.0
 """)
 
 
-def test_byo_cht_flow_loads_chart_without_sidecar(_app, tmp_path):
+def test_byo_cht_flow_loads_chart_without_sidecar(_app, _out_dir, tmp_path):
     """Printer mode + a chart made outside ChromIQ (no .channels.json): the
     pick enters the awaiting state instead of rejecting, and supplying the
     per-page .cht files loads the layout, pages and grid (#105)."""
@@ -697,7 +711,7 @@ def test_byo_cht_flow_loads_chart_without_sidecar(_app, tmp_path):
     _tiny_ti2(tmp_path / "Printer.ti2", locs)
     _tiny_cht(tmp_path / "Printer_01.cht", locs[:2])
     _tiny_cht(tmp_path / "Printer_02.cht", locs[2:])
-    dlg = _dialog(_app)
+    dlg = _dialog(_app, _out_dir)
     try:
         dlg._printer_cb.setChecked(True)
         assert dlg._byo_row_w.isVisibleTo(dlg)
@@ -741,13 +755,13 @@ def test_byo_cht_flow_loads_chart_without_sidecar(_app, tmp_path):
         dlg.deleteLater()
 
 
-def test_byo_cht_wrong_pages_rejected_but_retryable(_app, tmp_path):
+def test_byo_cht_wrong_pages_rejected_but_retryable(_app, _out_dir, tmp_path):
     """A wrong/missing .cht page fails loudly with the coverage error and the
     awaiting state survives, so a corrected pick can still succeed (#105)."""
     locs = ["A1", "A2", "A3", "A4"]
     _tiny_ti2(tmp_path / "Printer.ti2", locs)
     _tiny_cht(tmp_path / "Printer_01.cht", locs[:2])   # page 2 missing
-    dlg = _dialog(_app)
+    dlg = _dialog(_app, _out_dir)
     try:
         dlg._printer_cb.setChecked(True)
         dlg._set_chart(tmp_path / "Printer.ti2")
@@ -765,14 +779,14 @@ def test_byo_cht_wrong_pages_rejected_but_retryable(_app, tmp_path):
         dlg.deleteLater()
 
 
-def test_byo_state_resets_on_new_chart_pick(_app, tmp_path):
+def test_byo_state_resets_on_new_chart_pick(_app, _out_dir, tmp_path):
     """Picking a proper ChromIQ chart after a BYO one clears the awaiting state
     and the .cht field (#105)."""
     locs = ["A1", "A2", "A3", "A4"]
     _tiny_ti2(tmp_path / "outside.ti2", locs)
     _tiny_ti2(tmp_path / "chromiq.ti2", locs)
     _engine_channels(tmp_path / "chromiq.channels.json", locs)
-    dlg = _dialog(_app)
+    dlg = _dialog(_app, _out_dir)
     try:
         dlg._printer_cb.setChecked(True)
         dlg._set_chart(tmp_path / "outside.ti2")
@@ -795,7 +809,7 @@ def test_byo_state_resets_on_new_chart_pick(_app, tmp_path):
 # #108 — scan previews must survive real scanner output
 # ---------------------------------------------------------------------------
 
-def test_load_scan_qimage_survives_allocation_limit(_app, tmp_path):
+def test_load_scan_qimage_survives_allocation_limit(_app, _out_dir, tmp_path):
     """Qt silently nulls images whose decode exceeds its allocation limit —
     Knut's 16-bit A4 scans at 600 dpi. The loader lifts the limit (#108)."""
     from PyQt6.QtGui import QImage, QImageReader
@@ -815,11 +829,11 @@ def test_load_scan_qimage_survives_allocation_limit(_app, tmp_path):
         QImageReader.setAllocationLimit(old)
 
 
-def test_page_hint_counts_picked_scans(_app, tmp_path):
+def test_page_hint_counts_picked_scans(_app, _out_dir, tmp_path):
     """Multi-page charts show "one scan per page — k of n picked" so a missing
     page is obvious before Build (#108)."""
     from pathlib import Path as P
-    dlg = _dialog(_app)
+    dlg = _dialog(_app, _out_dir)
     try:
         dlg._ti3 = P("/tmp/proj/mychart.ti3")
         dlg._layout = {"patches": [{"page": 0}, {"page": 1}]}
@@ -835,10 +849,10 @@ def test_page_hint_counts_picked_scans(_app, tmp_path):
         dlg.deleteLater()
 
 
-def test_printer_checkbox_sits_above_chart_row(_app):
+def test_printer_checkbox_sits_above_chart_row(_app, _out_dir):
     """The printer-mode switch changes the labels/fields below it, so it must
     come first in the ChromIQ box (Knut, #108)."""
-    dlg = _dialog(_app)
+    dlg = _dialog(_app, _out_dir)
     try:
         v = dlg._chromiq_box.layout()
         def _index_of(w):
@@ -860,12 +874,12 @@ def test_printer_checkbox_sits_above_chart_row(_app):
         dlg.deleteLater()
 
 
-def test_printer_mode_hides_averaging_and_says_first_scan_wins(_app, tmp_path):
+def test_printer_mode_hides_averaging_and_says_first_scan_wins(_app, _out_dir, tmp_path):
     """Printer mode reads one scan per page — the averaging affordances hide
     (extra shots were silently ignored before), and a run with leftover extra
     shots says so in the log (Knut's question)."""
     from pathlib import Path as P
-    dlg = _dialog(_app)
+    dlg = _dialog(_app, _out_dir)
     try:
         dlg._ti3 = tmp_path / "mychart.ti2"
         (tmp_path / "mychart.ti2").write_text("CTI2\n")
@@ -891,7 +905,7 @@ def test_printer_mode_hides_averaging_and_says_first_scan_wins(_app, tmp_path):
         dlg.deleteLater()
 
 
-def test_busy_bar_always_visible_animated_only_while_running(_app, tmp_path):
+def test_busy_bar_always_visible_animated_only_while_running(_app, _out_dir, tmp_path):
     """The busy bar (Knut: 'nothing moves for a long time') is a fixture of the
     scanner tool like the Build Profile tab's bar: always visible, idle label
     when nothing runs, step label + animation only during a run — and only this
@@ -899,7 +913,7 @@ def test_busy_bar_always_visible_animated_only_while_running(_app, tmp_path):
     from pathlib import Path as P
     from ui.dialogs.tools_dialogs import _ToolDialogBase
     assert _ToolDialogBase.BUSY_BAR_IDLE_LABEL is None   # other tools: no bar
-    dlg = _dialog(_app)
+    dlg = _dialog(_app, _out_dir)
     try:
         assert dlg._busy_bar is not None
         assert dlg._busy_bar.isVisibleTo(dlg)            # visible while idle
@@ -942,14 +956,14 @@ BOX_SHRINK 2.0
 """
 
 
-def test_chromiq_mode_rewrites_f_to_patch_bbox(_app, tmp_path):
+def test_chromiq_mode_rewrites_f_to_patch_bbox(_app, _out_dir, tmp_path):
     """#108: a printtarg -s .cht carries real fiducial marks OUTSIDE the patch
     area. The user aligns the marquee on the patches, so the cht handed to
     scanin must carry F = the patch bbox — skipping that rewrite compressed
     Knut's grid downward (bottom row right, everything above shifted)."""
     src = tmp_path / "Printer_01.cht"
     src.write_text(_PRINTTARG_CHT)
-    dlg = _dialog(_app)
+    dlg = _dialog(_app, _out_dir)
     try:
         assert not dlg._standard_mode()          # ChromIQ-chart mode
         out = dlg._prepare_scanin_cht(src, [(0, 0), (99, 0), (99, 49), (0, 49)],
@@ -964,7 +978,7 @@ def test_chromiq_mode_rewrites_f_to_patch_bbox(_app, tmp_path):
         dlg.deleteLater()
 
 
-def test_nonuniform_printtarg_grid_keeps_true_boxes(_app):
+def test_nonuniform_printtarg_grid_keeps_true_boxes(_app, _out_dir):
     """#108: printtarg's first column is wider (10.5 vs 7 mm). The uniform-grid
     fast path must reject it — on screen (per-box overlay) AND in the cht
     scanin reads (no rectarg integer-edge rewrite)."""
@@ -983,7 +997,7 @@ def test_nonuniform_printtarg_grid_keeps_true_boxes(_app):
     assert gu.ncols > 0
 
 
-def test_marquee_can_zoom_out_below_fit(_app):
+def test_marquee_can_zoom_out_below_fit(_app, _out_dir):
     """#108: the corner handles sit outside the patch area — on a borderless
     full-page scan they were unreachable at fit zoom. 10% zoom-out is allowed."""
     from PyQt6.QtGui import QImage
@@ -999,7 +1013,7 @@ def test_marquee_can_zoom_out_below_fit(_app):
     assert m._zoom == 1.0
 
 
-def test_misalignment_warning_fires_on_scrambled_read(_app, tmp_path):
+def test_misalignment_warning_fires_on_scrambled_read(_app, _out_dir, tmp_path):
     """#108: Knut's misaligned build produced ΔE>20 silently. Round 8 replaced
     the ΔE-vs-aims share (structurally wrong for real prints — aligned scans
     flagged 100 %) with rank agreement: an aligned read stays high even under
@@ -1039,7 +1053,7 @@ END_DATA
     rho = page_reference_agreement(tmp_path / "bad.ti3", tmp_path / "chart.ti2")
     assert rho is not None and rho < 0.6
 
-def test_page_count_mismatch_geometry_is_rejected(_app, tmp_path):
+def test_page_count_mismatch_geometry_is_rejected(_app, _out_dir, tmp_path):
     """#108 (Knut's Test-Creating-2-page-Target): printtarg -s re-lays some
     chart types out — the stored capture had 3 pages for a 2-page chart, so the
     grid could never match. Such geometry is rejected with the reason."""
@@ -1053,7 +1067,7 @@ def test_page_count_mismatch_geometry_is_rejected(_app, tmp_path):
         "locs": ["A1", "A2"] * 3}}))
     for i in (1, 2):                                # printed chart: 2 pages
         (tmp_path / f"chart_{i:02d}.tif").write_bytes(b"II*\0")
-    dlg = _dialog(_app)
+    dlg = _dialog(_app, _out_dir)
     try:
         dlg._printer_cb.setChecked(True)
         dlg._set_chart(tmp_path / "chart.ti2")
@@ -1067,7 +1081,7 @@ def test_page_count_mismatch_geometry_is_rejected(_app, tmp_path):
         dlg.deleteLater()
 
 
-def test_engine_chart_keeps_exact_geometry(_app, tmp_path):
+def test_engine_chart_keeps_exact_geometry(_app, _out_dir, tmp_path):
     """#108 (Basti's showcase session): engine charts ARE their render's
     pixel truth. The rectarg integer-edge rebuild redistributes fractional
     pitch differently (up to ~20 % of a patch on a 65-column chart), so it
@@ -1092,7 +1106,7 @@ def test_engine_chart_keeps_exact_geometry(_app, tmp_path):
         lines.append(f"  X {p['loc']} {p['loc']} _ _ "
                      f"{p['w']} {p['h']} {p['x']} {p['y']} 0 0")
     cht.write_text("\n".join(lines) + "\n")
-    dlg = _dialog(_app)
+    dlg = _dialog(_app, _out_dir)
     try:
         dlg._layout = {"patches": patches}        # engine chart is loaded
         out = dlg._prepare_scanin_cht(cht, [(0, 0), (955, 0), (955, 767), (0, 767)],
@@ -1105,12 +1119,12 @@ def test_engine_chart_keeps_exact_geometry(_app, tmp_path):
         dlg.deleteLater()
 
 
-def test_window_title_and_defaults_are_mode_aware(_app):
+def test_window_title_and_defaults_are_mode_aware(_app, _out_dir):
     """Knut, #121: the window builds a printer profile when 'Profile my printer
     from this scan' is ticked, so the masthead/window title must say so — and the
     factory-default option in each dropdown is labelled '(default)', with the
     profile-type default flipping to Lab cLUT for a printer."""
-    dlg = _dialog(_app)
+    dlg = _dialog(_app, _out_dir)
     try:
         # scanner mode: input-profile title + shaper+matrix marked default
         assert dlg.windowTitle() == "Build profile with scanner or camera"
@@ -1130,7 +1144,7 @@ def test_window_title_and_defaults_are_mode_aware(_app):
         dlg.deleteLater()
 
 
-def test_colprof_settings_are_stored_per_context(_app):
+def test_colprof_settings_are_stored_per_context(_app, _out_dir):
     """Knut, #121: a printer profile, a ChromIQ-chart scanner profile and a
     standard-target scanner profile each keep their own type / quality /
     description / Advanced settings; toggling mode loads the right bucket, and
@@ -1170,8 +1184,8 @@ def test_colprof_settings_are_stored_per_context(_app):
 # page dropdown with the chart's pages inside standard mode.
 # ---------------------------------------------------------------------------
 
-def test_std_page_selector_survives_late_chart_geometry(_app):
-    dlg = _dialog(_app)
+def test_std_page_selector_survives_late_chart_geometry(_app, _out_dir):
+    dlg = _dialog(_app, _out_dir)
     try:
         patch = lambda pg: {"page": pg, "x": 10, "y": 10, "w": 5, "h": 5,
                             "id": "A1"}
@@ -1195,10 +1209,10 @@ def test_std_page_selector_survives_late_chart_geometry(_app):
         dlg.deleteLater()
 
 
-def test_execute_tidies_legacy_intermediates(_app, tmp_path, monkeypatch):
+def test_execute_tidies_legacy_intermediates(_app, _out_dir, tmp_path, monkeypatch):
     """The run entry sweeps older releases' debris into cache/ for the chart's
     folder in every mode (Knut, beta.5)."""
-    dlg = _dialog(_app)
+    dlg = _dialog(_app, _out_dir)
     try:
         import re
         from pathlib import Path

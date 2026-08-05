@@ -717,6 +717,10 @@ SEQUENCES = {
     "S2.6": (None, "the same window from the keyboard — needs a live session"),
     "S2.7": (None, "a Give-Up window — hardware"),
     "S2.8": (None, "controls disabled during a read — needs a live session"),
+    "S2.9": (None, "one failure reported twice, printed and as an event — the "
+                   "instrument has to produce the failure"),
+    "S2.10": (None, "a second failure arriving while a window is open — the "
+                    "instrument has to produce both"),
     "S3.1": (None, "reading the file a session wrote — needs a live session"),
     "S3.2": (None, "a session that saved nothing — needs a live session"),
     "S3.3": (None, "a resume that ended smaller — needs a live session"),
@@ -741,12 +745,93 @@ SEQUENCES = {
 }
 
 
+@case(name="Demo-09-Run-Descriptions",
+      messages=[],
+      layout="ChromIQ layout engine",
+      covers=["§1/§2 — each run's own description and chart notes",
+              "§4/§4a — what the Profile Description is built from",
+              "§7 — the {rundescription} marker on a printed sheet",
+              "§3a — a calibration has a description of its own"],
+      steps=["This project is about telling runs apart. It has three runs, "
+             "each already described, and a calibration with a description of "
+             "its own. Nothing here needs an instrument.",
+             "Set Profile run = **run 1**, Run type = Profiling, and look at "
+             "the Create Chart tab. *Expected:* the two boxes under the "
+             "project name read **“Run 1 Description”** and **“Run 1 Chart "
+             "Notes”**, filled in with this run's own text — “PhotoRag "
+             "Baryta, gloss, large chart”. [[ON-SCREEN]]",
+             "Switch to **run 2**. *Expected:* both boxes change to run 2's "
+             "text, and the labels become “Run 2 …”. Switch back to run 1 and "
+             "its text returns. Nothing is carried across. [[ON-SCREEN]]",
+             "Switch to **run 3**, which has been left undescribed. "
+             "*Expected:* both boxes are empty — this feature never invents "
+             "text. [[ON-SCREEN]]",
+             "With run 1 selected, go to **Calibration & Profiling**. "
+             "*Expected:* “Profile Description (-D)” reads "
+             "**Demo-09-Run-Descriptions-PhotoRag Baryta, gloss, large "
+             "chart** — the project name and the run's description, joined by "
+             "a hyphen. [[ON-SCREEN]]",
+             "Switch to run 3 (no description). *Expected:* the Profile "
+             "Description is just the project name, with **no trailing "
+             "hyphen** — an empty part drops out along with its separator. [[ON-SCREEN]]",
+             "Type your own text into Profile Description, then switch runs "
+             "again. *Expected:* your text stays, whatever you do. It is "
+             "yours from the moment you type it. Clear the box to hand it "
+             "back to ChromIQ, and the suggestion returns. [[ON-SCREEN]]",
+             "Set Run type = **Calibration** (switch calibration options on in "
+             "Preferences first if the entry is missing). *Expected:* the "
+             "boxes now read **“Calibration Description”** and **“Chart "
+             "Notes”** — no run number, because a calibration is not a run — "
+             "and they hold the calibration's own text, not run 1's. [[ON-SCREEN]]",
+             "Switch back to Profiling. *Expected:* run 1's description and "
+             "notes are back, untouched by the visit. [[ON-SCREEN]]",
+             "In Create Chart (Manual), open the layout options and use "
+             "**Insert ▾** to put **{rundescription}** into the sheet text, "
+             "then press **Generate Chart**. *Expected:* the run's description "
+             "is printed on the sheet. On a run with no description the marker "
+             "prints nothing at all, which is why a saved layout is safe to "
+             "reuse. [[ON-SCREEN]]",
+             "Use **Duplicate** on run 1 — the button is in the bar above the "
+             "tabs. *Expected:* ChromIQ confirms the duplicate first, and the "
+             "new run's description then begins **“(copy) ”**, at the START of "
+             "the box where you can see it without scrolling. [[GUARD]]"])
+def build_run_descriptions(root: Path) -> None:
+    name = "Demo-09-Run-Descriptions"
+    p = root / name
+    rids = ["run1", "run2", "run3"]
+    _write_manifest(p, name, rids, "run1", 3)
+
+    described = {
+        "run1": ("PhotoRag Baryta, gloss, large chart", "printed 5 Aug, tray 2"),
+        "run2": ("PhotoRag Baryta, matte, large chart", "printed 5 Aug, matte"),
+        "run3": ("", ""),          # deliberately undescribed
+    }
+    for rid, (description, notes) in described.items():
+        r = p / "runs" / rid
+        _chart_files(r, name, patches=RUN_PATCHES, rows=RUN_ROWS)
+        _measure(r, name, seed_icc=_seed_profile(root / ".seed"))
+        _meta(r, rid, status="complete",
+              description=description, chart_notes=notes)
+
+    # …and a calibration with a description of its OWN, so switching Run type
+    # shows text that belongs to the calibration and not to any run (§3a).
+    cal = p / "cal"
+    cal.mkdir(parents=True, exist_ok=True)
+    (cal / "meta.json").write_text(json.dumps({
+        "description": "Canson Baryta, new ink set, warm room",
+        "chart_notes": "calibration sheet, 5 Aug",
+    }, indent=2))
+
+
 def _spec_sequences() -> "list[str]":
     """Every sequence ID the model defines, read from the document."""
     text = SPEC_DOC.read_text()
     body = text[text.index("## S. Sequences"):]
     body = body[:body.index("## T. Test plan")]
-    return sorted(set(re.findall(r"^\| (S\d\.\d)", body, re.M)))
+    # \d+ on BOTH sides: the model reached S2.10, and a single-digit pattern
+    # simply did not see it — so the coverage check reported the package as
+    # listing a sequence "the model does not define".
+    return sorted(set(re.findall(r"^\| (S\d+\.\d+)", body, re.M)))
 
 
 # ---------------------------------------------------------------------------
@@ -894,6 +979,10 @@ def _document(cases, dest: Path) -> str:
                     text = text.replace("{c%s}" % rid[-1], str(got))
             ids = re.findall(r"\[\[(M-[A-Z0-9-]+)\]\]", text)
             text = re.sub(r"\s*\[\[M-[A-Z0-9-]+\]\]", "", text)
+            if "[[ON-SCREEN]]" in text:
+                text = text.replace(" [[ON-SCREEN]]", "")
+                out.append(f"| {i} | {text} | *what the app shows — no window* |")
+                continue
             if "[[GUARD]]" in text:
                 # An existing guard window that §M does not catalogue. Named
                 # rather than hidden: it is reported to the issue as a gap in
@@ -1204,9 +1293,16 @@ def verify(dest: Path) -> "list[str]":
             # A step that describes a window but names no message ID would
             # leave the tester guessing which one the model means — Knut asked
             # for the ID "for every step where a message is expected".
+            # [[ON-SCREEN]] marks a step whose outcome is what the app SHOWS —
+            # a field's contents, a label, a greyed control — rather than a
+            # window. Knut's rule is that every step expecting a MESSAGE names
+            # its ID; a step expecting a filled-in box has no ID to name, and
+            # inventing one would send the tester looking for a window that
+            # cannot appear.
             promises = ("*Expected:*" in step
                         and "no window" not in step
-                        and "no warning" not in step)
+                        and "no warning" not in step
+                        and "[[ON-SCREEN]]" not in step)
             if promises and "[[" not in step and "[[GUARD]]" not in step:
                 problems.append(
                     f"{c['name']} step {i} expects a window but names no "

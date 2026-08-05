@@ -31,6 +31,7 @@ from workflow.layout_engine.presets import LayoutRecipe
 # {patchcount} → "576 patches", {seed} → "seed 1234", {dpi} → "300 dpi").
 SHEET_TOKENS = (
     ("project", tr("Printer profile project name")),
+    ("rundescription", tr("This run's description (or the calibration's)")),
     ("page", tr("This page, e.g. “page 1/3”")),
     ("date", tr("Build date")),
     ("paper", tr("Paper size & orientation")),

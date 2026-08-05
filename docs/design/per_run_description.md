@@ -163,6 +163,23 @@ is recomputed, because it was indistinguishable from a default. **This is the
 known, accepted limit of the rule** and is written down so it is not later
 reported as a bug.
 
+**T6.18 (U/I) — the guard does not exist yet, and this is where it is added.**
+The consequence analysis said the "only when empty" rule was already in use at
+`tab_profile.py:1278`. That line is `_pc_desc_edit`, the **printcal**
+description; the field §4 is about is colprof's "Profile Description (-D)",
+and there are two of them (`_desc_edit`, `_m_desc_edit`). `set_ti3_path`
+overwrites **both, unconditionally**, so a description the user typed is lost
+the moment a measurement is loaded or handed over from Measure. Pre-existing,
+and corrected as part of this work — building §4 on a field that overwrites
+the user would be building on sand.
+
+| # | Field holds | A `.ti3` is loaded | Result |
+|---|---|---|---|
+| T6.19 | empty | any | filled with the new default |
+| T6.20 | ChromIQ's last default | any | replaced by the new default |
+| T6.21 | **the user's own text** | any | **untouched** |
+| T6.22 | user's text, then cleared by hand | any | filled again — clearing gives it back |
+
 ### 6b. What it is built from
 
 | # | Calibration feature | Build uses a calibration | Default `-D` |

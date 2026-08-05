@@ -2144,12 +2144,24 @@ class TabProfile(QWidget):
         desc_row.addWidget(self._m_desc_edit, stretch=1)
         desc_row.addWidget(TooltipButton(
             tr("Profile Description (-D)"),
-            tr("The name embedded in the ICC profile — shown in colour management\n"
-            "menus in apps like Photoshop, Lightroom, and Preview.\n\n"
-            "Use a consistent format: Printer · Paper · Ink type · Date\n"
-            "e.g. \"Epson P900 · Canson Baryta · Chromatic · 2026-04\"\n\n"
-            "The output file is named after your .ti3 file — keep that name\n"
-            "consistent using underscores: EpsonP900_CansonBaryta_2026-04.icc"),
+            tr("The name embedded in the ICC profile — it is what you will see "
+            "in the colour-management menus of apps like Photoshop, Lightroom "
+            "and Preview, so it is worth making it something you will "
+            "recognise months from now.\n\n"
+            "ChromIQ fills this in for you, from the project name and the "
+            "descriptions you have given:\n\n"
+            "    <project name>-<run description>-<calibration description>\n\n"
+            "Any part you have left empty is simply left out, along with its "
+            "hyphen — so a project with no descriptions gives you just the "
+            "project name, and the calibration part appears only for a profile "
+            "actually built using a calibration.\n\n"
+            "IT IS ONLY A SUGGESTION. The moment you type your own text here, "
+            "it is yours: ChromIQ stops filling it in and never overwrites it, "
+            "however you change the run, the run description or the "
+            "measurement. Clear the field if you want the suggestion back.\n\n"
+            "The .icc FILE is named after the run it belongs to, not after "
+            "this — so changing this changes what the profile calls itself "
+            "inside, not where it is saved."),
             grp,
         ))
         g.addLayout(desc_row)
@@ -3165,12 +3177,24 @@ class TabProfile(QWidget):
         desc_row.addWidget(self._desc_edit, stretch=1)
         desc_row.addWidget(TooltipButton(
             tr("Profile Description (-D)"),
-            tr("The name embedded in the ICC profile — shown in colour management\n"
-            "menus in apps like Photoshop, Lightroom, and Preview.\n\n"
-            "Use a consistent format: Printer · Paper · Ink type · Date\n"
-            "e.g. \"Epson P900 · Canson Baryta · Chromatic · 2026-04\"\n\n"
-            "The output file is named after your .ti3 file — keep that name\n"
-            "consistent using underscores: EpsonP900_CansonBaryta_2026-04.icc"),
+            tr("The name embedded in the ICC profile — it is what you will see "
+            "in the colour-management menus of apps like Photoshop, Lightroom "
+            "and Preview, so it is worth making it something you will "
+            "recognise months from now.\n\n"
+            "ChromIQ fills this in for you, from the project name and the "
+            "descriptions you have given:\n\n"
+            "    <project name>-<run description>-<calibration description>\n\n"
+            "Any part you have left empty is simply left out, along with its "
+            "hyphen — so a project with no descriptions gives you just the "
+            "project name, and the calibration part appears only for a profile "
+            "actually built using a calibration.\n\n"
+            "IT IS ONLY A SUGGESTION. The moment you type your own text here, "
+            "it is yours: ChromIQ stops filling it in and never overwrites it, "
+            "however you change the run, the run description or the "
+            "measurement. Clear the field if you want the suggestion back.\n\n"
+            "The .icc FILE is named after the run it belongs to, not after "
+            "this — so changing this changes what the profile calls itself "
+            "inside, not where it is saved."),
             grp,
         ))
         g.addLayout(desc_row)
@@ -3705,8 +3729,13 @@ class TabProfile(QWidget):
         self._preconditioning_source = None
         self._file_lbl.setText(str(path))
         self._build_btn.setEnabled(True)
-        self._desc_edit.setText(path.stem)
-        self._m_desc_edit.setText(path.stem)
+        # #130 §4: **only while the field is still a ChromIQ default.** These
+        # two lines used to overwrite unconditionally, so a Profile Description
+        # the user had typed was lost the moment a measurement was loaded or
+        # handed over from the Measure tab. The fallback keeps the old
+        # behaviour — the measurement file's name — for a project that has
+        # nothing to compose a description from yet.
+        self._apply_profile_description_default(fallback=path.stem)
         self._detect_instrument(path)
         if propagate:
             # Under the per-run layout the measurement is chart.ti3 sitting
@@ -4059,6 +4088,96 @@ class TabProfile(QWidget):
     # ------------------------------------------------------------------
     # The shared Profile-run bar (#130)
     # ------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # #130 §4 / §4a: the Profile Description default
+    # ------------------------------------------------------------------
+    #: The last default ChromIQ itself wrote into the two description fields.
+    #: This is what makes "is this still a default, or has the user made it
+    #: theirs?" answerable at all: the field counts as a default while it is
+    #: empty OR exactly equal to this string.
+    _desc_default_written: str = ""
+
+    def _profile_description_parts(self) -> "list[str]":
+        """The pieces the default is built from, in order, skipping empties.
+
+        Knut, §4a: ``<project>-<run description>-<calibration description>``,
+        and **an empty part drops out along with its separator** so an unnamed
+        calibration cannot leave a trailing hyphen.
+
+        The calibration part appears only when this build actually USES a
+        calibration. One that merely exists in the project did not go into this
+        profile, so naming the profile after it would be a lie.
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
+            return []
+        try:
+            project = ctl.project_or_none()
+            if project is None:
+                return []
+            # The project's folder name IS the sanitised project name — the
+            # same string the chart's files are stemmed with, so the profile's
+            # description matches what is printed on the sheet.
+            parts = [project.root.name]
+            from core.measurement_target import resolve_run
+            run = resolve_run(project, ctl.target)
+            if run is not None:
+                parts.append(getattr(run.load_meta(), "description", "") or "")
+                if self._build_uses_a_calibration(run):
+                    parts.append(
+                        getattr(project.calibration.load_meta(), "description", "")
+                        or "")
+            return [p.strip() for p in parts if p and p.strip()]
+        except Exception:      # noqa: BLE001 — a default must never break the tab
+            return []
+
+    def _build_uses_a_calibration(self, run) -> bool:
+        """Whether the profile being built here applies a calibration.
+
+        With calibration switched off in Preferences there is nothing to ask —
+        the answer is no, and the description is exactly what it was before this
+        feature existed.
+        """
+        try:
+            if not bool(self._settings.get("calibration_mode", False)):
+                return False
+            if getattr(run.load_meta(), "calibration_used", ""):
+                return True
+            combo = getattr(self, "_ac_mode_combo", None)
+            return combo is not None and combo.isVisible()
+        except Exception:      # noqa: BLE001
+            return False
+
+    def _compose_profile_description(self) -> str:
+        return "-".join(self._profile_description_parts())
+
+    def _description_is_still_ours(self, edit) -> bool:
+        """True while ChromIQ still owns the field: empty, or exactly the last
+        default it wrote. Anything else is the user's and is never rewritten."""
+        if edit is None:
+            return False
+        text = edit.text().strip()
+        return not text or text == self._desc_default_written
+
+    def _apply_profile_description_default(self, fallback: str = "") -> None:
+        """Recompute the default and put it in — only where it is still ours.
+
+        Called from every trigger in §4's table. *fallback* is used when there
+        is nothing to compose from (no project yet), which is how the old
+        behaviour of naming the profile after the measurement file survives.
+        """
+        wanted = self._compose_profile_description() or fallback.strip()
+        if not wanted:
+            return
+        changed = False
+        for edit in (getattr(self, "_desc_edit", None),
+                     getattr(self, "_m_desc_edit", None)):
+            if self._description_is_still_ours(edit):
+                edit.setText(wanted)
+                changed = True
+        if changed:
+            self._desc_default_written = wanted
+
     def set_target_controller(self, controller) -> None:
         """Follow the shared bar, like tabs 1-3 do.
 
@@ -4073,6 +4192,9 @@ class TabProfile(QWidget):
         """
         self._target_ctl = controller
         controller.changed.connect(self._on_target_changed)
+        # §4: the default follows the Profile run, the Run type, and the run's
+        # own description — all of which move with the bar.
+        controller.changed.connect(self._apply_profile_description_default)
         # …and the Run type decides which modules this tab offers (#137).
         # A second connection rather than a call inside _on_target_changed, so
         # the two concerns stay separable — one is about which run's files to

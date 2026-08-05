@@ -148,6 +148,10 @@ def build_chart(
     use_instrument_margins: bool = False,
     stamp_command: bool = False,
     project: str = "",
+    # #130: the run's own description (or the calibration's), for the
+    # {rundescription} placeholder in sheet text and the clip border. Empty
+    # renders as nothing, the way {seed} does on a chart with no seed.
+    rundescription: str = "",
     # The date the chart's record strip carries, as ``YYYY-MM-DD``. Left unset
     # it is today — right for a chart being made. A chart being REBUILT from a
     # stored copy must pass the date it was originally made on, or the sheet
@@ -258,6 +262,7 @@ def build_chart(
                        "SS": "SpectroScan", "41": "DTP41", "51": "DTP51"}
     _ctx = {
         "project": project or Path(out_base).name,
+        "rundescription": rundescription,
         "instrument": _instr_friendly.get(instrument, instrument),
         "paper": papers.friendly_label(paper),          # "A4 landscape"
         "dpi": f"{dpi} dpi",
