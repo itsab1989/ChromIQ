@@ -20,8 +20,8 @@ python main.py
 
 ```bash
 source .venv/bin/activate
-QT_QPA_PLATFORM=offscreen pytest -n 12 --dist loadfile            # everyday tier
-QT_QPA_PLATFORM=offscreen pytest --runslow -n 12 --dist loadfile  # THE RELEASE GATE, ~4370 tests, ~2.5 min
+QT_QPA_PLATFORM=offscreen pytest -n auto            # everyday tier, ~4320 tests, ~1 min
+QT_QPA_PLATFORM=offscreen pytest --runslow -n auto  # THE RELEASE GATE, ~4370 tests, ~2.5 min
 ```
 
 The suite is two-tiered: ~20 heavy end-to-end profile-build tests carry
@@ -39,6 +39,27 @@ above means something is wrong (a test opening a modal dialog `.exec()`, or
 `--dist loadfile` keeps each file on one worker, which the session-scoped
 fixtures need. Parallel was avoided because a run once hung for 2.5 h; that was
 `targen` without a `timeout=`, now fixed.
+
+**`-n auto` asks the machine, so the same command is right everywhere** — 16
+workers on the 16-core host, however many a smaller VM has. Measured identical
+to a hand-tuned `-n 12` here (gate 151s vs 153s, everyday 69s vs 68s), so
+adapting costs this machine nothing and stops the numbers below being a lie on
+weaker hardware. `--dist loadfile` is in `pytest.ini`'s `addopts` because it is
+not optional: 150 test files use module-scoped fixtures, and distributing
+individual tests would scatter a module across workers. A plain serial `pytest`
+is unaffected by it.
+
+**Both tiers now sit within ~10s of their structural floor**, which is the
+single heaviest FILE — `--dist loadfile` cannot split one:
+
+| tier | total work | ideal split | floor (heaviest file) | actual |
+|---|---|---|---|---|
+| everyday | 452s | 38s | **57s** `test_scan_alignment_real_targets.py` | 69s |
+| release gate | 881s | 73s | **145s** `test_engine_v2_options.py` | 151s |
+
+So more workers cannot help either tier. The only remaining lever is making
+those two files faster (the gate's is dominated by one ~90s test), and that is
+a test-content change, not a scheduling one.
 
 **Measured on a 16-core M-series (12 performance cores), 4367 tests:**
 
