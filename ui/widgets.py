@@ -473,7 +473,7 @@ def refresh_log_panes_from_settings() -> None:
     """
     global _LIVE_LINES
     _LIVE_LINES = None
-    set_log_visible_lines(log_visible_lines(), save=False)
+    _apply_lines(log_visible_lines(), remember=False)
 
 
 def bind_log_settings(settings) -> None:
@@ -513,6 +513,15 @@ def _max_lines_for(log) -> int:
     makes the ceiling a property of the layout and the window's height, not of
     the panel's current size: shrinking and growing again lands back where it
     started, and making the window taller hands the space back.
+
+    **Called only from :func:`_apply_lines` and :func:`refit_log_panes`, never
+    from :func:`fit_log_height`.** That one also runs at polish and on every
+    style change, when a tab's column can be a fraction of its final height for
+    a pass — capping there read the transient geometry and pinned the Measure
+    tab's log at six lines for the rest of the session, which is precisely the
+    complaint the nine-line default exists to answer (Knut, beta.125: *"The log
+    window at the bottom left still has only space for 6 lines of text"*). Tabs
+    settle instead when they are first shown, through the tab-change re-fit.
     """
     try:
         pane = log.parentWidget()
@@ -534,11 +543,24 @@ def _max_lines_for(log) -> int:
         return LOG_MAX_LINES        # a ceiling must never break a resize
 
 
-def _apply_lines(n: int) -> int:
-    """Give every panel *n* lines, capped by what each visible one can show.
+def _fit_capped(log, n: int) -> None:
+    """Size one panel to *n* lines, or to as many as its own column can show."""
+    try:
+        fit_log_height(log, max(LOG_MIN_LINES, min(int(n), _max_lines_for(log))))
+    except RuntimeError:                   # its C++ side is already gone
+        pass
 
-    Every visible panel gets a say, so growing the log on one tab can never
-    clip it on another.
+
+def _apply_lines(n: int, *, remember: bool) -> int:
+    """Give every panel *n* lines, each capped by what its own column can show.
+
+    *remember* is the difference between the user **choosing** a size and the
+    app **re-fitting** one, and only a choice may change the shared value. A
+    re-fit runs on every window resize and every tab change; if it wrote back
+    what it had computed, one moment when some panel happened to be small would
+    become the size of every panel from then on. That is not hypothetical — the
+    release gate showed Create Chart's log at three lines in a run where the
+    file that tests it passes on its own.
     """
     global _LIVE_LINES, _APPLYING
     if _APPLYING:               # see _APPLYING
@@ -554,16 +576,14 @@ def _apply_lines(n: int) -> int:
             except RuntimeError:
                 pass
         n = max(LOG_MIN_LINES, n)
-        _LIVE_LINES = n
+        if remember:
+            _LIVE_LINES = n
         # Tabs have different amounts of room — Measure gives its preview more
         # and its log less. So every panel follows the one chosen size but
         # stops at its own ceiling, and none of them is ever clipped. Tabs that
-        # are hidden now settle when they are shown; see refit_log_panes().
+        # are hidden settle when they are shown; see refit_log_panes().
         for widget in list(_LIVE_LOGS):
-            try:
-                fit_log_height(widget, n)
-            except RuntimeError:           # its C++ side is already gone
-                pass
+            _fit_capped(widget, n)
         return n
     finally:
         _APPLYING = False
@@ -583,11 +603,9 @@ def refit_log_panes() -> None:
     the size that was asked for, and making it shorter must not push the panel
     through the bottom of the frame.
     """
-    global _LIVE_LINES
     if _APPLYING:
         return
-    _LIVE_LINES = None                  # so the SAVED size is the starting point
-    _apply_lines(log_visible_lines())
+    _apply_lines(log_visible_lines(), remember=False)
 
 
 def set_log_visible_lines(n: int, *, save: bool = True) -> int:
@@ -599,7 +617,8 @@ def set_log_visible_lines(n: int, *, save: bool = True) -> int:
     Returns the value actually used, after clamping — the caller may want to
     show it, and a silently ignored request would read as a stuck drag.
     """
-    n = _apply_lines(max(LOG_MIN_LINES, min(LOG_MAX_LINES, int(n))))
+    n = _apply_lines(max(LOG_MIN_LINES, min(LOG_MAX_LINES, int(n))),
+                     remember=True)
     # Save what was APPLIED, never what was asked for: a size the window could
     # not show is not a size the user chose, and storing it would make the
     # panel jump the next time the app opened on a taller screen.
@@ -634,7 +653,6 @@ def fit_log_height(log, lines: "int | None" = None) -> None:
     except (TypeError, RuntimeError):      # not a weak-referenceable widget
         pass
     try:
-        lines = max(LOG_MIN_LINES, min(int(lines), _max_lines_for(log)))
         fm = log.fontMetrics()
         doc_margin = int(log.document().documentMargin()) * 2
         frame = log.frameWidth() * 2

@@ -39,10 +39,22 @@ class _Settings:
 
 @pytest.fixture
 def bound(qapp):
+    """A clean settings store AND a clean registry of live panels.
+
+    The registry is module state that outlives a test: a panel from an earlier
+    test that is still alive and still shown has a say in the ceiling, so
+    without this a test's result depends on which tests ran before it. That is
+    the same class of leak the release gate found in the code itself — worth
+    not having in the tests that guard it.
+    """
+    from ui.widgets import _LIVE_LOGS
+
+    _LIVE_LOGS.clear()
     s = _Settings()
     bind_log_settings(s)
     yield s
     bind_log_settings(None)
+    _LIVE_LOGS.clear()
 
 
 def _log(qapp):
@@ -365,3 +377,60 @@ def test_the_size_that_is_saved_is_the_size_that_was_shown(bound):
     assert used < LOG_MAX_LINES              # the column is too short for 40
     assert bound.get("log_visible_lines") == used
     pane._host.deleteLater()
+
+
+def test_a_panel_is_not_shrunk_by_geometry_it_has_not_got_yet(bound):
+    """Sizing a panel before its column is laid out must not cap it.
+
+    The release gate caught this: the ceiling was being applied inside
+    ``fit_log_height``, which also runs at polish and on every style change —
+    moments when a tab's column can still be a fraction of its final height.
+    The Measure tab's log read that transient geometry once and stayed at six
+    lines for the rest of the session, which is exactly the complaint the
+    nine-line default exists to answer (Knut, beta.125).
+    """
+    from PyQt6.QtWidgets import QVBoxLayout, QWidget
+
+    host = QWidget()
+    host.setFixedSize(400, 600)
+    pane = QWidget(host)
+    QVBoxLayout(pane).addWidget(QPlainTextEdit())
+    log = QPlainTextEdit(pane)
+    pane.layout().addWidget(log)
+    host.show()                           # visible — the ceiling will measure it
+    pane.setGeometry(0, 0, 400, 8)        # …but the column is 8 px for this pass
+    fit_log_height(log, LOG_VISIBLE_LINES)
+    fm = log.fontMetrics()
+    shown = (log.minimumHeight()
+             - int(log.document().documentMargin()) * 2
+             - log.frameWidth() * 2) / fm.lineSpacing()
+    assert round(shown) == LOG_VISIBLE_LINES, (
+        f"asked for {LOG_VISIBLE_LINES} lines before the column existed and "
+        f"got {shown:.2f} — a panel must not be capped by geometry it has "
+        f"not been given yet"
+    )
+    host.deleteLater()
+
+
+def test_a_refit_never_changes_the_size_the_user_chose(bound):
+    """Re-fitting is not choosing.
+
+    A re-fit runs on every window resize and every tab change. If it wrote back
+    what it computed, one moment when some panel was small would become the
+    size of every panel from then on. The release gate showed this as Create
+    Chart's log at three lines, in a run where the file that tests it passes on
+    its own — a leak between test files, and it would have been a leak between
+    windows in the app.
+    """
+    from ui.widgets import refit_log_panes
+
+    set_log_visible_lines(LOG_VISIBLE_LINES)
+    assert log_visible_lines() == LOG_VISIBLE_LINES
+    cramped, cramped_log = _column(qapp=None, height=380)   # too short for nine
+    refit_log_panes()
+    assert log_visible_lines() == LOG_VISIBLE_LINES, (
+        "a re-fit changed the user's chosen size; only a drag may do that"
+    )
+    assert bound.get("log_visible_lines") == LOG_VISIBLE_LINES
+    assert _fits(cramped, cramped_log), "…but the panel itself still has to fit"
+    cramped._host.deleteLater()
