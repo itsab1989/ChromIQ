@@ -9372,7 +9372,22 @@ class TabChart(QWidget):
                         exc_info=True)
             return False
         if not stored:
-            self._settings_store = store     # nothing to load, but it is ours
+            # §4 S4–S7 SAYS A TARGET WITH NOTHING STORED OPENS ON DEFAULTS —
+            # AND THAT COLLIDES WITH BEHAVIOUR KNUT ALREADY ASKED FOR.
+            #
+            # Resetting the rows here is what makes N1 pass: without it the
+            # widgets still show the OUTGOING target's values, so the next
+            # write records them onto this one. But it also wipes the value a
+            # user hand-set before toggling Run type, which
+            # test_calibration_run_type_chart asserts must come back (37 → the
+            # calibration's 20 → 37 again). Two rules of his, pulling opposite
+            # ways.
+            #
+            # Not resolved here: the specification is his, so the collision is
+            # posted on #130 rather than settled by me. Until he rules, the
+            # older behaviour wins — it is shipped and he asked for it — and
+            # the N1 end-to-end test is marked xfail with this reason.
+            self._settings_store = store
             return False
         # REMEMBER WHOSE SETTINGS ARE NOW ON SCREEN.
         #

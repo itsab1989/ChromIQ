@@ -216,3 +216,74 @@ def test_a_write_never_resurrects_a_deleted_target(tmp_path):
     shutil.rmtree(run.dir)
     assert tab.save_target_settings() is False, "the write recreated the target"
     assert not run.dir.exists(), "the deleted run came back"
+
+
+@pytest.mark.xfail(reason=(
+    "N1 needs a target with nothing stored to open on defaults (§4 S4-S7), "
+    "and that wipes the hand-set value test_calibration_run_type_chart "
+    "requires to survive a Run-type toggle. Two of Knut's rules collide; "
+    "posted on #130. The older, shipped behaviour wins until he rules."),
+    strict=True)
+def test_n1_end_to_end_the_outgoing_run_keeps_its_own_setting(tmp_path, qapp):
+    """§2.1 / N1 against the real tab and controller, not a stand-in.
+
+    Set a value on run 1, switch the bar to run 2, and run 1 must have kept it
+    while run 2 must not have acquired it. This is the failure the whole
+    feature exists to prevent, so it is asserted end-to-end rather than by
+    reading the source.
+    """
+    from core.argyll_runner import ArgyllRunner
+    from core.file_manager import FileManager
+    from core.settings import AppSettings
+    from ui.measurement_target_bar import MeasurementTargetController
+    from ui.tabs.tab_chart import TabChart
+    from workflow.per_target_settings import params_for
+
+    settings = AppSettings()
+    fm = FileManager(settings)
+    root = fm.root_dir()                 # redirected to a temp dir by conftest
+    root.mkdir(parents=True, exist_ok=True)
+    proj = Project.create(root / "Demo-PTS", "Demo-PTS")
+    proj.current_run().ensure_dir()
+    proj.new_run()                                   # run2
+    fm.set_target_name("Demo-PTS")
+
+    tab = TabChart(ArgyllRunner(settings), fm, settings)
+    ctl = MeasurementTargetController(fm)
+    tab.set_target_controller(ctl)
+
+    ctl.set_profile_run("run1")
+    tab._on_target_changed()
+    store = tab._target_text_store()
+    if store is None:
+        pytest.skip("the bar could not resolve run1 in this environment")
+
+    # A free-text row, so the value set is the value held: a combo would
+    # quietly refuse an arbitrary string and the test would prove nothing.
+    param = next(p for p in params_for(tab)
+                 if not p.repeats and _accepts_free_text(p.widgets[0]))
+    param.widgets[0].set_value("mine-alone")
+    on_screen = param.widgets[0].get_raw_value()
+    assert on_screen == "mine-alone", "the chosen row did not take the value"
+
+    ctl.set_profile_run("run2")
+    tab._on_target_changed()
+
+    run1_stored = proj.run("run1").load_meta().create_chart_settings
+    run2_stored = proj.run("run2").load_meta().create_chart_settings
+    assert run1_stored.get(param.key, {}).get("value") == on_screen, (
+        "the outgoing run lost the value that was set on it"
+    )
+    assert run2_stored.get(param.key, {}).get("value") != on_screen, (
+        "run 1's edit was written onto run 2 — the exact failure §2.1 describes"
+    )
+
+
+def _accepts_free_text(widget) -> bool:
+    """Whether a row keeps an arbitrary string put into it."""
+    keep = widget.get_raw_value()
+    try:
+        widget.set_value("zz-probe")
+        return widget.get_raw_value() == "zz-probe"
+    finally:
+        widget.set_value(keep)

@@ -1,5 +1,15 @@
 # Changelog
 
+## v3.14.8-beta.170
+
+### Internal
+- Per-target settings: the N1 safety check is now proved end-to-end against the
+  real Create Chart tab, and it found a collision between two agreed rules —
+  a target with nothing stored should open on defaults, but a value you hand-set
+  before switching Run type must survive the switch. The older behaviour is
+  kept, the question is with Knut, and no further tab gets a store until it is
+  settled.
+
 ## v3.14.8-beta.169
 
 ### Internal
