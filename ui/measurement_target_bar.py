@@ -647,6 +647,34 @@ class MeasurementTargetController(QObject):
 _QWIDGETSIZE_MAX = (1 << 24) - 1
 
 
+class _AnnouncingComboBox(NoScrollComboBox):
+    """A combo that says so *before* its list opens.
+
+    Knut's trigger design for the settings queue (#130, 2026-08-06):
+
+        "Writing queue request trigger could be when pulldown list of 'Profile
+        run' or 'Run type' is clicked to see the pulldown menu, and reading
+        queue request trigger could be when an option in the pulldown list is
+        clicked/selected. Then there is some milliseconds between them too."
+
+    That ordering is the point. When the list opens, the OUTGOING target is
+    still the selected one, so a write triggered here lands on the target the
+    values on screen actually belong to. By the time ``currentIndexChanged``
+    fires the selection has already moved, and the same write would record the
+    old target's values onto the new one.
+
+    Nothing is connected to this yet — the tab-side half of the queue is still
+    being built. It is here on its own because the mechanism is his and it is
+    worth having in place, tested, before the behaviour that depends on it.
+    """
+
+    about_to_open = pyqtSignal()
+
+    def showPopup(self) -> None:      # noqa: N802 — Qt's own name
+        self.about_to_open.emit()
+        super().showPopup()
+
+
 class MeasurementTargetBar(QWidget):
     """A compact row: **Profile run** (a friendly single dropdown), **Run type**
     (Profiling / Verification), and — when ``show_verification`` and the type is
@@ -686,7 +714,7 @@ class MeasurementTargetBar(QWidget):
 
         self._run_label = self._mk_label(tr("Profile run:"))
         row.addWidget(self._run_label)
-        self._run_combo = NoScrollComboBox(self)
+        self._run_combo = _AnnouncingComboBox(self)
         self._run_combo.setToolTip(tr(
             "Which profile build this applies to. Every profile you make is a "
             "“run”, kept in its own folder. Pick an existing run to work on it "
@@ -727,7 +755,7 @@ class MeasurementTargetBar(QWidget):
         # Whether "Verification" may be picked from where the user is
         # standing; see set_verification_selectable.
         self._verification_selectable = True
-        self._type_combo = NoScrollComboBox(self)
+        self._type_combo = _AnnouncingComboBox(self)
         self._type_combo.addItem(tr("Profiling"), RUN_TYPE_PROFILING)
         self._type_combo.addItem(tr("Verification"), RUN_TYPE_VERIFICATION)
         self._type_combo.setToolTip(tr(
