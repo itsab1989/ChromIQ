@@ -13,9 +13,10 @@ Issue #130. Source posts, in the order Knut listed them:
 > it and get the change approved** rather than quietly correcting one side to
 > match the other.
 
-**Status: specification agreed, no application code written.** Everything below
-is either Knut's ruling quoted, or a consequence of one. Where a question is
-still open it is marked **OPEN** and it is not implemented until it is answered.
+**Status: specification COMPLETE, no application code written.** Everything
+below is either Knut's ruling quoted, or a consequence of one. The last two
+open questions were answered on 2026-08-06 (§9); the next step is the test plan
+in §8, then the build.
 
 ---
 
@@ -321,12 +322,15 @@ is, and R3 checks both directions.
 3. Measure is **in** scope.
 4. The four missing rows in §4 (S2–S5).
 
-**OPEN — not implemented until answered:**
+**Answered 2026-08-06 — nothing is open:**
 
-| # | Question |
-|---|---|
-| **Q1** | Should **page count** and **instrument/paper** be per target, or do they belong to the project? They describe the sheet, so §1 has them per target — but they are also the two most likely to be "set once for this printer". |
-| **Q2** | On **app quit** (§3, W6): write silently, or is a tab with unsaved changes worth saying something about? Silent is assumed. |
+| # | Question | Knut's answer |
+|---|---|---|
+| **Q1** | Are **page count** and **instrument/paper** per target, or per project? | *"yes, per target"* — §1.2 stands as written |
+| **Q2** | On **app quit** (§3, W6): write silently? | *"yes, write silently"* — no prompt, no notice |
+
+**The specification is therefore complete and the next step is the test plan**
+(§8, R1–R6), then the implementation, in that order — Knut's own sequencing.
 
 ---
 
