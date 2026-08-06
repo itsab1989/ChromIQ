@@ -1,5 +1,21 @@
 # Changelog
 
+## v3.14.8-beta.164
+
+### Fixed
+- **Two measurement windows opened in silence.** *Instrument in Wrong Position*
+  and *Instrument Error* both promise the "Instrument error" sound in the table
+  on Preferences → Sounds, and neither played it. Found by auditing every window
+  against that table, which Knut asked for (#130).
+
+### Documentation
+- **The windows-and-sounds tables are now part of the design specification**
+  (`docs/design/measurement_window_sounds.md`), as Knut asked. They are
+  generated from the same rows the Sounds help card renders, so the
+  specification, the help card and the app cannot drift apart, and a test fails
+  if a window loses its sound, gets the wrong one, sounds only after its window
+  closes, or names a sound that does not exist.
+
 ## v3.14.8-beta.163
 
 ### Fixed

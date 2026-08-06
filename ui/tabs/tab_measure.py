@@ -5689,6 +5689,10 @@ class TabMeasure(QWidget):
     def _on_sensor_wrong_position(self) -> None:
         from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout
 
+        # "Instrument in Wrong Position" is an Instrument error row in
+        # core.measure_windows.WINDOW_ROWS, and it played nothing. Cued from
+        # the top of the slot, before the modal blocks — see _cue_window.
+        self._cue_window("INSTRUMENT_ERROR")
         QApplication.instance().removeEventFilter(self)
 
         dlg = QDialog(self)
@@ -5871,6 +5875,11 @@ class TabMeasure(QWidget):
             log.debug("instrument error while a window is open — not stacking "
                       "a second one: %s", friendly)
             return
+        # AFTER the guard above, never before it: a window that is suppressed
+        # must not make a sound. "Instrument Error (anything else the
+        # instrument reports)" is an Instrument error row in
+        # core.measure_windows.WINDOW_ROWS and it was silent.
+        self._cue_window("INSTRUMENT_ERROR")
         QApplication.instance().removeEventFilter(self)
 
         dlg = QDialog(self)
