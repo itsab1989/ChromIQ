@@ -67,9 +67,10 @@ that appears to stop responding.
 | **Place the sheet** (XY mode) | Continue / Give Up | `\r`, `GIVE_UP_PENDING` | | ✅ |
 | **Patch Read Failed** | Retry | `retry` | | ✅ not an exit |
 | | Skip Patch | `skip` | | ✅ not an exit |
-| | Save Partial & Quit | `send_save_partial_and_quit()` | the two-`q` chain | ⚠️ **see note 1** |
+| | Save Partial & Quit | `send_save_partial_and_quit()` | the two-`q` chain | ⚠️ **note 1 — left as it is, by his ruling** |
 | **Unread patches remain** | (three buttons) | `_end_session(choice)` | the ending | ✅ |
-| **Abort?** (Esc pressed) | Yes / No | `y` / `n` | chartread's own confirm | ⚠️ **see note 2** |
+| **Abort?** (Esc pressed) | Yes | `n` to chartread, then the ending | chartread leaves its own question; ours runs | ✅ *(beta.156)* |
+| | No | `n` | keep measuring | ✅ |
 | **Calibration required** | OK / Skip / Cancel | `\r` / `s` / `\x1b` | the instrument's own calibration prompt | ⚠️ **see note 3** |
 | **All Strips Read / All Patches Read** | Go to … Tab | `d` | "done" — chartread writes and exits normally | ✅ not a failure exit |
 | | Re-read … | — | the window closes; the session continues | ✅ |
@@ -103,27 +104,32 @@ swallowed by the guard that stops the user being asked twice.
 
 ## Notes — the three that are not yet the single exit
 
+All three were put to Knut and he ruled on each (beta.155).
+
 **Note 1 · "Save Partial & Quit" on the Patch Read Failed window** calls
 `send_save_partial_and_quit()` directly rather than going through
-`_confirm_end_of_session`. In practice it lands in the same place, because the
-button *is* the "save and stop" answer — but it is a second door to the same
-room, and it does not offer Discard or Keep measuring. **Recommendation:** route
-it through the ending like Give Up does, so the model has exactly one exit.
-Behaviour would change only in that the user is asked.
+`_confirm_end_of_session`, so it never offers Discard or Keep measuring. **His
+ruling: leave it.** *"As long as 'Save Partial & Quit' calls the save chain
+directly, that is ok, since we know it works today. We do not want to touch
+anything what works right now, unless it is dangerous."* Recorded as a known
+second door rather than changed. (He also noted that Retry on these windows is
+the same thing as "Keep measuring", which it is.)
 
-**Note 2 · the "Abort?" confirm** (`_on_abort_confirm`) is chartread's own
-question, answered `y`/`n`, and `y` ends the session **without** the ending
-window — so readings can be lost with no offer to save them. This is the one
-that most clearly breaks the single exit. **Recommendation:** answer `n` to
-chartread and run our own ending instead, so Esc behaves exactly like Stop.
+**Note 2 · the "Abort?" confirm** (`_on_abort_confirm`) answered chartread's own
+question with `y`, which ends the session **without** the ending window — so
+readings could be lost with no offer to save them. **His ruling: replace it**,
+*"with calling the 'Keep what you have measured so far?' chain"*, and his
+warning with it: the keys differ between the two modes, so each Abort must use
+the chain belonging to ITS mode.
+
+**Fixed in beta.156, and the warning is what shaped the fix:** chartread is told
+**`n`** — it leaves its own question and returns to the prompt it came from —
+and our ending runs instead. That way this path sends **no mode-specific key of
+its own**; `_end_session` delegates to `send_save_partial_and_quit()` or
+`abort()`, which already know which mode and which reader they are in. Engine
+only; stock chartread's chain is different and works.
 
 **Note 3 · the calibration prompt** (`_on_calibration_prompt`) sends `\x1b` for
-Cancel, which ends the session before any reading exists. Harmless today —
-there is nothing to lose at that point — but it is still a direct exit.
-**Recommendation:** leave it, and record the exception here rather than pretend
-it does not exist.
-
-Notes 1 and 2 are **not implemented**: they change behaviour in the measurement
-path, which is Knut's specification to rule on. They are listed here as the
-answer to *"Make also note if any of the exit methods does not follow the single
-exit method for our model."*
+Cancel, which ends the session before any reading exists. **His ruling:** *"The
+calibration prompt's Cancel is ok. Leave it."* Recorded here rather than
+pretended away.

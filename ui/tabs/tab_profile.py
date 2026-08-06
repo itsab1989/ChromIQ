@@ -654,7 +654,16 @@ class TabProfile(QWidget):
         if not getattr(self, "_cal_mode_on", False):
             return                       # calibration options are off
         is_cal = bool(getattr(ctl.target, "is_calibration", bool)())
-        self._cal_create_btn.setVisible(True)
+        # CREATE CALIBRATION FILE BELONGS TO RUN TYPE = CALIBRATION, and to
+        # nothing else. It was always visible, so on a profiling run the module
+        # could be opened and its printcal "Description (-D)" shown where the
+        # user expects colprof's "Profile Description (-D)" — which is exactly
+        # what step 5 of the demo walked into. Knut, beta.155: *"when changing
+        # run type between profiling, verification and calibration, while the
+        # 'Enable calibration options' is ON, then shows the Calibration and
+        # Profiling tab for all cases. It should only be visible for
+        # Calibration."*
+        self._cal_create_btn.setVisible(is_cal)
         for btn in (self._cal_profile_btn, self._cal_apply_btn):
             btn.setVisible(not is_cal)
         if is_cal:

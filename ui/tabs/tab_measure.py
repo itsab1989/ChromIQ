@@ -6118,6 +6118,26 @@ class TabMeasure(QWidget):
 
         tint_dialog_primary(dlg, _TAB_COLOR)
         dlg.exec()
+        if chosen[0] == "y" and self._manager.engine_active:
+            # ABORT GOES THROUGH THE ONE ENDING, like everything else.
+            #
+            # "y" is chartread's own answer and it throws the readings away
+            # with no offer to keep them — the clearest break of the model's
+            # single exit, and the one Knut ruled on (beta.155): *"The 'Abort?'
+            # confirm should be replaced with calling the 'Keep what you have
+            # measured so far?' chain."*
+            #
+            # So chartread is told **no** — it leaves its own question and goes
+            # back to the prompt it came from — and OUR ending runs instead.
+            # That is what keeps his warning satisfied: *"the buttons pressed
+            # is different for patch-per-patch mode or strip mode"*. This sends
+            # no mode-specific key of its own; `_end_session` delegates to
+            # `send_save_partial_and_quit` / `abort`, which already know which
+            # mode and which reader they are in.
+            self._send_failure_choice("n")
+            self._end_session(self._confirm_end_of_session(self.END_ABORT_KEY))
+            self._arm_key_watchdog()
+            return
         self._send_failure_choice(chosen[0])
         self._arm_key_watchdog()
         if chosen[0] == "n":

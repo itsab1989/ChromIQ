@@ -753,3 +753,74 @@ def test_an_engine_recipe_change_counts_as_a_layout_change(cal_home, qapp):
         "changing the engine's layout leaves the signature identical, so "
         "Generate copies the preset's files back verbatim"
     )
+
+
+# =========================================================================
+# beta.155 rulings
+# =========================================================================
+def test_create_calibration_file_is_offered_only_for_a_calibration(cal_home, qapp):
+    """Knut, beta.155: the module was reachable from every run type, so a
+    profiling run could be showing printcal's "Description (-D)" where the user
+    expects colprof's "Profile Description (-D)" — which is what step 5 of the
+    demo walked into."""
+    from core.settings import AppSettings
+    from ui.measurement_target_bar import MeasurementTargetController
+    from ui.tabs.tab_profile import TabProfile
+
+    settings = CalSettings(cal_home, calibration_mode=True)
+    fm = FileManager(settings)
+    fm.set_target_name("Cal-Module")
+    fm.project()
+    ctl = MeasurementTargetController(fm)
+    ctl.set_calibration_allowed(True)
+    tab = TabProfile(ArgyllRunner(settings), settings, None)
+    tab.set_calibration_mode(True)
+    tab.set_target_controller(ctl)
+    ctl.set_profile_run("run1")
+
+    ctl.set_run_type(RUN_TYPE_PROFILING)
+    assert tab._cal_create_btn.isVisibleTo(tab) is False
+    ctl.set_run_type(RUN_TYPE_VERIFICATION)
+    assert tab._cal_create_btn.isVisibleTo(tab) is False
+    ctl.set_run_type(RUN_TYPE_CALIBRATION)
+    assert tab._cal_create_btn.isVisibleTo(tab) is True
+
+
+def test_abort_goes_through_the_one_ending():
+    """Knut, beta.155: *"The 'Abort?' confirm should be replaced with calling
+    the 'Keep what you have measured so far?' chain."*
+
+    "y" is chartread's own answer and it discards the readings with no offer to
+    keep them. chartread is told **no** instead, and our ending runs — which
+    also answers his warning about the two modes, because this sends no
+    mode-specific key of its own: `_end_session` delegates to the chain that
+    already knows which mode and which reader it is in.
+    """
+    import inspect
+
+    from ui.tabs.tab_measure import TabMeasure
+
+    src = inspect.getsource(TabMeasure._on_abort_confirm)
+    assert "_confirm_end_of_session" in src and "_end_session" in src
+    assert 'self._send_failure_choice("n")' in src, (
+        "chartread must be told no, or it aborts underneath our ending"
+    )
+    # …and only for the engine: stock chartread's chain is different and works.
+    assert "engine_active" in src
+
+
+def test_save_partial_and_quit_is_left_exactly_as_it_is():
+    """His other ruling, and the reason for it: *"As long as 'Save Partial &
+    Quit' calls the save chain directly, that is ok, since we know it works
+    today. We do not want to touch anything what works right now, unless it is
+    dangerous."*"""
+    import inspect
+
+    from ui.tabs.tab_measure import TabMeasure
+
+    src = inspect.getsource(TabMeasure._on_strip_error)
+    assert "send_save_partial_and_quit()" in src
+    assert "_confirm_end_of_session" not in src, (
+        "Save Partial & Quit was routed through the ending; he asked for it to "
+        "be left alone"
+    )
