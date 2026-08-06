@@ -48,7 +48,7 @@ RESULTS: "list[tuple[str, bool, str]]" = []
 
 #: Steps the package documents that this driver does not check. Kept separate
 #: from RESULTS so they can never be counted as passing.
-NOT_DRIVEN: "list[str]" = []
+NOT_DRIVEN: "list[tuple[str, bool]]" = []
 
 
 def record(name: str, ok: bool, detail: str = "") -> None:
@@ -319,7 +319,7 @@ def main() -> int:
                 #
                 # A test that reports success for work it did not do is worse
                 # than no test, because it is read as evidence.
-                NOT_DRIVEN.append(label)
+                NOT_DRIVEN.append((label, "Expected" in plain))
 
     # ------------------------------------------------------------------
     # The Restore steps, checked from the DATA rather than left undriven
@@ -372,13 +372,41 @@ def main() -> int:
     for name, _ok, detail in bad:
         print(f"  ✗ {name}: {detail}")
     if NOT_DRIVEN:
-        # Said out loud, every run. These are steps the package documents and
-        # this driver does NOT check — the reader has to know the difference
+        # Said out loud, every run: the reader has to know the difference
         # between "verified" and "not looked at".
-        print(f"\n{len(NOT_DRIVEN)} step(s) promise no message and are NOT "
-              f"verified here — they need a human, or a check of their own:")
-        for name in NOT_DRIVEN:
-            print(f"  ·  {name}")
+        #
+        # Grouped, and with the dedicated drivers named, because one flat
+        # number overstates the gap as badly as the old code understated it —
+        # most of these belong to Demo-09, which `drive_demo_09.py` walks in
+        # detail. Trading one misleading number for another would waste the
+        # point of reporting it at all.
+        DEDICATED = {"Demo-09-Run-Descriptions": "scripts/drive_demo_09.py"}
+        by_project: "dict[str, list[tuple[str, bool]]]" = {}
+        for label, has_expectation in NOT_DRIVEN:
+            by_project.setdefault(label.rsplit(" step ", 1)[0], []).append(
+                (label, has_expectation))
+        # A step that states no "Expected:" is a SETUP step — "set Profile run
+        # = run 1" — which the driver does perform; the expectation belongs to
+        # the step after it, and that one IS checked. Counting those as
+        # unverified overstates the gap as badly as the old code understated
+        # it, and a number nobody trusts is no better than a wrong one.
+        real_gap = [l for l, exp in NOT_DRIVEN
+                    if exp and l.rsplit(" step ", 1)[0] not in DEDICATED]
+        print(f"\n{len(NOT_DRIVEN)} step(s) promise no message ID, so THIS "
+              f"driver does not assert on them. Of those, "
+              f"{len(real_gap)} are a real coverage gap:")
+        for project in sorted(by_project):
+            steps = by_project[project]
+            n_exp = sum(1 for _l, e in steps if e)
+            if project in DEDICATED:
+                note = f"covered by {DEDICATED[project]}"
+            elif n_exp == 0:
+                note = "all setup steps — performed, nothing of their own to assert"
+            else:
+                note = f"{n_exp} state an expectation and are NOT checked"
+            print(f"  ·  {project}: {len(steps)} step(s) — {note}")
+        for label in real_gap:
+            print(f"       ✗ not checked: {label}")
     win.close()
     return 1 if bad else 0
 
