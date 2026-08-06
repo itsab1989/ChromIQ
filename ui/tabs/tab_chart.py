@@ -9295,7 +9295,7 @@ class TabChart(QWidget):
     # ------------------------------------------------------------------
     # Per-target settings (#130 §2/§3) — the store, not the chart's record
     # ------------------------------------------------------------------
-    def save_target_settings(self) -> bool:
+    def save_target_settings(self, store=None) -> bool:
         """Write this tab's settings into the selected target's ``meta.json``.
 
         Called on every event in §3 that belongs to Create Chart: Generate
@@ -9309,9 +9309,28 @@ class TabChart(QWidget):
         """
         if getattr(self, "_loading_target_settings", False):
             return False
-        store = self._target_text_store()
+        # An explicit store is how a TARGET CHANGE writes the OUTGOING target.
+        # By the time the bar reports the change, _target_text_store() already
+        # points at the new one — so writing "the current target" there would
+        # record the old target's edits onto the new one, which is precisely
+        # the failure this whole feature exists to prevent (§2.1, test N1).
+        if store is None:
+            store = self._target_text_store()
         if store is None:
             return False           # a New run before it exists, or no project
+        # A WRITE MUST NEVER BRING A DELETED PROJECT BACK.
+        #
+        # save_meta() creates what it needs, so writing to a target whose
+        # folder has gone recreates it — and "leaving a tab" and "quitting"
+        # both fire right after a delete. Knut's beta.102 sequence (delete the
+        # whole project, expect it gone) caught this the moment the events were
+        # wired: the folder came straight back with a meta.json in it.
+        # _target_text_store's own docstring warns about exactly this.
+        try:
+            if not Path(getattr(store, "dir", "")).is_dir():
+                return False
+        except (TypeError, ValueError):
+            return False
         try:
             from workflow.per_target_settings import snapshot
             wanted = snapshot(self)
@@ -9353,7 +9372,15 @@ class TabChart(QWidget):
                         exc_info=True)
             return False
         if not stored:
+            self._settings_store = store     # nothing to load, but it is ours
             return False
+        # REMEMBER WHOSE SETTINGS ARE NOW ON SCREEN.
+        #
+        # Set here rather than only at the end of _on_target_changed, because
+        # the FIRST target change would otherwise have no outgoing store to
+        # write — and driving it on screen showed exactly that: the edit made
+        # on run 1 was lost, and run 2 was written instead. §2.1/N1.
+        self._settings_store = store
         self._loading_target_settings = True
         try:
             from workflow.per_target_settings import apply
@@ -10325,7 +10352,14 @@ class TabChart(QWidget):
         # than new storage — chart notes have always been stored per run, in
         # the run's own .channels.json, and simply were not re-read when the
         # Profile run changed, which is what made them look project-wide.
+        # §2.1 / N1: WRITE THE OUTGOING TARGET FIRST, then load the incoming
+        # one. The order is the whole point — see save_target_settings.
+        outgoing = getattr(self, "_settings_store", None)
+        if outgoing is not None:
+            self.save_target_settings(outgoing)
         self._refresh_target_text()
+        self.load_target_settings()
+        self._settings_store = self._target_text_store()
         # #130 Bug C (Knut): if the loaded PROJECT changed (e.g. a Print/Measure
         # load copied a new project into the working folder), reflect its name in
         # the "Printer profile project name" field so it's visibly loaded. Gated

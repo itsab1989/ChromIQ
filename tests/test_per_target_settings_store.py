@@ -134,3 +134,85 @@ def test_the_field_survives_a_meta_round_trip():
         m = cls.from_dict({"create_chart_settings": {"targen-f": {"enabled": False, "value": ""}}})
         assert m.create_chart_settings == {"targen-f": {"enabled": False, "value": ""}}
         assert cls().create_chart_settings == {}, "the default must not be shared"
+
+
+# ---------------------------------------------------------------------------
+# The events (§2 L1, §3 W6) and the two hazards that gate the build
+# ---------------------------------------------------------------------------
+def test_n1_a_target_change_writes_the_outgoing_target_first():
+    """§2.1 — the hazard, asserted the way it would actually break.
+
+    `_on_target_changed` runs *after* the bar has switched, so writing "the
+    current target" there would record the old target's edits onto the new one.
+    The outgoing store is remembered and passed explicitly.
+    """
+    import inspect
+
+    import ui.tabs.tab_chart as tc
+    src = inspect.getsource(tc.TabChart._on_target_changed)
+    assert "self.save_target_settings(outgoing)" in src, (
+        "the outgoing target is not written before the incoming one loads"
+    )
+    i_save = src.index("save_target_settings(outgoing)")
+    i_load = src.index("self.load_target_settings()")
+    assert i_save < i_load, "the load runs before the write — N1 is violated"
+    assert src.index("self._settings_store = ") > i_load, (
+        "the remembered store is replaced before the load, so the next change "
+        "would write to the wrong target"
+    )
+
+
+def test_save_accepts_an_explicit_store():
+    """Without this, N1 cannot be implemented at all."""
+    import inspect
+
+    import ui.tabs.tab_chart as tc
+    sig = inspect.signature(tc.TabChart.save_target_settings)
+    assert "store" in sig.parameters
+
+
+def test_w6_the_tab_being_left_is_written_and_the_one_entered_is_loaded():
+    import inspect
+
+    import ui.main_window as mw
+    src = inspect.getsource(mw.MainWindow._on_tab_changed)
+    i_save = src.index("_save_settings_of_tab_left()")
+    i_load = src.index("_load_settings_of_tab_entered(")
+    assert i_save < i_load, "the entering tab loads before the leaving one writes"
+
+
+def test_w6_app_quit_counts_as_leaving_the_visible_tab():
+    """Qt raises no tab-change on quit, so it is wired explicitly."""
+    import inspect
+
+    import ui.main_window as mw
+    assert "_save_settings_of_tab_left()" in inspect.getsource(mw.MainWindow.closeEvent)
+
+
+def test_a_tab_out_of_scope_is_not_asked():
+    """Print Chart and Check & Refine have no store; asking must not raise."""
+    import inspect
+
+    import ui.main_window as mw
+    src = inspect.getsource(mw.MainWindow._load_settings_of_tab_entered)
+    assert 'hasattr(widget, "load_target_settings")' in src
+
+
+def test_a_write_never_resurrects_a_deleted_target(tmp_path):
+    """Knut's beta.102 sequence: delete the project, and it stays deleted.
+
+    `save_meta()` creates what it needs, and both "leaving a tab" and "quitting"
+    fire immediately after a delete — so without this guard the folder came
+    straight back with a meta.json in it. His existing test caught it the moment
+    the events were wired; this one states the rule where the code is.
+    """
+    import shutil
+
+    _bind()
+    run = Project.create(tmp_path, "Demo").run("run1")
+    tab = _Tab(run, {"targen": [_Widget("-f", "5")]})
+    assert tab.save_target_settings() is True
+
+    shutil.rmtree(run.dir)
+    assert tab.save_target_settings() is False, "the write recreated the target"
+    assert not run.dir.exists(), "the deleted run came back"

@@ -341,6 +341,13 @@ class MainWindow(QMainWindow):
         from ui.styles import TAB_COLORS
 
         log.info("---- Tab → %s ----", self._tabs.tabText(index))
+        # §3 W6 / §2 L1 — Knut's general rule: "Load settings when activating
+        # tab, Save / write settings when leaving tab". The tab being LEFT is
+        # written before the tab being entered loads, so a tab that is both
+        # (there is only one Create Chart, but the order still has to be
+        # stated) cannot read what it is about to overwrite.
+        self._save_settings_of_tab_left()
+        self._load_settings_of_tab_entered(index)
         # A tab that has just become visible can be measured for the first
         # time, so its log panel settles into whatever room this tab has.
         QTimer.singleShot(0, self._refit_log_panes)
@@ -859,6 +866,30 @@ class MainWindow(QMainWindow):
                 else tr("the run it was copied from"))
         except Exception:      # noqa: BLE001 — the copy is made; never crash now
             log.warning("Could not show the duplicated run %s", run_id,
+                        exc_info=True)
+
+    def _save_settings_of_tab_left(self) -> None:
+        """§3 W6 — the tab the user has just left records its settings."""
+        left = getattr(self, "_settings_tab_showing", None)
+        self._settings_tab_showing = None
+        if left is None:
+            return
+        try:
+            left.save_target_settings()
+        except Exception:      # noqa: BLE001 — never break a tab change
+            log.warning("Could not save the settings of the tab being left",
+                        exc_info=True)
+
+    def _load_settings_of_tab_entered(self, index: int) -> None:
+        """§2 L1 — the tab being shown loads the selected target's settings."""
+        widget = self._tabs.widget(index)
+        if not hasattr(widget, "load_target_settings"):
+            return
+        self._settings_tab_showing = widget
+        try:
+            widget.load_target_settings()
+        except Exception:      # noqa: BLE001
+            log.warning("Could not load the settings of the tab being shown",
                         exc_info=True)
 
     def _apply_profile_tab_gate(self) -> None:
@@ -1514,6 +1545,14 @@ class MainWindow(QMainWindow):
         log.info("Session restored: target=%s run=%s", target, run.id)
 
     def closeEvent(self, event) -> None:
+        # §3 W6 — QUITTING COUNTS AS LEAVING THE VISIBLE TAB.
+        #
+        # Qt raises no tab-change for it, so without this the one tab the user
+        # actually worked in is the one tab that never records anything. Knut
+        # ruled it writes silently (2026-08-06, Q2: "yes, write silently"), so
+        # there is no prompt and no notice — and it writes that tab for the
+        # selected target only (§2.0), never a sweep.
+        self._save_settings_of_tab_left()
         # Capture geometry BEFORE hide(): on macOS, hide() can leave the
         # maximized/fullscreen state before saveGeometry() snapshots it,
         # which would make restoreGeometry() on next launch fall back to

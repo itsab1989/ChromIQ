@@ -1,5 +1,14 @@
 # Changelog
 
+## v3.14.8-beta.169
+
+### Internal
+- **Per-target settings, step 4: the load and save events.** Create Chart now
+  loads the selected target's settings when you arrive on the tab, and records
+  them when you leave it, change the selected run or run type, or quit. Still
+  groundwork — one end-to-end check is outstanding, so treat the settings as
+  not yet guaranteed to follow the run.
+
 ## v3.14.8-beta.168
 
 ### Internal
