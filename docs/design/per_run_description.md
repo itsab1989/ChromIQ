@@ -195,12 +195,21 @@ never both.
 
 | # | Action | Description | Chart Notes |
 |---|---|---|---|
-| T5.1 | **New run** | keeps the previous run's text (settings carry over) | keeps it |
+| T5.1 | **New run** | ~~keeps the previous run's text~~ → **empty** | ~~keeps it~~ → **empty** |
 | T5.2 | **Duplicate run** | copied, **prefixed** `(copy) ` | copied as-is |
 | T5.3 | **Delete run** | goes with the run | goes with the run |
 | T5.4 | Delete run 6 of 10 (renumbering) | run 7's text follows run 7 as it becomes run 6 | same |
 | T5.5 | **Open project** | both fields fill from the current run | same |
 | T5.6 | Project with no `meta.json` for a run | both empty, nothing written until edited | same |
+
+**T5.1 is superseded.** It said a New run inherits what is on screen, on the
+grounds that settings carry over. Knut reversed that in the per-target settings
+ruling — *"the situation is chaotic and unrecognisable for a user if settings
+change arbitrarily for a run, seen from his view point"* — and a description is
+a per-target field like any other. A text field has no factory value other than
+empty, so **a New run opens on empty in both boxes**, and the text typed there
+is still saved to the run Generate Chart creates (K1, which is unaffected).
+See [`per_target_settings.md`](per_target_settings.md) §4.
 
 **T5.7 (U)** T5.4 is the one that can silently mis-assign user text. A test
 builds 10 runs with distinct descriptions, deletes run 6, and asserts every
@@ -392,6 +401,27 @@ and the `.cal` and **not** the `.ti1`/`.ti2`; `cal/chart/` is untouched.
 **T5.14 (I)** Starting a calibration measurement writes `cal/chart/`.
 **T4.7 (I)** Restore writes the notes into the run/verification/calibration meta
 as well as into the field, so the refresh that follows cannot undo it.
+
+---
+
+## 9c. What beta.150–157 found 🆕
+
+The second round of Knut's reports. Same shape as 9b — text or a name going
+missing — plus two that were mine, introduced by the beta.149 fixes themselves.
+
+| # | Rule | Fixed in |
+|---|---|---|
+| K12 | **A run and its verification keep separate Chart Notes.** They are two different sheets of paper; editing one changed the other. Stored as `verify_chart_notes`. The **description stays shared**, by Knut's earlier ruling | beta.153 |
+| K13 | **Text typed for a "New run" survives a detour to another tab.** It has nowhere on disk to live yet, so it is held in memory until the run exists | beta.153 |
+| K14 | **Emptying Profile Description hands the composed name back immediately**, not at the next change of Profile run — and the name is recomposed on arrival at tab 4, because both halves of it live on other tabs | beta.153 |
+| K15 | **The Create Calibration File module's own "Description (-D)"** is composed from the project name and the Calibration Description, and kept in step with the other two. It is printcal's `-D` — a different field from the Build Profile module's, and they had been confused once | beta.153 |
+| K16 | **Restore Used Chart acts on the calibration** when that is what is selected. `restore_state` knew about calibration; `restore_target` did not, so the button could be offered for the calibration chart and put a **run's** chart back | beta.153 |
+| K17 | **Every dialog that names tab 4 takes the name from one call.** Qt reads `&` in button text as the mnemonic marker and ate it — "GO TO CALIBRATION _PROFILING TAB" — and the rename had been made in one dialog of three | beta.153 |
+| K18 | **Stopping a calibration measurement no longer changes tab.** `main_window` navigated for *every* calibration `.ti3`, however the session ended | beta.153 |
+| K19 | **Tab 4's Run type bar is live, and "Verification" is greyed inside the list** with a tooltip saying which tab to use, rather than the user being moved off the tab | beta.158 |
+
+K17 is worth keeping visible: the test file for popup buttons already documented
+the `&&` convention on "Save Partial && Quit", and the fix walked past it.
 
 ---
 

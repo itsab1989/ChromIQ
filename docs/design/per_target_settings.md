@@ -1,0 +1,306 @@
+# Per-target settings — specification
+
+Issue #130. Source posts, in the order Knut listed them:
+
+- [#issuecomment-5206901110](https://github.com/itsab1989/ChromIQ/issues/130#issuecomment-5206901110) — the consequence analysis
+- [#issuecomment-5207570325](https://github.com/itsab1989/ChromIQ/issues/130#issuecomment-5207570325) — Knut's rulings on it (beta.157)
+
+**Status: specification agreed, no application code written.** Everything below
+is either Knut's ruling quoted, or a consequence of one. Where a question is
+still open it is marked **OPEN** and it is not implemented until it is answered.
+
+---
+
+## 0. The problem, in his words
+
+> *"It is important that all parameters that are not global … are stored when
+> creating a chart. If some settings are saved and other not, then it is very
+> confusing for a user when settings he never set for a run … suddenly change,
+> and when the user wants to reproduce a chart or a profile build, he will not
+> get the same result … having fields change randomly because some other
+> run-specification changed something is similar to a global parameter in a
+> programming code where several actors can change that parameter, but not know
+> when or where."*
+
+That last sentence is the specification. A per-target setting must have exactly
+one writer — the target it belongs to — and it must never be written by the act
+of looking at a different target.
+
+**One third of it already exists.** A chart writes its own settings into
+`<stem>.channels.json` and reads them back; that is what Restore Used Chart and
+a re-opened project rely on. What is missing is that the tab does not consult it
+when the *selection* changes — it keeps whatever is on screen. So the mechanism
+is built. What changes is **when it is read and written**, and **which fields it
+covers**. Build Profile, Calibration & Profiling and Measure have no such store
+at all, and that is new work.
+
+---
+
+## 1. Global or per target — the dividing line
+
+Knut's rule: *"everything that describes this chart or this measurement becomes
+per run; everything that describes your setup stays global"* — with his
+correction that it must be **all** of them, not a selection.
+
+### 1.1 Stays global
+
+| Setting | Why |
+|---|---|
+| Printer profile project name | it names the project, not one run |
+| the preset selector itself | it is a way of *loading* settings, not a setting |
+| ArgyllCMS binary path, language, appearance, sounds | your installation |
+| Preferences → everything | your setup |
+| the instrument and paper **defaults** in Preferences | the seed for a new target, not the target's own value |
+
+### 1.2 Becomes per target
+
+| Group | Where it lives today |
+|---|---|
+| every targen control (`-f`, `-B`, `-g`, `-s`, `-m`, …) | partly in `.channels.json` |
+| every printtarg control (`-i`, `-p`, `-h`, `-P`, `-L`, …) | partly in `.channels.json` |
+| the ChromIQ engine on/off, and its whole layout recipe | in `.channels.json` |
+| **sheet text, its inserts, the clip border and its text** | in the recipe — Knut's own example |
+| bit depth, compression, PDF export, stamp checkbox | partly |
+| Auto patch count on/off, page count | partly |
+| Build Profile: quality, algorithm, gamut settings, `-D`, manufacturer/model/copyright | **nowhere** |
+| Calibration & Profiling: the printcal and applycal panels | **nowhere** |
+| **Measure: patch-by-patch, `-T`, resume, skip calibration, and the rest of the Measure panel** | **nowhere** |
+
+That last row is Knut's ruling on §4 below: *"measure tab must be included."*
+
+**S1.1** The list of per-target widgets is generated from `_manual_widgets` and
+the equivalent registry on each in-scope tab, never hand-written, so a parameter
+added to `parameters.yaml` cannot be forgotten.
+
+---
+
+## 2. When settings are loaded
+
+Knut asked for this to be pinned down and checked:
+
+> *"Exact definition of when stored parameter settings are loaded, such as Open
+> Project, open Chart file (ti2)?, activating any tab loads that tabs setup,
+> changing 'Preset run' an 'Run Type' and 'Verification' fields etc… Verify what
+> is correct to do."*
+
+and gave the general rule:
+
+> *"Load settings when activating tab, Save / write settings when leaving tab,
+> and when main button for tab is pressed."*
+
+Every load event below is that rule applied to one situation. The right-hand
+column is the "verify what is correct to do" answer, with the reason.
+
+| # | Event | What loads | Why this is correct |
+|---|---|---|---|
+| **L1** | **A tab is activated** | that tab's settings for the currently selected target | the general rule. It is also the only moment at which the tab is about to be *seen*, so it is the last moment the values can be made true |
+| **L2** | **Open Project** | nothing immediately; every tab is marked stale, and the **visible** tab loads at once | a project change replaces the target. The visible tab is already "activated", so L1 applies to it now; the others apply theirs when the user gets to them |
+| **L3** | **Profile run changes** (the bar) | as L2 | same reason — the target changed |
+| **L4** | **Run type changes** (the bar) | as L2 | same reason |
+| **L5** | **A chart file is opened / Restore Used Chart** | Create Chart loads the settings recorded in that chart's sidecar | the chart carries the recipe that produced it; restoring the sheet without its recipe is the bug this whole feature exists to remove |
+| **L6** | **A preset is loaded** | the preset's values into the panels | unchanged behaviour. The preset is a *loader*, not a target |
+| **L7** | **A `.ti1` or `.ti2` is loaded** | whatever that file carries | unchanged behaviour |
+| **L8** | **App start** | the restored project's selection, then L2 | app start is Open Project with a remembered name |
+
+**The Verification field is not a separate event.** Verification is a value of
+Run type, so it is L4. Listing it separately would invite a second code path,
+and a second code path is how the two sets of Chart Notes came to overwrite each
+other in beta.150.
+
+### 2.1 The hazard the load rule creates
+
+**A target change must write the outgoing target before it loads the incoming
+one.** If it does not, the on-screen values still belong to the old target when
+the user later leaves the tab — and §3's write-on-leave would then record the
+old target's edits **onto the new target**. That is exactly the "several actors
+can change that parameter" failure Knut described, reintroduced by the fix for
+it.
+
+So L2/L3/L4 are each a write (W6) followed by a load, in that order, in one
+guarded step.
+
+---
+
+## 3. When settings are written
+
+Knut's general rule, in full:
+
+> *"Load settings when activating tab, Save / write settings when leaving tab,
+> and when main button for tab is pressed (Build Profile for Build Profile Tab
+> and Calibration and Profiling tab; Start Measurement / Continue Measurement
+> for Measure tab, Generate Chart for Create Chart Tab)"*
+
+| # | Event | Writes |
+|---|---|---|
+| W1 | **Generate Chart** | Create Chart's settings for that target |
+| W2 | a preset is loaded | same — the preset has just decided them |
+| W3 | a `.ti1` is loaded | same |
+| W4 | a `.ti2` is loaded | same |
+| W5 | auto-update preview redraws | same (the same code path as W1) |
+| W6 | **leaving a tab** — including a target change (§2.1) and app quit | that tab's settings for the target being left |
+| W7 | **Build Profile** pressed | tab 4's settings — the Build Profile module and the Calibration & Profiling module alike |
+| W8 | **Start Measurement / Continue Measurement** pressed | the Measure tab's settings |
+
+**Not on every keystroke.** W6 is the widest of these and it is still an event,
+not a timer: what is stored is the state of the tab at a moment the user
+finished with it, never what someone was in the middle of typing.
+
+**App quit counts as leaving the visible tab.** Qt does not raise a tab-change
+for it, so it is wired explicitly; otherwise the last tab the user worked in is
+the one tab that never records anything.
+
+---
+
+## 4. What a target with nothing stored opens on
+
+Knut's ruling: **factory settings, or the saved defaults if the user has any** —
+never the last run's.
+
+| # | Case | Opens on |
+|---|---|---|
+| S1 | run N, Profiling, settings stored | **its own** |
+| S2 | run N, **Verification**, settings stored | **its own** |
+| S3 | **Calibration**, settings stored | **its own** |
+| S4 | run N, Profiling, **nothing stored** | saved defaults, else factory |
+| S5 | run N, **Verification**, nothing stored | saved defaults, else factory |
+| S6 | New run, Profiling | saved defaults, else factory |
+| S7 | New run, Verification | saved defaults, else factory |
+| S8 | Calibration, nothing stored | saved defaults, else factory |
+| S9 | a run made before this feature | saved defaults, else factory, and it records its own the first time it is used |
+
+S2–S5 are the rows Knut added: *"Missing cases (some cases can occur if user
+deletes a file)."* His parenthesis is the important part — **a target with a
+store is not the same as a target whose store is readable.** A deleted or
+truncated `meta.json` must land on S4/S5/S8, not on an error and not on the
+previous target's values.
+
+**This reverses §5 T5.1 of the description spec**, which said a New run inherits
+what is on screen. His reason overrules that one: *"the situation is chaotic and
+unrecognisable for a user if settings change arbitrarily for a run, seen from
+his view point."* Save as Defaults is the answer to the case the old rule was
+protecting.
+
+---
+
+## 5. Scope
+
+**In scope: Create Chart, Measure, Build Profile, Calibration & Profiling.**
+Print Chart and Check & Refine *"can be kept as is for now"*.
+
+Measure was out of scope in the analysis and Knut put it in — *"Add measure tab
+too"*, and, on the §1 list, *"Looks ok, but measure tab must be included."* The
+analysis had already flagged it as the next candidate, because two of his own
+reports came from exactly this: the `-N` that survived from an earlier session,
+and the resume tick that disagreed with itself.
+
+| Tab | In scope | Store |
+|---|---|---|
+| 1. Create Chart | ✅ | `<stem>.channels.json` (extended) |
+| 2. Print Chart | ❌ for now | — |
+| 3. Measure | ✅ | `runs/runN/meta.json` / `cal/meta.json` |
+| 4. Build Profile / Calibration & Profiling | ✅ | `runs/runN/meta.json` / `cal/meta.json` |
+| 5. Check & Refine | ❌ for now | — |
+
+---
+
+## 6. What this touches
+
+| # | Feature | Impact |
+|---|---|---|
+| 1 | `.channels.json` | gains the fields it does not yet carry. Old charts load with what they have; the rest come from defaults |
+| 2 | Restore Used Chart | **improves** — restoring a chart restores the settings that made it |
+| 3 | Duplicate run | the copy takes the source's settings, since it takes the source's chart |
+| 4 | Delete + renumber | settings follow their run, like `meta.json` |
+| 5 | Presets | unchanged. A preset still loads into the panels; W2 then records it for the target |
+| 6 | Save as Defaults | unchanged, and more useful: it is now the answer to "start every new run like this" |
+| 7 | Restore Factory Defaults | unchanged; resets the defaults, never a target's stored settings |
+| 8 | Build Profile | needs a store of its own — `runs/runN/meta.json` |
+| 9 | Calibration & Profiling | the same, in `cal/meta.json` |
+| 10 | Measure | the same store as 8/9, a separate key |
+| 11 | project.json | untouched |
+
+---
+
+## 7. The two risks, stated plainly
+
+**A. A stored setting that no longer exists.** A chart made today, opened after
+a parameter is renamed or removed. The loader ignores what it does not
+recognise rather than failing — the rule `RunMeta.from_dict` already follows.
+Knut's *"some cases can occur if user deletes a file"* is the same risk from the
+other end, and gets the same answer: fall through to S4/S5/S8.
+
+**B. Loading settings must not trigger a rebuild.** Filling twenty widgets fires
+twenty `changed` signals, and with auto-update on that would redraw the chart —
+possibly over a measured one. The fill is guarded the way
+`_set_target_text_fields` already guards the two text fields. This is the one
+that would actually hurt, so it gets its own test.
+
+**C. (added by §2.1) A load that runs before its write.** Covered by making the
+target change one guarded write-then-load step.
+
+---
+
+## 8. The test requirement
+
+Knut's, verbatim, and it is stricter than a normal feature's:
+
+> *"The testing of the implementation must verify by on-screen control of app
+> that changing every parameter (non-global) in every tab included in this
+> specification is recorded in the log correctly (with set value) in reference
+> to set value on-screen and that each parameter has the correct stored tag and
+> value in the relevant json file. Both empty/disabled and filled/enabled values
+> shall be tested. The test plan and actual tests shall also verify updating of
+> every single parameter before and after writing to json file, and that loading
+> of settings file happen at the exact correct events and times, such as on
+> enabling any of the tabs etc."*
+>
+> *"Expand demo project package with tests to verify loading and saving of
+> parameters from all input sources / activation events."*
+
+Read as requirements:
+
+| # | Requirement |
+|---|---|
+| **R1** | **On-screen**, driving the real window — not a fixture. Every non-global parameter on every in-scope tab. |
+| **R2** | For each parameter: the **on-screen value**, the **logged value**, and the **JSON tag and value** must agree. Three-way, not two. |
+| **R3** | Each parameter tested **empty/disabled and filled/enabled**. A control that stores nothing when it is off must be shown to store nothing, and to come back off. |
+| **R4** | Each parameter checked **before and after** the write, so a value that only appears to be stored is caught. |
+| **R5** | Loading is verified to happen **at exactly the events in §2 and at no others** — including that activating a tab loads, and that typing does not. |
+| **R6** | The demo project package gains steps that exercise **every input source and activation event** in §2 and §3. |
+
+**R1 is the reason this is not a unit-test task.** The parameter list is
+generated (S1.1), so the test is generated from the same list: every widget the
+registry yields is driven, and a parameter added later is tested automatically
+or the test fails for not knowing what to do with it.
+
+**R3 has a trap worth naming now.** "Empty" and "absent" are different in JSON,
+and `-D ""` is not the same as no `-D`. The store records which of the two it
+is, and R3 checks both directions.
+
+---
+
+## 9. What is settled and what is not
+
+**Settled** (Knut, beta.157):
+
+1. §1 list is right, **with Measure added**.
+2. Write on **leaving a tab** and on the tab's **main button** — Generate Chart,
+   Build Profile, Start/Continue Measurement.
+3. Measure is **in** scope.
+4. The four missing rows in §4 (S2–S5).
+
+**OPEN — not implemented until answered:**
+
+| # | Question |
+|---|---|
+| **Q1** | Should **page count** and **instrument/paper** be per target, or do they belong to the project? They describe the sheet, so §1 has them per target — but they are also the two most likely to be "set once for this printer". |
+| **Q2** | On **app quit** (§3, W6): write silently, or is a tab with unsaved changes worth saying something about? Silent is assumed. |
+
+---
+
+## 10. Related documents
+
+- [`per_run_description.md`](per_run_description.md) — the description field; §5 T5.1 of it is reversed by §4 here
+- [`measurement_exit_strategy.md`](measurement_exit_strategy.md) — every window that can end a measurement
+- [`unified_measurement_management.md`](unified_measurement_management.md) — the model these all sit inside
+- [`dev_folder_layout.md`](../dev_folder_layout.md) — where `meta.json` and the chart sidecars live

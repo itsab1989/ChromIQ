@@ -15,6 +15,20 @@
 > chapters can cover the other areas of the app in the same shape: the tables
 > here are the contract, and §T says how each row is proved.
 
+## The companion specifications
+
+This chapter covers the life of a measurement. Three further specifications
+came out of the same issue and are part of the same contract; Knut asked
+(2026-08-06) that each posted analysis and table set be written down as a
+specification rather than left in the thread, *"strictly described from what has
+been agreed, including fixes that has risen from tests and bugfixes."*
+
+| Document | What it specifies | Thread post |
+|---|---|---|
+| [`per_run_description.md`](per_run_description.md) | the four description / notes fields: which file a keystroke reaches, what Restore Used Chart puts back, `-D`, and the run lifecycle. §9b and §9c record what the beta.148 and beta.150–157 rounds found | [5190506691](https://github.com/itsab1989/ChromIQ/issues/130#issuecomment-5190506691) |
+| [`measurement_exit_strategy.md`](measurement_exit_strategy.md) | every window that can end a measurement, for stock chartread and the ChromIQ engine, in strip and patch-by-patch mode: the key each button sends, what it does, and whether it follows §1/§1a's single exit | [5206885923](https://github.com/itsab1989/ChromIQ/issues/130#issuecomment-5206885923) |
+| [`per_target_settings.md`](per_target_settings.md) | which settings belong to a target rather than to the installation, and exactly when they are loaded and written | [5206901110](https://github.com/itsab1989/ChromIQ/issues/130#issuecomment-5206901110) |
+
 ## How to read this
 
 - **§0–§3** are the model: what actually happens to a `.ti3`, and how ChromIQ
