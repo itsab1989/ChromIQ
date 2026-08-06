@@ -1,5 +1,26 @@
 # Changelog
 
+## v3.14.8-beta.158
+
+### Changed
+- **The Run type bar is live on tab 4** (Build Profile / Calibration & Profiling).
+  You pick the run you are building there, so the bar has to be usable. Check &
+  Refine stays locked — it works on the measurement file loaded into it.
+- **"Verification" is greyed inside the Run type list while you are on tab 4**,
+  with a tooltip saying which tab to use, instead of the app moving you to
+  another tab. A verification measures the profile a run already has and never
+  builds one, so tab 4 has nothing to offer it — but being thrown off a tab does
+  not tell you that, and a greyed entry with a reason does. (Knut, #130.)
+
+### Documentation
+- The three analyses posted on #130 are written down as specifications:
+  `docs/design/per_target_settings.md` is new and carries the per-target
+  settings rules — what is global, when settings are loaded and written, what a
+  target with nothing stored opens on, and the on-screen test requirement.
+  `per_run_description.md` gains the beta.150–157 findings and marks T5.1
+  superseded. `unified_measurement_management.md` now names all three
+  companion documents.
+
 ## v3.14.8-beta.157
 
 ### Changed
