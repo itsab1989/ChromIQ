@@ -188,7 +188,8 @@ def test_the_head_sits_forward_of_the_arc_so_the_join_reads_as_one_arrow(qapp):
     rect = QRectF(3.4, 3.4, 17.2, 17.2)
     arc, wings = bi._ccw_arrow(rect, 200, 250,
                                advance=bi._RESTORE_HEAD_ADVANCE,
-                               tilt=bi._RESTORE_HEAD_TILT)
+                               turns=bi._RESTORE_HEAD_TURNS,
+                               lengths=bi._RESTORE_HEAD_LENGTHS)
     end = arc.pointAtPercent(1.0)
     tip = wings[0][0]
     a, b = wings[0][1], wings[1][1]
@@ -236,3 +237,33 @@ def test_the_icons_have_a_size_so_the_button_reserves_room():
     # already lost five pixels of width).
     assert "setIconSize(QSize(self.HEIGHT, self.HEIGHT))" in inspect.getsource(
         bi.BarIconButton.__init__)
+
+
+def test_the_head_is_deliberately_not_symmetric():
+    """The wings are an unequal pair, and that is the point.
+
+    Basti distorted the head by hand, was shown the symmetric reading of it
+    beside the distorted one, and chose the distorted one (2026-08-06). There
+    is no rule to derive these four numbers from, so the only thing standing
+    between them and a well-meaning "surely this should be ±155°" is this test.
+    """
+    turn_a, turn_b = bi._RESTORE_HEAD_TURNS
+    len_a, len_b = bi._RESTORE_HEAD_LENGTHS
+    assert abs(turn_a) != abs(turn_b), "the wings have been made a mirror pair"
+    assert len_a != len_b, "the wings have been made the same length"
+    # …and it leans the way he drew it: the upper wing flatter and shorter.
+    assert abs(turn_a) > abs(turn_b)
+    assert len_a < len_b
+
+
+def test_the_head_and_the_arc_are_drawn_at_one_weight():
+    """The mark has a single stroke weight and the head is not an exception.
+
+    The fit to his artwork wanted 1.84 for the wings against the arc's 1.9 —
+    a by-product of the transform that scaled the head, and 3% thinner would
+    read as a lighter arrowhead on a heavier curve for no gain anyone asked
+    for. One number, one weight.
+    """
+    src = inspect.getsource(bi.draw_restore_chart)
+    assert src.count("_pen(p, colour, 1.9)") == 1
+    assert "1.84" not in src

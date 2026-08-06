@@ -70,7 +70,9 @@ def _outline(path: QPainterPath, width: float) -> QPainterPath:
 
 
 def _ccw_arrow(rect: QRectF, start: float, span: float,
-               *, advance: float = 0.0, tilt: float = 0.0):
+               *, advance: float = 0.0, tilt: float = 0.0,
+               turns: "tuple[float, float]" = (155.0, -155.0),
+               lengths: "tuple[float, float] | None" = None):
     """A counter-clockwise arc and the two wings of its head.
 
     Qt puts the point at angle t at ``(cx + rx cos t, cy - ry sin t)`` with y
@@ -84,8 +86,12 @@ def _ccw_arrow(rect: QRectF, start: float, span: float,
     arrow. Basti drew that by hand on the Restore mark (2026-08-06) and the
     distance is measured from what he drew.
 
-    *tilt* turns the head, in degrees, without moving the arc — the last
-    freedom his hand-drawn version used.
+    *tilt* turns the whole head, in degrees, without moving the arc.
+
+    *turns* and *lengths* are per wing, so the head need not be symmetric —
+    the pair ±155° and one shared length is only the default. An unequal head
+    has no rule behind it and cannot be derived; it exists because it was
+    drawn, and it is carried here as the two numbers it is.
     """
     arc = QPainterPath()
     arc.arcMoveTo(rect, start)
@@ -105,11 +111,15 @@ def _ccw_arrow(rect: QRectF, start: float, span: float,
     if advance:
         tip = QPointF(tip.x() + vx * advance, tip.y() + vy * advance)
     size = max(2.4, min(4.0, (rx + ry) / 2.0 * 0.42))
+    if lengths is None:
+        lengths = (size, size)
     wings = []
-    for turn in (math.radians(155), math.radians(-155)):
+    for turn_deg, length in zip(turns, lengths):
+        turn = math.radians(turn_deg)
         wx = vx * math.cos(turn) - vy * math.sin(turn)
         wy = vx * math.sin(turn) + vy * math.cos(turn)
-        wings.append((tip, QPointF(tip.x() + size * wx, tip.y() + size * wy)))
+        wings.append((tip, QPointF(tip.x() + length * wx,
+                                   tip.y() + length * wy)))
     return arc, wings
 
 
@@ -127,14 +137,22 @@ def draw_trash_can(p: QPainter, colour: str) -> None:
     p.drawPath(body)
 
 
-#: How far the arrowhead sits forward of the arc's last point, and how far it
-#: is turned, both from Basti's hand-drawn version (2026-08-06). He moved the
-#: head so the arc's round cap tucks inside it instead of standing proud of the
-#: notch — *"i slightly moved and distorted the arrow head"*. The distortion
-#: was a by-product of dragging a transform handle, so the wings stay the
-#: symmetric pair they always were; only the move and the turn are kept.
-_RESTORE_HEAD_ADVANCE = 1.35
-_RESTORE_HEAD_TILT = 6.5
+#: The arrowhead, measured off Basti's hand-drawn version (2026-08-06) and
+#: chosen by him from three renderings of it: *"i slightly moved and distorted
+#: the arrow head"*, and the distorted one is the one he kept.
+#:
+#: The head sits this far forward of the arc's last point, so the arc's round
+#: cap tucks inside it instead of standing proud of the notch between the
+#: wings.
+_RESTORE_HEAD_ADVANCE = 1.425
+#: …and the two wings are NOT a mirror pair. The upper one is flatter and
+#: shorter, the lower steeper and longer, so the head leans and the notch sits
+#: off centre. There is no rule to derive this from — it is what he drew, fitted
+#: back out of his artwork, and it is carried as the four numbers it is.
+#: (Angles are turns from the direction of travel; the symmetric default is
+#: ±155° with one shared length of 3.61.)
+_RESTORE_HEAD_TURNS = (160.15, -149.725)
+_RESTORE_HEAD_LENGTHS = (3.462, 3.775)
 
 
 def draw_restore_chart(p: QPainter, colour: str) -> None:
@@ -154,7 +172,8 @@ def draw_restore_chart(p: QPainter, colour: str) -> None:
     # button clips it. The test that caught this measures the margin.
     arc, wings = _ccw_arrow(QRectF(3.4, 3.4, 17.2, 17.2), 200, 250,
                             advance=_RESTORE_HEAD_ADVANCE,
-                            tilt=_RESTORE_HEAD_TILT)
+                            turns=_RESTORE_HEAD_TURNS,
+                            lengths=_RESTORE_HEAD_LENGTHS)
 
     _pen(p, colour, 1.6)
     sheet = QRectF(7.4, 7.4, 9.2, 9.2)
