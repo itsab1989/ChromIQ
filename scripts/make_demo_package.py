@@ -884,13 +884,60 @@ def build_run_descriptions(root: Path) -> None:
         _meta(r, rid, status="complete",
               description=description, chart_notes=notes)
 
+    # THE FILES THE TESTS ACTUALLY NEED, not just the ones the story mentions.
+    #
+    # Knut, beta.150, three steps in a row: *"The demo test runs and
+    # verification runs do not have proper data files, like measurements and
+    # pre-stored chart in a chart/ folder, thus using the 'Restore Used Chart'
+    # button was not possible"* … *"measurement could not be started because
+    # the run 2 profile did not have a profile icc file yet. This was also
+    # missing in the test demo data."* … *"the test demo did not hold any ti3
+    # measurements or calibration files, only chart files."* Each of those cost
+    # him a detour building the data by hand before he could test the step.
+    from workflow.chart_slot import slot_for_run
+    from workflow.verify_chart_snapshot import snapshot_slot
+    from core.file_manager import Project
+
+    seed = _seed_profile(root / ".seed")
+    project = Project.load(p)
+
+    # run 2 gets everything a Restore needs: a stored chart copy, and a built
+    # profile so a verification can be started against it.
+    run2 = project.run("run2")
+    snapshot_slot(slot_for_run(run2))
+    shutil.copy2(seed, run2.dir / f"{name}.icc")
+
+    # …and its verification: the shared chart, measured once, with a stored
+    # copy of the chart in the dated folder so Restore has something to put
+    # back. The measurement is made where the chart is (fakeread reads the
+    # .ti2 beside it) and then filed into the dated folder, which is how the
+    # layout has it.
+    _chart_files(run2.verifications_dir, f"{name}-verify",
+                 patches=RUN_PATCHES, rows=RUN_ROWS)
+    _measure(run2.verifications_dir, f"{name}-verify", seed_icc=seed)
+    verify_ti3 = run2.verifications_dir / f"{name}-verify.ti3"
+    _verification(run2.dir, name, datetime(2026, 8, 5, 10, 30), 0.8,
+                  source_ti3=verify_ti3)
+    verify_ti3.unlink()          # it belongs to the dated folder, not the root
+    verification = run2.verification("2026-08-05_103000")
+    from workflow.chart_slot import slot_for_verification
+    snapshot_slot(slot_for_verification(verification))
+
     # …and a calibration with a description of its OWN, so switching Run type
-    # shows text that belongs to the calibration and not to any run (§3a).
-    cal = p / "cal"
-    cal.mkdir(parents=True, exist_ok=True)
-    (cal / "meta.json").write_text(json.dumps({
+    # shows text that belongs to the calibration and not to any run (§3a) —
+    # WITH a chart, a measurement and a .cal, so a rebuild has something to
+    # archive and Restore Used Chart has something to put back.
+    cal = project.calibration
+    cal.ensure_dir()
+    _chart_files(cal.dir, cal.stem, patches=RUN_PATCHES, rows=RUN_ROWS)
+    _measure(cal.dir, cal.stem, seed_icc=seed)
+    cal.cal_path.write_text("# a calibration made from the chart beside it\n")
+    from workflow.chart_slot import slot_for_calibration
+    snapshot_slot(slot_for_calibration(cal))
+    (cal.dir / "meta.json").write_text(json.dumps({
         "description": "Canson Baryta, new ink set, warm room",
         "chart_notes": "calibration sheet, 5 Aug",
+        "profile_description": "",
     }, indent=2))
 
 
@@ -1142,11 +1189,10 @@ def _document(cases, dest: Path) -> str:
 #: misbehave. Listing one here is a claim that a demo step CANNOT reach it —
 #: not that writing the step was inconvenient.
 #:
-#: M-INSTRUMENT-SILENT needs an instrument that never answers. It is raised by
-#: elapsed silence and nothing else (see its §M-PROPOSED entry), so the only
-#: way to produce it is to unplug the cable — which is exactly how Knut found
-#: it, and exactly what a demo project cannot arrange.
-NEEDS_HARDWARE = {"M-INSTRUMENT-SILENT"}
+#: M-NO-INSTRUMENT needs an instrument that is not there. The only way to
+#: produce it is to unplug the cable — which is exactly how Knut found it, and
+#: exactly what a demo project cannot arrange.
+NEEDS_HARDWARE = {"M-NO-INSTRUMENT"}
 
 
 def _catalogue():

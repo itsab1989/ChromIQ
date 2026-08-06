@@ -701,3 +701,55 @@ def test_its_ok_button_uses_the_one_ending_every_route_shares():
         "OK must go through the same ending as Stop, so nothing read is lost "
         "and nothing is discarded without being offered"
     )
+
+
+# ---- a loaded preset must be overridable, engine layout included ---------
+def _chart_tab_plain(cal_home, qapp):
+    settings = CalSettings(cal_home)
+    fm = FileManager(settings)
+    fm.set_target_name("Preset-Lock")
+    return TabChart(ArgyllRunner(settings), fm, settings)
+
+
+def test_the_engine_layout_panel_locks_with_the_rest_of_the_layout(cal_home, qapp):
+    """Knut, beta.150, after loading the "by pharmacist" preset and changing
+    Calculation method: *"it was not possible to press Generate Chart. It was
+    locked … I should be able to override the loaded preset chart."*
+
+    A prebuilt preset greys the layout controls until "Edit page layout
+    (override preset)" is ticked — but the ChromIQ engine's panel was outside
+    that list, so it stayed fully editable while having no effect at all.
+    """
+    tab = _chart_tab_plain(cal_home, qapp)
+    assert tab._manual_layout_panel in tab._manual_printtarg_content, (
+        "the engine's layout panel is not part of the layout lock, so a preset "
+        "leaves it editable and ignores what it says"
+    )
+
+
+def test_an_engine_recipe_change_counts_as_a_layout_change(cal_home, qapp):
+    """…and once unlocked, changing it must actually reach the chart.
+
+    `printtarg_changed` decides whether Generate re-lays out the bundled .ti1
+    or copies the preset's files back verbatim, and it is computed from the
+    layout signature. The engine's recipe was not in that signature, so the
+    answer was always "nothing changed".
+    """
+    tab = _chart_tab_plain(cal_home, qapp)
+    if tab._manual_engine_check is None or tab._manual_layout_panel is None:
+        pytest.skip("no engine panel in this build")
+    tab._manual_engine_check.setChecked(True)
+    keys = [x[0] for x in tab._printtarg_signature() if isinstance(x, tuple)]
+    assert "engine" in keys, (
+        "the engine's recipe is not in the layout signature, so a preset "
+        "cannot tell that the layout was changed"
+    )
+    # …and a real change to it must move the signature.
+    before = tab._printtarg_signature()
+    recipe = tab._manual_layout_panel.get_recipe()
+    recipe.patch_w_mm = float(getattr(recipe, "patch_w_mm", 8.0)) + 1.0
+    tab._manual_layout_panel.set_recipe(recipe)
+    assert tab._printtarg_signature() != before, (
+        "changing the engine's layout leaves the signature identical, so "
+        "Generate copies the preset's files back verbatim"
+    )

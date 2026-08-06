@@ -2796,6 +2796,21 @@ class TabChart(QWidget):
         # Let the panel's "Use instrument margins" checkbox read the user's
         # Instrument-Margins thresholds for the current combo (#93, Knut).
         self._manual_layout_panel.set_threshold_lookup(self._combo_thresholds)
+        # THE ENGINE'S PANEL BELONGS TO THE LAYOUT LOCK. It is what lays the
+        # sheet out when the engine is on, so leaving it outside meant a preset
+        # greyed printtarg's controls and left the engine's fully editable —
+        # with no effect on the chart, and nothing on screen to say so. Knut,
+        # beta.150, after loading "by pharmacist" and changing Calculation
+        # method: *"it was not possible to press Generate Chart. It was locked
+        # … I should be able to override the loaded preset chart."* Now it
+        # greys with its neighbours, and "Edit page layout (override preset)"
+        # unlocks both.
+        #
+        # Appended HERE and not where the list is built: the panel does not
+        # exist yet at that point, and a `getattr` there quietly added nothing.
+        content = getattr(self, "_manual_printtarg_content", None)
+        if content is not None and self._manual_layout_panel not in content:
+            content.append(self._manual_layout_panel)
         # Warn once when the user picks SpectroScan hexagonal patches — the CHT
         # scanner/camera features can't handle that chart (Knut).
         if self._manual_layout_panel.mode is not None:
@@ -6401,6 +6416,23 @@ class TabChart(QWidget):
             sig.append(("bit16", self._bit16_radio.isChecked()))
         if self._manual_td_check is not None:
             sig.append(("triple", self._manual_td_check.isChecked()))
+        # THE ENGINE'S RECIPE IS PART OF THE LAYOUT TOO.
+        #
+        # When the ChromIQ layout engine is driving, printtarg's own controls
+        # are not what decides the sheet — the recipe is. Leaving it out of the
+        # signature meant a preset saw "nothing changed" however much of the
+        # layout the user had altered, and Generate Chart copied the bundled
+        # files back verbatim. Knut, beta.150, after loading "by pharmacist"
+        # and changing Calculation method: *"it was not possible to press
+        # Generate Chart. It was locked … I should be able to override the
+        # loaded preset chart."*
+        panel = getattr(self, "_manual_layout_panel", None)
+        check = getattr(self, "_manual_engine_check", None)
+        if panel is not None and check is not None and check.isChecked():
+            try:
+                sig.append(("engine", repr(panel.get_recipe().to_dict())))
+            except Exception:      # noqa: BLE001 — a signature is never fatal
+                pass
         return sig
 
     # ------------------------------------------------------------------
