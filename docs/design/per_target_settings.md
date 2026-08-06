@@ -5,6 +5,14 @@ Issue #130. Source posts, in the order Knut listed them:
 - [#issuecomment-5206901110](https://github.com/itsab1989/ChromIQ/issues/130#issuecomment-5206901110) — the consequence analysis
 - [#issuecomment-5207570325](https://github.com/itsab1989/ChromIQ/issues/130#issuecomment-5207570325) — Knut's rulings on it (beta.157)
 
+> **These specifications are binding.** Knut, 2026-08-06: *"These must always be
+> consulted on changing code so that behaviour defined is not violated. And if
+> faults are found that do not match with the specification [it] must be
+> reviewed and approved."* So: read the relevant document before changing code
+> in the area it covers, and if you find behaviour that contradicts it, **report
+> it and get the change approved** rather than quietly correcting one side to
+> match the other.
+
 **Status: specification agreed, no application code written.** Everything below
 is either Knut's ruling quoted, or a consequence of one. Where a question is
 still open it is marked **OPEN** and it is not implemented until it is answered.
@@ -107,6 +115,28 @@ Run type, so it is L4. Listing it separately would invite a second code path,
 and a second code path is how the two sets of Chart Notes came to overwrite each
 other in beta.150.
 
+### 2.0 The scope of every load and every write
+
+Knut, tightening the general rule (edit of 2026-08-06):
+
+> *"Loading or saving parameters only applies for the run type and profile run
+> selected."*
+
+**One target is live at a time, and it is the one the bar names.** Every event
+in §2 and §3 reads from, or writes to, that target and no other. There is no
+event that touches a target the user is not looking at — not a sweep on Open
+Project, not a flush on quit, not a fan-out that "keeps the other runs in step".
+
+This is what makes the store safe. A per-target setting has exactly one writer,
+and that writer only runs while its target is selected, so the failure Knut named
+at the top — *"several actors can change that parameter, but not know when or
+where"* — has nowhere to happen.
+
+It also decides §2.1: the write that precedes a target change belongs to the
+**outgoing** target, because that is the one still selected at the moment the
+write is made. The load that follows belongs to the incoming one, because by
+then it is.
+
 ### 2.1 The hazard the load rule creates
 
 **A target change must write the outgoing target before it loads the incoming
@@ -117,7 +147,8 @@ can change that parameter" failure Knut described, reintroduced by the fix for
 it.
 
 So L2/L3/L4 are each a write (W6) followed by a load, in that order, in one
-guarded step.
+guarded step — the write against the outgoing target, the load against the
+incoming one, each while it is the selected one (§2.0).
 
 ---
 
@@ -147,7 +178,8 @@ finished with it, never what someone was in the middle of typing.
 
 **App quit counts as leaving the visible tab.** Qt does not raise a tab-change
 for it, so it is wired explicitly; otherwise the last tab the user worked in is
-the one tab that never records anything.
+the one tab that never records anything. It writes **that tab, for the selected
+target** — §2.0 — never a sweep across the other tabs or the other runs.
 
 ---
 

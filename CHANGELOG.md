@@ -1,5 +1,19 @@
 # Changelog
 
+## v3.14.8-beta.159
+
+### Documentation
+- **The design specifications in `docs/design/` are binding.** Knut ruled that
+  they must be consulted whenever code in the area they cover is changed, and
+  that behaviour which contradicts one is reviewed and approved rather than
+  quietly corrected. Each document now says so at the top, CLAUDE.md carries the
+  rule and the list, and a test keeps the documents findable, the notice
+  present and the cross-references alive.
+- **Per-target settings:** the scope of every load and every write is pinned
+  down — loading and saving apply only to the run type and profile run
+  currently selected. No sweep across other runs, and no flush on quit that
+  touches a target the user is not looking at.
+
 ## v3.14.8-beta.158
 
 ### Changed

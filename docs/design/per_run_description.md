@@ -1,5 +1,13 @@
 # Per-run description — Test Plan Specification
 
+> **These specifications are binding.** Knut, 2026-08-06: *"These must always be
+> consulted on changing code so that behaviour defined is not violated. And if
+> faults are found that do not match with the specification [it] must be
+> reviewed and approved."* So: read the relevant document before changing code
+> in the area it covers, and if you find behaviour that contradicts it, **report
+> it and get the change approved** rather than quietly correcting one side to
+> match the other.
+
 Issue #130. Knut, 2026-08-05, after agreeing the last open question:
 
 > *"With all that settled, create a complete Test Plan Specification for all

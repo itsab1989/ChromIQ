@@ -254,5 +254,38 @@ and runs printtarg only). The full mechanism, file/function map, gotchas, and a
 step-by-step recipe are in **`docs/dev_builtin_presets.md`** — read it before
 adding another.
 
+### The design specifications are binding
+
+`docs/design/` holds the agreed specifications for #130. Knut's rule
+(2026-08-06):
+
+> *"These must always be consulted on changing code so that behaviour defined is
+> not violated. And if faults are found that do not match with the specification
+> [it] must be reviewed and approved."*
+
+Two obligations, and the second is the one that is easy to get wrong:
+
+1. **Before changing code in an area a specification covers, read that
+   specification.** Not the memory of it — Knut edits his posts and the
+   documents are updated from them, so a remembered version is a stale one.
+2. **A fault that contradicts the specification is not simply fixed.** Report
+   it, say which rule it breaks, and get the change reviewed and approved
+   before implementing it. "The code disagrees with the spec, so I corrected
+   the code" is only right when the spec is right; when the *spec* is what
+   needs to change, that is Knut's call, not ours.
+
+| Document | Covers |
+|---|---|
+| `unified_measurement_management.md` | the life of a measurement: endings, `.ti3` states, the §M message catalogue |
+| `per_run_description.md` | the description / notes fields, `-D`, and the run lifecycle |
+| `measurement_exit_strategy.md` | every window that can end a measurement, and the key each button sends |
+| `per_target_settings.md` | which settings belong to a target, and when they are loaded and written |
+| `calibration_run_type.md` | calibration as a run type |
+
+New user-facing message text is governed by §M of
+`unified_measurement_management.md`: it goes to §M-PROPOSED first and is not
+written into a tab until Knut approves it. `tests/test_message_catalogue.py`
+enforces that.
+
 MONITOR MODE: before every monitor cycle and after any context
  compaction, re-read MONITOR.md in full and follow it.

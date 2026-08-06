@@ -1,5 +1,13 @@
 # Every window that can end a measurement, and how it ends it
 
+> **These specifications are binding.** Knut, 2026-08-06: *"These must always be
+> consulted on changing code so that behaviour defined is not violated. And if
+> faults are found that do not match with the specification [it] must be
+> reviewed and approved."* So: read the relevant document before changing code
+> in the area it covers, and if you find behaviour that contradicts it, **report
+> it and get the change approved** rather than quietly correcting one side to
+> match the other.
+
 Issue #130. Knut, beta.150:
 
 > *"List all windows during measurement (separate tables for stock chartread

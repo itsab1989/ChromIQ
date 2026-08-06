@@ -93,9 +93,12 @@ def test_the_current_release_renders_every_section_it_actually_has():
         (v, lines) for v, lines in rn._versions())[f"v{APP_VERSION}"])
     note = build([f"v{APP_VERSION}"], f"v{APP_VERSION}")
 
-    rendered = {"New": "✨ What's new", "Fixed": "🔧 Fixed",
-                "Changed": "🔁 Changed"}
-    present = set(re.findall(r"^### (New|Fixed|Changed)\s*$", body, re.M))
+    # Driven from the renderer's own table, never a copy of it. A hand-written
+    # list here is what let "### Documentation" be written, reviewed and then
+    # rendered as nothing: the test did not know the section existed either.
+    rendered = {md: pretty for _key, md, pretty in rn.SECTIONS}
+    names = "|".join(re.escape(md) for md in rendered)
+    present = set(re.findall(rf"^### ({names})\s*$", body, re.M))
     assert present, f"v{APP_VERSION} has no sections at all in the CHANGELOG"
     for section in present:
         assert rendered[section] in note, (

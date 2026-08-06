@@ -15,6 +15,14 @@
 > chapters can cover the other areas of the app in the same shape: the tables
 > here are the contract, and §T says how each row is proved.
 
+> **These specifications are binding.** Knut, 2026-08-06: *"These must always be
+> consulted on changing code so that behaviour defined is not violated. And if
+> faults are found that do not match with the specification [it] must be
+> reviewed and approved."* So: read the relevant document before changing code
+> in the area it covers, and if you find behaviour that contradicts it, **report
+> it and get the change approved** rather than quietly correcting one side to
+> match the other.
+
 ## The companion specifications
 
 This chapter covers the life of a measurement. Three further specifications
