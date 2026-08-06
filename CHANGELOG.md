@@ -1,5 +1,16 @@
 # Changelog
 
+## v3.14.8-beta.151
+
+### Changed
+
+- **The “Restore Used Chart” mark is redrawn**, from Basti's own hand-edited
+  version. The sheet of patches is whole again — it used to have small notches
+  cut out of it to hold it clear of the arc, and at button size those read as
+  damage rather than as depth. And the arrowhead now sits forward on the arc,
+  so the arc's rounded end tucks inside it instead of poking out of the notch
+  between the wings: the curve and the head read as one arrow.
+
 ## v3.14.8-beta.150
 
 ### Fixed
