@@ -1,5 +1,14 @@
 # Changelog
 
+## v3.14.8-beta.152
+
+### Changed
+
+- **The “Restore Used Chart” arrowhead keeps the lean it was drawn with.** Its
+  two wings are deliberately not a mirror pair — the upper one is flatter and
+  shorter, the lower steeper and longer — which is how Sebastian drew it by
+  hand and which of three renderings he picked.
+
 ## v3.14.8-beta.151
 
 ### Changed
