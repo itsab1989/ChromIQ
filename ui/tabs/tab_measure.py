@@ -912,6 +912,10 @@ class TabMeasure(QWidget):
         self._spot_session: bool = False
         self._device_busy: bool = False
         self._no_instrument: bool = False
+        #: raised once per SESSION, and cleared when the next one starts —
+        #: see the note where it is reset. Declared here so it is a real
+        #: attribute rather than something only `getattr` knows about.
+        self._no_instrument_shown: bool = False
         self._usb_claimed_by_vm: bool = False
         # Pending terminal dialogs for group-B startup failures (shown by _on_measure_done).
         self._coms_init_failed_msg: str | None = None
@@ -4954,6 +4958,18 @@ class TabMeasure(QWidget):
         # last one.
         self._saw_instrument = False
         self._no_instrument = False
+        # …AND THE WINDOW IS ALLOWED TO APPEAR AGAIN.
+        #
+        # `_no_instrument_shown` is the once-per-session guard that stops the
+        # window being raised twice by the timer and the process exit. It was
+        # set on the first showing and never cleared, so it silently became
+        # once per *application run*: every later session with no instrument
+        # logged the failure and showed nothing. Knut, beta.157: *"after ca. 20
+        # sec the log window gets message: 'Unknown, inappropriate or no
+        # instrument detected', but the 'No Instrument Found' message does not
+        # come. The first few times I tested it came, but then stopped
+        # coming."* Exactly that — the first time in the process, then never.
+        self._no_instrument_shown = False
         self._disarm_no_instrument_window()
         self.measurement_active.emit(True)
 
@@ -6082,9 +6098,19 @@ class TabMeasure(QWidget):
         layout = QVBoxLayout(dlg)
         layout.setSpacing(16)
         layout.setContentsMargins(24, 20, 24, 20)
+        # KNUT'S WORDING, ACCEPTED VERBATIM (#130, 2026-08-06: "Accepted
+        # suggestion for text").
+        #
+        # The old title was "Stop measuring without saving?", which is true on
+        # stock chartread — Yes sends 'y' and the readings are gone — but false
+        # on the engine since beta.156, where Yes opens "Keep what you have
+        # measured so far?" and OFFERS to save. The question and the outcome
+        # disagreed on the default reader, so a careful reader would think Yes
+        # discarded their work.
         msg = QLabel(
-            tr("<b>Stop measuring without saving?</b><br><br>"
-            "Choose <b>Yes</b> to abort, or <b>No</b> to keep measuring."),
+            tr("<b>Stop measuring?</b><br><br>"
+               "You will be asked next whether to keep the strips you have "
+               "already measured, so nothing is thrown away by mistake."),
             dlg,
         )
         msg.setWordWrap(True)
@@ -6094,7 +6120,7 @@ class TabMeasure(QWidget):
 
         btn_row = QHBoxLayout()
         btn_row.setSpacing(8)
-        yes_btn = QPushButton(tr("Yes — Abort"), dlg)
+        yes_btn = QPushButton(tr("Yes — Stop"), dlg)
         no_btn  = QPushButton(tr("No — Keep Measuring"), dlg)
         no_btn.setObjectName("primary")
         yes_btn.setFixedHeight(32)

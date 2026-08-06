@@ -71,3 +71,53 @@ def test_the_window_is_wired_to_the_signal():
     import ui.tabs.tab_measure as tm
     src = inspect.getsource(tm.TabMeasure)
     assert "self._manager.abort_confirm.connect(self._on_abort_confirm)" in src
+
+
+def test_the_window_says_what_actually_happens_next():
+    """Knut accepted this wording (#130, 2026-08-06).
+
+    The old title, "Stop measuring without saving?", was true on stock
+    chartread and false on the engine, where Yes now opens "Keep what you have
+    measured so far?" and offers to save. A user reading it carefully would
+    think Yes discarded their work.
+    """
+    import inspect
+
+    import ui.tabs.tab_measure as tm
+    src = inspect.getsource(tm.TabMeasure._on_abort_confirm)
+    # Comments are not what the user reads, and this one quotes the old title
+    # on purpose to explain why it changed.
+    code = "\n".join(l for l in src.splitlines()
+                     if not l.lstrip().startswith("#"))
+    assert "Stop measuring?" in code
+    assert "without saving" not in code, (
+        "the abort window still claims nothing is saved; on the ChromIQ reader "
+        "Yes offers to keep the strips"
+    )
+    assert "whether to keep the strips you have" in code, (
+        "the window no longer says what happens next"
+    )
+    assert 'tr("Yes — Stop")' in code and 'tr("No — Keep Measuring")' in code
+
+
+def test_the_no_instrument_window_can_appear_more_than_once():
+    """Knut, beta.157: it came "the first few times", then stopped.
+
+    `_no_instrument_shown` guards against the window being raised twice within
+    one session — by the timer and again at process exit. It was never cleared,
+    so it silently became once per application run and every later session with
+    no instrument showed nothing at all.
+    """
+    import inspect
+
+    import ui.tabs.tab_measure as tm
+    src = inspect.getsource(tm.TabMeasure)
+    assert src.count("self._no_instrument_shown = False") >= 1, (
+        "nothing clears the once-per-session guard, so the window is really "
+        "once per application run"
+    )
+    # …and it is cleared where a session begins, next to the sibling flags.
+    start = src[src.index("self._saw_instrument = False"):]
+    assert "self._no_instrument_shown = False" in start[:1200], (
+        "the guard is not cleared at the start of a session"
+    )

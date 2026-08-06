@@ -1,5 +1,22 @@
 # Changelog
 
+## v3.14.8-beta.163
+
+### Fixed
+- **"No Instrument Found" appeared only once per app run.** With no instrument
+  connected the log said *"Unknown, inappropriate or no instrument detected"*
+  but no window came — after the first time. The guard that stops the window
+  being raised twice inside one measurement was never cleared, so it quietly
+  became once per application run. Reported by Knut (#130).
+
+### Changed
+- **The Confirm Abort window says what actually happens next.** It asked *"Stop
+  measuring without saving?"*, which was true with the stock ArgyllCMS reader
+  but not with ChromIQ's, where Yes now offers to keep the strips you have
+  already measured. It now reads *"Stop measuring?"* and says that you will be
+  asked about keeping them, so pressing Yes is not a leap of faith. Wording
+  agreed with Knut (#130).
+
 ## v3.14.8-beta.162
 
 ### Fixed
