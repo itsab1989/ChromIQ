@@ -9317,6 +9317,19 @@ class TabChart(QWidget):
             log.warning("Could not refresh the run description fields",
                         exc_info=True)
 
+    def _notes_attr(self) -> str:
+        """Which of the meta's two notes fields this selection edits.
+
+        A run has TWO charts — its own and its one verification chart — and they
+        are different sheets of paper, so they keep their notes apart. The
+        description is shared, because a verification belongs to the run it
+        verifies (Knut, beta.150 and 2026-08-05 23:43).
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is not None and ctl.target.is_verification():
+            return "verify_chart_notes"
+        return "chart_notes"
+
     def _load_target_text(self) -> None:
         """Fill both fields from whatever the bar points at.
 
@@ -9327,17 +9340,21 @@ class TabChart(QWidget):
         """
         store = self._target_text_store()
         if store is None:
-            # Nowhere to read from — a run that does not exist yet, or no
-            # project at all. LEAVE WHAT IS ON SCREEN. Blanking the fields here
-            # would throw away text the user is part-way through typing for the
-            # run they are about to create, and it is also what carries a run's
-            # settings across to a New run (§5 T5.1).
+            # A run that does not exist yet, or no project at all. There is
+            # nothing on disk to read, so the text typed for it is held HERE —
+            # and put back when the user returns to "New run". Leaving whatever
+            # the last run put on screen was not enough: *"when I go back to
+            # Profile run = New run the values I wrote down was NOT
+            # remembered"* (Knut, beta.150).
+            held = getattr(self, "_new_run_text", None)
+            if held is not None:
+                self._set_target_text_fields(*held)
             return
         description = notes = ""
         try:
             meta = store.load_meta()
             description = getattr(meta, "description", "") or ""
-            notes = getattr(meta, "chart_notes", "") or ""
+            notes = getattr(meta, self._notes_attr(), "") or ""
         except Exception:      # noqa: BLE001 — unreadable is empty, not fatal
             description = notes = ""
         self._set_target_text_fields(description, notes)
@@ -9396,10 +9413,11 @@ class TabChart(QWidget):
         if store is None:
             return
         try:
+            attr = self._notes_attr()
             meta = store.load_meta()
-            if getattr(meta, "chart_notes", "") == notes:
+            if getattr(meta, attr, "") == notes:
                 return
-            meta.chart_notes = notes
+            setattr(meta, attr, notes)
             store.save_meta(meta)
         except Exception:      # noqa: BLE001 — never lose the tab over a write
             log.warning("Could not save the restored chart notes", exc_info=True)
@@ -9415,8 +9433,9 @@ class TabChart(QWidget):
         try:
             meta = store.load_meta()
             meta.description = self._current_run_description()
-            meta.chart_notes = self._current_chart_notes()
+            setattr(meta, self._notes_attr(), self._current_chart_notes())
             store.save_meta(meta)
+            self._new_run_text = None       # it has a home now
             log.info("run description + chart notes written to %s", store.id
                      if hasattr(store, "id") else store)
         except Exception:      # noqa: BLE001 — never lose the tab over a write
@@ -9436,18 +9455,21 @@ class TabChart(QWidget):
         """
         if getattr(self, "_loading_target_text", False):
             return
+        description = self._current_run_description()
+        notes = self._current_chart_notes()
         store = self._target_text_store()
         if store is None:
+            # Held in memory until the run exists — see _load_target_text.
+            self._new_run_text = (description, notes)
             return
+        attr = self._notes_attr()
         try:
             meta = store.load_meta()
-            description = self._current_run_description()
-            notes = self._current_chart_notes()
             if (getattr(meta, "description", "") == description
-                    and getattr(meta, "chart_notes", "") == notes):
+                    and getattr(meta, attr, "") == notes):
                 return                      # nothing changed; do not touch disk
             meta.description = description
-            meta.chart_notes = notes
+            setattr(meta, attr, notes)
             store.save_meta(meta)
         except Exception:      # noqa: BLE001 — never lose the tab over a write
             log.warning("Could not save the run's description", exc_info=True)

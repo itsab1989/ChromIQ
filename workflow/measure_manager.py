@@ -849,6 +849,29 @@ class MeasureManager(QObject):
         args.append(str(p.ti1_path.with_suffix("")))
         return args
 
+    @staticmethod
+    def _measurement_was_complete(chart: "str | None", strips: list) -> bool:
+        """Whether the chart's own .ti3 already held every reading.
+
+        Falls back to the strip flags only when there is no chart path to
+        resolve — they are coarse (per strip, not per patch) but they are
+        better than assuming a fresh start.
+        """
+        if chart:
+            try:
+                from pathlib import Path as _P
+
+                from workflow.measurement_state import Ti3State, classify
+
+                ti2 = _P(chart)
+                facts = classify(ti2.with_suffix(".ti3"), ti2)
+                if facts.state is not Ti3State.UNREADABLE:
+                    return facts.state is Ti3State.COMPLETE
+            except Exception:      # noqa: BLE001 — never block a measurement
+                log.warning("could not judge %s against its measurement",
+                            chart, exc_info=True)
+        return bool(strips) and all(s.get("read") for s in strips)
+
     def _all_done_is_news(self) -> bool:
         """Whether "all stripes read" is worth announcing.
 
@@ -944,8 +967,23 @@ class MeasureManager(QObject):
             # Was there anything left to read when we opened it? That is what
             # decides whether "all strips read" can ever be news in this
             # session — see _all_done_is_news.
-            self._chart_was_complete = bool(strips) and all(
-                s.get("read") for s in strips)
+            #
+            # ASK THE MEASUREMENT FILE, NOT THE STRIP FLAGS. A strip whose last
+            # patch is unread still comes back `read: true` — the flags are per
+            # strip and the gap is per patch. So a chart missing a few patches
+            # looked complete, `_all_done_is_news` stayed False for the whole
+            # session, and finishing every strip announced nothing at all: no
+            # "All Strips Read" window and no completion sound. Knut, beta.150:
+            # *"Started with a ti3 file that had one or a few patches missing in
+            # last strip … Finishing all strips, but the concluding 'All Strips
+            # Read' window with a Measurement Finished sound does NOT come."*
+            #
+            # Patch-by-patch had this fixed in beta.137 by asking the first
+            # `spot_ready` instead; strip mode has no per-patch event to ask, so
+            # it asks the .ti3 — which is the honest answer for both, and the
+            # same one §3a uses everywhere else.
+            self._chart_was_complete = self._measurement_was_complete(
+                ev.get("chart"), strips)
             self.session_map.emit(strips)
 
         elif kind == "strip_ready":

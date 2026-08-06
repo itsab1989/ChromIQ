@@ -59,10 +59,26 @@ _POPUP_BUTTONS = [
     "Save Partial && Quit",      # && is a literal ampersand on a button
     "Save Partial",
     "Skip Strip",
-    "Go to Build Profile Tab →",
+    "Go to {tab} Tab →",
     "Close",
     "Cancel",
 ]
+
+#: Labels that are composed at runtime, so the catalogue holds the pattern and
+#: not the finished text. Only the WIDEST rendering matters for fitting, and
+#: for tab 4 that is its calibration name — with the ampersand doubled, which
+#: is how Qt is told to print one rather than eat it as a mnemonic.
+_POPUP_BUTTONS_RENDERED = {
+    "Go to {tab} Tab →": ("Build Profile", "Calibration && Profiling"),
+}
+
+
+def _renderings(source: str, label: str) -> "list[str]":
+    """Every finished label this source can produce, in this language."""
+    fills = _POPUP_BUTTONS_RENDERED.get(source)
+    if not fills:
+        return [label]
+    return [label.format(tab=t) for t in fills]
 
 
 def _fitted(label: str) -> "tuple[QPushButton, int]":
@@ -84,11 +100,11 @@ def test_every_popup_button_fits_its_label(qapp, lang):
     try:
         too_small = []
         for source in _POPUP_BUTTONS:
-            label = I.tr(source)
-            btn, needed = _fitted(label)
-            room = btn.minimumSizeHint().width()
-            if room < needed:
-                too_small.append((source, label, room, needed))
+            for label in _renderings(source, I.tr(source)):
+                btn, needed = _fitted(label)
+                room = btn.minimumSizeHint().width()
+                if room < needed:
+                    too_small.append((source, label, room, needed))
         assert not too_small, too_small
     finally:
         I.set_language("en")
@@ -107,10 +123,11 @@ def test_the_longest_translation_of_each_button_is_the_one_that_decides(qapp):
     I.set_language("en")
 
     for source, (lang, label) in longest.items():
-        btn, needed = _fitted(label)
-        assert btn.minimumSizeHint().width() >= needed, (
-            f"{source!r} in {lang} ({label!r}) needs {needed}px but reports "
-            f"{btn.minimumSizeHint().width()}px")
+        for rendered in _renderings(source, label):
+            btn, needed = _fitted(rendered)
+            assert btn.minimumSizeHint().width() >= needed, (
+                f"{source!r} in {lang} ({rendered!r}) needs {needed}px but "
+                f"reports {btn.minimumSizeHint().width()}px")
 
 
 def test_a_long_label_makes_the_button_wider_not_the_text_smaller(qapp):

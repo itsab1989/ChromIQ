@@ -604,8 +604,17 @@ class MainWindow(QMainWindow):
         # A calibration measurement lives in the project's cal/ folder rather
         # than carrying a cal_ filename prefix.
         if cal_mode and ti3.parent.name == "cal":
+            # Hand the measurement over, but DO NOT change tab.
+            #
+            # This fired for every calibration measurement that produced a
+            # .ti3 — including one the user stopped after a single patch — so
+            # pressing Stop threw them onto another tab. Knut, beta.150:
+            # *"Then the tab changes from measure tab to Calibration &
+            # Profiling tab automatically. This shall not happen. Finishing /
+            # stopping a measurement shall not do this automatically."*
+            # Going to tab 4 is the completion window's button to offer, and it
+            # arrives here through `proceed_to_profile` like every other run.
             self._tab_profile.set_cal_ti3_path(ti3)
-            self._tabs.setCurrentWidget(self._tab_profile)
         else:
             self._tab_profile.set_ti3_path(ti3, propagate=False)
             # Forward the Measure-tab opt-in so Build Profile can merge the

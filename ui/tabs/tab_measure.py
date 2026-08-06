@@ -6836,9 +6836,24 @@ class TabMeasure(QWidget):
         return bool(self._settings.get("calibration_mode", False))
 
     def _profile_tab_name(self) -> str:
-        """What tab 4 is called right now, for text that points the user at it."""
+        """What tab 4 is called right now, for text that points the user at it.
+
+        For prose and for rich text. A **button** needs `_profile_tab_name_btn`
+        instead — see there.
+        """
         return (tr("Calibration & Profiling") if self._calibration_options_on()
                 else tr("Build Profile"))
+
+    def _profile_tab_name_btn(self) -> str:
+        """The same name, safe to put on a QPushButton.
+
+        Qt reads "&" in button text as the mnemonic marker: it eats the
+        ampersand and underlines the letter after it, so "Calibration &
+        Profiling" came out as *"CALIBRATION _PROFILING"*. Knut, beta.150:
+        *"The _ is here some unknown sign, maybe in place of the & sign."* It
+        is; doubling it prints one.
+        """
+        return self._profile_tab_name().replace("&", "&&")
 
     def _show_all_stripes_done(self) -> None:
         """The completion sound and window, after the short gap that keeps the
@@ -6959,7 +6974,7 @@ class TabMeasure(QWidget):
                 "<b>n</b> to jump to the next unread strip, and press <b>d</b> when you "
                 "are done.<br><br>"
                 "<span style='color:#909090;'>These instructions are always visible in "
-                "the output log below.</span>").format(tab=self._profile_tab_name()),
+                "the output log below.</span>"),
                 dlg,
             )
         elif self._spot_session:
@@ -6987,7 +7002,7 @@ class TabMeasure(QWidget):
                 "<b>n</b> to jump to the next unread strip, and press <b>d</b> when you "
                 "are done.<br><br>"
                 "<span style='color:#909090;'>These instructions are always visible in "
-                "the output log below.</span>"),
+                "the output log below.</span>").format(tab=self._profile_tab_name()),
                 dlg,
             )
 
@@ -7034,9 +7049,8 @@ class TabMeasure(QWidget):
             # there. Knut, beta.148: *"this last button must change its name …
             # When Calibration mode is OFF again in preferences the button name
             # … shall again be named 'Go to Build Profile tab' (as before)."*
-            accept_label = (tr("Go to Calibration & Profiling Tab →")
-                            if self._calibration_options_on()
-                            else tr("Go to Build Profile Tab →"))
+            accept_label = tr("Go to {tab} Tab →").format(
+                tab=self._profile_tab_name_btn())
         if self._guided_refinement_active:
             cont_label = "Continue Measuring Manually"
         elif self._spot_session:
@@ -7238,7 +7252,8 @@ class TabMeasure(QWidget):
             # Knut (#131): "Build Profile" read as though it would build the
             # profile there and then — it only takes you to the tab, where you
             # still press Build Profile yourself. The name now says that.
-            build_btn = QPushButton(tr("Go to Build Profile Tab →"), dlg)
+            build_btn = QPushButton(tr("Go to {tab} Tab →").format(
+                tab=self._profile_tab_name_btn()), dlg)
             build_btn.setObjectName("primary")
             build_btn.setToolTip(tr(
                 "Saves the measurement and opens the Build Profile tab. The "
@@ -8069,7 +8084,8 @@ class TabMeasure(QWidget):
                 "Keeps your measurement and closes this window without going "
                 "anywhere. You can build the profile whenever you like."))
             close_btn.clicked.connect(lambda: _pick("close"))
-            cont_btn = QPushButton(tr("Go to Build Profile Tab →"), dlg)
+            cont_btn = QPushButton(tr("Go to {tab} Tab →").format(
+                tab=self._profile_tab_name_btn()), dlg)
             cont_btn.setObjectName("primary")
             cont_btn.setToolTip(tr(
                 "Saves the measurement and opens the Build Profile tab. The "

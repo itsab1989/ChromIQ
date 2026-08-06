@@ -293,6 +293,15 @@ class RunMeta:
     # in your hand — and this is what lets the field survive a run change and
     # exist before any chart has been generated at all.
     chart_notes: str = ""
+    # #130 (Knut, beta.150): the VERIFICATION chart's notes, kept apart from the
+    # run's own. A run has two charts — the profiling chart and the one
+    # verification chart — and they are different sheets of paper, so notes
+    # written on one must not appear on the other: *"These fields must be
+    # separate for Run type = Verification and Run type = Profiling (this only
+    # applies to 'Verification Chart Notes' and 'Run 2 Description'
+    # respectively)."* The DESCRIPTION stays shared, by his earlier ruling —
+    # a verification belongs to the run it verifies.
+    verify_chart_notes: str = ""
     # #130 (Knut, beta.148): the Profile Description the user typed for THIS
     # run, when they typed one. Empty means "still automatic" — ChromIQ builds
     # it from the project name and the run's own description, and keeps it in

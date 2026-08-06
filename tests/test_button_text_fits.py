@@ -124,8 +124,17 @@ def test_both_completion_dialogs_offer_close_and_the_renamed_button():
            / "ui" / "tabs" / "tab_measure.py").read_text()
     # Three dialogs offer this step: the two All-Stripes-Read variants
     # (averaging on and off) and the post-measurement averaging dialog.
-    assert src.count('tr("Go to Build Profile Tab →")') == 3, \
+    #
+    # The name became a placeholder in beta.153, because tab 4 is "Build
+    # Profile" or "Calibration & Profiling" depending on a preference — a
+    # button naming the wrong one sends the user hunting for a tab that is not
+    # there (Knut, beta.150). All three take it from `_profile_tab_name_btn`,
+    # which is also what escapes the "&" Qt would otherwise eat.
+    assert src.count('tr("Go to {tab} Tab →").format(') == 3, \
         "every dialog offering the step must use the renamed button"
+    assert 'tr("Go to Build Profile Tab →")' not in src, \
+        "a hard-coded tab name is back; it is wrong whenever calibration " \
+        "options are on"
     assert src.count('tr("Close")') >= 3, "each must also offer Close"
     assert "Continue to Build Profile" not in src, "old wording left behind"
     assert 'QPushButton(tr("Build Profile →")' not in src

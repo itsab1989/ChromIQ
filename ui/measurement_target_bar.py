@@ -267,7 +267,16 @@ class MeasurementTargetController(QObject):
             return None
 
     def restore_target(self):
-        """Whichever of the two the button acts on, given the Run type."""
+        """Whichever of the THREE the button acts on, given the Run type.
+
+        Calibration was missing here while `restore_state` already handled it,
+        so the button could be offered for the calibration chart and then put
+        the selected RUN's chart back instead — a restore that quietly replaces
+        the wrong sheet (Knut, beta.150, asking why Restore did not work for a
+        calibration).
+        """
+        if self._target.is_calibration():
+            return self.calibration_or_none()
         if self._target.is_verification():
             return self.selected_verification()
         return self.selected_run()
@@ -573,13 +582,16 @@ class MeasurementTargetController(QObject):
     def restore_slot_or_none(self):
         """The ChartSlot the Restore button would act on, or None.
 
-        Same choice `restore_state` makes — the dated verification when the run
-        type is Verification, otherwise the run itself — kept in one place so a
-        warning about a restore can never describe a different slot from the
-        one that gets restored.
+        Same choice `restore_state` makes — the calibration, the dated
+        verification, or the run itself — kept in one place so a warning about a
+        restore can never describe a different slot from the one that gets
+        restored.
         """
         try:
             from workflow.chart_slot import slot_for
+            if self._target.is_calibration():
+                cal = self.calibration_or_none()
+                return slot_for(cal) if cal is not None else None
             if self._target.is_verification():
                 verification = self.selected_verification()
                 return slot_for(verification) if verification else None

@@ -388,7 +388,7 @@ def test_restore_puts_the_chart_notes_back_for_every_target(chart_tab, run_type)
     assert tab._manual_chart_notes_edit.text() == "printed 5 Aug, tray 2"
     store = tab._target_text_store()
     assert store is not None
-    assert store.load_meta().chart_notes == "printed 5 Aug, tray 2", (
+    assert getattr(store.load_meta(), tab._notes_attr()) == "printed 5 Aug, tray 2", (
         "the restored notes were shown but not written, so the next refresh "
         "reads the stale ones back"
     )
@@ -482,3 +482,167 @@ def test_skipping_calibration_is_announced_in_the_log():
     src = inspect.getsource(TabMeasure)
     assert "if params.disable_initial_cal:" in src
     assert "Skip initial calibration (-N) is switched on" in src
+
+
+# =========================================================================
+# beta.150 report
+# =========================================================================
+def test_a_chart_missing_patches_is_not_called_complete(tmp_path):
+    """Knut, beta.150: *"Started with a ti3 file that had one or a few patches
+    missing in last strip … Finishing all strips, but the concluding 'All
+    Strips Read' window with a Measurement Finished sound does NOT come."*
+
+    The strip flags are per STRIP and the gap is per PATCH: a strip whose last
+    patch is unread still comes back `read: true`. So the chart looked complete
+    at session start, completion was "not news" for the whole session, and
+    finishing every strip announced nothing.
+    """
+    from workflow.measure_manager import MeasureManager
+
+    ti2 = tmp_path / "chart.ti2"
+    ti2.write_text("NUMBER_OF_SETS 90\nBEGIN_DATA\nEND_DATA\n")
+    ti3 = tmp_path / "chart.ti3"
+    rows = "\n".join(f"{i} 10 10 10 5 5 5" for i in range(88))
+    ti3.write_text(f"NUMBER_OF_SETS 88\nBEGIN_DATA\n{rows}\nEND_DATA\n")
+
+    all_strips_read = [{"strip": s, "read": True} for s in "ABCDEF"]
+    assert MeasureManager._measurement_was_complete(str(ti2), all_strips_read) is False, (
+        "88 readings of 90 is not a complete chart, whatever the strip flags say"
+    )
+
+
+def test_a_chart_with_every_reading_is_still_called_complete(tmp_path):
+    """The rule the suppression exists for must survive: re-reading a strip of
+    a finished measurement completes nothing."""
+    from workflow.measure_manager import MeasureManager
+
+    ti2 = tmp_path / "chart.ti2"
+    ti2.write_text("NUMBER_OF_SETS 3\nBEGIN_DATA\nEND_DATA\n")
+    ti3 = tmp_path / "chart.ti3"
+    ti3.write_text("NUMBER_OF_SETS 3\nBEGIN_DATA\n"
+                   "1 10 10 10 5 5 5\n2 20 20 20 6 6 6\n3 30 30 30 7 7 7\n"
+                   "END_DATA\n")
+    strips = [{"strip": "A", "read": True}]
+    assert MeasureManager._measurement_was_complete(str(ti2), strips) is True
+
+
+def test_with_no_chart_to_check_the_strip_flags_still_answer(tmp_path):
+    from workflow.measure_manager import MeasureManager
+
+    assert MeasureManager._measurement_was_complete(
+        None, [{"strip": "A", "read": True}]) is True
+    assert MeasureManager._measurement_was_complete(
+        None, [{"strip": "A", "read": False}]) is False
+
+
+def test_the_tab_name_on_a_button_shows_its_ampersand(qapp, tmp_path):
+    """Knut, beta.150: the button read *"GO TO CALIBRATION _PROFILING TAB"*.
+
+    Qt takes "&" in button text as the mnemonic marker — it eats the ampersand
+    and underlines the next letter. Doubling it prints one.
+    """
+    from core.argyll_runner import ArgyllRunner
+    from core.settings import AppSettings
+    from ui.tabs.tab_measure import TabMeasure
+
+    class _S(AppSettings):
+        def get(self, key, default=None):
+            if key == "custom_output_path":
+                return str(tmp_path)
+            if key == "calibration_mode":
+                return True
+            return super().get(key, default)
+
+    tab = TabMeasure(ArgyllRunner(_S()), _S())
+    assert tab._profile_tab_name() == "Calibration & Profiling"
+    assert tab._profile_tab_name_btn() == "Calibration && Profiling"
+
+
+def test_every_branch_of_the_completion_window_fills_its_placeholder():
+    """A {tab} left unformatted prints the braces at the user.
+
+    The strips branch carried the placeholder with no `.format()` while the
+    calibration branch, whose text has no placeholder, had one.
+    """
+    import inspect
+    import re as _re
+
+    from ui.tabs.tab_measure import TabMeasure
+
+    src = inspect.getsource(TabMeasure._show_all_stripes_done)
+    for block in _re.findall(r'msg = QLabel\((.*?)\n\s*dlg,\n\s*\)', src, _re.S):
+        if "{tab}" in block:
+            assert ".format(tab=" in block, (
+                "a completion message carries {tab} and never fills it"
+            )
+        else:
+            assert ".format(tab=" not in block, (
+                "a completion message formats a placeholder it does not have"
+            )
+
+
+def test_a_run_and_its_verification_keep_separate_chart_notes(chart_tab):
+    """Knut, beta.150: *"If I try to modify the text in the verification run,
+    and then go back to profiling run, the text changes there too. These fields
+    must be separate."*
+
+    A run has two charts — its own and its one verification chart — and they
+    are different sheets of paper. The DESCRIPTION stays shared, because a
+    verification belongs to the run it verifies.
+    """
+    tab, ctl, project = chart_tab
+    ctl.set_profile_run("run2")
+
+    ctl.set_run_type(RUN_TYPE_PROFILING)
+    _type(tab, "run 2's description", "notes for the RUN's chart")
+    ctl.set_run_type(RUN_TYPE_VERIFICATION)
+    assert tab._manual_chart_notes_edit.text() != "notes for the RUN's chart", (
+        "the verification is showing the run chart's notes"
+    )
+    _type(tab, "run 2's description", "notes for the VERIFICATION chart")
+
+    ctl.set_run_type(RUN_TYPE_PROFILING)
+    assert tab._manual_chart_notes_edit.text() == "notes for the RUN's chart"
+    ctl.set_run_type(RUN_TYPE_VERIFICATION)
+    assert tab._manual_chart_notes_edit.text() == "notes for the VERIFICATION chart"
+
+    meta = project.run("run2").load_meta()
+    assert meta.chart_notes == "notes for the RUN's chart"
+    assert meta.verify_chart_notes == "notes for the VERIFICATION chart"
+    assert meta.description == "run 2's description", "the description is shared"
+
+
+def test_text_typed_for_a_new_run_survives_a_detour(chart_tab):
+    """Knut, beta.150, step 15: *"when I go back to Profile run = New run the
+    values I wrote down was NOT remembered."*"""
+    tab, ctl, _project = chart_tab
+    ctl.set_profile_run("")
+    ctl.set_run_type(RUN_TYPE_PROFILING)
+    _type(tab, "for the run to come", "notes for the run to come")
+
+    ctl.set_profile_run("run1")
+    assert tab._manual_run_desc_edit.text() != "for the run to come"
+
+    ctl.set_profile_run("")
+    assert tab._manual_run_desc_edit.text() == "for the run to come"
+    assert tab._manual_chart_notes_edit.text() == "notes for the run to come"
+
+
+def test_restore_acts_on_the_calibration_when_that_is_what_is_selected(chart_tab):
+    """`restore_state` already knew about calibration; `restore_target` did
+    not, so the button could be offered for the calibration chart and then put
+    the selected RUN's chart back — replacing the wrong sheet."""
+    from core.file_manager import Calibration
+
+    _tab, ctl, project = chart_tab
+    cal = project.calibration
+    cal.ensure_dir()
+    ctl.set_profile_run("run2")
+    ctl.set_run_type(RUN_TYPE_CALIBRATION)
+
+    target = ctl.restore_target()
+    assert isinstance(target, Calibration), (
+        f"Restore would act on {type(target).__name__}, not the calibration"
+    )
+    slot = ctl.restore_slot_or_none()
+    assert slot is not None and slot.live_dir == cal.dir

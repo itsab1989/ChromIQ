@@ -605,6 +605,12 @@ class TabProfile(QWidget):
         super().showEvent(event)
         self._refresh_engine_rows()
         self._refit_logs()
+        # THE NAME IS RECOMPOSED ON ARRIVAL. It is built from the project name
+        # and the run's own description, and both live on another tab — so
+        # coming here is exactly when it may be out of date. Knut, beta.150,
+        # after clearing the box: *"the automatic text does not come back into
+        # the Profile Description field when moving between tabs."*
+        self._apply_profile_description_default()
 
     def _refit_logs(self) -> None:
         """Re-measure every log panel here in the font it actually has.
@@ -4230,8 +4236,11 @@ class TabProfile(QWidget):
         value is stored as empty: that is not an override, it is agreement, and
         storing it would freeze the run's description out of the name.
         """
+        # Whichever of the three the user typed into — they are kept in step,
+        # so any of them carries the same text.
         edit = (getattr(self, "_m_desc_edit", None)
-                or getattr(self, "_desc_edit", None))
+                or getattr(self, "_desc_edit", None)
+                or getattr(self, "_pc_desc_edit", None))
         if edit is None:
             return
         store = self._description_store()
@@ -4247,6 +4256,18 @@ class TabProfile(QWidget):
             store.save_meta(meta)
         except Exception:      # noqa: BLE001 — never lose the tab over a write
             log.warning("Could not save the profile description", exc_info=True)
+            return
+        if not override and not typed:
+            # EMPTIED — hand the name straight back, here and now.
+            #
+            # Clearing the box is how the user asks for the automatic name
+            # again, and the answer used to wait for the next change of Profile
+            # run: *"After deleting the content of Profile Description … the
+            # automatic text does not come back … However, after changing the
+            # profile run back and forth, then the Profile Description field
+            # becomes the automated text"* (Knut, beta.150). The request and
+            # the answer belong in the same moment.
+            self._apply_profile_description_default()
 
     def _apply_profile_description_default(self, fallback: str = "") -> None:
         """Show THIS selection's Profile Description.
@@ -4265,8 +4286,20 @@ class TabProfile(QWidget):
         if not wanted and not moved:
             return
         self._desc_filled_for = key
+        # ALL THREE FIELDS, because tab 4 has three and which one is on screen
+        # depends on the mode. `_desc_edit`/`_m_desc_edit` are colprof's Profile
+        # Description; `_pc_desc_edit` is printcal's Description, in the Create
+        # Calibration File module — a different file's header, but the same
+        # question ("what is this?") and the one actually in front of the user
+        # while Run type = Calibration. Knut, beta.150: *"the 'Printer profile
+        # project name' and its 'Calibration Description' shall automatically
+        # build the Profile Description … which currently is not working"*, and
+        # then: *"The field is not called Profile Description for run
+        # type=Calibration. It is called 'Description (-D)', and it does not
+        # read as 'project name – Calibration Description'. It is empty."*
         for edit in (getattr(self, "_desc_edit", None),
-                     getattr(self, "_m_desc_edit", None)):
+                     getattr(self, "_m_desc_edit", None),
+                     getattr(self, "_pc_desc_edit", None)):
             if edit is None:
                 continue
             # The field is replaced outright when the SELECTION moved — it is
@@ -4299,7 +4332,8 @@ class TabProfile(QWidget):
         # never for the setText this tab does itself — so filling the field
         # from disk can never be mistaken for an override (Knut, beta.148).
         for _edit in (getattr(self, "_desc_edit", None),
-                      getattr(self, "_m_desc_edit", None)):
+                      getattr(self, "_m_desc_edit", None),
+                      getattr(self, "_pc_desc_edit", None)):
             if _edit is not None:
                 _edit.textEdited.connect(
                     lambda _t: self._remember_profile_description())
