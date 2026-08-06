@@ -339,4 +339,5 @@ is, and R3 checks both directions.
 - [`per_run_description.md`](per_run_description.md) — the description field; §5 T5.1 of it is reversed by §4 here
 - [`measurement_exit_strategy.md`](measurement_exit_strategy.md) — every window that can end a measurement
 - [`unified_measurement_management.md`](unified_measurement_management.md) — the model these all sit inside
+- [`per_target_settings_test_plan.md`](per_target_settings_test_plan.md) — **the test plan for this document** (R1–R6 worked out)
 - [`dev_folder_layout.md`](../dev_folder_layout.md) — where `meta.json` and the chart sidecars live

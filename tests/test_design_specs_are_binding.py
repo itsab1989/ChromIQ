@@ -20,6 +20,7 @@ BINDING = [
     "per_run_description.md",
     "measurement_exit_strategy.md",
     "per_target_settings.md",
+    "per_target_settings_test_plan.md",
 ]
 
 

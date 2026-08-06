@@ -280,6 +280,7 @@ Two obligations, and the second is the one that is easy to get wrong:
 | `per_run_description.md` | the description / notes fields, `-D`, and the run lifecycle |
 | `measurement_exit_strategy.md` | every window that can end a measurement, and the key each button sends |
 | `per_target_settings.md` | which settings belong to a target, and when they are loaded and written |
+| `per_target_settings_test_plan.md` | how that is proved — on-screen, every parameter, both states |
 | `calibration_run_type.md` | calibration as a run type |
 
 New user-facing message text is governed by §M of
