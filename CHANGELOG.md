@@ -1,5 +1,19 @@
 # Changelog
 
+## v3.14.8-beta.161
+
+### Fixed
+- **Three more failure windows now appear when the ChromIQ reader is in use.**
+  They were recognised only by the stock ArgyllCMS reader, so on the default
+  reader the failure went to the log with no window to explain it:
+  - the instrument cannot do the kind of reading the chart needs,
+  - a colorimeter correction file (CCMX/CCSS) could not be loaded,
+  - the instrument mode could not be set.
+
+  Found by auditing every message after Knut's abort-window report, not by a
+  second report. All three are printed by the reader in the ordinary way, so
+  they were always reachable — only the window was missing.
+
 ## v3.14.8-beta.160
 
 ### Fixed

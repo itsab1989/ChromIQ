@@ -1316,6 +1316,24 @@ class MeasureManager(QObject):
         m = _INIT_INST_FAIL_RE.search(line)
         if m:
             self.inst_init_failed.emit(m.group(1).strip())
+        # THE THREE NEIGHBOURS THE beta.141 FIX WALKED PAST.
+        #
+        # That fix moved exactly the two regexes above into this shared
+        # checker and left these where they were — in the stock parser only —
+        # so the same class of startup failure still went unheard on the
+        # engine. They are printed by the helper as prose in every case
+        # (chromiq_chartread.c:1004, :1063, :1085, :1409), so the condition is
+        # fully reachable there; only the window was missing. Found by
+        # auditing every signal after Knut's abort-window report (beta.160),
+        # not by a second report.
+        m = _CAPABILITY_FAIL_RE.search(line)
+        if m:
+            self.instrument_wrong_type.emit(m.group(1).lower())
+        if _CCMX_FAIL_RE.search(line):
+            self.ccmx_load_failed.emit(line.strip())
+        m = _MODE_SET_FAIL_RE.search(line)
+        if m:
+            self.mode_set_failed.emit(m.group(1).strip())
 
     def _handle_line(self, line: str, on_line: Callable[[str], None]) -> None:
         on_line(line)
@@ -1486,15 +1504,9 @@ class MeasureManager(QObject):
             self.generic_instrument_error.emit(m.group(1).strip(), m.group(2).strip())
 
         # B. Startup / config failures -------------------------------------
+        # All of them live in the shared checker, so both readers raise the
+        # same windows. Repeating them here would fire each one twice.
         self._check_startup_failures(line)
-        m = _CAPABILITY_FAIL_RE.search(line)
-        if m:
-            self.instrument_wrong_type.emit(m.group(1).lower())
-        if _CCMX_FAIL_RE.search(line):
-            self.ccmx_load_failed.emit(line.strip())
-        m = _MODE_SET_FAIL_RE.search(line)
-        if m:
-            self.mode_set_failed.emit(m.group(1).strip())
 
         # B-status. Informational ------------------------------------------
         m = _INFO_CHART_INST_MISMATCH_RE.search(line)

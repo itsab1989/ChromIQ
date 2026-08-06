@@ -54,6 +54,31 @@ That last row is why the tables list the raw key: on the engine the key is only
 a name for a command, and a name with no command behind it is an instrument
 that appears to stop responding.
 
+### The rule that follows from all of this
+
+**A window must not depend on which reader is running.** The two parsers are
+separate — `_handle_line` for stock, `_handle_engine_line` for the engine — and
+a condition recognised by only one of them raises its window for only half the
+users. The stock half working is what makes this invisible: the feature is
+demonstrably there, and a test at the handler passes either way.
+
+It has now happened four times, and each was found by a user rather than by us:
+the unmapped keys in `KEY_TO_COMMAND` (beta.138), the startup failure with no
+window (beta.141), the abort window (beta.160, note 4), and — found by auditing
+every signal after that last one, rather than by a fifth report — the three
+startup failures the beta.141 fix left behind: **wrong instrument capability**,
+**CCMX/CCSS load failure** and **instrument mode failure**. All three are
+printed as prose by the helper, so all were reachable on the engine, and none
+raised a window there.
+
+Anything both readers can produce belongs in code both parsers call;
+`_check_startup_failures` is that place for startup failures.
+`tests/test_both_readers_raise_the_same_windows.py` enforces it two ways: it
+feeds each reader the exact line the helper prints and requires identical
+signals out of both, and it fails structurally if one of these signals is
+emitted from the stock parser alone. **Ask what raises a handler, not only
+whether the handler works.**
+
 ---
 
 ## Table 1 — ChromIQ chartread (the engine)
