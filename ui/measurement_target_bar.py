@@ -214,6 +214,14 @@ class MeasurementTargetController(QObject):
                 rel = proj_root.resolve().relative_to(root.resolve())
             except (ValueError, OSError):
                 rel = Path(proj_root.name)          # project outside the folder
+            if self._target.is_calibration():
+                # A CALIBRATION IS NOT IN A RUN. It is the project's one
+                # calibration, in `cal/` — so naming a run folder here pointed
+                # at a folder nothing was being written to. Knut, beta.147:
+                # *"With Run type = Calibration, the 'Location being edited'
+                # must show the path to the calibration folder
+                # project_name/cal/ in relation to the ChromIQ default folder."*
+                return "/".join([root.name, *rel.parts, "cal"]) + "/"
             run_id = self._target.profile_run
             if not run_id:
                 # "New run" — name the folder that would be created, so the user

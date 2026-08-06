@@ -102,10 +102,21 @@ def test_no_chart_clears_both_halves_of_the_marker():
 
 
 def test_every_place_that_records_the_shown_chart_records_its_stamp():
-    """A path recorded without its stamp would re-open the same hole."""
+    """A path recorded without its stamp would re-open the same hole.
+
+    Counted by what the line DOES, not by the name of the variable it reads.
+    The old form matched the literal ``= ti2``, so a caller whose parameter is
+    called ``ti2_path`` scored as an unstamped assignment while its stamp line
+    — ``_chart_stamp(ti2_path)`` — did not count at all. It failed on a path
+    that records the stamp correctly, which is a test reporting on spelling
+    rather than on behaviour.
+    """
     whole = inspect.getsource(TabChart)
-    assigns = whole.count("self._shown_chart_ti2 = ti2")
-    stamps = whole.count("self._shown_chart_stamp = self._chart_stamp(ti2)")
+    assigns = sum(1 for line in whole.splitlines()
+                  if line.strip().startswith("self._shown_chart_ti2 = ")
+                  and not line.strip().endswith("None"))
+    stamps = sum(1 for line in whole.splitlines()
+                 if "self._shown_chart_stamp = self._chart_stamp(" in line)
     assert stamps >= assigns - 1, (
         f"{assigns} places record the shown chart but only {stamps} record its "
         f"stamp")

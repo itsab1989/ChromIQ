@@ -445,6 +445,17 @@ class Calibration:
         """
         return self.dir / "chart"
 
+    #: ``cal/meta.json`` holds the user's own words about this calibration —
+    #: its description and its chart notes. It is COPIED into an archive and
+    #: never moved there, because it describes the calibration slot, which
+    #: survives a rebuild. Moving it emptied both fields the moment a new
+    #: calibration chart was generated (Knut, beta.147): *"adding text in
+    #: Calibration Description and Calibration Chart Notes, then Generate
+    #: Chart. The chart was made, but the text in the two fields
+    #: dissappeared."* Runs have always kept their ``meta.json`` across a chart
+    #: rebuild; this is the same rule for ``cal/``.
+    KEPT_ACROSS_ARCHIVE = ("meta.json",)
+
     def live_files(self) -> "list[Path]":
         """Everything in ``cal/`` that is the calibration itself.
 
@@ -457,6 +468,11 @@ class Calibration:
         return sorted(p for p in self.dir.iterdir()
                       if p.is_file() and not p.name.startswith("."))
 
+    def copied_to_archive(self) -> "list[Path]":
+        """Files an archive gets a COPY of, while the live one stays put."""
+        return [self.dir / name for name in self.KEPT_ACROSS_ARCHIVE
+                if (self.dir / name).is_file()]
+
     def archive_to_old(self, when: "datetime | None" = None) -> "Path | None":
         """Move the current calibration into ``cal/old/<date>/`` — never delete.
 
@@ -468,7 +484,8 @@ class Calibration:
 
         Returns the archive folder, or None when there was nothing to keep.
         """
-        existing = self.live_files()
+        copied = self.copied_to_archive()
+        existing = [p for p in self.live_files() if p not in copied]
         # The stored chart copy travels with it: restoring a calibration you
         # have archived should give you the chart it was measured with, not the
         # chart that replaced it.
@@ -496,6 +513,12 @@ class Calibration:
                 k += 1
             shutil.move(str(p), str(target))
             log.info("archived calibration %s -> cal/old/%s/", p.name, dest.name)
+        # …and the calibration's own words go in as a COPY, so the archive
+        # documents itself while the live fields keep what the user typed.
+        for p in copied:
+            shutil.copy2(str(p), str(dest / p.name))
+            log.info("copied calibration %s into cal/old/%s/ (the live one "
+                     "stays)", p.name, dest.name)
         return dest
 
     def reset(self) -> None:

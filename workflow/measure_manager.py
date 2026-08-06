@@ -295,6 +295,10 @@ class MeasureManager(QObject):
         #: True once an ending has been answered, so the second form of the
         #: give-up prompt cannot re-ask about an ending already decided.
         self._ending_already_answered: bool = False
+        #: The user chose to stop from a failure window and the key has
+        #: gone out. Strip mode may need a second one — see
+        #: `mark_stop_requested`.
+        self._stop_requested: bool = False
         # True while the helper is blocked on a failure prompt ("Hit Esc or 'q'
         # to give up, any other key to retry"). Whatever we send there is spent
         # as that "any other key", so a navigation command sent while this is
@@ -589,6 +593,15 @@ class MeasureManager(QObject):
         self._guided_strips = list(strips)
         self._guided_idx    = 0
         self._guided_state  = "idle" if strips else "disabled"
+
+    def mark_stop_requested(self) -> None:
+        """Record that the user has chosen to stop and the key has gone out.
+
+        In strip mode one key is not always enough — see the ``strip_interrupted``
+        branch, which is where this is spent. Cleared at every session start, so
+        a stop chosen in one session can never leak into the next.
+        """
+        self._stop_requested = True
 
     def mark_ending_answered(self) -> None:
         """Record that the user has already answered how this session ends.
@@ -915,6 +928,8 @@ class MeasureManager(QObject):
         if kind == "session_start":
             self._saw_spot_ready = False
             self._ending_already_answered = False
+            self._stop_requested = False
+            self._stop_requested = False
             strips = ev.get("strips", [])
             # Was there anything left to read when we opened it? That is what
             # decides whether "all strips read" can ever be news in this
@@ -1083,6 +1098,29 @@ class MeasureManager(QObject):
             # Read Interrupted' came again … You did not remove it."* Answering
             # that window a second time crashed the app, which is the other half
             # of this fix (see ArgyllRunner._on_ready_read).
+            # THE SECOND HALF OF A GIVE UP TAKEN AT THE STRIP MENU.
+            #
+            # In STRIP mode a wrong-dial failure is not a retry prompt at all.
+            # chartread prints the failure and goes straight back to the strip
+            # menu — *"Trigger instrument switch or any other key to start:"* —
+            # so the quit the user's Give Up sends is read there as "interrupt
+            # this strip read", and the helper answers with "Strip read stopped
+            # at user request!" and THIS event, sitting at a give-up prompt
+            # nobody is now watching. Knut, beta.147: *"Now window goes away,
+            # but since I did not make any measurements, the measurement session
+            # should have stopped. It did not."*
+            #
+            # Patch-by-patch does end on one key, because there the same failure
+            # DOES leave the reader at a retry prompt — which is why his note
+            # says not to copy what that mode does. The ending the user already
+            # chose is simply finished here.
+            if self._stop_requested:
+                self._stop_requested = False
+                self._ending_already_answered = True
+                log.info("give up: the reader came back at the give-up prompt; "
+                         "finishing the stop the user already chose")
+                self.send_key("q")
+                return
             if self._ending_already_answered:
                 return
             # THE GIVE-UP PROMPT, AS AN EVENT.

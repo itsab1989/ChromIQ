@@ -73,6 +73,21 @@ folder line uses** — and the two cannot disagree.
 and we know it is for the run it belongs to"*. The run is already named by the
 description row directly above.
 
+🆕 **The description is SHARED between Profiling and Verification.** Knut spelled
+this out when asked (2026-08-05 23:43):
+
+> *"The 'Run N Description' is specific for Profiling run (Run type = Profiling
+> and any numbered run selected in "Profile run"), and 'Run N Description' is
+> specific for Calibration (Run type = Calibration, at which "Profile run" is
+> not relevant). When a specific run is selected for Profile run, then 'Run N
+> Description' is shared with (common with) any verification run (Run type =
+> Verification)."*
+
+There is therefore no separate verification description: switching to
+Verification leaves the description row reading **"Run N Description:"** and
+editing the run's own text. Only the notes row follows the chart. Rows F3 and
+F8 are that rule.
+
 **T1.1 (U)** `RunMeta` gains `description: str = ""` and `chart_notes: str = ""`.
 A `meta.json` written before this feature loads with both empty and is not
 rewritten until something changes.
@@ -295,6 +310,30 @@ value to type, and what must then be visible.
 | S16 | 🆕 with New run selected, switch Run type to Verification | F8 |
 | S17 | 🆕 compare the label's number with "Location being edited" | T1.4 |
 | S18 | 🆕 open the app cold and read the labels before touching the bar | T1.5 |
+| S19 | 🆕 New run + type in both boxes + **Generate Chart** | T5.9 |
+| S20 | 🆕 New run + type in both boxes, then look at every existing run | T5.10 |
+| S21 | 🆕 Calibration + type in both boxes + **Generate Chart** | T5.11 |
+| S22 | 🆕 **Duplicate** a run, then press Generate Chart | T5.12 |
+| S23 | 🆕 Run type = Calibration, read "Location being edited" | T1.7 |
+
+**T1.7 (I/S)** 🆕 With Run type = Calibration the folder line reads
+`…/<project>/cal/`. A calibration is not in a run, so naming one pointed at a
+folder nothing was being written to (Knut, beta.147).
+
+**T5.9 (I/S)** 🆕 Text typed while "New run" is selected is written into the run
+**Generate Chart creates**, and stays on screen afterwards. There is nowhere to
+save it until that moment, so it is held in the fields and flushed by
+`_align_current_run_to_target` **before** the bar moves to the new run —
+otherwise the re-read that follows finds an empty file and blanks both boxes.
+**T5.10 (U/I)** 🆕 …and it is never written into an existing run in the
+meantime. `resolve_run` answers "the current run" when the selection names
+none, which made every keystroke land on somebody else's description.
+**T5.11 (U/I)** 🆕 Generating a calibration chart archives the previous
+calibration; `cal/meta.json` is **copied** into the archive and the live one
+stays, so the two fields survive the rebuild.
+**T5.12 (I)** 🆕 A chart inside the open project is never "loaded from
+elsewhere". Duplicate shows the copy through the same call the Print/Measure
+"Open Chart File" path uses, and that state makes Generate Chart refuse to run.
 
 **Every S row is walked in the real app**, with the app's own fonts and style
 applied as `main.py` applies them — a run without them measures a different

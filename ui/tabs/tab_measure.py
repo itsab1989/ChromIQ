@@ -2947,6 +2947,17 @@ class TabMeasure(QWidget):
         # Polish has run by now, so the log's stylesheet font is real and its
         # nine lines can be measured (Knut, beta.120).
         self._fit_log_height()
+        # RE-READ THE MEASUREMENT FILE. Everything on this tab that depends on
+        # the .ti3 — "Refine / resume existing measurement", its strips
+        # sub-option, the overlay toggle — was decided the last time something
+        # handed us a chart, and the file can change underneath that. Knut,
+        # beta.147: *"If I now delete the ti3 file, so there are no measurement.
+        # And then go out of the measure tab and in again, just to update
+        # everything. Then the 'Refine / resume …' checkbox is still visible.
+        # It is not supposed to show when there is no measurement to resume."*
+        # Arriving at the tab is the moment to look again — the same reasoning
+        # that puts the existing-measurement offer here.
+        self._update_resume_availability()
         self._pending_overlay_offer = False
         # NOT here and now. Opening a modal window from inside showEvent blocks
         # before the tab has finished being painted, so the window comes up over
@@ -4048,6 +4059,9 @@ class TabMeasure(QWidget):
         self._pace = None            # rebuild the tracker with that model's rate
         if model:
             log.info("measurement: instrument reported as %s", model)
+            # The device has answered: the startup wait is over.
+            self._saw_instrument = True
+            self._disarm_startup_watchdog()
         self._warn_if_instrument_does_not_match_chart(model)
 
     def _blocked_by_unusable_target_instrument(self) -> bool:
@@ -4904,6 +4918,12 @@ class TabMeasure(QWidget):
             on_line=self._on_log_line,
             on_finish=self._on_measure_done,
         )
+        # From here until the reader says something, the instrument is what is
+        # being waited for — and silence is the ONLY evidence of a device that
+        # never answers (see _arm_startup_watchdog). Armed for both readers:
+        # Knut hit it on the ChromIQ engine and on stock chartread alike.
+        self._saw_instrument = False
+        self._arm_startup_watchdog()
         self.measurement_active.emit(True)
 
     def _confirm_nonrandom_bidir(self, params: "MeasureParams") -> bool:
@@ -5091,6 +5111,14 @@ class TabMeasure(QWidget):
             # Stopping, either way. Whatever the reader says about it next is
             # about the ending the user has just chosen, not news.
             mark = getattr(self._manager, "mark_ending_answered", None)
+            if callable(mark):
+                mark()
+        if answer == "\x1b":
+            # …and in strip mode the quit that is about to go out may land at
+            # the strip menu rather than at a give-up prompt, which interrupts
+            # the read instead of ending the session. The manager finishes it
+            # when the reader comes back (Knut, beta.147).
+            mark = getattr(self._manager, "mark_stop_requested", None)
             if callable(mark):
                 mark()
         return answer
@@ -5377,6 +5405,66 @@ class TabMeasure(QWidget):
         self._status_bar_lbl.setVisible(True)
         QTimer.singleShot(duration_ms, lambda: self._status_bar_lbl.setVisible(False))
 
+    #: How long the reader may be silent while opening the instrument before
+    #: the user is told what is being waited for. A ColorMunki that answers
+    #: comes back in well under a second (Knut's own working log: 80 ms), and
+    #: the slowest healthy device in the field is a couple of seconds — so ten
+    #: is far past "just slow" and nowhere near impatient.
+    _STARTUP_SILENCE_S = 10
+
+    def _arm_startup_watchdog(self) -> None:
+        """Watch the silence between "session started" and the instrument.
+
+        NOTHING ELSE CAN SEE THIS FAULT. Every instrument-startup check ChromIQ
+        has — communications failure, initialise failure, wrong capability, no
+        instrument, device busy, disconnected — matches a line the reader
+        PRINTS. When the device does not answer at all, the reader blocks inside
+        opening it and prints nothing, so not one of them can fire: Knut,
+        beta.147, seven times over, with the log dead silent after
+        `session_start`. *"No sound, no initiation of instrument (it seems)."*
+        Elapsed time is the only evidence there is.
+
+        This only says what is being waited for. It does not stop, kill or
+        change the measurement — the Stop button stays entirely the user's.
+        """
+        wd = getattr(self, "_startup_watchdog", None)
+        if wd is None:
+            wd = QTimer(self)
+            wd.setSingleShot(True)
+            wd.setInterval(self._STARTUP_SILENCE_S * 1000)
+            wd.timeout.connect(self._on_startup_silence)
+            self._startup_watchdog = wd
+        wd.start()
+
+    def _disarm_startup_watchdog(self) -> None:
+        wd = getattr(self, "_startup_watchdog", None)
+        if wd is not None and wd.isActive():
+            wd.stop()
+
+    def _on_startup_silence(self) -> None:
+        if not self._runner.is_running:
+            return
+        self._log.appendPlainText("\n" + tr(
+            "[WAITING] Still waiting for the instrument to answer.\n"
+            "ChromIQ has started the measurement and asked your instrument to "
+            "wake up, and it has not replied for {n} seconds. That is much "
+            "longer than usual — a healthy instrument answers almost at once.\n"
+            "This is nearly always the connection rather than anything you did. "
+            "Things worth trying, in this order:\n"
+            "  •  Unplug the instrument's USB cable and plug it back in, then "
+            "press Stop here and start the measurement again.\n"
+            "  •  Try a different USB port, and avoid hubs if you can.\n"
+            "  •  Make sure nothing else on the computer has the instrument "
+            "open — another profiling program, or a virtual machine.\n"
+            "You can keep waiting if you prefer; nothing has been lost, and "
+            "your existing measurement is put back untouched if this session "
+            "ends without reading anything."
+        ).format(n=self._STARTUP_SILENCE_S))
+        self._log.ensureCursorVisible()
+        self._flash_status(
+            tr("The instrument has not answered yet — see the log."),
+            duration_ms=10000)
+
     def _on_log_line(self, line: str) -> None:
         self._log.appendPlainText(line)
         self._log.ensureCursorVisible()
@@ -5385,6 +5473,15 @@ class TabMeasure(QWidget):
         self._last_chartread_output_ts = time.monotonic()
         if self._key_watchdog.isActive():
             self._key_watchdog.stop()
+        # …and the reader has spoken. That is not the same as the instrument
+        # having answered: chartread prints its chart header BEFORE it opens
+        # the device. So the wait is restarted, line by line, until the
+        # instrument names itself — which is what makes this work on stock
+        # chartread too, where there is no session_start event to hang it on.
+        if self._runner.is_running and not getattr(self, "_saw_instrument", False):
+            self._arm_startup_watchdog()
+        else:
+            self._disarm_startup_watchdog()
         # Only flag fatal errors — strip read failures are recoverable and handled
         # separately via the strip_error signal / dialog.
         if "communications failure" in line.lower():
@@ -8210,6 +8307,8 @@ class TabMeasure(QWidget):
         return letters or None
 
     def _on_session_map(self, strips: list) -> None:
+        # The session exists; the instrument is what we are waiting for now.
+        self._arm_startup_watchdog()
         self._engine_strips = list(strips)
         self._engine_read = {s.get("strip", ""): bool(s.get("read"))
                              for s in strips}

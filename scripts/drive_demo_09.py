@@ -223,6 +223,61 @@ def main() -> int:
     check("…with the run it will belong to on the row above",
           tab._manual_run_desc_lbl.text(), "Run 4 Description:")
 
+    print("\n--- README step 14: the folder line under Calibration ---")
+    select("run1", RUN_TYPE_CALIBRATION)
+    where = ctl.location_being_edited()
+    check("the location line names cal/", where.endswith("/cal/"), True)
+    check("…and never a run folder", "/runs/" in where, False)
+
+    print("\n--- README step 15: text for a run that does not exist yet ---")
+    select("", RUN_TYPE_PROFILING)
+    tab._manual_run_desc_edit.setText("typed before the run existed")
+    tab._manual_chart_notes_edit.setText("notes before the run existed")
+    tab._manual_chart_notes_edit.editingFinished.emit()
+    settle()
+    proj = ctl.project_or_none()
+    for rid in ("run1", "run2", "run3"):
+        check(f"{rid} was not given the new run's text",
+              proj.run(rid).load_meta().description == "typed before the run existed",
+              False)
+    check("the text is still on screen", tab._manual_run_desc_edit.text(),
+          "typed before the run existed")
+
+    print("\n--- README step 16: Generate keeps it, on the run it creates ---")
+    tab._align_current_run_to_target()          # what Generate Chart does
+    settle()
+    new_id = ctl.target.profile_run
+    check("a new run was created and selected", new_id, "run4")
+    check("its description is what was typed",
+          proj.run(new_id).load_meta().description, "typed before the run existed")
+    check("its chart notes too",
+          proj.run(new_id).load_meta().chart_notes, "notes before the run existed")
+    check("and both are still on screen", tab._manual_run_desc_edit.text(),
+          "typed before the run existed")
+
+    print("\n--- README step 17: a calibration rebuild keeps its text ---")
+    cal = proj.calibration
+    cal.ensure_dir()
+    cal.cal_path.write_text("a calibration")
+    m = cal.load_meta()
+    m.description, m.chart_notes = "cal text", "cal notes"
+    cal.save_meta(m)
+    archive = cal.archive_to_old()
+    check("the live description survived", cal.load_meta().description, "cal text")
+    check("the live chart notes survived", cal.load_meta().chart_notes, "cal notes")
+    check("the archive has its own copy",
+          (archive / "meta.json").is_file(), True)
+
+    print("\n--- README step 18: a duplicate is not a chart from elsewhere ---")
+    own = proj.run("run1").chart_ti2
+    check("the run's own chart is recognised as ours",
+          tab._chart_is_in_this_project(own), True)
+    tab._reflected_active = True
+    tab.reflect_loaded_chart(own, proj.run("run1").chart_tiffs())
+    settle()
+    check("showing it leaves Generate Chart available",
+          tab._reflected_active, False)
+
     print(f"\n{len(PASS)} passed, {len(FAIL)} failed")
     for f in FAIL:
         print(f"  ✗ {f}")

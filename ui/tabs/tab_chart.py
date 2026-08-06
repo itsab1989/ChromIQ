@@ -7104,6 +7104,26 @@ class TabChart(QWidget):
         except Exception:  # noqa: BLE001
             log.warning("could not store printtarg fields in %s", sidecar)
 
+    def _chart_is_in_this_project(self, ti2_path: Path) -> bool:
+        """Is this ``.ti2`` inside the project that is currently open?
+
+        That is the whole question behind "loaded from elsewhere". A chart in
+        the open project's own folder — any run, any verification, the
+        calibration — is this tab's chart to edit and regenerate. Only a file
+        outside it is somebody else's.
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
+            return False
+        try:
+            project = ctl.project_or_none()
+            if project is None:
+                return False
+            root = Path(project.root).resolve()
+            return Path(ti2_path).resolve().is_relative_to(root)
+        except (OSError, ValueError):      # unresolvable path → treat as outside
+            return False
+
     def reflect_loaded_chart(self, ti2_path: Path, tiffs: list[Path]) -> None:
         """Mirror a chart loaded in the Print/Measure tab, read-only.
 
@@ -7114,6 +7134,26 @@ class TabChart(QWidget):
         one-time note explains that the previously-shown layout is preserved.
         """
         ti2_path = Path(ti2_path)
+        # A CHART THE SELECTION ALREADY OWNS IS NOT "FROM ELSEWHERE".
+        #
+        # This state exists to say "the chart on screen lives in someone else's
+        # folder, so there is nothing here to generate". When the file IS the
+        # selected target's own chart, that sentence is false — and it does not
+        # merely mislead, it BLOCKS: `_on_generate` stops on it. Knut, beta.147,
+        # after using Duplicate (which shows the copy through this method):
+        # *"Now I get a window 'This chart is loaded from elsewhere' … This is
+        # obviously wrong … I am not allowed to finish the Generate Chart."*
+        # He met the same wall on a run's own verification chart in beta.132.
+        if self._chart_is_in_this_project(ti2_path):
+            log.info("Create Chart: %s belongs to the open project — showing "
+                     "it as this tab's own chart, not as a loaded one",
+                     ti2_path.name)
+            self._leave_reflected()
+            self._shown_chart_ti2 = ti2_path
+            self._shown_chart_stamp = self._chart_stamp(ti2_path)
+            self._display_run_chart(ti2_path, list(tiffs),
+                                    ti2_path.with_suffix(".ti1"))
+            return
         self._switch_mode("manual")
         # Drop any other fixed-layout binding for a consistent lock state.
         self._tc918_active = False
@@ -9229,6 +9269,19 @@ class TabChart(QWidget):
                 return None
             if ctl.target.is_calibration():
                 return project.calibration
+            # "New run" HAS NO STORE YET, and must not borrow one.
+            #
+            # `resolve_run` falls back to the project's CURRENT run when the
+            # selection names none, which is right for "where does a build go"
+            # and wrong for "whose description is this": typing with New run
+            # selected wrote silently into whichever run happened to be current,
+            # and then Generate created the new run and re-read it — so the text
+            # landed on the wrong run AND vanished from the screen. Knut,
+            # beta.147: *"the Run Description and Run Chart Note … was cleared
+            # in the newly created run 12."* Held in the fields instead, and
+            # written by `_align_current_run_to_target` when the run appears.
+            if ctl.target.is_new_run():
+                return None
             from core.measurement_target import resolve_run
             return resolve_run(project, ctl.target)
         except Exception:      # noqa: BLE001
@@ -9259,14 +9312,20 @@ class TabChart(QWidget):
         it when the selection moved.
         """
         store = self._target_text_store()
+        if store is None:
+            # Nowhere to read from — a run that does not exist yet, or no
+            # project at all. LEAVE WHAT IS ON SCREEN. Blanking the fields here
+            # would throw away text the user is part-way through typing for the
+            # run they are about to create, and it is also what carries a run's
+            # settings across to a New run (§5 T5.1).
+            return
         description = notes = ""
-        if store is not None:
-            try:
-                meta = store.load_meta()
-                description = getattr(meta, "description", "") or ""
-                notes = getattr(meta, "chart_notes", "") or ""
-            except Exception:      # noqa: BLE001 — unreadable is empty, not fatal
-                description = notes = ""
+        try:
+            meta = store.load_meta()
+            description = getattr(meta, "description", "") or ""
+            notes = getattr(meta, "chart_notes", "") or ""
+        except Exception:      # noqa: BLE001 — unreadable is empty, not fatal
+            description = notes = ""
         self._set_target_text_fields(description, notes)
 
     def _set_target_text_fields(self, description: str, notes: str) -> None:
@@ -9311,6 +9370,24 @@ class TabChart(QWidget):
             if edit is not None:
                 return edit.text()
         return ""
+
+    def _write_target_text_into(self, store) -> None:
+        """Put what is on screen into ``store``'s meta, whatever is selected.
+
+        The one place that writes without asking where the selection points, so
+        a run created mid-action can be given the text that was typed for it.
+        """
+        if store is None:
+            return
+        try:
+            meta = store.load_meta()
+            meta.description = self._current_run_description()
+            meta.chart_notes = self._current_chart_notes()
+            store.save_meta(meta)
+            log.info("run description + chart notes written to %s", store.id
+                     if hasattr(store, "id") else store)
+        except Exception:      # noqa: BLE001 — never lose the tab over a write
+            log.warning("Could not save the run's description", exc_info=True)
 
     def _save_target_text(self) -> None:
         """Write both texts to the ONE file this selection points at.
@@ -9996,6 +10073,13 @@ class TabChart(QWidget):
         elif not run_id:                     # "New run"
             new_run = proj.new_run()
             log.info("Create Chart: build target run → %s (new run)", new_run.id)
+            # THE TEXT TYPED FOR THIS RUN GOES IN BEFORE ANYONE READS IT BACK.
+            # With "New run" selected there was nowhere to save the description
+            # and the chart notes, so they were held in the fields; this is the
+            # moment they have a home. It must happen before `set_profile_run`,
+            # which fires `changed` and re-reads both fields from the run —
+            # finding them empty is exactly what wiped them (Knut, beta.147).
+            self._write_target_text_into(new_run)
             ctl.set_profile_run(new_run.id)
 
     def _no_chart_guidance(self) -> str:

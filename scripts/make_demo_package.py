@@ -805,6 +805,32 @@ SEQUENCES = {
              "Still on **New run**, set Run type = **Verification**. "
              "*Expected:* **“Run 4 Description”** and **“Verification Chart "
              "Notes”**. [[ON-SCREEN]]",
+             "Set Run type = **Calibration** and look at the **“Location being "
+             "edited”** line under the bar. *Expected:* it ends in "
+             "**/cal/** — a calibration is not in a run, so it must not name "
+             "one. Switch back to Profiling and it names the run folder "
+             "again. [[ON-SCREEN]]",
+             "**The text you type for a run that does not exist yet.** Set "
+             "Profile run = **New run**, Run type = Profiling, and type "
+             "something into BOTH boxes. Before pressing anything else, look "
+             "at runs 1, 2 and 3 in turn. *Expected:* none of them has taken "
+             "your text — it belongs to the run you are about to make. Come "
+             "back to New run: your text is still in the boxes. [[ON-SCREEN]]",
+             "Now press **Generate Chart**. *Expected:* the new run is "
+             "created, the labels change to its real number — and **both "
+             "boxes still hold what you typed**, now saved to that run. "
+             "Switch to another run and back to prove it is on disk. [[ON-SCREEN]]",
+             "**The same for a calibration.** Set Run type = **Calibration**, "
+             "type into both boxes, and press **Generate Chart**. *Expected:* "
+             "the chart is made and **both boxes still hold your text**. Any "
+             "previous calibration is moved into `cal/old/<date>/`, and a copy "
+             "of your description goes with it so the archive says what it "
+             "was. [[ON-SCREEN]]",
+             "**Duplicate, then generate.** Select a run that has a chart and "
+             "press **Duplicate** in the bar. When the copy is showing, press "
+             "**Generate Chart**. *Expected:* it generates. There must be NO "
+             "“This chart is loaded from elsewhere” window — the copy is this "
+             "project's own chart, not somebody else's. [[ON-SCREEN]]",
              "In Create Chart (Manual), open the layout options and use "
              "**Insert ▾** to put **{rundescription}** into the sheet text, "
              "then press **Generate Chart**. *Expected:* the run's description "
