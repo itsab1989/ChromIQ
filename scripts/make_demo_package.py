@@ -901,10 +901,21 @@ def build_run_descriptions(root: Path) -> None:
     seed = _seed_profile(root / ".seed")
     project = Project.load(p)
 
-    # run 2 gets everything a Restore needs: a stored chart copy, and a built
-    # profile so a verification can be started against it.
+    # EVERY run gets a stored chart copy, not just run 2.
+    #
+    # Step 24 says "for a run, for Run type = Verification and for Run type =
+    # Calibration in turn" — and the project opens on **run1**, which had no
+    # `chart/` folder, so Restore Used Chart was unavailable the moment he
+    # reached the step. Knut, beta.157: *"The demo test runs and verification
+    # runs do not have proper data files, like measurements and pre-stored
+    # chart in a chart/ folder, thus using the 'Restore Used Chart' button was
+    # not possible, as the test was described."* He was right, and snapshotting
+    # only the run the author happened to be thinking about is why.
+    for rid in rids:
+        snapshot_slot(slot_for_run(project.run(rid)))
+    # …and run 2 also gets a built profile, so a verification can be started
+    # against it.
     run2 = project.run("run2")
-    snapshot_slot(slot_for_run(run2))
     shutil.copy2(seed, run2.dir / f"{name}.icc")
 
     # …and its verification: the shared chart, measured once, with a stored

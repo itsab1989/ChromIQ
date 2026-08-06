@@ -1,5 +1,13 @@
 # Changelog
 
+## v3.14.8-beta.167
+
+### Fixed
+- **Every run in the demo package now carries its stored chart**, not just
+  run 2. The Run-Descriptions demo opens on run 1, so "Restore Used Chart" was
+  unavailable the moment you reached the step that asks you to use it. Reported
+  by Knut (#130).
+
 ## v3.14.8-beta.166
 
 ### Internal

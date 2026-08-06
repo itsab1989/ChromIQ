@@ -44,6 +44,10 @@ SECTIONS: "list[tuple[str, str, str]]" = [
     # on in their own right. Without this the section is written, passes review
     # and then renders as nothing at all: the reader sees an empty release.
     ("docs", "Documentation", "📘 Documentation"),
+    # Groundwork with nothing on screen yet still has to render, for the same
+    # reason Documentation does: a release whose only section is unknown to
+    # this table renders as an empty page.
+    ("internal", "Internal", "🔧 Under the hood"),
     ("known", "Known issues", "⚠️ Known issues"),
 ]
 SECTION_BY_KEY = {k: (md, pretty) for k, md, pretty in SECTIONS}
@@ -132,6 +136,7 @@ def build(tags: "list[str]", title: str) -> str:
     fixed_n = _count_entries(merged["fixed"])
     new_n = _count_entries(merged["new"]) + _count_entries(merged["changed"])
     docs_n = _count_entries(merged["docs"])
+    internal_n = _count_entries(merged["internal"])
 
     parts = [f"## {title}", ""]
     # The overview: what this release is, in one honest sentence, before any
@@ -148,6 +153,9 @@ def build(tags: "list[str]", title: str) -> str:
     if docs_n:
         bits.append(f"**{docs_n} documentation "
                     f"{'update' if docs_n == 1 else 'updates'}**")
+    if internal_n:
+        bits.append(f"**{internal_n} internal "
+                    f"{'change' if internal_n == 1 else 'changes'}**")
     if len(seen) > 1:
         span = f"{seen[-1]} … {seen[0]}"
         parts.append(f"Everything from {span}, folded into one list — "
