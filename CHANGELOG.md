@@ -1,5 +1,20 @@
 # Changelog
 
+## v3.14.8-beta.154
+
+### Changed
+
+- **“No Instrument Found” now explains itself, and arrives when it is useful.**
+  It carries the fuller wording — what to try, in order, and the reassurance
+  that nothing has been lost — and it appears about five seconds after the
+  problem is detected instead of waiting for the reader to give up on its own,
+  which could take twenty. Its OK button ends the session the same way the Stop
+  button does, so a part-finished measurement is never discarded without being
+  offered to you first.
+
+- The separate “Your instrument is not answering” window added in beta.150 is
+  gone; there is one window for this again.
+
 ## v3.14.8-beta.153
 
 ### Fixed
