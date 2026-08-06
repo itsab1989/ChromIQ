@@ -1,5 +1,15 @@
 # Changelog
 
+## v3.14.8-beta.166
+
+### Internal
+- **Per-target settings, step 1: the parameter registry.** The list of settings
+  that belong to a run rather than to your installation is now discovered from
+  the Create Chart tab itself, so a parameter added to `parameters.yaml` cannot
+  be left out of the store by oversight. Nothing is written yet — this is the
+  vocabulary the store and its tests will share. Found 40 parameters on Create
+  Chart, and a full round trip through the real tab returns them unchanged.
+
 ## v3.14.8-beta.165
 
 ### Fixed

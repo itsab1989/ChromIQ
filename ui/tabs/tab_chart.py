@@ -9292,6 +9292,21 @@ class TabChart(QWidget):
             return desc, tr("Verification Chart Notes:")
         return desc, tr("Run {n} Chart Notes:").format(n=number)
 
+    def per_target_widgets(self) -> "dict[str, list]":
+        """The parameter rows that belong to the target, not the installation.
+
+        Specification S1.1: the list is generated, never written out, so a
+        parameter added to ``parameters.yaml`` cannot be left out of the store
+        by omission. ``workflow.per_target_settings`` reads this, and so does
+        the test harness — one answer, so the tests cannot cover a different
+        set of parameters than the store does.
+
+        Manual mode only: Guided is a way of *choosing* settings, and the rows
+        it fills are the same manual rows underneath.
+        """
+        return {tool: list(widgets)
+                for tool, widgets in getattr(self, "_manual_widgets", {}).items()}
+
     def _target_text_store(self):
         """Where this selection's two texts are read from and written to.
 
