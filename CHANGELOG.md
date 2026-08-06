@@ -1,5 +1,38 @@
 # Changelog
 
+## v3.14.8-beta.153
+
+### Fixed
+
+- **“All Strips Read” comes back.** Finishing a chart that had a few unread
+  patches left announced nothing — no window and no completion sound. ChromIQ
+  was asking the strip flags whether the chart was already finished, and those
+  are per strip while the gap is per patch, so a chart missing three patches
+  looked complete. It asks the measurement file now.
+
+- **The button no longer reads “Go to Calibration _Profiling Tab”.** And two
+  more completion windows that still offered “Go to Build Profile Tab” now name
+  whichever tab you actually have.
+
+- **A run and its verification keep their own Chart Notes.** Editing the notes
+  for a verification chart changed the run's own. They are two different sheets
+  of paper. The Run Description stays shared between them.
+
+- **Text typed for a “New run” is remembered** if you look at another run and
+  come back.
+
+- **Emptying “Profile Description” gives you the automatic name straight
+  away**, instead of waiting until you switch runs. It is also refreshed
+  whenever you arrive at the tab.
+
+- **The Create Calibration File module fills in its own Description** from the
+  project name and the Calibration Description, like the other two.
+
+- **Stopping a calibration measurement no longer jumps to another tab.**
+
+- **“Restore Used Chart” acts on the calibration** when Run type is set to
+  Calibration, instead of the selected profile run's chart.
+
 ## v3.14.8-beta.152
 
 ### Changed
