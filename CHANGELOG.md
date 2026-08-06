@@ -1,5 +1,20 @@
 # Changelog
 
+## v3.14.8-beta.171
+
+### New
+- **Create Chart settings now belong to the run you set them on.** Change the
+  Profile run or the Run type and the settings follow the target, instead of
+  whatever was last on screen leaking onto the next one. Settings are recorded
+  when you leave the tab, when you change run or run type, and when you quit —
+  silently, as Knut asked — and a run that has never been used opens on your
+  saved defaults rather than inheriting the previous run's numbers.
+- A run that does not exist yet keeps what you set for it in memory until
+  **Generate Chart** creates it, so nothing typed before then is lost.
+- The values Run type = Calibration decides for you are untouched by this: a
+  number you set by hand still comes back when you switch away from
+  Calibration.
+
 ## v3.14.8-beta.170
 
 ### Internal

@@ -125,6 +125,11 @@ class MainWindow(QMainWindow):
         # A restored verification chart must reach every tab, so nothing is left
         # showing or printing the pages it replaced (#130, Knut).
         self._target_ctl.chart_restored.connect(self._on_verify_chart_restored)
+        # The WRITE trigger of the settings queue (#130): the pulldown is
+        # open but nothing picked yet, so what is on screen still belongs
+        # to the target it was set on.
+        self._target_ctl.about_to_change_target.connect(
+            self._save_settings_of_visible_tab)
         # "Delete the whole project" has to leave the app as it starts — every
         # tab empty, nothing loaded, and no project silently made again (#130,
         # Knut 2026-07-29).
@@ -866,6 +871,23 @@ class MainWindow(QMainWindow):
                 else tr("the run it was copied from"))
         except Exception:      # noqa: BLE001 — the copy is made; never crash now
             log.warning("Could not show the duplicated run %s", run_id,
+                        exc_info=True)
+
+    def _save_settings_of_visible_tab(self) -> None:
+        """Flush the tab on screen without forgetting that it is on screen.
+
+        `_save_settings_of_tab_left` clears the "which tab is showing" note,
+        because a tab that has been left is no longer showing. Here the user has
+        merely opened a pulldown — the tab stays where it is, and clearing the
+        note would mean the next real tab change wrote nothing.
+        """
+        tab = getattr(self, "_settings_tab_showing", None)
+        if tab is None:
+            return
+        try:
+            tab.save_target_settings()
+        except Exception:      # noqa: BLE001 — never break a pulldown
+            log.warning("Could not flush the tab before a target change",
                         exc_info=True)
 
     def _save_settings_of_tab_left(self) -> None:

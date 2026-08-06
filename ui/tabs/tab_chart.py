@@ -1198,6 +1198,13 @@ class _ChartRebuildGuard:
         return changed
 
 
+#: "no store argument was given", so that passing None can mean the different
+#: thing "the outgoing target genuinely has no file yet" (#130 §2.1). Conflating
+#: the two makes a save fall back to the CURRENT store and write the outgoing
+#: target's values onto the incoming one.
+_NO_STORE_GIVEN = object()
+
+
 class TabChart(QWidget):
     """Step 1: create targen/printtarg test chart."""
 
@@ -9119,6 +9126,13 @@ class TabChart(QWidget):
         switching Run type / Profile run swaps the Create-Chart tab to that
         target's own chart (settings + preview)."""
         self._target_ctl = controller
+        # Know whose settings are on screen from the start, or the FIRST target
+        # change has no outgoing target and writes nothing.
+        try:
+            self._settings_store = self._target_text_store()
+            self._settings_key = self._target_settings_key()
+        except Exception:      # noqa: BLE001 — a question must not break setup
+            self._settings_store = self._settings_key = None
         # Let the bar's "Location being edited" line follow the name as it is
         # typed, so it is answerable before the first chart exists (#130).
         for _f in (getattr(self, "_target_name_edit", None),
@@ -9295,7 +9309,8 @@ class TabChart(QWidget):
     # ------------------------------------------------------------------
     # Per-target settings (#130 §2/§3) — the store, not the chart's record
     # ------------------------------------------------------------------
-    def save_target_settings(self, store=None) -> bool:
+    def save_target_settings(self, store=_NO_STORE_GIVEN,
+                             key=_NO_STORE_GIVEN) -> bool:
         """Write this tab's settings into the selected target's ``meta.json``.
 
         Called on every event in §3 that belongs to Create Chart: Generate
@@ -9314,10 +9329,27 @@ class TabChart(QWidget):
         # points at the new one — so writing "the current target" there would
         # record the old target's edits onto the new one, which is precisely
         # the failure this whole feature exists to prevent (§2.1, test N1).
-        if store is None:
+        if store is _NO_STORE_GIVEN:
             store = self._target_text_store()
         if store is None:
-            return False           # a New run before it exists, or no project
+            # A NEW RUN HAS NO FILE YET — HOLD IT, DO NOT DROP IT.
+            #
+            # Knut's rule is that values are written "when changing tabs or
+            # 'Profile run' or 'Run type'", and a New run has nowhere to be
+            # written until Generate Chart creates it. The tab already solves
+            # this for the description fields the same way (`_new_run_text`,
+            # his beta.147 report).
+            #
+            # Filed under the OUTGOING key: `_target_settings_key()` reads the
+            # live selection, which by now is the incoming target.
+            if key is _NO_STORE_GIVEN:
+                key = self._target_settings_key()
+            if key is not None:
+                from workflow.per_target_settings import snapshot
+                if "_pending_settings" not in self.__dict__:
+                    self._pending_settings = {}
+                self._pending_settings[key] = snapshot(self)
+            return False
         # A WRITE MUST NEVER BRING A DELETED PROJECT BACK.
         #
         # save_meta() creates what it needs, so writing to a target whose
@@ -9364,7 +9396,18 @@ class TabChart(QWidget):
         """
         store = self._target_text_store()
         if store is None:
-            return False
+            key = self._target_settings_key()
+            held = self._pending_settings.get(key) if key is not None else None
+            if not held:
+                return False
+            self._settings_store, self._settings_key = None, key
+            self._loading_target_settings = True
+            try:
+                from workflow.per_target_settings import apply
+                apply(self, held)
+                return True
+            finally:
+                self._loading_target_settings = False
         try:
             stored = getattr(store.load_meta(), "create_chart_settings", None)
         except Exception:      # noqa: BLE001
@@ -9372,22 +9415,38 @@ class TabChart(QWidget):
                         exc_info=True)
             return False
         if not stored:
-            # §4 S4–S7 SAYS A TARGET WITH NOTHING STORED OPENS ON DEFAULTS —
-            # AND THAT COLLIDES WITH BEHAVIOUR KNUT ALREADY ASKED FOR.
+            # §4 S4–S7: A TARGET WITH NOTHING STORED OPENS ON ITS DEFAULTS —
+            # EXCEPT THE ROWS RUN TYPE = CALIBRATION ALREADY OWNS.
             #
-            # Resetting the rows here is what makes N1 pass: without it the
-            # widgets still show the OUTGOING target's values, so the next
-            # write records them onto this one. But it also wipes the value a
-            # user hand-set before toggling Run type, which
-            # test_calibration_run_type_chart asserts must come back (37 → the
-            # calibration's 20 → 37 again). Two rules of his, pulling opposite
-            # ways.
+            # Two people's rules meet here. Knut asked for "open on defaults"
+            # (#130). Sebastian asked, on 2026-08-05, that Run type =
+            # Calibration force its own values onto a handful of rows and
+            # *"then also be reset to how it was before when the user sets
+            # another runtype again"* — `_pre_cal_snapshot` and
+            # `_apply_calibration_knobs`.
             #
-            # Not resolved here: the specification is his, so the collision is
-            # posted on #130 rather than settled by me. Until he rules, the
-            # older behaviour wins — it is shipped and he asked for it — and
-            # the N1 end-to-end test is marked xfail with this reason.
+            # They collide only on the six rows in `_CAL_VALUES`. Resetting
+            # those here wiped them BEFORE the snapshot was taken, so switching
+            # back restored the default instead of the number the user had set:
+            # a hand-set 37 came back as 0. Skipping them lets each rule keep
+            # the ground it was written for.
+            owned_by_calibration = {(tool, flag)
+                                    for tool, flag, _v in self._CAL_VALUES}
             self._settings_store = store
+            self._settings_key = self._target_settings_key()
+            self._loading_target_settings = True
+            try:
+                from workflow.per_target_settings import params_for
+                for prm in params_for(self):
+                    if (prm.tool, prm.flag) in owned_by_calibration:
+                        continue
+                    for w in prm.widgets:
+                        w.reset_to_default()
+            except Exception:      # noqa: BLE001
+                log.warning("Could not reset the rows to their defaults",
+                            exc_info=True)
+            finally:
+                self._loading_target_settings = False
             return False
         # REMEMBER WHOSE SETTINGS ARE NOW ON SCREEN.
         #
@@ -9412,6 +9471,21 @@ class TabChart(QWidget):
             return False
         finally:
             self._loading_target_settings = False
+
+    #: Settings for targets with no file yet, keyed by (profile run, run type).
+    #: Class-level default, replaced on first write, so a duck-typed caller
+    #: never trips over a missing attribute.
+    _pending_settings: dict = {}
+
+    def _target_settings_key(self) -> "tuple | None":
+        """A stable name for the selected target, for the no-file-yet case."""
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
+            return None
+        try:
+            return (ctl.target.profile_run, ctl.target.run_type)
+        except Exception:      # noqa: BLE001 — a question must not raise
+            return None
 
     def per_target_widgets(self) -> "dict[str, list]":
         """The parameter rows that belong to the target, not the installation.
@@ -10369,12 +10443,16 @@ class TabChart(QWidget):
         # Profile run changed, which is what made them look project-wide.
         # §2.1 / N1: WRITE THE OUTGOING TARGET FIRST, then load the incoming
         # one. The order is the whole point — see save_target_settings.
-        outgoing = getattr(self, "_settings_store", None)
-        if outgoing is not None:
-            self.save_target_settings(outgoing)
+        # Passed even when None: that means "the outgoing target has no file
+        # yet", which is a New run — the case that most needs its values kept,
+        # and exactly the one an `is not None` guard skips.
+        self.save_target_settings(
+            getattr(self, "_settings_store", _NO_STORE_GIVEN),
+            getattr(self, "_settings_key", _NO_STORE_GIVEN))
         self._refresh_target_text()
         self.load_target_settings()
         self._settings_store = self._target_text_store()
+        self._settings_key = self._target_settings_key()
         # #130 Bug C (Knut): if the loaded PROJECT changed (e.g. a Print/Measure
         # load copied a new project into the working folder), reflect its name in
         # the "Printer profile project name" field so it's visibly loaded. Gated

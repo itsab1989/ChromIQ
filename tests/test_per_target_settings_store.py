@@ -37,6 +37,7 @@ class _Tab:
 
     def per_target_widgets(self):   return self._widgets
     def _target_text_store(self):   return self._store
+    _target_ctl = None              # no controller: the no-file key is None
 
     save_target_settings = None     # bound below
     load_target_settings = None
@@ -46,6 +47,9 @@ def _bind():
     import ui.tabs.tab_chart as tc
     _Tab.save_target_settings = tc.TabChart.save_target_settings
     _Tab.load_target_settings = tc.TabChart.load_target_settings
+    # The no-file-yet path needs these; the real tab has both.
+    _Tab._target_settings_key = tc.TabChart._target_settings_key
+    _Tab._pending_settings = {}
 
 
 @pytest.fixture
@@ -150,10 +154,13 @@ def test_n1_a_target_change_writes_the_outgoing_target_first():
 
     import ui.tabs.tab_chart as tc
     src = inspect.getsource(tc.TabChart._on_target_changed)
-    assert "self.save_target_settings(outgoing)" in src, (
+    assert "self.save_target_settings(" in src, (
         "the outgoing target is not written before the incoming one loads"
     )
-    i_save = src.index("save_target_settings(outgoing)")
+    # …and NOT guarded on it being non-None: None is the New-run case, the one
+    # that most needs keeping.
+    assert "if outgoing is not None" not in src
+    i_save = src.index("self.save_target_settings(")
     i_load = src.index("self.load_target_settings()")
     assert i_save < i_load, "the load runs before the write — N1 is violated"
     assert src.index("self._settings_store = ") > i_load, (
@@ -218,12 +225,6 @@ def test_a_write_never_resurrects_a_deleted_target(tmp_path):
     assert not run.dir.exists(), "the deleted run came back"
 
 
-@pytest.mark.xfail(reason=(
-    "N1 needs a target with nothing stored to open on defaults (§4 S4-S7), "
-    "and that wipes the hand-set value test_calibration_run_type_chart "
-    "requires to survive a Run-type toggle. Two of Knut's rules collide; "
-    "posted on #130. The older, shipped behaviour wins until he rules."),
-    strict=True)
 def test_n1_end_to_end_the_outgoing_run_keeps_its_own_setting(tmp_path, qapp):
     """§2.1 / N1 against the real tab and controller, not a stand-in.
 
@@ -258,8 +259,11 @@ def test_n1_end_to_end_the_outgoing_run_keeps_its_own_setting(tmp_path, qapp):
     ctl = MeasurementTargetController(fm)
     tab.set_target_controller(ctl)
 
+    # No explicit _on_target_changed(): set_target_controller connects
+    # controller.changed to it (tab_chart ~9136), so calling it as well ran the
+    # whole save/load twice and wrote the incoming run a second time. Driving
+    # it the way the app does is also the only honest way to test it.
     ctl.set_profile_run("run1")
-    tab._on_target_changed()
     store = tab._target_text_store()
     if store is None:
         pytest.skip("the bar could not resolve run1 in this environment")
@@ -273,7 +277,6 @@ def test_n1_end_to_end_the_outgoing_run_keeps_its_own_setting(tmp_path, qapp):
     assert on_screen == "mine-alone", "the chosen row did not take the value"
 
     ctl.set_profile_run("run2")
-    tab._on_target_changed()
 
     run1_stored = proj.run("run1").load_meta().create_chart_settings
     run2_stored = proj.run("run2").load_meta().create_chart_settings

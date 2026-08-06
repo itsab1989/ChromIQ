@@ -43,6 +43,10 @@ class MeasurementTargetController(QObject):
     #: emitted after a verification's used chart has been restored, so the tabs
     #: can rebuild the pages and refresh what they show (#130).
     chart_restored = pyqtSignal()
+    #: Raised the instant a target-changing pulldown opens, while the OUTGOING
+    #: target is still selected — the write trigger in Knut's queue design
+    #: (#130). Anything holding unsaved per-target state flushes it here.
+    about_to_change_target = pyqtSignal()
 
     def __init__(self, file_mgr, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -736,6 +740,9 @@ class MeasurementTargetBar(QWidget):
             "Switch “Run type” to Profiling or Verification to choose a run "
             "again.")
         self._run_combo.currentIndexChanged.connect(self._on_run_changed)
+        # …and the WRITE trigger, before the list even appears.
+        self._run_combo.about_to_open.connect(
+            self._ctl.about_to_change_target)
         # Wide enough that its content ("Run N (overwrite)", "New run") stays
         # fully readable instead of being truncated (Basti); grows to fit longer
         # labels (e.g. two-digit run numbers) but never shrinks below this floor.
@@ -782,6 +789,9 @@ class MeasurementTargetBar(QWidget):
             "builds a profile; it is kept as a dated record so you can "
             "watch a profile hold up — or drift — over time."))
         self._type_combo.currentIndexChanged.connect(self._on_type_changed)
+        # …and the WRITE trigger, before the list even appears.
+        self._type_combo.about_to_open.connect(
+            self._ctl.about_to_change_target)
         row.addWidget(self._type_combo)
 
         self._verify_label = self._mk_label(tr("Verification:"))
