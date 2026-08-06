@@ -1,5 +1,52 @@
 # Changelog
 
+## v3.14.8-beta.148
+
+### Fixed
+
+- **Text typed for a new run is kept, and lands on that run.** With “Profile
+  run” set to “New run”, whatever you wrote in “Run N+1 Description” and “Run
+  N+1 Chart Notes” was cleared the moment Generate Chart created the run — and,
+  worse, it had been written into whichever run was selected before, quietly
+  overwriting that run's own description. Your text now waits in the boxes and
+  is saved to the run Generate creates, and no other run is touched.
+
+- **A calibration keeps its description and its chart notes when you rebuild
+  its chart.** Generating a new calibration chart files the previous
+  calibration under `cal/old/`, and the file holding those two pieces of text
+  was being moved away with it. It stays now, and the archive gets its own copy
+  so you can still tell what that calibration was.
+
+- **Generate Chart works straight after Duplicate.** Duplicating a run put the
+  Create Chart tab into its “this chart is loaded from elsewhere” state, which
+  is read-only — so the copy's chart could not be generated at all until you
+  switched to another run and back. A chart inside the project you have open is
+  never “from elsewhere”.
+
+- **“Give Up” now really does end a measurement in strip mode.** With the
+  instrument's dial in the wrong position, Give Up closed the window and left
+  the session running. Reading patch-by-patch was unaffected.
+
+- **“Refine / resume existing measurement” disappears when the measurement
+  does.** Delete a run's measurement file, leave the Measure tab and come back,
+  and the tick box stayed offered — with nothing to resume from. The tab now
+  re-reads the file whenever you arrive at it.
+
+- **“Location being edited” names the calibration folder** when “Run type” is
+  set to Calibration, instead of a profile-run folder that nothing was being
+  written to.
+
+### Added
+
+- **ChromIQ tells you when your instrument is not answering.** Starting a
+  measurement can be completely silent if the device never wakes up — nothing
+  is printed, so none of the existing connection checks can notice. After ten
+  seconds of silence the log now explains what is being waited for, and what to
+  try first: unplug and re-plug the USB cable, change port, close anything else
+  that may be holding the instrument. Nothing is stopped or changed on your
+  behalf; the Stop button stays yours, and an existing measurement is put back
+  untouched if the session ends without reading anything.
+
 ## v3.14.8-beta.147
 
 ### Fixed
