@@ -907,6 +907,9 @@ class MeasureManager(QObject):
                 # and they have to raise their window here too — this parser is
                 # the only one that runs in engine mode (Knut, beta.141).
                 self._check_startup_failures(line)
+                # …and the notes it prints about settings the instrument
+                # dropped, for the same reason: the user is told either way.
+                self._check_informational(line)
                 # The helper prints chartread's own prose alongside its events,
                 # and one sentence in it needs more than the log: the dial being
                 # in the wrong position (chartread.c:1644). There is no event for
@@ -1335,6 +1338,58 @@ class MeasureManager(QObject):
         if m:
             self.mode_set_failed.emit(m.group(1).strip())
 
+    def _check_informational(self, line: str) -> None:
+        """Surface the notes chartread prints, from either reader.
+
+        Four of these say **a setting you chose was dropped by the instrument**
+        — no spectral, high resolution ignored, UV not supported, patch
+        consistency tolerance ignored. Not showing them means the user believes
+        a setting is active when it is not, which is the same shape as the `-T`
+        tolerance problem Knut already hit once.
+
+        They lived in the stock parser only, so on the engine — the default
+        reader — none of them appeared. Found by auditing every signal after
+        the abort window (beta.160/161), not by a report. Same rule as
+        `_check_startup_failures`: anything both readers can produce belongs
+        where both parsers can reach it.
+        """
+        m = _INFO_CHART_INST_MISMATCH_RE.search(line)
+        if m:
+            self.info_message.emit(
+                "chart_instrument_mismatch",
+                f"Note: chart was generated for {m.group(1)}; reading with {m.group(2)} anyway.",
+            )
+        m = _INFO_BATTERY_RE.search(line)
+        if m:
+            try:
+                pct = round(float(m.group(1)))
+                self.info_message.emit("battery", tr("Instrument battery: {pct}%").format(pct=pct))
+            except ValueError:
+                pass
+        if _INFO_NO_SPECTRAL_RE.search(line):
+            self.info_message.emit(
+                "no_spectral",
+                "Spectral measurement not available on this instrument — colorimetric only.",
+            )
+        if _INFO_HIGHRES_IGNORED_RE.search(line):
+            self.info_message.emit(
+                "highres_ignored",
+                "High-resolution mode requested but not supported — using normal resolution.",
+            )
+        if _INFO_UV_IGNORED_RE.search(line):
+            self.info_message.emit(
+                "uv_ignored",
+                "UV mode requested but not supported on this instrument.",
+            )
+        if _INFO_SCAN_TOL_IGNORED_RE.search(line):
+            self.info_message.emit(
+                "scan_tol_ignored",
+                "Patch consistency tolerance setting ignored — instrument doesn't support it.",
+            )
+        m = _PATCH_NOT_FOUND_RE.search(line)
+        if m:
+            self.info_message.emit("patch_not_found", tr("Patch '{name}' not found.").format(name=m.group(1)))
+
     def _handle_line(self, line: str, on_line: Callable[[str], None]) -> None:
         on_line(line)
         # Stock chartread announces the device in its -v header, before any
@@ -1509,39 +1564,7 @@ class MeasureManager(QObject):
         self._check_startup_failures(line)
 
         # B-status. Informational ------------------------------------------
-        m = _INFO_CHART_INST_MISMATCH_RE.search(line)
-        if m:
-            self.info_message.emit(
-                "chart_instrument_mismatch",
-                f"Note: chart was generated for {m.group(1)}; reading with {m.group(2)} anyway.",
-            )
-        m = _INFO_BATTERY_RE.search(line)
-        if m:
-            try:
-                pct = round(float(m.group(1)))
-                self.info_message.emit("battery", tr("Instrument battery: {pct}%").format(pct=pct))
-            except ValueError:
-                pass
-        if _INFO_NO_SPECTRAL_RE.search(line):
-            self.info_message.emit(
-                "no_spectral",
-                "Spectral measurement not available on this instrument — colorimetric only.",
-            )
-        if _INFO_HIGHRES_IGNORED_RE.search(line):
-            self.info_message.emit(
-                "highres_ignored",
-                "High-resolution mode requested but not supported — using normal resolution.",
-            )
-        if _INFO_UV_IGNORED_RE.search(line):
-            self.info_message.emit(
-                "uv_ignored",
-                "UV mode requested but not supported on this instrument.",
-            )
-        if _INFO_SCAN_TOL_IGNORED_RE.search(line):
-            self.info_message.emit(
-                "scan_tol_ignored",
-                "Patch consistency tolerance setting ignored — instrument doesn't support it.",
-            )
+        self._check_informational(line)
 
         # D. Spot / XY mode ------------------------------------------------
         m = _XY_PLACE_SHEET_RE.search(line)
@@ -1558,9 +1581,6 @@ class MeasureManager(QObject):
             self.spot_ready.emit(m.group(1))
         if _ABORT_CONFIRM_RE.search(line):
             self.abort_confirm.emit()
-        m = _PATCH_NOT_FOUND_RE.search(line)
-        if m:
-            self.info_message.emit("patch_not_found", tr("Patch '{name}' not found.").format(name=m.group(1)))
 
     # ------------------------------------------------------------------
     # Guided strip navigation

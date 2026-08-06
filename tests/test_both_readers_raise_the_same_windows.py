@@ -47,7 +47,21 @@ HELPER_LINES = {
 }
 
 WATCHED = ("ccmx_load_failed", "instrument_wrong_type", "mode_set_failed",
-           "inst_init_failed", "coms_init_failed", "abort_confirm")
+           "inst_init_failed", "coms_init_failed", "abort_confirm",
+           "info_message")
+
+#: The notes chartread prints when the instrument drops a setting the user
+#: chose. Not windows, but the same class: on the engine they appeared nowhere,
+#: so the user believed a setting was active when the instrument had ignored
+#: it — the shape of the `-T` tolerance problem that reached Knut once already.
+HELPER_NOTES = {
+    "chart_mismatch": "Warning: chart is for i1pro2, using instrument i1pro3",
+    "no_spectral":    "Instrument isn't capable of spectral measurement",
+    "highres":        "Warning - high resolution ignored",
+    "uv":             "UV measurement mode requested, but instrument doesn't support it",
+    "scan_tol":       "Modified patch consistency tolerance ignored",
+    "patch_missing":  "Patch 'A1' not found",
+}
 
 
 def _signals_for(line: str, *, engine: bool) -> list:
@@ -134,3 +148,75 @@ def test_no_failure_window_is_left_in_the_stock_parser_alone():
         f"_check_startup_failures, which both readers call, or the engine "
         f"stays silent on them."
     )
+
+
+@pytest.mark.parametrize("label", sorted(HELPER_NOTES))
+def test_both_readers_surface_the_same_notes(label, qapp):
+    line = HELPER_NOTES[label]
+    stock = _signals_for(line, engine=False)
+    engine = _signals_for(line, engine=True)
+    assert stock == engine, (
+        f"{label}: stock says {stock or 'nothing'}, the engine says "
+        f"{engine or 'nothing'} — the note depends on the reader"
+    )
+    assert stock, f"{label}: neither reader surfaces a line the helper prints"
+
+
+@pytest.mark.parametrize("label", sorted(HELPER_NOTES))
+def test_the_helper_prints_each_note(label, qapp):
+    """Our half of the contract must not be able to pass alone."""
+    if not HELPER_C.is_file():                 # pragma: no cover
+        pytest.skip("helper source not in this checkout")
+    text = HELPER_C.read_text(errors="replace")
+    stems = {
+        "chart_mismatch": "chart is for",
+        "no_spectral":    "isn't capable of spectral",
+        "highres":        "high resolution ignored",
+        "uv":             "UV measurement mode requested",
+        "scan_tol":       "patch consistency tolerance ignored",
+        "patch_missing":  "not found",
+    }
+    assert stems[label] in text, (
+        f"{label}: the helper no longer prints this — the note is unreachable "
+        f"again, or it moved and the pattern needs updating"
+    )
+
+
+def test_no_informational_note_is_left_in_the_stock_parser_alone():
+    """Structural twin of the failure-window guard, for the notes."""
+    import ast
+    import inspect
+
+    import workflow.measure_manager as mm
+
+    tree = ast.parse(inspect.getsource(mm.MeasureManager))
+
+    def info_keys(fn_name: str) -> set:
+        """The literal first argument of each info_message.emit in a method."""
+        fn = next((n for n in ast.walk(tree)
+                   if isinstance(n, ast.FunctionDef) and n.name == fn_name), None)
+        assert fn is not None, f"{fn_name} has been renamed"
+        keys = set()
+        for n in ast.walk(fn):
+            if (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                    and n.func.attr == "emit"
+                    and isinstance(n.func.value, ast.Attribute)
+                    and n.func.value.attr == "info_message"):
+                first = n.args[0] if n.args else None
+                keys.add(first.value if isinstance(first, ast.Constant) else "?")
+        return keys
+
+    #: Stock-only on purpose, with the reason. The engine reports a finished XY
+    #: sheet as a typed `xy_sheet_read` event carrying its patches, so the user
+    #: is told either way; duplicating the prose note here would report it
+    #: twice on the engine.
+    ALLOWED_STOCK_ONLY = {"xy_sheet_ok"}
+
+    stray = info_keys("_handle_line") - ALLOWED_STOCK_ONLY
+    assert not stray, (
+        f"{sorted(stray)} are emitted straight from the stock parser. Put them "
+        f"in _check_informational, which both readers call, or the engine "
+        f"stays silent on them. If one is genuinely stock-only, add it to "
+        f"ALLOWED_STOCK_ONLY here with the reason."
+    )
+    assert info_keys("_check_informational"), "_check_informational emits nothing"

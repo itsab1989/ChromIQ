@@ -1,5 +1,16 @@
 # Changelog
 
+## v3.14.8-beta.162
+
+### Fixed
+- **The notes about settings your instrument ignored now appear with the
+  ChromIQ reader too.** Four of them tell you that something you chose was
+  dropped: spectral measurement not available, high-resolution mode ignored, UV
+  mode unsupported, and the patch consistency tolerance ignored. On the default
+  reader none of them were shown, so a setting could look active when the
+  instrument had quietly dropped it. The chart/instrument mismatch note and
+  "patch not found" were missing there for the same reason.
+
 ## v3.14.8-beta.161
 
 ### Fixed
