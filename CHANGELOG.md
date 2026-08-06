@@ -1,5 +1,21 @@
 # Changelog
 
+## v3.14.8-beta.150
+
+### Fixed
+
+- **Patches no longer come back as “inconsistent” for no visible reason.**
+  “Skip initial calibration (-N)” is offered in the Manual measurement options,
+  but it was also being applied in Guided — where the tick box is hidden and
+  cannot be seen or switched off — and it is remembered between sessions. So a
+  choice made once could leave every later measurement running with an
+  uncalibrated instrument, whose readings drift until ArgyllCMS rejects whole
+  patches. Guided no longer uses an option it does not offer.
+
+- **And when the option IS on, ChromIQ says so.** A note goes into the log
+  beside the command at the start of every measurement, explaining what it
+  means and how to switch it off, so this can never again be invisible.
+
 ## v3.14.8-beta.149
 
 ### Fixed

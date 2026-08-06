@@ -4940,6 +4940,23 @@ class TabMeasure(QWidget):
         # being waited for — and silence is the ONLY evidence of a device that
         # never answers (see _arm_startup_watchdog). Armed for both readers:
         # Knut hit it on the ChromIQ engine and on stock chartread alike.
+        # SAY WHEN THE INSTRUMENT IS NOT BEING CALIBRATED.
+        #
+        # Skipping the initial calibration changes every reading that follows,
+        # and it is a setting that persists between sessions — so it can be on
+        # today because of something done last week. It is now impossible for
+        # that to be invisible: it goes in the log beside the command, where the
+        # reason for a chart full of rejected patches should have been all
+        # along (Knut, beta.148).
+        if params.disable_initial_cal:
+            self._log.appendPlainText("\n" + tr(
+                "[NOTE] Skip initial calibration (-N) is switched on, so your "
+                "instrument will not be calibrated before this measurement.\n"
+                "That is fine if you calibrated it earlier in this session. If "
+                "you did not, readings can drift and whole patches may come "
+                "back as “inconsistent” — switch the option off in the "
+                "measurement options and start again."))
+            self._log.ensureCursorVisible()
         self._saw_instrument = False
         self._startup_warned = False
         self._arm_startup_watchdog()
@@ -9654,7 +9671,23 @@ class TabMeasure(QWidget):
             disable_bidir       = self._resolve_disable_bidir("guided"),
             force_bidir         = self._resolve_force_bidir("guided"),
             suppress_warnings   = self._suppress_cb.isChecked(),
-            disable_initial_cal = self._nocal_cb.isChecked(),
+            # NEVER FROM A CONTROL THE USER CANNOT SEE.
+            #
+            # "Skip initial calibration (-N)" is built here but hidden outright
+            # in Guided (`self._nocal_cb.setVisible(False)`, and never shown
+            # again) — while its value was still read, still sent, and still
+            # remembered between sessions. A stored `measure_no_cal` therefore
+            # ran EVERY guided measurement uncalibrated, with nothing on screen
+            # to say so and no way to switch it off.
+            #
+            # That is not a small thing: without its white calibration a
+            # ColorMunki's readings drift, and ArgyllCMS's own consistency
+            # check throws them out. Knut's beta.148 log is the proof — `-N` on
+            # every run from 09:46, `cal_required` never seen again after
+            # 08:41, and every single patch rejected as *"Reading is
+            # inconsistent"*. Guided does not offer the option, so Guided does
+            # not use it.
+            disable_initial_cal = False,
             patch_by_patch      = self._pbp_cb.isChecked(),
             resume              = self._resume_cb.isChecked(),
             extra_args          = " ".join(extra_args),

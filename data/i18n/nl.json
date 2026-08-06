@@ -3658,6 +3658,7 @@
   "[INFO] Measurement was interrupted — partial readings saved.": "[INFO] Meting onderbroken — gedeeltelijke metingen opgeslagen.",
   "[INFO] Multi-ink measurement — Argyll colprof can't build these, using the ChromIQ engine.": "[INFO] Multi-inkt meting — Argyll colprof kan deze niet maken; de ChromIQ-engine wordt gebruikt.",
   "[INFO] This build needs Argyll colprof because of: {what}. Building with colprof.": "[INFO] Deze build vereist Argyll colprof vanwege: {what}. Bouwen met colprof.",
+  "[NOTE] Skip initial calibration (-N) is switched on, so your instrument will not be calibrated before this measurement.\nThat is fine if you calibrated it earlier in this session. If you did not, readings can drift and whole patches may come back as “inconsistent” — switch the option off in the measurement options and start again.": "[NOTE] Skip initial calibration (-N) is switched on, so your instrument will not be calibrated before this measurement.\nThat is fine if you calibrated it earlier in this session. If you did not, readings can drift and whole patches may come back as “inconsistent” — switch the option off in the measurement options and start again.",
   "[OK] Averaged measurement saved: {name}": "[OK] Gemiddelde meting opgeslagen: {name}",
   "[OK] Measurement complete.": "[OK] Meting voltooid.",
   "[OK] Printer profile saved: {p}": "[OK] Printerprofiel opgeslagen: {p}",

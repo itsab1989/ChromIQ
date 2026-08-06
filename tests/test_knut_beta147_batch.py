@@ -407,3 +407,78 @@ def test_a_chart_with_no_notes_leaves_the_field_alone(chart_tab, run_type):
     tab._restore_chart_settings(ti2)
 
     assert tab._manual_chart_notes_edit.text() == "mine, not the chart's"
+
+
+# =========================================================================
+# beta.149 log: the readings were rejected because nothing calibrated
+# =========================================================================
+def test_guided_never_sends_a_flag_it_does_not_offer(qapp, tmp_path):
+    """Knut, beta.148: every patch of a calibration chart came back *"Reading
+    is inconsistent"*.
+
+    His log has the cause, and it is neither of the two things I guessed. Every
+    measurement from 09:46 carried **-N**, and ``cal_required`` — the
+    instrument's white calibration — never appeared again after 08:41. A
+    ColorMunki that is not calibrated drifts, and ArgyllCMS's own consistency
+    check throws the readings out.
+
+    "Skip initial calibration (-N)" is built in Guided and then hidden outright,
+    but its value was still read, still sent and still remembered between
+    sessions — so a stored setting ran every guided measurement uncalibrated
+    with nothing on screen to say so.
+    """
+    from core.argyll_runner import ArgyllRunner
+    from core.settings import AppSettings
+    from ui.tabs.tab_measure import TabMeasure
+
+    class _S(AppSettings):
+        def get(self, key, default=None):
+            if key == "custom_output_path":
+                return str(tmp_path)
+            if key == "measure_no_cal":
+                return True             # …as it would be from an earlier session
+            return super().get(key, default)
+
+    tab = TabMeasure(ArgyllRunner(_S()), _S())
+    assert tab._nocal_cb.isVisible() is False, (
+        "the guided control is meant to be hidden — if it is offered now, this "
+        "test is about the wrong thing"
+    )
+    tab._nocal_cb.setChecked(True)
+    tab._ti1_path = tmp_path / "chart.ti1"
+
+    params = tab._collect_guided()
+
+    assert params.disable_initial_cal is False, (
+        "guided is sending -N from a checkbox the user cannot see or untick"
+    )
+
+
+def test_the_manual_flag_still_works_because_it_is_visible(qapp, tmp_path):
+    """The option is real and stays available where it is offered."""
+    from core.argyll_runner import ArgyllRunner
+    from core.settings import AppSettings
+    from ui.tabs.tab_measure import TabMeasure
+
+    class _S(AppSettings):
+        def get(self, key, default=None):
+            if key == "custom_output_path":
+                return str(tmp_path)
+            return super().get(key, default)
+
+    tab = TabMeasure(ArgyllRunner(_S()), _S())
+    tab._ti1_path = tmp_path / "chart.ti1"
+    tab._m_nocal_cb.setChecked(True)
+    assert tab._collect_manual().disable_initial_cal is True
+
+
+def test_skipping_calibration_is_announced_in_the_log():
+    """It changes every reading that follows and it persists between sessions,
+    so it must never again be invisible."""
+    import inspect
+
+    from ui.tabs.tab_measure import TabMeasure
+
+    src = inspect.getsource(TabMeasure)
+    assert "if params.disable_initial_cal:" in src
+    assert "Skip initial calibration (-N) is switched on" in src
