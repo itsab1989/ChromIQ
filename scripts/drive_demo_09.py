@@ -323,6 +323,40 @@ def main() -> int:
     check("…onto a tab that works",
           w._tabs.isTabEnabled(w._tabs.currentIndex()), True)
 
+    # ------------------------------------------------------------------
+    # README step 24 — "Restore Used Chart puts the notes back, for all three"
+    # ------------------------------------------------------------------
+    # Knut reported this step as impossible, and the driver had NO Restore
+    # coverage at all — so it passed 51/51 while saying nothing about the one
+    # thing he could not do: *"the demo test runs and verification runs do not
+    # have proper data files, like measurements and pre-stored chart in a
+    # chart/ folder, thus using the 'Restore Used Chart' button was not
+    # possible, as the test was described."*
+    #
+    # What is asserted is the DATA, on a pristine copy of the package: does
+    # each of the three targets ship with a stored chart to put back? Whether
+    # the button is enabled at any given moment is sequence-dependent — after
+    # the steps above have generated charts and archived others — and asserting
+    # that here would test the driver's own history, not the package.
+    print("\n--- README step 24: the package ships a stored chart for all three ---")
+    from core.file_manager import Project as _Project
+    from workflow.chart_slot import (slot_for_calibration, slot_for_run,
+                                     slot_for_verification)
+    from workflow.verify_chart_snapshot import slot_has_snapshot
+
+    pristine = Path(tempfile.mkdtemp()) / src.name
+    shutil.copytree(src, pristine)
+    _proj = _Project.load(pristine)
+    for rid in [r.id for r in _proj.all_runs()]:
+        check(f"{rid} ships a stored chart",
+              slot_has_snapshot(slot_for_run(_proj.run(rid))), True)
+    _v = next(iter(_proj.run("run2").verifications()), None)
+    check("the verification ships a stored chart",
+          _v is not None and slot_has_snapshot(slot_for_verification(_v)), True)
+    check("the calibration ships a stored chart",
+          slot_has_snapshot(slot_for_calibration(_proj.calibration)), True)
+    shutil.rmtree(pristine.parent, ignore_errors=True)
+
     print(f"\n{len(PASS)} passed, {len(FAIL)} failed")
     for f in FAIL:
         print(f"  ✗ {f}")
