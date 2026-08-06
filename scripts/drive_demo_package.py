@@ -46,6 +46,11 @@ from PyQt6.QtWidgets import (QApplication, QDialog,            # noqa: E402
 RESULTS: "list[tuple[str, bool, str]]" = []
 
 
+#: Steps the package documents that this driver does not check. Kept separate
+#: from RESULTS so they can never be counted as passing.
+NOT_DRIVEN: "list[str]" = []
+
+
 def record(name: str, ok: bool, detail: str = "") -> None:
     RESULTS.append((name, ok, detail))
     print(f"  {'PASS' if ok else 'FAIL'}  {name}" + (f"   — {detail}" if detail else ""))
@@ -302,13 +307,33 @@ def main() -> int:
                 record(label, not CAUGHT.titles,
                        f"saw {CAUGHT.titles}" if CAUGHT.titles else "silent")
             else:
-                record(label, True, "no message promised")
+                # NOT VERIFIED — AND IT MUST NOT COUNT AS PASSED.
+                #
+                # This used to `record(label, True, "no message promised")`,
+                # so every step that promises no message ID was reported as
+                # passing without anything being checked — and the summary line
+                # then claimed all of them "behave as the package describes".
+                # The Restore Used Chart steps are all in this group, which is
+                # how the package could read as fully verified while the step
+                # Knut could not perform was never driven at all.
+                #
+                # A test that reports success for work it did not do is worse
+                # than no test, because it is read as evidence.
+                NOT_DRIVEN.append(label)
 
     bad = [r for r in RESULTS if not r[1]]
-    print(f"\n{len(RESULTS) - len(bad)}/{len(RESULTS)} steps behave as the "
-          f"package describes")
+    print(f"\n{len(RESULTS) - len(bad)}/{len(RESULTS)} driven steps behave as "
+          f"the package describes")
     for name, _ok, detail in bad:
         print(f"  ✗ {name}: {detail}")
+    if NOT_DRIVEN:
+        # Said out loud, every run. These are steps the package documents and
+        # this driver does NOT check — the reader has to know the difference
+        # between "verified" and "not looked at".
+        print(f"\n{len(NOT_DRIVEN)} step(s) promise no message and are NOT "
+              f"verified here — they need a human, or a check of their own:")
+        for name in NOT_DRIVEN:
+            print(f"  ·  {name}")
     win.close()
     return 1 if bad else 0
 
