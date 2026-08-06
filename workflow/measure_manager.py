@@ -1094,6 +1094,26 @@ class MeasureManager(QObject):
             # stock chartread when the helper exits (handled in _on_finish).
             self._engine_mode_fallback = True
 
+        elif kind == "abort_confirm":
+            # ESC HAD NO WINDOW ON THE ENGINE, AND THAT IS WHY IT LOOKED DEAD.
+            #
+            # Knut, #130: *"How can I reach the window during measurement
+            # session that have an abort button?"* On the engine he could not.
+            # Esc goes out as {"cmd":"quit"}, which the helper registers as an
+            # abort (chromiq_chartread.c:2642); it then prints "Abort ? - Are
+            # you sure ? [y/n]" and emits THIS event — and neither the event
+            # nor the prose was handled here, because `_ABORT_CONFIRM_RE` is
+            # matched only on the stock path in `_handle_line`. So the helper
+            # sat at its own y/n prompt with nothing on screen to answer it:
+            # the same "instrument stopped responding" shape as the unmapped
+            # keys in KEY_TO_COMMAND.
+            #
+            # It also means the engine branch added to `_on_abort_confirm` in
+            # beta.156 was never reachable. The window is what makes Abort go
+            # through the model's single exit, so without this line the one
+            # ending has a hole in it exactly where readings are at stake.
+            self.abort_confirm.emit()
+
         elif kind == "chart_reading":
             self.chart_reading.emit()
 

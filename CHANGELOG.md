@@ -1,5 +1,19 @@
 # Changelog
 
+## v3.14.8-beta.160
+
+### Fixed
+- **Pressing Esc during a measurement now brings up the Confirm Abort window
+  when the ChromIQ reader is in use.** It did not, and since that reader is the
+  default this affected most sessions: Esc reached the reader, which asked
+  "Abort? — Are you sure?" and waited, but nothing appeared on screen to answer
+  it — so the instrument looked as though it had stopped responding. The typed
+  event the reader sends for this was never dispatched; only the stock
+  ArgyllCMS text was recognised. Reported by Knut (#130).
+- Because of the same gap, the beta.156 change that makes Abort go through the
+  single "Keep what you have measured so far?" ending had never actually run on
+  the ChromIQ reader. It does now.
+
 ## v3.14.8-beta.159
 
 ### Documentation

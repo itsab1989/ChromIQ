@@ -77,7 +77,7 @@ that appears to stop responding.
 | | Skip Patch | `skip` | | ✅ not an exit |
 | | Save Partial & Quit | `send_save_partial_and_quit()` | the two-`q` chain | ⚠️ **note 1 — left as it is, by his ruling** |
 | **Unread patches remain** | (three buttons) | `_end_session(choice)` | the ending | ✅ |
-| **Abort?** (Esc pressed) | Yes | `n` to chartread, then the ending | chartread leaves its own question; ours runs | ✅ *(beta.156)* |
+| **Abort?** (Esc pressed) | Yes | `n` to chartread, then the ending | chartread leaves its own question; ours runs | ✅ *(beta.156; **unreachable until beta.160** — see note 4)* |
 | | No | `n` | keep measuring | ✅ |
 | **Calibration required** | OK / Skip / Cancel | `\r` / `s` / `\x1b` | the instrument's own calibration prompt | ⚠️ **see note 3** |
 | **All Strips Read / All Patches Read** | Go to … Tab | `d` | "done" — chartread writes and exits normally | ✅ not a failure exit |
@@ -110,9 +110,10 @@ swallowed by the guard that stops the user being asked twice.
 
 ---
 
-## Notes — the three that are not yet the single exit
+## Notes — the ones that are not yet the single exit
 
-All three were put to Knut and he ruled on each (beta.155).
+The first three were put to Knut and he ruled on each (beta.155); the
+fourth is new in beta.160 and its open half is with him.
 
 **Note 1 · "Save Partial & Quit" on the Patch Read Failed window** calls
 `send_save_partial_and_quit()` directly rather than going through
@@ -136,6 +137,32 @@ and our ending runs instead. That way this path sends **no mode-specific key of
 its own**; `_end_session` delegates to `send_save_partial_and_quit()` or
 `abort()`, which already know which mode and which reader they are in. Engine
 only; stock chartread's chain is different and works.
+
+**Note 4 · the window could not be reached on the engine at all.** Knut, #130:
+*"How can I reach the window during measurement session that have an abort
+button?"* He could not, and the answer is not a documentation gap — it was a
+defect this table had already declared fixed.
+
+Esc goes out as `{"cmd":"quit"}`; the helper registers that as an abort
+(`chromiq_chartread.c:2642`), prints `Abort ? - Are you sure ? [y/n]` and emits
+an `abort_confirm` event. **Neither was dispatched on the engine path** —
+`_ABORT_CONFIRM_RE` is matched only in `_handle_line`, which is stock chartread's
+handler — so nothing appeared on screen and the helper sat at its own prompt
+waiting for an answer that could not be given. The same shape as an unmapped key
+in `KEY_TO_COMMAND`: an instrument that appears to stop responding.
+
+The consequence for this document is worse than the bug: **the beta.156 fix
+recorded in note 2 was never reachable on the engine**, so the row above claimed
+a single exit that no user could ever take. Fixed in beta.160 by dispatching the
+event, with `tests/test_abort_window_is_reachable.py` holding both readers level
+— the stock path working is what hid this.
+
+**Open, and Knut's to rule on:** the window says *"Stop measuring without
+saving?"*. That is true on stock chartread, where Yes sends `y` and the readings
+are gone. On the engine Yes now routes to *"Keep what you have measured so
+far?"*, which **offers** to save — so the question and the outcome disagree on
+the default reader. Proposed on the issue rather than changed here, because the
+text belongs to §M.
 
 **Note 3 · the calibration prompt** (`_on_calibration_prompt`) sends `\x1b` for
 Cancel, which ends the session before any reading exists. **His ruling:** *"The
