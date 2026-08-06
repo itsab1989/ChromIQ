@@ -97,10 +97,11 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 #: on the issue, and change this line in the same commit, so a message can
 #: never reach a user unreviewed by accident.
 #:
-#: M-INSTRUMENT-SILENT: proposed 2026-08-06, at Knut's own request in his
-#: beta.148 report — *"I want also this error to show a Warning window with
-#: only one button 'Close' or maybe 'OK', depending on the text you suggest."*
-AWAITING_APPROVAL = {"M-INSTRUMENT-SILENT"}
+#: Empty again: M-INSTRUMENT-SILENT was proposed on 2026-08-06 and withdrawn
+#: the same day — Knut asked for its text to go into the existing
+#: M-NO-INSTRUMENT window and wrote the final wording himself, so that message
+#: is approved by authorship.
+AWAITING_APPROVAL: "set[str]" = set()
 
 
 def test_nothing_is_quietly_proposed():

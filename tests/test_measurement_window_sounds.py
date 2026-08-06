@@ -123,10 +123,17 @@ def test_every_deferred_instrument_window_cues_itself_as_it_opens():
         # that cues — the disconnect window is now shared with the 2-second
         # rule (Knut, #130 2026-07-29), so it lives in one place.
         cued = '_cue_window("INSTRUMENT_ERROR")' in following
-        if not cued and "_show_instrument_disconnected_window" in following:
-            shared = inspect.getsource(
-                TabMeasure._show_instrument_disconnected_window)
-            cued = '_cue_window("INSTRUMENT_ERROR")' in shared
+        # …or it delegates to a window method that cues. Two do now: the
+        # disconnect window has been shared since the 2-second rule (Knut,
+        # #130 2026-07-29), and the No Instrument Found window moved out of
+        # here entirely in beta.154 so it can also be raised DURING a session,
+        # five seconds after the detection rather than whenever chartread
+        # happens to exit (Knut, beta.150).
+        for shared_method in ("_show_instrument_disconnected_window",
+                              "_show_no_instrument_window"):
+            if not cued and shared_method in following:
+                cued = '_cue_window("INSTRUMENT_ERROR")' in inspect.getsource(
+                    getattr(TabMeasure, shared_method))
         assert cued, f"the window behind {guard} opens without its sound"
 
 

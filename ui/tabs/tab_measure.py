@@ -1014,8 +1014,6 @@ class TabMeasure(QWidget):
         # not left staring at a frozen dialog when a keystroke vanishes
         # (e.g. Windows AttachConsole failure — issue #20).
         self._last_chartread_output_ts: float = 0.0
-        #: M-INSTRUMENT-SILENT has been shown for this measurement.
-        self._startup_warned: bool = False
         self._saw_instrument: bool = False
         self._key_watchdog = QTimer(self)
         self._key_watchdog.setSingleShot(True)
@@ -4064,7 +4062,6 @@ class TabMeasure(QWidget):
             log.info("measurement: instrument reported as %s", model)
             # The device has answered: the startup wait is over.
             self._saw_instrument = True
-            self._disarm_startup_watchdog()
         self._warn_if_instrument_does_not_match_chart(model)
 
     def _blocked_by_unusable_target_instrument(self) -> bool:
@@ -4936,10 +4933,6 @@ class TabMeasure(QWidget):
             on_line=self._on_log_line,
             on_finish=self._on_measure_done,
         )
-        # From here until the reader says something, the instrument is what is
-        # being waited for — and silence is the ONLY evidence of a device that
-        # never answers (see _arm_startup_watchdog). Armed for both readers:
-        # Knut hit it on the ChromIQ engine and on stock chartread alike.
         # SAY WHEN THE INSTRUMENT IS NOT BEING CALIBRATED.
         #
         # Skipping the initial calibration changes every reading that follows,
@@ -4957,9 +4950,11 @@ class TabMeasure(QWidget):
                 "back as “inconsistent” — switch the option off in the "
                 "measurement options and start again."))
             self._log.ensureCursorVisible()
+        # A fresh session: nothing detected yet, and no window pending from the
+        # last one.
         self._saw_instrument = False
-        self._startup_warned = False
-        self._arm_startup_watchdog()
+        self._no_instrument = False
+        self._disarm_no_instrument_window()
         self.measurement_active.emit(True)
 
     def _confirm_nonrandom_bidir(self, params: "MeasureParams") -> bool:
@@ -5450,76 +5445,74 @@ class TabMeasure(QWidget):
         self._status_bar_lbl.setVisible(True)
         QTimer.singleShot(duration_ms, lambda: self._status_bar_lbl.setVisible(False))
 
-    #: How long the reader may be silent while opening the instrument before
-    #: the user is told what is being waited for. A ColorMunki that answers
-    #: comes back in well under a second (Knut's own working log: 80 ms), and
-    #: the slowest healthy device in the field is a couple of seconds — so ten
-    #: is far past "just slow" and nowhere near impatient.
-    _STARTUP_SILENCE_S = 10
+    #: How long after "no instrument" is detected the window arrives. Knut,
+    #: beta.150: *"move the time the 'No Instrument Found' window comes to
+    #: arrive 5 seconds after no instrument is detected, instead of the almost
+    #: 20 seconds that it takes for this warning to come. Make sure this window
+    #: uses the same detection logic as today, only change when the time that
+    #: the message will arrive."* The 20 seconds were not a timer at all — the
+    #: window waited for chartread to exit.
+    _NO_INSTRUMENT_DELAY_S = 5
 
-    def _arm_startup_watchdog(self) -> None:
-        """Watch the silence between "session started" and the instrument.
-
-        NOTHING ELSE CAN SEE THIS FAULT. Every instrument-startup check ChromIQ
-        has — communications failure, initialise failure, wrong capability, no
-        instrument, device busy, disconnected — matches a line the reader
-        PRINTS. When the device does not answer at all, the reader blocks inside
-        opening it and prints nothing, so not one of them can fire: Knut,
-        beta.147, seven times over, with the log dead silent after
-        `session_start`. *"No sound, no initiation of instrument (it seems)."*
-        Elapsed time is the only evidence there is.
-
-        This only says what is being waited for. It does not stop, kill or
-        change the measurement — the Stop button stays entirely the user's.
-        """
-        wd = getattr(self, "_startup_watchdog", None)
+    def _arm_no_instrument_window(self) -> None:
+        """Show the No Instrument Found window without waiting for the exit."""
+        wd = getattr(self, "_no_instrument_timer", None)
         if wd is None:
             wd = QTimer(self)
             wd.setSingleShot(True)
-            wd.setInterval(self._STARTUP_SILENCE_S * 1000)
-            wd.timeout.connect(self._on_startup_silence)
-            self._startup_watchdog = wd
+            wd.setInterval(self._NO_INSTRUMENT_DELAY_S * 1000)
+            wd.timeout.connect(self._show_no_instrument_window)
+            self._no_instrument_timer = wd
         wd.start()
 
-    def _disarm_startup_watchdog(self) -> None:
-        wd = getattr(self, "_startup_watchdog", None)
-        if wd is not None and wd.isActive():
-            wd.stop()
+    def _show_no_instrument_window(self) -> None:
+        """M-NO-INSTRUMENT — one button, and it ends the session the model's way.
 
-    def _on_startup_silence(self) -> None:
-        """M-INSTRUMENT-SILENT — say so in a window, not only in the log.
+        Knut wrote this text (beta.150) and asked for it to replace the
+        original's bullet list, for the window to arrive five seconds after the
+        detection instead of at the end of the process, and for its button to
+        use the single exit every other window uses:
 
-        Knut, beta.148, after the log notice went past him: *"I want also this
-        error to show a Warning window with only one button 'Close' or maybe
-        'OK'."* One button, and it changes nothing — the session keeps running
-        and Stop stays his. Once per measurement, so a long wait cannot turn
-        into a stack of windows.
+        > *"verify that the OK button in this window closes the measurement
+        > session using the standard exit strategy for the Unified Measurement
+        > Management model … All messages that can arrive during measurement
+        > must exit in that safe manner, as a single exit strategy for all
+        > cases."*
+
+        So OK goes through :meth:`_confirm_end_of_session` like Stop does: with
+        nothing read it ends and the archived measurement is put back, and with
+        readings in hand it asks "Keep what you have measured so far?" first.
         """
-        if not self._runner.is_running or self._startup_warned:
+        if getattr(self, "_no_instrument_shown", False):
             return
-        self._startup_warned = True
-        from workflow.measurement_messages import M_INSTRUMENT_SILENT
-
-        title, body = M_INSTRUMENT_SILENT.render(n=self._STARTUP_SILENCE_S)
-        self._log.appendPlainText("\n" + title + "\n" + body)
-        self._log.ensureCursorVisible()
-        self._flash_status(
-            tr("The instrument has not answered yet — see the log."),
-            duration_ms=10000)
+        self._no_instrument_shown = True
+        self._disarm_no_instrument_window()
+        self._cue_window("INSTRUMENT_ERROR")
 
         from PyQt6.QtWidgets import QMessageBox
         from ui.widgets import fit_message_box_buttons
+        from workflow.measurement_messages import M_NO_INSTRUMENT
+
+        title, body = M_NO_INSTRUMENT.render(n=self._NO_INSTRUMENT_DELAY_S)
+        self._log.appendPlainText("\n" + title + "\n" + body)
+        self._log.ensureCursorVisible()
 
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.NoIcon)
         box.setWindowTitle(title)
-        # setText is rendered bold, so the headline goes there and the body
-        # under it — the house rule for every window in this model.
         box.setText(title)
         box.setInformativeText(body)
-        box.addButton(tr("Close"), QMessageBox.ButtonRole.RejectRole)
+        box.addButton(tr("OK"), QMessageBox.ButtonRole.AcceptRole)
         fit_message_box_buttons(box)
         self._exec_measurement_window(box)
+        # …and then the one ending every route shares.
+        if self._runner.is_running:
+            self._end_session(self._confirm_end_of_session(self.END_FAILURE_WINDOW))
+
+    def _disarm_no_instrument_window(self) -> None:
+        wd = getattr(self, "_no_instrument_timer", None)
+        if wd is not None and wd.isActive():
+            wd.stop()
 
     def _on_log_line(self, line: str) -> None:
         self._log.appendPlainText(line)
@@ -5529,15 +5522,6 @@ class TabMeasure(QWidget):
         self._last_chartread_output_ts = time.monotonic()
         if self._key_watchdog.isActive():
             self._key_watchdog.stop()
-        # …and the reader has spoken. That is not the same as the instrument
-        # having answered: chartread prints its chart header BEFORE it opens
-        # the device. So the wait is restarted, line by line, until the
-        # instrument names itself — which is what makes this work on stock
-        # chartread too, where there is no session_start event to hang it on.
-        if self._runner.is_running and not getattr(self, "_saw_instrument", False):
-            self._arm_startup_watchdog()
-        else:
-            self._disarm_startup_watchdog()
         # Only flag fatal errors — strip read failures are recoverable and handled
         # separately via the strip_error signal / dialog.
         if "communications failure" in line.lower():
@@ -5937,6 +5921,10 @@ class TabMeasure(QWidget):
 
     def _on_no_instrument(self) -> None:
         self._no_instrument = True
+        # The window used to wait for chartread to exit, which is where the
+        # twenty seconds came from. The detection is unchanged; only the moment
+        # it reaches the user has moved (Knut, beta.150).
+        self._arm_no_instrument_window()
 
     def _on_usb_claimed_by_vm(self) -> None:
         self._usb_claimed_by_vm = True
@@ -7612,43 +7600,8 @@ class TabMeasure(QWidget):
             return
 
         if self._no_instrument:
-            self._cue_window("INSTRUMENT_ERROR")   # as the window opens
             self._no_instrument = False
-            from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout
-            dlg = QDialog(self)
-            dlg.setWindowTitle(tr("No Instrument Found"))
-            dlg.setMinimumWidth(460)
-            layout = QVBoxLayout(dlg)
-            layout.setSpacing(16)
-            layout.setContentsMargins(24, 20, 24, 20)
-            _conn_bullet = (
-                tr("&nbsp;&nbsp;• connected to your Windows PC via USB<br>")
-                if sys.platform == "win32" else
-                tr("&nbsp;&nbsp;• connected to your Mac via USB<br>")
-            )
-            _driver_hint = (
-                tr("<br>If the instrument is connected but still not found, make sure the "
-                   "Argyll WinUSB driver is installed for your device (use Argyll's "
-                   "ArgyllInstallers tool or Zadig). See the Argyll documentation for details.")
-                if sys.platform == "win32" else ""
-            )
-            msg = QLabel(
-                tr("<b>No measurement instrument was detected.</b><br><br>"
-                   "Please make sure your instrument is:<br>")
-                + _conn_bullet +
-                tr("&nbsp;&nbsp;• switched on<br>"
-                   "&nbsp;&nbsp;• not in use by another application<br><br>"
-                   "Once the instrument is ready, press <b>Start Measurement</b> again.")
-                + _driver_hint,
-                dlg,
-            )
-            msg.setWordWrap(True)
-            layout.addWidget(msg)
-            btn_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
-            btn_box.accepted.connect(dlg.accept)
-            layout.addWidget(btn_box)
-            tint_dialog_primary(dlg, _TAB_COLOR)
-            dlg.exec()
+            self._show_no_instrument_window()
             return
 
         if self._device_busy:
@@ -8403,8 +8356,6 @@ class TabMeasure(QWidget):
         return letters or None
 
     def _on_session_map(self, strips: list) -> None:
-        # The session exists; the instrument is what we are waiting for now.
-        self._arm_startup_watchdog()
         self._engine_strips = list(strips)
         self._engine_read = {s.get("strip", ""): bool(s.get("read"))
                              for s in strips}

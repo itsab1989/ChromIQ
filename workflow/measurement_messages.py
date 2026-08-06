@@ -439,25 +439,28 @@ M_DUPLICATE_BLOCKED = (
 
 
 # ---------------------------------------------------------------------------
-# --- PROPOSED --------------------------------------------------------------
-M_INSTRUMENT_SILENT = _m(
-    "M-INSTRUMENT-SILENT",
-    "Your instrument is not answering",
+#: Knut wrote this text himself (beta.150) to replace the original "No
+#: Instrument Found" bullet list, and asked for the window I had added at ten
+#: seconds to go: *"I prefer your more detailed message, but the original 'No
+#: Instrument Found' had a few bullets to add … Then, remove the window 'Your
+#: instrument is not answering' that you added after 10 seconds."* Approved by
+#: authorship — the words below are his, unedited.
+M_NO_INSTRUMENT = _m(
+    "M-NO-INSTRUMENT",
+    "No Instrument Found",
     "ChromIQ has started the measurement and asked your instrument to wake "
     "up, and it has not replied for {n} seconds. A working instrument answers "
     "almost at once, so something is in the way.\n\n"
     "This is nearly always the connection rather than anything you did. Try "
     "these in order:\n\n"
-    "•  Unplug the instrument's USB cable and plug it back in. Then press "
-    "Stop here and start the measurement again.\n"
+    "•  Unplug the instrument's USB cable and plug it back in.\n"
     "•  Use a different USB port, and plug straight into the computer rather "
     "than through a hub.\n"
     "•  Close anything else that may be holding the instrument — another "
     "profiling program, or a virtual machine.\n\n"
     "Nothing has been lost. The measurement you already had is put back "
     "exactly as it was if this session ends without reading anything, and you "
-    "can keep waiting instead if you would rather.",
-    approved=False)
+    "can keep waiting instead if you would rather.")
 
 
 CATALOGUE = {m.id: m for m in (
@@ -467,7 +470,7 @@ CATALOGUE = {m.id: m for m in (
     M_CHART_CORRUPT,
     M_PREVIEW_PAUSED, M_PROFILE_VERIFY,
     M_VERIFY_NO_PROFILE, M_VERIFY_NO_CHART, M_BUILD_ELSEWHERE,
-    M_INSTRUMENT_SILENT,
+    M_NO_INSTRUMENT,
 )}
 
 #: Paragraphs appended to another message rather than shown on their own.

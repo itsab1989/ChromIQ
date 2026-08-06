@@ -646,3 +646,58 @@ def test_restore_acts_on_the_calibration_when_that_is_what_is_selected(chart_tab
     )
     slot = ctl.restore_slot_or_none()
     assert slot is not None and slot.live_dir == cal.dir
+
+
+# ---- the No Instrument Found window, reworked to his instruction ---------
+def test_the_no_instrument_window_carries_his_text():
+    """Knut wrote the wording himself (beta.150) and asked for it to replace
+    the original bullet list. It is used unedited."""
+    from workflow.measurement_messages import CATALOGUE, M_NO_INSTRUMENT
+
+    title, body = M_NO_INSTRUMENT.render(n=5)
+    assert title == "No Instrument Found"
+    assert "it has not replied for 5 seconds" in body
+    assert "Unplug the instrument's USB cable and plug it back in." in body
+    assert "M-NO-INSTRUMENT" in CATALOGUE
+
+
+def test_the_ten_second_window_i_added_is_gone():
+    """*"Then, remove the window 'Your instrument is not answering' that you
+    added after 10 seconds."*"""
+    import workflow.measurement_messages as M
+
+    assert not hasattr(M, "M_INSTRUMENT_SILENT")
+    assert "M-INSTRUMENT-SILENT" not in M.CATALOGUE
+
+
+def test_the_window_no_longer_waits_for_the_process_to_exit():
+    """*"move the time the 'No Instrument Found' window comes to arrive 5
+    seconds after no instrument is detected, instead of the almost 20 seconds
+    … Make sure this window uses the same detection logic as today, only
+    change when the time that the message will arrive."*
+
+    The detection is untouched — `_on_no_instrument`, from the same printed
+    line — and it now arms a five-second timer instead of leaving the window
+    for `_on_measure_done` to raise whenever chartread happens to exit.
+    """
+    import inspect
+
+    from ui.tabs.tab_measure import TabMeasure
+
+    assert TabMeasure._NO_INSTRUMENT_DELAY_S == 5
+    detect = inspect.getsource(TabMeasure._on_no_instrument)
+    assert "_arm_no_instrument_window" in detect
+
+
+def test_its_ok_button_uses_the_one_ending_every_route_shares():
+    """*"All messages that can arrive during measurement must exit in that safe
+    manner, as a single exit strategy for all cases."*"""
+    import inspect
+
+    from ui.tabs.tab_measure import TabMeasure
+
+    src = inspect.getsource(TabMeasure._show_no_instrument_window)
+    assert "_confirm_end_of_session" in src and "_end_session" in src, (
+        "OK must go through the same ending as Stop, so nothing read is lost "
+        "and nothing is discarded without being offered"
+    )
