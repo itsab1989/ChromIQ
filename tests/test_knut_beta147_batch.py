@@ -824,3 +824,34 @@ def test_save_partial_and_quit_is_left_exactly_as_it_is():
         "Save Partial & Quit was routed through the ending; he asked for it to "
         "be left alone"
     )
+
+
+# ---- tab 4 is not for a verification (his beta.156 correction, and #133) ----
+#
+# The REAL check lives in scripts/drive_demo_09.py, on screen: a `MainWindow`
+# segfaults under the offscreen Qt platform the suite runs on, so building one
+# here would take the whole worker with it. What can be held here is that the
+# gate exists, that it is wired to the one signal that can change the answer,
+# and that it says why — the parts that a refactor would quietly drop.
+def test_the_verification_gate_is_wired_to_the_selection():
+    import inspect
+
+    from ui.main_window import MainWindow
+
+    src = inspect.getsource(MainWindow)
+    assert "self._target_ctl.changed.connect(self._apply_profile_tab_gate)" in src, (
+        "the gate is not connected to the bar, so it answers for whichever "
+        "run type happened to be selected when the window opened"
+    )
+    gate = inspect.getsource(MainWindow._apply_profile_tab_gate)
+    assert "is_verification" in gate
+    assert "setTabEnabled" in gate and "setTabToolTip" in gate, (
+        "a locked tab that does not say why is just a broken tab"
+    )
+    assert "_profile_building" in gate, (
+        "the gate must not fight the build lock, which disables everything "
+        "else and has to win while a profile is building"
+    )
+    assert "setCurrentWidget" in gate, (
+        "disabling the tab the user is standing on leaves a dead tab on screen"
+    )

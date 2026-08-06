@@ -120,6 +120,8 @@ class MainWindow(QMainWindow):
         # whenever the bar's width changes (the Verification box shows/hides).
         self._masthead.set_center_widget(self._target_bar)
         self._target_ctl.changed.connect(self._masthead.reposition_center)
+        # Tab 4 is not available for a verification — see _apply_profile_tab_gate.
+        self._target_ctl.changed.connect(self._apply_profile_tab_gate)
         # A restored verification chart must reach every tab, so nothing is left
         # showing or printing the pages it replaced (#130, Knut).
         self._target_ctl.chart_restored.connect(self._on_verify_chart_restored)
@@ -852,11 +854,57 @@ class MainWindow(QMainWindow):
             log.warning("Could not show the duplicated run %s", run_id,
                         exc_info=True)
 
+    def _apply_profile_tab_gate(self) -> None:
+        """Tab 4 is unavailable while the selection is a Verification.
+
+        Knut's matrix (#130, beta.156 correction — it also settles the open
+        question on #133):
+
+        ==========================  ===============================================
+        Run type                    tab 4
+        ==========================  ===============================================
+        Profiling                   shown — colprof, and applycal with calibration on
+        **Verification**            **greyed and locked, with a tooltip saying why**
+        Calibration                 shown — printcal (calibration options only)
+        ==========================  ===============================================
+
+        A verification measures an existing profile; it never builds one. The
+        tab used to be fully live there, so every control in it pointed at a
+        run whose profile it could only overwrite.
+        """
+        idx = self._tabs.indexOf(self._tab_profile)
+        if idx < 0:
+            return
+        try:
+            is_verification = bool(self._target_ctl.target.is_verification())
+        except Exception:      # noqa: BLE001 — a tab gate is never worth a crash
+            return
+        # Never fight the "a profile is building" lock, which disables
+        # everything else and must win while it is on.
+        if getattr(self, "_profile_building", False):
+            return
+        self._tabs.setTabEnabled(idx, not is_verification)
+        self._tabs.setTabToolTip(idx, "" if not is_verification else tr(
+            "Not for a verification run.\n\n"
+            "A verification measures the profile this run already has — it "
+            "checks how the profile is doing, and it never builds one. "
+            "Building here would overwrite the very profile you are checking.\n\n"
+            "To build or rebuild a profile, set “Run type” back to "
+            "“Profiling” in the bar above."))
+        # If the user is standing on it when it closes, move them somewhere
+        # that makes sense rather than leaving a disabled tab on screen.
+        if is_verification and self._tabs.currentIndex() == idx:
+            self._tabs.setCurrentWidget(self._tab_measure)
+
     def _on_profile_active(self, active: bool) -> None:
         profile_idx = self._tabs.indexOf(self._tab_profile)
+        self._profile_building = bool(active)
         for i in range(self._tabs.count()):
             if i != profile_idx:
                 self._tabs.setTabEnabled(i, not active)
+        if not active:
+            # …and the verification gate has its say again.
+            self._apply_profile_tab_gate()
 
     def _on_cal_file_created(self, cal_path: Path) -> None:
         """Fill -K/-I fields silently (user chose Done in the result dialog)."""
@@ -1195,6 +1243,9 @@ class MainWindow(QMainWindow):
             profile_idx,
             tr("4. Calibration & Profiling") if enabled else tr("4. Build Profile"),
         )
+        # The tab's NAME has changed; whether it is available has not, but the
+        # gate is cheap and this is the other moment tab 4 is reconsidered.
+        self._apply_profile_tab_gate()
 
     def _check_for_updates_on_startup(self) -> None:
         # Honour the global opt-out the update popup offers.

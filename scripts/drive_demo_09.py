@@ -298,6 +298,31 @@ def main() -> int:
     check("showing it leaves Generate Chart available",
           tab._reflected_active, False)
 
+    print("\n--- tab 4 is locked for a verification (his beta.156 matrix, #133) ---")
+    idx = w._tabs.indexOf(w._tab_profile)
+    select("run2", RUN_TYPE_PROFILING)
+    check("Profiling: tab 4 available", w._tabs.isTabEnabled(idx), True)
+    check("…and no tooltip on it", w._tabs.tabToolTip(idx), "")
+    select("run2", RUN_TYPE_VERIFICATION)
+    check("Verification: tab 4 greyed and locked",
+          w._tabs.isTabEnabled(idx), False)
+    check("…and it says why",
+          "verification" in w._tabs.tabToolTip(idx).lower(), True)
+    select("run2", RUN_TYPE_CALIBRATION)
+    check("Calibration: tab 4 available again",
+          w._tabs.isTabEnabled(idx), True)
+    select("run2", RUN_TYPE_PROFILING)
+    check("Profiling: the lock lifted", w._tabs.isTabEnabled(idx), True)
+
+    print("\n--- and standing on it when it locks moves you somewhere real ---")
+    w._tabs.setCurrentWidget(w._tab_profile)
+    settle()
+    select("run2", RUN_TYPE_VERIFICATION)
+    check("moved off the locked tab",
+          w._tabs.currentWidget() is not w._tab_profile, True)
+    check("…onto a tab that works",
+          w._tabs.isTabEnabled(w._tabs.currentIndex()), True)
+
     print(f"\n{len(PASS)} passed, {len(FAIL)} failed")
     for f in FAIL:
         print(f"  ✗ {f}")
