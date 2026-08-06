@@ -1,5 +1,16 @@
 # Changelog
 
+## v3.14.8-beta.155
+
+### Fixed
+
+- **A loaded chart preset can be overridden again.** With a built-in preset
+  loaded, the ChromIQ layout engine's own panel stayed editable but had no
+  effect — Generate Chart quietly rebuilt the preset's original sheet however
+  much of the layout you had changed. The panel now greys with the rest of the
+  layout controls, “Edit page layout (override preset)” unlocks it, and what
+  you change there reaches the chart.
+
 ## v3.14.8-beta.154
 
 ### Changed
