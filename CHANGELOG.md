@@ -1,5 +1,15 @@
 # Changelog
 
+## v3.14.8-beta.168
+
+### Internal
+- **Per-target settings, step 3: the store.** Each run, verification and
+  calibration can now hold its own copy of the Create Chart settings in its
+  `meta.json`, and read them back. Nothing calls it from the tab yet — the
+  events that write and load it come next — so there is no change you can see.
+  The chart's own `channels.json` is untouched, so "Restore Used Chart" behaves
+  exactly as before.
+
 ## v3.14.8-beta.167
 
 ### Fixed

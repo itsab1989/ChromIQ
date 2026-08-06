@@ -9292,6 +9292,85 @@ class TabChart(QWidget):
             return desc, tr("Verification Chart Notes:")
         return desc, tr("Run {n} Chart Notes:").format(n=number)
 
+    # ------------------------------------------------------------------
+    # Per-target settings (#130 §2/§3) — the store, not the chart's record
+    # ------------------------------------------------------------------
+    def save_target_settings(self) -> bool:
+        """Write this tab's settings into the selected target's ``meta.json``.
+
+        Called on every event in §3 that belongs to Create Chart: Generate
+        Chart, a preset/`.ti1`/`.ti2` being loaded, and **leaving the tab** —
+        which includes a target change and app quit.
+
+        Scoped to the one selected target (§2.0): it writes where
+        ``_target_text_store()`` points and nowhere else, the same rule the two
+        text fields already follow. Returns whether anything was written, so a
+        caller can tell "nothing to write yet" from "written".
+        """
+        if getattr(self, "_loading_target_settings", False):
+            return False
+        store = self._target_text_store()
+        if store is None:
+            return False           # a New run before it exists, or no project
+        try:
+            from workflow.per_target_settings import snapshot
+            wanted = snapshot(self)
+            if not wanted:
+                return False
+            meta = store.load_meta()
+            if getattr(meta, "create_chart_settings", None) == wanted:
+                return False       # nothing changed; don't churn the file
+            meta.create_chart_settings = wanted
+            store.save_meta(meta)
+            log.debug("create-chart settings written for %s (%d parameters)",
+                      getattr(store, "id", store), len(wanted))
+            return True
+        except Exception:      # noqa: BLE001 — never lose the tab over a write
+            log.warning("Could not save the target's Create Chart settings",
+                        exc_info=True)
+            return False
+
+    def load_target_settings(self) -> bool:
+        """Put the selected target's stored settings on screen (§2 L1).
+
+        **Guarded against triggering a rebuild.** Filling the rows fires their
+        ``changed`` signals, and with auto-update on that would redraw the chart
+        — possibly over a measured one (§7 B). ``_loading_target_settings``
+        holds the writers off for the duration, the way
+        ``_loading_target_text`` already does for the two text fields.
+
+        A target with nothing stored is left exactly as it is rather than being
+        reset here: §4 says it opens on the saved defaults or the factory ones,
+        and that is the panels' own job, not this one's.
+        """
+        store = self._target_text_store()
+        if store is None:
+            return False
+        try:
+            stored = getattr(store.load_meta(), "create_chart_settings", None)
+        except Exception:      # noqa: BLE001
+            log.warning("Could not read the target's Create Chart settings",
+                        exc_info=True)
+            return False
+        if not stored:
+            return False
+        self._loading_target_settings = True
+        try:
+            from workflow.per_target_settings import apply
+            unknown = apply(self, stored)
+            if unknown:
+                # A chart made before a parameter was renamed or removed must
+                # still open (§7 A) — say so in the log, never refuse to load.
+                log.info("ignored %d unknown stored setting(s): %s",
+                         len(unknown), ", ".join(sorted(unknown)[:8]))
+            return True
+        except Exception:      # noqa: BLE001
+            log.warning("Could not apply the target's Create Chart settings",
+                        exc_info=True)
+            return False
+        finally:
+            self._loading_target_settings = False
+
     def per_target_widgets(self) -> "dict[str, list]":
         """The parameter rows that belong to the target, not the installation.
 

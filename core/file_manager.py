@@ -302,6 +302,22 @@ class RunMeta:
     # respectively)."* The DESCRIPTION stays shared, by his earlier ruling —
     # a verification belongs to the run it verifies.
     verify_chart_notes: str = ""
+    #: Create Chart's settings as this target last had them — the WORKING copy,
+    #: written whenever the user leaves the tab or uses them (#130 §3). The
+    #: chart's own `<stem>.channels.json` keeps a separate record of what the
+    #: chart it sits beside was actually made with, so Restore Used Chart is
+    #: unaffected by anything here.
+    #:
+    #: Two homes because one cannot do the job: a target with no chart yet has
+    #: no sidecar to write into, so W6 ("leaving a tab saves the settings")
+    #: would lose the work a user does before pressing Generate Chart — the
+    #: first thing they do. Knut approved the split (2026-08-06: "Sure, go
+    #: ahead").
+    #:
+    #: Shape: {"<tool><flag>": {"enabled": bool, "value": …}}, or
+    #: {"repeats": [ … ]} for a flag that may be given more than once.
+    create_chart_settings: dict = field(default_factory=dict)
+
     # #130 (Knut, beta.148): the Profile Description the user typed for THIS
     # run, when they typed one. Empty means "still automatic" — ChromIQ builds
     # it from the project name and the run's own description, and keeps it in
@@ -366,6 +382,22 @@ class CalibrationMeta:
     #: The Profile Description typed for this calibration, or empty for
     #: "automatic" — the same rule a run follows (see ``RunMeta``).
     profile_description: str = ""
+    #: Create Chart's settings as this target last had them — the WORKING copy,
+    #: written whenever the user leaves the tab or uses them (#130 §3). The
+    #: chart's own `<stem>.channels.json` keeps a separate record of what the
+    #: chart it sits beside was actually made with, so Restore Used Chart is
+    #: unaffected by anything here.
+    #:
+    #: Two homes because one cannot do the job: a target with no chart yet has
+    #: no sidecar to write into, so W6 ("leaving a tab saves the settings")
+    #: would lose the work a user does before pressing Generate Chart — the
+    #: first thing they do. Knut approved the split (2026-08-06: "Sure, go
+    #: ahead").
+    #:
+    #: Shape: {"<tool><flag>": {"enabled": bool, "value": …}}, or
+    #: {"repeats": [ … ]} for a flag that may be given more than once.
+    create_chart_settings: dict = field(default_factory=dict)
+
 
     @classmethod
     def from_dict(cls, data: dict) -> "CalibrationMeta":
