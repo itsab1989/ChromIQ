@@ -703,6 +703,9 @@ class MeasurementTargetBar(QWidget):
         row.addSpacing(4)
         self._type_label = self._mk_label(tr("Run type:"))
         row.addWidget(self._type_label)
+        # Whether "Verification" may be picked from where the user is
+        # standing; see set_verification_selectable.
+        self._verification_selectable = True
         self._type_combo = NoScrollComboBox(self)
         self._type_combo.addItem(tr("Profiling"), RUN_TYPE_PROFILING)
         self._type_combo.addItem(tr("Verification"), RUN_TYPE_VERIFICATION)
@@ -987,6 +990,44 @@ class MeasurementTargetBar(QWidget):
         self.refresh()
 
     # ---- locked on tabs that do not use the selection ---------------------
+    def set_verification_selectable(self, selectable: bool) -> None:
+        """Grey the "Verification" entry itself, rather than the whole box.
+
+        Knut's answer to "what should happen if the user picks Verification
+        while standing on tab 4", which is the tab a verification closes
+        (beta.157): *"Can you grey out and disable the option 'Verification' in
+        the dropdown list of Run type? and show a tool tip if hovering over
+        that option … This method would tell user more than being thrown out of
+        a tab."* He is right — being moved to another tab tells you nothing
+        about why.
+        """
+        if selectable == getattr(self, "_verification_selectable", True):
+            return
+        self._verification_selectable = selectable
+        self._apply_verification_item_state()
+
+    def _apply_verification_item_state(self) -> None:
+        """Enable or disable the one item, and give it its own tooltip.
+
+        A QComboBox item is disabled through its model, not the widget: clearing
+        the Enabled role greys it and makes it unselectable while the rest of
+        the list stays live.
+        """
+        from PyQt6.QtCore import Qt as _Qt
+
+        selectable = getattr(self, "_verification_selectable", True)
+        model = self._type_combo.model()
+        for i in range(self._type_combo.count()):
+            if self._type_combo.itemData(i) != RUN_TYPE_VERIFICATION:
+                continue
+            item = model.item(i) if hasattr(model, "item") else None
+            if item is None:
+                return
+            item.setEnabled(selectable)
+            item.setToolTip("" if selectable else tr(
+                "Not while standing on Build Profile / Calibration and "
+                "Profiling tab. Change tab to select verification run."))
+
     def set_locked(self, locked: bool) -> None:
         """Grey the whole selection out, keeping it readable (Knut, #130
         2026-07-26).
@@ -2089,6 +2130,8 @@ class MeasurementTargetBar(QWidget):
         self._type_combo.clear()
         for label, data in want:
             self._type_combo.addItem(label, data)
+        # The items are new objects, so the greyed state has to be put back.
+        self._apply_verification_item_state()
 
     def set_calibration_allowed(self, allowed: bool) -> None:
         """Follow Preferences → Calibration options (#137).

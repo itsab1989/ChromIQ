@@ -348,10 +348,17 @@ class MainWindow(QMainWindow):
         # created since the bar last populated). Cheap; the picked run/type stay.
         color = TAB_COLORS[index] if index < len(TAB_COLORS) else TAB_COLORS[-1]
         if getattr(self, "_target_bar", None) is not None:
-            # Build Profile (3) and Check & Refine (4) work on the measurement
-            # file loaded into them, not on this selection, so it is shown but
-            # locked there (#130, Knut 2026-07-26).
-            self._target_bar.set_locked(index in (3, 4))
+            # Check & Refine works on the measurement file loaded into it, not
+            # on this selection, so the bar is shown but locked there (#130,
+            # Knut 2026-07-26). Build Profile used to be locked with it and is
+            # not any more (Knut, beta.157: *"Unlock the bar on tab 4; leave it
+            # locked on Check & Refine. ==> OK do it."*) — you pick the run you
+            # are building there, so the bar has to be live.
+            self._target_bar.set_locked(index == 4)
+            # …but not to Verification, which has no profile to build. Greying
+            # the one entry, rather than moving the user off the tab, is his
+            # ruling too: it says why, where being thrown out says nothing.
+            self._target_bar.set_verification_selectable(index != 3)
             self._target_bar.refresh()
             # Tint the bar's combobox highlight + ⓘ icon to the active tab's accent.
             self._target_bar.set_accent(color)
