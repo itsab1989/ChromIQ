@@ -69,12 +69,23 @@ def _outline(path: QPainterPath, width: float) -> QPainterPath:
     return st.createStroke(path)
 
 
-def _ccw_arrow(rect: QRectF, start: float, span: float):
+def _ccw_arrow(rect: QRectF, start: float, span: float,
+               *, advance: float = 0.0, tilt: float = 0.0):
     """A counter-clockwise arc and the two wings of its head.
 
     Qt puts the point at angle t at ``(cx + rx cos t, cy - ry sin t)`` with y
     running down the screen, so increasing t travels counter-clockwise to the
     eye. The head goes on the end the stroke stops at, along the tangent there.
+
+    *advance* carries the head FORWARD along that tangent, leaving the arc
+    where it is. With the wings springing from the arc's last point, the arc's
+    round cap stands proud of the notch between them and the join reads as a
+    step; moved forward, the cap tucks inside the head and the two become one
+    arrow. Basti drew that by hand on the Restore mark (2026-08-06) and the
+    distance is measured from what he drew.
+
+    *tilt* turns the head, in degrees, without moving the arc — the last
+    freedom his hand-drawn version used.
     """
     arc = QPainterPath()
     arc.arcMoveTo(rect, start)
@@ -87,6 +98,12 @@ def _ccw_arrow(rect: QRectF, start: float, span: float):
     vx, vy = -math.sin(theta), -math.cos(theta)
     if span < 0:
         vx, vy = -vx, -vy
+    if tilt:
+        t = math.radians(tilt)
+        vx, vy = (vx * math.cos(t) - vy * math.sin(t),
+                  vx * math.sin(t) + vy * math.cos(t))
+    if advance:
+        tip = QPointF(tip.x() + vx * advance, tip.y() + vy * advance)
     size = max(2.4, min(4.0, (rx + ry) / 2.0 * 0.42))
     wings = []
     for turn in (math.radians(155), math.radians(-155)):
@@ -110,22 +127,35 @@ def draw_trash_can(p: QPainter, colour: str) -> None:
     p.drawPath(body)
 
 
+#: How far the arrowhead sits forward of the arc's last point, and how far it
+#: is turned, both from Basti's hand-drawn version (2026-08-06). He moved the
+#: head so the arc's round cap tucks inside it instead of standing proud of the
+#: notch — *"i slightly moved and distorted the arrow head"*. The distortion
+#: was a by-product of dragging a transform handle, so the wings stay the
+#: symmetric pair they always were; only the move and the turn are kept.
+_RESTORE_HEAD_ADVANCE = 1.35
+_RESTORE_HEAD_TILT = 6.5
+
+
 def draw_restore_chart(p: QPainter, colour: str) -> None:
-    """The Restore Used Chart mark: a sheet of patches inside a
-    counter-clockwise arc, with a clean gap where the arc passes in front."""
+    """The Restore Used Chart mark: a whole sheet of patches inside a
+    counter-clockwise arrow that curves around it.
+
+    **The sheet is drawn whole.** It used to have a gap cut out of it wherever
+    the arc came near — a clearance band, not an overlap; the two shapes never
+    actually touch. Basti took it out by hand (2026-08-06): *"some of the edges
+    of the sheet in the middle were cut off. so i made three new copies of it
+    and rotated each 90 degrees more so all of the edges were fixed."* The
+    clearance cost more than it bought: at 24 px the notches read as damage to
+    the sheet rather than as depth.
+    """
     # 3.4 rather than 1.8: the arrowhead's wings reach OUTWARD from the tip,
     # so an arc drawn to the edge of the box puts the head outside it and the
     # button clips it. The test that caught this measures the margin.
-    arc, wings = _ccw_arrow(QRectF(3.4, 3.4, 17.2, 17.2), 200, 250)
+    arc, wings = _ccw_arrow(QRectF(3.4, 3.4, 17.2, 17.2), 200, 250,
+                            advance=_RESTORE_HEAD_ADVANCE,
+                            tilt=_RESTORE_HEAD_TILT)
 
-    hole = _outline(arc, 1.9 + 2.8)
-    for a, b in wings:
-        line = QPainterPath(a)
-        line.lineTo(b)
-        hole = hole.united(_outline(line, 1.9 + 2.8))
-
-    p.save()
-    p.setClipPath(_everything_but(hole))
     _pen(p, colour, 1.6)
     sheet = QRectF(7.4, 7.4, 9.2, 9.2)
     p.drawRoundedRect(sheet, 1.5, 1.5)
@@ -137,7 +167,6 @@ def draw_restore_chart(p: QPainter, colour: str) -> None:
             p.drawEllipse(QPointF(inner.left() + col * inner.width() / 2.0,
                                   inner.top() + row * inner.height() / 2.0),
                           0.75, 0.75)
-    p.restore()
 
     _pen(p, colour, 1.9)
     p.drawPath(arc)

@@ -95,12 +95,23 @@ def test_curves_are_drawn_with_a_pen():
     assert "simplified()" not in src
 
 
-def test_the_arrow_is_counter_clockwise():
+def test_the_arrow_is_counter_clockwise(qapp):
     """Rule 2, first half. He specified a counter-clockwise arc, and Qt's
-    positive sweep is counter-clockwise on screen."""
-    src = inspect.getsource(bi.draw_restore_chart)
-    assert "_ccw_arrow(QRectF(3.4, 3.4, 17.2, 17.2), 200, 250)" in src, \
-        "the arc's sweep changed — check the direction by hand"
+    positive sweep is counter-clockwise on screen.
+
+    Checked by walking the path rather than by matching the call: the head
+    gained keyword arguments in beta.151 and a string match would have failed
+    on a change that moved nothing.
+    """
+    rect = QRectF(3.4, 3.4, 17.2, 17.2)
+    arc, _wings = bi._ccw_arrow(rect, 200, 250)
+    pts = [arc.pointAtPercent(t / 20.0) for t in range(21)]
+    cx, cy = rect.center().x(), rect.center().y()
+    angles = [math.degrees(math.atan2(-(q.y() - cy), q.x() - cx)) for q in pts]
+    steps = [(b - a + 540) % 360 - 180 for a, b in zip(angles, angles[1:])]
+    assert all(s > 0 for s in steps), \
+        "the arc's sweep changed — it is no longer counter-clockwise on screen"
+    assert abs(sum(steps) - 250) < 2, f"the arc spans {sum(steps):.0f}°, not 250°"
 
 
 def test_the_head_sits_at_the_end_along_the_tangent(qapp):
@@ -145,13 +156,52 @@ def test_the_head_is_in_proportion_to_its_arc():
     assert length(small) < length(large), "the head does not scale with the arc"
 
 
-def test_the_sheet_is_clipped_where_the_arc_passes_in_front():
-    """Rule 4. A gap painted in a background colour is right on one theme and
-    wrong on the other; the hole has to be cut out of the shape."""
+def test_the_sheet_is_whole():
+    """Rule 4, as Basti settled it by drawing it (2026-08-06).
+
+    The sheet used to have a gap cut out of it wherever the arc came near — a
+    clearance band, not an overlap; the two shapes never actually touch. He
+    took it out: *"some of the edges of the sheet in the middle were cut off.
+    so i made three new copies of it and rotated each 90 degrees more so all of
+    the edges were fixed."* At 24 px those notches read as damage to the sheet
+    rather than as depth.
+
+    The half of the old rule that still holds is the half about colour: a gap
+    painted in a background colour is right on one theme and wrong on the
+    other, so nothing here may name one.
+    """
     src = inspect.getsource(bi.draw_restore_chart)
-    assert "setClipPath(_everything_but(" in src
+    assert "setClipPath" not in src, \
+        "the sheet is being cut into again — Basti removed that by hand"
     for wrong in ("#141414", "#f4f2ee", "white", "black"):
-        assert wrong not in src, "a background colour is being painted into the gap"
+        assert wrong not in src, "a background colour is being painted into the mark"
+
+
+def test_the_head_sits_forward_of_the_arc_so_the_join_reads_as_one_arrow(qapp):
+    """With the wings springing from the arc's last point, the arc's round cap
+    stands proud of the notch between them and the join reads as a step. Basti
+    moved the head forward along the tangent to close it (2026-08-06).
+
+    Measured, not asserted from a constant: the arc's end must fall INSIDE the
+    triangle the head encloses.
+    """
+    rect = QRectF(3.4, 3.4, 17.2, 17.2)
+    arc, wings = bi._ccw_arrow(rect, 200, 250,
+                               advance=bi._RESTORE_HEAD_ADVANCE,
+                               tilt=bi._RESTORE_HEAD_TILT)
+    end = arc.pointAtPercent(1.0)
+    tip = wings[0][0]
+    a, b = wings[0][1], wings[1][1]
+
+    def side(p, q, r):
+        return ((q.x() - p.x()) * (r.y() - p.y())
+                - (q.y() - p.y()) * (r.x() - p.x()))
+
+    signs = [side(tip, a, end), side(a, b, end), side(b, tip, end)]
+    assert all(s > 0 for s in signs) or all(s < 0 for s in signs), (
+        "the arc's end is outside the arrowhead, so its cap sticks out of the "
+        "notch — the step Basti drew out"
+    )
 
 
 # ---- the bar wires them up and re-tints them ----------------------------
