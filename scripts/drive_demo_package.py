@@ -321,6 +321,51 @@ def main() -> int:
                 # than no test, because it is read as evidence.
                 NOT_DRIVEN.append(label)
 
+    # ------------------------------------------------------------------
+    # The Restore steps, checked from the DATA rather than left undriven
+    # ------------------------------------------------------------------
+    # Every "Restore Used Chart" step in the package promises no message ID, so
+    # all of them sat in NOT_DRIVEN — the group that used to be counted as
+    # passing. This closes the most important part of that gap: a Restore step
+    # cannot possibly be performed unless the target it names ships a stored
+    # chart, which is precisely what Knut found missing.
+    #
+    # Read from a PRISTINE copy: by this point the walk above has generated
+    # charts and archived others, so the live tree reflects the driver's own
+    # history rather than the package as shipped.
+    print("\n=== every documented Restore step has something to restore ===")
+    import tempfile as _tf
+
+    from core.file_manager import Project as _Project
+    from workflow.chart_slot import (slot_for_calibration, slot_for_run,
+                                     slot_for_verification)
+    from workflow.verify_chart_snapshot import slot_has_snapshot
+
+    for case in CASES:
+        nm = case["name"]
+        if not (src / nm).is_dir():
+            continue
+        steps = " ".join(case.get("steps") or [])
+        if "Restore Used Chart" not in steps:
+            continue
+        fresh = Path(_tf.mkdtemp()) / nm
+        shutil.copytree(src / nm, fresh)
+        try:
+            pr = _Project.load(fresh)
+            for r in pr.all_runs():
+                record(f"{nm}: {r.id} has a stored chart",
+                       slot_has_snapshot(slot_for_run(r)))
+                for v in r.verifications():
+                    record(f"{nm}: {r.id}/{v.id} has a stored chart",
+                           slot_has_snapshot(slot_for_verification(v)))
+            if pr.calibration.dir.is_dir():
+                record(f"{nm}: the calibration has a stored chart",
+                       slot_has_snapshot(slot_for_calibration(pr.calibration)))
+        except Exception as exc:            # noqa: BLE001
+            record(f"{nm}: could not be read for the Restore check", False, str(exc))
+        finally:
+            shutil.rmtree(fresh.parent, ignore_errors=True)
+
     bad = [r for r in RESULTS if not r[1]]
     print(f"\n{len(RESULTS) - len(bad)}/{len(RESULTS)} driven steps behave as "
           f"the package describes")
