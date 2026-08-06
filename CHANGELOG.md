@@ -1,5 +1,16 @@
 # Changelog
 
+## v3.14.8-beta.165
+
+### Fixed
+- **Restoring a calibration chart put back a completely different chart.** With
+  Run type = Calibration, "Restore Used Chart" copied the right files back and
+  then immediately redrew the pages of whichever **profile run** the bar pointed
+  at — so a 60-patch calibration chart came back as a 750-patch, ten-page sheet,
+  and the Calibration Chart Notes were not restored either. The page rebuild
+  knew only two run types; it now knows all three. Reported by Knut (#130), who
+  called it a bad fault, and it was.
+
 ## v3.14.8-beta.164
 
 ### Fixed

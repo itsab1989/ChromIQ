@@ -10013,7 +10013,8 @@ class TabChart(QWidget):
 
     def rebuild_verification_pages(self) -> bool:
         """Redraw the printable pages of the chart that was just restored, for
-        **either** run type (#130, Knut).
+        **any of the three targets** — a profile run, a verification, or the
+        calibration (#130, Knut).
 
         Called after **Restore Used Chart** has put an older chart back: the
         snapshot deliberately holds no page images when the chart carries a
@@ -10026,8 +10027,10 @@ class TabChart(QWidget):
         Profiling runs kept their own copy only from beta.42 on, and until now
         nothing redrew their pages afterwards: the restore left the chart files
         right but the Create Chart preview empty, which is what Knut saw
-        (2026-07-27). Both run types now take the same route; only *which* chart
-        files are read differs.
+        (2026-07-27). All three targets now take the same route; only *which*
+        chart files are read differs. The calibration was the one left out, and
+        leaving it out meant a calibration restore silently redrew the selected
+        run's chart instead — see the note in the body.
 
         Returns True when a rebuild was started. Best-effort: a chart that can't
         be rebuilt leaves the restored files in place and says so via the caller.
@@ -10036,14 +10039,35 @@ class TabChart(QWidget):
         if ctl is None:
             return False
         verification = ctl.target.is_verification()
+        calibration = ctl.target.is_calibration()
         try:
             proj = ctl.project_or_none()
-            run_id = ctl.target.profile_run
-            if proj is None or not run_id or not proj.has_run(run_id):
+            if proj is None:
                 return False
-            run = proj.run(run_id)
-            ti1, ti2 = ((run.verify_chart_ti1, run.verify_chart_ti2)
-                        if verification else (run.chart_ti1, run.chart_ti2))
+            # A CALIBRATION IS A THIRD TARGET, AND THIS KNEW ONLY TWO.
+            #
+            # This asked "verification, or else the selected RUN?" — written
+            # when there were two run types. With Calibration selected it
+            # rebuilt the pages of whatever profile run the bar happened to
+            # point at, and pinned THAT chart's patch count on screen. Knut,
+            # beta.159: a 60-patch calibration chart came back as *"750 and the
+            # resulting chart was 10 pager long … totally different from
+            # originally stored"*, and his log names the file it actually
+            # rebuilt — `runs/run8/Test-Profiling-P.ti2`, the run's chart.
+            #
+            # `restore_slot` had already put the right files back. It was this
+            # redraw that then laid the wrong chart over them.
+            run_id = None
+            if calibration:
+                cal = proj.calibration
+                ti1, ti2 = cal.ti1, cal.ti2
+            else:
+                run_id = ctl.target.profile_run
+                if not run_id or not proj.has_run(run_id):
+                    return False
+                run = proj.run(run_id)
+                ti1, ti2 = ((run.verify_chart_ti1, run.verify_chart_ti2)
+                            if verification else (run.chart_ti1, run.chart_ti2))
             if not ti1.is_file():
                 return False
             # Build the restored chart exactly as it was made: its own recipe
@@ -10088,7 +10112,9 @@ class TabChart(QWidget):
                     "could be recovered. Charts created from now on always save "
                     "their settings with them, so a later restore will bring "
                     "those back too."))
-            if proj.current_run().id != run_id:
+            # Only a run has a "current run" to move; a calibration does not
+            # live under runs/ at all.
+            if run_id is not None and proj.current_run().id != run_id:
                 proj.set_current_run(run_id)
             self._arm_verification_snapshot()
             params = self._collect_params()
