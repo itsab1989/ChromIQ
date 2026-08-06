@@ -119,8 +119,29 @@ class MeasurementTargetController(QObject):
                     return None
             if (self._fm.working_dir() / "project.json").exists():
                 return self._fm.project()
-        except Exception:      # noqa: BLE001 — the bar must never crash a tab
-            pass
+        except Exception as exc:   # noqa: BLE001 — the bar must never crash a tab
+            # SAY SO ONCE, INSTEAD OF NOTHING AT ALL.
+            #
+            # Swallowing this is right — the bar asks constantly and must never
+            # take a tab down with it — but swallowing it *silently* makes a
+            # project that fails to load indistinguishable from no project at
+            # all: every control on the bar goes inert, Restore Used Chart
+            # reports "open a project first", and the log says nothing. A
+            # malformed project.json cost real time to diagnose for exactly
+            # that reason.
+            #
+            # Logged once per distinct failure, because this runs on every
+            # refresh and an unconditional line would drown the log — which is
+            # how the useful lines get missed in the first place.
+            key = f"{type(exc).__name__}: {exc}"
+            if key != getattr(self, "_last_project_error", None):
+                self._last_project_error = key
+                log.warning("the bar could not load the project — every "
+                            "control on it will read as 'no project': %s", key)
+            return None
+        # A load that works clears the note, so a later failure is reported
+        # again rather than being suppressed as a repeat.
+        self._last_project_error = None
         return None
 
     def run_ids(self) -> list[str]:

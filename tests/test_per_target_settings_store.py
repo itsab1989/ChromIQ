@@ -240,8 +240,14 @@ def test_n1_end_to_end_the_outgoing_run_keeps_its_own_setting(tmp_path, qapp):
     from workflow.per_target_settings import params_for
 
     settings = AppSettings()
+    # POINT IT AT tmp_path. `root_dir()` is the REAL ~/ChromIQ unless
+    # custom_output_path says otherwise — conftest's autouse guard catches that,
+    # but only the first time, because the stray folder is then in its "before"
+    # set and invisible on every later run. This test had been writing into the
+    # developer's own projects.
+    settings.set("custom_output_path", str(tmp_path / "out"))
     fm = FileManager(settings)
-    root = fm.root_dir()                 # redirected to a temp dir by conftest
+    root = fm.root_dir()
     root.mkdir(parents=True, exist_ok=True)
     proj = Project.create(root / "Demo-PTS", "Demo-PTS")
     proj.current_run().ensure_dir()

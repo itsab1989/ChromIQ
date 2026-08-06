@@ -294,6 +294,19 @@ def _no_leaked_replay_helpers():
 
 @pytest.fixture(autouse=True)
 def _never_touch_the_real_chromiq_folder():
+    """Fail a test that creates anything in the user's real ~/ChromIQ.
+
+    **It only catches a stray once.** The comparison is against what was there
+    when the test started, so a folder left behind by an earlier run is already
+    in ``before`` and is invisible from then on — the offending test goes green
+    while still writing into the developer's own projects. That is not
+    hypothetical: a test added on 2026-08-06 did exactly this for several runs
+    after its first failure was read as a one-off.
+
+    So when this fires, **delete the folder it names** before re-running.
+    Nothing is deleted automatically, because the folder might be a real
+    project that a test happened to touch.
+    """
     before = _real_chromiq_entries()
     yield
     new = sorted(_real_chromiq_entries() - before)
