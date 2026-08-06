@@ -164,6 +164,33 @@ changes and the description does not.
 
 ---
 
+## 4b. The Profile Description is per run 🆕 **beta.148**
+
+Knut, beta.148, after typing his own `-D` for run 3 and finding it on every run:
+
+> *"Every run has its own values. When I change to run 1, then the Profile
+> Description … is still the default value … because I did not change the
+> Profile Description … for that run. Emptying the Profile Description … will
+> re-enable the automatic generation … for that specific run."*
+
+| # | State of `runN/meta.json` `profile_description` | What the field shows |
+|---|---|---|
+| D1 | empty | the automatic `<project>-<run description>`, recomposed each time |
+| D2 | set | that text, verbatim |
+| D3 | emptied by the user | back to D1, for that run only |
+
+**T4b.1 (U)** Typing stores the text on the selected run — and on **no other**.
+**T4b.2 (I/S)** Switching Profile run replaces the field with that run's own
+value; an override typed for run 3 is not visible on run 1.
+**T4b.3 (U)** Typing the automatic value is **not** an override: it is stored as
+empty, so the run's description still drives the name afterwards.
+**T4b.4 (I/S)** Run type = Calibration composes `<project>-<Calibration
+Description>` and follows it as it changes, and takes its own override.
+**T4b.5 (I)** The store is the same one §2a names: the run, or the calibration,
+never both.
+
+---
+
 ## 5. Run lifecycle
 
 | # | Action | Description | Chart Notes |
@@ -338,6 +365,33 @@ elsewhere". Duplicate shows the copy through the same call the Print/Measure
 **Every S row is walked in the real app**, with the app's own fonts and style
 applied as `main.py` applies them — a run without them measures a different
 widget, which has already produced one wrong fix in this issue.
+
+---
+
+## 9b. What beta.148 found, written down so it cannot be missed again 🆕
+
+Every one of these came out of one report, and five of the six are the same
+shape: **something the user typed or chose was thrown away.**
+
+| # | Rule | Test |
+|---|---|---|
+| K1 | Text typed while "New run" is selected is saved to the run **Generate Chart creates**, and stays on screen | T5.9 |
+| K2 | …and is never written into an existing run in the meantime | T5.10 |
+| K3 | A calibration keeps its Description and Chart Notes across a chart rebuild — `cal/meta.json` is copied into the archive, never moved | T5.11 |
+| K4 | A chart inside the open project is never "loaded from elsewhere", so Generate Chart is never blocked by it | T5.12 |
+| K5 | Duplicate copies the description with **`(copy) `** at the start, and the chart notes verbatim | T5.2 |
+| K6 | `cal/old/<date>/` holds only what cannot be regenerated — the measurement, the `.cal`, any profile. The chart is replaced, as a run's is | T5.13 |
+| K7 | Starting a calibration measurement copies its chart into `cal/chart/`, as a run copies into `runN/chart/` | T5.14 |
+| K8 | Restore Used Chart puts the **Chart Notes** back, for a run, a verification and a calibration alike — and writes them to that target's own meta | T4.7 |
+| K9 | A chart with no notes leaves the notes field alone | T4.2 |
+| K10 | The Profile Description is per run | §4b |
+| K11 | "Location being edited" names `cal/` under Run type = Calibration | T1.7 |
+
+**T5.13 (U)** After a calibration rebuild, `cal/old/<date>/` holds the `.ti3`
+and the `.cal` and **not** the `.ti1`/`.ti2`; `cal/chart/` is untouched.
+**T5.14 (I)** Starting a calibration measurement writes `cal/chart/`.
+**T4.7 (I)** Restore writes the notes into the run/verification/calibration meta
+as well as into the field, so the refresh that follows cannot undo it.
 
 ---
 

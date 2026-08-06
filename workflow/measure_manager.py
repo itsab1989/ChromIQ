@@ -905,8 +905,12 @@ class MeasureManager(QObject):
                 # writing. Knut, beta.136: *"[INFO] Measurement stopped — no
                 # measurement (.ti3) file was created"*, with readings on disk.
                 if _STRIP_INTERRUPTED_RE.search(line):
-                    if self._ending_already_answered:
-                        return
+                    # A PENDING SAVE IS ANSWERED FIRST — the same ordering the
+                    # event path uses, and for the same reason: "Save and stop"
+                    # marks the ending as answered, so the guard below used to
+                    # eat the very prompt the save chain was waiting for and the
+                    # second key never went out (Knut, beta.148).
+                    #
                     # ONLY to finish a save-partial. The helper PRINTS this
                     # sentence and, in strip mode, also reports it as an event —
                     # so emitting the window from here as well raised "Strip
@@ -918,8 +922,14 @@ class MeasureManager(QObject):
                     # the strip-error path already follows.
                     if self._save_partial_state == "wait_give_up_prompt":
                         self._save_partial_state = None
+                        self._stop_requested = False
                         self._ending_already_answered = True
+                        log.info("save partial: the printed give-up prompt "
+                                 "arrived; sending the second key")
                         self.send_key("q")
+                        return
+                    if self._ending_already_answered:
+                        return
             return
 
         self._engine_saw_event = True
@@ -1088,32 +1098,48 @@ class MeasureManager(QObject):
                 self.unexpected_response.emit(f"{ev.get('worst_de', 0):.2f}")
 
         elif kind == "strip_interrupted":
-            # WHICHEVER FORM ARRIVES FIRST ENDS IT; the other is spent.
+            # THE GIVE-UP PROMPT, ARRIVING AS AN EVENT — and three different
+            # things can be waiting for it. They are answered in this order,
+            # because each of the later guards would otherwise swallow it.
             #
-            # The helper prints this sentence AND reports it as an event. Since
-            # beta.137 the printed copy completes a pending save-partial, so by
-            # the time the event arrives the state is already clear — and the
-            # branch below then treated it as the user's own interruption and
-            # opened the window all over again. Knut, beta.138: *"Window 'Strip
-            # Read Interrupted' came again … You did not remove it."* Answering
-            # that window a second time crashed the app, which is the other half
-            # of this fix (see ArgyllRunner._on_ready_read).
-            # THE SECOND HALF OF A GIVE UP TAKEN AT THE STRIP MENU.
+            # In engine mode chartread's prose never reaches `_handle_line`, so
+            # everything that used to key off the printed sentence has to be
+            # driven from here.
             #
-            # In STRIP mode a wrong-dial failure is not a retry prompt at all.
-            # chartread prints the failure and goes straight back to the strip
-            # menu — *"Trigger instrument switch or any other key to start:"* —
-            # so the quit the user's Give Up sends is read there as "interrupt
-            # this strip read", and the helper answers with "Strip read stopped
-            # at user request!" and THIS event, sitting at a give-up prompt
-            # nobody is now watching. Knut, beta.147: *"Now window goes away,
-            # but since I did not make any measurements, the measurement session
-            # should have stopped. It did not."*
+            # 1. A PENDING SAVE. `send_save_partial_and_quit` sends one 'q' and
+            #    waits for this prompt to send the second — and the second is
+            #    what makes chartread write the .ti3 and exit. "Save and stop"
+            #    ALSO marks the ending as answered, so guard 3 below used to eat
+            #    the prompt and the chain stalled. Knut, beta.148, from the
+            #    Instrument Error window: *"the window closes, but the
+            #    measurement session does NOT end, and the instrument is
+            #    unresponsive."*
             #
-            # Patch-by-patch does end on one key, because there the same failure
-            # DOES leave the reader at a retry prompt — which is why his note
-            # says not to copy what that mode does. The ending the user already
-            # chose is simply finished here.
+            # 2. A STOP THE USER ALREADY CHOSE. In strip mode a wrong-dial
+            #    failure is not a retry prompt: chartread prints it and goes
+            #    back to the strip menu — *"Trigger instrument switch or any
+            #    other key to start:"* — so the quit is read there as "interrupt
+            #    this read", and the reader answers with this prompt. Knut,
+            #    beta.147: *"since I did not make any measurements, the
+            #    measurement session should have stopped. It did not."*
+            #    Patch-by-patch ends on one key because there the same failure
+            #    DOES leave a retry prompt; do not copy what that mode sends.
+            #
+            # 3. NOTHING. Then the ending has already been answered and this is
+            #    the reader repeating itself — Knut, beta.138: *"Window 'Strip
+            #    Read Interrupted' came again … You did not remove it."*
+            #    Answering that window twice crashed the app.
+            #
+            # Otherwise it is a strip the user interrupted themselves, which has
+            # a window of its own.
+            if self._save_partial_state == "wait_give_up_prompt":
+                self._save_partial_state = None
+                self._stop_requested = False
+                self._ending_already_answered = True
+                log.info("save partial: the give-up prompt arrived; sending the "
+                         "second key to write the .ti3 and exit")
+                self.send_key("q")
+                return
             if self._stop_requested:
                 self._stop_requested = False
                 self._ending_already_answered = True
@@ -1123,26 +1149,9 @@ class MeasureManager(QObject):
                 return
             if self._ending_already_answered:
                 return
-            # THE GIVE-UP PROMPT, AS AN EVENT.
-            #
-            # In engine mode chartread's prose never reaches _handle_line — this
-            # method handles the typed events and passes prose straight to the
-            # log. So the second half of Save Partial & Quit, which waits for
-            # "Strip read stopped at user request", was never triggered here:
-            # the state machine sat in wait_give_up_prompt while the helper sat
-            # at "Hit Esc or 'q' to give up". Knut, beta.135, pressing Stop →
-            # "Save and stop": *"The session still did not exit"*, and pressing
-            # q by hand did.
-            #
-            # The test that covered this called _handle_line directly, which the
-            # app never does in engine mode — so it proved the chain worked
-            # against a path that does not run. It drives this one now.
-            if self._save_partial_state == "wait_give_up_prompt":
-                self._save_partial_state = None
-                self._ending_already_answered = True
-                self.send_key("q")
-            else:
-                self.strip_interrupted.emit()
+            # Nobody was waiting for this one, so it is the reader telling us
+            # the user interrupted a strip themselves — that has its own window.
+            self.strip_interrupted.emit()
 
         elif kind == "strip_misaligned":            # #50 safety net (opt-in)
             self.strip_misaligned.emit(

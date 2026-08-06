@@ -840,7 +840,32 @@ SEQUENCES = {
              "Use **Duplicate** on run 1 — the button is in the bar above the "
              "tabs. *Expected:* ChromIQ confirms the duplicate first, and the "
              "new run's description then begins **“(copy) ”**, at the START of "
-             "the box where you can see it without scrolling. [[GUARD]]"])
+             "the box where you can see it without scrolling. [[GUARD]]",
+             "**The Profile Description belongs to one run.** With run 3 "
+             "selected, go to the profiling tab and type your own text into "
+             "**Profile Description**. Switch to run 1. *Expected:* run 1 "
+             "shows ITS own name — the project name and run 1's description — "
+             "not what you typed for run 3. Switch back to run 3 and your text "
+             "is there. [[ON-SCREEN]]",
+             "Still on run 3, **empty** the Profile Description box. "
+             "*Expected:* the automatic name comes back for run 3, and it "
+             "follows that run's description if you change it. Emptying the "
+             "box is how you hand the name back to ChromIQ. [[ON-SCREEN]]",
+             "Set Run type = **Calibration** and look at Profile Description. "
+             "*Expected:* it reads **project name – Calibration Description**, "
+             "built automatically, and it follows the Calibration Description "
+             "as you change it. Type your own text there and it sticks to the "
+             "calibration alone. [[ON-SCREEN]]",
+             "**Restore Used Chart puts the notes back — for all three.** For "
+             "a run, for Run type = Verification and for Run type = "
+             "Calibration in turn: change the Chart Notes, press **Generate "
+             "Chart**, then press **Restore Used Chart**. *Expected:* the "
+             "notes of the chart that comes back are the ones on screen, in "
+             "every one of the three cases. [[ON-SCREEN]]",
+             "Set Run type = **Calibration** on a project whose `cal/` folder "
+             "holds no chart, and press **Generate Chart**. *Expected:* it "
+             "generates. There must be NO window saying you already made a "
+             "calibration chart — you have not. [[ON-SCREEN]]"])
 def build_run_descriptions(root: Path) -> None:
     name = "Demo-09-Run-Descriptions"
     p = root / name
@@ -1113,6 +1138,17 @@ def _document(cases, dest: Path) -> str:
     return "\n".join(out)
 
 
+#: Messages no demo project can raise, because they need the hardware to
+#: misbehave. Listing one here is a claim that a demo step CANNOT reach it —
+#: not that writing the step was inconvenient.
+#:
+#: M-INSTRUMENT-SILENT needs an instrument that never answers. It is raised by
+#: elapsed silence and nothing else (see its §M-PROPOSED entry), so the only
+#: way to produce it is to unplug the cable — which is exactly how Knut found
+#: it, and exactly what a demo project cannot arrange.
+NEEDS_HARDWARE = {"M-INSTRUMENT-SILENT"}
+
+
 def _catalogue():
     """Every ID the model defines — messages and the paragraphs that attach to
     them — so the guide quotes the model rather than a copy of it. Knut:
@@ -1370,7 +1406,7 @@ def verify(dest: Path) -> "list[str]":
         for step in c["steps"]:
             used |= set(re.findall(r"\[\[(M-[A-Z0-9-]+)\]\]", step))
     for mid in _catalogue():
-        if mid not in used:
+        if mid not in used and mid not in NEEDS_HARDWARE:
             problems.append(
                 f"{mid} is in the model but no step in the package raises it")
     # …and every sequence the model defines is either driven or excused.

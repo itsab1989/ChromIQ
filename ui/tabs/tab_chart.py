@@ -7012,10 +7012,24 @@ class TabChart(QWidget):
         # checkbox to its mode default (_refresh_manual_command_preview)
         # and would overwrite anything set earlier.
         try:
-            if ("chart_notes" in doc
-                    and self._manual_chart_notes_edit is not None):
-                self._manual_chart_notes_edit.setText(
-                    str(doc.get("chart_notes") or ""))
+            # THE CHART'S NOTES, AND ONLY WHEN IT HAS ANY.
+            #
+            # §4 T4.1/T4.2: a restored chart REPLACES the notes field, and one
+            # with no notes LEAVES IT AS IT IS — a restore must not blank text
+            # the user has written for the chart they are about to make.
+            #
+            # They are then written into the run's (or the verification's run's,
+            # or the calibration's) own meta, so the working copy agrees with
+            # the sheet now on screen. The refresh that follows a restore reads
+            # that meta, so without this the restored notes could be replaced by
+            # the stale ones a moment later, depending on which handler ran
+            # last. Knut, beta.148, asked for the restore to work for a
+            # verification and a calibration exactly as it does for a run; one
+            # rule in one place is how that is true for all three.
+            _notes = str(doc.get("chart_notes") or "")
+            if _notes and self._manual_chart_notes_edit is not None:
+                self._manual_chart_notes_edit.setText(_notes)
+                self._persist_restored_chart_notes(_notes)
                 self._restored_notes_stamp = True
             if ("stamp_commands" in doc
                     and self._manual_stamp_cmd_check is not None):
@@ -9370,6 +9384,25 @@ class TabChart(QWidget):
             if edit is not None:
                 return edit.text()
         return ""
+
+    def _persist_restored_chart_notes(self, notes: str) -> None:
+        """Make the restored chart's notes the working value for this target.
+
+        Whichever of the three the bar points at — the run, the verification's
+        run, or the calibration — writes to its own file and no other, the same
+        rule every other write here follows.
+        """
+        store = self._target_text_store()
+        if store is None:
+            return
+        try:
+            meta = store.load_meta()
+            if getattr(meta, "chart_notes", "") == notes:
+                return
+            meta.chart_notes = notes
+            store.save_meta(meta)
+        except Exception:      # noqa: BLE001 — never lose the tab over a write
+            log.warning("Could not save the restored chart notes", exc_info=True)
 
     def _write_target_text_into(self, store) -> None:
         """Put what is on screen into ``store``'s meta, whatever is selected.

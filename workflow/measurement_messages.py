@@ -439,6 +439,27 @@ M_DUPLICATE_BLOCKED = (
 
 
 # ---------------------------------------------------------------------------
+# --- PROPOSED --------------------------------------------------------------
+M_INSTRUMENT_SILENT = _m(
+    "M-INSTRUMENT-SILENT",
+    "Your instrument is not answering",
+    "ChromIQ has started the measurement and asked your instrument to wake "
+    "up, and it has not replied for {n} seconds. A working instrument answers "
+    "almost at once, so something is in the way.\n\n"
+    "This is nearly always the connection rather than anything you did. Try "
+    "these in order:\n\n"
+    "•  Unplug the instrument's USB cable and plug it back in. Then press "
+    "Stop here and start the measurement again.\n"
+    "•  Use a different USB port, and plug straight into the computer rather "
+    "than through a hub.\n"
+    "•  Close anything else that may be holding the instrument — another "
+    "profiling program, or a virtual machine.\n\n"
+    "Nothing has been lost. The measurement you already had is put back "
+    "exactly as it was if this session ends without reading anything, and you "
+    "can keep waiting instead if you would rather.",
+    approved=False)
+
+
 CATALOGUE = {m.id: m for m in (
     M_REPLACE_PARTIAL, M_REPLACE_COMPLETE, M_TI3_MISMATCH,
     M_REPLACE_UNCOUNTABLE,
@@ -446,6 +467,7 @@ CATALOGUE = {m.id: m for m in (
     M_CHART_CORRUPT,
     M_PREVIEW_PAUSED, M_PROFILE_VERIFY,
     M_VERIFY_NO_PROFILE, M_VERIFY_NO_CHART, M_BUILD_ELSEWHERE,
+    M_INSTRUMENT_SILENT,
 )}
 
 #: Paragraphs appended to another message rather than shown on their own.

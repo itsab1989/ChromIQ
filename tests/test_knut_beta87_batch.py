@@ -129,19 +129,55 @@ def test_the_new_run_check_comes_before_the_run_is_read():
 # ---- the completion window names the button it actually has -------------
 def test_the_completion_window_names_the_real_button():
     """He renamed it to "Go to Build Profile Tab" and the first line still
-    said "Click Build Profile"."""
+    said "Click Build Profile".
+
+    The name became a placeholder in beta.149, because tab 4 has two names —
+    "Build Profile", and "Calibration & Profiling" while calibration options
+    are on. The invariant is unchanged: the prose names the button that is
+    there. Both now come from ``_profile_tab_name()``.
+    """
     from ui.tabs.tab_measure import TabMeasure
     src = inspect.getsource(TabMeasure)
-    assert "Click <b>Go to Build Profile Tab</b>" in src
+    assert "Click <b>Go to {tab} Tab</b>" in src
     assert "Click <b>Build Profile</b> to finalise" not in src, \
         "the old wording names a button that is not there"
+    assert "Go to Build Profile Tab</b> to finalise" not in src, \
+        "a hard-coded tab name is back; it is wrong half the time"
 
 
 def test_both_completion_windows_were_corrected():
     """Strips and patch-by-patch each have their own window."""
     from ui.tabs.tab_measure import TabMeasure
     assert inspect.getsource(TabMeasure).count(
-        "Click <b>Go to Build Profile Tab</b>") == 2
+        "Click <b>Go to {tab} Tab</b>") == 2
+
+
+def test_the_button_is_named_after_the_tab_that_exists(qapp, tmp_path):
+    """Knut, beta.148: with calibration options on, tab 4 is called
+    "4. Calibration & Profiling", so a button offering to go to "Build Profile"
+    sends the user looking for a tab that is not there — and it must go back
+    when the preference is switched off again."""
+    from core.argyll_runner import ArgyllRunner
+    from core.settings import AppSettings
+    from ui.tabs.tab_measure import TabMeasure
+
+    class _S(AppSettings):
+        cal = False
+
+        def get(self, key, default=None):
+            if key == "custom_output_path":
+                return str(tmp_path)
+            if key == "calibration_mode":
+                return self.cal
+            return super().get(key, default)
+
+    st = _S()
+    tab = TabMeasure(ArgyllRunner(st), st)
+    assert tab._profile_tab_name() == "Build Profile"
+    st.cal = True
+    assert tab._profile_tab_name() == "Calibration & Profiling"
+    st.cal = False
+    assert tab._profile_tab_name() == "Build Profile"
 
 
 # ---- the strip times belong to the chart that was measured --------------

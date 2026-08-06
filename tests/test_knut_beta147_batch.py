@@ -255,3 +255,155 @@ def test_a_new_session_forgets_a_stop_chosen_in_the_last_one(qapp):
         lambda _l: None)
 
     assert manager._stop_requested is False
+
+
+# =========================================================================
+# beta.148 report
+# =========================================================================
+def test_save_and_stop_from_a_failure_window_finishes_the_session(qapp):
+    """Knut, beta.148: *"the window closes, but the measurement session does
+    NOT end, and the instrument is unresponsive."*
+
+    "Save and stop" marks the ending as answered so the reader's own report of
+    it cannot raise a second window — and that guard was eating the very prompt
+    the save chain was waiting for.
+    """
+    manager, runner = _manager_at_the_strip_menu(qapp)
+    manager._engine_active = True
+    manager._read_something = True
+    manager.send_save_partial_and_quit()          # the first 'q'
+    manager.mark_ending_answered()                # what "Save and stop" does
+    runner.writes.clear()
+
+    manager._handle_engine_line('{"event": "strip_interrupted"}', lambda _l: None)
+
+    assert runner.writes == ['{"cmd": "quit"}\n'], (
+        "the second key never went out, so chartread never wrote the .ti3"
+    )
+    assert manager._save_partial_state is None, "the chain must be spent once"
+
+
+def test_a_run_type_calibration_location_is_the_cal_folder(chart_tab):
+    """Already covered above for the label; this pins the FOLDER LINE, which is
+    what Knut confirmed the rule for."""
+    _tab, ctl, _project = chart_tab
+    ctl.set_run_type(RUN_TYPE_CALIBRATION)
+    assert ctl.location_being_edited().endswith("/cal/")
+
+
+def test_generate_does_not_claim_a_calibration_chart_that_is_not_there(cal_home):
+    """Knut, beta.148: with an empty ``cal/`` he was told *"You already made a
+    calibration chart for this project"*.
+
+    ``meta.json`` exists as soon as a Calibration Description is typed, and it
+    was counting as a calibration file.
+    """
+    settings = CalSettings(cal_home, calibration_mode=True)
+    fm = FileManager(settings)
+    fm.set_target_name("Empty-Cal")
+    cal = fm.project().calibration
+    cal.ensure_dir()
+    meta = cal.load_meta()
+    meta.description = "typed before any chart existed"
+    cal.save_meta(meta)
+
+    assert cal.live_files() == [], (
+        "the calibration's own description is being counted as a calibration"
+    )
+    cal.ti2.write_text("a real chart")
+    assert [p.name for p in cal.live_files()] == [cal.ti2.name]
+
+
+def test_duplicate_carries_the_description_across_marked_as_a_copy(chart_tab):
+    """Knut, beta.148: *"The new run 4 created gets the 'Run 4 Description'
+    cleared."* §5 T5.2 says copied, prefixed, and the prefix goes at the START
+    where it can be seen without scrolling."""
+    _tab, _ctl, project = chart_tab
+    source = project.run("run2")
+    meta = source.load_meta()
+    meta.description = "PhotoRag Baryta, gloss"
+    meta.chart_notes = "printed 6 Aug"
+    source.save_meta(meta)
+
+    copy = project.duplicate_run(source)
+
+    assert copy.load_meta().description == "(copy) PhotoRag Baryta, gloss"
+    assert copy.load_meta().chart_notes == "printed 6 Aug", (
+        "the notes describe the chart, which was copied verbatim"
+    )
+
+
+def test_duplicating_an_undescribed_run_invents_nothing(chart_tab):
+    _tab, _ctl, project = chart_tab
+    copy = project.duplicate_run(project.run("run3"))
+    assert copy.load_meta().description == "", '"(copy) " alone describes nothing'
+
+
+def test_an_ending_the_user_chose_never_changes_tab():
+    """Knut, beta.148: after Stop → Save and stop the app moved itself to the
+    Calibration & Profiling tab. *"This is where user shall decide to change
+    tab"* — and that place is the all-done window's accept button."""
+    import inspect
+
+    from ui.tabs.tab_measure import TabMeasure
+
+    src = inspect.getsource(TabMeasure._end_session)
+    assert "_auto_proceed = False" in src, (
+        "an ending chosen through the Stop window can still carry the all-done "
+        "window's earlier answer into a tab change"
+    )
+
+
+# ---- Restore Used Chart puts the notes back, for all three targets -------
+def _chart_with_notes(tab, notes: str):
+    """Write a real chart sidecar for whatever the bar points at, and give back
+    its .ti2 — the argument the restore path takes."""
+    from workflow.chart_slot import slot_for
+
+    slot = slot_for(tab._target_ctl.restore_target()
+                    or tab._target_ctl.project_or_none().calibration)
+    slot.live_dir.mkdir(parents=True, exist_ok=True)
+    ti2 = slot.live_dir / f"{slot.stem}.ti2"
+    ti2.write_text("")
+    (slot.live_dir / f"{slot.stem}.channels.json").write_text(
+        json.dumps({"chart_notes": notes}))
+    return ti2
+
+
+@pytest.mark.parametrize("run_type", [RUN_TYPE_PROFILING,
+                                      RUN_TYPE_VERIFICATION,
+                                      RUN_TYPE_CALIBRATION])
+def test_restore_puts_the_chart_notes_back_for_every_target(chart_tab, run_type):
+    """Knut, beta.148, having watched it work on a run: *"Make sure this
+    operation also works for verification run (run type=verification) and for a
+    Calibration (run type=Calibration)."*"""
+    tab, ctl, _project = chart_tab
+    ctl.set_profile_run("run2")
+    ctl.set_run_type(run_type)
+    ti2 = _chart_with_notes(tab, "printed 5 Aug, tray 2")
+
+    tab._manual_chart_notes_edit.setText("what I have typed today")
+    tab._restore_chart_settings(ti2)
+
+    assert tab._manual_chart_notes_edit.text() == "printed 5 Aug, tray 2"
+    store = tab._target_text_store()
+    assert store is not None
+    assert store.load_meta().chart_notes == "printed 5 Aug, tray 2", (
+        "the restored notes were shown but not written, so the next refresh "
+        "reads the stale ones back"
+    )
+
+
+@pytest.mark.parametrize("run_type", [RUN_TYPE_PROFILING, RUN_TYPE_CALIBRATION])
+def test_a_chart_with_no_notes_leaves_the_field_alone(chart_tab, run_type):
+    """§4 T4.2 — restoring a chart that carries no notes must not blank text
+    the user has for the chart they are about to make."""
+    tab, ctl, _project = chart_tab
+    ctl.set_profile_run("run2")
+    ctl.set_run_type(run_type)
+    ti2 = _chart_with_notes(tab, "")
+
+    tab._manual_chart_notes_edit.setText("mine, not the chart's")
+    tab._restore_chart_settings(ti2)
+
+    assert tab._manual_chart_notes_edit.text() == "mine, not the chart's"

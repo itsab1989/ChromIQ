@@ -1,7 +1,7 @@
 # Unified Measurement Management — Design Specification
 
 > **Revision 2026-08-04 (d) — the catalogue is fully approved.**
-> **Awaiting review:** none.
+> **Awaiting review:** **M-INSTRUMENT-SILENT** (proposed 2026-08-06, at Knut's request in his beta.148 report).
 > Every message in §M has been approved by Knut. The last one, **M-BUILD-ELSEWHERE**, was accepted on 2026-08-04 — *"Message M-BUILD-ELSEWHERE accepted"* — together with M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART that morning, and M-CHART-CORRUPT, M-REPLACE-UNCOUNTABLE and M-PREVIEW-PAUSED the day before. §M-PROPOSED is therefore empty; a new message goes there first, and `tests/test_message_catalogue.py` fails if one is added to the code without it.
 
 > **Status:** specification, agreed on [issue #130](https://github.com/itsab1989/ChromIQ/issues/130).
@@ -841,12 +841,40 @@ Every window this specification can raise, in one place. **ID → where it is us
 
 ## M-PROPOSED. Messages awaiting review
 
-***Empty.** Every message in §M carries Knut's approval. This section is where a
-new one waits: add it to `workflow/measurement_messages.py` with
-`approved=False`, write it here, and list it on the issue.
-`tests/test_message_catalogue.py` holds the two in step — it fails if a proposed
-message is missing from this section, and equally if an approved one is left
-sitting in it.*
+*One message is waiting. This section is where a new one goes: add it to
+`workflow/measurement_messages.py` with `approved=False`, write it here, and
+list it on the issue. `tests/test_message_catalogue.py` holds the two in step —
+it fails if a proposed message is missing from this section, and equally if an
+approved one is left sitting in it.*
+
+### M-INSTRUMENT-SILENT · PROPOSED · the instrument does not answer at all — §S2
+
+*Proposed 2026-08-06, at Knut's request (beta.148): after a connection failure
+that produced nothing but four lines in the log, he asked for* "this error to
+show a Warning window with only one button 'Close' or maybe 'OK'".
+
+*Why it needs a message of its own: **nothing else can see this fault.** Every
+instrument check ChromIQ has — communications failure, initialise failure,
+wrong capability, no instrument, device busy, disconnected — matches a line the
+reader PRINTS. A device that never answers blocks the reader inside opening it
+and prints nothing, so not one of them can fire. Elapsed silence is the only
+evidence there is, and ten seconds is far past a healthy instrument (his own
+working log: 19 ms) without being impatient.*
+
+*The window has one button, **Close**, and changes nothing: the session is left
+running and Stop stays the user's. It appears once per measurement.*
+
+> **Your instrument is not answering**
+>
+> ChromIQ has started the measurement and asked your instrument to wake up, and it has not replied for {n} seconds. A working instrument answers almost at once, so something is in the way.
+>
+> This is nearly always the connection rather than anything you did. Try these in order:
+>
+> •  Unplug the instrument's USB cable and plug it back in. Then press Stop here and start the measurement again.
+> •  Use a different USB port, and plug straight into the computer rather than through a hub.
+> •  Close anything else that may be holding the instrument — another profiling program, or a virtual machine.
+>
+> Nothing has been lost. The measurement you already had is put back exactly as it was if this session ends without reading anything, and you can keep waiting instead if you would rather.
 
 *Approved and moved into §M: **M-REPLACE-UNCOUNTABLE**, **M-PREVIEW-PAUSED**,
 **M-CHART-CORRUPT**, **M-VERIFY-NO-PROFILE**, **M-VERIFY-NO-CHART**,

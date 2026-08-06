@@ -293,6 +293,14 @@ class RunMeta:
     # in your hand — and this is what lets the field survive a run change and
     # exist before any chart has been generated at all.
     chart_notes: str = ""
+    # #130 (Knut, beta.148): the Profile Description the user typed for THIS
+    # run, when they typed one. Empty means "still automatic" — ChromIQ builds
+    # it from the project name and the run's own description, and keeps it in
+    # step as those change. His rule: *"Every run has its own values … Emptying
+    # the Profile Description … will re-enable the automatic generation … for
+    # that specific run."* Before this the override was one value for the whole
+    # tab, so a description typed for run 3 followed the user into every run.
+    profile_description: str = ""
     status: str = "in_progress"          # in_progress | complete
     # TI2 layout editor only: the printtarg layout knobs (a LayoutOptions dict)
     # the chart was rendered with + its file basename, so reopening the chart in
@@ -346,6 +354,9 @@ class CalibrationMeta:
     """
     description: str = ""
     chart_notes: str = ""
+    #: The Profile Description typed for this calibration, or empty for
+    #: "automatic" — the same rule a run follows (see ``RunMeta``).
+    profile_description: str = ""
 
     @classmethod
     def from_dict(cls, data: dict) -> "CalibrationMeta":
@@ -462,19 +473,36 @@ class Calibration:
         Files only, so ``old/``, ``chart/`` and ``exports/`` are never swept
         into an archive of themselves — which would nest a previous archive
         inside the next one and make "go back to it" a dig rather than a look.
+
+        ``meta.json`` is NOT one of them. It is the slot's own description, it
+        exists as soon as the user types a Calibration Description, and it must
+        not answer "is there a calibration here?" — that is what made Generate
+        Chart claim *"You already made a calibration chart for this project"*
+        over an empty ``cal/`` folder (Knut, beta.148). Same rule as
+        ``ChartSlot.side_files``.
         """
         if not self.dir.exists():
             return []
         return sorted(p for p in self.dir.iterdir()
-                      if p.is_file() and not p.name.startswith("."))
+                      if p.is_file() and not p.name.startswith(".")
+                      and p.name not in self.KEPT_ACROSS_ARCHIVE)
 
     def copied_to_archive(self) -> "list[Path]":
         """Files an archive gets a COPY of, while the live one stays put."""
         return [self.dir / name for name in self.KEPT_ACROSS_ARCHIVE
                 if (self.dir / name).is_file()]
 
-    def archive_to_old(self, when: "datetime | None" = None) -> "Path | None":
-        """Move the current calibration into ``cal/old/<date>/`` — never delete.
+    #: What a rebuild ARCHIVES rather than replaces — the things that cannot be
+    #: regenerated. The chart files are rebuilt by the generation that follows,
+    #: so they are simply replaced, exactly as ``Run.reset_chart_artefacts``
+    #: treats a run's chart. Knut, beta.148: *"Only measurement ti3 files shall
+    #: be copied to cal/old/<date_time>/ folder, similar to how it is done for a
+    #: run."*
+    RESULT_SUFFIXES = (".ti3", ".cal", ".icc", ".icm")
+
+    def archive_to_old(self, when: "datetime | None" = None,
+                       *, only: "list[Path] | None" = None) -> "Path | None":
+        """Move a calibration's results into ``cal/old/<date>/`` — never delete.
 
         A calibration is a whole printed and measured chart's worth of work, and
         it is what ``printcal``'s Re-calibrate and Verify modes read back
@@ -482,15 +510,23 @@ class Calibration:
         this protection since #130 §2a; ``cal/`` never did, and rebuilding a
         calibration chart called :meth:`reset`, which was ``rmtree``.
 
+        ``only`` names what to archive; without it, everything live goes. The
+        chart snapshot travels along ONLY in the everything case — a rebuild
+        keeps ``chart/`` where it is, because it is the copy Restore Used Chart
+        reads.
+
         Returns the archive folder, or None when there was nothing to keep.
         """
         copied = self.copied_to_archive()
-        existing = [p for p in self.live_files() if p not in copied]
-        # The stored chart copy travels with it: restoring a calibration you
-        # have archived should give you the chart it was measured with, not the
-        # chart that replaced it.
-        if self.snapshot_dir.is_dir():
-            existing.append(self.snapshot_dir)
+        if only is not None:
+            existing = [p for p in only if p.is_file()]
+        else:
+            existing = [p for p in self.live_files() if p not in copied]
+            # The stored chart copy travels with it: restoring a calibration you
+            # have archived should give you the chart it was measured with, not
+            # the chart that replaced it.
+            if self.snapshot_dir.is_dir():
+                existing.append(self.snapshot_dir)
         if not existing:
             return None
         when = when or datetime.now()
@@ -522,13 +558,40 @@ class Calibration:
         return dest
 
     def reset(self) -> None:
-        """Archive the calibration, then clear the folder — **never delete**.
+        """Make room for a new calibration chart — the run rule, for ``cal/``.
 
-        Kept under its old name because that is what the callers say, but the
-        behaviour is archive-then-replace now (#137 D1). Anything already in
-        ``cal/old/`` is left alone: an archive of archives helps nobody.
+        **What cannot be regenerated is archived; what can be is replaced.**
+        The measurement, the ``.cal`` and any profile built from it go to
+        ``cal/old/<date_time>/``; the chart files are about to be rebuilt, so
+        they are simply removed. That is exactly what
+        :meth:`Run.reset_chart_artefacts` does for a run, and Knut asked for the
+        parity in as many words (beta.148): *"Only measurement ti3 files shall
+        be copied to cal/old/<date_time>/ folder, similar to how it is done for
+        a run."*
+
+        It used to sweep **everything** into the archive, chart included — so a
+        regenerated calibration chart left its predecessor's ``.ti1``/``.ti2``
+        in a dated folder that reads like a kept calibration and is not one.
+
+        ``meta.json`` stays (it describes the calibration, not the chart), and
+        so does ``chart/`` — the copy of the chart a measurement was taken with,
+        which Restore Used Chart reads. Anything already in ``cal/old/`` is left
+        alone: an archive of archives helps nobody.
         """
-        self.archive_to_old()
+        results = [p for p in self.live_files()
+                   if p.suffix.lower() in self.RESULT_SUFFIXES]
+        if results:
+            self.archive_to_old(only=results)
+        for p in self.live_files():
+            try:
+                p.unlink()
+            except OSError as exc:
+                log.warning("Could not remove %s: %s", p, exc)
+        if self.exports_dir.exists():
+            try:
+                shutil.rmtree(self.exports_dir)
+            except OSError as exc:
+                log.warning("Could not delete %s: %s", self.exports_dir, exc)
 
 
 # ---------------------------------------------------------------------------
@@ -1551,11 +1614,25 @@ class Project:
             self._discard_run(new_run)
             raise
         meta = new_run.load_meta()
+        src_meta = source.load_meta()
         meta.duplicated_from = source.id
         # The chart and its measurement come across together, so whatever the
         # source recorded about how it was measured still describes these files.
-        meta.instrument = source.load_meta().instrument
-        meta.paper = source.load_meta().paper
+        meta.instrument = src_meta.instrument
+        meta.paper = src_meta.paper
+        # …and so does what the user wrote about it. The description is marked
+        # as a copy so two runs cannot read as the same work, and the marker
+        # goes at the START where it can be seen without scrolling the field —
+        # Sebastian's point, and the specification's §5 T5.2. An empty
+        # description stays empty: this feature never invents text, and
+        # "(copy) " on its own would describe nothing. Knut, beta.148: *"The
+        # new run 4 created gets the 'Run 4 Description' cleared."*
+        meta.description = (f"(copy) {src_meta.description}"
+                            if src_meta.description else "")
+        # The notes belong to the CHART, and the chart is copied verbatim, so
+        # they cross unchanged — marking them would make the copy's sheet
+        # describe itself differently from the sheet it was copied from.
+        meta.chart_notes = src_meta.chart_notes
         new_run.save_meta(meta)
         log.info("Duplicated %s into %s (%d files)", source.id, new_run.id,
                  sum(len(f) for _g, f, _s in plan))

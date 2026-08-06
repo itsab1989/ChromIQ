@@ -1014,6 +1014,9 @@ class TabMeasure(QWidget):
         # not left staring at a frozen dialog when a keystroke vanishes
         # (e.g. Windows AttachConsole failure — issue #20).
         self._last_chartread_output_ts: float = 0.0
+        #: M-INSTRUMENT-SILENT has been shown for this measurement.
+        self._startup_warned: bool = False
+        self._saw_instrument: bool = False
         self._key_watchdog = QTimer(self)
         self._key_watchdog.setSingleShot(True)
         self._key_watchdog.setInterval(12000)
@@ -4667,8 +4670,23 @@ class TabMeasure(QWidget):
             from workflow.chart_slot import slot_for
             from workflow.verify_chart_snapshot import snapshot_slot
             proj = ctl.project_or_none()
+            if proj is None:
+                return True
+            # A CALIBRATION KEEPS ITS CHART TOO, in `cal/chart/`.
+            #
+            # This method was written for runs and reached for
+            # `target.profile_run`, which under Run type = Calibration names
+            # whatever run happened to be selected — so the calibration chart
+            # was never copied anywhere, and a measured calibration could not
+            # say which chart it was measured with. Knut, beta.148: *"the chart
+            # in cal/ folder should have been copied to cal/chart/ folder,
+            # similar to when measuring on a profile run."* The slot already
+            # exists (`slot_for_calibration`); only the routing was missing.
+            if ctl.target.is_calibration():
+                snapshot_slot(slot_for(proj.calibration))
+                return True
             run_id = ctl.target.profile_run
-            if proj is None or not run_id or not proj.has_run(run_id):
+            if not run_id or not proj.has_run(run_id):
                 return True
             run = proj.run(run_id)
             choice = self._profiling_overwrite_choice(run)
@@ -4923,6 +4941,7 @@ class TabMeasure(QWidget):
         # never answers (see _arm_startup_watchdog). Armed for both readers:
         # Knut hit it on the ChromIQ engine and on stock chartread alike.
         self._saw_instrument = False
+        self._startup_warned = False
         self._arm_startup_watchdog()
         self.measurement_active.emit(True)
 
@@ -5271,11 +5290,20 @@ class TabMeasure(QWidget):
 
     def _end_session(self, choice: "str | None") -> None:
         """Carry out what :meth:`_confirm_end_of_session` returned."""
+        if choice is None:
+            return                       # the user is carrying on
+        # AN ENDING THE USER CHOSE NEVER CHANGES TAB.
+        #
+        # Moving to tab 4 by itself is the all-done window's accept button and
+        # nothing else — *"This is where user shall decide to change tab"*
+        # (Knut, beta.148, after Stop → Save and stop dropped him on Calibration
+        # & Profiling). `_auto_proceed` can still be carrying that window's
+        # earlier answer, so it is spent here.
+        self._auto_proceed = False
         if choice == "save":
             self._manager.send_save_partial_and_quit()
         elif choice == "discard":
             self._manager.abort()
-        # None → the user is carrying on; nothing changes.
 
     def _on_stop(self) -> None:
         """Stop the measurement — through the one ending window (§S2.4/S2.5).
@@ -5442,28 +5470,39 @@ class TabMeasure(QWidget):
             wd.stop()
 
     def _on_startup_silence(self) -> None:
-        if not self._runner.is_running:
+        """M-INSTRUMENT-SILENT — say so in a window, not only in the log.
+
+        Knut, beta.148, after the log notice went past him: *"I want also this
+        error to show a Warning window with only one button 'Close' or maybe
+        'OK'."* One button, and it changes nothing — the session keeps running
+        and Stop stays his. Once per measurement, so a long wait cannot turn
+        into a stack of windows.
+        """
+        if not self._runner.is_running or self._startup_warned:
             return
-        self._log.appendPlainText("\n" + tr(
-            "[WAITING] Still waiting for the instrument to answer.\n"
-            "ChromIQ has started the measurement and asked your instrument to "
-            "wake up, and it has not replied for {n} seconds. That is much "
-            "longer than usual — a healthy instrument answers almost at once.\n"
-            "This is nearly always the connection rather than anything you did. "
-            "Things worth trying, in this order:\n"
-            "  •  Unplug the instrument's USB cable and plug it back in, then "
-            "press Stop here and start the measurement again.\n"
-            "  •  Try a different USB port, and avoid hubs if you can.\n"
-            "  •  Make sure nothing else on the computer has the instrument "
-            "open — another profiling program, or a virtual machine.\n"
-            "You can keep waiting if you prefer; nothing has been lost, and "
-            "your existing measurement is put back untouched if this session "
-            "ends without reading anything."
-        ).format(n=self._STARTUP_SILENCE_S))
+        self._startup_warned = True
+        from workflow.measurement_messages import M_INSTRUMENT_SILENT
+
+        title, body = M_INSTRUMENT_SILENT.render(n=self._STARTUP_SILENCE_S)
+        self._log.appendPlainText("\n" + title + "\n" + body)
         self._log.ensureCursorVisible()
         self._flash_status(
             tr("The instrument has not answered yet — see the log."),
             duration_ms=10000)
+
+        from PyQt6.QtWidgets import QMessageBox
+        from ui.widgets import fit_message_box_buttons
+
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        # setText is rendered bold, so the headline goes there and the body
+        # under it — the house rule for every window in this model.
+        box.setText(title)
+        box.setInformativeText(body)
+        box.addButton(tr("Close"), QMessageBox.ButtonRole.RejectRole)
+        fit_message_box_buttons(box)
+        self._exec_measurement_window(box)
 
     def _on_log_line(self, line: str) -> None:
         self._log.appendPlainText(line)
@@ -6770,6 +6809,20 @@ class TabMeasure(QWidget):
         # guard above has already been set, so this cannot run twice.
         QTimer.singleShot(_ALL_DONE_SOUND_GAP_MS, self._show_all_stripes_done)
 
+    def _calibration_options_on(self) -> bool:
+        """Whether Preferences → Calibration options is switched on.
+
+        Tab 4 is called "4. Build Profile" normally and "4. Calibration &
+        Profiling" while this is on, so anything that NAMES that tab has to ask
+        (Knut, beta.148).
+        """
+        return bool(self._settings.get("calibration_mode", False))
+
+    def _profile_tab_name(self) -> str:
+        """What tab 4 is called right now, for text that points the user at it."""
+        return (tr("Calibration & Profiling") if self._calibration_options_on()
+                else tr("Build Profile"))
+
     def _show_all_stripes_done(self) -> None:
         """The completion sound and window, after the short gap that keeps the
         last strip's cue from being drowned out."""
@@ -6889,28 +6942,28 @@ class TabMeasure(QWidget):
                 "<b>n</b> to jump to the next unread strip, and press <b>d</b> when you "
                 "are done.<br><br>"
                 "<span style='color:#909090;'>These instructions are always visible in "
-                "the output log below.</span>"),
+                "the output log below.</span>").format(tab=self._profile_tab_name()),
                 dlg,
             )
         elif self._spot_session:
             dlg.setWindowTitle(tr("All Patches Read"))
             msg = QLabel(
                 tr("<b>All patches have been read successfully.</b><br><br>"
-                "Click <b>Go to Build Profile Tab</b> to finalise the measurement and "
+                "Click <b>Go to {tab} Tab</b> to finalise the measurement and "
                 "go straight to that tab — the next and final step.<br><br>"
                 "If you would like to re-read any patch first, click <b>Re-read Patches</b>. "
                 "Use <b>f</b>&nbsp;/&nbsp;<b>b</b> to move forward and back between patches, "
                 "<b>n</b> to jump to the next unread patch, click a patch in the preview to "
                 "jump to it, and press <b>d</b> when you are done.<br><br>"
                 "<span style='color:#909090;'>These instructions are always visible in "
-                "the output log below.</span>"),
+                "the output log below.</span>").format(tab=self._profile_tab_name()),
                 dlg,
             )
         else:
             dlg.setWindowTitle(tr("All Strips Read"))
             msg = QLabel(
                 tr("<b>All strips have been read successfully.</b><br><br>"
-                "Click <b>Go to Build Profile Tab</b> to finalise the measurement and "
+                "Click <b>Go to {tab} Tab</b> to finalise the measurement and "
                 "go straight to that tab — the next and final step.<br><br>"
                 "If you would like to re-read any strip first, click <b>Re-read Individual Strips</b>. "
                 "Use <b>f</b>&nbsp;/&nbsp;<b>b</b> to move forward and back between strips, "
@@ -6956,7 +7009,17 @@ class TabMeasure(QWidget):
         else:
             # Knut (#131): it only takes you to the tab — the profile is still
             # built there, by you. The name has to say that.
-            accept_label = tr("Go to Build Profile Tab →")
+            #
+            # …and it has to say the name the tab is ACTUALLY wearing. Tab 4 is
+            # "4. Build Profile" normally and "4. Calibration & Profiling" while
+            # Preferences → Calibration options is on, so a button that always
+            # said "Build Profile" sent the user looking for a tab that is not
+            # there. Knut, beta.148: *"this last button must change its name …
+            # When Calibration mode is OFF again in preferences the button name
+            # … shall again be named 'Go to Build Profile tab' (as before)."*
+            accept_label = (tr("Go to Calibration & Profiling Tab →")
+                            if self._calibration_options_on()
+                            else tr("Go to Build Profile Tab →"))
         if self._guided_refinement_active:
             cont_label = "Continue Measuring Manually"
         elif self._spot_session:
@@ -6981,9 +7044,9 @@ class TabMeasure(QWidget):
         build_btn = QPushButton(accept_label, dlg)
         build_btn.setObjectName("primary")
         build_btn.setToolTip(tr(
-            "Saves the measurement and opens the Build Profile tab. The profile "
-            "is not built yet — press “Build Profile” there when your settings "
-            "are how you want them."))
+            "Saves the measurement and opens the {tab} tab. The profile is not "
+            "built yet — press “Build Profile” there when your settings are how "
+            "you want them.").format(tab=self._profile_tab_name()))
         build_btn.setDefault(True)
         build_btn.setAutoDefault(True)
         build_btn.clicked.connect(dlg.accept)

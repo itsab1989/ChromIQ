@@ -92,16 +92,21 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
             f"{mid} is defined in the document but not flagged as awaiting approval"
 
 
+#: Messages written but not yet approved, named one by one. Changing this set
+#: is the decision — write the message in the document's §M-PROPOSED, list it
+#: on the issue, and change this line in the same commit, so a message can
+#: never reach a user unreviewed by accident.
+#:
+#: M-INSTRUMENT-SILENT: proposed 2026-08-06, at Knut's own request in his
+#: beta.148 report — *"I want also this error to show a Warning window with
+#: only one button 'Close' or maybe 'OK', depending on the text you suggest."*
+AWAITING_APPROVAL = {"M-INSTRUMENT-SILENT"}
+
+
 def test_nothing_is_quietly_proposed():
     """The proposed set is deliberate — if it grows, it is because someone
-    added a message rather than getting one approved.
-
-    **It is empty.** Every message in the catalogue carries Knut's approval as
-    of 2026-08-04. Adding one to this set is a decision: write it in the
-    document's §M-PROPOSED, list it on the issue, and change this test in the
-    same commit, so a message can never reach a user unreviewed by accident.
-    """
-    assert set(M.PROPOSED) == set(), M.PROPOSED
+    added a message rather than getting one approved."""
+    assert set(M.PROPOSED) == AWAITING_APPROVAL, M.PROPOSED
 
 
 # ---- 1b. approval flows the other way too --------------------------------

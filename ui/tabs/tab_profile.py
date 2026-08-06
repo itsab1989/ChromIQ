@@ -4119,6 +4119,17 @@ class TabProfile(QWidget):
             # same string the chart's files are stemmed with, so the profile's
             # description matches what is printed on the sheet.
             parts = [project.root.name]
+            # A CALIBRATION DESCRIBES ITSELF. Under Run type = Calibration this
+            # used to resolve a RUN and name the profile after that run's
+            # description — the calibration's own never appeared. Knut,
+            # beta.148: *"the 'Printer profile project name' and its
+            # 'Calibration Description' shall automatically build the Profile
+            # Description … which currently is not working."*
+            if getattr(ctl.target, "is_calibration", bool)():
+                parts.append(
+                    getattr(project.calibration.load_meta(), "description", "")
+                    or "")
+                return [p.strip() for p in parts if p and p.strip()]
             from core.measurement_target import resolve_run
             run = resolve_run(project, ctl.target)
             if run is not None:
@@ -4159,23 +4170,114 @@ class TabProfile(QWidget):
         text = edit.text().strip()
         return not text or text == self._desc_default_written
 
-    def _apply_profile_description_default(self, fallback: str = "") -> None:
-        """Recompute the default and put it in — only where it is still ours.
+    def _description_store(self):
+        """Where THIS selection's Profile Description override lives.
 
-        Called from every trigger in §4's table. *fallback* is used when there
-        is nothing to compose from (no project yet), which is how the old
-        behaviour of naming the profile after the measurement file survives.
+        The run, or the calibration — the same "the Profile run picks the
+        folder, the Run type picks the file" rule the two Create Chart text
+        fields follow. None when there is nowhere yet.
         """
-        wanted = self._compose_profile_description() or fallback.strip()
-        if not wanted:
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
+            return None
+        try:
+            project = ctl.project_or_none()
+            if project is None:
+                return None
+            if getattr(ctl.target, "is_calibration", bool)():
+                return project.calibration
+            if ctl.target.is_new_run():
+                return None            # nothing on disk to remember it in yet
+            from core.measurement_target import resolve_run
+            return resolve_run(project, ctl.target)
+        except Exception:      # noqa: BLE001
+            return None
+
+    def _description_store_key(self) -> str:
+        """Which selection the field is showing — "run3", "cal", or "".
+
+        A change of key means the field is now about something else, and must
+        be re-filled whatever it happens to hold. Without that, an override
+        typed for run 1 simply stayed on screen when the user moved to run 2:
+        the "is it still ours?" guard correctly refused to overwrite the user's
+        own text, and the text belonged to a different run (Knut, beta.148).
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
+            return ""
+        try:
+            if getattr(ctl.target, "is_calibration", bool)():
+                return "cal"
+            return ctl.target.profile_run or ""
+        except Exception:      # noqa: BLE001
+            return ""
+
+    def _stored_profile_description(self) -> str:
+        store = self._description_store()
+        if store is None:
+            return ""
+        try:
+            return getattr(store.load_meta(), "profile_description", "") or ""
+        except Exception:      # noqa: BLE001
+            return ""
+
+    def _remember_profile_description(self) -> None:
+        """Record what the user typed — for THIS run, and only this run.
+
+        Knut, beta.148: *"Every run has its own values … Emptying the Profile
+        Description in Calibration & Profiling tab will re-enable the automatic
+        generation … for that specific run."* So text that equals the automatic
+        value is stored as empty: that is not an override, it is agreement, and
+        storing it would freeze the run's description out of the name.
+        """
+        edit = (getattr(self, "_m_desc_edit", None)
+                or getattr(self, "_desc_edit", None))
+        if edit is None:
             return
-        changed = False
+        store = self._description_store()
+        if store is None:
+            return
+        typed = edit.text().strip()
+        override = "" if typed == self._compose_profile_description() else typed
+        try:
+            meta = store.load_meta()
+            if getattr(meta, "profile_description", "") == override:
+                return                      # nothing changed; leave the disk be
+            meta.profile_description = override
+            store.save_meta(meta)
+        except Exception:      # noqa: BLE001 — never lose the tab over a write
+            log.warning("Could not save the profile description", exc_info=True)
+
+    def _apply_profile_description_default(self, fallback: str = "") -> None:
+        """Show THIS selection's Profile Description.
+
+        Either the one the user typed for it, or — when they have not typed one
+        — the automatic ``<project>-<run description>`` recomposed now, so it
+        follows the run's own description as that changes. Called from every
+        trigger in §4's table. *fallback* is used when there is nothing to
+        compose from (no project yet), which is how the old behaviour of naming
+        the profile after the measurement file survives.
+        """
+        stored = self._stored_profile_description()
+        wanted = stored or self._compose_profile_description() or fallback.strip()
+        key = self._description_store_key()
+        moved = key != getattr(self, "_desc_filled_for", None)
+        if not wanted and not moved:
+            return
+        self._desc_filled_for = key
         for edit in (getattr(self, "_desc_edit", None),
                      getattr(self, "_m_desc_edit", None)):
-            if self._description_is_still_ours(edit):
-                edit.setText(wanted)
-                changed = True
-        if changed:
+            if edit is None:
+                continue
+            # The field is replaced outright when the SELECTION moved — it is
+            # now about a different run, so whatever is in it belongs to the
+            # last one. Otherwise an override is shown as it is, and the
+            # automatic value is only written while ChromIQ still owns the
+            # field, which keeps a half-typed value from being snatched away.
+            if moved or stored or self._description_is_still_ours(edit):
+                if edit.text() != wanted:
+                    edit.setText(wanted)
+        if not stored:
             self._desc_default_written = wanted
 
     def set_target_controller(self, controller) -> None:
@@ -4192,6 +4294,15 @@ class TabProfile(QWidget):
         """
         self._target_ctl = controller
         controller.changed.connect(self._on_target_changed)
+        # The user typing in Profile Description is an override, and it belongs
+        # to the run they typed it for. `textEdited` fires only for typing —
+        # never for the setText this tab does itself — so filling the field
+        # from disk can never be mistaken for an override (Knut, beta.148).
+        for _edit in (getattr(self, "_desc_edit", None),
+                      getattr(self, "_m_desc_edit", None)):
+            if _edit is not None:
+                _edit.textEdited.connect(
+                    lambda _t: self._remember_profile_description())
         # §4: the default follows the Profile run, the Run type, and the run's
         # own description — all of which move with the bar.
         controller.changed.connect(self._apply_profile_description_default)

@@ -1,5 +1,60 @@
 # Changelog
 
+## v3.14.8-beta.149
+
+### Fixed
+
+- **“Save and stop” really does stop.** Choosing it from the “Instrument Error”
+  window closed the window and left the measurement running with an
+  unresponsive instrument. The reader answers a stop with a second prompt, and
+  the very guard that stops ChromIQ asking you the same question twice was
+  swallowing it.
+
+- **The Profile Description belongs to one run.** Typing your own name for a
+  profile stuck to every other run you switched to. Each run now keeps its own,
+  emptying the box hands that run's name back to ChromIQ, and a calibration
+  builds its name from the project name and its own Calibration Description —
+  which it never did before.
+
+- **Duplicate keeps the description**, marked “(copy) ” at the start, instead of
+  clearing it. The chart notes come across unchanged, because the chart does.
+
+- **Generating a calibration chart no longer files the old chart as though it
+  were a calibration.** Only what cannot be regenerated — the measurement, the
+  .cal, any profile — goes to `cal/old/`, exactly as a profile run has always
+  worked. The chart itself is simply replaced.
+
+- **A calibration keeps a copy of the chart it was measured with**, in
+  `cal/chart/`, like every profile run. Without it a finished calibration could
+  not say which chart produced it, and Restore Used Chart had nothing to
+  restore.
+
+- **“Restore Used Chart” puts the Chart Notes back for a verification and for a
+  calibration**, not only for a profile run — and the restored notes are saved,
+  so a refresh cannot quietly bring the old ones back. A chart carrying no notes
+  now leaves your text alone instead of clearing it.
+
+- **Generate Chart no longer claims you already have a calibration chart** when
+  the folder is empty. Typing a Calibration Description was enough to make
+  ChromIQ think a chart was there.
+
+- **Ending a measurement never changes tab by itself.** Stop → “Save and stop”
+  moved you to Calibration & Profiling; going there is the completion window's
+  button to offer, and yours to press.
+
+- **The completion window names the tab that exists.** With calibration options
+  switched on, tab 4 is “Calibration & Profiling”, and the button now says so —
+  and goes back to “Build Profile” when the option is off.
+
+### Added
+
+- **A window when your instrument does not answer.** Starting a measurement can
+  be entirely silent if the device never wakes up: nothing is printed, so none
+  of the existing connection checks can see it. After ten seconds ChromIQ now
+  says so in a window with a single Close button, and explains what to try —
+  re-seat the USB cable, change port, close anything else holding the
+  instrument. Nothing is stopped on your behalf.
+
 ## v3.14.8-beta.148
 
 ### Fixed

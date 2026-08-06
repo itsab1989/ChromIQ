@@ -169,14 +169,29 @@ def main() -> int:
           "Demo-09-Run-Descriptions")
     check("…and no trailing hyphen", prof._m_desc_edit.text().endswith("-"), False)
 
-    print("\n--- README step 7: your own text is yours ---")
-    prof._m_desc_edit.setText("My Own Profile Name")
+    print("\n--- README step 7: your own text is yours, AND it is one run's ---")
+
+    def type_description(text):
+        """Type, as a person does — setText is what the tab itself uses."""
+        prof._m_desc_edit.setText(text)
+        prof._m_desc_edit.textEdited.emit(text)
+        settle()
+
     select("run1")
     prof._apply_profile_description_default()
     settle()
-    check("typed text survives a run change", prof._m_desc_edit.text(),
+    type_description("My Own Profile Name")
+    select("run3")
+    prof._apply_profile_description_default()
+    settle()
+    check("run 3 does not inherit run 1's typed name",
+          prof._m_desc_edit.text(), "Demo-09-Run-Descriptions")
+    select("run1")
+    prof._apply_profile_description_default()
+    settle()
+    check("…and run 1 still has it", prof._m_desc_edit.text(),
           "My Own Profile Name")
-    prof._m_desc_edit.setText("")
+    type_description("")
     prof._apply_profile_description_default()
     settle()
     check("clearing hands it back", prof._m_desc_edit.text(),
@@ -185,6 +200,11 @@ def main() -> int:
     print("\n--- README steps 8-9: a calibration has its own ---")
     bar.set_calibration_allowed(True)
     select("run1", RUN_TYPE_CALIBRATION)
+    prof._apply_profile_description_default()
+    settle()
+    check("the calibration names itself in Profile Description",
+          prof._m_desc_edit.text(),
+          "Demo-09-Run-Descriptions-Canson Baryta, new ink set, warm room")
     check("calibration description label", tab._manual_run_desc_lbl.text(),
           "Calibration Description:")
     check("calibration notes label (names the calibration chart)",
