@@ -1,5 +1,17 @@
 # Changelog
 
+## v3.14.8-beta.157
+
+### Changed
+
+- **The profile tab is unavailable while “Run type” is set to Verification.** A
+  verification measures the profile a run already has — it checks how that
+  profile is doing and never builds one — so building there could only
+  overwrite the profile you are checking. The tab is greyed out, and hovering
+  it explains why and how to get back to building. If you are looking at it
+  when you switch to Verification, ChromIQ moves you to the Measure tab rather
+  than leaving a dead tab on screen.
+
 ## v3.14.8-beta.156
 
 ### Fixed
