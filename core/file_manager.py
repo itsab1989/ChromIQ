@@ -38,6 +38,7 @@ String-concatenating paths anywhere else is a code smell.
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 from dataclasses import asdict, dataclass, field, fields
@@ -221,6 +222,40 @@ def ensure_subdir(path: Path) -> Path:
         log.warning("Could not create %s (%s) — falling back to %s",
                     path, exc, path.parent)
         return path.parent
+
+
+def write_json_atomically(path: Path, payload: dict) -> None:
+    """Write *payload* to *path* so a crash can never leave it half-written.
+
+    Knut, #130 (2026-08-06), on how the settings files must be handled:
+
+        "Write the updated JSON data to a temporary file in the same directory,
+        then rename (replace) the original file with the temporary one. This
+        prevents file corruption if the process crashes mid-write."
+
+    ``os.replace`` is atomic on every platform ChromIQ ships on, and the
+    temporary file is made in the SAME directory so the rename never crosses a
+    filesystem boundary — across one it silently degrades to copy-then-delete,
+    which is the non-atomic behaviour being avoided.
+
+    ``fsync`` before the rename, so a power loss cannot leave the rename
+    committed while the contents are still sitting in a buffer.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    try:
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(payload, fh, indent=2)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, path)
+    except Exception:
+        # Never leave the scratch file behind to be mistaken for real data.
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        raise
 
 
 # ---------------------------------------------------------------------------
@@ -454,9 +489,7 @@ class Calibration:
         return CalibrationMeta.from_dict(raw)
 
     def save_meta(self, meta: "CalibrationMeta") -> None:
-        self.dir.mkdir(parents=True, exist_ok=True)
-        self.meta_path.write_text(json.dumps(asdict(meta), indent=2),
-                                  encoding="utf-8")
+        write_json_atomically(self.meta_path, asdict(meta))
 
     # ---- v2 sub-folders (#127)
     @property
@@ -1018,8 +1051,7 @@ class Run:
         return RunMeta.from_dict(json.loads(self.meta_path.read_text(encoding="utf-8")))
 
     def save_meta(self, meta: RunMeta) -> None:
-        self.dir.mkdir(parents=True, exist_ok=True)
-        self.meta_path.write_text(json.dumps(asdict(meta), indent=2), encoding="utf-8")
+        write_json_atomically(self.meta_path, asdict(meta))
 
     # ---- lifecycle
     def ensure_dir(self) -> Path:
