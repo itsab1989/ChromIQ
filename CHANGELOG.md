@@ -1,5 +1,19 @@
 # Changelog
 
+## v3.14.8-beta.156
+
+### Fixed
+
+- **Pressing Esc to abort no longer throws your readings away.** The “Stop
+  measuring without saving?” question came from the reader itself, and
+  answering Yes ended the session with nothing offered. It now goes through the
+  same “Keep what you have measured so far?” window every other ending uses, so
+  you are always given the choice to save first.
+
+- **“Create Calibration File” is only offered when Run type is Calibration.**
+  It could be opened from any run type, which is why a profiling run could show
+  the calibration file's Description field instead of the profile's.
+
 ## v3.14.8-beta.155
 
 ### Fixed
