@@ -100,24 +100,69 @@ def main() -> int:
         app.installEventFilter(F(app))
     apply_appearance(app, None, "light")
 
-    # Any confirmation the restore raises is accepted, the way a user would.
+    # DISMISS EVERY MODAL, NOT JUST QMessageBox.
+    #
+    # The first version only looked for QMessageBox. ChromIQ's "This chart
+    # already has a measurement" window is a plain QDialog with its own
+    # checkboxes and OK/CANCEL, so the timer never saw it, exec() blocked, and
+    # the driver sat on the user's screen until it was killed by hand. That is
+    # the second time one of these scripts has done that to him.
+    #
+    # Cancel is the right answer wherever it exists: that dialog says outright
+    # "Cancel — changes nothing at all", and this driver is only here to test
+    # Restore, not to opt into a measurement.
     seen_dialogs: list[str] = []
 
-    def _accept_dialogs():
+    def _dismiss_modals():
+        from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QPushButton
         for w in app.topLevelWidgets():
-            if isinstance(w, QMessageBox) and w.isVisible():
-                seen_dialogs.append(w.text()[:70])
+            if not (isinstance(w, QDialog) and w.isVisible()):
+                continue
+            title = w.windowTitle() or w.__class__.__name__
+            seen_dialogs.append(title[:70])
+            if isinstance(w, QMessageBox):
                 for b in w.buttons():
-                    role = w.buttonRole(b)
-                    if role in (QMessageBox.ButtonRole.AcceptRole,
-                                QMessageBox.ButtonRole.YesRole):
+                    if w.buttonRole(b) in (QMessageBox.ButtonRole.AcceptRole,
+                                           QMessageBox.ButtonRole.YesRole):
                         b.click()
                         return
-                w.close()
+                w.reject()
+                return
+            # a custom dialog: prefer its Cancel/Reject, then any button
+            box = w.findChild(QDialogButtonBox)
+            if box is not None:
+                for role in (QDialogButtonBox.ButtonRole.RejectRole,
+                             QDialogButtonBox.ButtonRole.AcceptRole):
+                    for b in box.buttons():
+                        if box.buttonRole(b) == role:
+                            b.click()
+                            return
+            for b in w.findChildren(QPushButton):
+                if b.isVisible() and b.text().strip().upper() in ("CANCEL", "ABBRECHEN"):
+                    b.click()
+                    return
+            w.reject()          # last resort — never leave it on screen
+            return
 
     timer = QTimer()
-    timer.timeout.connect(_accept_dialogs)
+    timer.timeout.connect(_dismiss_modals)
     timer.start(150)
+
+    # A HARD WATCHDOG. Whatever happens above, this process stops by itself.
+    def _watchdog():
+        print("\n!! watchdog fired — closing rather than leaving a window on screen")
+        for w in app.topLevelWidgets():
+            try:
+                w.close()
+            except Exception:
+                pass
+        app.quit()
+        os._exit(3)
+
+    guard = QTimer()
+    guard.setSingleShot(True)
+    guard.timeout.connect(_watchdog)
+    guard.start(180_000)          # three minutes is far more than this needs
 
     from ui.main_window import MainWindow
     win = MainWindow(settings)
@@ -125,6 +170,13 @@ def main() -> int:
     win.resize(1500, 1000)
     win.show()
     _settle(app, 900)
+
+    # Setting the QSettings key is NOT enough — the FileManager has to be told,
+    # or nothing is open and every button is disabled for the unrelated reason
+    # "Create the chart for this run first". That is what made the first
+    # version of this driver read like an application bug.
+    win._file_mgr.set_target_name(project_src.name)
+    _settle(app, 700)
 
     from core.file_manager import Project
     from workflow.chart_slot import (slot_for_calibration, slot_for_run,
