@@ -23,6 +23,8 @@ Usage:
 """
 from __future__ import annotations
 
+import pathlib
+
 import sys
 from pathlib import Path
 
@@ -505,6 +507,44 @@ def capture_dialogs(app, win) -> None:
             pump(150)
 
 
+def _sandbox_the_settings_store() -> None:
+    """Copy the user's settings into a temp INI and work from that instead.
+
+    This script deliberately overrides a dozen preferences — theme, language,
+    welcome dialog, instrument, paper — to stage each screenshot. Written to the
+    real store, those overrides are simply left behind afterwards.
+
+    That is not hypothetical. On 2026-08-08 the user's live `custom_output_path`
+    was found pointing at a deleted pytest sandbox, so ChromIQ could not see any
+    of his projects, and `chartread_engine` had been flipped from "chromiq" to
+    "argyll" — he had reported the engine "disabling itself" twice before anyone
+    joined it up. The test suite is isolated now (tests/conftest.py); a script
+    that runs the real app has to do the same for itself.
+
+    The values are COPIED first, so the app still behaves as his does — the
+    sandbox is about where writes land, not about starting from defaults.
+
+    Note for macOS: QSettings.setDefaultFormat/setPath cannot do this.
+    `QSettings("ChromIQ", "ChromIQ")` resolves to the native plist and ignores
+    both, so the redirect has to replace the name `core.settings.QSettings`.
+    """
+    import tempfile
+
+    from PyQt6.QtCore import QSettings
+
+    import core.settings as _cs
+
+    real = QSettings("ChromIQ", "ChromIQ")
+    ini = pathlib.Path(tempfile.mkdtemp(prefix="chromiq-shots-")) / "ChromIQ.ini"
+    copy = QSettings(str(ini), QSettings.Format.IniFormat)
+    for key in real.allKeys():
+        copy.setValue(key, real.value(key))
+    copy.sync()
+
+    _cs.QSettings = lambda *_a, **_k: QSettings(str(ini), QSettings.Format.IniFormat)
+    log(f"settings sandboxed at {ini} — the real store is not written to")
+
+
 def main() -> int:
     name_filter = sys.argv[1] if len(sys.argv) > 1 else ""
     DOCS.mkdir(exist_ok=True)
@@ -514,6 +554,7 @@ def main() -> int:
 
     patch_loaders()
     app = build_app()
+    _sandbox_the_settings_store()
     settings = AppSettings()
     settings.set("show_welcome_dialog", False)
     settings.set("calibration_mode", False)
