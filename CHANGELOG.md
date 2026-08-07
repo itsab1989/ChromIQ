@@ -1,5 +1,24 @@
 # Changelog
 
+## v3.14.8-beta.184
+
+### Fixed
+- **“This chart was made for a different instrument” could name the wrong one.**
+  The warning compared your connected device against a setting in Preferences
+  rather than against the chart itself, so a chart made for a ColorMunki could
+  be announced as an i1Pro chart — and the window suggests cancelling. It now
+  reads the instrument recorded in the chart file, and only falls back to the
+  setting if the chart does not name one. A genuine mismatch still warns.
+- **Running the tests no longer changes your own preferences.** On this Mac a
+  test run could overwrite the folder ChromIQ works in and switch the chart
+  reading engine back to ArgyllCMS. Only developers running the test suite were
+  affected, but if ChromIQ ever seemed to forget those two settings, this was
+  why.
+
+### Changed
+- **Japanese is now fully translated**, making eleven of the twelve languages
+  complete. Only Chinese is still being worked through.
+
 ## v3.14.8-beta.183
 
 ### Changed
