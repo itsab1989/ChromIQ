@@ -1,5 +1,22 @@
 # Changelog
 
+## v3.14.8-beta.182
+
+### Changed
+- **Dutch, Portuguese and Swedish are now fully translated**, joining German,
+  French, Spanish and Italian. Seven of the twelve languages are complete —
+  every button, message, tooltip and help text. Choose yours under
+  **Preferences → Appearance**; it applies after a restart. The remaining five
+  still show English where a translation is not ready.
+- **Three buttons in the measurement window were always English**, whatever
+  language you chose — “Re-read Patches”, “Re-read Individual Strips” and
+  “Continue Measuring Manually”. The help text beside them already used your
+  language, so the instruction named a button you could not see. They are
+  translated now.
+- **Portuguese reads as European Portuguese throughout.** A few texts had
+  slipped into Brazilian wording — *arquivo* for *ficheiro*, *aba* for
+  *separador*, *tela* for *ecrã* — which is now consistent.
+
 ## v3.14.8-beta.181
 
 ### Changed

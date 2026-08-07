@@ -7234,12 +7234,17 @@ class TabMeasure(QWidget):
             # … shall again be named 'Go to Build Profile tab' (as before)."*
             accept_label = tr("Go to {tab} Tab →").format(
                 tab=self._profile_tab_name_btn())
+        # tr() on all three: these feed a QPushButton, so without it the button
+        # reads English in every language while the help text two lines up names
+        # it translated. Found by the Swedish translator, not by any test —
+        # "Re-read Individual Strips" was already a catalogue key with a
+        # translation waiting that the button never asked for.
         if self._guided_refinement_active:
-            cont_label = "Continue Measuring Manually"
+            cont_label = tr("Continue Measuring Manually")
         elif self._spot_session:
-            cont_label = "Re-read Patches"
+            cont_label = tr("Re-read Patches")
         else:
-            cont_label = "Re-read Individual Strips"
+            cont_label = tr("Re-read Individual Strips")
 
         btn_row = QHBoxLayout()
         btn_row.addStretch(1)
