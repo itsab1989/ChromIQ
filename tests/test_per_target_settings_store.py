@@ -50,6 +50,7 @@ def _bind():
     # The no-file-yet path needs these; the real tab has both.
     _Tab._target_settings_key = tc.TabChart._target_settings_key
     _Tab._pending_settings = {}
+    _Tab._last_written = {}
 
 
 @pytest.fixture
@@ -296,3 +297,51 @@ def _accepts_free_text(widget) -> bool:
         return widget.get_raw_value() == "zz-probe"
     finally:
         widget.set_value(keep)
+
+
+def test_going_back_and_forth_does_not_write_again(run, monkeypatch):
+    """Knut, #130: the write trigger is the pulldown OPENING.
+
+        "A write trigger should also have a check if any settings have changed
+        since last write, preventing multiple writes in a row if user is going
+        back and forth on the profile run and run type input boxes."
+
+    Flicking between the two boxes fires it repeatedly, so a repeat must cost
+    nothing — not even the read of meta.json that the disk comparison needs.
+    """
+    tab = _Tab(run, {"targen": [_Widget("-f", "5")]})
+    assert tab.save_target_settings() is True          # the first one lands
+
+    reads = []
+    real = type(run).load_meta
+    monkeypatch.setattr(type(run), "load_meta",
+                        lambda self: (reads.append(1), real(self))[1])
+
+    for _ in range(5):
+        assert tab.save_target_settings() is False
+    assert reads == [], (
+        f"a repeated trigger read meta.json {len(reads)} time(s); with nothing "
+        f"changed it should not touch the disk at all"
+    )
+
+
+def test_a_real_change_still_writes_after_a_no_op(run):
+    """The shortcut must not latch — an actual edit still has to land."""
+    tab = _Tab(run, {"targen": [_Widget("-f", "5")]})
+    tab.save_target_settings()
+    assert tab.save_target_settings() is False
+    tab._widgets["targen"][0].set_value("6")
+    assert tab.save_target_settings() is True
+    assert run.load_meta().create_chart_settings["targen-f"]["value"] == "6"
+
+
+def test_the_shortcut_is_per_target(tmp_path):
+    """Two runs with identical settings must each still get their own write."""
+    _bind()
+    proj = Project.create(tmp_path, "Demo")
+    r1, r2 = proj.run("run1"), proj.new_run()
+    same = {"targen": [_Widget("-f", "same")]}
+    assert _Tab(r1, same).save_target_settings() is True
+    assert _Tab(r2, same).save_target_settings() is True, (
+        "run2 was skipped because run1 had just written the same values"
+    )

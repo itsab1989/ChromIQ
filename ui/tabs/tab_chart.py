@@ -9368,11 +9368,33 @@ class TabChart(QWidget):
             wanted = snapshot(self)
             if not wanted:
                 return False
+            # NOTHING CHANGED SINCE THE LAST WRITE → DO NOTHING AT ALL.
+            #
+            # Knut, #130 (2026-08-06): *"A write trigger should also have a
+            # check if any settings have changed since last write, preventing
+            # multiple writes in a row if user is going back and forth on the
+            # profile run and run type input boxes."*
+            #
+            # The write trigger is the pulldown OPENING, so flicking between
+            # the two boxes fires it repeatedly. Remembering the last snapshot
+            # per target means a repeat costs nothing — not even the read of
+            # meta.json that the disk comparison below needs.
+            #
+            # Safe because ChromIQ is the only writer of this key while the
+            # project is open; the disk comparison stays as the backstop for
+            # the first write after a load, when there is nothing remembered.
+            fingerprint = str(getattr(store, "dir", store))
+            if self._last_written.get(fingerprint) == wanted:
+                return False
             meta = store.load_meta()
             if getattr(meta, "create_chart_settings", None) == wanted:
+                self._last_written[fingerprint] = wanted
                 return False       # nothing changed; don't churn the file
             meta.create_chart_settings = wanted
             store.save_meta(meta)
+            if "_last_written" not in self.__dict__:
+                self._last_written = {}
+            self._last_written[fingerprint] = wanted
             log.debug("create-chart settings written for %s (%d parameters)",
                       getattr(store, "id", store), len(wanted))
             return True
@@ -9471,6 +9493,10 @@ class TabChart(QWidget):
             return False
         finally:
             self._loading_target_settings = False
+
+    #: The last snapshot written for each target, so a repeated write trigger
+    #: costs nothing. See save_target_settings.
+    _last_written: dict = {}
 
     #: Settings for targets with no file yet, keyed by (profile run, run type).
     #: Class-level default, replaced on first write, so a duck-typed caller

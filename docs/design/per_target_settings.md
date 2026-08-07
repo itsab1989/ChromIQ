@@ -13,7 +13,7 @@ Issue #130. Source posts, in the order Knut listed them:
 > it and get the change approved** rather than quietly correcting one side to
 > match the other.
 
-**Status: specification COMPLETE, no application code written.** Everything
+**Status: specification COMPLETE. Create Chart is IMPLEMENTED (beta.171); Measure, Build Profile and Calibration & Profiling are not yet.** Everything
 below is either Knut's ruling quoted, or a consequence of one. The last two
 open questions were answered on 2026-08-06 (§9); the next step is the test plan
 in §8, then the build.
@@ -177,6 +177,31 @@ Knut's general rule, in full:
 not a timer: what is stored is the state of the tab at a moment the user
 finished with it, never what someone was in the middle of typing.
 
+### 3a. How a write is triggered, and what it costs
+
+Knut's queue design (2026-08-06), and the ordering is the substance of it:
+
+> *"Writing queue request trigger could be when pulldown list of 'Profile run'
+> or 'Run type' is clicked to see the pulldown menu, and reading queue request
+> trigger could be when an option in the pulldown list is clicked/selected."*
+
+| # | Rule |
+|---|---|
+| **Q-1** | The **write** fires when a target-changing pulldown **opens**. At that moment the outgoing target is still selected, so the values on screen are filed against the target they belong to. `currentIndexChanged` is already too late — the selection has moved |
+| **Q-2** | The **read** fires when an option is **selected** |
+| **Q-3** | A read never overtakes its write: the write is complete before the selection changes, because opening the list precedes choosing from it |
+| **Q-4** | *"A write trigger should also have a check if any settings have changed since last write, preventing multiple writes in a row if user is going back and forth."* The last snapshot written is remembered per target, so a repeated trigger costs nothing — not even a read of `meta.json` |
+| **Q-5** | Every write is **atomic**: written to a temporary file in the same directory, `fsync`-ed, then renamed over the original. A crash mid-write cannot truncate it, and a failed write leaves the previous contents intact |
+
+**Threads.** Knut suggested `ThreadPoolExecutor` and OS file locking. Neither is
+used, and the reasoning is recorded here because it is a deliberate departure:
+every read ends in touching widgets, which Qt permits only on the GUI thread, so
+a worker would have to hand back anyway; the write is a small JSON file well
+under a millisecond; and this project has twice lost a full test run to
+`QThread` lifetime bugs. Locking guards against a second **process**, which does
+not exist while ChromIQ owns one project. Ordering, serialisation and atomicity
+are what make this safe, and none of the three needs a thread.
+
 **App quit counts as leaving the visible tab.** Qt does not raise a tab-change
 for it, so it is wired explicitly; otherwise the last tab the user worked in is
 the one tab that never records anything. It writes **that tab, for the selected
@@ -196,8 +221,8 @@ never the last run's.
 | S3 | **Calibration**, settings stored | **its own** |
 | S4 | run N, Profiling, **nothing stored** | saved defaults, else factory |
 | S5 | run N, **Verification**, nothing stored | saved defaults, else factory |
-| S6 | New run, Profiling | saved defaults, else factory |
-| S7 | New run, Verification | saved defaults, else factory |
+| S6 | New run, Profiling | **seeded from the loaded run** — see §4a |
+| S7 | New run, Verification | **seeded from the loaded run** — see §4a |
 | S8 | Calibration, nothing stored | saved defaults, else factory |
 | S9 | a run made before this feature | saved defaults, else factory, and it records its own the first time it is used |
 
@@ -212,6 +237,34 @@ what is on screen. His reason overrules that one: *"the situation is chaotic and
 unrecognisable for a user if settings change arbitrarily for a run, seen from
 his view point."* Save as Defaults is the answer to the case the old rule was
 protecting.
+
+### 4a. "New run" is seeded from the run you were on
+
+Knut, 2026-08-06:
+
+> *"When profile run = New run, I suggest the currenly loaded run … is copied at
+> the same time to a temporary set of settings … Then, if a user happens to
+> select 'New run' that block of settings is read on selection, displayed on
+> screen (no visible change for the user), which then can be modified by user to
+> what is desired for the new run. Then when Generate Chart is pressed, all
+> these settings are copied into the new runs parameter slot."*
+
+This sharpens S6/S7 rather than overturning them. His earlier reason for
+defaults — *"the situation is chaotic … if settings change arbitrarily for a
+run"* — was about an **existing** run changing behind the user. That stays
+impossible. A New run is not a run; it is the specification for one, and
+seeding it from what is already on screen is continuity, not arbitrariness.
+Making a new run is nearly always *"like the last one, with one change"*.
+
+| # | Rule | Why |
+|---|---|---|
+| **N-1** | The block is seeded **only when it is empty** | Re-seeding on every click would overwrite the user's own New-run setup the moment they flicked to another run and back — silently |
+| **N-2** | The six rows in `_CAL_VALUES` are **stripped** from the seed | Seeding while Run type = Calibration would copy a calibration sheet's patch set into a profiling run |
+| **N-3** | **Generate Chart** copies it into the new run and **clears** it | Otherwise the run after next inherits a stale copy instead of the run actually loaded |
+| **N-4** | It lives in its own file, not in `project.json` | A New run has no folder. `project.json` holds the run list, and this is written on every pulldown click |
+
+**OPEN:** whether a New run under Run type = Verification seeds from the
+verification or from the profiling run.
 
 ---
 
