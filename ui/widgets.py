@@ -627,6 +627,53 @@ def set_log_visible_lines(n: int, *, save: bool = True) -> int:
     return n
 
 
+#: The gap above a log panel, in pixels, and how much of it survives the log
+#: being hidden. Both halves are needed: see ``add_log_row``.
+LOG_GAP_TOTAL = 5
+LOG_GAP_KEPT = 3
+
+
+def add_log_row(layout, log, parent=None):
+    """Append *log* to *layout* with the standard gap above it. Returns the wrapper.
+
+    Every tab ends on the same line — **13 px above the window edge** — and has
+    to go on doing so with Preferences → "Hide the log panel on every tab" in
+    either position. That is harder than it sounds, because the gap above the
+    log has to behave differently in the two states:
+
+    * with the log **shown**, the whole 5 px sits between the buttons and the
+      log, and the log's own bottom margin ends the tab;
+    * with the log **hidden**, the buttons become the bottom-most thing, and
+      they need *less* space below them than the log did — otherwise they hang
+      lower than the log ever did.
+
+    So the gap is split. ``LOG_GAP_KEPT`` (3 px) is a plain spacer that stays
+    whatever happens. The remaining 2 px is the top margin of a wrapper named
+    ``"log_container"``, which ``MainWindow._apply_log_visibility`` hides along
+    with the log — so it goes when the log goes. With the log on the two halves
+    add back up to 5 and nothing looks different from before.
+
+    Measured, not derived: these buttons ask for ``setFixedHeight(36)`` and
+    render at 42, because the application stylesheet's ``min-height`` still
+    wins, and the 6 px overflow eats into the margin below them by a different
+    amount in each layout. A gap read off the source is not the gap on screen.
+
+    **The wrapper takes no stretch**, and neither should any caller add one:
+    :func:`fit_log_height` pins the log's height (``min == max``, and the resize
+    grip rewrites both), so a stretch cannot go into the log — the wrapper grows
+    instead and leaves the log floating clear of the bottom edge.
+    """
+    layout.addSpacing(LOG_GAP_KEPT)
+    wrapper = QWidget(parent if parent is not None else log.parentWidget())
+    wrapper.setObjectName("log_container")
+    inner = QVBoxLayout(wrapper)
+    inner.setContentsMargins(0, LOG_GAP_TOTAL - LOG_GAP_KEPT, 0, 0)
+    inner.setSpacing(0)
+    inner.addWidget(log)
+    layout.addWidget(wrapper)
+    return wrapper
+
+
 def fit_log_height(log, lines: "int | None" = None) -> None:
     """Size a log panel to exactly *lines* lines of the font it really has.
 

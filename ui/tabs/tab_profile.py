@@ -44,7 +44,7 @@ from core.resource_path import resource_path
 from ui.fade_scroll import FadeScrollArea
 from ui.tab_header import TabHeader
 from ui.tooltip_button import InfoDialog, TooltipButton
-from ui.widgets import fit_log_height, GatedOption, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, make_browse_button, open_file_dialog, replace_log_line, set_folder_icon, set_preset_icon, tint_dialog_primary
+from ui.widgets import add_log_row, fit_log_height, GatedOption, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, make_browse_button, open_file_dialog, replace_log_line, set_folder_icon, set_preset_icon, tint_dialog_primary
 from ui.ti2_loader import has_spectral_data, instrument_label, is_colormunki, read_target_instrument
 from ui.spectrum_progress import SpectrumSegmentsBar
 from workflow.engine_builder import (EngineProfileBuilder, engine_support,
@@ -551,8 +551,7 @@ class TabProfile(QWidget):
         # buttons looked stuck to it. Basti settled on 11px, and the value
         # here is the DELTA on top of this layout's own spacing — measured
         # with the real styling, because QSS padding only lands at polish.
-        cc.addSpacing(5)
-        cc.addWidget(self._log)
+        add_log_row(cc, self._log, colprof_container)
 
         self._outer_stack.addWidget(colprof_container)       # page 0
         self._outer_stack.addWidget(self._make_printcal_section())  # page 1
@@ -1063,8 +1062,7 @@ class TabProfile(QWidget):
         # — not 67 pixels, which was six (Knut, beta.125).
         fit_log_height(self._pc_log)
         self._pc_log.setPlaceholderText(tr("printcal output will appear here…"))
-        cc.addSpacing(5)      # see the colprof module
-        cc.addWidget(self._pc_log)
+        add_log_row(cc, self._pc_log, container)
 
         s = self._settings
         self._pc_smooth_spin.setValue(float(s.get("printcal_smoothing", 1.0)))
@@ -1514,8 +1512,7 @@ class TabProfile(QWidget):
         # — not 67 pixels, which was six (Knut, beta.125).
         fit_log_height(self._ac_log)
         self._ac_log.setPlaceholderText(tr("applycal output will appear here…"))
-        cc.addSpacing(5)      # see the colprof module
-        cc.addWidget(self._ac_log)
+        add_log_row(cc, self._ac_log, container)
 
         s = self._settings
         saved_mode = s.get("applycal_mode", "apply")

@@ -1578,7 +1578,15 @@ class TabMeasure(QWidget):
         # MainWindow._apply_log_visibility.
         log_outer.setObjectName("log_container")
         lo_layout = QVBoxLayout(log_outer)
-        lo_layout.setContentsMargins(16, 0, 16, 12)
+        # 10 below the log, with the missing 2 px added OUTSIDE the wrapper
+        # below — the mirror image of what every other tab needs. Here the
+        # buttons live in their own container whose 13 px bottom margin is all
+        # they get once the log is hidden, and 13 minus the buttons' 2 px
+        # overflow left them at 11, higher than the log ever sat. Moving 2 px
+        # out of the wrapper keeps them when the log goes, so both states end
+        # on 13. Elsewhere the gap is *above* the log and the 2 px has to move
+        # the other way, into the wrapper: see ui.widgets.add_log_row.
+        lo_layout.setContentsMargins(16, 0, 16, 10)
         self._log = QPlainTextEdit(log_outer)
         self._log.setObjectName("log")
         self._log.setReadOnly(True)
@@ -1591,6 +1599,9 @@ class TabMeasure(QWidget):
         self._log.setPlaceholderText(tr("chartread output will appear here…"))
         lo_layout.addWidget(self._log)
         lc_layout.addWidget(log_outer)
+        # The 2 px taken out of the wrapper above. Outside it, so it survives
+        # the log being hidden and brings the buttons down to the same 13 px.
+        lc_layout.addSpacing(2)
 
         # Status bar (replaces main-window status bar)
         self._status_bar_lbl = QLabel("", left_container)

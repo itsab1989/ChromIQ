@@ -69,7 +69,7 @@ from ui.tab_header import TabHeader
 from ui.builtin_preset_popup import BuiltinPresetButton, BuiltinPresetPopup
 from ui.tiff_preview import TiffPreview
 from ui.tooltip_button import InfoDialog, TooltipButton
-from ui.widgets import fit_log_height, CollapsibleGroupBox, NoScrollComboBox, NoScrollSpinBox, PatchGridButton, PrefixLockedLineEdit, icc_profile_paths, load_magenta_folder_icon, make_browse_button, open_file_dialog, set_folder_icon, set_preset_icon
+from ui.widgets import add_log_row, fit_log_height, CollapsibleGroupBox, NoScrollComboBox, NoScrollSpinBox, PatchGridButton, PrefixLockedLineEdit, icc_profile_paths, load_magenta_folder_icon, make_browse_button, open_file_dialog, set_folder_icon, set_preset_icon
 from core.i18n import count_phrase, tr
 from workflow.i1profiler_export import EXTRA_INK, export_from_ti1, parse_ti1
 from workflow.i1profiler_import import import_to_ti1
@@ -1563,8 +1563,7 @@ class TabChart(QWidget):
         # buttons looked stuck to it. Basti settled on 11px, and the value
         # here is the DELTA on top of this layout's own spacing — measured
         # with the real styling, because QSS padding only lands at polish.
-        left_layout.addSpacing(5)
-        left_layout.addWidget(self._log)
+        add_log_row(left_layout, self._log, left)
 
         # Status bar (replaces main-window status bar)
         self._status_bar_lbl = QLabel("", left)

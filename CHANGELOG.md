@@ -1,5 +1,16 @@
 # Changelog
 
+## v3.14.8-beta.179
+
+### Changed
+- **Every tab now ends on the same line, with the log panel shown or hidden.**
+  With the log switched off the tabs stopped at different heights — Create Chart
+  and Calibration & Profiling 15 px above the window edge, Measure 11, the others
+  13 — so the buttons appeared to jump a little as you moved between tabs. They
+  all finish 13 px up now, which is where every log panel already sat, in both
+  positions of the **Hide the log panel on every tab** switch. The gap above the
+  log itself is unchanged.
+
 ## v3.14.8-beta.178
 
 ### Changed
