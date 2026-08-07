@@ -1,5 +1,16 @@
 # Changelog
 
+## v3.14.8-beta.174
+
+### New
+- **Build Profile's settings now belong to the run you set them on**, and so do
+  Calibration & Profiling's, which share the same tab. Quality, algorithm, the
+  gamut and black-generation settings, the viewing conditions and the rest
+  follow the selected run, verification or calibration — and a run you have not
+  set up yet opens on your defaults rather than inheriting the last one's.
+
+  With this, all four tabs in scope keep their own settings per target.
+
 ## v3.14.8-beta.173
 
 ### New

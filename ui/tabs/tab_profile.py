@@ -1965,6 +1965,92 @@ class TabProfile(QWidget):
                                    or "argyll",
         }
 
+    # ------------------------------------------------------------------
+    # Per-target settings (#130 §5)
+    # ------------------------------------------------------------------
+    #: Last snapshot written per target — per instance, never a shared class
+    #: attribute (§3a Q-4, and the bug that cost a session on the chart tab).
+    _profile_written: dict = {}
+
+    def _profile_written_cache(self) -> dict:
+        if "_profile_written" not in self.__dict__:
+            self._profile_written = {}
+        return self._profile_written
+
+    def save_target_settings(self, store=None, key=None) -> bool:
+        """Record this tab's settings against the selected target.
+
+        **Built on the preset pair that already exists.** I told Knut this tab
+        had no apply-side and that writing one was the work; that was wrong.
+        `_m_collect_preset_data` and `_m_apply_preset_data` are a matched
+        read/write pair covering 43 of the manual controls, maintained because
+        the preset feature depends on them. Reusing them means one description
+        of what a Build Profile setting is, not two that can drift.
+        """
+        if getattr(self, "_loading_profile_settings", False):
+            return False
+        if store is None:
+            from workflow.per_target_settings import store_for_target
+            store = store_for_target(getattr(self, "_target_ctl", None))
+        if store is None:
+            return False
+        # A write must never bring a deleted project back (Knut's beta.102).
+        try:
+            if not Path(getattr(store, "dir", "")).is_dir():
+                return False
+        except (TypeError, ValueError):
+            return False
+        try:
+            wanted = self._m_collect_preset_data()
+            if not wanted:
+                return False
+            fingerprint = str(getattr(store, "dir", store))
+            if self._profile_written_cache().get(fingerprint) == wanted:
+                return False
+            meta = store.load_meta()
+            if getattr(meta, "profile_settings", None) == wanted:
+                self._profile_written_cache()[fingerprint] = wanted
+                return False
+            meta.profile_settings = wanted
+            store.save_meta(meta)
+            self._profile_written_cache()[fingerprint] = wanted
+            log.debug("profile settings written for %s (%d)",
+                      getattr(store, "id", store), len(wanted))
+            return True
+        except Exception:      # noqa: BLE001 — never lose the tab over a write
+            log.warning("Could not save the target's Build Profile settings",
+                        exc_info=True)
+            return False
+
+    def load_target_settings(self) -> bool:
+        """Put the selected target's Build Profile settings on screen (§2 L1)."""
+        from workflow.per_target_settings import store_for_target
+        store = store_for_target(getattr(self, "_target_ctl", None))
+        if store is None:
+            return False
+        try:
+            stored = getattr(store.load_meta(), "profile_settings", None)
+        except Exception:      # noqa: BLE001
+            log.warning("Could not read the target's Build Profile settings",
+                        exc_info=True)
+            return False
+        self._loading_profile_settings = True
+        try:
+            if not stored:
+                # §4 S4–S7 — and the fault the Measure tab had: returning here
+                # leaves the PREVIOUS target's values on screen, which is how a
+                # setting leaks from one run to another.
+                self._restore_defaults()
+                return False
+            self._m_apply_preset_data(stored)
+            return True
+        except Exception:      # noqa: BLE001
+            log.warning("Could not apply the target's Build Profile settings",
+                        exc_info=True)
+            return False
+        finally:
+            self._loading_profile_settings = False
+
     def _m_apply_preset_data(self, data: dict) -> None:
         def _set_combo(combo: QComboBox, key: str, default: str) -> None:
             idx = combo.findData(data.get(key, default))
