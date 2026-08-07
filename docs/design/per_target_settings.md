@@ -261,10 +261,11 @@ Making a new run is nearly always *"like the last one, with one change"*.
 | **N-1** | The block is seeded **only when it is empty** | Re-seeding on every click would overwrite the user's own New-run setup the moment they flicked to another run and back — silently |
 | **N-2** | The six rows in `_CAL_VALUES` are **stripped** from the seed | Seeding while Run type = Calibration would copy a calibration sheet's patch set into a profiling run |
 | **N-3** | **Generate Chart** copies it into the new run and **clears** it | Otherwise the run after next inherits a stale copy instead of the run actually loaded |
-| **N-4** | It lives in its own file, not in `project.json` | A New run has no folder. `project.json` holds the run list, and this is written on every pulldown click |
+| **N-4** | It lives in **`<target>/cache/new_run.json`** | Knut, 2026-08-07: *"always … in the cache/ folder for the runN/ runN/verifications/ or cal/ folders"*. The layout already documents `cache/` as "always safe to delete", which is exactly this file's nature — an orphaned block after a restart costs nothing, because the New run simply seeds fresh |
+| **N-5** | A New run under Run type = **Verification** seeds from the **verification** | Knut, 2026-08-07: *"Answer: Yes"* |
 
-**OPEN:** whether a New run under Run type = Verification seeds from the
-verification or from the profiling run.
+**Status:** the helpers (`new_run_seed_path`, `seed_for_new_run`) are built and
+tested; the wiring into the tab is not. Nothing here is open.
 
 ---
 
