@@ -351,3 +351,44 @@ def test_the_shortcut_is_per_target(tmp_path):
     assert _Tab(r2, same).save_target_settings() is True, (
         "run2 was skipped because run1 had just written the same values"
     )
+
+
+def test_d2_a_truncated_meta_json_is_not_fatal(tmp_path, qapp):
+    """§5 D2 — Knut: "some cases can occur if user deletes a file".
+
+    A half-written `meta.json` must read as "this target has nothing stored",
+    not take the tab down. Atomic writes make ChromIQ unlikely to *produce* one,
+    but a crashed editor, a full disk or a sync client still can.
+    """
+    _bind()
+    run = Project.create(tmp_path, "Demo").run("run1")
+    run.ensure_dir()
+    tab = _Tab(run, {"targen": [_Widget("-f", "5")]})
+    tab.save_target_settings()
+
+    run.meta_path.write_text('{"create_chart_settings": {"targen-f": ')  # cut off
+    assert tab.load_target_settings() is False, "a truncated meta was not survived"
+    # …and the target is still writable afterwards, rather than being poisoned.
+    tab._widgets["targen"][0].set_value("9")
+    assert tab.save_target_settings() is True
+    assert run.load_meta().create_chart_settings["targen-f"]["value"] == "9"
+
+
+def test_a3_the_write_is_logged_with_the_target_and_the_count(run, caplog):
+    """§3 A3 — Knut asked that a change be "recorded in the log correctly".
+
+    The full three-way check he described (screen == log == JSON, per
+    parameter) would mean a line per parameter on every write; with 40 on
+    Create Chart alone that is a log nobody can read. What is logged is the
+    target and how many settings were written, and the JSON beside it carries
+    the values — which is the auditable part without drowning the log.
+    """
+    import logging
+
+    tab = _Tab(run, {"targen": [_Widget("-f", "5")]})
+    with caplog.at_level(logging.DEBUG, logger="ui.tabs.tab_chart"):
+        assert tab.save_target_settings() is True
+    said = [r.getMessage() for r in caplog.records
+            if "create-chart settings written" in str(r.msg)]
+    assert said, "a write said nothing at all in the log"
+    assert "run1" in said[0] and "1" in said[0]

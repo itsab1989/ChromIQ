@@ -9,8 +9,24 @@ Issue #130. The plan for [`per_target_settings.md`](per_target_settings.md),
 written **before** the implementation, in Knut's order: *"Answer those and I
 will write the test plan and build it, in that order."*
 
-**Nothing here is implemented yet.** Every row is a test to be written; the
-build follows once the plan is agreed.
+**Status, 2026-08-07.** The feature is built for all four tabs in scope
+(beta.171–174) and most of this plan is written. What is done, and what is not:
+
+| Section | State |
+|---|---|
+| §2 parameter coverage (P1–P6) | done for Create Chart, whose list is generated. The other three tabs are covered by their own drift guards instead — see below |
+| §3 three-way agreement (A1–A5) | A1/A2/A4/A5 done. **A3 — the log line naming the parameter and value — is not** |
+| §4 load events + negatives (L, N1–N4) | done: `tests/test_per_target_settings_events.py`, parametrised across the three storing tabs |
+| §5 nothing-stored (S1–S9, D1–D4) | done for the empty and deleted cases; **D2, a truncated `meta.json`, is not** |
+| §6 write events (W1–W8) | done |
+| §7 demo package (X1–X7) | **not done** — needs the demo projects rebuilt with settings in them |
+
+**Where §2's generated-list guarantee could not hold.** Only Create Chart is
+built from `ParameterWidget`, so only it can be enumerated that way. Measure and
+Build Profile get the same protection by a different route: their settings are
+checked against `MeasureParams` / the preset pair, so a field added there and
+not mapped fails the suite. Different mechanism, same promise — nothing is
+hand-maintained without something failing when it drifts.
 
 ---
 
@@ -181,7 +197,7 @@ Steps to add, each naming the tab and the exact control:
 |---|---|
 | X1 | set a distinctive value on run 1, switch to run 2, switch back — run 1's value is there |
 | X2 | …and run 2 never acquired it |
-| X3 | New run — defaults, not run 1's |
+| X3 | **New run — run 1's values, not defaults.** Written before Knut's seeding ruling (§4a N-1…N-5), which reversed it: selecting New run now shows what is already on screen, and the user edits that into the run they are about to make. The old wording is left visible here because a test plan that quietly changes is worse than one that shows its history |
 | X4 | Restore Used Chart on a run — chart **and** its settings come back |
 | X5 | the same for a **verification** |
 | X6 | the same for a **calibration** — the case that failed in beta.157 |

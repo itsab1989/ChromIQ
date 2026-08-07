@@ -1,5 +1,15 @@
 # Changelog
 
+## v3.14.8-beta.175
+
+### Fixed
+- **A damaged `meta.json` no longer stops a run remembering anything.** If a
+  run's `meta.json` was truncated — by a crash, a full disk or a sync client —
+  reading it raised, and because every caller guards against that, the run
+  quietly stopped storing its description, notes and settings for good. It is
+  now treated the way the calibration folder has always treated the same
+  damage: as if the file were simply absent.
+
 ## v3.14.8-beta.174
 
 ### New

@@ -1064,9 +1064,27 @@ class Run:
     def meta_path(self) -> Path:              return self.dir / "meta.json"
 
     def load_meta(self) -> RunMeta:
+        """``runs/runN/meta.json``, or a fresh one when it cannot be read.
+
+        A truncated or half-written file used to raise here, while the very
+        same corruption in ``cal/meta.json`` was survived — ``Calibration``
+        has treated "unreadable" as "absent" all along. The inconsistency was
+        not academic: every caller of this is wrapped in a broad ``except``, so
+        the run simply stopped storing anything, silently and for good.
+
+        Knut's D2 case (*"some cases can occur if user deletes a file"*).
+        Atomic writes make ChromIQ unlikely to produce one, but a crashed
+        editor, a full disk or a sync client still can.
+        """
         if not self.meta_path.exists():
             return RunMeta.fresh(self._run_id)
-        return RunMeta.from_dict(json.loads(self.meta_path.read_text(encoding="utf-8")))
+        try:
+            raw = json.loads(self.meta_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            log.warning("%s is unreadable — treating it as a fresh run",
+                        self.meta_path)
+            return RunMeta.fresh(self._run_id)
+        return RunMeta.from_dict(raw)
 
     def save_meta(self, meta: RunMeta) -> None:
         write_json_atomically(self.meta_path, asdict(meta))
