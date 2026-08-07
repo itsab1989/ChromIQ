@@ -2865,7 +2865,12 @@ class TabChart(QWidget):
         # lets the user reset to / update that preset, or edit the defaults.
         self._manual_preset_bar = QWidget(inner)
         _pbar = QHBoxLayout(self._manual_preset_bar)
-        _pbar.setContentsMargins(0, 0, 0, 0)
+        # 7 px on top of inner_layout's own 4 px spacing = the 11 px used
+        # everywhere else a button row meets its neighbours. The bar is the only
+        # unframed row in this column, so it gets the raw spacing with no group
+        # box padding to soften it — at 0 the buttons all but touch the ChromIQ
+        # layout box above and the command preview below (Basti, measured 4/4).
+        _pbar.setContentsMargins(0, 7, 0, 7)
         _pbar.setSpacing(6)
         self._manual_preset_reset_btn = QPushButton(
             tr("Reset to preset"), self._manual_preset_bar)

@@ -1,5 +1,20 @@
 # Changelog
 
+## v3.14.8-beta.178
+
+### Changed
+- **The three preset buttons in Create Chart now have room to breathe.** With
+  the ChromIQ chart-reading engine switched on, **Reset to preset**, **Update
+  preset** and **Edit defaults…** were 4 px from the box above and 4 px from the
+  command preview below — near enough to touch. They now sit 11 px clear on both
+  sides, the same gap used elsewhere between a row of buttons and its
+  neighbours.
+- **Check & Refine's two columns end on the same line again.** The gamut
+  panel's **Run Gamut Analysis**, **Reset View** and **Save as Defaults** sat
+  lower than the left-hand column — by 5 px with the log panel hidden and 3 px
+  with it shown. Both columns now finish 13 px above the window edge, the same
+  line as every other tab's log, whether the log is on or off.
+
 ## v3.14.8-beta.177
 
 ### Changed

@@ -435,8 +435,30 @@ class TabCheckRefine(QWidget):
         # buttons looked stuck to it. Basti settled on 11px, and the value
         # here is the DELTA on top of this layout's own spacing — measured
         # with the real styling, because QSS padding only lands at polish.
-        left_layout.addSpacing(5)
-        left_layout.addWidget(self._log, stretch=1)
+        # 3 px here and 2 px inside the wrapper below, rather than 5 px here.
+        # The split is what lets both states end on the same line: this 3 px
+        # stays when the log is hidden, the wrapper's 2 px goes with it.
+        left_layout.addSpacing(3)
+        # The log lives in a "log_container" so 2 px of the gap above it can be
+        # hidden along with it — MainWindow._apply_log_visibility hides a
+        # "log_container" with its log. With the log on, 3 + 2 keeps the gap
+        # above it exactly as it was; with the log off, only the 3 remains, and
+        # that is what brings the buttons down to the same 13 px above the
+        # window that the log itself sits at (Basti: the log was 2 px higher
+        # here than on every other tab, and the buttons 2 px lower).
+        log_outer = QWidget(self)
+        log_outer.setObjectName("log_container")
+        _lo = QVBoxLayout(log_outer)
+        _lo.setContentsMargins(0, 2, 0, 0)
+        _lo.setSpacing(0)
+        _lo.addWidget(self._log)
+        # No stretch: the log's height is fixed (fit_log_height sets min == max,
+        # and the resize grip rewrites both), so a stretch here is slack the log
+        # cannot take up — the wrapper grew instead and left the log floating
+        # 16 px short of the bottom. Without it the wrapper is exactly the log
+        # plus its 2 px, and the spare height goes to the stack above, which is
+        # where it went before the wrapper existed.
+        left_layout.addWidget(log_outer)
 
         splitter.addWidget(left)
 

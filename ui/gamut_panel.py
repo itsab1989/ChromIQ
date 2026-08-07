@@ -600,7 +600,14 @@ class GamutPanel(QWidget):
 
         # ── Buttons (outside scroll — always visible at the bottom) ─────
         btn_row = QHBoxLayout()
-        btn_row.setContentsMargins(12, 6, 12, 12)
+        # Bottom margin 15, not 12, so these buttons end 13 px above the window
+        # edge — level with Check & Refine's left panel and with every log in
+        # the app (Basti, measured with the real styling: here it was 10). The
+        # two rows carry the same 12 px margin in source and still differ,
+        # because a QSS min-height renders these 36 px buttons at 42 and the
+        # overflow eats into the margin by a different amount in each layout.
+        # Measure the result, never the margin.
+        btn_row.setContentsMargins(12, 6, 12, 15)
         self._run_btn = QPushButton(tr("Run Gamut Analysis"), self)
         self._run_btn.setObjectName("primary")
         self._run_btn.setFixedHeight(36)
