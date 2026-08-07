@@ -865,7 +865,37 @@ SEQUENCES = {
              "Set Run type = **Calibration** on a project whose `cal/` folder "
              "holds no chart, and press **Generate Chart**. *Expected:* it "
              "generates. There must be NO window saying you already made a "
-             "calibration chart — you have not. [[ON-SCREEN]]"])
+             "calibration chart — you have not. [[ON-SCREEN]]",
+             # ---- §7 X1–X7: settings belong to the run you set them on -----
+             "**X1 — a setting stays with its run.** On **Create Chart**, "
+             "Profile run = **run 1**, note the Total Patch Count. Change it "
+             "to something you will recognise, switch to **run 2**, then back "
+             "to **run 1**. *Expected:* your number is back. [[ON-SCREEN]]",
+             "**X2 — …and run 2 never caught it.** With run 2 selected, look "
+             "at the same field. *Expected:* run 2's own value, never the one "
+             "you typed for run 1. This is the whole point of the feature: no "
+             "run may change because you looked at another. [[ON-SCREEN]]",
+             "**X3 — New run starts from where you are.** With run 1 loaded, "
+             "open the Profile run list and pick **New run**. *Expected:* "
+             "nothing visibly changes — the settings you can see are run 1's, "
+             "ready to be edited into the run you are about to make. Change "
+             "one, then press **Generate Chart**. *Expected:* the run it "
+             "creates has the value you set, not run 1's. [[ON-SCREEN]]",
+             "**X4 — Restore Used Chart brings the settings too.** On a run "
+             "with a stored chart, change several Create Chart options, then "
+             "press **Restore Used Chart**. *Expected:* the options that made "
+             "the stored chart come back with it, not just the files. "
+             "[[ON-SCREEN]]",
+             "**X5 — the same for a verification.** Run type = "
+             "**Verification**, repeat X4. [[ON-SCREEN]]",
+             "**X6 — the same for a calibration.** Run type = "
+             "**Calibration**, repeat X4. This is the case that failed in "
+             "beta.157, so it is worth doing slowly. [[ON-SCREEN]]",
+             "**X7 — it survives quitting.** Change a setting on **Measure** "
+             "or **Build Profile**, quit ChromIQ without pressing anything "
+             "else, and reopen it. *Expected:* the setting is still there, "
+             "and **no window asked you about saving on the way out** — "
+             "quitting writes silently. [[ON-SCREEN]]"])
 def build_run_descriptions(root: Path) -> None:
     name = "Demo-09-Run-Descriptions"
     p = root / name
@@ -881,8 +911,17 @@ def build_run_descriptions(root: Path) -> None:
         r = p / "runs" / rid
         _chart_files(r, name, patches=RUN_PATCHES, rows=RUN_ROWS)
         _measure(r, name, seed_icc=_seed_profile(root / ".seed"))
+        # …and settings of its own, so X1/X2 have something to recognise:
+        # each run carries a different patch count, and none of them the
+        # default. A demo where every run looks the same cannot show that a
+        # setting stayed with its run.
         _meta(r, rid, status="complete",
-              description=description, chart_notes=notes)
+              description=description, chart_notes=notes,
+              create_chart_settings={
+                  "targen-f": {"enabled": True,
+                               "value": {"run1": 210, "run2": 420,
+                                         "run3": 630}[rid]},
+              })
 
     # THE FILES THE TESTS ACTUALLY NEED, not just the ones the story mentions.
     #

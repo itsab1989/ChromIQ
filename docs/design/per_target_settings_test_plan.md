@@ -19,7 +19,7 @@ will write the test plan and build it, in that order."*
 | §4 load events + negatives (L, N1–N4) | done: `tests/test_per_target_settings_events.py`, parametrised across the three storing tabs |
 | §5 nothing-stored (S1–S9, D1–D4) | done for the empty and deleted cases; **D2, a truncated `meta.json`, is not** |
 | §6 write events (W1–W8) | done |
-| §7 demo package (X1–X7) | **not done** — needs the demo projects rebuilt with settings in them |
+| §7 demo package (X1–X7) | done — the seven steps are in the package document, and Demo-09's three runs carry a different patch count each (210 / 420 / 630) so X1 and X2 have something to recognise |
 
 **Where §2's generated-list guarantee could not hold.** Only Create Chart is
 built from `ParameterWidget`, so only it can be enumerated that way. Measure and
