@@ -205,3 +205,31 @@ def seed_for_new_run(settings: dict) -> dict:
     """A snapshot with the calibration-owned rows removed (§4a N-2)."""
     drop = {f"{tool}{flag}" for tool, flag in _CALIBRATION_OWNED}
     return {k: v for k, v in (settings or {}).items() if k not in drop}
+
+
+def store_for_target(ctl):
+    """The Run / Verification / Calibration the bar points at, or None.
+
+    Lifted out of ``TabChart._target_text_store`` so every tab that stores
+    per-target settings asks the same question the same way — a second copy of
+    this is how the three run types came to be handled differently in the page
+    rebuild (beta.165).
+
+    **Never creates anything**, and answers None for "New run": a run that does
+    not exist has no store, and borrowing the current one is how text came to be
+    written into the wrong run (Knut, beta.147).
+    """
+    if ctl is None:
+        return None
+    try:
+        project = ctl.project_or_none()
+        if project is None:
+            return None
+        if ctl.target.is_calibration():
+            return project.calibration
+        if ctl.target.is_new_run():
+            return None
+        from core.measurement_target import resolve_run
+        return resolve_run(project, ctl.target)
+    except Exception:      # noqa: BLE001 — a question must never raise
+        return None

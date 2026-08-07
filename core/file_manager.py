@@ -352,6 +352,11 @@ class RunMeta:
     #: Shape: {"<tool><flag>": {"enabled": bool, "value": …}}, or
     #: {"repeats": [ … ]} for a flag that may be given more than once.
     create_chart_settings: dict = field(default_factory=dict)
+    #: The Measure tab's settings as this target last had them (#130 §5).
+    #: Separate from create_chart_settings because they are different tabs with
+    #: different keys; one dict would make a renamed key on one tab look like a
+    #: stale key on the other.
+    measure_settings: dict = field(default_factory=dict)
 
     # #130 (Knut, beta.148): the Profile Description the user typed for THIS
     # run, when they typed one. Empty means "still automatic" — ChromIQ builds
@@ -432,6 +437,11 @@ class CalibrationMeta:
     #: Shape: {"<tool><flag>": {"enabled": bool, "value": …}}, or
     #: {"repeats": [ … ]} for a flag that may be given more than once.
     create_chart_settings: dict = field(default_factory=dict)
+    #: The Measure tab's settings as this target last had them (#130 §5).
+    #: Separate from create_chart_settings because they are different tabs with
+    #: different keys; one dict would make a renamed key on one tab look like a
+    #: stale key on the other.
+    measure_settings: dict = field(default_factory=dict)
 
 
     @classmethod

@@ -1,5 +1,15 @@
 # Changelog
 
+## v3.14.8-beta.173
+
+### New
+- **The Measure tab's settings now belong to the run you set them on.** Skip
+  initial calibration, patch-by-patch, resume, the bidirectional choice and
+  every chartread option are remembered per run, verification and calibration —
+  and a run you have not set up yet opens on your saved defaults instead of
+  inheriting the last run's. This is the tab that produced the "-N survived from
+  an earlier session" report, so it is the one that most needed it.
+
 ## v3.14.8-beta.172
 
 ### New

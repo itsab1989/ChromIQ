@@ -1103,6 +1103,120 @@ class TabMeasure(QWidget):
         destination."""
         self._target_ctl = controller
 
+    # ------------------------------------------------------------------
+    # Per-target settings (#130 §5 — Knut: "measure tab must be included")
+    # ------------------------------------------------------------------
+    #: What was last written for each target, so a repeated write trigger costs
+    #: nothing (§3a Q-4). Reached through the accessor: as a bare class
+    #: attribute every tab would share one dict and a second tab's writes would
+    #: be silently skipped — that exact bug cost a debugging session on the
+    #: Create Chart side.
+    _measure_written: dict = {}
+
+    def _measure_written_cache(self) -> dict:
+        if "_measure_written" not in self.__dict__:
+            self._measure_written = {}
+        return self._measure_written
+
+    def save_target_settings(self, store=None, key=None) -> bool:
+        """Record this tab's settings against the selected target.
+
+        Named to match the Create Chart tab because MainWindow calls it by
+        duck-typing on the same L1/W6 events — leaving a tab, changing target,
+        quitting.
+        """
+        if getattr(self, "_loading_measure_settings", False):
+            return False
+        if store is None:
+            from workflow.per_target_settings import store_for_target
+            store = store_for_target(getattr(self, "_target_ctl", None))
+        if store is None:
+            return False           # "New run", or no project
+        # A WRITE MUST NEVER BRING A DELETED PROJECT BACK — save_meta creates
+        # what it needs, and both "leaving a tab" and "quitting" fire right
+        # after a delete (Knut's beta.102 sequence, which has now caught this
+        # twice elsewhere).
+        try:
+            if not Path(getattr(store, "dir", "")).is_dir():
+                return False
+        except (TypeError, ValueError):
+            return False
+        try:
+            from workflow.measure_settings import snapshot
+            wanted = snapshot(self)
+            if not wanted:
+                return False
+            fingerprint = str(getattr(store, "dir", store))
+            if self._measure_written_cache().get(fingerprint) == wanted:
+                return False
+            meta = store.load_meta()
+            if getattr(meta, "measure_settings", None) == wanted:
+                self._measure_written_cache()[fingerprint] = wanted
+                return False
+            meta.measure_settings = wanted
+            store.save_meta(meta)
+            self._measure_written_cache()[fingerprint] = wanted
+            log.debug("measure settings written for %s (%d)",
+                      getattr(store, "id", store), len(wanted))
+            return True
+        except Exception:      # noqa: BLE001 — never lose the tab over a write
+            log.warning("Could not save the target's Measure settings",
+                        exc_info=True)
+            return False
+
+    def load_target_settings(self) -> bool:
+        """Put the selected target's Measure settings on screen (§2 L1).
+
+        Guarded, because filling these controls fires their signals and several
+        of them rebuild the command preview.
+        """
+        from workflow.per_target_settings import store_for_target
+        store = store_for_target(getattr(self, "_target_ctl", None))
+        if store is None:
+            return False
+        try:
+            stored = getattr(store.load_meta(), "measure_settings", None)
+        except Exception:      # noqa: BLE001
+            log.warning("Could not read the target's Measure settings",
+                        exc_info=True)
+            return False
+        if not stored:
+            # §4 S4–S7: A TARGET WITH NOTHING STORED OPENS ON ITS DEFAULTS.
+            #
+            # Returning here left the PREVIOUS target's values on screen, so
+            # ticking "skip initial calibration" on run 1 and switching to run 2
+            # showed it still ticked — Knut's beta.148 leak, rebuilt by the very
+            # feature meant to prevent it. Every unit test passed while this was
+            # broken, because none of them switched to a target with nothing
+            # stored; the on-screen drive found it in one step.
+            #
+            # `_restore_defaults` is the tab's own saved-defaults loader, so the
+            # values are the ones the user chose under "Save as Defaults" — not
+            # a second idea of what a default is.
+            self._loading_measure_settings = True
+            try:
+                self._restore_defaults()
+            except Exception:      # noqa: BLE001
+                log.warning("Could not restore the Measure defaults",
+                            exc_info=True)
+            finally:
+                self._loading_measure_settings = False
+            return False
+        self._loading_measure_settings = True
+        try:
+            from workflow.measure_settings import apply
+            unknown = apply(self, stored)
+            if unknown:
+                log.info("ignored %d unknown stored Measure setting(s): %s",
+                         len(unknown), ", ".join(sorted(unknown)[:8]))
+            return True
+        except Exception:      # noqa: BLE001
+            log.warning("Could not apply the target's Measure settings",
+                        exc_info=True)
+            return False
+        finally:
+            self._loading_measure_settings = False
+
     def _is_verification_run(self) -> bool:
         """True when the shared Run type says this read is a verification.
 

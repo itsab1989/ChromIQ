@@ -122,3 +122,131 @@ def test_a_missing_control_is_skipped_not_crashed():
         _chartread_opts = []
     assert snapshot(Bare()) == {}
     assert apply(Bare(), {"suppress_warnings": {"enabled": True, "value": True}}) == []
+
+
+# ---------------------------------------------------------------------------
+# The wiring on the real tab
+# ---------------------------------------------------------------------------
+class _Store:
+    """A stand-in Run: the two methods the save/load pair actually uses."""
+
+    def __init__(self, tmp_path):
+        self.dir = tmp_path / "run1"
+        self.dir.mkdir(parents=True, exist_ok=True)
+        self.id = "run1"
+        from core.file_manager import RunMeta
+        self._meta = RunMeta()
+
+    def load_meta(self):        return self._meta
+    def save_meta(self, m):     self._meta = m
+
+
+class _WiredTab(_Tab):
+    """The stand-in controls, plus the real save/load pair."""
+
+    def __init__(self, store):
+        super().__init__()
+        self._store = store
+        self._loading_measure_settings = False
+        self._measure_written = {}
+        self._target_ctl = None
+
+
+@pytest.fixture
+def wired(tmp_path, qapp):
+    import ui.tabs.tab_measure as tm
+    for name in ("save_target_settings", "load_target_settings",
+                 "_measure_written_cache"):
+        setattr(_WiredTab, name, getattr(tm.TabMeasure, name))
+    store = _Store(tmp_path)
+    return _WiredTab(store), store
+
+
+def test_it_writes_the_settings_against_the_target(wired):
+    tab, store = wired
+    tab._m_nocal_cb.setChecked(True)
+    assert tab.save_target_settings(store) is True
+    assert store.load_meta().measure_settings["disable_initial_cal"]["value"] is True
+
+
+def test_a_repeat_costs_nothing(wired):
+    """§3a Q-4 — the same change-check the Create Chart tab has."""
+    tab, store = wired
+    assert tab.save_target_settings(store) is True
+    for _ in range(4):
+        assert tab.save_target_settings(store) is False
+
+
+def test_a_real_change_still_lands_after_a_no_op(wired):
+    tab, store = wired
+    tab.save_target_settings(store)
+    tab._m_resume_cb.setChecked(True)
+    assert tab.save_target_settings(store) is True
+    assert store.load_meta().measure_settings["resume"]["value"] is True
+
+
+def test_a_write_never_resurrects_a_deleted_target(wired):
+    """Knut's beta.102 rule, which has now caught this shape three times."""
+    import shutil
+    tab, store = wired
+    tab.save_target_settings(store)
+    shutil.rmtree(store.dir)
+    assert tab.save_target_settings(store) is False
+    assert not store.dir.exists(), "the write recreated a deleted run"
+
+
+def test_loading_is_guarded_against_re_entry(wired):
+    tab, store = wired
+    tab._loading_measure_settings = True
+    assert tab.save_target_settings(store) is False, (
+        "a save ran while settings were being loaded"
+    )
+
+
+def test_the_written_cache_is_per_tab(tmp_path, qapp, wired):
+    """A bare class attribute made two tabs share one — writes went missing."""
+    tab_a, store = wired
+    tab_a.save_target_settings(store)
+    tab_b = _WiredTab(store)
+    tab_b._m_pbp_cb.setChecked(True)
+    assert tab_b.save_target_settings(store) is True, (
+        "the second tab inherited the first's 'already written' marks"
+    )
+
+
+def test_the_two_tabs_use_one_store_resolver():
+    """Two copies of this is how the three run types came to diverge."""
+    import inspect
+
+    import ui.tabs.tab_measure as tm
+    src = inspect.getsource(tm.TabMeasure.save_target_settings)
+    assert "store_for_target" in src
+
+
+def test_a_target_with_nothing_stored_does_not_inherit_the_last_one(wired, monkeypatch):
+    """The bug the on-screen drive found while all the tests above passed.
+
+    Tick "skip initial calibration" on run 1, switch to run 2 — and it was
+    still ticked, because loading returned early and left the previous
+    target's values on screen. That is Knut's beta.148 `-N` leak, rebuilt by
+    the very feature meant to prevent it.
+
+    None of the tests above caught it: they all exercise a target that HAS
+    settings. This one exercises the empty case, which is the common one.
+    """
+    tab, store = wired
+    restored = []
+    tab._restore_defaults = lambda: restored.append(True)
+    tab._m_nocal_cb.setChecked(True)          # as if left over from run 1
+
+    assert tab.load_target_settings.__name__ == "load_target_settings"
+    # run2 has nothing stored…
+    from workflow.per_target_settings import store_for_target  # noqa: F401
+    monkeypatch.setattr("workflow.per_target_settings.store_for_target",
+                        lambda _ctl: store)
+    store.load_meta().measure_settings = {}
+    assert tab.load_target_settings() is False
+    assert restored, (
+        "nothing put the tab back to its defaults, so the previous target's "
+        "settings stayed on screen"
+    )
