@@ -9342,13 +9342,25 @@ class TabChart(QWidget):
             #
             # Filed under the OUTGOING key: `_target_settings_key()` reads the
             # live selection, which by now is the incoming target.
-            if key is _NO_STORE_GIVEN:
-                key = self._target_settings_key()
-            if key is not None:
-                from workflow.per_target_settings import snapshot
-                if "_pending_settings" not in self.__dict__:
-                    self._pending_settings = {}
-                self._pending_settings[key] = snapshot(self)
+            seed = self._new_run_seed_path()
+            # A WRITE MUST NEVER BRING A DELETED PROJECT BACK.
+            #
+            # mkdir would recreate the whole tree, and "leaving a tab" and
+            # "quitting" both fire right after a delete. Knut's beta.102
+            # sequence caught this on the main write; the New-run block is a
+            # second writer and needed the same guard.
+            if seed is None or not seed.parent.parent.is_dir():
+                return False
+            from workflow.per_target_settings import snapshot
+            try:
+                import json as _json
+                seed.parent.mkdir(parents=True, exist_ok=True)
+                from core.file_manager import write_json_atomically
+                write_json_atomically(seed, snapshot(self))
+                return True
+            except Exception:      # noqa: BLE001 — never lose the tab over it
+                log.warning("Could not keep the New run's settings",
+                            exc_info=True)
             return False
         # A WRITE MUST NEVER BRING A DELETED PROJECT BACK.
         #
@@ -9383,18 +9395,25 @@ class TabChart(QWidget):
             # Safe because ChromIQ is the only writer of this key while the
             # project is open; the disk comparison stays as the backstop for
             # the first write after a load, when there is nothing remembered.
+            # §4a N-1: SEED THE NEW-RUN BLOCK FROM THIS TARGET, ONCE.
+            #
+            # Done here because this runs on the pulldown-open trigger, while
+            # the loaded target is still the selected one — the only moment its
+            # settings are the ones on screen. Only when the block does not
+            # already exist: re-seeding on every click would overwrite the
+            # user's own New-run setup the moment they flicked to another run
+            # and back, silently.
+            self._seed_new_run_block(store, wanted)
             fingerprint = str(getattr(store, "dir", store))
-            if self._last_written.get(fingerprint) == wanted:
+            if self._written_cache().get(fingerprint) == wanted:
                 return False
             meta = store.load_meta()
             if getattr(meta, "create_chart_settings", None) == wanted:
-                self._last_written[fingerprint] = wanted
+                self._written_cache()[fingerprint] = wanted
                 return False       # nothing changed; don't churn the file
             meta.create_chart_settings = wanted
             store.save_meta(meta)
-            if "_last_written" not in self.__dict__:
-                self._last_written = {}
-            self._last_written[fingerprint] = wanted
+            self._written_cache()[fingerprint] = wanted
             log.debug("create-chart settings written for %s (%d parameters)",
                       getattr(store, "id", store), len(wanted))
             return True
@@ -9418,11 +9437,19 @@ class TabChart(QWidget):
         """
         store = self._target_text_store()
         if store is None:
-            key = self._target_settings_key()
-            held = self._pending_settings.get(key) if key is not None else None
+            seed = self._new_run_seed_path()
+            held = None
+            if seed is not None and seed.is_file():
+                try:
+                    import json as _json
+                    held = _json.loads(seed.read_text())
+                except Exception:      # noqa: BLE001 — a bad block is not fatal
+                    log.warning("Could not read %s; the New run starts clean",
+                                seed, exc_info=True)
             if not held:
                 return False
-            self._settings_store, self._settings_key = None, key
+            self._settings_store = None
+            self._settings_key = self._target_settings_key()
             self._loading_target_settings = True
             try:
                 from workflow.per_target_settings import apply
@@ -9496,12 +9523,110 @@ class TabChart(QWidget):
 
     #: The last snapshot written for each target, so a repeated write trigger
     #: costs nothing. See save_target_settings.
+    #:
+    #: Reached through `_written_cache()`, never directly: as a bare class
+    #: attribute every tab shared ONE dict, so a second tab (or a second test)
+    #: inherited the first one's "already written" marks and had its writes
+    #: silently skipped.
     _last_written: dict = {}
+
+    def _written_cache(self) -> dict:
+        """This tab's own record of what it last wrote."""
+        if "_last_written" not in self.__dict__:
+            self._last_written = {}
+        return self._last_written
 
     #: Settings for targets with no file yet, keyed by (profile run, run type).
     #: Class-level default, replaced on first write, so a duck-typed caller
     #: never trips over a missing attribute.
     _pending_settings: dict = {}
+
+    def _seed_new_run_block(self, store, snapshot_now: dict) -> None:
+        """Copy this target's settings into the New-run block if it has none.
+
+        §4a N-1 and N-2: seeded once, with the six rows Run type = Calibration
+        owns stripped out, so a New run never starts from a calibration
+        sheet's patch set.
+        """
+        folder = getattr(store, "dir", None)
+        if folder is None:
+            return
+        self._new_run_seed_dir = folder
+        try:
+            from workflow.per_target_settings import (NEW_RUN_FILENAME,
+                                                      seed_for_new_run)
+            seed = Path(folder) / "cache" / NEW_RUN_FILENAME
+            if not Path(folder).is_dir():
+                return                      # deleted; do not recreate it
+            if seed.exists():
+                return                      # it is the user's now (N-1)
+            from core.file_manager import write_json_atomically
+            write_json_atomically(seed, seed_for_new_run(snapshot_now))
+        except Exception:      # noqa: BLE001 — a seed is never worth a crash
+            log.warning("Could not seed the New run's settings", exc_info=True)
+
+    def _adopt_new_run_settings(self, new_run) -> bool:
+        """Give the freshly created run the settings chosen for "New run".
+
+        §4a N-3. The block was the specification for this run; now the run
+        exists, it becomes the run's own settings and the block is cleared.
+        """
+        seed = self._new_run_seed_path()
+        if seed is None or not seed.is_file():
+            return False
+        try:
+            import json as _json
+            held = _json.loads(seed.read_text())
+        except Exception:      # noqa: BLE001
+            log.warning("Could not read %s when creating %s", seed,
+                        getattr(new_run, "id", new_run), exc_info=True)
+            self.clear_new_run_block()
+            return False
+        try:
+            if held:
+                meta = new_run.load_meta()
+                meta.create_chart_settings = held
+                new_run.save_meta(meta)
+                log.info("New run %s adopted %d stored setting(s)",
+                         getattr(new_run, "id", new_run), len(held))
+        except Exception:      # noqa: BLE001 — never fail a build over this
+            log.warning("Could not give %s its New-run settings",
+                        getattr(new_run, "id", new_run), exc_info=True)
+            return False
+        finally:
+            self.clear_new_run_block()
+        return True
+
+    def clear_new_run_block(self) -> bool:
+        """Drop the New-run block once Generate Chart has consumed it (N-3).
+
+        Without this the run *after* next starts from a stale copy instead of
+        from the run actually loaded.
+        """
+        seed = self._new_run_seed_path()
+        self._new_run_seed_dir = None
+        if seed is None or not seed.is_file():
+            return False
+        try:
+            seed.unlink()
+            return True
+        except OSError:
+            log.warning("Could not remove %s", seed, exc_info=True)
+            return False
+
+    def _new_run_seed_path(self):
+        """``<seed target>/cache/new_run.json``, or None if there is nowhere.
+
+        Knut, #130 §4a N-4: the block lives in the ``cache/`` folder of the
+        target it was seeded from. ``_new_run_seed_dir`` remembers which that
+        was; after a restart it is forgotten and the block is simply orphaned,
+        which costs nothing because ``cache/`` is always safe to delete.
+        """
+        folder = getattr(self, "_new_run_seed_dir", None)
+        if folder is None:
+            return None
+        from workflow.per_target_settings import NEW_RUN_FILENAME
+        return Path(folder) / "cache" / NEW_RUN_FILENAME
 
     def _target_settings_key(self) -> "tuple | None":
         """A stable name for the selected target, for the no-file-yet case."""
@@ -10429,6 +10554,13 @@ class TabChart(QWidget):
             # which fires `changed` and re-reads both fields from the run —
             # finding them empty is exactly what wiped them (Knut, beta.147).
             self._write_target_text_into(new_run)
+            # …and the same for the SETTINGS the user chose for this run while
+            # it did not exist. §4a N-3: copied into the run, then the block is
+            # dropped — otherwise the run after next would start from a stale
+            # copy instead of the run actually loaded. Before `set_profile_run`
+            # for the same reason the text is: that fires `changed`, which
+            # re-reads everything from the run.
+            self._adopt_new_run_settings(new_run)
             ctl.set_profile_run(new_run.id)
 
     def _no_chart_guidance(self) -> str:

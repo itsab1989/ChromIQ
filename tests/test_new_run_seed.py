@@ -71,3 +71,99 @@ def test_the_stripped_rows_match_the_tab_exactly():
 def test_an_empty_snapshot_is_harmless():
     assert seed_for_new_run({}) == {}
     assert seed_for_new_run(None) == {}
+
+
+# ---------------------------------------------------------------------------
+# The wiring: seeded once, adopted by the run, then gone
+# ---------------------------------------------------------------------------
+class _Widget:
+    def __init__(self, flag, value="", enabled=True):
+        self.flag, self._v, self._e = flag, value, enabled
+
+    def get_raw_value(self):        return self._v
+    def set_value(self, v):         self._v = v
+    @property
+    def is_enabled_by_user(self):   return self._e
+    def set_user_enabled(self, b):  self._e = b
+
+
+class _Tab:
+    _target_ctl = None
+    _new_run_seed_dir = None
+    _last_written: dict = {}
+    _pending_settings: dict = {}
+
+    def __init__(self, store, widgets):
+        self._store, self._widgets = store, widgets
+        self._loading_target_settings = False
+        self._last_written = {}
+
+    def per_target_widgets(self):   return self._widgets
+    def _target_text_store(self):   return self._store
+
+
+@pytest.fixture
+def tab_and_run(tmp_path, qapp):
+    import ui.tabs.tab_chart as tc
+    for name in ("save_target_settings", "load_target_settings",
+                 "_target_settings_key", "_new_run_seed_path",
+                 "_seed_new_run_block", "clear_new_run_block",
+                 "_adopt_new_run_settings", "_written_cache"):
+        setattr(_Tab, name, getattr(tc.TabChart, name))
+    _Tab._CAL_VALUES = tc.TabChart._CAL_VALUES
+    proj = Project.create(tmp_path / "Demo", "Demo")
+    run = proj.run("run1")
+    run.ensure_dir()
+    return _Tab(run, {"targen": [_Widget("-g", "seeded")]}), run, proj
+
+
+def test_the_block_is_seeded_when_the_target_is_written(tab_and_run):
+    tab, run, _proj = tab_and_run
+    assert tab.save_target_settings() is True
+    seed = new_run_seed_path(run)
+    assert seed.is_file(), "no New-run block was seeded"
+    import json
+    assert json.loads(seed.read_text())["targen-g"]["value"] == "seeded"
+
+
+def test_it_is_not_re_seeded_over_the_users_own_edits(tab_and_run):
+    """§4a N-1 — the trap in the literal design."""
+    import json
+    tab, run, _proj = tab_and_run
+    tab.save_target_settings()
+    seed = new_run_seed_path(run)
+    seed.write_text(json.dumps({"targen-g": {"enabled": True, "value": "MINE"}}))
+
+    tab._widgets["targen"][0].set_value("something else")
+    tab.save_target_settings()
+    assert json.loads(seed.read_text())["targen-g"]["value"] == "MINE", (
+        "re-seeding overwrote what the user had set up for the New run"
+    )
+
+
+def test_the_new_run_adopts_it_and_the_block_is_gone(tab_and_run):
+    """§4a N-3 — otherwise the run after next inherits a stale copy."""
+    tab, run, proj = tab_and_run
+    tab.save_target_settings()
+    seed = new_run_seed_path(run)
+    assert seed.is_file()
+
+    created = proj.new_run()
+    assert tab._adopt_new_run_settings(created) is True
+    assert created.load_meta().create_chart_settings["targen-g"]["value"] == "seeded"
+    assert not seed.exists(), "the block outlived the run it specified"
+
+
+def test_adopting_when_there_is_no_block_is_harmless(tab_and_run):
+    tab, _run, proj = tab_and_run
+    assert tab._adopt_new_run_settings(proj.new_run()) is False
+
+
+def test_a_corrupt_block_does_not_stop_the_run_being_created(tab_and_run):
+    """cache/ is safe to delete; a bad block must behave like a missing one."""
+    tab, run, proj = tab_and_run
+    tab.save_target_settings()
+    new_run_seed_path(run).write_text("{ this is not json")
+    created = proj.new_run()
+    assert tab._adopt_new_run_settings(created) is False
+    assert not new_run_seed_path(run).exists(), "the bad block was left behind"

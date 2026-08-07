@@ -38,6 +38,7 @@ class _Tab:
     def per_target_widgets(self):   return self._widgets
     def _target_text_store(self):   return self._store
     _target_ctl = None              # no controller: the no-file key is None
+    _new_run_seed_dir = None        # …and nowhere to keep a New run's block
 
     save_target_settings = None     # bound below
     load_target_settings = None
@@ -49,6 +50,11 @@ def _bind():
     _Tab.load_target_settings = tc.TabChart.load_target_settings
     # The no-file-yet path needs these; the real tab has both.
     _Tab._target_settings_key = tc.TabChart._target_settings_key
+    _Tab._new_run_seed_path = tc.TabChart._new_run_seed_path
+    _Tab._seed_new_run_block = tc.TabChart._seed_new_run_block
+    _Tab.clear_new_run_block = tc.TabChart.clear_new_run_block
+    _Tab._CAL_VALUES = tc.TabChart._CAL_VALUES
+    _Tab._written_cache = tc.TabChart._written_cache
     _Tab._pending_settings = {}
     _Tab._last_written = {}
 

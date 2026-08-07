@@ -1,5 +1,18 @@
 # Changelog
 
+## v3.14.8-beta.172
+
+### New
+- **"New run" now starts from the run you were looking at**, not from empty
+  defaults. Making a new run is usually "like the last one, with one thing
+  changed", so selecting **New run** shows what is already on screen — nothing
+  visibly changes — and you edit it into the chart you actually want. Pressing
+  **Generate Chart** gives those settings to the run it creates.
+- The values Run type = Calibration decides are left out of that copy, so a new
+  profiling run never starts from a calibration sheet's patch set.
+- Going back and forth between the **Profile run** and **Run type** boxes no
+  longer rewrites anything when nothing has changed.
+
 ## v3.14.8-beta.171
 
 ### New
