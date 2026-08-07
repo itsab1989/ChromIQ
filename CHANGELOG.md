@@ -1,5 +1,14 @@
 # Changelog
 
+## v3.14.8-beta.177
+
+### Changed
+- **ChromIQ starts a little quicker.** It no longer asks your print system for
+  the list of printers while the window is still being built — that happens the
+  first time you open **Print Chart** instead. The list and everything on that
+  tab behave exactly as before; the wait has simply moved off the launch, where
+  most sessions never needed it.
+
 ## v3.14.8-beta.176
 
 ### New
