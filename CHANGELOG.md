@@ -1,5 +1,21 @@
 # Changelog
 
+## v3.14.8-beta.183
+
+### Changed
+- **Norwegian, Polish and Russian are now fully translated**, making ten of the
+  twelve languages complete. Only Japanese and Chinese still show English where
+  a translation is not ready.
+- **A message named a tab that was not on screen.** When the measurement
+  finished, the dialog offered “Go to Build Profile Tab” — but with calibration
+  options switched on, that tab is called **Calibration & Profiling**. It now
+  uses whichever name the tab actually has.
+- **Two parameter names were cut off behind their control**, in Polish and
+  Russian. Both now fit their column, and every language is checked
+  automatically from now on so it cannot happen again unnoticed.
+- **A Norwegian help text was missing a word** — “While this option is …” had
+  simply lost its “ON”.
+
 ## v3.14.8-beta.182
 
 ### Changed
