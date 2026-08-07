@@ -182,3 +182,60 @@ def test_no_translation_is_still_english(code):
         f"{code}: {len(bad)} entr(y/ies) are still essentially the English "
         f"source:\n  " + "\n  ".join(bad[:5])
     )
+
+
+# ---------------------------------------------------------------------------
+# The label column, which no test was watching
+# ---------------------------------------------------------------------------
+#
+# `scripts/i18n_check_name_widths.py` has existed for a while and was never
+# wired into the suite, so it only ran when somebody remembered. They did not:
+# Polish shipped a parameter name at 195px and Russian one at 189px against a
+# 188px column, both clipped behind the row's control, and both found by a
+# translator running the script by hand rather than by CI.
+#
+# A translated name is the one thing that cannot be checked by reading the
+# English, because the overflow depends on the font measuring the translated
+# text. That makes it exactly the kind of check that has to be automatic.
+
+_LABEL_BUDGET = 188      # the column is a fixed 190, with a little slack
+_CHECKBOX_BUDGET = 163   # same column, minus the checkbox indicator
+
+
+@pytest.mark.parametrize("code", CODES)
+def test_translated_parameter_names_fit_their_column(code, qapp):
+    """A name wider than its column is clipped behind the control beside it."""
+    import yaml
+
+    from core import i18n
+    from core.resource_path import resource_path
+    from PyQt6.QtWidgets import QLabel
+
+    # ALWAYS restore, and restore to what current_language() actually reports.
+    # The first version read a "_LANG" attribute that does not exist (the module
+    # calls it _language), so `previous` was None, the finally block skipped the
+    # restore, and the language leaked into every test that ran afterwards —
+    # 11 failures across the suite, in files with nothing to do with i18n.
+    previous = i18n.current_language()
+    try:
+        i18n.set_language(code)
+        with open(resource_path("data/parameters.yaml"), encoding="utf-8") as fh:
+            params = i18n.translate_parameters(yaml.safe_load(fh)["parameters"])
+        metrics = QLabel("x").fontMetrics()
+        over = []
+        for tool, defs in params.items():
+            for p in defs:
+                expert = bool(p.get("expert_only"))
+                if expert and p.get("type") == "boolean":
+                    continue          # free-width checkbox row
+                budget = _CHECKBOX_BUDGET if expert else _LABEL_BUDGET
+                width = metrics.horizontalAdvance(p["name"] + ":")
+                if width > budget:
+                    over.append(f"{tool} {p['flag']} {p['name']!r} "
+                                f"= {width}px, budget {budget}")
+        assert not over, (
+            f"{code}: {len(over)} parameter name(s) overflow the label column "
+            f"and will be clipped on screen:\n  " + "\n  ".join(over)
+        )
+    finally:
+        i18n.set_language(previous)

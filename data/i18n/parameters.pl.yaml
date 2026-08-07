@@ -647,7 +647,7 @@ parameters:
         Uwaga: przy wielu polach paski mogą wyjść poza krawędź papieru —
         sprawdź wygenerowany TIFF przed drukiem.
     "-N":
-      name: "TIFF N-kanałowy (>4 atramenty)"
+      name: "TIFF N-kanałowy (>4 atram.)"
       tooltip_title: "TIFF N-kanałowy (-N)"
       tooltip_body: |-
         Dla drukarek z więcej niż 4 kanałami atramentu (np. CMYK plus
