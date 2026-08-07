@@ -706,7 +706,7 @@ class Ti3InfoDialog(QDialog):
         self._row_kv(
             tr("Contrast ratio"), tr("{r:,.0f} : 1").format(r=a.contrast_ratio),
             tr("How many times brighter the paper white is than the deepest "
-               "black. Bigger means punchier prints. This is the *measured* "
+               "black. Bigger means punchier prints. This is the measured "
                "contrast — the honest figure for this paper-and-ink, which is "
                "what you started out asking about."))
         self._row_kv(

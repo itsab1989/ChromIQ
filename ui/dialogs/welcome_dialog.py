@@ -904,11 +904,11 @@ GLOSSARY += [
         "run you have not described.")),
     (tr("Run type (Calibration / Profiling / Verification)"),
      tr("What you are working on right now, chosen in the bar above the tabs. "
-        "The list reads in the order of the work. **Calibration** prepares the "
+        "The list reads in the order of the work. Calibration prepares the "
         "printer itself, before any profile is built; there is one per "
-        "project, and it needs no run. **Profiling** builds the profile — "
+        "project, and it needs no run. Profiling builds the profile — "
         "chart, measurement, .icc — and is what you want most of the time, "
-        "which is why it is the one already selected. **Verification** checks "
+        "which is why it is the one already selected. Verification checks "
         "a finished profile by measuring a chart printed through it; its "
         "results are kept in the run's “verifications” folder, dated, and "
         "never change the profile. Calibration appears only while calibration "

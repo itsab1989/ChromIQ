@@ -1671,8 +1671,8 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
         "A tip if the numbers look alarmingly high: if your reference values were "
         "made for a different paper or finish (for example glossy values checked "
         "against a matte print), the deep shadows can't match — matte simply can't "
-        "go as dark. ChromIQ tells you when an error is mostly *lightness* (a "
-        "black-point limit you can't avoid) versus a real *colour* shift. You can "
+        "go as dark. ChromIQ tells you when an error is mostly lightness (a "
+        "black-point limit you can't avoid) versus a real colour shift. You can "
         "also point it at your own profile (.icc) and it will skip the colours your "
         "paper physically can't reproduce, so they stop dominating the score.\n\n"
         "It's a quick way to sanity-check a profile, compare one paper or ink "
@@ -2033,10 +2033,10 @@ class VerifyProfileDialog(_ToolDialogBase):
     )
     HELP = (
         tr("This is the most honest way to answer “is my profile any good?”.\n\n"
-        "Why a *separate* chart? When you build a profile, it is tuned to the exact "
+        "Why a separate chart? When you build a profile, it is tuned to the exact "
         "patches you measured — so checking it against those same patches almost "
         "always looks great, even if the profile is weak elsewhere. Printing and "
-        "measuring a *different* chart and checking the profile against that is a "
+        "measuring a different chart and checking the profile against that is a "
         "real test: the profile has to predict colours it was never trained on. "
         "Colour managers call this a round-trip or cross-check.\n\n"
         "How to do it:\n\n"
