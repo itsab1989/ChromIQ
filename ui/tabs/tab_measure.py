@@ -1515,7 +1515,14 @@ class TabMeasure(QWidget):
         # Buttons — shared
         btn_outer = QWidget(left_container)
         bo_layout = QVBoxLayout(btn_outer)
-        bo_layout.setContentsMargins(16, 6, 16, 8)
+        # 13 at the bottom, so the gap above the log matches every other tab.
+        # On this tab the buttons are NOT the last thing before the log — a
+        # sound row sits between them — so what the eye reads as "the gap
+        # above the log" is this margin, not the button-to-log distance.
+        # Top margin 8, not 6: measured with the real styling, this tab's
+        # buttons sat 2px higher than every other tab's, so they shifted
+        # slightly as you changed tab (Basti, 2026-08-07).
+        bo_layout.setContentsMargins(16, 8, 16, 13)
         btn_row = QHBoxLayout()
         self._start_btn = QPushButton(tr("Start Measurement"), btn_outer)
         self._start_btn.setObjectName("primary")
@@ -1533,7 +1540,11 @@ class TabMeasure(QWidget):
         btn_row.addWidget(self._stop_btn)
         btn_row.addStretch()
         btn_row.addWidget(self._save_defaults_btn)
-        bo_layout.addLayout(btn_row)
+        # THE BUTTONS ARE THE LAST THING BEFORE THE LOG, LIKE EVERY OTHER TAB.
+        # Basti, 2026-08-07. The sounds switch used to sit between the two,
+        # which pushed the buttons up and made this the one tab where they
+        # were not level with the rest. Added AFTER the sound row below, so
+        # the order on screen is: sounds, buttons, log.
 
         # #131: master switch for measurement sounds (shared by both modes). The
         # individual sounds for each event are chosen in Preferences → Sounds.
@@ -1558,10 +1569,14 @@ class TabMeasure(QWidget):
             btn_outer, min_width=460)
         sound_row.addWidget(self._sound_tip)
         bo_layout.addLayout(sound_row)
+        bo_layout.addLayout(btn_row)
         lc_layout.addWidget(btn_outer)
 
         # Log — shared
         log_outer = QWidget(left_container)
+        # Named so hiding the log hides its margins with it — see
+        # MainWindow._apply_log_visibility.
+        log_outer.setObjectName("log_container")
         lo_layout = QVBoxLayout(log_outer)
         lo_layout.setContentsMargins(16, 0, 16, 12)
         self._log = QPlainTextEdit(log_outer)

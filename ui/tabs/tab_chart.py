@@ -1557,6 +1557,13 @@ class TabChart(QWidget):
         # — not 67 pixels, which was six (Knut, beta.125).
         fit_log_height(self._log)
         self._log.setPlaceholderText(tr("Output will appear here…"))
+        # Breathing room above the log, so the buttons are not sitting on it.
+        # Basti, 2026-08-07: measured WITH the real styling, the gap was 6px
+        # here and 0 on Check & Refine, against 13px below the log — the
+        # buttons looked stuck to it. Basti settled on 11px, and the value
+        # here is the DELTA on top of this layout's own spacing — measured
+        # with the real styling, because QSS padding only lands at polish.
+        left_layout.addSpacing(5)
         left_layout.addWidget(self._log)
 
         # Status bar (replaces main-window status bar)
@@ -1689,7 +1696,14 @@ class TabChart(QWidget):
         layout.setSpacing(8)
 
         # Working folder / target name
-        folder_grp = QGroupBox(tr("Output"), inner)
+        # OUTSIDE THE SCROLL, like every other module (Basti, 2026-08-07).
+        #
+        # Guided put "Output" inside the scrolling area while Manual — and the
+        # equivalent section on every other tab — keeps it fixed above it. So
+        # the project name scrolled out of sight the moment you looked at the
+        # options below it, which is the one field you most want in view while
+        # you work. Parented to `outer` because it no longer lives in `inner`.
+        folder_grp = QGroupBox(tr("Output"), outer)
         folder_layout = QVBoxLayout(folder_grp)
 
         name_row = QHBoxLayout()
@@ -1744,7 +1758,7 @@ class TabChart(QWidget):
                 self._target_name_edit, self._target_name_hint
             )
         )
-        layout.addWidget(folder_grp)
+        outer_layout.addWidget(folder_grp)
 
         # Instrument
         instr_grp = QGroupBox(tr("Measurement Instrument"), inner)

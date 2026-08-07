@@ -159,6 +159,9 @@ DEFAULTS: dict[str, Any] = {
     "gamut_edges":               False,   # edge plot
     "gamut_function":            "f",     # f=forward, b=backward
     "gamut_themed_colors":       True,   # remap vertex colors to app palette
+    # Hide the log panel on every tab (Basti, 2026-08-07). Off by default:
+    # the log is where a failure explains itself, so it is opt-out.
+    "hide_log_output":           False,
     # Calibration workflow
     "calibration_mode":          False,
     "printcal_smoothing":        1.0,

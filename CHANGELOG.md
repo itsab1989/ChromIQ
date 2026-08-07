@@ -1,5 +1,24 @@
 # Changelog
 
+## v3.14.8-beta.176
+
+### New
+- **Preferences → “Hide the log panel on every tab”.** One switch removes the
+  output box from every tab at once, for when you would rather give the room to
+  the chart preview or the settings. The full log is still written to disk
+  either way, so nothing is lost while it is hidden.
+
+### Changed
+- **Create Chart, Guided: the “Output” section no longer scrolls away.** It now
+  stays fixed above the options, the way Manual and the other tabs already
+  worked, so the project name is in view while you set a chart up.
+- **The action buttons sit in the same place on every tab.** On Build Profile —
+  and on Calibration & Profiling, which shares it — the progress bar has moved
+  above the buttons instead of below them, and on Measure the “Play sounds
+  during measurement” switch has moved above them too. The gap between the
+  buttons and the log is now 11px everywhere, so nothing shifts as you change
+  tab.
+
 ## v3.14.8-beta.175
 
 ### Fixed

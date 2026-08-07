@@ -525,12 +525,18 @@ class TabProfile(QWidget):
         btn_row.addWidget(self._install_btn)
         btn_row.addStretch()
         btn_row.addWidget(self._save_defaults_btn)
-        cc.addLayout(btn_row)
-
+        # THE BAR GOES ABOVE THE BUTTONS, IN ALL THREE MODULES.
+        # Basti, 2026-08-07: the buttons must sit at the same height on every
+        # tab, and a progress bar between them and the log moved them. Bar
+        # first, then the button row, then the log — the same order everywhere,
+        # including the two modules that only appear with calibration options
+        # switched on.
         self._progress_bar = SpectrumSegmentsBar(colprof_container)
         self._progress_bar.set_label("Build Profile", "")
         self._progress_bar.set_value(0)
         cc.addWidget(self._progress_bar)
+
+        cc.addLayout(btn_row)
 
         self._log = QPlainTextEdit(colprof_container)
         self._log.setObjectName("log")
@@ -539,6 +545,13 @@ class TabProfile(QWidget):
         # — not 67 pixels, which was six (Knut, beta.125).
         fit_log_height(self._log)
         self._log.setPlaceholderText(tr("colprof output will appear here…"))
+        # Breathing room above the log, so the buttons are not sitting on it.
+        # Basti, 2026-08-07: measured WITH the real styling, the gap was 6px
+        # here and 0 on Check & Refine, against 13px below the log — the
+        # buttons looked stuck to it. Basti settled on 11px, and the value
+        # here is the DELTA on top of this layout's own spacing — measured
+        # with the real styling, because QSS padding only lands at polish.
+        cc.addSpacing(5)
         cc.addWidget(self._log)
 
         self._outer_stack.addWidget(colprof_container)       # page 0
@@ -1034,13 +1047,13 @@ class TabProfile(QWidget):
         btn_row.addWidget(self._pc_run_btn)
         btn_row.addStretch()
         btn_row.addWidget(self._pc_save_defaults_btn)
-        cc.addLayout(btn_row)
-
-        # ---- Progress bar (outside scroll area) ----
+        # ---- Progress bar, above the buttons (see the colprof module) ----
         self._pc_progress = SpectrumSegmentsBar(container)
         self._pc_progress.set_label("Create Calibration File", "")
         self._pc_progress.set_value(0)
         cc.addWidget(self._pc_progress)
+
+        cc.addLayout(btn_row)
 
         # ---- Log (outside scroll area) ----
         self._pc_log = QPlainTextEdit(container)
@@ -1050,6 +1063,7 @@ class TabProfile(QWidget):
         # — not 67 pixels, which was six (Knut, beta.125).
         fit_log_height(self._pc_log)
         self._pc_log.setPlaceholderText(tr("printcal output will appear here…"))
+        cc.addSpacing(5)      # see the colprof module
         cc.addWidget(self._pc_log)
 
         s = self._settings
@@ -1484,13 +1498,13 @@ class TabProfile(QWidget):
         btn_row.addWidget(self._ac_run_btn)
         btn_row.addStretch()
         btn_row.addWidget(self._ac_save_defaults_btn)
-        cc.addLayout(btn_row)
-
-        # ---- Progress bar (outside groupbox) ----
+        # ---- Progress bar, above the buttons (see the colprof module) ----
         self._ac_progress = SpectrumSegmentsBar(container)
         self._ac_progress.set_label("Apply Calibration", "")
         self._ac_progress.set_value(0)
         cc.addWidget(self._ac_progress)
+
+        cc.addLayout(btn_row)
 
         # ---- Log (outside groupbox) ----
         self._ac_log = QPlainTextEdit(container)
@@ -1500,6 +1514,7 @@ class TabProfile(QWidget):
         # — not 67 pixels, which was six (Knut, beta.125).
         fit_log_height(self._ac_log)
         self._ac_log.setPlaceholderText(tr("applycal output will appear here…"))
+        cc.addSpacing(5)      # see the colprof module
         cc.addWidget(self._ac_log)
 
         s = self._settings

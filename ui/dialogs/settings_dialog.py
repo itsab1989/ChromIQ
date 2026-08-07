@@ -410,6 +410,39 @@ class SettingsDialog(QDialog):
             min_width=560,
         )
 
+        self._hide_log_check = QCheckBox(
+            tr("Hide the log panel on every tab"), self)
+        hide_log_tip = TooltipButton(
+            tr("Hide the Log Panel"),
+            tr("Removes the box at the bottom of each tab that fills with "
+               "text while ChromIQ works — the one headed “Output will appear "
+               "here…” before anything has run.\n\n"
+               "It is one switch for the whole app, not one per tab, so the "
+               "layout stays consistent wherever you are. Turning it back on "
+               "brings every panel back exactly as it was; nothing is lost "
+               "while it is hidden, because ChromIQ keeps writing to its log "
+               "file either way.\n\n"
+               "WHY YOU MIGHT WANT IT ON\n"
+               "On a small screen the log takes room that the chart preview, "
+               "the patch list or the profile settings could use. If your "
+               "measurements normally go smoothly, you may never read it — and "
+               "the tab is calmer without a panel of technical output on it.\n\n"
+               "WHY YOU MIGHT WANT IT OFF\n"
+               "The log is where a failure explains itself. When a chart will "
+               "not generate, an instrument will not answer or a profile build "
+               "stops, the reason is almost always in that panel — and it is "
+               "the first thing worth reading, and the first thing worth "
+               "sending if you report a problem.\n\n"
+               "Whichever you choose, the full log is always written to disk. "
+               "Hiding the panel only changes what is on screen.\n\n"
+               "One tab has no log panel to hide: Print Chart does its work "
+               "through the system print dialog and has nothing of its own to "
+               "report.\n\n"
+               "Default: off (the log is shown)."),
+            self,
+            min_width=560,
+        )
+
         self._show_location_check = QCheckBox(
             tr("Show the location being edited"), self)
         show_location_tip = TooltipButton(
@@ -1094,6 +1127,7 @@ class SettingsDialog(QDialog):
             _bh_cell(self._update_notify_check, update_notify_tip),
             _bh_cell(self._themed_colors_check, themed_colors_tip),
             _bh_cell(self._show_location_check, show_location_tip),
+            _bh_cell(self._hide_log_check, hide_log_tip),
             _bh_cell(self._native_files_check, native_files_tip),
             _bh_cell(self._cal_mode_check, cal_tip),
             _bh_cell(self._chromiq_refine_check, refine_tip),
@@ -2546,6 +2580,7 @@ class SettingsDialog(QDialog):
         self._cal_mode_check.setChecked(bool(s.get("calibration_mode", False)))
         self._show_location_check.setChecked(
             bool(s.get("show_location_being_edited", True)))
+        self._hide_log_check.setChecked(bool(s.get("hide_log_output", False)))
         # Scanner Limits — must follow Restore Factory Defaults too (Knut #108)
         self._scan_peak_spin.setValue(float(s.get("scanner_selfcheck_peak", 30.0)))
         self._scan_avg_spin.setValue(float(s.get("scanner_selfcheck_avg", 12.0)))
@@ -3299,6 +3334,7 @@ class SettingsDialog(QDialog):
         s.set("calibration_mode",          self._cal_mode_check.isChecked())
         s.set("show_location_being_edited",
               self._show_location_check.isChecked())
+        s.set("hide_log_output",           self._hide_log_check.isChecked())
         s.set("chromiq_refinement",        self._chromiq_refine_check.isChecked())
         s.set("averaging_enabled",         self._averaging_check.isChecked())
         s.set("declutter_on_load",         self._declutter_check.isChecked())

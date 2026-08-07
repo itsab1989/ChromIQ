@@ -429,6 +429,13 @@ class TabCheckRefine(QWidget):
         # ignored both Knut's nine-line request and the user's own size.
         fit_log_height(self._log)
         self._log.setPlaceholderText(tr("profcheck output will appear here…"))
+        # Breathing room above the log, so the buttons are not sitting on it.
+        # Basti, 2026-08-07: measured WITH the real styling, the gap was 6px
+        # here and 0 on Check & Refine, against 13px below the log — the
+        # buttons looked stuck to it. Basti settled on 11px, and the value
+        # here is the DELTA on top of this layout's own spacing — measured
+        # with the real styling, because QSS padding only lands at polish.
+        left_layout.addSpacing(5)
         left_layout.addWidget(self._log, stretch=1)
 
         splitter.addWidget(left)

@@ -224,6 +224,9 @@ class MainWindow(QMainWindow):
 
         self._tabs.currentChanged.connect(self._on_tab_changed)
         QTimer.singleShot(0, lambda: self._on_tab_changed(self._tabs.currentIndex()))
+        # The log panels exist by now, so honour the preference before the
+        # window is first shown rather than after the first Preferences visit.
+        self._apply_log_visibility()
 
         # Restore geometry
         geom = self._settings.get("window_geometry")
@@ -1285,6 +1288,29 @@ class MainWindow(QMainWindow):
         # until the run selection happened to change.
         if getattr(self, "_target_bar", None) is not None:
             self._target_bar.refresh()
+        self._apply_log_visibility()
+
+    def _apply_log_visibility(self) -> None:
+        """Show or hide the log panel on every tab at once.
+
+        Basti asked for one switch rather than a per-tab one, so this finds the
+        panels by object name instead of listing them: every tab's log is a
+        ``QPlainTextEdit`` called ``"log"``, and there are six of them — Build
+        Profile alone has three, one per module. A hand-written list would miss
+        the next one added, and the failure would be a log that stubbornly
+        stays visible with no clue why.
+
+        A wrapper that exists only to hold a log goes with it, or hiding the
+        log would leave its margins behind as a blank strip.
+        """
+        from PyQt6.QtWidgets import QPlainTextEdit
+
+        show = not bool(self._settings.get("hide_log_output", False))
+        for log in self.findChildren(QPlainTextEdit, "log"):
+            log.setVisible(show)
+            parent = log.parentWidget()
+            if parent is not None and parent.objectName() == "log_container":
+                parent.setVisible(show)
 
     def _apply_calibration_mode(self) -> None:
         enabled = bool(self._settings.get("calibration_mode", False))
