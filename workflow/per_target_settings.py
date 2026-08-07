@@ -167,3 +167,41 @@ def iter_tabs(*tabs: Any) -> Iterator["tuple[Any, list[Param]]"]:
         params = params_for(tab)
         if params:
             yield tab, params
+
+
+# ---------------------------------------------------------------------------
+# The "New run" seed (#130 §4a)
+# ---------------------------------------------------------------------------
+
+#: The rows Run type = Calibration decides for itself. Stripped from a seed, so
+#: a New run never starts from a calibration sheet's patch set (§4a N-2).
+_CALIBRATION_OWNED = {
+    ("targen", "-f"), ("targen", "-e"), ("targen", "-B"),
+    ("targen", "-s"), ("targen", "-G"), ("printtarg", "-r"),
+}
+
+NEW_RUN_FILENAME = "new_run.json"
+
+
+def new_run_seed_path(target) -> "Path | None":
+    """Where the New-run block lives for a target, or None if it has no folder.
+
+    Knut, #130 (2026-08-07): *"the new_run.json file always should live and die
+    in the cache/ folder for the runN/ runN/verifications/ or cal/ folders."*
+
+    ``cache/`` is the right home for it — the layout already documents that
+    folder as "always safe to delete", which is exactly this file's nature. An
+    orphaned block (the app restarted before Generate Chart consumed it) costs
+    nothing: the New run simply seeds fresh next time.
+    """
+    from pathlib import Path as _P
+    folder = getattr(target, "dir", None)
+    if folder is None:
+        return None
+    return _P(folder) / "cache" / NEW_RUN_FILENAME
+
+
+def seed_for_new_run(settings: dict) -> dict:
+    """A snapshot with the calibration-owned rows removed (§4a N-2)."""
+    drop = {f"{tool}{flag}" for tool, flag in _CALIBRATION_OWNED}
+    return {k: v for k, v in (settings or {}).items() if k not in drop}
