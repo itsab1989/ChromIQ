@@ -4319,6 +4319,34 @@ class TabMeasure(QWidget):
         self._refresh_bidir_autodetect()
         return True
 
+    def _chart_instrument_code(self) -> "str | None":
+        """The family code the LOADED chart records, or None if it records none.
+
+        printtarg writes TARGET_INSTRUMENT into the .ti2, not the .ti1, and the
+        Measure tab loads the .ti1 — so the answer usually lives in the sibling
+        file. Reading the chart is the whole point: the preference this used to
+        consult says nothing about the sheet in the user's hand.
+        """
+        path = getattr(self, "_ti1_path", None)
+        if path is None:
+            return None
+        from pathlib import Path as _P
+        from data.patch_db import instrument_family_of
+        from ui.ti2_loader import read_target_instrument
+        candidates = [_P(path)]
+        if _P(path).suffix.lower() != ".ti2":
+            candidates.insert(0, _P(path).with_suffix(".ti2"))
+        for cand in candidates:
+            try:
+                if not cand.is_file():
+                    continue
+                name = read_target_instrument(cand)
+            except Exception:      # noqa: BLE001 — never block a read on this
+                continue
+            if name:
+                return instrument_family_of(name)
+        return None
+
     def _warn_if_instrument_does_not_match_chart(self, model: str) -> None:
         """Say so when the connected instrument is not the one the chart was
         made for (#130, Knut 2026-07-29).
@@ -4349,8 +4377,24 @@ class TabMeasure(QWidget):
             # set is a warning that appears when it should not.
             if getattr(self, "_ti1_path", None) is None:
                 return
-            from data.patch_db import instrument_mismatch
-            chart_code = str(self._settings.get("chart_instrument", "") or "")
+            from data.patch_db import instrument_family_of, instrument_mismatch
+            # ASK THE CHART, NOT THE PREFERENCE.
+            #
+            # This used to read `chart_instrument`, an app-wide setting whose
+            # default is "i1" (core/settings.py). So the dialog's "the chart you
+            # are about to measure was laid out for …" named whatever that
+            # preference happened to hold — for anyone who had never set it,
+            # always an i1Pro. Basti hit it on 2026-08-08 with a chart whose own
+            # .ti2 says TARGET_INSTRUMENT "X-Rite ColorMunki": the app told him
+            # it was made for an i1Pro and offered to cancel a measurement that
+            # was perfectly fine.
+            #
+            # The .ti1 is the file the tab loads, and a .ti1 carries no
+            # TARGET_INSTRUMENT — printtarg writes it into the .ti2. So look
+            # beside it. The preference stays as a last resort, for a chart that
+            # genuinely records nothing.
+            chart_code = self._chart_instrument_code() or str(
+                self._settings.get("chart_instrument", "") or "")
             pair = instrument_mismatch(chart_code, model)
             if pair is None:
                 return

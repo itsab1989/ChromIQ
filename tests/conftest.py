@@ -327,6 +327,53 @@ def _never_touch_the_real_chromiq_folder():
 # includes them, and the release gate always runs with --runslow.
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# THE SETTINGS STORE IS THE DEVELOPER'S OWN. Isolate it before anything runs.
+# ---------------------------------------------------------------------------
+# `_never_touch_the_real_chromiq_folder` guards the ~/ChromIQ FOLDER. Nothing
+# guarded the QSettings STORE, and `AppSettings()` — which 101 test files
+# construct — is `QSettings("ChromIQ", "ChromIQ")`, the real one. CLAUDE.md has
+# said so for a while: *"a test run also writes to the developer's own
+# preferences"*.
+#
+# It is not theoretical. On 2026-08-07 the user's live `custom_output_path` was
+# found pointing at
+#     …/pytest-of-Basti/pytest-2/popen-gw0/test_a_healthy_project_says_no0/out
+# a sandbox that no longer existed, so his ChromIQ could not see a single one of
+# his projects. `chartread_engine` had been flipped to "argyll" too — he had
+# reported the engine "disabling itself" more than once and nobody had connected
+# the two.
+#
+# Qt cannot do this for us on macOS. `QSettings("ChromIQ", "ChromIQ")` — the
+# two-argument constructor AppSettings uses — resolves to the native plist and
+# ignores setDefaultFormat(); only the no-argument form honours it, and
+# QSettings.setPath() is documented as having no effect on NativeFormat there:
+#
+#     QSettings('ChromIQ','ChromIQ') -> ~/Library/Preferences/com.chromiq.ChromIQ.plist
+#     QSettings()                    -> the redirected .ini
+#
+# A first attempt at this used setDefaultFormat + setPath, passed a single-file
+# check, and still let the full gate rewrite the user's live custom_output_path
+# and flip chartread_engine back to "argyll". So the redirect happens where it
+# actually bites: the name `core.settings.QSettings`, which is what
+# `AppSettings()` calls.
+def pytest_configure(config):
+    import tempfile
+
+    from PyQt6.QtCore import QSettings
+
+    import core.settings as _cs
+
+    sandbox = pathlib.Path(tempfile.mkdtemp(prefix="chromiq-settings-"))
+    ini = sandbox / "ChromIQ.ini"
+
+    def _sandboxed(*_args, **_kwargs):
+        return QSettings(str(ini), QSettings.Format.IniFormat)
+
+    _cs.QSettings = _sandboxed
+    config._chromiq_settings_sandbox = str(sandbox)
+
+
 def pytest_addoption(parser):
     parser.addoption("--runslow", action="store_true", default=False,
                      help="also run the slow end-to-end build tests")
