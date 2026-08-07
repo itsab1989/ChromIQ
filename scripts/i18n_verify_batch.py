@@ -21,6 +21,7 @@ all of it benign, and a check that noisy trains people to ignore it.
 """
 from __future__ import annotations
 
+import difflib
 import json
 import re
 import sys
@@ -60,6 +61,23 @@ _QUOTED = re.compile(r"'[^'\n]{0,80}'|\"[^\"\n]{0,80}\"|„[^“”\n]{0,80}[“
 #: French "page" flagged 118 times for being the French word. Drift can only
 #: be judged against a decision somebody actually made, which is why this
 #: table is short and hand-written.
+#: A translation can be almost entirely English and still count as done, because
+#: the placeholder scan only catches value == key. One German entry was 95%
+#: identical to its source — a stale copy of an OLDER English text, still telling
+#: the user to reopen a chart "from Print or Measure" long after the English had
+#: replaced that wording. Coverage read 100% and nothing flagged it.
+_NEAR_ENGLISH = 0.85
+_MIN_LEN = 80
+
+#: The two keys that are legitimately near-identical in every language, listed
+#: explicitly rather than detected. A heuristic was tried — "mostly punctuation
+#: and placeholders" — and it is exactly the kind of clever rule that quietly
+#: stops matching. Both are dominated by things that must not be translated:
+_NEAR_ENGLISH_OK = (
+    "{name}.ti1, {name}.ti2",          # a file listing: placeholders + extensions
+    "Built on ArgyllCMS by Graeme Gill",   # the credits line: proper nouns
+)
+
 _GLOSSARY = {
     "nl": {"patch": "meetveld", "patches": "meetvelden",
            "spacer": "scheidingslijn", "spacers": "scheidingslijnen",
@@ -112,6 +130,13 @@ def check(code: str) -> "tuple[dict, list[str]]":
         # that, in every language.
         if set(_BRACE.findall(k)) != set(_BRACE.findall(v)):
             note("placeholder", k, f"{_BRACE.findall(k)} -> {_BRACE.findall(v)}")
+        if (len(k) >= _MIN_LEN
+                and not k.startswith(_NEAR_ENGLISH_OK)
+                and difflib.SequenceMatcher(None, k, v).ratio() > _NEAR_ENGLISH):
+            note("near-english", k,
+                 "the translation is almost identical to the English source — "
+                 "usually a stale copy that was never translated, and it counts "
+                 "as done because value != key")
         if len(k) <= 24 and "\n" not in k and "{" not in k:
             budget = int(len(k) * 1.6 + 6)
             if len(v) > budget:
