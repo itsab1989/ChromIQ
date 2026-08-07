@@ -8181,14 +8181,21 @@ class TabMeasure(QWidget):
                 "<b>Measurement complete — your readings have been saved.</b><br><br>"
                 "Reading the same chart a second time and averaging the two results "
                 "reduces instrument noise and can improve profile accuracy.<br><br>"
-                "&nbsp;&nbsp;•&nbsp; <b>Go to Build Profile Tab</b> — use this single "
-                "measurement as it is, and open the Build Profile tab. The profile "
+                # {tab}, not a hard-coded "Build Profile": tab 4 is renamed to
+                # "Calibration & Profiling" whenever Preferences → Calibration
+                # options is on (main_window._apply_calibration_mode), so the
+                # literal named a tab the user could not see. The two sibling
+                # texts above were converted for beta.148 — Knut's own fix —
+                # and this third one was missed. Found by the Russian
+                # translator, who looked up every control name it quotes.
+                "&nbsp;&nbsp;•&nbsp; <b>Go to {tab} Tab</b> — use this single "
+                "measurement as it is, and open the {tab} tab. The profile "
                 "is built there, when you press <i>Build Profile</i>.<br>"
                 "&nbsp;&nbsp;•&nbsp; <b>Measure again to average</b> — read the same "
                 "chart once more; the results will be averaged together.<br>"
                 "&nbsp;&nbsp;•&nbsp; <b>Close</b> — keep this measurement and go "
                 "nowhere; you can build the profile whenever you like."
-            )
+            ).format(tab=self._profile_tab_name())
         msg = QLabel(body, dlg)
         msg.setWordWrap(True)
         layout.addWidget(msg)
