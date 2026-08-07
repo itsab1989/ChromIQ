@@ -46,7 +46,8 @@ _QUOTED = re.compile(r"'[^'\n]{0,80}'|\"[^\"\n]{0,80}\"|„[^“”\n]{0,80}[“
 #: recorded decision are listed; an empty glossary simply skips the check.
 _GLOSSARY = {
     "nl": {"patch": "meetveld", "patches": "meetvelden",
-           "spacer": "scheidingslijn", "spacers": "scheidingslijnen"},
+           "spacer": "scheidingslijn", "spacers": "scheidingslijnen",
+           "chart": "kaart", "charts": "kaarten"},
     "de": {"patch": "Messfeld", "patches": "Messfelder",
            "spacer": "Trennfeld", "spacers": "Trennfelder"},
 }
