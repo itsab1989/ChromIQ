@@ -39,7 +39,12 @@ _HTML = re.compile(
 
 _BRACE = re.compile(r"\{[^}]*\}")
 _LOGP = re.compile(r"\[(?:INFO|OK|WARN|ERROR)\]")
-_QUOTED = re.compile(r"'[^'\n]{0,80}'|\"[^\"\n]{0,80}\"|„[^“”\n]{0,80}[“”]")
+_QUOTED = re.compile(r"'[^'\n]{0,80}'|\"[^\"\n]{0,80}\"|„[^“”\n]{0,80}[“”]"
+                     # A SHORT parenthetical is a gloss teaching the English
+                     # term — German's „Feldsatz (Patch-Set)“ is doing the
+                     # reader a favour, not drifting. Bounded to 30 characters
+                     # so a whole English sentence in brackets still shows up.
+                     r"|\([^()\n]{0,30}\)")
 #: Terms a language has already settled on. The English word appearing inside a
 #: translation means the glossary drifted — which is how Dutch ended up with
 #: both "meetveld" and "patches" in the same catalogue. Only languages with a
