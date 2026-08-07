@@ -1,5 +1,17 @@
 # Changelog
 
+## v3.14.8-beta.185
+
+### Changed
+- **All twelve languages are now fully translated.** Chinese completes the set,
+  joining German, Spanish, French, Italian, Dutch, Portuguese, Swedish,
+  Norwegian, Polish, Russian and Japanese. Every button, message, tooltip and
+  help text reads in your language — including the long explanatory texts that
+  used to stay in English. Choose yours under **Preferences → Appearance**; it
+  applies after a restart.
+- **Chinese says “配置文件” for a profile throughout.** Fifteen texts still used
+  an older word, so the same thing had two names.
+
 ## v3.14.8-beta.184
 
 ### Fixed
