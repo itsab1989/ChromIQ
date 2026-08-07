@@ -44,6 +44,17 @@ _QUOTED = re.compile(r"'[^'\n]{0,80}'|\"[^\"\n]{0,80}\"|„[^“”\n]{0,80}[“
 #: translation means the glossary drifted — which is how Dutch ended up with
 #: both "meetveld" and "patches" in the same catalogue. Only languages with a
 #: recorded decision are listed; an empty glossary simply skips the check.
+#:
+#: **A generic version of this was tried and does not work — do not rebuild it.**
+#: The idea was to need no hand-written glossary: count, per language, the
+#: translations still carrying each English term, and flag whichever language
+#: keeps it far more often than its peers. Measured, it is mostly false
+#: positives, because languages legitimately differ in what they borrow:
+#: German keeps "Chart" as its own term (577 strings), Dutch keeps "run",
+#: four languages keep "preset" — and cognates defeat it outright, with
+#: French "page" flagged 118 times for being the French word. Drift can only
+#: be judged against a decision somebody actually made, which is why this
+#: table is short and hand-written.
 _GLOSSARY = {
     "nl": {"patch": "meetveld", "patches": "meetvelden",
            "spacer": "scheidingslijn", "spacers": "scheidingslijnen",
