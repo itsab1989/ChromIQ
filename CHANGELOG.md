@@ -1,5 +1,16 @@
 # Changelog
 
+## v3.14.8-beta.180
+
+### Changed
+- **Four help texts no longer show stray asterisks.** In the Tools dialogs and
+  in the “Run type” Dictionary entry, words meant to be emphasised were written
+  with Markdown, which Qt shows literally — you saw `**Calibration**` rather
+  than bold text. The emphasis has been removed so the sentences read cleanly.
+- **Dutch: 154 more labels and buttons translated.** Part of the pre-release
+  translation work. Everything else is unchanged, and any text not yet
+  translated still appears in English.
+
 ## v3.14.8-beta.179
 
 ### Changed
