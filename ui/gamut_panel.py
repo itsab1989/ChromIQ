@@ -371,6 +371,20 @@ class GamutPanel(QWidget):
         self._coverage_ab_label     = QLabel(tr("A covered by B: —"), vol_grp)
         self._coverage_ba_label     = QLabel(tr("B covered by A: —"), vol_grp)
 
+        # WHAT THE NUMBER IS, on the label that shows it. ArgyllCMS's iccgamut
+        # prints "Total volume of gamut is %f cubic colorspace units"
+        # (xicc/iccgamut.c:602) — a volume in the working colour space, so ΔE³,
+        # not millilitres. ChromIQ used to label it "cc", which reads as cubic
+        # centimetres: a typical printer gamut then claimed several hundred
+        # litres. Found on 2026-08-08 when a translator asked what "cc" meant.
+        _unit_tip = tr(
+            "The volume of the gamut, in cubic units of the colour space shown "
+            "above — ArgyllCMS calls these cubic colorspace units. It is not a "
+            "physical volume, and two figures are only comparable when both "
+            "were measured in the same space.")
+        for _lbl in (self._vol_label, self._compare_vol_label,
+                     self._intersection_label):
+            _lbl.setToolTip(_unit_tip)
         self._vol_label.setStyleSheet(_bold_style)
         for lbl in (self._compare_vol_label, self._intersection_label,
                     self._coverage_ab_label, self._coverage_ba_label):
@@ -1027,7 +1041,7 @@ class GamutPanel(QWidget):
 
     def _update_volume_labels(self) -> None:
         if self._primary_volume is not None:
-            self._vol_label.setText(tr("Volume: {v:,.0f} cc").format(v=self._primary_volume))
+            self._vol_label.setText(tr("Volume: {v:,.0f} units³").format(v=self._primary_volume))
         else:
             self._vol_label.setText(tr("Volume: —"))
 
@@ -1035,17 +1049,17 @@ class GamutPanel(QWidget):
             delta = (self._compare_volume - self._primary_volume) / self._primary_volume * 100
             sign  = "+" if delta >= 0 else ""
             self._compare_vol_label.setText(
-                tr("Compare: {v:,.0f} cc  (Δ {sign}{delta:.1f}%)").format(
+                tr("Compare: {v:,.0f} units³  (Δ {sign}{delta:.1f}%)").format(
                     v=self._compare_volume, sign=sign, delta=delta)
             )
         elif self._compare_volume is not None:
-            self._compare_vol_label.setText(tr("Compare: {v:,.0f} cc").format(v=self._compare_volume))
+            self._compare_vol_label.setText(tr("Compare: {v:,.0f} units³").format(v=self._compare_volume))
         else:
             self._compare_vol_label.setText(tr("Compare: —"))
 
         r = self._viewgam_result
         if r and r.intersection_volume is not None:
-            self._intersection_label.setText(tr("Intersection: {v:,.0f} cc").format(v=r.intersection_volume))
+            self._intersection_label.setText(tr("Intersection: {v:,.0f} units³").format(v=r.intersection_volume))
             self._coverage_ab_label.setText(
                 tr("A covered by B: {pct:.1f}%").format(pct=r.primary_coverage_pct)
                 if r.primary_coverage_pct is not None else tr("A covered by B: —")

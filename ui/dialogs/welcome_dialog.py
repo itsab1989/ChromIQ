@@ -63,7 +63,7 @@ WORKFLOWS: list[dict] = [
                 "every file downstream (.ti2, .ti3 and the final .icc). A "
                 "good convention is printer + paper + date, e.g. "
                 "“EpsonP900_HahnemuhlePhotoRag_2026-05”; avoid spaces and "
-                "special characters. Click “Create Chart”. ChromIQ writes a "
+                "special characters. Click “Generate Chart”. ChromIQ writes a "
                 "chart TIFF plus a .ti2 file that records exactly where every "
                 "patch sits on the page.\n\n"
                 "Two boxes there are worth filling in while you are at it, "
@@ -92,7 +92,7 @@ WORKFLOWS: list[dict] = [
                 "to scanning each strip in one continuous left-and-right "
                 "motion, turn this option OFF first — leaving it on while you "
                 "sweep bidirectionally is the classic cause of mis-recognised "
-                "strips and bad data. Click “Measure Chart” and follow the "
+                "strips and bad data. Click “Start Measurement” and follow the "
                 "strip-by-strip prompts.")),
             (4, tr("On the Build Profile tab the new .ti3 measurement is "
                 "already loaded. If you like, fill in the optional metadata "
@@ -140,7 +140,7 @@ WORKFLOWS: list[dict] = [
                 "convention is printer + paper + a “_pre” suffix for this "
                 "pre-conditioning pass, e.g. "
                 "“EpsonP900_HahnemuhlePhotoRag_pre_2026-05”; avoid spaces "
-                "and special characters. Click “Create Chart”. This first "
+                "and special characters. Click “Generate Chart”. This first "
                 "chart will produce the pre-conditioning profile — not yet "
                 "the final one.")),
             (2, tr("Move to the Print Chart tab and pick your printer and media. "
@@ -161,7 +161,7 @@ WORKFLOWS: list[dict] = [
                 "to scanning each strip in one continuous left-and-right "
                 "motion, turn this option OFF first — leaving it on while you "
                 "sweep bidirectionally is the classic cause of mis-recognised "
-                "strips and bad data. Click “Measure Chart” and follow the "
+                "strips and bad data. Click “Start Measurement” and follow the "
                 "strip-by-strip prompts.")),
             (4, tr("On the Build Profile tab click “Build Profile” to "
                 "produce the first .icc. Treat this profile as a colour-"
@@ -171,7 +171,7 @@ WORKFLOWS: list[dict] = [
                 "the new .icc loaded as the pre-conditioning profile.")),
             (1, tr("Optionally raise the patch count — a second-pass chart "
                 "benefits from more patches because they're placed where "
-                "the printer is most non-linear. Click “Create Chart” to "
+                "the printer is most non-linear. Click “Generate Chart” to "
                 "generate the high-quality chart.")),
             (2, tr("Print the new chart on the Print Chart tab. Driver colour "
                 "management must be OFF — on macOS ChromIQ disables it "
@@ -187,7 +187,7 @@ WORKFLOWS: list[dict] = [
                 "left-and-right motion, turn this option OFF first — "
                 "leaving it on while you sweep bidirectionally is the "
                 "classic cause of mis-recognised strips and bad data. "
-                "Click “Measure Chart” and follow the strip-by-strip "
+                "Click “Start Measurement” and follow the strip-by-strip "
                 "prompts.")),
             (4, tr("Click “Build Profile” one more time. The result is "
                 "noticeably more accurate than the first-pass profile "
@@ -227,7 +227,7 @@ WORKFLOWS: list[dict] = [
                 "“EpsonP900_HahnemuhlePhotoRag_v2_2026-05”. Because the "
                 "seed profile tells ChromIQ exactly where your printer is "
                 "most non-linear, raise the patch count so those tricky "
-                "regions get more samples. Click “Create Chart”.")),
+                "regions get more samples. Click “Generate Chart”.")),
             (2, tr("Move to the Print Chart tab and pick your printer and media. "
                 "Driver colour management must be OFF — if the driver re-maps "
                 "colours the patches won't match their definition and the "
@@ -246,7 +246,7 @@ WORKFLOWS: list[dict] = [
                 "to scanning each strip in one continuous left-and-right "
                 "motion, turn this option OFF first — leaving it on while you "
                 "sweep bidirectionally is the classic cause of mis-recognised "
-                "strips and bad data. Click “Measure Chart” and follow the "
+                "strips and bad data. Click “Start Measurement” and follow the "
                 "strip-by-strip prompts.")),
             (4, tr("On the Build Profile tab the new .ti3 is already loaded. "
                 "If you like, fill in the optional metadata fields "
@@ -298,11 +298,11 @@ WORKFLOWS: list[dict] = [
             (3, tr("Once the print is dry, head to the Measure tab and connect "
                 "your spectrophotometer, then place the chart on a white "
                 "surface (a plain sheet of paper underneath works). Before "
-                "scanning, look at the “Disable bidirectional reading” option "
+                "scanning, look at the “Disable Bidirectional Strip Recognition” option "
                 "— it is ticked by default, which is the safest setting. If "
                 "you use an i1Pro and you are used to scanning each strip in "
                 "one continuous left-and-right motion, untick it first. "
-                "Click “Measure Chart” and follow the strip-by-strip "
+                "Click “Start Measurement” and follow the strip-by-strip "
                 "prompts.")),
             (4, tr("On the Build Profile tab the new .ti3 is already loaded. "
                 "If you like, fill in the optional metadata fields "
@@ -345,13 +345,13 @@ WORKFLOWS: list[dict] = [
             (3, tr("Connect and switch on the spectrophotometer. ChromIQ "
                 "detects it automatically; a green status pill appears in "
                 "the toolbar when it's ready.")),
-            (3, tr("Look at the “Disable bidirectional reading” option before "
+            (3, tr("Look at the “Disable Bidirectional Strip Recognition” option before "
                 "you start. It is ticked by default — safe for any spectro "
                 "but slower. If you use an i1Pro and you are used to scanning "
                 "each strip in one continuous left-and-right sweep, untick it "
                 "first; leaving it ticked while you scan bidirectionally "
                 "causes mis-recognised strips and bad measurements.")),
-            (3, tr("Click “Measure Chart” and follow the strip-by-strip "
+            (3, tr("Click “Start Measurement” and follow the strip-by-strip "
                 "prompts. Results save as a .ti3 next to the chart, "
                 "ready for the Build Profile tab.")),
             (3, tr("Optional — tick “Play sounds during measurement” to get "
@@ -902,6 +902,15 @@ GLOSSARY += [
         "spelled the way ChromIQ expects. If the description is empty the "
         "marker simply prints nothing, so a saved layout is safe to reuse on a "
         "run you have not described.")),
+    (tr("Spectral measurement"),
+     tr("A reading that records how much light a patch reflects at each "
+        "wavelength, rather than just three numbers for “how red, how green, "
+        "how blue”. Most spectrophotometers — the i1Pro and ColorMunki "
+        "families — measure spectrally; most colorimeters do not. Spectral "
+        "data is what lets ChromIQ compensate for optical brighteners in the "
+        "paper and re-calculate colours under a different light source, so "
+        "when a measurement is not spectral those options stay switched "
+        "off.")),
     (tr("Run type (Calibration / Profiling / Verification)"),
      tr("What you are working on right now, chosen in the bar above the tabs. "
         "The list reads in the order of the work. Calibration prepares the "

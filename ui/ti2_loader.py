@@ -540,7 +540,7 @@ def _handle_inside_current(parent, ti2_path, working_dir, controller):
         tr("This chart belongs to the loaded project"), header, [
         (tr("Continue"),
          tr("Use it in place; nothing is copied. Profile run is set to "
-            "<b>Overwrite run {n}</b> and Run type to <b>{kind}</b> to match.")
+            "<b>Run {n}</b> and Run type to <b>{kind}</b> to match.")
          .format(n=n, kind=(tr("Verification") if verif else tr("Profiling"))),
          "continue"),
         (tr("Use as base for a new profile"),

@@ -463,7 +463,7 @@ The mirror image, and it needs `C = A` from §3a:
 >
 > **What you can do:**
 > • **Start a fresh measurement** — the safe choice if this chart is the one you printed. The existing measurement is kept in `old/` and nothing is lost.
-> • **Cancel and look at the files first** — the run is at {path}. This run's `chart/` folder holds the copy of the chart that was stored when it was last measured, and Restore Used Chart puts that copy back. There is exactly one; ChromIQ does not keep earlier versions of a chart.
+> • **Cancel** — stops here so you can look at the files first. The run is at {path}. This run's `chart/` folder holds the copy of the chart that was stored when it was last measured, and Restore Used Chart puts that copy back. There is exactly one; ChromIQ does not keep earlier versions of a chart.
 >
 > Resuming is not offered, because resuming into a mismatch would write readings against patch positions that may not be the ones on your paper.
 
@@ -664,6 +664,15 @@ Every window this specification can raise, in one place. **ID → where it is us
 >
 > Your earlier measurement has been put back from `old/{date}/`, and the file this session wrote is kept beside it so nothing is lost. Nothing needs doing right now — measure again when you are ready.
 
+> **Amended 2026-08-08 (Sebastian).** The two bullets used to read *“Start a
+> fresh measurement”* and *“Cancel and look at the files first”* — names the
+> window has never had. Its buttons are **Measure anyway** and **Cancel**, which
+> are Knut's own beta.132 ruling: *“Measurement has not yet started, so it is
+> wrong name for the ‘MEASURE AGAIN’ button. Call button instead ‘MEASURE
+> ANYWAY’.”* The buttons were right and the message was stale, so the message
+> follows the buttons. Nothing else about the message changed. Found by the
+> Japanese translator, who looked up every control name the text quotes.
+
 ### M-TI3-MISMATCH · the measurement and the chart disagree — §5
 
 > **This run's measurement and its chart do not match**
@@ -673,8 +682,8 @@ Every window this specification can raise, in one place. **ID → where it is us
 > ChromIQ cannot tell which of the two is the wrong one. A measurement can be cut short by an interrupted session, and a chart can be replaced or edited outside ChromIQ — both look the same from here.
 >
 > **What each button does:**
-> • **Start a fresh measurement** — the safe choice if this chart is the one you printed. The existing measurement is moved to `old/{date}/` and nothing is lost.
-> • **Cancel and look at the files first** — the run is at {path}. This run's `chart/` folder holds the copy of the chart that was stored when it was last measured, and **Restore Used Chart** puts that copy back. There is exactly one; ChromIQ does not keep earlier versions of a chart.
+> • **Measure anyway** — starts a fresh measurement. The safe choice if this chart is the one you printed: the existing measurement is moved to `old/{date}/` and nothing is lost.
+> • **Cancel** — stops here so you can look at the files first. The run is at {path}. This run's `chart/` folder holds the copy of the chart that was stored when it was last measured, and **Restore Used Chart** puts that copy back. There is exactly one; ChromIQ does not keep earlier versions of a chart.
 >
 > Resuming is not offered here, because resuming into a mismatch would write readings against patch positions that may not be the ones on your paper.
 >

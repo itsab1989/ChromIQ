@@ -401,7 +401,7 @@ class ProfileInfoDialog(QDialog):
             return
         self._gamut_viewer = GamutViewer(self._runner, self)
         self._gamut_viewer.finished.connect(
-            lambda vol, *_: self._set_volume_text(tr("{v:,.0f} cc").format(v=vol)))
+            lambda vol, *_: self._set_volume_text(tr("{v:,.0f} units³").format(v=vol)))
         self._gamut_viewer.error.connect(lambda *_: self._set_volume_text("—"))
         # Coarse surface resolution: we only need the volume number, not a mesh.
         self._gamut_viewer.run(

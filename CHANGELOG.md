@@ -1,5 +1,26 @@
 # Changelog
 
+## v3.14.8-beta.186
+
+### Changed
+- **The gamut viewer's volume is no longer labelled “cc”.** That reads as cubic
+  centimetres; it is a volume in the colour space, so a printer gamut appeared
+  to be several hundred litres. It now says `units³`, and the figure carries a
+  tooltip explaining what it is and that two numbers only compare when both were
+  measured in the same space.
+- **Six help texts named buttons that do not exist.** They told you to click
+  “Measure Chart” (the button reads **Start Measurement**), “Create Chart” (it
+  reads **Generate Chart**) and “Disable bidirectional reading” (the setting is
+  **Disable Bidirectional Strip Recognition**). All corrected, in every language.
+- **A new Dictionary entry for “Spectral measurement”**, since whether a reading
+  is spectral decides whether paper-whitener compensation and custom
+  illuminants are offered at all.
+- **The measurement-mismatch window names its own buttons.** It described
+  choices called “Start a fresh measurement” and “Cancel and look at the files
+  first”; the buttons read **Measure anyway** and **Cancel**.
+- **Portuguese distinguishes a spacer from a separator**, and **Russian no
+  longer labels the gamut volume in cm³**.
+
 ## v3.14.8-beta.185
 
 ### Changed

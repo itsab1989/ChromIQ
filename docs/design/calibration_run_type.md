@@ -561,7 +561,7 @@ Project `~/ChromIQ/My-Printer/`.
 | E4 | A project made before this feature, with **no** `cal/` | Selecting Calibration shows the "no calibration chart yet" guidance. |
 | E5 | Regenerating the calibration chart over a finished calibration | §4.7 window; everything to `cal/old/<date>/`; nothing deleted. |
 | E6 | Measuring a calibration chart when `cal/` holds a complete `.ti3` | The §5 "starting over" rules apply unchanged — the same messages, against the calibration measurement. |
-| E7 | A corrupt or empty calibration `.ti3` | Same as a run's: `M-CHART-CORRUPT` (already in the catalogue, pending approval). |
+| E7 | A corrupt or empty calibration `.ti3` | Same as a run's: `M-CHART-CORRUPT` (in the catalogue; approved by Knut 2026-08-04). |
 | E8 | Duplicate / Delete pressed with a Calibration target | Both are about runs. They grey out with a sentence saying which Run type they need — the pattern `duplicate_state` already uses (`ui/measurement_target_bar.py:427-440`). |
 | E9 | Restore Used Chart with a Calibration target | **In the first version** (decision 3, answered 2026-08-05). The calibration chart is snapshotted at the same moment as any other — when its measurement starts — which also **fixes D3**, the one chart whose loss is unrecoverable today. Before a calibration has been measured there is nothing stored yet, so the button greys with that reason and no other. |
 | E10 | printcal Re-calibrate / Verify with no previous `.cal` | Already handled: `no_prev_cal`, `workflow/printcal_runner.py:44-49`. With E5 in place, the previous `.cal` is in `cal/old/` and can be pointed at. |
