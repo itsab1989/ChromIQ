@@ -1,5 +1,25 @@
 # Changelog
 
+## v3.14.8-beta.181
+
+### Changed
+- **German, French, Spanish and Italian are now fully translated.** The whole
+  interface — every button, message, tooltip and help text — reads in those four
+  languages, including the long explanatory texts that were still appearing in
+  English. Pick your language under **Preferences → Appearance**; the change
+  applies after a restart. The remaining eight languages are still being worked
+  through and show English where a translation is not ready yet.
+- **Log lines use the same tags in every language.** `[INFO]`, `[OK]`, `[WARN]`
+  and `[ERROR]` were translated in a couple of places and left in English
+  everywhere else, so a single log could show two different words for the same
+  thing. They are consistent now.
+- **Dutch, German and Italian use one word per thing.** A few texts had drifted
+  into using the English term — “patches” instead of *meetvelden*, “chart”
+  instead of *kaart* — and one Dutch help text pointed at a button by a name
+  that does not appear in the Dutch interface.
+- **Four help texts no longer show stray asterisks**, and one German help text
+  that was still in English has been translated.
+
 ## v3.14.8-beta.180
 
 ### Changed

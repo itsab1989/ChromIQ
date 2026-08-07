@@ -58,6 +58,14 @@ OUTCOME and the PREREQUISITE. **Preserve all information — never shorten or
 summarise a long help text.** Use the informal address modern consumer software
 uses in {LANGUAGE}.
 
+**THE FILE OUTRANKS ANY GLOSSARY IN THIS BRIEF.** If a term here disagrees with
+what the catalogue already uses consistently, follow the catalogue and say so in
+your report. This is not hypothetical: the Italian brief said spacer =
+*separatore*, carried over from Dutch without checking, when the file had long
+since settled spacer = *spaziatore* (44 entries) and reserved *separatore* for
+English "separator" (3 entries) — a real distinction between two different
+things that the brief would have collapsed.
+
 **Read the translations already in the file and follow them.** The catalogue is
 ~76% done, so the terminology is already decided — do not invent a second word
 for something that has one. German (`data/i18n/de.json`) is the tone reference;
