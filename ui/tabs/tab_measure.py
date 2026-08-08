@@ -3265,6 +3265,19 @@ class TabMeasure(QWidget):
         self._update_resume_availability()
         return True
 
+    def _resume_is_set_on_the_panel(self) -> "bool | None":
+        """What the Measure panel currently says about refine/resume.
+
+        ``None`` when neither control exists yet, so the caller can fall back to
+        the remembered answer. Guided and Manual are linked, so either one
+        answers for both; guided is asked first because it is the default view.
+        """
+        for name in ("_resume_cb", "_m_resume_cb"):
+            cb = getattr(self, name, None)
+            if cb is not None:
+                return bool(cb.isChecked())
+        return None
+
     def _maybe_offer_existing_overlay(self) -> None:
         """#134: when a freshly-loaded chart already has a measurement, show a
         small dialog offering BOTH choices as checkboxes (Basti): see it as an
@@ -3357,7 +3370,22 @@ class TabMeasure(QWidget):
             tr("Refine / resume this measurement (keep the strips already "
                "measured)"), dlg)
         resume_cb.setStyleSheet(_green_cb_css)
-        resume_cb.setChecked(bool(self._settings.get("overlay_prompt_resume", False)))
+        # OPEN SHOWING WHAT THE PANEL ALREADY SAYS.
+        #
+        # Seeding this purely from the remembered answer let the window
+        # contradict the options behind it. Basti, 2026-08-08: he asked
+        # Check & Refine to guide him through a refinement, which ticks
+        # "Refine / resume" and the strips file — and this window then opened
+        # with resume UNTICKED. Pressing OK applies these two values, so it
+        # would have quietly cancelled the refinement he had just asked for.
+        #
+        # The panel is the truth of what will run, so the window starts from it
+        # and the remembered preference only supplies the default when the panel
+        # has nothing set. That also makes the memory per run rather than global,
+        # because the panel's own value comes from the run's stored settings.
+        _panel_resume = self._resume_is_set_on_the_panel()
+        resume_cb.setChecked(bool(_panel_resume) if _panel_resume is not None
+                             else bool(self._settings.get("overlay_prompt_resume", False)))
         resume_sub = QLabel(tr(
             "With this on, a new measurement re-uses the existing one — you only "
             "scan the strips you want to update or add, and everything already "
