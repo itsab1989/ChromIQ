@@ -826,7 +826,21 @@ class MainWindow(QMainWindow):
                 "If they were moved or renamed, put them back next to the .ti2 "
                 "— or open the chart again from the project it belongs to."
             ).format(stem=Path(loaded).stem))
-        self._tabs.setCurrentWidget(self._tab_chart)
+        # DO NOT MOVE SOMEONE WHO IS ALREADY WHERE THE CHART IS USED.
+        #
+        # This used to navigate to Create Chart unconditionally, on the reasoning
+        # that the tabs run in workflow order so a freshly opened chart is looked
+        # at there first. That holds when the chart arrives from somewhere with
+        # nothing to do with it — but the masthead is the ONLY way to load a
+        # chart, so a user standing on Measure, about to measure, was thrown back
+        # to tab 1 every time (Basti, 2026-08-08). It also sat badly beside a rule
+        # this model has already corrected twice: ending a measurement, and
+        # stopping a calibration, must not change tab by themselves (K18).
+        #
+        # Measure and Print both show the loaded chart, so being on either is
+        # already the right place to be.
+        if self._tabs.currentWidget() not in (self._tab_measure, self._tab_print):
+            self._tabs.setCurrentWidget(self._tab_chart)
         self._target_bar.refresh()
 
     def _on_run_duplicated(self, run_id: str) -> None:

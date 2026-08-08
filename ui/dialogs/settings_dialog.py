@@ -1461,7 +1461,42 @@ class SettingsDialog(QDialog):
 
         self._pace_enable = QCheckBox(tr("Warn me when I read a strip too fast"), self)
         self._pace_enable.setChecked(bool(self._settings.get("pace_hint_enabled", True)))
-        v.addWidget(self._pace_enable)
+        pace_tip = TooltipButton(
+            tr("Warn Me When I Read a Strip Too Fast"),
+            tr("Shows a window when you have swiped a strip more quickly than "
+               "your instrument can measure it properly, and offers to read that "
+               "strip again.\n\n"
+               "WHY IT MATTERS\n"
+               "A spectrophotometer takes a fixed number of readings per second "
+               "— a ColorMunki manages about 50. Move the instrument quickly and "
+               "each patch gets only a handful of them, so its colour is an "
+               "average of fewer samples and carries more noise. The measurement "
+               "still succeeds, which is exactly the problem: nothing looks "
+               "wrong, and the noise ends up inside the profile you build from "
+               "it.\n\n"
+               "WHAT YOU SEE\n"
+               "When a strip comes in too fast, ChromIQ tells you the speed it "
+               "measured and what to aim for, and gives you two choices: read "
+               "that strip again more slowly, or keep it and carry on. Nothing "
+               "is discarded unless you ask for it.\n\n"
+               "HOW FAST IS TOO FAST\n"
+               "That depends on the instrument and on how many patches are in a "
+               "strip, so the threshold is set per instrument in the table "
+               "below. Raise a row's minimum for more careful work, or set it to "
+               "“Off” to stop warning for that instrument alone.\n\n"
+               "TURNING IT OFF changes nothing about how measuring works — the "
+               "same readings are taken and saved. It only stops ChromIQ "
+               "mentioning the speed, so a hurried strip passes without comment. "
+               "Worth leaving on unless the window is interrupting you more "
+               "often than it is helping.\n\n"
+               "Default: on."),
+            self)
+        pace_row = QHBoxLayout()
+        pace_row.setContentsMargins(0, 0, 0, 0)
+        pace_row.addWidget(self._pace_enable)
+        pace_row.addStretch()
+        pace_row.addWidget(pace_tip)
+        v.addLayout(pace_row)
 
         grp = QGroupBox(tr("Per instrument"), self)
         form = QGridLayout(grp)
@@ -1550,7 +1585,11 @@ class SettingsDialog(QDialog):
             # 2026-07-26). The text lives beside the defaults themselves, so a
             # changed default cannot leave a stale explanation behind.
             from core.measure_pace import explanation_for
-            from ui.tooltip_button import TooltipButton
+            # NOT a local import of TooltipButton: it is imported at module
+            # level, and re-importing it here made the name local to the whole
+            # method — so the tooltip added earlier in this same method raised
+            # UnboundLocalError, and 19 tests errored on a dialog that would
+            # not build.
             title, body = explanation_for(key)
             form.addWidget(TooltipButton(title, body, self), row, 4)
 

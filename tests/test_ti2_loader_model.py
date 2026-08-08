@@ -291,3 +291,120 @@ def test_A12_flat_chart_offers_no_continue(qapp, tmp_path, monkeypatch):
     out, _ = L.resolve_ti2(None, ti2, _settings(tmp_path), ctl)
     assert "continue" not in seen_keys, "flat/loose chart must not offer Continue"
     assert out == Project.load(proj.root).run("run2").chart_ti2
+
+
+# ---------------------------------------------------------------------------
+# Nothing open, and the chart lives in a project (Basti, 2026-08-08)
+# ---------------------------------------------------------------------------
+# The ordinary first action — launch ChromIQ, load a chart — took the
+# create-a-new-project fallback even when the file sat plainly inside
+# `<project>/runs/run1/`. The bar stayed on "New run", and from there the
+# "this chart already has a measurement" window has no scope to remember its
+# suppress tick against, so it reappeared on every visit to the Measure tab.
+#
+# `_project_root_for()` could already answer which project the file belongs to,
+# at any depth. Nothing asked it unless a project was ALREADY open.
+
+
+class _EmptyFM(_FM):
+    """A FileManager with a working folder but nothing open — until it is.
+
+    `project()` raises the way the real one does with no target set, and stops
+    raising once `open_project_at` has been called. A stub that refused for ever
+    made the adoption test fail on itself: the chart WAS used in place, so the
+    open branch had run, but the stub could never report a project.
+    """
+
+    def __init__(self, root):
+        super().__init__(root)
+        self._opened = None
+
+    def project(self):
+        if self._opened is None:
+            raise FileNotFoundError("no project is open")
+        return Project.load(self._opened)
+
+    def open_project_at(self, root):
+        self._opened = Path(root)
+        super().open_project_at(root)
+
+
+def _ctl_with_nothing_open(work: Path):
+    return MeasurementTargetController(_EmptyFM(work))
+
+
+def test_nothing_open_a_chart_in_a_project_opens_that_project(qapp, tmp_path,
+                                                              monkeypatch):
+    """Open → the project is adopted and its run selected; nothing is copied."""
+    work = tmp_path / "work"; work.mkdir(parents=True)
+    proj = Project.create(work / "P", "P"); run = proj.current_run(); run.ensure_dir()
+    run.chart_ti2.write_text("c"); (run.dir / "P_01.tif").write_text("t")
+
+    ctl = _ctl_with_nothing_open(work)
+    assert ctl.project_or_none() is None, "precondition: nothing is open"
+
+    monkeypatch.setattr(L, "_choice_dialog", lambda *a, **k: "open")
+    out, tiffs = L.resolve_ti2(None, run.chart_ti2, _settings(tmp_path), ctl)
+
+    assert out == run.chart_ti2, "the chart is used where it is, not copied"
+    assert ctl.project_or_none() is not None, "the project was never opened"
+    assert ctl.project_or_none().root == proj.root
+    assert ctl.target.profile_run == "run1"
+    assert not ctl.target.is_verification()
+    assert len(tiffs) == 1
+
+
+def test_nothing_open_a_verification_chart_selects_verification(qapp, tmp_path,
+                                                                monkeypatch):
+    """A verification chart must not open as a profiling run.
+
+    `_run_and_kind_for_ti2` returns (run_id, IS_VERIFICATION) — a bool. The
+    first version of this fix compared it to the string "verification", which
+    is never equal, so every verification chart would have opened as Profiling
+    and pointed the bar at the wrong place to measure into. Nothing else in the
+    suite would have noticed.
+    """
+    work = tmp_path / "work"; work.mkdir(parents=True)
+    proj = Project.create(work / "P", "P"); run = proj.current_run(); run.ensure_dir()
+    vdir = run.dir / "verifications"; vdir.mkdir(parents=True, exist_ok=True)
+    vti2 = vdir / "P-verify.ti2"; vti2.write_text("v")
+
+    ctl = _ctl_with_nothing_open(work)
+    monkeypatch.setattr(L, "_choice_dialog", lambda *a, **k: "open")
+    L.resolve_ti2(None, vti2, _settings(tmp_path), ctl)
+
+    assert ctl.project_or_none().root == proj.root
+    assert ctl.target.is_verification(), "opened as Profiling — the bool bug"
+
+
+def test_nothing_open_the_user_can_still_start_a_new_profile(qapp, tmp_path,
+                                                             monkeypatch):
+    """The other choice must still copy out, not adopt."""
+    work = tmp_path / "work"; work.mkdir(parents=True)
+    proj = Project.create(work / "P", "P"); run = proj.current_run(); run.ensure_dir()
+    run.chart_ti2.write_text("c")
+
+    ctl = _ctl_with_nothing_open(work)
+    monkeypatch.setattr(L, "_choice_dialog", lambda *a, **k: "new")
+    monkeypatch.setattr(L, "_copy_out_new_project",
+                        lambda *a, **k: ("COPIED", []))
+    out, _ = L.resolve_ti2(None, run.chart_ti2, _settings(tmp_path), ctl)
+    assert out == "COPIED"
+    assert ctl.project_or_none() is None, "a copy-out must not adopt the original"
+
+
+def test_nothing_open_a_loose_chart_is_unaffected(qapp, tmp_path, monkeypatch):
+    """A chart outside any project keeps the original new-project flow."""
+    work = tmp_path / "work"; work.mkdir(parents=True)
+    loose = _loose(work / "loose")            # no project.json anywhere above it
+
+    ctl = _ctl_with_nothing_open(work)
+    seen = {}
+
+    def _spy(parent, ti2, wd):
+        seen["called"] = True
+        return ti2, []
+
+    monkeypatch.setattr(L, "_handle_outside", _spy)
+    L.resolve_ti2(None, loose, _settings(tmp_path), ctl)
+    assert seen.get("called"), "the loose-chart path must not have changed"

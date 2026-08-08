@@ -328,6 +328,19 @@ def resolve_ti2(
     inside_root = _project_root_for(ti2_path, working_dir)
     loaded_root = _loaded_project_root(controller)
 
+    # NOTHING OPEN, BUT THE CHART BELONGS TO A PROJECT.
+    #
+    # This used to fall through to the create-a-new-project flow below, which is
+    # the ordinary first action after launching: open ChromIQ, load a chart. The
+    # chart's own project was never opened, so the bar stayed on "New run" — and
+    # from there the "this chart already has a measurement" window has no scope
+    # to remember its suppress tick against, so it returned on every visit to the
+    # Measure tab (Basti, 2026-08-08). The resolver below already knew which
+    # project the file belongs to; nothing asked it.
+    if controller is not None and loaded_root is None and inside_root is not None:
+        return _handle_inside_nothing_open(parent, ti2_path, inside_root,
+                                           working_dir, controller)
+
     if controller is not None and loaded_root is not None:
         if inside_root is not None and inside_root == loaded_root:
             return _handle_inside_current(parent, ti2_path, working_dir,
@@ -548,6 +561,52 @@ def _handle_inside_current(parent, ti2_path, working_dir, controller):
             "name); the original is untouched."), "new")])
     if key == "continue":
         controller.set_run_type(RUN_TYPE_VERIFICATION if verif else RUN_TYPE_PROFILING)
+        controller.set_profile_run(run_id)
+        _, tiffs = _related_files(ti2_path)
+        return ti2_path, tiffs
+    if key == "new":
+        return _copy_out_new_project(parent, ti2_path, working_dir)
+    return None
+
+
+def _handle_inside_nothing_open(parent, ti2_path, inside_root, working_dir,
+                                controller):
+    """No project is open and the chart lives in one — offer to open it.
+
+    The same two choices as A2b, worded for the case where there is nothing to
+    switch *away* from. Opening copies nothing: the run the chart belongs to
+    becomes the selected run, exactly as if the project had been opened first
+    and the chart loaded from inside it.
+
+    A verification chart selects Run type = Verification, matching A2a. Getting
+    that wrong would point the bar at a profiling run and quietly invite a
+    measurement into the wrong place.
+    """
+    name = inside_root.name
+    key = _choice_dialog(parent, tr("This chart belongs to a profile project"), "", [
+        (tr("Open {name}").format(name=name),
+         tr("Opens <b>{name}</b> and selects the profile run this chart was "
+            "made for, so the bar above the tabs shows what you are working "
+            "on. Nothing is copied or moved: the chart, its printed pages and "
+            "any measurement already made stay exactly where they are. Choose "
+            "this when you are picking up work you started earlier."
+            ).format(name=name), "open"),
+        (tr("Use as base for a new profile"),
+         tr("Copies this chart into a new printer profile project (new name → "
+            "new folder). The original {name} is untouched.").format(name=name),
+         "new")])
+    if key == "open":
+        try:
+            controller._fm.open_project_at(inside_root)
+        except Exception:      # noqa: BLE001
+            log.warning("Could not open project %s", name, exc_info=True)
+            return None
+        # (run_id, IS_VERIFICATION) — a bool, not a name. Comparing it to a
+        # string would silently open every verification chart as a profiling
+        # run, and point the bar at the wrong place to measure into.
+        run_id, is_verif = _run_and_kind_for_ti2(ti2_path)
+        controller.set_run_type(
+            RUN_TYPE_VERIFICATION if is_verif else RUN_TYPE_PROFILING)
         controller.set_profile_run(run_id)
         _, tiffs = _related_files(ti2_path)
         return ti2_path, tiffs
