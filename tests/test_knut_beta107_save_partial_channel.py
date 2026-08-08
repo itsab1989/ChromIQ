@@ -178,15 +178,36 @@ def test_the_recovery_refuses_an_empty_backup():
     assert src.index("_cgats_has_no_readings") < src.index("QMessageBox(self)")
 
 
-def test_the_overlay_tells_the_two_cases_apart():
+def test_the_overlay_tells_the_cases_apart():
+    """Knut's requirement, now covering THREE causes rather than two.
+
+    His point in #130 was that an empty measurement must not be reported as a
+    foreign one, because the two call for opposite actions. Basti found the
+    third on 2026-08-08: a chart made before the layout engine records no patch
+    positions, so the overlay has nowhere to draw even though the measurement is
+    perfect — and that was being reported as foreign too, which invites throwing
+    away a good measurement.
+
+    The decision now lives in `_overlay_failure_reason`, so this checks the
+    reasons and their windows rather than the old inline `_measurement_is_empty`
+    call.
+    """
     from ui.tabs.tab_measure import TabMeasure
+    decide = inspect.getsource(TabMeasure._overlay_failure_reason)
+    assert "_measurement_is_empty()" in decide, \
+        "the empty case is no longer established from the file"
+    for reason in ('"empty"', '"no_geometry"', '"mismatch"'):
+        assert reason in decide, f"{reason} is not distinguished any more"
+
     src = inspect.getsource(TabMeasure._on_overlay_toggled)
-    assert "_measurement_is_empty()" in src
-    # Phrases that are not split across a line continuation in the source.
-    assert "There is nothing measured yet to show" in src   # the empty case
-    assert "different chart" in src                          # the foreign case
-    assert src.index("There is nothing measured yet to show") < src.index(
-        "looks like it was made for a different chart")
+    assert 'reason == "empty"' in src
+    assert 'reason == "no_geometry"' in src
+    # Each cause gets its own window, and the empty one is still handled first.
+    assert "This measurement holds no readings yet" in src        # empty
+    assert "record where its patches are" in src                  # no geometry
+    assert "made for a different chart" in src                    # foreign
+    assert src.index("This measurement holds no readings yet") < src.index(
+        "record where its patches are")
 
 
 def test_both_checks_share_one_definition_of_empty():

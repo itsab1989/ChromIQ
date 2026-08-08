@@ -1,5 +1,28 @@
 # Changelog
 
+## v3.14.8-beta.197
+
+### Fixed
+
+- **A good measurement is no longer described as belonging to a different
+  chart.** Charts made before the ChromIQ layout engine do not record where
+  their patches sit on the page, so the overlay has nowhere to draw — but the
+  window blamed the measurement, which invited you to throw away a perfectly
+  valid one and measure again. It now says plainly that the measurement is fine,
+  explains why this particular chart can't display it, and points to
+  Tools ▸ Inspect a measurement for the values.
+- **Guided refinement keeps the options it switched on.** Coming from
+  Check & Refine, "Refine / resume existing measurement" and "Use refinement
+  strips file" were switched on and then quietly switched off again by the run's
+  stored Measure settings — in both Guided and Manual. The instruction from
+  Check & Refine now holds until you move to another chart.
+
+### Changed
+
+- The three overlay windows have a bold headline and plain body text, like every
+  other window, instead of one block of bold.
+- The new and reworded messages are translated into all twelve languages.
+
 ## v3.14.8-beta.196
 
 ### Internal

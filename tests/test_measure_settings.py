@@ -155,8 +155,11 @@ class _WiredTab(_Tab):
 @pytest.fixture
 def wired(tmp_path, qapp):
     import ui.tabs.tab_measure as tm
+    # `load_target_settings` re-asserts a guided refinement's ticks on both of
+    # its exits, so the stub needs that method too — otherwise the real load
+    # path cannot run here at all.
     for name in ("save_target_settings", "load_target_settings",
-                 "_measure_written_cache"):
+                 "_measure_written_cache", "_reassert_guided_refinement"):
         setattr(_WiredTab, name, getattr(tm.TabMeasure, name))
     store = _Store(tmp_path)
     return _WiredTab(store), store

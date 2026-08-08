@@ -1201,6 +1201,7 @@ class TabMeasure(QWidget):
                             exc_info=True)
             finally:
                 self._loading_measure_settings = False
+            self._reassert_guided_refinement()
             return False
         self._loading_measure_settings = True
         try:
@@ -1209,6 +1210,7 @@ class TabMeasure(QWidget):
             if unknown:
                 log.info("ignored %d unknown stored Measure setting(s): %s",
                          len(unknown), ", ".join(sorted(unknown)[:8]))
+            self._reassert_guided_refinement()
             return True
         except Exception:      # noqa: BLE001
             log.warning("Could not apply the target's Measure settings",
@@ -3978,6 +3980,46 @@ class TabMeasure(QWidget):
         self._load_refine_strips(strips_file)
         self._refine_cb.setEnabled(True)
         self._refine_cb.setChecked(True)
+        # REMEMBER WHY THESE ARE TICKED, so a settings load cannot untick them.
+        #
+        # Basti, 2026-08-08: *"i wanted to be guided through refinement …the
+        # options were selected …but after confirming the message they were
+        # deselected again"*, in both Guided and Manual. `load_target_settings`
+        # restores `resume` from the run's stored Measure settings — or calls
+        # `_restore_defaults()` when the run has none stored — and `resume` is
+        # linked between the two modules, so either path silently undoes both
+        # ticks. Whoever wins is then a matter of ordering, which is why it
+        # looked like the pop-up did it: a QMessageBox runs a nested event loop,
+        # so a load can complete while the window is up.
+        #
+        # The tick is an instruction from Check & Refine, not a preference, so
+        # it outranks the stored value until the user leaves this chart.
+        self._refinement_armed_for = self._chart_identity()
+
+    def _reassert_guided_refinement(self) -> None:
+        """Put the refinement ticks back after a settings load, while they apply.
+
+        Self-disarming: the arming records which chart the instruction was for,
+        so loading a different chart — or regenerating this one — drops it
+        without anyone having to remember to clear the flag.
+        """
+        armed = getattr(self, "_refinement_armed_for", None)
+        if armed is None:
+            return
+        if armed != self._chart_identity():
+            self._refinement_armed_for = None
+            return
+        for cb in (getattr(self, "_resume_cb", None),
+                   getattr(self, "_m_resume_cb", None)):
+            if cb is not None and not cb.isChecked():
+                cb.setChecked(True)
+        if getattr(self, "_refine_strips_path", None) is not None:
+            for cb in (getattr(self, "_refine_cb", None),
+                       getattr(self, "_m_refine_cb", None)):
+                if cb is not None:
+                    cb.setEnabled(True)
+                    if not cb.isChecked():
+                        cb.setChecked(True)
 
     def _try_load_tiffs(self, base_path: Path) -> None:
         stem   = base_path.with_suffix("").stem
@@ -9735,27 +9777,88 @@ class TabMeasure(QWidget):
         # for measuring, the other for finding the right chart, so telling them
         # apart is the whole value of the message.
         self._sync_overlay_checkboxes(False)
-        empty = self._measurement_is_empty()
+        reason = self._overlay_failure_reason()
         from PyQt6.QtWidgets import QMessageBox
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.NoIcon)      # clean style, no icon (Basti)
-        if empty:
+        # Headline in setText (QMessageBox paints it bold), body in
+        # setInformativeText. Written as one bold block before, which is the
+        # fault Basti reported on the chart-choice window in beta.189.
+        if reason == "empty":
             box.setWindowTitle(tr("There is nothing measured yet to show"))
-            box.setText(
-                tr("This chart's measurement file exists, but it holds no "
-                   "readings — so there is nothing to draw on the patches.\n\n"
+            box.setText(tr("This measurement holds no readings yet"))
+            box.setInformativeText(
+                tr("The measurement file exists, but nothing has been read into "
+                   "it, so there is nothing to draw on the patches.\n\n"
                    "That happens when a measurement was started and stopped "
                    "before any strip was read successfully. Measure the chart "
                    "and the overlay will show what you read as you go."))
+        elif reason == "no_geometry":
+            box.setWindowTitle(tr("This chart doesn't record where its patches are"))
+            box.setText(tr("Your measurement is fine — this chart just can't "
+                           "display it on the patches"))
+            box.setInformativeText(
+                tr("Nothing is wrong with the measurement: it belongs to this "
+                   "chart and every reading in it is valid. It can be built into "
+                   "a profile exactly as it is.\n\n"
+                   "The overlay needs to know where each patch sits on the "
+                   "printed page, and this chart does not carry that "
+                   "information. Charts made by older versions of ChromIQ — "
+                   "before the ChromIQ layout engine — were laid out by "
+                   "ArgyllCMS's printtarg, which does not record the patch "
+                   "positions anywhere, so there is nothing to draw onto.\n\n"
+                   "To see the measured values, open the measurement in "
+                   "Tools ▸ Inspect a measurement, which shows every patch and "
+                   "its colour as a table. If you would like the overlay on a "
+                   "future chart, generate it with the ChromIQ layout engine "
+                   "switched on in Create Chart — those charts save their patch "
+                   "positions beside the chart file."))
         else:
             box.setWindowTitle(tr("Can't show the overlay"))
-            box.setText(
-                tr("This chart's measurement can't be shown on the patches — it "
-                   "looks like it was made for a different chart (the patch layout "
-                   "doesn't match).\n\nOpen it in Tools ▸ Inspect a measurement to "
-                   "see the measured values as a table instead."))
+            box.setText(tr("This measurement was made for a different chart"))
+            box.setInformativeText(
+                tr("The patches in the measurement don't line up with the "
+                   "patches in this chart, so drawing them here would put "
+                   "colours on the wrong squares.\n\n"
+                   "Open it in Tools ▸ Inspect a measurement to see the measured "
+                   "values as a table instead."))
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        from ui.widgets import fit_message_box_buttons
+        fit_message_box_buttons(box)
         box.exec()
+
+    def _overlay_failure_reason(self) -> str:
+        """Why the overlay could not be drawn: ``empty`` / ``no_geometry`` /
+        ``mismatch``. THREE causes, not two, and they need different answers.
+
+        Basti, 2026-08-08, measuring a chart made long before the layout engine:
+        the window told him the measurement "looks like it was made for a
+        different chart". It was not — measured on his own files, the
+        measurement resolved 90 patches against that chart with real ΔE values.
+        The only thing missing was the per-patch geometry: a printtarg sheet
+        carries no ``.strips.json`` and no ``channels.json`` ``layout`` block,
+        so there is nowhere to draw. Telling someone their good measurement
+        belongs to another chart invites them to throw it away and re-measure.
+
+        This is the same shape as Knut's report in #130 (an empty ``.ti3``
+        reported as a mismatch): the overlay failing says nothing about *why*,
+        so each cause is established from the files rather than inferred.
+        """
+        if self._measurement_is_empty():
+            return "empty"
+        ti3 = self._existing_ti3_for_chart()
+        if ti3 is None or self._ti1_path is None:
+            return "mismatch"
+        try:
+            from workflow.measurement_report import per_patch_overlay
+            matched = bool(per_patch_overlay(ti3, self._ti1_path))
+        except Exception:      # noqa: BLE001 — a bad file is not a mismatch claim
+            matched = False
+        if not matched:
+            return "mismatch"
+        # The readings belong to this chart, so the only thing that can have
+        # failed is the geometry.
+        return "no_geometry"
 
     def _measurement_is_empty(self) -> bool:
         """Whether this chart's ``.ti3`` exists but carries no readings.
