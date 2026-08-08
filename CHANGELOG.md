@@ -1,5 +1,33 @@
 # Changelog
 
+## v3.14.8-beta.191
+
+### Changed
+
+- **All 34 documentation screenshots have been retaken.** The old set dated from
+  3 July — before the new folder layout, the Measure rework and the Sounds tab —
+  and showed the app with no project open, so the run bar read "New run" and the
+  masthead asked you to load a project in every picture.
+
+### Fixed
+
+- **A screenshot suggested your files had gone missing.** With no run open, the
+  Create Chart picture showed a chart preview with "No chart for this profile
+  run yet … its files may have been moved or deleted" printed underneath it.
+- **Create Chart showed a different chart from Print and Measure.** All three
+  now show the same ChromIQ layout-engine sheet, with the notes clip border, and
+  the Create panel's own figures agree with it (484 patches on screen against
+  484 estimated, where it previously read 484 beside "on screen 210").
+
+### For developers
+
+- The screenshot script no longer writes into your real ChromIQ project: it
+  works on a copy under `~/ChromIQ-docs` and removes it when it finishes.
+- Fixed a test that left `QMessageBox.exec` patched. It is inherited from
+  `QDialog`, so saving and re-assigning it does not restore it, and every later
+  `exec()` in that worker process failed — in a different file, which made it
+  look like flakiness. Two sites now use `monkeypatch.setattr`.
+
 ## v3.14.8-beta.190
 
 ### Fixed
