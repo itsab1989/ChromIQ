@@ -256,6 +256,96 @@ A verification verifies a profile, so it can only ever apply to **RGB, CMY or
 CMYK**. N-channel targets can be generated but not turned into an ICC profile,
 so there is nothing to verify.
 
+### The rule that makes all of this simple
+
+Sebastian, 2026-08-08: *"a verification chart should probably use the same
+colorspace settings as the chart that was used for profiling."*
+
+**Not "probably" — necessarily, and it settles the whole question.**
+
+A verification verifies a profile. That profile was built from a profiling
+chart, and it carries that chart's device space and ink set. A verification
+chart in a different space could not be printed through the profile at all —
+the profile has no table for it.
+
+So the device space is **inherited, twice over**: the profiling chart fixes the
+profile's space, and the profile fixes the verification chart's. There is no
+point in the chain where a user should be asked, and a picker would only create
+the opportunity to answer wrongly.
+
+**🔴 Requirement: a verification chart takes its colour space and ink set from
+the profiling chart of the run it belongs to — not from the Create Chart
+controls, and not from the last chart the user happened to make.**
+
+Everything needed to do that already exists:
+
+| What is needed | Where it already is |
+|---|---|
+| The ink set of the chart a profile was built from | `<stem>.channels.json` → `"ink_channels"` (e.g. `["r","g","b"]`), written for every chart |
+| The device type and the extra-ink cascade as settings | the per-target store — `targen -d` and the repeatable `targen -D` are `ParameterWidget` rows, and the registry is generated from `per_target_widgets()`, never a written list |
+| Which run a verification belongs to | the Profile-run selection in the bar |
+
+So this is a **read, not a new mechanism**: take the run's profiling chart's
+`ink_channels`, apply them, and do not offer the choice. It also gives a free
+consistency check — if a verification chart's `ink_channels` ever disagree with
+its run's profiling chart, something is wrong and the app can say so before a
+sheet is printed rather than after it is measured.
+
+**This also disposes of the N-ink question below for the normal case.** If the
+profile came from ChromIQ it is RGB, CMY or CMYK, because that is all `colprof`
+builds — so an inherited space is always one the rest of the app can handle. The
+N-ink discussion only ever concerned profiles brought in from elsewhere.
+
+### Extra colorants — the part I first left out
+
+ChromIQ does not only expose `targen -d`. It has a first-class **add/remove
+extra ink** feature (#72): fifteen of them — Orange, Red, Green, Blue, Violet,
+White, Light and Medium C/M/Y/K, and Light-light black — offered in the patch
+set editor (`ti2_relayout_dialog._extra_ink_labels`), carried as the repeatable
+`targen -D` cascade, and recorded per chart in `<stem>.channels.json`.
+
+**So charts can have 5, 6, 7+ inks. Can those be verified?**
+
+**ChromIQ cannot build a profile for them**, and this is now confirmed from
+Argyll's own summary rather than inferred — `colprof.html`:
+
+> *"Create an RGB, CMY or CMYK ICC profile from the .ti3 test chart patch
+> values. **[ Note that currently, Monochrome and N-Color profiles are not
+> supported. ]**"*
+
+Two independent Argyll documents say the same thing. A verification verifies a
+profile, so for an N-ink chart ChromIQ has produced, **there is no profile to
+verify** — the chain stops before this feature begins.
+
+**But ChromIQ already checks N-ink profiles that come from somewhere else.**
+`workflow/profcheck_nchannel.py` reproduces `profcheck` for **any** channel
+count in Python, driving `icclu -ff` (icclib handles 2–15 channels), because
+Argyll's own `profcheck` refuses more than 4 inks. So a 6-ink profile from a RIP
+or from i1Publish *is* checkable in Check & Refine today.
+
+That means the boundary is **not** "RGB only" as a principle. It is:
+
+| Profile | Where it comes from | Can #133 verify it? |
+|---|---|---|
+| RGB / CMY / CMYK | ChromIQ's own `colprof` | **yes** — the target case |
+| N-ink (CMYK+OG, etc.) | elsewhere — a RIP, i1Publish | **in principle yes**: the master set is Lab, and `xicclu` / `icclu` handle 2–15 channels. Blocked only by the report path below |
+| Monochrome | nothing builds it | no |
+
+### ⚠️ ChromIQ has two `.ti3` readers, with different limits
+
+This is worth recording on its own, because it is the actual obstacle and it is
+not where anyone would look for it:
+
+| Reader | Accepts | Used by |
+|---|---|---|
+| `ti3_analysis.parse_ti3` | **RGB only** — raises *"No device RGB columns — only RGB charts are supported"* (`:158`) | the measurement report, the cube corners, the patch-identity check |
+| `profcheck_nchannel._read_ti3` (`:40`) | **any** channel count, device fields read generically as `<REP>_<letter>` | Check & Refine for >4 inks |
+
+The same application reads the same file format two different ways, with
+different limits, and nothing reconciles them. **That, rather than any colour
+science, is what would have to be settled before a verification could cover more
+than RGB.**
+
 **Layer 2 — what ChromIQ's own measurement path accepts, which is narrower.**
 `workflow/ti3_analysis.py:158` refuses anything else outright:
 
