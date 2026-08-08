@@ -117,6 +117,58 @@ them.
 
 ---
 
+## 0a. Picking this up in a later session — start here
+
+*Written so this can be resumed cold, months later, by someone who has forgotten
+all of it — including the assistant.*
+
+### Nothing here needs a printer until the very last step
+
+This is worth knowing before deciding when to start, because it is the opposite
+of what one would assume for a printing feature:
+
+| Step | Printer needed? |
+|---|---|
+| A0 — correct the §M text, generalise `convert_args`, lift the profile resolver | **no** |
+| A1 — the conversion engine, `cctiff` through the profile | **no** — it converts files; a stub runner tests it |
+| A2 — the Print-tab row, the record, the report block | **no** — the app runs and the option can be exercised offscreen or on screen |
+| B — the master set, the gamut filter, the reference file | **no** — `targen` and `xicclu` are file tools |
+| **Final proof** — does a printed sheet actually measure as predicted | **yes**, and only here |
+
+So the whole build can be done and reviewed without hardware. What waits for a
+printer is the one thing that would confirm the premise: **one chart printed
+both ways, measured, and compared.** Until that exists, §12's evidence rating
+stays where it is, and the feature should be described as untested end to end.
+
+### The order that keeps it safe
+
+1. **A0 → A1 → A2**, each ending somewhere shippable (§5).
+2. **B's engine** — set generation, gamut filter, reference file — which is
+   testable entirely offline.
+3. **B's UI last**, and **all translations last of all**. The catalogue key is
+   the exact English string, so every word changed during review discards that
+   string in twelve languages. Wording first, translation once (§7).
+4. **The master set ships marked provisional, not frozen** — see below.
+
+### The one thing that must not be got wrong
+
+§5.4 of #133 says a published set is never edited, only extended. That is a real
+constraint, but it **only binds once somebody's reports cite it**. While no one
+depends on it, the set can be re-cut freely.
+
+> **So publish the first set as provisional and say so in the file header.**
+> Freeze it — and give it a version number that means something — at the moment
+> the first person outside this project relies on a report that names it.
+
+Getting this wrong is the only decision in either feature that cannot be undone
+later, and it costs nothing to defer.
+
+### What is decided, and what is not
+
+Everything in §11 is still open. Two recommendations have hardened since this
+was written, both because evidence turned up rather than because the argument
+improved — see §11 for the detail and the sources.
+
 ## 1. Status, and what is already settled
 
 | Question | Answer | Where it was settled |
@@ -499,8 +551,27 @@ proposed there; §4 and `cm_5_reconciled.png` are what would actually be built.
    on everywhere (the trend changes meaning); off for existing projects, on for
    new ones (**recommended**); always ask once. This is the highest-risk
    decision in A, and it is a judgement about users, not code.
-4. **Default rendering intent** — relative colorimetric (recommended) or
-   absolute?
+4. **Default rendering intent** — relative colorimetric or absolute?
+   ⚠️ **My recommendation here is weak and pulls against the request.** I have
+   been recommending relative; the original #133 request explicitly described
+   using **absolute**, because that is what the commercial practice being
+   replaced uses and what makes the numbers comparable with it. Both are offered
+   and the choice is recorded on every report either way, so this is a default
+   rather than a constraint — but it should be decided by someone who knows
+   which comparison matters, not defaulted on my say-so.
+
+6. **How big is the master set?** ✅ **Answered by counting what the industry
+   uses, not by picking a number.** The 99 professional reference sets shipped
+   with i1Profiler cluster hard: **1 617 patches in 30 of them** (IT8.7/4 —
+   ECI PSR, TC1617-CRPC, GRACoL), 3 234 (exactly twice it) in 20, and a
+   **168-patch control wedge** in 10 for quick checks. Median 1 617.
+   **Recommendation: 1 617**, with nested subsets down to 168, and 3 234
+   available later at no cost because the set is nested by construction. The
+   earlier figure of 1 500 was invented and is not any standard's number.
+
+7. **The margin default** — "safely inside" or the full printable range?
+   ⚠️ Also weak: no measurement stands behind it. Worth settling with one real
+   print rather than an argument.
 5. **Does the Route row of §4 ship with A**, or stay with #133? Recommendation:
    with A, because §4 only becomes coherent once both exist.
 
