@@ -70,6 +70,48 @@ ensure_freetype_library()
 
 
 @pytest.fixture(autouse=True)
+def _repair_a_leaked_qmessagebox_exec():
+    """Undo a `QMessageBox.exec` patch an earlier test failed to restore.
+
+    `exec` is INHERITED from `QDialog`, so the common idiom
+
+        real = QMessageBox.exec
+        QMessageBox.exec = _fake
+        try: ...
+        finally: QMessageBox.exec = real
+
+    does **not** put it back: it installs a plain method object directly on
+    `QMessageBox`, which no longer binds. From then on every `box.exec()` **in
+    that worker process** is called with no `self` and dies with
+
+        TypeError: first argument of unbound method must have type 'QDialog'
+
+    ...inside whatever file xdist happens to schedule next. So the failure names
+    an innocent test and looks exactly like flakiness. It cost two full gates on
+    2026-08-08: the tests it broke passed alone AND under `-n 4` alone, and the
+    culprit was two files away.
+
+    About 77 tests still use that idiom. Repairing it HERE, in setup, makes the
+    leak harmless whoever wrote it: `QMessageBox` does not define `exec` itself,
+    so anything in its own `__dict__` was put there by a test and is wrong.
+
+    **In setup, deliberately.** Two teardown versions of this were written and
+    reverted first — one failed the offending test (turning a single bad test
+    into 4,859 errors, because the attribute stayed patched for everything that
+    followed), and a repair-only one still left 77 teardown errors. Nothing here
+    can fail a test: it only ever removes an attribute that should not exist.
+    Migrating those 77 sites to `monkeypatch.setattr` remains worth doing, but
+    as its own piece of work rather than as a release-time rewrite.
+    """
+    try:
+        from PyQt6.QtWidgets import QMessageBox
+        if "exec" in QMessageBox.__dict__:
+            del QMessageBox.exec
+    except Exception:      # noqa: BLE001 — a repair must never fail a test
+        pass
+
+
+@pytest.fixture(autouse=True)
 def _no_real_editor_render(monkeypatch):
     try:
         from ui.dialogs.ti2_relayout_dialog import Ti2RelayoutDialog
