@@ -306,16 +306,30 @@ set editor (`ti2_relayout_dialog._extra_ink_labels`), carried as the repeatable
 
 **So charts can have 5, 6, 7+ inks. Can those be verified?**
 
-**ChromIQ cannot build a profile for them**, and this is now confirmed from
-Argyll's own summary rather than inferred — `colprof.html`:
+**Argyll cannot build a profile for them** — confirmed from `colprof.html`'s own
+summary rather than inferred:
 
 > *"Create an RGB, CMY or CMYK ICC profile from the .ti3 test chart patch
 > values. **[ Note that currently, Monochrome and N-Color profiles are not
 > supported. ]**"*
 
-Two independent Argyll documents say the same thing. A verification verifies a
-profile, so for an N-ink chart ChromIQ has produced, **there is no profile to
-verify** — the chain stops before this feature begins.
+⚠️ **But ChromIQ is not limited to Argyll here, and I missed that.** Sebastian
+pointed it out: the **ChromIQ profile engine (beta)** — Settings ▸ *"ChromIQ
+profile engine (beta)"* — exists for precisely this. Its own module docstring
+(`workflow/profile_engine/__init__.py`):
+
+> *"An **optional alternative to Argyll's colprof, never the default**. colprof
+> remains the engine for everything it covers; this package's unique value is
+> **what colprof structurally cannot do: CMYK+N output profiles** (colprof
+> handles Gray/RGB/CMY/CMYK only)."*
+
+It accepts **1–15 device channels** (`builder.py:341`), rejecting only what
+falls outside the ICC range — and grayscale, because shipping `colprof` rejects
+that too.
+
+**So N-ink profiles can come from ChromIQ itself**, and the N-ink verification
+question is **live rather than hypothetical**. The chain does not stop; it
+reaches the report and stops there.
 
 **But ChromIQ already checks N-ink profiles that come from somewhere else.**
 `workflow/profcheck_nchannel.py` reproduces `profcheck` for **any** channel
@@ -328,7 +342,7 @@ That means the boundary is **not** "RGB only" as a principle. It is:
 | Profile | Where it comes from | Can #133 verify it? |
 |---|---|---|
 | RGB / CMY / CMYK | ChromIQ's own `colprof` | **yes** — the target case |
-| N-ink (CMYK+OG, etc.) | elsewhere — a RIP, i1Publish | **in principle yes**: the master set is Lab, and `xicclu` / `icclu` handle 2–15 channels. Blocked only by the report path below |
+| N-ink (CMYK+OG, etc.) | **the ChromIQ profile engine (beta)**, or elsewhere — a RIP, i1Publish | **in principle yes**: the master set is Lab, and `xicclu` / `icclu` handle 2–15 channels. Blocked only by the report path below |
 | Monochrome | nothing builds it | no |
 
 ### ⚠️ ChromIQ has two `.ti3` readers, with different limits
@@ -336,13 +350,22 @@ That means the boundary is **not** "RGB only" as a principle. It is:
 This is worth recording on its own, because it is the actual obstacle and it is
 not where anyone would look for it:
 
+**Three of them**, not two:
+
 | Reader | Accepts | Used by |
 |---|---|---|
 | `ti3_analysis.parse_ti3` | **RGB only** — raises *"No device RGB columns — only RGB charts are supported"* (`:158`) | the measurement report, the cube corners, the patch-identity check |
 | `profcheck_nchannel._read_ti3` (`:40`) | **any** channel count, device fields read generically as `<REP>_<letter>` | Check & Refine for >4 inks |
+| `profile_engine.ti3_data.read_ti3` | **any** — `iRGB`, `CMYK`, `CMYKOG`, light-ink reps like `CMYKcm` | the ChromIQ profile engine |
 
-The same application reads the same file format two different ways, with
-different limits, and nothing reconciles them. **That, rather than any colour
+The split is not accidental — `ti3_data`'s own docstring names it: *"Unlike
+`workflow.ti3_analysis` (RGB-only, feeds the measurement inspector), this reader
+accepts any device colour representation Argyll's chartread can produce."*
+
+So the same application reads the same file format three ways, with different
+limits, and **the narrowest one is the one the report depends on.** ChromIQ can
+already build a 6-ink profile and check it in Check & Refine, but cannot produce
+a measurement report for it. **That, rather than any colour
 science, is what would have to be settled before a verification could cover more
 than RGB.**
 
