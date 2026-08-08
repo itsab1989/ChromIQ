@@ -284,6 +284,7 @@ Two obligations, and the second is the one that is easy to get wrong:
 | `measurement_window_sounds.md` | which sound each measurement window plays, and when |
 | `calibration_run_type.md` | calibration as a run type |
 | `tool_availability.md` | which Tools apply to which run-type/profile-run selection, and where each may write (**DRAFT — awaiting confirmation**) |
+| `verification_printing_and_target.md` | printing a verification chart through its profile, and #133's profile-tailored target — condition→action tables mapped to code (**DRAFT — awaiting confirmation**) |
 
 New user-facing message text is governed by §M of
 `unified_measurement_management.md`: it goes to §M-PROPOSED first and is not

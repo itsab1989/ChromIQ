@@ -1,0 +1,507 @@
+# Verifying a profile: printing it properly, and testing it against its own gamut
+
+> **These specifications are binding.** They must be consulted before changing
+> code in the area they cover, and a fault that contradicts one is reported and
+> approved before it is implemented — the specification may be the part that
+> needs to change.
+
+## ⏳ Awaiting confirmation — DRAFT
+
+**Confirmed by:** *nobody yet.*
+
+Nothing here is agreed. It is a plan to argue with, section by section. No code
+has been written for either feature, and no row of any table below has been
+implemented.
+
+---
+
+## 0. In plain words — read this part if you read nothing else
+
+*This section is for someone who owns the app but does not want to become a
+colour scientist to decide about it. No jargon; the technical sections start at
+§1.*
+
+### What problem are we solving?
+
+You build a profile so your printer produces the colours you ask for. The
+obvious follow-up question is **"did it work?"** — and ChromIQ cannot answer it
+properly today.
+
+It has a "verification run", but the sheet it prints is not connected to your
+profile at all. It prints the chart's raw numbers, measures them, and compares
+them against what those numbers would look like on a normal screen. That tells
+you whether your *printer* has changed since last month. It cannot tell you
+whether your *profile* is any good.
+
+### The two features, and how they differ
+
+**Feature A — print the verification chart through your profile.**
+ChromIQ works out, for every patch, the exact ink amounts your profile says will
+produce that colour, and prints those. The sheet is your profile's own promise,
+made real. Measuring it tells you how close the promise came. **This makes the
+verification you already have actually mean something.**
+
+**Feature B — choose the test colours from your profile's own gamut (issue
+#133).** Instead of reprinting the same colours as your profiling chart, pick
+colours spread across everything your profile claims your printer can do, and
+test exactly those. **This makes the check sharper**, and it is the one a
+customer might pay for.
+
+A is the foundation. B stands on it. B without A would be measuring against the
+wrong reference.
+
+### What will I see?
+
+One new row on the **Print Chart** tab, which only appears when you have a
+verification selected, with two choices — print through the profile, or print
+raw — and a rendering intent. Everything else stays where it is. §8 has pictures
+of every screen it touches.
+
+### What does it cost, and what could go wrong?
+
+**Feature A is small.** Everything it needs already exists in ChromIQ: the tool
+that applies a profile to an image (`cctiff`) already ships as
+*"Apply a device-link to an image"*, and the raw printing path does not change
+at all. Seven small pieces, listed in §5.
+
+**Feature B is much larger** — two new panels, and a published list of test
+colours that has to be designed, agreed and then never changed again. It also
+still has open questions of its own that nobody has answered.
+
+**The honest risk in A**: turning it on changes what an existing verification
+measures. A project with months of history would show a step change in its
+trend, because the question being asked has changed. §10 says how to handle
+that, and it is why §11 Q3 asks whether it should be off by default for
+projects that already have history.
+
+**The honest risk in B**: the published colour list is a promise. Once people
+have reports based on it, it cannot be edited, only extended.
+
+### What do I actually have to decide?
+
+Five things, all in §11. Two of them matter most:
+
+1. **Should A be built at all?** My recommendation is yes, and soon, because
+   the verification feature currently in the app does not measure what its own
+   messages say it measures.
+2. **Should A and B be built together?** My recommendation is **no** — do A
+   first. They share the *idea* but almost no code, and B is blocked on
+   questions A is not.
+
+If you want to stop after A, that is a complete, coherent product. B is an
+addition, not a completion.
+
+### What if I would rather not decide?
+
+Then the default I would choose, and defend, is: **build A, ship it off by
+default for existing projects and on for new ones, and leave B parked until
+someone is actually paying for it.** That gets the app honest without spending
+much, and keeps B's design questions open until there is a reason to answer
+them.
+
+---
+
+## 1. Status, and what is already settled
+
+| Question | Answer | Where it was settled |
+|---|---|---|
+| What does "printed through the profile" mean? | ChromIQ applies the profile with Argyll's own CMM and sends the printer a finished sheet, which prints raw | Researched from ArgyllCMS's shipped documentation — [#130 comment 5227083342](https://github.com/itsab1989/ChromIQ/issues/130#issuecomment-5227083342). ⏳ awaiting confirmation |
+| Is the §M phrase *"with colour management on"* an approved design ruling? | **No.** It was written by the assistant on 2026-07-22 and rode along inside a message Knut approved for a different purpose | [#130 comment 5226966519](https://github.com/itsab1989/ChromIQ/issues/130#issuecomment-5226966519) |
+| Does ChromIQ colour-manage at print time? | **No, deliberately, on every path** — and the native macOS path verifies after submission that the driver did not override the lock | `postscript_generator.py:302`, `cups_printer.py:45/75/86/97/114`, `workflow/native_print_macos.py` |
+
+### What ArgyllCMS's own documentation says, verbatim
+
+The three quotations this whole plan rests on. Each can be checked in the file
+named, which ships with Argyll at `/Applications/Argyll/doc/`.
+
+> *"colverify provides a way of verifying how well a **color transformation**
+> (such a proofing) performs."* — `colverify.html`
+
+> *"For systems using two device profiles or **a device link to convert between
+> the target space printing files and the proofing device space** … the **device
+> link used to print proofer test charts** … Use the `target_proofer_fix1.icm`
+> **to print out the test chart again**, and read it in"* — `refine.html`
+
+> *"The **-U** flag suppresses the CUPS `%cupsJobTicket: cups-disable-cmm` …
+> **By default this ensures that the resulting files doesn't have color
+> management applied to it.** If you are creating a test chart that should be
+> color managed (perhaps because you want to use it to **verify the overall
+> operation of the printing system**), then you can use the -U flag"*
+> — `printtarg.html`
+
+**What they establish:** Argyll's own verification loop converts the chart file
+through the profile and prints the converted file. Colour-managed printing is
+documented as a *different* job — verifying the printing system, not the
+profile.
+
+**What they do not establish, stated plainly:** Argyll's worked examples are the
+*proofing* case. There is no example headed "verify a printer profile". The
+mechanism transfers directly, but that application is an inference, not a quote.
+No ICC or ISO standards were consulted, and nothing has been tested on hardware.
+
+---
+
+## 2. The two features, bounded against each other
+
+| | **A — colour-managed verification printing** | **B — profile-tailored target (#133)** |
+|---|---|---|
+| Question answered | Did the printer produce what the profile promised, for the colours in this chart? | …across the whole range the profile claims it can reach? |
+| Where the profile is applied | at **print** time | at **chart-build** time |
+| Argyll tool | `cctiff` | `xicclu` |
+| Direction | sRGB → printer device | Lab → printer device |
+| Colours come from | the existing chart | a published master set, filtered through the profile's gamut |
+| Reference for ΔE | the chart's design values as sRGB → Lab | the stored colorimetric Lab targets |
+| New UI | one row on Print Chart | a Create Chart module **and** a Check & Refine module |
+| Depends on | nothing new | A, for the print step |
+
+**They share the idea and almost none of the code.** That is the central fact
+for planning: building them together saves nothing.
+
+---
+
+## 3. Condition → action tables, mapped to code
+
+Knut's method, applied:
+
+> *"the only way to get the implementation right is to force claude to build
+> complete tables with all combinations of responses and input conditions for
+> all features, and then also force mapping in the tables the code lines where
+> input conditions are implemented and where all options of output events /
+> actions are implemented in code. This forces implementation, so it is not
+> skipped silently."*
+
+So every row below names **where the condition is read** and **where the action
+happens**. A cell reading `NEW → file::function` is work that does not exist
+yet; it is the implementation checklist, and a row with no code reference is a
+row that has been skipped.
+
+### 3.1 Feature A — when is the option shown, and what does it do?
+
+Input conditions: **Run type** (`measurement_target_bar.py:767`, read via
+`target.is_verification()` / `is_calibration()`), **profile present**
+(`Run.built_profile_icc().exists()`), **the user's choice**, **print mode**
+(`use_native_print_dialog`, read at `tab_print.py:883`).
+
+| # | Run type | Profile in run | Row shown? | Default | Action on Print | Condition read at | Action implemented at |
+|---|---|---|---|---|---|---|---|
+| A1 | Profiling | any | **no** | — | print raw, as today | `tab_print` NEW::`_update_colour_row_visible` | unchanged: `tab_print.py:890` `_print_pages` |
+| A2 | Calibration | any | **no** | — | print raw, as today | same | unchanged |
+| A3 | Verification | **yes** | **yes** | through the profile | convert, then print raw | same | NEW → `tab_print`::`_convert_pages_through_profile` |
+| A4 | Verification | **no** | **yes**, "through" disabled | raw | print raw + notice S7 | `Run.built_profile_icc().exists()` | NEW → same, plus the notice |
+| A5 | Verification, "raw" chosen | any | yes | — | print raw, record the choice | the radio | unchanged path; NEW record |
+| A6 | Verification, no chart generated | n/a | row hidden with the tab's existing empty state | — | nothing to print | `tab_chart._resolve_target_chart()` (`tab_chart.py:10359`) | unchanged |
+
+### 3.2 Feature A — the conversion itself
+
+| # | Condition | Action | Where |
+|---|---|---|---|
+| A7 | Conversion needed (A3) | `cctiff -p -f T -i <intent> <sRGB.icm> -i <intent> <run profile> page.tif out.tif` | `workflow/cctiff_apply.py` — `convert_args()` at `:47` **must be generalised**: it hardcodes `-i r` for both ends |
+| A8 | Where the converted sheets go | `Verification.cache_dir` | `core/file_manager.py:1200`; documented as always safe to delete |
+| A9 | Which source profile | Argyll `ref/sRGB.icm`, else the bundled copy | `tab_profile.py:3934` `_default_gamut_src` — **must be lifted** to a shared helper |
+| A10 | `cctiff` missing from the Argyll folder | refuse, explain, offer raw | NEW → message **M-CM-NO-CCTIFF**, §M-PROPOSED |
+| A11 | A page fails to convert | stop, name the page, print nothing | NEW → message **M-CM-CONVERT-FAILED**, §M-PROPOSED |
+| A12 | The profile is unreadable / not RGB | refuse, explain | `cctiff_apply.py:63-78` already parses these errors |
+| A13 | Converted sheet then printed | the existing raw path, unchanged | `tab_print.py:890` / `:1335`; locks at `cups_printer.py:45` and `native_print_macos.py` |
+| A14 | Double conversion (driver also converts) | **must remain impossible** | already prevented; **a test must pin it** — see §9 T7 |
+
+### 3.3 Feature A — what is recorded, so a number can be interpreted
+
+| # | Fact | Stored | Shown | Where |
+|---|---|---|---|---|
+| A15 | Printed through the profile, or raw | `Verification` meta | report block | NEW → `CalibrationMeta`-style field; report at `measurement_report.py` |
+| A16 | Rendering intent used | same | same | NEW |
+| A17 | Which profile file, and its modification time | same | same | NEW — a profile rebuilt after printing invalidates the comparison |
+| A18 | Route: printed by ChromIQ or elsewhere | same | same | NEW — this is #133 §8's second row, folded in here (§4) |
+| A19 | The reference the ΔE was computed against | already `report["reference_source"]` | report block | `measurement_report.py:355-379`; today only `design` / `device` |
+
+### 3.4 Feature B — the reference source, which is where B meets A
+
+| # | Chart kind | `reference_source` | Correct today? | Where |
+|---|---|---|---|---|
+| B1 | Profiling chart | `design` (sRGB reading of device values) | yes | `measurement_report.py:362` |
+| B2 | Verification chart, printed **raw** (today) | `design` | **no** — compares ink numbers read as sRGB against a print nothing converted | `measurement_report.py:191` `_reference_labs` |
+| B3 | Verification chart, printed **through the profile** (feature A) | `design` | **yes** — this is what makes A worth doing | unchanged code, newly correct |
+| B4 | #133 gamut chart | **`colorimetric`** — a new value | n/a, does not exist | NEW → `measurement_report.py` |
+| B5 | Imported measurement, no `.ti2` | `device` | yes | `measurement_report.py:370` |
+| B6 | #133 chart, colorimetric reference missing | **must refuse**, not fall back | n/a | NEW — a silent fallback to `design` produces a plausible wrong number |
+
+**B3 is the single most important line in this document.** Feature A does not
+just add an option; it makes the report's existing reference correct for the
+first time.
+
+---
+
+## 4. The Print Chart tab, reconciled
+
+#133 §8 proposed two rows on this tab (**Route**, and **Recorded on the
+report**). Feature A proposes two more (**Colour**, **Rendering intent**). Four
+rows from two documents would be incoherent, so they are reconciled here into
+**one section with three rows**, and the fourth becomes a consequence rather
+than a control.
+
+| Row | Shown when | Choices | Applies to |
+|---|---|---|---|
+| **Colour** | Run type = Verification | through this run's profile · raw | verification only — a profiling chart is always raw, and offering the choice would invite the one mistake that ruins a profile |
+| **Rendering intent** | Colour = through the profile | relative · absolute · perceptual · saturation | verification only |
+| **Route** | always | print here · print in another application | every chart — a profiling chart printed through a foreign conversion is wrong in exactly the same undetectable way |
+| ~~Recorded on the report~~ | — | — | **not a control.** ChromIQ knows both answers from the two rows above; it records them rather than asking a third time |
+
+**Why "Route" survives and stays global**: ChromIQ can see whether it printed a
+chart itself; it cannot see whether an application it never spoke to had colour
+management switched on, and those two failures look identical on the report.
+
+**How the two interact**, which is the question that needed thinking through:
+
+| Colour | Route | What ChromIQ hands over | What the other application must do |
+|---|---|---|---|
+| through the profile | here | converted sheets, printed raw | — |
+| through the profile | elsewhere | **converted** sheets in `cache/` | nothing but print them untouched — the colour work is already done |
+| raw | here | the chart sheets, printed raw | — |
+| raw | elsewhere | the chart sheets | print untouched |
+
+**The reassuring outcome: the instruction to the outside world is the same in
+every row — "do not convert these colours."** Feature A does not complicate the
+external route; it removes the only reason someone would have wanted their
+external application to colour-manage.
+
+---
+
+## 5. Implementation plan, ordered to be de-risked
+
+Each step ends somewhere shippable. Nothing later is required for anything
+earlier to be useful.
+
+### Phase A0 — correct the record (no user-visible change)
+
+| # | Work | Risk |
+|---|---|---|
+| A0.1 | Correct the §M text so it stops instructing something the app prevents. **Goes to §M-PROPOSED for approval; it is approved text and cannot be quietly rewritten** | none |
+| A0.2 | Generalise `cctiff_apply.convert_args()` to take an intent | none — one parameter |
+| A0.3 | Lift `_default_gamut_src` out of `tab_profile` into a shared helper; both callers use it | none, removes a duplication |
+
+### Phase A1 — the conversion, with no UI at all
+
+| # | Work | Risk | Mitigation |
+|---|---|---|---|
+| A1.1 | `convert_pages_through_profile(pages, profile, intent, out_dir)` in `workflow/` | low | pure function over paths; testable with a stub runner exactly as `xicclu_runner` is |
+| A1.2 | Unit tests including A10–A12 failures | — | — |
+
+**Shippable checkpoint:** nothing changes for users; the machinery is proven.
+
+### Phase A2 — the UI and the record
+
+| # | Work | Risk | Mitigation |
+|---|---|---|---|
+| A2.1 | The three-row section of §4, visibility per table 3.1 | low | the tab already switches on run type |
+| A2.2 | Wire the conversion into the **one** place both print buttons funnel through (`_on_print_current` `:867` and `_on_print_all` `:879`) | **medium** — two entry points, and missing one means the option silently does nothing | insert below both, at `_print_pages`/`_print_native`; test T4 drives **both buttons** |
+| A2.3 | Record A15–A18; show them in the report block | low | — |
+| A2.4 | Help texts §6, and the two new §M messages | low | approval needed before they reach a tab |
+
+**Shippable checkpoint:** feature A complete.
+
+### Phase A3 — the honest migration
+
+| # | Work | Risk | Mitigation |
+|---|---|---|---|
+| A3.1 | Decide and implement the default for projects that already have verification history (§11 Q3) | **highest risk in A**, and it is a *design* risk, not a coding one | a trend that silently changes meaning is worse than no trend; the report must mark the point where the method changed |
+
+### Phase B — #133, only after A
+
+Not planned in detail here, because **B's own open questions are unanswered**
+(#133 §16: set size, whether colours are redrawn, the margin default, and nine
+more). Planning it in detail now would be inventing those answers. What B
+inherits from A: the vocabulary, the report block, the intent record, and the
+`reference_source` enumeration extended with `colorimetric` (B4).
+
+---
+
+## 6. Help texts — drafted, with stable IDs
+
+IDs are used so translations attach to the **ID**, not to the English sentence.
+That matters: the catalogue key is the exact English string
+(`scripts/i18n_extract.py`), so a reworded sentence discards every translation
+of it. With IDs, re-approval is a mapping exercise instead.
+
+| ID | Where | Kind |
+|---|---|---|
+| S1 | Print tab, "Colour" row label | label |
+| S2 | S1's two options | labels |
+| S3 | Print tab, "Rendering intent" label | label |
+| S4 | ⓘ behind S1 | long help |
+| S5 | ⓘ behind S3 | long help |
+| S6 | on-panel notice, profile present | state |
+| S7 | on-panel notice, no profile | state |
+| S8 | report block headings | labels |
+| S9 | M-CM-NO-CCTIFF | §M message |
+| S10 | M-CM-CONVERT-FAILED | §M message |
+| S11 | Dictionary: rendering intent | glossary |
+| S12 | Dictionary: verification | glossary |
+
+The full English text of S4–S7 is what the mockups in §8 render, and is drawn
+from `scripts/mockup_cm_verification_print.py` so the document and the picture
+cannot drift. S9–S12 are drafted below.
+
+**S9 — M-CM-NO-CCTIFF**
+
+> **ChromIQ cannot find the tool that applies your profile**
+>
+> To print this chart through your profile, ChromIQ uses a program called
+> `cctiff`, which comes with ArgyllCMS. It is not in the ArgyllCMS folder
+> ChromIQ is set to use.
+>
+> You can still print this sheet raw — choose "Raw" above — but measuring it
+> will tell you about your printer rather than about your profile.
+>
+> To fix it: open Preferences and check that the ArgyllCMS folder is the one
+> you installed, then reopen this tab.
+
+**S10 — M-CM-CONVERT-FAILED**
+
+> **This sheet could not be prepared**
+>
+> ChromIQ was working out the ink amounts your profile predicts for page {n} of
+> {total}, and that did not finish. Nothing has been printed and nothing has
+> been changed.
+>
+> The most common reason is that the profile file is damaged or is not a
+> printer profile. Rebuilding the profile on the Build Profile tab usually
+> fixes it.
+>
+> Details: {reason}
+
+**S11 — Dictionary: rendering intent**
+
+> Your printer cannot make every colour that exists. The rendering intent is the
+> rule for what happens to the colours it cannot reach — whether they are moved
+> to the nearest colour it can print, and whether the shade of your paper counts
+> as an error. For checking a profile, relative colorimetric is the usual
+> choice.
+
+**S12 — Dictionary: verification**
+
+> A verification is a check on a profile you have already built. You print a
+> chart through that profile, measure it, and see how close the colours came to
+> what the profile promised. It answers "is my profile still good?" — unlike a
+> profiling chart, which is what you print to *create* a profile in the first
+> place.
+
+---
+
+## 7. Translations
+
+**The recommendation is not to translate yet, and the reason is a lesson this
+project already paid for.** The catalogue key is the exact English source string
+(`scripts/i18n_extract.py`), so every word changed during review discards that
+string's translation in all twelve languages. §6's English is a draft awaiting
+approval; translating it now would mean translating it twice.
+
+**What is prepared instead, so nothing is slow later:**
+
+- Every string has a stable ID (§6), so translations can be produced against
+  IDs and mapped when the English is signed off.
+- Twelve languages are live and complete today — `data/i18n/*.json`: de, es,
+  fr, it, ja, nl, no, pl, pt, ru, sv, zh_CN.
+- The pipeline exists and is enforced: `scripts/i18n_extract.py --missing <lang>`
+  lists what a language lacks, `--stats` reports coverage, and
+  `tests/test_i18n.py` fails on missing keys, stale keys, placeholder mismatches
+  and over-long short labels.
+- `scripts/i18n_check_name_widths.py` guards the short labels (S1–S3, S8), which
+  are the ones that can break a layout — German is typically the longest.
+
+**So the sequence is: approve the English → run the extractor → translate → the
+tests prove completeness.** Doing it in that order costs one pass instead of two.
+
+---
+
+## 8. Mockups
+
+Drawn with the real ChromIQ widgets and the real stylesheet, so they show what
+the app would render. Generator: `scripts/mockup_cm_verification_print.py` —
+committed, so a wrong detail is a re-run rather than a redraw.
+
+| Screen | File |
+|---|---|
+| Print Chart, the new section | `docs/mockups/cm130/cm_1_print.png` |
+| The ⓘ window behind it (the real `_InfoDialog`) | `docs/mockups/cm130/cm_2_info.png` |
+| The report block | `docs/mockups/cm130/cm_3_report.png` |
+| The no-profile state | `docs/mockups/cm130/cm_4_no_profile.png` |
+| **The reconciled section of §4** — Colour + Intent + Route together | `docs/mockups/cm130/cm_5_reconciled.png` |
+
+The last one supersedes `acc133/acc_3_print.png`, which shows #133 §8's earlier
+two-row proposal. That mockup stays where it is as the record of what was
+proposed there; §4 and `cm_5_reconciled.png` are what would actually be built.
+
+---
+
+## 9. Tests
+
+| # | Proves | Kind |
+|---|---|---|
+| T1 | The row appears for exactly the rows of table 3.1 and no others | unit, all three run types |
+| T2 | Converted sheets land in `Verification.cache_dir`, never in the run root | unit |
+| T3 | The `cctiff` arguments carry the chosen intent — not the hardcoded `-i r` | unit |
+| T4 | **Both** print buttons convert — `_on_print_current` and `_on_print_all` | unit; the A2.2 risk |
+| T5 | A missing `cctiff` shows S9 and prints nothing | unit |
+| T6 | A failed page shows S10, prints nothing, changes nothing | unit |
+| T7 | The colour-management locks are still asserted on both print paths | **regression**; pins A14 |
+| T8 | The report block shows intent, route and reference; absent when not applicable | unit |
+| T9 | An existing verification project opens unchanged (migration) | unit |
+| T10 | On-screen: the real app, verification selected, both buttons, files checked on disk | driver script, per the project's practice |
+
+---
+
+## 10. Edge cases
+
+- **A profile rebuilt after the sheet was printed** — the comparison is against
+  a profile that no longer exists. A17 records the file and its modification
+  time so the report can say so.
+- **An existing project with verification history** — see A3.1 and Q3. The
+  trend's meaning changes; the report must mark where.
+- **A chart with no pages generated** — row hidden, handled by the tab's
+  existing empty state.
+- **Calibration selected** — never offered (A2). A calibration has no profile
+  to print through.
+- **"New run" selected** — no run, no profile, nothing to print.
+- **Verification chart printed raw on purpose** — legitimate and kept (A5); it
+  measures the printer, and the report says so.
+- **16-bit sheets** — already the default (`tiff_16bit=True`), so the
+  conversion does not visibly quantise.
+- **Old projects** — nothing in the folder model changes; `cache/` is created
+  on demand and is documented as safe to delete.
+
+---
+
+## 11. Open questions
+
+1. **Build feature A?** Recommendation: yes. Today's verification does not
+   measure what its own messages claim.
+2. **Build A and B together?** Recommendation: **no** — A first. They share the
+   idea and almost no code (§2), and B is blocked on its own unanswered
+   questions.
+3. **Default for projects that already have verification history?** Options:
+   on everywhere (the trend changes meaning); off for existing projects, on for
+   new ones (**recommended**); always ask once. This is the highest-risk
+   decision in A, and it is a judgement about users, not code.
+4. **Default rendering intent** — relative colorimetric (recommended) or
+   absolute?
+5. **Does the Route row of §4 ship with A**, or stay with #133? Recommendation:
+   with A, because §4 only becomes coherent once both exist.
+
+---
+
+## 12. Rating
+
+- **Correctness 8** — the mechanism is verified against Argyll's own
+  documentation and against the modules cited, and the reuse is real. Not
+  higher because the application to a printer profile is an inference from a
+  proofing example (§1), and nothing has been tested on hardware.
+- **Robustness 8** — the failure paths are enumerated with messages and tests,
+  and the print path itself does not change. The residual risk is A3.1, which
+  is a design decision rather than a defect.
+- **Maintainability 9** — one new function, one row, two existing duplications
+  removed. Feature B inherits rather than duplicates.
+- **Efficiency 9** — one `cctiff` pass per page, only for verification runs.
+- **Evidence quality 8** — the three load-bearing quotations are verbatim from
+  the shipped documentation and named by file; every code reference in §3 was
+  checked against the tree on 2026-08-08. Not higher because the proofing→
+  printer inference is mine, and no ICC or ISO source was consulted.

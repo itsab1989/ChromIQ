@@ -11,6 +11,8 @@ Four spots:
   cm_2_info.png        the ⓘ window behind that row (the real _InfoDialog)
   cm_3_report.png      the line the report gains, so a ΔE is interpretable
   cm_4_no_profile.png  the same row when the run has no profile to print through
+  cm_5_reconciled.png  the whole reconciled section: Colour + Intent + Route,
+                       which supersedes the two-row proposal in #133 section 8
 
 Committed rather than thrown away, because a mockup that cannot be re-run is a
 mockup that cannot be corrected — the #133 panel had to be redrawn from scratch
@@ -218,6 +220,94 @@ def print_row(no_profile: bool = False) -> QWidget:
     return panel
 
 
+def reconciled_section() -> QWidget:
+    """The full Print Chart section of the plan's section 4.
+
+    #133 section 8 proposed Route and "Recorded on the report"; feature A
+    proposes Colour and Rendering intent. Four rows from two documents would be
+    incoherent, so this is the reconciliation: three rows, and the recording
+    becomes a consequence rather than a fourth control.
+    """
+    A = styles.SPEC_AMBER
+    panel, outer = _shell("PRINT CHART · THE RECONCILED SECTION", A)
+
+    cap = QLabel(
+        "<b>Colour</b> and <b>Rendering intent</b> appear only for a "
+        "verification. <b>Route</b> is shown for every chart.", panel)
+    cap.setWordWrap(True)
+    cap.setStyleSheet(f"color:{styles.TEXT_DIM};background:transparent;")
+    outer.addWidget(cap)
+
+    group = QGroupBox("How this chart is printed", panel)
+    gl = QVBoxLayout(group)
+    gl.setContentsMargins(14, 16, 14, 14)
+    gl.setSpacing(10)
+
+    choice = QWidget(group)
+    cl = QHBoxLayout(choice)
+    cl.setContentsMargins(0, 0, 0, 0)
+    cl.setSpacing(18)
+    a = QRadioButton("Through this run's profile", choice)
+    a.setChecked(True)
+    b = QRadioButton("Raw — no profile applied", choice)
+    cl.addWidget(a)
+    cl.addWidget(b)
+    cl.addStretch(1)
+    gl.addWidget(_row(group, "Colour", choice,
+                      INTENT_HELP_TITLE, INTENT_HELP_BODY, A))
+
+    intent = QComboBox(group)
+    intent.setMinimumHeight(30)
+    intent.addItems(["Relative colorimetric (recommended)",
+                     "Absolute colorimetric", "Perceptual", "Saturation"])
+    gl.addWidget(_row(group, "Rendering intent", intent,
+                      "Which rendering intent to print with",
+                      "See the Dictionary entry for rendering intent.", A))
+
+    route = QWidget(group)
+    rl = QHBoxLayout(route)
+    rl.setContentsMargins(0, 0, 0, 0)
+    rl.setSpacing(18)
+    here = QRadioButton("Print here", route)
+    here.setChecked(True)
+    away = QRadioButton("Print in another application", route)
+    rl.addWidget(here)
+    rl.addWidget(away)
+    rl.addStretch(1)
+    gl.addWidget(_row(group, "Route", route,
+                      "Printing this chart somewhere other than ChromIQ",
+                      "Pick this when you would rather drive the printer from "
+                      "an application you trust. ChromIQ then shows you where "
+                      "the sheets are and exactly what that application must "
+                      "be set to, and prints nothing itself.\n\nThere is one "
+                      "rule, and everything depends on it: nothing between "
+                      "here and the paper may change the colours. The sheets "
+                      "ChromIQ hands over are already finished — if another "
+                      "application converts them again, it prints different "
+                      "colours, your measurement describes those different "
+                      "colours, and nothing afterwards can tell that it "
+                      "happened.\n\nSo in the other application: no output "
+                      "profile, no \u201clet the printer manage colours\u201d, "
+                      "no proofing or simulation, no scaling or fitting to "
+                      "page, and no auto-tone or vivid mode.\n\nYour answer "
+                      "is written on the report, so a surprising result has "
+                      "somewhere obvious to start.\n\nDefault: print "
+                      "here.", A))
+    outer.addWidget(group)
+
+    rec = QLabel(panel)
+    rec.setObjectName("warning")
+    rec.setWordWrap(True)
+    rec.setText(
+        "<b>Recorded on the report automatically.</b> ChromIQ already knows "
+        "both answers above, so it writes them onto the report itself rather "
+        "than asking you a third time — how the sheet was prepared, and who "
+        "printed it. Two verifications only compare with each other when both "
+        "were made the same way.")
+    outer.addWidget(rec)
+    return panel
+
+
 def report_line() -> QWidget:
     """The line the report gains, in the report window's own green."""
     G = styles.SPEC_GREEN
@@ -286,7 +376,8 @@ def main() -> int:
     info_window(app)
     _finish(report_line(), "cm_3_report.png", styles.SPEC_GREEN)
     _finish(print_row(True), "cm_4_no_profile.png", styles.SPEC_AMBER)
-    print(f"\nall four written to {OUT.relative_to(ROOT)}")
+    _finish(reconciled_section(), "cm_5_reconciled.png", styles.SPEC_AMBER)
+    print(f"\nall five written to {OUT.relative_to(ROOT)}")
     return 0
 
 
