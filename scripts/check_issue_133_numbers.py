@@ -88,7 +88,7 @@ CITATIONS: list[tuple[str, int, str]] = [
     ("core/file_manager.py", 1269, "Where are my files"),
     ("core/file_manager.py", 1475, "Where are my files"),
     ("workflow/standard_targets.py", 178, "_USER_TARGETS_README"),
-    ("ui/styles.py", 334, "QLabel#info"),
+    ("ui/styles.py", 348, "QLabel#info"),
     ("ui/main_window.py", 934, "_apply_profile_tab_gate"),
     ("ui/main_window.py", 961, "_profile_building"),
     ("ui/measurement_target_bar.py", 767, "RUN_TYPE_VERIFICATION"),

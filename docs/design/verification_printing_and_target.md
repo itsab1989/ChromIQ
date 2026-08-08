@@ -161,8 +161,29 @@ of what one would assume for a printing feature:
 
 So the whole build can be done and reviewed without hardware. What waits for a
 printer is the one thing that would confirm the premise: **one chart printed
-both ways, measured, and compared.** Until that exists, §12's evidence rating
-stays where it is, and the feature should be described as untested end to end.
+both ways, measured, and compared.**
+
+**And that costs two sheets of plain paper — it does not need good stock or a
+good profile.** Measured on the existing `printer-test` project (90 patches,
+plain paper, a modest profile) by pushing its colours through its own profile
+with `xicclu`:
+
+| | mean ΔE00 | max |
+|---|---|---|
+| Raw print vs the intended colours | 14.15 | 30.87 |
+| Through the profile vs the same | 10.89 | 28.88 |
+
+**Separation 3.26 ΔE00 mean; 62 of 90 patches differ by >2 ΔE00, 22 by >5.** An
+instrument repeats to ~0.1–0.3 ΔE00, so the signal is 10–30× the noise: if the
+two sheets measure alike, the conversion did not happen.
+
+Plain paper *helps* here — its small gamut gives the conversion more to do, so
+the routes separate further. What it cannot show is whether the numbers are
+*good* (through-the-profile still sits at 10.89 ΔE00 because so much clips), and
+that is fine: this test proves the mechanism, not the profile.
+
+Until it is run, §12's evidence rating stays where it is and the feature should
+be described as untested end to end.
 
 ### The order that keeps it safe
 
@@ -955,16 +976,56 @@ proposed there; §4 and `cm_5_reconciled.png` are what would actually be built.
    on everywhere (the trend changes meaning); off for existing projects, on for
    new ones (**recommended**); always ask once. This is the highest-risk
    decision in A, and it is a judgement about users, not code.
-4. **Default rendering intent** — relative colorimetric or absolute?
-   ⚠️ **My recommendation here is weak and pulls against the request.** I have
-   been recommending relative; the original #133 request explicitly described
-   using **absolute**, because that is what the commercial practice being
-   replaced uses and what makes the numbers comparable with it. Both are offered
-   and the choice is recorded on every report either way, so this is a default
-   rather than a constraint — but it should be decided by someone who knows
-   which comparison matters, not defaulted on my say-so.
+4. **Default rendering intent** — and it is **two questions, not one.**
+   I had been treating it as a single decision, and describing my own answer as
+   "weak" because it seemed to contradict the original #133 request. Sebastian
+   pointed out that it need not: the two features choose their intent at
+   **different moments, in different tabs**, so they can hold different defaults
+   without disagreeing. He is right, and #133 §7.C already said so — *"one
+   choice, made when the chart is generated"* — for its own feature.
 
-6. **How big is the master set?** ⚠️ **I have now been wrong twice here, and
+   | | Chosen where | At what moment | Recommended default |
+   |---|---|---|---|
+   | **Feature A** (regular chart) | **Print Chart** tab | print time, when `cctiff` runs | **relative colorimetric** — the usual choice for judging a profile on its own paper |
+   | **#133's module** | **Create Chart**, in *From profile gamut* | chart-build time, when `xicclu` runs, and written into the reference file | **absolute colorimetric** — matches the practice #133 sets out to replace, and keeps the figures comparable with it |
+
+   This also matches what the mockups already show: `cm_6_already.png` has the
+   Print tab's intent control **disabled** for a #133 chart, with the note *"the
+   rendering intent was chosen when this chart was created, and is stored with
+   it."* The design was already consistent; only this question was written up as
+   though it were one decision.
+
+   **What still needs answering** is therefore much smaller: confirm the two
+   defaults above. Neither is a constraint — both intents are offered in full,
+   and whichever is used is recorded on the report.
+
+5. **Where would the Print tab's intent be *stored*?** Raised by Sebastian, and
+   it has no answer today: **`tab_print` is not one of the storing tabs.** Only
+   Create Chart, Measure and Build Profile implement
+   `load_target_settings` / `save_target_settings`
+   (`ui/tabs/tab_chart.py`, `tab_measure.py`, `tab_profile.py`) — the Print tab
+   stores nothing per target.
+
+   So Feature A's intent needs a decision the #133 one does not: make the Print
+   tab a fourth storing tab, keep the setting app-wide, or record it only onto
+   the verification it produced. **#133's intent needs none of this** — Create
+   Chart's store is generated from `per_target_widgets()`, so a new row there is
+   carried automatically.
+
+   That is a point in favour of putting as much as possible in Create Chart, and
+   worth weighing before Phase A2.
+
+   **And it lowers the stakes of question 4 considerably.** Once a setting is
+   stored per target, a default is only ever the *first* answer a target gets;
+   the user's own choice is written to that target's `meta.json` and comes back
+   next time. A default here is a starting point, not a policy.
+
+6. **Does the Route row of §4 ship with A**, or stay with #133? Recommendation:
+   with A, because §4 only becomes coherent once both exist.
+
+---
+
+7. **How big is the master set?** ⚠️ **I have now been wrong twice here, and
    the second time is instructive.**
 
    First I invented 1 500. Then I "corrected" it to **1 617** by counting the
@@ -1006,13 +1067,9 @@ proposed there; §4 and `cm_5_reconciled.png` are what would actually be built.
    reads a whole sheet at once. They show the format is not the limit; they are
    not evidence that anyone wants to hand-measure 10 290 patches.
 
-7. **The margin default** — "safely inside" or the full printable range?
+8. **The margin default** — "safely inside" or the full printable range?
    ⚠️ Also weak: no measurement stands behind it. Worth settling with one real
    print rather than an argument.
-5. **Does the Route row of §4 ship with A**, or stay with #133? Recommendation:
-   with A, because §4 only becomes coherent once both exist.
-
----
 
 ## 12. Rating
 
