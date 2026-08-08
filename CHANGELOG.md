@@ -1,5 +1,15 @@
 # Changelog
 
+## v3.14.8-beta.199
+
+### Fixed
+
+- **The answer you give the "this chart already has a measurement" window is
+  the one the app uses.** If you had earlier been sent to Measure by
+  Check & Refine, that refinement instruction could switch "Refine / resume"
+  back on after you had said no, so the box no longer described what would
+  actually run. Your answer now takes precedence.
+
 ## v3.14.8-beta.198
 
 ### Fixed

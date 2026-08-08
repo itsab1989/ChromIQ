@@ -3463,6 +3463,16 @@ class TabMeasure(QWidget):
         for cb in (self._resume_cb, self._m_resume_cb):
             if cb is not None and cb.isVisibleTo(self):
                 cb.setChecked(want_resume)
+        # AND THIS ANSWER OUTRANKS AN EARLIER REFINEMENT INSTRUCTION.
+        #
+        # `start_guided_refinement` arms the ticks so a settings load cannot
+        # undo them (beta.197). This window is the user saying, later and
+        # explicitly, what they want for this chart — so the arming has to go,
+        # or the next settings load would put resume back on over the top of
+        # their answer and the box would stop describing what the app runs.
+        # Basti, 2026-08-08: *"as long as the settings chosen there are
+        # correctly reflecting what is used in the app it is fine"*.
+        self._refinement_armed_for = None
         self._sync_refine_rows()
 
     def set_chart_notice(self, text: "str | None") -> None:
