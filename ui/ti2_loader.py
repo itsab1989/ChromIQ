@@ -393,6 +393,35 @@ def _bar_header(target) -> str:
                   run=_run_label(target), kind=_type_label(target))
 
 
+#: Longest project name a button may carry before it is elided. 28 characters
+#: is the widest label that still leaves the three buttons on one row at the
+#: default font — see `_short_name`.
+_BUTTON_NAME_LIMIT = 28
+
+
+def _short_name(name: str) -> str:
+    """A project name cut to a length a button can hold.
+
+    A BUTTON CANNOT CARRY AN UNBOUNDED NAME. ``Open {name}`` grows with the
+    project and the window grows with the button: measured offscreen, a
+    66-character project asked for a 633px button, which together with the
+    other two overflowed the window and clipped every label — the very fault
+    fixed the day before, returning by another route (Basti asked what happens
+    to a long name, 2026-08-08).
+
+    Elided in the **middle**, not the end. Project names differ most in their
+    last few characters — ``…_June2026_matte`` against ``…_June2026_gloss`` —
+    so a right-elide would render two different projects as the same button.
+    The description below the buttons still gives the name in full, so the
+    short form costs the reader nothing.
+    """
+    if len(name) <= _BUTTON_NAME_LIMIT:
+        return name
+    keep = _BUTTON_NAME_LIMIT - 1                    # the ellipsis takes one
+    head = (keep + 1) // 2
+    return f"{name[:head]}…{name[len(name) - (keep - head):]}"
+
+
 def _choice_dialog(parent, title, intro_html, choices):
     """Ask the user to pick one of several ways to load a file.
 
@@ -445,6 +474,24 @@ def _choice_dialog(parent, title, intro_html, choices):
 
     from ui.widgets import fit_message_box_buttons
     fit_message_box_buttons(box)
+
+    # THE CHOICES TOGETHER ON THE LEFT, CANCEL ON ITS OWN AT THE RIGHT.
+    #
+    # Qt lays all three out as one group, so "Cancel" sat shoulder to shoulder
+    # with the two actions and read like a third thing you might want to do
+    # (Basti, 2026-08-08). Separating it says what it is: the way out, not an
+    # option. A stretch inside the button box does it without disturbing the
+    # order the app's button-layout style produces.
+    try:
+        from PyQt6.QtWidgets import QDialogButtonBox
+        bb = box.findChild(QDialogButtonBox)
+        if bb is not None and bb.layout() is not None:
+            idx = bb.layout().indexOf(cancel)
+            if idx > 0:
+                bb.layout().insertStretch(idx, 1)
+    except Exception:      # noqa: BLE001 — a layout tweak must never block the window
+        pass
+
     box.exec()
     return buttons.get(box.clickedButton())
 
@@ -593,7 +640,7 @@ def _handle_inside_nothing_open(parent, ti2_path, inside_root, working_dir,
     """
     name = inside_root.name
     key = _choice_dialog(parent, tr("This chart belongs to a profile project"), "", [
-        (tr("Open {name}").format(name=name),
+        (tr("Open {name}").format(name=_short_name(name)),
          tr("Opens <b>{name}</b> and selects the profile run this chart was "
             "made for, so the bar above the tabs shows what you are working "
             "on. Nothing is copied or moved: the chart, its printed pages and "
@@ -628,7 +675,7 @@ def _handle_inside_other(parent, ti2_path, inside_root, working_dir, controller)
     """A2b — the file is inside a DIFFERENT current-structure project."""
     other = inside_root.name
     key = _choice_dialog(parent, tr("Load another profile project"), "", [
-        (tr("Open {name}").format(name=other),
+        (tr("Open {name}").format(name=_short_name(other)),
          tr("Switches the working project to <b>{name}</b>. Profile run is set to "
             "its current run and Run type to Profiling. Nothing is copied.")
          .format(name=other), "open"),
