@@ -13,21 +13,45 @@ Nothing here is agreed. It is a plan to argue with, section by section. No code
 has been written for either feature, and no row of any table below has been
 implemented.
 
-### Where this stands — updated 2026-08-08, after v3.14.8-beta.206
+### Where this stands — 2026-08-09, after v3.14.8-beta.207
 
-**Neither feature has advanced.** Phases A0–A3 and B are all untouched, and none
-of the five decisions in §11 has been made. Work did happen that touches this
-plan, but it came out of a question asked while writing it rather than from the
-plan itself, and it is worth being clear that it is not progress against A or B:
+**Neither feature has advanced.** Phases A0–A3 and B are untouched, and none of
+the decisions in §11 has been made. Everything below is still a draft.
+
+Work *did* happen around this plan, and it is worth being clear that it is not
+progress against A or B — it came out of questions asked while writing it:
 
 | | |
 |---|---|
-| **Shipped** | The patch-identity check (beta.206). Not in this plan; it came out of §16.5 of #133. It verifies that a measurement's readings belong to the chart they are compared with, and **reports without acting** |
-| **Closed** | One named unknown: whether i1Profiler preserves patch order. A real 550-patch round trip says **it does**, with `ScramblePatches` off — see #133 §16.5 |
-| **Still open** | Everything in §11. The load-bearing evidence gap in §12 is unchanged: nothing about colour-managed printing has been tested on hardware |
-| **Owed when A lands** | The identity verdict currently prints as a standalone notice. It belongs in the report's "how this was produced" block that A introduces (§3.3), so the report has **one** account of its own conditions rather than two |
+| **Shipped** | **beta.206** the patch-identity check (reports, acts on nothing) · **beta.207** disabled radio buttons now look disabled |
+| **Confirmed** | ✅ **One thing only**: the disabled-option styling (§3.1b), confirmed by Sebastian on 2026-08-08. Everything else in this file is unconfirmed |
+| **Closed by evidence** | i1Profiler preserves patch order (a real 550-patch round trip) · `targen -t` is nested by construction (four size pairs, byte-compared) · the master-set size, from what the industry actually uses · the set recipe, which is a `targen` invocation rather than new code |
+| **Corrected** | The set size twice — an invented 1 500, then 1 617 read from **CMYK** press references when ChromIQ is **RGB**. See §11 Q6 |
+| **Still open** | All of §11. The load-bearing evidence gap in §12 is unchanged: **nothing about colour-managed printing has been tested on hardware** |
+| **Owed when A lands** | The identity verdict prints as its own notice today; it belongs in the report's "how this was produced" block (§3.3, row A20), so the report gives one account of its conditions rather than two |
 
-**A precedent was set that B should follow.** Row B6 requires that a #133 chart with no colorimetric reference **refuses rather than falling back** to the sRGB one. The identity check is the first thing in the report to work that way — it states what it could not establish instead of quietly substituting something plausible — so B6 now has a working example to copy rather than a principle to re-argue.
+### Sections added after the plan was first written
+
+Read these before building — each changes what gets built, and two of them
+closed holes in the tables:
+
+| § | What it settles |
+|---|---|
+| **2a** | The device type is **never chosen** — it is inherited from the run's profiling chart. Also: ChromIQ *can* build CMY+N profiles (the beta engine), and the real obstacle is that it has **three `.ti3` readers** and the narrowest one owns the report |
+| **3.1a** | 🔴 A #133 chart is **already converted**, so the Print tab must force Raw and **disable** the other option. A hole in §3.1, which keyed only on run type |
+| **3.1b** | The mirror case is **deliberately not symmetric** — raw on a regular chart is a legitimate drift check, not an error. Contains the one **confirmed** decision |
+
+### If you are starting work, do this first
+
+1. Read **§0** (plain words) and **§11** (what is undecided).
+2. Answer §11 **Q1** and **Q2** — build A? and A+B together? Nothing else is
+   blocking, and the recommendation is *yes* and *A first*.
+3. Start at **Phase A0** (§5). It is three small changes, none user-visible.
+4. Re-run the two checkers before trusting any number in here:
+   `scripts/check_issue_133_numbers.py` and
+   `scripts/audit_tool_file_placement.py`.
+5. **Do not freeze the master colour set.** Ship it marked provisional — see
+   §0a's warning above; it is the only irreversible decision in either feature.
 
 ---
 
