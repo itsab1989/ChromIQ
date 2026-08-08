@@ -560,14 +560,47 @@ proposed there; §4 and `cm_5_reconciled.png` are what would actually be built.
    rather than a constraint — but it should be decided by someone who knows
    which comparison matters, not defaulted on my say-so.
 
-6. **How big is the master set?** ✅ **Answered by counting what the industry
-   uses, not by picking a number.** The 99 professional reference sets shipped
-   with i1Profiler cluster hard: **1 617 patches in 30 of them** (IT8.7/4 —
-   ECI PSR, TC1617-CRPC, GRACoL), 3 234 (exactly twice it) in 20, and a
-   **168-patch control wedge** in 10 for quick checks. Median 1 617.
-   **Recommendation: 1 617**, with nested subsets down to 168, and 3 234
-   available later at no cost because the set is nested by construction. The
-   earlier figure of 1 500 was invented and is not any standard's number.
+6. **How big is the master set?** ⚠️ **I have now been wrong twice here, and
+   the second time is instructive.**
+
+   First I invented 1 500. Then I "corrected" it to **1 617** by counting the
+   professional reference sets shipped with i1Profiler — but every one of those
+   lives under `ColorSpaceCMYK/`. **1 617 is IT8.7/4, a CMYK printing-press
+   number.** ChromIQ profiles **RGB** printers, so I took a figure from the
+   wrong colour space, which is the same mistake as the §5.3 capacity table:
+   a real number read against the wrong key.
+
+   **What RGB practice actually looks like**, from `ColorSpaceRGB/` in the same
+   installation and from ChromIQ's own bundled charts:
+
+   | Set | Patches |
+   |---|---|
+   | i1Profiler `printer test` | 90 |
+   | i1Profiler TC2.83 RGB | 294 |
+   | i1Profiler default for **i1Pro** (handheld) | 800 |
+   | i1Profiler TC9.18 RGB | 918 |
+   | i1Profiler defaults for **i1iSis / i1iO** (automated) | 957 / 999 |
+   | ChromIQ `redriver` standard patch set | 2 052 |
+   | ChromIQ `knut` scanner A4 | 3 430 |
+   | i1Profiler `RGB_default` measurements (iSis / iO / i1Pro) | **8 132** |
+   | ChromIQ `knut` scanner A4, 3 pages | **10 290** |
+
+   **So "more than 3 234 makes no sense" is false**, and provably so from files
+   already on disk. What actually sets the sensible size is **how the chart is
+   measured**, not any standard: i1Profiler's own defaults scale with the
+   instrument — 90 for a quick single-patch check, 800 for a handheld i1Pro,
+   ~1 000 for an automated table, 8 132 when reading is essentially free.
+
+   **Revised recommendation:** generate the master set **large — 6 000 to
+   8 000** — since nesting means the size costs nothing until someone prints it,
+   and make the *offered* size follow the instrument the way i1Profiler does,
+   using the per-instrument capacities `data/patch_db.py` already holds. The
+   default should be a number of **sheets** the user will accept, not a number
+   of patches picked from a standard.
+
+   ⚠️ Note the big ChromIQ figures above are **scanner** charts, where a flatbed
+   reads a whole sheet at once. They show the format is not the limit; they are
+   not evidence that anyone wants to hand-measure 10 290 patches.
 
 7. **The margin default** — "safely inside" or the full printable range?
    ⚠️ Also weak: no measurement stands behind it. Worth settling with one real

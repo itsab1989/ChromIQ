@@ -290,7 +290,17 @@ def check_quotations(body: "str | None") -> None:
     # A plain for/else would report OK even after a failure, because there is no
     # break to suppress it — the kind of quietly-wrong check this script exists
     # to stop shipping.
-    stale = [g for g in ("| 682 |", "| 1 485 |", "| 165 |", "| 63 |") if g in body]
+    #
+    # SCOPED TO THE CAPACITY TABLE, because these are ordinary numbers.
+    # Checking the whole body flagged "| 1 485 |" the moment the document
+    # gained a table of FOGRA patch counts — 1 485 is a real figure there, and
+    # a checker that cannot tell one 1 485 from another is a checker that
+    # trains you to ignore it.
+    i = body.find("### 5.3")
+    j = body.find("### 5.4", i + 1) if i >= 0 else -1
+    section = body[i:j] if i >= 0 and j > i else ""
+    stale = [g for g in ("| 682 |", "| 1 485 |", "| 165 |", "| 63 |")
+             if g in section]
     if stale:
         bad("the wrong figures are out of the table",
             f"still present as table cells: {stale}")
