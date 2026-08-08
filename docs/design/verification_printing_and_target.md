@@ -437,6 +437,80 @@ Input conditions: **Run type** (`measurement_target_bar.py:767`, read via
 | A5 | Verification, "raw" chosen | any | yes | — | print raw, record the choice | the radio | unchanged path; NEW record |
 | A6 | Verification, no chart generated | n/a | row hidden with the tab's existing empty state | — | nothing to print | `tab_chart._resolve_target_chart()` (`tab_chart.py:10359`) | unchanged |
 
+### 🔴 3.1a — a chart from #133's module has ALREADY been converted
+
+Raised by Sebastian, 2026-08-08, and it is a hole in the table above: **§3.1
+keys only on the run type and whether a profile exists, not on which module
+built the chart.** So a chart made by #133's FROM PROFILE GAMUT module would
+land on §3.1 row A3 and default to *"through this run's profile"* — converting a
+second time.
+
+That is precisely the double conversion §7.D warns about, and the worst kind:
+the sheet prints, measures cleanly, and produces a confident report describing
+nothing. Nothing downstream can detect it.
+
+**The two verification charts want opposite settings on the same row:**
+
+| Chart | Colours in the file | Correct setting | Why |
+|---|---|---|---|
+| Guided / Manual verification | source colours, read as sRGB | **through the profile** | the profile has not been applied yet |
+| **#133 FROM PROFILE GAMUT** | **final device values** from `xicclu` at build time | **raw** | the profile was applied when the chart was made |
+
+🔴 **Requirement: when the loaded chart carries stored colorimetric targets, the
+"Colour" row is forced to Raw and "Through this run's profile" is disabled —
+not merely deselected.**
+
+**Disabled, not defaulted, and the distinction matters.** For this chart
+"through the profile" is not a preference someone might reasonably hold — it is
+an error with no legitimate use, whose damage is invisible afterwards. A default
+can be changed by one stray click; a disabled control cannot. The app already
+has this exact pattern and Knut chose it: Build Profile is **greyed with a
+tooltip** during a verification run (beta.157, `main_window.py:934`) rather than
+left enabled with a warning.
+
+### What tells the app which kind of chart it is
+
+**Nothing new needs recording.** §11 step 5 already has this module write the
+reference `.ti3` of colorimetric targets beside the chart. **Its presence is the
+marker** — a chart with stored colorimetric targets is, by definition, one whose
+colours were already converted through the profile.
+
+That is worth preferring over a flag in `meta.json` or `channels.json`
+(`ink_channels`, `layout`, `chart_notes`, `stamp_commands` — no provenance field
+today) for one reason: **the same file that tells the report to use the
+`colorimetric` reference (row B4) tells the Print tab the sheet is already
+converted.** One fact, one file, and the two cannot drift into disagreeing.
+
+| # | Condition | Action | Where |
+|---|---|---|---|
+| A3a | Loaded chart **has** a colorimetric reference beside it | force Raw; disable "through the profile"; show the notice below | NEW → `tab_print`::`_update_colour_row_visible`, reading `Run`/`Verification` for the reference file |
+| A3b | Loaded chart has **no** such reference | §3.1 applies unchanged | — |
+| A3c | The reference file is missing but the chart claims to be one | **treat as A3a and say so** — refusing to convert is always the safe direction | NEW |
+
+### The wording
+
+Friendly, and explaining the outcome rather than the mechanism. Shown in place
+of the choice, not behind an ⓘ, because it is a **state** and not an option:
+
+> **This chart already has your profile applied, so it prints exactly as it is.**
+>
+> When you created it, ChromIQ asked your profile which ink amounts would
+> produce each of the colours being tested, and stored the answer in the chart
+> itself. The sheet is your profile's prediction already — there is nothing left
+> to convert.
+>
+> That is why "Through this run's profile" is switched off here. Applying the
+> profile a second time would print different colours from the ones being
+> tested, your measurement would faithfully describe those different colours,
+> and nothing afterwards could tell that it had happened.
+>
+> You do not need to change anything. Print as usual, and if you print from
+> another application, simply make sure it does not convert the colours either.
+
+**Test T11** (added to §9): a chart with a colorimetric reference disables the
+option, and the disabled control cannot be re-enabled by switching run type
+back and forth.
+
 ### 3.2 Feature A — the conversion itself
 
 | # | Condition | Action | Where |
@@ -673,6 +747,7 @@ committed, so a wrong detail is a re-run rather than a redraw.
 | The report block | `docs/mockups/cm130/cm_3_report.png` |
 | The no-profile state | `docs/mockups/cm130/cm_4_no_profile.png` |
 | **The reconciled section of §4** — Colour + Intent + Route together | `docs/mockups/cm130/cm_5_reconciled.png` |
+| **§3.1a — a chart that already has the profile applied**, with the option disabled | `docs/mockups/cm130/cm_6_already.png` |
 
 The last one supersedes `acc133/acc_3_print.png`, which shows #133 §8's earlier
 two-row proposal. That mockup stays where it is as the record of what was
@@ -694,6 +769,7 @@ proposed there; §4 and `cm_5_reconciled.png` are what would actually be built.
 | T8 | The report block shows intent, route and reference; absent when not applicable | unit |
 | T9 | An existing verification project opens unchanged (migration) | unit |
 | T10 | On-screen: the real app, verification selected, both buttons, files checked on disk | driver script, per the project's practice |
+| T11 | A chart with stored colorimetric targets **forces Raw and disables "through the profile"**, and cannot be re-enabled by toggling the run type | unit; pins §3.1a |
 
 ---
 

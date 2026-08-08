@@ -13,6 +13,8 @@ Four spots:
   cm_4_no_profile.png  the same row when the run has no profile to print through
   cm_5_reconciled.png  the whole reconciled section: Colour + Intent + Route,
                        which supersedes the two-row proposal in #133 section 8
+  cm_6_already.png     a chart from #133's module, which already has the profile
+                       applied: the option is DISABLED, not merely deselected
 
 Committed rather than thrown away, because a mockup that cannot be re-run is a
 mockup that cannot be corrected — the #133 panel had to be redrawn from scratch
@@ -308,6 +310,86 @@ def reconciled_section() -> QWidget:
     return panel
 
 
+def already_converted() -> QWidget:
+    """Print Chart when the loaded chart already carries the profile (§3.1a).
+
+    A #133 FROM PROFILE GAMUT chart was converted with xicclu when it was made,
+    so converting again would print different colours from the ones being
+    tested -- silently. The option is disabled rather than defaulted, following
+    the pattern Knut chose for the Build Profile tab in a verification run.
+    """
+    A = styles.SPEC_AMBER
+    panel, outer = _shell("PRINT CHART · A CHART THAT IS ALREADY CONVERTED", A)
+
+    cap = QLabel(
+        "Shown when the loaded chart carries stored colorimetric targets — "
+        "i.e. it came from the <b>From profile gamut</b> module.", panel)
+    cap.setWordWrap(True)
+    cap.setStyleSheet(f"color:{styles.TEXT_DIM};background:transparent;")
+    outer.addWidget(cap)
+
+    group = QGroupBox("How this chart is printed", panel)
+    gl = QVBoxLayout(group)
+    gl.setContentsMargins(14, 16, 14, 14)
+    gl.setSpacing(10)
+
+    choice = QWidget(group)
+    cl = QHBoxLayout(choice)
+    cl.setContentsMargins(0, 0, 0, 0)
+    cl.setSpacing(18)
+    through = QRadioButton("Through this run's profile", choice)
+    through.setEnabled(False)
+    # Short enough not to elide: the notice below carries the explanation.
+    raw = QRadioButton("Raw — already converted", choice)
+    raw.setChecked(True)
+    cl.addWidget(through)
+    cl.addWidget(raw)
+    cl.addStretch(1)
+    gl.addWidget(_row(group, "Colour", choice,
+                      "Printing a chart that already has your profile applied",
+                      "This chart was built by asking your profile which ink "
+                      "amounts produce each of the colours being tested, so "
+                      "the sheet is already your profile\u2019s own "
+                      "prediction.\n\nThere is nothing left to convert, which "
+                      "is why the other choice is switched off. Applying the "
+                      "profile a second time would print different colours "
+                      "from the ones being tested, and nothing afterwards "
+                      "could tell that it had happened.\n\nPrint as usual.",
+                      A))
+
+    intent = QComboBox(group)
+    intent.setMinimumHeight(30)
+    intent.addItems(["Relative colorimetric (recommended)"])
+    intent.setEnabled(False)
+    gl.addWidget(_row(group, "Rendering intent", intent,
+                      "Not used for this chart",
+                      "The rendering intent was chosen when this chart was "
+                      "created, and is stored with it. Nothing is converted "
+                      "at print time, so there is nothing to choose here.", A))
+    outer.addWidget(group)
+
+    info = QLabel(panel)
+    info.setObjectName("warning")
+    info.setWordWrap(True)
+    info.setText(
+        "<b>This chart already has your profile applied, so it prints exactly "
+        "as it is.</b><br><br>"
+        "When you created it, ChromIQ asked your profile which ink amounts "
+        "would produce each of the colours being tested, and stored the answer "
+        "in the chart itself. The sheet is your profile\u2019s prediction "
+        "already — there is nothing left to convert.<br><br>"
+        "That is why \u201cThrough this run\u2019s profile\u201d is switched "
+        "off here. Applying the profile a second time would print different "
+        "colours from the ones being tested, your measurement would faithfully "
+        "describe those different colours, and nothing afterwards could tell "
+        "that it had happened.<br><br>"
+        "You do not need to change anything. Print as usual — and if you print "
+        "from another application, simply make sure it does not convert the "
+        "colours either.")
+    outer.addWidget(info)
+    return panel
+
+
 def report_line() -> QWidget:
     """The line the report gains, in the report window's own green."""
     G = styles.SPEC_GREEN
@@ -377,7 +459,8 @@ def main() -> int:
     _finish(report_line(), "cm_3_report.png", styles.SPEC_GREEN)
     _finish(print_row(True), "cm_4_no_profile.png", styles.SPEC_AMBER)
     _finish(reconciled_section(), "cm_5_reconciled.png", styles.SPEC_AMBER)
-    print(f"\nall five written to {OUT.relative_to(ROOT)}")
+    _finish(already_converted(), "cm_6_already.png", styles.SPEC_AMBER)
+    print(f"\nall six written to {OUT.relative_to(ROOT)}")
     return 0
 
 
