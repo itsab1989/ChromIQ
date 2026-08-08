@@ -1,5 +1,17 @@
 # Changelog
 
+## v3.14.8-beta.198
+
+### Fixed
+
+- **Re-measuring a whole chart tells you it is finished again.** Once a chart
+  had been measured completely, every later measurement of it stayed silent at
+  the end — no "all strips read" window, so nothing offered to take you on to
+  Build Profile — even when you read the entire chart again from scratch. The
+  window was being held back for a chart that was already complete when you
+  started, which is right when you re-read a single strip and wrong when you
+  re-read all of them. It now asks whether this session read the whole chart.
+
 ## v3.14.8-beta.197
 
 ### Fixed

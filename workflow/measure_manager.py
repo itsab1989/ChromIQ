@@ -276,6 +276,12 @@ class MeasureManager(QObject):
         self._spot_mode: bool = False
         #: whether every strip already held a reading when the session opened.
         self._chart_was_complete: bool = False
+        #: Strips read during THIS session, and the chart's full strip list, so
+        #: a complete re-measurement can be told from a single-strip touch-up.
+        #: Defaulted here as well as per run: the manager is driven directly by
+        #: tests (and by the stock path) without going through `start`.
+        self._strips_read_this_session: set = set()
+        self._session_strips: list = []
         self._guided_strips: list[str] = []
         self._guided_idx:    int  = 0
         # "disabled" until strips are actually given: everywhere else the rule
@@ -340,6 +346,10 @@ class MeasureManager(QObject):
         #: :meth:`skip_current_strip`.
         self._spot_mode      = bool(params.patch_by_patch)
         self._chart_was_complete = False
+        #: Strips this session has actually read, and the chart's full
+        #: strip list, so a re-measurement can be told from a touch-up.
+        self._strips_read_this_session: set = set()
+        self._session_strips: list = []
         self._guided_on_line = on_line
         # Reset guided state for this run
         self._guided_idx   = 0
@@ -890,8 +900,37 @@ class MeasureManager(QObject):
         chart with one strip left it still arrives when that strip is read.
         """
         if self._chart_was_complete:
-            return False
+            # …UNLESS THIS SESSION READ THE WHOLE CHART AGAIN.
+            #
+            # Basti, 2026-08-08: he re-measured printer-test end to end — every
+            # strip A–F, from zero, with no `-r` — and no completion window
+            # offered him Build Profile. His log shows the engine doing its part:
+            # `{"strip":"F","read":true,"all_done":true}` and chartread's
+            # "(!! ALL ROWS READ !!)".
+            #
+            # The suppression above is right for what it was written for and
+            # says so: *"re-reading ONE strip does not complete anything"*. But
+            # it was keyed only on the chart's state at the start, so any chart
+            # that already had a finished .ti3 was silenced for ever after,
+            # however much of it you read. A full re-measurement is a
+            # completion by any reading of that sentence.
+            #
+            # Asking "did this session read every strip?" keeps Knut's case
+            # silent (one strip re-read on a finished chart) and answers Basti's.
+            # It does NOT weaken his beta.150 fix: `_chart_was_complete` still
+            # comes from the .ti3, because the strip flags are per strip and the
+            # gap can be per patch.
+            return self._read_the_whole_chart_this_session()
         return bool(self._read_something or not self._is_resume)
+
+    def _read_the_whole_chart_this_session(self) -> bool:
+        """Whether every strip of the chart was read during this session."""
+        wanted = {str(s.get("strip", "")).strip()
+                  for s in (self._session_strips or [])
+                  if str(s.get("strip", "")).strip()}
+        if not wanted:
+            return False
+        return wanted <= self._strips_read_this_session
 
     def _handle_engine_line(self, line: str,
                             on_line: Callable[[str], None]) -> None:
@@ -987,6 +1026,7 @@ class MeasureManager(QObject):
             # same one §3a uses everywhere else.
             self._chart_was_complete = self._measurement_was_complete(
                 ev.get("chart"), strips)
+            self._session_strips = list(strips or [])
             self.session_map.emit(strips)
 
         elif kind == "strip_ready":
@@ -1021,6 +1061,9 @@ class MeasureManager(QObject):
         elif kind == "strip_read":
             self._engine_progress = True
             self._read_something = True
+            _s = str(ev.get("strip", "")).strip()
+            if _s:
+                self._strips_read_this_session.add(_s)
             # "patches" IS THE LIST OF PATCHES, not a count.
             #
             # int(list) raises, and the raise happened one line before
