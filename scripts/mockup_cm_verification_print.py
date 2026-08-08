@@ -35,30 +35,44 @@ from PyQt6.QtWidgets import (                                      # noqa: E402
 )
 
 from ui import styles                                              # noqa: E402
+from ui.dialogs.tools_dialogs import neutral_controls_qss          # noqa: E402
 from ui.tooltip_button import InfoDialog, TooltipButton            # noqa: E402
 
 OUT = ROOT / "docs" / "mockups" / "cm130"
 
 INTENT_HELP_TITLE = "Printing this chart through your profile"
 INTENT_HELP_BODY = (
-    "A verification asks a simple question: does your printer really produce "
-    "the colours your profile promises?\n\n"
-    "To ask it properly the chart has to be printed the way your profile says "
-    "those colours should be printed. ChromIQ works out the exact ink amounts "
-    "your profile predicts for every patch, and prints those — so the sheet "
-    "that comes out is your profile's own prediction, made physical. Measuring "
-    "it then tells you how close the prediction was.\n\n"
-    "Print it raw instead — the chart's own numbers go to the printer "
-    "untouched, with no profile involved. That measures the printer and paper "
-    "as they are, which is what a profiling chart needs, but it cannot tell "
-    "you anything about how good your profile is.\n\n"
-    "Either way ChromIQ does the colour work itself and sends the printer a "
-    "finished sheet, with the driver's colour management switched off. You "
-    "never have to set anything in the print dialog, and nothing between "
-    "ChromIQ and the paper changes the colours.\n\n"
-    "Whichever you choose is written on the report, because two prints made "
-    "different ways are not comparable.\n\n"
-    "Default: print through this run's profile."
+    "This decides how the colours on this sheet are worked out before it is "
+    "printed — and it is the setting that makes a verification mean "
+    "something.\n\n"
+    "What a verification is for. When you built your profile, you taught "
+    "ChromIQ how your printer and this paper behave together. A verification "
+    "asks the follow-up question: does the printer still do what the profile "
+    "says it does? Ink settles, paper batches differ, printheads age — so it "
+    "is worth checking, and worth checking the same way every time.\n\n"
+    "Through this run's profile (recommended). ChromIQ looks up, for every "
+    "single patch on the sheet, the exact amount of each ink your profile "
+    "predicts will produce that colour. Those amounts are what gets printed. "
+    "So the sheet coming out of your printer is your profile's own prediction, "
+    "made real — and when you measure it, the difference between what was "
+    "promised and what landed on the paper is exactly the number you are "
+    "looking for. Pick this one unless you have a particular reason not to.\n\n"
+    "Raw — no profile applied. The chart's own numbers go to the printer "
+    "untouched, with no profile involved anywhere. This is the right way to "
+    "print a chart you are going to build a profile from, because it shows "
+    "the printer's raw behaviour. It is the wrong way to check a profile, "
+    "because no profile took part — the measurement would describe your "
+    "printer, not the profile you wanted to test.\n\n"
+    "You do not have to change anything in the print dialog. Whichever you "
+    "choose, ChromIQ does all of the colour work itself and hands the printer "
+    "a finished sheet, with the printer's own colour adjustment switched off. "
+    "That is deliberate: if the printer driver also tried to adjust the "
+    "colours, they would be converted twice, the sheet would be wrong, and "
+    "nothing afterwards could tell that it had happened.\n\n"
+    "Your choice is written onto the report next to the results, because two "
+    "sheets printed different ways cannot be compared with each other — and "
+    "six months from now, nobody remembers which way a sheet was printed.\n\n"
+    "Default: through this run\u2019s profile."
 )
 
 
@@ -91,8 +105,9 @@ def _shell(title_text, accent):
     return panel, outer
 
 
-def _finish(panel, name):
-    panel.setStyleSheet(panel.styleSheet() +
+def _finish(panel, name, accent=None):
+    extra = neutral_controls_qss(accent) if accent else ""
+    panel.setStyleSheet(panel.styleSheet() + extra +
                         f"\n#mockupPanel{{background:{styles.BG_DARK};}}")
     panel.adjustSize()
     OUT.mkdir(parents=True, exist_ok=True)
@@ -138,16 +153,32 @@ def print_row(no_profile: bool = False) -> QWidget:
     intent.setEnabled(not no_profile)
     gl.addWidget(_row(group, "Rendering intent", intent,
                       "Which rendering intent to print with",
-                      "Rendering intent decides what happens to colours your "
-                      "printer cannot reach.\n\nRelative colorimetric keeps "
-                      "every colour it can reach exactly right and pulls the "
-                      "rest to the nearest it can manage — the usual choice "
-                      "for checking a profile.\n\nAbsolute colorimetric does "
-                      "the same but also reproduces the paper white of the "
-                      "profile, so a warm paper shows up as an error. Use it "
-                      "when you are matching an external absolute "
-                      "reference.\n\nThe intent is written on the report, "
-                      "because a ΔE means nothing without it.\n\n"
+                      "Your printer cannot make every colour that exists — no "
+                      "printer can. Rendering intent is the rule for what "
+                      "happens to the colours it cannot reach.\n\n"
+                      "Relative colorimetric (recommended). Every colour your "
+                      "printer can actually make is reproduced exactly, and "
+                      "the few it cannot reach are moved to the closest colour "
+                      "it can manage. Paper white is treated as white. This is "
+                      "the usual choice for checking a profile, because it "
+                      "asks \u201cdid you hit the colours you could hit?\u201d "
+                      "without punishing the printer for the ones nobody could "
+                      "print.\n\n"
+                      "Absolute colorimetric. The same, except that the "
+                      "paper\u2019s own shade counts too. If your paper is "
+                      "slightly warm or slightly blue, that shows up as an "
+                      "error on every patch, so the numbers come out higher. "
+                      "Choose this when you have to match figures somebody "
+                      "else produced this way, or when the exact paper white "
+                      "matters to you.\n\n"
+                      "Perceptual and Saturation are meant for photographs and "
+                      "graphics rather than for measurement. They deliberately "
+                      "shift colours to look pleasing, which is the opposite "
+                      "of what a measurement wants, so they are here for "
+                      "completeness rather than for everyday use.\n\n"
+                      "Whichever you pick is written on the report, because a "
+                      "colour difference means nothing unless you know how it "
+                      "was produced.\n\n"
                       "Default: relative colorimetric.", A))
     outer.addWidget(group)
 
@@ -156,19 +187,26 @@ def print_row(no_profile: bool = False) -> QWidget:
     info.setWordWrap(True)
     if no_profile:
         info.setText(
-            "<b>This run has no finished profile yet</b>, so there is nothing "
-            "to print through. You can still print the sheet raw, but "
-            "measuring it will not tell you how accurate a profile is.<br>"
-            "To get there: set <b>Run type</b> to <b>Profiling</b>, measure "
-            "the profiling chart, and build the profile on the Build Profile "
-            "tab.")
+            "<b>There is no finished profile in this run yet</b>, so there is "
+            "nothing for ChromIQ to print through. You can still print this "
+            "sheet raw and measure it — but the result would describe your "
+            "printer, not a profile, so it cannot tell you how accurate a "
+            "profile is.<br><br>"
+            "To get there: set <b>Run type</b> to <b>Profiling</b>, then "
+            "create, print and measure the profiling chart as usual, and "
+            "build the profile on the <b>Build Profile</b> tab. Come back "
+            "here afterwards and this option will be waiting for you.")
     else:
         info.setText(
-            "ChromIQ works out the ink amounts your profile predicts and "
-            "prints those. The printer's own colour management stays switched "
-            "off, so nothing between here and the paper changes the "
-            "colours.<br>The finished sheets are kept in this verification's "
-            "<b>cache</b> folder.")
+            "ChromIQ will work out the ink amounts your profile predicts for "
+            "every patch and print exactly those, so the sheet is your "
+            "profile\u2019s own prediction made real. The printer\u2019s own "
+            "colour adjustment stays switched off, so nothing between here "
+            "and the paper changes the colours.<br><br>"
+            "You do not need to change any colour setting in the print "
+            "dialog. The finished sheets are kept in this "
+            "verification\u2019s <b>cache</b> folder, which is always safe "
+            "to delete.")
     outer.addWidget(info)
 
     btn = QPushButton("Print", panel)
@@ -244,10 +282,10 @@ def main() -> int:
     app.setPalette(styles.make_dark_palette())
     app.setStyleSheet(styles.APP_STYLESHEET)
 
-    _finish(print_row(False), "cm_1_print.png")
+    _finish(print_row(False), "cm_1_print.png", styles.SPEC_AMBER)
     info_window(app)
-    _finish(report_line(), "cm_3_report.png")
-    _finish(print_row(True), "cm_4_no_profile.png")
+    _finish(report_line(), "cm_3_report.png", styles.SPEC_GREEN)
+    _finish(print_row(True), "cm_4_no_profile.png", styles.SPEC_AMBER)
     print(f"\nall four written to {OUT.relative_to(ROOT)}")
     return 0
 
