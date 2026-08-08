@@ -286,6 +286,20 @@ QRadioButton::indicator {{
     background: {BG_INPUT};
 }}
 QRadioButton::indicator:checked {{ background: {ACCENT}; border-color: {ACCENT}; }}
+/* A DISABLED RADIO HAS TO *LOOK* DISABLED.
+   The checkbox rules above have said so since they were written; the radio ones
+   were simply never added, and only `#param_label` radios carried them (below).
+   Measured on the dark theme: an enabled label and a disabled one both rendered
+   #e6e6e6 — pixel for pixel identical — so a switched-off option was
+   indistinguishable from a live one. A checkbox in the same state rendered
+   #6a6a6a. Basti spotted it in a mockup where the notice said an option was
+   unavailable while the option looked perfectly clickable.
+   The `:checked:disabled` selector is needed for the same reason it is on
+   checkboxes: the accent fill otherwise outranks Qt's disabled greying and a
+   switched-off option keeps a bright dot. */
+QRadioButton:disabled                     {{ color: #6a6a6a; }}
+QRadioButton::indicator:disabled          {{ background: #1f1f1f; border-color: #3a3a3a; }}
+QRadioButton::indicator:checked:disabled  {{ background: #4a4a4a; border-color: #4a4a4a; }}
 
 /* ---- Log ---------------------------------------------------------- */
 QPlainTextEdit#log {{

@@ -1,5 +1,15 @@
 # Changelog
 
+## v3.14.8-beta.207
+
+### Fixed
+
+- **A switched-off radio button now looks switched off.** Options that ChromIQ
+  had turned off were drawn exactly like the ones you can still choose, so
+  there was no way to tell them apart — you could click one and simply nothing
+  would happen. They are now greyed, the way switched-off tick boxes always
+  have been.
+
 ## v3.14.8-beta.206
 
 ### New

@@ -511,6 +511,48 @@ of the choice, not behind an ⓘ, because it is a **state** and not an option:
 option, and the disabled control cannot be re-enabled by switching run type
 back and forth.
 
+#### A disabled option must *look* disabled — and it did not
+
+Reviewing the §3.1a mockup, Sebastian noticed the notice said the option was
+unavailable while the option looked perfectly clickable. That was **not the
+mockup**.
+
+Measured on the dark theme, rendered pixels rather than read from the
+stylesheet:
+
+| Control | Enabled | Disabled |
+|---|---|---|
+| `QCheckBox` | `#e6e6e6` | `#6a6a6a` ✅ |
+| `QRadioButton` | `#e6e6e6` | **`#e6e6e6`** ❌ — identical |
+
+`ui/styles.py` carried `QCheckBox:disabled` and `QCheckBox::indicator:disabled`
+but never the radio equivalents; only radios with `objectName="param_label"`
+were covered, and the plan's rows use plain ones.
+
+**This is a dependency of §3.1a, not a cosmetic aside.** That row requires an
+option to be *disabled rather than merely deselected*, because choosing it would
+convert a chart twice — an error nothing downstream can detect. A disabled
+control that looks live cannot carry that design: the user would click it,
+nothing would happen, and the only explanation would be a paragraph they had
+already skipped.
+
+**Fixed ahead of the feature** (it is a defect in its own right, and 26 plain
+radios exist across seven files): `QRadioButton:disabled`,
+`::indicator:disabled` and `::indicator:checked:disabled` now mirror the
+checkbox rules. The last one is needed for the same reason it is on checkboxes —
+the accent fill otherwise outranks Qt's disabled greying and a switched-off
+option keeps a bright dot.
+
+`tests/test_disabled_controls_look_disabled.py` **measures rendered pixels**
+rather than reading the stylesheet, because the stylesheet said the right thing
+about checkboxes for years while radios went uncovered and no test noticed.
+Proved by removing the rules again: four tests fail.
+
+**The general rule, worth applying beyond this feature:** when a design relies
+on a control being visibly unavailable, that visibility is part of the design
+and needs testing like any other behaviour. "Disabled" is a claim about what the
+user can see, not only about what the widget will accept.
+
 ### 🔴 3.1b — and the mirror case: should "raw" be greyed for a regular chart?
 
 Asked immediately after §3.1a, and the honest answer is **no — the asymmetry is
