@@ -227,6 +227,71 @@ for planning: building them together saves nothing.
 
 ---
 
+## 2a. Device type — RGB, CMY, CMYK, CMY+N?
+
+Asked 2026-08-08: should the verification let the user pick a device type, the
+way `targen` and ChromIQ's own generator do?
+
+**No — and that is the design working, not a limitation.**
+
+#133's master set is a list of **Lab targets**, not device values. It is
+device-independent by construction: the profile being verified performs
+Lab → device, so the device space is **whatever that profile is**. A device-type
+picker would let someone generate a CMYK verification set for an RGB profile,
+which is a category error — you would be asking a profile to reproduce colours
+expressed in a space it does not have.
+
+So the answer to "which device type?" is always: **the one the profile under
+test uses.** Nothing to choose, and nothing to get wrong.
+
+### What actually bounds it, in two layers
+
+**Layer 1 — what can be profiled at all.** From `targen.html`:
+
+> *"targen is used to generate the device channel test point values for
+> grayscale, RGB, CMY, CMYK or N-color output or display devices. **[ Note
+> though that colprof will only create RGB, CMY or CMYK profiles. ]**"*
+
+A verification verifies a profile, so it can only ever apply to **RGB, CMY or
+CMYK**. N-channel targets can be generated but not turned into an ICC profile,
+so there is nothing to verify.
+
+**Layer 2 — what ChromIQ's own measurement path accepts, which is narrower.**
+`workflow/ti3_analysis.py:158` refuses anything else outright:
+
+```
+raise Ti3ParseError("No device RGB columns — only RGB charts are supported.")
+```
+
+`parse_ti3` is what the measurement report, the cube corners and the
+patch-identity check all read through. **So today the whole verification and
+reporting path is RGB-only by an explicit decision, not by accident.**
+
+### ⚠️ A latent inconsistency this exposes, worth checking separately
+
+Create Chart offers `targen -d` with **choices 0–15** — grey, RGB, CMY, CMYK and
+the N-colour combinations (`data/parameters.yaml`, wired at
+`ui/tabs/tab_chart.py:2736` as `_manual_devtype_pw`). It is not restricted to
+RGB.
+
+So a user can pick CMYK, generate a chart and print it — and the measurement
+report cannot read the result. **That gap exists today, independently of either
+feature here.** It belongs in the tool-availability work
+(`tool_availability.md`), because it is exactly the shape that document is for:
+an option offered in one place that the rest of the app cannot honour.
+
+**Not investigated here:** whether `chartread` itself accepts a CMYK chart, i.e.
+whether the wall is at measuring or only at reporting. Worth establishing before
+anyone decides what to do about it.
+
+### If CMYK verification were ever wanted
+
+It is not a change to either feature — both are already device-agnostic. It is a
+change to `parse_ti3` and everything shaped around RGB device values: the cube
+corners (`CUBE_CORNERS` is eight *RGB* corners), the `device` reference
+fallback, and the patch-identity check. That is a separate piece of work with
+its own design, and nothing in this plan blocks it or presumes it.
+
 ## 3. Condition → action tables, mapped to code
 
 Knut's method, applied:

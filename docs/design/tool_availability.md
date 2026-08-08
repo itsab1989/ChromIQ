@@ -196,6 +196,44 @@ These are **§M-PROPOSED candidates** if any of them becomes a message window;
 as pull-down tooltips they are ordinary help text, but they should be reviewed
 in the same pass so the two never disagree.
 
+## 6a. An option offered that the rest of the app cannot honour
+
+Found 2026-08-08 while answering a question about device types, and recorded
+here because it is exactly the shape this document exists for.
+
+**Create Chart offers `targen -d` with choices 0–15** — grey, RGB, CMY, CMYK and
+the N-colour ink combinations (`data/parameters.yaml`; wired at
+`ui/tabs/tab_chart.py:2736` as `_manual_devtype_pw`). Nothing restricts it to
+RGB.
+
+**But `parse_ti3` refuses anything that is not RGB**, outright
+(`workflow/ti3_analysis.py:158`):
+
+```
+raise Ti3ParseError("No device RGB columns — only RGB charts are supported.")
+```
+
+That parser is what the measurement report, the cube corners and the
+patch-identity check all read through. So a user can choose CMYK, generate a
+chart and print it, and then find the result cannot be reported on.
+
+**Not established, and worth knowing before deciding anything:** whether
+`chartread` itself accepts a CMYK chart — i.e. whether the wall is at measuring
+or only at reporting. The two call for different answers.
+
+**Options**, none of them taken here:
+
+1. **Restrict the choice** to what the app can carry through, and say why in the
+   tooltip. Smallest, and honest.
+2. **Warn at the point of choosing** — the option stays, with a notice that
+   measuring and reporting are RGB-only today.
+3. **Lift the limit** in `parse_ti3` and everything shaped around RGB device
+   values. A real piece of work, and its own design.
+
+This is independent of both verification features
+(`verification_printing_and_target.md` §2a) — it is a pre-existing gap that
+neither introduces.
+
 ## 7. Open questions — these are what confirmation means
 
 1. **Is the three-verdict model right**, or should "independent" simply be
