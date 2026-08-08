@@ -56,6 +56,8 @@ FREE_FLOWING = (
 
 def test_a_hand_wrapped_body_is_not_re_wrapped(qapp):
     """Every line the author wrote fits on one line on screen."""
+    from _fontcheck import skip_without_fonts
+    skip_without_fonts()                 # re-wrap check pivots on real text widths
     dlg = _InfoDialog("Title", HAND_WRAPPED, None, 420)
     dlg.show()
     qapp.processEvents()
@@ -88,6 +90,8 @@ def test_free_flowing_prose_keeps_the_width_its_caller_asked_for(qapp):
     Its "longest line" is the whole paragraph, so measuring it would push every
     such card to the maximum width.
     """
+    from _fontcheck import skip_without_fonts
+    skip_without_fonts()                 # width check pivots on real text widths
     dlg = _InfoDialog("Title", FREE_FLOWING, None, 420)
     dlg.show()
     qapp.processEvents()
@@ -133,6 +137,10 @@ def test_the_real_patch_consistency_card(qapp):
         f"expected the Guided and Manual copies of the -T help card, "
         f"found {len(bodies)}"
     )
+    # The drift check above is platform-independent; the width measurement below
+    # needs real glyph advances, absent under offscreen Qt on Windows.
+    from _fontcheck import skip_without_fonts
+    skip_without_fonts()
     for raw in bodies:
         body = eval(raw, {"tr": lambda s: s})       # noqa: S307 — a literal
         dlg = _InfoDialog("Patch consistency tolerance (-T)", body, None, 420)
