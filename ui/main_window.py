@@ -1113,14 +1113,40 @@ class MainWindow(QMainWindow):
                          project=project)
 
     def _current_chart_ti2(self) -> "Path | None":
-        """The current run's generated chart .ti2, or None when no chart has
-        been generated yet (so the layout editor opens empty as before)."""
+        """The SELECTED target's generated chart .ti2, or None when there isn't
+        one yet (so the patch set editor opens empty as before).
+
+        A CALIBRATION IS A THIRD TARGET, AND THIS KNEW ONLY ONE.
+
+        This asked the project for ``current_run().chart_ti2`` — the profiling
+        chart — whatever the bar was pointing at. So with Run type =
+        Calibration the patch set editor opened the *profile run's* patch set:
+        driven on screen against Demo-Full-RGB it showed **400 patches** under
+        the name ``Demo-Full-RGB`` when the calibration chart beside it was 64
+        patches of ``Demo-Full-RGB-cal``. Editing and applying from there lays
+        the wrong patch set out and — because a calibration build writes to
+        ``cal/`` (``_confirm_replacing_calibration``) — writes it over the
+        calibration chart. Same shape as beta.165: two run types were assumed
+        where there are three.
+
+        The cure is not another copy of the branching, which is what produced
+        the fault; it is to ask the one method that already resolves this for
+        every run type. ``_resolve_target_chart`` wants the sheet TIFFs to
+        exist as well as the ``.ti2``, which is a slightly stricter test than
+        this used to apply — deliberately kept, because a chart whose pages are
+        missing is not one the preview, Print Chart or Measure will accept
+        either, and one definition of "the selected target's chart" is the
+        whole point.
+        """
         if not (self._file_mgr.working_dir() / "project.json").exists():
             return None
         try:
-            ti2 = self._file_mgr.project().current_run().chart_ti2
+            resolved = self._tab_chart._resolve_target_chart()
         except Exception:  # noqa: BLE001 — never block opening the tool
             return None
+        if not resolved:
+            return None
+        ti2 = resolved[0]
         return ti2 if ti2.exists() else None
 
     def _apply_editor_chart(self, src_dir: "Path", name: str) -> bool:

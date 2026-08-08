@@ -1,5 +1,20 @@
 # Changelog
 
+## v3.14.8-beta.203
+
+### Fixed
+
+- **The chart patch set editor now opens the chart you actually have selected.**
+  With "Run type" set to Calibration, Tools ▸ "Chart patch set editor" opened
+  the profile run's chart instead of the calibration chart — on a real project
+  it showed 400 patches under the profiling chart's name while the calibration
+  chart beside it held 64. Editing from there and applying it laid the profile
+  run's colours out and wrote them over the calibration chart, because a
+  calibration build writes into the "cal" folder. Verification runs had the
+  same fault: the editor opened the profiling chart rather than the
+  verification chart. All three run types now open their own chart, and the
+  editor's save name follows.
+
 ## v3.14.8-beta.202
 
 ### Fixed
