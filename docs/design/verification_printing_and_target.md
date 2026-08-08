@@ -511,7 +511,18 @@ of the choice, not behind an ⓘ, because it is a **state** and not an option:
 option, and the disabled control cannot be re-enabled by switching run type
 back and forth.
 
-#### A disabled option must *look* disabled — and it did not
+#### ✅ A disabled option must *look* disabled — CONFIRMED
+
+**Confirmed by:** Sebastian, 2026-08-08 — *"what i saw last on github looked
+right"*, *"it is ok as it is"*, after seeing the corrected render and the four
+alternatives side by side.
+
+This is the one part of this document that is settled. It was shipped in
+v3.14.8-beta.207, checked on screen by a human, and the alternatives were
+explicitly declined. The promotion rule from the top of this file has been
+followed: verified, then shown, then confirmed by name and date.
+
+The rest of the document remains a draft.
 
 Reviewing the §3.1a mockup, Sebastian noticed the notice said the option was
 unavailable while the option looked perfectly clickable. That was **not the
@@ -552,6 +563,24 @@ Proved by removing the rules again: four tests fail.
 on a control being visibly unavailable, that visibility is part of the design
 and needs testing like any other behaviour. "Disabled" is a claim about what the
 user can see, not only about what the widget will accept.
+
+**Two things declined, recorded so they are not re-proposed as new ideas.**
+Four treatments were rendered at 2× and compared (`cm_8_disabled_variants.png`):
+`#6a6a6a` as shipped, `#505050` to match the app's disabled buttons, `#4a4a4a`,
+and `#505050` with the reason written into the label. Sebastian chose to keep
+what shipped. My own preference had been the last of those; it was not taken,
+and that is the answer.
+
+⚠️ **One inconsistency was found on the way and is left as it is:** disabled
+*button* text is `#505050` while disabled tick boxes and radios are `#6a6a6a`.
+The radios now match the tick boxes, which is self-consistent for controls of
+that kind. Worth knowing before anyone "tidies" one of the two to match the
+other — that would be a visual change across the whole app, not a fix.
+
+**A process note that cost a round trip:** the corrected mockup looked unchanged
+on GitHub because the embedded copy was cached from before the re-render. When a
+mockup is corrected, link it by **commit SHA** (`/raw/<sha>/…`) rather than by
+branch, or the reviewer is asked to judge the old picture.
 
 ### 🔴 3.1b — and the mirror case: should "raw" be greyed for a regular chart?
 
