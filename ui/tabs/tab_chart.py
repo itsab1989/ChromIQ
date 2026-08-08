@@ -4699,6 +4699,27 @@ class TabChart(QWidget):
         the current run so the next Generate Chart click seeds a fresh run
         (Project.new_run) from it.
         """
+        # SAY "NEW RUN" IN THE BAR, BECAUSE THAT IS WHAT WILL HAPPEN.
+        #
+        # Generating with pre-conditioning armed calls
+        # `proj.new_run(preconditioning_from=parent)` and deliberately skips
+        # `_align_current_run_to_target()` — so a fresh run is created whatever
+        # the bar says. The bar was left reading "Run 1 (overwrite)", which
+        # promises the opposite: Basti, 2026-08-08, *"in the bar it stays at
+        # run 1 (overwrite). is this expected and good or should it choose a new
+        # run here?"* — it already does choose a new run; only the label lied.
+        #
+        # Set FIRST, before the panel is filled. Changing the selection saves
+        # and reloads the tab's per-run settings, and doing that afterwards
+        # would wipe the pre-conditioning path and tick that this method has
+        # just put on screen — the same way a settings load undid Check &
+        # Refine's refinement ticks (beta.197).
+        _ctl = getattr(self, "_target_ctl", None)
+        if _ctl is not None:
+            try:
+                _ctl.set_profile_run("")               # "New run"
+            except Exception as exc:      # noqa: BLE001 — never block the hand-off
+                log.warning("Could not point the bar at a new run: %s", exc)
         self._switch_mode("guided")
         self._guided_precond_path.setText(str(profile_path))
         self._guided_precond_check.setChecked(True)

@@ -1,5 +1,16 @@
 # Changelog
 
+## v3.14.8-beta.202
+
+### Fixed
+
+- **Using a profile as pre-conditioning now shows that it will build a new
+  run.** Choosing it from Build Profile or Check & Refine takes you to Create
+  Chart, where the bar still read "Run 1 (overwrite)" — while generating the
+  chart would in fact create a fresh run. It always did the right thing; the
+  bar simply promised the opposite, which read as though it were about to
+  replace the very run the profile came from.
+
 ## v3.14.8-beta.201
 
 ### Fixed
