@@ -1,5 +1,23 @@
 # Changelog
 
+## v3.14.8-beta.195
+
+### Fixed
+
+- **The Create Chart screenshot no longer carries a red margin warning.** The
+  documentation chart was being built with its margins in the wrong order, so
+  the top margin came out at 28 mm against the i1Pro's 38 mm minimum and the
+  picture showed an error the app was right to raise. Built correctly, every
+  side now meets its minimum.
+
+### Internal
+
+- Withdrew a reported fault in the layout engine. It was reported that the
+  engine capped the top margin near 28 mm however much was requested; that was
+  wrong. `margins` is `(top, right, bottom, left)`, and the test that produced
+  the report passed `(left, right, top, bottom)`. With the sides in the right
+  order the engine meets every threshold. No engine change was needed.
+
 ## v3.14.8-beta.194
 
 ### Fixed

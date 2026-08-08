@@ -248,18 +248,28 @@ def stage_the_project(settings) -> bool:
         # estimated" beside "504 on screen". Matching it exactly makes the two
         # columns agree, which is the whole point of the panel.
         #
-        # use_instrument_margins clamps each side to the i1Pro's own minimum,
-        # which is what clears the red "margin below the instrument minimum"
-        # banner rather than hiding it.
+        # MARGINS ARE (TOP, RIGHT, BOTTOM, LEFT) — CSS order, not L/R/T/B.
+        # `margins_fit` indexes the tuple with `_T, _R, _B, _L = 0, 1, 2, 3`.
+        # Getting this wrong is silent: passing the i1Pro minimums as
+        # (L,R,T,B) = (26, 9, 38, 19) asks for Top 26 and Bottom 38, so the top
+        # lands at 28.0 mm against its 38 mm minimum and the Create Chart shot
+        # carries a red "Top margin is below the 38 mm instrument minimum"
+        # banner. Measured, with the sides in the right order:
+        #
+        #   (26, 9, 38, 19)  ->  L 26.0  R 9.2  T 28.0  B 40.0   <- warns
+        #   (38, 9, 19, 26)  ->  L 26.0  R 9.2  T 38.3  B 19.3   <- clean
+        #
+        # use_instrument_margins then holds each side at the instrument's own
+        # minimum, so the banner is satisfied rather than suppressed.
         targen = shutil.which("targen") or "/opt/homebrew/bin/targen"
-        subprocess.run([targen, "-d2", "-G", "-e4", "-B4", "-g28", "-f484",
+        subprocess.run([targen, "-d2", "-G", "-e4", "-B4", "-g28", "-f463",
                         str(stem)],
                        check=True, capture_output=True, timeout=300)
         for leftover in run1.glob(f"{A.name}*.tif"):
             leftover.unlink()
         le_chart.build_chart(
             str(ti1), stem, instrument="i1", paper="A4", dpi=300,
-            randomize=True, pscale=0.95, margins=(26.0, 9.0, 38.0, 19.0),
+            randomize=True, pscale=0.95, margins=(38.0, 9.0, 19.0, 26.0),
             use_instrument_margins=True, clip_content_mode="notes",
             clip_text="Canon PRO-300  ·  Canon SG  ·  i1Pro")
         log("run chart rebuilt with the layout engine + notes clip border")
