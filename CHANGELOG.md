@@ -1,5 +1,15 @@
 # Changelog
 
+## v3.14.8-beta.193
+
+### For developers
+
+- **A test that fakes a message box can no longer break unrelated tests.**
+  `QMessageBox.exec` is inherited from `QDialog`, so saving and re-assigning it
+  does not restore it, and every later dialog in that worker process failed —
+  in a different file, which made it look like random flakiness. It is now
+  repaired before each test, with a regression test that proves it.
+
 ## v3.14.8-beta.192
 
 ### Fixed
