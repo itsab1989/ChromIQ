@@ -263,19 +263,38 @@ Making a new run is nearly always *"like the last one, with one change"*.
 | **N-3** | **Generate Chart** copies it into the new run and **clears** it | Otherwise the run after next inherits a stale copy instead of the run actually loaded |
 | **N-4** | It lives in **`<target>/cache/new_run.json`** | Knut, 2026-08-07: *"always … in the cache/ folder for the runN/ runN/verifications/ or cal/ folders"*. The layout already documents `cache/` as "always safe to delete", which is exactly this file's nature — an orphaned block after a restart costs nothing, because the New run simply seeds fresh |
 | **N-5** | A New run under Run type = **Verification** seeds from the **verification** | Knut, 2026-08-07: *"Answer: Yes"* |
-| **N-6** | **A calibration never seeds the block at all** — no `new_run.json` is written into `cal/` | Knut, 2026-08-08: the seeding *"should only work for profiling and verification runs"*. N-2 alone did not achieve this: stripping the six `_CAL_VALUES` rows still left **34** others — paper, instrument, margins, the whole layout recipe — which a later New run would have started from. Verified on screen; see the Confirmed-behaviour note below |
+| **N-6** | **A calibration never seeds the block at all** — no `new_run.json` is written into `cal/` | Knut, 2026-08-08: the seeding *"should only work for profiling and verification runs"*. N-2 alone did not achieve this: stripping the six `_CAL_VALUES` rows still left **34** others — paper, instrument, margins, the whole layout recipe — which a later New run would have started from. **The rule is Knut's; that the code now obeys it is ⏳ awaiting confirmation — see below** |
 
-**Status:** built, wired and verified on screen (v3.14.8-beta.204).
+**Status:** built and wired (v3.14.8-beta.204); ⏳ awaiting confirmation that the
+behaviour is right.
 
-### ✅ Confirmed behaviour — verified on screen 2026-08-08
+### ⏳ Awaiting confirmation — observed on screen 2026-08-08, not yet confirmed by a human
 
-Recorded here because Knut asked for it to be: *"whenever you achieve the
-correct behavior on something … transfer this information into the design
-specification document, so that this always is used as reference … thus
-preventing sudden changes in the design because it decides so to fix something
-it is working with without thinking of the overall design and intended
-behavior."* What follows is not a plan — it is what the app was observed to do,
-so a later fix cannot quietly contradict it.
+**Confirmed by:** *nobody yet.* This section is a **candidate** for the
+specification and must not be read as settled.
+
+Knut asked for correct behaviour to be written into the specification — and then
+qualified it the same day, which is why this section is marked the way it is:
+
+> *"Be careful though, only the behavior that you confirm as correct, after bugs
+> are confirmed fixed, should be written into the design specification.
+> Otherwise the specification looses its value with lots of trash Claude thinks
+> is correct behavior."*
+>
+> *"This means you have to respond to say if a bug is fixed and behavior is now
+> correct."*
+
+So the gate is **a human's confirmation, not the assistant's own verification**.
+An on-screen run proves what the app *does*; only Knut or Sebastian can say that
+what it does is what it *should* do. This section was first written as "✅
+Confirmed behaviour" on the assistant's own authority, which is exactly the
+failure mode Knut names, and was demoted on the same day.
+
+**Promotion rule:** when Knut or Sebastian replies that the behaviour is right,
+this section is renamed to `## Confirmed behaviour`, gains a
+`**Confirmed by:** <name>, <date>` line, and only then becomes binding.
+`tests/test_design_specs_are_binding.py` fails on a confirmed section that names
+nobody.
 
 Driven through the real app against the Argyll-built `Demo-Full-RGB`
 (`scripts/drive_new_run_seeding.py`, 11 checks):

@@ -54,3 +54,64 @@ def test_the_docs_do_not_link_to_each_other_by_a_dead_path():
             if not (doc.parent / target).resolve().is_file():
                 dead.append(f"{name} → {target}")
     assert not dead, f"dead cross-references: {dead}"
+
+
+# ---- only CONFIRMED behaviour belongs in a specification -----------------
+#
+# Knut, 2026-08-08: *"only the behavior that you confirm as correct, after bugs
+# are confirmed fixed, should be written into the design specification.
+# Otherwise the specification looses its value with lots of trash Claude thinks
+# is correct behavior."*
+#
+# The gate is a HUMAN's confirmation, not the assistant's own on-screen run: a
+# driver proves what the app does, not that what it does is what it should do.
+# The assistant had already written a "✅ Confirmed behaviour" section on its own
+# authority the same day, which is exactly the failure mode named above — so
+# this is enforced rather than promised.
+
+#: Who is allowed to confirm behaviour into a specification.
+CONFIRMERS = ("Knut", "Sebastian", "Basti")
+
+_CONFIRMED_HEADING = re.compile(r"^#{2,4}\s*(?:[^\w\s]\s*)?Confirmed behaviour",
+                                re.M | re.I)
+_AWAITING = re.compile(r"Awaiting confirmation", re.I)
+
+
+def _sections(text: str) -> "list[tuple[str, str]]":
+    """(heading, body) for every heading in the document."""
+    parts = re.split(r"^(#{2,4} .*)$", text, flags=re.M)
+    return list(zip(parts[1::2], parts[2::2]))
+
+
+def test_a_confirmed_behaviour_section_names_who_confirmed_it():
+    """"Confirmed" without a name is the assistant confirming itself."""
+    offenders = []
+    for name in BINDING:
+        for heading, body in _sections((DESIGN / name).read_text()):
+            if not _CONFIRMED_HEADING.match(heading.lstrip("#").strip()) \
+                    and not _CONFIRMED_HEADING.search(heading):
+                continue
+            if _AWAITING.search(heading):
+                continue          # explicitly marked as not yet confirmed
+            if not re.search(r"\*\*Confirmed by:\*\*\s*(" +
+                             "|".join(CONFIRMERS) + r")", body):
+                offenders.append(f"{name}: {heading.strip()}")
+    assert not offenders, (
+        "a section headed 'Confirmed behaviour' must carry "
+        "'**Confirmed by:** <Knut|Sebastian|Basti>, <date>' — otherwise it is "
+        "the assistant marking its own homework:\n  " + "\n  ".join(offenders))
+
+
+def test_an_awaiting_section_does_not_claim_to_be_confirmed():
+    """The two states must stay tellable apart at a glance."""
+    offenders = []
+    for name in BINDING:
+        for heading, body in _sections((DESIGN / name).read_text()):
+            if not _AWAITING.search(heading):
+                continue
+            if "**Confirmed by:** *nobody yet.*" not in body:
+                offenders.append(f"{name}: {heading.strip()}")
+    assert not offenders, (
+        "a section awaiting confirmation must say so in its body, in as many "
+        "words ('**Confirmed by:** *nobody yet.*'), so it cannot be skimmed as "
+        "settled:\n  " + "\n  ".join(offenders))

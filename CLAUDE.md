@@ -286,8 +286,25 @@ Two obligations, and the second is the one that is easy to get wrong:
 
 New user-facing message text is governed by §M of
 `unified_measurement_management.md`: it goes to §M-PROPOSED first and is not
-written into a tab until Knut approves it. `tests/test_message_catalogue.py`
+written into a tab until it is approved. `tests/test_message_catalogue.py`
 enforces that.
+
+**Only CONFIRMED behaviour may be written into a specification.** Knut,
+2026-08-08:
+
+> *"only the behavior that you confirm as correct, after bugs are confirmed
+> fixed, should be written into the design specification. Otherwise the
+> specification looses its value with lots of trash Claude thinks is correct
+> behavior."*
+
+The gate is **a human's confirmation, not your own on-screen run**. A driver
+proves what the app *does*; only Knut or Sebastian can say that what it does is
+what it *should* do. So behaviour you have verified but nobody has confirmed
+goes into an **`⏳ Awaiting confirmation`** section carrying
+`**Confirmed by:** *nobody yet.*`, and is promoted to `Confirmed behaviour`
+with a `**Confirmed by:** <name>, <date>` line only after they say so.
+`tests/test_design_specs_are_binding.py` fails on a "Confirmed" section that
+names nobody — because this rule was broken within an hour of being agreed.
 
 MONITOR MODE: before every monitor cycle and after any context
  compaction, re-read MONITOR.md in full and follow it.
