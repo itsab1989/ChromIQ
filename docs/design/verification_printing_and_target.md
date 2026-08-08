@@ -511,6 +511,59 @@ of the choice, not behind an ⓘ, because it is a **state** and not an option:
 option, and the disabled control cannot be re-enabled by switching run type
 back and forth.
 
+### 🔴 3.1b — and the mirror case: should "raw" be greyed for a regular chart?
+
+Asked immediately after §3.1a, and the honest answer is **no — the asymmetry is
+real, not an oversight.** It is worth writing down precisely, because "be
+consistent" is the obvious instinct and it would remove something useful here.
+
+| Combination | What it is | Verdict |
+|---|---|---|
+| #133 chart + "through the profile" | the profile applied **twice** — different colours printed, measured faithfully, undetectable afterwards | **an error**, with no legitimate use → **disable** (§3.1a) |
+| Regular chart + "raw" | the chart's own numbers printed untouched | **a different question**, and a useful one → **allow, and say what it measures** |
+
+**Why "raw" is legitimate for a Guided or Manual verification chart.** Printed
+raw and measured, the sheet answers *"is my printer still behaving the way it
+did last month?"* — a genuine drift check, and one that needs no profile at all.
+#133's own §3 table already names this as what a verification run does today:
+*"Has anything drifted since last time, against the chart's own design
+colours."* Every verification history in an existing project was made this way.
+
+**So the two are not the same shape.** One combination cannot produce a
+meaningful number at all; the other produces a perfectly good number to a
+different question. Greying the second would take away the only check the app
+has today, and would silently invalidate the histories people already have.
+
+🔴 **Requirement: "raw" stays available for a regular verification chart, and
+the panel says what it will measure.** The danger is not that someone picks it —
+it is that they pick it *expecting an accuracy check* and get a drift check
+without noticing. So the notice is about the **question being answered**, not
+about a rule being broken:
+
+> **Printing raw measures your printer, not your profile.**
+>
+> The sheet goes to the printer exactly as it is, with no profile involved. That
+> is useful for one particular question: *"is my printer still behaving the way
+> it did last time?"* Print the same chart the same way each month and compare
+> the results, and you will see it drift before it becomes visible in your work.
+>
+> What it cannot tell you is how accurate your profile is, because no profile
+> took part. For that, choose **Through this run's profile** above — then the
+> sheet is your profile's own prediction, and measuring it shows how close the
+> prediction came.
+>
+> Whichever you choose is written on the report, so you can always tell later
+> which of the two questions a set of figures answered.
+
+**The report must carry this too**, and it is not extra work: `reference_source`
+(row A19/B4) and the printing route (A18) are already recorded. The report
+should name the **question** in plain words — "how accurate is this profile?"
+versus "has this printer changed?" — rather than leaving the reader to infer it
+from two technical fields.
+
+**Test T12** (§9): a regular verification chart offers both options with neither
+disabled, and the notice changes with the selection.
+
 ### 3.2 Feature A — the conversion itself
 
 | # | Condition | Action | Where |
@@ -748,6 +801,7 @@ committed, so a wrong detail is a re-run rather than a redraw.
 | The no-profile state | `docs/mockups/cm130/cm_4_no_profile.png` |
 | **The reconciled section of §4** — Colour + Intent + Route together | `docs/mockups/cm130/cm_5_reconciled.png` |
 | **§3.1a — a chart that already has the profile applied**, with the option disabled | `docs/mockups/cm130/cm_6_already.png` |
+| **§3.1b — the mirror case**: a regular verification chart printed raw, with **nothing** disabled | `docs/mockups/cm130/cm_7_raw_chosen.png` |
 
 The last one supersedes `acc133/acc_3_print.png`, which shows #133 §8's earlier
 two-row proposal. That mockup stays where it is as the record of what was
@@ -770,6 +824,7 @@ proposed there; §4 and `cm_5_reconciled.png` are what would actually be built.
 | T9 | An existing verification project opens unchanged (migration) | unit |
 | T10 | On-screen: the real app, verification selected, both buttons, files checked on disk | driver script, per the project's practice |
 | T11 | A chart with stored colorimetric targets **forces Raw and disables "through the profile"**, and cannot be re-enabled by toggling the run type | unit; pins §3.1a |
+| T12 | A **regular** verification chart offers **both** options, neither disabled, and the notice follows the selection | unit; pins §3.1b — the asymmetry is deliberate |
 
 ---
 

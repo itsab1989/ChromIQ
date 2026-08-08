@@ -15,6 +15,9 @@ Four spots:
                        which supersedes the two-row proposal in #133 section 8
   cm_6_already.png     a chart from #133's module, which already has the profile
                        applied: the option is DISABLED, not merely deselected
+  cm_7_raw_chosen.png  the mirror case -- a REGULAR verification chart with raw
+                       chosen. Nothing is disabled: raw is a different question,
+                       not an error, so the notice names the question
 
 Committed rather than thrown away, because a mockup that cannot be re-run is a
 mockup that cannot be corrected — the #133 panel had to be redrawn from scratch
@@ -390,6 +393,74 @@ def already_converted() -> QWidget:
     return panel
 
 
+def raw_chosen() -> QWidget:
+    """A regular verification chart with "raw" selected (§3.1b).
+
+    The mirror of cm_6, and deliberately NOT symmetric with it. Printing a
+    regular verification chart raw is a legitimate drift check, not an error, so
+    nothing is disabled -- the notice explains which question the sheet will
+    answer instead of forbidding the choice.
+    """
+    A = styles.SPEC_AMBER
+    panel, outer = _shell("PRINT CHART · A REGULAR VERIFICATION, PRINTED RAW", A)
+
+    cap = QLabel(
+        "Nothing is disabled here. Printing raw answers a different question — "
+        "it is not a mistake.", panel)
+    cap.setWordWrap(True)
+    cap.setStyleSheet(f"color:{styles.TEXT_DIM};background:transparent;")
+    outer.addWidget(cap)
+
+    group = QGroupBox("How this chart is printed", panel)
+    gl = QVBoxLayout(group)
+    gl.setContentsMargins(14, 16, 14, 14)
+    gl.setSpacing(10)
+
+    choice = QWidget(group)
+    cl = QHBoxLayout(choice)
+    cl.setContentsMargins(0, 0, 0, 0)
+    cl.setSpacing(18)
+    through = QRadioButton("Through this run's profile", choice)
+    raw = QRadioButton("Raw — no profile applied", choice)
+    raw.setChecked(True)
+    cl.addWidget(through)
+    cl.addWidget(raw)
+    cl.addStretch(1)
+    gl.addWidget(_row(group, "Colour", choice,
+                      INTENT_HELP_TITLE, INTENT_HELP_BODY, A))
+
+    intent = QComboBox(group)
+    intent.setMinimumHeight(30)
+    intent.addItems(["Relative colorimetric (recommended)"])
+    intent.setEnabled(False)
+    gl.addWidget(_row(group, "Rendering intent", intent,
+                      "Not used when printing raw",
+                      "No profile is applied when printing raw, so there is no "
+                      "rendering intent to choose. Pick \u201cThrough this "
+                      "run\u2019s profile\u201d above to use one.", A))
+    outer.addWidget(group)
+
+    info = QLabel(panel)
+    info.setObjectName("warning")
+    info.setWordWrap(True)
+    info.setText(
+        "<b>Printing raw measures your printer, not your profile.</b><br><br>"
+        "The sheet goes to the printer exactly as it is, with no profile "
+        "involved. That is useful for one particular question: <i>is my printer "
+        "still behaving the way it did last time?</i> Print the same chart the "
+        "same way each month and compare the results, and you will see it "
+        "drift before it becomes visible in your work.<br><br>"
+        "What it cannot tell you is how accurate your profile is, because no "
+        "profile took part. For that, choose <b>Through this run\u2019s "
+        "profile</b> above — then the sheet is your profile\u2019s own "
+        "prediction, and measuring it shows how close the prediction "
+        "came.<br><br>"
+        "Whichever you choose is written on the report, so you can always tell "
+        "later which of the two questions a set of figures answered.")
+    outer.addWidget(info)
+    return panel
+
+
 def report_line() -> QWidget:
     """The line the report gains, in the report window's own green."""
     G = styles.SPEC_GREEN
@@ -460,7 +531,8 @@ def main() -> int:
     _finish(print_row(True), "cm_4_no_profile.png", styles.SPEC_AMBER)
     _finish(reconciled_section(), "cm_5_reconciled.png", styles.SPEC_AMBER)
     _finish(already_converted(), "cm_6_already.png", styles.SPEC_AMBER)
-    print(f"\nall six written to {OUT.relative_to(ROOT)}")
+    _finish(raw_chosen(), "cm_7_raw_chosen.png", styles.SPEC_AMBER)
+    print(f"\nall seven written to {OUT.relative_to(ROOT)}")
     return 0
 
 
