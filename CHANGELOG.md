@@ -1,5 +1,15 @@
 # Changelog
 
+## v3.14.8-beta.192
+
+### Fixed
+
+- **The pop-up windows in the documentation screenshots are centred at last.**
+  They had always been pushed into the bottom-right corner, clipped by the edge
+  of the picture. The capture worked out the middle of the frame correctly but
+  then drew at twice that offset on a Retina display, so the windows never
+  landed where they were meant to. All 34 screenshots have been retaken.
+
 ## v3.14.8-beta.191
 
 ### Changed
