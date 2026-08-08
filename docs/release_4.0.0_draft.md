@@ -1,9 +1,14 @@
 # ChromIQ 4.0.0 — release notes (DRAFT)
 
-> **Draft, not the release.** This replaces the 184 `v3.14.8-beta.*` sections in
-> `CHANGELOG.md` when 4.0.0 is cut. It is written from those entries — 467
-> commits, 446 individual changes since v3.14.7 — grouped so a user can find
+> **Draft, not the release.** This replaces the 194 `v3.14.8-beta.*` sections in
+> `CHANGELOG.md` when 4.0.0 is cut. It is written from those entries — 485
+> commits and 575 changelog entries since v3.14.7 — grouped so a user can find
 > what affects them, rather than read a diary.
+>
+> Counts verified 2026-08-08 by counting `## v3.14.8-beta.*` sections and their
+> top-level bullets, and `git rev-list --count v3.14.7..HEAD`. Re-check them at
+> tag time: they were already stale here once (184 / 467 / 446), and a release
+> note is a bad place to publish a number nobody re-derived.
 >
 > The tag itself needs Sebastian's explicit go-ahead; betas are cut on the
 > assistant's initiative, a stable release never is.
@@ -82,12 +87,22 @@ says exactly what it is about to do.
   log panel ends on the same line whether it is shown or hidden, and the run bar
   no longer shifts about while the app is starting.
 
+- **The windows that ask what to do with a chart read like every other window.**
+  When you open a chart that already belongs to a project, ChromIQ explains what
+  each choice will do in plain text and puts the buttons in a row along the
+  bottom — with **Cancel** set apart from the two actions, so the way out is
+  never mistaken for a third choice. A long project name on a button is
+  shortened in the middle (`Open Pro300_EpsonPr…attempt_matte`), with the full
+  name still given in the explanation underneath.
+
 - **ChromIQ starts a little quicker** — the printer list is fetched when you
   first open Print Chart rather than while the window is being built.
 
 ### Fixed
 
-Fifty-two fixes, of which the ones most likely to have affected you:
+The fixes most likely to have affected you — 75 entries sit under an explicit
+"Fixed" heading, and many of the 418 entries written without a heading are fixes
+too, so no single total is quoted here rather than one that cannot be checked:
 
 - **Pressing Esc during a measurement no longer throws your readings away.**
 - **Several measurement windows never appeared at all** when the ChromIQ reading
@@ -104,8 +119,16 @@ Fifty-two fixes, of which the ones most likely to have affected you:
 - **Windows that named a tab or a button that was not on screen** — including
   the completion window, which named a tab that does not exist when calibration
   options are switched on.
+- **"The page rebuild altered the chart itself" no longer warns when nothing
+  happened.** Restoring a chart redraws its printed pages, and a chart file
+  records the time it was written, so the file always looked different even when
+  the sheet was reproduced exactly. It now says so only when the chart really was
+  laid out differently.
+- **A button's label could be cut off** where three buttons shared one row — the
+  middle one read "JSE AS BASE FOR A NEW PROFILE". Windows widen to fit their
+  buttons now, everywhere, not only there.
 
-### For developers
+### Internal
 
 - The test suite no longer writes to your own ChromIQ preferences.
 - `docs/design/` holds the agreed specifications for the measurement model, the

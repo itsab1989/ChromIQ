@@ -1,5 +1,17 @@
 # Changelog
 
+## v3.14.8-beta.196
+
+### Internal
+
+- The draft 4.0.0 release notes are current again. They were written eight betas
+  ago and did not mention the reworked chart-choice windows or two of the fixes;
+  their counts of releases, commits and entries were stale; and they carried the
+  same unrecognised "For developers" heading, which a rehearsal of the final
+  changelog swap caught before it could reach the real notes.
+- Corrected the beta.194 entry above: entries under an unrecognised heading are
+  presented and counted as bug fixes, not dropped as it claimed.
+
 ## v3.14.8-beta.195
 
 ### Fixed
@@ -22,10 +34,10 @@
 
 ### Fixed
 
-- **Two entries in the release notes were being dropped.** The developer notes
-  for beta.191 and beta.193 were written under a heading the release-note
-  builder does not recognise, so the changelog described changes that never
-  appeared in the published notes. Both are restored.
+- **Two entries in the release notes were filed as bug fixes.** The developer
+  notes for beta.191 and beta.193 were written under a heading the release-note
+  builder does not recognise, so they were counted and presented as fixes
+  instead of as internal changes. Both are now under the right heading.
 
 ### Internal
 
