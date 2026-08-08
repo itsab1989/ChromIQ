@@ -79,7 +79,7 @@ class _Tab(__import__("PyQt6.QtWidgets", fromlist=["QWidget"]).QWidget):
         return False
 
 
-def test_a_new_run_never_warns_about_another_run_s_results(qapp, tmp_path):
+def test_a_new_run_never_warns_about_another_run_s_results(qapp, tmp_path, monkeypatch):
     """His report: the previously selected run had a measurement, and building
     a chart for a BRAND NEW run warned about it. The new run displaces
     nothing."""
@@ -90,28 +90,38 @@ def test_a_new_run_never_warns_about_another_run_s_results(qapp, tmp_path):
 
     seen = {}
     import PyQt6.QtWidgets as W
-    real = W.QMessageBox.exec
-    W.QMessageBox.exec = lambda self: seen.setdefault("shown", True) or 0
-    try:
-        assert tab._confirm_displacing_results() is True
-    finally:
-        W.QMessageBox.exec = real
+    # NOTE: monkeypatch, not a hand-rolled save/restore.
+    # `QMessageBox.exec` is INHERITED from QDialog, so `real = QMessageBox.exec`
+    # followed by `QMessageBox.exec = real` does not put things back: it installs
+    # a plain method object on QMessageBox that no longer binds, and every later
+    # `box.exec()` in the same worker process then calls it with no self —
+    # "TypeError: first argument of unbound method must have type 'QDialog'".
+    # That broke an unrelated test file two runs in a row. monkeypatch records
+    # that the attribute was inherited and DELETES it on undo, which is correct.
+    monkeypatch.setattr(W.QMessageBox, "exec",
+                        lambda self: seen.setdefault("shown", True) or 0)
+    assert tab._confirm_displacing_results() is True
     assert not seen, "it warned about a run that is not being built into"
 
 
-def test_an_existing_run_with_results_still_warns(qapp, tmp_path):
+def test_an_existing_run_with_results_still_warns(qapp, tmp_path, monkeypatch):
     """The guard must not be lost — only narrowed."""
     (tmp_path / "P.ti3").write_text("x")
     tab = _Tab(tmp_path, profile_run="run2")
 
     seen = {}
     import PyQt6.QtWidgets as W
-    real = W.QMessageBox.exec
-    W.QMessageBox.exec = lambda self: seen.setdefault("shown", True) or 0
-    try:
-        tab._confirm_displacing_results()
-    finally:
-        W.QMessageBox.exec = real
+    # NOTE: monkeypatch, not a hand-rolled save/restore.
+    # `QMessageBox.exec` is INHERITED from QDialog, so `real = QMessageBox.exec`
+    # followed by `QMessageBox.exec = real` does not put things back: it installs
+    # a plain method object on QMessageBox that no longer binds, and every later
+    # `box.exec()` in the same worker process then calls it with no self —
+    # "TypeError: first argument of unbound method must have type 'QDialog'".
+    # That broke an unrelated test file two runs in a row. monkeypatch records
+    # that the attribute was inherited and DELETES it on undo, which is correct.
+    monkeypatch.setattr(W.QMessageBox, "exec",
+                        lambda self: seen.setdefault("shown", True) or 0)
+    tab._confirm_displacing_results()
     assert seen, "an existing run with results must still be protected"
 
 

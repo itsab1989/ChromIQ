@@ -252,14 +252,13 @@ def test_a_verification_build_is_not_a_reason_to_ask(qapp, tmp_path):
 
 
 @pytest.mark.parametrize("ti3,icc", [(True, False), (False, True), (True, True)])
-def test_results_in_the_run_do_raise_the_question(qapp, tmp_path, ti3, icc):
+def test_results_in_the_run_do_raise_the_question(qapp, tmp_path, ti3, icc, monkeypatch):
     run = _Run(tmp_path, ti3=ti3, icc=icc)
     tab = _Tab(run)
 
     seen = {}
 
     import PyQt6.QtWidgets as QtW
-    real = QtW.QMessageBox.exec
 
     def _fake(self):
         # §4 split the window: headline in setText (bold), explanation in
@@ -270,11 +269,12 @@ def test_results_in_the_run_do_raise_the_question(qapp, tmp_path, ti3, icc):
         self.setClickedButtonForTest = None
         return 0
 
-    QtW.QMessageBox.exec = _fake
-    try:
-        tab._confirm_displacing_results()
-    finally:
-        QtW.QMessageBox.exec = real
+    # monkeypatch, not a hand-rolled save/restore: QMessageBox.exec is
+    # INHERITED from QDialog, so re-assigning the captured attribute installs
+    # a method object that no longer binds, and every later box.exec() in this
+    # worker calls it with no self. monkeypatch deletes it on undo instead.
+    monkeypatch.setattr(QtW.QMessageBox, "exec", _fake)
+    tab._confirm_displacing_results()
 
     assert seen, "no window was raised"
     # It names where the files go, and promises nothing is deleted.
@@ -359,7 +359,7 @@ def test_refining_or_resuming_is_not_replacing(qapp, tmp_path, resume, refine):
     assert m._confirm_replacing_measurement() is True
 
 
-def test_a_plain_re_read_does_raise_the_question(qapp, tmp_path):
+def test_a_plain_re_read_does_raise_the_question(qapp, tmp_path, monkeypatch):
     ti3 = tmp_path / "chart.ti3"
     # Real readings, because the pointer this test is about — "tick Refine /
     # resume to keep them" — is only true advice when there are readings to
@@ -371,17 +371,17 @@ def test_a_plain_re_read_does_raise_the_question(qapp, tmp_path):
 
     seen = {}
     import PyQt6.QtWidgets as QtW
-    real = QtW.QMessageBox.exec
 
     def _fake(self):
         seen["text"] = self.text() + "\n" + self.informativeText()
         return 0
 
-    QtW.QMessageBox.exec = _fake
-    try:
-        _Measure(ti3)._confirm_replacing_measurement()
-    finally:
-        QtW.QMessageBox.exec = real
+    # monkeypatch, not a hand-rolled save/restore: QMessageBox.exec is
+    # INHERITED from QDialog, so re-assigning the captured attribute installs
+    # a method object that no longer binds, and every later box.exec() in this
+    # worker calls it with no self. monkeypatch deletes it on undo instead.
+    monkeypatch.setattr(QtW.QMessageBox, "exec", _fake)
+    _Measure(ti3)._confirm_replacing_measurement()
 
     assert seen, "no warning was raised"
     assert str(ti3) in seen["text"], "it must name the file at risk"

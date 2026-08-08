@@ -45,6 +45,10 @@ from ui.main_window import MainWindow
 
 HOME_PROJECTS = Path.home() / "ChromIQ"
 DOCS = ROOT / "docs"
+# Where the capture stages its disposable copy of the sample project. A real,
+# readable folder rather than a temp dir, because tabs print their paths on
+# screen. Created and removed by the run; never the user's own ChromIQ folder.
+STAGING_ROOT = Path.home() / "ChromIQ-docs"
 # Real project: a genuine i1Pro chart with real chartread measurements + a real
 # colprof profile (dropped in under the project stem). No synthetic sample.
 A_DIR = HOME_PROJECTS / "Canon-Pro300-CanonSG-i1Pro"
@@ -57,10 +61,21 @@ _ENGINE: dict = {}
 
 
 def engine_preview() -> dict:
-    """A NEW layout-engine i1Pro chart WITH the clip-border notes band, for the
-    Create / Print previews — the seeded project's own chart is an old-engine
-    printtarg sheet. Cached; falls back to the project chart on any error."""
+    """The layout-engine i1Pro chart WITH the clip-border notes band.
+
+    After `stage_the_project()` this IS the run's own chart, so Create, Print
+    and Measure all show the same sheet. It used to be a second chart built
+    alongside the run's, which is why the Create tab showed one chart while
+    Print and Measure showed another. Cached; falls back to building a separate
+    preview, and finally to the project chart, if anything goes wrong.
+    """
     if _ENGINE:
+        return _ENGINE
+    run1 = A_DIR / "runs" / "run1"
+    tifs = sorted(run1.glob(f"{A.name}*.tif"))
+    ti2 = (run1 / A.name).with_suffix(".ti2")
+    if tifs and ti2.exists():
+        _ENGINE["tif"], _ENGINE["ti2"] = tifs, ti2
         return _ENGINE
     try:
         import shutil
@@ -171,12 +186,146 @@ def pump(ms: int) -> None:
 # ---------------------------------------------------------------------------
 # Seeding
 # ---------------------------------------------------------------------------
-def seed(win) -> None:
+def stage_the_project(settings) -> bool:
+    """Copy the sample project somewhere disposable and give it a modern chart.
+
+    TWO REASONS, and the first is not negotiable: this script opens a REAL
+    project of the user's under ~/ChromIQ, and giving that run a freshly built
+    chart would overwrite files he owns. The project is copied to a temp root
+    and `custom_output_path` is pointed at it, so every write the capture makes
+    lands on the copy.
+
+    The second is what the pictures show. The project's own chart is an
+    old-engine printtarg sheet, so the Create scenes used to paint a different
+    chart from the Print and Measure scenes — Basti caught both halves of that
+    on 2026-08-08 ("in print chart and measure tab the chart looks nice but in
+    create chart it is a different chart"). Building the ChromIQ layout-engine
+    chart, with the notes clip border, AS THE RUN'S OWN CHART makes one sheet
+    serve every tab, and makes the Create panel's own numbers agree with it:
+    the patch count matches the guided estimate instead of reading 484 beside
+    "on screen 210", and the engine's margin clamping removes the red
+    "left margin below the instrument minimum" banner that the old 6 mm sheet
+    tripped.
+    """
+    import shutil
+    import subprocess
+
+    global A_DIR, A, A_TIF, A_TI2, A_TI3, A_ICC
+
+    try:
+        # NOT tempfile.mkdtemp(): several tabs SHOW their file path on screen,
+        # and a "/var/folders/1b/yjhqw46j5y78ssphpcnfrs1r0000gp/T/…" string in
+        # the Chart File box is noise in a documentation shot. A named folder
+        # beside the user's own ChromIQ folder reads like the real thing —
+        # which it is — and STAGING_ROOT is removed again at the end of the run.
+        root = STAGING_ROOT
+        if root.exists():
+            shutil.rmtree(root)
+        root.mkdir(parents=True)
+        dst = root / A_DIR.name
+        shutil.copytree(A_DIR, dst)
+    except Exception as e:                       # noqa: BLE001
+        log(f"!! could not stage a copy ({e}) — NOT touching the real project")
+        return False
+
+    settings.set("custom_output_path", str(root))
+    A_DIR, A = dst, dst / A.name
+    A_TIF, A_TI2 = sorted(dst.glob("*.tif")), A.with_suffix(".ti2")
+    A_TI3, A_ICC = A.with_suffix(".ti3"), A.with_suffix(".icc")
+    log(f"project staged at {dst} — the real one is untouched")
+
+    run1 = dst / "runs" / "run1"
+    stem = run1 / A.name                          # the RUN'S own chart stem
+    try:
+        from workflow.layout_engine import chart as le_chart
+        ti1 = stem.with_suffix(".ti1")
+        # BUILD EXACTLY WHAT THE GUIDED PANEL SAYS IT WOULD BUILD.
+        #
+        # The panel prints its own recipe on screen ("targen -d2 -G -e4 -B4
+        # -g28 · i1 · A4 · 300 dpi · margin 10 mm · patch ×0.95 · clip border
+        # on") and estimates 484 patches on one A4 sheet. Approximating it
+        # instead put 500 patches over two pages, so the shot read "968
+        # estimated" beside "504 on screen". Matching it exactly makes the two
+        # columns agree, which is the whole point of the panel.
+        #
+        # use_instrument_margins clamps each side to the i1Pro's own minimum,
+        # which is what clears the red "margin below the instrument minimum"
+        # banner rather than hiding it.
+        targen = shutil.which("targen") or "/opt/homebrew/bin/targen"
+        subprocess.run([targen, "-d2", "-G", "-e4", "-B4", "-g28", "-f484",
+                        str(stem)],
+                       check=True, capture_output=True, timeout=300)
+        for leftover in run1.glob(f"{A.name}*.tif"):
+            leftover.unlink()
+        le_chart.build_chart(
+            str(ti1), stem, instrument="i1", paper="A4", dpi=300,
+            randomize=True, pscale=0.95, margins=(26.0, 9.0, 38.0, 19.0),
+            use_instrument_margins=True, clip_content_mode="notes",
+            clip_text="Canon PRO-300  ·  Canon SG  ·  i1Pro")
+        log("run chart rebuilt with the layout engine + notes clip border")
+        return True
+    except Exception as e:                        # noqa: BLE001
+        log(f"engine chart build failed ({e}) — falling back to the copied chart")
+        return True
+
+
+def open_the_project(win, settings) -> bool:
+    """Open the sample project the way the app itself does, before seeding.
+
+    WITHOUT THIS EVERY SCREENSHOT SHOWS THE APP WITH NOTHING OPEN. `seed()`
+    pushes files straight into each tab's widgets, which paints a chart preview
+    and a profile — but the run bar never learns of a project, so it sits at
+    "Profile run: New run" with Run type greyed out, and the masthead prints its
+    "Load a profile project…" instruction across the top of all 34 shots. For
+    4.0.0, whose headline is that every run keeps its own chart, measurement and
+    settings, that is the one feature the pictures had switched off.
+
+    It also produced a self-contradicting frame that Basti caught on
+    2026-08-08: the Create Chart tab showed a chart preview with
+    "No chart for this profile run yet … its files may have been moved or
+    deleted" printed directly underneath. The caption was right — no run was
+    open — and the preview was the seeding talking past it. A documentation
+    screenshot must never imply the user's files went missing.
+
+    `set_target_name()` alone is not enough: it points the FileManager at the
+    folder but tells the run bar nothing. `_restore_last_session()` is the app's
+    own path, and it keys off ``session_target_name``, not ``target_name``.
+    """
+    settings.set("session_target_name", A_DIR.name)
+    settings.set("session_project_root", "")
+    try:
+        win._restore_last_session()
+    except Exception as e:                      # never let this stop a capture
+        log(f"open project: {e}")
+        return False
+    pump(900)
+    try:
+        run = win._target_bar._run_combo.currentText().strip()
+    except Exception as e:
+        log(f"open project (bar check): {e}")
+        return False
+    if not run or run.lower().startswith("new run"):
+        log(f"  !! run bar still reads {run!r} — shots will show no project open")
+        return False
+    log(f"project open — Profile run = {run!r}")
+    return True
+
+
+def seed(win, project_is_open: bool = False) -> None:
     t = tabs(win)
     try:
         t["chart"]._target_name_edit.setText(A_NAME)
         t["chart"]._manual_target_name_edit.setText(A_NAME)
-        t["chart"]._preview.load_tiff(engine_preview()["tif"])
+        # LET AN OPEN RUN SHOW ITS OWN CHART.
+        #
+        # Forcing engine-preview in on top of an opened project puts two
+        # different charts in one frame: the left panel counted the guided
+        # settings (484 patches) while the right read the pixels it was handed
+        # (210), and the engine-preview layout tripped a red "left margin below
+        # the instrument minimum" warning across a documentation shot. The run
+        # already has a chart; showing it is both truthful and self-consistent.
+        if not project_is_open:
+            t["chart"]._preview.load_tiff(engine_preview()["tif"])
     except Exception as e:
         log(f"chart seed: {e}")
     try:
@@ -288,6 +437,26 @@ def rerender_gamut(win) -> None:
 # Scenes: name → setup(app, win). Each captured in BOTH themes.
 # Heavy async prep (analysis, compare) happens once via prep hooks keyed by name.
 # ---------------------------------------------------------------------------
+def _keep_the_runs_own_chart(win) -> None:
+    """Show the chart the open run actually holds, not a second one on top of it.
+
+    The Create scenes used to force `engine_preview()` into the preview even
+    when a project was open. That put two different charts in one frame: the
+    left panel counted the guided settings while the layout table read the
+    pixels it had been handed, so the shot said "484 patches" beside
+    "on screen 210", and the engine-preview sheet tripped a red
+    "left margin below the instrument minimum" banner across the picture.
+
+    If for any reason no run chart is loaded, fall back to the engine preview
+    so the frame is not simply empty.
+    """
+    ch = win._tab_chart
+    tiffs = getattr(ch, "_margin_tiffs", None)
+    if tiffs:
+        return                                   # the run's chart is already up
+    ch._preview.load_tiff(engine_preview()["tif"])
+
+
 def scene_list():
     def s(name, fn, wait=700, target=lambda w: w):
         return {"name": name, "fn": fn, "wait": wait, "target": target}
@@ -295,7 +464,7 @@ def scene_list():
     def create_guided(app, win):
         win._tab_chart._switch_mode("guided")
         win._tab_chart._target_name_edit.setText(A_NAME)
-        win._tab_chart._preview.load_tiff(engine_preview()["tif"])
+        _keep_the_runs_own_chart(win)
         show_tab(win, "chart")
 
     def create_manual(app, win):
@@ -308,7 +477,7 @@ def scene_list():
             win._tab_chart._manual_paper_pw.set_value("A4")
         except Exception as e:
             log(f"manual instr/paper: {e}")
-        win._tab_chart._preview.load_tiff(engine_preview()["tif"])
+        _keep_the_runs_own_chart(win)
         show_tab(win, "chart")
 
     def _pick_printer(win):
@@ -563,6 +732,7 @@ def main() -> int:
     # the user happens to have saved) to keep the chart's identity coherent.
     settings.set("chart_instrument", "i1")
     settings.set("chart_paper", "A4")
+    stage_the_project(settings)
     apply_appearance(app, None, "dark")
     # Clean marketing shots: the masthead shows APP_VERSION, so drop the
     # "-beta.N" suffix here (MainWindow reads it at construction).
@@ -580,7 +750,8 @@ def main() -> int:
     win.activateWindow()
     pump(800)
 
-    seed(win)
+    opened = open_the_project(win, settings)
+    seed(win, project_is_open=opened)
     pump(300)
     # Heavy, one-time async work so the Check tab shows REAL analysis output.
     # Skip it on a filtered run that doesn't touch the analysis/dialog output.
@@ -642,6 +813,15 @@ def main() -> int:
         win._tab_check.shutdown_webengine()
     except Exception:
         pass
+    # Take the staged copy away again. Guarded on the exact folder this script
+    # created, so a changed STAGING_ROOT can never delete anything else.
+    try:
+        import shutil
+        if STAGING_ROOT.exists() and STAGING_ROOT.name == "ChromIQ-docs":
+            shutil.rmtree(STAGING_ROOT)
+            log(f"removed the staged copy at {STAGING_ROOT}")
+    except Exception as e:                        # noqa: BLE001
+        log(f"could not remove {STAGING_ROOT}: {e}")
     QTimer.singleShot(300, app.quit)
     return app.exec()
 

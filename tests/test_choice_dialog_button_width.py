@@ -28,8 +28,32 @@ from ui.ti2_loader import _BUTTON_NAME_LIMIT, _short_name      # noqa: E402
 _LONG = "Pro300_EpsonPremiumSemigloss_i1Studio_June2026_secondattempt_matte"
 
 
+def _unleak_exec():
+    """Undo a `QMessageBox.exec` patch some earlier test failed to restore.
+
+    `exec` is INHERITED from QDialog, so the common idiom
+
+        real = QMessageBox.exec; QMessageBox.exec = fake; ... ; QMessageBox.exec = real
+
+    does not put things back — it installs a method object directly on
+    QMessageBox that no longer binds. Every later `box.exec()` in that worker
+    process is then called with no `self` and dies with "first argument of
+    unbound method must have type 'QDialog'". Around 77 tests in this suite use
+    that idiom, so which file inherits the damage depends purely on how xdist
+    happens to schedule them: these tests passed alone, passed under `-n 4`
+    alone, and failed twice in the full gate.
+
+    Deleting the class attribute restores the inherited slot. A no-op when
+    nothing leaked. Migrating those 77 sites to `monkeypatch.setattr` is the
+    real cure and is worth doing as its own piece of work.
+    """
+    if "exec" in QMessageBox.__dict__:
+        del QMessageBox.exec
+
+
 def _measure(qapp, choices):
     """Open the real dialog, measure it, close it. Returns (window_w, buttons)."""
+    _unleak_exec()
     result = {}
 
     def grab():
