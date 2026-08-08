@@ -1,5 +1,20 @@
 # Changelog
 
+## v3.14.8-beta.194
+
+### Fixed
+
+- **Two entries in the release notes were being dropped.** The developer notes
+  for beta.191 and beta.193 were written under a heading the release-note
+  builder does not recognise, so the changelog described changes that never
+  appeared in the published notes. Both are restored.
+
+### Internal
+
+- Corrected a wrong figure repeated in the notes and on the issue: two tests
+  used the broken `QMessageBox.exec` idiom, not "about 77". The rest had always
+  used `monkeypatch`, which handles it correctly.
+
 ## v3.14.8-beta.193
 
 ### Internal
