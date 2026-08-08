@@ -455,8 +455,28 @@ on their own, outside the five-step flow:
 - **Verify a profile** (independent check) and **Verify against reference** —
   validate an existing profile's accuracy without rebuilding it.
 
+### Your work, kept in order
+- **Every run keeps its own chart, measurement, settings and description.**
+  Going back to an older run shows the settings that run was actually made
+  with — not the last ones you happened to type.
+- **Nothing is deleted, only archived.** A measurement you replace, a chart you
+  regenerate and a calibration you redo all move to an `old/` folder with the
+  date, and the window says so before you commit.
+- **Calibration is a run type** of its own: its chart, measurement and `.cal`
+  file live in the project's `cal/` folder, shared by every run, and each
+  profile records which calibration it was built with.
+- **Verification runs, kept as history.** Measure a chart printed *through* a
+  finished profile and the result is filed by date with its own report — earlier
+  checks are never overwritten, so you can watch a profile drift over months.
+
 ### A calm, modern app
 - **Light / Dark / System (Auto)** appearance that follows your OS theme live.
+- **Sounds during measurement** — a strip accepted, a patch misread, a session
+  finished. Choose a pack or your own files under **Preferences → Sounds**, so
+  you can keep your eyes on the chart instead of the screen.
+- **Twelve languages, complete** — German, Spanish, French, Italian, Dutch,
+  Portuguese, Swedish, Norwegian, Polish, Russian, Japanese and Chinese. Every
+  button, message, tooltip and help text, not just the menus.
 - **Per-tab onboarding tooltips**, **live command preview**, and a **zoomable
   multi-channel TIFF preview** (RGB, CMYK, extended-gamut).
 - **Session restore**, **rotating log file**, and a built-in **update checker**.
