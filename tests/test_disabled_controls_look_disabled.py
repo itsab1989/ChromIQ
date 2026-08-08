@@ -25,6 +25,7 @@ from __future__ import annotations
 import pytest
 from PyQt6.QtWidgets import QCheckBox, QRadioButton, QVBoxLayout, QWidget
 
+from tests._fontcheck import skip_without_fonts
 from ui import styles
 
 #: How much darker a disabled label must be than an enabled one. The real
@@ -57,6 +58,15 @@ def rendered(qapp):
     it does: a stylesheet set on the parent cascades to these children, so the
     pixels are identical.
     """
+    # THESE ASSERTIONS ARE ABOUT DRAWN TEXT, so they need real glyphs.
+    #
+    # Under offscreen Qt on Windows the font database is EMPTY, so no label is
+    # painted at all — and the scan below deliberately starts to the right of
+    # the indicator, so it would find only the panel background for both the
+    # enabled and the disabled control, report a difference of zero, and fail
+    # on something un-measurable rather than something wrong. Same root cause
+    # as PRs #138/#139/#140 from the Windows VM; same shared guard.
+    skip_without_fonts()
     w = QWidget()
     w.setStyleSheet(styles.APP_STYLESHEET)
     lay = QVBoxLayout(w)
