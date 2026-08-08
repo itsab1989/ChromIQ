@@ -621,8 +621,21 @@ def capture_dialogs(app, win) -> None:
                 # The real app does NOT dim the window behind a modal, so composite
                 # the dialog straight over it. A hairline drop shadow just lifts the
                 # dialog off the background without the (inaccurate) dark overlay.
-                x = (base.width() - dlg.width()) // 2
-                y = (base.height() - dlg.height()) // 2
+                # CENTRE IN *LOGICAL* COORDINATES, NOT DEVICE PIXELS.
+                #
+                # base.width() is the device-pixel width (3456 on this Retina
+                # display), but a QPainter on a pixmap with devicePixelRatio 2
+                # takes drawPixmap()'s coordinates in LOGICAL units and doubles
+                # them. Centring with the raw numbers therefore placed the
+                # dialog at twice the intended offset — 908 became 1816 — which
+                # is why every result window in the documentation sat in the
+                # bottom-right corner, clipped by the frame edge, in this set
+                # and in every earlier one (Basti, 2026-08-08: "in older
+                # screenshots pop up windows were always off in the bottom
+                # right corner or so").
+                dpr = base.devicePixelRatio() or 1.0
+                x = int((base.width() - dlg.width()) / (2 * dpr))
+                y = int((base.height() - dlg.height()) / (2 * dpr))
                 for i, a in ((8, 22), (4, 34), (2, 46)):
                     painter.fillRect(x - i, y - i, dlg.width() + 2 * i,
                                      dlg.height() + 2 * i, QColor(0, 0, 0, a))
