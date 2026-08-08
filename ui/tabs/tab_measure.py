@@ -5797,6 +5797,25 @@ class TabMeasure(QWidget):
     def _on_log_line(self, line: str) -> None:
         self._log.appendPlainText(line)
         self._log.ensureCursorVisible()
+        # MIRROR IT INTO THE APPLICATION LOG TOO.
+        #
+        # Everything the measurement narrates — "[Guided Refinement] Moving to
+        # strip C…", the engine's own notes, chartread's prose — existed ONLY in
+        # this panel. So when Basti hit a guided refinement that stopped
+        # advancing (2026-08-08) the file held the raw `[argyll]` events and not
+        # one line of what ChromIQ decided, and the panel was hidden behind a
+        # running measurement he would have had to stop to read. He asked for
+        # this: *"can you make it write your info to the real log for next
+        # time"*.
+        #
+        # A near-miss worth recording: the absence of "[Guided Refinement]" lines
+        # in the file looked like proof that guided navigation never started. It
+        # was not — no panel line reached the file at all. Mirroring removes that
+        # trap as well as the inconvenience.
+        try:
+            log.info("%s", line.rstrip())
+        except Exception:      # noqa: BLE001 — logging must never break a read
+            pass
         # chartread produced output → it is alive and processed (or never needed)
         # the last keystroke. Cancel the watchdog so it cannot misfire mid-scan.
         self._last_chartread_output_ts = time.monotonic()

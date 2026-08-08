@@ -283,6 +283,7 @@ class MeasureManager(QObject):
         self._strips_read_this_session: set = set()
         self._session_strips: list = []
         self._guided_strips: list[str] = []
+        self._guided_menu_pending: bool = False
         self._guided_idx:    int  = 0
         # "disabled" until strips are actually given: everywhere else the rule
         # is "idle if there are strips, else disabled", and an "idle" default
@@ -354,6 +355,9 @@ class MeasureManager(QObject):
         # Reset guided state for this run
         self._guided_idx   = 0
         self._guided_state = "idle" if self._guided_strips else "disabled"
+        #: chartread has re-announced the strip we are waiting on, so its
+        #: menu is already up and no further event is coming.
+        self._guided_menu_pending = False
         # The engine now covers patch-by-patch (spot) mode too — the spot loop
         # speaks the same JSON protocol as the strip loop (#126 follow-up).
         self._engine_active = params.engine_helper is not None
@@ -1644,9 +1648,15 @@ class MeasureManager(QObject):
                 f"[Guided Refinement] Strip {target} done. "
                 f"Moving to strip {next_target}\u2026"
             )
-            # Navigation is triggered by the next stripe_changed event —
-            # chartread re-announces the current strip after Strip read OK
-            # in resume mode, which fires stripe_changed and drives navigation.
+            # Navigation is normally triggered by the next stripe_changed event —
+            # chartread re-announces the current strip after Strip read OK in
+            # resume mode, which fires stripe_changed and drives navigation.
+            # If that announcement has ALREADY arrived (the pace prompt's modal
+            # loop delivers it before this runs), there is no further event to
+            # wait for, so make the move here instead.
+            if getattr(self, "_guided_menu_pending", False):
+                self._guided_menu_pending = False
+                self._navigate_toward(target, next_target)
 
     def _guided_step(self, current: str, on_line: Callable[[str], None]) -> None:
         letter = "".join(c for c in current if c.isalpha()).upper()
@@ -1676,6 +1686,23 @@ class MeasureManager(QObject):
 
         elif self._guided_state == "waiting":
             target = self._guided_strips[self._guided_idx]
+            if letter == target:
+                # CHARTREAD IS BACK AT ITS MENU, STILL ON THIS STRIP.
+                #
+                # In resume mode it re-announces the same strip after a good
+                # read, so this arrives for every refinement strip. Normally the
+                # advance below has already run and moved the state on, so this
+                # is harmless. But `strip_measured` is emitted BEFORE the advance
+                # and the tab answers it with the modal "read a little fast"
+                # prompt — whose nested event loop delivers this event first.
+                # It was then consumed doing nothing, and the advance went on to
+                # wait for a `stripe_changed` that had already been and gone, so
+                # guided refinement stopped dead on strip A (Basti, 2026-08-08).
+                #
+                # Remember that the menu is already up; the advance then drives
+                # the move itself instead of waiting for an event.
+                self._guided_menu_pending = True
+                return
             if letter != target:
                 # chartread moved to a new strip — previous one was accepted
                 self._guided_idx += 1

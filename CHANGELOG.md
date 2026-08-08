@@ -1,5 +1,21 @@
 # Changelog
 
+## v3.14.8-beta.201
+
+### Fixed
+
+- **Guided refinement moves on to the next strip again after the "read a
+  little fast" message.** Answering that message let the app miss the moment
+  it was supposed to move, so it sat on the strip you had just read and
+  waited for something that was never going to happen. It now makes the move
+  itself.
+
+### Changed
+
+- **What the measurement log shows is now written to the log file as well.**
+  Previously only ArgyllCMS's own output was saved, so with the log panel
+  hidden there was no record of what ChromIQ decided during a measurement.
+
 ## v3.14.8-beta.200
 
 ### Fixed
