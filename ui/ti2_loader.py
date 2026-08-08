@@ -417,7 +417,14 @@ def _choice_dialog(parent, title, intro_html, choices):
     box.setWindowTitle(title)
     box.setTextFormat(Qt.TextFormat.RichText)
 
-    parts = [f"<b>{title}</b>"]
+    # HEADLINE IN setText, EVERYTHING ELSE IN setInformativeText.
+    #
+    # QMessageBox paints setText in bold. Putting the whole explanation there
+    # made every word of it bold, so nothing stood out and the wall of heavy
+    # text was harder to read than the plain version it replaced (Basti,
+    # 2026-08-08). The measurement windows already split it this way.
+    box.setText(title)
+    parts = []
     if intro_html:
         parts.append(intro_html)
     parts.append(tr("What each button does:"))
@@ -426,7 +433,7 @@ def _choice_dialog(parent, title, intro_html, choices):
     parts.append(tr("&nbsp;&nbsp;•&nbsp; <b>Cancel</b> — nothing is opened, "
                     "copied or changed, and the file you picked is left exactly "
                     "as it is."))
-    box.setText("<br><br>".join(parts))
+    box.setInformativeText("<br><br>".join(parts))
 
     # ActionRole keeps them in the order given, before Cancel, under the app's
     # button-layout style.

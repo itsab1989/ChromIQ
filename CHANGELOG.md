@@ -1,5 +1,22 @@
 # Changelog
 
+## v3.14.8-beta.189
+
+### Changed
+- **The chart-choice window reads properly again.** Its whole explanation was
+  printed in bold, so nothing stood out and the text was harder to read than
+  before. Only the headline is bold now, with the button names picked out inside
+  the description — the same way every other window in ChromIQ is written.
+
+### Fixed
+- **“The page rebuild altered the chart itself” no longer warns when nothing
+  happened.** Restoring a chart redraws its printed pages, and the chart file is
+  stamped with the time it was written — so the file always looked different
+  even when the sheet was reproduced exactly, and ChromIQ warned about it every
+  time. It now says so only when the chart really was laid out differently; an
+  identical redraw is noted quietly in the log. Either way the restored chart is
+  kept, exactly as before.
+
 ## v3.14.8-beta.188
 
 ### Changed

@@ -1182,20 +1182,63 @@ class _ChartRebuildGuard:
             except OSError:
                 log.warning("could not hold %s for the rebuild", path)
 
+    #: Lines that differ on every regeneration and mean nothing — the .ti2 gets
+    #: a fresh CREATED stamp each time it is written. A chart whose ONLY
+    #: difference is one of these was laid out identically.
+    _VOLATILE = ("CREATED", "ORIGINATOR")
+
+    @classmethod
+    def _difference_is_only_a_timestamp(cls, old: bytes, new: bytes) -> bool:
+        """True when the two files differ solely in lines that always differ."""
+        def _meaningful(data: bytes) -> list[str]:
+            try:
+                text = data.decode("utf-8", errors="ignore")
+            except Exception:      # noqa: BLE001
+                return []
+            return [ln for ln in text.splitlines()
+                    if not ln.lstrip().startswith(cls._VOLATILE)]
+        return _meaningful(old) == _meaningful(new)
+
     def put_back(self) -> list[str]:
-        """Restore any held file the rebuild changed. Returns their names."""
-        changed = []
+        """Restore any held file the rebuild changed. Returns their names.
+
+        **Says WHICH kind of change it found.** The .ti2 is stamped with a
+        CREATED time whenever it is written, so a rebuild that reproduced the
+        sheet perfectly still differs byte-for-byte — and the guard used to
+        report that with the same alarming wording as a chart that had genuinely
+        been laid out again. Basti saw it on a restore that was fine
+        (2026-08-08).
+
+        A warning that fires when nothing is wrong is a warning people learn to
+        scroll past, and this one guards against a fault that is otherwise
+        silent. So a timestamp-only difference is logged as the routine event it
+        is, and the warning is kept for a chart that actually changed.
+
+        Either way the held bytes are put back: the CREATED stamp of the chart
+        that was measured is the truthful one.
+        """
+        changed, cosmetic = [], []
         for path, data in self._held.items():
             try:
-                if not path.is_file() or path.read_bytes() != data:
+                if not path.is_file():
                     path.write_bytes(data)
                     changed.append(path.name)
+                    continue
+                current = path.read_bytes()
+                if current == data:
+                    continue
+                path.write_bytes(data)
+                (cosmetic if self._difference_is_only_a_timestamp(data, current)
+                 else changed).append(path.name)
             except OSError:
                 log.warning("could not put %s back after the rebuild", path)
+        if cosmetic:
+            log.info("the page rebuild re-stamped %s — same layout, original "
+                     "kept", ", ".join(cosmetic))
         if changed:
             log.warning("the page rebuild altered the chart itself (%s) — the "
                         "restored chart has been put back", ", ".join(changed))
-        return changed
+        return changed + cosmetic
 
 
 #: "no store argument was given", so that passing None can mean the different
