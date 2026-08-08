@@ -205,6 +205,8 @@ _CHECKBOX_BUDGET = 163   # same column, minus the checkbox indicator
 @pytest.mark.parametrize("code", CODES)
 def test_translated_parameter_names_fit_their_column(code, qapp):
     """A name wider than its column is clipped behind the control beside it."""
+    from _fontcheck import skip_without_fonts
+    skip_without_fonts()                 # column-fit pivots on real text widths
     import yaml
 
     from core import i18n

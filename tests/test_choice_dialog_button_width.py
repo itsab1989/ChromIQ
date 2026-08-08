@@ -77,6 +77,8 @@ def _choices(name):
 
 def test_no_button_is_narrower_than_its_text(qapp):
     """The original fault: a button laid out before the font swap is too small."""
+    from _fontcheck import skip_without_fonts
+    skip_without_fonts()                 # width >= hint pivots on real text widths
     _, buttons = _measure(qapp, _choices("Knut-Scanner"))
     assert buttons, "no buttons on the dialog"
     for text, width, hint in buttons:
@@ -91,6 +93,8 @@ def test_a_very_long_project_name_still_fits(qapp):
     Not a check that the name was shortened — a check that the row of buttons
     fits inside the window it is drawn in, which is the thing the user sees.
     """
+    from _fontcheck import skip_without_fonts
+    skip_without_fonts()                 # button/window fit pivots on real text widths
     window, buttons = _measure(qapp, _choices(_short_name(_LONG)))
     total = sum(hint for _t, _w, hint in buttons)
     assert total <= window, (
