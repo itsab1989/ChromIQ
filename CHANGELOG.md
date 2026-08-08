@@ -1,5 +1,21 @@
 # Changelog
 
+## v3.14.8-beta.190
+
+### Fixed
+
+- **The chart-choice window keeps its buttons readable however long the project
+  name is.** "Open <name>" grew with the project and took the window with it —
+  a 66-character name overflowed the row and clipped every label. The name on
+  the button is now shortened in the middle (`Open Pro300_EpsonPr…attempt_matte`),
+  where two projects differ least; the description underneath still gives it in
+  full.
+
+### Changed
+
+- **Cancel now sits apart from the two actions** on that window — the choices
+  grouped on the left, Cancel on the right edge where the eye looks for it.
+
 ## v3.14.8-beta.189
 
 ### Changed
