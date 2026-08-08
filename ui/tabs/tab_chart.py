@@ -9629,9 +9629,35 @@ class TabChart(QWidget):
         §4a N-1 and N-2: seeded once, with the six rows Run type = Calibration
         owns stripped out, so a New run never starts from a calibration
         sheet's patch set.
+
+        A CALIBRATION IS NOT A STARTING POINT FOR A RUN.
+
+        Knut, 2026-08-08: the New-run seeding *"should only work for profiling
+        and verification runs"*. Stripping the six ``_CALIBRATION_OWNED`` rows
+        was not enough on its own — driven on screen, selecting Run type =
+        Calibration still wrote a ``cal/cache/new_run.json`` carrying **34**
+        other rows (paper, instrument, margins, the whole layout recipe), any
+        of which a later New run would have started from.
+
+        The block is written once and then left alone (N-1), so whether a
+        particular value actually leaked depended on *when* the block happened
+        to be written. That is why this is guarded structurally rather than by
+        widening the strip list: a rule that holds only depending on timing is
+        not a rule.
         """
         folder = getattr(store, "dir", None)
         if folder is None:
+            return
+        # ASK THE STORE, NOT THE SELECTION.
+        #
+        # This runs for the OUTGOING target while the bar already points at the
+        # incoming one, so asking the controller answers about the wrong
+        # target — the same trap that produced three separate faults in the
+        # per-target settings work, and it made the first version of this guard
+        # pass its unit test while still writing the file on screen. The store
+        # IS the calibration or it is not, whatever the bar says.
+        from core.file_manager import Calibration
+        if isinstance(store, Calibration):
             return
         self._new_run_seed_dir = folder
         try:

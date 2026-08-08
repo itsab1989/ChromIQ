@@ -1,5 +1,17 @@
 # Changelog
 
+## v3.14.8-beta.204
+
+### Fixed
+
+- **A calibration no longer becomes the starting point for a new run.** When
+  you pick "New run", ChromIQ starts you from the settings of the run you last
+  had selected — a quick way to make a chart "like the last one, with one
+  change", without saving a preset first. Visiting "Run type: Calibration"
+  could quietly make the calibration sheet that starting point instead, handing
+  a new profiling run the calibration's paper, instrument, margins and layout.
+  New runs now only ever start from a profiling or a verification run.
+
 ## v3.14.8-beta.203
 
 ### Fixed

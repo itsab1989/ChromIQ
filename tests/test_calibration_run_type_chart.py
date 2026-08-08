@@ -156,3 +156,59 @@ def test_the_checkbox_is_retired(chart):
     tab, ctl = chart
     assert not tab._cal_target_grp.isVisible()
     assert not tab._cal_target_check.isChecked()
+
+
+# ---- Knut 2026-08-08: a calibration is not a starting point for a run -----
+def test_a_calibration_never_seeds_the_new_run_block(cal_settings, qapp,
+                                                     tmp_path):
+    """Knut: New-run seeding *"should only work for profiling and verification
+    runs"*.
+
+    Stripping the six ``_CALIBRATION_OWNED`` rows was not enough on its own —
+    driven on screen, selecting Run type = Calibration still wrote a
+    ``cal/cache/new_run.json`` carrying 34 other rows (paper, instrument,
+    margins, the whole layout recipe) that a later New run would start from.
+    """
+    from core.file_manager import FileManager
+    from workflow.per_target_settings import NEW_RUN_FILENAME
+
+    fm = FileManager(cal_settings)
+    fm.set_target_name("Seed-Printer")
+    proj = fm.project()
+    tab = TabChart(ArgyllRunner(cal_settings), fm, cal_settings)
+    ctl = MeasurementTargetController(fm)
+    ctl.set_calibration_allowed(True)
+    tab.set_target_controller(ctl)
+    tab.set_calibration_mode(True)
+
+    cal = proj.calibration
+    cal.dir.mkdir(parents=True, exist_ok=True)
+    tab._seed_new_run_block(cal, {"printtarg-p": {"enabled": True,
+                                                  "value": "A3"}})
+    assert not (cal.dir / "cache" / NEW_RUN_FILENAME).exists(), \
+        "a calibration seeded the New-run block"
+
+    # …and a real run still does, or the feature is gone rather than guarded.
+    run = proj.current_run()
+    run.dir.mkdir(parents=True, exist_ok=True)
+    tab._seed_new_run_block(run, {"printtarg-p": {"enabled": True,
+                                                  "value": "A4"}})
+    assert (run.dir / "cache" / NEW_RUN_FILENAME).exists(), \
+        "a profiling run stopped seeding the New-run block"
+
+
+def test_the_guard_reads_the_store_not_the_selection(cal_settings, qapp):
+    """The seeding runs for the OUTGOING target while the bar already points at
+    the incoming one, so asking the controller answers about the wrong target —
+    which is how the first attempt at this guard passed its own unit test and
+    still wrote the file on screen."""
+    src = inspect.getsource(TabChart._seed_new_run_block)
+    # Comments and the docstring both discuss `_target_ctl` on purpose — they
+    # explain why it must NOT be used here — so strip them before looking, or
+    # the test fails on its own explanation.
+    body = src.split('"""')[-1]
+    code = "\n".join(line.split("#", 1)[0] for line in body.splitlines())
+    assert "isinstance(store, Calibration)" in code, \
+        "the guard must come from the store, not from _target_ctl.target"
+    assert "_target_ctl" not in code, \
+        "asking the selection here answers about the incoming target"

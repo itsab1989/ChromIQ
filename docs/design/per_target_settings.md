@@ -263,9 +263,43 @@ Making a new run is nearly always *"like the last one, with one change"*.
 | **N-3** | **Generate Chart** copies it into the new run and **clears** it | Otherwise the run after next inherits a stale copy instead of the run actually loaded |
 | **N-4** | It lives in **`<target>/cache/new_run.json`** | Knut, 2026-08-07: *"always … in the cache/ folder for the runN/ runN/verifications/ or cal/ folders"*. The layout already documents `cache/` as "always safe to delete", which is exactly this file's nature — an orphaned block after a restart costs nothing, because the New run simply seeds fresh |
 | **N-5** | A New run under Run type = **Verification** seeds from the **verification** | Knut, 2026-08-07: *"Answer: Yes"* |
+| **N-6** | **A calibration never seeds the block at all** — no `new_run.json` is written into `cal/` | Knut, 2026-08-08: the seeding *"should only work for profiling and verification runs"*. N-2 alone did not achieve this: stripping the six `_CAL_VALUES` rows still left **34** others — paper, instrument, margins, the whole layout recipe — which a later New run would have started from. Verified on screen; see the Confirmed-behaviour note below |
 
-**Status:** the helpers (`new_run_seed_path`, `seed_for_new_run`) are built and
-tested; the wiring into the tab is not. Nothing here is open.
+**Status:** built, wired and verified on screen (v3.14.8-beta.204).
+
+### ✅ Confirmed behaviour — verified on screen 2026-08-08
+
+Recorded here because Knut asked for it to be: *"whenever you achieve the
+correct behavior on something … transfer this information into the design
+specification document, so that this always is used as reference … thus
+preventing sudden changes in the design because it decides so to fix something
+it is working with without thinking of the overall design and intended
+behavior."* What follows is not a plan — it is what the app was observed to do,
+so a later fix cannot quietly contradict it.
+
+Driven through the real app against the Argyll-built `Demo-Full-RGB`
+(`scripts/drive_new_run_seeding.py`, 11 checks):
+
+| Observed | Result |
+|---|---|
+| Select a run, then **New run** | The New run opens on that run's settings — the "copy a chart without saving a preset" route Knut describes. **Works.** |
+| Select run A, then run B, then **New run** | It follows **B**, the last selected run — not A, and not the project's `current_run`. **Works.** |
+| Visit Run type = **Calibration**, then **New run** | No block is written into `cal/`, so the New run keeps the last *run's* settings. **N-6.** |
+
+**Two traps this cost, both worth keeping written down.**
+
+*Comparing a value proves nothing here.* The block is written once and then left
+alone (N-1), so whether a calibration value leaked depended on **when** the
+block happened to be written, not on whether calibration was excluded. A
+value-comparison check reported a false pass. The question that means something
+is structural: *is a block written into `cal/` at all?*
+
+*The guard must come from the store, not the selection.* Seeding runs for the
+**outgoing** target while the bar already points at the incoming one, so
+`_target_ctl.target.is_calibration()` answers about the wrong target. The first
+version of the guard did exactly that, passed its unit test, and still wrote the
+file on screen. `isinstance(store, Calibration)` is the reliable question —
+the same lesson as beta.165 and the three per-target-settings faults before it.
 
 ---
 
