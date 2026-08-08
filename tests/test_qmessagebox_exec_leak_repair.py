@@ -12,7 +12,11 @@ The victim is whatever file xdist schedules next, so the failure names an
 innocent test and reads as flakiness. It cost two full gates on 2026-08-08 —
 the tests it broke passed alone and passed under `-n 4` alone.
 
-`tests/conftest.py` repairs it in SETUP (`_repair_a_leaked_qmessagebox_exec`).
+Only TWO tests ever used that idiom, both migrated to `monkeypatch.setattr` on
+2026-08-08; the other 68 patch sites always used monkeypatch, which restores an
+inherited attribute correctly by deleting it. `tests/conftest.py` still repairs
+the class in SETUP (`_repair_a_leaked_qmessagebox_exec`) as defence in depth,
+because the broken idiom is an easy one to reach for again.
 These two tests are the proof, and they depend on running in this order, which
 `--dist loadfile` guarantees by keeping a file on one worker. Verified by
 mutation: disabling the repair fails `test_b`.
@@ -21,7 +25,7 @@ import PyQt6.QtWidgets as W
 
 
 def test_a_leaves_exec_broken():
-    """Reproduce the leak exactly as ~77 tests in this suite still create it."""
+    """Reproduce the leak exactly as the two original offenders created it."""
     real = W.QMessageBox.exec
     W.QMessageBox.exec = lambda self: 0
     try:

@@ -2,7 +2,7 @@
 
 ## v3.14.8-beta.193
 
-### For developers
+### Internal
 
 - **A test that fakes a message box can no longer break unrelated tests.**
   `QMessageBox.exec` is inherited from `QDialog`, so saving and re-assigning it
@@ -39,7 +39,7 @@
   the Create panel's own figures agree with it (484 patches on screen against
   484 estimated, where it previously read 484 beside "on screen 210").
 
-### For developers
+### Internal
 
 - The screenshot script no longer writes into your real ChromIQ project: it
   works on a copy under `~/ChromIQ-docs` and removes it when it finishes.

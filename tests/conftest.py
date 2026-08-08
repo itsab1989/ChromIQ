@@ -91,17 +91,26 @@ def _repair_a_leaked_qmessagebox_exec():
     2026-08-08: the tests it broke passed alone AND under `-n 4` alone, and the
     culprit was two files away.
 
-    About 77 tests still use that idiom. Repairing it HERE, in setup, makes the
-    leak harmless whoever wrote it: `QMessageBox` does not define `exec` itself,
-    so anything in its own `__dict__` was put there by a test and is wrong.
+    Exactly TWO tests ever used that idiom (in test_knut_beta74_batch and
+    test_knut_beta87_batch); both were migrated to `monkeypatch.setattr` on
+    2026-08-08, and every other site — 68 of them — had always used monkeypatch,
+    which handles this correctly: it records that the attribute was inherited
+    and *deletes* it on undo. This fixture is therefore defence in depth, kept
+    because the idiom is an easy one to reach for again.
 
-    **In setup, deliberately.** Two teardown versions of this were written and
-    reverted first — one failed the offending test (turning a single bad test
-    into 4,859 errors, because the attribute stayed patched for everything that
-    followed), and a repair-only one still left 77 teardown errors. Nothing here
-    can fail a test: it only ever removes an attribute that should not exist.
-    Migrating those 77 sites to `monkeypatch.setattr` remains worth doing, but
-    as its own piece of work rather than as a release-time rewrite.
+    **A correction, recorded because it was stated publicly.** An earlier version
+    of this comment claimed "about 77 tests still use that idiom". That was
+    wrong, and the number came from misreading this fixture's own first draft:
+    that draft ran in TEARDOWN, where it raced monkeypatch's undo — it saw the
+    attribute still patched for tests that had done everything right, flagged all
+    68 of them, and by deleting the attribute made monkeypatch's own undo fail.
+    The "77 errors" were the guard breaking correct tests, not 77 bad tests.
+
+    **In setup, deliberately.** Two teardown versions were written and reverted:
+    one failed the offending test, turning a single leak into 4,859 errors
+    because the attribute stayed patched for everything after it; the other
+    produced the 77 errors described above. Nothing here can fail a test — it
+    only removes an attribute that should not exist, before the test starts.
     """
     try:
         from PyQt6.QtWidgets import QMessageBox
