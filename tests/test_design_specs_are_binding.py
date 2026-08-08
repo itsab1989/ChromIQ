@@ -22,6 +22,7 @@ BINDING = [
     "per_target_settings.md",
     "per_target_settings_test_plan.md",
     "measurement_window_sounds.md",
+    "tool_availability.md",
 ]
 
 

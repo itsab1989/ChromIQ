@@ -1182,8 +1182,21 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, tr("Show patch distribution (3D)"), no_chart)
             return
 
-        run = self._file_mgr.project().current_run()
-        chart = run.chart_ti2 if run.chart_ti2.exists() else run.chart_ti1
+        # THE SAME FAULT THE PATCH SET EDITOR HAD, IN ITS SIBLING.
+        #
+        # This asked for `current_run().chart_ti2` — the profiling chart —
+        # whatever the bar pointed at, so with Run type = Calibration it drew
+        # the profile run's cube and called it "Current chart". Found while
+        # building Knut's tool-availability table, which is exactly the kind of
+        # thing that table is meant to surface. Resolve through the one method
+        # that knows all three run types, and fall back to the .ti1 as before.
+        resolved = self._tab_chart._resolve_target_chart()
+        if resolved:
+            ti2, _tiffs, ti1 = resolved
+            chart = ti2 if ti2.exists() else ti1
+        else:
+            run = self._file_mgr.project().current_run()
+            chart = run.chart_ti2 if run.chart_ti2.exists() else run.chart_ti1
         if not chart.exists():
             QMessageBox.information(self, tr("Show patch distribution (3D)"), no_chart)
             return

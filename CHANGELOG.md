@@ -1,5 +1,14 @@
 # Changelog
 
+## v3.14.8-beta.205
+
+### Fixed
+
+- **"Show patch distribution (3D)" now shows the chart you have selected.**
+  With "Run type" set to Verification or Calibration it drew the profile run's
+  chart instead, while calling it "Current chart" — the same mix-up the chart
+  patch set editor had.
+
 ## v3.14.8-beta.204
 
 ### Fixed

@@ -283,6 +283,7 @@ Two obligations, and the second is the one that is easy to get wrong:
 | `per_target_settings_test_plan.md` | how that is proved — on-screen, every parameter, both states |
 | `measurement_window_sounds.md` | which sound each measurement window plays, and when |
 | `calibration_run_type.md` | calibration as a run type |
+| `tool_availability.md` | which Tools apply to which run-type/profile-run selection, and where each may write (**DRAFT — awaiting confirmation**) |
 
 New user-facing message text is governed by §M of
 `unified_measurement_management.md`: it goes to §M-PROPOSED first and is not
