@@ -1,5 +1,18 @@
 # Changelog
 
+## v3.14.8-beta.206
+
+### New
+
+- **The measurement report now checks that your readings really belong to the
+  chart they are compared with.** Every patch is checked against the colour the
+  chart asked the printer for, and if a lot of them come back as completely
+  different colours the report says so, in plain words, above the figures. That
+  can happen when a measurement is paired with the wrong chart, or when a chart
+  measured in another program came back with its patches in a different order.
+  Nothing is changed or hidden — the figures are still worked out in the usual
+  way, and the note simply tells you to treat them with care.
+
 ## v3.14.8-beta.205
 
 ### Fixed

@@ -210,6 +210,108 @@ def _reference_labs(ti2_path: Path) -> "dict[str, tuple]":
     return out
 
 
+#: How far a patch's device RGB may differ from the chart's before the pairing
+#: is called into question, on Argyll's 0..100 device scale.
+#:
+#: Sized from a real round trip rather than guessed: a 550-patch ChromIQ set
+#: taken through i1Profiler and back came out with a worst channel error of
+#: **0.5 on the 0..255 scale — 0.196 here — and not one patch above it.** That
+#: error is rounding, nothing more (a value of 42.5 came back as 43). So 1.0 is
+#: about five times the worst observed error, which leaves room for a different
+#: writer's rounding while staying far below a real mix-up: two different
+#: patches of a profiling chart are separated by whole device units, not
+#: fractions of one.
+PATCH_IDENTITY_TOL = 1.0
+
+
+def verify_patch_identity(measured, ti2_path: "Path | None") -> dict:
+    """Is each measured patch really the chart patch the report pairs it with?
+
+    ChromIQ's report pairs a measurement with its chart by ``SAMPLE_ID``. For a
+    measurement that came back through i1Profiler that ID is **only the row
+    number**: its CxF objects are labelled ``M0_Measurement1``, ``c1`` … and
+    carry no trace of the original patch, so ``reference_convert`` numbers them
+    1..N by their order in the file. If anything reordered the patches on the
+    way, every patch is compared against the wrong one — and the report looks
+    entirely normal, because each comparison is against a real patch, just not
+    the right one.
+
+    That assumption is checkable, and cheaply. The chart knows what colour each
+    patch was *asked* to be; the measurement carries the device values it was
+    read from. So this walks **the pairing the report itself uses** and asks
+    whether the two agree about the colour. A pairing that is right agrees to
+    within rounding; a pairing that is wrong does not agree at all.
+
+    **A shorter measurement is not a fault.** Reading part of a chart is a
+    normal, supported state, so fewer patches simply means fewer to check —
+    what matters is whether the ones that are there line up.
+
+    A real round trip through i1Profiler (2026-08-08, 550 patches) preserved
+    the order exactly, so this is expected to pass. It guards the case that
+    does not: i1Profiler's own ``ScramblePatches`` setting, and any future tool
+    in the chain.
+
+    Returns a JSON-able verdict; never raises, because a report must still be
+    produced when the check itself cannot run.
+    """
+    out: dict = {"checked": False, "verdict": "unchecked", "reason": "",
+                 "compared": 0, "mismatched": 0, "worst": None,
+                 "paired_by": "", "tolerance": PATCH_IDENTITY_TOL}
+    if measured is None or measured.rgb is None or not len(measured.rgb):
+        out["reason"] = "the measurement carries no device values"
+        return out
+    if ti2_path is None or not Path(ti2_path).is_file():
+        out["reason"] = "there is no chart file to compare against"
+        return out
+    try:
+        design = parse_ti3(Path(ti2_path))
+    except (Ti3ParseError, OSError) as exc:
+        out["reason"] = f"the chart file could not be read ({exc})"
+        return out
+    if design.rgb is None or not len(design.rgb):
+        out["reason"] = "the chart file carries no device values"
+        return out
+
+    want = _rgb_to_0_100(np.asarray(design.rgb, dtype=float))
+    got = _rgb_to_0_100(np.asarray(measured.rgb, dtype=float))
+
+    # Pair exactly as the report does — by SAMPLE_ID — so this validates the
+    # real pairing rather than a second one of its own. Falling back to
+    # position when there are no IDs is not a weakness: that IS the i1Profiler
+    # case, and the case worth guarding.
+    by_id = {sid: i for i, sid in enumerate(design.sample_ids)} \
+        if design.sample_ids else {}
+    pairs = []
+    if by_id and measured.sample_ids:
+        for mi, sid in enumerate(measured.sample_ids):
+            di = by_id.get(sid)
+            if di is not None and di < len(want) and mi < len(got):
+                pairs.append((di, mi))
+        out["paired_by"] = "SAMPLE_ID"
+    if not pairs:
+        n = min(len(want), len(got))
+        pairs = [(i, i) for i in range(n)]
+        out["paired_by"] = "position"
+
+    if not pairs:
+        out["reason"] = "there is nothing to compare"
+        return out
+
+    diffs = np.array([np.abs(want[di] - got[mi]).max() for di, mi in pairs])
+    out.update(checked=True, compared=int(len(pairs)),
+               mismatched=int((diffs > PATCH_IDENTITY_TOL).sum()),
+               worst=round(float(diffs.max()), 4))
+    if out["mismatched"]:
+        out["verdict"] = "mismatch"
+        out["reason"] = (
+            f"{out['mismatched']} of {len(pairs)} patches do not hold the "
+            "colour the chart asked for, so the readings may not line up with "
+            "the chart")
+    else:
+        out["verdict"] = "verified"
+    return out
+
+
 def per_patch_overlay(ti3_path: "str | Path",
                       ti2_path: "str | Path | None" = None) -> "list[dict]":
     """Per-patch expected-vs-measured data for the split-patch overlay (#134).
@@ -293,6 +395,19 @@ def _stats(vals: "list[float]") -> dict:
     }
 
 
+def _rgb_to_0_100(rgb):
+    """Device RGB on Argyll's 0..100 scale, whatever scale it arrived on.
+
+    i1Profiler measurement exports carry 0..255 code values; ChromIQ's own
+    charts are already 0..100. One rule, used by every caller — comparing a
+    0..100 array against a 0..255 one would make identical patches look
+    completely different, which is exactly the failure this normalisation
+    exists to avoid.
+    """
+    arr = np.asarray(rgb, dtype=float)
+    return arr * (100.0 / 255.0) if float(arr.max()) > 101.0 else arr
+
+
 def build_report(ti3_path: str | Path, worst_n: int = 16) -> dict:
     """Compute a measurement report from a measured ``.ti3``.
 
@@ -348,9 +463,7 @@ def build_report(ti3_path: str | Path, worst_n: int = 16) -> dict:
     # reference fallback below are correct regardless of the source (Knut).
     rgb100 = None
     if data.rgb is not None and len(data.rgb):
-        rgb100 = np.asarray(data.rgb, dtype=float)
-        if float(rgb100.max()) > 101.0:
-            rgb100 = rgb100 * (100.0 / 255.0)
+        rgb100 = _rgb_to_0_100(np.asarray(data.rgb, dtype=float))
 
     # Expected reference: the chart's design colours from the sibling .ti2,
     # matched by SAMPLE_ID. When no .ti2 matches — a stand-alone or imported
@@ -377,6 +490,11 @@ def build_report(ti3_path: str | Path, worst_n: int = 16) -> dict:
     # code values sent to the printer, so the reference is static across runs, not
     # recomputed from the varying measured colours (imported files).
     report["reference_source"] = ref_source
+
+    # Is row n really patch n? Reported, never acted on: this release only
+    # states the answer, so no existing figure changes on the strength of it.
+    report["patch_identity"] = verify_patch_identity(
+        data, _find_reference_ti2(ti3_path))
 
     # The eight cube corners (paper white, composite black, the six ink
     # primaries/secondaries) — nearest patch to each corner by device RGB. Each

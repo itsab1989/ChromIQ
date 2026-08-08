@@ -1586,6 +1586,53 @@ class MeasurementReportDialog(QDialog):
                 "colour-accuracy statistics aren't available — only the paper white "
                 "and black below.")) + "</p>")
 
+        # WHEN THE READINGS MAY NOT LINE UP WITH THE CHART, SAY SO ABOVE THE
+        # NUMBERS THEY WOULD INVALIDATE.
+        #
+        # The figures above are only meaningful if each reading really belongs
+        # to the chart patch it was compared with. That pairing is by patch
+        # number, and for a measurement returned from i1Profiler the number is
+        # only the position in the file — so a reordering somewhere in the
+        # chain silently compares every patch with the wrong one. The check is
+        # reported, never acted on: nothing above is suppressed or altered.
+        pi = r.get("patch_identity") or {}
+        if pi.get("verdict") == "mismatch":
+            bad, total = pi.get("mismatched") or 0, pi.get("compared") or 0
+            # Count-aware, with a real singular — never "patch(es)".
+            found = (tr("Here one patch out of {total} came back as a "
+                        "completely different colour.").format(total=total)
+                     if bad == 1 else
+                     tr("Here {bad} patches out of {total} came back as "
+                        "completely different colours.").format(bad=bad,
+                                                                total=total))
+            parts.append(
+                f"<p style='color:{_C['error']};font-size:11px;"
+                f"border:1px solid {_C['error']};border-radius:4px;"
+                "padding:8px 11px;line-height:1.45'>"
+                + "<b>" + html.escape(tr(
+                    "These readings might not belong to the chart they were "
+                    "compared with, so please treat the figures above with "
+                    "care.")) + "</b><br><br>"
+                + html.escape(tr(
+                    "Every time ChromIQ works out a report, it checks each "
+                    "patch against the colour the chart asked the printer "
+                    "for. The two should agree.")) + " " + html.escape(found)
+                + "<br><br>" + html.escape(tr(
+                    "That usually means one of two things: either this "
+                    "measurement belongs to a different chart, or the patches "
+                    "ended up in a different order somewhere between creating "
+                    "the chart and measuring it. The second one can happen "
+                    "when a chart is measured in another program, if that "
+                    "program rearranges the patches for its own layout."))
+                + "<br><br>" + html.escape(tr(
+                    "Nothing has been changed or hidden. The figures above "
+                    "were worked out in the usual way and your measurement "
+                    "file has not been touched. It is worth checking that "
+                    "this measurement really belongs to this chart — and, if "
+                    "you measured it in another program, that the program "
+                    "kept the patches in the order ChromIQ sent them."))
+                + "</p>")
+
         w, b = r.get("paper_white"), r.get("max_black")
         if w and b:
             parts.append(_h3(tr("Paper white & darkest black")))
