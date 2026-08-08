@@ -1,5 +1,28 @@
 # Changelog
 
+## v3.14.8-beta.187
+
+### Fixed
+- **Opening a chart now opens the project it belongs to.** Loading a `.ti2`
+  that lives inside one of your projects left the Profile-run bar showing
+  “New run”, as though the chart had come from nowhere. ChromIQ now offers to
+  open that project and select the run the chart was made for — nothing is
+  copied or moved — or to copy the chart out into a new profile if that is what
+  you wanted.
+- **“This chart already has a measurement” stops reappearing.** Because the bar
+  was stuck on “New run”, the window had nothing to remember your choice
+  against, so it came back every single time you returned to the Measure tab.
+  With the run properly selected, ticking the box works as it should.
+- **Opening a chart no longer throws you back to Create Chart** when you are
+  already on Measure or Print — the two tabs that show the chart you just
+  opened.
+
+### Changed
+- **“Warn me when I read a strip too fast” now explains itself.** The setting in
+  **Preferences → Measurement** has an ⓘ describing what the warning is for, why
+  a hurried strip puts noise into the profile, what each button in the warning
+  does, and that switching it off changes nothing about how measuring works.
+
 ## v3.14.8-beta.186
 
 ### Changed
