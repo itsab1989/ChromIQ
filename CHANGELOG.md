@@ -1,5 +1,19 @@
 # Changelog
 
+## v3.14.8-beta.188
+
+### Changed
+- **The “what would you like to do with this chart?” windows look like every
+  other window again.** The choices were laid out as a column of buttons down
+  the middle of the window, each followed by a description in a boxed panel that
+  turned a strange dark red in the dark theme. Now the explanation is in the
+  text, the way the measurement windows do it, and the buttons sit in a single
+  row at the bottom where you expect them.
+- **A long button no longer has its label cut off.** With three buttons in a
+  row, the middle one read “JSE AS BASE FOR A NEW PROFILE” — the window was too
+  narrow for them and squeezed each one. Windows now widen to fit their buttons,
+  which fixes it everywhere, not only here.
+
 ## v3.14.8-beta.187
 
 ### Fixed

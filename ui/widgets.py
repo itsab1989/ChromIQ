@@ -848,9 +848,29 @@ def fit_message_box_buttons(box) -> None:
     narrow font and the wide one is painted into it.
     """
     try:
-        for btn in box.buttons():
+        buttons = list(box.buttons())
+        for btn in buttons:
             ButtonFontFilter.fit(btn)
+        # WIDEN THE BOX, NOT JUST THE BUTTONS.
+        #
+        # Fitting each button sets its minimum width, but a QMessageBox sizes
+        # itself from its TEXT — so a row of buttons wider than the message is
+        # simply squeezed back below the minimum, and the labels clip again.
+        # With two short buttons the text is usually wider anyway and it never
+        # showed; three long ones (Basti, 2026-08-08: "JSE AS BASE FOR A NEW
+        # PROFILE", the U shaved off) made it obvious.
         lay = box.layout()
+        if buttons and lay is not None:
+            needed = sum(b.sizeHint().width() for b in buttons)
+            needed += 12 * (len(buttons) + 1)      # spacing plus the margins
+            # setMinimumWidth does NOT work on a QMessageBox — it sizes from its
+            # own grid layout and squeezes straight back. A full-width spacer row
+            # is the way to hold it open.
+            from PyQt6.QtWidgets import QSizePolicy, QSpacerItem
+            lay.addItem(QSpacerItem(needed, 0,
+                                    QSizePolicy.Policy.Minimum,
+                                    QSizePolicy.Policy.Expanding),
+                        lay.rowCount(), 0, 1, lay.columnCount())
         if lay is not None:
             lay.activate()     # let the box re-measure itself around them
     except Exception:      # noqa: BLE001 — sizing must never raise

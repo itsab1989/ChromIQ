@@ -394,50 +394,52 @@ def _bar_header(target) -> str:
 
 
 def _choice_dialog(parent, title, intro_html, choices):
-    """A vertical list of action buttons, each with a description underneath, and
-    a Cancel. *choices* = ``[(button_label, description_html, key)]``. Returns the
-    chosen key, or ``None`` on Cancel."""
-    from PyQt6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QPushButton,
-                                 QVBoxLayout)
-    dlg = QDialog(parent)
-    dlg.setWindowTitle(title)
-    dlg.setMinimumWidth(580)
-    lay = QVBoxLayout(dlg)
-    lay.setContentsMargins(24, 20, 24, 20)
-    lay.setSpacing(10)
+    """Ask the user to pick one of several ways to load a file.
+
+    *choices* = ``[(button_label, description_html, key)]``. Returns the chosen
+    key, or ``None`` on Cancel.
+
+    Built as a QMessageBox so it looks like every other window in ChromIQ: the
+    explanation above, the buttons in one row at the bottom. It used to stack a
+    button and a description panel per choice down the middle of a QDialog —
+    which put the buttons in the body, in the wrong order, and gave each
+    description the `#info` styling, a maroon panel meant for a single inline
+    hint rather than three of them in a column (Basti, 2026-08-08).
+
+    The descriptions move into the text, under "What each button does" — the
+    same shape the measurement windows use, so the reader learns one layout
+    instead of two.
+    """
+    from PyQt6.QtWidgets import QMessageBox
+
+    box = QMessageBox(parent)
+    box.setIcon(QMessageBox.Icon.NoIcon)
+    box.setWindowTitle(title)
+    box.setTextFormat(Qt.TextFormat.RichText)
+
+    parts = [f"<b>{title}</b>"]
     if intro_html:
-        lbl = QLabel(intro_html, dlg)
-        lbl.setWordWrap(True)
-        lbl.setTextFormat(Qt.TextFormat.RichText)
-        lay.addWidget(lbl)
-    result = {"key": None}
+        parts.append(intro_html)
+    parts.append(tr("What each button does:"))
+    for label, desc, _key in choices:
+        parts.append(f"&nbsp;&nbsp;•&nbsp; <b>{label}</b> — {desc}")
+    parts.append(tr("&nbsp;&nbsp;•&nbsp; <b>Cancel</b> — nothing is opened, "
+                    "copied or changed, and the file you picked is left exactly "
+                    "as it is."))
+    box.setText("<br><br>".join(parts))
 
-    def _make(k):
-        def _h() -> None:
-            result["key"] = k
-            dlg.accept()
-        return _h
+    # ActionRole keeps them in the order given, before Cancel, under the app's
+    # button-layout style.
+    buttons = {}
+    for label, _desc, key in choices:
+        buttons[box.addButton(label, QMessageBox.ButtonRole.ActionRole)] = key
+    cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+    box.setDefaultButton(cancel)
 
-    for label, desc, key in choices:
-        btn = QPushButton(label, dlg)
-        btn.setAutoDefault(False)
-        btn.clicked.connect(_make(key))
-        lay.addWidget(btn)
-        d = QLabel(desc, dlg)
-        d.setWordWrap(True)
-        d.setObjectName("info")
-        d.setTextFormat(Qt.TextFormat.RichText)
-        lay.addWidget(d)
-
-    row = QHBoxLayout()
-    row.addStretch(1)
-    cancel = QPushButton(tr("Cancel"), dlg)
-    cancel.setAutoDefault(False)
-    cancel.clicked.connect(dlg.reject)
-    row.addWidget(cancel)
-    lay.addLayout(row)
-    dlg.exec()
-    return result["key"]
+    from ui.widgets import fit_message_box_buttons
+    fit_message_box_buttons(box)
+    box.exec()
+    return buttons.get(box.clickedButton())
 
 
 def _next_run_id(project) -> str:
