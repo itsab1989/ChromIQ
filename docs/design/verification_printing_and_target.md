@@ -13,6 +13,22 @@ Nothing here is agreed. It is a plan to argue with, section by section. No code
 has been written for either feature, and no row of any table below has been
 implemented.
 
+### Where this stands — updated 2026-08-08, after v3.14.8-beta.206
+
+**Neither feature has advanced.** Phases A0–A3 and B are all untouched, and none
+of the five decisions in §11 has been made. Work did happen that touches this
+plan, but it came out of a question asked while writing it rather than from the
+plan itself, and it is worth being clear that it is not progress against A or B:
+
+| | |
+|---|---|
+| **Shipped** | The patch-identity check (beta.206). Not in this plan; it came out of §16.5 of #133. It verifies that a measurement's readings belong to the chart they are compared with, and **reports without acting** |
+| **Closed** | One named unknown: whether i1Profiler preserves patch order. A real 550-patch round trip says **it does**, with `ScramblePatches` off — see #133 §16.5 |
+| **Still open** | Everything in §11. The load-bearing evidence gap in §12 is unchanged: nothing about colour-managed printing has been tested on hardware |
+| **Owed when A lands** | The identity verdict currently prints as a standalone notice. It belongs in the report's "how this was produced" block that A introduces (§3.3), so the report has **one** account of its own conditions rather than two |
+
+**A precedent was set that B should follow.** Row B6 requires that a #133 chart with no colorimetric reference **refuses rather than falling back** to the sRGB one. The identity check is the first thing in the report to work that way — it states what it could not establish instead of quietly substituting something plausible — so B6 now has a working example to copy rather than a principle to re-argue.
+
 ---
 
 ## 0. In plain words — read this part if you read nothing else
@@ -213,6 +229,7 @@ Input conditions: **Run type** (`measurement_target_bar.py:767`, read via
 | A17 | Which profile file, and its modification time | same | same | NEW — a profile rebuilt after printing invalidates the comparison |
 | A18 | Route: printed by ChromIQ or elsewhere | same | same | NEW — this is #133 §8's second row, folded in here (§4) |
 | A19 | The reference the ΔE was computed against | already `report["reference_source"]` | report block | `measurement_report.py:355-379`; today only `design` / `device` |
+| A20 | Whether the readings belong to the chart at all | `report["patch_identity"]` | its own notice today — **should move into this block when A lands**, so the report gives one account of its conditions | **shipped** beta.206, `measurement_report.verify_patch_identity` |
 
 ### 3.4 Feature B — the reference source, which is where B meets A
 
@@ -223,7 +240,7 @@ Input conditions: **Run type** (`measurement_target_bar.py:767`, read via
 | B3 | Verification chart, printed **through the profile** (feature A) | `design` | **yes** — this is what makes A worth doing | unchanged code, newly correct |
 | B4 | #133 gamut chart | **`colorimetric`** — a new value | n/a, does not exist | NEW → `measurement_report.py` |
 | B5 | Imported measurement, no `.ti2` | `device` | yes | `measurement_report.py:370` |
-| B6 | #133 chart, colorimetric reference missing | **must refuse**, not fall back | n/a | NEW — a silent fallback to `design` produces a plausible wrong number |
+| B6 | #133 chart, colorimetric reference missing | **must refuse**, not fall back | n/a | NEW — a silent fallback to `design` produces a plausible wrong number. **Follow the pattern beta.206 set**: state what could not be established rather than substituting something plausible |
 
 **B3 is the single most important line in this document.** Feature A does not
 just add an option; it makes the report's existing reference correct for the
@@ -503,5 +520,9 @@ proposed there; §4 and `cm_5_reconciled.png` are what would actually be built.
 - **Efficiency 9** — one `cctiff` pass per page, only for verification runs.
 - **Evidence quality 8** — the three load-bearing quotations are verbatim from
   the shipped documentation and named by file; every code reference in §3 was
-  checked against the tree on 2026-08-08. Not higher because the proofing→
-  printer inference is mine, and no ICC or ISO source was consulted.
+  checked against the tree on 2026-08-08. One gap named here has since been
+  closed by measurement rather than argument — i1Profiler does preserve patch
+  order — but that was **not** the load-bearing one. Still not higher, and for
+  the same two reasons: the proofing→printer inference is mine, no ICC or ISO
+  source was consulted, and **nothing about colour-managed printing has been
+  tested on hardware**. One real print done both ways would close it.
