@@ -1301,6 +1301,11 @@ _GAMUT_SIZE_HELP_BODY = (
     "tests exactly the first 400 colours of a 1 000-colour chart, not a "
     "different selection. The eight cube corners are always added on top, "
     "whatever you choose here.\n\n"
+    "Auto — fill the pages. Tick this and ChromIQ works the number out for "
+    "you: it takes the page count and the layout you set in the section "
+    "below, fills those pages completely, and keeps the 8 cube corners "
+    "inside the total. The box shows the computed number and follows "
+    "every layout change.\n\n"
     "One honest note about very small charts: the first 38 colours of the "
     "reference list are white, black and a full grey axis — deliberately, "
     "because greys matter most — so a chart of around 100 colours leans "
@@ -10405,16 +10410,33 @@ class TabChart(QWidget):
             lay.addWidget(TooltipButton(tip_title, tip_body, r))
             return r
 
-        self._gamut_count_spin = NoScrollSpinBox(self._gamut_grp)
+        count_w = QWidget(self._gamut_grp)
+        cw = QHBoxLayout(count_w)
+        cw.setContentsMargins(0, 0, 0, 0)
+        cw.setSpacing(8)
+        self._gamut_count_spin = NoScrollSpinBox(count_w)
+        # The engine options' compact height (22 px, via the shared
+        # #compact_input QSS — popup sizing fix included), so this section
+        # reads like the layout section living right below it (Basti).
+        self._gamut_count_spin.setObjectName("compact_input")
         self._gamut_count_spin.setRange(50, 5000)
         self._gamut_count_spin.setSingleStep(50)
         self._gamut_count_spin.setValue(
             int(self._settings.get("gamut_target_count", 400)))
-        gl.addWidget(row(tr("Colours to test"), self._gamut_count_spin,
+        cw.addWidget(self._gamut_count_spin, 1)
+        # Auto (Basti, 2026-08-09): fill the number of PAGES chosen in the
+        # layout section below — the same idea as Manual's Auto patch count,
+        # driven by the same pages spin, which is live on this page.
+        self._gamut_auto_check = QCheckBox(tr("Auto — fill the pages"),
+                                           count_w)
+        self._gamut_auto_check.setChecked(
+            bool(self._settings.get("gamut_target_auto", False)))
+        cw.addWidget(self._gamut_auto_check)
+        gl.addWidget(row(tr("Colours to test"), count_w,
                          tr(_GAMUT_SIZE_HELP_TITLE), tr(_GAMUT_SIZE_HELP_BODY)))
 
         self._gamut_margin_combo = NoScrollComboBox(self._gamut_grp)
-        self._gamut_margin_combo.setMinimumHeight(30)
+        self._gamut_margin_combo.setObjectName("compact_input")
         # Short enough not to elide in the 580 px panel; the ⓘ carries the
         # full explanation (Basti's screenshot, 2026-08-09).
         self._gamut_margin_combo.addItem(
@@ -10428,7 +10450,7 @@ class TabChart(QWidget):
                          tr(_GAMUT_MARGIN_HELP_BODY)))
 
         self._gamut_intent_combo = NoScrollComboBox(self._gamut_grp)
-        self._gamut_intent_combo.setMinimumHeight(30)
+        self._gamut_intent_combo.setObjectName("compact_input")
         self._gamut_intent_combo.addItem(
             tr("Absolute colorimetric (recommended)"), "absolute")
         self._gamut_intent_combo.addItem(
@@ -10477,6 +10499,8 @@ class TabChart(QWidget):
 
         self._gamut_count_spin.valueChanged.connect(
             lambda _v: self._update_gamut_count_line())
+        self._gamut_auto_check.toggled.connect(
+            lambda _c: self._update_gamut_count_line())
         self._gamut_margin_combo.currentIndexChanged.connect(
             lambda _i: self._update_gamut_count_line())
         self._gamut_intent_combo.currentIndexChanged.connect(
@@ -10594,7 +10618,16 @@ class TabChart(QWidget):
         if profile is None:
             self._gamut_count_lbl.setText("")
             return
-        count = int(self._gamut_count_spin.value())
+        auto = self._gamut_auto_check.isChecked()
+        count = self._gamut_effective_count()
+        self._gamut_count_spin.setEnabled(not auto)
+        if auto:
+            # Show the computed fill in the greyed spin, without re-firing.
+            self._gamut_count_spin.blockSignals(True)
+            self._gamut_count_spin.setValue(
+                min(max(count, self._gamut_count_spin.minimum()),
+                    self._gamut_count_spin.maximum()))
+            self._gamut_count_spin.blockSignals(False)
         margin = self._gamut_margin_combo.currentData() or "safe"
         intent = self._gamut_intent_combo.currentData() or "absolute"
         cover = self._gamut_coverage(profile, margin, intent)
@@ -10623,11 +10656,10 @@ class TabChart(QWidget):
             parts.append(sheets)
         self._gamut_count_lbl.setText(" ".join(parts))
 
-    def _gamut_sheet_estimate(self, patches: int) -> str:
-        """'≈ N sheets' from the Manual layout — EXACT with the ChromIQ layout
-        engine (the same geometry that will build the sheet, asked in
-        advance), the empirical capacity database for printtarg, and honest
-        silence when the combination cannot be resolved (#133 §10)."""
+    def _gamut_per_sheet(self) -> "int | None":
+        """Patches per sheet under the CURRENT Manual layout — engine-exact
+        when the engine is on, the capacity database for printtarg, None when
+        the combination cannot be resolved."""
         try:
             p = self._collect_manual()
             per = None
@@ -10644,15 +10676,36 @@ class TabChart(QWidget):
                                     True, int(p.margin_mm),
                                     float(p.patch_scale),
                                     False, p.no_strip_limit)
-            if per and per > 0:
-                import math as _math
-                n = _math.ceil(patches / int(per))
-                return (tr("That is about one sheet with your current layout.")
-                        if n == 1 else
-                        tr("That is about {n} sheets with your current "
-                           "layout.").format(n=n))
+            return int(per) if per and per > 0 else None
         except Exception:      # noqa: BLE001
-            pass
+            return None
+
+    def _gamut_effective_count(self) -> int:
+        """The colour count a Generate would use right now: the spin's value,
+        or — with Auto on — however many fill the pages set in the layout
+        section below, minus the 8 corners that always ride along."""
+        if getattr(self, "_gamut_auto_check", None) is not None \
+                and self._gamut_auto_check.isChecked():
+            per = self._gamut_per_sheet()
+            pages = (self._manual_pages_spin.value()
+                     if self._manual_pages_spin is not None else 1)
+            if per:
+                return max(50, per * max(1, int(pages)) - 8)
+        return int(self._gamut_count_spin.value())
+
+    def _gamut_sheet_estimate(self, patches: int) -> str:
+        """'≈ N sheets' from the Manual layout — EXACT with the ChromIQ layout
+        engine (the same geometry that will build the sheet, asked in
+        advance), the empirical capacity database for printtarg, and honest
+        silence when the combination cannot be resolved (#133 §10)."""
+        per = self._gamut_per_sheet()
+        if per:
+            import math as _math
+            n = _math.ceil(patches / per)
+            return (tr("That is about one sheet with your current layout.")
+                    if n == 1 else
+                    tr("That is about {n} sheets with your current "
+                       "layout.").format(n=n))
         return ""
 
     def _on_generate_gamut(self) -> None:
@@ -10663,7 +10716,7 @@ class TabChart(QWidget):
         if profile is None:
             self._refresh_gamut_state()
             return
-        count = int(self._gamut_count_spin.value())
+        count = self._gamut_effective_count()
         margin = self._gamut_margin_combo.currentData() or "safe"
         intent = self._gamut_intent_combo.currentData() or "absolute"
         from PyQt6.QtWidgets import QApplication
@@ -10714,6 +10767,8 @@ class TabChart(QWidget):
         self._settings.set("gamut_target_count", count)
         self._settings.set("gamut_target_margin", margin)
         self._settings.set("gamut_target_intent", intent)
+        self._settings.set("gamut_target_auto",
+                           self._gamut_auto_check.isChecked())
         self._pending_gamut_selection = selection
         self._generate_from_ti1(ti1)
 

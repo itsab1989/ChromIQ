@@ -209,3 +209,28 @@ def test_auto_preview_toggle_shows_in_the_gamut_module(qapp, tmp_path):
     assert tab._auto_preview_row_w.isVisibleTo(tab)
     tab._switch_mode("guided")
     assert not tab._auto_preview_row_w.isVisibleTo(tab)
+
+
+def test_auto_fills_the_manual_pages(qapp, tmp_path, monkeypatch):
+    """Auto = per-sheet capacity × the Manual pages spin, minus the 8 corners
+    that always ride along; the spin greys and shows the computed number."""
+    s, fm, ctl = _env(tmp_path)
+    run = fm.project().run("run1")
+    run.profile_icc.write_bytes(b"icc")
+    tab = _chart_tab(s, fm, ctl)
+    monkeypatch.setattr(tab, "_gamut_per_sheet", lambda: 105)
+    monkeypatch.setattr(tab, "_gamut_coverage", lambda *a, **k: 5000)
+    tab._gamut_master_total = 5960
+    ctl.set_profile_run("run1")
+    ctl.set_run_type(RUN_TYPE_VERIFICATION)
+    tab._switch_mode("gamut")
+    if tab._manual_pages_spin is not None:
+        tab._manual_pages_spin.setValue(2)
+    tab._gamut_auto_check.setChecked(True)
+    assert tab._gamut_effective_count() == 105 * 2 - 8
+    tab._update_gamut_count_line()
+    assert not tab._gamut_count_spin.isEnabled()
+    assert tab._gamut_count_spin.value() == 202
+    tab._gamut_auto_check.setChecked(False)
+    tab._update_gamut_count_line()
+    assert tab._gamut_count_spin.isEnabled()
