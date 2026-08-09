@@ -465,30 +465,60 @@ def build_report(ti3_path: str | Path, worst_n: int = 16) -> dict:
     if data.rgb is not None and len(data.rgb):
         rgb100 = _rgb_to_0_100(np.asarray(data.rgb, dtype=float))
 
-    # Expected reference: the chart's design colours from the sibling .ti2,
-    # matched by SAMPLE_ID. When no .ti2 matches — a stand-alone or imported
-    # i1Profiler measurement with no design file beside it — synthesise the
-    # reference from the measurement's OWN device RGB, treated as sRGB exactly
-    # the way the .ti2's design XYZ is (workflow/i1profiler_import._patch_xyz).
-    # That makes the colour-accuracy figures work with no .ti2 and no patch-ID
-    # matching, so an imported measurement is self-contained (Knut).
-    ref = _reference_labs(_find_reference_ti2(ti3_path))
+    # Expected reference — three sources, in strict priority (#133 §9.1):
+    #
+    # "colorimetric" — the stored Lab targets beside a chart whose colours
+    #   were already converted through the profile at build time (the From-
+    #   profile-gamut charts). For such a chart the .ti2's XYZ is only the
+    #   sRGB reading of ink amounts — a quantity with no relation to the Lab
+    #   targets those amounts were computed to produce — so the sRGB paths
+    #   below must be UNREACHABLE for it: a chart that claims a colorimetric
+    #   reference whose file is gone gets no ΔE at all ("colorimetric-missing")
+    #   rather than a plausible number from the wrong yardstick.
+    # "design" — the sibling .ti2's design XYZ, matched by SAMPLE_ID.
+    # "device" — no .ti2 matches (a stand-alone i1Profiler import): the
+    #   reference is synthesised from the measurement's own device RGB read as
+    #   sRGB, so an imported measurement is self-contained (Knut).
+    ref_ti2 = _find_reference_ti2(ti3_path)
+    ref: "dict[str, tuple]" = {}
     ref_source = "design"
-    matched_ids = sum(1 for sid in data.sample_ids if sid in ref) if ref else 0
-    if not matched_ids and rgb100 is not None:
-        from workflow.i1profiler_import import _patch_xyz
-        ref = {}
-        for i, sid in enumerate(data.sample_ids):
-            r, g, b = (float(v) for v in rgb100[i])
-            # _patch_xyz is sRGB→XYZ under D65; adapt to D50 so the reference
-            # sits in the same space as the measured values and xyz_to_lab (Knut).
-            xyz_d50 = _bradford_d65_to_d50(*_patch_xyz(r, g, b))
-            ref[sid] = xyz_to_lab(tuple(v / 100.0 for v in xyz_d50))
-        ref_source = "device"
-    # "design" = compared against the chart's own .ti2; "device" = compared
-    # against the sRGB estimate of the file's DEVICE (design) values — the fixed
-    # code values sent to the printer, so the reference is static across runs, not
-    # recomputed from the varying measured colours (imported files).
+    corner_ids: "set[str]" = set()
+    from workflow.verification_print import (STATE_CONVERTED,
+                                             STATE_CONVERTED_REF_MISSING,
+                                             chart_conversion_state,
+                                             colorimetric_reference_for)
+    state = chart_conversion_state(ref_ti2 if ref_ti2.is_file() else None)
+    if state == STATE_CONVERTED:
+        from workflow.gamut_target import read_colorimetric_reference
+        cref = read_colorimetric_reference(colorimetric_reference_for(ref_ti2))
+        if cref is None:
+            state = STATE_CONVERTED_REF_MISSING
+        else:
+            ref = cref["labs"]
+            ref_source = "colorimetric"
+            corner_ids = set(cref["corner_ids"])
+            report["colorimetric"] = {
+                "set_version": cref["set_version"],
+                "intent": cref["intent"],
+                "margin": cref["margin"],
+                "master_total": cref["master_total"],
+                "in_gamut": cref["in_gamut"],
+            }
+    if state == STATE_CONVERTED_REF_MISSING:
+        ref_source = "colorimetric-missing"          # §9.1: refuse, never guess
+    elif ref_source != "colorimetric":
+        ref = _reference_labs(ref_ti2)
+        matched_ids = sum(1 for sid in data.sample_ids if sid in ref) if ref else 0
+        if not matched_ids and rgb100 is not None:
+            from workflow.i1profiler_import import _patch_xyz
+            ref = {}
+            for i, sid in enumerate(data.sample_ids):
+                r, g, b = (float(v) for v in rgb100[i])
+                # _patch_xyz is sRGB→XYZ under D65; adapt to D50 so the
+                # reference sits in the same space as the measured values.
+                xyz_d50 = _bradford_d65_to_d50(*_patch_xyz(r, g, b))
+                ref[sid] = xyz_to_lab(tuple(v / 100.0 for v in xyz_d50))
+            ref_source = "device"
     report["reference_source"] = ref_source
 
     # Is row n really patch n? Reported, never acted on: this release only
@@ -549,6 +579,12 @@ def build_report(ti3_path: str | Path, worst_n: int = 16) -> dict:
     if ref:
         des: list[tuple[float, int]] = []
         for i, sid in enumerate(data.sample_ids):
+            # §9a rule 2: the eight cube corners are deliberately unreachable
+            # colours — in the statistics they would drag every average and
+            # maximum toward a number that says nothing about the profile.
+            # They keep their own section (report["corners"]) instead.
+            if sid in corner_ids:
+                continue
             r = ref.get(sid)
             if r is not None:
                 des.append((ciede2000(tuple(lab[i]), r), i))

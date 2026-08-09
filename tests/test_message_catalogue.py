@@ -103,7 +103,12 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 #: and the two new failure windows of the print-time conversion (§6 S9/S10).
 AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  "M-CM-NO-CCTIFF", "M-CM-CONVERT-FAILED",
-                                 "M-CM-PROFCHECK-CONVERTED"}
+                                 "M-CM-PROFCHECK-CONVERTED",
+                                 # Feature B — wording agreed verbatim with
+                                 # Sebastian on #133 (2026-08-02); listed for
+                                 # the formal record.
+                                 "M-VERIFY-CREATE-NO-PROFILE",
+                                 "M-GAMUT-NO-PROFILE"}
 
 
 def test_nothing_is_quietly_proposed():

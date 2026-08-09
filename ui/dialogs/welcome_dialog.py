@@ -852,6 +852,28 @@ GLOSSARY += [
      tr("Printing and measuring a small chart THROUGH the finished profile "
         "to see how close the result lands (in ΔE). The honest way to judge "
         "a profile — better than trusting the build report.")),
+    (tr("From profile gamut (verification chart)"),
+     tr("A way of making a verification chart where the colours are chosen "
+        "by your profile instead of by a patch generator: ChromIQ asks the "
+        "profile which of a fixed reference list of colours it can print, "
+        "and tests exactly those. Measuring the sheet then shows how far "
+        "each printed colour landed from what the profile promised. The "
+        "chart already has the profile applied when it is made, so it is "
+        "printed exactly as it is — the Print Chart tab selects “Raw” for "
+        "it automatically.")),
+    (tr("Reference colour set (verification)"),
+     tr("The fixed, published list of colours ChromIQ draws from when "
+        "building a chart from a profile's gamut. It is the same list for "
+        "everyone, so two people checking the same printer get comparable "
+        "figures — and smaller charts test the first colours of the same "
+        "list, so a quick check stays comparable with a thorough one. The "
+        "report always names the list's version.")),
+    (tr("Coverage (gamut check)"),
+     tr("How many colours of the reference set your profile can print at "
+        "all — a measure of the gamut of your printer, ink and paper "
+        "together. Shown before printing and recorded on the report. More "
+        "coverage means a roomier gamut; accuracy is measured separately, "
+        "over the colours that are in reach.")),
     (tr("Raw verification print (drift check)"),
      tr("Printing a verification chart WITHOUT the profile — the chart's own "
         "numbers go straight to the paper. Measuring it answers a different "

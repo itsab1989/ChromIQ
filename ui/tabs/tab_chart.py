@@ -1248,6 +1248,116 @@ class _ChartRebuildGuard:
 _NO_STORE_GIVEN = object()
 
 
+# ---------------------------------------------------------------------------
+# #133 feature B — the FROM PROFILE GAMUT module's help texts (issue §12).
+# Friendly and extensive by design: outcome first, then the prerequisite,
+# concrete examples, the exact controls named, and a Default footer.
+# ---------------------------------------------------------------------------
+
+_GAMUT_MODULE_HELP_TITLE = "Building a chart from this profile's gamut"
+_GAMUT_MODULE_HELP_BODY = (
+    "This module builds a verification chart out of colours chosen by the "
+    "profile you have already made, instead of colours chosen by a patch "
+    "generator.\n\n"
+    "Why that is worth doing: an ordinary verification chart reprints the "
+    "very same colours your profiling chart used, so it answers “has "
+    "anything drifted since I made this profile?” — a genuinely useful "
+    "question, but not the same as “how accurate is it?”. This module "
+    "answers the second one. It asks the profile which colours it claims it "
+    "can print, prints exactly those, measures them, and shows you how far "
+    "the print landed from what the profile promised.\n\n"
+    "The colours come from ChromIQ's reference set — one fixed, published "
+    "list, spread evenly across light and dark, muted and saturated, with "
+    "extra attention on the greys where your eye is fussiest. For your "
+    "chart, ChromIQ keeps only the colours this profile can actually reach, "
+    "so no patch is wasted on a colour that was never possible on this "
+    "paper. Two profiles get two different charts, because their gamuts "
+    "differ — and repeated checks of the same profile always get the same "
+    "colours, so this month's figures compare patch by patch with last "
+    "month's.\n\n"
+    "What stays the same: everything below the colours. The sheet is laid "
+    "out by printtarg or by the ChromIQ layout engine exactly as in the "
+    "MANUAL module, with every option either of them gives you.\n\n"
+    "One thing to know before printing: this chart already has your profile "
+    "applied. The Print Chart tab notices that by itself and selects "
+    "“Raw” — you do not need to set anything."
+)
+
+_GAMUT_SIZE_HELP_TITLE = "How many colours to test"
+_GAMUT_SIZE_HELP_BODY = (
+    "How many of the reference colours this chart will test. More colours "
+    "means a finer picture of your profile — and more patches to print and "
+    "measure, which is where the real cost sits: the same 1 500 colours are "
+    "a few sheets on an i1Pro and a long afternoon on a ColorMunki.\n\n"
+    "The line under these options does the arithmetic for you: it shows how "
+    "many of the reference colours your profile can print at all, what your "
+    "chart will hold, and roughly how many sheets that is with the layout "
+    "you have set in the MANUAL module.\n\n"
+    "A guide from practice: around 400 colours is a solid everyday check, "
+    "800–1 000 matches what professional packages use with a handheld "
+    "instrument, and beyond that is worth it mainly with an automated "
+    "table or the scanner workflow, where reading costs you nothing.\n\n"
+    "Smaller checks stay comparable with larger ones: a 400-colour chart "
+    "tests exactly the first 400 colours of a 1 000-colour chart, not a "
+    "different selection. The eight cube corners are always added on top, "
+    "whatever you choose here.\n\n"
+    "One honest note about very small charts: the first 38 colours of the "
+    "reference list are white, black and a full grey axis — deliberately, "
+    "because greys matter most — so a chart of around 100 colours leans "
+    "towards greys. From about 200 colours upward, every hue region of "
+    "the gamut is covered as well.\n\n"
+    "Default: 400 colours."
+)
+
+_GAMUT_MARGIN_HELP_TITLE = "How close to the edge of the printable range to go"
+_GAMUT_MARGIN_HELP_BODY = (
+    "Your profile describes a range of printable colours, and that range "
+    "has an edge. Right at the edge, even a good profile struggles: the "
+    "maths gets less reliable, the printer lays down the most ink, and two "
+    "prints of the same patch differ the most. A colour can be technically "
+    "printable yet unreliable to hit.\n\n"
+    "Stay safely inside (recommended). Keeps targets "
+    "away from the very edge of what your printer and paper can do. Best "
+    "for judging profile quality: differences you measure are the "
+    "profile's doing, not the edge's.\n\n"
+    "Use the full printable range. Includes colours right up to the edge. "
+    "Useful when you want to know how the profile behaves at its limits — "
+    "expect higher errors there, and expect them to vary more between "
+    "prints.\n\n"
+    "Whichever you choose is written into the chart's stored reference and "
+    "onto the report, so two sets of figures are never compared without "
+    "knowing which rule made them.\n\n"
+    "The eight cube corners ignore this setting on purpose: they measure "
+    "how far your ink and paper reach, so pulling them inward would defeat "
+    "them. They are reported in their own section, never mixed into the "
+    "accuracy figures.\n\n"
+    "Default: stay safely inside."
+)
+
+_GAMUT_INTENT_HELP_TITLE = "Which rendering intent builds this chart"
+_GAMUT_INTENT_HELP_BODY = (
+    "When this chart is made, ChromIQ asks your profile for the ink "
+    "amounts that produce each reference colour, and the rendering intent "
+    "is the rule for that question — chosen here, once, and used both for "
+    "building the chart and for reading its measurement, so the two can "
+    "never disagree.\n\n"
+    "Absolute colorimetric (recommended). The paper's own shade counts as "
+    "part of every colour. A warm or blueish paper shows up in the "
+    "figures, exactly as it does in the commercial verification practice "
+    "this module replaces — so choose this when you want numbers you can "
+    "set beside figures produced that way.\n\n"
+    "Media-relative (relative colorimetric). The paper's white is treated "
+    "as white, and every colour is judged relative to it. This isolates "
+    "the profile's accuracy from the paper's tint, so it best answers “is "
+    "my profile accurate?” on its own terms. The numbers come out lower on "
+    "warm or brightened papers — not because anything is better, but "
+    "because the paper is no longer counted against the profile.\n\n"
+    "Your choice is stored in the chart's reference file and printed on "
+    "the report.\n\n"
+    "Default: absolute colorimetric."
+)
+
+
 class TabChart(QWidget):
     """Step 1: create targen/printtarg test chart."""
 
@@ -1523,6 +1633,16 @@ class TabChart(QWidget):
         self._manual_btn.clicked.connect(lambda: self._switch_mode("manual"))
         mode_row.addWidget(self._guided_btn)
         mode_row.addWidget(self._manual_btn)
+        # #133 feature B: the third module, shown only while Run type =
+        # Verification — it builds the chart out of colours the run's own
+        # profile claims it can print, so it has no meaning anywhere else.
+        self._gamut_btn = QPushButton(tr("FROM PROFILE GAMUT"), self)
+        self._gamut_btn.setCheckable(True)
+        self._gamut_btn.setObjectName("mode_btn")
+        self._gamut_btn.setFont(_mode_font)
+        self._gamut_btn.setVisible(False)
+        self._gamut_btn.clicked.connect(lambda: self._switch_mode("gamut"))
+        mode_row.addWidget(self._gamut_btn)
         mode_row.addStretch()
         # (The load / preset / reveal icons moved to the header's upper-right.)
         left_layout.addWidget(self._mode_row_widget)
@@ -1534,7 +1654,20 @@ class TabChart(QWidget):
         self._link_instrument_controls()
         self._stack.addWidget(self._guided_panel)
         self._stack.addWidget(self._manual_panel)
+        # #133: the gamut module is embedded in the Manual panel (it replaces
+        # the targen section only — the layout half is shared, not copied).
+        self._embed_gamut_module()
         left_layout.addWidget(self._stack, stretch=1)
+
+        # #133 Q11 (a pre-existing gap): while Run type = Verification and the
+        # run has no profile, Guided/Manual say so in a non-blocking info box —
+        # the Measure tab has explained this state since #130, this tab never
+        # had. Text from the §M catalogue (M-VERIFY-CREATE-NO-PROFILE).
+        self._verify_noprofile_lbl = QLabel("", self)
+        self._verify_noprofile_lbl.setObjectName("info")
+        self._verify_noprofile_lbl.setWordWrap(True)
+        self._verify_noprofile_lbl.setVisible(False)
+        left_layout.addWidget(self._verify_noprofile_lbl)
 
         # Auto-update-preview toggle, just above Generate (it governs what happens
         # after you've generated once). Manual mode only (Knut) — shown/hidden in
@@ -2964,6 +3097,11 @@ class TabChart(QWidget):
         self._refresh_manual_command_preview()
         self._update_preset_locks()
 
+        #: #133: the FROM PROFILE GAMUT module lives INSIDE this panel — it
+        #: replaces the targen section only, so the whole layout half
+        #: (printtarg / engine, presets, preview) serves both modes from one
+        #: set of widgets and can never drift.
+        self._manual_inner_layout = inner_layout
         inner_layout.addStretch()
         scroll.setWidget(inner)
         layout.addWidget(scroll)
@@ -3166,6 +3304,11 @@ class TabChart(QWidget):
         # single hook for the live preview refresh (Knut, opt-in; guarded by a
         # layout-signature check so it only fires on a real change).
         self._maybe_schedule_auto_preview()
+        # #133: while the gamut module is active its sheet estimate follows the
+        # Manual layout live — every layout change lands here, so this is the
+        # one hook that keeps the "≈ N sheets" line honest.
+        if getattr(self, "_gamut_active", False):
+            self._update_gamut_count_line()
         if getattr(self, "_manual_info_lbl", None) is None:
             return
         try:
@@ -4318,15 +4461,31 @@ class TabChart(QWidget):
             return {}
 
     def _switch_mode(self, mode: str) -> None:
-        prev = self._current_mode()     # capture BEFORE the stack changes
+        prev = self._mode_name()        # capture BEFORE the stack changes
+        # #133: the gamut module IS the Manual page with the targen section
+        # swapped for the module's own colour chooser — the layout half below
+        # (printtarg / the ChromIQ layout engine) is Manual's live widgets.
+        self._gamut_active = (mode == "gamut")
         if mode == "guided":
             self._stack.setCurrentIndex(0)
-            self._guided_btn.setChecked(True)
-            self._manual_btn.setChecked(False)
         else:
             self._stack.setCurrentIndex(1)
-            self._guided_btn.setChecked(False)
-            self._manual_btn.setChecked(True)
+        gc = getattr(self, "_gamut_container", None)
+        if gc is not None:
+            gc.setVisible(self._gamut_active)
+            self._manual_targen_grp.setVisible(not self._gamut_active)
+            row = getattr(self, "_override_targen_row", None)
+            if self._gamut_active:
+                self._targen_row_was_visible = (row is not None
+                                                and row.isVisible())
+                if row is not None:
+                    row.setVisible(False)
+            elif row is not None and getattr(self, "_targen_row_was_visible",
+                                             False):
+                row.setVisible(True)
+        self._guided_btn.setChecked(mode == "guided")
+        self._manual_btn.setChecked(mode == "manual")
+        self._gamut_btn.setChecked(mode == "gamut")
         self._update_isis_preview_banner()
         self._refresh_name_prefix()     # apply the prefix to the now-active field
         # Auto-update-preview is a Manual-only control (Knut).
@@ -4339,7 +4498,12 @@ class TabChart(QWidget):
         # doesn't offer — is never "changed" there and so can never clobber the
         # other tab on the way back. The post-generate #79 path still does the full
         # exact-recipe seed.
-        if prev != mode and not getattr(self, "_mode_transfer_active", False):
+        # The Guided↔Manual settings carry never involves the gamut module —
+        # it has no shared chart-defining fields of its own (the layout stays
+        # Manual's), so carrying to or from it would only clobber real modes.
+        if (prev != mode and prev in ("guided", "manual")
+                and mode in ("guided", "manual")
+                and not getattr(self, "_mode_transfer_active", False)):
             self._mode_transfer_active = True
             try:
                 if mode == "manual" and getattr(self, "_guided_transfer_pending", False):
@@ -4353,13 +4517,18 @@ class TabChart(QWidget):
                 self._mode_transfer_active = False
         # Snapshot the now-active tab's shared settings so the next switch can tell
         # what the user changed while it was open.
-        self._snapshot_shared_settings(mode)
+        if mode in ("guided", "manual"):
+            self._snapshot_shared_settings(mode)
         # Refresh the now-active mode's predictors so the patch count and the
         # Chart-layout-information estimate describe the mode on screen (#93) —
         # each predictor is guarded by active mode, so the just-hidden one stops
         # updating and the newly-shown one takes over.
         if mode == "guided":
             self._update_patch_count()
+        elif mode == "gamut":
+            # The Manual layout half is on screen too, so both predictors run.
+            self._refresh_manual_command_preview()
+            self._refresh_gamut_state()
         else:
             self._refresh_manual_command_preview()
 
@@ -4735,7 +4904,19 @@ class TabChart(QWidget):
             self._precond_parent_run_id = None
 
     def _current_mode(self) -> str:
+        """"guided" or "manual" — the two parameter-owning modes. The gamut
+        module deliberately reads as "manual" here: it IS the Manual page with
+        the targen section swapped out (#133 §10), so every caller that asks
+        "which settings lay the sheet out?" gets the right answer without
+        knowing the module exists. Use :meth:`_mode_name` where the module
+        itself must be distinguished."""
         return "guided" if self._stack.currentIndex() == 0 else "manual"
+
+    def _mode_name(self) -> str:
+        """The mode actually on screen: "guided", "manual" or "gamut"."""
+        if getattr(self, "_gamut_active", False):
+            return "gamut"
+        return self._current_mode()
 
     def refresh_chromiq_clip_visibility(self) -> None:
         """Re-evaluate ChromIQ-style-driven UI visibility.
@@ -8421,6 +8602,13 @@ class TabChart(QWidget):
         if self._runner.is_running:
             log.warning("A process is already running")
             return
+        # #133: the FROM PROFILE GAMUT module has its own generate route — the
+        # colours come from the master set through this run's profile, and the
+        # layout from Manual via the ordinary from-.ti1 build (which asks the
+        # §4 displacing-results question itself).
+        if self._mode_name() == "gamut":
+            self._on_generate_gamut()
+            return
         if not self._confirm_displacing_results():
             return
         # The per-ink inspector describes the PREVIOUS chart — drop it the
@@ -10179,6 +10367,372 @@ class TabChart(QWidget):
         ctl = getattr(self, "_target_ctl", None)
         return ctl is not None and ctl.target.is_verification()
 
+    # ------------------------------------------------------------------
+    # #133 feature B — FROM PROFILE GAMUT: a verification chart out of the
+    # colours the run's own profile claims it can print.
+    # ------------------------------------------------------------------
+
+    def _embed_gamut_module(self) -> None:
+        """Build the module's own controls and slot them into the MANUAL panel
+        where the targen section sits. Switching to the module hides targen
+        and shows this container — everything below (printtarg / the ChromIQ
+        layout engine, with every option) is Manual's own widgets, live."""
+        panel = QWidget(self)
+        v = QVBoxLayout(panel)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(8)
+
+        self._gamut_grp = QGroupBox(tr("Colours from this profile's gamut"),
+                                    panel)
+        gl = QVBoxLayout(self._gamut_grp)
+        gl.setSpacing(8)
+
+        def row(label: str, control: QWidget, tip_title: str,
+                tip_body: str) -> QWidget:
+            r = QWidget(self._gamut_grp)
+            lay = QHBoxLayout(r)
+            lay.setContentsMargins(0, 0, 0, 0)
+            lay.setSpacing(10)
+            text = QLabel(label, r)
+            text.setMinimumWidth(120)
+            lay.addWidget(text)
+            lay.addWidget(control, 1)
+            lay.addWidget(TooltipButton(tip_title, tip_body, r))
+            return r
+
+        self._gamut_count_spin = NoScrollSpinBox(self._gamut_grp)
+        self._gamut_count_spin.setRange(50, 5000)
+        self._gamut_count_spin.setSingleStep(50)
+        self._gamut_count_spin.setValue(
+            int(self._settings.get("gamut_target_count", 400)))
+        gl.addWidget(row(tr("Colours to test"), self._gamut_count_spin,
+                         tr(_GAMUT_SIZE_HELP_TITLE), tr(_GAMUT_SIZE_HELP_BODY)))
+
+        self._gamut_margin_combo = NoScrollComboBox(self._gamut_grp)
+        self._gamut_margin_combo.setMinimumHeight(30)
+        # Short enough not to elide in the 580 px panel; the ⓘ carries the
+        # full explanation (Basti's screenshot, 2026-08-09).
+        self._gamut_margin_combo.addItem(
+            tr("Stay safely inside (recommended)"), "safe")
+        self._gamut_margin_combo.addItem(
+            tr("Use the full printable range"), "full")
+        if str(self._settings.get("gamut_target_margin", "safe")) == "full":
+            self._gamut_margin_combo.setCurrentIndex(1)
+        gl.addWidget(row(tr("Margin"), self._gamut_margin_combo,
+                         tr(_GAMUT_MARGIN_HELP_TITLE),
+                         tr(_GAMUT_MARGIN_HELP_BODY)))
+
+        self._gamut_intent_combo = NoScrollComboBox(self._gamut_grp)
+        self._gamut_intent_combo.setMinimumHeight(30)
+        self._gamut_intent_combo.addItem(
+            tr("Absolute colorimetric (recommended)"), "absolute")
+        self._gamut_intent_combo.addItem(
+            tr("Media-relative (relative colorimetric)"), "relative")
+        if str(self._settings.get("gamut_target_intent", "absolute")) == "relative":
+            self._gamut_intent_combo.setCurrentIndex(1)
+        gl.addWidget(row(tr("Rendering intent"), self._gamut_intent_combo,
+                         tr(_GAMUT_INTENT_HELP_TITLE),
+                         tr(_GAMUT_INTENT_HELP_BODY)))
+
+        v.addWidget(self._gamut_grp)
+
+        # The live count line sits BELOW the group, not inside it: a
+        # word-wrapped label nested in a group box clips its own last lines
+        # (the same trap the Print tab's notice hit).
+        self._gamut_count_lbl = QLabel("", panel)
+        self._gamut_count_lbl.setWordWrap(True)
+        self._gamut_count_lbl.setStyleSheet(
+            "color: #9a9a9a; background: transparent;")
+        v.addWidget(self._gamut_count_lbl)
+
+        note_row = QWidget(panel)
+        nl = QHBoxLayout(note_row)
+        nl.setContentsMargins(0, 0, 0, 0)
+        nl.setSpacing(10)
+        note = QLabel(tr(
+            "The sheet itself is laid out with the MANUAL module's settings — "
+            "printtarg or the ChromIQ layout engine, with every option you "
+            "set there. This module only chooses the colours."), note_row)
+        note.setWordWrap(True)
+        note.setStyleSheet("color: #9a9a9a; background: transparent;")
+        nl.addWidget(note, 1)
+        nl.addWidget(TooltipButton(tr(_GAMUT_MODULE_HELP_TITLE),
+                                   tr(_GAMUT_MODULE_HELP_BODY), note_row))
+        self._gamut_layout_note = note_row
+        v.addWidget(note_row)
+
+        # The no-profile empty state REPLACES the options (#133 §10): the
+        # profile's gamut is this module's input, so without one there is
+        # nothing to ask. Text from the §M catalogue (M-GAMUT-NO-PROFILE).
+        self._gamut_empty_lbl = QLabel("", panel)
+        self._gamut_empty_lbl.setObjectName("info")
+        self._gamut_empty_lbl.setWordWrap(True)
+        self._gamut_empty_lbl.setVisible(False)
+        v.addWidget(self._gamut_empty_lbl)
+
+        self._gamut_count_spin.valueChanged.connect(
+            lambda _v: self._update_gamut_count_line())
+        self._gamut_margin_combo.currentIndexChanged.connect(
+            lambda _i: self._update_gamut_count_line())
+        self._gamut_intent_combo.currentIndexChanged.connect(
+            lambda _i: self._update_gamut_count_line())
+        #: (profile path, mtime, margin, intent) → in-gamut total, so flicking
+        #: between two settings is instant after the first query (#133 §10).
+        self._gamut_coverage_cache: dict = {}
+        self._pending_gamut_selection = None
+        self._gamut_active = False
+
+        # Slot the container into the Manual panel exactly where the targen
+        # section sits — the module replaces targen ONLY (#133 §10/§11).
+        self._gamut_container = panel
+        panel.setVisible(False)
+        idx = self._manual_inner_layout.indexOf(self._manual_targen_grp)
+        self._manual_inner_layout.insertWidget(max(idx, 0), panel)
+
+    def _gamut_profile(self) -> "Path | None":
+        """The built profile of the run the bar points at, or None."""
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
+            return None
+        try:
+            project = ctl.project_or_none()
+            if project is None:
+                return None
+            from core.measurement_target import resolve_run
+            icc = resolve_run(project, ctl.target).built_profile_icc()
+            return icc if icc.exists() else None
+        except Exception:      # noqa: BLE001 — a question must never raise
+            return None
+
+    def _gamut_no_profile_message(self) -> "tuple[str, str]":
+        """The module's empty state, rendered from the §M catalogue."""
+        from workflow import measurement_messages as M
+        ctl = getattr(self, "_target_ctl", None)
+        run_id = (ctl.target.profile_run if ctl is not None else "") or ""
+        run_name = tr("Run {n}").format(n=run_id.removeprefix("run")) \
+            if run_id.startswith("run") else tr("This run")
+        return M.M_GAMUT_NO_PROFILE.render(run=run_name)
+
+    def _verify_noprofile_message(self) -> "tuple[str, str]":
+        """The Guided/Manual info box, rendered from the §M catalogue."""
+        from workflow import measurement_messages as M
+        return M.M_VERIFY_CREATE_NO_PROFILE.render()
+
+    def _refresh_gamut_visibility(self) -> None:
+        """Show the module button only for a verification target, and keep the
+        panel's profile-dependent state honest (#133 §10)."""
+        is_verif = self._is_verification_target()
+        self._gamut_btn.setVisible(is_verif)
+        if not is_verif and getattr(self, "_gamut_active", False):
+            self._switch_mode("guided")
+        profile = self._gamut_profile() if is_verif else None
+        # The Guided/Manual info box (pre-existing gap, #133 Q11): shown while
+        # a verification target has no profile, never blocking anything.
+        lbl = getattr(self, "_verify_noprofile_lbl", None)
+        if lbl is not None:
+            show = (is_verif and profile is None
+                    and not getattr(self, "_gamut_active", False))
+            if show:
+                title, body = self._verify_noprofile_message()
+                lbl.setText(f"<b>{title}</b><br><br>"
+                            + body.replace("\n\n", "<br><br>").replace("\n", "<br>"))
+            lbl.setVisible(show)
+        if is_verif:
+            self._refresh_gamut_state()
+
+    def _refresh_gamut_state(self) -> None:
+        """Options vs the no-profile empty state, and the Generate button."""
+        profile = self._gamut_profile()
+        has = profile is not None
+        self._gamut_grp.setVisible(has)
+        self._gamut_layout_note.setVisible(has)
+        if not has:
+            title, body = self._gamut_no_profile_message()
+            self._gamut_empty_lbl.setText(
+                f"<b>{title}</b><br><br>"
+                + body.replace("\n\n", "<br><br>").replace("\n", "<br>"))
+        self._gamut_empty_lbl.setVisible(not has)
+        if getattr(self, "_gamut_active", False):
+            self._generate_btn.setEnabled(has and not self._runner.is_running)
+            if has:
+                self._update_gamut_count_line()
+
+    def _gamut_coverage(self, profile: "Path", margin: str,
+                        intent: str) -> "int | None":
+        """In-gamut total for the CURRENT settings, cached per profile file +
+        modification time + margin + intent. ~0.2 s cold, instant warm."""
+        try:
+            key = (str(profile), profile.stat().st_mtime, margin, intent)
+        except OSError:
+            return None
+        if key in self._gamut_coverage_cache:
+            return self._gamut_coverage_cache[key]
+        try:
+            from workflow.gamut_target import select_gamut_targets
+            sel = select_gamut_targets(
+                profile, 1, margin, intent,
+                bin_dir=self._settings.get("argyll_bin_path",
+                                           "/Applications/Argyll/bin"))
+        except Exception:      # noqa: BLE001 — the count line must never crash
+            log.warning("gamut coverage query failed", exc_info=True)
+            return None
+        self._gamut_coverage_cache[key] = sel.in_gamut_total
+        self._gamut_master_total = sel.master_total
+        return sel.in_gamut_total
+
+    def _update_gamut_count_line(self) -> None:
+        """The live figures of #133 §10: coverage (which needs the profile) and
+        the sheet estimate (which needs only the layout)."""
+        if not getattr(self, "_gamut_active", False):
+            return
+        profile = self._gamut_profile()
+        if profile is None:
+            self._gamut_count_lbl.setText("")
+            return
+        count = int(self._gamut_count_spin.value())
+        margin = self._gamut_margin_combo.currentData() or "safe"
+        intent = self._gamut_intent_combo.currentData() or "absolute"
+        cover = self._gamut_coverage(profile, margin, intent)
+        master = int(getattr(self, "_gamut_master_total", 0) or 0)
+        parts = []
+        if cover is not None and master:
+            parts.append(tr(
+                "{n} of the {total} reference colours are printable with "
+                "this profile.").format(n=cover, total=master))
+            if cover < count:
+                parts.append(tr(
+                    "Only {n} can be tested, so the chart will hold {n} "
+                    "colours plus the 8 cube corners.").format(n=cover))
+            else:
+                parts.append(tr(
+                    "Your chart: {count} colours plus the 8 cube corners "
+                    "= {total} patches.").format(count=count,
+                                                 total=count + 8))
+        else:
+            parts.append(tr(
+                "The in-gamut count could not be worked out yet — it runs "
+                "the first time a profile is available."))
+        patches = min(count, cover) + 8 if cover is not None else count + 8
+        sheets = self._gamut_sheet_estimate(patches)
+        if sheets:
+            parts.append(sheets)
+        self._gamut_count_lbl.setText(" ".join(parts))
+
+    def _gamut_sheet_estimate(self, patches: int) -> str:
+        """'≈ N sheets' from the Manual layout — EXACT with the ChromIQ layout
+        engine (the same geometry that will build the sheet, asked in
+        advance), the empirical capacity database for printtarg, and honest
+        silence when the combination cannot be resolved (#133 §10)."""
+        try:
+            p = self._collect_manual()
+            per = None
+            if bool(self._settings.get("use_chromiq_layout_engine", False)):
+                per = self._engine_capacity(
+                    p.instrument, p.paper, dd=p.double_density,
+                    td=getattr(p, "triple_density", False),
+                    eff_lb=p.disable_left_border,
+                    nsl=p.no_strip_limit, pscale=float(p.patch_scale),
+                    margin=float(p.margin_mm))
+            if not per:
+                from data.patch_db import query_patches
+                per = query_patches(p.instrument, p.paper, p.double_density,
+                                    True, int(p.margin_mm),
+                                    float(p.patch_scale),
+                                    False, p.no_strip_limit)
+            if per and per > 0:
+                import math as _math
+                n = _math.ceil(patches / int(per))
+                return (tr("That is about one sheet with your current layout.")
+                        if n == 1 else
+                        tr("That is about {n} sheets with your current "
+                           "layout.").format(n=n))
+        except Exception:      # noqa: BLE001
+            pass
+        return ""
+
+    def _on_generate_gamut(self) -> None:
+        """Generate for the FROM PROFILE GAMUT module: select the colours from
+        the master set through this run's profile, write the patch list, and
+        hand it to the ordinary from-.ti1 build (Manual's layout settings)."""
+        profile = self._gamut_profile()
+        if profile is None:
+            self._refresh_gamut_state()
+            return
+        count = int(self._gamut_count_spin.value())
+        margin = self._gamut_margin_combo.currentData() or "safe"
+        intent = self._gamut_intent_combo.currentData() or "absolute"
+        from PyQt6.QtWidgets import QApplication
+        from workflow.gamut_target import (GamutTargetError,
+                                           select_gamut_targets,
+                                           write_gamut_ti1)
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            selection = select_gamut_targets(
+                profile, count, margin, intent,
+                bin_dir=self._settings.get("argyll_bin_path",
+                                           "/Applications/Argyll/bin"))
+            ctl = getattr(self, "_target_ctl", None)
+            project = ctl.project_or_none() if ctl is not None else None
+            if project is None:
+                return
+            from core.measurement_target import resolve_run
+            run = resolve_run(project, ctl.target)
+            ti1 = run.ensure_cache_dir() / "gamut-target.ti1"
+            write_gamut_ti1(selection, ti1)
+        except GamutTargetError as exc:
+            InfoDialog(
+                tr("The colours could not be chosen"),
+                tr("ChromIQ asked your profile which of the reference colours "
+                   "it can print, and that did not finish.\n\n"
+                   "Details: {reason}\n\n"
+                   "The most common reason is that the ArgyllCMS folder in "
+                   "Preferences is not the one you installed, or the profile "
+                   "file is damaged. Nothing has been changed."
+                   ).format(reason=str(exc)),
+                self, min_width=520,
+            ).exec()
+            return
+        finally:
+            QApplication.restoreOverrideCursor()
+        if selection.achieved < count:
+            self._log.appendPlainText(tr(
+                "Only {n} of the requested {count} colours are printable "
+                "with this profile, so the chart holds {n} colours plus the "
+                "8 cube corners.").format(n=selection.achieved, count=count))
+        self._settings.set("gamut_target_count", count)
+        self._settings.set("gamut_target_margin", margin)
+        self._settings.set("gamut_target_intent", intent)
+        self._pending_gamut_selection = selection
+        self._generate_from_ti1(ti1)
+
+    def _write_gamut_reference_after_adopt(self, new_ti2: "Path | None") -> None:
+        """After a gamut chart was adopted as the run's verify chart, store the
+        colorimetric reference beside it — the report's yardstick, the Print
+        tab's force-Raw marker, and the §5.4 record, in one file."""
+        selection = getattr(self, "_pending_gamut_selection", None)
+        self._pending_gamut_selection = None
+        if selection is None or new_ti2 is None:
+            return
+        try:
+            from workflow.gamut_target import (mark_chart_as_colorimetric,
+                                               write_colorimetric_reference)
+            from workflow.verification_print import colorimetric_reference_for
+            ref = write_colorimetric_reference(
+                selection, colorimetric_reference_for(new_ti2))
+            mark_chart_as_colorimetric(new_ti2, ref)
+            self._log.appendPlainText(tr(
+                "The colorimetric reference was stored beside the chart "
+                "({name}). This chart already has your profile applied — "
+                "print it exactly as it is; the Print Chart tab selects "
+                "“Raw” for it automatically.").format(name=ref.name))
+        except Exception:      # noqa: BLE001 — never break a finished build
+            log.warning("could not write the colorimetric reference",
+                        exc_info=True)
+            self._log.appendPlainText(tr(
+                "The colorimetric reference could not be written — without "
+                "it the measurement report cannot judge this chart. Please "
+                "generate the chart again."))
+
     def _snapshot_profiling_chart(self) -> "Path | None":
         """Copy the current run's PROFILING work aside before a verification
         chart is built into the same run root, so building the verify chart
@@ -10739,6 +11293,9 @@ class TabChart(QWidget):
         # the state is already what is asked for (R1).
         self._apply_calibration_knobs(
             bool(getattr(ctl.target, "is_calibration", bool)()))
+        # #133: the FROM PROFILE GAMUT module exists only for a verification
+        # target, and its panel state follows the run's profile.
+        self._refresh_gamut_visibility()
         resolved = self._resolve_target_chart()
         if resolved is None:
             if self._shown_chart_ti2 is not None:
@@ -10851,13 +11408,30 @@ class TabChart(QWidget):
                 if new_ti2 is not None:
                     tiffs = run.verify_chart_tiffs()
                     stem = run.verify_stem
-                    self._log.appendPlainText(tr(
-                        "This chart was saved as the run's verification chart "
-                        "(in the “verifications” folder). Print it through your "
-                        "finished profile, then measure it with the run type set "
-                        "to Verification."))
+                    if getattr(self, "_pending_gamut_selection", None) is not None:
+                        # A gamut chart already carries the profile — telling
+                        # the user to print it through the profile would cause
+                        # the one mistake nothing downstream can detect.
+                        self._log.appendPlainText(tr(
+                            "This chart was saved as the run's verification "
+                            "chart (in the “verifications” folder). It already "
+                            "has your profile applied — print it exactly as it "
+                            "is, then measure it with the run type set to "
+                            "Verification."))
+                    else:
+                        self._log.appendPlainText(tr(
+                            "This chart was saved as the run's verification chart "
+                            "(in the “verifications” folder). Print it through your "
+                            "finished profile, then measure it with the run type set "
+                            "to Verification."))
+                    # #133: store the colorimetric reference beside the adopted
+                    # chart (no-op unless this build came from the gamut module).
+                    self._write_gamut_reference_after_adopt(new_ti2)
             except Exception:  # noqa: BLE001 — never break a finished generation
                 log.warning("verify-chart adopt failed", exc_info=True)
+            # A pending gamut selection is consumed by the adopt above; if the
+            # adopt failed it must not leak into the NEXT build's reference.
+            self._pending_gamut_selection = None
             # Put the profiling chart back at the run root — the verify chart now
             # lives only in verifications/, and the two must coexist (#130, Knut).
             self._restore_profiling_chart()
@@ -10881,6 +11455,8 @@ class TabChart(QWidget):
             # report).
             if not tiffs:
                 self._release_rebuild_guard()
+            # A failed or non-verification build never writes a reference.
+            self._pending_gamut_selection = None
             # The run root has already been cleared when a verification build
             # failed, so put the snapshot back rather than dropping it — a failed
             # verification chart must not cost the run its profiling work.

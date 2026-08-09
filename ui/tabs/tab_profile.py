@@ -381,6 +381,11 @@ class TabProfile(QWidget):
         _lw.setContentsMargins(0, 3, 0, 0)
         _lw.setSpacing(0)
         _lw.addWidget(self._load_btn)
+        # The 3 px nudge above must not make this tab's header taller than
+        # every other tab's (it pushed the mode buttons 3 px lower — Basti,
+        # 2026-08-09). The glyph is nudged up internally, so the clipped
+        # bottom strip is empty space.
+        _load_wrap.setFixedHeight(40)
         _ht.addWidget(_load_wrap)
         _ht.addWidget(self._reveal_btn)
         self._header = TabHeader(

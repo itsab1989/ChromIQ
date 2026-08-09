@@ -1,7 +1,7 @@
 # Unified Measurement Management — Design Specification
 
 > **Revision 2026-08-09 (e) — two approved messages carry a revised print step.**
-> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), plus M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A) — all defined in the awaiting-review section below.
+> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), plus M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record) — all defined in the awaiting-review section below.
 > Both were approved by Knut on 2026-08-04, but one step in each instructed *"(with colour management on)"* — a setting ChromIQ deliberately locks **off** on every print path, so the approved text told the user to do something the app prevents (established in `verification_printing_and_target.md` §1, and A0.1 of its plan). With feature A the instruction has a real control to name — the Print Chart tab's **Colour** row — so that one step is revised and the revision waits in §M-PROPOSED. Every other message in §M remains approved as before: the last, **M-BUILD-ELSEWHERE**, was accepted on 2026-08-04 — *"Message M-BUILD-ELSEWHERE accepted"* — and M-CHART-CORRUPT, M-REPLACE-UNCOUNTABLE and M-PREVIEW-PAUSED the day before. A new message goes to §M-PROPOSED first, and `tests/test_message_catalogue.py` fails if one is added to the code without it.
 
 > **Status:** specification, agreed on [issue #130](https://github.com/itsab1989/ChromIQ/issues/130).
@@ -981,6 +981,38 @@ runs; Cancel is the default button.*
 > **What each button does:**
 > • **Run the check anyway** — runs the check on these files unchanged.
 > • **Cancel** — changes nothing.
+
+### M-VERIFY-CREATE-NO-PROFILE · PROPOSED · Create Chart, verification with no profile — #133 §10
+
+*Feature B. The wording was agreed VERBATIM with Sebastian on #133
+(2026-08-02), before this review queue existed; it is defined here so the
+formal record is complete. Shown as the non-blocking info box at the foot of
+Guided / Manual while Run type = Verification and the run has no built
+profile — those modules stay fully usable.*
+
+> **There's no finished profile in this run yet**
+>
+> You can go ahead and create the chart — the files will be ready and waiting for you. Printing and measuring it will have to wait for the profile, though: a verification chart is printed through your finished profile, and that's the whole point of it. Measuring one without a profile is turned off for the same reason.
+>
+> To get there: set Run type to Profiling, then create, print and measure the profiling chart as usual and build the profile on the Build Profile tab. Come back here afterwards and everything will be ready for you.
+
+### M-GAMUT-NO-PROFILE · PROPOSED · the From-profile-gamut module with no profile — #133 §10
+
+*Feature B, same provenance as the message above. Shown INSTEAD of the
+module's options, with Generate disabled — the profile's gamut is this
+module's input, so without one there is nothing to ask.*
+
+> **This run needs a finished profile first**
+>
+> This way of making a chart asks your profile which colours it believes your printer can produce, and then tests exactly those. {run} doesn't have a profile yet, so there's nothing to ask.
+>
+> How to get one:
+> &nbsp;&nbsp;1\. Set Run type to Profiling.
+> &nbsp;&nbsp;2\. Create, print and measure the profiling chart as usual.
+> &nbsp;&nbsp;3\. Build the profile on the Build Profile tab.
+> &nbsp;&nbsp;4\. Come back here and set Run type to Verification again.
+>
+> GUIDED and MANUAL can still build you a chart in the meantime, so the files are ready. Printing and measuring any verification chart waits for the profile either way.
 
 ---
 

@@ -443,6 +443,39 @@ M_DUPLICATE_BLOCKED = (
     "missing {missing}.")
 
 
+# --- PROPOSED: feature B (#133), the From-profile-gamut module -------------
+# Both texts were agreed VERBATIM with Sebastian on #133 (2026-08-02), before
+# the §M-PROPOSED governance existed — they are listed here so the formal
+# record is complete, not because the wording is in doubt.
+M_VERIFY_CREATE_NO_PROFILE = _m(
+    "M-VERIFY-CREATE-NO-PROFILE",
+    "There's no finished profile in this run yet",
+    "You can go ahead and create the chart — the files will be ready and "
+    "waiting for you. Printing and measuring it will have to wait for the "
+    "profile, though: a verification chart is printed through your finished "
+    "profile, and that's the whole point of it. Measuring one without a "
+    "profile is turned off for the same reason.\n\n"
+    "To get there: set Run type to Profiling, then create, print and measure "
+    "the profiling chart as usual and build the profile on the Build Profile "
+    "tab. Come back here afterwards and everything will be ready for you.",
+    approved=False)
+
+M_GAMUT_NO_PROFILE = _m(
+    "M-GAMUT-NO-PROFILE",
+    "This run needs a finished profile first",
+    "This way of making a chart asks your profile which colours it believes "
+    "your printer can produce, and then tests exactly those. {run} doesn't "
+    "have a profile yet, so there's nothing to ask.\n\n"
+    "How to get one:\n"
+    "  1. Set Run type to Profiling.\n"
+    "  2. Create, print and measure the profiling chart as usual.\n"
+    "  3. Build the profile on the Build Profile tab.\n"
+    "  4. Come back here and set Run type to Verification again.\n\n"
+    "GUIDED and MANUAL can still build you a chart in the meantime, so the "
+    "files are ready. Printing and measuring any verification chart waits for "
+    "the profile either way.",
+    approved=False)
+
 # --- PROPOSED: feature A, printing a verification chart through its profile -
 # The two failure windows of the print-time conversion (#130,
 # verification_printing_and_target.md §3.2 rows A10/A11 and §6 S9/S10). Both
@@ -526,6 +559,7 @@ CATALOGUE = {m.id: m for m in (
     M_PREVIEW_PAUSED, M_PROFILE_VERIFY,
     M_VERIFY_NO_PROFILE, M_VERIFY_NO_CHART, M_BUILD_ELSEWHERE,
     M_CM_NO_CCTIFF, M_CM_CONVERT_FAILED, M_CM_PROFCHECK_CONVERTED,
+    M_VERIFY_CREATE_NO_PROFILE, M_GAMUT_NO_PROFILE,
     M_NO_INSTRUMENT,
 )}
 

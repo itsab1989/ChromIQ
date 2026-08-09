@@ -1625,7 +1625,23 @@ class MeasurementReportDialog(QDialog):
             rows.append((tr("Readings belong to this chart"),
                          tr("could not be checked"), False))
         ref = r.get("reference_source")
-        if ref == "device":
+        if ref == "colorimetric":
+            cm = r.get("colorimetric") or {}
+            detail = tr("the profile's own colorimetric targets")
+            if cm.get("set_version"):
+                detail += f" · {cm['set_version']}"
+            if cm.get("in_gamut") and cm.get("master_total"):
+                detail += " · " + tr(
+                    "{n} of {total} master colours in this profile's gamut"
+                ).format(n=cm["in_gamut"], total=cm["master_total"])
+            rows.append((tr("Reference for the ΔE figures"), detail, False))
+        elif ref == "colorimetric-missing":
+            rows.append((tr("Reference for the ΔE figures"), tr(
+                "missing — this chart's stored colorimetric targets could not "
+                "be found, so no ΔE figures are shown. Comparing against "
+                "anything else would produce plausible numbers from the wrong "
+                "yardstick."), True))
+        elif ref == "device":
             rows.append((tr("Reference for the ΔE figures"), tr(
                 "the sRGB estimate of the chart's device values"), False))
         elif ref:
@@ -1704,6 +1720,29 @@ class MeasurementReportDialog(QDialog):
                     "the chart's design, identical for every run. This is exactly "
                     "the reference a .ti2 would carry, so it stays static across "
                     "runs. Typical for imported i1Profiler measurements.")) + "</p>")
+        elif r.get("reference_source") == "colorimetric-missing":
+            # #133 §9.1: refusing beats a plausible number from the wrong
+            # yardstick — say what could not be established (the beta.206 rule).
+            parts.append(
+                f"<p style='color:{_C['error']};font-size:11px;"
+                f"border:1px solid {_C['error']};border-radius:4px;"
+                "padding:8px 11px;line-height:1.45'>"
+                + "<b>" + html.escape(tr(
+                    "No colour-accuracy figures, on purpose.")) + "</b><br><br>"
+                + html.escape(tr(
+                    "This chart was built from your profile's own gamut, so "
+                    "its measurements can only be judged against the "
+                    "colorimetric targets that were stored beside the chart "
+                    "when it was made — and that reference file cannot be "
+                    "found. Comparing against anything else would produce "
+                    "confident-looking numbers measured against the wrong "
+                    "yardstick, so ChromIQ shows none at all."))
+                + "<br><br>" + html.escape(tr(
+                    "If the file was moved, put it back next to the chart in "
+                    "the run's “verifications” folder and reopen this report. "
+                    "If it is gone for good, generate the verification chart "
+                    "again — a fresh chart brings a fresh reference with it."))
+                + "</p>")
         else:
             parts.append(f"<p style='color:{_C['faint']}'>" + html.escape(tr(
                 "This measurement has no device values to compare against, so "

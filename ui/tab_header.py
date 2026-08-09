@@ -94,6 +94,17 @@ class TabHeader(QWidget):
         if trailing_widget is not None:
             trailing_widget.setParent(self)
             title_row.addWidget(trailing_widget, 0, Qt.AlignmentFlag.AlignVCenter)
+        # THE TITLE ROW IS THE SAME HEIGHT ON EVERY TAB. Its natural height is
+        # whatever its tallest child happens to be — 40 px where a trailing
+        # button trio sits, 35 px where only the title label does — so the
+        # module buttons underneath started on different lines from tab to tab
+        # (Basti, 2026-08-09: Create Chart and Measure matched, Build Profile
+        # sat lower, Check & Refine higher). A zero-width strut pins the
+        # floor at the standard trailing-button height; tabs whose trailing
+        # widget wants more must fit it into the same 40 px instead.
+        _strut = QWidget(self)
+        _strut.setFixedSize(0, 40)
+        title_row.addWidget(_strut)
         root.addLayout(title_row)
 
     def set_texts(self, step_text: str, title_text: str) -> None:

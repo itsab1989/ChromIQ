@@ -1,5 +1,41 @@
 # Changelog
 
+## v3.14.8-beta.209
+
+### New
+
+- **A verification chart built from your profile's own gamut** (#133,
+  feature B). Create Chart gains a third module for verification runs —
+  **FROM PROFILE GAMUT** — which asks the run's profile which colours of
+  ChromIQ's reference set it can print, and tests exactly those. Choose how
+  many colours, whether to stay safely inside the printable range or use all
+  of it, and the rendering intent (absolute colorimetric by default); the
+  panel shows live how many reference colours are printable and roughly how
+  many sheets the chart needs with your current Manual layout. The sheet
+  itself is laid out by printtarg or the ChromIQ layout engine exactly as in
+  Manual.
+- **The reference colour set ships with ChromIQ** — 5 960 colours, spread
+  perceptually with extra weight on the greys, published with its full
+  generation recipe in the file header and marked PROVISIONAL. Smaller charts
+  test the first colours of the same list, so a quick check stays comparable
+  with a thorough one.
+- **The eight cube corners are always added**, outside the gamut filter, and
+  reported in their own section — they measure how far your ink and paper
+  reach, which is not the profile's doing, so they never distort the accuracy
+  figures.
+- **The measurement report gains a third reference.** A gamut chart is judged
+  against its stored colorimetric targets ("what the profile promised"), the
+  report names the set version and coverage, and when the stored reference is
+  missing the report deliberately shows no ΔE at all rather than comparing
+  against the wrong yardstick.
+- **Everything fits feature A automatically**: a gamut chart already carries
+  the profile, so the Print Chart tab forces "Raw" for it, and the report says
+  which reference produced its figures.
+- **Create Chart now explains the no-profile state** for verification runs —
+  a friendly note in Guided/Manual (nothing is blocked), and the gamut module
+  shows what to do instead of its options. New Dictionary entries: "From
+  profile gamut", "Reference colour set", "Coverage".
+
 ## v3.14.8-beta.208
 
 ### New
