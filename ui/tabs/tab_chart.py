@@ -4533,6 +4533,7 @@ class TabChart(QWidget):
         # Chart-layout-information estimate describe the mode on screen (#93) —
         # each predictor is guarded by active mode, so the just-hidden one stops
         # updating and the newly-shown one takes over.
+        self._sync_gamut_pages_enabled()
         if mode == "guided":
             self._update_patch_count()
         elif mode == "gamut":
@@ -10469,12 +10470,16 @@ class TabChart(QWidget):
         self._gamut_count_lbl = QLabel("", panel)
         self._gamut_count_lbl.setWordWrap(True)
         self._gamut_count_lbl.setStyleSheet(
-            "color: #9a9a9a; background: transparent;")
+            "color: #9a9a9a; background: transparent;"
+            " margin-left: 2px; padding: 2px 0;")
         v.addWidget(self._gamut_count_lbl)
 
         note_row = QWidget(panel)
         nl = QHBoxLayout(note_row)
-        nl.setContentsMargins(0, 0, 0, 0)
+        # Right margin matches the engine-toggle row's default layout margin,
+        # so the two ⓘ buttons share one right edge (Basti, 2026-08-09); the
+        # small left indent matches the count line above.
+        nl.setContentsMargins(2, 0, 9, 0)
         nl.setSpacing(10)
         note = QLabel(tr(
             "The sheet itself is laid out with the MANUAL module's settings — "
@@ -10500,7 +10505,8 @@ class TabChart(QWidget):
         self._gamut_count_spin.valueChanged.connect(
             lambda _v: self._update_gamut_count_line())
         self._gamut_auto_check.toggled.connect(
-            lambda _c: self._update_gamut_count_line())
+            lambda _c: (self._sync_gamut_pages_enabled(),
+                        self._update_gamut_count_line()))
         self._gamut_margin_combo.currentIndexChanged.connect(
             lambda _i: self._update_gamut_count_line())
         self._gamut_intent_combo.currentIndexChanged.connect(
@@ -10687,11 +10693,36 @@ class TabChart(QWidget):
         if getattr(self, "_gamut_auto_check", None) is not None \
                 and self._gamut_auto_check.isChecked():
             per = self._gamut_per_sheet()
-            pages = (self._manual_pages_spin.value()
-                     if self._manual_pages_spin is not None else 1)
+            pages = self._gamut_pages()
             if per:
                 return max(50, per * max(1, int(pages)) - 8)
         return int(self._gamut_count_spin.value())
+
+    def _gamut_pages(self) -> int:
+        """The page count the build will actually use: the engine panel's own
+        Pages control when the engine is on, printtarg's spin otherwise."""
+        if bool(self._settings.get("use_chromiq_layout_engine", False)) \
+                and getattr(self, "_manual_layout_panel", None) is not None:
+            return int(self._manual_layout_panel.get_pages())
+        return int(self._manual_pages_spin.value()
+                   if self._manual_pages_spin is not None else 1)
+
+    def _sync_gamut_pages_enabled(self) -> None:
+        """Pages follows #93's rule — greyed while an exact count fixes it —
+        but in the gamut module the AUTO checkbox is the thing that makes
+        pages the input, so it must unlock them (Basti, 2026-08-09). Leaving
+        the module restores Manual's own Auto-patch-count state."""
+        if getattr(self, "_gamut_active", False):
+            on = self._gamut_auto_check.isChecked()
+        else:
+            on = (self._manual_auto_patches_check.isChecked()
+                  if self._manual_auto_patches_check is not None else True)
+        if self._manual_pages_spin is not None:
+            self._manual_pages_spin.setEnabled(on)
+        if getattr(self, "_manual_pages_lbl", None) is not None:
+            self._manual_pages_lbl.setEnabled(on)
+        if getattr(self, "_manual_layout_panel", None) is not None:
+            self._manual_layout_panel.set_pages_enabled(on)
 
     def _gamut_sheet_estimate(self, patches: int) -> str:
         """'≈ N sheets' from the Manual layout — EXACT with the ChromIQ layout
