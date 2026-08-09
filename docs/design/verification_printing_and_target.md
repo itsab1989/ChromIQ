@@ -29,6 +29,8 @@ progress against A or B — it came out of questions asked while writing it:
 | **Corrected** | The set size twice — an invented 1 500, then 1 617 read from **CMYK** press references when ChromIQ is **RGB**. See §11 Q6 |
 | **Still open** | All of §11. The load-bearing evidence gap in §12 is unchanged: **nothing about colour-managed printing has been tested on hardware** |
 | **Owed when A lands** | The identity verdict prints as its own notice today; it belongs in the report's "how this was produced" block (§3.3, row A20), so the report gives one account of its conditions rather than two |
+| **Corrected 2026-08-09** | **`profcheck` is not meaningless for a verification** — Argyll's docs allow *"other test samples from the same device"*, so the existing Check & Refine modules are appropriate, and **B may need no module there at all** (§2b) · **The rendering intent is two questions, not one** — feature A's is chosen on the Print tab, #133's in Create Chart, so they can hold different defaults (§11 Q4) |
+| **New question** | §11 **Q5** — the Print Chart tab is **not** one of the storing tabs, so feature A's intent has nowhere to live per target. #133's does, automatically |
 
 ### Sections added after the plan was first written
 
@@ -104,9 +106,12 @@ that applies a profile to an image (`cctiff`) already ships as
 *"Apply a device-link to an image"*, and the raw printing path does not change
 at all. Seven small pieces, listed in §5.
 
-**Feature B is much larger** — two new panels, and a published list of test
-colours that has to be designed, agreed and then never changed again. It also
-still has open questions of its own that nobody has answered.
+**Feature B is larger** — a new panel in Create Chart, and a published list of
+test colours that has to be designed, agreed and then never changed again. It
+also still has open questions of its own that nobody has answered. It may need
+*less* than first thought on the Check & Refine tab: the check that tab already
+runs turns out to work for this too, so what is missing there may be wording
+rather than a new panel.
 
 **The honest risk in A**: turning it on changes what an existing verification
 measures. A project with months of history would show a step change in its
@@ -264,7 +269,7 @@ No ICC or ISO standards were consulted, and nothing has been tested on hardware.
 | Direction | sRGB → printer device | Lab → printer device |
 | Colours come from | the existing chart | a published master set, filtered through the profile's gamut |
 | Reference for ΔE | the chart's design values as sRGB → Lab | the stored colorimetric Lab targets |
-| New UI | one row on Print Chart | a Create Chart module **and** a Check & Refine module |
+| New UI | one row on Print Chart | a Create Chart module — **and possibly nothing in Check & Refine**: `profcheck` turns out to be a valid check for this chart, so what is missing there may be framing rather than a module (§2b) |
 | Depends on | nothing new | A, for the print step |
 
 **They share the idea and almost none of the code.** That is the central fact
@@ -449,6 +454,67 @@ change to `parse_ti3` and everything shaped around RGB device values: the cube
 corners (`CUBE_CORNERS` is eight *RGB* corners), the `device` reference
 fallback, and the patch-identity check. That is a separate piece of work with
 its own design, and nothing in this plan blocks it or presumes it.
+
+## 2b. `profcheck` already answers half of this — which shrinks feature B
+
+Established 2026-08-09, and it corrects a claim #133 §10 had carried since it
+was written: that the existing Check & Refine modules were *"a self-consistency
+check, meaningless for a verification measurement."*
+
+**That is not what `profcheck` does.** From `profcheck.html`:
+
+> *"profcheck provides a way of checking how well an ICC profile conforms to the
+> test sample data that was used to create it **(or other test samples that are
+> from the same device)**."*
+>
+> *"The **absolute forward table** in the profile is used to create PCS values
+> from the sample points, and the profile's PCS value then compared to the PCS
+> values of the measured sample points."*
+
+Other samples from the same device is exactly what a verification measurement
+is. So the existing modules **are** appropriate for a verification run.
+
+### The two checks test different halves of one profile
+
+| | Tests | Answers | Chart printed |
+|---|---|---|---|
+| **`profcheck`** — Check & Refine's Guided / Manual | the **forward (A2B)** table | *"does the profile describe what this printer does?"* | **raw** |
+| **Feature B's module** | the **backward (B2A)** table | *"if I ask the profile for a colour, do I get it?"* | converted |
+
+The second is the question that matters when someone prints a photograph, so B
+still has a reason to exist. But it is a *second* check, not a replacement for a
+meaningless one.
+
+### The condition that decides when `profcheck` is valid
+
+`profcheck` pushes the `.ti3`'s **device values** forward through the profile, so
+those values must be what was actually sent to the printer. Verified against real
+files: `chartread` copies the chart's device values into the `.ti3` verbatim and
+only *adds* the measurements — **15 of 15 identical** when paired by
+`SAMPLE_ID`.
+
+| Chart | `profcheck` valid? | Why |
+|---|---|---|
+| Verification chart printed **raw** | ✅ | the `.ti3`'s device values are what was printed |
+| **Feature A's** chart — converted at **print** time | ❌ | the `.ti2` still holds the *unconverted* values |
+| **Feature B's** chart — converted at **build** time by `xicclu` | ✅ | the `.ti2` holds the final device values |
+
+⚠️ **The middle row is a trap worth pinning with a test.** After feature A ships,
+running Check & Refine on a converted print would produce confident, meaningless
+numbers — the same failure shape as every other double-conversion hazard in this
+plan.
+
+### What this changes
+
+**Feature B's Check & Refine module may be unnecessary.** That tab is already
+file-driven — it runs on whatever `.ti3` and `.icc` are loaded
+(`tab_check_refine.py:1676`, `:1695`), with intent defaulting to absolute,
+matching `profcheck`. What is missing is not the check but the **framing**:
+nothing tells the user which of the two questions they are asking, and nothing
+points the modules at the verification's own measurement automatically.
+
+That is wording and wiring rather than a new panel, and it is a much smaller
+piece of work. **Open**, and it should be settled before B's UI is designed.
 
 ## 3. Condition → action tables, mapped to code
 
@@ -803,6 +869,12 @@ more). Planning it in detail now would be inventing those answers. What B
 inherits from A: the vocabulary, the report block, the intent record, and the
 `reference_source` enumeration extended with `colorimetric` (B4).
 
+**One scoping note that is now known**, and it makes B smaller: B was assumed to
+need a new Check & Refine module. §2b shows the existing `profcheck` modules are
+a valid check for B's chart, so what is missing there may be framing rather than
+a panel. Settle that before designing B's UI — it is the difference between a
+new module and a paragraph.
+
 ---
 
 ## 6. Help texts — drafted, with stable IDs
@@ -941,6 +1013,7 @@ proposed there; §4 and `cm_5_reconciled.png` are what would actually be built.
 | T10 | On-screen: the real app, verification selected, both buttons, files checked on disk | driver script, per the project's practice |
 | T11 | A chart with stored colorimetric targets **forces Raw and disables "through the profile"**, and cannot be re-enabled by toggling the run type | unit; pins §3.1a |
 | T12 | A **regular** verification chart offers **both** options, neither disabled, and the notice follows the selection | unit; pins §3.1b — the asymmetry is deliberate |
+| T13 | Check & Refine **refuses, or clearly warns**, when asked to `profcheck` a measurement whose chart was converted at **print** time | unit; pins the §2b trap — the `.ti2` holds unconverted values, so the numbers would be confident and meaningless |
 
 ---
 
