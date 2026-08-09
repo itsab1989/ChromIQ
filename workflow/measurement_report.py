@@ -496,6 +496,26 @@ def build_report(ti3_path: str | Path, worst_n: int = 16) -> dict:
     report["patch_identity"] = verify_patch_identity(
         data, _find_reference_ti2(ti3_path))
 
+    # How the sheet was produced (#130 feature A, §3.3 A15–A18): through the
+    # profile or raw, which intent, which profile file, and who printed it —
+    # read from the print record beside the chart. Absent for sheets printed
+    # before the record existed; the report says so rather than guessing.
+    from workflow.verification_print import read_print_record
+    printing = read_print_record(ti3_path)
+    if printing:
+        # A17: a profile rebuilt after the sheet was printed invalidates the
+        # comparison — the report can say so because the record carries the
+        # file's modification time from print day.
+        ppath, pmtime = printing.get("profile_path"), printing.get("profile_mtime")
+        if ppath and pmtime:
+            try:
+                now_mtime = datetime.fromtimestamp(
+                    Path(ppath).stat().st_mtime).isoformat(timespec="seconds")
+                printing["profile_changed_since_print"] = now_mtime != pmtime
+            except OSError:
+                printing["profile_missing_now"] = True
+        report["printing"] = printing
+
     # The eight cube corners (paper white, composite black, the six ink
     # primaries/secondaries) — nearest patch to each corner by device RGB. Each
     # carries its measured colour and, when a reference exists, its expected
@@ -634,6 +654,11 @@ def report_trend(reports: "list[dict]") -> "list[dict]":
                    for c in (r.get("corners") or []) if c.get("de") is not None}
         if corners:
             pt["corners"] = corners
+        # #130 feature A: how the sheet was printed, so a trend can mark the
+        # point where the method — and with it the question — changed (Q3).
+        colour = (r.get("printing") or {}).get("colour")
+        if colour:
+            pt["printing_colour"] = colour
         if len(pt) > 2:                             # more than just created+chart
             series.append(pt)
     return series
@@ -728,6 +753,22 @@ def report_scope(runs: "list[dict]") -> dict:
             missing.append({"run": _run_label(r), "missing": miss})
     if missing:
         warnings.append({"kind": "corners", "runs": missing})
+
+    # #130 feature A (Q3): verifications printed different ways answer
+    # different questions — through the profile grades the profile, raw grades
+    # the printer — so a report mixing them must mark where the method
+    # changed, or the trend silently changes meaning at that point.
+    verifs = [r for r in runs if r.get("is_verification")]
+    if verifs:
+        def _method(r: dict) -> str:
+            return (r.get("printing") or {}).get("colour") or "unrecorded"
+        methods = {_method(r) for r in verifs}
+        if len(methods) > 1:
+            warnings.append({
+                "kind": "printing",
+                "runs": [{"run": _run_label(r), "method": _method(r)}
+                         for r in verifs],
+            })
 
     return {"profiles": prof_list, "total": len(runs),
             "date_range": date_range, "warnings": warnings}

@@ -45,17 +45,20 @@ def link_args(link: Path, in_path: Path, out_path: Path,
 
 
 def convert_args(from_profile: Path, to_profile: Path, in_path: Path,
-                 out_path: Path, precise: bool = True, verbose: bool = True) -> list[str]:
-    """``cctiff [-v] [-p] -f T -i r <from> -i r <to> <in> <out>`` — colorimetric
-    conversion of the image from its embedded space into the link's source space
-    (both relative-colorimetric), before the link is applied."""
+                 out_path: Path, precise: bool = True, verbose: bool = True,
+                 intent: str = "r") -> list[str]:
+    """``cctiff [-v] [-p] -f T -i <intent> <from> -i <intent> <to> <in> <out>``
+    — a profile-to-profile conversion of the image. *intent* is cctiff's own
+    letter (``p`` perceptual, ``r`` relative, ``s`` saturation, ``a``
+    absolute), applied to both ends; the default keeps the historical
+    relative-colorimetric behaviour (#130 A0.2)."""
     args: list[str] = []
     if verbose:
         args.append("-v")
     if precise:
         args.append("-p")
-    args += ["-f", "T", "-i", "r", str(from_profile), "-i", "r", str(to_profile),
-             str(in_path), str(out_path)]
+    args += ["-f", "T", "-i", intent, str(from_profile), "-i", intent,
+             str(to_profile), str(in_path), str(out_path)]
     return args
 
 

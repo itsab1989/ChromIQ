@@ -359,12 +359,14 @@ M_PROFILE_VERIFY = _m(
     "because it describes the profile being replaced. Nothing is deleted.\n\n"
     "•  Cancel — changes nothing.{blocked}")
 
-# --- PROPOSED: the two verification guards, §S1.2 and §S1.3 ---------------
-# Knut, beta.128: *"The S1.2 / S1.3 guard windows: bring them into §M so the
-# model owns their text."* They existed in the Measure tab as inline prose,
-# which is exactly what the catalogue rule forbids. The words are the ones that
-# shipped, so nothing changes on screen by moving them here — only who owns
-# them. Both await review.
+# --- PROPOSED revisions: the two verification guards, §S1.2 and §S1.3 ------
+# The wording Knut approved on 2026-08-04 instructed "(with colour management
+# on)" — a setting ChromIQ deliberately locks OFF on every print path
+# (postscript_generator, cups_printer, native_print_macos), so the approved
+# text told the user to do something the app prevents. Feature A (#130,
+# verification_printing_and_target.md §5 A0.1) gives the instruction a real
+# control to name: the Print Chart tab's "Colour" row. The revised step is
+# proposed in §M-PROPOSED and awaits approval; only that one step changed.
 M_VERIFY_NO_PROFILE = _m(
     "M-VERIFY-NO-PROFILE",
     "This run has no profile to verify yet",
@@ -379,11 +381,12 @@ M_VERIFY_NO_PROFILE = _m(
     "Once the profile exists, you can verify it:\n"
     "  4. Set “Run type” back to “Verification”.\n"
     "  5. Create a verification chart in the Create Chart tab.\n"
-    "  6. Print that chart THROUGH the finished profile (with colour "
-    "management on).\n"
+    "  6. Print that chart from the Print Chart tab with “Colour” set to "
+    "“Through the profile” — ChromIQ applies the profile for you and "
+    "keeps the printer's own colour management off.\n"
     "  7. Measure it here with “Run type” = “Verification” — the result is "
-    "kept in a dated folder under this run's “verifications” folder.")
-    # Approved by Knut, 2026-08-04.
+    "kept in a dated folder under this run's “verifications” folder.",
+    approved=False)
 
 M_VERIFY_NO_CHART = _m(
     "M-VERIFY-NO-CHART",
@@ -392,11 +395,13 @@ M_VERIFY_NO_CHART = _m(
     "verification chart.\n\n"
     "  1. Go to the Create Chart tab and, with “Run type” = “Verification”, "
     "create the verification chart (a smaller chart is fine).\n"
-    "  2. Print it through this run's profile (with colour management on).\n"
+    "  2. Print it from the Print Chart tab with “Colour” set to "
+    "“Through the profile” — ChromIQ applies the profile for you and keeps "
+    "the printer's own colour management off.\n"
     "  3. Come back here with “Run type” = “Verification” and measure it — the "
     "result is stored in a dated folder under this run's “verifications” "
-    "folder.")
-    # Approved by Knut, 2026-08-04.
+    "folder.",
+    approved=False)
 
 # --- PROPOSED: building from a measurement that is not in the selected run --
 # Knut, beta.132, Demo-08 step 10: *"going to run 5, Build Profile tab. The
@@ -438,6 +443,56 @@ M_DUPLICATE_BLOCKED = (
     "missing {missing}.")
 
 
+# --- PROPOSED: feature A, printing a verification chart through its profile -
+# The two failure windows of the print-time conversion (#130,
+# verification_printing_and_target.md §3.2 rows A10/A11 and §6 S9/S10). Both
+# await review in §M-PROPOSED. They exist for the same reason
+# M_REPLACE_UNCOUNTABLE did: the alternative is a window that prints a raw
+# tool error, which for a beginner is indistinguishable from a broken app.
+M_CM_NO_CCTIFF = _m(
+    "M-CM-NO-CCTIFF",
+    "ChromIQ cannot find the tool that applies your profile",
+    "To print this chart through your profile, ChromIQ uses a program called "
+    "cctiff, which comes with ArgyllCMS. It is not in the ArgyllCMS folder "
+    "ChromIQ is set to use.\n\n"
+    "You can still print this sheet raw — choose “Raw — no profile” above "
+    "— but measuring it will tell you about your printer rather than "
+    "about your profile.\n\n"
+    "To fix it: open Preferences and check that the ArgyllCMS folder is the "
+    "one you installed, then come back to this tab.",
+    approved=False)
+
+M_CM_PROFCHECK_CONVERTED = _m(
+    "M-CM-PROFCHECK-CONVERTED",
+    "This measurement came from a sheet printed through the profile",
+    "This check pushes the chart's own numbers through the profile and "
+    "compares the answer with what you measured. That only means something "
+    "when the chart's numbers are what was actually sent to the printer.\n\n"
+    "This sheet was printed with “Colour” = “Through the profile”, so "
+    "ChromIQ converted the numbers before printing — the chart file still "
+    "holds the unconverted ones. The check would run without complaint and "
+    "produce confident figures, but they would not describe your profile or "
+    "your printer.\n\n"
+    "To judge this measurement, use the Measurement Report instead — it "
+    "compares against the right reference. To use this check, print the "
+    "verification chart raw and measure that sheet.\n\n"
+    "What each button does:\n\n"
+    "•  Run the check anyway — runs the check on these files unchanged.\n\n"
+    "•  Cancel — changes nothing.",
+    approved=False)
+
+M_CM_CONVERT_FAILED = _m(
+    "M-CM-CONVERT-FAILED",
+    "This sheet could not be prepared",
+    "ChromIQ was working out the ink amounts your profile predicts for page "
+    "{n} of {total}, and that did not finish. Nothing has been printed and "
+    "nothing has been changed.\n\n"
+    "The most common reason is that the profile file is damaged or is not a "
+    "printer profile. Rebuilding the profile on the Build Profile tab usually "
+    "fixes it.\n\n"
+    "Details: {reason}",
+    approved=False)
+
 # ---------------------------------------------------------------------------
 #: Knut wrote this text himself (beta.150) to replace the original "No
 #: Instrument Found" bullet list, and asked for the window I had added at ten
@@ -470,6 +525,7 @@ CATALOGUE = {m.id: m for m in (
     M_CHART_CORRUPT,
     M_PREVIEW_PAUSED, M_PROFILE_VERIFY,
     M_VERIFY_NO_PROFILE, M_VERIFY_NO_CHART, M_BUILD_ELSEWHERE,
+    M_CM_NO_CCTIFF, M_CM_CONVERT_FAILED, M_CM_PROFCHECK_CONVERTED,
     M_NO_INSTRUMENT,
 )}
 

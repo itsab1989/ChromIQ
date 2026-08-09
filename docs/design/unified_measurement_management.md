@@ -1,9 +1,8 @@
 # Unified Measurement Management — Design Specification
 
-> **Revision 2026-08-04 (d) — the catalogue is fully approved.**
-> **Awaiting review:** none.
-> The 2026-08-06 round added one message and withdrew one, and neither is waiting: the withdrawn one was mine, and the added one is his own text used unedited — *"I prefer your more detailed message, but the original 'No Instrument Found' had a few bullets to add."*
-> Every message in §M has been approved by Knut. The last one, **M-BUILD-ELSEWHERE**, was accepted on 2026-08-04 — *"Message M-BUILD-ELSEWHERE accepted"* — together with M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART that morning, and M-CHART-CORRUPT, M-REPLACE-UNCOUNTABLE and M-PREVIEW-PAUSED the day before. §M-PROPOSED is therefore empty; a new message goes there first, and `tests/test_message_catalogue.py` fails if one is added to the code without it.
+> **Revision 2026-08-09 (e) — two approved messages carry a revised print step.**
+> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), plus M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A) — all defined in the awaiting-review section below.
+> Both were approved by Knut on 2026-08-04, but one step in each instructed *"(with colour management on)"* — a setting ChromIQ deliberately locks **off** on every print path, so the approved text told the user to do something the app prevents (established in `verification_printing_and_target.md` §1, and A0.1 of its plan). With feature A the instruction has a real control to name — the Print Chart tab's **Colour** row — so that one step is revised and the revision waits in §M-PROPOSED. Every other message in §M remains approved as before: the last, **M-BUILD-ELSEWHERE**, was accepted on 2026-08-04 — *"Message M-BUILD-ELSEWHERE accepted"* — and M-CHART-CORRUPT, M-REPLACE-UNCOUNTABLE and M-PREVIEW-PAUSED the day before. A new message goes to §M-PROPOSED first, and `tests/test_message_catalogue.py` fails if one is added to the code without it.
 
 > **Status:** specification, agreed on [issue #130](https://github.com/itsab1989/ChromIQ/issues/130).
 > Written by the ChromIQ assistant, reviewed and directed by Knut (soul-traveller)
@@ -808,36 +807,11 @@ Every window this specification can raise, in one place. **ID → where it is us
 >
 > The chart is moved to `old/{date}/` and no measurement is touched. **Duplicate the run** instead if you want a different verification chart while keeping this run's verification measurements intact.
 
-### M-VERIFY-NO-PROFILE · a verification with no profile to check — §S1.2
-
-*Approved by Knut, 2026-08-04. Raised when Run type = Verification and the selected run has no built profile; also what the greyed Start button's tooltip says. The numbers below are escaped so both halves of the list line up exactly as they do on screen — Knut, beta.132: "the numbered list from 4 to 7 does not have the same indent as points 1 to 3".*
-
-> **This run has no profile to verify yet**
->
-> A verification checks a finished profile — but this profile run doesn't have a built profile yet.
->
-> To build the profile first:
-> &nbsp;&nbsp;1\. Set "Run type" to "Profiling".
-> &nbsp;&nbsp;2\. Create, print and measure the profiling chart as normal — its measurement is stored in the run folder.
-> &nbsp;&nbsp;3\. Build the profile on the Build Profile tab (this makes the profile's .icc / .icm file).
->
-> Once the profile exists, you can verify it:
-> &nbsp;&nbsp;4\. Set "Run type" back to "Verification".
-> &nbsp;&nbsp;5\. Create a verification chart in the Create Chart tab.
-> &nbsp;&nbsp;6\. Print that chart THROUGH the finished profile (with colour management on).
-> &nbsp;&nbsp;7\. Measure it here with "Run type" = "Verification" — the result is kept in a dated folder under this run's "verifications" folder.
-
-### M-VERIFY-NO-CHART · a verification with no chart to measure — §S1.3
-
-*Approved by Knut, 2026-08-04. Since beta.128 Start Measurement needs a `.ti2`, so a run without its verification chart meets this as the greyed button's tooltip; the window remains for the case where a chart exists but the profile does not.*
-
-> **No verification chart for this run yet**
->
-> This run has a finished profile, but you haven't created its verification chart.
->
-> &nbsp;&nbsp;1\. Go to the Create Chart tab and, with "Run type" = "Verification", create the verification chart (a smaller chart is fine).
-> &nbsp;&nbsp;2\. Print it through this run's profile (with colour management on).
-> &nbsp;&nbsp;3\. Come back here with "Run type" = "Verification" and measure it — the result is stored in a dated folder under this run's "verifications" folder.
+*The definitions of **M-VERIFY-NO-PROFILE** (§S1.2) and **M-VERIFY-NO-CHART**
+(§S1.3) have moved to §M-PROPOSED: the wording Knut approved on 2026-08-04
+carried one step instructing "(with colour management on)", which the app
+prevents on every print path, and the revision that corrects that step awaits
+review there. Once approved, they return here.*
 
 ### M-BUILD-ELSEWHERE · the measurement belongs to another run — §6
 
@@ -904,11 +878,109 @@ all cases."
 
 ## M-PROPOSED. Messages awaiting review
 
-***Empty.** This section is where a new one goes: add it to
+*This section is where a new or revised message goes: add it to
 `workflow/measurement_messages.py` with `approved=False`, write it here, and
 list it on the issue. `tests/test_message_catalogue.py` holds the two in step —
 it fails if a proposed message is missing from this section, and equally if an
 approved one is left sitting in it.*
+
+*The two below are **revisions**, not new messages. Both were approved by Knut
+on 2026-08-04, but one step in each instructed "(with colour management on)" —
+a setting ChromIQ deliberately locks off on every print path
+(`postscript_generator.py`, `cups_printer.py`, `workflow/native_print_macos.py`;
+established in `verification_printing_and_target.md` §1). Feature A gives the
+instruction a real control to name: the Print Chart tab's **Colour** row. Only
+that one step changed in each; every other sentence is the approved text.*
+
+### M-VERIFY-NO-PROFILE · PROPOSED revision · a verification with no profile to check — §S1.2
+
+*Revision of the message approved 2026-08-04: step 6 now names the Print Chart
+tab's "Colour" row instead of instructing colour management on. Raised when Run
+type = Verification and the selected run has no built profile; also what the
+greyed Start button's tooltip says. The numbers below are escaped so both
+halves of the list line up exactly as they do on screen — Knut, beta.132: "the
+numbered list from 4 to 7 does not have the same indent as points 1 to 3".*
+
+> **This run has no profile to verify yet**
+>
+> A verification checks a finished profile — but this profile run doesn't have a built profile yet.
+>
+> To build the profile first:
+> &nbsp;&nbsp;1\. Set "Run type" to "Profiling".
+> &nbsp;&nbsp;2\. Create, print and measure the profiling chart as normal — its measurement is stored in the run folder.
+> &nbsp;&nbsp;3\. Build the profile on the Build Profile tab (this makes the profile's .icc / .icm file).
+>
+> Once the profile exists, you can verify it:
+> &nbsp;&nbsp;4\. Set "Run type" back to "Verification".
+> &nbsp;&nbsp;5\. Create a verification chart in the Create Chart tab.
+> &nbsp;&nbsp;6\. Print that chart from the Print Chart tab with "Colour" set to "Through the profile" — ChromIQ applies the profile for you and keeps the printer's own colour management off.
+> &nbsp;&nbsp;7\. Measure it here with "Run type" = "Verification" — the result is kept in a dated folder under this run's "verifications" folder.
+
+### M-VERIFY-NO-CHART · PROPOSED revision · a verification with no chart to measure — §S1.3
+
+*Revision of the message approved 2026-08-04: step 2 now names the Print Chart
+tab's "Colour" row instead of instructing colour management on. Since beta.128
+Start Measurement needs a `.ti2`, so a run without its verification chart meets
+this as the greyed button's tooltip; the window remains for the case where a
+chart exists but the profile does not.*
+
+> **No verification chart for this run yet**
+>
+> This run has a finished profile, but you haven't created its verification chart.
+>
+> &nbsp;&nbsp;1\. Go to the Create Chart tab and, with "Run type" = "Verification", create the verification chart (a smaller chart is fine).
+> &nbsp;&nbsp;2\. Print it from the Print Chart tab with "Colour" set to "Through the profile" — ChromIQ applies the profile for you and keeps the printer's own colour management off.
+> &nbsp;&nbsp;3\. Come back here with "Run type" = "Verification" and measure it — the result is stored in a dated folder under this run's "verifications" folder.
+
+### M-CM-NO-CCTIFF · PROPOSED · the profile-applying tool is missing — feature A, §3.2 A10
+
+*New with feature A (`verification_printing_and_target.md` §6 S9). Shown when
+"Through the profile" is chosen but `cctiff` is not in the configured
+ArgyllCMS folder. Nothing is printed.*
+
+> **ChromIQ cannot find the tool that applies your profile**
+>
+> To print this chart through your profile, ChromIQ uses a program called cctiff, which comes with ArgyllCMS. It is not in the ArgyllCMS folder ChromIQ is set to use.
+>
+> You can still print this sheet raw — choose "Raw — no profile" above — but measuring it will tell you about your printer rather than about your profile.
+>
+> To fix it: open Preferences and check that the ArgyllCMS folder is the one you installed, then come back to this tab.
+
+### M-CM-CONVERT-FAILED · PROPOSED · a page could not be converted — feature A, §3.2 A11/A12
+
+*New with feature A (`verification_printing_and_target.md` §6 S10). Shown when
+a page's conversion fails or times out; the whole job stops and nothing is
+printed. `{reason}` carries cctiff's parsed error, so an unreadable or non-RGB
+profile (A12) names itself.*
+
+> **This sheet could not be prepared**
+>
+> ChromIQ was working out the ink amounts your profile predicts for page {n} of {total}, and that did not finish. Nothing has been printed and nothing has been changed.
+>
+> The most common reason is that the profile file is damaged or is not a printer profile. Rebuilding the profile on the Build Profile tab usually fixes it.
+>
+> Details: {reason}
+
+### M-CM-PROFCHECK-CONVERTED · PROPOSED · Check & Refine on a print-time-converted sheet — feature A, §2b
+
+*New with feature A (`verification_printing_and_target.md` §2b, test T13).
+`profcheck` pushes the chart's device values through the profile, so those
+values must be what was printed. A sheet converted at print time still has the
+unconverted values in its chart file — the check would produce confident,
+meaningless figures, and nothing downstream could tell. Shown before the check
+runs; Cancel is the default button.*
+
+> **This measurement came from a sheet printed through the profile**
+>
+> This check pushes the chart's own numbers through the profile and compares the answer with what you measured. That only means something when the chart's numbers are what was actually sent to the printer.
+>
+> This sheet was printed with "Colour" = "Through the profile", so ChromIQ converted the numbers before printing — the chart file still holds the unconverted ones. The check would run without complaint and produce confident figures, but they would not describe your profile or your printer.
+>
+> To judge this measurement, use the Measurement Report instead — it compares against the right reference. To use this check, print the verification chart raw and measure that sheet.
+>
+> **What each button does:**
+> • **Run the check anyway** — runs the check on these files unchanged.
+> • **Cancel** — changes nothing.
 
 ---
 

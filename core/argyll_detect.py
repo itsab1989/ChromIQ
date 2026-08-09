@@ -45,6 +45,31 @@ def resolve_ref_dir(bin_dir: Path | str) -> Path | None:
     return None
 
 
+def find_ref_profile(bin_dir: "Path | str", names: "tuple[str, ...]") -> str:
+    """The first profile among *names* that exists, as an absolute path string.
+
+    Searched in ArgyllCMS's ``ref/`` folder (through :func:`resolve_ref_dir`,
+    so Homebrew's symlinked layout resolves too), then among ChromIQ's bundled
+    copies in ``assets/profiles/``. Empty string when none is found.
+
+    Lifted out of ``TabProfile._default_gamut_src`` so the profile-build tab
+    and the verification print conversion answer "which source profile?" the
+    same way instead of each keeping its own search.
+    """
+    from core.resource_path import resource_path
+    ref_dir = resolve_ref_dir(Path(bin_dir)) if str(bin_dir) else None
+    if ref_dir is not None:
+        for name in names:
+            candidate = ref_dir / name
+            if candidate.exists():
+                return str(candidate)
+    for name in names:
+        bundled = resource_path(f"assets/profiles/{name}")
+        if Path(bundled).exists():
+            return str(bundled)
+    return ""
+
+
 def find_argyll_bin_path() -> Path | None:
     """Return the first directory that contains all required ArgyllCMS tools, or None."""
 

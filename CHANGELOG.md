@@ -1,5 +1,47 @@
 # Changelog
 
+## v3.14.8-beta.208
+
+### New
+
+- **A verification chart can now be printed THROUGH its profile** (#130,
+  feature A). The Print Chart tab gains a "How this chart is printed" section
+  for verification runs: **Colour** chooses between "Through the profile" —
+  ChromIQ works out the ink amounts the profile predicts for every patch,
+  prints exactly those, and keeps the printer's colour management off — and
+  "Raw — no profile", which remains the printer drift check it always was. A
+  **Rendering intent** control (relative colorimetric by default) and a
+  **Route** row ("Print here" / "In another application", which hands over the
+  finished sheets instead of printing) complete the section. Converted sheets
+  land in the chart's `cache/` folder, always safe to delete.
+- **The report now says how each verification sheet was produced.** Every
+  print writes a record beside the chart — through the profile or raw, which
+  intent, which profile file, who printed it — and the measurement report
+  shows a "How this verification was produced" block naming the question the
+  figures answer. A profile rebuilt after printing is flagged, and a report
+  mixing differently-printed verifications warns that the trend changes
+  meaning where the method changed.
+- **Existing projects keep their meaning.** A run that already has
+  verification history keeps printing raw by default, so its trend stays
+  comparable; new work defaults to printing through the profile. The choice is
+  stored per target, like Create Chart's settings.
+- **A chart whose colours were already converted when it was made** (the
+  planned From-profile-gamut charts of #133) forces Raw and disables the other
+  option — applying the profile twice would be undetectable afterwards.
+- **Check & Refine now warns before checking a measurement whose sheet was
+  converted at print time** — the check would produce confident figures that
+  describe neither the profile nor the printer.
+
+### Fixed
+
+- Two approved guidance texts instructed printing "with colour management on",
+  which ChromIQ deliberately prevents on every print path. They now name the
+  real control (revisions await review in §M-PROPOSED).
+- The Print Chart tab's info boxes and options now share one scrolling area,
+  so a tall section no longer squeezes Print Options to a sliver; in
+  macOS-dialog mode the warning is no longer pushed out of view behind the
+  overlay scrollbar.
+
 ## v3.14.8-beta.207
 
 ### Fixed

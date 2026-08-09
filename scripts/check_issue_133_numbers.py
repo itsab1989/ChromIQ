@@ -77,16 +77,16 @@ CITATIONS: list[tuple[str, int, str]] = [
     ("workflow/measurement_report.py", 71, "CUBE_CORNERS"),
     ("workflow/measurement_report.py", 191, "def _reference_labs"),
     ("workflow/measurement_report.py", 442, "is_verification"),
-    ("workflow/measurement_report.py", 513, "CORNER_PRESENT_TOL"),
+    ("workflow/measurement_report.py", 533, "CORNER_PRESENT_TOL"),
     ("workflow/ti3_analysis.py", 55, "VERIFICATION_KEYWORD"),
     ("workflow/measurement_messages.py", 228, "M_CHART_W4"),
     ("workflow/measurement_messages.py", 260, "M_CHART_VERIFY"),
-    ("workflow/measurement_messages.py", 368, "M_VERIFY_NO_PROFILE"),
-    ("workflow/measurement_messages.py", 388, "M_VERIFY_NO_CHART"),
+    ("workflow/measurement_messages.py", 370, "M_VERIFY_NO_PROFILE"),
+    ("workflow/measurement_messages.py", 391, "M_VERIFY_NO_CHART"),
     ("core/file_manager.py", 88, "VERIFICATIONS_DIRNAME"),
-    ("core/file_manager.py", 900, "verifications_dir"),
-    ("core/file_manager.py", 1269, "Where are my files"),
-    ("core/file_manager.py", 1475, "Where are my files"),
+    ("core/file_manager.py", 906, "verifications_dir"),
+    ("core/file_manager.py", 1275, "Where are my files"),
+    ("core/file_manager.py", 1481, "Where are my files"),
     ("workflow/standard_targets.py", 178, "_USER_TARGETS_README"),
     ("ui/styles.py", 348, "QLabel#info"),
     ("ui/main_window.py", 934, "_apply_profile_tab_gate"),
@@ -100,11 +100,13 @@ CITATIONS: list[tuple[str, int, str]] = [
     ("ui/tabs/tab_chart.py", 8083, "_update_patch_count"),
     ("ui/tabs/tab_chart.py", 10178, "_is_verification_target"),
     ("ui/tabs/tab_chart.py", 10929, "write_sidecars"),
-    ("ui/tabs/tab_profile.py", 3990, "Load measurement"),
-    ("ui/tabs/tab_print.py", 132, "go out of"),
+    ("ui/tabs/tab_profile.py", 3983, "Load measurement"),
+    ("ui/tabs/tab_print.py", 133, "go out of"),
     ("ui/dialogs/layout_options_panel.py", 1044, "Also export a PDF"),
-    ("docs/design/unified_measurement_management.md", 827, "colour management on"),
-    ("docs/design/unified_measurement_management.md", 839, "colour management on"),
+    # Feature A revised the §M print steps (2026-08-09): the guards now name
+    # the Print Chart tab's "Colour" row; the revisions sit in §M-PROPOSED.
+    ("docs/design/unified_measurement_management.md", 916, "Colour"),
+    ("docs/design/unified_measurement_management.md", 932, "Colour"),
 ]
 
 
@@ -245,11 +247,16 @@ def check_quotations(body: "str | None") -> None:
     print("\n--- 3. quotations of shipped text ---")
     from workflow import measurement_messages as M
 
+    # The two verification guards carried "(with colour management on)" until
+    # feature A revised the print step (2026-08-09, §M-PROPOSED) — the checked
+    # fragments follow the shipped text, as this section always has.
     for name, msg, must in (
         ("M-VERIFY-NO-PROFILE step 6", M.M_VERIFY_NO_PROFILE,
-         "Print that chart THROUGH the finished profile (with colour management on)"),
+         "Print that chart from the Print Chart tab with “Colour” set to "
+         "“Through the profile”"),
         ("M-VERIFY-NO-CHART step 2", M.M_VERIFY_NO_CHART,
-         "Print it through this run's profile (with colour management on)"),
+         "Print it from the Print Chart tab with “Colour” set to "
+         "“Through the profile”"),
         ("M-CHART-VERIFY names Duplicate", M.M_CHART_VERIFY,
          "Duplicate the run instead"),
     ):

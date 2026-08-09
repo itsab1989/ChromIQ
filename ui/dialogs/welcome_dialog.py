@@ -852,6 +852,13 @@ GLOSSARY += [
      tr("Printing and measuring a small chart THROUGH the finished profile "
         "to see how close the result lands (in ΔE). The honest way to judge "
         "a profile — better than trusting the build report.")),
+    (tr("Raw verification print (drift check)"),
+     tr("Printing a verification chart WITHOUT the profile — the chart's own "
+        "numbers go straight to the paper. Measuring it answers a different "
+        "question: has the printer changed since last time? It cannot judge "
+        "the profile, because no profile took part. The Print Chart tab's "
+        "“Colour” row chooses between the two, and the report records which "
+        "way each sheet was printed.")),
 ]
 
 

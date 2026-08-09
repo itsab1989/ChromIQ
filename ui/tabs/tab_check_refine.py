@@ -1255,6 +1255,8 @@ class TabCheckRefine(QWidget):
             return
         if self._runner.is_running:
             return
+        if not self._warn_converted_measurement():
+            return
 
         params = self._collect_params()
         self._log.clear()
@@ -1266,6 +1268,40 @@ class TabCheckRefine(QWidget):
             on_line=self._on_log_line,
             on_finish=self._on_done,
         )
+
+    def _warn_converted_measurement(self) -> bool:
+        """The §2b trap of verification_printing_and_target.md (test T13).
+
+        profcheck pushes the chart's device values forward through the
+        profile, so those values must be what was actually printed. A sheet
+        printed with "Colour" = "Through this run's profile" was converted at
+        print time — its chart file still holds the unconverted values, so
+        the check would produce confident, meaningless figures and nothing
+        downstream could tell. Warn, and let Cancel be the default. Returns
+        True when the check may proceed.
+        """
+        try:
+            from workflow.verification_print import (COLOUR_THROUGH,
+                                                     read_print_record)
+            rec = read_print_record(self._ti3_path) if self._ti3_path else None
+        except Exception:      # noqa: BLE001 — the guard must never block a check
+            log.warning("Could not read the print record", exc_info=True)
+            return True
+        if not rec or rec.get("colour") != COLOUR_THROUGH:
+            return True
+        from PyQt6.QtWidgets import QMessageBox
+        from workflow import measurement_messages as M
+        title, body = M.M_CM_PROFCHECK_CONVERTED.render()
+        dlg = QMessageBox(self)
+        dlg.setIcon(QMessageBox.Icon.Warning)
+        dlg.setWindowTitle(title)
+        dlg.setText(body)
+        anyway = dlg.addButton(tr("Run the check anyway"),
+                               QMessageBox.ButtonRole.DestructiveRole)
+        cancel = dlg.addButton(QMessageBox.StandardButton.Cancel)
+        dlg.setDefaultButton(cancel)
+        dlg.exec()
+        return dlg.clickedButton() is anyway
 
     def _on_log_line(self, line: str) -> None:
         self._log.appendPlainText(line)

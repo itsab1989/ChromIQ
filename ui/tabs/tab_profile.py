@@ -3934,18 +3934,11 @@ class TabProfile(QWidget):
     def _default_gamut_src(self) -> str:
         """Prefer Argyll's ref/ClayRGB1998.icm (Argyll's AdobeRGB 1998 equivalent,
         renamed for trademark reasons); fall back to ref/sRGB.icm, then ChromIQ's
-        bundled copies."""
+        bundled copies. Delegates to the shared resolver so the verification
+        print conversion finds profiles the same way (#130 A0.3)."""
+        from core.argyll_detect import find_ref_profile
         bin_path = self._settings.get("argyll_bin_path", "/Applications/Argyll/bin")
-        ref_dir  = Path(bin_path).parent / "ref"
-        for name in ("ClayRGB1998.icm", "sRGB.icm"):
-            candidate = ref_dir / name
-            if candidate.exists():
-                return str(candidate)
-        for bundled_name in ("ClayRGB1998.icm", "sRGB.icm"):
-            bundled = resource_path(f"assets/profiles/{bundled_name}")
-            if Path(bundled).exists():
-                return str(bundled)
-        return ""
+        return find_ref_profile(bin_path, ("ClayRGB1998.icm", "sRGB.icm"))
 
     def _validate_gamut_source(self, params: "ProfileParams") -> bool:
         """Block the build if Perceptual / Perc+Sat is selected but the source profile is missing.

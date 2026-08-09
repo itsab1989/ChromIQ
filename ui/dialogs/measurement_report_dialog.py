@@ -1256,6 +1256,30 @@ class MeasurementReportDialog(QDialog):
                         "These runs use a different instrument from the majority "
                         "({dom}):").format(dom=w["dominant"]))
                     + "</div><ul>" + lis + "</ul>")
+            elif w["kind"] == "printing":
+                # #130 feature A (Q3): the trend changes meaning where the
+                # printing method changed — the report marks the point.
+                method_labels = {
+                    "through-profile": tr("printed through the profile"),
+                    "raw": tr("printed raw — no profile"),
+                    "unrecorded": tr("method not recorded (made before "
+                                     "ChromIQ recorded it, or printed "
+                                     "outside ChromIQ)"),
+                }
+                lis = "".join(
+                    "<li>" + html.escape(o["run"]) + " — "
+                    + html.escape(method_labels.get(o["method"], o["method"]))
+                    + "</li>" for o in w["runs"])
+                blocks.append(
+                    "<div><b>" + html.escape(tr(
+                        "Warning — these verifications were not all printed "
+                        "the same way.")) + "</b> "
+                    + html.escape(tr(
+                        "A sheet printed through the profile measures the "
+                        "profile; a sheet printed raw measures the printer. "
+                        "The trend changes meaning at the point where the "
+                        "method changed:"))
+                    + "</div><ul>" + lis + "</ul>")
             elif w["kind"] == "corners":
                 lis = "".join(
                     "<li>" + html.escape(o["run"]) + " — "
@@ -1306,10 +1330,14 @@ class MeasurementReportDialog(QDialog):
                 "it is the CHANGE between dated reports that matters, not a single "
                 "value.")) + "</li>"
             "<li>" + html.escape(tr(
-                "A verification chart is printed THROUGH your finished profile "
-                "(colour management on). It SHOULD match the design closely, so low "
-                "ΔE and passes mean the profile is still accurate; rising numbers "
-                "over time tell you when it's worth re-profiling.")) + "</li>"
+                "A verification chart is printed THROUGH your finished profile — "
+                "ChromIQ converts the sheet itself and prints it with the "
+                "printer's colour management off. It SHOULD match the design "
+                "closely, so low ΔE and passes mean the profile is still "
+                "accurate; rising numbers over time tell you when it's worth "
+                "re-profiling. (Printed raw instead, the same sheet is a printer "
+                "drift check — the report says which way each sheet was "
+                "printed.)")) + "</li>"
             "</ul>"
             "<p>" + html.escape(tr(
                 "Because the design reference never changes, comparing dated "
@@ -1523,12 +1551,108 @@ class MeasurementReportDialog(QDialog):
                 + html.escape(tr("Could not read this measurement: {msg}")
                               .format(msg=msg)) + "</div>")
 
+    def _printing_block_html(self, r: dict) -> str:
+        """"How this verification was produced" (#130 feature A, §3.3).
+
+        One account of the measurement's conditions: through the profile or
+        raw (and so which QUESTION the figures answer — §3.1b), the rendering
+        intent, who printed the sheet, which profile file (A17: flagged when
+        the profile has been rebuilt since), the patch-identity verdict (A20)
+        and the ΔE reference. Empty for profiling runs with no print record —
+        their conditions have not changed."""
+        printing = r.get("printing") or {}
+        if not printing and not r.get("is_verification"):
+            return ""
+        colour = printing.get("colour")
+        intent_labels = {
+            "relative": tr("relative colorimetric"),
+            "absolute": tr("absolute colorimetric"),
+            "perceptual": tr("perceptual"),
+            "saturation": tr("saturation"),
+        }
+        rows: "list[tuple[str, str, bool]]" = []   # (label, value, is_warning)
+        if colour == "through-profile":
+            intent = intent_labels.get(printing.get("intent") or "relative",
+                                       printing.get("intent") or "")
+            rows.append((tr("What this measured"), tr(
+                "how accurate this profile is — the sheet was the profile's "
+                "own prediction, made real"), False))
+            rows.append((tr("Printed"),
+                         tr("through this run's profile") + " · " + intent,
+                         False))
+        elif colour == "raw":
+            rows.append((tr("What this measured"), tr(
+                "whether this printer has changed — no profile took part, so "
+                "this is a drift check, not a profile check"), False))
+            rows.append((tr("Printed"), tr("raw — no profile applied"), False))
+        else:
+            rows.append((tr("Printed"), tr(
+                "not recorded — this sheet was printed before ChromIQ "
+                "recorded the method, or outside ChromIQ. Sheets ChromIQ "
+                "printed before it kept this record always went out raw."),
+                False))
+        route = printing.get("route")
+        if route == "chromiq":
+            rows.append((tr("Colour management at the printer"), tr(
+                "off — ChromIQ printed the sheet itself"), False))
+        elif route == "external":
+            rows.append((tr("Colour management at the printer"), tr(
+                "printed in another application, which was asked not to "
+                "convert the colours"), False))
+        if printing.get("profile"):
+            when = str(printing.get("printed_at") or "")[:10]
+            rows.append((tr("Profile"), printing["profile"]
+                         + (f" · {when}" if when else ""), False))
+            if printing.get("profile_changed_since_print"):
+                rows.append((tr("Take care"), tr(
+                    "the profile has been rebuilt since this sheet was "
+                    "printed, so these figures describe an older profile "
+                    "than the one now in the run"), True))
+            elif printing.get("profile_missing_now"):
+                rows.append((tr("Take care"), tr(
+                    "the profile this sheet was printed through is no longer "
+                    "on disk"), True))
+        pi = r.get("patch_identity") or {}
+        verdict = pi.get("verdict")
+        if verdict == "verified":
+            rows.append((tr("Readings belong to this chart"), tr(
+                "verified — every patch holds the colour the chart asked "
+                "for"), False))
+        elif verdict == "mismatch":
+            rows.append((tr("Readings belong to this chart"), tr(
+                "no — see the warning below the colour-accuracy table"), True))
+        else:
+            rows.append((tr("Readings belong to this chart"),
+                         tr("could not be checked"), False))
+        ref = r.get("reference_source")
+        if ref == "device":
+            rows.append((tr("Reference for the ΔE figures"), tr(
+                "the sRGB estimate of the chart's device values"), False))
+        elif ref:
+            rows.append((tr("Reference for the ΔE figures"), tr(
+                "the chart's design colours"), False))
+        trs = []
+        for label, value, warn in rows:
+            colour_css = _C["fail"] if warn else _C["text"]
+            trs.append(
+                f"<tr><td style='padding-right:14px;color:{_C['faint']};"
+                "vertical-align:top' width='230'>" + html.escape(label)
+                + f"</td><td style='color:{colour_css}'>"
+                + html.escape(value) + "</td></tr>")
+        return (_h3(tr("How this verification was produced"))
+                + "<table cellpadding='4' cellspacing='0' "
+                "style='border-collapse:collapse;font-size:11px'>"
+                + "".join(trs) + "</table>")
+
     def _run_detail_html(self, r: dict) -> str:
         """One run's full breakdown: the colour-accuracy Pass/Fail table
         (Metric / Measured ΔE00 / Threshold / Result), paper white & black, the
         cube corners, and the 16 worst patches (Knut)."""
         de = r.get("de00") or {}
         parts = []
+        produced = self._printing_block_html(r)
+        if produced:
+            parts.append(produced)
         if de.get("avg_all") is not None:
             from workflow.measurement_report import accuracy_verdict
             avg_thr, max_thr = self._thresholds()

@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QMessageBox,
     QPushButton,
+    QRadioButton,
     QScrollArea,
     QSplitter,
     QStyle,
@@ -194,6 +195,160 @@ _TT_BODY_PRINT_WINDOWS = (
 )
 
 
+# ---------------------------------------------------------------------------
+# Feature A (#130) — the §6 help and state texts of
+# docs/design/verification_printing_and_target.md. The mockup generator
+# (scripts/mockup_cm_verification_print.py) renders THESE constants, so the
+# document's pictures and the app cannot drift apart.
+# ---------------------------------------------------------------------------
+
+_CM_COLOUR_HELP_TITLE = "Printing this chart through your profile"
+_CM_COLOUR_HELP_BODY = (
+    "This decides how the colours on this sheet are worked out before it is "
+    "printed — and it is the setting that makes a verification mean "
+    "something.\n\n"
+    "What a verification is for. When you built your profile, you taught "
+    "ChromIQ how your printer and this paper behave together. A verification "
+    "asks the follow-up question: does the printer still do what the profile "
+    "says it does? Ink settles, paper batches differ, printheads age — so it "
+    "is worth checking, and worth checking the same way every time.\n\n"
+    "Through the profile (recommended). ChromIQ looks up, for every "
+    "single patch on the sheet, the exact amount of each ink your profile "
+    "predicts will produce that colour. Those amounts are what gets printed. "
+    "So the sheet coming out of your printer is your profile's own prediction, "
+    "made real — and when you measure it, the difference between what was "
+    "promised and what landed on the paper is exactly the number you are "
+    "looking for. Pick this one unless you have a particular reason not to.\n\n"
+    "Raw — no profile. The chart's own numbers go to the printer "
+    "untouched, with no profile involved anywhere. This is the right way to "
+    "print a chart you are going to build a profile from, because it shows "
+    "the printer's raw behaviour. It is the wrong way to check a profile, "
+    "because no profile took part — the measurement would describe your "
+    "printer, not the profile you wanted to test.\n\n"
+    "You do not have to change anything in the print dialog. Whichever you "
+    "choose, ChromIQ does all of the colour work itself and hands the printer "
+    "a finished sheet, with the printer's own colour adjustment switched off. "
+    "That is deliberate: if the printer driver also tried to adjust the "
+    "colours, they would be converted twice, the sheet would be wrong, and "
+    "nothing afterwards could tell that it had happened.\n\n"
+    "Your choice is written onto the report next to the results, because two "
+    "sheets printed different ways cannot be compared with each other — and "
+    "six months from now, nobody remembers which way a sheet was printed.\n\n"
+    "Default: through the profile."
+)
+
+_CM_INTENT_HELP_TITLE = "Which rendering intent to print with"
+_CM_INTENT_HELP_BODY = (
+    "Your printer cannot make every colour that exists — no printer can. "
+    "Rendering intent is the rule for what happens to the colours it cannot "
+    "reach.\n\n"
+    "Relative colorimetric (recommended). Every colour your printer can "
+    "actually make is reproduced exactly, and the few it cannot reach are "
+    "moved to the closest colour it can manage. Paper white is treated as "
+    "white. This is the usual choice for checking a profile, because it asks "
+    "“did you hit the colours you could hit?” without punishing the "
+    "printer for the ones nobody could print.\n\n"
+    "Absolute colorimetric. The same, except that the paper’s own shade "
+    "counts too. If your paper is slightly warm or slightly blue, that shows "
+    "up as an error on every patch, so the numbers come out higher. Choose "
+    "this when you have to match figures somebody else produced this way, or "
+    "when the exact paper white matters to you.\n\n"
+    "Perceptual and Saturation are meant for photographs and graphics rather "
+    "than for measurement. They deliberately shift colours to look pleasing, "
+    "which is the opposite of what a measurement wants, so they are here for "
+    "completeness rather than for everyday use.\n\n"
+    "Whichever you pick is written on the report, because a colour difference "
+    "means nothing unless you know how it was produced.\n\n"
+    "Default: relative colorimetric."
+)
+
+_CM_ROUTE_HELP_TITLE = "Printing this chart somewhere other than ChromIQ"
+_CM_ROUTE_HELP_BODY = (
+    "Pick this when you would rather drive the printer from an application "
+    "you trust. ChromIQ then shows you where the sheets are and exactly what "
+    "that application must be set to, and prints nothing itself.\n\n"
+    "There is one rule, and everything depends on it: nothing between here "
+    "and the paper may change the colours. The sheets ChromIQ hands over are "
+    "already finished — if another application converts them again, it prints "
+    "different colours, your measurement describes those different colours, "
+    "and nothing afterwards can tell that it happened.\n\n"
+    "So in the other application: no output profile, no “let the printer "
+    "manage colours”, no proofing or simulation, no scaling or fitting "
+    "to page, and no auto-tone or vivid mode.\n\n"
+    "Your answer is written on the report, so a surprising result has "
+    "somewhere obvious to start.\n\n"
+    "Default: print here."
+)
+
+#: S6 — the on-panel notice while "Through the profile" is selected.
+_CM_NOTICE_THROUGH = (
+    "ChromIQ will work out the ink amounts your profile predicts for every "
+    "patch and print exactly those, so the sheet is your profile’s own "
+    "prediction made real. The printer’s own colour adjustment stays "
+    "switched off, so nothing between here and the paper changes the "
+    "colours.<br><br>"
+    "You do not need to change any colour setting in the print dialog. The "
+    "finished sheets are kept in the <b>cache</b> folder beside the chart, "
+    "which is always safe to delete."
+)
+
+#: S7 — the on-panel notice when the run has no built profile (§3.1 A4).
+_CM_NOTICE_NO_PROFILE = (
+    "<b>There is no finished profile in this run yet</b>, so there is "
+    "nothing for ChromIQ to print through. You can still print this sheet "
+    "raw and measure it — but the result would describe your printer, not a "
+    "profile, so it cannot tell you how accurate a profile is.<br><br>"
+    "To get there: set <b>Run type</b> to <b>Profiling</b>, then create, "
+    "print and measure the profiling chart as usual, and build the profile "
+    "on the <b>Build Profile</b> tab. Come back here afterwards and this "
+    "option will be waiting for you."
+)
+
+#: §3.1a — the notice for a chart that was converted when it was made.
+_CM_NOTICE_ALREADY_CONVERTED = (
+    "<b>This chart already has your profile applied, so it prints exactly "
+    "as it is.</b><br><br>"
+    "When you created it, ChromIQ asked your profile which ink amounts would "
+    "produce each of the colours being tested, and stored the answer in the "
+    "chart itself. The sheet is your profile’s prediction already — "
+    "there is nothing left to convert.<br><br>"
+    "That is why “Through the profile” is switched off "
+    "here. Applying the profile a second time would print different colours "
+    "from the ones being tested, your measurement would faithfully describe "
+    "those different colours, and nothing afterwards could tell that it had "
+    "happened.<br><br>"
+    "You do not need to change anything. Print as usual — and if you print "
+    "from another application, simply make sure it does not convert the "
+    "colours either."
+)
+
+#: A3c — the chart claims stored colorimetric targets but the file is gone.
+_CM_NOTICE_REFERENCE_MISSING = (
+    "<b>This chart's records say its colours were already converted, but the "
+    "stored reference file beside it is missing.</b> ChromIQ plays it safe "
+    "and prints the chart exactly as it is — converting it again could not "
+    "be undone and could not be detected afterwards. The measurement report "
+    "may not be able to use the stored targets until the reference file is "
+    "back."
+)
+
+#: §3.1b — raw chosen on a regular chart: a different question, not an error.
+_CM_NOTICE_RAW_CHOSEN = (
+    "<b>Printing raw measures your printer, not your profile.</b><br><br>"
+    "The sheet goes to the printer exactly as it is, with no profile "
+    "involved. That is useful for one particular question: <i>is my printer "
+    "still behaving the way it did last time?</i> Print the same chart the "
+    "same way each month and compare the results, and you will see it drift "
+    "before it becomes visible in your work.<br><br>"
+    "What it cannot tell you is how accurate your profile is, because no "
+    "profile took part. For that, choose <b>Through the profile</b> above "
+    "— then the sheet is your profile’s own prediction, and measuring it "
+    "shows how close the prediction came.<br><br>"
+    "Whichever you choose is written on the report, so you can always tell "
+    "later which of the two questions a set of figures answered."
+)
+
+
 class TabPrint(QWidget):
 
     ti2_loaded         = pyqtSignal(Path)  # emitted when the user loads a .ti2 file
@@ -340,6 +495,16 @@ class TabPrint(QWidget):
         scl.setContentsMargins(0, 0, 0, 0)
         scl.setSpacing(10)
 
+        # "How this chart is printed" — feature A (#130): the reconciled
+        # three-row section of verification_printing_and_target.md §4. Colour
+        # and Rendering intent appear only for a verification; Route is shown
+        # for every chart. Stays visible in native-dialog mode too — the
+        # conversion happens before either print path. INSIDE the scroll area
+        # (Basti, 2026-08-09): pinned above it, this section squeezed Print
+        # Options down to a sliver — when space runs out, the info boxes and
+        # every option scroll together instead of one section alone.
+        self._build_cm_section(scroll_content, scl)
+
         # Print options — dynamically built from CUPS lpoptions output
         self._opts_grp = QGroupBox(tr("Print Options"), scroll_content)
         self._opts_layout = QVBoxLayout(self._opts_grp)
@@ -351,15 +516,16 @@ class TabPrint(QWidget):
 
         self._printer_combo.currentIndexChanged.connect(self._on_printer_changed)
 
+        # Warning label — inside the scroll area too (same request): it is an
+        # info box, and it is tall.
+        self._warn_lbl = QLabel("", scroll_content)
+        self._warn_lbl.setObjectName("warning")
+        self._warn_lbl.setWordWrap(True)
+        scl.addWidget(self._warn_lbl)
+
         scl.addStretch()
         scroll.setWidget(scroll_content)
         ll.addWidget(scroll, stretch=1)
-
-        # Warning label — placed between scroll area and "Feed the beast" block
-        self._warn_lbl = QLabel("", left)
-        self._warn_lbl.setObjectName("warning")
-        self._warn_lbl.setWordWrap(True)
-        ll.addWidget(self._warn_lbl)
 
         # Spacer below warn label; shown only in native mode to vertically centre the label
         self._native_warn_spacer = QWidget(left)
@@ -502,6 +668,7 @@ class TabPrint(QWidget):
             self._preview.set_notice(None)     # a real chart — drop guidance
         self._preview.load_tiff(paths)
         self._set_print_buttons_enabled(bool(paths))
+        self._update_colour_row_visible()
 
     def has_pages(self) -> bool:
         """Whether this tab currently holds printable page images.
@@ -521,6 +688,404 @@ class TabPrint(QWidget):
         """Receive the shared Profile-run / Run-type controller (#130) so loading
         a chart here honours the bar exactly like the Measure tab."""
         self._target_ctl = controller
+        if controller is not None:
+            # A run-type or run change moves the Colour/Intent rows in or out
+            # (§3.1 table) — recompute rather than wait for the next tab visit.
+            controller.changed.connect(self._update_colour_row_visible)
+
+    # ------------------------------------------------------------------
+    # Feature A (#130) — printing a verification chart through its profile.
+    # Specification: docs/design/verification_printing_and_target.md §3–§5.
+    # ------------------------------------------------------------------
+
+    def _build_cm_section(self, left: QWidget, ll: QVBoxLayout) -> None:
+        """The three-row §4 section: Colour · Rendering intent · Route, plus
+        the state notice below them. Built hidden; `_update_colour_row_visible`
+        decides what shows for the selected target."""
+        from ui.tooltip_button import TooltipButton
+
+        self._cm_grp = QGroupBox(tr("How this chart is printed"), left)
+        gl = QVBoxLayout(self._cm_grp)
+        gl.setSpacing(8)
+
+        def row(label: str, control: QWidget, tip_title: str,
+                tip_body: str) -> QWidget:
+            r = QWidget(self._cm_grp)
+            lay = QHBoxLayout(r)
+            lay.setContentsMargins(0, 0, 0, 0)
+            lay.setSpacing(10)
+            text = QLabel(label, r)
+            text.setMinimumWidth(130)
+            lay.addWidget(text)
+            lay.addWidget(control, 1)
+            lay.addWidget(TooltipButton(tip_title, tip_body, r))
+            return r
+
+        # -- Colour: through the profile, or raw (verification only) --------
+        # Side by side (Basti, 2026-08-09), with labels short enough that the
+        # pair fits the 580 px panel in every language — the first version's
+        # longer labels clipped mid-letter.
+        choice = QWidget(self._cm_grp)
+        cl = QHBoxLayout(choice)
+        cl.setContentsMargins(0, 0, 0, 0)
+        cl.setSpacing(14)
+        self._cm_through_rb = QRadioButton(tr("Through the profile"), choice)
+        self._cm_raw_rb = QRadioButton(tr("Raw — no profile"), choice)
+        self._cm_through_rb.setChecked(True)
+        cl.addWidget(self._cm_through_rb)
+        cl.addWidget(self._cm_raw_rb)
+        cl.addStretch(1)
+        self._cm_colour_row = row(tr("Colour"), choice,
+                                  tr(_CM_COLOUR_HELP_TITLE),
+                                  tr(_CM_COLOUR_HELP_BODY))
+        gl.addWidget(self._cm_colour_row)
+
+        # -- Rendering intent (verification only, and only when converting) -
+        self._cm_intent_combo = NoScrollComboBox(self._cm_grp)
+        self._cm_intent_combo.setMinimumHeight(30)
+        for label, name in (
+                (tr("Relative colorimetric (recommended)"), "relative"),
+                (tr("Absolute colorimetric"), "absolute"),
+                (tr("Perceptual"), "perceptual"),
+                (tr("Saturation"), "saturation")):
+            self._cm_intent_combo.addItem(label, name)
+        self._cm_intent_row = row(tr("Rendering intent"),
+                                  self._cm_intent_combo,
+                                  tr(_CM_INTENT_HELP_TITLE),
+                                  tr(_CM_INTENT_HELP_BODY))
+        gl.addWidget(self._cm_intent_row)
+
+        # -- Route: printed here, or handed to another application ----------
+        route = QWidget(self._cm_grp)
+        rl = QHBoxLayout(route)
+        rl.setContentsMargins(0, 0, 0, 0)
+        rl.setSpacing(14)
+        self._cm_route_here_rb = QRadioButton(tr("Print here"), route)
+        self._cm_route_ext_rb = QRadioButton(
+            tr("In another application"), route)
+        self._cm_route_here_rb.setChecked(True)
+        rl.addWidget(self._cm_route_here_rb)
+        rl.addWidget(self._cm_route_ext_rb)
+        rl.addStretch(1)
+        self._cm_route_row = row(tr("Route"), route,
+                                 tr(_CM_ROUTE_HELP_TITLE),
+                                 tr(_CM_ROUTE_HELP_BODY))
+        gl.addWidget(self._cm_route_row)
+
+        ll.addWidget(self._cm_grp)
+
+        # -- the state notice (S6 / S7 / §3.1a / §3.1b) ---------------------
+        # Below the group rather than inside it (as the mockups show): a
+        # word-wrapped label nested in the group box clipped its own last
+        # lines in the scroll area, while a sibling of the group renders in
+        # full — the same placement the tab's other warning box uses.
+        self._cm_notice = QLabel("", left)
+        self._cm_notice.setObjectName("warning")
+        self._cm_notice.setWordWrap(True)
+        self._cm_notice.setTextFormat(Qt.TextFormat.RichText)
+        ll.addWidget(self._cm_notice)
+        self._cm_grp.setVisible(False)
+        self._updating_cm = False
+        #: The user's own Colour choice for the selected target — kept apart
+        #: from the radios because a forced state (§3.1a, A4) must not
+        #: overwrite what the user chose when the force lifts.
+        self._cm_user_colour: "str | None" = None
+        self._print_written: dict = {}       # per-store snapshot (§3a Q-4)
+
+        self._cm_through_rb.toggled.connect(self._on_cm_selection_changed)
+        self._cm_raw_rb.toggled.connect(self._on_cm_selection_changed)
+
+    def _on_cm_selection_changed(self, *_a) -> None:
+        """Follow a user click on the Colour radios: remember the choice and
+        refresh the notice + intent row (§3.1b — the notice names the question
+        the selected way of printing will answer)."""
+        if getattr(self, "_updating_cm", False):
+            return
+        from workflow import verification_print as vp
+        if self._cm_through_rb.isEnabled():
+            self._cm_user_colour = (vp.COLOUR_THROUGH
+                                    if self._cm_through_rb.isChecked()
+                                    else vp.COLOUR_RAW)
+        self._update_colour_row_visible()
+
+    def _cm_run(self):
+        """The Run the bar points at, or None (no project / no controller)."""
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
+            return None
+        try:
+            project = ctl.project_or_none()
+            if project is None:
+                return None
+            from core.measurement_target import resolve_run
+            return resolve_run(project, ctl.target)
+        except Exception:      # noqa: BLE001 — a question must never raise
+            return None
+
+    def _update_colour_row_visible(self) -> None:
+        """§3.1 + §3.1a + §3.1b: which rows show, what is forced, and what the
+        notice says — recomputed from the target, the run's profile and the
+        loaded chart every time any of them changes."""
+        from workflow import verification_print as vp
+        ctl = getattr(self, "_target_ctl", None)
+        has_pages = bool(self._tiff_pages)
+        is_verif = ctl is not None and ctl.target.is_verification()
+        # A6: with no chart the tab shows its existing empty state — no rows.
+        self._cm_grp.setVisible(has_pages)
+        self._cm_colour_row.setVisible(is_verif)
+        self._cm_intent_row.setVisible(is_verif)
+        # The notice is a sibling of the group (not a child), so it needs the
+        # no-pages condition itself.
+        self._cm_notice.setVisible(has_pages and is_verif)
+        if not (has_pages and is_verif):
+            return
+
+        state = vp.chart_conversion_state(self._current_ti2)
+        run = self._cm_run()
+        profile_exists = (run is not None
+                          and run.built_profile_icc().exists())
+        self._updating_cm = True
+        try:
+            if state != vp.STATE_REGULAR:
+                # §3.1a — the chart was converted when it was made: force Raw,
+                # DISABLE the other option (an error with no legitimate use).
+                self._cm_raw_rb.setText(tr("Raw — already converted"))
+                self._cm_raw_rb.setChecked(True)
+                self._cm_through_rb.setEnabled(False)
+                self._cm_intent_combo.setEnabled(False)
+                notice = tr(_CM_NOTICE_ALREADY_CONVERTED)
+                if state == vp.STATE_CONVERTED_REF_MISSING:
+                    # A3c — say what could not be established, and stay safe.
+                    notice = tr(_CM_NOTICE_REFERENCE_MISSING) + "<br><br>" + notice
+                self._cm_notice.setText(notice)
+            elif not profile_exists:
+                # A4 — nothing to print through; raw stays available.
+                self._cm_raw_rb.setText(tr("Raw — no profile"))
+                self._cm_raw_rb.setChecked(True)
+                self._cm_through_rb.setEnabled(False)
+                self._cm_intent_combo.setEnabled(False)
+                self._cm_notice.setText(tr(_CM_NOTICE_NO_PROFILE))
+            else:
+                # A3 / A5 — both options live; the user's choice rules.
+                self._cm_raw_rb.setText(tr("Raw — no profile"))
+                self._cm_through_rb.setEnabled(True)
+                self._cm_raw_rb.setEnabled(True)
+                wanted = self._cm_user_colour
+                if wanted is None:
+                    wanted = vp.default_colour_for_run(run)
+                (self._cm_through_rb if wanted == vp.COLOUR_THROUGH
+                 else self._cm_raw_rb).setChecked(True)
+                through = self._cm_through_rb.isChecked()
+                self._cm_intent_combo.setEnabled(through)
+                self._cm_notice.setText(
+                    tr(_CM_NOTICE_THROUGH) if through
+                    else tr(_CM_NOTICE_RAW_CHOSEN))
+        finally:
+            self._updating_cm = False
+
+    def _cm_selected_colour(self) -> str:
+        """The colour route a print started now would actually take.
+
+        Computed from the target and the widget STATE, never from
+        ``isVisible()`` — a widget that has not been shown on screen yet
+        answers ``isVisible() == False`` even when its row applies, which
+        would silently downgrade "through" to raw."""
+        from workflow import verification_print as vp
+        ctl = getattr(self, "_target_ctl", None)
+        if (ctl is None or not ctl.target.is_verification()
+                or not self._tiff_pages):
+            return vp.COLOUR_RAW
+        if self._cm_through_rb.isChecked() and self._cm_through_rb.isEnabled():
+            return vp.COLOUR_THROUGH
+        return vp.COLOUR_RAW
+
+    def _cm_selected_intent(self) -> str:
+        return self._cm_intent_combo.currentData() or "relative"
+
+    def _cm_selected_route(self) -> str:
+        from workflow import verification_print as vp
+        if self._tiff_pages and self._cm_route_ext_rb.isChecked():
+            return vp.ROUTE_EXTERNAL
+        return vp.ROUTE_CHROMIQ
+
+    def _apply_verification_colour(self, pages):
+        """The one funnel below both print buttons (§5 A2.2).
+
+        Converts the pages through the run's profile when the Colour row says
+        so, records how the sheet is produced (A15–A18), and handles the
+        external route. Returns the pages the print path should send, or None
+        when nothing is to be printed here — a failed conversion prints
+        nothing (§3.2 A11), and the external route hands the files over
+        instead of printing.
+        """
+        from workflow import verification_print as vp
+        colour = self._cm_selected_colour()
+        route = self._cm_selected_route()
+        converted_dir = None
+
+        if colour == vp.COLOUR_THROUGH:
+            run = self._cm_run()
+            profile = run.built_profile_icc() if run is not None else None
+            chart_dir = (Path(self._current_ti2).parent
+                         if self._current_ti2 is not None
+                         else Path(pages[0][0]).parent)
+            out_dir = chart_dir / "cache"
+            bin_dir = self._settings.get("argyll_bin_path",
+                                         "/Applications/Argyll/bin")
+            unique = list(dict.fromkeys(p for p, _f in pages))
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+            try:
+                def _progress(n: int, total: int) -> None:
+                    self._set_status(tr(
+                        "Working out the ink amounts your profile predicts — "
+                        "page {n} of {total}…").format(n=n, total=total))
+                    QApplication.processEvents()
+
+                mapping = vp.convert_pages_through_profile(
+                    unique, profile if profile is not None else Path(""),
+                    self._cm_selected_intent(), out_dir,
+                    bin_dir=bin_dir, on_page=_progress)
+            except vp.VerificationPrintError as err:
+                self._set_status("")
+                self._show_cm_error(err)
+                return None
+            finally:
+                QApplication.restoreOverrideCursor()
+            pages = [(mapping.get(p, p), f) for p, f in pages]
+            converted_dir = out_dir
+            self._set_status(tr(
+                "The sheets have been prepared through this run's profile."))
+
+        if self._current_ti2 is not None:
+            run = self._cm_run()
+            vp.write_print_record(
+                Path(self._current_ti2), colour=colour,
+                intent=self._cm_selected_intent(),
+                profile=(run.built_profile_icc() if run is not None else None),
+                route=route,
+                source_profile=(vp.source_profile_path(
+                    self._settings.get("argyll_bin_path",
+                                       "/Applications/Argyll/bin"))
+                    if colour == vp.COLOUR_THROUGH else ""))
+
+        if route == vp.ROUTE_EXTERNAL:
+            folder = converted_dir if converted_dir is not None else (
+                Path(self._current_ti2).parent if self._current_ti2 is not None
+                else Path(pages[0][0]).parent)
+            from core.preset_store import reveal_in_file_manager
+            reveal_in_file_manager(folder)
+            if converted_dir is not None:
+                self._set_status(tr(
+                    "The finished sheets are in the folder that just opened — "
+                    "the colour work is already done. In your application: "
+                    "print them with no colour conversion of any kind, and at "
+                    "100% size."))
+            else:
+                self._set_status(tr(
+                    "The chart pages are in the folder that just opened. In "
+                    "your application: print them with no colour conversion "
+                    "of any kind, and at 100% size."))
+            return None
+        return pages
+
+    def _show_cm_error(self, err) -> None:
+        """Render the §M message a failed conversion names (S9 / S10)."""
+        from workflow import measurement_messages as M
+        if err.message_id == "M-CM-NO-CCTIFF":
+            title, body = M.M_CM_NO_CCTIFF.render()
+        else:
+            title, body = M.M_CM_CONVERT_FAILED.render(
+                n=err.page or 1, total=err.total or 1,
+                reason=err.reason or err.message_id)
+        QMessageBox.critical(self, title, body)
+
+    # ---- per-target settings (#130 feature A, §11 Q5) --------------------
+    def save_target_settings(self, store=None, key=None) -> bool:
+        """Record the Colour / Rendering intent / Route choices against the
+        selected target — the same duck-typed contract Create Chart, Measure
+        and Build Profile follow, called by MainWindow on the L1/W6 events."""
+        if getattr(self, "_updating_cm", False) \
+                or getattr(self, "_loading_print_settings", False):
+            return False
+        if store is None:
+            from workflow.per_target_settings import store_for_target
+            store = store_for_target(getattr(self, "_target_ctl", None))
+        if store is None:
+            return False
+        try:
+            if not Path(getattr(store, "dir", "")).is_dir():
+                return False           # never resurrect a deleted project
+        except (TypeError, ValueError):
+            return False
+        try:
+            from workflow import verification_print as vp
+            wanted = {
+                "colour": self._cm_user_colour or "",
+                "intent": self._cm_selected_intent(),
+                "route": (vp.ROUTE_EXTERNAL
+                          if self._cm_route_ext_rb.isChecked()
+                          else vp.ROUTE_CHROMIQ),
+            }
+            fingerprint = str(getattr(store, "dir", store))
+            if self._print_written.get(fingerprint) == wanted:
+                return False
+            meta = store.load_meta()
+            if not hasattr(meta, "print_settings"):
+                return False           # a Calibration store — no Colour row
+            stored = dict(getattr(meta, "print_settings") or {})
+            merged = dict(stored)
+            # A forced state (§3.1a / A4) leaves the user's stored Colour
+            # alone: only a choice the user could actually make is recorded.
+            if wanted["colour"]:
+                merged["colour"] = wanted["colour"]
+            merged["intent"] = wanted["intent"]
+            merged["route"] = wanted["route"]
+            if merged == stored:
+                self._print_written[fingerprint] = wanted
+                return False
+            meta.print_settings = merged
+            store.save_meta(meta)
+            self._print_written[fingerprint] = wanted
+            log.debug("print settings written for %s", getattr(store, "id", store))
+            return True
+        except Exception:      # noqa: BLE001 — never lose the tab over a write
+            log.warning("Could not save the target's Print settings",
+                        exc_info=True)
+            return False
+
+    def load_target_settings(self) -> bool:
+        """Put the selected target's Print choices on screen (§2 L1), falling
+        back to the defaults — and to the Q3 history-aware Colour default —
+        when the target has nothing stored (§4 S4/S5)."""
+        from workflow.per_target_settings import store_for_target
+        from workflow import verification_print as vp
+        store = store_for_target(getattr(self, "_target_ctl", None))
+        stored: dict = {}
+        if store is not None:
+            try:
+                stored = dict(getattr(store.load_meta(), "print_settings",
+                                      None) or {})
+            except Exception:      # noqa: BLE001
+                log.warning("Could not read the target's Print settings",
+                            exc_info=True)
+                stored = {}
+        self._loading_print_settings = True
+        self._updating_cm = True
+        try:
+            colour = stored.get("colour") or ""
+            self._cm_user_colour = colour if colour in (
+                vp.COLOUR_THROUGH, vp.COLOUR_RAW) else None
+            idx = self._cm_intent_combo.findData(
+                stored.get("intent") or vp.DEFAULT_INTENT)
+            self._cm_intent_combo.setCurrentIndex(idx if idx >= 0 else 0)
+            (self._cm_route_ext_rb
+             if stored.get("route") == vp.ROUTE_EXTERNAL
+             else self._cm_route_here_rb).setChecked(True)
+        finally:
+            self._updating_cm = False
+            self._loading_print_settings = False
+        self._update_colour_row_visible()
+        return bool(stored)
 
     # ------------------------------------------------------------------
     # Internal
@@ -869,22 +1434,29 @@ class TabPrint(QWidget):
             return
         if self._blocked_by_new_run():
             return
-        if self._settings.get("use_native_print_dialog", False):
-            path, frame = self._preview._pages[self._preview._current]
-            self._print_native([(path, frame)])
+        pages = [self._preview._pages[self._preview._current]]
+        # Feature A: the verification conversion + route handling sit below
+        # BOTH print buttons, before the two print paths split (§5 A2.2).
+        pages = self._apply_verification_colour(pages)
+        if pages is None:
             return
-        page = self._preview._pages[self._preview._current]
-        self._print_pages([page])
+        if self._settings.get("use_native_print_dialog", False):
+            self._print_native(pages)
+            return
+        self._print_pages(pages)
 
     def _on_print_all(self) -> None:
         if not self._preview._pages:
             return
         if self._blocked_by_new_run():
             return
-        if self._settings.get("use_native_print_dialog", False):
-            self._print_native(list(self._preview._pages))
+        pages = self._apply_verification_colour(list(self._preview._pages))
+        if pages is None:
             return
-        self._print_pages(list(self._preview._pages))
+        if self._settings.get("use_native_print_dialog", False):
+            self._print_native(pages)
+            return
+        self._print_pages(pages)
 
     def _print_pages(self, pages: list[tuple[Path, int]]) -> None:
         """Run pre-send checks + preflight once, then submit each page."""
@@ -1265,7 +1837,12 @@ class TabPrint(QWidget):
         import sys as _sys
         self._printer_grp.setVisible(not enabled)
         self._opts_grp.setVisible(not enabled)
-        self._native_warn_spacer.setVisible(enabled)
+        # The spacer used to centre the warning label between the scroll area
+        # and the buttons. With the warning inside the scroll area (Basti,
+        # 2026-08-09) the spacer only fought the scroll for height — half the
+        # panel went to pure emptiness while the warning was pushed out of
+        # the viewport, invisible behind macOS's overlay scrollbar.
+        self._native_warn_spacer.setVisible(False)
         if enabled:
             if _sys.platform == "win32":
                 self._warn_lbl.setText(

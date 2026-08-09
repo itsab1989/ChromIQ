@@ -97,11 +97,13 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 #: on the issue, and change this line in the same commit, so a message can
 #: never reach a user unreviewed by accident.
 #:
-#: Empty again: M-INSTRUMENT-SILENT was proposed on 2026-08-06 and withdrawn
-#: the same day — Knut asked for its text to go into the existing
-#: M-NO-INSTRUMENT window and wrote the final wording himself, so that message
-#: is approved by authorship.
-AWAITING_APPROVAL: "set[str]" = set()
+#: Feature A (2026-08-09): two REVISIONS — the approved wording instructed
+#: "(with colour management on)", which the app prevents on every print path,
+#: so the print step now names the Print Chart tab's "Colour" row instead —
+#: and the two new failure windows of the print-time conversion (§6 S9/S10).
+AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
+                                 "M-CM-NO-CCTIFF", "M-CM-CONVERT-FAILED",
+                                 "M-CM-PROFCHECK-CONVERTED"}
 
 
 def test_nothing_is_quietly_proposed():
@@ -193,6 +195,8 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_chart", "TabChart", "_pages_paragraph"),
     ("ui.tabs.tab_chart", "TabChart", "_duplicate_blocked_note"),
     ("ui.tabs.tab_profile", "TabProfile", "_confirm_rebuild_over_verifications"),
+    ("ui.tabs.tab_print", "TabPrint", "_show_cm_error"),
+    ("ui.tabs.tab_check_refine", "TabCheckRefine", "_warn_converted_measurement"),
 ]
 
 
@@ -254,6 +258,8 @@ def test_no_message_reaches_the_screen_with_a_placeholder_left():
         M.M_CHART_CORRUPT.render(),
         M.M_PREVIEW_PAUSED.render(),
         M.M_PROFILE_VERIFY.render(n=4, date="2026-03-14", blocked=""),
+        M.M_CM_NO_CCTIFF.render(),
+        M.M_CM_CONVERT_FAILED.render(n=2, total=3, reason="…"),
     ]
     for title, body in rendered:
         for text in (title, body):

@@ -361,6 +361,12 @@ class RunMeta:
     #: Its own key for the same reason measure_settings has one: three tabs
     #: sharing a dict would make a renamed key on one look stale on another.
     profile_settings: dict = field(default_factory=dict)
+    #: The Print Chart tab's verification-print choices for this target
+    #: (#130 feature A, §11 Q5): ``{"colour", "intent", "route"}``. Its own key
+    #: for the same reason the others have one. Only runs carry it — a
+    #: calibration never shows the Colour row, so ``CalibrationMeta`` has no
+    #: counterpart and the tab skips a calibration store.
+    print_settings: dict = field(default_factory=dict)
 
     # #130 (Knut, beta.148): the Profile Description the user typed for THIS
     # run, when they typed one. Empty means "still automatic" — ChromIQ builds

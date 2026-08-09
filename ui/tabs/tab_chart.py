@@ -10681,8 +10681,8 @@ class TabChart(QWidget):
                 "No verification chart for this run yet.\n\n"
                 "To make one, keep “Run type” set to “Verification”, choose your "
                 "chart options above and click “Generate Chart”. Then print that "
-                "chart through your finished profile (with colour management on) "
-                "and measure it on the Measure tab.")
+                "chart on the Print Chart tab with “Colour” set to “Through the "
+                "profile”, and measure it on the Measure tab.")
         return tr(
             "No chart for this profile run yet.\n\n"
             "Choose your chart options above and click “Generate Chart” to make "
