@@ -1,0 +1,105 @@
+================================================================================
+PASTE THIS INTO A NEW CHROMIQ SESSION TO BUILD VERIFICATION FEATURE A
+--------------------------------------------------------------------------------
+Paste your usual ROLE block first, then everything from "TASK" down.
+Edit the DECISIONS section if you disagree with any of them — they are there so
+the session never has to stop and ask.
+================================================================================
+
+
+TASK
+--------------------------------------------------------------------------------
+Build **Feature A** from docs/design/verification_printing_and_target.md on the
+branch feature/measurement-sounds-131: printing a verification chart *through*
+its profile, so a verification finally measures the profile instead of only the
+printer.
+
+Read these first, in this order, and do not plan from memory:
+  1. docs/design/verification_printing_and_target.md  — START AT §0a
+  2. §3 (the condition→code tables), §3.1a, §3.1b, §4, §5
+  3. CLAUDE.md — the project rules apply in full
+  4. The memory file project_verification_features_ab
+
+Then work Phases A0 → A1 → A2 → A3 from §5, in that order, without stopping
+between them.
+
+
+DECISIONS — ALREADY MADE, DO NOT ASK
+--------------------------------------------------------------------------------
+These are §11's open questions, answered. Treat them as settled.
+
+  Q1  Build feature A?                     YES.
+  Q2  Build A and B together?              NO. Feature A only this session.
+                                           Do not start #133 / feature B.
+  Q3  Default for projects that already
+      have verification history?           ON for new projects, OFF for any run
+                                           that already has verification history.
+                                           The report must mark where the method
+                                           changed.
+  Q4  Default rendering intent (A)         RELATIVE COLORIMETRIC, on the Print
+                                           Chart tab. (#133's own intent is a
+                                           separate control in Create Chart and
+                                           is NOT part of this session.)
+  Q5  Where does A's intent live?          Make the Print Chart tab a per-target
+                                           storing tab, mirroring how Create
+                                           Chart does it. If that turns out to be
+                                           more than a small change, fall back to
+                                           an app-wide setting and say so in the
+                                           final report.
+  Q6  Does the §4 "Route" row ship with A? YES — §4 is only coherent with all
+                                           three rows present.
+  Q7  Master set size                      Not applicable — that is feature B.
+  Q8  Margin default                       Not applicable — that is feature B.
+
+
+WHAT "DONE" MEANS — DO NOT STOP EARLIER
+--------------------------------------------------------------------------------
+  [ ] Phase A0: §M text corrected (to §M-PROPOSED, not straight into a tab),
+      convert_args takes an intent, the source-profile resolver lifted out of
+      tab_profile into a shared helper.
+  [ ] Phase A1: the conversion function, with unit tests including the failure
+      cases A10–A12.
+  [ ] Phase A2: the three-row Print Chart section of §4, the record (A15–A18),
+      and the report block. §3.1a and §3.1b MUST both be implemented — a chart
+      with stored colorimetric targets forces Raw and DISABLES the other option;
+      a regular chart keeps both enabled.
+  [ ] Phase A3: the Q3 migration behaviour above.
+  [ ] Tests T1–T13 from §9.
+  [ ] Help texts from §6 written, friendly and extensive.
+  [ ] All 12 languages translated — but ONLY at the very end, after the English
+      is final. The catalogue key is the English string, so translating earlier
+      throws the work away.
+  [ ] Full gate green: QT_QPA_PLATFORM=offscreen pytest --runslow -n 4
+  [ ] Version bumped BEFORE the gate, CHANGELOG entry, beta tagged and pushed.
+  [ ] An automated update posted to issue #130.
+
+
+RULES THAT MATTER HERE
+--------------------------------------------------------------------------------
+* Do NOT touch feature B / issue #133. Not the master colour set, not the
+  Create Chart module. If something seems to need it, write it down and move on.
+* Do NOT mark anything "Confirmed" in a design document. Verified by you is not
+  confirmed; only Sebastian can confirm. Use the ⏳ Awaiting confirmation form.
+* Do NOT freeze any published colour set. Not applicable to A, but do not
+  drift into it.
+* Never call qapp.setStyleSheet() in a test — style the widget under test.
+* Any test that measures drawn text needs skip_without_fonts() or it breaks the
+  Windows gate.
+* Re-run scripts/check_issue_133_numbers.py after editing anything that moves
+  code lines, and fix any citation it reports.
+* If you find something that contradicts the plan, do NOT silently "fix" the
+  plan. Report it, say which rule it breaks, keep building the rest, and put the
+  question on issue #130.
+
+
+WHAT YOU CANNOT FINISH, AND SHOULD NOT WAIT FOR
+--------------------------------------------------------------------------------
+The end-to-end proof needs a printer: print the printer-test chart twice — once
+raw, once through the profile — measure both, compare. Expected separation is
+about 3.26 dE00 mean, with roughly 62 of 90 patches over 2 dE00.
+
+Do not block on it. Build and ship everything else, and state plainly in the
+final report that the feature is untested end to end until that print is done.
+
+Start now and keep going until the checklist above is complete.
+================================================================================

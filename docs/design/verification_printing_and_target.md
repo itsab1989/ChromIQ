@@ -43,7 +43,18 @@ closed holes in the tables:
 | **3.1a** | 🔴 A #133 chart is **already converted**, so the Print tab must force Raw and **disable** the other option. A hole in §3.1, which keyed only on run type |
 | **3.1b** | The mirror case is **deliberately not symmetric** — raw on a regular chart is a legitimate drift check, not an error. Contains the one **confirmed** decision |
 
-### If you are starting work, do this first
+### The quickest way to start: a ready-made kick-off prompt
+
+**`docs/design/START-verification-feature-A.txt`** is a prompt to paste into a
+fresh session. It **pre-answers every question in §11** so the session never has
+to stop and ask, states what "done" means as a checklist, and names what it must
+*not* touch. Edit the DECISIONS block if any answer is wrong — that is what it is
+there for.
+
+A copy also sits on the Desktop as
+`ChromIQ-START-verification-feature-A.txt`.
+
+### If you would rather start by hand, do this first
 
 1. Read **§0** (plain words) and **§11** (what is undecided).
 2. Answer §11 **Q1** and **Q2** — build A? and A+B together? Nothing else is
