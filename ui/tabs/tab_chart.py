@@ -4490,7 +4490,12 @@ class TabChart(QWidget):
         self._refresh_name_prefix()     # apply the prefix to the now-active field
         # Auto-update-preview is a Manual-only control (Knut).
         if getattr(self, "_auto_preview_row_w", None) is not None:
-            self._auto_preview_row_w.setVisible(mode == "manual")
+            # The gamut module shows Manual's live layout half, so the
+            # auto-update preview belongs there too (Basti, 2026-08-09). Its
+            # re-layout reuses the module's cached patch list — no targen, no
+            # re-selection — and the stored reference survives via the cached
+            # copy below.
+            self._auto_preview_row_w.setVisible(mode in ("manual", "gamut"))
         # Keep the two tabs in step (Knut #9): carry the shared chart-defining
         # settings the user CHANGED in the tab they're leaving into the one they're
         # opening. Only changed fields move (snapshot-on-arrival / diff-on-leave),
@@ -10679,6 +10684,13 @@ class TabChart(QWidget):
             run = resolve_run(project, ctl.target)
             ti1 = run.ensure_cache_dir() / "gamut-target.ti1"
             write_gamut_ti1(selection, ti1)
+            # A cached copy of the reference lives beside the cached patch
+            # list: an auto-preview re-layout rebuilds from this .ti1 with no
+            # fresh selection, and the adoption step clears the verify files —
+            # reference included — so it is restored from this copy.
+            from workflow.gamut_target import write_colorimetric_reference
+            write_colorimetric_reference(
+                selection, run.cache_dir / "gamut-target-reference.ti3")
         except GamutTargetError as exc:
             InfoDialog(
                 tr("The colours could not be chosen"),
@@ -10711,7 +10723,35 @@ class TabChart(QWidget):
         tab's force-Raw marker, and the §5.4 record, in one file."""
         selection = getattr(self, "_pending_gamut_selection", None)
         self._pending_gamut_selection = None
-        if selection is None or new_ti2 is None:
+        if new_ti2 is None:
+            return
+        if selection is None:
+            # A re-layout (the auto-update preview, or Generate pressed again
+            # with the module's cached patch list): the colours are unchanged,
+            # but the adoption step cleared the verify files — the reference
+            # among them — so put the cached copy back. Only while the module
+            # is the active mode; a targen chart replacing a gamut chart must
+            # NOT inherit colorimetric targets that describe other colours.
+            if not getattr(self, "_gamut_active", False):
+                return
+            try:
+                from core.file_manager import Run
+                run = Run.for_dir(Path(new_ti2).parents[1])
+                cached = run.cache_dir / "gamut-target-reference.ti3"
+                if cached.is_file():
+                    from workflow.gamut_target import mark_chart_as_colorimetric
+                    from workflow.verification_print import \
+                        colorimetric_reference_for
+                    ref = colorimetric_reference_for(new_ti2)
+                    shutil.copyfile(cached, ref)
+                    mark_chart_as_colorimetric(new_ti2, ref)
+                    self._log.appendPlainText(tr(
+                        "The chart's colorimetric reference was restored "
+                        "beside the new layout — same colours, same "
+                        "targets."))
+            except Exception:      # noqa: BLE001 — never break a finished build
+                log.warning("could not restore the colorimetric reference",
+                            exc_info=True)
             return
         try:
             from workflow.gamut_target import (mark_chart_as_colorimetric,

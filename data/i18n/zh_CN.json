@@ -3071,6 +3071,7 @@
   "The chart pages — and during a measurement, what you have read so far.": "色卡的各个页面 — 测量过程中，还会显示你目前已经读到的内容。",
   "The chart you are about to measure was laid out for:\n    {chart}\n\nbut the instrument connected is:\n    {found}\n\nEach instrument needs its own patch size and strip spacing, so reading this chart with that device will usually misread, skip strips, or fail to find the patches at all.\n\nWhat each button does:\n\n•  Measure anyway — goes ahead exactly as before. Use this if you know what you are doing, or to see what happens.\n\n•  Cancel — stops here so you can make a chart for this instrument, or connect the one this chart expects.": "你即将测量的这张色卡是为以下仪器排布的:\n    {chart}\n\n但当前连接的仪器是:\n    {found}\n\n每台仪器都需要各自的色块尺寸和色条间距，所以用那台设备读这张色卡，通常会读错、漏读色条，或者根本找不到色块。\n\n每个按钮的作用:\n\n•  仍然测量 — 完全照原样继续。如果你心里有数，或者只是想看看会怎样，就用它。\n\n•  取消 — 就此停下，好让你为这台仪器做一张色卡，或者接上这张色卡所期待的那一台。",
   "The chart you just loaded is now also shown in “Create Chart”": "你刚加载的图表现在也显示在“创建图表”中",
+  "The chart's colorimetric reference was restored beside the new layout — same colours, same targets.": "色卡的测色参考已在新版式旁恢复 —— 相同的颜色，相同的目标。",
   "The chart's colours as a plain hex list (RGB charts). Can be pasted back into the New-chart dialog.": "色卡颜色的纯十六进制列表（RGB 色卡）。可粘贴回「新建色卡」对话框。",
   "The chart's settings file was found beside it, so the sheet is laid out exactly as it was.": "在色卡旁边找到了它的设置文件，因此版面会与当初完全一致。",
   "The check couldn't judge this read — see the status log.": "检查无法判断此次读取——请查看状态日志。",

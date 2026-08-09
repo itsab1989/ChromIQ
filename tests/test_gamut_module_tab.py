@@ -162,3 +162,50 @@ def test_reference_and_marker_written_after_adopt(qapp, tmp_path):
     assert chart_conversion_state(ti2) == STATE_CONVERTED
     assert tab._pending_gamut_selection is None
     assert "print it exactly as it is" in tab._log.toPlainText()
+
+
+def test_relayout_restores_the_reference_from_the_cache(qapp, tmp_path):
+    """The auto-update preview re-lays out the chart with no fresh selection;
+    the adoption step clears the verify files — the reference must come back
+    from the module's cached copy, or the chart degrades to the A3c state."""
+    s, fm, ctl = _env(tmp_path)
+    run = fm.project().run("run1")
+    run.verifications_dir.mkdir(parents=True, exist_ok=True)
+    ti2 = run.verify_chart_ti2
+    ti2.write_text("CTI2\n")
+    tab = _chart_tab(s, fm, ctl)
+
+    sel = gt.GamutSelection(
+        master_version="TEST-r0", master_total=10, in_gamut_total=1,
+        requested=1, intent="absolute", margin="safe")
+    sel.targets = [(0, (50.0, 0.0, 0.0), (10.0, 20.0, 30.0))]
+    gt.write_colorimetric_reference(
+        sel, run.ensure_cache_dir() / "gamut-target-reference.ti3")
+
+    tab._gamut_active = True
+    tab._pending_gamut_selection = None          # a re-layout, not a generate
+    tab._write_gamut_reference_after_adopt(ti2)
+    from workflow.verification_print import (STATE_CONVERTED,
+                                             chart_conversion_state,
+                                             colorimetric_reference_for)
+    assert colorimetric_reference_for(ti2).exists()
+    assert chart_conversion_state(ti2) == STATE_CONVERTED
+
+    # A targen chart replacing a gamut chart must NOT inherit the targets.
+    colorimetric_reference_for(ti2).unlink()
+    tab._gamut_active = False
+    tab._write_gamut_reference_after_adopt(ti2)
+    assert not colorimetric_reference_for(ti2).exists()
+
+
+def test_auto_preview_toggle_shows_in_the_gamut_module(qapp, tmp_path):
+    s, fm, ctl = _env(tmp_path)
+    run = fm.project().run("run1")
+    run.profile_icc.write_bytes(b"icc")
+    tab = _chart_tab(s, fm, ctl)
+    ctl.set_profile_run("run1")
+    ctl.set_run_type(RUN_TYPE_VERIFICATION)
+    tab._switch_mode("gamut")
+    assert tab._auto_preview_row_w.isVisibleTo(tab)
+    tab._switch_mode("guided")
+    assert not tab._auto_preview_row_w.isVisibleTo(tab)
