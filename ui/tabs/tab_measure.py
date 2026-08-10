@@ -10582,7 +10582,8 @@ class TabMeasure(QWidget):
             ti3 = _P(ti3)
             if ti3.suffix.lower() != ".ti3" or not ti3.exists():
                 return
-            report = build_report(ti3)
+            report = build_report(
+                ti3, argyll_bin=str(self._settings.get("argyll_bin_path", "") or ""))
             path = save_report(report, ti3.parent)
             self._log.appendPlainText(
                 tr("[Report] Measurement report saved: {name}").format(

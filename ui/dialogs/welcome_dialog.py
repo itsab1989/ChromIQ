@@ -926,6 +926,19 @@ GLOSSARY += [
         "the profile would blame it for something it was never asked to "
         "do. Physical readings like paper white and deepest black are "
         "always shown as measured.")),
+    (tr("Within / beyond the profile's gamut (report split)"),
+     tr("Two groups the Measurement Report sorts a verification sheet's "
+        "colours into, by asking the run's profile which of the chart's "
+        "design colours it can actually print. “Within the profile's gamut” "
+        "are the genuinely printable colours — their ΔE figures are the fair "
+        "measure of accuracy, and the Pass/Fail verdict judges them. “Beyond "
+        "it” are colours brighter or more saturated than this printer and "
+        "paper can physically produce; their larger ΔEs describe the limit "
+        "of the gamut, not a mistake of the profile, and their stability "
+        "from check to check is a useful drift signal. Every patch stays "
+        "counted and visible — the two groups are simply no longer mixed "
+        "into one number. (A chart from the “From profile gamut” module "
+        "needs no split: every colour on it is printable by design.)")),
     (tr("Import a measurement (IMPORT module)"),
      tr("A third mode on the Measure tab, shown for verification runs: "
         "instead of measuring here, you hand ChromIQ a measurement made in "

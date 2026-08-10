@@ -210,6 +210,39 @@ def select_gamut_targets(
     return selection
 
 
+def flags_in_gamut(
+    labs: "list[tuple[float, float, float]]",
+    profile: Path,
+    bin_dir: "str | Path",
+    *,
+    margin: str = MARGIN_SAFE,
+    intent: str = "absolute",
+    runner: "Callable[..., subprocess.CompletedProcess]" = subprocess.run,
+) -> "list[bool]":
+    """One in/out-of-gamut flag per Lab colour, same round trip and the same
+    thresholds as :func:`select_gamut_targets` — Lab → B2A → device → A2B →
+    Lab′; a reachable colour comes back within interpolation error, a clipped
+    one lands on the gamut surface and moves far. Used by the measurement
+    report's split statistics (Knut, 2026-08-10)."""
+    from workflow.xicclu_runner import XiccluError, backward_device, forward_lab
+    profile = Path(profile)
+    if not profile.is_file():
+        raise GamutTargetError(f"the profile file is missing: {profile}")
+    threshold = MARGIN_THRESHOLD_DE76.get(margin)
+    if threshold is None:
+        raise GamutTargetError(f"unknown margin {margin!r}")
+    letter = intent_letter(intent)
+    try:
+        device = backward_device(list(labs), profile, bin_dir, intent=letter,
+                                 k_rule=None, runner=runner)
+        back = forward_lab(device, profile, bin_dir, intent=letter,
+                           runner=runner)
+    except XiccluError as exc:
+        raise GamutTargetError(str(exc)) from exc
+    return [math.dist(lab, lab2) <= threshold
+            for lab, lab2 in zip(labs, back)]
+
+
 # ---------------------------------------------------------------------------
 # The chart .ti1 and the colorimetric reference
 # ---------------------------------------------------------------------------

@@ -40,7 +40,7 @@ log = get_logger(__name__)
 # 5: device-derived reference is Bradford-adapted D65→D50, so imported
 #    measurements no longer carry a ~1.5 ΔE white-point error (Knut). Bumping the
 #    schema makes the dialog rebuild older saved reports from their run .ti3.
-REPORT_SCHEMA = 6
+REPORT_SCHEMA = 7
 
 # A cube corner counts as "present" in the chart when the nearest measured patch
 # sits within this many device units (0..100, per channel) of the ideal corner.
@@ -417,7 +417,8 @@ def _rgb_to_0_100(rgb):
     return arr * (100.0 / 255.0) if float(arr.max()) > 101.0 else arr
 
 
-def build_report(ti3_path: str | Path, worst_n: int = 16) -> dict:
+def build_report(ti3_path: str | Path, worst_n: int = 16,
+                 argyll_bin: "str | Path | None" = None) -> dict:
     """Compute a measurement report from a measured ``.ti3``.
 
     Finds the sibling ``.ti2`` for the expected reference. Returns a JSON-able
@@ -636,6 +637,51 @@ def build_report(ti3_path: str | Path, worst_n: int = 16) -> dict:
                 des.append((ciede2000(tuple(lab[i]), r), i))
         if des:
             report["de00"] = _stats([d for d, _ in des])
+            # The in/out-of-gamut split (Knut, 2026-08-10): only against the
+            # design reference — a colorimetric reference is in-gamut by
+            # construction — and only when an Argyll path is provided; the
+            # report degrades to exactly its old self when the test cannot
+            # run (no Argyll, no profile on disk), never to an error. The
+            # referee is the profile the sheet went through when the print
+            # record names one that still exists, else the run's own built
+            # profile — the only honest judge of "could this colour be
+            # reached" for raw and unrecorded sheets.
+            if ref_source == "design" and argyll_bin:
+                try:
+                    referee = None
+                    if printing and printing.get("profile_path"):
+                        cand = Path(printing["profile_path"])
+                        referee = cand if cand.is_file() else None
+                    if referee is None:
+                        from core.file_manager import (Run,
+                                                       VERIFICATIONS_DIRNAME)
+                        d = ti3_path.parent
+                        if d.parent.name == VERIFICATIONS_DIRNAME:
+                            run_dir = d.parent.parent
+                        else:
+                            run_dir = d
+                        cand = Run.for_dir(run_dir).built_profile_icc()
+                        referee = cand if cand and cand.is_file() else None
+                    if referee is not None:
+                        from workflow.gamut_target import (MARGIN_SAFE,
+                                                           flags_in_gamut)
+                        ref_labs = [tuple(ref[data.sample_ids[i]])
+                                    for _d, i in des]
+                        flags = flags_in_gamut(ref_labs, referee, argyll_bin,
+                                               margin=MARGIN_SAFE,
+                                               intent="absolute")
+                        d_in = [d for (d, _i), f in zip(des, flags) if f]
+                        d_out = [d for (d, _i), f in zip(des, flags) if not f]
+                        report["gamut_split"] = {
+                            "profile": referee.name,
+                            "margin": MARGIN_SAFE,
+                            "n_in": len(d_in),
+                            "n_out": len(d_out),
+                            "de00_in": _stats(d_in) if d_in else None,
+                            "de00_out": _stats(d_out) if d_out else None,
+                        }
+                except Exception as exc:      # noqa: BLE001 — degrade, never fail
+                    log.debug("gamut split skipped: %s", exc)
             worst = sorted(des, key=lambda t: -t[0])[:worst_n]
             report["worst_patches"] = [{
                 "loc": data.sample_locs[i] if data.sample_locs else data.sample_ids[i],

@@ -688,8 +688,15 @@ class MeasurementReportDialog(QDialog):
         # Report options — the window and the PDF always show the same thing (Knut).
         opt_row = QHBoxLayout()
         self._all_runs_check = QCheckBox(tr("Show all measurement runs"), self)
-        self._all_runs_check.setChecked(True)
-        self._all_runs_check.toggled.connect(lambda _=None: self._refresh())
+        # Both option boxes remember the user's last choice (Sebastian,
+        # 2026-08-10: "so I don't have to select it every time again") —
+        # saved the moment they are toggled, like the Pass thresholds.
+        self._all_runs_check.setChecked(
+            str(settings.get("report_show_all_runs", "true")).lower() != "false")
+        self._all_runs_check.toggled.connect(
+            lambda on: (settings.set("report_show_all_runs",
+                                     "true" if on else "false"),
+                        self._refresh()))
         opt_row.addWidget(self._all_runs_check)
         opt_row.addWidget(TooltipButton(
             tr("Show all measurement runs"),
@@ -704,8 +711,12 @@ class MeasurementReportDialog(QDialog):
                "The saved PDF always matches what you see here."),
             self, min_width=440, color=SPEC_GREEN))
         self._detail_check = QCheckBox(tr("Show detailed data for each run"), self)
-        self._detail_check.setChecked(False)
-        self._detail_check.toggled.connect(lambda _=None: self._render())
+        self._detail_check.setChecked(
+            str(settings.get("report_show_details", "false")).lower() == "true")
+        self._detail_check.toggled.connect(
+            lambda on: (settings.set("report_show_details",
+                                     "true" if on else "false"),
+                        self._render()))
         opt_row.addWidget(self._detail_check)
         opt_row.addWidget(TooltipButton(
             tr("Show detailed data for each run"),
@@ -737,7 +748,9 @@ class MeasurementReportDialog(QDialog):
         self._avg_thr_spin.setDecimals(1); self._avg_thr_spin.setRange(0.1, 100.0)
         self._avg_thr_spin.setSingleStep(0.5); self._avg_thr_spin.setSuffix(" ΔE")
         self._avg_thr_spin.setValue(avg0)
-        self._avg_thr_spin.valueChanged.connect(lambda _=None: self._refresh())
+        self._avg_thr_spin.valueChanged.connect(
+            lambda v: (settings.set("report_pass_threshold_avg", v),
+                       self._refresh()))
         thr_row.addWidget(self._avg_thr_spin)
         thr_row.addSpacing(14)
         thr_row.addWidget(QLabel(tr("Maximum:"), self))
@@ -745,7 +758,9 @@ class MeasurementReportDialog(QDialog):
         self._max_thr_spin.setDecimals(1); self._max_thr_spin.setRange(0.1, 100.0)
         self._max_thr_spin.setSingleStep(0.5); self._max_thr_spin.setSuffix(" ΔE")
         self._max_thr_spin.setValue(max0)
-        self._max_thr_spin.valueChanged.connect(lambda _=None: self._refresh())
+        self._max_thr_spin.valueChanged.connect(
+            lambda v: (settings.set("report_pass_threshold_max", v),
+                       self._refresh()))
         thr_row.addWidget(self._max_thr_spin)
         thr_row.addWidget(TooltipButton(
             tr("Pass thresholds"),
@@ -868,6 +883,11 @@ class MeasurementReportDialog(QDialog):
         self.move(x, y)
 
     # ---- sources (one per profile) ----------------------------------------
+    def _argyll_bin(self) -> str:
+        """The Argyll path for the report's in/out-of-gamut test — empty when
+        unset, which makes build_report skip the split rather than fail."""
+        return str(self._settings.get("argyll_bin_path", "") or "")
+
     def _gather_runs(self, ti3: Path) -> "tuple[str, list]":
         """``(profile name, runs oldest-first)`` for the profile that owns *ti3*:
         every saved report across the profile's runs, or the freshly built one
@@ -893,7 +913,7 @@ class MeasurementReportDialog(QDialog):
                 if run_ti3.is_file():
                     try:
                         created = rep.get("created")
-                        rep = build_report(run_ti3)
+                        rep = build_report(run_ti3, argyll_bin=self._argyll_bin())
                         if created:
                             rep["created"] = created
                     except Exception:  # noqa: BLE001
@@ -920,13 +940,13 @@ class MeasurementReportDialog(QDialog):
                 cand = d / ti3.name
                 if cand.is_file():
                     try:
-                        rep = build_report(cand)
+                        rep = build_report(cand, argyll_bin=self._argyll_bin())
                         rep["_origin_dir"] = str(d)
                         runs.append(rep)
                     except Exception:  # noqa: BLE001 — one bad date must
                         continue       # not empty the whole history
         if not runs:
-            runs = [build_report(ti3)]
+            runs = [build_report(ti3, argyll_bin=self._argyll_bin())]
             runs[0]["_origin_dir"] = str(ti3.parent)
         runs.sort(key=lambda r: str(r.get("created") or ""))
         name = runs[-1].get("chart") or ti3.stem
@@ -1486,8 +1506,20 @@ class MeasurementReportDialog(QDialog):
               + "".join("<th align='right' style='" + thb + "'>"
                         + html.escape(d) + "</th>" for d in dates) + "</tr>")
         body = [th]
-        for i, (label, cells) in enumerate(data_rows):
-            bg = f" style='background:{self._ZEBRA_BG}'" if i % 2 == 1 else ""
+        zebra = 0
+        for label, cells in data_rows:
+            if cells is None:
+                # A block header spanning every column — the gamut-split groups
+                # arrive as row blocks so the side-by-side dated columns stay
+                # intact (Knut, 2026-08-10). Zebra restarts under each block.
+                body.append(
+                    f"<tr><td colspan='{1 + len(dates)}' style='padding:7px 0 "
+                    f"2px;color:{_C['faint']};font-weight:bold;"
+                    "white-space:nowrap'>" + html.escape(label) + "</td></tr>")
+                zebra = 0
+                continue
+            bg = f" style='background:{self._ZEBRA_BG}'" if zebra % 2 == 1 else ""
+            zebra += 1
             body.append(f"<tr{bg}><td style='white-space:nowrap;padding-right:14px'>"
                         + html.escape(label) + "</td>" + "".join(cells) + "</tr>")
         # page-break-inside:avoid keeps a whole chunk-table together — if it won't
@@ -1504,7 +1536,8 @@ class MeasurementReportDialog(QDialog):
         for i in range(0, len(runs), _MAX_RUN_COLS):
             chunk = runs[i:i + _MAX_RUN_COLS]
             dates = [str(r.get("created") or "")[:10] for r in chunk]
-            rows = [(label, [get(r) for r in chunk]) for label, get in row_getters]
+            rows = [(label, None if get is None else [get(r) for r in chunk])
+                    for label, get in row_getters]
             out.append(self._metric_table(dates, rows))
         return "".join(out)
 
@@ -1660,6 +1693,18 @@ class MeasurementReportDialog(QDialog):
                 "printed.)")) + "</li>"
             "</ul>"
             "<p>" + html.escape(tr(
+                "Some of a chart's design colours can be brighter or more "
+                "saturated than this printer and paper can physically produce "
+                "— no profile can print them, however good it is. Where the "
+                "report can tell (it asks the run's profile), it splits the "
+                "colour-accuracy figures into two groups: “Within the "
+                "profile's gamut” — the colours that were genuinely "
+                "printable, the fair measure of accuracy — and “Beyond "
+                "it” — the unreachable ones, whose distance describes the "
+                "limit of the gamut, not a mistake of the profile. Every "
+                "patch stays counted and visible; the Pass/Fail verdict "
+                "judges the within-gamut figures.")) + "</p>"
+            "<p>" + html.escape(tr(
                 "Because the design reference never changes, comparing dated "
                 "reports of the same chart on the same printer is a clean, reliable "
                 "signal of drift — ageing inks, a wandering printer, or an "
@@ -1678,8 +1723,15 @@ class MeasurementReportDialog(QDialog):
         red (Knut)."""
         from workflow.measurement_report import accuracy_verdict
         avg_thr, max_thr = self._thresholds()
+        # A run with the in/out-of-gamut split is judged on its WITHIN-gamut
+        # figures: colours outside the gamut were never printable, so grading
+        # them against the thresholds would fail a healthy profile for its
+        # paper (Knut, 2026-08-10). Runs without a split keep the old verdict.
         verd = {id(r): {x["key"]: x["pass"]
-                        for x in accuracy_verdict(r.get("de00") or {}, avg_thr, max_thr)[0]}
+                        for x in accuracy_verdict(
+                            ((r.get("gamut_split") or {}).get("de00_in"))
+                            or r.get("de00") or {},
+                            avg_thr, max_thr)[0]}
                 for r in runs}
 
         def pf(r, key):
@@ -1707,6 +1759,12 @@ class MeasurementReportDialog(QDialog):
             intro = tr("The following results are extracted from detailed data "
                        "(Colour accuracy) for the included measurements in this "
                        "report.")
+        if any(r.get("gamut_split") for r in runs):
+            intro += " " + tr(
+                "Where a sheet's colours are split into within / beyond the "
+                "profile's gamut, Pass and Fail judge the within-gamut "
+                "figures — colours the profile could never print are not "
+                "counted against it.")
         # Always start Report Results on a fresh page — the how-to-read section
         # can be long, so it reads cleaner on its own page (Knut).
         return (_h2(tr("Report Results"), page_break=True)
@@ -1727,9 +1785,34 @@ class MeasurementReportDialog(QDialog):
                     return cc.get("de")
             return None
 
-        row_getters = [(_METRIC_LABELS[k](), num((lambda r, k=k: de(r).get(k)), 2))
-                       for k in ("avg_all", "avg_low95", "avg_high5",
-                                 "max_all", "max_low95", "std")]
+        row_getters = []
+        # Knut's layout (2026-08-10): datasets stay side-by-side as columns;
+        # the in/out-of-gamut split arrives as row BLOCKS one after another —
+        # within, beyond, then all patches — so comparing two dates inside any
+        # block stays a horizontal glance. Runs without a split show dashes in
+        # the split blocks; without any split anywhere the table is unchanged.
+        if any(r.get("gamut_split") for r in runs):
+            gs = lambda r: (r.get("gamut_split") or {})
+
+            def part(which, key):
+                return lambda r: (gs(r).get(which) or {}).get(key)
+
+            row_getters.append((tr("Within the profile's gamut"), None))
+            row_getters.append((tr("Patches"),
+                                num(lambda r: gs(r).get("n_in"), 0)))
+            row_getters += [(_METRIC_LABELS[k](), num(part("de00_in", k), 2))
+                            for k in ("avg_all", "avg_low95", "avg_high5",
+                                      "max_all", "max_low95")]
+            row_getters.append((tr("Beyond the profile's gamut"), None))
+            row_getters.append((tr("Patches"),
+                                num(lambda r: gs(r).get("n_out"), 0)))
+            row_getters += [(_METRIC_LABELS[k](), num(part("de00_out", k), 2))
+                            for k in ("avg_all", "avg_low95", "avg_high5",
+                                      "max_all", "max_low95")]
+            row_getters.append((tr("All patches together"), None))
+        row_getters += [(_METRIC_LABELS[k](), num((lambda r, k=k: de(r).get(k)), 2))
+                        for k in ("avg_all", "avg_low95", "avg_high5",
+                                  "max_all", "max_low95", "std")]
         row_getters += [
             (tr("Paper white L*"),
              num(lambda r: (r.get("paper_white") or {}).get("lab", [None])[0], 1)),
@@ -2014,19 +2097,30 @@ class MeasurementReportDialog(QDialog):
         if de.get("avg_all") is not None:
             from workflow.measurement_report import accuracy_verdict
             avg_thr, max_thr = self._thresholds()
-            rows, _ = accuracy_verdict(de, avg_thr, max_thr)
+            split = r.get("gamut_split")
+            d_in = (split or {}).get("de00_in") or {}
+            d_out = (split or {}).get("de00_out") or {}
+            # With a split the Result judges the WITHIN-gamut figure — the
+            # beyond-gamut colours were never printable, so their distance is
+            # a property of the gamut, not an error of the profile (Knut,
+            # 2026-08-10). In the detailed chapter the groups may sit
+            # side-by-side as columns (his layout ruling).
+            rows, _ = accuracy_verdict(d_in if split else de, avg_thr, max_thr)
+            thb = f"border-bottom:1.5px solid {_C['rule']}"
+            cols = ([tr("Within gamut"), tr("Beyond it"), tr("All patches")]
+                    if split else [tr("Measured ΔE00")])
             head = (f"<tr style='color:{_C['faint']}'>"
-                    f"<th align='left' style='border-bottom:1.5px solid {_C['rule']}'>"
+                    f"<th align='left' style='{thb}'>"
                     + html.escape(tr("Metric")) + "</th>"
-                    f"<th align='right' style='border-bottom:1.5px solid {_C['rule']}'>"
-                    + html.escape(tr("Measured ΔE00")) + "</th>"
-                    f"<th align='right' style='border-bottom:1.5px solid {_C['rule']}'>"
+                    + "".join(f"<th align='right' style='{thb}'>"
+                              + html.escape(c) + "</th>" for c in cols)
+                    + f"<th align='right' style='{thb}'>"
                     + html.escape(tr("Threshold")) + "</th>"
-                    f"<th align='center' style='border-bottom:1.5px solid {_C['rule']}'>"
+                    f"<th align='center' style='{thb}'>"
                     + html.escape(tr("Result")) + "</th></tr>")
             trs = [head]
 
-            def row_html(i, label, measured, threshold, verdict):
+            def row_html(i, label, values, threshold, verdict, bold_first=True):
                 bg = f" style='background:{self._ZEBRA_BG}'" if i % 2 == 1 else ""
                 if verdict is None:
                     res = "—"
@@ -2035,17 +2129,26 @@ class MeasurementReportDialog(QDialog):
                     res = (f"<span style='color:{col};font-weight:bold'>"
                            + html.escape(tr("Pass") if verdict else tr("Fail"))
                            + "</span>")
+                tds = "".join(
+                    "<td align='right'>" + ("<b>" if bold_first and j == 0 else "")
+                    + _fmt(v) + ("</b>" if bold_first and j == 0 else "") + "</td>"
+                    for j, v in enumerate(values))
                 return (f"<tr{bg}><td style='padding-right:14px'>{html.escape(label)}</td>"
-                        f"<td align='right'><b>{_fmt(measured)}</b></td>"
+                        + tds +
                         f"<td align='right'>{_fmt(threshold) if threshold is not None else '—'}</td>"
                         f"<td align='center'>{res}</td></tr>")
 
             for i, row in enumerate(rows):
-                trs.append(row_html(i, _METRIC_LABELS[row["key"]](), row["value"],
+                k = row["key"]
+                values = ([d_in.get(k), d_out.get(k), de.get(k)]
+                          if split else [row["value"]])
+                trs.append(row_html(i, _METRIC_LABELS[k](), values,
                                     row["threshold"], row["pass"]))
             # Spread is reported for completeness but carries no threshold (Knut).
-            trs.append(row_html(len(rows), _METRIC_LABELS["std"](),
-                                de.get("std"), None, None))
+            trs.append(row_html(
+                len(rows), _METRIC_LABELS["std"](),
+                ([d_in.get("std"), d_out.get("std"), de.get("std")]
+                 if split else [de.get("std")]), None, None))
             device_ref = r.get("reference_source") == "device"
             # Both cases compare against the chart's DESIGN — either straight from
             # the .ti2, or reconstructed from the device values — so the heading is
@@ -2054,6 +2157,18 @@ class MeasurementReportDialog(QDialog):
             parts.append("<table cellpadding='5' cellspacing='0' "
                          "style='border-collapse:collapse;font-size:11px'>"
                          + "".join(trs) + "</table>")
+            if split:
+                parts.append(
+                    f"<p style='color:{_C['faint']};font-size:10px'>" + html.escape(tr(
+                        "{n} of this sheet's colours lie within what the profile "
+                        "({profile}) can print, {m} beyond it. The Result judges "
+                        "the within-gamut figures: a colour beyond the gamut was "
+                        "never printable, so its distance describes the gamut's "
+                        "limit, not a mistake of the profile — those patches are "
+                        "still shown, in their own column, and their stability "
+                        "over time is a drift signal.").format(
+                            n=split.get("n_in"), m=split.get("n_out"),
+                            profile=split.get("profile", ""))) + "</p>")
             if device_ref:
                 parts.append(f"<p style='color:{_C['faint']};font-size:10px'>" + html.escape(tr(
                     "No design file (.ti2) sits next to this measurement, so the "

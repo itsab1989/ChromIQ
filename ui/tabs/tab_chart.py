@@ -1645,8 +1645,10 @@ class TabChart(QWidget):
         self._manual_btn.setCheckable(True)
         self._manual_btn.setObjectName("mode_btn")
         self._manual_btn.setFont(_mode_font)
-        self._guided_btn.clicked.connect(lambda: self._switch_mode("guided"))
-        self._manual_btn.clicked.connect(lambda: self._switch_mode("manual"))
+        self._guided_btn.clicked.connect(
+            lambda: self._user_switch_mode("guided"))
+        self._manual_btn.clicked.connect(
+            lambda: self._user_switch_mode("manual"))
         mode_row.addWidget(self._guided_btn)
         mode_row.addWidget(self._manual_btn)
         # #133 feature B: the third module, shown only while Run type =
@@ -1657,7 +1659,8 @@ class TabChart(QWidget):
         self._gamut_btn.setObjectName("mode_btn")
         self._gamut_btn.setFont(_mode_font)
         self._gamut_btn.setVisible(False)
-        self._gamut_btn.clicked.connect(lambda: self._switch_mode("gamut"))
+        self._gamut_btn.clicked.connect(
+            lambda: self._user_switch_mode("gamut"))
         mode_row.addWidget(self._gamut_btn)
         mode_row.addStretch()
         # (The load / preset / reveal icons moved to the header's upper-right.)
@@ -4475,6 +4478,12 @@ class TabChart(QWidget):
         except Exception as exc:
             log.error("Cannot load parameters.yaml: %s", exc)
             return {}
+
+    def _user_switch_mode(self, mode: str) -> None:
+        """A module chosen BY HAND: from now on this session, the user's pick
+        wins — the verification default below never overrides it."""
+        self._user_chose_module = True
+        self._switch_mode(mode)
 
     def _switch_mode(self, mode: str) -> None:
         prev = self._mode_name()        # capture BEFORE the stack changes
@@ -10617,6 +10626,16 @@ class TabChart(QWidget):
             lbl.setVisible(show)
         if is_verif:
             self._refresh_gamut_state()
+            # A verification run that HAS a built profile opens on the FROM
+            # PROFILE GAMUT module — the chart whose colours the profile can
+            # actually print is the recommended check (Knut, 2026-08-10:
+            # "the only correct thing"). Only ever as a default: the moment
+            # the user picks a module by hand this session, their choice
+            # wins and stays. GUIDED and MANUAL remain one click away.
+            if (profile is not None
+                    and not getattr(self, "_gamut_active", False)
+                    and not getattr(self, "_user_chose_module", False)):
+                self._switch_mode("gamut")
 
     def _refresh_gamut_state(self) -> None:
         """Options vs the no-profile empty state, and the Generate button."""
