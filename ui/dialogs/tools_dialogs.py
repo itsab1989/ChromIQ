@@ -2275,6 +2275,34 @@ class VerifyProfileDialog(_ToolDialogBase):
         self._checker.run(params, _on_line, _on_finish)
 
 
+def _report_seed(parent, project) -> "Path | None":
+    """The measurement Tools ▸ Measurement report should open on: the current
+    target's, so the window shows the loaded project's reports right away
+    instead of opening empty (Sebastian, 2026-08-10). For a verification
+    target the newest measured date; otherwise the run's own measurement.
+    None when nothing is measured yet — the Add button covers the rest."""
+    try:
+        run = None
+        ctl = getattr(parent, "_target_ctl", None)
+        if ctl is not None and project is not None:
+            from core.measurement_target import resolve_run
+            run = resolve_run(project, ctl.target)
+        elif project is not None:
+            run = project.current_run()
+        if run is None:
+            return None
+        dated = [v for v in run.verifications() if v.exists()]
+        if ctl is not None and ctl.target.is_verification() and dated:
+            return dated[-1].measurement_ti3
+        if run.measurement_ti3.exists():
+            return run.measurement_ti3
+        if dated:
+            return dated[-1].measurement_ti3
+    except Exception:      # noqa: BLE001 — seeding is best-effort
+        pass
+    return None
+
+
 def open_tool_dialog(
     key: str,
     runner: "ArgyllRunner",
@@ -2320,7 +2348,8 @@ def open_tool_dialog(
         dlg = Ti3InfoDialog(runner, settings, parent)
     elif key == "measurement_report":
         from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
-        dlg = MeasurementReportDialog(settings, parent)
+        dlg = MeasurementReportDialog(settings, parent,
+                                      initial_ti3=_report_seed(parent, project))
     elif key == "softproof":
         from ui.dialogs.softproof_dialog import SoftproofDialog
         dlg = SoftproofDialog(runner, settings, parent)

@@ -88,7 +88,7 @@ def test_duplicate_is_not_offered_when_it_cannot_work():
     """§4a: never recommend a control the user would find greyed out.
     M-DUPLICATE-BLOCKED is appended to whichever message recommends it."""
     from workflow.measurement_messages import M_DUPLICATE_BLOCKED
-    assert "Duplicate is not available for this run" in M_DUPLICATE_BLOCKED
+    assert "Duplicating this run is not offered right now" in M_DUPLICATE_BLOCKED
     assert "{missing}" in M_DUPLICATE_BLOCKED, "and say which file is missing"
 
     src = inspect.getsource(TabProfile._confirm_rebuild_over_verifications)

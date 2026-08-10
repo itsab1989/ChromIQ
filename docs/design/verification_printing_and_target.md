@@ -5,32 +5,47 @@
 > approved before it is implemented — the specification may be the part that
 > needs to change.
 
-## ⏳ Awaiting confirmation — DRAFT
+## Confirmed on hardware — 2026-08-10
+
+The load-bearing behaviours below were confirmed by Sebastian on 2026-08-10.
+Everything OUTSIDE this section remains draft and sits under the
+awaiting-confirmation heading that follows it.
+
+**Both features are BUILT and hardware-tested.** Phases A0–A3 shipped in
+beta.208, feature B in beta.209, and on 2026-08-10 Sebastian ran the full
+proof on a real printer with a ColorMunki, guided step by step.
+
+#### ✅ Confirmed on hardware — by Sebastian, 2026-08-10
+
+| What | His words / the evidence |
+|---|---|
+| **§3.1a** — a gamut chart forces "Raw — already converted", Through disabled | *"so far everything was as expected"* (Print tab, gamut chart on screen); print record `colour: raw`, no conversion cache created |
+| **§3.1b** disabled-option styling | confirmed 2026-08-08 (unchanged) |
+| **Q3 default** — a free chart with verification history defaults to Raw | *"step 10 seems true, it defaults to raw - no profile"* |
+| **§5 funnel, the two-sheet proof** | same chart printed Raw and Through (relative): sheets measure **9.50 ΔE00 apart** (98/105 patches > 2), THROUGH better on every statistic (mean 10.77 vs 11.76, max 20.73 vs 26.32) — the conversion demonstrably reached the paper |
+| **Feature B end to end** | gamut chart printed raw, measured: report judges vs the colorimetric reference, **mean 2.80 / p95 5.71 / max 6.50 ΔE00** over 97 test colours, corners excluded and reported separately, patch identity verified 105/105 |
+| **IMPORT module** (§I of the unified model) | *"import worked and the messages were good"* |
+| **Gamut module defaults** — margin "Stay safely inside" (1.5 ΔE76), absolute colorimetric intent | kept on Sebastian's delegation (*"for this one I would trust you"* / *"what do you think?"*), with the reasoning recorded in §11; the full-range margin remains untested on hardware |
+
+#### Session findings (all fixed the same day)
+
+The session also caught six faults — the §4 archive gap on verify-chart
+replacement (charts were deleted, not archived; only the per-date snapshots
+preserved them), the W5 window's outdated snapshot claims, the Duplicate
+note's jargon, the report window opening too short, the report not gathering
+a run's unsaved verification history, and a print-record read that preferred
+the live record over the date's snapshot. Each is listed in the CHANGELOG of
+the beta that fixed it.
+
+## ⏳ Awaiting confirmation — everything below this line
 
 **Confirmed by:** *nobody yet.*
 
-Nothing here is agreed. It is a plan to argue with, section by section. No code
-has been written for either feature, and no row of any table below has been
-implemented.
-
-### Where this stands — 2026-08-09, after v3.14.8-beta.207
-
-**Neither feature has advanced.** Phases A0–A3 and B are untouched, and none of
-the decisions in §11 has been made. Everything below is still a draft.
-
-Work *did* happen around this plan, and it is worth being clear that it is not
-progress against A or B — it came out of questions asked while writing it:
-
-| | |
-|---|---|
-| **Shipped** | **beta.206** the patch-identity check (reports, acts on nothing) · **beta.207** disabled radio buttons now look disabled |
-| **Confirmed** | ✅ **One thing only**: the disabled-option styling (§3.1b), confirmed by Sebastian on 2026-08-08. Everything else in this file is unconfirmed |
-| **Closed by evidence** | i1Profiler preserves patch order (a real 550-patch round trip) · `targen -t` is nested by construction (four size pairs, byte-compared) · the master-set size, from what the industry actually uses · the set recipe, which is a `targen` invocation rather than new code |
-| **Corrected** | The set size twice — an invented 1 500, then 1 617 read from **CMYK** press references when ChromIQ is **RGB**. See §11 Q6 |
-| **Still open** | All of §11. The load-bearing evidence gap in §12 is unchanged: **nothing about colour-managed printing has been tested on hardware** |
-| **Owed when A lands** | The identity verdict prints as its own notice today; it belongs in the report's "how this was produced" block (§3.3, row A20), so the report gives one account of its conditions rather than two |
-| **Corrected 2026-08-09** | **`profcheck` is not meaningless for a verification** — Argyll's docs allow *"other test samples from the same device"*, so the existing Check & Refine modules are appropriate, and **B may need no module there at all** (§2b) · **The rendering intent is two questions, not one** — feature A's is chosen on the Print tab, #133's in Create Chart, so they can hold different defaults (§11 Q4) |
-| **New question** | §11 **Q5** — the Print Chart tab is **not** one of the storing tabs, so feature A's intent has nowhere to live per target. #133's does, automatically |
+The plan the features were built from — argue with it section by section.
+Still open: §11's remaining questions (master-set freeze, margin threshold
+numbers as final values), and the M-VERIFY-SAVED window text awaiting
+Sebastian's explicit greenlight.
+*(The historical status rows that stood here are superseded by the confirmed-on-hardware section above: the identity verdict now lives in the report's "how this was produced" block, and the §2b/§11 notes are in their sections.)*
 
 ### Sections added after the plan was first written
 

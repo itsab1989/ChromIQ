@@ -260,3 +260,61 @@ def test_pretty_verification_when():
     assert TabMeasure._pretty_verification_when(
         "2026-08-09_142530") == "2026-08-09 14:25"
     assert TabMeasure._pretty_verification_when("custom-id") == "custom-id"
+
+
+def test_report_dialog_gathers_all_dated_verifications(qapp, tmp_path):
+    """Opening the report on ONE dated verification loads the run's WHOLE
+    history — dates measured with report-saving off included (Sebastian,
+    2026-08-10: three measured dates showed as '1 run')."""
+    s, fm, ctl, run = _verify_env(tmp_path)
+    ti3s = []
+    for i in range(3):
+        v = run.new_verification()
+        v.ensure_dir()
+        v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES))
+        import os, time
+        t = time.time() - 300 + i * 60
+        os.utime(v.measurement_ti3, (t, t))
+        ti3s.append(v.measurement_ti3)
+
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    dlg = MeasurementReportDialog(s, None, initial_ti3=ti3s[0])
+    try:
+        assert len(dlg._sources) == 1
+        assert len(dlg._sources[0]["runs"]) == 3, \
+            "all three dated verifications must be gathered"
+        # Adding a sister date dedups — it is the same run's history.
+        assert dlg._source_key(ti3s[1]) == dlg._source_key(ti3s[0])
+    finally:
+        dlg.deleteLater()
+
+
+def test_measure_tab_report_opener_finds_dated_measurements(qapp, tmp_path,
+                                                            monkeypatch):
+    """After Restore Used Chart the Measure tab's report button claimed a
+    measured verification chart was unmeasured — it looked beside the shared
+    chart, where a verification's measurement never lives (Sebastian,
+    2026-08-10)."""
+    s, fm, ctl, run = _verify_env(tmp_path)
+    v = run.new_verification()
+    v.ensure_dir()
+    v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES))
+    tab = _tab(s, fm, ctl)
+    tab._ti1_path = run.verify_chart_ti2
+    opened: list = []
+    import ui.dialogs.measurement_report_dialog as mrd
+    class _Fake:
+        def __init__(self, *a, **kw):
+            opened.append(kw.get("initial_ti3"))
+        def exec(self):
+            return 0
+    monkeypatch.setattr(mrd, "MeasurementReportDialog", _Fake)
+
+    # Without a selected date: the newest measured date is used.
+    tab._open_measurement_report()
+    assert opened and opened[-1] == v.measurement_ti3
+
+    # With a date selected in the bar: that date wins.
+    ctl.set_verification_id(v.id)
+    tab._open_measurement_report()
+    assert opened[-1] == v.measurement_ti3

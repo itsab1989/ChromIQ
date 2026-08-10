@@ -177,6 +177,15 @@ def _find_reference_ti2(ti3_path: Path) -> Path:
     if same.is_file():
         return same
     stem = ti3_path.stem
+    # The dated verification's own chart/ snapshot OUTRANKS the shared chart:
+    # the shared one changes with every regenerate/restore, and judging an
+    # old date against whatever chart happens to be live gave nonsense the
+    # moment they differed (Sebastian, 2026-08-10: the gamut date's trend
+    # point jumped to ΔE ≈ 41 after the chart was swapped — its own honest
+    # value is 2.8). The snapshot is written at measure time for exactly this.
+    snap = ti3_path.parent / "chart" / f"{stem}.ti2"
+    if snap.is_file():
+        return snap
     up = ti3_path.parent.parent / f"{stem}.ti2"           # shared verify chart
     if up.is_file():
         return up
@@ -424,8 +433,18 @@ def build_report(ti3_path: str | Path, worst_n: int = 16) -> dict:
     # date), so imported runs trend by when they were measured, not when the
     # report is built. Native chartread files have no such keyword → build time.
     _measured = str(data.keywords.get("CHROMIQ_MEASURED") or "").strip()
-    _created = (f"{_measured}T00:00:00" if re.match(r"^\d{4}-\d{2}-\d{2}$", _measured)
-                else datetime.now().isoformat(timespec="seconds"))
+    if re.match(r"^\d{4}-\d{2}-\d{2}$", _measured):
+        _created = f"{_measured}T00:00:00"
+    else:
+        # No keyword: the FILE's own time, not now() — a history rebuilt for
+        # the trend must date each point by when it was measured, or every
+        # date collapses onto the moment the window was opened (Sebastian,
+        # 2026-08-10: four dates, one identical timestamp).
+        try:
+            _created = datetime.fromtimestamp(
+                ti3_path.stat().st_mtime).isoformat(timespec="seconds")
+        except OSError:
+            _created = datetime.now().isoformat(timespec="seconds")
     report: dict = {
         "schema": REPORT_SCHEMA,
         "created": _created,

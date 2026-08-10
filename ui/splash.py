@@ -68,13 +68,13 @@ def make_splash_pixmap(mode: str, version: str = "") -> QPixmap:
         p.fillRect(int(xa), int(by), int(xb - xa), _BAR_H, QColor(col))
 
     # Tagline (product, not sponsor) + version, both muted.
-    tag = QFont(); tag.setFamilies(["Inter", "Arial", "sans-serif"]); tag.setPixelSize(17)
+    tag = QFont(); tag.setFamilies(["Inter", "Arial", "Helvetica Neue"]); tag.setPixelSize(17)
     p.setFont(tag); p.setPen(QColor(pal["ver_fg"]))
     p.drawText(0, int(by + _BAR_H + 34), _W, 24,
                int(Qt.AlignmentFlag.AlignHCenter),
                "Printer profiling with ArgyllCMS")
     if version:
-        ver = QFont(); ver.setFamilies(["Inter", "Arial", "sans-serif"]); ver.setPixelSize(14)
+        ver = QFont(); ver.setFamilies(["Inter", "Arial", "Helvetica Neue"]); ver.setPixelSize(14)
         p.setFont(ver); p.setPen(QColor(pal["ver_fg"]))
         p.drawText(0, _H - 40, _W - 22, 24,
                    int(Qt.AlignmentFlag.AlignRight), version)

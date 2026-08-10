@@ -109,9 +109,16 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # the formal record.
                                  "M-VERIFY-CREATE-NO-PROFILE",
                                  "M-GAMUT-NO-PROFILE",
-                                 # The Measure tab's IMPORT module.
+                                 # The Measure tab's IMPORT module. M-IMPORT-
+                                 # DONE was approved by Sebastian on 2026-08-10
+                                 # (seen live: "messages were good").
                                  "M-IMPORT-MISMATCH", "M-IMPORT-DATE-TAKEN",
-                                 "M-IMPORT-DONE"}
+                                 # The saved window's two doors (Basti,
+                                 # 2026-08-10 hardware session).
+                                 "M-VERIFY-SAVED",
+                                 # W5 rework after the same session: the old
+                                 # text ignored the per-date chart snapshots.
+                                 "M-CHART-VERIFY"}
 
 
 def test_nothing_is_quietly_proposed():
@@ -207,6 +214,7 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_check_refine", "TabCheckRefine", "_warn_converted_measurement"),
     ("ui.tabs.tab_measure", "TabMeasure", "_show_import_refusal"),
     ("ui.tabs.tab_measure", "TabMeasure", "_show_import_done"),
+    ("ui.tabs.tab_measure", "TabMeasure", "_show_verification_saved"),
 ]
 
 

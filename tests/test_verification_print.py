@@ -289,3 +289,68 @@ def test_no_record_reads_as_none(tmp_path):
     ti3 = tmp_path / "proj-verify.ti3"
     ti3.write_text("CTI3\n")
     assert read_print_record(ti3) is None
+
+
+def test_the_dated_snapshot_record_outranks_the_shared_one(tmp_path):
+    """A dated verification's chart/ snapshot keeps the record of ITS print;
+    the shared record describes only the LAST print of the chart. Found on
+    hardware (2026-08-10): after printing the second sheet through the
+    profile, the first (raw) sheet's report claimed "through-profile"."""
+    from workflow import verification_print as vp
+    vdir = tmp_path / "verifications" / "2026-08-10_120247"
+    (vdir / "chart").mkdir(parents=True)
+    ti3 = vdir / "c-verify.ti3"
+    ti3.write_text("CTI3\n")
+    shared = tmp_path / "verifications" / "c-verify.ti2"
+    shared.write_text("CTI2\n")
+    # The chart was printed raw for THIS date…
+    vp.write_print_record(vdir / "chart" / "c-verify.ti2", colour=vp.COLOUR_RAW,
+                          intent="", profile=None, route=vp.ROUTE_CHROMIQ)
+    # …and later through the profile (the live, shared record).
+    vp.write_print_record(shared, colour=vp.COLOUR_THROUGH, intent="relative",
+                          profile=None, route=vp.ROUTE_CHROMIQ)
+    rec = vp.read_print_record(ti3)
+    assert rec is not None and rec["colour"] == vp.COLOUR_RAW
+    # A date with no snapshot still falls back to the shared record.
+    (vdir / "chart" / "c-verify.print.json").unlink()
+    rec = vp.read_print_record(ti3)
+    assert rec is not None and rec["colour"] == vp.COLOUR_THROUGH
+
+
+def test_dated_report_resolves_the_chart_from_its_own_snapshot(tmp_path):
+    """The date's chart/ snapshot outranks the shared verify chart — the
+    shared one changes with every regenerate/restore, and judging an old date
+    against whatever is live gave ΔE ≈ 41 nonsense for a 2.8 measurement
+    (Sebastian, 2026-08-10, the trend's first point)."""
+    from workflow.measurement_report import _find_reference_ti2
+    vdir = tmp_path / "verifications"
+    dated = vdir / "2026-08-10_113503"
+    (dated / "chart").mkdir(parents=True)
+    ti3 = dated / "c-verify.ti3"
+    ti3.write_text("CTI3\n")
+    snap = dated / "chart" / "c-verify.ti2"
+    snap.write_text("CTI2 snapshot\n")
+    shared = vdir / "c-verify.ti2"
+    shared.write_text("CTI2 live\n")
+    assert _find_reference_ti2(ti3) == snap
+    # Without a snapshot the shared chart is still the fallback.
+    snap.unlink()
+    assert _find_reference_ti2(ti3) == shared
+
+
+def test_a_rebuilt_report_is_dated_by_the_measurement_file(tmp_path):
+    """created = the .ti3's own time, so a history rebuilt for the trend does
+    not collapse onto the moment the window was opened."""
+    import os
+    from workflow.measurement_report import build_report
+    ti3 = tmp_path / "m.ti3"
+    ti3.write_text(
+        "CTI3\n\nNUMBER_OF_FIELDS 8\nBEGIN_DATA_FORMAT\n"
+        "SAMPLE_ID SAMPLE_LOC RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z\n"
+        "END_DATA_FORMAT\n\nNUMBER_OF_SETS 2\nBEGIN_DATA\n"
+        '1 "1" 0 0 0 5 3 2\n2 "2" 100 100 100 65 73 52\nEND_DATA\n')
+    t = 1750000000.0
+    os.utime(ti3, (t, t))
+    from datetime import datetime
+    want = datetime.fromtimestamp(t).isoformat(timespec="seconds")
+    assert build_report(ti3)["created"] == want

@@ -257,34 +257,39 @@ M_CHART_W4 = _m(
     "different chart while keeping this one's work and its history.\n\n"
     "The “old” folder is here:\n{folder}")
 
+# Reworked after the 2026-08-10 hardware session (Sebastian): the old text
+# claimed the displaced measurements would "no longer have the chart they were
+# made with" — untrue since every measured date snapshots its chart — and its
+# Duplicate advice contradicted its own "no measurement is touched".
 M_CHART_VERIFY = _m(
     "M-CHART-VERIFY",
     "The verification measurements already made in this run used the chart "
     "you are about to replace",
-    "The {v} dated verification measurements in this run were all made with "
-    "this verification chart. Replacing it does not make them wrong, and the "
-    "report can still compare their figures — but those measurements would no "
-    "longer have the chart they were made with, so nothing on disk would say "
-    "what they were readings of.\n\n"
-    "A trend across the change also compares two different charts, which is "
-    "not the same measurement made twice.\n\n"
-    "The chart is moved to the “old” folder inside “verifications” and no "
-    "measurement is touched. Duplicate the run instead if you want a different "
-    "verification chart while keeping this run's verification measurements "
-    "intact.",
+    "The {v} dated verification measurements in this run were made with this "
+    "verification chart. Replacing it does not make them wrong — each date "
+    "keeps its own stored copy of the chart it was measured with, so every "
+    "result stays readable, and “Restore Used Chart” can bring a date's "
+    "chart back on screen.\n\n"
+    "One thing to keep in mind: a trend across the change compares two "
+    "different charts, which is not the same measurement made twice.\n\n"
+    "The chart itself moves to the “old” folder inside “verifications”; no "
+    "measurement is touched and nothing is deleted. If you would rather keep "
+    "measuring the current chart, duplicate the run first — it lives on in "
+    "the copy.",
     count_key="v",
+    approved=False,
     body_one=
     "The one dated verification measurement in this run was made with this "
-    "verification chart. Replacing it does not make it wrong, and the report "
-    "can still compare its figures — but that measurement would no longer have "
-    "the chart it was made with, so nothing on disk would say what it was "
-    "readings of.\n\n"
-    "A trend across the change also compares two different charts, which is "
-    "not the same measurement made twice.\n\n"
-    "The chart is moved to the “old” folder inside “verifications” and no "
-    "measurement is touched. Duplicate the run instead if you want a different "
-    "verification chart while keeping this run's verification measurements "
-    "intact.")
+    "verification chart. Replacing it does not make it wrong — the date "
+    "keeps its own stored copy of the chart it was measured with, so the "
+    "result stays readable, and “Restore Used Chart” can bring that chart "
+    "back on screen.\n\n"
+    "One thing to keep in mind: a trend across the change compares two "
+    "different charts, which is not the same measurement made twice.\n\n"
+    "The chart itself moves to the “old” folder inside “verifications”; no "
+    "measurement is touched and nothing is deleted. If you would rather keep "
+    "measuring the current chart, duplicate the run first — it lives on in "
+    "the copy.")
 
 M_CHART_NOPAGES = _m(
     "M-CHART-NOPAGES",
@@ -437,10 +442,9 @@ M_SILENCE_TOOLTIP = (
     "keeps asking, and so does this one the next time you start the program.")
 
 M_DUPLICATE_BLOCKED = (
-    "\n\nDuplicate is not available for this run. It needs all four of these: "
-    "the patch list (.ti1), the laid-out chart (.ti2), the layout recipe "
-    "(.channels.json) and at least one printed page (.tif). This run is "
-    "missing {missing}.")
+    "\n\nDuplicating this run is not offered right now: a duplicate carries "
+    "the run's own chart along, and this run's chart files are not complete "
+    "on disk (missing: {missing}).")
 
 
 # --- PROPOSED: feature B (#133), the From-profile-gamut module -------------
@@ -474,6 +478,25 @@ M_GAMUT_NO_PROFILE = _m(
     "GUIDED and MANUAL can still build you a chart in the meantime, so the "
     "files are ready. Printing and measuring any verification chart waits for "
     "the profile either way.",
+    approved=False)
+
+# --- PROPOSED: the verification-saved window offers both doors -------------
+# Proposed by Basti during the 2026-08-10 hardware session: the completion
+# window promised "colour accuracy" but only offered the inspector — the
+# accuracy analysis lives in the measurement report. Both doors, explained.
+M_VERIFY_SAVED = _m(
+    "M-VERIFY-SAVED",
+    "Verification Measurement Saved",
+    "Your verification measurement has been saved as {name}, in its own "
+    "dated folder.\n\n"
+    "This file checks a print against a profile — do not build a profile "
+    "from it. Two ways to look at it:\n\n"
+    "Measurement report — the colour-accuracy analysis: how close each "
+    "printed colour landed to what the profile expected, the worst patches, "
+    "your printer's reach at the cube corners, and — once you have several "
+    "dated verifications — how the profile holds up over time.\n\n"
+    "Measurement inspector — the physical portrait of this one print: paper "
+    "white, contrast, grey cast, and how it behaves under different light.",
     approved=False)
 
 # --- PROPOSED: the Measure tab's IMPORT module (verification runs) ---------
@@ -514,7 +537,7 @@ M_IMPORT_DONE = _m(
     "result stays interpretable even if the chart is replaced later.\n\n"
     "To see the colour-accuracy figures, open Tools ▸ “Measurement report” — "
     "the imported measurement is already in place there.",
-    approved=False)
+    approved=True)   # Sebastian, 2026-08-10: seen live, "messages were good"
 
 # --- PROPOSED: feature A, printing a verification chart through its profile -
 # The two failure windows of the print-time conversion (#130,
@@ -601,6 +624,7 @@ CATALOGUE = {m.id: m for m in (
     M_CM_NO_CCTIFF, M_CM_CONVERT_FAILED, M_CM_PROFCHECK_CONVERTED,
     M_VERIFY_CREATE_NO_PROFILE, M_GAMUT_NO_PROFILE,
     M_IMPORT_MISMATCH, M_IMPORT_DATE_TAKEN, M_IMPORT_DONE,
+    M_VERIFY_SAVED,
     M_NO_INSTRUMENT,
 )}
 

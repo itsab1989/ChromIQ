@@ -1,5 +1,54 @@
 # Changelog
 
+## v3.14.8-beta.213
+
+Everything in this beta came out of the first real hardware session
+(2026-08-10): a gamut chart and a two-sheet Raw/Through proof printed on a
+real printer and measured with a ColorMunki, guided live.
+
+### Fixed
+
+- **Replacing a verification chart now archives it — it was deleted.** The
+  replace window promised "moved to the 'old' folder … nothing is deleted",
+  but the displaced chart files (including a gamut chart's colour reference)
+  were removed outright; only the measured dates' snapshots preserved them.
+  They now go to `verifications/old/<date>/`, complete.
+- **A dated verification's report names how ITS sheet was printed.** The
+  report read the chart's shared print record — which describes only the
+  *last* print — so the moment the second sheet was printed through the
+  profile, the first (raw) sheet's report claimed "through-profile". The
+  date's own snapshotted record now outranks the shared one.
+- **The measurement report opens tall and gathers the whole history.** It
+  opened at its 640 px minimum, squeezing the report text into a strip a few
+  lines high, and it loaded only the one measurement it was opened on. It now
+  opens at the screen's height and, for a dated verification, loads **all**
+  of that run's dates — so the trend over time draws even when report-saving
+  is off.
+- **The Measurement-info window fits the screen.** Its details area demanded
+  a fixed 720 px, so on smaller displays the window's bottom sat off-screen
+  and nothing scrolled; the details now take what the screen affords and
+  scroll for the rest.
+- **The chart-replace window's text tells the truth about snapshots.** It
+  claimed the displaced measurements would "no longer have the chart they
+  were made with" — every measured date keeps its own stored copy, and the
+  new wording says so (awaiting review in §M-PROPOSED). The note shown when
+  Duplicate is unavailable lost its file-extension jargon.
+- **The verification-saved window offers both doors.** After a verification
+  measurement it now explains and offers the measurement report (the
+  colour-accuracy analysis) alongside the measurement inspector, with the
+  report as the default (proposed by Sebastian mid-session).
+- Quieter, truthful logs: the native-print "no default output intent" case is
+  reported as information in plain words, and the splash no longer asks Qt
+  for a font family that does not exist.
+
+### Confirmed on hardware (Sebastian, 2026-08-10)
+
+§3.1a forced-Raw for converted charts · the Q3 raw default with history ·
+feature A's conversion proven on paper (9.5 ΔE00 sheet separation) ·
+feature B's report against the colorimetric reference (mean 2.80 ΔE00,
+corners excluded) · the IMPORT module end to end. Recorded in
+`docs/design/verification_printing_and_target.md` and the unified model's §I.
+
 ## v3.14.8-beta.212
 
 ### Changed

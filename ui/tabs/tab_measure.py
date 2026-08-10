@@ -7712,35 +7712,57 @@ class TabMeasure(QWidget):
                  "from it. Open it in Tools ▸ Inspect a measurement to check the "
                  "profile."))
 
-        from PyQt6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
+        self._show_verification_saved(dst)
+
+    def _show_verification_saved(self, dst: Path) -> None:
+        """The verification-saved window, with BOTH doors — report and
+        inspector — each explained. The **text** comes from
+        ``workflow/measurement_messages.py`` (§M); this method only renders
+        it. Proposed by Basti mid-hardware-session, 2026-08-10: the report is
+        the analysis a verification exists for, and this window only offered
+        the inspector."""
+        from PyQt6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QPushButton,
+                                     QVBoxLayout)
+        from workflow import measurement_messages as M
+        title, body = M.M_VERIFY_SAVED.render(name=dst.name)
         dlg = QDialog(self)
-        dlg.setWindowTitle(tr("Verification Measurement Saved"))
-        dlg.setMinimumWidth(560)
+        dlg.setWindowTitle(title)
+        dlg.setMinimumWidth(600)
         lay = QVBoxLayout(dlg)
         lay.setSpacing(16)
         lay.setContentsMargins(24, 20, 24, 20)
-        msg = QLabel(tr(
-            "<b>Your verification measurement has been saved</b> as "
-            "<code>{name}</code>.<br><br>This file checks a colour-managed print "
-            "against a profile — <b>don't build a profile from it</b>. Open it in "
-            "<b>Tools ▸ Inspect a measurement</b> (it opens in Verify mode "
-            "automatically) to see the residual cast and colour accuracy.").format(
-                name=dst.name), dlg)
+        msg = QLabel(body, dlg)
         msg.setWordWrap(True)
+        msg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         lay.addWidget(msg)
         row = QHBoxLayout()
         row.addStretch(1)
         close_btn = QPushButton(tr("Close"), dlg)
         close_btn.clicked.connect(dlg.reject)
-        open_btn = QPushButton(tr("Open in measurement inspector"), dlg)
-        open_btn.setObjectName("primary")
-        open_btn.setDefault(True)
-        open_btn.clicked.connect(dlg.accept)
+        choice = {"open": ""}
+
+        def _pick(what: str) -> None:
+            choice["open"] = what
+            dlg.accept()
+
+        insp_btn = QPushButton(tr("Open in measurement inspector"), dlg)
+        insp_btn.clicked.connect(lambda: _pick("inspector"))
+        report_btn = QPushButton(tr("Open measurement report"), dlg)
+        report_btn.setObjectName("primary")
+        report_btn.setDefault(True)
+        report_btn.clicked.connect(lambda: _pick("report"))
         row.addWidget(close_btn)
-        row.addWidget(open_btn)
+        row.addWidget(insp_btn)
+        row.addWidget(report_btn)
         lay.addLayout(row)
         tint_dialog_primary(dlg, _TAB_COLOR)
-        if dlg.exec() == QDialog.DialogCode.Accepted:
+        dlg.exec()
+        if choice["open"] == "report":
+            from ui.dialogs.measurement_report_dialog import \
+                MeasurementReportDialog
+            MeasurementReportDialog(self._settings, self,
+                                    initial_ti3=dst).exec()
+        elif choice["open"] == "inspector":
             from ui.dialogs.ti3_info_dialog import Ti3InfoDialog
             insp = Ti3InfoDialog(self._runner, self._settings, self)
             insp.load_measurement(dst)
@@ -10508,6 +10530,25 @@ class TabMeasure(QWidget):
         """Open the measurement-report viewer for the current chart's .ti3."""
         from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
         ti3 = self._ti1_path.with_suffix(".ti3") if self._ti1_path else None
+        # A verification's measurements live in DATED folders, never beside
+        # the shared chart — so the beside-the-chart guess above never finds
+        # them (Sebastian, 2026-08-10: after Restore Used Chart the report
+        # claimed the measured chart was unmeasured). Resolve through the
+        # bar: the selected date first, else the run's newest measured date.
+        if self._is_verification_run():
+            run = self._guard_run()
+            if run is not None:
+                ctl = getattr(self, "_target_ctl", None)
+                vid = ctl.target.verification_id if ctl is not None else ""
+                cand = None
+                if vid and run.verification(vid).measurement_ti3.exists():
+                    cand = run.verification(vid).measurement_ti3
+                else:
+                    dated = [v for v in run.verifications() if v.exists()]
+                    if dated:
+                        cand = dated[-1].measurement_ti3
+                if cand is not None:
+                    ti3 = cand
         if ti3 is None or not ti3.exists():
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.information(

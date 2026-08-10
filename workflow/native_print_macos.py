@@ -422,6 +422,17 @@ def _apply_session_no_color_management(print_info) -> None:
             else:
                 log.info("native print: application output intent declared (device-space passthrough)")
             _cf.CFRelease(intents)
+        elif status == 0:
+            # Not a fault: this driver simply registers no default output
+            # intent, so the device-space redeclare (the anti-vendor-CM step)
+            # has nothing to work with. The ColorSync-off lock and the
+            # application-managed-colour switch below still apply. Logged as
+            # info — the WARNING wording alarmed a user mid-print session
+            # (Sebastian, 2026-08-10).
+            log.info(
+                "native print: driver reports no default output intent — "
+                "device-space redeclare skipped; colour-off lock and "
+                "application-managed colour still apply")
         else:
             log.warning(
                 "native print: CopyDefaultOutputIntent -> %d (intents=%s)",

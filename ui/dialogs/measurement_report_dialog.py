@@ -155,7 +155,7 @@ class _TrendChart(QWidget):
         self._dec = 1
         self._auto = False
         self._thresholds: "tuple[float, float] | None" = None
-        self.setMinimumHeight(210)
+        self.setMinimumHeight(170)
 
     def set_data(self, series, metrics, dark=True, y_max=None, dec=1,
                  auto=False, thresholds=None) -> None:
@@ -282,14 +282,27 @@ class _TrendChart(QWidget):
             # tip instead (Knut). y-axis numbers are at fracs 0 / 0.5 / 1.
             axis_ys = [T + h * (1.0 - f) for f in (0.0, 0.5, 1.0)]
             thr_ys = [T + h * (1.0 - (tv - vmin) / span) for tv, _ in thr]
+            # Collide when a label would land on a y-axis number — or on the
+            # OTHER threshold's label: on a large y-range Avg 2.0 and Max 3.0
+            # map to almost the same pixel, and the two words printed over
+            # each other (Sebastian, 2026-08-10).
             collide = any(abs(ty - ay) < 9.0 for ty in thr_ys for ay in axis_ys)
+            if len(thr_ys) == 2 and abs(thr_ys[0] - thr_ys[1]) < 11.0:
+                collide = True
+            prev_text_y: "float | None" = None
             for (tv, tlab), yy in zip(thr, thr_ys):
                 p.setPen(tpen)
                 p.drawLine(QPointF(L, yy), QPointF(L + w, yy))
                 p.setPen(QPen(fg, 1.0))
                 if collide:
-                    # Just above the dotted line, left-adjusted to its left tip.
-                    p.drawText(QPointF(L + 2, yy - 3), tlab)
+                    # Just above the dotted line, left-adjusted to its left
+                    # tip — and when the previous label sits within a line's
+                    # height, step below the line instead so both stay legible.
+                    ty = yy - 3
+                    if prev_text_y is not None and abs(ty - prev_text_y) < 11.0:
+                        ty = yy + 11
+                    p.drawText(QPointF(L + 2, ty), tlab)
+                    prev_text_y = ty
                 else:
                     p.drawText(QRectF(0, yy - 7, L - 4, 14),
                                Qt.AlignmentFlag.AlignRight
@@ -353,6 +366,12 @@ class MeasurementReportDialog(QDialog):
         self._created = datetime.now().isoformat(timespec="seconds")
         self.setWindowTitle(tr("Measurement Report"))
         self.setMinimumSize(760, 640)
+        # Open TALL: everything above the report view has a fixed height
+        # (~600 px with the trend visible), so at the 640 px minimum the
+        # report text itself was a ~90 px sliver — "hard to get any
+        # information out of it" (Sebastian, 2026-08-10). The view carries
+        # the stretch, so every extra pixel goes to the report.
+        self._sized_to_screen = False
         self.setWindowFlags(
             self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
 
@@ -640,6 +659,11 @@ class MeasurementReportDialog(QDialog):
         self._view.setOpenExternalLinks(False)
         self._view.setFrameShape(QFrame.Shape.NoFrame)
         self._view.setHtml(self._empty_html())
+        # The report TEXT is the point of the window — guarantee it real
+        # space. With the trend visible the fixed content above squeezed it
+        # to a strip a few lines high (Sebastian, 2026-08-10: "hard to get
+        # any information out of it").
+        self._view.setMinimumHeight(300)
         v.addWidget(self._view, 1)
         # The report view scrolls internally — give it the same fade-to-surface
         # gradient the Tools dialogs use on their scroll areas.
@@ -668,6 +692,18 @@ class MeasurementReportDialog(QDialog):
 
         if initial_ti3 is not None and Path(initial_ti3).exists():
             self._load(Path(initial_ti3))
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        super().showEvent(event)
+        if self._sized_to_screen:
+            return
+        self._sized_to_screen = True
+        from PyQt6.QtGui import QGuiApplication
+        screen = self.screen() or QGuiApplication.primaryScreen()
+        if screen is not None:
+            area = screen.availableGeometry()
+            self.resize(max(self.width(), 920),
+                        max(640, int(area.height() * 0.88)))
 
     # ---- sources (one per profile) ----------------------------------------
     def _gather_runs(self, ti3: Path) -> "tuple[str, list]":
@@ -701,6 +737,25 @@ class MeasurementReportDialog(QDialog):
                     except Exception:  # noqa: BLE001
                         pass
             runs.append(rep)
+        # #130/#133: a dated verification trends across ALL of this run's
+        # dates. A date measured with "Save measurement report" switched off
+        # has no saved report — build its report fresh here, so the history is
+        # complete either way (Sebastian, 2026-08-10: three measured dates
+        # showed as "1 run" and the trend stayed empty).
+        from core.file_manager import VERIFICATIONS_DIRNAME
+        vroot = ti3.parent.parent
+        if vroot.name == VERIFICATIONS_DIRNAME:
+            covered = {Path(r.get("ti3", "")).parent.name
+                       for r in runs if r.get("ti3")}
+            for d in sorted(p for p in vroot.iterdir() if p.is_dir()):
+                if d.name in covered or d.name == "old":
+                    continue
+                cand = d / ti3.name
+                if cand.is_file():
+                    try:
+                        runs.append(build_report(cand))
+                    except Exception:  # noqa: BLE001 — one bad date must
+                        continue       # not empty the whole history
         if not runs:
             runs = [build_report(ti3)]
         runs.sort(key=lambda r: str(r.get("created") or ""))
@@ -712,7 +767,13 @@ class MeasurementReportDialog(QDialog):
         across its runs/) is ONE source per FOLDER — all its runs. A standalone or
         imported measurement is ONE source per FILE, so several loose measurements
         in the same folder each add instead of collapsing to one (Knut)."""
+        from core.file_manager import VERIFICATIONS_DIRNAME
         from workflow.measurement_report import list_project_reports
+        # A dated verification is ONE source per RUN — every date of the run's
+        # verifications/ is gathered together, so adding a second date must
+        # dedup against the first.
+        if ti3.parent.parent.name == VERIFICATIONS_DIRNAME:
+            return ("dir", str(ti3.parent.parent))
         if list_project_reports(ti3.parent):
             return ("dir", str(ti3.parent))
         return ("file", str(ti3))

@@ -999,11 +999,16 @@ class Run:
         return moved_ti2
 
     def _clear_verify_chart_files(self) -> None:
-        """Delete the shared verification CHART files at the ``verifications/``
-        root (``<verify_stem>.*`` + ``<verify_stem>_NN.tif`` + the exports
-        sidecars). The dated ``verifications/<date>/`` measurement folders are
-        named by timestamp, not by the verify stem, so they are never matched —
-        the verification HISTORY is untouched, only the reusable chart is
+        """**Archive** the shared verification CHART files at the
+        ``verifications/`` root (``<verify_stem>.*`` + ``<verify_stem>_NN.tif``
+        + the exports sidecars) into ``verifications/old/<date>/`` — never
+        delete them. Found on hardware (Sebastian, 2026-08-10): a regenerate
+        deleted the gamut chart and its colorimetric reference outright while
+        the replace window promised "moved to the 'old' folder … nothing is
+        deleted"; only the measured date's snapshot preserved the chart. The
+        dated ``verifications/<date>/`` measurement folders are named by
+        timestamp, not by the verify stem, so they are never matched — the
+        verification HISTORY is untouched, only the reusable chart is
         replaced (#130)."""
         vdir = self.verifications_dir
         if not vdir.exists():
@@ -1013,11 +1018,12 @@ class Run:
         vexp = vdir / EXPORTS_DIRNAME
         if vexp.is_dir():
             targets += [f for f in vexp.glob(f"{stem}*") if f.is_file()]
-        for p in targets:
-            try:
-                p.unlink()
-            except OSError as exc:
-                log.warning("Could not delete stale verify file %s: %s", p, exc)
+        try:
+            self.archive_to_old(targets, into=self.verifications_old_dir)
+        except OSError as exc:
+            # Archiving must never abort the adopt — but deleting is not an
+            # acceptable fallback either, so leave what could not move.
+            log.warning("Could not archive the displaced verify chart: %s", exc)
 
     # ---- overwrite safety: "start fresh" archive (#130)
     @property

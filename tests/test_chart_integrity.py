@@ -361,15 +361,15 @@ def test_duplicate_is_recommended_when_it_would_work(tmp_path):
     run = _run(tmp_path, ti1=True, ti2=True, recipe=True, tifs=1, readings=3)
     text = _profiling_text(run, assess_profiling_chart(run))
     assert "Duplicate the run and make the new chart in the copy" in text
-    assert "Duplicate is not available" not in text
+    assert "Duplicating this run is not offered" not in text
 
 
 def test_duplicate_is_explained_away_when_it_would_not(tmp_path):
     """M-DUPLICATE-BLOCKED, appended to any message that recommends it."""
     run = _run(tmp_path, ti1=True, ti2=True, readings=3)
     text = _profiling_text(run, assess_profiling_chart(run))
-    assert "Duplicate is not available for this run" in text
-    assert "the layout recipe (.channels.json)" in text
+    assert "Duplicating this run is not offered right now" in text
+    assert "layout recipe (.channels.json)" in text
 
 
 def test_every_profiling_message_promises_the_old_folder(tmp_path):
@@ -416,7 +416,7 @@ def test_w5_says_no_measurement_is_touched(tmp_path):
 def test_w5_points_at_duplicate_as_the_way_to_keep_both(tmp_path):
     run = _run(tmp_path, ti1=True, ti2=True, verifications=1)
     _t, body = _Talker()._verify_chart_message(assess_verification_chart(run))
-    assert "Duplicate the run instead" in body
+    assert "duplicate the run first" in body
     assert "(s)" not in body
 
 

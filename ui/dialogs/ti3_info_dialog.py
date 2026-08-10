@@ -297,10 +297,13 @@ class Ti3InfoDialog(QDialog):
         self._scroll = FadeScrollArea(self)
         self._scroll.setWidgetResizable(True)
         self._scroll.setFrameShape(QFrame.Shape.NoFrame)
-        # Tall floor so the full six-section report is comfortably visible in
-        # one glance on a normal display; pin_min_height still clamps the open
-        # height to 90 % of the screen, and the scroll covers smaller screens.
-        self._scroll.setMinimumHeight(720)
+        # A LOW floor here — the generous one is set per-screen in showEvent.
+        # A hard 720 floor entered the dialog's overlap-free minimum, so on a
+        # display where header+720+buttons exceed the screen the window could
+        # not shrink, its bottom sat off-screen and the details never showed a
+        # scrollbar (their 720 px was granted in full) — Basti, 2026-08-10,
+        # twice during the hardware session.
+        self._scroll.setMinimumHeight(240)
 
         self._details = QWidget()
         self._grid = QGridLayout(self._details)
@@ -342,6 +345,19 @@ class Ti3InfoDialog(QDialog):
 
     def showEvent(self, event) -> None:  # noqa: N802
         super().showEvent(event)
+        # Give the details as much of the 720 px comfort floor as THIS screen
+        # affords: everything-but-the-details keeps its overlap-free minimum,
+        # and the details floor is what's left under 90 % of the screen — so
+        # the whole dialog always fits, and smaller screens get a working
+        # scrollbar instead of an off-screen bottom.
+        from PyQt6.QtGui import QGuiApplication
+        screen = self.screen() or QGuiApplication.primaryScreen()
+        if screen is not None and self.layout() is not None:
+            self.layout().activate()
+            others = (self.layout().minimumSize().height()
+                      - self._scroll.minimumHeight())
+            avail = int(screen.availableGeometry().height() * 0.9)
+            self._scroll.setMinimumHeight(max(240, min(720, avail - others)))
         pin_min_height(
             self, min_width=720, wrap_labels=(self._body, self._banner),
             inner_margins=self._inner.contentsMargins(), resize_width=True)

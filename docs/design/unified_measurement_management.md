@@ -1,7 +1,7 @@
 # Unified Measurement Management — Design Specification
 
 > **Revision 2026-08-09 (e) — two approved messages carry a revised print step.**
-> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), plus M-IMPORT-MISMATCH, M-IMPORT-DATE-TAKEN and M-IMPORT-DONE (the Measure tab's IMPORT module) — all defined in the awaiting-review section below.
+> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), M-IMPORT-MISMATCH and M-IMPORT-DATE-TAKEN (the Measure tab's IMPORT module; its import-done window was approved by Sebastian 2026-08-10), M-VERIFY-SAVED (the saved window's two doors), plus the revised M-CHART-VERIFY (W5, reworked after the 2026-08-10 hardware session) — all defined in the awaiting-review section below.
 > Both were approved by Knut on 2026-08-04, but one step in each instructed *"(with colour management on)"* — a setting ChromIQ deliberately locks **off** on every print path, so the approved text told the user to do something the app prevents (established in `verification_printing_and_target.md` §1, and A0.1 of its plan). With feature A the instruction has a real control to name — the Print Chart tab's **Colour** row — so that one step is revised and the revision waits in §M-PROPOSED. Every other message in §M remains approved as before: the last, **M-BUILD-ELSEWHERE**, was accepted on 2026-08-04 — *"Message M-BUILD-ELSEWHERE accepted"* — and M-CHART-CORRUPT, M-REPLACE-UNCOUNTABLE and M-PREVIEW-PAUSED the day before. A new message goes to §M-PROPOSED first, and `tests/test_message_catalogue.py` fails if one is added to the code without it.
 
 > **Status:** specification, agreed on [issue #130](https://github.com/itsab1989/ChromIQ/issues/130).
@@ -797,21 +797,30 @@ Every window this specification can raise, in one place. **ID → where it is us
 
 > **Duplicate is not available for this run.** It needs all four of these: the patch list (.ti1), the laid-out chart (.ti2), the layout recipe (.channels.json) and at least one printed page (.tif). This run is missing {missing}.
 
-### M-CHART-VERIFY · replacing the verification chart — §4 (W5)
+### M-CHART-VERIFY — definition moved to §M-PROPOSED
 
-> **The verification measurements already made in this run used the chart you are about to replace**
->
-> The {v} dated verification measurement{s} in this run were all made with this verification chart. Replacing it does not make them wrong, and the report can still compare their figures — but those measurements would no longer have the chart they were made with, so nothing on disk would say what they were readings of.
->
-> A trend across the change also compares two different charts, which is not the same measurement made twice.
->
-> The chart is moved to `old/{date}/` and no measurement is touched. **Duplicate the run** instead if you want a different verification chart while keeping this run's verification measurements intact.
+*The wording was revised after the 2026-08-10 hardware session (Sebastian
+saw the old text live and it earned a "needs rework": it ignored the
+per-date chart snapshots and its Duplicate advice contradicted its own
+"no measurement is touched"). The revision awaits review in the
+awaiting-review section below; once approved it returns here. The archive
+it promises is now real: ``verifications/old/<date>/``.*
 
-*The definitions of **M-VERIFY-NO-PROFILE** (§S1.2) and **M-VERIFY-NO-CHART**
-(§S1.3) have moved to §M-PROPOSED: the wording Knut approved on 2026-08-04
-carried one step instructing "(with colour management on)", which the app
-prevents on every print path, and the revision that corrects that step awaits
-review there. Once approved, they return here.*
+### M-IMPORT-DONE · the import succeeded — Measure ▸ IMPORT
+
+*Approved by Sebastian, 2026-08-10 — seen live in the hardware session
+("import worked and the messages were good").*
+
+> **The measurement was imported**
+>
+> It is filed as this run's verification from {when}, in its own dated folder:
+> {folder}
+>
+> A copy of the chart it was measured against is stored with it, so the result stays interpretable even if the chart is replaced later.
+>
+> To see the colour-accuracy figures, open Tools ▸ "Measurement report" — the imported measurement is already in place there.
+
+---
 
 ### M-BUILD-ELSEWHERE · the measurement belongs to another run — §6
 
@@ -1014,6 +1023,24 @@ module's input, so without one there is nothing to ask.*
 >
 > GUIDED and MANUAL can still build you a chart in the meantime, so the files are ready. Printing and measuring any verification chart waits for the profile either way.
 
+### M-VERIFY-SAVED · PROPOSED · a verification measurement was saved — Measure
+
+*Replaces the completion window's inline text. It promised "colour accuracy"
+but only offered the measurement inspector — the accuracy analysis lives in
+the measurement report, so the window now offers both doors and says what
+each is for (Sebastian, 2026-08-10 hardware session). Buttons: Close · Open
+in measurement inspector · Open measurement report (default).*
+
+> **Verification Measurement Saved**
+>
+> Your verification measurement has been saved as {name}, in its own dated folder.
+>
+> This file checks a print against a profile — do not build a profile from it. Two ways to look at it:
+>
+> Measurement report — the colour-accuracy analysis: how close each printed colour landed to what the profile expected, the worst patches, your printer's reach at the cube corners, and — once you have several dated verifications — how the profile holds up over time.
+>
+> Measurement inspector — the physical portrait of this one print: paper white, contrast, grey cast, and how it behaves under different light.
+
 ### M-IMPORT-MISMATCH · PROPOSED · an imported file fails validation — Measure ▸ IMPORT
 
 *The IMPORT module (verification runs) files a measurement made in i1Profiler
@@ -1045,18 +1072,22 @@ check is the same field a native measurement uses.*
 >
 > To file this measurement as a new check, set the "Verification" field in the bar above to "New verification" and press Import Measurement again — it gets its own dated folder, and the earlier result stays exactly as it is.
 
-### M-IMPORT-DONE · PROPOSED · the import succeeded — Measure ▸ IMPORT
+### M-CHART-VERIFY · PROPOSED · replacing the verification chart — §4 (W5), revised wording
 
-> **The measurement was imported**
->
-> It is filed as this run's verification from {when}, in its own dated folder:
-> {folder}
->
-> A copy of the chart it was measured against is stored with it, so the result stays interpretable even if the chart is replaced later.
->
-> To see the colour-accuracy figures, open Tools ▸ "Measurement report" — the imported measurement is already in place there.
+*Revised after the 2026-08-10 hardware session; the previous approved text
+claimed the displaced measurements would "no longer have the chart they
+were made with" (untrue — every measured date snapshots its chart) and its
+Duplicate advice contradicted its own "no measurement is touched". The
+M-DUPLICATE-BLOCKED note was stripped of its four-file jargon at the same
+time.*
 
----
+> **The verification measurements already made in this run used the chart you are about to replace**
+>
+> The {v} dated verification measurement{s} in this run were made with this verification chart. Replacing it does not make them wrong — each date keeps its own stored copy of the chart it was measured with, so every result stays readable, and "Restore Used Chart" can bring a date's chart back on screen.
+>
+> One thing to keep in mind: a trend across the change compares two different charts, which is not the same measurement made twice.
+>
+> The chart itself moves to the "old" folder inside "verifications"; no measurement is touched and nothing is deleted. If you would rather keep measuring the current chart, duplicate the run first — it lives on in the copy.
 
 ### M-x. Which table uses which message
 
@@ -1092,9 +1123,14 @@ check is the same field a native measurement uses.*
 **Singular and plural.** Every message that states a count carries two bodies, and the one that reads correctly is chosen — "one dated verification measurement" against "4 dated verification measurements". Knut, 2026-08-03: *"Yes, use house rule with real singular and plural. You do not need to ask about this."* The bracketed "(s)" appears nowhere, and a test fails on it.
 
 
-## I. The IMPORT module — a measurement made in i1Profiler ⏳ Awaiting confirmation
+## I. The IMPORT module — a measurement made in i1Profiler — Confirmed behaviour
 
-**Confirmed by:** *nobody yet.*
+**Confirmed by:** Sebastian, 2026-08-10 — hardware session: a real ColorMunki
+measurement imported via the module ("done, import worked and the messages
+were good"); filing, chart snapshot, marker keyword and untouched original
+verified on disk. M-IMPORT-DONE approved the same day; M-IMPORT-MISMATCH and
+M-IMPORT-DATE-TAKEN remain in §M-PROPOSED (their windows were verified in the
+on-screen drive but not yet read by a human).
 
 *Built 2026-08-09 (#133). A third mode on the Measure tab — GUIDED · MANUAL ·
 IMPORT — shown only while the shared Run type is **Verification**. It files a

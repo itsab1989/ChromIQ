@@ -75,18 +75,18 @@ CITATIONS: list[tuple[str, int, str]] = [
     ("workflow/measurement_report.py", 9, "design colours"),
     ("workflow/measurement_report.py", 49, "CORNER_PRESENT_TOL"),
     ("workflow/measurement_report.py", 71, "CUBE_CORNERS"),
-    ("workflow/measurement_report.py", 191, "def _reference_labs"),
-    ("workflow/measurement_report.py", 442, "is_verification"),
-    ("workflow/measurement_report.py", 563, "CORNER_PRESENT_TOL"),
+    ("workflow/measurement_report.py", 200, "def _reference_labs"),
+    ("workflow/measurement_report.py", 461, "is_verification"),
+    ("workflow/measurement_report.py", 582, "CORNER_PRESENT_TOL"),
     ("workflow/ti3_analysis.py", 55, "VERIFICATION_KEYWORD"),
     ("workflow/measurement_messages.py", 228, "M_CHART_W4"),
-    ("workflow/measurement_messages.py", 260, "M_CHART_VERIFY"),
-    ("workflow/measurement_messages.py", 370, "M_VERIFY_NO_PROFILE"),
-    ("workflow/measurement_messages.py", 391, "M_VERIFY_NO_CHART"),
+    ("workflow/measurement_messages.py", 264, "M_CHART_VERIFY"),
+    ("workflow/measurement_messages.py", 375, "M_VERIFY_NO_PROFILE"),
+    ("workflow/measurement_messages.py", 396, "M_VERIFY_NO_CHART"),
     ("core/file_manager.py", 88, "VERIFICATIONS_DIRNAME"),
     ("core/file_manager.py", 906, "verifications_dir"),
-    ("core/file_manager.py", 1275, "Where are my files"),
-    ("core/file_manager.py", 1481, "Where are my files"),
+    ("core/file_manager.py", 1281, "Where are my files"),
+    ("core/file_manager.py", 1487, "Where are my files"),
     ("workflow/standard_targets.py", 178, "_USER_TARGETS_README"),
     ("ui/styles.py", 348, "QLabel#info"),
     ("ui/main_window.py", 942, "_apply_profile_tab_gate"),
@@ -105,8 +105,8 @@ CITATIONS: list[tuple[str, int, str]] = [
     ("ui/dialogs/layout_options_panel.py", 1044, "Also export a PDF"),
     # Feature A revised the §M print steps (2026-08-09): the guards now name
     # the Print Chart tab's "Colour" row; the revisions sit in §M-PROPOSED.
-    ("docs/design/unified_measurement_management.md", 916, "Colour"),
-    ("docs/design/unified_measurement_management.md", 932, "Colour"),
+    ("docs/design/unified_measurement_management.md", 901, "Colour"),
+    ("docs/design/unified_measurement_management.md", 907, "Colour"),
 ]
 
 
@@ -258,7 +258,7 @@ def check_quotations(body: "str | None") -> None:
          "Print it from the Print Chart tab with “Colour” set to "
          "“Through the profile”"),
         ("M-CHART-VERIFY names Duplicate", M.M_CHART_VERIFY,
-         "Duplicate the run instead"),
+         "duplicate the run first"),
     ):
         _, text = msg.render(**{k: 2 for k in ("v", "c")}) \
             if getattr(msg, "count_key", None) else msg.render()

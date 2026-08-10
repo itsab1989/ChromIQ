@@ -309,12 +309,18 @@ def read_print_record(ti3_path: Path) -> "dict | None":
     """The print record for a measured verification ``.ti3``, or None.
 
     Mirrors ``measurement_report._find_reference_ti2``'s walk: the record may
-    sit beside the ``.ti3`` (a copy stored with a dated verification) or one
-    level up beside the shared verify chart (``verifications/<stem>.print.json``).
+    sit beside the ``.ti3``, in the dated verification's own ``chart/``
+    snapshot, or one level up beside the shared verify chart
+    (``verifications/<stem>.print.json``) — **in that order**. The snapshot
+    outranks the live record: the shared record describes the LAST print of
+    the chart, and after a later print the other way a dated measurement's
+    report claimed the wrong method (found live, 2026-08-10: the RAW sheet's
+    report said "through-profile" the moment the THROUGH sheet was printed).
     """
     ti3_path = Path(ti3_path)
     stem = ti3_path.stem
     for cand in (ti3_path.with_name(f"{stem}.print.json"),
+                 ti3_path.parent / "chart" / f"{stem}.print.json",
                  ti3_path.parent.parent / f"{stem}.print.json"):
         if cand.is_file():
             try:
