@@ -16,7 +16,7 @@ from pathlib import Path
 from PyQt6.QtCore import QPointF, QRectF, Qt
 from PyQt6.QtGui import QColor, QFont, QPainter, QPen
 from PyQt6.QtWidgets import (
-    QCheckBox, QDialog, QFileDialog, QFrame, QHBoxLayout, QLabel, QListWidget,
+    QCheckBox, QDialog, QFrame, QHBoxLayout, QLabel, QListWidget,
     QListWidgetItem, QPushButton, QTabWidget, QTextBrowser, QVBoxLayout,
     QWidget,
 )
@@ -1191,10 +1191,20 @@ class MeasurementReportDialog(QDialog):
         reports = self._report_dir()
         reports.mkdir(parents=True, exist_ok=True)
         default = reports / self._report_filename(self._runs_for_report())
-        path, _ = QFileDialog.getSaveFileName(
-            self, tr("Save report as PDF"), str(default), "PDF (*.pdf)")
+        # The house save dialog (sidebar shortcuts, ChromIQ styling) — this
+        # was the one save in the app still opening the bare native dialog
+        # (Sebastian, 2026-08-10).
+        from ui.widgets import save_file_dialog
+        path = save_file_dialog(
+            self, tr("Save report as PDF"), "PDF (*.pdf)",
+            start_path=str(default),
+            extra_path=str(self._settings.get("custom_output_path", "")))
         if not path:
             return
+        # The dialog does not force the extension — a name typed without one
+        # must still come out as a .pdf.
+        if not path.lower().endswith(".pdf"):
+            path += ".pdf"
 
         doc = QTextDocument()
         charts_html = ""
