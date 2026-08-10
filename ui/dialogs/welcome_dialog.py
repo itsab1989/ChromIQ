@@ -2108,6 +2108,11 @@ class WelcomeDialog(QDialog):
             item = self._steps_layout.takeAt(0)
             w = item.widget()
             if w is not None:
+                # Hide BEFORE deleteLater: a removed widget stays parented (and
+                # painting, on top of the next card's rows) until the deferred
+                # delete runs — which never happens outside a running event
+                # loop, and even inside one may land after the next repaint.
+                w.hide()
                 w.deleteLater()
         if wf.get("kind") == "glossary":
             # Alphabetical term/definition rows — no step badges (Knut, #108).

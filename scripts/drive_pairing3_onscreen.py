@@ -167,6 +167,10 @@ def main() -> int:
     settings._qs = QSettings(str(sandbox / "drive.ini"), QSettings.Format.IniFormat)
     settings.set("custom_output_path", str(work))
     settings.set("argyll_bin_path", str(ARGYLL))
+    # Match the styling the drive forces: without this the sandbox is
+    # "auto", which follows the SYSTEM theme — on a light-mode Mac the
+    # trend charts rendered light inside the force-dark window.
+    settings.set("appearance", "dark")
     fm = FileManager(settings)
     fm.set_target_name("printer-test")
     ctl = MeasurementTargetController(fm)
@@ -288,10 +292,16 @@ def main() -> int:
     try:
         from PyQt6.QtWidgets import QLabel, QScrollArea
         target = next(l for l in wdlg.findChildren(QLabel)
-                      if "Which verification should I use" in l.text())
-        sa = wdlg.findChild(QScrollArea)
+                      if l.isVisible()
+                      and "Which verification should I use" in l.text())
+        sa, parent = None, target.parentWidget()
+        while parent is not None:
+            if isinstance(parent, QScrollArea):
+                sa = parent
+                break
+            parent = parent.parentWidget()
         if sa is not None:
-            sa.ensureWidgetVisible(target, 0, 120)
+            sa.ensureWidgetVisible(target, 0, 200)
             pump(app, 200)
     except StopIteration:
         pass
