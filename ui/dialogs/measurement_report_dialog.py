@@ -998,7 +998,14 @@ class MeasurementReportDialog(QDialog):
             self._view.setHtml(self._error_html(str(exc)))
             return
         if added:
-            self._report = self._sources[0]["runs"][-1]     # single-run / PDF anchor
+            runs = self._sources[0]["runs"]
+            # The window was opened ON this measurement — with "Show all
+            # measurement runs" off it must show exactly that date, as its
+            # own tooltip promises, not silently the history's newest
+            # (found by Knut's report demo package, 2026-08-10).
+            mine = [r for r in runs
+                    if str(r.get("_origin_dir", "")) == str(ti3.parent)]
+            self._report = (mine[-1] if mine else runs[-1])
             self._rebuild_from_sources()
 
     @staticmethod

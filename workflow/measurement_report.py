@@ -434,7 +434,9 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
     # date), so imported runs trend by when they were measured, not when the
     # report is built. Native chartread files have no such keyword → build time.
     _measured = str(data.keywords.get("CHROMIQ_MEASURED") or "").strip()
-    if re.match(r"^\d{4}-\d{2}-\d{2}$", _measured):
+    if re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$", _measured):
+        _created = _measured if _measured.count(":") == 2 else _measured + ":00"
+    elif re.match(r"^\d{4}-\d{2}-\d{2}$", _measured):
         _created = f"{_measured}T00:00:00"
     else:
         # No keyword: the FILE's own time, not now() — a history rebuilt for

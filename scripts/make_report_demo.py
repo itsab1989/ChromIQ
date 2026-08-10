@@ -1,425 +1,371 @@
-"""Generate a realistic Measurement Report demo set (Knut's request).
+#!/usr/bin/env python3
+"""Build ``Demo-Report-Matrix`` — the measurement-report test project (Knut).
 
-One printer + one paper, three profiles that differ by chart size, 14 dated
-verification measurements over six months with a believable drift story:
-a slow creep, two profile rebuilds that pull it back, and one bad day
-(a partly clogged nozzle) that the report catches.
+    *"…update and extend the demo package made for testing the measurement
+    report, so that all new features and variations of input data sources and
+    selected options are tested against the report output. … regenerate all
+    the test data with multiple verification runs, using proper generated
+    charts, measurements, icc profiles, and verification charts through
+    existing profile etc."*  (2026-08-10)
 
-Physically shaped error model, then a per-run severity solved so each build
-lands on its intended average dE00.
+Every artefact is made by the REAL pipeline — nothing hand-written:
 
-    python scripts/make_report_demo.py            # dry run: print the numbers
-    python scripts/make_report_demo.py --write    # write ~/Desktop/ChromIQ-Demo-PRO300
+    targen → printtarg → fakeread (Argyll's sRGB.icm plays the printer)
+    → colprof (the run's profile) → per-case verification measurements
+    (fakeread again, raw / through the profile, with noise for drift)
+    → the FROM PROFILE GAMUT chart via workflow.gamut_target.
 
-The data is SYNTHETIC — no printer and no instrument were involved. It exists so
-the Measurement Report window and its trend charts can be shown with a full,
-coherent history behind them.
+One project, two runs, twelve dated verification cases (V1–V12 below +
+P1/P2 for profiling). ``README.md`` inside the project describes every case
+and what the Measurement Report must show for it.
+``scripts/drive_report_demo_onscreen.py`` opens the real report window on
+each case, checks those expectations, and exports one PDF per case.
+
+Run::
+
+    .venv/bin/python scripts/make_report_demo.py [destination]
+    # default destination: ./demo-projects
 """
 from __future__ import annotations
 
-import itertools
-import json
-import math
 import shutil
+import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
 
-import numpy as np
+_HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(_HERE.parent))
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+ARGYLL = Path("/Applications/Argyll/bin")
+SRGB = Path("/Applications/Argyll/ref/sRGB.icm")
+NAME = "Demo-Report-Matrix"
 
-from workflow.i1profiler_import import _patch_xyz, WHITE_XYZ            # noqa: E402
-from workflow.measurement_report import _bradford_d65_to_d50            # noqa: E402
-from workflow.ti3_analysis import (                                     # noqa: E402
-    _lab_to_xyz_array, ciede2000, xyz_to_lab,
-)
-
-INSTRUMENT = "X-Rite i1 Pro 2"
-PAPER = "Hahnemuehle Photo Rag 308"
-
-# ---------------------------------------------------------------------------
-# The charts (same printer, same paper — different chart size)
-# ---------------------------------------------------------------------------
-CHARTS = {
-    "PRO300-PhotoRag-A4-294":  dict(n=294,  paper_size="210.0x297.0", seed=11),
-    "PRO300-PhotoRag-A4-546":  dict(n=546,  paper_size="210.0x297.0", seed=22),
-    "PRO300-PhotoRag-A3-1029": dict(n=1029, paper_size="297.0x420.0", seed=33),
-}
-
-# date, chart, target average dE00, white L*, black L*, note
-BUILDS = [
-    ("2026-01-13", "PRO300-PhotoRag-A3-1029", 1.72, 96.74,  9.05, "first profile"),
-    ("2026-01-27", "PRO300-PhotoRag-A4-294",  1.75, 96.71,  9.11, ""),
-    ("2026-02-10", "PRO300-PhotoRag-A4-294",  1.81, 96.69,  9.24, ""),
-    ("2026-02-24", "PRO300-PhotoRag-A4-546",  1.79, 96.72,  9.31, ""),
-    ("2026-03-10", "PRO300-PhotoRag-A4-294",  1.92, 96.66,  9.48, ""),
-    ("2026-03-24", "PRO300-PhotoRag-A4-546",  1.88, 96.63,  9.57, ""),
-    ("2026-04-07", "PRO300-PhotoRag-A3-1029", 1.70, 96.68,  9.44, "profile rebuilt"),
-    ("2026-04-21", "PRO300-PhotoRag-A4-294",  1.86, 96.61,  9.62, ""),
-    ("2026-05-05", "PRO300-PhotoRag-A4-546",  1.97, 96.58,  9.79, ""),
-    ("2026-05-19", "PRO300-PhotoRag-A4-294",  3.10, 96.55, 10.21, "CLOG"),
-    ("2026-06-02", "PRO300-PhotoRag-A4-546",  1.95, 96.60,  9.71, "after head clean"),
-    ("2026-06-16", "PRO300-PhotoRag-A3-1029", 1.71, 96.62,  9.55, "profile rebuilt"),
-    ("2026-06-30", "PRO300-PhotoRag-A4-294",  1.90, 96.57,  9.83, ""),
-    ("2026-07-14", "PRO300-PhotoRag-A4-546",  2.08, 96.52, 10.06, ""),
-]
-
-# --- printer gamut: max chroma per hue (deg) at its best lightness ----------
-# A pigment inkjet on matte rag: strong yellow/red, weaker cyan and blue —
-# so the saturated sRGB corners clip, exactly as they do in real life.
-# hue (deg) -> (max chroma at that hue's cusp, lightness of the cusp)
-HUE_ANCHORS = [(0, 88, 48), (30, 92, 55), (60, 96, 72), (95, 104, 92),
-               (140, 78, 58), (180, 70, 62), (215, 66, 48), (250, 62, 38),
-               (285, 66, 32), (320, 84, 42), (350, 88, 46), (360, 88, 48)]
-GAMUT_SCALE = 1.45
-CHROMA_LOSS = 0.006          # slight overall desaturation of a good print
-BASE_SIGMA = 0.13            # per-patch reproduction noise (Lab units)
-PAPER_A, PAPER_B = 0.42, -1.05   # the paper's own tint (a slightly cool white)
-
-
-README = """ChromIQ — Measurement Report demo data
-=====================================
-
-Three profiles for ONE printer on ONE paper (a Canon PIXMA PRO-300 on a matte
-fine-art rag), measured fourteen times between January and July 2026. The three
-profiles differ only in the size of the chart used:
-
-    PRO300-PhotoRag-A4-294     A4,  294 patches   (the quick check)
-    PRO300-PhotoRag-A4-546     A4,  546 patches
-    PRO300-PhotoRag-A3-1029    A3, 1029 patches   (the full rebuild)
-
-How to look at it
------------------
-ChromIQ → Tools → Measurement Report → "Add Profile's Measurements…", then pick
-the .ti3 inside any run folder of each of the three profiles. Each one brings its
-whole history with it, so three files give you all fourteen measurements and the
-trend charts across six months.
-
-What the history contains
--------------------------
-  * a slow rise in the average error as the print head and inks age,
-  * two profile rebuilds (7 April, 16 June) that pull it back down,
-  * one bad day (19 May) — a partly starved light-cyan channel — that shows up
-    as a spike in every chart and a full red column in Report Results,
-  * the darkest black lifting from L* 9.0 to L* 10.1 over the six months,
-  * the paper white drifting very slightly, as paper batches do.
-
-IMPORTANT
----------
-This data is SYNTHETIC. No printer and no measuring instrument were involved: it
-was computed by scripts/make_report_demo.py in the ChromIQ repository. It exists
-so the report and its trend charts can be shown with a full, coherent history
-behind them. Do not use it to judge any real printer, paper or instrument.
+#: case id → (dated folder, how the sheet was "printed", i.e. which print
+#: record lands in the date's chart/ snapshot; None = no record at all).
+#: Data: raw sheets are fakeread through sRGB (the bare "printer"),
+#: through sheets are fakeread through the run's own profile.
+CASES = """\
+V1  2026-05-01_100000  raw sheet #1 (drift baseline)          record: raw/chromiq
+V2  2026-06-01_100000  raw sheet #2 (drifted, more noise)     record: raw/chromiq
+V3  2026-06-15_100000  through profile, RELATIVE intent       record: through/chromiq/relative
+V4  2026-07-01_100000  through profile, ABSOLUTE intent       record: through/chromiq/absolute
+V5  2026-07-10_100000  printed in another app with CM         record: through/external-cm/unknown, asked-at-measure
+V6  2026-07-20_100000  no print record at all                 record: none
+V7  2026-08-01_100000  gamut chart check #1                   record: raw/chromiq (colorimetric reference)
+V8  2026-08-08_100000  gamut chart check #2 (noisier)         record: raw/chromiq (colorimetric reference)
+V9  2026-08-09_100000  gamut chart, reference file REMOVED    → the report must refuse, not guess
+V10 2026-08-10_090000  imported measurement (keyword-stamped) record: none (asked-at-measure external)
+V11 2026-08-10_100000  different instrument (i1Pro3)          record: raw/chromiq → mixed-instruments warning
+V12 2026-08-10_110000  profile rebuilt after printing         record: through/chromiq/relative + old mtime
 """
 
 
-def gamut_c(h_deg: np.ndarray, L: np.ndarray) -> np.ndarray:
-    """Max printable chroma for hue *h_deg* at lightness *L*."""
-    hs = np.array([a[0] for a in HUE_ANCHORS], float)
-    cs = np.array([a[1] for a in HUE_ANCHORS], float)
-    ls = np.array([a[2] for a in HUE_ANCHORS], float)
-    hh = np.mod(h_deg, 360.0)
-    peak = np.interp(hh, hs, cs)
-    cusp = np.interp(hh, hs, ls)
-    # A double cone with the cusp at each hue's own lightness — yellow's widest
-    # point is light, blue's is dark, the way a real ink set behaves.
-    Lc = np.clip(L, 0.0, 100.0)
-    below = Lc <= cusp
-    t = np.where(below, np.divide(Lc, np.maximum(cusp, 1e-6)),
-                 np.divide(100.0 - Lc, np.maximum(100.0 - cusp, 1e-6)))
-    shape = np.clip(t, 0.0, 1.0) ** 0.45
-    return peak * shape * GAMUT_SCALE
+def run(cmd, cwd, timeout=300):
+    r = subprocess.run([str(c) for c in cmd], cwd=str(cwd),
+                       capture_output=True, text=True, timeout=timeout)
+    if r.returncode != 0:
+        raise SystemExit(f"{cmd[0]} failed:\n{r.stdout}\n{r.stderr}")
+    return r
 
 
-def design_lab(rgb: np.ndarray) -> np.ndarray:
-    out = np.empty_like(rgb)
-    for i, (r, g, b) in enumerate(rgb):
-        xyz = _bradford_d65_to_d50(*_patch_xyz(float(r), float(g), float(b)))
-        out[i] = xyz_to_lab(tuple(v / 100.0 for v in xyz))
-    return out
+def make_chart(into: Path, stem: str, patches: int) -> None:
+    """A REAL chart: targen designs it, printtarg lays it out (.ti2 with
+    SAMPLE_LOC — chartread's actual input)."""
+    into.mkdir(parents=True, exist_ok=True)
+    run([ARGYLL / "targen", "-d2", "-e4", f"-f{patches}", stem], into)
+    run([ARGYLL / "printtarg", "-iCM", "-pA4", "-t150", "-L", stem], into)
 
 
-DESIGN_BLACK_L = float(design_lab(np.array([[0.0, 0.0, 0.0]]))[0][0])
+def fakeread(into: Path, stem: str, profile: Path, noise: float = 0.0) -> Path:
+    args = [ARGYLL / "fakeread"]
+    if noise:
+        args += ["-r", str(noise)]
+    args += [profile, stem]
+    run(args, into)
+    return into / f"{stem}.ti3"
 
 
-def measured_lab(dl: np.ndarray, rgb: np.ndarray, *, white_L: float,
-                 black_L: float, sev: float, clog_k: float, rng) -> np.ndarray:
-    """Apply the print model: tone curve, gamut clip, drift, paper cast, noise."""
-    L, a, b = dl[:, 0], dl[:, 1], dl[:, 2]
-    C = np.hypot(a, b)
-    h = np.degrees(np.arctan2(b, a))
-
-    # 1. tone reproduction — design black/white map onto the real paper's
-    #    darkest black and paper white, with a small gamma error that grows
-    #    with the drift severity.
-    t = np.clip((L - DESIGN_BLACK_L) / (100.0 - DESIGN_BLACK_L), 0.0, 1.0)
-    gamma = 1.0 + 0.010 * sev
-    Lm = black_L + (white_L - black_L) * t ** gamma
-
-    # 2. chroma — clip to the printer's gamut, lose a little saturation
-    Cmax = gamut_c(h, Lm)
-    Cm = np.minimum(C, Cmax) * (1.0 - CHROMA_LOSS * (1.0 + 0.9 * sev))
-    # a small hue rotation that grows with drift (head/ink ageing), strongest
-    # in the cyan-blue region where the light inks do the work
-    hm = h + sev * (0.55 + 0.45 * np.cos(np.radians(h - 215.0)))
-
-    am = Cm * np.cos(np.radians(hm))
-    bm = Cm * np.sin(np.radians(hm))
-
-    # 3. the paper's own tint, visible in the highlights, fading into the shadows
-    w = (np.clip(Lm, 0, 100) / white_L) ** 3
-    am += PAPER_A * w
-    bm += PAPER_B * w
-
-    # 4. a bad day: one starved light-cyan channel. It lays down the mid-tones,
-    #    so the damage sits in the middle of the scale — paper white (no ink)
-    #    and the maximum black (a different ink) are untouched.
-    if clog_k > 0:
-        cyanish = np.clip((100.0 - rgb[:, 0]) / 100.0, 0, 1)
-        mid = np.exp(-((Lm - 55.0) / 26.0) ** 2)          # bell around L*55
-        hit = cyanish * mid
-        Lm += 3.1 * clog_k * hit
-        am += 2.4 * clog_k * hit
-        bm += -1.7 * clog_k * hit
-
-    # 5. measurement / reproduction noise
-    sigma = BASE_SIGMA * (1.0 + 0.7 * sev)
-    Lm = Lm + rng.normal(0, sigma, Lm.shape)
-    am = am + rng.normal(0, sigma * 1.15, am.shape)
-    bm = bm + rng.normal(0, sigma * 1.15, bm.shape)
-
-    # 6. The blank paper is the lightest thing on the sheet and the full-ink
-    #    patch the darkest — nothing printed can fall outside them. Both extremes
-    #    are pinned exactly, so the report's paper-white / darkest-black figures
-    #    are this build's real values and not the luck of the noise.
-    Lm = np.clip(Lm, black_L + 0.05, white_L - 0.05)
-    ink = rgb.sum(axis=1)
-    wi = int(np.argmax(ink))
-    bi = int(np.argmin(ink))
-    Lm[wi], am[wi], bm[wi] = white_L, PAPER_A, PAPER_B
-    Lm[bi], am[bi], bm[bi] = black_L, -0.14, -0.28
-    return np.column_stack([Lm, am, bm])
+def stamp(ti3: Path, when: str, instrument: str = "X-Rite ColorMunki") -> None:
+    """The keywords a real ChromIQ measurement carries — via the same helpers
+    the app uses, never by ad-hoc text surgery."""
+    from workflow.ti3_analysis import mark_verification_ti3
+    mark_verification_ti3(ti3)
+    text = ti3.read_text()
+    lines = text.splitlines()
+    at = next(i for i, l in enumerate(lines)
+              if l.startswith("NUMBER_OF_FIELDS"))
+    lines[at:at] = ['KEYWORD "CHROMIQ_MEASURED"',
+                    f'CHROMIQ_MEASURED "{when}"',
+                    f'TARGET_INSTRUMENT "{instrument}"']
+    ti3.write_text("\n".join(lines) + "\n")
+    # The file's own time tells the same story as the keyword — the mtime is
+    # the fallback date for measurements without the keyword, and Finder
+    # sorting the dates correctly makes the package self-explaining.
+    import os
+    t = datetime.fromisoformat(when).timestamp()
+    os.utime(ti3, (t, t))
 
 
-def des(dl: np.ndarray, ml: np.ndarray) -> np.ndarray:
-    return np.array([ciede2000(tuple(dl[i]), tuple(ml[i])) for i in range(len(dl))])
+def snapshot(vdir: Path, chart_stem: str, src_dir: Path,
+             extra: "list[Path]" = ()) -> Path:
+    """A dated check's chart/ snapshot, the layout the app writes."""
+    cdir = vdir / "chart"
+    cdir.mkdir(parents=True, exist_ok=True)
+    for ext in (".ti1", ".ti2", ".channels.json"):
+        s = src_dir / f"{chart_stem}{ext}"
+        if s.is_file():
+            shutil.copy2(s, cdir / s.name)
+    for e in extra:
+        if Path(e).is_file():
+            shutil.copy2(e, cdir / Path(e).name)
+    return cdir
 
 
-def stats(d: np.ndarray) -> dict:
-    a = np.sort(d)
-    n = a.size
-    k = max(1, min(n - 1, int(round(n * 0.95))))
-    return dict(avg_all=a.mean(), avg_low95=a[:k].mean(), avg_high5=a[k:].mean(),
-                max_all=a.max(), max_low95=a[:k].max())
+def record(cdir: Path, stem: str, *, colour, route, intent, profile,
+           asked=False, printed="2026-05-01T09:00:00") -> None:
+    import json
+    rec = {"printed_at": printed, "colour": colour, "intent": intent,
+           "route": route, "source_profile": "",
+           "profile": profile.name if profile else None}
+    if profile is not None:
+        rec["profile_path"] = str(profile)
+        rec["profile_mtime"] = datetime.fromtimestamp(
+            profile.stat().st_mtime).isoformat(timespec="seconds")
+    if asked:
+        rec["recorded"] = "asked-at-measure"
+        rec.pop("printed_at")
+    (cdir / f"{stem}.print.json").write_text(json.dumps(rec, indent=2))
 
 
-# ---------------------------------------------------------------------------
-# Patch sets
-# ---------------------------------------------------------------------------
-def patch_set(n: int, seed: int) -> np.ndarray:
-    rng = np.random.default_rng(seed)
-    pts: list[tuple[float, float, float]] = []
-    seen: set[tuple[int, int, int]] = set()
+def main(argv=None) -> int:
+    dest = Path((argv or sys.argv[1:] or ["demo-projects"])[0]).resolve()
+    if not (ARGYLL / "targen").exists() or not SRGB.exists():
+        print("ArgyllCMS (with ref/sRGB.icm) is required.")
+        return 2
+    root = dest / NAME
+    if root.exists():
+        # Never delete: the previous package is archived, like the app would.
+        old = dest / "old" / f"{NAME}-{datetime.now():%Y-%m-%d_%H%M%S}"
+        old.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(root), str(old))
+        print(f"previous package archived to {old}")
 
-    def add(p):
-        key = tuple(int(round(v)) for v in p)
-        if key not in seen:
-            seen.add(key)
-            pts.append(tuple(float(v) for v in p))
+    from core.file_manager import Project
+    proj = Project.create(root, NAME)
+    run1 = proj.current_run()
+    run1.ensure_dir()
+    stem = NAME
 
-    for c in itertools.product((0.0, 100.0), repeat=3):      # the eight corners
-        add(c)
-    for i in range(21):                                      # neutral ramp
-        add((i * 5.0, i * 5.0, i * 5.0))
-    k = 3
-    while (k + 1) ** 3 <= n - len(pts):
-        k += 1
-    grid = np.linspace(0.0, 100.0, k)
-    for r in grid:
-        for g in grid:
-            for b in grid:
-                if len(pts) < n:
-                    add((r, g, b))
-    guard = 0
-    while len(pts) < n and guard < n * 40:
-        guard += 1
-        add(tuple(rng.uniform(0, 100, 3)))
-    return np.array(pts[:n], float)
+    print("== run1: profiling chart, measurement, profile (all real Argyll)")
+    make_chart(run1.dir, stem, 210)
+    fakeread(run1.dir, stem, SRGB, noise=0.3)
+    r = subprocess.run([str(ARGYLL / "colprof"), "-v", "-ql", "-aG", stem],
+                       cwd=str(run1.dir), capture_output=True, text=True,
+                       timeout=600)
+    if r.returncode != 0:
+        raise SystemExit(f"colprof failed:\n{r.stdout}\n{r.stderr}")
+    icc = run1.built_profile_icc()
+    made = run1.dir / f"{stem}.icc"
+    if made != icc:
+        shutil.move(str(made), str(icc))
 
+    print("== run1: the design verification chart")
+    vroot = run1.verifications_dir
+    vstem = f"{stem}-verify"
+    make_chart(vroot, vstem, 105)
 
-def sample_locs(n: int, steps: int = 21) -> list[str]:
-    """A1…A21, B1… like a real strip chart."""
-    out = []
-    for i in range(n):
-        strip, step = divmod(i, steps)
-        letters = ""
-        s = strip
-        while True:
-            letters = chr(ord("A") + s % 26) + letters
-            s = s // 26 - 1
-            if s < 0:
-                break
-        out.append(f"{letters}{step + 1}")
-    return out
+    print("== run1: the FROM PROFILE GAMUT chart (feature B, real xicclu)")
+    from workflow.gamut_target import (mark_chart_as_colorimetric,
+                                       select_gamut_targets,
+                                       write_colorimetric_reference,
+                                       write_gamut_ti1)
+    gdir = run1.dir / "gamut-work"
+    gdir.mkdir(exist_ok=True)
+    sel = select_gamut_targets(icc, 100, "safe", "absolute", bin_dir=ARGYLL)
+    gstem = f"{stem}-gamut"
+    write_gamut_ti1(sel, gdir / f"{gstem}.ti1")
+    run([ARGYLL / "printtarg", "-iCM", "-pA4", "-t150", "-L", gstem], gdir)
+    # House conventions (feature B): the reference is <stem>-reference.ti3
+    # beside the chart, and the marking lives in <stem>.channels.json.
+    gref = gdir / f"{gstem}-reference.ti3"
+    write_colorimetric_reference(sel, gref)
+    mark_chart_as_colorimetric(gdir / f"{gstem}.ti2", gref)
 
+    print("== the twelve dated verification cases")
+    def dated(vid, chart_dir, chart_stem, profile, noise, when,
+              instrument="X-Rite ColorMunki"):
+        v = run1.verification(vid)
+        v.ensure_dir()
+        work = v.dir / "_work"
+        work.mkdir()
+        for ext in (".ti1", ".ti2"):
+            shutil.copy2(chart_dir / f"{chart_stem}{ext}",
+                         work / f"{vstem}{ext}")
+        ti3 = fakeread(work, vstem, profile, noise)
+        stamp(ti3, when, instrument)
+        shutil.move(str(ti3), str(v.measurement_ti3))
+        extra = []
+        if (chart_dir / f"{chart_stem}-colorimetric.json").is_file():
+            extra = [chart_dir / f"{chart_stem}-colorimetric.json"]
+        cdir = snapshot(v.dir, vstem, work, extra)
+        # the snapshot keeps the DESIGN chart's stem so read_print_record and
+        # _find_reference_ti2 resolve exactly as for an app-made date
+        shutil.rmtree(work)
+        return v, cdir
 
-# ---------------------------------------------------------------------------
-# Writers
-# ---------------------------------------------------------------------------
-def _fmt(v: float) -> str:
-    return f"{v:.5f}"
+    # V1/V2 — raw drift pair
+    v, c = dated("2026-05-01_100000", vroot, vstem, SRGB, 0.3,
+                 "2026-05-01T10:00:00")
+    record(c, vstem, colour="raw", route="chromiq", intent="", profile=None)
+    v, c = dated("2026-06-01_100000", vroot, vstem, SRGB, 1.2,
+                 "2026-06-01T10:00:00")
+    record(c, vstem, colour="raw", route="chromiq", intent="", profile=None)
+    # V3/V4 — through the profile, relative / absolute
+    v, c = dated("2026-06-15_100000", vroot, vstem, icc, 0.4,
+                 "2026-06-15T10:00:00")
+    record(c, vstem, colour="through-profile", route="chromiq",
+           intent="relative", profile=icc)
+    v, c = dated("2026-07-01_100000", vroot, vstem, icc, 0.4,
+                 "2026-07-01T10:00:00")
+    record(c, vstem, colour="through-profile", route="chromiq",
+           intent="absolute", profile=icc)
+    # V5 — another app with colour management (answered at measure time)
+    v, c = dated("2026-07-10_100000", vroot, vstem, icc, 0.8,
+                 "2026-07-10T10:00:00")
+    record(c, vstem, colour="through-profile", route="external-cm",
+           intent="unknown", profile=None, asked=True)
+    # V6 — no record at all
+    v, c = dated("2026-07-20_100000", vroot, vstem, SRGB, 0.6,
+                 "2026-07-20T10:00:00")
+    # V7/V8 — the gamut chart, twice
+    for vid, when, noise in (("2026-08-01_100000", "2026-08-01T10:00:00", 0.3),
+                             ("2026-08-08_100000", "2026-08-08T10:00:00", 0.9)):
+        v = run1.verification(vid)
+        v.ensure_dir()
+        work = v.dir / "_work"
+        work.mkdir()
+        for ext in (".ti1", ".ti2"):
+            shutil.copy2(gdir / f"{gstem}{ext}", work / f"{vstem}{ext}")
+        # keep the colorimetric marking intact under the verify stem
+        shutil.copy2(gref, work / f"{vstem}-reference.ti3")
+        mark_chart_as_colorimetric(work / f"{vstem}.ti2",
+                                   work / f"{vstem}-reference.ti3")
+        ti3 = fakeread(work, vstem, icc, noise)
+        stamp(ti3, when)
+        shutil.move(str(ti3), str(v.measurement_ti3))
+        cdir = snapshot(v.dir, vstem, work,
+                        [work / f"{vstem}-reference.ti3"])
+        record(cdir, vstem, colour="raw", route="chromiq", intent="",
+               profile=None)
+        shutil.rmtree(work)
+    # V9 — gamut chart whose colorimetric reference file is gone
+    v = run1.verification("2026-08-09_100000")
+    v.ensure_dir()
+    work = v.dir / "_work"; work.mkdir()
+    for ext in (".ti1", ".ti2"):
+        shutil.copy2(gdir / f"{gstem}{ext}", work / f"{vstem}{ext}")
+    shutil.copy2(gref, work / f"{vstem}-reference.ti3")
+    mark_chart_as_colorimetric(work / f"{vstem}.ti2",
+                               work / f"{vstem}-reference.ti3")
+    ti3 = fakeread(work, vstem, icc, 0.4)
+    stamp(ti3, "2026-08-09T10:00:00")
+    shutil.move(str(ti3), str(v.measurement_ti3))
+    (work / f"{vstem}-reference.ti3").unlink()   # the missing reference
+    snapshot(v.dir, vstem, work)
+    shutil.rmtree(work)
+    # V10 — imported (external measurement filed like the IMPORT module does)
+    v, c = dated("2026-08-10_090000", vroot, vstem, icc, 0.7,
+                 "2026-08-10T09:00:00")
+    record(c, vstem, colour="through-profile", route="external-cm",
+           intent="unknown", profile=None, asked=True)
+    # V11 — a different instrument → the mixed-instruments warning
+    v, c = dated("2026-08-10_100000", vroot, vstem, SRGB, 0.5,
+                 "2026-08-10T10:00:00", instrument="X-Rite i1Pro3")
+    record(c, vstem, colour="raw", route="chromiq", intent="", profile=None)
+    # V12 — profile rebuilt since the sheet was printed
+    v, c = dated("2026-08-10_110000", vroot, vstem, icc, 0.4,
+                 "2026-08-10T11:00:00")
+    import json as _json
+    rec = {"printed_at": "2026-08-10T08:00:00", "colour": "through-profile",
+           "intent": "relative", "route": "chromiq", "source_profile": "",
+           "profile": icc.name, "profile_path": str(icc),
+           "profile_mtime": "2026-01-01T00:00:00"}    # older than the file
+    (c / f"{vstem}.print.json").write_text(_json.dumps(rec, indent=2))
 
+    print("== run2: no profile — the split must degrade, never error")
+    run2 = proj.new_run()
+    run2.ensure_dir()
+    make_chart(run2.verifications_dir, f"{stem}-verify", 105)
+    v = run2.verification("2026-08-10_120000")
+    v.ensure_dir()
+    work = v.dir / "_work"; work.mkdir()
+    for ext in (".ti1", ".ti2"):
+        shutil.copy2(run2.verifications_dir / f"{stem}-verify{ext}",
+                     work / f"{vstem}{ext}")
+    ti3 = fakeread(work, vstem, SRGB, 0.5)
+    stamp(ti3, "2026-08-10T12:00:00")
+    shutil.move(str(ti3), str(v.measurement_ti3))
+    snapshot(v.dir, vstem, work)
+    shutil.rmtree(work)
 
-def write_ti2(path: Path, name: str, rgb: np.ndarray, locs: list[str],
-              paper_size: str, when: str) -> None:
-    wx, wy, wz = WHITE_XYZ
-    lines = [
-        "CTI2   ", "",
-        'DESCRIPTOR "Argyll Calibration Target chart information 2"',
-        'ORIGINATOR "ChromIQ layout engine"',
-        f'CREATED "{when}"',
-        f'TARGET_INSTRUMENT "{INSTRUMENT}"',
-        f'APPROX_WHITE_POINT "{wx:.6f} {wy:.6f} {wz:.6f}"',
-        'COLOR_REP "iRGB"',
-        f'PAPER_SIZE "{paper_size}"',
-        'STEPS_IN_PASS "21"',
-        "", "NUMBER_OF_FIELDS 8", "BEGIN_DATA_FORMAT",
-        "SAMPLE_ID SAMPLE_LOC RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z ",
-        "END_DATA_FORMAT", "",
-        f"NUMBER_OF_SETS {len(rgb)}", "BEGIN_DATA",
-    ]
-    for i, (r, g, b) in enumerate(rgb):
-        x, y, z = _patch_xyz(float(r), float(g), float(b))
-        lines.append(f'{i + 1} "{locs[i]}" {_fmt(r)} {_fmt(g)} {_fmt(b)} '
-                     f"{_fmt(x)} {_fmt(y)} {_fmt(z)} ")
-    lines += ["END_DATA", ""]
-    path.write_text("\n".join(lines), encoding="utf-8")
-
-
-def write_ti3(path: Path, rgb: np.ndarray, locs: list[str], lab: np.ndarray,
-              when: str, measured_date: str) -> None:
-    xyz = _lab_to_xyz_array(lab)
-    lines = [
-        "CTI3   ", "",
-        'DESCRIPTOR "Argyll Calibration Target chart information 3"',
-        'ORIGINATOR "Argyll chartread"',
-        f'CREATED "{when}"',
-        'KEYWORD "CHROMIQ_MEASURED"',
-        f'CHROMIQ_MEASURED "{measured_date}"',
-        'DEVICE_CLASS "OUTPUT"',
-        'COLOR_REP "iRGB_XYZ"',
-        f'TARGET_INSTRUMENT "{INSTRUMENT}"',
-        "", "NUMBER_OF_FIELDS 8", "BEGIN_DATA_FORMAT",
-        "SAMPLE_ID SAMPLE_LOC RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z ",
-        "END_DATA_FORMAT", "",
-        f"NUMBER_OF_SETS {len(rgb)}", "BEGIN_DATA",
-    ]
-    for i, (r, g, b) in enumerate(rgb):
-        x, y, z = xyz[i]
-        lines.append(f'{i + 1} "{locs[i]}" {_fmt(r)} {_fmt(g)} {_fmt(b)} '
-                     f"{_fmt(x)} {_fmt(y)} {_fmt(z)} ")
-    lines += ["END_DATA", ""]
-    path.write_text("\n".join(lines), encoding="utf-8")
-
-
-# ---------------------------------------------------------------------------
-# The severity a normal run sits at when the CLOG run is solved for the size of
-# its defect instead — a bad day is a localised fault, not global drift.
-CLOG_BASE_SEV = 2.0
-
-
-def solve(dl, rgb, target, white_L, black_L, seed, *, clog: bool) -> tuple:
-    lo, hi = 0.0, 14.0
-    for _ in range(38):
-        mid = (lo + hi) / 2
-        sev = CLOG_BASE_SEV if clog else mid
-        clog_k = mid if clog else 0.0
-        rng = np.random.default_rng(seed)
-        d = des(dl, measured_lab(dl, rgb, white_L=white_L, black_L=black_L,
-                                 sev=sev, clog_k=clog_k, rng=rng)).mean()
-        if d < target:
-            lo = mid
-        else:
-            hi = mid
-    mid = (lo + hi) / 2
-    return (CLOG_BASE_SEV, mid) if clog else (mid, 0.0)
-
-
-def main(out_root: Path, dry: bool) -> int:
-    charts = {}
-    for name, cfg in CHARTS.items():
-        rgb = patch_set(cfg["n"], cfg["seed"])
-        charts[name] = dict(rgb=rgb, locs=sample_locs(len(rgb)),
-                            dl=design_lab(rgb), **cfg)
-
-    print(f"{'date':12} {'chart':26} {'avg':>5} {'lo95':>5} {'hi5%':>5} "
-          f"{'max':>5} {'mx95':>5}  note")
-    runs_by_chart: dict[str, int] = {}
-    plan = []
-    for idx, (date, chart, target, white_L, black_L, note) in enumerate(BUILDS):
-        c = charts[chart]
-        seed = 1000 + idx
-        sev, clog_k = solve(c["dl"], c["rgb"], target, white_L, black_L, seed,
-                            clog=note == "CLOG")
-        rng = np.random.default_rng(seed)
-        ml = measured_lab(c["dl"], c["rgb"], white_L=white_L, black_L=black_L,
-                          sev=sev, clog_k=clog_k, rng=rng)
-        st = stats(des(c["dl"], ml))
-        print(f"{date:12} {chart:26} {st['avg_all']:5.2f} {st['avg_low95']:5.2f} "
-              f"{st['avg_high5']:5.2f} {st['max_all']:5.2f} {st['max_low95']:5.2f}"
-              f"  {note}")
-        runs_by_chart[chart] = runs_by_chart.get(chart, 0) + 1
-        plan.append((date, chart, runs_by_chart[chart], ml, note))
-
-    if dry:
-        return 0
-
-    if out_root.exists():
-        shutil.rmtree(out_root)
-    out_root.mkdir(parents=True)
-
-    total_runs = dict(runs_by_chart)
-    for name in CHARTS:
-        proj = out_root / name
-        (proj / "runs").mkdir(parents=True)
-        n = total_runs.get(name, 0)
-        (proj / "project.json").write_text(json.dumps({
-            "schema_version": 2,
-            "created_at": f"{BUILDS[0][0]}T09:00:00",
-            "target_name": name,
-            "current_run": f"run{n}",
-            "runs": [f"run{i + 1}" for i in range(n)],
-        }, indent=2), encoding="utf-8")
-
-    from workflow.measurement_report import build_report
-
-    for date, chart, run_no, ml, note in plan:
-        c = charts[chart]
-        run_dir = out_root / chart / "runs" / f"run{run_no}"
-        (run_dir / "reports").mkdir(parents=True)
-        when = datetime.strptime(date, "%Y-%m-%d").strftime("%a %b %d 11:24:07 %Y")
-        write_ti2(run_dir / f"{chart}.ti2", chart, c["rgb"], c["locs"],
-                  c["paper_size"], when)
-        write_ti3(run_dir / f"{chart}.ti3", c["rgb"], c["locs"], ml, when, date)
-        (run_dir / "meta.json").write_text(json.dumps({
-            "run_id": f"run{run_no}",
-            "created_at": f"{date}T11:24:07",
-            "instrument": INSTRUMENT,
-            "paper": PAPER,
-            "status": "complete",
-        }, indent=2), encoding="utf-8")
-        rep = build_report(run_dir / f"{chart}.ti3")
-        stamp = f"{date}_11-31-0{run_no % 10}"
-        (run_dir / "reports" / f"report_{stamp}.json").write_text(
-            json.dumps(rep, indent=2), encoding="utf-8")
-        print(f"  wrote {chart}/runs/run{run_no}  ({date}) {note}")
-
-    (out_root / "README.txt").write_text(README, encoding="utf-8")
-    print("DONE →", out_root)
+    shutil.rmtree(gdir, ignore_errors=True)
+    (root / "README.md").write_text(README)
+    print(f"\nDemo-Report-Matrix written to {root}")
+    print("Next: .venv/bin/python scripts/drive_report_demo_onscreen.py")
     return 0
 
 
+README = """# Demo-Report-Matrix — the Measurement Report test package
+
+Built by `scripts/make_report_demo.py` (every file made by real ArgyllCMS:
+targen → printtarg → fakeread → colprof; the gamut chart via xicclu).
+Argyll's sRGB.icm plays the printer; the run's own profile was built from a
+real fakeread measurement of a real 210-patch chart.
+
+`scripts/drive_report_demo_onscreen.py` opens the real Measurement Report on
+every case, checks the expectations below, and exports one PDF per case into
+`pdfs/` beside this file.
+
+## run1 — twelve dated verification cases
+
+| Case | Date | What it is | The report must show |
+|---|---|---|---|
+| V1 | 2026-05-01 | raw sheet, little noise | "printed raw — no profile"; judged as measured (absolute); split blocks present (run profile referees) |
+| V2 | 2026-06-01 | raw sheet, more noise | same as V1, worse figures → visible drift V1→V2 in the trend |
+| V3 | 2026-06-15 | through profile, relative intent | "through this run's profile · relative colorimetric"; judged relative to paper white (media-relative); split present |
+| V4 | 2026-07-01 | through profile, absolute intent | as-measured (absolute) yardstick, split present |
+| V5 | 2026-07-10 | another app with colour management | "printed in another app with colour management"; "(your answer when the sheet was measured)"; media-relative |
+| V6 | 2026-07-20 | no print record | "printing method not recorded"; judged as measured |
+| V7 | 2026-08-01 | gamut chart #1 | reference = the profile's own colorimetric targets; NO split (all colours printable by design); corners excluded from stats |
+| V8 | 2026-08-08 | gamut chart #2, noisier | same, worse figures → drift V7→V8 |
+| V9 | 2026-08-09 | gamut chart, reference REMOVED | "No colour-accuracy figures, on purpose." — refusal, never a guessed number |
+| V10 | 2026-08-10 09:00 | imported from another program | CHROMIQ keywords present; treated as external-CM (answered at measure) |
+| V11 | 2026-08-10 10:00 | measured with an i1Pro3 | red "mixed instruments" warning names this date |
+| V12 | 2026-08-10 11:00 | profile rebuilt after printing | "the profile has been rebuilt since this sheet was printed" warning |
+
+## run2 — one case
+
+| Case | Date | What it is | The report must show |
+|---|---|---|---|
+| R2 | 2026-08-10 12:00 | verification, run has NO profile | report renders fully; no split blocks (no referee profile) — degraded, not broken |
+
+## Options to exercise by hand (the driver does all of them too)
+
+* **Show all measurement runs** on/off — trend + side-by-side vs one run.
+* **Show detailed data for each run** on/off — detail chapters appear/disappear;
+  Report Results wording follows.
+* **Un-tick single runs** in the list — Report Scope says "hidden by you",
+  the PDF's proposed folder follows the selection (four-tier design).
+* **Pass thresholds** — Result flips; with the split, Pass/Fail judges the
+  within-gamut figures.
+* **Save report as PDF** — proposed folder: one date → that date's
+  `reports/`; several dates of run1 → `verifications/reports/`; both runs →
+  the project's `reports/`.
+
+All options are remembered between openings.
+"""
+
+
 if __name__ == "__main__":
-    dry = "--write" not in sys.argv
-    raise SystemExit(main(Path.home() / "Desktop" / "ChromIQ-Demo-PRO300", dry))
+    sys.exit(main())
