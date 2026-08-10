@@ -97,3 +97,40 @@ def test_two_straddlers_resolve_independently(qapp):
         if heading.text().strip():
             assert _page_of_top(doc, lay.blockBoundingRect(heading).top()) \
                 == _page_of_top(doc, r.top())
+
+
+def test_wrapped_legend_gets_its_own_rows(qapp):
+    """At the PDF grab width the five ΔE labels wrap to two legend rows; at a
+    wide window they fit one. The row count is what moves the plot down, so a
+    wrapped legend can never be painted across the graph."""
+    from PyQt6.QtGui import QColor, QFont, QFontMetricsF
+    from ui.dialogs.measurement_report_dialog import _TrendChart
+    chart = _TrendChart()
+    labels = ["Average ΔE, all patches", "Average ΔE, lowest 95%",
+              "Average ΔE, highest 5%", "Maximum ΔE, all patches",
+              "Maximum ΔE, lowest 95%"]
+    chart._metrics = [(l, QColor("red"), lambda pt: None) for l in labels]
+    font = QFont()
+    font.setPixelSize(10)
+    fm = QFontMetricsF(font)
+    narrow = chart._legend_rows(fm, 40.0, 640 - 52.0)
+    wide = chart._legend_rows(fm, 40.0, 1600 - 52.0)
+    assert narrow >= 2, narrow
+    assert wide == 1, wide
+
+
+def test_trend_chart_paints_at_pdf_width(qapp):
+    """Smoke: the PDF-sized grab (640×176, light, two points) renders without
+    error with the wrapped legend making room for itself."""
+    from PyQt6.QtGui import QColor
+    from ui.dialogs.measurement_report_dialog import _TrendChart
+    chart = _TrendChart()
+    chart.resize(640, 176)
+    pts = [{"date": "2026-08-01", "v": 1.0}, {"date": "2026-08-02", "v": 2.0}]
+    metrics = [(lbl, QColor("red"), (lambda pt: pt["v"]))
+               for lbl in ["Average ΔE, all patches", "Average ΔE, lowest 95%",
+                           "Average ΔE, highest 5%", "Maximum ΔE, all patches",
+                           "Maximum ΔE, lowest 95%"]]
+    chart.set_data(pts, metrics, dark=False, thresholds=(2.0, 3.0))
+    img = chart.grab().toImage()
+    assert not img.isNull() and img.width() == 640

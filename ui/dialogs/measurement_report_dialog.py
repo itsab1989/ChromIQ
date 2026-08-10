@@ -241,9 +241,23 @@ class _TrendChart(QWidget):
     def has_trend(self) -> bool:
         return len(self._series) >= 2
 
-    def _draw_legend(self, p, fg, L, w, T) -> None:
+    def _legend_rows(self, fm, L, w) -> int:
+        """How many rows the legend needs at this width — the plot top must
+        make room for every one of them, or a wrapped second row is painted
+        straight across the top of the graph (Sebastian, 2026-08-10, the
+        PDF's Colour-accuracy chart)."""
+        rows, lx = 1, L + 4
+        for lbl, _col, _acc in self._metrics:
+            adv = 26 + fm.horizontalAdvance(lbl)
+            if lx + adv > L + w:
+                lx = L + 4
+                rows += 1
+            lx += adv
+        return rows
+
+    def _draw_legend(self, p, fg, L, w) -> None:
         fm = p.fontMetrics()
-        lx, ly = L + 4, T - 12
+        lx, ly = L + 4, 12.0
         for lbl, col, _acc in self._metrics:
             adv = 26 + fm.horizontalAdvance(lbl)
             if lx + adv > L + w:
@@ -270,14 +284,16 @@ class _TrendChart(QWidget):
         font = QFont(); font.setPixelSize(10); p.setFont(font)
 
         import math
-        L, R, T, B = 40.0, 12.0, 24.0, 26.0
+        L, R, B = 40.0, 12.0, 26.0
         w = max(1.0, self.width() - L - R)
+        # The plot starts below the FULL legend, however many rows it wraps to.
+        T = 24.0 + 13.0 * (self._legend_rows(p.fontMetrics(), L, w) - 1)
         h = max(1.0, self.height() - T - B)
         pts = self._series
         # Empty state: an empty plot (frame + gridlines) with the legend and a
         # clear message that the trend needs at least two runs (Knut).
         if len(pts) < 2:
-            self._draw_legend(p, fg, L, w, T)
+            self._draw_legend(p, fg, L, w)
             p.setPen(QPen(grid, 1.0))
             p.setBrush(Qt.BrushStyle.NoBrush)   # the legend left a coloured brush
             p.drawRect(QRectF(L, T, w, h))
@@ -413,7 +429,7 @@ class _TrendChart(QWidget):
                 occupied.append((left, right))
 
         # Legend (wraps across as many rows as needed for 8 corners).
-        self._draw_legend(p, fg, L, w, T)
+        self._draw_legend(p, fg, L, w)
         p.end()
 
 
