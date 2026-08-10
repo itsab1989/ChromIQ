@@ -199,6 +199,14 @@ class _TrendChart(QWidget):
         fg = QColor(210, 210, 210) if self._dark else QColor(60, 60, 60)
         grid = QColor(255, 255, 255, 28) if self._dark else QColor(0, 0, 0, 22)
         p = QPainter(self)
+        # A light-mode chart paints its own white ground. In dark mode the
+        # widget stays transparent over the dialog — but the light rendering
+        # is what the PDF grabs off-screen, where the widget's inherited
+        # palette is the app's DARK one, so the exported charts came out as
+        # light lines on a black slab (Sebastian, 2026-08-10: "a light
+        # background looks better in this context").
+        if not self._dark:
+            p.fillRect(self.rect(), QColor("#ffffff"))
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         font = QFont(); font.setPixelSize(10); p.setFont(font)
 
