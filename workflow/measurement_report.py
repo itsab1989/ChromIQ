@@ -706,6 +706,81 @@ def ref_xyz(ref_labs, data, i):
     return tuple(_lab_to_xyz_array(lab)[0])
 
 
+def annotate_raw_drift(runs: "list[dict]") -> None:
+    """Give every RAW verification sheet a drift figure (Knut, 2026-08-11).
+
+    A raw sheet is expected to sit far from the design, so grading it against
+    the profile's Pass thresholds fails a healthy printer forever. What a raw
+    sheet can honestly answer is *"has the printer moved since last time?"* —
+    the model of Argyll's own ``colverify``, which compares a measurement
+    against a previous measurement. So, oldest-first, each recorded-raw
+    design-referenced run is compared PRINT AGAINST PRINT with the previous
+    such run: measured Lab vs measured Lab, patch by patch, matched by sample
+    location. The first raw check becomes the baseline; a pair made with
+    different charts is refused rather than mispaired (their device values
+    must agree patch for patch — the same guarantee the per-date chart
+    snapshots give).
+
+    Mutates the run dicts: ``raw_drift`` = ``{"baseline": True}`` |
+    ``{"avg", "max", "n", "prev"}`` | ``{"incomparable": True}``. Runs it
+    cannot read are skipped silently — the report must never fail for a
+    drift number.
+    """
+    prev: "dict | None" = None
+    prev_data = None
+    for r in runs:
+        if not r.get("is_verification"):
+            continue
+        if r.get("reference_source") not in ("design", "device"):
+            continue
+        if (r.get("printing") or {}).get("colour") != "raw":
+            continue
+        origin = r.get("_origin_dir")
+        name = r.get("ti3")
+        if not origin or not name:
+            continue
+        try:
+            data = parse_ti3(Path(origin) / str(name))
+        except Ti3ParseError:
+            continue
+        if prev is None:
+            r["raw_drift"] = {"baseline": True}
+            prev, prev_data = r, data
+            continue
+        locs_a = prev_data.sample_locs or prev_data.sample_ids
+        locs_b = data.sample_locs or data.sample_ids
+        by_loc = {loc: i for i, loc in enumerate(locs_b)}
+        same_chart = (len(locs_a) == len(locs_b)
+                      and all(loc in by_loc for loc in locs_a))
+        if same_chart and prev_data.rgb is not None and data.rgb is not None:
+            import numpy as _np
+            a = _np.asarray(prev_data.rgb, dtype=float)
+            b = _np.asarray(data.rgb, dtype=float)[
+                [by_loc[loc] for loc in locs_a]]
+            # identical charts carry identical device values — anything else
+            # means the chart changed between the checks
+            same_chart = a.shape == b.shape and bool(
+                _np.abs(a - b).max() <= 0.51)
+        if not same_chart:
+            r["raw_drift"] = {"incomparable": True,
+                              "prev": prev.get("created")}
+            prev, prev_data = r, data
+            continue
+        lab_a = [xyz_to_lab((x / 100.0, y / 100.0, z / 100.0))
+                 for x, y, z in prev_data.xyz]
+        lab_b = [xyz_to_lab((x / 100.0, y / 100.0, z / 100.0))
+                 for x, y, z in data.xyz]
+        des = [ciede2000(tuple(lab_a[i]), tuple(lab_b[by_loc[loc]]))
+               for i, loc in enumerate(locs_a)]
+        r["raw_drift"] = {
+            "avg": round(sum(des) / len(des), 2),
+            "max": round(max(des), 2),
+            "n": len(des),
+            "prev": prev.get("created"),
+        }
+        prev, prev_data = r, data
+
+
 def save_report(report: dict, run_dir: str | Path) -> Path:
     """Write the report as timestamped JSON under ``<run_dir>/reports/`` and
     return the path. Timestamped so a printer's reports accrue for comparison."""
@@ -891,6 +966,12 @@ def report_scope(runs: "list[dict]") -> dict:
     verifs = [r for r in runs if r.get("is_verification")]
     if verifs:
         def _method(r: dict) -> str:
+            # A gamut chart printed raw is its own method — the profile is
+            # inside the chart, so it never belongs in the "printed raw"
+            # group of the mixed-methods warning (Knut, 2026-08-11).
+            if r.get("reference_source") in ("colorimetric",
+                                             "colorimetric-missing"):
+                return "gamut"
             pr = r.get("printing") or {}
             if pr.get("colour") == "through-profile" \
                     and pr.get("route") == "external-cm":

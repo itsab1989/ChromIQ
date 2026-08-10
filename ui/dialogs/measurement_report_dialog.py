@@ -138,6 +138,16 @@ def _fmt(v, dec: int = 2) -> str:
     return f"{v:.{dec}f}" if isinstance(v, (int, float)) else "—"
 
 
+def _is_raw_drift(r: dict) -> bool:
+    """A recorded-raw verification sheet judged against the design: its job is
+    drift, not accuracy — Pass/Fail against the profile thresholds would fail
+    a healthy printer forever (Knut, 2026-08-11). Unrecorded sheets keep the
+    old grading: nobody knows how they were printed."""
+    return bool(r.get("is_verification")
+                and r.get("reference_source") in ("design", "device")
+                and (r.get("printing") or {}).get("colour") == "raw")
+
+
 def _paginate_tables(doc, body_h: float) -> None:
     """Keep whole tables on one page (Knut #PDF4), heading included.
 
@@ -403,8 +413,17 @@ class _TrendChart(QWidget):
         p.setPen(QPen(fg, 1.0))
         fm = p.fontMetrics()
 
+        days = [str(pt.get("created") or "")[:10] for pt in pts]
+        shared_days = {d for d in days if days.count(d) > 1}
+
         def _lab(i: int) -> str:
-            return str(pts[i].get("created") or "")[:10]
+            # Several checks on one day: the date alone reads as the same
+            # point over and over, so those labels carry the time as well
+            # ("2026-08-10 11:36" — Knut, 2026-08-11). Unique days stay short.
+            c = str(pts[i].get("created") or "")
+            if c[:10] in shared_days and len(c) >= 16:
+                return f"{c[:10]} {c[11:16]}"
+            return c[:10]
 
         def _draw_date(left: float, text: str) -> None:
             p.drawText(QRectF(left, axis_y + 4, fm.horizontalAdvance(text) + 6, 16),
@@ -949,6 +968,8 @@ class MeasurementReportDialog(QDialog):
             runs = [build_report(ti3, argyll_bin=self._argyll_bin())]
             runs[0]["_origin_dir"] = str(ti3.parent)
         runs.sort(key=lambda r: str(r.get("created") or ""))
+        from workflow.measurement_report import annotate_raw_drift
+        annotate_raw_drift(runs)
         name = runs[-1].get("chart") or ti3.stem
         return name, runs
 
@@ -1020,7 +1041,10 @@ class MeasurementReportDialog(QDialog):
         when = created.replace("T", " ")[:16] or "?"
         pr = r.get("printing") or {}
         colour = pr.get("colour") or "unrecorded"
-        if colour == "through-profile" and pr.get("route") == "external-cm":
+        if r.get("reference_source") in ("colorimetric",
+                                         "colorimetric-missing"):
+            label = tr("gamut check — profile applied at build")
+        elif colour == "through-profile" and pr.get("route") == "external-cm":
             label = tr("printed in another app with colour management")
         else:
             label = {
@@ -1508,10 +1532,21 @@ class MeasurementReportDialog(QDialog):
         # Date headers inherit the table cellpadding (4 px) like the number cells
         # below them, so they line up on the right; the Metric header keeps its
         # own wide right pad to match the metric column (Knut #PDF3).
+        def _th(d):
+            # (date, time) pairs arrive when several columns share a calendar
+            # date — the time on a second line keeps them tellable apart
+            # (Knut, 2026-08-11); a lone check per day stays date-only.
+            if isinstance(d, tuple):
+                day, clock = d
+                inner = (html.escape(day) + "<br><span style='font-weight:"
+                         "normal'>" + html.escape(clock) + "</span>")
+            else:
+                inner = html.escape(d)
+            return "<th align='right' style='" + thb + "'>" + inner + "</th>"
+
         th = ("<tr><th align='left' style='" + thb + ";padding:2px 14px 3px 0'>"
               + html.escape(tr("Metric")) + "</th>"
-              + "".join("<th align='right' style='" + thb + "'>"
-                        + html.escape(d) + "</th>" for d in dates) + "</tr>")
+              + "".join(_th(d) for d in dates) + "</tr>")
         body = [th]
         zebra = 0
         for label, cells in data_rows:
@@ -1540,9 +1575,15 @@ class MeasurementReportDialog(QDialog):
         """Stacked metric×run tables, at most :data:`_MAX_RUN_COLS` dated columns
         each, continuing below with the Metric column repeated; oldest run first."""
         out = []
+        days = [str(r.get("created") or "")[:10] for r in runs]
+        shared = {d for d in days if days.count(d) > 1}
         for i in range(0, len(runs), _MAX_RUN_COLS):
             chunk = runs[i:i + _MAX_RUN_COLS]
-            dates = [str(r.get("created") or "")[:10] for r in chunk]
+            dates = [((str(r.get("created") or "")[:10],
+                       str(r.get("created") or "")[11:16])
+                      if str(r.get("created") or "")[:10] in shared
+                      else str(r.get("created") or "")[:10])
+                     for r in chunk]
             rows = [(label, None if get is None else [get(r) for r in chunk])
                     for label, get in row_getters]
             out.append(self._metric_table(dates, rows))
@@ -1618,6 +1659,7 @@ class MeasurementReportDialog(QDialog):
                 # #130 feature A (Q3): the trend changes meaning where the
                 # printing method changed — the report marks the point.
                 method_labels = {
+                    "gamut": tr("gamut check — profile applied at build"),
                     "through-profile": tr("printed through the profile"),
                     "external-cm": tr("printed in another app with colour "
                                       "management"),
@@ -1742,6 +1784,9 @@ class MeasurementReportDialog(QDialog):
                 for r in runs}
 
         def pf(r, key):
+            if _is_raw_drift(r):
+                return (f"<td align='center' style='color:{_C['faint']}'>"
+                        + html.escape(tr("drift")) + "</td>")
             p = verd[id(r)].get(key)
             if p is None:
                 return "<td align='center'>—</td>"
@@ -1774,9 +1819,21 @@ class MeasurementReportDialog(QDialog):
                 "counted against it.")
         # Always start Report Results on a fresh page — the how-to-read section
         # can be long, so it reads cleaner on its own page (Knut).
+        drift_note = ""
+        if any(_is_raw_drift(r) for r in runs):
+            drift_note = (
+                f"<div style='color:{_C['faint']};font-size:10px;"
+                "margin-top:2px'>" + html.escape(tr(
+                    "Columns marked “drift” are sheets printed raw, without "
+                    "the profile — they are not expected to match the design "
+                    "closely, so Pass and Fail would be unfair to a "
+                    "perfectly healthy printer. For those sheets the "
+                    "detailed chapter shows how far the printer has moved "
+                    "since the previous raw check instead.")) + "</div>")
         return (_h2(tr("Report Results"), page_break=True)
                 + f"<div style='color:{_C['dim']};margin-bottom:4px'>" + html.escape(intro)
-                + "</div>" + self._chunked_metric_tables(runs, row_getters))
+                + "</div>" + self._chunked_metric_tables(runs, row_getters)
+                + drift_note)
 
     def _comparison_table_html(self, runs: list) -> str:
         """Side-by-side: the full metric set across every run (columns = dated
@@ -1981,7 +2038,28 @@ class MeasurementReportDialog(QDialog):
             "saturation": tr("saturation"),
         }
         rows: "list[tuple[str, str, bool]]" = []   # (label, value, is_warning)
-        if colour == "through-profile" and printing.get("route") == "external-cm":
+        ref_src = r.get("reference_source")
+        if ref_src in ("colorimetric", "colorimetric-missing"):
+            # A FROM PROFILE GAMUT chart carries the profile from the moment
+            # it is built — "no profile took part" was false for it, and its
+            # Raw print is exactly right (Knut, 2026-08-11). This branch must
+            # come before the raw/through ones, which only see the record.
+            if ref_src == "colorimetric":
+                rows.append((tr("What this measured"), tr(
+                    "how accurate this profile is — this chart was built only "
+                    "from colours the profile promised it can print, and "
+                    "every figure compares a patch with that promise"), False))
+            else:
+                rows.append((tr("What this measured"), tr(
+                    "this chart was built from the profile's own gamut and "
+                    "was meant to measure its accuracy — but the stored "
+                    "targets are missing, so no colour-accuracy figures are "
+                    "shown"), True))
+            rows.append((tr("Printed"), tr(
+                "as it is (Raw) — the profile is already inside this chart "
+                "from the moment it was made, so printing it unchanged is "
+                "exactly right; nothing was skipped"), False))
+        elif colour == "through-profile" and printing.get("route") == "external-cm":
             # The user's own answer at measure time (M-HOW-PRINTED): the
             # sheet went through another application's colour management.
             rows.append((tr("What this measured"), tr(
@@ -2113,6 +2191,13 @@ class MeasurementReportDialog(QDialog):
             # 2026-08-10). In the detailed chapter the groups may sit
             # side-by-side as columns (his layout ruling).
             rows, _ = accuracy_verdict(d_in if split else de, avg_thr, max_thr)
+            raw_drift = _is_raw_drift(r)
+            if raw_drift:
+                # A drift check is never graded against the profile
+                # thresholds — the drift paragraph below carries the verdict.
+                for row in rows:
+                    row["pass"] = None
+                    row["threshold"] = None
             thb = f"border-bottom:1.5px solid {_C['rule']}"
             cols = ([tr("Within gamut"), tr("Beyond it"), tr("All patches")]
                     if split else [tr("Measured ΔE00")])
@@ -2164,16 +2249,57 @@ class MeasurementReportDialog(QDialog):
             parts.append("<table cellpadding='5' cellspacing='0' "
                          "style='border-collapse:collapse;font-size:11px'>"
                          + "".join(trs) + "</table>")
+            if raw_drift:
+                rd = r.get("raw_drift") or {}
+                if rd.get("baseline"):
+                    drift_txt = tr(
+                        "This sheet was printed raw, without the profile — "
+                        "so it is a drift check, and this is the first one: "
+                        "it becomes the baseline. From your next raw check "
+                        "on, the report will show here how far the printer "
+                        "has moved since this sheet.")
+                elif rd.get("incomparable"):
+                    drift_txt = tr(
+                        "This sheet was printed raw, without the profile — a "
+                        "drift check. The previous raw check used a "
+                        "different chart, so print-to-print drift cannot be "
+                        "measured for this pair; the next raw check of THIS "
+                        "chart will start a fresh comparison.")
+                elif rd.get("avg") is not None:
+                    drift_txt = tr(
+                        "Drift since the previous raw check ({prev}): "
+                        "average {avg} ΔE00, maximum {max} — this print "
+                        "measured against that print, patch by patch, "
+                        "{n} patches. Small numbers mean your printer still "
+                        "behaves as it did then; growing numbers mean drift "
+                        "— worth re-profiling when they matter to you. "
+                        "(Pass/Fail against the profile thresholds is not "
+                        "shown here: a raw sheet is not expected to match "
+                        "the design closely, so it would fail even a "
+                        "perfectly healthy printer.)").format(
+                            prev=str(rd.get("prev", ""))[:16].replace("T", " "),
+                            avg=_fmt(rd.get("avg")), max=_fmt(rd.get("max")),
+                            n=rd.get("n"))
+                else:
+                    drift_txt = tr(
+                        "This sheet was printed raw, without the profile — a "
+                        "drift check. Its ΔE figures above describe distance "
+                        "from the design, and what matters is how they "
+                        "change between dated checks, not their size.")
+                parts.append(
+                    f"<p style='color:{_C['faint']};font-size:10px'>"
+                    + html.escape(drift_txt) + "</p>")
             if split:
                 parts.append(
                     f"<p style='color:{_C['faint']};font-size:10px'>" + html.escape(tr(
-                        "{n} of this sheet's colours lie within what the profile "
-                        "({profile}) can print, {m} beyond it. The Result judges "
-                        "the within-gamut figures: a colour beyond the gamut was "
-                        "never printable, so its distance describes the gamut's "
-                        "limit, not a mistake of the profile — those patches are "
-                        "still shown, in their own column, and their stability "
-                        "over time is a drift signal.").format(
+                        "Within what the profile ({profile}) can print: {n} of "
+                        "this sheet's colours; beyond it: {m}. The Result "
+                        "judges the within-gamut figures — a colour beyond "
+                        "the gamut was never printable, so its distance "
+                        "describes the gamut's limit, not a mistake of the "
+                        "profile. Those patches stay visible in their own "
+                        "column, and how steady they are from check to check "
+                        "is a drift signal.").format(
                             n=split.get("n_in"), m=split.get("n_out"),
                             profile=split.get("profile", ""))) + "</p>")
             if device_ref:

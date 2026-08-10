@@ -181,6 +181,47 @@ def main() -> int:
     check("V12 profile rebuilt since print flagged",
           (r.get("printing") or {}).get("profile_changed_since_print") is True)
 
+    print("== the raw-drift figure (item 6) ==")
+    r1, r2 = hist(dlg, "2026-05-01"), hist(dlg, "2026-06-01")
+    check("V1 is the drift baseline",
+          (r1.get("raw_drift") or {}).get("baseline") is True)
+    rd = r2.get("raw_drift") or {}
+    check("V2 carries drift vs V1",
+          rd.get("prev") == r1.get("created") and rd.get("n", 0) > 0)
+    check("V2 drift magnitude plausible for 0.3%->1.2% noise",
+          0.0 < (rd.get("avg") or 0) < 15.0,
+          f"avg {rd.get('avg')} max {rd.get('max')}")
+    detail1 = _html.unescape(dlg._run_detail_html(r1))
+    check("V1 detail says it becomes the baseline",
+          "it becomes the baseline" in detail1)
+    detail2 = _html.unescape(dlg._run_detail_html(r2))
+    check("V2 detail shows the drift sentence and no Pass/Fail",
+          "Drift since the previous raw check" in detail2
+          and ">Pass<" not in detail2 and ">Fail<" not in detail2)
+    results = _html.unescape(dlg._report_results_html(dlg._runs_for_report()))
+    check("Results grid marks raw sheets as drift, with the note",
+          "drift" in results
+          and "not expected to match the design closely" in results)
+
+    print("== the corrected gamut wording (item 4) ==")
+    r7 = hist(dlg, "2026-08-01")
+    check("V7 row label says gamut check",
+          "gamut check" in dlg._run_row_label(r7), dlg._run_row_label(r7))
+    prod7 = _html.unescape(dlg._printing_block_html(r7))
+    check("V7 produced-block: accuracy against the profile's promise",
+          "every figure compares a patch with that promise" in prod7
+          and "drift check" not in prod7)
+    prod9 = _html.unescape(dlg._printing_block_html(hist(dlg, "2026-08-09")))
+    check("V9 produced-block explains the missing targets",
+          "stored targets are missing" in prod9)
+
+    print("== times in shared-day headers (item 5) ==")
+    overview = dlg._comparison_table_html(dlg._runs_for_report())
+    check("the 2026-08-10 trio is distinguishable by time",
+          all(clock in overview for clock in ("09:00", "10:00", "11:00")))
+    check("unique days stay date-only",
+          "2026-05-01<br>" not in overview.replace(" ", ""))
+
     print("== the combined PDFs (summary + detailed) ==")
     dlg._all_runs_check.setChecked(True)
     dlg._detail_check.setChecked(False)

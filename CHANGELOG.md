@@ -1,5 +1,36 @@
 # Changelog
 
+## v3.14.8-beta.222
+
+### New
+
+- **Raw drift sheets get a real drift figure instead of an unfair verdict.**
+  A sheet printed raw is not expected to match the design, so Pass/Fail
+  against the profile thresholds would fail a healthy printer forever. Raw
+  sheets now show "drift" in Report Results, and the detailed chapter
+  compares each raw check with the PREVIOUS raw check of the same chart —
+  print against print, patch by patch (the model of Argyll's own colverify).
+  The first raw check becomes the baseline; a pair made with different
+  charts is refused rather than mispaired. Through-profile and gamut checks
+  keep their Pass/Fail.
+- **Several checks on one day are tellable apart**: table columns and trend
+  labels carry the time whenever two share a calendar date.
+
+### Fixed
+
+- **The gamut-chart run's report section no longer calls it a drift check.**
+  That chart carries the profile from the moment it is built, so it IS the
+  accuracy check — the report now says so, its run row reads "gamut check —
+  profile applied at build", and the mixed-methods warning treats it as its
+  own method. A gamut chart whose stored targets are missing says exactly
+  that.
+- The Dictionary's "Which verification should I use?" entry no longer claims
+  a through-profile chart is always judged as measured — with the everyday
+  relative intent it is judged against the sheet's own paper white, and the
+  entry now says so.
+- The note under the split accuracy table reads correctly for any patch
+  count.
+
 ## v3.14.8-beta.221
 
 ### New
