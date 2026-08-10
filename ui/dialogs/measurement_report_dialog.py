@@ -618,7 +618,7 @@ class MeasurementReportDialog(QDialog):
                "With it off, the report shows only the measurement it was "
                "opened on — one run, in full, with no comparison.\n\n"
                "The saved PDF always matches what you see here."),
-            self, min_width=440))
+            self, min_width=440, color=SPEC_GREEN))
         self._detail_check = QCheckBox(tr("Show detailed data for each run"), self)
         self._detail_check.setChecked(False)
         self._detail_check.toggled.connect(lambda _=None: self._render())
@@ -635,7 +635,7 @@ class MeasurementReportDialog(QDialog):
                "average over your threshold.\n\n"
                "It makes the report, and the saved PDF, considerably longer — "
                "which is why it starts unticked."),
-            self, min_width=440))
+            self, min_width=440, color=SPEC_GREEN))
         opt_row.addStretch(1)
         v.addLayout(opt_row)
 
