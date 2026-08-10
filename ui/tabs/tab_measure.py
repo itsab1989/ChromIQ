@@ -1050,14 +1050,22 @@ class TabMeasure(QWidget):
     # ------------------------------------------------------------------
 
     def _switch_mode(self, mode: str) -> None:
+        # IMPORT exists only while the shared Run type is Verification; asked
+        # for at any other moment (e.g. a restored state) it falls back to
+        # Guided rather than showing a module that cannot run (#133).
+        if mode == "import" and not self._import_available():
+            mode = "guided"
         if mode == "guided":
             self._stack.setCurrentIndex(0)
-            self._guided_btn.setChecked(True)
-            self._manual_btn.setChecked(False)
+        elif mode == "import":
+            self._stack.setCurrentIndex(2)
         else:
+            mode = "manual"
             self._stack.setCurrentIndex(1)
-            self._guided_btn.setChecked(False)
-            self._manual_btn.setChecked(True)
+        self._guided_btn.setChecked(mode == "guided")
+        self._manual_btn.setChecked(mode == "manual")
+        if hasattr(self, "_import_btn"):
+            self._import_btn.setChecked(mode == "import")
         self._calm_outer.setVisible(mode == "guided")
         # The two modules keep INDEPENDENT "Live preview" settings; apply the
         # now-active module's view state to the shared preview so switching
@@ -1068,6 +1076,7 @@ class TabMeasure(QWidget):
         # is also reachable during UI build before _start_btn exists.
         if hasattr(self, "_start_btn"):
             self._refresh_start_button_label()
+            self._refresh_import_controls()
 
     def _apply_active_view_settings(self) -> None:
         """Push the active module's independent Live-preview controls to the
@@ -1102,6 +1111,11 @@ class TabMeasure(QWidget):
         'Verification' run type drives the verification flow and its dated
         destination."""
         self._target_ctl = controller
+        # #133: the IMPORT module exists only for a verification run, so its
+        # button follows the bar — and the destination line inside the module
+        # follows the selected run / verification date.
+        controller.changed.connect(self._refresh_import_visibility)
+        self._refresh_import_visibility()
 
     # ------------------------------------------------------------------
     # Per-target settings (#130 §5 — Knut: "measure tab must be included")
@@ -1332,6 +1346,8 @@ class TabMeasure(QWidget):
         self._mode = new_mode
         if hasattr(self, "_stop_btn"):
             self._apply_stop_btn_style()
+        if hasattr(self, "_import_box"):
+            self._apply_import_box_style()
 
     def _apply_stop_btn_style(self) -> None:
         # The button keeps its light-grey "always-stand-out" base in both
@@ -1437,10 +1453,21 @@ class TabMeasure(QWidget):
         self._manual_btn.setCheckable(True)
         self._manual_btn.setObjectName("mode_btn")
         self._manual_btn.setFont(_mode_font)
+        # #133: IMPORT — file a measurement made in i1Profiler. Only a
+        # verification run can use it, so the button is hidden until the shared
+        # Run type says Verification (mirrors the Create Chart tab's
+        # FROM PROFILE GAMUT button).
+        self._import_btn = QPushButton(tr("IMPORT"), self._mode_row_widget)
+        self._import_btn.setCheckable(True)
+        self._import_btn.setObjectName("mode_btn")
+        self._import_btn.setFont(_mode_font)
+        self._import_btn.setVisible(False)
         self._guided_btn.clicked.connect(lambda: self._switch_mode("guided"))
         self._manual_btn.clicked.connect(lambda: self._switch_mode("manual"))
+        self._import_btn.clicked.connect(lambda: self._switch_mode("import"))
         mode_row.addWidget(self._guided_btn)
         mode_row.addWidget(self._manual_btn)
+        mode_row.addWidget(self._import_btn)
         mode_row.addStretch()
         top_layout.addWidget(self._mode_row_widget)
         lc_layout.addWidget(top_widget)
@@ -1468,8 +1495,10 @@ class TabMeasure(QWidget):
         self._stack = QStackedWidget(left_container)
         self._guided_panel = self._make_guided_panel()
         self._manual_panel = self._make_manual_panel()
+        self._import_panel = self._make_import_panel()
         self._stack.addWidget(self._guided_panel)
         self._stack.addWidget(self._manual_panel)
+        self._stack.addWidget(self._import_panel)
         lc_layout.addWidget(self._stack, stretch=1)
 
         # Keep-calm block — guided mode only, sits directly above buttons
@@ -1538,8 +1567,17 @@ class TabMeasure(QWidget):
         self._save_defaults_btn = QPushButton(tr("Save as Defaults"), btn_outer)
         self._save_defaults_btn.setFixedHeight(36)
         self._save_defaults_btn.clicked.connect(self._on_save_defaults)
+        # #133: the IMPORT module's action button. It stands where Start
+        # Measurement stands — same place, same weight — because it IS this
+        # module's "start": the two are swapped by _refresh_import_controls.
+        self._import_go_btn = QPushButton(tr("Import Measurement"), btn_outer)
+        self._import_go_btn.setObjectName("primary")
+        self._import_go_btn.setFixedHeight(36)
+        self._import_go_btn.clicked.connect(self._on_import_measurement)
+        self._import_go_btn.setVisible(False)
         btn_row.addWidget(self._start_btn)
         btn_row.addWidget(self._stop_btn)
+        btn_row.addWidget(self._import_go_btn)
         btn_row.addStretch()
         btn_row.addWidget(self._save_defaults_btn)
         # THE BUTTONS ARE THE LAST THING BEFORE THE LOG, LIKE EVERY OTHER TAB.
@@ -1616,7 +1654,12 @@ class TabMeasure(QWidget):
         # ---- Right preview ----
         right = QWidget(self)
         rl = QVBoxLayout(right)
-        rl.setContentsMargins(0, 0, 0, 12)
+        # Bottom 15 = the left panel's 13 px button margin + the 2 px spacing
+        # outside its log wrapper, so with the log hidden the preview's
+        # Prev/Next row ends level with the action buttons (Basti, 2026-08-09).
+        # The pace area below contributes nothing while empty — see
+        # _sync_pace_area_visible.
+        rl.setContentsMargins(0, 0, 0, 15)
         rl.setSpacing(0)
         self._preview = TiffPreview(right)
         self._preview.stripe_clicked.connect(self._on_preview_strip_clicked)
@@ -1676,6 +1719,15 @@ class TabMeasure(QWidget):
         self._pace_verdict_lbl.setFont(_vf)
         self._pace_verdict_lbl.setVisible(False)
         pa.addWidget(self._pace_verdict_lbl)
+        self._pace_area = pace_area
+        # Empty, the area's _PACE_GAP top margin still pushed the Prev/Next row
+        # ~10 px above the level every other action row sits at (Basti,
+        # 2026-08-09) — so it only takes room when it has something to show.
+        # The show/hide events of the two children keep it in step — see
+        # eventFilter.
+        pace_area.setVisible(False)
+        self._pace_group.installEventFilter(self)
+        self._pace_verdict_lbl.installEventFilter(self)
         rl.addWidget(pace_area)
         # Times measured so far, per strip letter, plus whether each passed.
         self._pace_times: dict = {}
@@ -7694,6 +7746,455 @@ class TabMeasure(QWidget):
             insp.load_measurement(dst)
             insp.exec()
 
+    # ------------------------------------------------------------------
+    # IMPORT module (#133) — file a measurement made in i1Profiler
+    # ------------------------------------------------------------------
+
+    def _make_import_panel(self) -> QWidget:
+        """The IMPORT module's panel: a file row (green folder button) and an
+        info box saying, in the tab's own accent, exactly what the import will
+        do and where the measurement will be filed. No chartread options — an
+        imported file carries its own facts (instrument, date, patch values),
+        and the destination comes from the bar above."""
+        scroll = FadeScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(scroll.Shape.NoFrame)
+
+        left = QWidget()
+        ll = QVBoxLayout(left)
+        ll.setContentsMargins(16, 8, 16, 8)
+        ll.setSpacing(10)
+
+        self._import_path: "Path | None" = None
+
+        grp = QGroupBox(tr("Measurement File (from i1Profiler)"), left)
+        grp.setFlat(True)
+        g = QVBoxLayout(grp)
+        g.setContentsMargins(8, 6, 8, 8)
+        row = QHBoxLayout()
+        self._import_file_lbl = ElidingLabel(tr("No file chosen yet"), grp)
+        self._import_file_lbl.setStyleSheet("color: #909090; font-size: 11px;")
+        row.addWidget(self._import_file_lbl, stretch=1)
+        self._import_browse_btn = make_browse_button(grp, tooltip=tr(
+            "Choose the measurement file to import — i1Profiler's own "
+            "measurement (.mxf or .cxf), its CGATS text export (.txt), or a "
+            "measurement already in Argyll's .ti3 format."),
+            color=_TAB_COLOR)
+        self._import_browse_btn.clicked.connect(self._on_import_browse)
+        row.addWidget(self._import_browse_btn)
+        row.addWidget(TooltipButton(
+            tr("Import a measurement made in i1Profiler"),
+            tr("Use this when this run's verification chart was printed and "
+               "measured outside ChromIQ — typically on an i1iO table in "
+               "i1Profiler, using the chart's exported patch list from the "
+               "run's exports folder.\n\n"
+               "What to pick: i1Profiler's own measurement file (.mxf or "
+               ".cxf), its CGATS text export (.txt), or a measurement that is "
+               "already a .ti3. Measure with the chart's NORMAL export — not "
+               "the file with “shuffled” in its name — so the patches come "
+               "back in the order ChromIQ sent them.\n\n"
+               "What happens when you press Import Measurement:\n"
+               "1. ChromIQ converts the file to Argyll's .ti3 format for you "
+               "(nothing to do by hand).\n"
+               "2. It checks, patch for patch, that the measurement really "
+               "belongs to this run's verification chart. A file that does "
+               "not match is refused before anything is written.\n"
+               "3. It files a copy in its own dated verification folder — the "
+               "same place a measurement made here would go — together with a "
+               "copy of the chart it was measured against.\n\n"
+               "Your original file is never moved or changed. Afterwards, "
+               "open Tools ▸ “Measurement report” to see the colour-accuracy "
+               "figures — the imported measurement is already in place there."),
+            grp, min_width=480))
+        g.addLayout(row)
+        ll.addWidget(grp)
+
+        # The green info box (Basti): same shape as the Create Chart tab's
+        # info boxes, in this tab's accent — says what THIS import will do.
+        box = QFrame(left)
+        box.setObjectName("importInfoBox")
+        bl = QVBoxLayout(box)
+        bl.setContentsMargins(12, 10, 12, 12)
+        bl.setSpacing(6)
+        title_lbl = QLabel(tr("What this import will do"), box)
+        title_lbl.setObjectName("importInfoTitle")
+        bl.addWidget(title_lbl)
+        self._import_box_body = QLabel("", box)
+        self._import_box_body.setObjectName("importInfoBody")
+        self._import_box_body.setWordWrap(True)
+        self._import_box_body.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse)
+        bl.addWidget(self._import_box_body)
+        self._import_box = box
+        self._apply_import_box_style()
+        ll.addWidget(box)
+
+        ll.addStretch(1)
+        scroll.setWidget(left)
+        return scroll
+
+    def _apply_import_box_style(self) -> None:
+        """Paint the import info box in the Measure tab's green — readable in
+        both themes (the shared QLabel#info chrome is magenta, so this box
+        carries its own)."""
+        if getattr(self, "_mode", "dark") == "light":
+            bg, border = "#e9f9f2", _TAB_COLOR
+            title_color, body_color = "#157a52", "#23553f"
+        else:
+            bg, border = "#0b1f18", _TAB_COLOR
+            title_color, body_color = _TAB_COLOR, "#cfe9dd"
+        self._import_box.setStyleSheet(
+            f"#importInfoBox {{"
+            f"  background-color: {bg};"
+            f"  border: 1px solid {border};"
+            "  border-radius: 6px;"
+            "}"
+            "#importInfoBox QLabel { background: transparent; }"
+            f"#importInfoBox QLabel#importInfoTitle {{"
+            f"  font-weight: bold; color: {title_color};"
+            "}"
+            f"#importInfoBox QLabel#importInfoBody {{"
+            f"  color: {body_color};"
+            "}"
+        )
+
+    def _import_available(self) -> bool:
+        """The IMPORT module exists only while the shared Run type is
+        Verification — a profiling measurement must come from a real read
+        here, never from an outside file (#133 §9.1)."""
+        return self._is_verification_run()
+
+    def _refresh_import_visibility(self) -> None:
+        """Follow the bar: show/hide the IMPORT mode button, leave the module
+        when it no longer applies, and keep the destination line current."""
+        if not hasattr(self, "_import_btn"):
+            return
+        avail = self._import_available()
+        self._import_btn.setVisible(avail)
+        if not avail and self._stack.currentIndex() == 2:
+            self._switch_mode("guided")
+        elif self._stack.currentIndex() == 2:
+            self._update_import_panel()
+
+    def _refresh_import_controls(self) -> None:
+        """Swap the action row for the active module: IMPORT shows one Import
+        Measurement button where Start stands; the chartread-only controls
+        (Stop, Save as Defaults, the sounds switch) step aside with it."""
+        if not hasattr(self, "_import_go_btn"):
+            return
+        importing = self._stack.currentIndex() == 2
+        for w in (self._start_btn, self._stop_btn, self._save_defaults_btn):
+            w.setVisible(not importing)
+        self._import_go_btn.setVisible(importing)
+        if importing:
+            self._sound_cb.setVisible(False)
+            self._sound_tip.setVisible(False)
+            self._update_import_panel()
+        else:
+            # The sounds switch has its own visibility rule (hidden on the
+            # stock chartread engine) — re-apply it rather than assuming.
+            try:
+                self.refresh_engine_visibility()
+            except Exception:      # noqa: BLE001 — a refresh must not break the swap
+                pass
+
+    @staticmethod
+    def _pretty_verification_when(vid: str) -> str:
+        """A dated-folder id (``2026-08-09_142530``) as the human line the
+        messages show (``2026-08-09 14:25``)."""
+        import re
+        m = re.match(r"(\d{4}-\d{2}-\d{2})_(\d{2})(\d{2})\d{2}", vid)
+        return f"{m.group(1)} {m.group(2)}:{m.group(3)}" if m else vid
+
+    @staticmethod
+    def _chart_patch_count(ti2: "Path | None") -> "int | None":
+        """The chart's patch count, from its own header — cheap enough to read
+        on every panel refresh."""
+        import re
+        if ti2 is None:
+            return None
+        try:
+            m = re.search(r"NUMBER_OF_SETS\s+(\d+)", ti2.read_text(errors="replace"))
+        except OSError:
+            return None
+        return int(m.group(1)) if m else None
+
+    def _update_import_panel(self) -> None:
+        """Fill the info box for the current file + target, and set the Import
+        button's availability accordingly."""
+        if not hasattr(self, "_import_box_body"):
+            return
+        parts: "list[str]" = []
+        path = getattr(self, "_import_path", None)
+        if path is None:
+            self._import_file_lbl.setText(tr("No file chosen yet"))
+            parts.append(tr(
+                "Press the green folder button above and choose the "
+                "measurement you made in i1Profiler — its own measurement "
+                "file (.mxf or .cxf), its CGATS text export (.txt), or a "
+                "ready .ti3."))
+        else:
+            self._import_file_lbl.setText(str(path))
+            ext = Path(path).suffix.lower()
+            if ext in (".mxf", ".cxf"):
+                parts.append(tr(
+                    "{name} is an i1Profiler measurement (CxF3) — ChromIQ "
+                    "reads it directly, no export step needed.").format(
+                        name=Path(path).name))
+            elif ext == ".ti3":
+                parts.append(tr(
+                    "{name} is already in Argyll's measurement format — it "
+                    "will be used as it is.").format(name=Path(path).name))
+            else:
+                parts.append(tr(
+                    "{name} is a CGATS text export — ChromIQ converts it "
+                    "with ArgyllCMS's txt2ti3 for you.").format(
+                        name=Path(path).name))
+        run = self._guard_run()
+        chart = run.verify_chart_ti2 if run is not None else None
+        if chart is not None and chart.exists():
+            n = self._chart_patch_count(chart)
+            if n:
+                parts.append(tr(
+                    "Before anything is filed, the measurement is checked "
+                    "patch for patch against this run's verification chart "
+                    "({name}, {n} patches). A file that does not match is "
+                    "refused, and nothing changes.").format(name=chart.name,
+                                                            n=n))
+            else:
+                parts.append(tr(
+                    "Before anything is filed, the measurement is checked "
+                    "patch for patch against this run's verification chart "
+                    "({name}). A file that does not match is refused, and "
+                    "nothing changes.").format(name=chart.name))
+        parts.append(self._import_destination_text(run))
+        parts.append(tr(
+            "Your original file is not moved or changed — ChromIQ files a "
+            "copy."))
+        self._import_box_body.setText("\n\n".join(parts))
+
+        ok = path is not None and self._import_available()
+        self._import_go_btn.setEnabled(ok)
+        self._import_go_btn.setToolTip("" if ok else tr(
+            "Choose a measurement file first — press the green folder button "
+            "above."))
+
+    def _import_destination_text(self, run) -> str:
+        """Where the measurement will be filed, named exactly — so 'where are
+        my files?' is answered before the import runs."""
+        ctl = getattr(self, "_target_ctl", None)
+        if run is None:
+            return tr(
+                "Pick a profile run in the bar above first — the measurement "
+                "is filed into that run's verifications folder.")
+        vid = ctl.target.verification_id if ctl is not None else ""
+        if vid:
+            v = run.verification(vid)
+            text = tr(
+                "It will be filed with the verification from {when}, in:\n"
+                "{folder}").format(
+                    when=self._pretty_verification_when(vid),
+                    folder=str(v.dir))
+            if v.measurement_ti3.exists():
+                text += "\n\n" + tr(
+                    "⚠ That verification already holds a measurement, and an "
+                    "import never replaces one. To file this as a new check, "
+                    "set the “Verification” field in the bar above to “New "
+                    "verification” first.")
+            return text
+        return tr(
+            "A new dated folder is created for it (named after today's date "
+            "and time), under:\n{folder}").format(
+                folder=str(run.verifications_dir))
+
+    def _on_import_browse(self) -> None:
+        from PyQt6.QtWidgets import QFileDialog
+        start_dir = str(self._settings.get("import_measurement_dir", "") or
+                        str(Path.home()))
+        path, _ = QFileDialog.getOpenFileName(
+            self, tr("Choose the measurement to import"), start_dir,
+            tr("Measurement files (*.mxf *.cxf *.txt *.ti3);;All files (*)"))
+        if not path:
+            return
+        self._import_path = Path(path)
+        self._settings.set("import_measurement_dir", str(Path(path).parent))
+        self._update_import_panel()
+
+    def _import_mismatch_reason(self, ti3: Path, ti2: Path) -> "str | None":
+        """The plain-words reason this file must be refused, or None when it
+        really belongs to the chart. Patch counts first (the cheap, clear
+        check), then the patch-identity comparison the report itself uses."""
+        from workflow.ti3_analysis import Ti3ParseError, parse_ti3
+        try:
+            measured = parse_ti3(ti3)
+        except (Ti3ParseError, OSError) as exc:
+            return tr("the file could not be read as a measurement "
+                      "({error})").format(error=exc)
+        n_chart = self._chart_patch_count(ti2)
+        if n_chart is not None and measured.n_patches != n_chart:
+            return tr("the verification chart has {chart} patches, but this "
+                      "file holds {got} measurements").format(
+                          chart=n_chart, got=measured.n_patches)
+        from workflow.measurement_report import verify_patch_identity
+        identity = verify_patch_identity(measured, ti2)
+        if identity.get("verdict") == "mismatch":
+            return identity.get("reason") or tr(
+                "the measured colours do not agree with the chart's patches")
+        if not identity.get("checked"):
+            # An uncheckable identity is not a refusal — the report records the
+            # same state. Say so in the log rather than blocking the user.
+            self._log.appendPlainText("\n" + tr(
+                "[INFO] The patch-identity check could not run ({reason}) — "
+                "the import continues.").format(
+                    reason=identity.get("reason", "")))
+        return None
+
+    def _show_import_refusal(self, message, **kw) -> None:
+        """One of the IMPORT module's refusal/guard windows. The **text** comes
+        from ``workflow/measurement_messages.py`` (§M) — this method only
+        renders the given catalogue message; it writes no prose of its own."""
+        from PyQt6.QtWidgets import QMessageBox
+        title, body = message.render(**kw)
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        from ui.widgets import fit_message_box_buttons
+        fit_message_box_buttons(box)
+        box.exec()
+
+    def _on_import_measurement(self) -> None:
+        """The whole import, through the same doors a native verification read
+        uses: guards → convert → validate → dated folder + chart snapshot →
+        file the copy → say where it went. Nothing is written until the file
+        has passed validation, and the user's original is never touched."""
+        from workflow import measurement_messages as M
+        if self._runner.is_running:
+            return
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
+            return
+        if self._blocked_by_new_run():
+            return
+        block = self._verification_guard()
+        if block is not None:
+            self._show_import_refusal(block)
+            return
+        run = self._guard_run()
+        if run is None:
+            return
+        path = getattr(self, "_import_path", None)
+        if path is None or not Path(path).exists():
+            self._say_on_screen(
+                tr("Choose a measurement file first"),
+                tr("Press the green folder button and choose the measurement "
+                   "you made in i1Profiler — then press Import Measurement "
+                   "again."))
+            return
+        # A chosen dated verification that already holds its measurement is
+        # refused BEFORE anything is converted or written (§ the import never
+        # replaces a result).
+        vid = ctl.target.verification_id
+        if vid and run.verification(vid).measurement_ti3.exists():
+            self._show_import_refusal(
+                M.M_IMPORT_DATE_TAKEN,
+                when=self._pretty_verification_when(vid))
+            return
+
+        # 1) Convert — into the run's cache (always safe to delete); a .ti3
+        #    passes through untouched.
+        try:
+            from workflow.reference_convert import (
+                ReferenceConvertError, convert_i1profiler_measurement)
+            argyll = self._settings.get("argyll_bin_path",
+                                        "/Applications/Argyll/bin")
+            converted = convert_i1profiler_measurement(
+                Path(path), argyll, run.ensure_cache_dir() / "import")
+        except ReferenceConvertError as exc:
+            self._say_on_screen(
+                tr("The file could not be converted"), str(exc))
+            return
+        if converted != Path(path):
+            self._log.appendPlainText("\n" + tr(
+                "[OK] Converted {name} to Argyll's .ti3 format.").format(
+                    name=Path(path).name))
+
+        # 2) Validate — before anything is filed.
+        reason = self._import_mismatch_reason(converted, run.verify_chart_ti2)
+        if reason:
+            self._show_import_refusal(M.M_IMPORT_MISMATCH, reason=reason)
+            return
+
+        # 3) File it. The snapshot step is the same front door a native
+        #    verification read uses: it creates the dated folder on "New
+        #    verification" (and moves the bar to it), and asks before replacing
+        #    a stored chart that differs.
+        if not self._snapshot_verification_chart():
+            return
+        vid = ctl.target.verification_id
+        verification = (run.verification(vid) if vid
+                        else run.new_verification())
+        verification.ensure_dir()
+        dst = verification.measurement_ti3
+        if dst.exists():
+            self._show_import_refusal(
+                M.M_IMPORT_DATE_TAKEN,
+                when=self._pretty_verification_when(verification.id))
+            return
+        import shutil
+        try:
+            shutil.copy2(converted, dst)
+            mark_verification_ti3(dst)     # stamps CHROMIQ_VERIFICATION "true"
+        except OSError as exc:
+            self._log.appendPlainText(
+                f"\n[ERROR] Could not save the imported measurement: {exc}")
+            return
+        self._log.appendPlainText(
+            "\n" + tr("[OK] Measurement imported.") + f"\nSaved: {dst}\n\n"
+            + tr("→ This file is for verification only — do not build a "
+                 "profile from it. Open Tools ▸ Measurement report to see "
+                 "the colour-accuracy figures."))
+        self._update_import_panel()
+        self._show_import_done(verification, dst)
+
+    def _show_import_done(self, verification, dst: Path) -> None:
+        """The success window — the §M text, plus a button straight into the
+        measurement report (the analysis this import exists for)."""
+        from PyQt6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QPushButton,
+                                     QVBoxLayout)
+        from workflow import measurement_messages as M
+        title, body = M.M_IMPORT_DONE.render(
+            when=self._pretty_verification_when(verification.id),
+            folder=str(verification.dir))
+        dlg = QDialog(self)
+        dlg.setWindowTitle(title)
+        dlg.setMinimumWidth(560)
+        lay = QVBoxLayout(dlg)
+        lay.setSpacing(16)
+        lay.setContentsMargins(24, 20, 24, 20)
+        msg = QLabel(title + "\n\n" + body, dlg)
+        msg.setWordWrap(True)
+        lay.addWidget(msg)
+        row = QHBoxLayout()
+        row.addStretch(1)
+        close_btn = QPushButton(tr("Close"), dlg)
+        close_btn.clicked.connect(dlg.reject)
+        report_btn = QPushButton(tr("Open measurement report"), dlg)
+        report_btn.setObjectName("primary")
+        report_btn.setDefault(True)
+        report_btn.clicked.connect(dlg.accept)
+        row.addWidget(close_btn)
+        row.addWidget(report_btn)
+        lay.addLayout(row)
+        tint_dialog_primary(dlg, _TAB_COLOR)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            from ui.dialogs.measurement_report_dialog import \
+                MeasurementReportDialog
+            MeasurementReportDialog(self._settings, self,
+                                    initial_ti3=dst).exec()
+
     def _restore_displaced_measurement(self, empty_ti3) -> bool:
         """Undo a replacement that measured nothing: drop the empty file, put the
         previous measurement back where it was, and remove the folder it sat in.
@@ -8479,6 +8980,16 @@ class TabMeasure(QWidget):
         dlg.exec()
 
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
+        # The pace area shows exactly when one of its two children does —
+        # reacting to their own show/hide events means no caller has to
+        # remember a sync call (and Knut's layout tests drive them directly).
+        if obj in (getattr(self, "_pace_group", None),
+                   getattr(self, "_pace_verdict_lbl", None)) \
+                and event.type() in (QEvent.Type.Show, QEvent.Type.Hide,
+                                     QEvent.Type.ShowToParent,
+                                     QEvent.Type.HideToParent):
+            self._sync_pace_area_visible()
+            return False
         if event.type() == QEvent.Type.KeyPress:
             # NO PROCESS, NO BUSINESS SWALLOWING KEYS.
             #
@@ -8887,6 +9398,7 @@ class TabMeasure(QWidget):
             lbl.setText(verdict or "")
             lbl.setStyleSheet(f"color: {colour};")
             lbl.setVisible(bool(verdict))
+            self._sync_pace_area_visible()
             if verdict:
                 # A floor under its own height: the warning disappearing is the
                 # one failure Knut has reported three times, and a label with a
@@ -8915,6 +9427,20 @@ class TabMeasure(QWidget):
         if lbl is not None:
             lbl.clear()
             lbl.setVisible(False)
+        self._sync_pace_area_visible()
+
+    def _sync_pace_area_visible(self) -> None:
+        """The pace area only takes vertical room when it has something to
+        show. Empty but visible, its top margin pushed the preview's Prev/Next
+        row ~10 px above the level the action buttons sit at (Basti,
+        2026-08-09)."""
+        area = getattr(self, "_pace_area", None)
+        if area is None:
+            return
+        # isHidden() reads each child's own explicit state, which stays valid
+        # while the area itself is hidden — isVisible() would not.
+        area.setVisible(not self._pace_group.isHidden()
+                        or not self._pace_verdict_lbl.isHidden())
 
     def _play_measurement_finished_once(self) -> None:
         """Sound "measurement finished" the moment the chart is read.

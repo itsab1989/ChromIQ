@@ -1,7 +1,7 @@
 # Unified Measurement Management — Design Specification
 
 > **Revision 2026-08-09 (e) — two approved messages carry a revised print step.**
-> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), plus M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record) — all defined in the awaiting-review section below.
+> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), plus M-IMPORT-MISMATCH, M-IMPORT-DATE-TAKEN and M-IMPORT-DONE (the Measure tab's IMPORT module) — all defined in the awaiting-review section below.
 > Both were approved by Knut on 2026-08-04, but one step in each instructed *"(with colour management on)"* — a setting ChromIQ deliberately locks **off** on every print path, so the approved text told the user to do something the app prevents (established in `verification_printing_and_target.md` §1, and A0.1 of its plan). With feature A the instruction has a real control to name — the Print Chart tab's **Colour** row — so that one step is revised and the revision waits in §M-PROPOSED. Every other message in §M remains approved as before: the last, **M-BUILD-ELSEWHERE**, was accepted on 2026-08-04 — *"Message M-BUILD-ELSEWHERE accepted"* — and M-CHART-CORRUPT, M-REPLACE-UNCOUNTABLE and M-PREVIEW-PAUSED the day before. A new message goes to §M-PROPOSED first, and `tests/test_message_catalogue.py` fails if one is added to the code without it.
 
 > **Status:** specification, agreed on [issue #130](https://github.com/itsab1989/ChromIQ/issues/130).
@@ -1014,6 +1014,48 @@ module's input, so without one there is nothing to ask.*
 >
 > GUIDED and MANUAL can still build you a chart in the meantime, so the files are ready. Printing and measuring any verification chart waits for the profile either way.
 
+### M-IMPORT-MISMATCH · PROPOSED · an imported file fails validation — Measure ▸ IMPORT
+
+*The IMPORT module (verification runs) files a measurement made in i1Profiler
+through the same doors a native measurement uses — but only after checking,
+patch by patch, that the file belongs to this run's verification chart.
+`{reason}` names the failed check in plain words (patch counts, or the
+patch-identity comparison).*
+
+> **This file does not match the verification chart**
+>
+> Before filing anything, ChromIQ checks that the measurement really belongs to this run's verification chart — and this one does not:
+>
+> {reason}
+>
+> Nothing has been imported and nothing has been changed.
+>
+> The two usual causes: the file belongs to a different chart, or the patches came back in a different order than they were sent — that can happen when the shuffled i1Profiler export was used for measuring. Use the chart's normal export (the file without "shuffled" in its name), measure again, and import that.
+
+### M-IMPORT-DATE-TAKEN · PROPOSED · importing over an existing dated result — Measure ▸ IMPORT
+
+*The import never replaces an existing dated measurement; the way to a fresh
+check is the same field a native measurement uses.*
+
+> **This verification already holds a measurement**
+>
+> The verification from {when} already has its measurement, and importing over it would replace a result you may still need.
+>
+> Nothing has been imported and nothing has been changed.
+>
+> To file this measurement as a new check, set the "Verification" field in the bar above to "New verification" and press Import Measurement again — it gets its own dated folder, and the earlier result stays exactly as it is.
+
+### M-IMPORT-DONE · PROPOSED · the import succeeded — Measure ▸ IMPORT
+
+> **The measurement was imported**
+>
+> It is filed as this run's verification from {when}, in its own dated folder:
+> {folder}
+>
+> A copy of the chart it was measured against is stored with it, so the result stays interpretable even if the chart is replaced later.
+>
+> To see the colour-accuracy figures, open Tools ▸ "Measurement report" — the imported measurement is already in place there.
+
 ---
 
 ### M-x. Which table uses which message
@@ -1049,6 +1091,34 @@ module's input, so without one there is nothing to ask.*
 
 **Singular and plural.** Every message that states a count carries two bodies, and the one that reads correctly is chosen — "one dated verification measurement" against "4 dated verification measurements". Knut, 2026-08-03: *"Yes, use house rule with real singular and plural. You do not need to ask about this."* The bracketed "(s)" appears nowhere, and a test fails on it.
 
+
+## I. The IMPORT module — a measurement made in i1Profiler ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+*Built 2026-08-09 (#133). A third mode on the Measure tab — GUIDED · MANUAL ·
+IMPORT — shown only while the shared Run type is **Verification**. It files a
+measurement made outside ChromIQ (typically i1Profiler with an i1iO table)
+through the same doors a native verification read uses.*
+
+The sequence, in the order the code performs it (`TabMeasure._on_import_measurement`):
+
+| # | Step | On failure |
+|---|---|---|
+| I.1 | "New run" guard (same window as Start) | stop, nothing written |
+| I.2 | Verification guard — **M-VERIFY-NO-PROFILE** / **M-VERIFY-NO-CHART** | stop, nothing written |
+| I.3 | A chosen dated verification that already holds its measurement → **M-IMPORT-DATE-TAKEN** | stop, nothing written — an import never replaces a result |
+| I.4 | Convert to `.ti3` into `runs/runN/cache/import/` (`.mxf`/`.cxf` read directly; `.txt` via txt2ti3; a `.ti3` passes through). The user's original is never touched. | one window with the converter's reason |
+| I.5 | Validate: patch count against the run's verification chart, then the patch-identity comparison the report itself uses → **M-IMPORT-MISMATCH** | stop, nothing written |
+| I.6 | The same dated-folder + chart-snapshot front door as a native read (`_snapshot_verification_chart`): creates the folder on "New verification", moves the bar to it, asks before replacing a differing stored chart | user cancel stops the import |
+| I.7 | Copy to `verifications/<date>/<name>-verify.ti3`, stamp `CHROMIQ_VERIFICATION "true"` | log line, nothing half-written |
+| I.8 | **M-IMPORT-DONE**, with a button straight into the measurement report | — |
+
+Deliberate limits (v1): an import never replaces an existing dated result
+(the road to a fresh check is the bar's "New verification", exactly as for a
+native read); a partial measurement (fewer patches than the chart) is refused,
+not filed; profiling and calibration runs cannot import at all — a profile is
+built only from a measurement made here.
 
 ## S. Sequences — what happens, in what order, for every entry condition
 

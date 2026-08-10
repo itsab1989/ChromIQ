@@ -881,6 +881,14 @@ GLOSSARY += [
         "the profile, because no profile took part. The Print Chart tab's "
         "“Colour” row chooses between the two, and the report records which "
         "way each sheet was printed.")),
+    (tr("Import a measurement (IMPORT module)"),
+     tr("A third mode on the Measure tab, shown for verification runs: "
+        "instead of measuring here, you hand ChromIQ a measurement made in "
+        "another program — typically i1Profiler with an i1iO table. ChromIQ "
+        "converts the file, checks patch for patch that it really belongs to "
+        "this run's verification chart, and files a copy in its own dated "
+        "verification folder — exactly where a measurement made here would "
+        "go. Your original file stays untouched.")),
 ]
 
 

@@ -476,6 +476,46 @@ M_GAMUT_NO_PROFILE = _m(
     "the profile either way.",
     approved=False)
 
+# --- PROPOSED: the Measure tab's IMPORT module (verification runs) ---------
+# A measurement made in i1Profiler enters the run through the same doors a
+# native measurement uses; these are the three windows that flow can show.
+M_IMPORT_MISMATCH = _m(
+    "M-IMPORT-MISMATCH",
+    "This file does not match the verification chart",
+    "Before filing anything, ChromIQ checks that the measurement really "
+    "belongs to this run's verification chart — and this one does not:\n\n"
+    "{reason}\n\n"
+    "Nothing has been imported and nothing has been changed.\n\n"
+    "The two usual causes: the file belongs to a different chart, or the "
+    "patches came back in a different order than they were sent — that can "
+    "happen when the shuffled i1Profiler export was used for measuring. Use "
+    "the chart's normal export (the file without “shuffled” in its name), "
+    "measure again, and import that.",
+    approved=False)
+
+M_IMPORT_DATE_TAKEN = _m(
+    "M-IMPORT-DATE-TAKEN",
+    "This verification already holds a measurement",
+    "The verification from {when} already has its measurement, and importing "
+    "over it would replace a result you may still need.\n\n"
+    "Nothing has been imported and nothing has been changed.\n\n"
+    "To file this measurement as a new check, set the “Verification” field "
+    "in the bar above to “New verification” and press Import Measurement "
+    "again — it gets its own dated folder, and the earlier result stays "
+    "exactly as it is.",
+    approved=False)
+
+M_IMPORT_DONE = _m(
+    "M-IMPORT-DONE",
+    "The measurement was imported",
+    "It is filed as this run's verification from {when}, in its own dated "
+    "folder:\n{folder}\n\n"
+    "A copy of the chart it was measured against is stored with it, so the "
+    "result stays interpretable even if the chart is replaced later.\n\n"
+    "To see the colour-accuracy figures, open Tools ▸ “Measurement report” — "
+    "the imported measurement is already in place there.",
+    approved=False)
+
 # --- PROPOSED: feature A, printing a verification chart through its profile -
 # The two failure windows of the print-time conversion (#130,
 # verification_printing_and_target.md §3.2 rows A10/A11 and §6 S9/S10). Both
@@ -560,6 +600,7 @@ CATALOGUE = {m.id: m for m in (
     M_VERIFY_NO_PROFILE, M_VERIFY_NO_CHART, M_BUILD_ELSEWHERE,
     M_CM_NO_CCTIFF, M_CM_CONVERT_FAILED, M_CM_PROFCHECK_CONVERTED,
     M_VERIFY_CREATE_NO_PROFILE, M_GAMUT_NO_PROFILE,
+    M_IMPORT_MISMATCH, M_IMPORT_DATE_TAKEN, M_IMPORT_DONE,
     M_NO_INSTRUMENT,
 )}
 

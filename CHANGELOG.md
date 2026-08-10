@@ -1,5 +1,33 @@
 # Changelog
 
+## v3.14.8-beta.210
+
+### New
+
+- **Import a measurement made in i1Profiler** (#133). The Measure tab gains a
+  third mode for verification runs — **IMPORT** — for charts that were printed
+  and measured outside ChromIQ (typically on an i1iO table). Choose the file
+  with the green folder button — i1Profiler's own measurement (.mxf/.cxf),
+  its CGATS text export (.txt), or a ready .ti3 — and press **Import
+  Measurement**: ChromIQ converts it, checks patch for patch that it really
+  belongs to this run's verification chart, and files a copy in its own dated
+  verification folder together with a snapshot of the chart — exactly where a
+  measurement made in ChromIQ would go. The original file is never moved or
+  changed, an import never replaces an existing dated result, and a file that
+  does not match the chart is refused before anything is written. A green
+  info box in the module says up front what will be checked and where the
+  measurement will land.
+- The Dictionary gains an entry for the IMPORT module, and all twelve
+  languages are translated.
+
+### Fixed
+
+- **Measure tab: the preview's Prev/Next row now ends level with the action
+  buttons.** The empty reading-pace area under the preview reserved its gap
+  even before a strip was read, holding the page buttons ~10 px higher than
+  the buttons on the left; it now only takes room once it has something to
+  show (Basti, 2026-08-09).
+
 ## v3.14.8-beta.209
 
 ### New

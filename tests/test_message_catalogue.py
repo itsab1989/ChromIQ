@@ -108,7 +108,10 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # Sebastian on #133 (2026-08-02); listed for
                                  # the formal record.
                                  "M-VERIFY-CREATE-NO-PROFILE",
-                                 "M-GAMUT-NO-PROFILE"}
+                                 "M-GAMUT-NO-PROFILE",
+                                 # The Measure tab's IMPORT module.
+                                 "M-IMPORT-MISMATCH", "M-IMPORT-DATE-TAKEN",
+                                 "M-IMPORT-DONE"}
 
 
 def test_nothing_is_quietly_proposed():
@@ -202,6 +205,8 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_profile", "TabProfile", "_confirm_rebuild_over_verifications"),
     ("ui.tabs.tab_print", "TabPrint", "_show_cm_error"),
     ("ui.tabs.tab_check_refine", "TabCheckRefine", "_warn_converted_measurement"),
+    ("ui.tabs.tab_measure", "TabMeasure", "_show_import_refusal"),
+    ("ui.tabs.tab_measure", "TabMeasure", "_show_import_done"),
 ]
 
 
