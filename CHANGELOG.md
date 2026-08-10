@@ -1,5 +1,40 @@
 # Changelog
 
+## v3.14.8-beta.221
+
+### New
+
+- **The report splits colour accuracy into within / beyond the profile's
+  gamut** (Knut). Where the reference is the chart's design, the report asks
+  the run's profile which colours it can actually print: the Overview gains
+  three row blocks (within / beyond / all patches — dated columns stay side
+  by side), the detail chapters show the three groups as columns, and
+  Pass/Fail judges the within-gamut figures — a colour the profile could
+  never print is not counted against it. Every patch stays visible; runs
+  without Argyll or a profile show the report exactly as before. Saved
+  history reports gain the split automatically.
+- **Verification runs open Create Chart on FROM PROFILE GAMUT** when the run
+  has a built profile; a module you pick by hand wins for the session.
+- **The Measurement Report remembers its options** — both checkboxes and the
+  Pass thresholds come back as last set.
+- **Demo-Report-Matrix** — the report test package (Knut): 
+  `scripts/make_report_demo.py` builds a two-run project with thirteen
+  documented cases from the real Argyll pipeline;
+  `scripts/drive_report_demo_onscreen.py` checks 43 expectations against the
+  real window and exports one PDF per case.
+
+### Fixed
+
+- **"Save report as PDF" proposes the folder from the four-tier design
+  again** ("Where are my files?" card): one dated check → its own reports/;
+  several checks of one run → verifications/reports/; a profiling run → the
+  run's reports/; several runs → the project's reports/ — derived from the
+  runs actually selected.
+- **Opening the report on a dated measurement (single-run view) now shows
+  that date**, not silently the history's newest.
+- **A CHROMIQ_MEASURED keyword with a full timestamp is honoured** instead
+  of being discarded for the file's modification time.
+
 ## v3.14.8-beta.220
 
 ### Fixed
