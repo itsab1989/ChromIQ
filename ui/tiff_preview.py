@@ -798,6 +798,89 @@ class TiffPreview(QWidget):
         self._filename_lbl.setVisible(True)
         self._header_image_gap.setVisible(True)
 
+    def eventFilter(self, obj, ev):  # noqa: N802
+        """Show the chart-file tooltip in a tip label of OUR OWN.
+
+        Qt keeps one shared tooltip label and reuses it while it is still on
+        screen — including while it is fading out on macOS. Arriving here
+        straight from a widget with a long tooltip (e.g. the Run-type box in
+        the bar) therefore showed the small folder/filename tooltip inside
+        the previous tooltip's much larger box, and hiding first only traded
+        that for a flicker, because the fade keeps the label alive (Basti,
+        2026-08-10, twice). An owned label is measured for its own text every
+        time, so no other tooltip can lend it a size."""
+        from PyQt6.QtCore import QEvent as _QEvent
+        if obj in (self._caption_lbl, self._filename_lbl, self._img_label):
+            t = ev.type()
+            if t == _QEvent.Type.ToolTip:
+                tip = obj.toolTip()
+                if tip:
+                    self._show_file_tip(ev.globalPos(), tip)
+                else:
+                    self._hide_file_tip()
+                return True          # never let the shared label show these
+            if t in (_QEvent.Type.Leave, _QEvent.Type.MouseButtonPress,
+                     _QEvent.Type.Wheel, _QEvent.Type.Hide,
+                     _QEvent.Type.WindowDeactivate):
+                self._hide_file_tip()
+        return super().eventFilter(obj, ev)
+
+    def _show_file_tip(self, global_pos, text: str) -> None:
+        from PyQt6.QtCore import QPoint, QTimer
+        from PyQt6.QtWidgets import QApplication, QToolTip
+        # A tooltip carried over from another widget may still be on screen —
+        # and hideText() only STARTS the macOS fade-out, which leaves the old
+        # (often much larger) box hanging over ours for a split second. Close
+        # the shared tip label outright instead; measured on screen,
+        # 2026-08-10.
+        QToolTip.hideText()
+        for w in QApplication.topLevelWidgets():
+            if w.metaObject().className() == "QTipLabel":
+                w.close()
+        lbl = getattr(self, "_file_tip_lbl", None)
+        if lbl is None:
+            lbl = QLabel(self.window())
+            lbl.setObjectName("file_tip")
+            lbl.setWindowFlags(Qt.WindowType.ToolTip
+                               | Qt.WindowType.FramelessWindowHint)
+            lbl.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+            lbl.setTextFormat(Qt.TextFormat.PlainText)
+            self._file_tip_lbl = lbl
+            self._file_tip_timer = QTimer(self)
+            self._file_tip_timer.setSingleShot(True)
+            self._file_tip_timer.timeout.connect(self._hide_file_tip)
+        if self._mode == "light":
+            lbl.setStyleSheet(
+                "QLabel { background-color: #ffffff; color: #22211f;"
+                " border: 1px solid #d0ccc6; padding: 4px; }")
+        else:
+            lbl.setStyleSheet(
+                "QLabel { background-color: #262626; color: #e6e6e6;"
+                " border: 1px solid #404040; padding: 4px; }")
+        lbl.setText(text)
+        lbl.adjustSize()
+        pos = global_pos + QPoint(12, 16)
+        screen = QApplication.screenAt(global_pos)
+        if screen is not None:
+            area = screen.availableGeometry()
+            if pos.x() + lbl.width() > area.right():
+                pos.setX(max(area.left(), area.right() - lbl.width()))
+            if pos.y() + lbl.height() > area.bottom():
+                pos.setY(global_pos.y() - lbl.height() - 12)
+        lbl.move(pos)
+        lbl.show()
+        lbl.raise_()
+        # Same idea as Qt's own display time: longer text stays longer.
+        self._file_tip_timer.start(min(10000, 3000 + 30 * len(text)))
+
+    def _hide_file_tip(self) -> None:
+        lbl = getattr(self, "_file_tip_lbl", None)
+        if lbl is not None and lbl.isVisible():
+            lbl.hide()
+        timer = getattr(self, "_file_tip_timer", None)
+        if timer is not None:
+            timer.stop()
+
     def _apply_file_tooltip(self) -> None:
         """Push the stored chart-file tooltip to the caption/filename/image
         widgets, honouring :meth:`set_suppress_file_tooltip`. While a
@@ -1338,6 +1421,10 @@ class TiffPreview(QWidget):
 
         # Image label
         self._img_label = QLabel(tr("No preview"), self)
+        # The file tooltip on these three is shown through eventFilter, so a
+        # tooltip carried over from another widget can never lend it its size.
+        for _w in (self._caption_lbl, self._filename_lbl, self._img_label):
+            _w.installEventFilter(self)
         self._img_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._img_label.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding

@@ -577,6 +577,10 @@ class MainWindow(QMainWindow):
         tiff_list = list(tiffs)
         self._tab_print.load_tiffs(tiff_list)
         if ti2 and Path(ti2).exists():
+            # The Print tab must judge THIS chart's .ti2 — a gamut-module
+            # chart is already converted, and its Colour row forces Raw only
+            # if the tab knows which chart it is holding (§3.1a).
+            self._tab_print.note_generated_chart(Path(ti2))
             self._tab_measure.set_ti1_path(Path(ti2))
             # A real chart is loaded → clear any "no chart yet" guidance.
             self._tab_print.set_chart_notice(None)
@@ -587,6 +591,9 @@ class MainWindow(QMainWindow):
             # Drop the previous chart from Measure so the wrong chart can't be
             # printed or measured; Print was already cleared by load_tiffs([]).
             self._tab_measure.clear_chart_file()
+            # …and drop the Print tab's chart context with it, so a later
+            # chart doesn't inherit the previous one's Colour-row state.
+            self._tab_print.note_generated_chart(None)
             # Guide the user in BOTH tabs' preview (Knut): explain there's no
             # chart yet and where to make it — it stays visible on tab switch.
             guidance = self._no_chart_guidance_text()
@@ -870,6 +877,7 @@ class MainWindow(QMainWindow):
             finally:
                 self._tab_chart._suppress_reflect_notice = False
             self._tab_print.load_tiffs(tiffs)
+            self._tab_print.note_generated_chart(run.chart_ti2)
             self._tab_measure.set_ti1_path(run.chart_ti2)
             self._tabs.setCurrentWidget(self._tab_chart)
             # A DUPLICATE IS A PROFILING RUN.
@@ -1628,6 +1636,11 @@ class MainWindow(QMainWindow):
         tiffs = run.chart_tiffs()
         if tiffs:
             self._tab_print.load_tiffs(tiffs)
+            # A LOADED chart must carry its .ti2 into the Print tab too —
+            # an already-converted chart forces Raw only if the tab knows
+            # which chart it is holding (§3.1a; Basti, 2026-08-10).
+            if run.chart_ti2.exists():
+                self._tab_print.note_generated_chart(run.chart_ti2)
 
         ti3 = run.measurement_ti3
         icc = run.built_profile_icc()

@@ -645,7 +645,10 @@ class TabPrint(QWidget):
         self.apply_native_dialog_mode()
 
     def showEvent(self, event) -> None:         # noqa: N802 — Qt's name
-        """Load the printer list the first time the tab is actually looked at."""
+        """Load the printer list the first time the tab is actually looked at,
+        and re-read the Colour row on every entry — its forced/free state
+        depends on files on disk (the chart's colorimetric-reference marker,
+        the run's profile) which can change while this tab is hidden."""
         super().showEvent(event)
         if not getattr(self, "_printers_loaded", False):
             self._printers_loaded = True
@@ -653,6 +656,10 @@ class TabPrint(QWidget):
                 self._refresh_printers()
             except Exception:      # noqa: BLE001 — never block showing the tab
                 log.warning("Could not load the printer list", exc_info=True)
+        try:
+            self._update_colour_row_visible()
+        except Exception:      # noqa: BLE001 — never break tab switching
+            log.warning("colour row refresh on show failed", exc_info=True)
 
     def reload_printers(self) -> None:
         """Ask CUPS again — for callers that need the list refreshed on demand."""
@@ -1336,6 +1343,20 @@ class TabPrint(QWidget):
             self.chart_relocated.emit(ti2_path)
         if tiffs:
             self.load_tiffs(tiffs)
+
+    def note_generated_chart(self, ti2_path: "Path | None") -> None:
+        """A chart was just generated (or cleared) in Create Chart — track its
+        .ti2 and re-read the Colour row from it.
+
+        Without this the row judged the PREVIOUS chart: generation handed this
+        tab only the page images, so a chart from the FROM PROFILE GAMUT
+        module — already converted, §3.1a says force Raw — still offered
+        "Through the profile", and even defaulted to it (Basti, 2026-08-10).
+        Deliberately emits nothing: the generation flow already tells the
+        other tabs itself.
+        """
+        self._current_ti2 = Path(ti2_path) if ti2_path else None
+        self._update_colour_row_visible()
 
     def apply_loaded_ti2(self, ti2_path: Path) -> None:
         """Cross-tab sync entry — path is already resolved and on disk.

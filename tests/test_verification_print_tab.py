@@ -546,3 +546,39 @@ def test_check_refine_warns_on_a_print_time_converted_measurement(
                         lambda *a, **k: ran.append(1))
     tab._on_run()
     assert not ran, "the check must not start under the §2b warning"
+
+
+def test_a_generated_gamut_chart_forces_raw_without_help(qapp, tmp_path):
+    """Regression (Basti, 2026-08-10): generating a chart handed this tab only
+    the page images, so a FROM PROFILE GAMUT chart — already converted — still
+    offered "Through the profile" and defaulted to it. note_generated_chart is
+    the missing link main_window now calls with the .ti2."""
+    from workflow import verification_print as vp
+    from workflow.gamut_target import (GamutSelection,
+                                       write_colorimetric_reference)
+    s, fm, ctl, run, ti2, pages = _verify_env(tmp_path)
+    sel = GamutSelection(master_version="TEST-r0", master_total=10,
+                         in_gamut_total=1, requested=1,
+                         intent="absolute", margin="safe")
+    sel.targets = [(0, (50.0, 0.0, 0.0), (10.0, 20.0, 30.0))]
+    write_colorimetric_reference(sel, vp.colorimetric_reference_for(ti2))
+
+    from ui.tabs.tab_print import TabPrint
+    tab = TabPrint(s)
+    tab.set_target_controller(ctl)
+    # Exactly what main_window's generation handler used to do: pages only.
+    tab.load_tiffs([p for p, _f in pages])
+    # …and what it does now:
+    tab.note_generated_chart(ti2)
+    assert tab._cm_raw_rb.isChecked()
+    assert not tab._cm_through_rb.isEnabled()
+    assert tab._cm_selected_colour() == vp.COLOUR_RAW
+
+    # A later regular (targen) chart replacing it frees the row again.
+    vp.colorimetric_reference_for(ti2).unlink()
+    tab.note_generated_chart(ti2)
+    assert tab._cm_through_rb.isEnabled()
+
+    # And a cleared chart (no-chart guidance state) drops the context.
+    tab.note_generated_chart(None)
+    assert tab._current_ti2 is None

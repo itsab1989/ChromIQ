@@ -1,5 +1,23 @@
 # Changelog
 
+## v3.14.8-beta.211
+
+### Fixed
+
+- **A chart from FROM PROFILE GAMUT could be printed through the profile a
+  second time** (Basti, 2026-08-10). Generating — or loading — a chart handed
+  the Print tab only the page images, never the chart file itself, so the
+  "Colour" row judged the previously loaded chart and offered (and even
+  defaulted to) "Through the profile" for a chart that already has the
+  profile applied. The Print tab is now told which chart it is holding on
+  every path a chart can arrive by (generated, loaded from a project,
+  switched to in the bar, renamed), forces "Raw — already converted" for it
+  as designed, and re-reads the state every time the tab is entered.
+- **The chart-file tooltip over the preview no longer inherits the size of a
+  previous tooltip** (Basti, 2026-08-10). Moving the mouse straight from a
+  long tooltip — e.g. the Run-type box's — into the preview showed the small
+  folder/filename tooltip inside the previous tooltip's much larger box.
+
 ## v3.14.8-beta.210
 
 ### New
