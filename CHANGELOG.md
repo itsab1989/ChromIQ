@@ -1,5 +1,23 @@
 # Changelog
 
+## v3.14.8-beta.216
+
+### Fixed
+
+Measurement Report window polish, each item confirmed on screen with
+Sebastian (2026-08-10):
+
+- The five housekeeping buttons (Add/Remove Profile's Measurements, Clear
+  List, Save report as PDF, Reveal folder) are now compact (30 px); Close
+  keeps its full height as the window's primary action.
+- Clear air above the Close button (12 px) and the same 13 px below it
+  that the main window's tabs give their bottom-most buttons.
+- The trend's Avg/Max threshold words appear only where they fit cleanly
+  in the left margin; on a crowded scale they stay away entirely — the
+  dotted lines remain, and the Pass-threshold controls above the chart
+  name their values.
+- The two new info buttons carry the window's green accent.
+
 ## v3.14.8-beta.215
 
 ### New
