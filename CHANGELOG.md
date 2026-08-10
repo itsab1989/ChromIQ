@@ -1,5 +1,47 @@
 # Changelog
 
+## v3.14.8-beta.218
+
+### New
+
+- **The measurement report says how each verification sheet was judged.**
+  A sheet whose printing mapped white to the paper — printed through the
+  profile with relative intent, or in another application with colour
+  management — is scored **relative to its own paper white**, so the paper is
+  no longer counted against the profile. Every other sheet stays absolute.
+  A new "How the colours were judged" row in the report names the yardstick,
+  and the physical paper-white / deepest-black readouts always stay as
+  measured.
+- **"How was this sheet printed?"** — measuring or importing a verification
+  sheet ChromIQ did not print itself now asks once: Raw — no profile /
+  With colour management / Not sure (default, stores nothing). The answer is
+  stored beside that dated measurement only, marked as answered at measure
+  time. (M-HOW-PRINTED, awaiting review in §M-PROPOSED.)
+- Sheets answered "With colour management" are their own method in the
+  report: run rows, the "How this verification was produced" block and the
+  mixed-methods trend warning all say "printed in another app with colour
+  management".
+- **"Which verification should I use? (the three ways)"** — a new Dictionary
+  entry compares the three checks (a chart from the profile's gamut, a chart
+  through the profile, a sheet from your own application), with a second
+  entry explaining media-relative judging; the Print Chart tab's Colour ⓘ
+  and the From-profile-gamut ⓘ gained matching paragraphs.
+
+### Fixed
+
+- **The Welcome card "Check a finished profile (verification run)" described
+  a workflow the app prevents**: its print step said "WITH colour management
+  ON — assign/convert to that .icc in your print path". It now names the
+  Print Chart tab's Colour row, explains the verification chart's
+  archive-on-replace and per-date snapshots, and points at the
+  From-profile-gamut module, the IMPORT module and the exact Tools entry
+  ("Measurement report (accuracy & drift)").
+- **Tool windows opening with their bottom off screen** — a window the
+  window manager placed too low stayed there even at the right size. Every
+  standalone tool dialog is now nudged fully back inside the screen
+  (reported on the Measurement info window).
+- All new and changed text translated in all 12 languages.
+
 ## v3.14.8-beta.217
 
 ### Fixed

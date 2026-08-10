@@ -908,11 +908,15 @@ class MeasurementReportDialog(QDialog):
         the sheet was printed, so the mixed-methods warning is actionable."""
         created = str(r.get("created") or "")
         when = created.replace("T", " ")[:16] or "?"
-        colour = (r.get("printing") or {}).get("colour") or "unrecorded"
-        label = {
-            "through-profile": tr("printed through the profile"),
-            "raw": tr("printed raw — no profile"),
-        }.get(colour, tr("printing method not recorded"))
+        pr = r.get("printing") or {}
+        colour = pr.get("colour") or "unrecorded"
+        if colour == "through-profile" and pr.get("route") == "external-cm":
+            label = tr("printed in another app with colour management")
+        else:
+            label = {
+                "through-profile": tr("printed through the profile"),
+                "raw": tr("printed raw — no profile"),
+            }.get(colour, tr("printing method not recorded"))
         return f"{when} — {label}"
 
     def _rebuild_from_sources(self) -> None:
@@ -1516,6 +1520,8 @@ class MeasurementReportDialog(QDialog):
                 # printing method changed — the report marks the point.
                 method_labels = {
                     "through-profile": tr("printed through the profile"),
+                    "external-cm": tr("printed in another app with colour "
+                                      "management"),
                     "raw": tr("printed raw — no profile"),
                     "unrecorded": tr("method not recorded (made before "
                                      "ChromIQ recorded it, or printed "
@@ -1826,7 +1832,17 @@ class MeasurementReportDialog(QDialog):
             "saturation": tr("saturation"),
         }
         rows: "list[tuple[str, str, bool]]" = []   # (label, value, is_warning)
-        if colour == "through-profile":
+        if colour == "through-profile" and printing.get("route") == "external-cm":
+            # The user's own answer at measure time (M-HOW-PRINTED): the
+            # sheet went through another application's colour management.
+            rows.append((tr("What this measured"), tr(
+                "your whole everyday printing chain — the application's "
+                "colour engine, this profile and the printer together"),
+                False))
+            rows.append((tr("Printed"), tr(
+                "in another application with colour management (your answer "
+                "when the sheet was measured)"), False))
+        elif colour == "through-profile":
             intent = intent_labels.get(printing.get("intent") or "relative",
                                        printing.get("intent") or "")
             rows.append((tr("What this measured"), tr(
@@ -1879,6 +1895,18 @@ class MeasurementReportDialog(QDialog):
         else:
             rows.append((tr("Readings belong to this chart"),
                          tr("could not be checked"), False))
+        # Pairing 3: say WHICH yardstick judged the sheet, in plain words,
+        # so a media-relative score can never be mistaken for an absolute one.
+        if r.get("yardstick") == "media-relative":
+            rows.append((tr("How the colours were judged"), tr(
+                "relative to this sheet's own paper white — the print mapped "
+                "white to the paper, so the paper itself is not counted "
+                "against the profile"), False))
+        elif r.get("is_verification") and r.get("yardstick") == "absolute" \
+                and (r.get("printing") or {}).get("colour"):
+            rows.append((tr("How the colours were judged"), tr(
+                "as measured (absolute) — every difference counts, the "
+                "paper's own tone included"), False))
         ref = r.get("reference_source")
         if ref == "colorimetric":
             cm = r.get("colorimetric") or {}

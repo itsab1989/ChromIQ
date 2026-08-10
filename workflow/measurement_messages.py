@@ -480,6 +480,30 @@ M_GAMUT_NO_PROFILE = _m(
     "the profile either way.",
     approved=False)
 
+# --- PROPOSED: the how-was-this-sheet-printed question ---------------------
+# Asked once, at measure time, ONLY for a verification sheet that has no
+# print record — i.e. a sheet ChromIQ did not print itself. The answer decides
+# which yardstick the report may fairly use, and is stored with the dated
+# measurement (pairing 3; Knut/Sebastian, 2026-08-10).
+M_HOW_PRINTED = _m(
+    "M-HOW-PRINTED",
+    "How was this sheet printed?",
+    "ChromIQ did not print this sheet itself, so it does not know whether a "
+    "profile took part — and the measurement report needs to know, because "
+    "the two kinds of sheet are judged differently.\n\n"
+    "Raw — no profile: the chart's own numbers went straight to the printer, "
+    "with every colour setting off. Measuring it checks the printer, not a "
+    "profile.\n\n"
+    "With colour management: the sheet was printed from another application "
+    "(for example Photoshop) with this run's profile applied. Measuring it "
+    "checks your whole everyday printing chain, and the report judges it "
+    "relative to the sheet's own paper white — so the paper is not counted "
+    "against the profile.\n\n"
+    "Not sure is always safe: the report simply notes that the printing "
+    "method is not recorded, and judges the colours as they are. Your answer "
+    "is stored with this measurement only — it changes nothing else.",
+    approved=False)
+
 # --- PROPOSED: the verification-saved window offers both doors -------------
 # Proposed by Basti during the 2026-08-10 hardware session: the completion
 # window promised "colour accuracy" but only offered the inspector — the
@@ -626,7 +650,7 @@ CATALOGUE = {m.id: m for m in (
     M_CM_NO_CCTIFF, M_CM_CONVERT_FAILED, M_CM_PROFCHECK_CONVERTED,
     M_VERIFY_CREATE_NO_PROFILE, M_GAMUT_NO_PROFILE,
     M_IMPORT_MISMATCH, M_IMPORT_DATE_TAKEN, M_IMPORT_DONE,
-    M_VERIFY_SAVED,
+    M_VERIFY_SAVED, M_HOW_PRINTED,
     M_NO_INSTRUMENT,
 )}
 

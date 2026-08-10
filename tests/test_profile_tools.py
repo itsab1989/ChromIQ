@@ -529,3 +529,21 @@ def test_verify_dialogs_route_reports():
     assert src.count("write_named_report") >= 2
     assert src.count("reports_subdir(self._measured.parent)") == 2
     assert '"Verify_Profile"' in src and '"Verify_Reference"' in src
+
+
+def test_ti3_dialog_opens_fully_on_screen():
+    """A dialog placed too low by the window manager is nudged back inside the
+    screen's available area on show — its bottom (Close row included) must
+    never sit off-screen at the default size (Sebastian, 2026-08-10)."""
+    from PyQt6.QtGui import QGuiApplication
+    from PyQt6.QtWidgets import QApplication
+    from ui.dialogs.ti3_info_dialog import Ti3InfoDialog
+    dlg = Ti3InfoDialog(_runner(), _Settings())
+    area = QGuiApplication.primaryScreen().availableGeometry()
+    dlg.move(area.left() + 40, area.bottom() - 120)   # bottom guaranteed out
+    dlg.show()
+    QApplication.processEvents()
+    frame = dlg.frameGeometry()
+    assert frame.bottom() <= area.bottom(), (frame, area)
+    assert frame.top() >= area.top(), (frame, area)
+    dlg.close()

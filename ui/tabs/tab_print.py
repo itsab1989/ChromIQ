@@ -234,6 +234,12 @@ _CM_COLOUR_HELP_BODY = (
     "Your choice is written onto the report next to the results, because two "
     "sheets printed different ways cannot be compared with each other — and "
     "six months from now, nobody remembers which way a sheet was printed.\n\n"
+    "There is also a third way that does not use this tab at all: print the "
+    "chart from your own application — Photoshop, for example — with this "
+    "run's profile applied there. That checks your everyday printing chain "
+    "end to end. When you measure such a sheet, ChromIQ asks how it was "
+    "printed and then judges it relative to the sheet's own paper white, "
+    "because prints made that way map white to the paper.\n\n"
     "Default: through the profile."
 )
 

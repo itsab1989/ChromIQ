@@ -1,7 +1,7 @@
 # Unified Measurement Management — Design Specification
 
 > **Revision 2026-08-09 (e) — two approved messages carry a revised print step.**
-> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), M-IMPORT-MISMATCH and M-IMPORT-DATE-TAKEN (the Measure tab's IMPORT module; its import-done window was approved by Sebastian 2026-08-10), plus the revised M-CHART-VERIFY (W5, reworked after the 2026-08-10 hardware session) — all defined in the awaiting-review section below.
+> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), M-IMPORT-MISMATCH and M-IMPORT-DATE-TAKEN (the Measure tab's IMPORT module; its import-done window was approved by Sebastian 2026-08-10), plus the revised M-CHART-VERIFY (W5, reworked after the 2026-08-10 hardware session) and M-HOW-PRINTED (pairing 3 — the measure-time question for sheets ChromIQ did not print) — all defined in the awaiting-review section below.
 > Both were approved by Knut on 2026-08-04, but one step in each instructed *"(with colour management on)"* — a setting ChromIQ deliberately locks **off** on every print path, so the approved text told the user to do something the app prevents (established in `verification_printing_and_target.md` §1, and A0.1 of its plan). With feature A the instruction has a real control to name — the Print Chart tab's **Colour** row — so that one step is revised and the revision waits in §M-PROPOSED. Every other message in §M remains approved as before: the last, **M-BUILD-ELSEWHERE**, was accepted on 2026-08-04 — *"Message M-BUILD-ELSEWHERE accepted"* — and M-CHART-CORRUPT, M-REPLACE-UNCOUNTABLE and M-PREVIEW-PAUSED the day before. A new message goes to §M-PROPOSED first, and `tests/test_message_catalogue.py` fails if one is added to the code without it.
 
 > **Status:** specification, agreed on [issue #130](https://github.com/itsab1989/ChromIQ/issues/130).
@@ -1092,6 +1092,27 @@ time.*
 > One thing to keep in mind: a trend across the change compares two different charts, which is not the same measurement made twice.
 >
 > The chart itself moves to the "old" folder inside "verifications"; no measurement is touched and nothing is deleted. If you would rather keep measuring the current chart, duplicate the run first — it lives on in the copy.
+
+### M-HOW-PRINTED · PROPOSED · asking how an unrecorded verification sheet was printed — Measure tab, at save time
+
+*New with pairing 3 (the media-relative yardstick, agreed with Knut and
+Sebastian 2026-08-10). Shown once, just before the saved/imported window,
+only when a verification measurement is being filed and its sheet has no
+print record — ChromIQ's own prints and answered sheets are never asked
+again. Buttons: **Raw — no profile** · **With colour management** ·
+**Not sure** (default). The answer is written into the dated folder's
+print record with `recorded: "asked-at-measure"`; Not sure leaves the
+sheet unrecorded, exactly as today.*
+
+> **How was this sheet printed?**
+>
+> ChromIQ did not print this sheet itself, so it does not know whether a profile took part — and the measurement report needs to know, because the two kinds of sheet are judged differently.
+>
+> Raw — no profile: the chart's own numbers went straight to the printer, with every colour setting off. Measuring it checks the printer, not a profile.
+>
+> With colour management: the sheet was printed from another application (for example Photoshop) with this run's profile applied. Measuring it checks your whole everyday printing chain, and the report judges it relative to the sheet's own paper white — so the paper is not counted against the profile.
+>
+> Not sure is always safe: the report simply notes that the printing method is not recorded, and judges the colours as they are. Your answer is stored with this measurement only — it changes nothing else.
 
 ### M-x. Which table uses which message
 

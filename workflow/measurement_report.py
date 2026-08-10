@@ -565,6 +565,33 @@ def build_report(ti3_path: str | Path, worst_n: int = 16) -> dict:
                 printing["profile_missing_now"] = True
         report["printing"] = printing
 
+    # Pairing 3 (Knut, 2026-08-10): a sheet printed through the profile with
+    # a white-mapping intent (relative/perceptual — anything but absolute)
+    # maps the source white to PAPER white, so judging it against the design
+    # reference's ideal L*=100 white counts the paper against the profile.
+    # For exactly that case — and only against the design/device reference;
+    # the colorimetric reference already includes the paper — the measured
+    # values are normalised to the sheet's own paper white before comparing.
+    # The physical readouts above (paper white, max black) stay absolute:
+    # they describe the paper and ink, not the profile. Everything downstream
+    # (corners, ΔE00, worst patches) inherits the chosen yardstick.
+    report["yardstick"] = "absolute"
+    if ref_source in ("design", "device") and printing:
+        _col = printing.get("colour")
+        _route = printing.get("route")
+        _intent = str(printing.get("intent") or "")
+        white_mapping = (_col == "through-profile"
+                         and (_intent not in ("", "absolute")
+                              or _route == "external-cm"))
+        if white_mapping:
+            white_xyz = np.asarray(data.xyz[wi], dtype=float)
+            if float(white_xyz.min()) > 0.0:
+                _d50 = np.array([96.42, 100.0, 82.49])
+                lab = [xyz_to_lab(tuple(
+                    (np.asarray(x, dtype=float) / white_xyz * _d50) / 100.0))
+                    for x in data.xyz]
+                report["yardstick"] = "media-relative"
+
     # The eight cube corners (paper white, composite black, the six ink
     # primaries/secondaries) — nearest patch to each corner by device RGB. Each
     # carries its measured colour and, when a reference exists, its expected
@@ -816,7 +843,11 @@ def report_scope(runs: "list[dict]") -> dict:
     verifs = [r for r in runs if r.get("is_verification")]
     if verifs:
         def _method(r: dict) -> str:
-            return (r.get("printing") or {}).get("colour") or "unrecorded"
+            pr = r.get("printing") or {}
+            if pr.get("colour") == "through-profile" \
+                    and pr.get("route") == "external-cm":
+                return "external-cm"
+            return pr.get("colour") or "unrecorded"
         methods = {_method(r) for r in verifs}
         if len(methods) > 1:
             warnings.append({

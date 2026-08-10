@@ -7712,7 +7712,64 @@ class TabMeasure(QWidget):
                  "from it. Open it in Tools ▸ Inspect a measurement to check the "
                  "profile."))
 
+        self._ask_how_printed(dst)
         self._show_verification_saved(dst)
+
+    def _ask_how_printed(self, ti3: Path) -> None:
+        """One question, only when ChromIQ cannot know: a verification sheet
+        with NO print record was printed outside ChromIQ. The **text** comes
+        from ``workflow/measurement_messages.py`` (§M); the answer is stored
+        beside the dated measurement so the report can pick the fair
+        yardstick (pairing 3 — Knut/Sebastian, 2026-08-10). "Not sure" stores
+        nothing and is always safe."""
+        from PyQt6.QtWidgets import QMessageBox
+        from workflow import measurement_messages as M
+        from workflow.verification_print import (COLOUR_RAW, COLOUR_THROUGH,
+                                                 read_print_record,
+                                                 write_print_record)
+        try:
+            if read_print_record(ti3) is not None:
+                return                    # ChromIQ printed it — it knows
+        except Exception:      # noqa: BLE001 — a question must never crash
+            return
+        title, body = M.M_HOW_PRINTED.render()
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        raw_btn = box.addButton(tr("Raw — no profile"),
+                                QMessageBox.ButtonRole.ActionRole)
+        cm_btn = box.addButton(tr("With colour management"),
+                               QMessageBox.ButtonRole.ActionRole)
+        unsure_btn = box.addButton(tr("Not sure"),
+                                   QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(unsure_btn)
+        from ui.widgets import fit_message_box_buttons
+        fit_message_box_buttons(box)
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked is raw_btn:
+            colour, route = COLOUR_RAW, "external"
+        elif clicked is cm_btn:
+            colour, route = COLOUR_THROUGH, "external-cm"
+        else:
+            return                        # honest ignorance stays recorded as such
+        try:
+            rec = write_print_record(ti3, colour=colour,
+                                     intent="unknown", profile=None,
+                                     route=route)
+            # The record's timestamp is when the ANSWER was given, not when
+            # the sheet was printed — mark it so the report never claims a
+            # print time it does not know.
+            if rec is not None:
+                import json as _json
+                data = _json.loads(Path(rec).read_text())
+                data["recorded"] = "asked-at-measure"
+                data.pop("printed_at", None)
+                Path(rec).write_text(_json.dumps(data, indent=2))
+        except Exception:      # noqa: BLE001 — never lose a measurement over it
+            log.warning("Could not store the how-printed answer", exc_info=True)
 
     def _show_verification_saved(self, dst: Path) -> None:
         """The verification-saved window, with BOTH doors — report and
@@ -8183,6 +8240,9 @@ class TabMeasure(QWidget):
                  "profile from it. Open Tools ▸ Measurement report to see "
                  "the colour-accuracy figures."))
         self._update_import_panel()
+        # An imported sheet was by definition printed outside ChromIQ — ask
+        # how, unless a record already travelled with the chart snapshot.
+        self._ask_how_printed(dst)
         self._show_import_done(verification, dst)
 
     def _show_import_done(self, verification, dst: Path) -> None:

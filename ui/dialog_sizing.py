@@ -78,4 +78,18 @@ def pin_min_height(
         dialog.resize(target_w, open_h)
     else:
         dialog.resize(dialog.width(), open_h)
+
+    # resize() never moves a window, and Qt's initial placement is not
+    # guaranteed to fit a size chosen only afterwards — the Measurement info
+    # window opened at its default position with its bottom off-screen
+    # (Sebastian, 2026-08-10). Nudge the frame back inside the available
+    # area; a window that already fits stays exactly where it is, so dynamic
+    # refits never yank the dialog around under the user.
+    if screen is not None:
+        area = screen.availableGeometry()
+        frame = dialog.frameGeometry()
+        x = max(area.left(), min(frame.x(), area.right() - frame.width() + 1))
+        y = max(area.top(), min(frame.y(), area.bottom() - frame.height() + 1))
+        if (x, y) != (frame.x(), frame.y()):
+            dialog.move(x, y)
     return open_h

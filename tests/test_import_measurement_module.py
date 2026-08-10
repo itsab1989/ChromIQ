@@ -102,6 +102,9 @@ def _silence_done_dialog(tab, monkeypatch):
     monkeypatch.setattr(
         tab, "_show_import_done",
         lambda verification, dst: done.append((verification, dst)))
+    # The how-printed question is a real modal (tested on its own below) —
+    # mute it here or the happy path hangs offscreen.
+    monkeypatch.setattr(tab, "_ask_how_printed", lambda ti3: None)
     return done
 
 
@@ -318,3 +321,130 @@ def test_measure_tab_report_opener_finds_dated_measurements(qapp, tmp_path,
     ctl.set_verification_id(v.id)
     tab._open_measurement_report()
     assert opened[-1] == v.measurement_ti3
+
+
+def test_ask_how_printed_skips_when_a_record_exists(qapp, tmp_path, monkeypatch):
+    """ChromIQ-printed sheets are never asked about — the record answers."""
+    from workflow import verification_print as vp
+    s, fm, ctl, run = _verify_env(tmp_path)
+    v = run.new_verification()
+    v.ensure_dir()
+    (v.dir / "chart").mkdir()
+    v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES))
+    vp.write_print_record(v.dir / "chart" / f"{run.verify_stem}.ti2",
+                          colour=vp.COLOUR_RAW, intent="", profile=None,
+                          route=vp.ROUTE_CHROMIQ)
+    tab = _tab(s, fm, ctl)
+    opened: list = []
+    from PyQt6.QtWidgets import QMessageBox
+    monkeypatch.setattr(QMessageBox, "exec",
+                        lambda self, *a, **k: opened.append(1) or 0)
+    tab._ask_how_printed(v.measurement_ti3)
+    assert not opened, "a recorded sheet must never raise the question"
+
+
+def test_ask_how_printed_stores_the_answer(qapp, tmp_path, monkeypatch):
+    from workflow import verification_print as vp
+    s, fm, ctl, run = _verify_env(tmp_path)
+    v = run.new_verification()
+    v.ensure_dir()
+    v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES))
+    tab = _tab(s, fm, ctl)
+
+    import json
+    from PyQt6.QtWidgets import QMessageBox
+
+    def _click(which):
+        def _exec(box, *a, **k):
+            for b in box.buttons():
+                if which in b.text():
+                    box._clicked = b        # noqa: SLF001 — test shim
+                    break
+            return 0
+        return _exec
+
+    # Answering "With colour management" writes the external-cm record.
+    monkeypatch.setattr(QMessageBox, "exec", _click("colour management"))
+    monkeypatch.setattr(QMessageBox, "clickedButton",
+                        lambda self: getattr(self, "_clicked", None))
+    tab._ask_how_printed(v.measurement_ti3)
+    rec = vp.read_print_record(v.measurement_ti3)
+    assert rec is not None
+    assert rec["colour"] == vp.COLOUR_THROUGH
+    assert rec["route"] == "external-cm"
+    assert rec["recorded"] == "asked-at-measure"
+    assert "printed_at" not in rec          # the print time is unknown
+
+    # "Not sure" on a fresh date stores nothing.
+    v2 = run.new_verification()
+    v2.ensure_dir()
+    v2.measurement_ti3.write_text(_cgats("CTI3", _PATCHES))
+    monkeypatch.setattr(QMessageBox, "exec", _click("Not sure"))
+    tab._ask_how_printed(v2.measurement_ti3)
+    assert vp.read_print_record(v2.measurement_ti3) is None
+
+
+def test_external_cm_answer_flips_the_report_yardstick(qapp, tmp_path,
+                                                       monkeypatch):
+    """The stored answer is what lets the report score the sheet fairly."""
+    from workflow import verification_print as vp
+    from workflow.measurement_report import build_report
+    s, fm, ctl, run = _verify_env(tmp_path)
+    v = run.new_verification()
+    v.ensure_dir()
+    v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES))
+    r = build_report(v.measurement_ti3)
+    assert r["yardstick"] == "absolute"      # no record → judged as-is
+    vp.write_print_record(v.measurement_ti3, colour=vp.COLOUR_THROUGH,
+                          intent="unknown", profile=None, route="external-cm")
+    r = build_report(v.measurement_ti3)
+    assert r["yardstick"] == "media-relative"
+    # A raw record keeps the absolute yardstick.
+    vp.write_print_record(v.measurement_ti3, colour=vp.COLOUR_RAW,
+                          intent="", profile=None, route="external")
+    r = build_report(v.measurement_ti3)
+    assert r["yardstick"] == "absolute"
+
+
+def test_yardstick_golden_pins(qapp, tmp_path):
+    """The scoring gate, pinned case by case: ONLY a white-mapping through
+    print against the design reference switches yardsticks. Everything else
+    is byte-identical to the absolute path."""
+    from workflow import verification_print as vp
+    from workflow.measurement_report import build_report
+    s, fm, ctl, run = _verify_env(tmp_path)
+
+    def _date_with(colour, intent, route=vp.ROUTE_CHROMIQ):
+        v = run.new_verification()
+        v.ensure_dir()
+        v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES))
+        if colour is not None:
+            vp.write_print_record(v.measurement_ti3, colour=colour,
+                                  intent=intent, profile=None, route=route)
+        return v.measurement_ti3
+
+    # through + relative → media-relative (pairing 3)
+    r = build_report(_date_with(vp.COLOUR_THROUGH, "relative"))
+    assert r["yardstick"] == "media-relative"
+    # through + ABSOLUTE intent → absolute stays (the print kept the ideal white)
+    r = build_report(_date_with(vp.COLOUR_THROUGH, "absolute"))
+    assert r["yardstick"] == "absolute"
+    # paper white / max black stay physical facts in BOTH modes
+    r2 = build_report(_date_with(vp.COLOUR_THROUGH, "relative"))
+    assert r2["paper_white"]["lab"] == r["paper_white"]["lab"]
+
+    # A colorimetric (gamut) chart NEVER switches — its reference already
+    # includes the paper.
+    from workflow.gamut_target import (GamutSelection, mark_chart_as_colorimetric,
+                                       write_colorimetric_reference)
+    from workflow.verification_print import colorimetric_reference_for
+    sel = GamutSelection(master_version="T", master_total=8, in_gamut_total=8,
+                         requested=8, intent="absolute", margin="safe")
+    sel.targets = [(i, (50.0, 0.0, 0.0), (10.0 + i, 20.0, 30.0))
+                   for i in range(8)]
+    ref = colorimetric_reference_for(run.verify_chart_ti2)
+    write_colorimetric_reference(sel, ref)
+    mark_chart_as_colorimetric(run.verify_chart_ti2, ref)
+    r = build_report(_date_with(vp.COLOUR_THROUGH, "relative"))
+    assert r["reference_source"] == "colorimetric"
+    assert r["yardstick"] == "absolute"

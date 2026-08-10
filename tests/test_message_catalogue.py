@@ -115,7 +115,11 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  "M-IMPORT-MISMATCH", "M-IMPORT-DATE-TAKEN",
                                  # W5 rework after the same session: the old
                                  # text ignored the per-date chart snapshots.
-                                 "M-CHART-VERIFY"}
+                                 "M-CHART-VERIFY",
+                                 # Pairing 3 (2026-08-10): the measure-time
+                                 # question for verification sheets ChromIQ
+                                 # did not print itself.
+                                 "M-HOW-PRINTED"}
 
 
 def test_nothing_is_quietly_proposed():
@@ -212,6 +216,7 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_measure", "TabMeasure", "_show_import_refusal"),
     ("ui.tabs.tab_measure", "TabMeasure", "_show_import_done"),
     ("ui.tabs.tab_measure", "TabMeasure", "_show_verification_saved"),
+    ("ui.tabs.tab_measure", "TabMeasure", "_ask_how_printed"),
 ]
 
 

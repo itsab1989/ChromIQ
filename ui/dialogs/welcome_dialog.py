@@ -566,30 +566,47 @@ WORKFLOWS: list[dict] = [
                 "and switches the type back to Profiling — do that, then come "
                 "back here.")),
             (1, tr("On the Create Chart tab, generate a chart as usual. Because "
-                "Run type is Verification, this becomes the profile's "
-                "verification chart (a smaller chart is fine — you're checking, "
-                "not rebuilding). It's stored once per profile and reused for "
-                "every future check, so you compare like with like over time.")),
-            (2, tr("On the Print Chart tab, print the verification chart WITH "
-                "colour management ON — i.e. printed THROUGH the profile you're "
-                "checking (assign/convert to that .icc in your print path). "
-                "This is the opposite of a profiling chart, which is printed "
-                "with colour management OFF. You're asking: “when the profile "
-                "is applied, how close to correct do the colours land?”")),
+                "Run type is Verification, this becomes the run's verification "
+                "chart (a smaller chart is fine — you're checking, not "
+                "rebuilding). It lives in the run's “verifications” folder and "
+                "is reused for every future check, so you compare like with "
+                "like over time — and if you ever replace it, the old chart is "
+                "archived there, and every check you already measured keeps "
+                "its own stored copy of the chart it was measured with. Tip: "
+                "the “From profile gamut” module on the same tab builds the "
+                "chart out of colours your profile promises it can print — "
+                "the most direct accuracy check.")),
+            (2, tr("On the Print Chart tab, the “Colour” row decides what your "
+                "check will mean — and whichever you pick, ChromIQ does all "
+                "the colour work itself and keeps the printer's own colour "
+                "management off, exactly as for a profiling chart. Choose "
+                "“Through the profile”: every patch is converted by the "
+                "profile you are checking, so the sheet is the profile's own "
+                "prediction made real, and measuring it answers “how accurate "
+                "is this profile?”. (“Raw — no profile” prints the chart "
+                "untouched instead — that asks whether the printer has "
+                "drifted, not how good the profile is. And a chart from the "
+                "“From profile gamut” module already has the profile applied, "
+                "so ChromIQ selects Raw for it by itself.)")),
             (3, tr("On the Measure tab, keep “Run type” on Verification and pick "
                 "“New verification” in the Verification box to start a fresh, "
                 "dated check (or pick an earlier date to re-measure it). Click "
                 "Measure and read the chart as normal. The result is saved in "
                 "its own dated folder under the run's “verifications” folder, "
                 "so each check is kept as history — it never overwrites your "
-                "profiling measurement or builds a profile.")),
-            (3, tr("Open Tools → Measurement Report to see the numbers. A "
-                "verification report is titled and filed separately from "
-                "profiling reports (you can set the wording in Preferences → "
-                "Reports), and it only ever trends verification measurements — "
-                "so a profile's checks are never mixed in with the run that "
-                "built it. Repeat a verification every few weeks or months to "
-                "watch the profile hold up, or drift, over time.")),
+                "profiling measurement or builds a profile. (Measured "
+                "elsewhere, for example with an i1iO table? The IMPORT module "
+                "on this tab files that measurement in the same way.)")),
+            (3, tr("Open Tools → “Measurement report (accuracy & drift)” to see "
+                "the numbers. A verification report is titled and filed "
+                "separately from profiling reports (you can set the wording "
+                "in Preferences → Reports), and it only ever trends "
+                "verification measurements — so a profile's checks are never "
+                "mixed in with the run that built it. Repeat a verification "
+                "every few weeks or months to watch the profile hold up, or "
+                "drift, over time. Unsure which kind of check fits you? The "
+                "Dictionary entry “Which verification should I use?” compares "
+                "all three.")),
         ],
     },
     {
@@ -881,6 +898,34 @@ GLOSSARY += [
         "the profile, because no profile took part. The Print Chart tab's "
         "“Colour” row chooses between the two, and the report records which "
         "way each sheet was printed.")),
+    (tr("Which verification should I use? (the three ways)"),
+     tr("Three checks, three questions. (1) A chart from your profile's "
+        "gamut, printed as it is — “does my printer deliver what this "
+        "profile promised?” The most honest accuracy check, judged colour "
+        "by colour with nothing forgiven; the best everyday choice. (2) A "
+        "verification chart printed through the profile — “is the whole "
+        "ChromIQ printing path still right?” Judged as measured, so the "
+        "paper's own tone counts too; the strict, professional reading. "
+        "(3) A sheet printed from your own application — Photoshop, a "
+        "layout program — with the profile applied: “does my everyday "
+        "printing chain work?” This one is judged relative to the sheet's "
+        "own paper white, because such prints map white to the paper — so "
+        "the paper is not counted against the profile. Any of the three, "
+        "repeated the same way over time, shows drift; the report records "
+        "which way each sheet was made so they are never mixed silently.")),
+    (tr("Judged relative to paper white (media-relative)"),
+     tr("A way the measurement report scores a verification sheet: every "
+        "measured colour is scaled so that this sheet's own paper white "
+        "counts as pure white, and only then compared with the expected "
+        "colours. The report does this by itself whenever the sheet was "
+        "printed in a way that maps white to the paper — through the "
+        "profile with relative intent, or in another application with "
+        "colour management — and says so in the “How this verification was "
+        "produced” section. The point: on such a print the paper's own "
+        "tone was never supposed to be corrected, so counting it against "
+        "the profile would blame it for something it was never asked to "
+        "do. Physical readings like paper white and deepest black are "
+        "always shown as measured.")),
     (tr("Import a measurement (IMPORT module)"),
      tr("A third mode on the Measure tab, shown for verification runs: "
         "instead of measuring here, you hand ChromIQ a measurement made in "

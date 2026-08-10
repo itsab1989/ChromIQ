@@ -1280,7 +1280,14 @@ _GAMUT_MODULE_HELP_BODY = (
     "MANUAL module, with every option either of them gives you.\n\n"
     "One thing to know before printing: this chart already has your profile "
     "applied. The Print Chart tab notices that by itself and selects "
-    "“Raw” — you do not need to set anything."
+    "“Raw” — you do not need to set anything.\n\n"
+    "How this compares with the other checks: this module is the everyday "
+    "accuracy check — it grades the profile against its own promise, colour "
+    "by colour. Printing an ordinary verification chart through the profile "
+    "instead gives the strict as-measured reading professionals use, and "
+    "printing one from your own application with the profile applied checks "
+    "your whole printing chain. The Dictionary entry “Which verification "
+    "should I use?” compares all three."
 )
 
 _GAMUT_SIZE_HELP_TITLE = "How many colours to test"
