@@ -287,35 +287,22 @@ class _TrendChart(QWidget):
             # OTHER threshold's label: on a large y-range Avg 2.0 and Max 3.0
             # map to almost the same pixel, and the two words printed over
             # each other (Sebastian, 2026-08-10).
+            # The words are drawn ONLY when they fit cleanly in the left
+            # margin, aligned with the y-axis numbers. When the two lines
+            # crowd each other or a y-axis number (a large y-range maps
+            # 2.0 and 3.0 to almost the same pixel), the words are dropped
+            # entirely rather than stacked into the plot, where every
+            # placement collided with something (Sebastian, 2026-08-10,
+            # three rounds) — the dotted lines stay, and the Pass-threshold
+            # controls directly above the chart name their values.
             collide = any(abs(ty - ay) < 9.0 for ty in thr_ys for ay in axis_ys)
             if len(thr_ys) == 2 and abs(thr_ys[0] - thr_ys[1]) < 11.0:
                 collide = True
-            prev_text_y: "float | None" = None
             for (tv, tlab), yy in zip(thr, thr_ys):
                 p.setPen(tpen)
                 p.drawLine(QPointF(L, yy), QPointF(L + w, yy))
-                p.setPen(QPen(fg, 1.0))
-                if collide:
-                    # Just above the dotted line, left-adjusted to its left
-                    # tip — and when the previous label sits within a line's
-                    # height, step below the line instead so both stay legible.
-                    ty = yy - 3
-                    if prev_text_y is not None and abs(ty - prev_text_y) < 11.0:
-                        ty = yy + 11
-                    # A background chip under the word, or the series lines
-                    # running through this corner of the plot paint straight
-                    # over it (Sebastian, 2026-08-10: "covered by the lines").
-                    fm_t = p.fontMetrics()
-                    chip = fm_t.boundingRect(tlab)
-                    chip.moveTopLeft(chip.topLeft())
-                    chip.translate(int(L + 2), int(ty))
-                    p.fillRect(chip.adjusted(-3, -1, 3, 1),
-                               self.palette().color(
-                                   self.backgroundRole()))
+                if not collide:
                     p.setPen(QPen(fg, 1.0))
-                    p.drawText(QPointF(L + 2, ty), tlab)
-                    prev_text_y = ty
-                else:
                     p.drawText(QRectF(0, yy - 7, L - 4, 14),
                                Qt.AlignmentFlag.AlignRight
                                | Qt.AlignmentFlag.AlignVCenter,
@@ -487,7 +474,10 @@ class MeasurementReportDialog(QDialog):
         outer.addWidget(stripe)
 
         v = QVBoxLayout()
-        v.setContentsMargins(22, 14, 22, 16)
+        # Bottom 13, the same visual gap the main window's tabs give their
+        # bottom-most buttons (Sebastian, 2026-08-10) — the Close button ends
+        # level with what the rest of the app taught the eye to expect.
+        v.setContentsMargins(22, 14, 22, 13)
         v.setSpacing(12)
         outer.addLayout(v)
 
@@ -716,10 +706,10 @@ class MeasurementReportDialog(QDialog):
             resolve_mode(self._settings.get("appearance", "auto")))
 
         close_row = QHBoxLayout()
-        # Clear air between the report view and the button, and a bottom
-        # inset, so Close reads as the window's own control rather than
-        # floating on the report's last line (Sebastian, 2026-08-10).
-        close_row.setContentsMargins(0, 10, 4, 8)
+        # Clear air between the report view and the button; the bottom inset
+        # comes from the root layout's 13 px margin alone, so the gap under
+        # Close matches the main window's tabs (Sebastian, 2026-08-10).
+        close_row.setContentsMargins(0, 4, 0, 0)
         close_row.addStretch(1)
         close_btn = QPushButton(tr("Close"), self)
         close_btn.clicked.connect(self.accept)
