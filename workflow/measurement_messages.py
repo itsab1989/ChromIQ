@@ -497,7 +497,9 @@ M_VERIFY_SAVED = _m(
     "dated verifications — how the profile holds up over time.\n\n"
     "Measurement inspector — the physical portrait of this one print: paper "
     "white, contrast, grey cast, and how it behaves under different light.",
-    approved=False)
+    approved=True)   # Sebastian, 2026-08-10: "if you think the text ... is
+                     # correct, friendly, extensive and easy to understand
+                     # then use it"
 
 # --- PROPOSED: the Measure tab's IMPORT module (verification runs) ---------
 # A measurement made in i1Profiler enters the run through the same doors a

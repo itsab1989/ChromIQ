@@ -113,9 +113,6 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # DONE was approved by Sebastian on 2026-08-10
                                  # (seen live: "messages were good").
                                  "M-IMPORT-MISMATCH", "M-IMPORT-DATE-TAKEN",
-                                 # The saved window's two doors (Basti,
-                                 # 2026-08-10 hardware session).
-                                 "M-VERIFY-SAVED",
                                  # W5 rework after the same session: the old
                                  # text ignored the per-date chart snapshots.
                                  "M-CHART-VERIFY"}

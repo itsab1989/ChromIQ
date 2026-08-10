@@ -105,8 +105,8 @@ CITATIONS: list[tuple[str, int, str]] = [
     ("ui/dialogs/layout_options_panel.py", 1044, "Also export a PDF"),
     # Feature A revised the §M print steps (2026-08-09): the guards now name
     # the Print Chart tab's "Colour" row; the revisions sit in §M-PROPOSED.
-    ("docs/design/unified_measurement_management.md", 901, "Colour"),
-    ("docs/design/unified_measurement_management.md", 907, "Colour"),
+    ("docs/design/unified_measurement_management.md", 923, "Colour"),
+    ("docs/design/unified_measurement_management.md", 923, "Colour"),
 ]
 
 

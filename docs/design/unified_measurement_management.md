@@ -1,7 +1,7 @@
 # Unified Measurement Management — Design Specification
 
 > **Revision 2026-08-09 (e) — two approved messages carry a revised print step.**
-> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), M-IMPORT-MISMATCH and M-IMPORT-DATE-TAKEN (the Measure tab's IMPORT module; its import-done window was approved by Sebastian 2026-08-10), M-VERIFY-SAVED (the saved window's two doors), plus the revised M-CHART-VERIFY (W5, reworked after the 2026-08-10 hardware session) — all defined in the awaiting-review section below.
+> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), M-IMPORT-MISMATCH and M-IMPORT-DATE-TAKEN (the Measure tab's IMPORT module; its import-done window was approved by Sebastian 2026-08-10), plus the revised M-CHART-VERIFY (W5, reworked after the 2026-08-10 hardware session) — all defined in the awaiting-review section below.
 > Both were approved by Knut on 2026-08-04, but one step in each instructed *"(with colour management on)"* — a setting ChromIQ deliberately locks **off** on every print path, so the approved text told the user to do something the app prevents (established in `verification_printing_and_target.md` §1, and A0.1 of its plan). With feature A the instruction has a real control to name — the Print Chart tab's **Colour** row — so that one step is revised and the revision waits in §M-PROPOSED. Every other message in §M remains approved as before: the last, **M-BUILD-ELSEWHERE**, was accepted on 2026-08-04 — *"Message M-BUILD-ELSEWHERE accepted"* — and M-CHART-CORRUPT, M-REPLACE-UNCOUNTABLE and M-PREVIEW-PAUSED the day before. A new message goes to §M-PROPOSED first, and `tests/test_message_catalogue.py` fails if one is added to the code without it.
 
 > **Status:** specification, agreed on [issue #130](https://github.com/itsab1989/ChromIQ/issues/130).
@@ -822,6 +822,28 @@ it promises is now real: ``verifications/old/<date>/``.*
 
 ---
 
+### M-VERIFY-SAVED · a verification measurement was saved — Measure
+
+*Approved by Sebastian, 2026-08-10 (delegated: "if you think the text
+... is correct, friendly, extensive and easy to understand then use
+it"), after using it live in the hardware session.*
+
+*Replaces the completion window's inline text. It promised "colour accuracy"
+but only offered the measurement inspector — the accuracy analysis lives in
+the measurement report, so the window now offers both doors and says what
+each is for (Sebastian, 2026-08-10 hardware session). Buttons: Close · Open
+in measurement inspector · Open measurement report (default).*
+
+> **Verification Measurement Saved**
+>
+> Your verification measurement has been saved as {name}, in its own dated folder.
+>
+> This file checks a print against a profile — do not build a profile from it. Two ways to look at it:
+>
+> Measurement report — the colour-accuracy analysis: how close each printed colour landed to what the profile expected, the worst patches, your printer's reach at the cube corners, and — once you have several dated verifications — how the profile holds up over time.
+>
+> Measurement inspector — the physical portrait of this one print: paper white, contrast, grey cast, and how it behaves under different light.
+
 ### M-BUILD-ELSEWHERE · the measurement belongs to another run — §6
 
 *Approved by Knut, 2026-08-04. Raised when Build Profile is pressed while the measurement loaded in the tab sits in a different run's folder from the one the bar shows — his Demo-08 step 10: "I created a profile for run 6 via standing in run 5."*
@@ -1022,24 +1044,6 @@ module's input, so without one there is nothing to ask.*
 > &nbsp;&nbsp;4\. Come back here and set Run type to Verification again.
 >
 > GUIDED and MANUAL can still build you a chart in the meantime, so the files are ready. Printing and measuring any verification chart waits for the profile either way.
-
-### M-VERIFY-SAVED · PROPOSED · a verification measurement was saved — Measure
-
-*Replaces the completion window's inline text. It promised "colour accuracy"
-but only offered the measurement inspector — the accuracy analysis lives in
-the measurement report, so the window now offers both doors and says what
-each is for (Sebastian, 2026-08-10 hardware session). Buttons: Close · Open
-in measurement inspector · Open measurement report (default).*
-
-> **Verification Measurement Saved**
->
-> Your verification measurement has been saved as {name}, in its own dated folder.
->
-> This file checks a print against a profile — do not build a profile from it. Two ways to look at it:
->
-> Measurement report — the colour-accuracy analysis: how close each printed colour landed to what the profile expected, the worst patches, your printer's reach at the cube corners, and — once you have several dated verifications — how the profile holds up over time.
->
-> Measurement inspector — the physical portrait of this one print: paper white, contrast, grey cast, and how it behaves under different light.
 
 ### M-IMPORT-MISMATCH · PROPOSED · an imported file fails validation — Measure ▸ IMPORT
 

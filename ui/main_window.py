@@ -1110,7 +1110,11 @@ class MainWindow(QMainWindow):
         # project's run + verification history (#130). Guarded — a missing
         # manifest must never block opening a tool.
         project = None
-        if key == "verify_profile" \
+        # measurement_report seeds itself from the current target so the
+        # window opens on the loaded project's reports — it needs the project
+        # for that just like verify_profile does (Sebastian, 2026-08-10: the
+        # Tools entry still opened empty while the Measure-tab button worked).
+        if key in ("verify_profile", "measurement_report") \
                 and (self._file_mgr.working_dir() / "project.json").exists():
             try:
                 project = self._file_mgr.project()

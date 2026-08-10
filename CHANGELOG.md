@@ -1,5 +1,20 @@
 # Changelog
 
+## v3.14.8-beta.214
+
+### Fixed
+
+- **Tools ▸ Measurement report now opens on the loaded project's reports.**
+  The window seeded itself from the current target, but the Tools menu never
+  handed it the project — so it still opened empty while the Measure tab's
+  report button worked (Sebastian, 2026-08-10).
+
+### Approved
+
+- **The verification-saved window's text is now approved** (Sebastian,
+  2026-08-10, after using it live) — the window that offers the measurement
+  report and the measurement inspector, each explained.
+
 ## v3.14.8-beta.213
 
 Everything in this beta came out of the first real hardware session
