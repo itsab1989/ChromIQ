@@ -138,6 +138,65 @@ def _fmt(v, dec: int = 2) -> str:
     return f"{v:.{dec}f}" if isinstance(v, (int, float)) else "—"
 
 
+def _paginate_tables(doc, body_h: float) -> None:
+    """Keep whole tables on one page (Knut #PDF4), heading included.
+
+    Qt ignores CSS page-break-inside, but honours a frame's page-break policy,
+    so each table straddling a page boundary is nudged onto the next page
+    (topmost first, re-laying-out until none split). A pushed table must take
+    its heading along — breaking only the table left "Worst patches" alone at
+    the bottom of one page with its rows on the next (Sebastian, 2026-08-10) —
+    so the break goes on the single non-empty block sitting directly above the
+    table when that block would otherwise stay behind; if the straddle
+    survives the next pass, the table itself gets the break too. Tables taller
+    than a page can't be helped and are left to flow.
+    """
+    from PyQt6.QtGui import QTextCursor, QTextFormat, QTextTable
+
+    always = QTextFormat.PageBreakFlag.PageBreak_AlwaysBefore
+
+    def _straddling_tables():
+        lay = doc.documentLayout()
+        found = []
+        stack = [doc.rootFrame()]
+        while stack:
+            for ch in stack.pop().childFrames():
+                stack.append(ch)
+                if isinstance(ch, QTextTable):
+                    r = lay.frameBoundingRect(ch)
+                    if (r.height() < body_h - 1
+                            and int(r.top() // body_h)
+                            != int((r.bottom() - 1) // body_h)):
+                        found.append((r.top(), ch))
+        found.sort(key=lambda t: t[0])
+        return [t for _, t in found]
+
+    def _push_to_next_page(table) -> None:
+        lay = doc.documentLayout()
+        block = doc.findBlock(table.firstPosition() - 1)
+        if block.isValid() and block.text().strip():
+            t_top = lay.frameBoundingRect(table).top()
+            b_rect = lay.blockBoundingRect(block)
+            same_page = int(b_rect.top() // body_h) == int(t_top // body_h)
+            close = t_top - b_rect.bottom() < 24
+            if same_page and close \
+                    and not block.blockFormat().pageBreakPolicy() & always:
+                bf = block.blockFormat()
+                bf.setPageBreakPolicy(always)
+                cur = QTextCursor(block)
+                cur.setBlockFormat(bf)
+                return
+        fmt = table.frameFormat()
+        fmt.setPageBreakPolicy(always)
+        table.setFrameFormat(fmt)
+
+    for _ in range(400):
+        straddlers = _straddling_tables()
+        if not straddlers:
+            break
+        _push_to_next_page(straddlers[0])
+
+
 class _TrendChart(QWidget):
     """A compact multi-line chart of a printer's measurement history over time
     (#40, Knut). Generic: each instance plots one GROUP of related metrics
@@ -1258,36 +1317,7 @@ class MeasurementReportDialog(QDialog):
         body_h = page_h - header_h - footer_h
         doc.setPageSize(QSizeF(page_w, body_h))
 
-        # Keep whole tables on one page (Knut #PDF4): Qt ignores CSS
-        # page-break-inside, but it honours a frame's page-break policy, so nudge
-        # each table that straddles a page boundary onto the next page (topmost
-        # first) and re-lay-out until none split. Tables taller than a page can't
-        # be helped and are left to flow.
-        from PyQt6.QtGui import QTextFormat, QTextTable
-
-        def _straddling_tables():
-            lay = doc.documentLayout()
-            found = []
-            stack = [doc.rootFrame()]
-            while stack:
-                for ch in stack.pop().childFrames():
-                    stack.append(ch)
-                    if isinstance(ch, QTextTable):
-                        r = lay.frameBoundingRect(ch)
-                        if (r.height() < body_h - 1
-                                and int(r.top() // body_h)
-                                != int((r.bottom() - 1) // body_h)):
-                            found.append((r.top(), ch))
-            found.sort(key=lambda t: t[0])
-            return [t for _, t in found]
-
-        for _ in range(400):
-            straddlers = _straddling_tables()
-            if not straddlers:
-                break
-            fmt = straddlers[0].frameFormat()
-            fmt.setPageBreakPolicy(QTextFormat.PageBreakFlag.PageBreak_AlwaysBefore)
-            straddlers[0].setFrameFormat(fmt)
+        _paginate_tables(doc, body_h)
 
         units = self._scope_header_units(runs)   # profile names + measurements/date
         head_font = QFont(); head_font.setPixelSize(8)
