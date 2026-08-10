@@ -1672,7 +1672,8 @@ class TabProfile(QWidget):
         def _on_install() -> None:
             dlg.accept()
             try:
-                dest = self._builder.install_profile(icc_path)
+                dest = self._builder.install_profile(icc_path,
+                                                     self._install_name())
                 self._ac_log.appendPlainText(f"[OK] Profile installed to {dest}")
             except Exception as exc:
                 self._ac_log.appendPlainText(f"[ERROR] Install failed: {exc}")
@@ -2251,6 +2252,12 @@ class TabProfile(QWidget):
         grp = QGroupBox(tr("Profile Core"), layout.parentWidget())
         g = QVBoxLayout(grp)
         g.setSpacing(8)
+
+        # The same install-rename choice as Guided — one shared setting, both
+        # boxes stay in step (Knut, 2026-08-10).
+        _m_inst_row = self._make_install_name_checkbox(grp)
+        self._m_install_name_cb = _m_inst_row._checkbox
+        g.addWidget(_m_inst_row)
 
         desc_row = QHBoxLayout()
         desc_row.addWidget(QLabel(tr("Profile Description (-D):"), grp))
@@ -3286,6 +3293,13 @@ class TabProfile(QWidget):
     def _build_core_group(self, layout: QVBoxLayout) -> None:
         grp = QGroupBox(tr("Profile Core"), layout.parentWidget())
         g = QVBoxLayout(grp)
+
+        # Knut's install-rename checkbox (2026-08-10), above the Description
+        # field it reads from. It changes ONE thing: the Install button names
+        # the copy it places in the system folder after the description.
+        _inst_row = self._make_install_name_checkbox(grp)
+        self._install_name_cb = _inst_row._checkbox
+        g.addWidget(_inst_row)
 
         # Description
         desc_row = QHBoxLayout()
@@ -4961,11 +4975,74 @@ class TabProfile(QWidget):
         tint_dialog_primary(dlg, _TAB_COLOR)
         dlg.exec()
 
+    def _make_install_name_checkbox(self, parent) -> "QWidget":
+        """Knut's checkbox (2026-08-10, profiling runs only): the Install
+        button names the installed COPY after the description. One shared
+        setting backs the Guided and Manual boxes. Returns the whole row —
+        checkbox plus the ⓘ button carrying the friendly explanation, in the
+        same shape every other option row uses."""
+        from PyQt6.QtWidgets import QCheckBox, QHBoxLayout, QWidget
+        row = QWidget(parent)
+        lay = QHBoxLayout(row)
+        lay.setContentsMargins(0, 0, 0, 0)
+        cb = QCheckBox(tr("Name the installed copy after the description"),
+                       row)
+        cb.setChecked(bool(self._settings.get("install_named_by_description",
+                                              False)))
+        cb.toggled.connect(self._on_install_name_toggled)
+        lay.addWidget(cb)
+        lay.addStretch(1)
+        lay.addWidget(TooltipButton(
+            tr("Name the installed copy after the description"),
+            tr("Pressing “Install Profile” copies your finished profile into "
+               "your system's profile folder, so apps like Photoshop and "
+               "Lightroom can use it. Normally that copy keeps the project's "
+               "file name — with this ticked, it is named after the Profile "
+               "Description below instead, so the file is as easy to find in "
+               "the folder as the description is in an app's "
+               "colour-management menu.\n\n"
+               "Nothing else changes: only the installed copy gets the new "
+               "name, the profile inside your project keeps its own, and "
+               "every part of ChromIQ keeps working exactly as before.\n\n"
+               "Good to know: characters a file name cannot contain are "
+               "replaced with “_”; installing over a profile that already "
+               "has that name replaces it, which is the normal way to update "
+               "one; and while the description is empty the copy simply "
+               "keeps the project's file name.\n\n"
+               "This applies to profiling runs — a verification builds no "
+               "profile, and a calibration's files are not installed this "
+               "way. The choice is remembered between sessions."),
+            row, min_width=460))
+        row._checkbox = cb           # the callers sync through this
+        return row
+
+    def _on_install_name_toggled(self, on: bool) -> None:
+        self._settings.set("install_named_by_description", bool(on))
+        for cb in (getattr(self, "_install_name_cb", None),
+                   getattr(self, "_m_install_name_cb", None)):
+            if cb is not None and cb.isChecked() != bool(on):
+                cb.blockSignals(True)
+                cb.setChecked(bool(on))
+                cb.blockSignals(False)
+
+    def _install_name(self) -> "str | None":
+        """The file name (no extension) for the installed copy, or None for
+        the plain copy. Reads the ACTIVE mode's description field — the one
+        on screen next to the checkbox."""
+        if not self._settings.get("install_named_by_description", False):
+            return None
+        edit = (self._desc_edit if self._current_mode() == "guided"
+                else self._m_desc_edit)
+        import re
+        safe = re.sub(r'[\\/:*?"<>|]+', "_", edit.text().strip()).strip(" .")
+        return safe or None
+
     def _on_install(self) -> None:
         if not self._icc_path:
             return
         try:
-            dest = self._builder.install_profile(self._icc_path)
+            dest = self._builder.install_profile(self._icc_path,
+                                                 self._install_name())
             self._log.appendPlainText(f"[OK] Profile installed to {dest}")
             self._log.ensureCursorVisible()
         except Exception as exc:

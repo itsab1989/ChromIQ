@@ -232,15 +232,23 @@ class ProfileBuilder:
         """Structured warnings captured during the most recent run."""
         return list(self._matched_warnings)
 
-    def install_profile(self, icc_path: Path) -> Path:
-        """Copy .icc file to the system ICC profile folder. Returns the installed path."""
+    def install_profile(self, icc_path: Path,
+                        install_name: "str | None" = None) -> Path:
+        """Copy .icc file to the system ICC profile folder. Returns the installed path.
+
+        ``install_name`` (no extension) names the INSTALLED COPY only — Knut's
+        "Profile file name same as description for installed copy" checkbox.
+        The project's own file always keeps its name; an installed profile of
+        the same name is replaced, which is the normal way to update one.
+        """
         profile_dir = _profile_dir()
         try:
             profile_dir.mkdir(parents=True, exist_ok=True)
         except PermissionError:
             log.warning("Cannot create profile dir %s — elevation may be required", profile_dir)
             raise
-        dest = profile_dir / icc_path.name
+        name = f"{install_name}.icc" if install_name else icc_path.name
+        dest = profile_dir / name
         shutil.copy2(icc_path, dest)
         log.info("Profile installed: %s", dest)
         return dest

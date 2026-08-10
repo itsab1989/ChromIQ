@@ -17,7 +17,8 @@ from PyQt6.QtCore import QPointF, QRectF, Qt
 from PyQt6.QtGui import QColor, QFont, QPainter, QPen
 from PyQt6.QtWidgets import (
     QCheckBox, QDialog, QFileDialog, QFrame, QHBoxLayout, QLabel, QListWidget,
-    QPushButton, QTabWidget, QTextBrowser, QVBoxLayout, QWidget,
+    QListWidgetItem, QPushButton, QTabWidget, QTextBrowser, QVBoxLayout,
+    QWidget,
 )
 
 from core.i18n import tr
@@ -155,7 +156,7 @@ class _TrendChart(QWidget):
         self._dec = 1
         self._auto = False
         self._thresholds: "tuple[float, float] | None" = None
-        self.setMinimumHeight(170)
+        self.setMinimumHeight(150)
 
     def set_data(self, series, metrics, dark=True, y_max=None, dec=1,
                  auto=False, thresholds=None) -> None:
@@ -301,6 +302,17 @@ class _TrendChart(QWidget):
                     ty = yy - 3
                     if prev_text_y is not None and abs(ty - prev_text_y) < 11.0:
                         ty = yy + 11
+                    # A background chip under the word, or the series lines
+                    # running through this corner of the plot paint straight
+                    # over it (Sebastian, 2026-08-10: "covered by the lines").
+                    fm_t = p.fontMetrics()
+                    chip = fm_t.boundingRect(tlab)
+                    chip.moveTopLeft(chip.topLeft())
+                    chip.translate(int(L + 2), int(ty))
+                    p.fillRect(chip.adjusted(-3, -1, 3, 1),
+                               self.palette().color(
+                                   self.backgroundRole()))
+                    p.setPen(QPen(fg, 1.0))
                     p.drawText(QPointF(L + 2, ty), tlab)
                     prev_text_y = ty
                 else:
@@ -541,11 +553,24 @@ class MeasurementReportDialog(QDialog):
         v.addLayout(add_row)
 
         self._profile_list = QListWidget(self)
-        self._profile_list.setMaximumHeight(96)
+        # A fixed height cramped this into ~3 visible rows the moment a run
+        # or two existed — nowhere near enough to see and untick a run
+        # without scrolling first (Sebastian, 2026-08-10). Sized instead to
+        # the CONTENT in _size_profile_list: small with few rows, capped
+        # (never eats the report below it) once there are many, with an
+        # internal scrollbar past the cap either way.
         self._profile_list.setToolTip(tr(
-            "The profiles whose measurements this report covers. Select one and "
-            "use “Remove Profile's Measurements…” to drop it."))
+            "The profiles whose measurements this report covers, with one row "
+            "per dated run underneath. Untick a run to leave it out of the "
+            "trend, the tables and the PDF — nothing is changed on disk, and "
+            "ticking it brings it straight back. Select a profile row and use "
+            "“Remove Profile's Measurements…” to drop the whole profile."))
         self._profile_list.itemSelectionChanged.connect(self._update_source_buttons)
+        #: run keys the user unticked — session-only, nothing on disk changes.
+        self._hidden_runs: "set[str]" = set()
+        self._list_rows: "list[tuple]" = []
+        self._building_list = False
+        self._profile_list.itemChanged.connect(self._on_run_row_toggled)
         v.addWidget(self._profile_list)
 
         out_row = QHBoxLayout()
@@ -580,20 +605,37 @@ class MeasurementReportDialog(QDialog):
         opt_row = QHBoxLayout()
         self._all_runs_check = QCheckBox(tr("Show all measurement runs"), self)
         self._all_runs_check.setChecked(True)
-        self._all_runs_check.setToolTip(tr(
-            "When on, the report covers every saved measurement of this printer "
-            "(Report Scope, Report Results and the side-by-side comparison span "
-            "them all). When off, only the loaded measurement is shown."))
         self._all_runs_check.toggled.connect(lambda _=None: self._refresh())
         opt_row.addWidget(self._all_runs_check)
+        opt_row.addWidget(TooltipButton(
+            tr("Show all measurement runs"),
+            tr("The report can look at one measurement, or at your whole "
+               "history.\n\n"
+               "With this ticked, every dated run in the list above is part "
+               "of the report: the trend charts, Report Scope, Report Results "
+               "and the tables compare them side by side — and any run you "
+               "have unticked in the list stays out.\n\n"
+               "With it off, the report shows only the measurement it was "
+               "opened on — one run, in full, with no comparison.\n\n"
+               "The saved PDF always matches what you see here."),
+            self, min_width=440))
         self._detail_check = QCheckBox(tr("Show detailed data for each run"), self)
         self._detail_check.setChecked(False)
-        self._detail_check.setToolTip(tr(
-            "When on, the full per-run breakdown — colour-accuracy Pass/Fail "
-            "table, paper white & black, cube corners and the worst patches — is "
-            "added for every run, in the window and in the PDF."))
         self._detail_check.toggled.connect(lambda _=None: self._render())
         opt_row.addWidget(self._detail_check)
+        opt_row.addWidget(TooltipButton(
+            tr("Show detailed data for each run"),
+            tr("Adds the full breakdown for every run in the report, each on "
+               "a page of its own: the colour-accuracy table with its "
+               "Pass/Fail verdicts against your thresholds, paper white and "
+               "darkest black, the eight cube corners, and the worst patches "
+               "with their expected and measured colours side by side.\n\n"
+               "Handy when you want to see WHY a run passed or failed, not "
+               "just that it did — for example which patches pushed the "
+               "average over your threshold.\n\n"
+               "It makes the report, and the saved PDF, considerably longer — "
+               "which is why it starts unticked."),
+            self, min_width=440))
         opt_row.addStretch(1)
         v.addLayout(opt_row)
 
@@ -662,8 +704,10 @@ class MeasurementReportDialog(QDialog):
         # The report TEXT is the point of the window — guarantee it real
         # space. With the trend visible the fixed content above squeezed it
         # to a strip a few lines high (Sebastian, 2026-08-10: "hard to get
-        # any information out of it").
-        self._view.setMinimumHeight(300)
+        # any information out of it"). 240, not more: every hard minimum here
+        # adds to the window's unshrinkable floor, and that floor must stay
+        # inside a laptop screen.
+        self._view.setMinimumHeight(240)
         v.addWidget(self._view, 1)
         # The report view scrolls internally — give it the same fade-to-surface
         # gradient the Tools dialogs use on their scroll areas.
@@ -672,6 +716,10 @@ class MeasurementReportDialog(QDialog):
             resolve_mode(self._settings.get("appearance", "auto")))
 
         close_row = QHBoxLayout()
+        # Clear air between the report view and the button, and a bottom
+        # inset, so Close reads as the window's own control rather than
+        # floating on the report's last line (Sebastian, 2026-08-10).
+        close_row.setContentsMargins(0, 10, 4, 8)
         close_row.addStretch(1)
         close_btn = QPushButton(tr("Close"), self)
         close_btn.clicked.connect(self.accept)
@@ -700,10 +748,38 @@ class MeasurementReportDialog(QDialog):
         self._sized_to_screen = True
         from PyQt6.QtGui import QGuiApplication
         screen = self.screen() or QGuiApplication.primaryScreen()
-        if screen is not None:
-            area = screen.availableGeometry()
-            self.resize(max(self.width(), 920),
-                        max(640, int(area.height() * 0.88)))
+        if screen is None:
+            return
+        area = screen.availableGeometry()
+        # Sizing alone left the window's BOTTOM off-screen on Sebastian's
+        # display — resize() never moves a window, and Qt's own initial
+        # placement is not guaranteed to fit a size chosen only afterwards.
+        # Clamp the height to what the screen can actually hold (leaving a
+        # margin so window-manager chrome never eats into it) and then
+        # centre the whole window inside the available area, so both very
+        # tall and very short screens end up with the full window — Close
+        # button included — on screen (2026-08-10).
+        w = max(self.width(), 920)
+        cap = max(1, area.height() - 40)          # never claim the whole screen
+        h = min(int(area.height() * 0.88), cap)
+        h = max(h, min(640, cap))                 # the 640 px floor, screen-capped
+        # The profile list grows with the run count (see _size_profile_list),
+        # so the layout's OWN minimum can exceed the screen — and Qt refuses
+        # any resize below it, which is exactly how the window's bottom (and
+        # the Close button) landed off-screen (Sebastian, 2026-08-10). When
+        # the floor doesn't fit, compact the list to two rows first; only
+        # then respect what remains of the floor.
+        layout = self.layout()
+        if layout is not None:
+            layout.activate()
+            if layout.minimumSize().height() > cap:
+                self._size_profile_list(compact=True)
+                layout.activate()
+            h = max(h, min(layout.minimumSize().height(), cap))
+        self.resize(w, h)
+        x = area.left() + max(0, (area.width() - w) // 2)
+        y = area.top() + max(0, (area.height() - h) // 2)
+        self.move(x, y)
 
     # ---- sources (one per profile) ----------------------------------------
     def _gather_runs(self, ti3: Path) -> "tuple[str, list]":
@@ -811,6 +887,23 @@ class MeasurementReportDialog(QDialog):
             self._report = self._sources[0]["runs"][-1]     # single-run / PDF anchor
             self._rebuild_from_sources()
 
+    @staticmethod
+    def _run_key(r: dict) -> str:
+        """A stable identity for one run across list rebuilds."""
+        return f"{r.get('created', '')}|{r.get('ti3', '')}"
+
+    def _run_row_label(self, r: dict) -> str:
+        """'2026-08-10 12:04 — printed raw — no profile' — the date plus how
+        the sheet was printed, so the mixed-methods warning is actionable."""
+        created = str(r.get("created") or "")
+        when = created.replace("T", " ")[:16] or "?"
+        colour = (r.get("printing") or {}).get("colour") or "unrecorded"
+        label = {
+            "through-profile": tr("printed through the profile"),
+            "raw": tr("printed raw — no profile"),
+        }.get(colour, tr("printing method not recorded"))
+        return f"{when} — {label}"
+
     def _rebuild_from_sources(self) -> None:
         """Recompute the history, the profile list and button states, then repaint
         the trend + report."""
@@ -818,12 +911,32 @@ class MeasurementReportDialog(QDialog):
             (r for s in self._sources for r in s["runs"]),
             key=lambda r: str(r.get("created") or ""))
         self._project_dirs = {s["dir"] for s in self._sources}
-        self._profile_list.clear()
-        for s in self._sources:
-            n = len(s["runs"])
-            self._profile_list.addItem(
-                f'{s["name"]}  ·  {n} '
-                + (tr("run") if n == 1 else tr("runs")))
+        self._building_list = True
+        try:
+            self._profile_list.clear()
+            self._list_rows = []
+            for si, s in enumerate(self._sources):
+                n = len(s["runs"])
+                self._profile_list.addItem(
+                    f'{s["name"]}  ·  {n} '
+                    + (tr("run") if n == 1 else tr("runs")))
+                self._list_rows.append(("source", si, None))
+                # One checkable row per dated run: unticking leaves it out of
+                # the trend, tables and PDF — nothing on disk is touched
+                # (Sebastian, 2026-08-10: "manually deselect only a few").
+                for r in s["runs"]:
+                    key = self._run_key(r)
+                    item = QListWidgetItem("      " + self._run_row_label(r))
+                    item.setFlags(Qt.ItemFlag.ItemIsEnabled
+                                  | Qt.ItemFlag.ItemIsUserCheckable)
+                    item.setCheckState(
+                        Qt.CheckState.Unchecked if key in self._hidden_runs
+                        else Qt.CheckState.Checked)
+                    self._profile_list.addItem(item)
+                    self._list_rows.append(("run", si, key))
+        finally:
+            self._building_list = False
+        self._size_profile_list()
         has = bool(self._sources)
         self._pdf_btn.setEnabled(has)
         self._reveal_btn.setEnabled(has)
@@ -831,8 +944,47 @@ class MeasurementReportDialog(QDialog):
         self._update_source_buttons()
         self._refresh()
 
+    #: Five visible rows, then a scrollbar — Sebastian's number (2026-08-10).
+    #: The MINIMUM stays at two rows so the window's own overlap-free floor
+    #: can never be pushed past a small screen by a long run history: a hard
+    #: multi-row floor did exactly that (the layout minimum outgrew the
+    #: screen, Qt refused the smaller resize, and the window's bottom — Close
+    #: included — landed off-screen).
+    _LIST_VISIBLE_ROWS = 5
+
+    def _size_profile_list(self, *, compact: bool = False) -> None:
+        """Pin the list to its visible-row target (five, Sebastian's number),
+        or — ``compact``, chosen by showEvent only when the whole window
+        would otherwise not fit the screen — to two rows with a scrollbar."""
+        n = len(self._list_rows)
+        row_h = self._profile_list.sizeHintForRow(0) if n else -1
+        if row_h <= 0:
+            row_h = self._profile_list.fontMetrics().height() + 8
+        frame = 2 * self._profile_list.frameWidth() + 4
+        target = 2 if compact else self._LIST_VISIBLE_ROWS
+        visible = min(max(n, 1), target)
+        h = visible * row_h + frame
+        self._profile_list.setMinimumHeight(h)
+        self._profile_list.setMaximumHeight(h)
+
     def _update_source_buttons(self) -> None:
         self._remove_btn.setEnabled(bool(self._profile_list.selectedItems()))
+
+    def _on_run_row_toggled(self, item) -> None:
+        """A run row was ticked/unticked — refresh the report with it in/out."""
+        if self._building_list:
+            return
+        row = self._profile_list.row(item)
+        if not (0 <= row < len(self._list_rows)):
+            return
+        kind, _si, key = self._list_rows[row]
+        if kind != "run" or key is None:
+            return
+        if item.checkState() == Qt.CheckState.Unchecked:
+            self._hidden_runs.add(key)
+        else:
+            self._hidden_runs.discard(key)
+        self._refresh()
 
     def _load(self, path: Path) -> None:
         """Open the report on a measurement — the profile that owns it becomes the
@@ -875,11 +1027,16 @@ class MeasurementReportDialog(QDialog):
         return convert_i1profiler_measurement(src, argyll, out_dir)
 
     def _on_remove_profile(self) -> None:
-        rows = sorted((self._profile_list.row(i)
-                       for i in self._profile_list.selectedItems()), reverse=True)
-        for r in rows:
-            if 0 <= r < len(self._sources):
-                del self._sources[r]
+        # Any selected row — the profile's own or one of its run rows — names
+        # its source; drop each source once.
+        picked = set()
+        for i in self._profile_list.selectedItems():
+            row = self._profile_list.row(i)
+            if 0 <= row < len(self._list_rows):
+                picked.add(self._list_rows[row][1])
+        for si in sorted(picked, reverse=True):
+            if 0 <= si < len(self._sources):
+                del self._sources[si]
         if self._sources:
             first = self._sources[0]
             self._report = first["runs"][-1]
@@ -1226,7 +1383,10 @@ class MeasurementReportDialog(QDialog):
         and the PDF, so they always match (worst-patch count included, Knut)."""
         if (getattr(self, "_all_runs_check", None) is not None
                 and self._all_runs_check.isChecked() and self._history):
-            return list(self._history)
+            # Minus the runs the user unticked in the list — session-only,
+            # and the Report Scope says how many are hidden.
+            return [r for r in self._history
+                    if self._run_key(r) not in self._hidden_runs]
         return [self._report] if self._report else []
 
     def _metric_table(self, dates: list, data_rows: list) -> str:
@@ -1296,6 +1456,19 @@ class MeasurementReportDialog(QDialog):
                + f"<div style='{ind}'>{sc['total']}</div>"
                + "<div><b>" + html.escape(tr("Date range:")) + "</b></div>"
                + f"<div style='{ind}'>{html.escape(d0)} – {html.escape(d1)}</div>")
+        # Honesty note: a filtered report must say it is filtered, so it can
+        # never pass as the complete history (Sebastian, 2026-08-10).
+        hidden = (len(self._history) - len(runs)
+                  if getattr(self, "_all_runs_check", None) is not None
+                  and self._all_runs_check.isChecked() else 0)
+        if hidden > 0:
+            note = (tr("One run in the list above is hidden by you (unticked) "
+                       "and is not part of this report.") if hidden == 1
+                    else tr("{n} runs in the list above are hidden by you "
+                            "(unticked) and are not part of this report.")
+                    .format(n=hidden))
+            out += (f"<div style='color:{_C['fail']};margin-top:6px'>"
+                    + html.escape(note) + "</div>")
         return out + self._scope_warnings_html(sc["warnings"])
 
     def _scope_warnings_html(self, warnings: list) -> str:

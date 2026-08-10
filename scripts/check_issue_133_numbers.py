@@ -100,7 +100,7 @@ CITATIONS: list[tuple[str, int, str]] = [
     ("ui/tabs/tab_chart.py", 8311, "_update_patch_count"),
     ("ui/tabs/tab_chart.py", 10413, "_is_verification_target"),
     ("ui/tabs/tab_chart.py", 11666, "write_sidecars"),
-    ("ui/tabs/tab_profile.py", 3988, "Load measurement"),
+    ("ui/tabs/tab_profile.py", 4002, "Load measurement"),
     ("ui/tabs/tab_print.py", 133, "go out of"),
     ("ui/dialogs/layout_options_panel.py", 1044, "Also export a PDF"),
     # Feature A revised the §M print steps (2026-08-09): the guards now name

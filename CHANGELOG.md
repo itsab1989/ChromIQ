@@ -1,5 +1,40 @@
 # Changelog
 
+## v3.14.8-beta.215
+
+### New
+
+- **Leave individual runs out of the measurement report.** The list of runs
+  in the Measurement Report window now shows one checkable row per dated
+  verification. Untick a run to leave it out of the trend, the tables and
+  the exported PDF — nothing on disk changes, and ticking it brings it
+  straight back. When runs are hidden, the report says so plainly, so a
+  filtered report can never be mistaken for the complete history — useful
+  when the "not all printed the same way" warning fires and you want to
+  compare only the runs printed the same way.
+- **Name the installed copy of a profile after its description** (Knut,
+  2026-08-10). A new checkbox above Profile Description in the Build
+  Profile tab — "Profile file name same as description for installed
+  copy" — makes the Install button name the copy it places in the system
+  profile folder after the description, so it is as easy to find there as
+  in an app's colour-management menu. Only that installed copy is renamed;
+  the project's own file, and everything else in ChromIQ, is unaffected.
+  Applies to profiling runs only, as calibration produces no installable
+  profile of its own.
+
+### Fixed
+
+- **The Measurement Report window's bottom could land off-screen**, and on
+  a shorter display the run list showed only about three rows even with
+  several runs recorded. The window is now sized and centred to fit the
+  actual screen (respecting the list's own space needs), and the run list
+  shows at least five rows before it needs its own scrollbar.
+
+Verified on screen against a staged copy of a real project (15/15 checks):
+window fits the screen, the run list sizes correctly, unticking removes
+exactly one run and the hidden-runs note appears, and the install checkbox
+derives and sanitises the file name correctly end to end.
+
 ## v3.14.8-beta.214
 
 ### Fixed
