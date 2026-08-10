@@ -82,6 +82,8 @@ def test_table_taller_than_a_page_still_flows(qapp):
 def test_two_straddlers_resolve_independently(qapp):
     """Several sections in sequence: every table ends up on one page with its
     heading, no matter how the earlier pushes shifted the later sections."""
+    from _fontcheck import skip_without_fonts
+    skip_without_fonts()                 # page breaks pivot on real line heights
     section = "<h3>Cube corners</h3>" + f"<table>{_rows(12)}</table>"
     html = ("<p>" + "filler<br>" * 10 + "</p>") + section + section + section
     doc = _doc(html)
