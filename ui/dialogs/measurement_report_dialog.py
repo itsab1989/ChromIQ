@@ -706,10 +706,12 @@ class MeasurementReportDialog(QDialog):
             resolve_mode(self._settings.get("appearance", "auto")))
 
         close_row = QHBoxLayout()
-        # Clear air between the report view and the button; the bottom inset
-        # comes from the root layout's 13 px margin alone, so the gap under
-        # Close matches the main window's tabs (Sebastian, 2026-08-10).
-        close_row.setContentsMargins(0, 4, 0, 0)
+        # Clear air between the report view and the button (the edge-fade
+        # wrapper around the view swallows the layout spacing, so the gap
+        # must live in this row's own top margin); the bottom inset comes
+        # from the root layout's 13 px margin alone, so the gap under Close
+        # matches the main window's tabs (Sebastian, 2026-08-10).
+        close_row.setContentsMargins(0, 16, 0, 0)
         close_row.addStretch(1)
         close_btn = QPushButton(tr("Close"), self)
         close_btn.clicked.connect(self.accept)
