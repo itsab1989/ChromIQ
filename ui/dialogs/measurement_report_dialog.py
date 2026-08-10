@@ -1306,7 +1306,18 @@ class MeasurementReportDialog(QDialog):
                 thr = (avg_thr, max_thr) if _c is self._trend_de else None
                 tmp.set_data(self._trend_series, metrics, dark=False,
                              y_max=y_max, dec=dec, auto=auto, thresholds=thr)
-                img = tmp.grab().toImage()
+                # Render at 3× and display at the same 600px layout width: a
+                # plain grab() gave a ~96-dpi raster that printed visibly
+                # blurry next to the vector text (Sebastian, 2026-08-10).
+                from PyQt6.QtGui import QImage
+                scale = 3
+                img = QImage(640 * scale, 176 * scale,
+                             QImage.Format.Format_ARGB32_Premultiplied)
+                img.fill(0xFFFFFFFF)
+                ip = QPainter(img)
+                ip.scale(scale, scale)
+                tmp.render(ip)
+                ip.end()
                 url = QUrl(f"chart://{i}")
                 doc.addResource(QTextDocument.ResourceType.ImageResource, url, img)
                 charts_html += (f"<h3 style='margin:4px 0 0'>{html.escape(title)}</h3>"
