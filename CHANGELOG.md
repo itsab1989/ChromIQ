@@ -1,5 +1,22 @@
 # Changelog
 
+## v3.14.8-beta.217
+
+### Fixed
+
+- **"Save report as PDF…" opens ChromIQ's own save dialog** — with the
+  sidebar shortcuts, including your working folder — instead of the bare
+  system dialog. A file name typed without an extension now reliably comes
+  out as a .pdf.
+- **The IMPORT module's green folder button opens ChromIQ's own file
+  dialog too** — the same sidebar shortcuts when picking the i1Profiler
+  measurement to import. These were the last two file dialogs in the app
+  still using the bare system one.
+- **The PDF's trend charts sit on a white ground.** The exported report was
+  already light throughout, but the charts were grabbed with the app's dark
+  palette showing through their transparent background — light lines on a
+  black slab. The window's dark-mode charts are unchanged.
+
 ## v3.14.8-beta.216
 
 ### Fixed

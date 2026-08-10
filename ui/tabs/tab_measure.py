@@ -8030,12 +8030,16 @@ class TabMeasure(QWidget):
                 folder=str(run.verifications_dir))
 
     def _on_import_browse(self) -> None:
-        from PyQt6.QtWidgets import QFileDialog
+        # The house file dialog — sidebar shortcuts incl. the working folder
+        # — not the bare native one (Sebastian, 2026-08-10).
         start_dir = str(self._settings.get("import_measurement_dir", "") or
                         str(Path.home()))
-        path, _ = QFileDialog.getOpenFileName(
-            self, tr("Choose the measurement to import"), start_dir,
-            tr("Measurement files (*.mxf *.cxf *.txt *.ti3);;All files (*)"))
+        path = open_file_dialog(
+            self, tr("Choose the measurement to import"),
+            tr("Measurement files (*.mxf *.cxf *.txt *.ti3);;All files (*)"),
+            start_dir=start_dir,
+            extra_path=self._settings.get("custom_output_path", ""),
+            declutter_settings=self._settings)
         if not path:
             return
         self._import_path = Path(path)

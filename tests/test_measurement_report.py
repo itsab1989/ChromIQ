@@ -143,11 +143,15 @@ def test_report_trend_series_extracts_plottable_metrics() -> None:
 
 
 def test_export_pdf_writes_file(qapp, chart, tmp_path, monkeypatch) -> None:
-    from PyQt6.QtWidgets import QFileDialog
+    import ui.widgets
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
     out = tmp_path / "report.pdf"
-    monkeypatch.setattr(QFileDialog, "getSaveFileName",
-                        staticmethod(lambda *a, **k: (str(out), "PDF (*.pdf)")))
+    # The export goes through the HOUSE save dialog now — mocking the old
+    # native getSaveFileName left the real dialog to open, and its modal
+    # exec() hung the whole gate offscreen (immune even to pytest-timeout's
+    # thread method). Patch the helper the code actually calls.
+    monkeypatch.setattr(ui.widgets, "save_file_dialog",
+                        lambda *a, **k: str(out))
     dlg = MeasurementReportDialog({"appearance": "light"}, initial_ti3=chart)
     dlg._export_pdf()
     assert out.exists() and out.stat().st_size > 1000
