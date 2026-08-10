@@ -158,3 +158,51 @@ def test_report_list_caps_and_scrolls_for_many_runs(qapp, tmp_path):
     finally:
         dlg.hide()
         dlg.deleteLater()
+
+
+def test_pdf_default_location_follows_the_four_tier_design(qapp, tmp_path):
+    """Knut's "Where are my files?" design (reconfirmed 2026-08-10): the PDF's
+    proposed folder is the reports/ folder of the tightest place containing
+    exactly the SELECTED data — one dated check → that date's reports/;
+    several checks of one run → verifications/reports/ (NOT the project root,
+    even with "Show all measurement runs" on)."""
+    from tests.test_import_measurement_module import (_cgats, _PATCHES,
+                                                      _verify_env)
+    s, fm, ctl, run = _verify_env(tmp_path)
+    import os as _os, time as _time
+    for i in range(3):
+        v = run.new_verification()
+        v.ensure_dir()
+        v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES))
+        t = _time.time() - 300 + i * 60
+        _os.utime(v.measurement_ti3, (t, t))
+    verifs = run.verifications()
+    first = verifs[0].measurement_ti3
+
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    dlg = MeasurementReportDialog(s, None, initial_ti3=first)
+    try:
+        # Several dated checks of ONE run selected → verifications/reports.
+        assert dlg._all_runs_check.isChecked()
+        assert len(dlg._runs_for_report()) == 3
+        assert dlg._report_dir() == run.verifications_dir / "reports"
+
+        # Untick down to a single date → that date's own reports folder.
+        run_rows = [i for i, (k, _s, _key) in enumerate(dlg._list_rows)
+                    if k == "run"]
+        kept = None
+        for idx in run_rows[1:]:
+            dlg._profile_list.item(idx).setCheckState(Qt.CheckState.Unchecked)
+        (only,) = dlg._runs_for_report()
+        kept = Path(only["_origin_dir"])
+        assert kept.name.startswith("2026-")          # a dated folder
+        assert dlg._report_dir() == kept / "reports"
+
+        # All-runs OFF → the single shown measurement's own dated folder
+        # (the dialog anchors the newest date; tier 1 follows what is shown).
+        dlg._all_runs_check.setChecked(False)
+        shown = Path(dlg._report["_origin_dir"])
+        assert shown.parent == run.verifications_dir
+        assert dlg._report_dir() == shown / "reports"
+    finally:
+        dlg.deleteLater()

@@ -898,6 +898,11 @@ class MeasurementReportDialog(QDialog):
                             rep["created"] = created
                     except Exception:  # noqa: BLE001
                         pass
+            # Session-only: where this run lives on disk. Saved reports carry
+            # only the measurement's NAME, so the four-tier PDF location
+            # (Knut's "Where are my files?" card) needs the origin recorded
+            # here — reports/report_*.json sits one level under it.
+            rep["_origin_dir"] = str(p.parent.parent)
             runs.append(rep)
         # #130/#133: a dated verification trends across ALL of this run's
         # dates. A date measured with "Save measurement report" switched off
@@ -915,11 +920,14 @@ class MeasurementReportDialog(QDialog):
                 cand = d / ti3.name
                 if cand.is_file():
                     try:
-                        runs.append(build_report(cand))
+                        rep = build_report(cand)
+                        rep["_origin_dir"] = str(d)
+                        runs.append(rep)
                     except Exception:  # noqa: BLE001 — one bad date must
                         continue       # not empty the whole history
         if not runs:
             runs = [build_report(ti3)]
+            runs[0]["_origin_dir"] = str(ti3.parent)
         runs.sort(key=lambda r: str(r.get("created") or ""))
         name = runs[-1].get("chart") or ti3.stem
         return name, runs
@@ -1224,35 +1232,29 @@ class MeasurementReportDialog(QDialog):
         return Path(*common) if common else dirs[0]
 
     def _report_dir(self) -> Path:
-        """Where a PDF is saved — the ``reports`` folder at the tightest place that
-        still contains everything the report covers (#130 Hole 5, Knut). The four
-        natural homes, from the least-common-ancestor of the measurements:
+        """Where a PDF is saved — the ``reports`` folder at the tightest place
+        that still contains everything the report covers (#130 Hole 5 + the
+        "Where are my files?" card, Knut — reconfirmed 2026-08-10). The four
+        homes, from the least-common-ancestor of the covered measurements:
 
-        * a single profiling run  → ``runs/<id>/reports``
-        * a single verification   → ``runs/<id>/verifications/<date>/reports``
-        * several verifications of one run → ``runs/<id>/verifications/reports``
-        * several runs / the whole profile → ``<project>/reports`` (next to ``runs/``)
+        * a single dated verification     → ``…/verifications/<date>/reports``
+        * several checks of one run       → ``…/runs/<id>/verifications/reports``
+        * a profiling run                 → ``…/runs/<id>/reports``
+        * several runs / whole profile    → ``<project>/reports`` (next to ``runs/``)
 
-        For a browsed / imported measurement that isn't in a ChromIQ project it
-        goes in a ``reports`` folder next to the file itself."""
+        The covered set is exactly what the report shows — the same list as the
+        window and the PDF, runs the user unticked excluded — so the location
+        follows the SELECTED data, not what happens to be loaded. For a browsed
+        measurement outside any ChromIQ project the report goes in a ``reports``
+        folder next to the file itself."""
         from core.file_manager import reports_subdir
-        # The measurements this report actually covers: every loaded source when
-        # 'all runs' is on, otherwise just the anchored one.
-        if self._all_runs_check.isChecked() and self._sources:
-            lca = self._lca_dir([s["origin"].parent for s in self._sources])
-        else:
-            lca = self._anchor_dir()
-        # If the common ancestor is the ``runs`` container itself, the report spans
-        # multiple runs → it belongs to the whole profile, next to ``runs/``.
+        dirs = [Path(r["_origin_dir"])
+                for r in self._runs_for_report() if r.get("_origin_dir")]
+        lca = self._lca_dir(dirs) if dirs else self._anchor_dir()
+        # The common ancestor being the ``runs`` container itself means the
+        # report spans multiple runs → it belongs to the whole profile.
         if lca.name == "runs":
             return reports_subdir(lca.parent)
-        # An all-runs report is a whole-profile document even when only one of the
-        # profile's measurements is physically loaded: root it at the project (next
-        # to ``runs/``), not inside the single run that happens to be open.
-        if self._all_runs_check.isChecked():
-            for anc in (lca, *lca.parents):
-                if anc.name == "runs":
-                    return reports_subdir(anc.parent)
         return reports_subdir(lca)
 
     def _on_reveal(self) -> None:
