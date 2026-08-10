@@ -6,7 +6,7 @@ import re
 import ssl
 import threading
 import urllib.request
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 
 import certifi
 
@@ -17,7 +17,9 @@ from core.version import APP_VERSION
 
 log = get_logger(__name__)
 
-_RELEASES_API = "https://api.github.com/repos/itsab1989/ChromIQ/releases?per_page=30"
+_RELEASES_API = "https://api.github.com/repos/itsab1989/ChromIQ/releases?per_page=100"
+#: The latest FULL release, however many pre-release tags sit above it.
+_LATEST_API = "https://api.github.com/repos/itsab1989/ChromIQ/releases/latest"
 _RELEASES_PAGE = "https://github.com/itsab1989/ChromIQ/releases"
 
 _VERSION_RE = re.compile(
@@ -77,32 +79,43 @@ class UpdateChecker(QObject):
         except RuntimeError:          # the checker was destroyed meanwhile
             pass
 
+    @staticmethod
+    def _fetch(url: str):
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "ChromIQ-update-check"})
+        ctx = ssl.create_default_context(cafile=certifi.where())
+        with urllib.request.urlopen(req, timeout=10, context=ctx) as resp:
+            return json.loads(resp.read())
+
     def _run(self) -> None:
         try:
-            req = urllib.request.Request(
-                _RELEASES_API,
-                headers={"User-Agent": "ChromIQ-update-check"},
-            )
-            ctx = ssl.create_default_context(cafile=certifi.where())
-            with urllib.request.urlopen(req, timeout=10, context=ctx) as resp:
-                data = json.loads(resp.read())
-            if not isinstance(data, list):
-                self._emit("check_failed", "Unexpected response from releases API.")
-                return
-
             # Pre-release users see pre-release tags as upgrade candidates;
             # stable users don't, so we never push someone from a final
             # release onto a beta.
             running_is_pre = _is_prerelease(APP_VERSION)
-            candidates = [
-                r["tag_name"]
-                for r in data
-                if r.get("tag_name")
-                and not r.get("draft", False)
-                and (running_is_pre or not r.get("prerelease", False))
-            ]
+            if running_is_pre:
+                data = self._fetch(_RELEASES_API)
+                if not isinstance(data, list):
+                    self._emit("check_failed",
+                               "Unexpected response from releases API.")
+                    return
+                candidates = [
+                    r["tag_name"] for r in data
+                    if r.get("tag_name") and not r.get("draft", False)
+                ]
+            else:
+                # A stable build must NOT page through the releases list: in a
+                # busy beta period the first page holds only beta tags, every
+                # one of them is filtered out, and the check failed with "No
+                # release tag found" for every stable user (#142). GitHub's
+                # /releases/latest returns the newest full release directly,
+                # however many pre-releases sit above it.
+                data = self._fetch(_LATEST_API)
+                candidates = ([data["tag_name"]]
+                              if isinstance(data, dict) and data.get("tag_name")
+                              else [])
             if not candidates:
-                self._emit("check_failed", "No release tag found.")
+                self._emit("check_failed", "No release found to compare against.")
                 return
 
             latest = max(candidates, key=_parse_version)
@@ -110,6 +123,14 @@ class UpdateChecker(QObject):
                 self._emit("update_available", latest)
             else:
                 self._emit("up_to_date")
+        except HTTPError as exc:
+            log.debug("Update check failed: %s", exc)
+            if exc.code == 404 and not _is_prerelease(APP_VERSION):
+                # /releases/latest 404s when no full release exists at all.
+                self._emit("check_failed",
+                           "No finished release is published yet.")
+            else:
+                self._emit("check_failed", f"GitHub answered {exc.code}.")
         except URLError as exc:
             log.debug("Update check failed: %s", exc)
             self._emit("check_failed", str(exc.reason))
