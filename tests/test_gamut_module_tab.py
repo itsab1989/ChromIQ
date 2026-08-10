@@ -234,3 +234,85 @@ def test_auto_fills_the_manual_pages(qapp, tmp_path, monkeypatch):
     tab._gamut_auto_check.setChecked(False)
     tab._update_gamut_count_line()
     assert tab._gamut_count_spin.isEnabled()
+
+
+def test_patch_set_and_preset_buttons_park_in_the_gamut_module(qapp, tmp_path):
+    """They bring their OWN patches, which fights the module's purpose
+    (Basti, 2026-08-10) — parked while it is active, restored on leaving."""
+    s, fm, ctl = _env(tmp_path)
+    run = fm.project().run("run1")
+    run.profile_icc.write_bytes(b"icc")
+    tab = _chart_tab(s, fm, ctl)
+    normal_load_tip = tab._load_ti1_btn.toolTip()
+    normal_preset_tip = tab._builtin_preset_btn.toolTip()
+    ctl.set_profile_run("run1")
+    ctl.set_run_type(RUN_TYPE_VERIFICATION)
+
+    tab._switch_mode("gamut")
+    assert not tab._load_ti1_btn.isEnabled()
+    assert not tab._builtin_preset_btn.isEnabled()
+    assert "FROM PROFILE GAMUT" in tab._load_ti1_btn.toolTip()
+    assert "FROM PROFILE GAMUT" in tab._builtin_preset_btn.toolTip()
+
+    tab._switch_mode("manual")
+    assert tab._load_ti1_btn.isEnabled()
+    assert tab._builtin_preset_btn.isEnabled()
+    assert tab._load_ti1_btn.toolTip() == normal_load_tip
+    assert tab._builtin_preset_btn.toolTip() == normal_preset_tip
+
+
+def test_auto_update_assesses_the_verify_chart_not_the_profiling_one(
+        qapp, tmp_path, monkeypatch):
+    """Regression (Basti, 2026-08-10): with the run's profiling measurement on
+    disk, every knob turn answered with the preview-paused note — the auto
+    path asked about the profiling chart even though a verification target
+    re-lays the VERIFY chart. Free while no dated verification is measured;
+    paused again once one is."""
+    s, fm, ctl = _env(tmp_path)
+    run = fm.project().run("run1")
+    run.profile_icc.write_bytes(b"icc")
+    # The profiling side has real work — the exact state that wrongly paused.
+    run.measurement_ti3.write_text("CTI3\n")
+    run.verifications_dir.mkdir(parents=True, exist_ok=True)
+    run.verify_chart_ti2.write_text("CTI2\n")
+    ti1 = run.verifications_dir / "gamut.ti1"
+    ti1.write_text("CTI1\n")
+    s.set("auto_update_preview", True)
+
+    tab = _chart_tab(s, fm, ctl)
+    ctl.set_profile_run("run1")
+    ctl.set_run_type(RUN_TYPE_VERIFICATION)
+    tab._switch_mode("gamut")
+    tab._current_ti1_path = ti1
+    built, paused = [], []
+    monkeypatch.setattr(tab, "_generate_from_ti1",
+                        lambda *a, **k: built.append(1))
+    monkeypatch.setattr(tab, "_say_preview_is_paused",
+                        lambda: paused.append(1))
+
+    tab._auto_regenerate_preview()
+    assert built and not paused, "nothing measured yet — experimenting is free"
+
+    # A measured dated verification with no snapshot has unknown provenance
+    # → the §4 pause applies.
+    v = run.new_verification()
+    v.ensure_dir()
+    v.measurement_ti3.write_text("CTI3\n")
+    built.clear()
+    tab._auto_regenerate_preview()
+    assert paused and not built
+
+    # Its snapshot matches the live chart → it describes it → still paused.
+    from workflow.verify_chart_snapshot import snapshot_chart
+    snapshot_chart(v)
+    built.clear(); paused.clear()
+    tab._auto_regenerate_preview()
+    assert paused and not built
+
+    # Generate replaced the live chart (its content changed): the measured
+    # date now describes its snapshot, not the live chart — experimenting is
+    # free again (Basti: "after hitting generate a working live update").
+    run.verify_chart_ti2.write_text("CTI2 regenerated\n")
+    built.clear(); paused.clear()
+    tab._auto_regenerate_preview()
+    assert built and not paused

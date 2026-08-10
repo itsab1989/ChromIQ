@@ -92,7 +92,9 @@ class BuiltinPresetButton(QToolButton):
         w, h = self.width(), self.height()
         s = min(w, h)
         color = QColor(SPEC_MAGENTA)
-        if not self._hover:
+        if not self.isEnabled():
+            color.setAlpha(70)      # parked (e.g. FROM PROFILE GAMUT active)
+        elif not self._hover:
             color.setAlpha(230)
         # Three list rows: a rounded-square bullet + a line, centred with a
         # comfortable margin so the glyph reads as a small icon in the hit target.

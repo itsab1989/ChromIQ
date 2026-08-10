@@ -1,5 +1,30 @@
 # Changelog
 
+## v3.14.8-beta.212
+
+### Changed
+
+- **FROM PROFILE GAMUT parks the two header shortcuts that bring their own
+  patches** (Basti, 2026-08-10). "Load patch set" and the built-in presets
+  button grey out while the module is active — a loaded patch set would be
+  silently ignored by Generate, and a preset would switch the module away and
+  replace the chart. Their tooltips say why and where to go instead, and both
+  come back the moment you switch to GUIDED or MANUAL.
+
+### Fixed
+
+- **"Auto-update preview" works again while experimenting with a
+  verification chart's layout** (Basti, 2026-08-10). The pause guard asked
+  about the run's *profiling* chart, so once a run had its profiling
+  measurement the preview was paused forever — every knob turn answered with
+  the paused note. It now judges the chart the re-layout actually touches:
+  the verification chart, and only a measured dated verification that
+  describes the chart currently on disk pauses it. Dates whose stored chart
+  snapshot differs (e.g. after you knowingly regenerated the chart) protect
+  nothing that a re-layout could strand, so the live update keeps working —
+  and it pauses again as soon as a verification is measured with the new
+  chart.
+
 ## v3.14.8-beta.211
 
 ### Fixed

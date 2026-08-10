@@ -2129,7 +2129,9 @@ class PatchGridButton(QToolButton):
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         s = float(min(self.width(), self.height()))
         color = QColor(self._color)
-        if not self._hover:
+        if not self.isEnabled():
+            color.setAlpha(70)      # parked (e.g. FROM PROFILE GAMUT active)
+        elif not self._hover:
             color.setAlpha(230)
         cx, cy = self.width() / 2.0, self.height() / 2.0
         if self._page:

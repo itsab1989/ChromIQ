@@ -1546,6 +1546,10 @@ class TabChart(QWidget):
         self._builtin_preset_btn = BuiltinPresetButton(_hdr_trailing)
         self._builtin_preset_btn.clicked.connect(self._open_builtin_preset_overlay)
         _ht.addWidget(self._builtin_preset_btn)
+        # Remembered so _update_header_buttons_for_mode can put the normal
+        # tooltips back after the gamut module parked the buttons.
+        self._load_ti1_tip = self._load_ti1_btn.toolTip()
+        self._builtin_preset_tip = self._builtin_preset_btn.toolTip()
         self._reveal_folder_btn = RevealFolderButton(SPEC_MAGENTA, _hdr_trailing)
         self._reveal_folder_btn.setToolTip(tr(
             "Open the folder holding the generated chart's files (the TIFF "
@@ -4491,6 +4495,7 @@ class TabChart(QWidget):
         self._guided_btn.setChecked(mode == "guided")
         self._manual_btn.setChecked(mode == "manual")
         self._gamut_btn.setChecked(mode == "gamut")
+        self._update_header_buttons_for_mode()
         self._update_isis_preview_banner()
         self._refresh_name_prefix()     # apply the prefix to the now-active field
         # Auto-update-preview is a Manual-only control (Knut).
@@ -5641,6 +5646,37 @@ class TabChart(QWidget):
         self._preset_del_btn.setEnabled(
             self._is_deletable_preset(self._last_preset_index)
         )
+
+    def _update_header_buttons_for_mode(self) -> None:
+        """Park "Load patch set" and the presets button while FROM PROFILE
+        GAMUT is active (Basti, 2026-08-10): this module asks the run's
+        profile which colours to test, so both shortcuts fight its purpose —
+        a loaded patch set would be silently ignored by Generate, and a
+        preset would switch the module away and replace the chart. The
+        buttons grey out and their tooltips say why and where to go instead.
+        """
+        if getattr(self, "_load_ti1_btn", None) is None \
+                or getattr(self, "_builtin_preset_btn", None) is None:
+            return                       # reached during UI build
+        gamut = self._mode_name() == "gamut"
+        cursor = (Qt.CursorShape.ArrowCursor if gamut
+                  else Qt.CursorShape.PointingHandCursor)
+        self._load_ti1_btn.setEnabled(not gamut)
+        self._load_ti1_btn.setCursor(cursor)
+        self._load_ti1_btn.setToolTip(tr(
+            "Not available in FROM PROFILE GAMUT.\n"
+            "This module asks the run's profile which colours to test, so a "
+            "patch set of your own can't be used here. To lay out a loaded "
+            "patch set, switch to GUIDED or MANUAL first.")
+            if gamut else self._load_ti1_tip)
+        self._builtin_preset_btn.setEnabled(not gamut)
+        self._builtin_preset_btn.setCursor(cursor)
+        self._builtin_preset_btn.setToolTip(tr(
+            "Not available in FROM PROFILE GAMUT.\n"
+            "A preset brings its own ready-made patch set, but this module "
+            "asks the run's profile which colours to test. To use a built-in "
+            "preset, switch to GUIDED or MANUAL first.")
+            if gamut else self._builtin_preset_tip)
 
     def _open_builtin_preset_overlay(self) -> None:
         """Show the speech-bubble overlay of built-in presets under the star button."""
@@ -12354,11 +12390,52 @@ class TabChart(QWidget):
             _run = self._target_run()          # the bar's run, not the project's
         except Exception:      # noqa: BLE001
             _run = None
-        if assess_profiling_chart(_run).warn:
+        # Assess the chart the re-layout actually touches. For a verification
+        # target that is the VERIFY chart, and the stake is narrower still:
+        # only a measured dated verification that DESCRIBES THE LIVE CHART is
+        # stranded by a re-layout — a date whose stored snapshot differs
+        # already describes an earlier chart (Restore Used Chart brings it
+        # back). Asking about the profiling chart here paused the preview
+        # forever once the run had its profiling measurement; asking about
+        # every measured date would pause it forever once ANY verification
+        # existed, even straight after Generate had knowingly replaced the
+        # chart (Basti, 2026-08-10: "after hitting generate a working live
+        # update would be nice").
+        if self._is_verification_target():
+            warn = self._verify_live_chart_has_measured_dates(_run)
+        else:
+            warn = assess_profiling_chart(_run).warn
+        if warn:
             self._say_preview_is_paused()
             return
         self._last_auto_sig = self._layout_signature()
         self._generate_from_ti1(ti1, ask=False)
+
+    @staticmethod
+    def _verify_live_chart_has_measured_dates(run) -> bool:
+        """True when a measured dated verification was made with the verify
+        chart currently on disk — the real §4 stake for re-laying it.
+
+        A date whose stored chart snapshot DIFFERS from the live chart
+        describes an earlier chart; replacing the live one again strands
+        nothing of it. A measured date with no snapshot has unknown
+        provenance, so it stays protected."""
+        from workflow.verify_chart_snapshot import (has_snapshot,
+                                                    live_differs_from_snapshot)
+        if run is None:
+            return False
+        try:
+            if not run.has_verify_chart():
+                return False
+            for v in run.verifications():
+                if not v.exists():
+                    continue          # no measurement — nothing at stake
+                if not has_snapshot(v) or not live_differs_from_snapshot(v):
+                    return True
+        except Exception:      # noqa: BLE001 — unreadable state: stay safe
+            log.warning("could not judge the verification dates", exc_info=True)
+            return True
+        return False
 
     #: Message text — the same sentences on screen and in the log, so a user
     #: comparing the two never wonders whether they mean different things.
