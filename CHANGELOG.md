@@ -1,5 +1,22 @@
 # Changelog
 
+## v3.14.8-beta.220
+
+### Fixed
+
+- **The PDF report's "Worst patches" heading no longer strands at the bottom
+  of a page** with its table on the next — a table pushed to the next page
+  now takes its heading along. Verified across six generated report
+  configurations (1/2/4/10 dates, summary-only, profiling) with a
+  page-by-page scan: no orphaned headings, no margin overflow, no
+  overlapping text, a footer on every page.
+- **The trend chart's legend can no longer be painted across the graph** —
+  when its labels wrap to a second row (as the five Colour-accuracy labels
+  do at PDF width, or on screen in a narrow window), the plot now starts
+  below the whole legend.
+- **The PDF's trend charts are sharp** (~300 dpi) instead of stretched
+  96-dpi screenshots next to vector text.
+
 ## v3.14.8-beta.219
 
 ### Fixed
