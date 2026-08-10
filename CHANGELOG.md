@@ -1,5 +1,14 @@
 # Changelog
 
+## v3.14.8-beta.219
+
+### Fixed
+
+- **Switching Welcome cards can no longer leave the previous card's rows
+  painting over the new one** — removed step rows are hidden the moment
+  they leave the layout, instead of only after Qt's deferred cleanup, so
+  not even a one-frame bleed-through between cards is possible.
+
 ## v3.14.8-beta.218
 
 ### New
