@@ -492,13 +492,22 @@ class MeasurementReportDialog(QDialog):
         # report covers. Each list entry is one profile's runs (Knut).
         add_row = QHBoxLayout()
         self._add_btn = QPushButton(tr("Add Profile's Measurements…"), self)
+        # Compact utility height (Sebastian, 2026-08-10) — these five are
+        # housekeeping controls, not the window's primary action; Close
+        # keeps the standard height. A per-widget rule beats the app-wide
+        # 28px QSS min-height (the scanin dialog's pattern).
+        _compact_btn = ("QPushButton { padding: 1px 14px;"
+                        " min-height: 26px; max-height: 26px; }")
+        self._add_btn.setStyleSheet(_compact_btn)
         self._add_btn.clicked.connect(self._on_add_project)
         add_row.addWidget(self._add_btn)
         self._remove_btn = QPushButton(tr("Remove Profile's Measurements…"), self)
+        self._remove_btn.setStyleSheet(_compact_btn)
         self._remove_btn.clicked.connect(self._on_remove_profile)
         self._remove_btn.setEnabled(False)
         add_row.addWidget(self._remove_btn)
         self._clear_btn = QPushButton(tr("Clear List"), self)
+        self._clear_btn.setStyleSheet(_compact_btn)
         self._clear_btn.clicked.connect(self._on_clear_list)
         self._clear_btn.setEnabled(False)
         add_row.addWidget(self._clear_btn)
@@ -565,10 +574,12 @@ class MeasurementReportDialog(QDialog):
 
         out_row = QHBoxLayout()
         self._pdf_btn = QPushButton(tr("Save report as PDF…"), self)
+        self._pdf_btn.setStyleSheet(_compact_btn)
         self._pdf_btn.clicked.connect(self._export_pdf)
         self._pdf_btn.setEnabled(False)
         out_row.addWidget(self._pdf_btn)
         self._reveal_btn = QPushButton(tr("Reveal folder"), self)
+        self._reveal_btn.setStyleSheet(_compact_btn)
         self._reveal_btn.clicked.connect(self._on_reveal)
         self._reveal_btn.setEnabled(False)
         out_row.addWidget(self._reveal_btn)
