@@ -1,5 +1,17 @@
 # Changelog
 
+## v3.14.8-beta.223
+
+### Fixed
+
+- **"Judged as measured" no longer reads like a rendering intent.** The
+  report row now says "as measured — no white adjustment" and states
+  outright that this is a way of comparing, not a rendering intent — a raw
+  print has no intent at all. A new Dictionary entry, "Judged as measured
+  (no white adjustment)", explains the distinction and cross-links its
+  counterpart "Judged relative to paper white"; the word "absolute" now
+  appears only where it truly names the colorimetric intent.
+
 ## v3.14.8-beta.222
 
 ### New
