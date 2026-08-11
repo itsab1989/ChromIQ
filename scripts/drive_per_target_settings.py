@@ -237,10 +237,31 @@ def main() -> int:      # noqa: PLR0915, PLR0912
     from workflow import per_target_settings as pts
 
     def chart_snap():
-        return pts.snapshot(w._tab_chart)
+        # Registry rows PLUS the non-parameter ui state (Knut's beta.3
+        # bug-test): module, Guided shared settings, engine toggle+recipe,
+        # gamut options — flattened under "ui:" keys for the comparisons,
+        # with the guided dict split per field so the sidecar-owned pair
+        # (instrument, paper) can carry its own verdict rule.
+        snap = dict(pts.snapshot(w._tab_chart))
+        for k, v in (w._tab_chart._collect_ui_state() or {}).items():
+            if k == "guided" and isinstance(v, dict):
+                for gk, gv in v.items():
+                    snap[f"ui:guided.{gk}"] = gv
+            else:
+                snap[f"ui:{k}"] = v
+        return snap
 
     def chart_apply(data):
-        pts.apply(w._tab_chart, data)
+        pts.apply(w._tab_chart,
+                  {k: v for k, v in data.items() if not k.startswith("ui:")})
+        ui: dict = {}
+        for k, v in data.items():
+            if k.startswith("ui:guided."):
+                ui.setdefault("guided", {})[k.split(".", 1)[1]] = v
+            elif k.startswith("ui:"):
+                ui[k[3:]] = v
+        if ui:
+            w._tab_chart._apply_ui_state(ui)
 
     def measure_snap():
         return ms.snapshot(w._tab_measure)
@@ -249,10 +270,14 @@ def main() -> int:      # noqa: PLR0915, PLR0912
         ms.apply(w._tab_measure, data)
 
     def profile_snap():
-        return w._tab_profile._m_collect_preset_data()
+        # The Manual pair PLUS the Guided module's own fields (g_…).
+        t = w._tab_profile
+        return {**t._m_collect_preset_data(),
+                **t._collect_guided_profile_fields()}
 
     def profile_apply(data):
         w._tab_profile._m_apply_preset_data(data)
+        w._tab_profile._apply_guided_profile_fields(data)
 
     def print_snap():
         t = w._tab_print
@@ -294,6 +319,18 @@ def main() -> int:      # noqa: PLR0915, PLR0912
             mutated = {k: _mutate_record(rec, seed, salt)
                        for salt, (k, rec) in enumerate(sorted(base.items()))}
             apply_fn(mutated)
+            if tab_name == "Create Chart":
+                # The ui-state dicts (guided, gamut) need explicit
+                # per-target values — the generic mutator only reaches
+                # {"enabled","value"} records.
+                try:
+                    insts = ["i1", "CM", "SS", "CM"]
+                    w._tab_chart._shared_set("guided", "instrument",
+                                             insts[seed % len(insts)])
+                    w._tab_chart._shared_set("guided", "pages", 1 + seed)
+                    w._tab_chart._gamut_count_spin.setValue(200 + 50 * seed)
+                except Exception as e:      # noqa: BLE001
+                    note(f"chart ui imprint skipped: {e}")
             settle(80)
             got = snap_fn()          # what the screen actually accepted
             # Same-target round trip: leave the tab (files it) and come back
@@ -318,14 +355,49 @@ def main() -> int:      # noqa: PLR0915, PLR0912
         activate(w._tab_check_refine if hasattr(w, "_tab_check_refine")
                  else TABS[0][1])
 
+    # ---------------------------------------------------------- Phase 1.5
+    # Localise any instrument leak: what does each store's DISK hold right
+    # after the imprints, before any revisit?
+    print("\n=== Phase 1.5 — instrument on disk right after the imprints ===")
+    disk_stores = {
+        "run-A profiling": work / src.name / "runs" / run_a / "meta.json",
+        "run-B profiling": work / src.name / "runs" / run_b / "meta.json",
+        "run-A verification": (work / src.name / "runs" / run_a /
+                               "verifications" / "meta.json"),
+        "calibration": work / src.name / "cal" / "meta.json",
+    }
+    for tname, jf in disk_stores.items():
+        want_i = (expected[tname]["Create Chart"].get("printtarg-i") or {}).get("value")
+        want_g = expected[tname]["Create Chart"].get("ui:guided.instrument")
+        if not jf.is_file():
+            note(f"{tname}: no store file yet")
+            continue
+        body = json.loads(jf.read_text())
+        got_i = ((body.get("create_chart_settings") or {}).get("printtarg-i")
+                 or {}).get("value")
+        got_g = ((body.get("create_chart_ui") or {}).get("guided")
+                 or {}).get("instrument")
+        check(f"1.5 {tname}: disk instrument == imprint",
+              got_i == want_i and got_g == want_g,
+              f"disk -i={got_i!r}/guided={got_g!r} want {want_i!r}/{want_g!r}")
+
     # The chart's SIDECAR owns the patch count on any target whose chart
     # carries a recipe: selecting the target reloads the chart (§2 L5), and
     # Knut ruled the sidecar "is the correct value to use" (2026-08-11). So
     # targen -f carries no cross-target verdict — the stored value is real,
     # but the chart's own count wins on screen, by design.
-    VOLATILE.setdefault("Create Chart", set()).add("targen-f")
-    note("targen-f excluded from verdicts: the chart sidecar owns it (L5, "
-         "Knut's ruling)")
+    # Sidecar-owned on any target whose chart exists (every demo target):
+    # selecting the target reloads the chart, and Knut ruled its sidecar "is
+    # the correct value to use" — it seeds the patch count, instrument,
+    # paper and (for engine charts) the recipe over the stored values. The
+    # store still carries them for the CHARTLESS case, which Phase 6 proves.
+    VOLATILE.setdefault("Create Chart", set()).update({
+        "targen-f", "printtarg-i", "printtarg-p",
+        "ui:guided.instrument", "ui:guided.paper", "ui:guided.pages",
+        "ui:engine_on", "ui:engine_recipe", "ui:mode",
+    })
+    note("sidecar-owned keys excluded from verdicts (L5, Knut's precedence "
+         "ruling): patch count, instrument, paper, engine toggle/recipe")
 
     # ------------------------------------------------------------ Phase 2
     print("\n=== Phase 2 — every target shows ITS OWN values (two rounds) ===")
@@ -373,23 +445,44 @@ def main() -> int:      # noqa: PLR0915, PLR0912
             check(f"{tname}: {jf.relative_to(work)} exists", False, "missing")
             continue
         body = json.loads(jf.read_text())
-        chart = body.get("create_chart_settings") or {}
+        chart = dict(body.get("create_chart_settings") or {})
+        for k, v in (body.get("create_chart_ui") or {}).items():
+            if k == "guided" and isinstance(v, dict):
+                for gk, gv in v.items():
+                    chart[f"ui:guided.{gk}"] = gv
+            else:
+                chart[f"ui:{k}"] = v
         want = expected[tname]["Create Chart"]
         diffs = {k for k in set(chart) | set(want)
                  if k not in skip_chart and chart.get(k) != want.get(k)}
+        sample = ""
+        if diffs:
+            k0 = sorted(diffs)[0]
+            sample = f" e.g. {k0}: disk={chart.get(k0)!r} want={want.get(k0)!r}"
         check(f"{tname}: meta.json create_chart_settings == its imprint",
-              not diffs, f"{len(diffs)} differ: {sorted(diffs)[:8]}")
+              not diffs, f"{len(diffs)} differ: {sorted(diffs)[:8]}{sample}")
     # F1 (fixed 2026-08-11): the verification's sections live in their OWN file
     ver_store = work / src.name / "runs" / run_a / "verifications" / "meta.json"
     if ver_store.is_file():
         vbody = json.loads(ver_store.read_text())
-        vchart = vbody.get("create_chart_settings") or {}
+        vchart = dict(vbody.get("create_chart_settings") or {})
+        for k, v in (vbody.get("create_chart_ui") or {}).items():
+            if k == "guided" and isinstance(v, dict):
+                for gk, gv in v.items():
+                    vchart[f"ui:guided.{gk}"] = gv
+            else:
+                vchart[f"ui:{k}"] = v
         want = expected["run-A verification"]["Create Chart"]
         diffs = {k for k in set(vchart) | set(want)
                  if k not in skip_chart and vchart.get(k) != want.get(k)}
+        sample = ""
+        if diffs:
+            k0 = sorted(diffs)[0]
+            sample = (f" e.g. {k0}: disk={vchart.get(k0)!r} "
+                      f"want={want.get(k0)!r}")
         check("run-A verification: verifications/meta.json == its imprint "
               "(own store, F1)", not diffs,
-              f"{len(diffs)} differ: {sorted(diffs)[:8]}")
+              f"{len(diffs)} differ: {sorted(diffs)[:8]}{sample}")
     else:
         check("run-A verification has its own store file (F1)", False,
               f"{ver_store.relative_to(work)} missing")
@@ -448,6 +541,40 @@ def main() -> int:      # noqa: PLR0915, PLR0912
     check("run-B verification (nothing stored) is NOT run-A's values",
           not same_as_a and not same_as_ver_a,
           "a fresh target opened on another target's values (S4/S5 broken)")
+
+    # ------------------------------------------------------------ Phase 6
+    print("\n=== Phase 6 — a CHARTLESS run keeps instrument/paper/engine "
+          "(Knut's follow-up) ===")
+    # "when no chart has yet been generated, and only settings have been
+    # manipulated in the Create Chart tab, the settings shall still be
+    # individually saved when moving between tabs or between profile runs"
+    proj2 = w._file_mgr.project()
+    fresh_a, fresh_b = proj2.new_run(), proj2.new_run()
+    w._target_bar.refresh()
+    settle()
+    w._tabs.setCurrentWidget(w._tab_chart)
+    settle()
+    select(RUN_TYPE_PROFILING, fresh_a.id)
+    w._tab_chart._shared_set("guided", "instrument", "CM")
+    w._tab_chart._shared_set("guided", "paper", "Letter")
+    settle()
+    select(RUN_TYPE_PROFILING, fresh_b.id)
+    g = w._tab_chart._shared_get("guided")
+    check("chartless run B did not inherit run A's instrument",
+          g.get("instrument") != "CM" or g.get("paper") != "Letter",
+          f"B shows {g.get('instrument')}/{g.get('paper')}")
+    w._tab_chart._shared_set("guided", "instrument", "SS")
+    settle()
+    select(RUN_TYPE_PROFILING, fresh_a.id)
+    g = w._tab_chart._shared_get("guided")
+    check("chartless run A keeps its own instrument/paper (no chart, no "
+          "sidecar — the store alone)",
+          g.get("instrument") == "CM" and g.get("paper") == "Letter",
+          f"A shows {g.get('instrument')}/{g.get('paper')}")
+    select(RUN_TYPE_PROFILING, fresh_b.id)
+    g = w._tab_chart._shared_get("guided")
+    check("chartless run B keeps its own instrument",
+          g.get("instrument") == "SS", f"B shows {g.get('instrument')}")
 
     # ------------------------------------------------------------ summary
     print("\n=== summary ===")
