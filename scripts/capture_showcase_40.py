@@ -162,6 +162,32 @@ def main() -> int:
     except Exception as e:      # noqa: BLE001
         log(f"bar crop: {e}")
 
+    # 10 — the strip reading times under the preview (the pace feature, with
+    # one strip flagged as read too fast). Close the IMPORT module first so
+    # the preview and the times panel carry the scene.
+    try:
+        win._tab_measure._import_btn.click()      # toggle it back off
+        pump(app, 600)
+        tabm = win._tab_measure
+        centres = tabm._preview.stripe_x_centres()
+        n = len(centres)
+        if n:
+            import string as _string
+            letters = list(_string.ascii_uppercase) + [
+                a + b for a in _string.ascii_uppercase
+                for b in _string.ascii_uppercase]
+            tabm._pace_times = {letters[i]: (4.0 + (i % 9) * 0.3, i != n // 2)
+                                for i in range(n)}
+            tabm._refresh_pace_panel()
+            pump(app, 700)
+            save(win, out, "10-strip-reading-times-under-the-chart")
+            tabm._pace_times = {}
+            tabm._refresh_pace_panel()
+        else:
+            log("strip times shot skipped: no stripe centres")
+    except Exception as e:      # noqa: BLE001
+        log(f"strip times shot: {e}")
+
     # 02 — Create Chart, FROM PROFILE GAMUT
     try:
         win._tab_chart._switch_mode("gamut")
