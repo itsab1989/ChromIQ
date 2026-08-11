@@ -4577,6 +4577,11 @@ class TabChart(QWidget):
             self._refresh_gamut_state()
         else:
             self._refresh_manual_command_preview()
+        # A hand-picked module change must also decide the Guided/Manual
+        # no-profile box — clicking FROM PROFILE GAMUT used to leave it
+        # standing beside the module's own empty state (Sebastian,
+        # 2026-08-11).
+        self._refresh_verify_noprofile_box()
 
     def _transfer_guided_to_manual(self, quiet: bool = False) -> None:
         """Seed the Manual panel from the Guided settings.
@@ -10663,17 +10668,6 @@ class TabChart(QWidget):
         if not is_verif and getattr(self, "_gamut_active", False):
             self._switch_mode("manual" if cal_on else "guided")
         profile = self._gamut_profile() if is_verif else None
-        # The Guided/Manual info box (pre-existing gap, #133 Q11): shown while
-        # a verification target has no profile, never blocking anything.
-        lbl = getattr(self, "_verify_noprofile_lbl", None)
-        if lbl is not None:
-            show = (is_verif and profile is None
-                    and not getattr(self, "_gamut_active", False))
-            if show:
-                title, body = self._verify_noprofile_message()
-                lbl.setText(f"<b>{title}</b><br><br>"
-                            + body.replace("\n\n", "<br><br>").replace("\n", "<br>"))
-            lbl.setVisible(show)
         if is_verif:
             self._refresh_gamut_state()
             # A verification run that HAS a built profile opens on the FROM
@@ -10692,6 +10686,30 @@ class TabChart(QWidget):
             # profile exists yet to feed it.
             if cal_on and self._mode_name() == "guided":
                 self._switch_mode("gamut" if profile is not None else "manual")
+        # LAST, after every module switch above has settled: whether the
+        # Guided/Manual no-profile box shows depends on which module is
+        # active NOW. Deciding it earlier left it standing next to the gamut
+        # module's own empty state — two near-identical messages on one
+        # screen (Sebastian, 2026-08-11).
+        self._refresh_verify_noprofile_box()
+
+    def _refresh_verify_noprofile_box(self) -> None:
+        """The Guided/Manual info box (#133 Q11): shown while a verification
+        target has no profile AND a module other than FROM PROFILE GAMUT is
+        active — the gamut module explains the no-profile state itself, in
+        its own words, and the two must never stand together."""
+        lbl = getattr(self, "_verify_noprofile_lbl", None)
+        if lbl is None:
+            return
+        is_verif = self._is_verification_target()
+        profile = self._gamut_profile() if is_verif else None
+        show = (is_verif and profile is None
+                and not getattr(self, "_gamut_active", False))
+        if show:
+            title, body = self._verify_noprofile_message()
+            lbl.setText(f"<b>{title}</b><br><br>"
+                        + body.replace("\n\n", "<br><br>").replace("\n", "<br>"))
+        lbl.setVisible(show)
 
     def _refresh_gamut_state(self) -> None:
         """Options vs the no-profile empty state, and the Generate button."""
