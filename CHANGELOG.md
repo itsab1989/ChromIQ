@@ -42,6 +42,11 @@
 - The Create Calibration File module had a second load-measurement icon
   inside its Measurement Data section; the one in the tab's header now
   serves that module too (its tooltip says so), and the duplicate is gone.
+- A verification run without a finished profile could show two
+  near-identical "no profile yet" messages at once on the Create Chart
+  tab. Exactly one shows now — the active module's own: FROM PROFILE
+  GAMUT explains that it has nothing to ask the profile, MANUAL explains
+  that the chart can still be generated.
 
 ### Changed
 
