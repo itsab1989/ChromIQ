@@ -1260,7 +1260,9 @@ class TabProfile(QWidget):
         g.setSpacing(8)
 
         desc_row = QHBoxLayout()
-        desc_row.addWidget(QLabel(tr("Description (-D):"), grp))
+        # Named exactly like the other run types' field (Knut, beta.4):
+        # one concept, one name — the text also lands in the .cal header.
+        desc_row.addWidget(QLabel(tr("Profile Description (-D):"), grp))
         self._pc_desc_edit = QLineEdit(grp)
         self._pc_desc_edit.setPlaceholderText(tr("e.g. EpsonP900_Cal_2026-04"))
         self._pc_desc_edit.setObjectName("compact_input")
@@ -1268,7 +1270,7 @@ class TabProfile(QWidget):
         self._pc_desc_edit.style().polish(self._pc_desc_edit)
         desc_row.addWidget(self._pc_desc_edit, stretch=1)
         desc_row.addWidget(TooltipButton(
-            tr("Description (-D)"),
+            tr("Profile Description (-D)"),
             tr("An optional text label embedded in the .cal file header — not the filename.\n"
             "Applications that display .cal file information will show this string.\n\n"
             "Use it to identify the purpose of the calibration, for example:\n"
@@ -4504,7 +4506,7 @@ class TabProfile(QWidget):
         except Exception:      # noqa: BLE001
             return ""
 
-    def _remember_profile_description(self) -> None:
+    def _remember_profile_description(self, edit=None) -> None:
         """Record what the user typed — for THIS run, and only this run.
 
         Knut, beta.148: *"Every run has its own values … Emptying the Profile
@@ -4512,12 +4514,16 @@ class TabProfile(QWidget):
         generation … for that specific run."* So text that equals the automatic
         value is stored as empty: that is not an override, it is agreement, and
         storing it would freeze the run's description out of the name.
+
+        *edit* is the field the user actually typed into (the connection
+        passes it); without it the Manual field is the best guess. The three
+        fields are independent widgets, so guessing used to read a stale one
+        and drop the calibration module's typed name (Knut, beta.4).
         """
-        # Whichever of the three the user typed into — they are kept in step,
-        # so any of them carries the same text.
-        edit = (getattr(self, "_m_desc_edit", None)
-                or getattr(self, "_desc_edit", None)
-                or getattr(self, "_pc_desc_edit", None))
+        if edit is None:
+            edit = (getattr(self, "_m_desc_edit", None)
+                    or getattr(self, "_desc_edit", None)
+                    or getattr(self, "_pc_desc_edit", None))
         if edit is None:
             return
         store = self._description_store()
@@ -4612,8 +4618,15 @@ class TabProfile(QWidget):
                       getattr(self, "_m_desc_edit", None),
                       getattr(self, "_pc_desc_edit", None)):
             if _edit is not None:
+                # Pass the edit that FIRED: the three fields are independent
+                # widgets, and reading a fixed one meant a name typed into the
+                # calibration module's field was read from the Manual field —
+                # whose text still equalled the automatic name — and stored as
+                # "no override". Knut, beta.4: "when entering a manual name it
+                # is not kept when changing tabs or run type."
                 _edit.textEdited.connect(
-                    lambda _t: self._remember_profile_description())
+                    lambda _t, e=_edit:
+                    self._remember_profile_description(e))
         # §4: the default follows the Profile run, the Run type, and the run's
         # own description — all of which move with the bar.
         controller.changed.connect(self._apply_profile_description_default)
