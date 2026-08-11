@@ -246,60 +246,83 @@ def _outro() -> str:
 # Rendering
 # ---------------------------------------------------------------------------
 
-def getting_started_html() -> str:
-    """The card body, as the Welcome/Help window renders it."""
+def _chapters() -> "list[tuple[str, str]]":
+    """(key, translated title) for every chapter, in reading order — the one
+    list the index, the links and the section renderer all share, so a chapter
+    added later appears in the index automatically."""
+    return [
+        ("areas",   tr("Finding your way around")),
+        ("steps",   tr("Your first profile, start to finish")),
+        ("verify",  tr("Checking the profile you built (verification)")),
+        ("files",   tr("Where your files live")),
+        ("alts",    tr("More than one way to do most things")),
+        ("keeping", tr("Trying again, and what is kept")),
+    ]
+
+
+def getting_started_sections() -> "list[tuple[str | None, str]]":
+    """The card as (chapter_key, html) blocks.
+
+    The Welcome window renders each block as its own widget, so the index —
+    one numbered line per chapter, each a link (Knut, beta.4: *"each line is
+    a link to jump to the section in question further down"*) — can scroll
+    straight to the chapter it names. Keys are ``gs:<chapter>``; the intro
+    and outro carry no key.
+    """
     def esc(s: str) -> str:
         return html.escape(s, quote=False)
 
-    out = [f"<p>{esc(tr('ChromIQ turns a printed sheet of colour patches into '
-                         'an ICC profile for your printer. The whole job is '
-                         'five steps, the tabs are numbered in that order — '
-                         'and once a profile is built, ChromIQ can check how '
-                         'good it really is, and keep checking over time.'))}</p>"]
+    sections: "list[tuple[str | None, str]]" = []
 
-    out.append(f"<p><b>{esc(tr('What is in this guide'))}</b><br>"
-               + esc(tr('1. Finding your way around — the areas of the window. '
-                        '2. Your first profile, start to finish. '
-                        '3. Checking the profile you built (verification). '
-                        '4. Where your files live. '
-                        '5. More than one way to do most things. '
-                        '6. Trying again, and what is kept.')) + "<br>"
-               + esc(tr('Every topic here has a deeper card in this window — '
-                        'this guide names the right one as it goes — and every '
-                        'term of art has a plain-language entry under '
-                        '“Dictionary and terminology”.')) + "</p>")
+    index_lines = "".join(
+        f"<a href=\"gs:{key}\">{i}. {esc(title)}</a><br>"
+        for i, (key, title) in enumerate(_chapters(), start=1))
+    sections.append((None, "\n".join([
+        f"<p>{esc(tr('ChromIQ turns a printed sheet of colour patches into '
+                     'an ICC profile for your printer. The whole job is '
+                     'five steps, the tabs are numbered in that order — '
+                     'and once a profile is built, ChromIQ can check how '
+                     'good it really is, and keep checking over time.'))}</p>",
+        f"<p><b>{esc(tr('What is in this guide'))}</b><br>{index_lines}</p>",
+        "<p>" + esc(tr('Every topic here has a deeper card in this window — '
+                       'this guide names the right one as it goes — and every '
+                       'term of art has a plain-language entry under '
+                       '“Dictionary and terminology”.')) + "</p>"])))
 
-    out.append(f"<h3>{esc(tr('Finding your way around'))}</h3>")
-    out.append("<table cellpadding='4' cellspacing='0'>")
-    out.append("<tr><th align='left'>%s</th><th align='left'>%s</th>"
-               "<th align='left'>%s</th></tr>" % (
-                   esc(tr("Area")), esc(tr("Where")), esc(tr("What it is for"))))
+    titles = dict(_chapters())
+
+    areas = [f"<h3>{esc(titles['areas'])}</h3>",
+             "<table cellpadding='4' cellspacing='0'>",
+             "<tr><th align='left'>%s</th><th align='left'>%s</th>"
+             "<th align='left'>%s</th></tr>" % (
+                 esc(tr("Area")), esc(tr("Where")),
+                 esc(tr("What it is for")))]
     for area, where, what in _areas():
-        out.append(f"<tr><td><b>{esc(area)}</b></td><td>{esc(where)}</td>"
-                   f"<td>{esc(what)}</td></tr>")
-    out.append("</table>")
+        areas.append(f"<tr><td><b>{esc(area)}</b></td><td>{esc(where)}</td>"
+                     f"<td>{esc(what)}</td></tr>")
+    areas.append("</table>")
+    sections.append(("areas", "\n".join(areas)))
 
-    out.append(f"<h3>{esc(tr('Your first profile, start to finish'))}</h3>")
-    for title, body in _steps():
-        out.append(f"<p><b>{esc(title)}</b><br>{esc(body)}</p>")
+    def _rows_section(key: str, rows) -> "tuple[str, str]":
+        out = [f"<h3>{esc(titles[key])}</h3>"]
+        for title, body in rows:
+            out.append(f"<p><b>{esc(title)}</b><br>{esc(body)}</p>")
+        return key, "\n".join(out)
 
-    out.append(f"<h3>{esc(tr('Checking the profile you built (verification)'))}</h3>")
-    for title, body in _verifying():
-        out.append(f"<p><b>{esc(title)}</b><br>{esc(body)}</p>")
+    sections.append(_rows_section("steps", _steps()))
+    sections.append(_rows_section("verify", _verifying()))
+    sections.append(("files", f"<h3>{esc(titles['files'])}</h3>"
+                              f"<p>{esc(_files_overview())}</p>"))
+    sections.append(_rows_section("alts", _alternatives()))
+    sections.append(_rows_section("keeping", _keeping()))
+    sections.append((None, f"<p>{esc(_outro())}</p>"))
+    return sections
 
-    out.append(f"<h3>{esc(tr('Where your files live'))}</h3>")
-    out.append(f"<p>{esc(_files_overview())}</p>")
 
-    out.append(f"<h3>{esc(tr('More than one way to do most things'))}</h3>")
-    for title, body in _alternatives():
-        out.append(f"<p><b>{esc(title)}</b><br>{esc(body)}</p>")
-
-    out.append(f"<h3>{esc(tr('Trying again, and what is kept'))}</h3>")
-    for title, body in _keeping():
-        out.append(f"<p><b>{esc(title)}</b><br>{esc(body)}</p>")
-
-    out.append(f"<p>{esc(_outro())}</p>")
-    return "\n".join(out)
+def getting_started_html() -> str:
+    """The card body as one HTML string (anywhere that shows it whole)."""
+    return "\n".join(html_block for _key, html_block
+                     in getting_started_sections())
 
 
 def getting_started_body() -> str:

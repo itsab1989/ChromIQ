@@ -55,7 +55,6 @@
   "1.  Export a spreadsheet to edit": "1.  Экспортируйте таблицу для редактирования",
   "1. Create Chart": "1. Создать мишень",
   "1. Create Chart · 2. Print Chart · 3. Measure · 4. Build Profile · 5. Check & Refine — numbered in the order you use them. (Tab 4 is called “Calibration & Profiling” when “Enable calibration options” is on in Preferences.)": "1. Создать мишень · 2. Печать мишени · 3. Измерение · 4. Сборка профиля · 5. Проверка и доводка — пронумерованы в том порядке, в каком вы ими пользуетесь. (Вкладка 4 называется «Калибровка и профиль», когда в настройках включено «Включить параметры калибровки».)",
-  "1. Finding your way around — the areas of the window. 2. Your first profile, start to finish. 3. Checking the profile you built (verification). 4. Where your files live. 5. More than one way to do most things. 6. Trying again, and what is kept.": "1. Как ориентироваться — области окна. 2. Ваш первый профиль от начала до конца. 3. Проверка построенного профиля (верификация). 4. Где живут ваши файлы. 5. Больше одного пути почти ко всему. 6. Попытка заново — и что сохраняется.",
   "1. Your patch set (.ti1, .txt or .pxf):": "1. Ваш набор патчей (.ti1, .txt или .pxf):",
   "16-bit": "16 бит",
   "16-bit TIFF": "16-битный TIFF",

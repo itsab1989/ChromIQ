@@ -55,7 +55,6 @@
   "1.  Export a spreadsheet to edit": "1.  导出表格以进行编辑",
   "1. Create Chart": "1. 创建色卡",
   "1. Create Chart · 2. Print Chart · 3. Measure · 4. Build Profile · 5. Check & Refine — numbered in the order you use them. (Tab 4 is called “Calibration & Profiling” when “Enable calibration options” is on in Preferences.)": "1. 创建色卡 · 2. 打印色卡 · 3. 测量 · 4. 生成配置文件 · 5. 检查与精修 — 编号就是你使用它们的顺序。（在偏好设置中开启「启用校准选项」后，第 4 个标签页叫「校准与配置文件」。）",
-  "1. Finding your way around — the areas of the window. 2. Your first profile, start to finish. 3. Checking the profile you built (verification). 4. Where your files live. 5. More than one way to do most things. 6. Trying again, and what is kept.": "1. 认识界面 —— 窗口的各个区域。2. 你的第一个配置文件，从头到尾。3. 检查建成的配置文件（验证）。4. 你的文件放在哪里。5. 几乎每件事都有不止一条路。6. 重新尝试，以及什么会被保留。",
   "1. Your patch set (.ti1, .txt or .pxf):": "1. 你的色块集（.ti1、.txt 或 .pxf）:",
   "16-bit": "16位",
   "16-bit TIFF": "16位TIFF",

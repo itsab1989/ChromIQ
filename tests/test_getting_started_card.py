@@ -135,7 +135,10 @@ def test_the_window_knows_how_to_render_it(qapp):
     from ui.dialogs import welcome_dialog
     src = inspect.getsource(welcome_dialog)
     assert '"getting_started"' in src
-    assert "getting_started_html" in src
+    # Rendered section by section since Knut's beta.4 index request — each
+    # chapter its own widget so the index links can scroll to it.
+    assert "getting_started_sections" in src
+    assert "_on_gs_index_link" in src
 
 
 def test_the_title_and_subtitle_say_what_it_is(qapp):

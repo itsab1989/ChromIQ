@@ -2159,9 +2159,30 @@ class WelcomeDialog(QDialog):
                 body = QLabel(file_guide_html(), self._steps_host)
                 body.setTextFormat(Qt.TextFormat.RichText)
             elif wf.get("kind") == "getting_started":
-                from ui.getting_started import getting_started_html
-                body = QLabel(getting_started_html(), self._steps_host)
-                body.setTextFormat(Qt.TextFormat.RichText)
+                # One widget per chapter, so the index — one numbered LINK
+                # per chapter (Knut, beta.4) — can scroll straight to the
+                # chapter it names via ensureWidgetVisible.
+                from ui.getting_started import getting_started_sections
+                self._gs_chapter_widgets = {}
+                bf0 = QFont()
+                bf0.setPixelSize(13)
+                for key, block in getting_started_sections():
+                    lbl = QLabel(block, self._steps_host)
+                    lbl.setTextFormat(Qt.TextFormat.RichText)
+                    lbl.setFont(bf0)
+                    lbl.setWordWrap(True)
+                    lbl.setTextInteractionFlags(
+                        Qt.TextInteractionFlag.TextSelectableByMouse
+                        | Qt.TextInteractionFlag.LinksAccessibleByMouse)
+                    lbl.setObjectName("welcome_step_body")
+                    lbl.linkActivated.connect(self._on_gs_index_link)
+                    if key is not None:
+                        self._gs_chapter_widgets[key] = lbl
+                    self._steps_layout.addWidget(lbl)
+                self._steps_layout.addStretch(1)
+                self._apply_detail_text_colors()
+                self._stack.setCurrentIndex(1)
+                return
             elif wf.get("kind") == "main_actions":
                 from ui.main_actions import main_actions_html
                 body = QLabel(main_actions_html(), self._steps_host)
@@ -2193,6 +2214,25 @@ class WelcomeDialog(QDialog):
         self._stack.setCurrentIndex(1)
 
     # ------------------------------------------------------------------
+    def _on_gs_index_link(self, href: str) -> None:
+        """A Getting-Started index line was clicked: scroll to its chapter.
+
+        Knut, beta.4: each numbered index line "is a link to jump to the
+        section in question further down in the window"."""
+        if not href.startswith("gs:"):
+            return
+        target = getattr(self, "_gs_chapter_widgets", {}).get(href[3:])
+        if target is None:
+            return
+        try:
+            # yMargin puts the chapter HEADING near the top rather than just
+            # barely inside the viewport's bottom edge.
+            self._detail_scroll.ensureWidgetVisible(
+                target, 0, self._detail_scroll.viewport().height() - 40)
+        except Exception:      # noqa: BLE001 — a link must never break the card
+            log.warning("Could not scroll to Getting Started chapter %s",
+                        href, exc_info=True)
+
     def _make_glossary_row(self, term: str, definition: str) -> QWidget:
         """One dictionary entry: bold term, plain-language definition under it
         (Knut's "Dictionary and terminology" card, #108)."""

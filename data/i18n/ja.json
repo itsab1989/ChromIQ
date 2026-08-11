@@ -55,7 +55,6 @@
   "1.  Export a spreadsheet to edit": "1.  編集用の表計算ファイルを書き出す",
   "1. Create Chart": "1. チャート作成",
   "1. Create Chart · 2. Print Chart · 3. Measure · 4. Build Profile · 5. Check & Refine — numbered in the order you use them. (Tab 4 is called “Calibration & Profiling” when “Enable calibration options” is on in Preferences.)": "1. チャート作成 · 2. チャート印刷 · 3. 測定 · 4. プロファイル作成 · 5. 検証と改良 — 使う順に番号が付いています。（環境設定で「キャリブレーションオプションを有効化」をオンにすると、タブ4は「キャリブレーションとプロファイル」という名前になります。）",
-  "1. Finding your way around — the areas of the window. 2. Your first profile, start to finish. 3. Checking the profile you built (verification). 4. Where your files live. 5. More than one way to do most things. 6. Trying again, and what is kept.": "1. 画面の各エリアを知る。2. 最初のプロファイルを最初から最後まで。3. 作ったプロファイルの確認（検証）。4. ファイルの保存場所。5. ほとんどの操作にある複数の方法。6. やり直しと、何が保持されるか。",
   "1. Your patch set (.ti1, .txt or .pxf):": "1. パッチセット（.ti1・.txt・.pxf）:",
   "16-bit": "16ビット",
   "16-bit TIFF": "16ビットTIFF",
