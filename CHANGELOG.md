@@ -27,7 +27,7 @@ each have a plain-language Dictionary entry: open the Welcome window's
 
 ### New
 
-**Verification, from start to finish:**
+**🎯 Verification, from start to finish:**
 
 - **Three ways to check a profile, clearly told apart.** A chart built from
   the profile's own gamut (the everyday accuracy check), a chart printed
@@ -88,7 +88,7 @@ each have a plain-language Dictionary entry: open the Welcome window's
   patch by patch. The first raw check becomes the baseline; checks made with
   different charts are refused rather than mispaired.
 
-- **The Measurement Report grew into the profile's health record.** It
+- 📈 **The Measurement Report grew into the profile's health record.** It
   gathers every dated check of a run automatically, trends colour accuracy,
   paper white, darkest black and the cube corners over time, lets you
   untick individual runs, warns about mixed instruments and mixed printing
@@ -97,9 +97,9 @@ each have a plain-language Dictionary entry: open the Welcome window's
   text, ~300 dpi charts) whose proposed folder always matches what the
   report covers — one dated check, one run's checks, or the whole profile.
 
-**And the rest:**
+**🧰 And the rest:**
 
-- **The run bar — one place that says what you are working on.** Above the
+- 🧭 **The run bar — one place that says what you are working on.** Above the
   tabs, on every tab: **Profile run**, **Run type** (Profiling,
   Verification — and Calibration, once its options are enabled in
   Preferences) and — for verifications — which dated check,
@@ -110,7 +110,7 @@ each have a plain-language Dictionary entry: open the Welcome window's
   always show the run it points at, and when no project is loaded the bar
   says so instead of guessing.
 
-- **Ready-made Red River Paper charts.** Four built-in starting points in
+- 📦 **Ready-made Red River Paper charts.** Four built-in starting points in
   Create Chart carry Red River's own 2052-patch Standard Patch Set v25 —
   byte-identical to their published file — laid out and verified for i1Pro
   (A4 and Letter, with the clip-border record) and ColorMunki. The patch
@@ -136,7 +136,7 @@ each have a plain-language Dictionary entry: open the Welcome window's
   its description live in the project's `cal/` folder, shared by every run,
   and each profile run records which calibration it was built with.
 
-- **Sounds during measurement** — a strip accepted, a patch misread, a
+- 🔔 **Sounds during measurement** — a strip accepted, a patch misread, a
   session finished — so you can keep your eyes on the chart. **Preferences →
   Sounds.**
 
@@ -149,7 +149,7 @@ each have a plain-language Dictionary entry: open the Welcome window's
   it costs you accuracy. Tune or switch it off under **Preferences →
   Measurement** ("Warn me when I read a strip too fast").
 
-- **Twelve languages, complete** — German, Spanish, French, Italian, Dutch,
+- 🌍 **Twelve languages, complete** — German, Spanish, French, Italian, Dutch,
   Portuguese, Swedish, Norwegian, Polish, Russian, Japanese and Chinese —
   every button, message, tooltip and help text.
 
@@ -182,7 +182,7 @@ each have a plain-language Dictionary entry: open the Welcome window's
 - **File dialogs are ChromIQ's own everywhere** — with the sidebar shortcuts
   to your working folder — instead of the bare system dialogs.
 
-- **Existing projects are migrated in place.** A project from 3.13 or an
+- 🗂️ **Existing projects are migrated in place.** A project from 3.13 or an
   earlier 3.14 is reorganised into the new folder shape the first time it is
   opened — every old file kept, the plain-language folder guide ("Where are
   my files?" in the Welcome window) always current.
