@@ -128,3 +128,16 @@ def test_a_two_line_label_is_kept_as_two_lines(qapp):
     panel.resize(400, panel.sizeHint().height())
     from PyQt6.QtGui import QPixmap
     panel.render(QPixmap(panel.size()))        # both lines must paint cleanly
+
+
+def test_rotated_time_is_centred_on_its_strip(qapp):
+    """The rotated glyph column must be visually centred on the x it was
+    given — the old height/3 nudge parked every time ~10px right of its
+    strip before widget offsets even started (Sebastian, 2026-08-11)."""
+    from PyQt6.QtGui import QFont, QFontMetrics
+    fm = QFontMetrics(QFont())
+    x = 200
+    tx = StripTimesPanel._column_translate_x(x, fm)
+    left, right = tx - fm.descent(), tx + fm.ascent()
+    centre = (left + right) / 2
+    assert abs(centre - x) <= 1, (left, right, centre)

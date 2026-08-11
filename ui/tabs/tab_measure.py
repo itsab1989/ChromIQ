@@ -9442,6 +9442,12 @@ class TabMeasure(QWidget):
         try:
             centres = self._preview.stripe_x_centres()
             page_now = self._preview.current_page()
+            # stripe_x_centres() answers in the PREVIEW's coordinates; the
+            # panel translates them into its own space at paint time (its
+            # reference widget is the preview) — mapping here ran while the
+            # panel was still hidden and returned identity, leaving every
+            # time a constant 21 px right of its strip (2026-08-11).
+            panel.set_reference_widget(self._preview)
             for letter, (secs, ok) in self._pace_times.items():
                 page, local_idx, _rect = self._locate_strip(letter)
                 if page == page_now and 0 <= local_idx < len(centres):

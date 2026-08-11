@@ -33,7 +33,8 @@ class StripTimesPanel(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._label = ""
-        self._columns: list[tuple[int, str]] = []      # (widget x, "5.1 s")
+        self._reference: "QWidget | None" = None
+        self._columns: list[tuple[int, str]] = []   # (reference-space x, "5.1 s")
         self._verdict = ""
         self._verdict_colour = "#909090"
         self._muted = "#909090"
@@ -41,6 +42,15 @@ class StripTimesPanel(QWidget):
         self.setVisible(False)
 
     # ---- content ----------------------------------------------------------
+    def set_reference_widget(self, widget: "QWidget | None") -> None:
+        """The widget whose coordinate space the column x values live in —
+        the chart preview. The translation into THIS panel's space happens at
+        paint time, when both widgets' geometry is real: mapping at
+        set_content time returned identity while the panel was still hidden
+        with unset geometry, and every time sat a constant 21 px right of its
+        strip (Sebastian, 2026-08-11)."""
+        self._reference = widget
+
     def set_content(self, label: str, columns, verdict: str = "",
                     verdict_colour: str = "#909090") -> None:
         """Show *columns* — ``(x, text)`` pairs in this widget's coordinates.
@@ -92,6 +102,19 @@ class StripTimesPanel(QWidget):
         the edge of anything."""
         return self.sizeHint()
 
+    @staticmethod
+    def _column_translate_x(x: int, fm: QFontMetrics) -> int:
+        """Where to translate so the rotated glyph column is CENTRED on *x*.
+
+        After ``rotate(90)`` a glyph column drawn at the origin occupies
+        widget-x from ``tx - descent`` to ``tx + ascent`` — its visual centre
+        sits at ``tx + (ascent - descent) / 2``, not at ``tx``. The old
+        ``x + height/3`` nudge compounded that: every time sat ~10 px right
+        of its strip before the panel-offset was even counted (Sebastian
+        remembered the times "very far right of the strip" — measured
+        2026-08-11 at +21 px, constant across strips)."""
+        return x - (fm.ascent() - fm.descent()) // 2
+
     # ---- painting ---------------------------------------------------------
     def paintEvent(self, _ev) -> None:      # noqa: N802
         # Font metrics are only final once the widget has been polished, so a
@@ -114,6 +137,15 @@ class StripTimesPanel(QWidget):
         # with a frame, same frames used in left part of the window").
         times_h = self._times_height()
 
+        dx = 0
+        if self._reference is not None:
+            try:
+                from PyQt6.QtCore import QPoint
+                dx = self.mapFromGlobal(
+                    self._reference.mapToGlobal(QPoint(0, 0))).x()
+            except Exception:      # noqa: BLE001 — never break a paint
+                dx = 0
+
         if self._columns:
             p.setFont(self._time_font())
             p.setPen(QColor(self._muted))
@@ -123,7 +155,7 @@ class StripTimesPanel(QWidget):
                 # panel and reads downwards, so it sits in the strip's own
                 # column however narrow that column is.
                 p.save()
-                p.translate(x + fm.height() // 3, self.PAD_TOP)
+                p.translate(self._column_translate_x(x + dx, fm), self.PAD_TOP)
                 p.rotate(90)
                 p.drawText(0, 0, text)
                 p.restore()
@@ -134,7 +166,7 @@ class StripTimesPanel(QWidget):
                 p.setPen(QColor(self._muted))
                 lfm = QFontMetrics(self._time_font())
                 lines = self._label.split("\n")
-                room = min(x for x, _t in self._columns) - 8
+                room = min(x for x, _t in self._columns) + dx - 8
                 if room > 20:
                     block = lfm.height() * len(lines)
                     top = self.PAD_TOP + max(0, (times_h - block) // 2)
