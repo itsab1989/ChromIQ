@@ -3938,11 +3938,23 @@ class TabChart(QWidget):
         if proj_root is None:
             self._cal_status_lbl.setVisible(False)
             return
+        # AN OFFER MUST NOT OVERWRITE A TARGET'S OWN VALUE. This runs on every
+        # name refresh — including the one a target change triggers — and it
+        # used to re-fill both fields with the project's single cal path,
+        # stomping whatever the selected run had stored: the mode and path
+        # looked global however faithfully they were saved (Knut, beta.4; his
+        # design: "one run may link to a cal file with a mode setting, but
+        # later another run would link to a new cal file and another mode").
+        # So: never while a target's settings are being loaded, and only into
+        # fields that are still EMPTY.
+        if getattr(self, "_loading_target_settings", False):
+            return
         cal_file = Calibration(proj_root).cal_path
         if cal_file.exists():
             cal_str = str(cal_file)
-            self._fill_without_enabling(self._manual_cal_k_pw, cal_str)
-            self._fill_without_enabling(self._manual_cal_i_pw, cal_str)
+            for pw in (self._manual_cal_k_pw, self._manual_cal_i_pw):
+                if pw is not None and not str(pw.get_raw_value() or "").strip():
+                    self._fill_without_enabling(pw, cal_str)
             self._cal_status_lbl.setText(
                 tr("Calibration file found: {name} — filled into the “Apply "
                    "Calibration File” and “Include Calibration File” fields "
@@ -7456,6 +7468,33 @@ class TabChart(QWidget):
         # identical and only this dormant history had moved (#130, seen while
         # reproducing Knut's Second-Project-R restore).
         self._restore_printtarg_fields(doc.get("printtarg_fields"))
+        # K2 (Knut, beta.4: "Targen parameters are not loaded with charts
+        # json file"): newer sidecars record the FULL registry at Generate —
+        # targen rows included — and loading the chart applies it, so the
+        # options on screen are the ones that made this sheet, whichever
+        # target it belongs to. Older sidecars simply lack the key and keep
+        # the printtarg-only restore above. Applied last, then the patch
+        # count is re-pinned from the sheet itself: NUMBER_OF_SETS is the
+        # chart's truth, and with Auto fill the generating -f can differ.
+        reg = doc.get("create_chart_settings")
+        if isinstance(reg, dict) and reg:
+            was_loading = getattr(self, "_loading_target_settings", False)
+            self._loading_target_settings = True
+            try:
+                from workflow.per_target_settings import apply as _apply_reg
+                _apply_reg(self, reg)
+            except Exception:  # noqa: BLE001 — never block a load
+                log.warning("could not apply the chart's recorded registry",
+                            exc_info=True)
+            finally:
+                self._loading_target_settings = was_loading
+            try:
+                m = _re.search(r"NUMBER_OF_SETS\s+(\d+)",
+                               Path(ti2_path).read_text(errors="replace"))
+                if m:
+                    self._set_manual_value("targen", "-f", int(m.group(1)))
+            except Exception:  # noqa: BLE001
+                pass
         return restored_full
 
     def _snapshot_printtarg_fields(self) -> list:
@@ -10067,6 +10106,10 @@ class TabChart(QWidget):
         rather than blocking the write."""
         out: dict = {"mode": self._mode_name()}
         try:
+            out["stamp"] = bool(self._manual_stamp_cmd_check.isChecked())
+        except Exception:      # noqa: BLE001
+            pass
+        try:
             out["guided"] = dict(self._shared_get("guided"))
         except Exception:      # noqa: BLE001
             pass
@@ -10096,6 +10139,11 @@ class TabChart(QWidget):
         illegal stored mode."""
         if not isinstance(stored, dict):
             return
+        if "stamp" in stored:
+            try:
+                self._manual_stamp_cmd_check.setChecked(bool(stored["stamp"]))
+            except Exception:      # noqa: BLE001
+                pass
         guided = stored.get("guided")
         if isinstance(guided, dict):
             for fld, val in guided.items():
@@ -12935,9 +12983,17 @@ class TabChart(QWidget):
     # ------------------------------------------------------------------
 
     def _collect_params(self) -> ChartParams:
-        if self._current_mode() == "guided":
-            return self._collect_guided()
-        return self._collect_manual()
+        p = (self._collect_guided() if self._current_mode() == "guided"
+             else self._collect_manual())
+        # The full registry travels with the chart (K2, Knut's beta.4:
+        # "Targen parameters are not loaded with charts json file") — the
+        # sidecar then restores the exact settings that made the sheet.
+        try:
+            from workflow.per_target_settings import snapshot
+            p.settings_snapshot = snapshot(self)
+        except Exception:      # noqa: BLE001 — a snapshot must never block
+            pass
+        return p
 
     def _collect_guided(self) -> ChartParams:
         pages   = self._pages_spin.value()

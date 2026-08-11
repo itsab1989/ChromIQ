@@ -497,6 +497,13 @@ class ChartParams:
     # second readable copy is how the two come to disagree (Knut, §2).
     run_description: str = ""
     stamp_commands: bool = True       # also stamp the targen + printtarg commands used
+    # The Create Chart registry (every targen + printtarg row) as it was at
+    # Generate. Recorded into the chart's channels.json so loading the chart
+    # brings back the exact settings that made it — Knut's sidecar-precedence
+    # ruling, extended to the targen rows (beta.4: "Targen parameters are not
+    # loaded with charts json file"). Empty for charts made by paths that
+    # never ran the tab (the editor, built-ins), which restore their own way.
+    settings_snapshot: dict = field(default_factory=dict)
     # When the chart was laid out from an existing patch set (a preset, a loaded
     # .ti1, a prebuilt chart, or one applied from the editor), targen was NOT run
     # — so the command stamp shows the chart-LAYOUT name instead of a misleading
@@ -1433,6 +1440,10 @@ class ChartCreator:
                 # what {rundescription} stamps; nothing ever reads it back.
                 "run_description": params.run_description,
                 "stamp_commands": bool(params.stamp_commands),
+                # K2 (Knut's sidecar-precedence ruling, beta.4): the exact
+                # targen + printtarg registry at Generate, restored when the
+                # chart is loaded again.
+                "create_chart_settings": dict(params.settings_snapshot or {}),
             }))
             log.debug("Wrote channel sidecar %s: %s", sidecar.name, channels)
         except Exception as exc:
