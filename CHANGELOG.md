@@ -32,9 +32,11 @@
   of the Guided module were stored only for the Manual module's fields —
   editing them in Guided showed the last-typed values on every run. All
   of Guided's fields now travel with their run.
-- A run that has nothing stored yet opens on true defaults for all of
-  these controls — never on whatever the previous run left on screen.
-- The same held, and is now fixed, for the controls a second look found:
+- A brand-new run starts from the values of the run you were on — by
+  design, so "make another run like this one, with one change" needs no
+  preset — and the moment you switch anywhere, those values are filed
+  against the run they belong to.
+- The same storage now also covers the controls a second look found:
   the Measure tab's GUIDED-side toggles (they are their own widgets, not
   mirrors of Manual's), Manual mode's chartread option rows, and the
   whole Create Calibration File module — its mode, previous-.cal path,
