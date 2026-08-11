@@ -292,7 +292,11 @@ def getting_started_sections() -> "list[tuple[str | None, str]]":
 
     titles = dict(_chapters())
 
-    areas = [f"<h3>{esc(titles['areas'])}</h3><br>",
+    areas = [f"<h3>{esc(titles['areas'])}</h3>"
+             # exactly ONE empty line before the table — a plain <br> here
+             # stacked with the heading's own margin into two or three
+             # (Sebastian, beta.5 check 6 follow-up)
+             "<p style='font-size:6px; margin:0'>&nbsp;</p>",
              "<table cellpadding='4' cellspacing='0'>",
              "<tr><th align='left'>%s</th><th align='left'>%s</th>"
              "<th align='left'>%s</th></tr>" % (
