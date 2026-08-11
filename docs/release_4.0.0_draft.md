@@ -134,6 +134,15 @@ each have a plain-language Dictionary entry: open the Welcome window's
   session finished — so you can keep your eyes on the chart. **Preferences →
   Sounds.**
 
+- **A gentle warning when you swipe a strip too fast.** Every instrument
+  takes a fixed number of readings per second, so a strip has a minimum
+  time it needs — swipe faster and patches get too few readings, even when
+  ArgyllCMS still accepts the strip. ChromIQ knows the pace for your
+  instrument, shows a live verdict while you measure, and mentions it when
+  a strip was read quicker than the minimum, so you can re-read it before
+  it costs you accuracy. Tune or switch it off under **Preferences →
+  Measurement** ("Warn me when I read a strip too fast").
+
 - **Twelve languages, complete** — German, Spanish, French, Italian, Dutch,
   Portuguese, Swedish, Norwegian, Polish, Russian, Japanese and Chinese —
   every button, message, tooltip and help text.
