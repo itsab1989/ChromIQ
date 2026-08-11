@@ -132,6 +132,27 @@ def test_the_target_change_trigger_reaches_every_tab():
     assert "_save_settings_of_visible_tab" in src
 
 
+def test_f3_the_calibration_knobs_run_before_the_load():
+    """F3 (ruled by Sebastian, 2026-08-11): a setting's owner is the SELECTED
+    target. The knobs must run BEFORE the load in _on_target_changed, so the
+    incoming target's own six rows always have the last word — with the old
+    order the pre-calibration restore clobbered the freshly loaded values and
+    the next write filed the calibration's rows into the first run visited."""
+    from ui.tabs.tab_chart import TabChart
+    src = inspect.getsource(TabChart._on_target_changed)
+    assert src.index("_apply_calibration_knobs(") < \
+        src.index("self.load_target_settings()")
+
+
+def test_f3_the_six_rows_are_only_skipped_on_the_calibration_itself():
+    """The nothing-stored reset skips the calibration-owned rows only while
+    the calibration IS the selected target; a run with nothing stored opens
+    on ALL its defaults (§4 S4/S5), six rows included."""
+    from ui.tabs.tab_chart import TabChart
+    src = inspect.getsource(TabChart.load_target_settings)
+    assert "if on_calibration else set()" in src
+
+
 def test_l3_l4_the_visible_tab_reloads_on_a_target_change():
     """Knut, 2026-08-11 (approving fault F2): every tab reloads the moment a
     new target is selected, the same central way — Measure and Build Profile

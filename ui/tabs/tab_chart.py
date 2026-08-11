@@ -9821,13 +9821,21 @@ class TabChart(QWidget):
             # another runtype again"* — `_pre_cal_snapshot` and
             # `_apply_calibration_knobs`.
             #
-            # They collide only on the six rows in `_CAL_VALUES`. Resetting
-            # those here wiped them BEFORE the snapshot was taken, so switching
-            # back restored the default instead of the number the user had set:
-            # a hand-set 37 came back as 0. Skipping them lets each rule keep
-            # the ground it was written for.
-            owned_by_calibration = {(tool, flag)
-                                    for tool, flag, _v in self._CAL_VALUES}
+            # They collide only on the six rows in `_CAL_VALUES` — and only
+            # WHILE THE CALIBRATION IS THE SELECTED TARGET (F3, ruled
+            # 2026-08-11: a setting's owner is the selected target). There the
+            # knobs have just set the calibration's values and resetting them
+            # would wipe them; on a run, skipping them was how the
+            # calibration's patch count followed the user into the next run
+            # they visited — a run with nothing stored opens on ALL its
+            # defaults, six rows included (§4 S4/S5).
+            ctl = getattr(self, "_target_ctl", None)
+            on_calibration = bool(
+                ctl is not None
+                and getattr(ctl.target, "is_calibration", bool)())
+            owned_by_calibration = (
+                {(tool, flag) for tool, flag, _v in self._CAL_VALUES}
+                if on_calibration else set())
             self._settings_store = store
             self._settings_key = self._target_settings_key()
             self._loading_target_settings = True
@@ -11506,6 +11514,17 @@ class TabChart(QWidget):
             getattr(self, "_settings_store", _NO_STORE_GIVEN),
             getattr(self, "_settings_key", _NO_STORE_GIVEN))
         self._refresh_target_text()
+        # RUN TYPE = CALIBRATION SETS THE CHART UP (#137) — BEFORE the load,
+        # so the incoming target's own values always have the last word (F3,
+        # Knut/Sebastian 2026-08-11: a setting's owner is the SELECTED
+        # target). Entering Calibration this snapshots the outgoing screen
+        # and sets the calibration values; leaving it restores that snapshot
+        # — and then the load below lays the incoming run's own stored six
+        # rows over it. With the old order (knobs AFTER load) the restore
+        # clobbered the freshly loaded values, and the next write filed the
+        # calibration's rows into the first run visited. Idempotent (R1).
+        self._apply_calibration_knobs(
+            bool(getattr(ctl.target, "is_calibration", bool)()))
         self.load_target_settings()
         self._settings_store = self._target_settings_store()
         self._settings_key = self._target_settings_key()
@@ -11523,12 +11542,6 @@ class TabChart(QWidget):
         if cur_name and cur_name != getattr(self, "_last_shown_project_name", None):
             self._last_shown_project_name = cur_name
             self._update_name_fields()
-        # RUN TYPE = CALIBRATION SETS THE CHART UP (#137). Applied here, in the
-        # one place a target change lands, so the knobs can never disagree with
-        # the bar. Idempotent: _apply_calibration_knobs returns immediately if
-        # the state is already what is asked for (R1).
-        self._apply_calibration_knobs(
-            bool(getattr(ctl.target, "is_calibration", bool)()))
         # #133: the FROM PROFILE GAMUT module exists only for a verification
         # target, and its panel state follows the run's profile.
         self._refresh_gamut_visibility()

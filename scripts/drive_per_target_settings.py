@@ -318,6 +318,15 @@ def main() -> int:      # noqa: PLR0915, PLR0912
         activate(w._tab_check_refine if hasattr(w, "_tab_check_refine")
                  else TABS[0][1])
 
+    # The chart's SIDECAR owns the patch count on any target whose chart
+    # carries a recipe: selecting the target reloads the chart (§2 L5), and
+    # Knut ruled the sidecar "is the correct value to use" (2026-08-11). So
+    # targen -f carries no cross-target verdict — the stored value is real,
+    # but the chart's own count wins on screen, by design.
+    VOLATILE.setdefault("Create Chart", set()).add("targen-f")
+    note("targen-f excluded from verdicts: the chart sidecar owns it (L5, "
+         "Knut's ruling)")
+
     # ------------------------------------------------------------ Phase 2
     print("\n=== Phase 2 — every target shows ITS OWN values (two rounds) ===")
     orders = [TARGETS, list(reversed(TARGETS))]

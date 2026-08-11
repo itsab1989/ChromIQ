@@ -481,9 +481,29 @@ target's values while visible and then filed them onto the new target — the
 > the chart sidecar will overrule the settings for the chart for that
 > specific run type."*
 
+**F3 — the six calibration-owned rows follow the selected target.** Found by
+the same drive after F1/F2 were fixed: the first run visited after the
+Calibration target inherited the calibration's six rows (`targen
+-f/-e/-B/-s/-G`, `printtarg -r`) into its own store — the load-side skip that
+protects the calibration's values left them on screen, and the next write
+filed them. Sebastian ruled (2026-08-11): go ahead with the recommendation —
+**ownership follows the selected target**. The calibration owns the six rows
+while it is selected; a run owns all of its rows while it is selected.
+
+**Sidecar note (from the same drive):** on a target whose chart carries a
+recipe, the chart sidecar rewrites the patch count on selection (L5) over the
+stored value — correct per the sidecar-precedence ruling above; the drive
+excludes `targen -f` from cross-target verdicts for that reason.
+
 ### ⏳ Awaiting confirmation — implemented 2026-08-11, not yet confirmed by a human
 
 **Confirmed by:** *nobody yet.*
+
+- F3: `_apply_calibration_knobs` now runs BEFORE the load in
+  `_on_target_changed` (the incoming target's values always have the last
+  word), and the nothing-stored reset skips the six rows only while the
+  calibration is the selected target. The switching drive is fully green
+  (74/74) with this in.
 
 - The store split is implemented in `workflow.per_target_settings
   .store_for_target`; the settings file at the root of `verifications/` is a
