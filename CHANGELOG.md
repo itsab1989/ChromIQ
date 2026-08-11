@@ -1,6 +1,9 @@
 # Changelog
 
-## v3.14.8-beta.223
+## v4.0.0-beta.1
+
+The beta line moves to 4.0.0 — same contents as the withdrawn
+v3.14.8-beta.223 tag.
 
 ### Fixed
 
