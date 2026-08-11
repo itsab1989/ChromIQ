@@ -20,13 +20,26 @@
 
 ## v4.0.0
 
-Two headlines. **ChromIQ now keeps track of your work for you**: a profile run
+**If you only read one paragraph:** ChromIQ 4.0 looks after your work — every
+run keeps its own chart, measurement and settings, nothing you made is ever
+deleted, and checking how good a finished profile really is has become a
+guided, honest, repeatable workflow. Your existing projects are picked up
+exactly as they are: ChromIQ migrates them in place the first time it opens
+them, keeps every old file, and there is nothing you need to do first.
+
+Two headlines in more detail. **ChromIQ now keeps track of your work for
+you**: a profile run
 holds its own chart, its own measurement, its own settings and its own
 description; nothing you made is ever deleted, only archived; and every window
 that could cost you something says exactly what it is about to do. And
 **checking a finished profile is now a first-class workflow**: three clearly
 explained ways to verify, honest statistics for each of them, and a
 measurement report that keeps the whole dated history of a profile's health.
+
+*(New words along the way — "gamut", "drift check", "judged as measured" —
+each have a plain-language Dictionary entry: open the Welcome window's
+"Dictionary and terminology" card. The card "Check a finished profile
+(verification run)" walks the whole workflow step by step.)*
 
 ### New — verification, from start to finish
 
@@ -153,6 +166,11 @@ measurement report that keeps the whole dated history of a profile's health.
 
 - **File dialogs are ChromIQ's own everywhere** — with the sidebar shortcuts
   to your working folder — instead of the bare system dialogs.
+
+- **Existing projects are migrated in place.** A project from 3.13 or an
+  earlier 3.14 is reorganised into the new folder shape the first time it is
+  opened — every old file kept, the plain-language folder guide ("Where are
+  my files?" in the Welcome window) always current.
 
 - **The interface holds still.** Buttons sit in the same place on every tab,
   the log panel ends on the same line shown or hidden, the run bar no longer
