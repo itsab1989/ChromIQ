@@ -40,6 +40,8 @@ class _Tab:
     # tab (Knut's F1 ruling); the stand-in answers both names with the
     # same store because only the store behaviour is under test here
     def _target_settings_store(self): return self._store
+    def _collect_ui_state(self):  return {}   # the ui-state
+    # section is the real tab's concern; the stand-in stores none
     def _target_text_store(self):   return self._store
     _target_ctl = None              # no controller: the no-file key is None
     _new_run_seed_dir = None        # …and nowhere to keep a New run's block

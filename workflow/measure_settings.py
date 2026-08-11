@@ -48,6 +48,21 @@ MEASURE_CONTROLS: "dict[str, str]" = {
     "patch_by_patch":      "_m_pbp_cb",
     "resume":              "_m_resume_cb",
     "bidirectional":       "_m_bidir_combo",
+    # Knut's beta.3 bug-test (2026-08-11): these lived outside the store and
+    # so followed the user from run to run. The two Instrument-port spins are
+    # separate widgets (Guided and Manual each have one), so both are stored;
+    # the Live-preview controls exist once per module and the modules are
+    # deliberately independent (#44), so each set is stored under its own key.
+    "instrument_port":         "_instr_spin",
+    "instrument_port_manual":  "_m_instr_spin",
+    "bidirectional_auto":      "_m_bidir_auto_cb",
+    "show_overlay":            "_overlay_cb",
+    "view_mode_guided":        "_g_overlay_mode",
+    "only_measured_guided":    "_g_only_measured",
+    "patch_tile_guided":       "_g_patch_tile",
+    "view_mode_manual":        "_m_overlay_mode",
+    "only_measured_manual":    "_m_only_measured",
+    "patch_tile_manual":       "_m_patch_tile",
 }
 
 

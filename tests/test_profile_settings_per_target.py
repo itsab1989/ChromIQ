@@ -34,6 +34,9 @@ class _Tab:
         self._profile_written = {}
         self._target_ctl = None
 
+    def _collect_guided_profile_fields(self): return {}   # the
+    # guided-module fields are the real tab's concern (Knut beta.3)
+    def _apply_guided_profile_fields(self, stored): pass
     def _m_collect_preset_data(self):   return dict(self._data)
     def _m_apply_preset_data(self, d):  self._applied.append(d); self._data = dict(d)
     def _restore_defaults(self):        self._restored.append(True)

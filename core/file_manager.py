@@ -352,6 +352,14 @@ class RunMeta:
     #: Shape: {"<tool><flag>": {"enabled": bool, "value": …}}, or
     #: {"repeats": [ … ]} for a flag that may be given more than once.
     create_chart_settings: dict = field(default_factory=dict)
+    #: The Create Chart controls that are not parameter rows (Knut's beta.3
+    #: bug-test, 2026-08-11): the active module, Guided's shared settings
+    #: (instrument, paper, pages, …), the layout-engine toggle and recipe,
+    #: and the FROM PROFILE GAMUT module's options. Stored so they follow
+    #: the target BEFORE any chart exists; once a chart is generated its
+    #: sidecar still has the last word on what it recorded (Knut's
+    #: precedence ruling).
+    create_chart_ui: dict = field(default_factory=dict)
     #: The Measure tab's settings as this target last had them (#130 §5).
     #: Separate from create_chart_settings because they are different tabs with
     #: different keys; one dict would make a renamed key on one tab look like a
@@ -447,6 +455,14 @@ class CalibrationMeta:
     #: Shape: {"<tool><flag>": {"enabled": bool, "value": …}}, or
     #: {"repeats": [ … ]} for a flag that may be given more than once.
     create_chart_settings: dict = field(default_factory=dict)
+    #: The Create Chart controls that are not parameter rows (Knut's beta.3
+    #: bug-test, 2026-08-11): the active module, Guided's shared settings
+    #: (instrument, paper, pages, …), the layout-engine toggle and recipe,
+    #: and the FROM PROFILE GAMUT module's options. Stored so they follow
+    #: the target BEFORE any chart exists; once a chart is generated its
+    #: sidecar still has the last word on what it recorded (Knut's
+    #: precedence ruling).
+    create_chart_ui: dict = field(default_factory=dict)
     #: The Measure tab's settings as this target last had them (#130 §5).
     #: Separate from create_chart_settings because they are different tabs with
     #: different keys; one dict would make a renamed key on one tab look like a

@@ -9756,17 +9756,26 @@ class TabChart(QWidget):
             # user's own New-run setup the moment they flicked to another run
             # and back, silently.
             self._seed_new_run_block(store, wanted)
+            # The non-parameter controls travel in the same write (Knut's
+            # beta.3 bug-test): module, Guided shared settings, engine
+            # toggle + recipe, gamut options. Part of the dirty check, or a
+            # ui-only change would never reach the file.
+            ui_state = self._collect_ui_state()
             fingerprint = str(getattr(store, "dir", store))
-            if self._written_cache().get(fingerprint) == wanted:
+            if self._written_cache().get(fingerprint) == (wanted, ui_state):
                 return False
             meta = store.load_meta()
-            if getattr(meta, "create_chart_settings", None) == wanted:
-                self._written_cache()[fingerprint] = wanted
+            if (getattr(meta, "create_chart_settings", None) == wanted
+                    and getattr(meta, "create_chart_ui", None) == ui_state):
+                self._written_cache()[fingerprint] = (wanted, ui_state)
                 return False       # nothing changed; don't churn the file
             meta.create_chart_settings = wanted
+            if hasattr(meta, "create_chart_ui"):
+                meta.create_chart_ui = ui_state
             store.save_meta(meta)
-            self._written_cache()[fingerprint] = wanted
-            log.debug("create-chart settings written for %s (%d parameters)",
+            self._written_cache()[fingerprint] = (wanted, ui_state)
+            log.debug("create-chart settings written for %s (%d parameters "
+                      "+ ui state)",
                       getattr(store, "id", store), len(wanted))
             return True
         except Exception:      # noqa: BLE001 — never lose the tab over a write
@@ -9873,6 +9882,16 @@ class TabChart(QWidget):
                 # still open (§7 A) — say so in the log, never refuse to load.
                 log.info("ignored %d unknown stored setting(s): %s",
                          len(unknown), ", ".join(sorted(unknown)[:8]))
+            # The non-parameter controls follow in the same load (Knut's
+            # beta.3 bug-test): module, Guided shared settings, engine
+            # toggle + recipe, gamut options.
+            try:
+                ui_state = getattr(store.load_meta(), "create_chart_ui", None)
+                if ui_state:
+                    self._apply_ui_state(ui_state)
+            except Exception:      # noqa: BLE001
+                log.warning("Could not apply the target's Create Chart ui "
+                            "state", exc_info=True)
             return True
         except Exception:      # noqa: BLE001
             log.warning("Could not apply the target's Create Chart settings",
@@ -10038,6 +10057,94 @@ class TabChart(QWidget):
         """
         return {tool: list(widgets)
                 for tool, widgets in getattr(self, "_manual_widgets", {}).items()}
+
+    def _collect_ui_state(self) -> dict:
+        """The Create Chart controls that are NOT parameter rows, for the
+        target's ``create_chart_ui`` store (Knut's beta.3 bug-test: the
+        module, Guided's shared settings, the engine toggle and recipe, and
+        the gamut module's options followed the user from run to run).
+        Best-effort per block: a control that cannot be read is left out
+        rather than blocking the write."""
+        out: dict = {"mode": self._mode_name()}
+        try:
+            out["guided"] = dict(self._shared_get("guided"))
+        except Exception:      # noqa: BLE001
+            pass
+        try:
+            out["engine_on"] = bool(
+                self._settings.get("use_chromiq_layout_engine", False))
+            rec = self._manual_layout_panel.get_recipe()
+            if rec is not None:
+                out["engine_recipe"] = rec.to_dict()
+        except Exception:      # noqa: BLE001
+            pass
+        try:
+            out["gamut"] = {
+                "count": int(self._gamut_count_spin.value()),
+                "auto": bool(self._gamut_auto_check.isChecked()),
+                "margin": self._gamut_margin_combo.currentData(),
+                "intent": self._gamut_intent_combo.currentData(),
+            }
+        except Exception:      # noqa: BLE001
+            pass
+        return out
+
+    def _apply_ui_state(self, stored: dict) -> None:
+        """Put a target's stored ``create_chart_ui`` on screen. Stale or
+        unknown keys are ignored (§7 A); the run-type module rules
+        (_refresh_gamut_visibility) still run afterwards and win over an
+        illegal stored mode."""
+        if not isinstance(stored, dict):
+            return
+        guided = stored.get("guided")
+        if isinstance(guided, dict):
+            for fld, val in guided.items():
+                try:
+                    self._shared_set("guided", fld, val)
+                except Exception:      # noqa: BLE001
+                    log.debug("ui-state: guided %s not applied", fld)
+        if "engine_on" in stored:
+            try:
+                on = bool(stored["engine_on"])
+                self._settings.set("use_chromiq_layout_engine", on)
+                chk = getattr(self, "_manual_engine_check", None)
+                if chk is not None and chk.isChecked() != on:
+                    chk.setChecked(on)
+            except Exception:      # noqa: BLE001
+                log.debug("ui-state: engine toggle not applied")
+        rec_d = stored.get("engine_recipe")
+        if isinstance(rec_d, dict):
+            try:
+                import dataclasses as _dc
+
+                from workflow.layout_engine.presets import LayoutRecipe
+                names = {f.name for f in _dc.fields(LayoutRecipe)}
+                rec = LayoutRecipe(
+                    **{k: v for k, v in rec_d.items() if k in names})
+                self._manual_layout_panel.set_recipe(rec)
+            except Exception:      # noqa: BLE001
+                log.debug("ui-state: engine recipe not applied", exc_info=True)
+        gam = stored.get("gamut")
+        if isinstance(gam, dict):
+            try:
+                if "count" in gam:
+                    self._gamut_count_spin.setValue(int(gam["count"]))
+                if "auto" in gam:
+                    self._gamut_auto_check.setChecked(bool(gam["auto"]))
+                for key, combo in (("margin", self._gamut_margin_combo),
+                                   ("intent", self._gamut_intent_combo)):
+                    if key in gam:
+                        i = combo.findData(gam[key])
+                        if i >= 0:
+                            combo.setCurrentIndex(i)
+            except Exception:      # noqa: BLE001
+                log.debug("ui-state: gamut options not applied")
+        mode = stored.get("mode")
+        if mode in ("guided", "manual", "gamut") and mode != self._mode_name():
+            # A stored module IS the user's recorded choice for this target —
+            # marked as such so the verification default cannot override it.
+            self._user_chose_module = True
+            self._switch_mode(mode)
 
     def _target_settings_store(self):
         """Where this selection's SETTINGS are read from and written to.

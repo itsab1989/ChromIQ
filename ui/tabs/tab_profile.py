@@ -2013,6 +2013,87 @@ class TabProfile(QWidget):
             self._profile_written = {}
         return self._profile_written
 
+    #: The GUIDED module's fields for the per-target store, keyed "g_…" so
+    #: they can never collide with the Manual pair's keys. Knut's beta.3
+    #: bug-test: he edited Manufacturer / Model / media surface on the
+    #: Guided module, and those widgets are independent of Manual's — the
+    #: 43-key pair never saw them, so every run showed the last-typed
+    #: values. (checkbox|combo|spin|text, attribute) per key.
+    _GUIDED_PROFILE_FIELDS: "tuple[tuple[str, str, str], ...]" = (
+        ("g_algorithm",     "combo", "_algo_combo"),
+        ("g_quality",       "combo", "_qual_combo"),
+        ("g_b2a_enabled",   "check", "_b2a_check"),
+        ("g_b2a_quality",   "combo", "_b2a_combo"),
+        ("g_smoothing",     "spin",  "_smooth_spin"),
+        ("g_dark_emphasis", "spin",  "_dark_spin"),
+        ("g_illuminant",    "combo", "_illum_combo"),
+        ("g_observer",      "combo", "_obs_combo"),
+        ("g_fwa_enabled",   "check", "_fwa_check"),
+        ("g_fwa_illum",     "combo", "_fwa_illum_combo"),
+        ("g_z_surface",     "combo", "_z_surface_combo"),
+        ("g_z_color_mode",  "combo", "_z_color_mode_combo"),
+        ("g_gamut_mode",    "combo", "_gam_mode_combo"),
+        ("g_gamut_src",     "text",  "_gam_path_edit"),
+        ("g_perc_intent_enabled", "check", "_perc_intent_check"),
+        ("g_perc_intent",   "combo", "_perc_intent_combo"),
+        ("g_sat_intent_enabled",  "check", "_sat_intent_check"),
+        ("g_sat_intent",    "combo", "_sat_intent_combo"),
+        ("g_no_perc_gamut", "check", "_no_perc_gamut_cb"),
+        ("g_no_sat_gamut",  "check", "_no_sat_gamut_cb"),
+        ("g_inv_gamut",     "check", "_inv_gamut_cb"),
+        ("g_mfr_enabled",   "check", "_mfr_check"),
+        ("g_mfr",           "text",  "_mfr_edit"),
+        ("g_model_enabled", "check", "_model_check"),
+        ("g_model",         "text",  "_model_edit"),
+        ("g_copy_enabled",  "check", "_copy_check"),
+        ("g_copy",          "text",  "_copy_edit"),
+        ("g_no_input_shaper",  "check", "_no_input_cb"),
+        ("g_no_output_shaper", "check", "_no_output_cb"),
+        ("g_no_grid_pos",   "check", "_no_grid_pos_cb"),
+        ("g_no_embedded",   "check", "_no_embedded_cb"),
+    )
+
+    def _collect_guided_profile_fields(self) -> dict:
+        out: dict = {}
+        for key, kind, attr in self._GUIDED_PROFILE_FIELDS:
+            wgt = getattr(self, attr, None)
+            if wgt is None:
+                continue
+            try:
+                if kind == "check":
+                    out[key] = bool(wgt.isChecked())
+                elif kind == "combo":
+                    out[key] = wgt.currentData()
+                elif kind == "spin":
+                    out[key] = wgt.value()
+                else:
+                    out[key] = wgt.text()
+            except Exception:      # noqa: BLE001 — leave the field out
+                pass
+        return out
+
+    def _apply_guided_profile_fields(self, stored: dict) -> None:
+        for key, kind, attr in self._GUIDED_PROFILE_FIELDS:
+            if key not in stored:
+                continue           # older store — the field keeps its state
+            wgt = getattr(self, attr, None)
+            if wgt is None:
+                continue
+            val = stored[key]
+            try:
+                if kind == "check":
+                    wgt.setChecked(bool(val))
+                elif kind == "combo":
+                    i = wgt.findData(val)
+                    if i >= 0:
+                        wgt.setCurrentIndex(i)
+                elif kind == "spin":
+                    wgt.setValue(float(val))
+                else:
+                    wgt.setText("" if val is None else str(val))
+            except Exception:      # noqa: BLE001
+                log.debug("guided profile field %s not applied", key)
+
     def save_target_settings(self, store=None, key=None) -> bool:
         """Record this tab's settings against the selected target.
 
@@ -2040,6 +2121,10 @@ class TabProfile(QWidget):
             wanted = self._m_collect_preset_data()
             if not wanted:
                 return False
+            # The Guided module's own fields travel in the same dict, keyed
+            # "g_…" (Knut's beta.3 bug-test). _m_apply_preset_data ignores
+            # keys it does not know, so presets stay exactly as they were.
+            wanted = {**wanted, **self._collect_guided_profile_fields()}
             fingerprint = str(getattr(store, "dir", store))
             if self._profile_written_cache().get(fingerprint) == wanted:
                 return False
@@ -2079,6 +2164,7 @@ class TabProfile(QWidget):
                 self._restore_defaults()
                 return False
             self._m_apply_preset_data(stored)
+            self._apply_guided_profile_fields(stored)
             return True
         except Exception:      # noqa: BLE001
             log.warning("Could not apply the target's Build Profile settings",

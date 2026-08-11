@@ -100,6 +100,7 @@ class _Tab:
 
     def per_target_widgets(self):   return self._widgets
     def _target_text_store(self):   return self._store
+    def _collect_ui_state(self):  return {}   # ui-state: real tab's concern
     _target_settings_store = _target_text_store   # same store here: the
     # stand-in tests the seed block, not the run-type store split (F1)
 

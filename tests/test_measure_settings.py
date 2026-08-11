@@ -165,6 +165,34 @@ def wired(tmp_path, qapp):
     return _WiredTab(store), store
 
 
+def test_every_mapped_control_exists_on_the_real_tab(qapp):
+    """A typo'd attribute name silently stores nothing — which is exactly how
+    the port, the overlay toggle and the Live-preview controls followed the
+    user from run to run until Knut's beta.3 test caught it. Ask the REAL
+    tab: every key in MEASURE_CONTROLS must resolve to a live widget, and
+    every one must appear in the snapshot."""
+    from core.argyll_runner import ArgyllRunner
+    from core.settings import DEFAULTS
+    from ui.tabs.tab_measure import TabMeasure
+
+    class _S:
+        def __init__(self):
+            self._d = dict(DEFAULTS)
+
+        def get(self, k, d=None):   return self._d.get(k, d)
+        def set(self, k, v):        self._d[k] = v
+
+    s = _S()
+    tab = TabMeasure(ArgyllRunner(s), s)
+    missing = [k for k, attr in MEASURE_CONTROLS.items()
+               if getattr(tab, attr, None) is None]
+    assert not missing, (
+        f"MEASURE_CONTROLS names widgets the tab does not have: {missing}")
+    snap = snapshot(tab)
+    absent = [k for k in MEASURE_CONTROLS if k not in snap]
+    assert not absent, f"mapped controls missing from the snapshot: {absent}"
+
+
 def test_it_writes_the_settings_against_the_target(wired):
     tab, store = wired
     tab._m_nocal_cb.setChecked(True)

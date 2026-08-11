@@ -182,3 +182,32 @@ def test_settings_edits_do_not_make_the_chart_look_different(tmp_path):
     (vdir / "meta.json").write_text('{"measure_settings": {"gen": 2}}')
     assert not live_differs_from_snapshot(ver), \
         "a settings edit made the chart look different"
+
+
+def test_every_guided_profile_field_exists_on_the_real_tab(qapp):
+    """Knut's beta.3 bug-test: the Guided module's Manufacturer / Model /
+    media-surface fields were outside the store because only Manual's
+    widgets were mapped. A typo'd attribute in _GUIDED_PROFILE_FIELDS would
+    silently re-open that hole — ask the real tab."""
+    from core.argyll_runner import ArgyllRunner
+    from core.settings import DEFAULTS
+    from ui.tabs.tab_profile import TabProfile
+
+    class _S:
+        def __init__(self):
+            self._d = dict(DEFAULTS)
+
+        def get(self, k, d=None):   return self._d.get(k, d)
+        def set(self, k, v):        self._d[k] = v
+
+    s = _S()
+    tab = TabProfile(ArgyllRunner(s), s)
+    missing = [key for key, _kind, attr in tab._GUIDED_PROFILE_FIELDS
+               if getattr(tab, attr, None) is None]
+    assert not missing, (
+        f"_GUIDED_PROFILE_FIELDS names widgets the tab does not have: "
+        f"{missing}")
+    collected = tab._collect_guided_profile_fields()
+    absent = [key for key, _k, _a in tab._GUIDED_PROFILE_FIELDS
+              if key not in collected]
+    assert not absent, f"fields missing from the collect: {absent}"

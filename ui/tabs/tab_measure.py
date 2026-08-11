@@ -10820,13 +10820,23 @@ class TabMeasure(QWidget):
                         idx = opt.widget.findData(str(val))
                         if idx >= 0:
                             opt.widget.setCurrentIndex(idx)
+        # The port spins and the overlay toggle are per-target now (Knut's
+        # beta.3 bug-test) — so this loader, which S4/S5 uses for a target
+        # with nothing stored, must reset them with a HARD fallback. "Only
+        # when a saved default exists" left the previous target's values on
+        # screen, and the next write filed them (the beta.148 leak, on three
+        # more controls).
+        try:
+            self._instr_spin.setValue(int(s.get("guided_chartread_instr") or 1))
+        except (ValueError, TypeError):
+            self._instr_spin.setValue(1)
+        self._overlay_cb.setChecked(bool(s.get("measure_show_overlay", False)))
         # Manual defaults
-        m_instr = s.get("manual2_chartread_instr")
-        if m_instr is not None:
-            try:
-                self._m_instr_spin.setValue(int(m_instr))
-            except (ValueError, TypeError):
-                pass
+        try:
+            self._m_instr_spin.setValue(
+                int(s.get("manual2_chartread_instr") or 1))
+        except (ValueError, TypeError):
+            self._m_instr_spin.setValue(1)
         self._set_bidir_value(self._m_bidir_combo, self._coerce_bidir_mode(
             s.get("manual2_chartread_bidir_mode"),
             bool(s.get("manual2_chartread_bidir", False)),
