@@ -555,8 +555,9 @@ WORKFLOWS: list[dict] = [
     {
         "key": "verify",
         "title": tr("Check a finished profile (verification run)"),
-        "subtitle": tr("Print a chart THROUGH the profile and measure it to see "
-            "how accurate the profile still is."),
+        "subtitle": tr("Measure a check chart and see, in real numbers, how "
+            "accurate your finished profile is — and whether it stays that "
+            "way over time."),
         "steps": [
             (1, tr("First make sure the profile you want to check already "
                 "exists — a verification always checks a finished profile. In "
