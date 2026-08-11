@@ -1,5 +1,57 @@
 # Changelog
 
+## v4.0.0-beta.3
+
+> The two per-target settings defects announced in beta.2 are **fixed in
+> this beta** (and one smaller, related one was found and is still under
+> review — the six calibration-owned chart rows can follow you from a
+> Calibration run to the next run you visit; nothing else is affected).
+> The `ChromIQ-Switching-Demo.zip` download on this release carries the
+> test cases that prove the fixes, ready for a manual pass.
+
+### Fixed
+
+- 🗂️ **Every run type now keeps its own settings — verification included.**
+  Switching Run type between Profiling and Verification on the same run
+  used to share one set of chart / measure / print settings, each
+  overwriting the other. A verification now stores its settings in its own
+  place, they are backed up together with the chart when a measurement
+  starts, and Restore Used Chart brings them back (whatever it replaces is
+  archived, never deleted).
+- **The tab you are looking at follows the run switch.** Changing Profile
+  run or Run type while standing on the Measure or Build Profile tab used
+  to leave the previous run's values on screen — and then save them onto
+  the run you had just switched to. Every tab now reloads the moment the
+  selection changes, exactly the way Create Chart always did — including
+  switches the app makes for you, such as after duplicating a run.
+- 📏 **The log panel can be made bigger again.** Dragging its top edge
+  could only ever shrink it — the ceiling was measuring the panel's own
+  wrapper instead of the space the tab really has. It now grows to
+  whatever the window allows, on every tab, and hiding and re-showing it
+  in Preferences keeps it resizable.
+- With calibration options on, the Create Chart tab no longer locks
+  every run onto a module you cannot leave: a Profiling or Calibration
+  run opens on MANUAL, and a Verification run offers MANUAL and FROM
+  PROFILE GAMUT — with FROM PROFILE GAMUT as the default.
+- The Create Calibration File module had a second load-measurement icon
+  inside its Measurement Data section; the one in the tab's header now
+  serves that module too (its tooltip says so), and the duplicate is gone.
+
+### Changed
+
+- The "Getting started" card's interface tour speaks today's language:
+  the Options-panel row explains the module buttons (GUIDED, MANUAL and
+  when FROM PROFILE GAMUT appears), and the five-tabs row says when tab 4
+  is called "Calibration & Profiling".
+
+### Internal
+
+- The switching demo package (`ChromIQ-Switching-Demo.zip`) now documents
+  four targets including a verification, and its RT1/RT2/VT1 cases are
+  machine-verified through a full app restart at package build time.
+- The per-target settings specification records the 2026-08-11 rulings
+  (§10) with the implementation in an awaiting-confirmation section.
+
 ## v4.0.0-beta.2
 
 > Fixes from the first round of 4.0 beta feedback — thank you! Two known
