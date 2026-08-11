@@ -101,7 +101,8 @@ each have a plain-language Dictionary entry: open the Welcome window's
 
 - **The run bar — one place that says what you are working on.** Above the
   tabs, on every tab: **Profile run**, **Run type** (Profiling,
-  Verification, Calibration) and — for verifications — which dated check,
+  Verification — and Calibration, once its options are enabled in
+  Preferences) and — for verifications — which dated check,
   each with its own ⓘ explanation. Beside them sit the run actions:
   duplicate a run, restore the chart a measurement was made with, and
   delete — with a window first that says exactly what would happen. The
@@ -129,10 +130,11 @@ each have a plain-language Dictionary entry: open the Welcome window's
   description** (a checkbox on Build Profile), so the profile picker in your
   editor reads like your own words.
 
-- **Calibration is a run type.** Choose **Calibration** in the Run type list
-  and the whole app follows: chart, measurement, `.cal` file and its
-  description live in the project's `cal/` folder, shared by every run, and
-  each profile run records which calibration it was built with.
+- **Calibration is a run type.** Once **"Enable calibration options"** is
+  ticked in Preferences, **Calibration** appears in the Run type list —
+  choose it and the whole app follows: chart, measurement, `.cal` file and
+  its description live in the project's `cal/` folder, shared by every run,
+  and each profile run records which calibration it was built with.
 
 - **Sounds during measurement** — a strip accepted, a patch misread, a
   session finished — so you can keep your eyes on the chart. **Preferences →
