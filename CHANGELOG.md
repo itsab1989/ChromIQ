@@ -59,11 +59,12 @@ each have a plain-language Dictionary entry: open the Welcome window's
   this sheet printed?"* — Raw / With colour management / Not sure (always
   safe, stores nothing). The answer is kept with that one measurement.
 
-- **Import a measurement made in another program.** The Measure tab's
-  **IMPORT** module files an i1Profiler (or any .ti3) measurement as a dated
-  verification: converted, checked patch-for-patch against this run's chart,
-  and stored exactly where a native measurement would go. Your original file
-  is never touched.
+- **Import a measurement made in another program.** With **Run type** set to
+  **Verification**, the Measure tab shows an **IMPORT** module (it exists
+  only for verification runs): it files an i1Profiler (or any .ti3)
+  measurement as a dated verification — converted, checked patch-for-patch
+  against this run's chart, and stored exactly where a native measurement
+  would go. Your original file is never touched.
 
 - **The report judges every sheet by the fair yardstick.** A print that
   mapped white to the paper — through the profile with relative intent, or
