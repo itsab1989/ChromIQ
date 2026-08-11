@@ -1,5 +1,58 @@
 # Changelog
 
+## v4.0.0-beta.4
+
+> Knut's hands-on test of beta.3 showed that the per-target settings
+> machinery, while working faithfully, only covered part of each tab's
+> controls — the rest silently followed you from run to run. This beta
+> closes every gap he found. The automated switching drive now sweeps the
+> complete vocabularies (81 checks) and the refreshed
+> `ChromIQ-Switching-Demo.zip` documents a distinct value for the once-
+> leaking controls, including two runs with no chart at all.
+
+### Fixed
+
+- 🗂️ **Every control on the Measure tab now belongs to its run.** The
+  Instrument port number, the strip-recognition "Auto" toggle, "Show
+  overlay from existing measurement" and the whole Live-preview group
+  (Each patch shows, Show only measured patches, Show patch values on
+  hover) used to keep one shared value across all runs and run types.
+  Each target now keeps — and reopens on — its own. ("Play sounds during
+  measurement" stays global on purpose: whether your machine beeps is
+  about your room, not about run 3 versus run 4.)
+- **Create Chart settings persist before any chart exists.** Guided's
+  Instrument and Paper, the ChromIQ layout engine switch and its entire
+  layout, and the FROM PROFILE GAMUT options now follow the selected run
+  and run type from the moment you set them — no Generate Chart needed.
+  Once a chart is generated, its own recorded settings still take
+  precedence when you return to it, so what you see always matches the
+  sheet that exists.
+- **The Build Profile tab's Guided fields are per-run now.** Manufacturer,
+  Model, Copyright, media surface, colour type, gamut source and the rest
+  of the Guided module were stored only for the Manual module's fields —
+  editing them in Guided showed the last-typed values on every run. All
+  of Guided's fields now travel with their run.
+- A run that has nothing stored yet opens on true defaults for all of
+  these controls — never on whatever the previous run left on screen.
+- The same held, and is now fixed, for the controls a second look found:
+  the Measure tab's GUIDED-side toggles (they are their own widgets, not
+  mirrors of Manual's), Manual mode's chartread option rows, and the
+  whole Create Calibration File module — its mode, previous-.cal path,
+  dry run, smoothing, verbosity, description, Manufacturer / Model /
+  Copyright and the Initial Target Overrides grid all belong to the
+  calibration target now. Controls are stored whether or not they are
+  scrolled into view, in every module of every run type.
+
+### Internal
+
+- The on-screen switching drive sweeps the complete vocabularies — 52
+  Create Chart keys, 15 Measure, 74 Build Profile — across four targets
+  with disk verification and a dedicated chartless-run phase: 81/81.
+- `ChromIQ-Switching-Demo.zip` v3: eight documented columns per target,
+  two chartless runs (ColorMunki/Letter and SpectroScan/A4), new manual
+  cases CL1/CL2, every value machine-verified through a full app restart
+  (33/33).
+
 ## v4.0.0-beta.3
 
 > All three per-target settings defects are **fixed in this beta**: the two

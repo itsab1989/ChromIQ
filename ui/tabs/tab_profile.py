@@ -2051,10 +2051,44 @@ class TabProfile(QWidget):
         ("g_no_output_shaper", "check", "_no_output_cb"),
         ("g_no_grid_pos",   "check", "_no_grid_pos_cb"),
         ("g_no_embedded",   "check", "_no_embedded_cb"),
+        # The Create Calibration File module (printcal) — its fields belong
+        # to the calibration target's store the same way (Sebastian's
+        # are-you-certain audit, 2026-08-11: "every single parameter in …
+        # the Calibration and Profiling tab").
+        ("pc_mode",          "combo", "_pc_mode_combo"),
+        ("pc_prev_cal",      "text",  "_pc_prev_edit"),
+        ("pc_dry_run",       "check", "_pc_dry_run_cb"),
+        ("pc_smoothing",     "spin",  "_pc_smooth_spin"),
+        ("pc_verbosity",     "spin",  "_pc_verb_spin"),
+        ("pc_extended",      "check", "_pc_extended_cb"),
+        ("pc_description",   "text",  "_pc_desc_edit"),
+        ("pc_mfr_enabled",   "check", "_pc_mfr_check"),
+        ("pc_mfr",           "text",  "_pc_mfr_edit"),
+        ("pc_model_enabled", "check", "_pc_model_check"),
+        ("pc_model",         "text",  "_pc_model_edit"),
+        ("pc_copy_enabled",  "check", "_pc_copy_check"),
+        ("pc_copy",          "text",  "_pc_copy_edit"),
     )
 
     def _collect_guided_profile_fields(self) -> dict:
         out: dict = {}
+        # The printcal Initial Target Overrides grid, row by row — the rows
+        # carry their own restore(); this is its collect counterpart.
+        try:
+            rows = []
+            for r in getattr(self, "_pc_channel_rows", []) or []:
+                def _val(sp):
+                    return (sp.value() if sp.value()
+                            >= sp.minimum() + sp.singleStep() * 0.5 else None)
+                rows.append({"enabled": bool(r.enabled_cb.isChecked()),
+                             "max_pct": _val(r.max_spin),
+                             "dev_pct": _val(r.dev_spin),
+                             "white_de": _val(r.white_spin),
+                             "t50_pct": _val(r.t50_spin)})
+            if rows:
+                out["pc_channel_rows"] = rows
+        except Exception:      # noqa: BLE001
+            pass
         for key, kind, attr in self._GUIDED_PROFILE_FIELDS:
             wgt = getattr(self, attr, None)
             if wgt is None:
@@ -2073,6 +2107,15 @@ class TabProfile(QWidget):
         return out
 
     def _apply_guided_profile_fields(self, stored: dict) -> None:
+        rows = stored.get("pc_channel_rows")
+        if isinstance(rows, list):
+            try:
+                for r, data in zip(getattr(self, "_pc_channel_rows", []) or [],
+                                   rows):
+                    if isinstance(data, dict):
+                        r.restore(data)
+            except Exception:      # noqa: BLE001
+                log.debug("printcal channel rows not applied", exc_info=True)
         for key, kind, attr in self._GUIDED_PROFILE_FIELDS:
             if key not in stored:
                 continue           # older store — the field keeps its state

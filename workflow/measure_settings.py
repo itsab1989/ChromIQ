@@ -63,6 +63,14 @@ MEASURE_CONTROLS: "dict[str, str]" = {
     "view_mode_manual":        "_m_overlay_mode",
     "only_measured_manual":    "_m_only_measured",
     "patch_tile_manual":       "_m_patch_tile",
+    # Sebastian's are-you-certain audit (2026-08-11): the GUIDED module's
+    # toggles are their own widgets, not mirrors of Manual's — the same
+    # independent-widget trap the Build Profile tab had.
+    "suppress_warnings_guided":   "_suppress_cb",
+    "disable_initial_cal_guided": "_nocal_cb",
+    "patch_by_patch_guided":      "_pbp_cb",
+    "bidirectional_guided":       "_bidir_combo",
+    "bidirectional_auto_guided":  "_bidir_auto_cb",
 }
 
 
@@ -103,17 +111,21 @@ def snapshot(tab: Any) -> "dict[str, dict]":
         got = _read(getattr(tab, attr, None))
         if got is not None:
             out[key] = {"enabled": got[0], "value": got[1]}
-    # …and every chartread option, which the tab already keeps as a list — the
-    # one part of this tab that is enumerable, so it cannot be forgotten.
-    for opt in getattr(tab, "_chartread_opts", []) or []:
-        cb, w = getattr(opt, "checkbox", None), getattr(opt, "widget", None)
-        if cb is None:
-            continue
-        rec: dict = {"enabled": bool(cb.isChecked())}
-        got = _read(w)
-        if got is not None:
-            rec["value"] = got[1]
-        out[f"chartread.{opt.key}"] = rec
+    # …and every chartread option of BOTH modules, which the tab already
+    # keeps as lists — enumerable, so they cannot be forgotten. Guided and
+    # Manual are separate rows on screen, so each set is stored under its
+    # own prefix (Sebastian's audit: only the Guided list was stored).
+    for prefix, attr in (("chartread", "_chartread_opts"),
+                         ("chartread_manual", "_m_chartread_opts")):
+        for opt in getattr(tab, attr, []) or []:
+            cb, w = getattr(opt, "checkbox", None), getattr(opt, "widget", None)
+            if cb is None:
+                continue
+            rec: dict = {"enabled": bool(cb.isChecked())}
+            got = _read(w)
+            if got is not None:
+                rec["value"] = got[1]
+            out[f"{prefix}.{opt.key}"] = rec
     return out
 
 
@@ -126,6 +138,8 @@ def apply(tab: Any, stored: "dict[str, dict]") -> "list[str]":
     unknown: list[str] = []
     opts = {f"chartread.{o.key}": o
             for o in (getattr(tab, "_chartread_opts", []) or [])}
+    opts.update({f"chartread_manual.{o.key}": o
+                 for o in (getattr(tab, "_m_chartread_opts", []) or [])})
     for key, rec in (stored or {}).items():
         if not isinstance(rec, dict):
             unknown.append(key)
