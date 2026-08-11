@@ -98,6 +98,23 @@ each have a plain-language Dictionary entry: open the Welcome window's
 
 **And the rest:**
 
+- **The run bar — one place that says what you are working on.** Above the
+  tabs, on every tab: **Profile run**, **Run type** (Profiling,
+  Verification, Calibration) and — for verifications — which dated check,
+  each with its own ⓘ explanation. Beside them sit the run actions:
+  duplicate a run, restore the chart a measurement was made with, and
+  delete — with a window first that says exactly what would happen. The
+  whole app follows the bar: Create Chart, Print, Measure and Build Profile
+  always show the run it points at, and when no project is loaded the bar
+  says so instead of guessing.
+
+- **Ready-made Red River Paper charts.** Four built-in starting points in
+  Create Chart carry Red River's own 2052-patch Standard Patch Set v25 —
+  byte-identical to their published file — laid out and verified for i1Pro
+  (A4 and Letter, with the clip-border record) and ColorMunki. The patch
+  set is fixed so results stay comparable; every layout control (paper,
+  margins, branding) stays yours to change.
+
 - **Every setting belongs to the run you set it on.** Create Chart, Measure
   and Build Profile each remember their own settings per run; switching run,
   opening a project or changing run type loads them, leaving a tab saves
@@ -171,6 +188,11 @@ each have a plain-language Dictionary entry: open the Welcome window's
   the log panel ends on the same line shown or hidden, the run bar no longer
   shifts during start-up, and windows placed off-screen by the system are
   nudged back so their bottom row of buttons is always reachable.
+
+- **The icons were drawn for the job.** Load Project and Load chart have
+  their own recognisable icons, the Duplicate and Calibration actions got
+  purpose-made marks, and the run bar's action marks were aligned optically
+  — reviewed on screen, in light and dark mode, before being adopted.
 
 - **The windows that ask what to do with a chart read like every other
   window** — explanation in plain text, buttons in a row, Cancel set apart,
