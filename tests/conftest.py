@@ -131,6 +131,30 @@ def _no_real_editor_render(monkeypatch):
                         lambda self, *a, **k: None, raising=False)
 
 
+@pytest.fixture(autouse=True)
+def _no_native_print_dialog(monkeypatch):
+    """Never let a test open the Qt native print dialog — it blocks for ever.
+
+    The same "passes on Mac, hangs on Windows" shape as the editor render above.
+    ``TabPrint._print_native_qt`` opens ``QPrintDialog(...).exec()``, a modal
+    with no one to click it, so any test that reaches it wedges the headless
+    suite until it is killed. And it IS reached on Windows even when a test sets
+    ``use_native_print_dialog`` False: ``AppSettings.get`` forces that flag True
+    on Windows (there is no ``lp`` there), so ``_on_print_current`` takes the
+    native branch, whereas on macOS the same branch goes to the driver-native
+    path instead of a Qt modal — which is why it only hangs on Windows (#130,
+    beta.221 gate). Tests that care about the print path stub ``_print_pages`` /
+    ``_print_native`` themselves and assert on the conversion + record, which
+    happen before this call; this only removes the un-clickable window.
+    """
+    try:
+        from ui.tabs.tab_print import TabPrint
+    except Exception:
+        return
+    monkeypatch.setattr(TabPrint, "_print_native_qt",
+                        lambda self, *a, **k: None, raising=False)
+
+
 # ---------------------------------------------------------------------------
 # The suite never writes into the user's real ChromIQ folder.
 #

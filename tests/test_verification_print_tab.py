@@ -203,6 +203,11 @@ def test_raw_choice_is_recorded_and_prints_unconverted(
     sent: list = []
     monkeypatch.setattr(tab, "_print_pages",
                         lambda pages: sent.append(list(pages)))
+    # Windows forces use_native_print_dialog True (no lp), so _on_print_current
+    # dispatches through _print_native there; capture both so the assertion
+    # holds on whichever path the platform takes.
+    monkeypatch.setattr(tab, "_print_native",
+                        lambda pages: sent.append(list(pages)))
     tab._cm_raw_rb.setChecked(True)
 
     tab._on_print_current()
