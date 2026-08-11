@@ -9904,6 +9904,15 @@ class TabChart(QWidget):
                             exc_info=True)
             finally:
                 self._loading_target_settings = False
+            # A target with nothing stored must not inherit the previous
+            # run's engine calibration from the screen either (Sebastian's
+            # beta.5 check 3): an empty ui-state applies exactly the
+            # engine-calibration neutral default and nothing else.
+            self._loading_target_settings = True
+            try:
+                self._apply_ui_state({})
+            finally:
+                self._loading_target_settings = False
             return False
         # REMEMBER WHOSE SETTINGS ARE NOW ON SCREEN.
         #
@@ -9926,7 +9935,12 @@ class TabChart(QWidget):
             # toggle + recipe, gamut options.
             try:
                 ui_state = getattr(store.load_meta(), "create_chart_ui", None)
-                if ui_state:
+                # An EMPTY dict must still be applied: _apply_ui_state resets
+                # the engine calibration to its neutral state for a target
+                # that has never recorded one — skipping it left the previous
+                # run's calibration on screen, and the next write filed it
+                # (Sebastian's beta.5 check 3).
+                if isinstance(ui_state, dict):
                     self._apply_ui_state(ui_state)
             except Exception:      # noqa: BLE001
                 log.warning("Could not apply the target's Create Chart ui "
@@ -10122,6 +10136,20 @@ class TabChart(QWidget):
         except Exception:      # noqa: BLE001
             pass
         try:
+            # The engine panel's Printer calibration controls are NOT part of
+            # its recipe — without their own record they followed the user
+            # from run to run (Sebastian's beta.5 check 3). Raw widget state,
+            # so "Include" and "Off with a path still typed" stay distinct.
+            panel = self._manual_layout_panel
+            out["engine_cal"] = {
+                "path": (panel.cal_path_edit.text().strip()
+                         if panel.cal_path_edit is not None else ""),
+                "mode": (panel.cal_mode.currentData()
+                         if panel.cal_mode is not None else "off"),
+            }
+        except Exception:      # noqa: BLE001
+            pass
+        try:
             out["gamut"] = {
                 "count": int(self._gamut_count_spin.value()),
                 "auto": bool(self._gamut_auto_check.isChecked()),
@@ -10172,6 +10200,21 @@ class TabChart(QWidget):
                 self._manual_layout_panel.set_recipe(rec)
             except Exception:      # noqa: BLE001
                 log.debug("ui-state: engine recipe not applied", exc_info=True)
+        ec = stored.get("engine_cal")
+        if not isinstance(ec, dict):
+            # A target stored before this key existed must not inherit the
+            # previous run's calibration from the screen (Sebastian's beta.5
+            # check 3: "when i chose a calibration file in run one it was the
+            # same in run 2 automatically") — the panel's neutral state is
+            # the honest answer for it.
+            ec = {"path": "", "mode": "off"}
+        # AFTER the recipe, which drives the rest of the panel — the
+        # calibration controls are this target's own choice.
+        try:
+            self._manual_layout_panel.set_cal(
+                str(ec.get("path") or ""), str(ec.get("mode") or "off"))
+        except Exception:      # noqa: BLE001
+            log.debug("ui-state: engine calibration not applied")
         gam = stored.get("gamut")
         if isinstance(gam, dict):
             try:
