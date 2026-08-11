@@ -153,10 +153,14 @@ each have a plain-language Dictionary entry: open the Welcome window's
   Portuguese, Swedish, Norwegian, Polish, Russian, Japanese and Chinese —
   every button, message, tooltip and help text.
 
-- **Demo projects for learning and testing**: a downloadable package
-  demonstrating the file-handling rules step by step, and the
-  Demo-Report-Matrix package whose thirteen documented cases exercise every
-  variation the Measurement Report can meet.
+- **Demo projects for learning and testing**, both attached to this
+  release as downloads:
+  [ChromIQ-demo-projects.zip](https://github.com/itsab1989/ChromIQ/releases/download/v4.0.0-beta.1/ChromIQ-demo-projects.zip)
+  demonstrates the file-handling rules step by step (including projects in
+  the old 3.13 layout, to watch the migration happen), and
+  [Demo-Report-Matrix.zip](https://github.com/itsab1989/ChromIQ/releases/download/v4.0.0-beta.1/Demo-Report-Matrix.zip)
+  holds thirteen documented Measurement Report cases with one ready-made
+  PDF per case.
 
 - **Preferences → "Hide the log panel on every tab"**, for when the chart
   preview deserves the room. The full log is still written to disk.
