@@ -600,7 +600,18 @@ class MeasurementReportDialog(QDialog):
             "dated report so you can compare measurements of the same chart "
             "over time."), self)
         intro.setWordWrap(True)
-        v.addWidget(intro)
+        # Everything from here to the Pass thresholds lives in ONE capped,
+        # scrollable frame (Knut, beta.5: "Only the part above the chart-tabs
+        # should have a vertical scroll-bar … the charts are part of the below
+        # report"). With many input runs the run list can grow as long as it
+        # likes inside the frame; the trend charts and the report itself
+        # always keep their room, whatever the window height.
+        from PyQt6.QtWidgets import QScrollArea, QSizePolicy, QWidget
+        top_host = QWidget(self)
+        top_v = QVBoxLayout(top_host)
+        top_v.setContentsMargins(0, 0, 0, 0)
+        top_v.setSpacing(v.spacing())
+        top_v.addWidget(intro)
 
         # Sourcing: add / remove / clear the profiles whose measurements the
         # report covers. Each list entry is one profile's runs (Knut).
@@ -663,7 +674,7 @@ class MeasurementReportDialog(QDialog):
                "instruments or a chart is missing cube corners."),
             self, color=SPEC_GREEN))
         add_row.addStretch(1)
-        v.addLayout(add_row)
+        top_v.addLayout(add_row)
 
         self._profile_list = QListWidget(self)
         # A fixed height cramped this into ~3 visible rows the moment a run
@@ -684,7 +695,7 @@ class MeasurementReportDialog(QDialog):
         self._list_rows: "list[tuple]" = []
         self._building_list = False
         self._profile_list.itemChanged.connect(self._on_run_row_toggled)
-        v.addWidget(self._profile_list)
+        top_v.addWidget(self._profile_list)
 
         out_row = QHBoxLayout()
         self._pdf_btn = QPushButton(tr("Save report as PDF…"), self)
@@ -713,11 +724,11 @@ class MeasurementReportDialog(QDialog):
                "you can browse to the reports folder and open any PDF you saved "
                "earlier."),
             self, color=SPEC_GREEN))
-        out_row.addStretch(1)
-        v.addLayout(out_row)
+        # the two report-option checkboxes join this row on the right
+        # (Knut, beta.5: 'moved to the right of the buttons, to save a
+        # bit of vertical space')
+        out_row.addSpacing(18)
 
-        # Report options — the window and the PDF always show the same thing (Knut).
-        opt_row = QHBoxLayout()
         self._all_runs_check = QCheckBox(tr("Show all measurement runs"), self)
         # Both option boxes remember the user's last choice (Sebastian,
         # 2026-08-10: "so I don't have to select it every time again") —
@@ -728,8 +739,8 @@ class MeasurementReportDialog(QDialog):
             lambda on: (settings.set("report_show_all_runs",
                                      "true" if on else "false"),
                         self._refresh()))
-        opt_row.addWidget(self._all_runs_check)
-        opt_row.addWidget(TooltipButton(
+        out_row.addWidget(self._all_runs_check)
+        out_row.addWidget(TooltipButton(
             tr("Show all measurement runs"),
             tr("The report can look at one measurement, or at your whole "
                "history.\n\n"
@@ -748,8 +759,8 @@ class MeasurementReportDialog(QDialog):
             lambda on: (settings.set("report_show_details",
                                      "true" if on else "false"),
                         self._render()))
-        opt_row.addWidget(self._detail_check)
-        opt_row.addWidget(TooltipButton(
+        out_row.addWidget(self._detail_check)
+        out_row.addWidget(TooltipButton(
             tr("Show detailed data for each run"),
             tr("Adds the full breakdown for every run in the report, each on "
                "a page of its own: the colour-accuracy table with its "
@@ -762,8 +773,8 @@ class MeasurementReportDialog(QDialog):
                "It makes the report, and the saved PDF, considerably longer — "
                "which is why it starts unticked."),
             self, min_width=440, color=SPEC_GREEN))
-        opt_row.addStretch(1)
-        v.addLayout(opt_row)
+        out_row.addStretch(1)
+        top_v.addLayout(out_row)
 
         # Pass/Fail thresholds — the average threshold judges the three average
         # metrics, the maximum threshold the two maximum metrics (Knut).
@@ -806,7 +817,21 @@ class MeasurementReportDialog(QDialog):
                "Preferences → Reports (Pass Threshold Average and Maximum)."),
             self, color=SPEC_GREEN))
         thr_row.addStretch(1)
-        v.addLayout(thr_row)
+        top_v.addLayout(thr_row)
+
+        top_scroll = QScrollArea(self)
+        top_scroll.setWidget(top_host)
+        top_scroll.setWidgetResizable(True)
+        top_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        top_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        # Small content keeps the frame small; long content scrolls inside
+        # it. The cap is what guarantees the charts and the report below
+        # always keep their room (Knut's design).
+        top_scroll.setSizePolicy(QSizePolicy.Policy.Preferred,
+                                 QSizePolicy.Policy.Maximum)
+        top_scroll.setMaximumHeight(340)
+        v.addWidget(top_scroll)
 
         self._trend_label = QLabel(tr("Trend over time (this printer)"), self)
         self._trend_label.setStyleSheet("font-weight:bold;margin-top:2px")
@@ -1114,17 +1139,17 @@ class MeasurementReportDialog(QDialog):
     _LIST_VISIBLE_ROWS = 5
 
     def _size_profile_list(self, *, compact: bool = False) -> None:
-        """Pin the list to its visible-row target (five, Sebastian's number),
-        or — ``compact``, chosen by showEvent only when the whole window
-        would otherwise not fit the screen — to two rows with a scrollbar."""
+        """Size the list to its FULL content. The whole upper block now sits
+        in one capped scroll frame (Knut, beta.5: exactly one scrollbar above
+        the chart tabs), so the list itself never scrolls — nesting a second
+        scrollbar inside the frame is the clumsiness his design removes.
+        ``compact`` is kept for its call sites; the frame's cap covers it."""
         n = len(self._list_rows)
         row_h = self._profile_list.sizeHintForRow(0) if n else -1
         if row_h <= 0:
             row_h = self._profile_list.fontMetrics().height() + 8
         frame = 2 * self._profile_list.frameWidth() + 4
-        target = 2 if compact else self._LIST_VISIBLE_ROWS
-        visible = min(max(n, 1), target)
-        h = visible * row_h + frame
+        h = max(n, 1) * row_h + frame
         self._profile_list.setMinimumHeight(h)
         self._profile_list.setMaximumHeight(h)
 
