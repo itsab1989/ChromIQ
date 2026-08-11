@@ -441,7 +441,66 @@ is, and R3 checks both directions.
 
 ---
 
-## 10. Related documents
+## 10. The 2026-08-11 rulings — run-type store split, visible-tab reload, sidecar precedence
+
+The on-screen switching drive (`scripts/drive_per_target_settings.py`, the
+driver §8/R1 called for) found two faults on 2026-08-11; both were reported
+and Knut ruled on them the same day. **His rulings are binding design.**
+
+**F1 — a verification's settings are its own.** Knut:
+
+> *"I think the verification chart shall have its own settings, separate from
+> the profile run's settings, and when a verification chart is stored in the
+> verifications/<date_time>/chart/ folder when a measurement starts, the
+> settings are also backed up with the chart, thus can be restored."*
+
+So the §5 store column reads, per run type: Profiling → `runs/runN/meta.json`;
+**Verification → `runs/runN/verifications/meta.json`** (one set per run's
+verification tree, shared by its dated checks the same way the chart is);
+Calibration → `cal/meta.json`. The two description/notes TEXT fields are not
+part of this ruling — they stay on the per-run description design (§9 Q4).
+
+**F2 — every tab saves and reloads the same way.** Knut:
+
+> *"All tabs must save-on-change-from/reload-on-change-to a tab, and each tab
+> must also save and reload in the same manner that Create Chart does, using
+> same method and trigger mechanism (click on any of the profile run or run
+> type input boxes is saving settings of current tab open and visible, and
+> selecting an actual value in the pull down lists loads the settings of the
+> tab selected to be loaded.) Same principle, same method."*
+
+This is §2 L3/L4's "the visible tab loads at once", now wired centrally in
+MainWindow (`changed` → `_load_settings_of_visible_tab`) beside the existing
+write trigger (Q-1). Before the fix, Measure and Build Profile kept the OLD
+target's values while visible and then filed them onto the new target — the
+§2.1 corruption from the load side.
+
+**Sidecar precedence (the L5/L4 question).** Knut:
+
+> *"The charts sidecar is the correct value to use. When a chart is restored,
+> the chart sidecar will overrule the settings for the chart for that
+> specific run type."*
+
+### ⏳ Awaiting confirmation — implemented 2026-08-11, not yet confirmed by a human
+
+**Confirmed by:** *nobody yet.*
+
+- The store split is implemented in `workflow.per_target_settings
+  .store_for_target`; the settings file at the root of `verifications/` is a
+  chart **side file** (`CHART_SIDE_FILES`), so the measurement-start snapshot
+  backs it up into `<date_time>/chart/` and Restore Used Chart restores it,
+  archiving the replaced live file into `old/` first. A snapshot from before
+  this feature (no settings backup) leaves the live settings untouched. A
+  verification chart Replace archives the chart and keeps the settings live.
+  A settings edit never makes a dated check look like "a different chart".
+- The visible-tab reload is central and covers every storing tab; verified on
+  screen by standing on Build Profile through run1→run2→run1→run2.
+- Existing projects: settings written before the split (under either run
+  type) stay in `runs/runN/meta.json` and now belong to Profiling; a
+  verification target starts on defaults (§4 S5) and records its own from
+  first use. No files are moved by migration.
+
+## 10a. Related documents
 
 - [`per_run_description.md`](per_run_description.md) — the description field; §5 T5.1 of it is reversed by §4 here
 - [`measurement_exit_strategy.md`](measurement_exit_strategy.md) — every window that can end a measurement

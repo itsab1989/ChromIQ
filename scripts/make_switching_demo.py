@@ -65,13 +65,17 @@ def _find_subject() -> "Path | None":
 
 
 #: target key -> (run type name, run id, documented values)
+#: Build Profile is gated off for a verification target, so its row carries
+#: no smoothing value there.
 PLAN = {
-    "Run 1 — Profiling": dict(run="run1", rtype="profiling", dpi=400,
-                              skip_cal=True, pbp=False, smoothing=1.1),
-    "Run 2 — Profiling": dict(run="run2", rtype="profiling", dpi=500,
-                              skip_cal=False, pbp=True, smoothing=1.2),
-    "Calibration":       dict(run=None, rtype="calibration", dpi=600,
-                              skip_cal=True, pbp=True, smoothing=1.3),
+    "Run 1 — Profiling":    dict(run="run1", rtype="profiling", dpi=400,
+                                 skip_cal=True, pbp=False, smoothing=1.1),
+    "Run 1 — Verification": dict(run="run1", rtype="verification", dpi=450,
+                                 skip_cal=False, pbp=False, smoothing=None),
+    "Run 2 — Profiling":    dict(run="run2", rtype="profiling", dpi=500,
+                                 skip_cal=False, pbp=True, smoothing=1.2),
+    "Calibration":          dict(run=None, rtype="calibration", dpi=600,
+                                 skip_cal=True, pbp=True, smoothing=1.3),
 }
 
 
@@ -138,7 +142,8 @@ def main() -> int:      # noqa: PLR0915
     _wd.start(150)
 
     from core.measurement_target import (RUN_TYPE_CALIBRATION,
-                                         RUN_TYPE_PROFILING)
+                                         RUN_TYPE_PROFILING,
+                                         RUN_TYPE_VERIFICATION)
     from workflow import measure_settings as ms
 
     def open_window():
@@ -163,6 +168,9 @@ def main() -> int:      # noqa: PLR0915
         ctl = w._target_bar._ctl
         if spec["rtype"] == "calibration":
             ctl.set_run_type(RUN_TYPE_CALIBRATION)
+        elif spec["rtype"] == "verification":
+            ctl.set_run_type(RUN_TYPE_VERIFICATION)
+            ctl.set_profile_run(spec["run"])
         else:
             ctl.set_run_type(RUN_TYPE_PROFILING)
             ctl.set_profile_run(spec["run"])
@@ -172,7 +180,7 @@ def main() -> int:      # noqa: PLR0915
         return next(pw for pw in w._tab_chart._manual_widgets["printtarg"]
                     if pw.flag == "-t")
 
-    def read_state(w) -> dict:
+    def read_state(w, spec) -> dict:
         out = {}
         w._tabs.setCurrentWidget(w._tab_chart)
         settle()
@@ -182,9 +190,13 @@ def main() -> int:      # noqa: PLR0915
         snap = ms.snapshot(w._tab_measure)
         out["skip_cal"] = bool((snap.get("disable_initial_cal") or {}).get("value"))
         out["pbp"] = bool((snap.get("patch_by_patch") or {}).get("value"))
-        w._tabs.setCurrentWidget(w._tab_profile)
-        settle()
-        out["smoothing"] = w._tab_profile._m_collect_preset_data().get("smoothing")
+        if spec["smoothing"] is None:      # tab 4 is gated for a verification
+            out["smoothing"] = None
+        else:
+            w._tabs.setCurrentWidget(w._tab_profile)
+            settle()
+            out["smoothing"] = \
+                w._tab_profile._m_collect_preset_data().get("smoothing")
         # Return to Create Chart before the next target switch: it is the one
         # tab that reloads itself while visible. Leaving Measure or Build
         # Profile visible during a switch exposes known defect F2 (they keep
@@ -216,14 +228,15 @@ def main() -> int:      # noqa: PLR0915
             snap[key] = rec
         ms.apply(w._tab_measure, snap)
         settle()
-        w._tabs.setCurrentWidget(w._tab_profile)
-        settle()
-        data = w._tab_profile._m_collect_preset_data()
-        data["smoothing"] = spec["smoothing"]
-        w._tab_profile._m_apply_preset_data(data)
-        settle()
-        rb = w._tab_profile._m_collect_preset_data().get("smoothing")
-        print(f"   smoothing applied={spec['smoothing']} readback={rb}")
+        if spec["smoothing"] is not None:
+            w._tabs.setCurrentWidget(w._tab_profile)
+            settle()
+            data = w._tab_profile._m_collect_preset_data()
+            data["smoothing"] = spec["smoothing"]
+            w._tab_profile._m_apply_preset_data(data)
+            settle()
+            rb = w._tab_profile._m_collect_preset_data().get("smoothing")
+            print(f"   smoothing applied={spec['smoothing']} readback={rb}")
         # leaving the tab files this target's settings
         w._tabs.setCurrentWidget(w._tab_print)
         settle()
@@ -248,14 +261,48 @@ def main() -> int:      # noqa: PLR0915
     all_ok = True
     for tname, spec in PLAN.items():
         select(w, spec)
-        got = read_state(w)
+        got = read_state(w, spec)
         results[tname] = {}
-        for field in ("dpi", "skip_cal", "pbp", "smoothing"):
+        fields = ["dpi", "skip_cal", "pbp"]
+        if spec["smoothing"] is not None:
+            fields.append("smoothing")
+        for field in fields:
             ok = got[field] == spec[field]
             all_ok &= ok
             results[tname][field] = (spec[field], got[field], ok)
             print(f"  {'OK  ' if ok else 'FAIL'} {tname}: {field} "
                   f"want {spec[field]!r} got {got[field]!r}")
+
+    # ---- the run-type and visible-tab cases (RT1/RT2/VT1), machine-driven --
+    print("\n=== RT / VT — run-type separation and the visible-tab reload ===")
+    p1, v1, p2 = (PLAN["Run 1 — Profiling"], PLAN["Run 1 — Verification"],
+                  PLAN["Run 2 — Profiling"])
+    select(w, p1)
+    w._tabs.setCurrentWidget(w._tab_chart)
+    settle()
+    rt = []
+    rt.append(("RT1: Run 1 Profiling shows its DPI",
+               dpi_row(w).get_raw_value() == p1["dpi"]))
+    select(w, v1)
+    rt.append(("RT1: switch to Verification — its OWN DPI",
+               dpi_row(w).get_raw_value() == v1["dpi"]))
+    select(w, p1)
+    rt.append(("RT2: back to Profiling — its own DPI kept",
+               dpi_row(w).get_raw_value() == p1["dpi"]))
+    # VT1: stand on Measure, switch run without leaving the tab
+    w._tabs.setCurrentWidget(w._tab_measure)
+    settle()
+    select(w, p1)
+    snap = ms.snapshot(w._tab_measure)
+    rt.append(("VT1: Measure shows Run 1's -N while visible",
+               bool(snap["disable_initial_cal"]["value"]) == p1["skip_cal"]))
+    select(w, p2)                     # no tab change in between
+    snap = ms.snapshot(w._tab_measure)
+    rt.append(("VT1: still on Measure, Run 2 selected — Run 2's -N at once",
+               bool(snap["disable_initial_cal"]["value"]) == p2["skip_cal"]))
+    for label, ok in rt:
+        all_ok &= ok
+        print(f"  {'OK  ' if ok else 'FAIL'} {label}")
     w.close()
     settle(80)
 
@@ -267,9 +314,11 @@ def main() -> int:      # noqa: PLR0915
     rows = []
     for tname, spec in PLAN.items():
         r = results[tname]
+        smooth = ("— (tab locked)" if spec["smoothing"] is None
+                  else spec["smoothing"])
         rows.append(
             f"| {tname} | {spec['dpi']} | {onoff(spec['skip_cal'])} | "
-            f"{onoff(spec['pbp'])} | {spec['smoothing']} | "
+            f"{onoff(spec['pbp'])} | {smooth} | "
             f"{'✔' if all(x[2] for x in r.values()) else '✘ see build log'} |")
     readme = f"""# ChromIQ Switching Demo — per-target settings test package
 
@@ -322,30 +371,27 @@ Measure or Build Profile is showing is its own test case — VT1 below.)
 | RE1 | On Run 1, change "TIFF Output DPI" to 425 but do NOT generate. Switch to Run 2, then back to Run 1. | Run 2 shows 500 (never 425); Run 1 shows 425 when you return |
 | RQ1 | Change a value on any target, quit ChromIQ, reopen, select that target. | The changed value is there — quitting saved it silently |
 | RD1 | Select Run 3 (Profiling) — it was left untouched. | Factory/saved defaults, NOT another run's row |
-| RT1 | On Run 1, switch Run type to Verification. | **By design:** Verification keeps its own settings, separate from Profiling. **Known defect F1 (reported {today}):** today it shows Run 1's Profiling values, and edits made here overwrite Run 1's Profiling settings — see below |
-| RT2 | Still on Run 1 / Verification, change "TIFF Output DPI", switch Run type back to Profiling. | **By design:** Profiling still shows Run 1's own row. **Known defect F1:** today the Verification edit has replaced it |
-| VT1 | Stand on the **Measure** tab. Without leaving it, switch from Run 1 to Run 2 in the bar. | **By design:** the visible tab shows Run 2's row at once. **Known defect F2:** today Measure (and Build Profile) keep showing Run 1's values — and leaving the tab afterwards writes Run 1's values onto Run 2. Create Chart does this correctly |
+| RT1 | On Run 1, switch Run type to Verification. | The Verification's OWN row (DPI 450) — never Run 1's Profiling values |
+| RT2 | Still on Run 1 / Verification, change "TIFF Output DPI", switch Run type back to Profiling. | Profiling still shows Run 1's own row (400); switch back to Verification and your edit is there |
+| VT1 | Stand on the **Measure** tab. Without leaving it, switch from Run 1 to Run 2 in the bar. | The visible tab shows Run 2's row at once — no stale values from Run 1 |
 
-## Known defects under review
+## History: the two defects this package caught
 
-Both were found by the on-screen drive on {today}
-(`scripts/drive_per_target_settings.py` and this package's build log); the
-design specifications are binding, so they are reported for review rather
-than quietly changed.
+The first build of this package (2026-08-11, morning) demonstrated two real
+defects, found by the on-screen drive (`scripts/drive_per_target_settings.py`):
+**F1** — Profiling and Verification on the same run shared one settings
+store and overwrote each other; **F2** — Measure and Build Profile did not
+reload while they were the visible tab during a run switch, and then filed
+the stale values onto the new target. Knut ruled on both the same day
+(a verification gets its own settings in `runs/runN/verifications/meta.json`,
+backed up with the chart into each check's `chart/` folder; every tab
+reloads the way Create Chart does), and both fixes are in — **implemented
+and machine-verified, awaiting human confirmation**, which is what the
+RT1/RT2/VT1 cases above are for.
 
-- **F1 — Profiling and Verification on the SAME run share one settings
-  store** (`runs/runN/meta.json`), so the run-type switching cases RT1/RT2
-  fail today. The fix needs a design ruling on where a verification's
-  settings should live.
-- **F2 — the Measure and Build Profile tabs do not reload when they are the
-  visible tab during a Profile-run / Run-type change** (spec §2 L3/L4: "the
-  visible tab loads at once"). The stale values are then written onto the
-  NEW target when the tab is left — the corruption §2.1 exists to prevent.
-  Create Chart reloads itself correctly and is not affected.
-
-Run-to-run switching from the Create Chart tab (SW1–SW6), the unsaved-edit
-case (RE1), quit-and-reopen (RQ1) and untouched-target defaults (RD1) all
-passed the machine drive.
+Every case in this README passed the machine drive when this package was
+built, including a full quit-and-reopen of the app between setting the
+values and checking them.
 """
     (OUT_DIR / "README.md").write_text(readme, encoding="utf-8")
     print(f"\nREADME written: {OUT_DIR / 'README.md'}")

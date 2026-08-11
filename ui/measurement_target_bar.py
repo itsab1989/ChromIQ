@@ -174,6 +174,13 @@ class MeasurementTargetController(QObject):
             return False
 
     # ---- mutators (each emits changed only on a real change) --------------
+    # Each emits about_to_change_target FIRST: §2.1 makes every target change
+    # one guarded write-then-load step. The pulldowns fire the write when they
+    # OPEN (Q-1), but a change can also arrive programmatically — duplicate
+    # run, a driver, a restore flow — and without the write here, the central
+    # reload (§2 L3/L4) would discard the visible tab's unsaved edits instead
+    # of filing them against the target they belong to. A second write after
+    # Q-1 costs nothing: the last snapshot is remembered per target (Q-4).
     def set_run_type(self, value: str) -> None:
         # Coerced, never trusted: the value can arrive from a settings file
         # written while the preference was on, and Profiling is the only safe
@@ -181,11 +188,13 @@ class MeasurementTargetController(QObject):
         value = coerce_run_type(value,
                                 calibration_allowed=self._calibration_allowed)
         if value != self._target.run_type:
+            self.about_to_change_target.emit()
             self._target.run_type = value
             self.changed.emit()
 
     def set_profile_run(self, run_id: str) -> None:
         if run_id != self._target.profile_run:
+            self.about_to_change_target.emit()
             self._target.profile_run = run_id
             # A different run has its own verification dates — drop a stale pick.
             self._target.verification_id = ""
@@ -193,6 +202,7 @@ class MeasurementTargetController(QObject):
 
     def set_verification_id(self, vid: str) -> None:
         if vid != self._target.verification_id:
+            self.about_to_change_target.emit()
             self._target.verification_id = vid
             self.changed.emit()
 

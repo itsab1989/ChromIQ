@@ -370,11 +370,20 @@ def main() -> int:      # noqa: PLR0915, PLR0912
                  if k not in skip_chart and chart.get(k) != want.get(k)}
         check(f"{tname}: meta.json create_chart_settings == its imprint",
               not diffs, f"{len(diffs)} differ: {sorted(diffs)[:8]}")
-    ver_meta = stores["run-A profiling"]
-    note("structural: run-type Verification wrote into "
-         f"{ver_meta.relative_to(work)} — the SAME file and keys as "
-         "run-A profiling (store_for_target -> resolve_run returns the Run "
-         "for both run types)")
+    # F1 (fixed 2026-08-11): the verification's sections live in their OWN file
+    ver_store = work / src.name / "runs" / run_a / "verifications" / "meta.json"
+    if ver_store.is_file():
+        vbody = json.loads(ver_store.read_text())
+        vchart = vbody.get("create_chart_settings") or {}
+        want = expected["run-A verification"]["Create Chart"]
+        diffs = {k for k in set(vchart) | set(want)
+                 if k not in skip_chart and vchart.get(k) != want.get(k)}
+        check("run-A verification: verifications/meta.json == its imprint "
+              "(own store, F1)", not diffs,
+              f"{len(diffs)} differ: {sorted(diffs)[:8]}")
+    else:
+        check("run-A verification has its own store file (F1)", False,
+              f"{ver_store.relative_to(work)} missing")
 
     # ------------------------------------------------------------ Phase 4
     print("\n=== Phase 4 — the §2.1 hazard: edit, switch away, switch back ===")
@@ -396,9 +405,15 @@ def main() -> int:      # noqa: PLR0915, PLR0912
     row = stable_row()
     row_flag = row.flag
     old_val = row.get_raw_value()
-    probe_val = (old_val or 0) + 3
-    row.set_value(probe_val)
+    # A spin row keeps only values its step allows (printtarg -t steps by
+    # 50) — write the candidate and use what the widget actually accepted.
+    row.set_value((old_val or 0) + 50)
     settle()
+    probe_val = row.get_raw_value()
+    if probe_val == old_val:
+        row.set_value(max(0, (old_val or 0) - 50))
+        settle()
+        probe_val = row.get_raw_value()
     select(RUN_TYPE_PROFILING, run_b)          # no explicit save in between
     activate(w._tab_chart)
     got_b = next(pw for pw in w._tab_chart._manual_widgets["printtarg"]
