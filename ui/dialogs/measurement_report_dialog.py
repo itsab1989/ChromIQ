@@ -825,14 +825,19 @@ class MeasurementReportDialog(QDialog):
         thr_row.addStretch(1)
         top_v.addLayout(thr_row)
 
-        self._trend_label = QLabel(tr("Trend over time (this printer)"), self)
-        self._trend_label.setStyleSheet("font-weight:bold;margin-top:2px")
-        self._trend_label.setVisible(False)
-        v.addWidget(self._trend_label)
         # Unlike-scaled metrics can't share one axis (Knut), so group them into
         # separate tabbed charts. Paper white (~L*100) and black (~L*10) are too
         # far apart to read a trend on one axis, so they get a chart each.
         self._trend_tabs = QTabWidget(self)
+        # The "Trend over time" heading rides in the tab row's free corner
+        # instead of a row of its own — that row's height is exactly what the
+        # charts were missing on screens where every pixel counts.
+        self._trend_label = QLabel(tr("Trend over time (this printer)"), self)
+        self._trend_label.setStyleSheet(
+            "font-weight:bold;padding:0 6px 2px 0")
+        self._trend_label.setVisible(False)
+        self._trend_tabs.setCornerWidget(self._trend_label,
+                                         Qt.Corner.TopRightCorner)
         self._trend_de = _TrendChart(self)
         self._trend_white = _TrendChart(self)
         self._trend_black = _TrendChart(self)
@@ -924,22 +929,30 @@ class MeasurementReportDialog(QDialog):
             if layout.minimumSize().height() > cap:
                 self._size_profile_list(compact=True)
                 layout.activate()
-            if layout.minimumSize().height() > cap:
-                # Still too tall for this screen: the trend charts give up
-                # height before anything is pushed off-screen. Only here —
-                # on a roomy screen they keep their readable 150 px and the
-                # window's minimum simply refuses further shrinking.
-                for c in (self._trend_de, self._trend_white,
-                          self._trend_black, self._trend_corners):
-                    c.setMinimumHeight(60)
+
+            # When even that is too tall for the screen, space is traded in
+            # the order of what stays USEFUL when short: the report view
+            # scrolls, so it yields first — the charts do not scroll, and a
+            # squeezed chart stops being a graph (Sebastian, 2026-08-12), so
+            # they yield last and keep 100 px until nothing else is left.
+            def _over() -> int:
                 layout.activate()
-            if layout.minimumSize().height() > cap:
-                # Last rung: shave the report view's floor by exactly the
-                # overshoot (never below 120 px) — a shorter report beats a
-                # Close button painted over it or a bottom edge off-screen.
-                over = layout.minimumSize().height() - cap
-                self._view.setMinimumHeight(max(120, 240 - over))
-                layout.activate()
+                return layout.minimumSize().height() - cap
+
+            charts = (self._trend_de, self._trend_white,
+                      self._trend_black, self._trend_corners)
+            if _over() > 0:
+                self._view.setMinimumHeight(max(150, 240 - _over()))
+            if _over() > 0:
+                for c in charts:
+                    c.setMinimumHeight(max(100, 150 - _over()))
+            if _over() > 0:
+                self._view.setMinimumHeight(
+                    max(120, self._view.minimumHeight() - _over()))
+            if _over() > 0:
+                for c in charts:
+                    c.setMinimumHeight(
+                        max(60, c.minimumHeight() - _over()))
             h = max(h, min(layout.minimumSize().height(), cap))
         self.resize(w, h)
         x = area.left() + max(0, (area.width() - w) // 2)
