@@ -66,16 +66,32 @@ def _find_subject() -> "Path | None":
 
 #: target key -> (run type name, run id, documented values)
 #: Build Profile is gated off for a verification target, so its row carries
-#: no smoothing value there.
+#: no smoothing/manufacturer values there. The Measure and Build Profile
+#: columns cover the controls Knut's beta.3 bug-test found leaking: the
+#: overlay toggle, the Live-preview "Each patch shows" choice, and the
+#: GUIDED module's Manufacturer field.
 PLAN = {
     "Run 1 — Profiling":    dict(run="run1", rtype="profiling", dpi=400,
-                                 skip_cal=True, pbp=False, smoothing=1.1),
+                                 skip_cal=True, pbp=False, smoothing=1.1,
+                                 overlay=True, view="expected", mfr="Maker-A"),
     "Run 1 — Verification": dict(run="run1", rtype="verification", dpi=450,
-                                 skip_cal=False, pbp=False, smoothing=None),
+                                 skip_cal=False, pbp=False, smoothing=None,
+                                 overlay=False, view="measured", mfr=None),
     "Run 2 — Profiling":    dict(run="run2", rtype="profiling", dpi=500,
-                                 skip_cal=False, pbp=True, smoothing=1.2),
+                                 skip_cal=False, pbp=True, smoothing=1.2,
+                                 overlay=False, view="both", mfr="Maker-B"),
     "Calibration":          dict(run=None, rtype="calibration", dpi=600,
-                                 skip_cal=True, pbp=True, smoothing=1.3),
+                                 skip_cal=True, pbp=True, smoothing=1.3,
+                                 overlay=True, view="both", mfr="Maker-C"),
+}
+
+#: Two CHARTLESS runs (created by this builder): Knut's follow-up — "when no
+#: chart has yet been generated … the settings shall still be individually
+#: saved". Instrument and paper come from the store alone here, because
+#: there is no chart sidecar to seed them.
+CHARTLESS = {
+    "Run 4 — Profiling (no chart)": dict(instrument="CM", paper="Letter"),
+    "Run 5 — Profiling (no chart)": dict(instrument="SS", paper="A4"),
 }
 
 
@@ -190,13 +206,17 @@ def main() -> int:      # noqa: PLR0915
         snap = ms.snapshot(w._tab_measure)
         out["skip_cal"] = bool((snap.get("disable_initial_cal") or {}).get("value"))
         out["pbp"] = bool((snap.get("patch_by_patch") or {}).get("value"))
+        out["overlay"] = bool((snap.get("show_overlay") or {}).get("value"))
+        out["view"] = (snap.get("view_mode_manual") or {}).get("value")
         if spec["smoothing"] is None:      # tab 4 is gated for a verification
             out["smoothing"] = None
+            out["mfr"] = None
         else:
             w._tabs.setCurrentWidget(w._tab_profile)
             settle()
             out["smoothing"] = \
                 w._tab_profile._m_collect_preset_data().get("smoothing")
+            out["mfr"] = w._tab_profile._mfr_edit.text()
         # Return to Create Chart before the next target switch: it is the one
         # tab that reloads itself while visible. Leaving Measure or Build
         # Profile visible during a switch exposes known defect F2 (they keep
@@ -221,13 +241,21 @@ def main() -> int:      # noqa: PLR0915
         settle()
         snap = ms.snapshot(w._tab_measure)
         for key, want in (("disable_initial_cal", spec["skip_cal"]),
-                          ("patch_by_patch", spec["pbp"])):
+                          ("patch_by_patch", spec["pbp"]),
+                          ("show_overlay", spec["overlay"]),
+                          ("view_mode_manual", spec["view"])):
             rec = dict(snap.get(key) or {"enabled": True, "value": False})
             rec["value"] = want
             rec["enabled"] = True
             snap[key] = rec
         ms.apply(w._tab_measure, snap)
         settle()
+        if spec["mfr"] is not None:
+            w._tabs.setCurrentWidget(w._tab_profile)
+            settle()
+            w._tab_profile._mfr_check.setChecked(True)
+            w._tab_profile._mfr_edit.setText(spec["mfr"])
+            settle()
         if spec["smoothing"] is not None:
             w._tabs.setCurrentWidget(w._tab_profile)
             settle()
@@ -240,6 +268,30 @@ def main() -> int:      # noqa: PLR0915
         # leaving the tab files this target's settings
         w._tabs.setCurrentWidget(w._tab_print)
         settle()
+
+    # Two CHARTLESS runs (Knut's follow-up): settings must persist from the
+    # store alone, with no chart sidecar to help.
+    print("-- chartless runs")
+    proj = w._file_mgr.project()
+    chartless_ids = []
+    for tname, spec in CHARTLESS.items():
+        run = proj.new_run()
+        chartless_ids.append(run.id)
+        w._target_bar.refresh()
+        settle()
+        w._tabs.setCurrentWidget(w._tab_chart)
+        settle()
+        ctl = w._target_bar._ctl
+        ctl.set_run_type(RUN_TYPE_PROFILING)
+        ctl.set_profile_run(run.id)
+        settle()
+        w._tab_chart._shared_set("guided", "instrument", spec["instrument"])
+        w._tab_chart._shared_set("guided", "paper", spec["paper"])
+        settle()
+        w._tabs.setCurrentWidget(w._tab_print)
+        settle()
+        print(f"   {tname} = {run.id}: instrument {spec['instrument']}, "
+              f"paper {spec['paper']}")
     w.close()
     settle(80)
     print("imprint window closed (quit writes the visible tab silently)")
@@ -263,9 +315,9 @@ def main() -> int:      # noqa: PLR0915
         select(w, spec)
         got = read_state(w, spec)
         results[tname] = {}
-        fields = ["dpi", "skip_cal", "pbp"]
+        fields = ["dpi", "skip_cal", "pbp", "overlay", "view"]
         if spec["smoothing"] is not None:
-            fields.append("smoothing")
+            fields += ["smoothing", "mfr"]
         for field in fields:
             ok = got[field] == spec[field]
             all_ok &= ok
@@ -303,6 +355,25 @@ def main() -> int:      # noqa: PLR0915
     for label, ok in rt:
         all_ok &= ok
         print(f"  {'OK  ' if ok else 'FAIL'} {label}")
+
+    # ---- the chartless runs, after the restart -----------------------------
+    print("\n=== chartless runs — instrument/paper from the store alone ===")
+    w._tabs.setCurrentWidget(w._tab_chart)
+    settle()
+    ctl = w._target_bar._ctl
+    cl_results = {}
+    for (tname, spec), rid in zip(CHARTLESS.items(), chartless_ids):
+        ctl.set_run_type(RUN_TYPE_PROFILING)
+        ctl.set_profile_run(rid)
+        settle()
+        g = w._tab_chart._shared_get("guided")
+        ok = (g.get("instrument") == spec["instrument"]
+              and g.get("paper") == spec["paper"])
+        all_ok &= ok
+        cl_results[tname] = ok
+        print(f"  {'OK  ' if ok else 'FAIL'} {tname} ({rid}): "
+              f"{g.get('instrument')}/{g.get('paper')} want "
+              f"{spec['instrument']}/{spec['paper']}")
     w.close()
     settle(80)
 
@@ -311,15 +382,29 @@ def main() -> int:      # noqa: PLR0915
         return "ticked" if v is True else ("unticked" if v is False else str(v))
 
     today = _dt.date.today().isoformat()
+    VIEW_LABEL = {"both": "Expected & measured (split)",
+                  "expected": "Expected colour only",
+                  "measured": "Measured colour only"}
     rows = []
     for tname, spec in PLAN.items():
         r = results[tname]
         smooth = ("— (tab locked)" if spec["smoothing"] is None
                   else spec["smoothing"])
+        mfr = "— (tab locked)" if spec["mfr"] is None else spec["mfr"]
         rows.append(
             f"| {tname} | {spec['dpi']} | {onoff(spec['skip_cal'])} | "
-            f"{onoff(spec['pbp'])} | {smooth} | "
+            f"{onoff(spec['pbp'])} | {onoff(spec['overlay'])} | "
+            f"{VIEW_LABEL.get(spec['view'], spec['view'])} | {smooth} | "
+            f"{mfr} | "
             f"{'✔' if all(x[2] for x in r.values()) else '✘ see build log'} |")
+    INSTR_LABEL = {"CM": "ColorMunki", "SS": "SpectroScan", "i1": "i1Pro"}
+    cl_rows = []
+    for (tname, spec), rid in zip(CHARTLESS.items(), chartless_ids):
+        cl_rows.append(
+            f"| {tname} ({rid}) | "
+            f"{INSTR_LABEL.get(spec['instrument'], spec['instrument'])} | "
+            f"{spec['paper']} | "
+            f"{'✔' if cl_results.get(tname) else '✘ see build log'} |")
     readme = f"""# ChromIQ Switching Demo — per-target settings test package
 
 Built {today} from real ArgyllCMS data (targen → printtarg → fakeread →
@@ -343,9 +428,17 @@ Each target was given its own values through the real app, and the machine
 re-opened the app and verified every one of them on screen when this package
 was built:
 
-| Target (set in the bar at the top) | Create Chart → "TIFF Output DPI" | Measure → "Skip initial calibration (-N)" | Measure → "Patch-by-patch mode (-p)" | Build Profile → "Smoothing" | machine-verified |
-|---|---|---|---|---|---|
+| Target (set in the bar at the top) | Create Chart → "TIFF Output DPI" | Measure → "Skip initial calibration (-N)" | Measure → "Patch-by-patch mode (-p)" | Measure → "Show overlay from existing measurement" | Measure → "Each patch shows" | Build Profile → "Smoothing" | Build Profile → "Manufacturer (-A)" | machine-verified |
+|---|---|---|---|---|---|---|---|---|
 {chr(10).join(rows)}
+
+And two runs that have **no chart at all** — their Instrument and Paper on
+the Create Chart tab come from the settings store alone (with a chart, the
+chart's own recorded values rightly win):
+
+| Target | Create Chart → "Instrument" (Guided) | Create Chart → "Paper" | machine-verified |
+|---|---|---|---|
+{chr(10).join(cl_rows)}
 
 To select a target: use the **Profile run** dropdown and the **Run type**
 dropdown in the bar at the top of the window. "Calibration" is a Run type
@@ -374,6 +467,8 @@ Measure or Build Profile is showing is its own test case — VT1 below.)
 | RT1 | On Run 1, switch Run type to Verification. | The Verification's OWN row (DPI 450) — never Run 1's Profiling values |
 | RT2 | Still on Run 1 / Verification, change "TIFF Output DPI", switch Run type back to Profiling. | Profiling still shows Run 1's own row (400); switch back to Verification and your edit is there |
 | VT1 | Stand on the **Measure** tab. Without leaving it, switch from Run 1 to Run 2 in the bar. | The visible tab shows Run 2's row at once — no stale values from Run 1 |
+| CL1 | Select one of the chartless runs, check Instrument and Paper, switch to the other chartless run and back. | Each keeps its own row — with no chart generated, the settings store alone carries them |
+| CL2 | On a chartless run, change any Create Chart setting, switch away WITHOUT generating, come back. | The change is there — settings are saved on every switch, not only at "Generate Chart" |
 
 ## History: the two defects this package caught
 
