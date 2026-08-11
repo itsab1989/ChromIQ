@@ -130,6 +130,14 @@ class MainWindow(QMainWindow):
         # to the target it was set on.
         self._target_ctl.about_to_change_target.connect(
             self._save_settings_of_visible_tab)
+        # …and the READ trigger (§2 L3/L4): the tab ON SCREEN loads the new
+        # target the moment it is selected. Create Chart always did this
+        # through its own _on_target_changed; Measure and Build Profile did
+        # not, so they kept showing the OLD target's values — and then filed
+        # them onto the new target when the tab was left, the §2.1 corruption.
+        # Knut, 2026-08-11: "All tabs must save-on-change-from /
+        # reload-on-change-to a tab … same principle, same method."
+        self._target_ctl.changed.connect(self._load_settings_of_visible_tab)
         # "Delete the whole project" has to leave the app as it starts — every
         # tab empty, nothing loaded, and no project silently made again (#130,
         # Knut 2026-07-29).
@@ -914,6 +922,26 @@ class MainWindow(QMainWindow):
         except Exception:      # noqa: BLE001 — never break a pulldown
             log.warning("Could not flush the tab before a target change",
                         exc_info=True)
+
+    def _load_settings_of_visible_tab(self) -> None:
+        """§2 L3/L4 — the visible tab loads the target just selected.
+
+        The write against the OUTGOING target already happened when the
+        pulldown opened (`about_to_change_target` → the Q-1 trigger), so by
+        the time `changed` fires the values on screen may be reloaded safely.
+        Create Chart also reloads through its own `_on_target_changed`; its
+        loader is guarded and idempotent, so the double call is harmless and
+        keeping one central path for every tab is what Knut asked for.
+        """
+        tab = self._tabs.currentWidget()
+        if not hasattr(tab, "load_target_settings"):
+            return
+        self._settings_tab_showing = tab
+        try:
+            tab.load_target_settings()
+        except Exception:      # noqa: BLE001 — never break a selection change
+            log.warning("Could not reload the visible tab after a target "
+                        "change", exc_info=True)
 
     def _save_settings_of_tab_left(self) -> None:
         """§3 W6 — the tab the user has just left records its settings."""

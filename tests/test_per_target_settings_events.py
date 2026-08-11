@@ -130,3 +130,16 @@ def test_the_target_change_trigger_reaches_every_tab():
     src = inspect.getsource(mw.MainWindow)
     assert "about_to_change_target.connect(" in src
     assert "_save_settings_of_visible_tab" in src
+
+
+def test_l3_l4_the_visible_tab_reloads_on_a_target_change():
+    """Knut, 2026-08-11 (approving fault F2): every tab reloads the moment a
+    new target is selected, the same central way — Measure and Build Profile
+    used to keep the OLD target's values on screen while visible, and then
+    filed them onto the new target when the tab was left (the §2.1
+    corruption, from the load side)."""
+    import ui.main_window as mw
+    src = inspect.getsource(mw.MainWindow)
+    assert "changed.connect(self._load_settings_of_visible_tab)" in src
+    loader = inspect.getsource(mw.MainWindow._load_settings_of_visible_tab)
+    assert "load_target_settings" in loader
