@@ -105,15 +105,24 @@ def _ti3_from_ti2(ti2: Path, *, drift: float = 0.0) -> str:
             rows.append(s.split())
     idx = {n: i for i, n in enumerate(fields)}
     ir, ig, ib = idx.get("RGB_R"), idx.get("RGB_G"), idx.get("RGB_B")
+    iid, iloc = idx.get("SAMPLE_ID"), idx.get("SAMPLE_LOC")
 
+    # SAMPLE_LOC travels from the .ti2 — chartread WRITES it, and its resume
+    # (-r) REFUSES a .ti3 without it: "Resumed file … doesn't contain
+    # SAMPLE_LOC field" (Knut, beta.4, on the switching demo's runs). The
+    # SAMPLE_IDs come from the chart too, exactly as a real reading's would.
+    has_loc = iloc is not None
+    fmt = ("SAMPLE_ID SAMPLE_LOC RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z"
+           if has_loc else
+           "SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z")
     out = [
         "CTI3", "", 'DESCRIPTOR "Argyll Calibration Target chart information 3"',
         'ORIGINATOR "Argyll chartread"',
         f'CREATED "{datetime.now():%a %b %d %H:%M:%S %Y}"',
         'KEYWORD "DEVICE_CLASS"', 'DEVICE_CLASS "OUTPUT"',
         'KEYWORD "COLOR_REP"', 'COLOR_REP "RGB_XYZ"',
-        "NUMBER_OF_FIELDS 7", "BEGIN_DATA_FORMAT",
-        "SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z", "END_DATA_FORMAT",
+        f"NUMBER_OF_FIELDS {8 if has_loc else 7}", "BEGIN_DATA_FORMAT",
+        fmt, "END_DATA_FORMAT",
         f"NUMBER_OF_SETS {len(rows)}", "BEGIN_DATA",
     ]
     rnd = random.Random(f"{ti2.name}-{drift}")
@@ -126,7 +135,10 @@ def _ti3_from_ti2(ti2: Path, *, drift: float = 0.0) -> str:
         x = max(0.0, r * 0.86 + b * 0.14 + drift + j)
         y = max(0.0, g * 0.92 + r * 0.06 + drift + j)
         z = max(0.0, b * 1.02 + drift + j)
-        out.append(f"{n} {r:.4f} {g:.4f} {b:.4f} {x:.4f} {y:.4f} {z:.4f}")
+        sid = row[iid] if iid is not None else str(n)
+        loc = f" {row[iloc]}" if has_loc else ""
+        out.append(f"{sid}{loc} {r:.4f} {g:.4f} {b:.4f} "
+                   f"{x:.4f} {y:.4f} {z:.4f}")
     out += ["END_DATA", ""]
     return "\n".join(out)
 
