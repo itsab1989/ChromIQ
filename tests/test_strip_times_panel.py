@@ -1,8 +1,10 @@
 """#131 (Knut, 2026-07-26): the reading times sit under the strips they belong
 to, on their sides, so a chart with many strips still has room for every one.
 
-Geometry, not looks: the panel is given x positions and must keep them, and it
-must be tall enough for the longest time it has to draw.
+Geometry, not looks: the panel pairs each strip index with the position
+provider's CURRENT answer at paint time — stored positions went stale whenever
+the preview re-fitted and the times drifted right across the sheet (Sebastian,
+2026-08-11) — and it must be tall enough for the longest time it has to draw.
 """
 from __future__ import annotations
 
@@ -50,22 +52,104 @@ def test_the_verdict_is_no_longer_this_panel_s_business(qapp):
         "the verdict must not change how tall this panel is any more"
 
 
-def test_the_columns_keep_the_positions_they_were_given(qapp):
-    """They are the strips' own centres — the panel must not re-space them, or
-    the times would sit under the wrong strips."""
+def test_positions_come_from_the_provider_at_paint_time(qapp):
+    """The strips' centres are asked for FRESH — a stored copy went stale the
+    moment the preview re-fitted, and the times drifted right across the
+    sheet (Sebastian, 2026-08-11)."""
     panel = StripTimesPanel()
-    panel.set_content("", [(120, "5.1 s"), (37, "6.0 s"), (240, "4.8 s")])
-    assert [x for x, _t in panel._columns] == [120, 37, 240]
+    centres = [80, 240, 400]
+    panel.set_position_provider(lambda: centres)
+    panel.set_content("", [(0, "6.0 s"), (1, "5.1 s"), (2, "4.8 s")])
+    fm = QFontMetrics(panel._time_font())
+    assert [x for x, _t, _i, _b in panel._placed_columns(0, fm)] == [80, 240, 400]
+    # The preview shrinks — the very next paint must follow, with no refresh.
+    centres[:] = [60, 180, 300]
+    assert [x for x, _t, _i, _b in panel._placed_columns(0, fm)] == [60, 180, 300]
 
 
-def test_many_strips_are_all_kept(qapp):
+def test_many_strips_are_all_kept_when_there_is_room(qapp):
     """Thirty-five strips across a landscape page: every one is drawn, since
     the times are on their sides rather than written out in a row."""
     panel = StripTimesPanel()
-    cols = [(20 * i, f"{4 + i % 5}.{i % 10} s") for i in range(35)]
+    fm = QFontMetrics(panel._time_font())
+    pitch = fm.height() + 2                      # just enough room for each
+    panel.set_position_provider(lambda: [pitch * i for i in range(35)])
+    cols = [(i, f"{4 + i % 5}.{i % 10} s") for i in range(35)]
     panel.set_content("Strip reading times, 15 patches:", cols)
-    assert len(panel._columns) == 35
+    assert len(panel._placed_columns(0, fm)) == 35
     assert not panel.isHidden()
+
+
+def test_a_tight_preview_staggers_into_two_bands_before_thinning(qapp):
+    """When strips sit a little closer than a rotated label is wide, the
+    labels split into two staggered bands — every time stays visible, none
+    overlap within a band, and the panel asks for the second band's room
+    ("for this very small one we still need a solution" — Sebastian,
+    2026-08-11)."""
+    panel = StripTimesPanel()
+    fm = QFontMetrics(panel._time_font())
+    pitch = (fm.height() + 1) * 2 // 3           # too tight for one band,
+    panel.set_position_provider(                 # roomy for two
+        lambda: [pitch * i for i in range(12)])
+    panel.set_content("", [(i, f"5.{i} s") for i in range(12)])
+    one_band_height = panel.sizeHint().height()
+    placed = panel._placed_columns(0, fm)
+    assert len(placed) == 12, "staggering must keep EVERY time visible here"
+    assert {b for _x, _t, _i, b in placed} == {0, 1}
+    for band in (0, 1):
+        xs = [x for x, _t, _i, b in placed if b == band]
+        assert all(b_ - a >= fm.height() + 1 for a, b_ in zip(xs, xs[1:])), \
+            "labels within one band must not overlap"
+    assert panel._bands == 2
+    assert panel.sizeHint().height() > one_band_height, \
+        "the second band needs its own room"
+
+
+def test_extremely_tight_strips_are_thinned_but_warnings_never_are(qapp):
+    """When even two staggered bands cannot host every label, ordinary times
+    may be skipped — but a too-fast warning is the whole point of the panel
+    and must always be drawn."""
+    panel = StripTimesPanel()
+    fm = QFontMetrics(panel._time_font())
+    pitch = max(2, (fm.height() + 1) // 4)       # far too tight even for two
+    panel.set_position_provider(lambda: [pitch * i for i in range(12)])
+    cols = [(i, f"5.{i} s", False) for i in range(12)]
+    cols[7] = (7, "1.2 s ✕", True)               # the warning, mid-crowd
+    panel.set_content("", cols)
+    placed = panel._placed_columns(0, fm)
+    assert 0 < len(placed) < 12, "too-tight strips must thin, not overlap"
+    assert any(t == "1.2 s ✕" for _x, t, _i, _b in placed), \
+        "a too-fast warning must never be thinned away"
+    for band in (0, 1):
+        xs = [x for x, _t, imp, b in placed if b == band and not imp]
+        assert all(b_ - a >= fm.height() + 1 for a, b_ in zip(xs, xs[1:])), \
+            "the ordinary times that remain must not overlap within a band"
+
+
+def test_a_strip_index_the_provider_cannot_answer_is_skipped(qapp):
+    """Fewer centres than indices (page changed, chart reloaded): the panel
+    draws what it can place and never guesses."""
+    panel = StripTimesPanel()
+    panel.set_position_provider(lambda: [40])
+    panel.set_content("", [(0, "5.1 s"), (5, "9.9 s")])
+    fm = QFontMetrics(panel._time_font())
+    placed = panel._placed_columns(0, fm)
+    assert [(x, t) for x, t, _i, _b in placed] == [(40, "5.1 s")]
+
+
+def test_the_panel_follows_the_preview_it_is_anchored_to(qapp):
+    """set_reference_widget installs an event filter so a preview resize
+    repaints the times immediately — no measurement event needed."""
+    from PyQt6.QtWidgets import QWidget
+    ref = QWidget()
+    panel = StripTimesPanel()
+    panel.set_reference_widget(ref)
+    from PyQt6.QtCore import QEvent, QSize
+    from PyQt6.QtGui import QResizeEvent
+    seen = []
+    panel.update = lambda *a: seen.append("update")      # noqa: PLW2901
+    panel.eventFilter(ref, QResizeEvent(QSize(10, 10), QSize(20, 20)))
+    assert seen == ["update"]
 
 
 def test_clearing_hides_it_again(qapp):
@@ -81,15 +165,24 @@ def test_it_paints_without_error_in_every_state(qapp):
     from PyQt6.QtGui import QPixmap
     for label, cols, verdict in (
             ("", [], ""),
-            ("Strip reading times, 15 patches:", [(30, "5.1 s")], ""),
-            ("Strip reading times, 15 patches:", [(30, "5.1 s"), (90, "9.9 s")],
+            ("Strip reading times, 15 patches:", [(0, "5.1 s")], ""),
+            ("Strip reading times, 15 patches:", [(0, "5.1 s"), (1, "9.9 s")],
              "Too fast — read more slowly"),
     ):
         panel = StripTimesPanel()
+        panel.set_position_provider(lambda: [30, 90])
         panel.set_content(label, cols, verdict, "#ff6b6b")
         panel.resize(400, max(40, panel.sizeHint().height()))
         pm = QPixmap(panel.size())
         panel.render(pm)          # would raise if the painter were misused
+    # …and a provider that raises must never break a paint.
+    def broken():
+        raise RuntimeError("preview is gone")
+    panel = StripTimesPanel()
+    panel.set_position_provider(broken)
+    panel.set_content("", [(0, "5.1 s")])
+    panel.resize(400, max(40, panel.sizeHint().height()))
+    panel.render(QPixmap(panel.size()))
 
 
 @pytest.mark.parametrize("cols,verdict", [

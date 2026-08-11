@@ -11,12 +11,23 @@ still has room for every one. Knut's layout:
   above it;
 * the verdict line centred underneath, in the colour of the verdict.
 
-The panel knows nothing about measuring: it is given the x positions and the
-texts, so its geometry can be tested without an instrument.
+The panel knows nothing about measuring: it is given strip indices, the texts,
+and a *position provider* answering "where is strip N right now?", so its
+geometry can be tested without an instrument.
+
+Positions are resolved at PAINT time, never stored. Storing them looked fine
+until the panel's own appearance re-fitted the preview a little smaller — the
+strips compressed, the stored positions kept the old, wider spacing, and every
+time drifted further right of its strip the further along the sheet it sat
+(Sebastian, 2026-08-11: "they tend to start more on the left and then go more
+to the right"). Live resolution also makes the times follow every window
+resize for free.
 """
 from __future__ import annotations
 
-from PyQt6.QtCore import QSize, Qt
+from typing import Callable
+
+from PyQt6.QtCore import QEvent, QSize, Qt
 from PyQt6.QtGui import QColor, QFont, QFontMetrics, QPainter
 from PyQt6.QtWidgets import QWidget
 
@@ -29,38 +40,67 @@ class StripTimesPanel(QWidget):
     PAD_BOTTOM = 8
     #: gap between the times and the verdict line
     GAP = 6
+    #: vertical gap between the two staggered bands on a small preview
+    BAND_GAP = 4
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._label = ""
         self._reference: "QWidget | None" = None
-        self._columns: list[tuple[int, str]] = []   # (reference-space x, "5.1 s")
+        self._provider: "Callable[[], list[int]] | None" = None
+        # (strip index on the current page, "5.1 s", drawn-at-all-costs?)
+        self._columns: list[tuple[int, str, bool]] = []
         self._verdict = ""
         self._verdict_colour = "#909090"
         self._muted = "#909090"
         self._frame = "#3a3a3a"          # the faint border around this area
+        #: how many staggered bands the last paint needed (1 = normal)
+        self._bands = 1
         self.setVisible(False)
 
     # ---- content ----------------------------------------------------------
     def set_reference_widget(self, widget: "QWidget | None") -> None:
-        """The widget whose coordinate space the column x values live in —
+        """The widget whose coordinate space the provider's x values live in —
         the chart preview. The translation into THIS panel's space happens at
         paint time, when both widgets' geometry is real: mapping at
         set_content time returned identity while the panel was still hidden
         with unset geometry, and every time sat a constant 21 px right of its
-        strip (Sebastian, 2026-08-11)."""
+        strip (Sebastian, 2026-08-11). The panel watches the reference for
+        resizes so the times move the moment the preview does."""
+        if self._reference is not None:
+            self._reference.removeEventFilter(self)
         self._reference = widget
+        if widget is not None:
+            widget.installEventFilter(self)
+
+    def set_position_provider(
+            self, provider: "Callable[[], list[int]] | None") -> None:
+        """A callable answering, right now, where each strip of the current
+        page sits — a list of x centres in the reference widget's coordinates,
+        indexed by strip position. Queried fresh on every paint."""
+        self._provider = provider
+
+    def eventFilter(self, obj, ev) -> bool:      # noqa: N802
+        if obj is self._reference and ev.type() in (
+                QEvent.Type.Resize, QEvent.Type.Move):
+            self.update()
+        return False
 
     def set_content(self, label: str, columns, verdict: str = "",
                     verdict_colour: str = "#909090") -> None:
-        """Show *columns* — ``(x, text)`` pairs in this widget's coordinates.
+        """Show *columns* — ``(strip_index, text)`` or
+        ``(strip_index, text, important)`` tuples. *important* marks a time
+        that must stay visible even when strips sit too close for every label
+        (a too-fast warning is the whole point of the panel).
 
         *label* may carry a newline; it is drawn as two lines so a long caption
         cannot run into the first strip's time on charts whose strips start
         close to the page edge (Knut, #131 2026-07-27).
         """
         self._label = label or ""
-        self._columns = [(int(x), str(t)) for x, t in columns]
+        self._columns = [(int(c[0]), str(c[1]),
+                          bool(c[2]) if len(c) > 2 else False)
+                         for c in columns]
         self._verdict = verdict or ""      # kept for callers; drawn by the host
         self._verdict_colour = verdict_colour
         self.setVisible(bool(self._columns))
@@ -81,7 +121,7 @@ class StripTimesPanel(QWidget):
         if not self._columns:
             return 0
         fm = QFontMetrics(self._time_font())
-        return max(fm.horizontalAdvance(t) for _x, t in self._columns)
+        return max(fm.horizontalAdvance(t) for _i, t, _imp in self._columns)
 
     def _time_font(self) -> QFont:
         """The times are read at a glance while measuring, so they are set at
@@ -91,7 +131,9 @@ class StripTimesPanel(QWidget):
     def sizeHint(self) -> QSize:      # noqa: N802
         if not self._columns and not self._verdict:
             return QSize(200, 0)      # nothing to say: take no room at all
-        return QSize(200, max(0, self.PAD_TOP + self._times_height()
+        th = self._times_height()
+        return QSize(200, max(0, self.PAD_TOP + th * self._bands
+                              + (self._bands - 1) * self.BAND_GAP
                               + self.PAD_BOTTOM))
 
     def minimumSizeHint(self) -> QSize:      # noqa: N802
@@ -115,6 +157,67 @@ class StripTimesPanel(QWidget):
         2026-08-11 at +21 px, constant across strips)."""
         return x - (fm.ascent() - fm.descent()) // 2
 
+    def _placed_columns(self, dx: int, fm: QFontMetrics
+                        ) -> list[tuple[int, str, bool, int]]:
+        """The columns as they will be drawn RIGHT NOW — ``(x, text,
+        important, band)``: each strip index resolved through the position
+        provider's current answer and shifted into this panel's space.
+
+        While every rotated label has room, everything sits in one band
+        (band 0). On a small preview, where strips sit closer than a label
+        is wide, the labels split into TWO staggered bands — odd strips a
+        label-length lower — which halves the room each one needs before
+        any label has to be dropped ("for this very small one we still need
+        a solution" — Sebastian, 2026-08-11). Only when even that is not
+        enough are ordinary times thinned; a too-fast warning never is.
+
+        Updates ``self._bands`` so sizeHint asks for the extra band's room.
+        """
+        if self._provider is None:
+            return []
+        try:
+            xs = list(self._provider())
+        except Exception:      # noqa: BLE001 — never break a paint
+            return []
+        placed = [(xs[i] + dx, text, important)
+                  for i, text, important in self._columns
+                  if 0 <= i < len(xs)]
+        placed.sort()
+        # A rotated glyph column needs about a line-height of horizontal room.
+        min_gap = fm.height() + 1
+        fits = all(b[0] - a[0] >= min_gap for a, b in zip(placed, placed[1:]))
+        if fits and self._bands == 2 and len(placed) > 1:
+            # hysteresis: drop back to one band only with room to spare, so a
+            # width sitting exactly on the boundary cannot flip-flop (the
+            # panel's own height changes the preview's, which changes this).
+            fits = all(b[0] - a[0] >= min_gap * 1.2
+                       for a, b in zip(placed, placed[1:]))
+        if fits:
+            self._bands = 1
+            return [(x, t, imp, 0) for x, t, imp in placed]
+        self._bands = 2
+        out: list[tuple[int, str, bool, int]] = []
+        for band in (0, 1):
+            cols = placed[band::2]
+            out += [(x, t, imp, band)
+                    for x, t, imp in self._thin_columns(cols, min_gap)]
+        out.sort()
+        return out
+
+    @staticmethod
+    def _thin_columns(placed: list[tuple[int, str, bool]], min_gap: int
+                      ) -> list[tuple[int, str, bool]]:
+        """When the preview is small enough that strips sit closer than a
+        label is wide, drawing every time turns the panel into overlapping
+        ink. Keep every important time (a too-fast warning must never be
+        thinned away), then as many of the rest as genuinely fit."""
+        keep = [c for c in placed if c[2]]
+        for c in placed:
+            if not c[2] and all(abs(c[0] - k[0]) >= min_gap for k in keep):
+                keep.append(c)
+        keep.sort()
+        return keep
+
     # ---- painting ---------------------------------------------------------
     def paintEvent(self, _ev) -> None:      # noqa: N802
         # Font metrics are only final once the widget has been polished, so a
@@ -125,10 +228,6 @@ class StripTimesPanel(QWidget):
         # height worked out in set_content can be too small — and the verdict is
         # the first thing to fall off the bottom. Re-apply it here, which lands
         # before anyone sees the result.
-        want = self.sizeHint().height()
-        if want > self.minimumHeight():
-            self.setMinimumHeight(want)
-            self.updateGeometry()
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.TextAntialiasing)
         # No frame of its own any more: it lives inside a group box that looks
@@ -150,23 +249,34 @@ class StripTimesPanel(QWidget):
             p.setFont(self._time_font())
             p.setPen(QColor(self._muted))
             fm = QFontMetrics(self._time_font())
-            for x, text in self._columns:
+            placed = self._placed_columns(dx, fm)
+            # _placed_columns may have changed the band count, and polish may
+            # have changed the font — re-request the height this paint needs
+            # (equality, not only growth: dropping back to one band must give
+            # the preview its room back).
+            want = self.sizeHint().height()
+            if want != self.minimumHeight():
+                self.setMinimumHeight(want)
+                self.updateGeometry()
+            for x, text, _important, band in placed:
                 # A quarter-turn clockwise: the text starts at the top of the
                 # panel and reads downwards, so it sits in the strip's own
-                # column however narrow that column is.
+                # column however narrow that column is. Band 1 (a small
+                # preview's every second strip) starts a label-length lower.
                 p.save()
-                p.translate(self._column_translate_x(x + dx, fm), self.PAD_TOP)
+                p.translate(self._column_translate_x(x, fm),
+                            self.PAD_TOP + band * (times_h + self.BAND_GAP))
                 p.rotate(90)
                 p.drawText(0, 0, text)
                 p.restore()
 
-            if self._label:
+            if self._label and placed:
                 # Centred on the block of times, at the left edge — and never
                 # allowed to run into the first strip's time, which owns its x.
                 p.setPen(QColor(self._muted))
                 lfm = QFontMetrics(self._time_font())
                 lines = self._label.split("\n")
-                room = min(x for x, _t in self._columns) + dx - 8
+                room = min(x for x, _t, _i, _b in placed) - 8
                 if room > 20:
                     block = lfm.height() * len(lines)
                     top = self.PAD_TOP + max(0, (times_h - block) // 2)

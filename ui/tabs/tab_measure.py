@@ -9442,18 +9442,22 @@ class TabMeasure(QWidget):
         try:
             centres = self._preview.stripe_x_centres()
             page_now = self._preview.current_page()
-            # stripe_x_centres() answers in the PREVIEW's coordinates; the
-            # panel translates them into its own space at paint time (its
-            # reference widget is the preview) — mapping here ran while the
-            # panel was still hidden and returned identity, leaving every
-            # time a constant 21 px right of its strip (2026-08-11).
+            # The panel resolves each strip index through stripe_x_centres()
+            # at PAINT time and translates into its own space then, when both
+            # widgets' geometry is real. Positions captured here went stale
+            # the moment the panel's own appearance re-fitted the preview
+            # smaller — the strips compressed, the stored spacing did not,
+            # and the times drifted right across the sheet (2026-08-11).
             panel.set_reference_widget(self._preview)
+            panel.set_position_provider(self._preview.stripe_x_centres)
             for letter, (secs, ok) in self._pace_times.items():
                 page, local_idx, _rect = self._locate_strip(letter)
                 if page == page_now and 0 <= local_idx < len(centres):
                     text = (tr("{secs} s").format(secs=f"{secs:.1f}") if ok
                             else tr("{secs} s ✕").format(secs=f"{secs:.1f}"))
-                    columns.append((centres[local_idx], text))
+                    # not-ok times are "important": never thinned away when a
+                    # small preview leaves too little room for every label.
+                    columns.append((local_idx, text, not ok))
         except Exception:      # noqa: BLE001 — a panel must never break a read
             columns = []
         self._pace_verdict = verdict
@@ -9477,6 +9481,9 @@ class TabMeasure(QWidget):
             group.setToolTip(tr(
                 "One time for each strip you have read in this session, under "
                 "the strip it belongs to.\n\n"
+                "A time with an ✕ after it means that strip was swiped faster "
+                "than your instrument can measure reliably — read that strip "
+                "again, more slowly, and the ✕ disappears with the new time.\n\n"
                 "While you are refining an existing measurement this is also "
                 "how you see your own progress: every strip on the sheet "
                 "already has a reading, so the overlay looks the same whether "
