@@ -331,7 +331,7 @@ every case, checks the expectations below, and exports one PDF per case into
 
 | Case | Date | What it is | The report must show |
 |---|---|---|---|
-| V1 | 2026-05-01 | raw sheet, little noise | "printed raw — no profile"; judged as measured (absolute); split blocks present (run profile referees); Result column says "drift", detail says this check **becomes the baseline** |
+| V1 | 2026-05-01 | raw sheet, little noise | "printed raw — no profile"; judged as measured — no white adjustment; split blocks present (run profile referees); Result column says "drift", detail says this check **becomes the baseline** |
 | V2 | 2026-06-01 | raw sheet, more noise | same as V1, worse figures → visible drift V1→V2 in the trend; detail shows **"Drift since the previous raw check"** with avg/max ΔE00 vs V1 — no Pass/Fail |
 | V3 | 2026-06-15 | through profile, relative intent | "through this run's profile · relative colorimetric"; judged relative to paper white (media-relative); split present |
 | V4 | 2026-07-01 | through profile, absolute intent | as-measured (absolute) yardstick, split present |

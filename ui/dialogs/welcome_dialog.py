@@ -942,6 +942,19 @@ GLOSSARY += [
         "counted and visible — the two groups are simply no longer mixed "
         "into one number. (A chart from the “From profile gamut” module "
         "needs no split: every colour on it is printable by design.)")),
+    (tr("Judged as measured (no white adjustment)"),
+     tr("The other way the Measurement Report can score a verification "
+        "sheet: every measured colour is compared exactly as the instrument "
+        "read it — nothing is scaled, the paper's own tone counts too. The "
+        "report uses it for sheets whose printing did not map white to the "
+        "paper: raw drift sheets, and sheets printed through the profile "
+        "with absolute colorimetric intent. One thing this is NOT: a "
+        "rendering intent. Rendering intents (relative, absolute, "
+        "perceptual) exist only when colours are converted for printing — a "
+        "sheet printed raw has no intent at all. “Judged as measured” "
+        "describes how the report compares afterwards, and it applies to "
+        "any sheet, however it was printed. Its counterpart is “Judged "
+        "relative to paper white”, explained in its own entry.")),
     (tr("Import a measurement (IMPORT module)"),
      tr("A third mode on the Measure tab, shown for verification runs: "
         "instead of measuring here, you hand ChromIQ a measurement made in "

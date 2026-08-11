@@ -2132,8 +2132,10 @@ class MeasurementReportDialog(QDialog):
         elif r.get("is_verification") and r.get("yardstick") == "absolute" \
                 and (r.get("printing") or {}).get("colour"):
             rows.append((tr("How the colours were judged"), tr(
-                "as measured (absolute) — every difference counts, the "
-                "paper's own tone included"), False))
+                "as measured — no white adjustment: every difference "
+                "counts, the paper's own tone included. (This is a way of "
+                "comparing, not a rendering intent — a raw print has no "
+                "intent at all.)"), False))
         ref = r.get("reference_source")
         if ref == "colorimetric":
             cm = r.get("colorimetric") or {}
