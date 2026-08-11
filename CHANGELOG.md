@@ -1,5 +1,62 @@
 # Changelog
 
+## v4.0.0-beta.2
+
+> Fixes from the first round of 4.0 beta feedback — thank you! Two known
+> defects in per-target settings (found by our own testing on 2026-08-11)
+> are **under review and not yet fixed** in this beta: switching Run type
+> between Profiling and Verification on the same run shares one set of
+> settings, and the Measure / Build Profile tabs do not refresh their
+> settings while they are the visible tab during a run switch. The new
+> `ChromIQ-Switching-Demo.zip` download demonstrates both.
+
+### New
+
+- 📖 **The "Getting started" help card has been rebuilt**: it now opens with
+  a short index, walks from first start to a finished profile in chapters,
+  gains its own chapter on checking a finished profile (the three ways, and
+  which to pick), ends with a plain-language overview of where your files
+  are stored, and links to the other help cards along the way — in all
+  twelve languages.
+- The strip reading times under the chart preview now explain themselves:
+  the frame's tooltip says what a time with an **✕** after it means (that
+  strip was swiped faster than your instrument can reliably measure — read
+  it again, more slowly).
+
+### Changed
+
+- The "Check a finished profile (verification run)" help card's subtitle no
+  longer describes only printing through the profile — it now covers what
+  every verification gives you, whichever of the three ways you print the
+  chart.
+- The Create Chart tab's help icon now introduces the **FROM PROFILE
+  GAMUT** module: when it appears, what it is for, and where its own help
+  lives.
+
+### Fixed
+
+- 📏 **The strip reading times sit exactly under their strips again.** They
+  used to drift further right of their strips the further along the sheet
+  they sat, because their positions were captured once and went stale when
+  the preview re-fitted. They are now placed live at every paint, follow
+  every window resize immediately, and on a small window they split into
+  two staggered rows so every time stays readable — a time flagged ✕ is
+  never dropped, however tight the space.
+- The measurement report's trend charts label the dotted Avg / Max
+  threshold lines again. On a large value range the two lines sit almost on
+  top of each other and the words used to be dropped; now they move inside
+  the chart, one above its line and one below, so they can never overlap.
+
+### Internal
+
+- The on-screen switching drive the per-target settings test plan called
+  for (`scripts/drive_per_target_settings.py`) now exists — it found both
+  defects above — and `scripts/make_switching_demo.py` builds the
+  downloadable **Demo-Switching** package with the documented values and
+  the manual test cases (`ChromIQ-Switching-Demo.zip` on this release).
+- `scripts/capture_showcase_40.py` captures the ten 4.0 showcase
+  screenshots from the real app in one run.
+
 ## v4.0.0-beta.1
 
 > **This entry covers everything that changed since v3.14.7, the last stable release** — 219 betas' worth of work, grouped so you can find what affects you instead of reading a diary. Later 4.0.0 betas add their own entries above this one; the individual beta histories remain in the repository.
