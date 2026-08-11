@@ -2225,10 +2225,15 @@ class WelcomeDialog(QDialog):
         if target is None:
             return
         try:
-            # yMargin puts the chapter HEADING near the top rather than just
-            # barely inside the viewport's bottom edge.
-            self._detail_scroll.ensureWidgetVisible(
-                target, 0, self._detail_scroll.viewport().height() - 40)
+            # Direct arithmetic, not ensureWidgetVisible: chapters taller
+            # than the window made that land anywhere from mid-window to
+            # past the headline (Sebastian, beta.5 check 6). The chapter's
+            # HEADLINE sits a small margin under the top edge, for every
+            # chapter the scroll range can reach.
+            from PyQt6.QtCore import QPoint
+            y = target.mapTo(self._steps_host, QPoint(0, 0)).y()
+            sb = self._detail_scroll.verticalScrollBar()
+            sb.setValue(max(0, min(y - 8, sb.maximum())))
         except Exception:      # noqa: BLE001 — a link must never break the card
             log.warning("Could not scroll to Getting Started chapter %s",
                         href, exc_info=True)

@@ -283,7 +283,8 @@ def getting_started_sections() -> "list[tuple[str | None, str]]":
                      'five steps, the tabs are numbered in that order — '
                      'and once a profile is built, ChromIQ can check how '
                      'good it really is, and keep checking over time.'))}</p>",
-        f"<p><b>{esc(tr('What is in this guide'))}</b><br>{index_lines}</p>",
+        f"<p><b>{esc(tr('What is in this guide'))}</b></p>"
+        f"<p>{index_lines}</p>",
         "<p>" + esc(tr('Every topic here has a deeper card in this window — '
                        'this guide names the right one as it goes — and every '
                        'term of art has a plain-language entry under '
@@ -291,7 +292,7 @@ def getting_started_sections() -> "list[tuple[str | None, str]]":
 
     titles = dict(_chapters())
 
-    areas = [f"<h3>{esc(titles['areas'])}</h3>",
+    areas = [f"<h3>{esc(titles['areas'])}</h3><br>",
              "<table cellpadding='4' cellspacing='0'>",
              "<tr><th align='left'>%s</th><th align='left'>%s</th>"
              "<th align='left'>%s</th></tr>" % (
