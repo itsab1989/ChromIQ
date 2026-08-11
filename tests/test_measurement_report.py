@@ -173,6 +173,39 @@ def test_trend_chart_widget_visibility(qapp) -> None:
     w.grab()                                            # paints without error
 
 
+def test_threshold_words_are_painted_even_when_the_lines_crowd(
+        qapp, monkeypatch) -> None:
+    """"The Max and Avg labels on the dotted horizontal lines are gone from
+    the reports" (Knut, 2026-08-11): on a large y-range 2.0 and 3.0 map to
+    almost the same pixel, and the words were dropped instead of moved. They
+    must ALWAYS be drawn — asserted on the rendered pixels, not the source."""
+    from PyQt6.QtGui import QColor, QPainter
+    from ui.dialogs.measurement_report_dialog import _TrendChart
+    metrics = [("Average", QColor("#56d6a5"), lambda pt: pt.get("mean"))]
+    pts = [{"created": "2026-01-01", "mean": 14.0},
+           {"created": "2026-02-01", "mean": 12.5},
+           {"created": "2026-03-01", "mean": 15.0}]
+    w = _TrendChart()
+    # the y-range reaches ~15, so 2.0 and 3.0 land ~11 px apart — the case
+    # in which the words used to be dropped
+    w.set_data(pts, metrics, dark=True, thresholds=(2.0, 3.0))
+    w.resize(640, 220)
+    drawn: list[str] = []
+    real = QPainter.drawText
+
+    def spy(self, *args):
+        if args and isinstance(args[-1], str):
+            drawn.append(args[-1])
+        return real(self, *args)
+
+    # NEVER restore a sip method by plain assignment — the saved "unbound
+    # method" does not re-bind, and every later drawText in the process
+    # raises (the QMessageBox.exec trap; it failed 180 unrelated tests).
+    monkeypatch.setattr(QPainter, "drawText", spy)
+    w.grab()
+    assert "Avg" in drawn and "Max" in drawn, drawn
+
+
 def test_stats_split_metrics():
     from workflow.measurement_report import _stats
     # 20 patches: nineteen at 1.0, one at 10.0 (the worst 5%).

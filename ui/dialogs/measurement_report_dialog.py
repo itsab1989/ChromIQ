@@ -379,25 +379,37 @@ class _TrendChart(QWidget):
             # Collide when a label would land on a y-axis number — or on the
             # OTHER threshold's label: on a large y-range Avg 2.0 and Max 3.0
             # map to almost the same pixel, and the two words printed over
-            # each other (Sebastian, 2026-08-10).
-            # The words are drawn ONLY when they fit cleanly in the left
-            # margin, aligned with the y-axis numbers. When the two lines
-            # crowd each other or a y-axis number (a large y-range maps
-            # 2.0 and 3.0 to almost the same pixel), the words are dropped
-            # entirely rather than stacked into the plot, where every
-            # placement collided with something (Sebastian, 2026-08-10,
-            # three rounds) — the dotted lines stay, and the Pass-threshold
-            # controls directly above the chart name their values.
+            # each other (Sebastian, 2026-08-10). Dropping the words entirely
+            # in that case looked clean in isolation but read as a regression
+            # on real reports ("the Max and Avg labels are gone" — Knut,
+            # 2026-08-11): the words must ALWAYS be drawn. So: clean margin
+            # placement when it fits; otherwise both words move inside the
+            # plot at the lines' left tips, the UPPER line's word above it
+            # and the LOWER line's word below it, so the two diverge instead
+            # of stacking however close the lines sit.
             collide = any(abs(ty - ay) < 9.0 for ty in thr_ys for ay in axis_ys)
             if len(thr_ys) == 2 and abs(thr_ys[0] - thr_ys[1]) < 11.0:
                 collide = True
             for (tv, tlab), yy in zip(thr, thr_ys):
                 p.setPen(tpen)
                 p.drawLine(QPointF(L, yy), QPointF(L + w, yy))
-                if not collide:
-                    p.setPen(QPen(fg, 1.0))
+            p.setPen(QPen(fg, 1.0))
+            if not collide:
+                for (tv, tlab), yy in zip(thr, thr_ys):
                     p.drawText(QRectF(0, yy - 7, L - 4, 14),
                                Qt.AlignmentFlag.AlignRight
+                               | Qt.AlignmentFlag.AlignVCenter,
+                               tlab)
+            else:
+                order = sorted(range(len(thr)), key=lambda i: thr_ys[i])
+                for rank, i in enumerate(order):
+                    yy, tlab = thr_ys[i], thr[i][1]
+                    above = rank == 0          # the upper line's word above it
+                    top = yy - 16 if above else yy + 2
+                    # never outside the plot: clamp, keeping above/below sense
+                    top = min(max(top, T), T + h - 14)
+                    p.drawText(QRectF(L + 4, top, 80, 14),
+                               Qt.AlignmentFlag.AlignLeft
                                | Qt.AlignmentFlag.AlignVCenter,
                                tlab)
 
