@@ -1295,7 +1295,11 @@ class TabCheckRefine(QWidget):
         dlg = QMessageBox(self)
         dlg.setIcon(QMessageBox.Icon.Warning)
         dlg.setWindowTitle(title)
-        dlg.setText(body)
+        # House pattern (every other §M window): the title as the bold
+        # setText line, the body as informative text — this window had the
+        # body alone, so it opened with no headline at all.
+        dlg.setText(title)
+        dlg.setInformativeText(body)
         anyway = dlg.addButton(tr("Run the check anyway"),
                                QMessageBox.ButtonRole.DestructiveRole)
         cancel = dlg.addButton(QMessageBox.StandardButton.Cancel)

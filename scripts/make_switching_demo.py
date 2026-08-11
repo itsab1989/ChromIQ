@@ -43,6 +43,14 @@ HARD_STOP_S = 600
 OUT_DIR = Path.home() / "Desktop" / "ChromIQ-Switching-Demo"
 PROJECT = "Demo-Switching"
 
+# This script opens the REAL app — offscreen it segfaults inside the
+# MainWindow/WebEngine start-up before printing a single line (2026-08-12,
+# exit 139 with nothing but a font notice in the log). Refuse loudly
+# instead: a clear sentence beats a signal.
+if os.environ.get("QT_QPA_PLATFORM", "").startswith("offscreen"):
+    sys.exit("make_switching_demo.py drives the real app ON SCREEN — "
+             "unset QT_QPA_PLATFORM (offscreen segfaults in MainWindow).")
+
 
 def _arm_hard_stop() -> None:
     def _die() -> None:

@@ -1583,6 +1583,14 @@ class MainWindow(QMainWindow):
         import sys
         if sys.platform != "darwin":
             return
+        # Only a real Cocoa window has an NSView behind winId(). Under the
+        # offscreen platform (the on-screen test drivers' headless mode) the
+        # handle is a fake, and objc_msgSend on it is a segfault the except
+        # below cannot catch — it killed drive_demo_package.py before its
+        # first line of output (2026-08-12).
+        from PyQt6.QtWidgets import QApplication
+        if QApplication.platformName() != "cocoa":
+            return
         ns_name = b"NSAppearanceNameAqua" if mode == "light" else b"NSAppearanceNameDarkAqua"
         try:
             import ctypes, ctypes.util

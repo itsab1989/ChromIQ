@@ -289,10 +289,12 @@ def case(**kw):
 
 
 @case(name="Demo-01-Chart-Only",
-      messages=['M-VERIFY-NO-PROFILE'],
+      messages=['M-VERIFY-NO-PROFILE', 'M-VERIFY-CREATE-NO-PROFILE',
+                'M-GAMUT-NO-PROFILE'],
       layout="ChromIQ layout engine",
       covers=["§4 row 2 — a chart with nothing measured: no warning",
-              "§6e row 1 — no profile yet: no warning"],
+              "§6e row 1 — no profile yet: no warning",
+              "the two no-profile states of a verification's Create Chart"],
       steps=["Load the project, set Profile run = run 1, Run type = Profiling.",
              "Press **Generate Chart**. *Expected: no warning at all* — nothing "
              "has been measured, so a new chart costs only a reprint.",
@@ -305,7 +307,17 @@ def case(**kw):
              "**Hover the greyed button**: its tooltip is the message, and it "
              "is the one for the state this run is in — no profile to verify "
              "yet. Sequence S1.2/S1.3; nothing is written. "
-             "[[M-VERIFY-NO-PROFILE]]"])
+             "[[M-VERIFY-NO-PROFILE]]",
+             "Still with Run type = Verification, go to **Create Chart**, "
+             "MANUAL module. *Expected:* the info box “There's no finished "
+             "profile in this run yet” — the chart can be created, but "
+             "printing and measuring it wait for the profile. No window; the "
+             "text sits in the tab. [[M-VERIFY-CREATE-NO-PROFILE]]",
+             "Switch the module to **FROM PROFILE GAMUT**. *Expected:* its "
+             "own empty state — “This run needs a finished profile first”, "
+             "with the numbered steps to get one. This module asks the "
+             "profile which colours it can print, and this run has no "
+             "profile to ask. [[M-GAMUT-NO-PROFILE]]"])
 def build_chart_only(root: Path) -> None:
     name = "Demo-01-Chart-Only"
     p = root / name
@@ -991,6 +1003,107 @@ def build_run_descriptions(root: Path) -> None:
     }, indent=2))
 
 
+@case(name="Demo-10-Import-A-Measurement",
+      messages=['M-HOW-PRINTED', 'M-IMPORT-DONE', 'M-IMPORT-DATE-TAKEN',
+                'M-IMPORT-MISMATCH', 'M-CM-PROFCHECK-CONVERTED'],
+      layout="ChromIQ layout engine (run chart) + printtarg (verification chart)",
+      covers=["the IMPORT module — filing an outside measurement as a dated "
+              "verification",
+              "M-HOW-PRINTED — a sheet ChromIQ did not print itself",
+              "M-IMPORT-DATE-TAKEN / M-IMPORT-MISMATCH — an import never "
+              "replaces a result, and never files a foreign one",
+              "M-CM-PROFCHECK-CONVERTED — the accuracy check warns about a "
+              "sheet printed through the profile"],
+      steps=["This project is about bringing a measurement made in another "
+             "program into ChromIQ. Its run has a finished profile and a "
+             "verification chart, and the folder `measurement-to-import/` "
+             "holds a ready measurement of that chart, as an export from "
+             "another program would look. Nothing here needs an instrument.",
+             "Set Profile run = **run 1**, Run type = **Verification**, and "
+             "go to the Measure tab — it shows the **IMPORT** module, which "
+             "exists only for verification runs.",
+             "Press the green folder button in the tab's header, choose "
+             "`measurement-to-import/made-outside-chromiq.ti3` from this "
+             "project's folder, and press **Import Measurement**. "
+             "*Expected:* first “How was this sheet printed?” — ChromIQ did "
+             "not print the sheet itself, so it asks which yardstick the "
+             "report should use; choose **Not sure** (always safe — it "
+             "stores nothing). Then “The measurement was imported” — filed "
+             "as this run's verification of today, in its own dated folder, "
+             "together with a copy of the chart it was measured against; "
+             "your original file is untouched. "
+             "[[M-HOW-PRINTED]] [[M-IMPORT-DONE]]",
+             "Press **Import Measurement** again, changing nothing. "
+             "*Expected:* “This verification already holds a measurement” — "
+             "an import never replaces a result; nothing is imported and "
+             "nothing is changed. (To file the same measurement again on "
+             "purpose, the bar's Verification field set to “New "
+             "verification” gives it its own dated folder.) "
+             "[[M-IMPORT-DATE-TAKEN]]",
+             "Set the bar's Verification field to **New verification** (so "
+             "the previous refusal does not fire first), press the green "
+             "folder button again, and this time choose "
+             "`measurement-to-import/does-not-belong-here.ti3` — a "
+             "measurement of a DIFFERENT chart — then press **Import "
+             "Measurement**. *Expected:* “This file does not match the "
+             "verification chart”, saying why; nothing is imported and "
+             "nothing is changed. [[M-IMPORT-MISMATCH]]",
+             "One more thing this project stages: run 1's own profiling "
+             "sheet is recorded as printed **through a profile** — exactly "
+             "the situation the accuracy check must warn about, because the "
+             "chart's numbers were converted before printing and the "
+             "comparison would not mean anything. Set Run type = "
+             "**Profiling**, go to **Check & Refine** and press **Analyse "
+             "Profile Quality**. *Expected:* “This measurement came from a "
+             "sheet printed through the profile”, with “Run the check "
+             "anyway” set apart. Press Cancel. [[M-CM-PROFCHECK-CONVERTED]]"])
+def build_import_case(root: Path) -> None:
+    name = "Demo-10-Import-A-Measurement"
+    p = root / name
+    _write_manifest(p, name, ["run1"], "run1", 3)
+    r = p / "runs" / "run1"
+    _chart_files(r, name, patches=RUN_PATCHES, rows=RUN_ROWS)
+    _measure(r, name, seed_icc=_seed_profile(root / ".seed"))
+    _build_icc(r, name)
+    # The verification chart the import is checked against, and — measured
+    # from that same chart, so the patch-identity check accepts it — the
+    # file the tester imports. It lives in its own plainly-named folder,
+    # NOT in a dated verification: filing it is the tester's job.
+    #
+    # 48 patches, not the package-wide 45: the layout engine pads the last
+    # strip, so a 45-patch set becomes a 48-patch SHEET — and the import
+    # module rightly demands a measurement of the whole sheet, which
+    # fakeread (working from the .ti1) cannot produce for padded charts.
+    # 48 fills the strips exactly; the assert below names the problem if a
+    # future engine change breaks that.
+    _chart_files(r / "verifications", f"{name}-verify",
+                 patches=48, rows=VERIFY_ROWS)
+    _n = lambda f: int(re.search(r"NUMBER_OF_SETS\s+(\d+)",  # noqa: E731
+                                 f.read_text()).group(1))
+    vdir = r / "verifications"
+    if _n(vdir / f"{name}-verify.ti1") != _n(vdir / f"{name}-verify.ti2"):
+        raise SystemExit(
+            "Demo-10: the layout engine padded the 48-patch verification "
+            "chart — pick a patch count that fills its strips exactly, or "
+            "the shipped import file cannot match the sheet")
+    vti3 = _measure(r / "verifications", f"{name}-verify",
+                    seed_icc=_seed_profile(root / ".seed"))
+    inbox = p / "measurement-to-import"
+    inbox.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(vti3), inbox / "made-outside-chromiq.ti3")
+    # …and a file that does NOT belong to the verification chart — it is a
+    # real measurement, of the run's own (bigger) chart — so the mismatch
+    # refusal has something honest to refuse.
+    shutil.copy2(r / f"{name}.ti3", inbox / "does-not-belong-here.ti3")
+    # The run's profiling sheet is recorded as printed THROUGH the profile,
+    # which is what the Check & Refine warning exists for.
+    from workflow.verification_print import COLOUR_THROUGH, write_print_record
+    write_print_record(r / f"{name}.ti2", colour=COLOUR_THROUGH,
+                       intent="relative", profile=r / f"{name}.icc",
+                       route="demo — staged by make_demo_package.py")
+    _meta(r, "run1")
+
+
 def _spec_sequences() -> "list[str]":
     """Every sequence ID the model defines, read from the document."""
     text = SPEC_DOC.read_text()
@@ -1017,6 +1130,14 @@ HARDWARE_ONLY = [
      "needs a resumed session against a real instrument"),
     ("§7 — instrument, calibration and strip-reading events",
      "all of them come from the instrument itself"),
+    ("the “Verification Measurement Saved” window (M-VERIFY-SAVED)",
+     "it appears when a live instrument reading of a verification chart "
+     "finishes; the no-hardware path is the IMPORT module (Demo-10), which "
+     "ends in M-IMPORT-DONE instead"),
+    ("the print-time conversion failures (M-CM-NO-CCTIFF, "
+     "M-CM-CONVERT-FAILED)",
+     "reaching them takes a print job plus a deliberately broken ArgyllCMS "
+     "installation or a damaged profile"),
 ]
 
 
@@ -1242,7 +1363,20 @@ def _document(cases, dest: Path) -> str:
 #: M-NO-INSTRUMENT needs an instrument that is not there. The only way to
 #: produce it is to unplug the cable — which is exactly how Knut found it, and
 #: exactly what a demo project cannot arrange.
-NEEDS_HARDWARE = {"M-NO-INSTRUMENT"}
+NEEDS_HARDWARE = {
+    "M-NO-INSTRUMENT",
+    # The verification-saved window appears when a LIVE instrument reading of
+    # a verification chart finishes — the no-hardware path into a dated
+    # verification is the IMPORT module, and that one ends in M-IMPORT-DONE
+    # instead (Demo-10 raises it).
+    "M-VERIFY-SAVED",
+    # The two failure windows of the print-time conversion: reaching them
+    # takes a print job plus a deliberately broken ArgyllCMS installation
+    # (cctiff removed) or a damaged profile — a data package cannot stage
+    # either without also breaking every other step.
+    "M-CM-NO-CCTIFF",
+    "M-CM-CONVERT-FAILED",
+}
 
 
 def _catalogue():
@@ -1384,6 +1518,7 @@ EXPECTED = {
                                       "run5:rebuild": 2,
                                       "run6": ("chart", True),
                                       "run6:nopages": True},
+    "Demo-10-Import-A-Measurement":  {"run1": ("chart", True)},
 }
 
 

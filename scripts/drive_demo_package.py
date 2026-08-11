@@ -158,8 +158,14 @@ def main() -> int:
 
     from ui.main_window import MainWindow
     win = MainWindow(settings)
+    # show() ALWAYS — under the offscreen platform it costs nothing and it
+    # makes isVisible() true for the widgets, which the app's own logic
+    # consults (the resume checkbox only counts while visible: a hidden
+    # never-shown window made step 3 of Demo-02 warn where the real app
+    # does not).
+    win.show()
     if ONSCREEN:
-        win.show(); win.raise_(); win.activateWindow()
+        win.raise_(); win.activateWindow()
     pump(app, 600)
 
     fm = win._file_mgr
@@ -218,6 +224,9 @@ def main() -> int:
                 if "run type = **verification**" in lowered and ctl is not None:
                     ctl.set_run_type(RUN_TYPE_VERIFICATION)
                     pump(app, 250)
+                if "run type = **profiling**" in lowered and ctl is not None:
+                    ctl.set_run_type(RUN_TYPE_PROFILING)
+                    pump(app, 250)
                 if "generate chart" in lowered and "press" in lowered:
                     # NOTHING IS ALIGNED HERE ON PURPOSE.
                     #
@@ -257,6 +266,64 @@ def main() -> int:
                                 cb.setChecked(False)
                     pump(app, 150)
                     tab_measure._confirm_replacing_measurement()
+                elif "import measurement" in lowered:
+                    # The IMPORT module (verification runs). The step names
+                    # its file in backticks; a step without one re-presses
+                    # with the file already chosen, exactly like the tester.
+                    win._tabs.setCurrentWidget(tab_measure)
+                    pump(app, 250)
+                    if "**new verification**" in lowered and ctl is not None:
+                        ctl.set_verification_id("")
+                        pump(app, 250)
+                    fm2 = re.search(r"`measurement-to-import/([^`]+)`", plain)
+                    if fm2:
+                        tab_measure._import_path = (
+                            work / name / "measurement-to-import"
+                            / fm2.group(1))
+                    pump(app, 100)
+                    tab_measure._on_import_measurement()
+                elif "manual module" in lowered and \
+                        first == "M-VERIFY-CREATE-NO-PROFILE":
+                    # An inline info box, not a window: assert on the label
+                    # the tab actually shows.
+                    win._tabs.setCurrentWidget(tab_chart)
+                    pump(app, 250)
+                    tab_chart._switch_mode("manual")
+                    pump(app, 250)
+                    lbl = getattr(tab_chart, "_verify_noprofile_lbl", None)
+                    title, _b = tab_chart._verify_noprofile_message()
+                    # isVisibleTo, not isVisible: offscreen the window is
+                    # never shown, so isVisible() is False for everything.
+                    ok = (lbl is not None and lbl.isVisibleTo(win)
+                          and title.lower()[:40] in lbl.text().lower())
+                    record(label, ok,
+                           "info box shown" if ok else
+                           f"visible={lbl is not None and lbl.isVisibleTo(win)}")
+                    continue
+                elif "from profile gamut" in lowered and \
+                        first == "M-GAMUT-NO-PROFILE":
+                    win._tabs.setCurrentWidget(tab_chart)
+                    pump(app, 250)
+                    tab_chart._switch_mode("gamut")
+                    pump(app, 250)
+                    lbl = getattr(tab_chart, "_gamut_empty_lbl", None)
+                    title, _b = tab_chart._gamut_no_profile_message()
+                    ok = (lbl is not None and lbl.isVisibleTo(win)
+                          and title.lower()[:40] in lbl.text().lower())
+                    record(label, ok,
+                           "empty state shown" if ok else
+                           f"visible={lbl is not None and lbl.isVisibleTo(win)}")
+                    continue
+                elif "analyse profile quality" in lowered:
+                    # Check & Refine's converted-sheet warning: the check is
+                    # armed with the run's own measurement and profile, the
+                    # way a build leaves them.
+                    win._tabs.setCurrentWidget(win._tab_check)
+                    ti3 = work / name / "runs" / "run1" / f"{name}.ti3"
+                    icc = work / name / "runs" / "run1" / f"{name}.icc"
+                    win._tab_check.set_paths(ti3, icc, propagate=False)
+                    pump(app, 250)
+                    win._tab_check._warn_converted_measurement()
                 elif "auto-update preview" in lowered:
                     # The preview declines to re-draw a run that holds work.
                     win._tabs.setCurrentWidget(tab_chart)
@@ -301,8 +368,15 @@ def main() -> int:
 
             # --- and check what the step promised -----------------------
             if msg is not None:
-                record(label, CAUGHT.saw(msg.title),
-                       f"expected {first}; saw {CAUGHT.titles or 'nothing'}")
+                # EVERY id the step names, not just the first: one press can
+                # legitimately raise two windows in a row (import: the
+                # how-printed question, then the imported confirmation).
+                missing = [i for i in ids
+                           if i in M.CATALOGUE
+                           and not CAUGHT.saw(M.CATALOGUE[i].title)]
+                record(label, not missing,
+                       f"expected {', '.join(ids)}; "
+                       f"saw {CAUGHT.titles or 'nothing'}")
             elif "no window" in plain.lower() or "no warning" in plain.lower():
                 record(label, not CAUGHT.titles,
                        f"saw {CAUGHT.titles}" if CAUGHT.titles else "silent")
