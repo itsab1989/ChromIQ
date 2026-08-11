@@ -52,11 +52,15 @@ def _areas() -> "list[tuple[str, str, str]]":
             "sure where something will land, read this line.")),
         (tr("The five tabs"), tr("under the masthead"),
          tr("1. Create Chart · 2. Print Chart · 3. Measure · 4. Build Profile · "
-            "5. Check & Refine — numbered in the order you use them.")),
+            "5. Check & Refine — numbered in the order you use them. (Tab 4 "
+            "is called “Calibration & Profiling” when “Enable calibration "
+            "options” is on in Preferences.)")),
         (tr("Options panel"), tr("the left of every tab"),
-         tr("The settings for that step. Each tab offers “Guided” and "
-            "“Manual”: Guided asks fewer questions, Manual shows every "
-            "setting.")),
+         tr("The settings for that step, arranged in modules you switch with "
+            "the buttons at the top of the tab: GUIDED asks fewer questions, "
+            "MANUAL shows every setting. On a verification run, Create Chart "
+            "adds FROM PROFILE GAMUT — a check chart built from colours your "
+            "finished profile promises it can print — and opens on it.")),
         (tr("Preview"), tr("the right of every tab"),
          tr("The chart pages — and during a measurement, what you have read so "
             "far.")),
