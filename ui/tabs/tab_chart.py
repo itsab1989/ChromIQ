@@ -10672,6 +10672,16 @@ class TabChart(QWidget):
         self._gamut_count_spin.setValue(
             int(self._settings.get("gamut_target_count", 400)))
         cw.addWidget(self._gamut_count_spin, 1)
+        # "+ 8" right beside the number, so nobody is surprised that the
+        # chart holds more patches than they typed (Sebastian, 2026-08-11):
+        # the eight cube corners are always added on top, whatever the count.
+        _plus8 = QLabel(tr("+ 8"), count_w)
+        _plus8.setStyleSheet("color: #909090;")
+        _plus8.setToolTip(tr(
+            "The 8 cube corners — paper white, black and the six primary and "
+            "secondary ink corners — are always added on top of the number "
+            "you choose here, so the chart's total is this number + 8."))
+        cw.addWidget(_plus8)
         # Auto (Basti, 2026-08-09): fill the number of PAGES chosen in the
         # layout section below — the same idea as Manual's Auto patch count,
         # driven by the same pages spin, which is live on this page.
