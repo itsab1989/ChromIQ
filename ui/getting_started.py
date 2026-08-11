@@ -200,7 +200,9 @@ def _verifying() -> "list[tuple[str, str]]":
             "check tells you whether the profile still holds, with numbers "
             "instead of a feeling.")),
         (tr("The short version"),
-         tr("Set “Run type” in the bar to “Verification”. Create Chart opens "
+         tr("A verification always checks a finished profile — you need the "
+            "one you built in step 4 first. "
+            "Set “Run type” in the bar to “Verification”. Create Chart opens "
             "on the “From profile gamut” module — generate that chart, print "
             "it from the Print Chart tab (ChromIQ chooses the right way by "
             "itself), let it dry, and measure it on the Measure tab. The "
