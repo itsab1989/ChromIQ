@@ -600,17 +600,15 @@ class MeasurementReportDialog(QDialog):
             "dated report so you can compare measurements of the same chart "
             "over time."), self)
         intro.setWordWrap(True)
-        # Everything from here to the Pass thresholds lives in ONE capped,
-        # scrollable frame (Knut, beta.5: "Only the part above the chart-tabs
-        # should have a vertical scroll-bar … the charts are part of the below
-        # report"). With many input runs the run list can grow as long as it
-        # likes inside the frame; the trend charts and the report itself
-        # always keep their room, whatever the window height.
-        from PyQt6.QtWidgets import QScrollArea, QSizePolicy, QWidget
-        top_host = QWidget(self)
-        top_v = QVBoxLayout(top_host)
-        top_v.setContentsMargins(0, 0, 0, 0)
-        top_v.setSpacing(v.spacing())
+        # Knut's beta.5 point (one scrollbar above the chart tabs) is served
+        # by the RUN LIST itself: it shows up to five rows and scrolls past
+        # that (Sebastian, 2026-08-11), so the charts and the report below
+        # always keep their room. Everything else up here — buttons,
+        # checkboxes, thresholds — stays outside any scroll area and is
+        # always visible: a first cut that wrapped this whole block in its
+        # own scroll frame hid the PDF buttons at medium window heights and
+        # painted the trend headline over the list.
+        top_v = v
         top_v.addWidget(intro)
 
         # Sourcing: add / remove / clear the profiles whose measurements the
@@ -818,20 +816,6 @@ class MeasurementReportDialog(QDialog):
             self, color=SPEC_GREEN))
         thr_row.addStretch(1)
         top_v.addLayout(thr_row)
-
-        top_scroll = QScrollArea(self)
-        top_scroll.setWidget(top_host)
-        top_scroll.setWidgetResizable(True)
-        top_scroll.setFrameShape(QFrame.Shape.NoFrame)
-        top_scroll.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        # Small content keeps the frame small; long content scrolls inside
-        # it. The cap is what guarantees the charts and the report below
-        # always keep their room (Knut's design).
-        top_scroll.setSizePolicy(QSizePolicy.Policy.Preferred,
-                                 QSizePolicy.Policy.Maximum)
-        top_scroll.setMaximumHeight(340)
-        v.addWidget(top_scroll)
 
         self._trend_label = QLabel(tr("Trend over time (this printer)"), self)
         self._trend_label.setStyleSheet("font-weight:bold;margin-top:2px")
@@ -1139,17 +1123,24 @@ class MeasurementReportDialog(QDialog):
     _LIST_VISIBLE_ROWS = 5
 
     def _size_profile_list(self, *, compact: bool = False) -> None:
-        """Size the list to its FULL content. The whole upper block now sits
-        in one capped scroll frame (Knut, beta.5: exactly one scrollbar above
-        the chart tabs), so the list itself never scrolls — nesting a second
-        scrollbar inside the frame is the clumsiness his design removes.
-        ``compact`` is kept for its call sites; the frame's cap covers it."""
+        """Size the list to its content, capped at ``_LIST_VISIBLE_ROWS``
+        visible rows — past the cap the list scrolls internally, and that is
+        the one scrollbar above the chart tabs (Knut's beta.5 point, settled
+        with Sebastian 2026-08-11: "limited to 5 lines … then scroll after
+        the 5 lines"). ``compact`` shrinks it to two rows when the window's
+        own minimum would otherwise not fit the screen."""
         n = len(self._list_rows)
-        row_h = self._profile_list.sizeHintForRow(0) if n else -1
-        if row_h <= 0:
-            row_h = self._profile_list.fontMetrics().height() + 8
         frame = 2 * self._profile_list.frameWidth() + 4
-        h = max(n, 1) * row_h + frame
+        rows = 2 if compact else min(max(n, 1), self._LIST_VISIBLE_ROWS)
+        # Sum the real row heights — the checkable run rows are a few px
+        # taller than the profile header row, so a rows×row_h estimate either
+        # clipped the last visible row in half or let a sliver of the next
+        # one peek in.
+        heights = [self._profile_list.sizeHintForRow(i)
+                   for i in range(min(n, rows))]
+        if not heights or min(heights) <= 0:
+            heights = [self._profile_list.fontMetrics().height() + 8] * rows
+        h = sum(heights) + frame
         self._profile_list.setMinimumHeight(h)
         self._profile_list.setMaximumHeight(h)
 

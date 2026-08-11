@@ -150,16 +150,16 @@ def test_report_list_caps_and_scrolls_for_many_runs(qapp, tmp_path):
         assert len(dlg._list_rows) == 12         # 1 source + 11 run rows
         row_h = dlg._profile_list.sizeHintForRow(0)
         assert row_h > 0
-        # Knut's beta.5 design replaced the per-list cap: the list shows ALL
-        # its rows (no scrollbar of its own), and the ONE capped scroll frame
-        # above the chart tabs takes the overflow — the charts and the report
-        # below always keep their room.
-        assert dlg._profile_list.height() >= 12 * row_h, \
-            "the list must show every row inside the capped frame"
-        from PyQt6.QtWidgets import QScrollArea
-        assert any(w.maximumHeight() <= 400
-                   for w in dlg.findChildren(QScrollArea)), \
-            "the capped top scroll frame is gone"
+        # Settled with Sebastian (2026-08-11): the list is capped at five
+        # visible rows and scrolls internally past that — that internal
+        # scrollbar is the ONE scrollbar above the chart tabs (Knut's beta.5
+        # point). Buttons, checkboxes and thresholds stay outside any scroll
+        # area, always visible; the charts and the report keep their room.
+        cap = dlg._LIST_VISIBLE_ROWS
+        assert dlg._profile_list.maximumHeight() <= cap * row_h + 8, \
+            "the list must cap at five visible rows"
+        assert dlg._profile_list.maximumHeight() >= 2 * row_h, \
+            "the list must still show a useful number of rows"
         scr = dlg.screen().availableGeometry()
         g = dlg.geometry()
         assert g.y() + g.height() <= scr.y() + scr.height() + 1
