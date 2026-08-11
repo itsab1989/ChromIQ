@@ -211,31 +211,67 @@ each have a plain-language Dictionary entry: open the Welcome window's
 
 ### Fixed
 
-The fixes most likely to have affected you; the per-beta sections carry the
-complete record:
+Two hundred and nineteen betas fixed far more than fits a list — the
+per-beta histories in the repository carry the complete record. What users
+met most sat in measuring and in chart handling, so those come first:
 
-- **Checking for updates works again for stable versions.** The check used to
-  fail with "No release tag found" whenever the newest releases were all
-  betas; it now asks for the latest finished release directly.
+**While measuring:**
+
 - **Pressing Esc during a measurement no longer throws your readings away.**
-- **Several measurement windows never appeared at all** when the ChromIQ
-  reading engine was in use — all reachable now, verified against a real
-  instrument.
 - **Patches no longer come back as "inconsistent" for no visible reason** —
   the tolerance sent to the instrument was stricter than the manufacturer's
-  own.
-- **"This chart was made for a different instrument" could name the wrong
-  one**, and **restoring a calibration chart put back a different chart**.
-- **A damaged `meta.json` no longer stops a run remembering anything.**
+  own default.
+- **Several measurement windows never appeared at all** when the ChromIQ
+  reading engine was in use — the abort confirmation, failure windows, and
+  two that opened in silence. All reachable now, verified against a real
+  instrument, and the sound tables for every window are written down as
+  specification.
+- **A resume no longer archives the measurement it resumes from**, a
+  finished re-measurement of a whole chart announces its completion, and a
+  good measurement is no longer called foreign while guided refinement
+  loses its ticks.
+- **The "this chart already has a measurement" window opens showing what
+  the panel actually says** — its old answers could quietly switch an armed
+  refinement off and turn the next read into a replacement.
+- **"No instrument found" fired once per app run** instead of every
+  attempt, and the abort window wording was reworked.
 - **Text typed for a "New run" is kept**, and lands on the run you make.
+
+**Charts and previews:**
+
+- **"This chart was made for a different instrument" could name the wrong
+  instrument** — it compared your connected device against a setting rather
+  than against the chart itself.
+- **Restoring a calibration chart put back a completely different chart**,
+  and a calibration restore redrew the selected run's chart.
+- **The chart patch-set editor and the 3D patch view opened the run's
+  chart, not the chart you had selected.**
+- **The windows that ask what to do with a loaded chart were rebuilt** —
+  explanation in plain text, buttons on one row, Cancel set apart, long
+  project names shortened without clipping ("JSE AS BASE FOR A NEW
+  PROFILE" is gone: windows widen to fit their buttons, everywhere).
+- **The auto-update preview judged the wrong chart** after switching
+  modules, and a switched-off option now looks switched off in both
+  themes.
+- **printtarg margins were applied in the wrong order** (top/right/bottom/
+  left confusion) — charts now sit where the instrument minimums say.
+
+**Reports, projects and the app around them:**
+
+- **Checking for updates works again for stable versions.** The check used
+  to fail with "No release tag found" whenever the newest releases were all
+  betas; it now asks for the latest finished release directly.
 - **The measurement report's PDF paginates cleanly** — headings stay with
   their tables, the trend legend never overlaps the graph, and charts print
-  sharp instead of pixelated.
+  sharp instead of pixelated. The proposed save folder follows the
+  four-location design again.
+- **A damaged `meta.json` no longer stops a run remembering anything**, and
+  runs write their metadata atomically.
 - **Help texts tell the truth.** The verification help card described a
   colour-management print path the app deliberately prevents; the gamut
-  check was described as a drift check; "as measured (absolute)" read like a
-  rendering intent. All corrected — and every such correction is now guarded
-  by a test.
+  check was described as a drift check; "as measured (absolute)" read like
+  a rendering intent. All corrected — and every such correction is now
+  guarded by a test.
 
 ### Internal
 

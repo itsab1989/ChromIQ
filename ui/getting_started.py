@@ -189,6 +189,45 @@ def _keeping() -> "list[tuple[str, str]]":
     ]
 
 
+def _verifying() -> "list[tuple[str, str]]":
+    """The 4.0 headline, as a short chapter of its own (Knut, 2026-08-11:
+    the guide must cover starting a project, making a profile AND verifying
+    it). The full walkthrough lives in its own card; this is the overview."""
+    return [
+        (tr("Why check at all"),
+         tr("A profile describes how your printer behaved on the day you "
+            "measured. Ink ages, paper batches differ, printheads drift — a "
+            "check tells you whether the profile still holds, with numbers "
+            "instead of a feeling.")),
+        (tr("The short version"),
+         tr("Set “Run type” in the bar to “Verification”. Create Chart opens "
+            "on the “From profile gamut” module — generate that chart, print "
+            "it from the Print Chart tab (ChromIQ chooses the right way by "
+            "itself), let it dry, and measure it on the Measure tab. The "
+            "result is filed by date, and the Measurement Report shows how "
+            "close every colour landed — and, as checks accumulate, how the "
+            "profile holds up over time.")),
+        (tr("Where to read more"),
+         tr("The card “Check a finished profile (verification run)” in this "
+            "window walks it step by step; the Dictionary entry “Which "
+            "verification should I use? (the three ways)” compares the three "
+            "kinds of check and when each one is the right tool.")),
+    ]
+
+
+def _files_overview() -> str:
+    """Three sentences, not the folder tree — the tree has its own card."""
+    return tr(
+        "Everything lives under one folder per project (named after your "
+        "project), with one folder per run inside it — each run holding its "
+        "own chart, measurement, profile and reports, and dated verification "
+        "checks in their own folders. Whatever you replace moves into a "
+        "dated “old” folder rather than being deleted. The “Location being "
+        "edited” line under the bar always shows the exact folder the next "
+        "action writes to — and the card “Where are my files?” in this "
+        "window walks the whole folder tree in plain language.")
+
+
 def _outro() -> str:
     return tr(
         "Almost every setting has an ⓘ beside it that explains that setting in "
@@ -208,8 +247,21 @@ def getting_started_html() -> str:
 
     out = [f"<p>{esc(tr('ChromIQ turns a printed sheet of colour patches into '
                          'an ICC profile for your printer. The whole job is '
-                         'five steps, and the tabs are numbered in that '
-                         'order.'))}</p>"]
+                         'five steps, the tabs are numbered in that order — '
+                         'and once a profile is built, ChromIQ can check how '
+                         'good it really is, and keep checking over time.'))}</p>"]
+
+    out.append(f"<p><b>{esc(tr('What is in this guide'))}</b><br>"
+               + esc(tr('1. Finding your way around — the areas of the window. '
+                        '2. Your first profile, start to finish. '
+                        '3. Checking the profile you built (verification). '
+                        '4. Where your files live. '
+                        '5. More than one way to do most things. '
+                        '6. Trying again, and what is kept.')) + "<br>"
+               + esc(tr('Every topic here has a deeper card in this window — '
+                        'this guide names the right one as it goes — and every '
+                        'term of art has a plain-language entry under '
+                        '“Dictionary and terminology”.')) + "</p>")
 
     out.append(f"<h3>{esc(tr('Finding your way around'))}</h3>")
     out.append("<table cellpadding='4' cellspacing='0'>")
@@ -224,6 +276,13 @@ def getting_started_html() -> str:
     out.append(f"<h3>{esc(tr('Your first profile, start to finish'))}</h3>")
     for title, body in _steps():
         out.append(f"<p><b>{esc(title)}</b><br>{esc(body)}</p>")
+
+    out.append(f"<h3>{esc(tr('Checking the profile you built (verification)'))}</h3>")
+    for title, body in _verifying():
+        out.append(f"<p><b>{esc(title)}</b><br>{esc(body)}</p>")
+
+    out.append(f"<h3>{esc(tr('Where your files live'))}</h3>")
+    out.append(f"<p>{esc(_files_overview())}</p>")
 
     out.append(f"<h3>{esc(tr('More than one way to do most things'))}</h3>")
     for title, body in _alternatives():
@@ -240,13 +299,17 @@ def getting_started_html() -> str:
 def getting_started_body() -> str:
     """Plain-text form, for anywhere that cannot show rich text."""
     lines = [tr("ChromIQ turns a printed sheet of colour patches into an ICC "
-                "profile for your printer. The whole job is five steps, and "
-                "the tabs are numbered in that order."), ""]
+                "profile for your printer. The whole job is five steps, the "
+                "tabs are numbered in that order — and once a profile is "
+                "built, ChromIQ can check how good it really is, and keep "
+                "checking over time."), ""]
     lines.append(tr("Finding your way around"))
     for area, where, what in _areas():
         lines.append(f"  {area} ({where}) — {what}")
     lines.append("")
     for heading, rows in ((tr("Your first profile, start to finish"), _steps()),
+                          (tr("Checking the profile you built (verification)"),
+                           _verifying()),
                           (tr("More than one way to do most things"),
                            _alternatives()),
                           (tr("Trying again, and what is kept"), _keeping())):
@@ -254,5 +317,8 @@ def getting_started_body() -> str:
         for title, body in rows:
             lines.append(f"  {title} — {body}")
         lines.append("")
+    lines.append(tr("Where your files live"))
+    lines.append(f"  {_files_overview()}")
+    lines.append("")
     lines.append(_outro())
     return "\n".join(lines)

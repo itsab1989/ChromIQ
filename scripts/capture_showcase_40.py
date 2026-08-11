@@ -94,6 +94,8 @@ def main() -> int:
     settings.set("argyll_bin_path", "/Applications/Argyll/bin")
     settings.set("appearance", "dark")
     settings.set("show_welcome_dialog", False)
+    # The pace warning is the point of shot 09 — show it armed.
+    settings.set("pace_hint_enabled", True)
     settings.set("session_target_name", SRC.name)
     settings.set("session_project_root", "")
 
@@ -235,6 +237,25 @@ def main() -> int:
         log("dictionary entry not found")
     save(wdlg, out, "06-dictionary-which-verification-should-i-use")
     wdlg.close()
+
+    # 08/09 — Preferences: Sounds, and the too-fast reading warning
+    try:
+        from ui.dialogs.settings_dialog import SettingsDialog
+        sdlg = SettingsDialog(settings, None)
+        sdlg.show()
+        pump(app, 800)
+        for tab_label, shot in ((("Sounds",), "08-preferences-sounds"),
+                                (("Measurement",),
+                                 "09-preferences-too-fast-warning")):
+            for i in range(sdlg._tabs.count()):
+                if sdlg._tabs.tabText(i) in tab_label:
+                    sdlg._tabs.setCurrentIndex(i)
+                    break
+            pump(app, 600)
+            save(sdlg, out, shot)
+        sdlg.close()
+    except Exception as e:      # noqa: BLE001
+        log(f"preferences shots: {e}")
 
     win.close()
     shutil.rmtree(STAGING, ignore_errors=True)
