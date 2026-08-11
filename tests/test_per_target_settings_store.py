@@ -42,6 +42,7 @@ class _Tab:
     def _target_settings_store(self): return self._store
     def _collect_ui_state(self):  return {}   # the ui-state
     # section is the real tab's concern; the stand-in stores none
+    def _apply_ui_state(self, stored):  pass   # same reason
     def _target_text_store(self):   return self._store
     _target_ctl = None              # no controller: the no-file key is None
     _new_run_seed_dir = None        # …and nowhere to keep a New run's block
