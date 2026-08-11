@@ -1,5 +1,42 @@
 # Changelog
 
+## v4.0.0-beta.5
+
+> Everything from Knut's hands-on test of beta.4 — his verdict was
+> "quality very good for a full 4.0.0 release", and this beta closes the
+> remaining findings from that pass.
+
+### Fixed
+
+- 🗂️ **Loading a chart brings back ALL the settings that made it** —
+  the targen rows included. The chart's file now records the complete
+  Create Chart registry at Generate, and selecting a run with a chart
+  shows exactly the options that sheet was built with (the patch count
+  always comes from the sheet itself).
+- **Each run keeps its own calibration file and mode.** The automatic
+  offer that fills the "Apply / Include Calibration File" fields only
+  fills fields that are still empty — it no longer overwrites what a run
+  had chosen. One run can keep an older calibration with "Include",
+  another the new one with "Apply".
+- "Stamp settings used on the chart" follows the run too.
+- The Create Calibration File module's description field is labelled
+  "Profile Description (-D)" like everywhere else — and a manually typed
+  name now survives tab and run-type changes (clearing it still brings
+  the automatic name straight back).
+- 📖 **The Getting Started guide's index is now real links**: six
+  numbered lines, one per chapter, each jumping straight to its chapter.
+- The demo projects' measurements now carry the patch locations
+  (SAMPLE_LOC), so resuming a measurement on a demo run works instead of
+  failing with a chartread error. Both demo packages were rebuilt.
+
+### Changed
+
+- The "Enable calibration options" tooltip in Preferences describes
+  what really happens when it is on — the expert layout, which modules
+  each run type offers, and that a verification run keeps FROM PROFILE
+  GAMUT as its recommended check. (Hiding the GUIDED buttons there is
+  deliberate design, now stated as such.)
+
 ## v4.0.0-beta.4
 
 > Knut's hands-on test of beta.3 showed that the per-target settings
