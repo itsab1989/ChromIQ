@@ -478,12 +478,20 @@ class MeasurementReportDialog(QDialog):
         self._sources: "list[dict]" = []
         self._created = datetime.now().isoformat(timespec="seconds")
         self.setWindowTitle(tr("Measurement Report"))
-        self.setMinimumSize(760, 640)
-        # Open TALL: everything above the report view has a fixed height
-        # (~600 px with the trend visible), so at the 640 px minimum the
-        # report text itself was a ~90 px sliver — "hard to get any
-        # information out of it" (Sebastian, 2026-08-10). The view carries
-        # the stretch, so every extra pixel goes to the report.
+        # Width only — the HEIGHT minimum must stay the layout's own: an
+        # explicit 640 px minimum let the window shrink ~200 px below what
+        # the content honestly needs, and Qt answered by painting Close over
+        # the report and squeezing the charts to an unreadable strip
+        # (Sebastian, 2026-08-11, running from source). With no explicit
+        # minimum the layout's minimum governs and resizing simply stops
+        # before anything can overlap. Screens too small for that minimum
+        # are handled in showEvent (compact list, then shorter charts).
+        self.setMinimumWidth(760)
+        # Open TALL: everything above the report view has a fixed height,
+        # so near the minimum the report text itself was a ~90 px sliver —
+        # "hard to get any information out of it" (Sebastian, 2026-08-10).
+        # The view carries the stretch, so every extra pixel goes to the
+        # report.
         self._sized_to_screen = False
         self.setWindowFlags(
             self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
@@ -915,6 +923,22 @@ class MeasurementReportDialog(QDialog):
             layout.activate()
             if layout.minimumSize().height() > cap:
                 self._size_profile_list(compact=True)
+                layout.activate()
+            if layout.minimumSize().height() > cap:
+                # Still too tall for this screen: the trend charts give up
+                # height before anything is pushed off-screen. Only here —
+                # on a roomy screen they keep their readable 150 px and the
+                # window's minimum simply refuses further shrinking.
+                for c in (self._trend_de, self._trend_white,
+                          self._trend_black, self._trend_corners):
+                    c.setMinimumHeight(60)
+                layout.activate()
+            if layout.minimumSize().height() > cap:
+                # Last rung: shave the report view's floor by exactly the
+                # overshoot (never below 120 px) — a shorter report beats a
+                # Close button painted over it or a bottom edge off-screen.
+                over = layout.minimumSize().height() - cap
+                self._view.setMinimumHeight(max(120, 240 - over))
                 layout.activate()
             h = max(h, min(layout.minimumSize().height(), cap))
         self.resize(w, h)
