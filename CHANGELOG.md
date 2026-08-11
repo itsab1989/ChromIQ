@@ -2,14 +2,20 @@
 
 ## v4.0.0-beta.3
 
-> The two per-target settings defects announced in beta.2 are **fixed in
-> this beta** (and one smaller, related one was found and is still under
-> review — the six calibration-owned chart rows can follow you from a
-> Calibration run to the next run you visit; nothing else is affected).
-> The `ChromIQ-Switching-Demo.zip` download on this release carries the
+> All three per-target settings defects are **fixed in this beta**: the two
+> announced in beta.2, and a third the follow-up testing found the same day.
+> The automated switching drive now passes every one of its 74 checks, and
+> the `ChromIQ-Switching-Demo.zip` download on this release carries the
 > test cases that prove the fixes, ready for a manual pass.
 
 ### Fixed
+
+- The six chart settings a Calibration run manages for itself (patch
+  count, ink limit, single-channel steps, grey axis, row spacing) no
+  longer follow you out: visiting a Calibration run and then another run
+  used to write the calibration's values for those six rows into that
+  run. Each run now keeps — and reopens on — its own values, and the
+  calibration still gets exactly the chart it needs while it is selected.
 
 - 🗂️ **Every run type now keeps its own settings — verification included.**
   Switching Run type between Profiling and Verification on the same run
