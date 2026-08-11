@@ -3857,12 +3857,17 @@ class TabChart(QWidget):
         for one state is the confusion this removes. Its group stays hidden in
         both modes.
         """
+        self._cal_options_on = bool(enabled)
         self._mode_row_widget.setVisible(not enabled)
         self._cal_target_grp.setVisible(False)
         self._cal_target_check.setChecked(False)
         if enabled:
             self._switch_mode("manual")
             self._check_for_cal_file(self._manual_target_name_edit.text())
+        # A verification run keeps its module choice even with calibration
+        # options on (Sebastian, 2026-08-11) — the refresh below applies the
+        # run-type-aware row state.
+        self._refresh_gamut_visibility()
 
     def set_cal_file_paths(self, cal_path: "Path") -> None:
         """Pre-fill the -I and -K parameter widgets with the given .cal path."""
@@ -10629,11 +10634,26 @@ class TabChart(QWidget):
 
     def _refresh_gamut_visibility(self) -> None:
         """Show the module button only for a verification target, and keep the
-        panel's profile-dependent state honest (#133 §10)."""
+        panel's profile-dependent state honest (#133 §10).
+
+        With calibration options ON, Sebastian's matrix (2026-08-11) applies:
+        a Verification run shows the mode row with MANUAL and FROM PROFILE
+        GAMUT only (gamut as the default); Profiling and Calibration runs
+        lock to MANUAL with the row hidden — never Guided, which used to be
+        the landing place when a verification was left.
+        """
         is_verif = self._is_verification_target()
+        cal_on = getattr(self, "_cal_options_on", False)
         self._gamut_btn.setVisible(is_verif)
+        if cal_on:
+            self._mode_row_widget.setVisible(is_verif)
+            self._guided_btn.setVisible(False)
+            if not is_verif and self._mode_name() == "guided":
+                self._switch_mode("manual")
+        else:
+            self._guided_btn.setVisible(True)
         if not is_verif and getattr(self, "_gamut_active", False):
-            self._switch_mode("guided")
+            self._switch_mode("manual" if cal_on else "guided")
         profile = self._gamut_profile() if is_verif else None
         # The Guided/Manual info box (pre-existing gap, #133 Q11): shown while
         # a verification target has no profile, never blocking anything.
@@ -10658,6 +10678,12 @@ class TabChart(QWidget):
                     and not getattr(self, "_gamut_active", False)
                     and not getattr(self, "_user_chose_module", False)):
                 self._switch_mode("gamut")
+            # With calibration options on, Guided is not offered — a
+            # verification that lands here on Guided (e.g. restored from an
+            # earlier session) moves to the gamut module, or Manual when no
+            # profile exists yet to feed it.
+            if cal_on and self._mode_name() == "guided":
+                self._switch_mode("gamut" if profile is not None else "manual")
 
     def _refresh_gamut_state(self) -> None:
         """Options vs the no-profile empty state, and the Generate button."""

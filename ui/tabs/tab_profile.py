@@ -363,6 +363,9 @@ class TabProfile(QWidget):
             "ChromIQ builds the ICC profile from it. If a matching chart (.ti2) "
             "sits next to it, ChromIQ picks it up automatically."))
         self._load_btn.clicked.connect(self._on_load_ti3)
+        # Remembered so _apply_run_type_modules can restore it after showing
+        # the calibration wording while Run type = Calibration.
+        self._load_btn_tip_profiling = self._load_btn.toolTip()
         self._reveal_btn = RevealFolderButton(SPEC_CYAN, self)
         self._reveal_btn.setToolTip(tr(
             "Open this chart's folder in {manager} — where "
@@ -683,6 +686,15 @@ class TabProfile(QWidget):
         self._cal_create_btn.setVisible(is_cal)
         for btn in (self._cal_profile_btn, self._cal_apply_btn):
             btn.setVisible(not is_cal)
+        # The header's load icon serves whichever module the run type shows,
+        # so its tooltip must say which file it loads right now (Sebastian,
+        # 2026-08-11 — one icon, same everywhere).
+        try:
+            self._load_btn.setToolTip(
+                self._pc_load_btn.toolTip() if is_cal
+                else self._load_btn_tip_profiling)
+        except Exception:      # noqa: BLE001 — a tooltip must never break this
+            pass
         if is_cal:
             self._switch_cal_mode(1)     # Create Calibration File
         elif self._outer_stack.currentIndex() == 1:
@@ -895,10 +907,16 @@ class TabProfile(QWidget):
             "uses it to compute the printer calibration curves before building "
             "the profile."))
         self._pc_load_btn.clicked.connect(self._pc_browse_ti3)
+        # NOT shown: the header's load icon (upper right, like every other
+        # instance of this tab) routes to the calibration browse while Run
+        # type = Calibration, so a second icon inside this section was a
+        # duplicate — "i think it is not needed in the measurement data
+        # section so it is the same everywhere inside the app" (Sebastian,
+        # 2026-08-11). The button object stays for its wiring and tests.
+        self._pc_load_btn.setVisible(False)
         self._pc_ti3_lbl = QLabel(tr("No file selected — measure a calibration chart first."), grp_ti3)
         self._pc_ti3_lbl.setStyleSheet("color: #909090; font-size: 11px;")
         self._pc_ti3_lbl.setWordWrap(True)
-        in_row.addWidget(self._pc_load_btn)
         in_row.addWidget(self._pc_ti3_lbl, stretch=1)
         ti3_g.addLayout(in_row)
         gw_layout.addWidget(grp_ti3)
@@ -3998,6 +4016,17 @@ class TabProfile(QWidget):
         reveal_in_file_manager(target)
 
     def _on_load_ti3(self) -> None:
+        # With Run type = Calibration the tab IS the Create Calibration File
+        # module, and this one header icon is the load button for it — the
+        # duplicate inside the Measurement Data section is gone (Sebastian,
+        # 2026-08-11).
+        ctl = getattr(self, "_target_ctl", None)
+        try:
+            if ctl is not None and ctl.target.is_calibration():
+                self._pc_browse_ti3()
+                return
+        except Exception:      # noqa: BLE001 — fall through to the normal load
+            pass
         path = open_file_dialog(
             self, "Load measurement data",
             "Measurement data (*.ti3 *.txt *.mxf *.cxf)",
