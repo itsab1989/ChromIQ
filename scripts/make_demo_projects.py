@@ -45,6 +45,7 @@ import argparse
 import json
 import random
 import shutil
+import subprocess
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -354,6 +355,15 @@ def build_full(root: Path) -> None:
     (p / "cal").mkdir(parents=True, exist_ok=True)
     _chart_files(p / "cal", f"{stem}-cal", patches=60, rows=10)
     (p / "cal" / f"{stem}-cal.ti3").write_text(_ti3_from_ti2(p / "cal" / f"{stem}-cal.ti2"))
+    # A REAL .cal, made by Argyll printcal from that measurement — the demo
+    # must let a user exercise the Apply/Include Calibration File rows
+    # (Sebastian's beta.5 check 3 found the folder had no .cal to pick).
+    try:
+        subprocess.run([_argyll("printcal"), "-i",
+                        str(p / "cal" / f"{stem}-cal")],
+                       capture_output=True, timeout=120, check=True)
+    except Exception as exc:      # noqa: BLE001 — the rest of the demo stands
+        print(f"  (printcal skipped: {exc})")
     (p / "exports").mkdir(exist_ok=True)
     (p / "exports" / f"{stem}-colours.txt").write_text("# demo export\n")
 
