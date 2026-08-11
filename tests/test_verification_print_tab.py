@@ -436,8 +436,13 @@ def test_print_settings_roundtrip_through_the_target_store(qapp, tmp_path):
     tab._cm_raw_rb.setChecked(True)                      # a user choice
     idx = tab._cm_intent_combo.findData("perceptual")
     tab._cm_intent_combo.setCurrentIndex(idx)
-    assert tab.save_target_settings(store=run) is True
-    stored = run.load_meta().print_settings
+    # Through the resolver, not an explicit store: per Knut's F1 ruling a
+    # verification target's settings live in verifications/meta.json, and
+    # this roundtrip must exercise the store the tab really uses.
+    from workflow.per_target_settings import store_for_target
+    store = store_for_target(ctl)
+    assert tab.save_target_settings() is True
+    stored = store.load_meta().print_settings
     assert stored == {"colour": vp.COLOUR_RAW, "intent": "perceptual",
                       "route": vp.ROUTE_CHROMIQ}
 
@@ -452,8 +457,8 @@ def test_print_settings_roundtrip_through_the_target_store(qapp, tmp_path):
     tab2._cm_user_colour = None                          # no user click
     tab2._update_colour_row_visible()
     tab2._print_written.clear()
-    tab2.save_target_settings(store=run)
-    assert run.load_meta().print_settings["colour"] == vp.COLOUR_RAW
+    tab2.save_target_settings()
+    assert store.load_meta().print_settings["colour"] == vp.COLOUR_RAW
 
 
 # ------------------------------------------------------------------ T11

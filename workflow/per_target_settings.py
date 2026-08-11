@@ -208,16 +208,33 @@ def seed_for_new_run(settings: dict) -> dict:
 
 
 def store_for_target(ctl):
-    """The Run / Verification / Calibration the bar points at, or None.
+    """The settings store the bar points at, or None.
 
     Lifted out of ``TabChart._target_text_store`` so every tab that stores
     per-target settings asks the same question the same way — a second copy of
     this is how the three run types came to be handled differently in the page
     rebuild (beta.165).
 
-    **Never creates anything**, and answers None for "New run": a run that does
-    not exist has no store, and borrowing the current one is how text came to be
-    written into the wrong run (Knut, beta.147).
+    **Run type picks the store** (Knut's F1 ruling, 2026-08-11: *"the
+    verification chart shall have its own settings, separate from the profile
+    run's settings"*):
+
+    - Profiling on run N  → ``runs/runN/meta.json``
+    - Verification on run N → ``runs/runN/verifications/meta.json`` — one set
+      per run's verification tree, shared by its dated checks the same way
+      the verification chart is. Living at the root of ``verifications/``
+      makes it a chart *side file* (``CHART_SIDE_FILES``), so the snapshot
+      taken when a measurement starts backs the settings up into
+      ``<date_time>/chart/`` and Restore Used Chart brings them back —
+      exactly the mechanism Knut specified for the run ``meta.json`` in #130.
+    - Calibration → ``cal/meta.json``
+
+    **Never resurrects anything**, and answers None for "New run": a run that
+    does not exist has no store, and borrowing the current one is how text
+    came to be written into the wrong run (Knut, beta.147). The one folder it
+    may create is ``verifications/`` **inside a run that exists** — the
+    store's own home, so settings chosen before the first verification chart
+    is generated are not silently dropped; a deleted run is never recreated.
     """
     if ctl is None:
         return None
@@ -230,6 +247,13 @@ def store_for_target(ctl):
         if ctl.target.is_new_run():
             return None
         from core.measurement_target import resolve_run
-        return resolve_run(project, ctl.target)
+        run = resolve_run(project, ctl.target)
+        if ctl.target.is_verification():
+            from core.file_manager import Run as _Run
+            vdir = run.verifications_dir
+            if run.dir.is_dir():
+                vdir.mkdir(exist_ok=True)
+            return _Run.for_dir(vdir)
+        return run
     except Exception:      # noqa: BLE001 — a question must never raise
         return None

@@ -88,8 +88,14 @@ def archive_run_for_replace(run: Run, *, verification: bool) -> "Path | None":
       with the chart it belonged to.
     """
     if verification:
+        # The settings store (meta.json, a chart SIDE file) stays live: it
+        # describes the verification target, not one chart — exactly as a
+        # profiling replace leaves runs/runN/meta.json alone. Archiving it
+        # here would wipe the verification's settings on every regenerate.
+        from workflow.chart_slot import CHART_SIDE_FILES
         paths: list[Path] = [p for p in run.verifications_dir.glob("*")
-                             if p.is_file()]
+                             if p.is_file()
+                             and p.name not in CHART_SIDE_FILES]
         return run.archive_to_old(paths, into=run.verifications_old_dir)
     s = run.stem
     paths = [run.dir / f"{s}.ti1", run.dir / f"{s}.ti2"]

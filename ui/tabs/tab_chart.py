@@ -9471,7 +9471,7 @@ class TabChart(QWidget):
         # Know whose settings are on screen from the start, or the FIRST target
         # change has no outgoing target and writes nothing.
         try:
-            self._settings_store = self._target_text_store()
+            self._settings_store = self._target_settings_store()
             self._settings_key = self._target_settings_key()
         except Exception:      # noqa: BLE001 — a question must not break setup
             self._settings_store = self._settings_key = None
@@ -9672,7 +9672,7 @@ class TabChart(QWidget):
         # record the old target's edits onto the new one, which is precisely
         # the failure this whole feature exists to prevent (§2.1, test N1).
         if store is _NO_STORE_GIVEN:
-            store = self._target_text_store()
+            store = self._target_settings_store()
         if store is None:
             # A NEW RUN HAS NO FILE YET — HOLD IT, DO NOT DROP IT.
             #
@@ -9777,7 +9777,7 @@ class TabChart(QWidget):
         reset here: §4 says it opens on the saved defaults or the factory ones,
         and that is the panels' own job, not this one's.
         """
-        store = self._target_text_store()
+        store = self._target_settings_store()
         if store is None:
             seed = self._new_run_seed_path()
             held = None
@@ -10020,6 +10020,19 @@ class TabChart(QWidget):
         """
         return {tool: list(widgets)
                 for tool, widgets in getattr(self, "_manual_widgets", {}).items()}
+
+    def _target_settings_store(self):
+        """Where this selection's SETTINGS are read from and written to.
+
+        The shared resolver every storing tab uses — which, per Knut's F1
+        ruling (2026-08-11), gives a Verification its own store in
+        ``runs/runN/verifications/meta.json`` instead of sharing the run's.
+        The two TEXT fields stay on :meth:`_target_text_store`: their spec
+        (per-run description, §9 Q4) keys them by run type inside the run's
+        own file, and that design is unchanged.
+        """
+        from workflow.per_target_settings import store_for_target
+        return store_for_target(getattr(self, "_target_ctl", None))
 
     def _target_text_store(self):
         """Where this selection's two texts are read from and written to.
@@ -11468,7 +11481,7 @@ class TabChart(QWidget):
             getattr(self, "_settings_key", _NO_STORE_GIVEN))
         self._refresh_target_text()
         self.load_target_settings()
-        self._settings_store = self._target_text_store()
+        self._settings_store = self._target_settings_store()
         self._settings_key = self._target_settings_key()
         # #130 Bug C (Knut): if the loaded PROJECT changed (e.g. a Print/Measure
         # load copied a new project into the working folder), reflect its name in

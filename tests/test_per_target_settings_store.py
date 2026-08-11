@@ -36,6 +36,10 @@ class _Tab:
         self._loading_target_settings = False
 
     def per_target_widgets(self):   return self._widgets
+    # settings resolve through the shared store_for_target in the real
+    # tab (Knut's F1 ruling); the stand-in answers both names with the
+    # same store because only the store behaviour is under test here
+    def _target_settings_store(self): return self._store
     def _target_text_store(self):   return self._store
     _target_ctl = None              # no controller: the no-file key is None
     _new_run_seed_dir = None        # …and nowhere to keep a New run's block
@@ -271,7 +275,7 @@ def test_n1_end_to_end_the_outgoing_run_keeps_its_own_setting(tmp_path, qapp):
     # whole save/load twice and wrote the incoming run a second time. Driving
     # it the way the app does is also the only honest way to test it.
     ctl.set_profile_run("run1")
-    store = tab._target_text_store()
+    store = tab._target_settings_store()
     if store is None:
         pytest.skip("the bar could not resolve run1 in this environment")
 

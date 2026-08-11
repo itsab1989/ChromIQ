@@ -411,9 +411,24 @@ def restore_slot(slot) -> "RestoreResult":
         return result
 
     slot.live_dir.mkdir(parents=True, exist_ok=True)
-    displaced = slot.live_files()
+    from workflow.chart_slot import CHART_SIDE_FILES
+    all_live = slot.live_files()
+    snap_names = {s.name for s in snap}
+    # Side files (the settings meta.json — part of a verification slot's
+    # live_files, whose suffix filter is None) never go into the stash: the
+    # stash is discarded on success, and settings must never be destroyed.
+    # One is replaced only when the snapshot carries a counterpart, and the
+    # replaced file is archived into old/ first.
+    displaced = [p for p in all_live if p.name not in CHART_SIDE_FILES]
+    side_replaced = [p for p in all_live
+                     if p.name in CHART_SIDE_FILES and p.name in snap_names]
+    side_archive = None
     stash = slot.snapshot_dir.parent / f".restore-stash-{slot.snapshot_dir.name}"
     try:
+        if side_replaced:
+            from core.file_manager import Run as _Run
+            side_archive = _Run.for_dir(slot.live_dir).archive_to_old(
+                side_replaced, into=slot.live_dir / "old")
         if displaced:
             stash.mkdir(parents=True, exist_ok=True)
             for p in displaced:
@@ -436,6 +451,11 @@ def restore_slot(slot) -> "RestoreResult":
         if stash.exists():
             for p in stash.iterdir():
                 shutil.move(str(p), str(slot.live_dir / p.name))
+        if side_archive is not None:
+            for name in {p.name for p in side_replaced}:
+                src = side_archive / name
+                if src.exists() and not (slot.live_dir / name).exists():
+                    shutil.move(str(src), str(slot.live_dir / name))
         result.restored = []
         result.rolled_back = True
         result.error = str(exc)
@@ -514,7 +534,14 @@ def live_differs_from_snapshot(verification: Verification) -> bool:
     run = verification.run
     live = {p.name: p for p in live_chart_files(run)}
     snap_stem = _snapshot_stem(snap)
+    from workflow.chart_slot import CHART_SIDE_FILES
     for s in snap:
+        # Side files (the settings meta.json) travel with the chart but do
+        # not decide whether the chart changed — otherwise every settings
+        # edit would make every dated check look like "a different chart"
+        # (the same rule slot_live_differs already follows).
+        if s.name in CHART_SIDE_FILES:
+            continue
         want = _restored_name(s.name, snap_stem, run.verify_stem)
         counterpart = live.get(want)
         if counterpart is None or _digest(counterpart) != _digest(s):
@@ -580,11 +607,25 @@ def restore_chart(verification: Verification) -> RestoreResult:
     run = verification.run
     vdir = run.verifications_dir
     vdir.mkdir(parents=True, exist_ok=True)
-    displaced = live_chart_files(run)
+    from workflow.chart_slot import CHART_SIDE_FILES
+    all_live = live_chart_files(run)
+    snap_names = {s.name for s in snap}
+    # Side files (the settings meta.json) never go into the stash — the stash
+    # is DISCARDED after a successful restore, and settings must never be
+    # destroyed. A side file is replaced only when the snapshot carries one,
+    # and the replaced file is archived into old/ first; a snapshot without
+    # one leaves the live settings exactly as they are.
+    displaced = [p for p in all_live if p.name not in CHART_SIDE_FILES]
+    side_replaced = [p for p in all_live
+                     if p.name in CHART_SIDE_FILES and p.name in snap_names]
+    side_archive = None
     stash = verification.dir / f".restore-stash-{verification.id}"
     snap_stem = _snapshot_stem(snap)
 
     try:
+        if side_replaced:
+            side_archive = run.archive_to_old(
+                side_replaced, into=run.verifications_old_dir)
         # 1. move the live chart aside (not delete — this is the rollback copy)
         if displaced:
             stash.mkdir(parents=True, exist_ok=True)
@@ -610,6 +651,11 @@ def restore_chart(verification: Verification) -> RestoreResult:
         if stash.exists():
             for p in stash.iterdir():
                 shutil.move(str(p), str(vdir / p.name))
+        if side_archive is not None:
+            for name in {p.name for p in side_replaced}:
+                src = side_archive / name
+                if src.exists() and not (vdir / name).exists():
+                    shutil.move(str(src), str(vdir / name))
         result.restored = []
         result.rolled_back = True
         result.error = str(exc)
