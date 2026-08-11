@@ -644,11 +644,19 @@ def capture_dialogs(app, win) -> None:
                 # screenshots pop up windows were always off in the bottom
                 # right corner or so").
                 dpr = base.devicePixelRatio() or 1.0
-                x = int((base.width() - dlg.width()) / (2 * dpr))
-                y = int((base.height() - dlg.height()) / (2 * dpr))
+                # The same logical-vs-device trap as the centring, one line
+                # down: the shadow rects were sized with the pixmap's RAW
+                # width/height (device pixels, 2x on Retina), which painted a
+                # grey slab twice the dialog's drawn size — the "grey element
+                # around the pop up" Basti saw on every dialog screenshot
+                # (2026-08-12). Work in logical units for everything.
+                dw = int(dlg.width() / (dlg.devicePixelRatio() or 1.0))
+                dh = int(dlg.height() / (dlg.devicePixelRatio() or 1.0))
+                x = int(base.width() / dpr - dw) // 2
+                y = int(base.height() / dpr - dh) // 2
                 for i, a in ((8, 22), (4, 34), (2, 46)):
-                    painter.fillRect(x - i, y - i, dlg.width() + 2 * i,
-                                     dlg.height() + 2 * i, QColor(0, 0, 0, a))
+                    painter.fillRect(x - i, y - i, dw + 2 * i,
+                                     dh + 2 * i, QColor(0, 0, 0, a))
                 painter.drawPixmap(x, y, dlg)
                 painter.end()
                 out = DOCS / f"{name}-{theme}.png"
