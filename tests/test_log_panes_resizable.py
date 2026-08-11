@@ -299,6 +299,39 @@ def _fits(pane, log):
     return log_inside and foot_alive
 
 
+def test_the_ceiling_sees_through_the_log_container_wrapper(bound):
+    """Every real tab wraps its log in the 'log_container' (add_log_row), a
+    wrapper exactly as tall as the log itself. Measuring THAT as the column
+    made the ceiling equal the current size — the panel could shrink but
+    never grow again (Sebastian, 2026-08-11: "i can't change its size
+    anymore, it stays small"). The ceiling must measure the real column."""
+    from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget
+
+    from ui.widgets import _max_lines_for, add_log_row
+
+    host = QWidget()
+    host.setFixedSize(400, 900)
+    pane = QWidget(host)
+    pane.setGeometry(0, 0, 400, 900)
+    lay = QVBoxLayout(pane)
+    lay.setContentsMargins(0, 0, 0, 0)
+    lay.setSpacing(0)
+    top = QLabel()
+    top.setMinimumHeight(300)
+    lay.addWidget(top)
+    log = QPlainTextEdit()
+    add_log_row(lay, log, pane)          # the REAL wrapper path
+    host.show()
+    lay.activate()
+    fit_log_height(log, 5)
+    assert log.parentWidget().objectName() == "log_container"
+    assert _max_lines_for(log) > 5, (
+        "the ceiling equals the current size — the wrapper is being measured "
+        "as the column, and the log can never grow"
+    )
+    host.deleteLater()
+
+
 def test_a_log_cannot_be_dragged_past_the_bottom_of_its_column(bound):
     pane, log = _column(qapp=None, height=520)
     set_log_visible_lines(LOG_MAX_LINES)

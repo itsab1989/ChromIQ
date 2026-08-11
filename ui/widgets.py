@@ -525,6 +525,13 @@ def _max_lines_for(log) -> int:
     """
     try:
         pane = log.parentWidget()
+        # The log sits inside the "log_container" wrapper (add_log_row), which
+        # is exactly as tall as the log itself — measuring THAT as the column
+        # made the ceiling equal the current size, so the panel could shrink
+        # but never grow again (Sebastian, 2026-08-11: "i can't change its
+        # size anymore, it stays small"). The column is the wrapper's parent.
+        if pane is not None and pane.objectName() == "log_container":
+            pane = pane.parentWidget()
         lay = pane.layout() if pane is not None else None
         # Only a panel that is actually on screen can be measured: a stacked
         # page that has never been shown reports a column height from before it
