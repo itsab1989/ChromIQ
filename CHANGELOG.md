@@ -191,6 +191,12 @@ each have a plain-language Dictionary entry: open the Welcome window's
   a choice you make yourself is never touched, and charts that exist keep
   the layout recipe recorded in their own file.
 
+- **The chart-reading engine has left the Beta tab.** It and its
+  companion options (patch flagging, calibration retries, faster
+  connection, the misalignment warning) now live at the top of
+  Preferences ▸ Measurement, and the engine no longer carries a beta
+  label — only the profile engine is still experimental.
+
 - **The measurement model is consistent everywhere.** Replacing a chart,
   rebuilding one, measuring over an existing measurement, deleting a run —
   each has one window, one wording and one outcome, whichever tab you reach

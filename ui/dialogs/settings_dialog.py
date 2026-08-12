@@ -706,17 +706,31 @@ class SettingsDialog(QDialog):
         _beta.addLayout(_eng_row)
         _beta.addWidget(self._gammap_mode_cell)
 
+        # Everything that used to follow here on the Beta tab moved to
+        # Preferences -> Measurement (Knut + Sebastian, 2026-08-13: the
+        # chart-reading engine and its companions have outgrown Beta; only
+        # the profile engine is still experimental). The rows are built
+        # here, in their original order, into a container the Measurement
+        # tab places FIRST -- above its pace introduction.
+        self._measure_engine_block = QWidget(self)
+        _meas = QVBoxLayout(self._measure_engine_block)
+        _meas.setContentsMargins(0, 0, 0, 0)
+        # Tighter than the page's 12: seven rows moved in above the pace
+        # section, and the tab should still fit a normal window height.
+        _meas.setSpacing(6)
+
         # Chart-reading engine (#126) — Measure tab beta. A checkbox, mirroring
         # the profile-engine toggle above it (Knut): ON = ChromIQ engine.
         self._chartread_engine_check = QCheckBox(
-            tr("ChromIQ chart-reading engine (beta)"), self)
+            tr("ChromIQ chart-reading engine"), self)
         chartread_engine_tip = TooltipButton(
-            tr("ChromIQ Chart-Reading Engine (beta)"),
+            tr("ChromIQ Chart-Reading Engine"),
             tr("This box changes how ChromIQ reads your printed chart in the "
             "Measure tab.\n\n"
-            "When it is OFF (the default), nothing changes: ChromIQ measures "
-            "exactly the way it always has, using Argyll's own chartread. "
-            "Leave it off and you will not notice any difference.\n\n"
+            "When it is ON — the default — ChromIQ reads charts with its "
+            "own engine. Switch it OFF and ChromIQ measures with Argyll's "
+            "own chartread program instead, exactly the way plain ArgyllCMS "
+            "works; the measured numbers are the same either way.\n\n"
             "When it is ON, ChromIQ uses its own chart-reading engine. The "
             "engine is built from the very same ArgyllCMS source code and "
             "talks to your instrument through Argyll's own, unmodified "
@@ -729,7 +743,7 @@ class SettingsDialog(QDialog):
             "— never the whole session.\n\n"
             "  • You can click any strip in the chart preview to jump "
             "straight to it — handy when you want to measure one strip again, "
-            "or when Check && Refine has flagged a few strips as worth a "
+            "or when Check & Refine has flagged a few strips as worth a "
             "second pass.\n\n"
             "  • After each swipe, the preview fills in what the instrument "
             "actually saw, patch by patch, split diagonally against what the "
@@ -739,11 +753,9 @@ class SettingsDialog(QDialog):
             "shuffled), the engine checks — wherever that is mathematically "
             "possible — that you really swiped the row it expected, and warns "
             "you on the spot. Regular chartread trusts you silently there.\n\n"
-            "This is a new beta and has not yet been tested against every "
-            "instrument, so keep an eye on your first few sessions and verify "
-            "the result. The measurement file has exactly the same format as "
-            "before, and you can switch this box on or off between sessions "
-            "freely — even resume a measurement started the other way.\n\n"
+            "The measurement file has exactly the same format either way, "
+            "and you can switch this box on or off between sessions freely "
+            "— even resume a measurement started the other way.\n\n"
             "If the engine is missing on your computer, or a mode needs "
             "something it does not cover yet (patch-by-patch reading, XY "
             "tables), ChromIQ simply falls back to the normal chartread for "
@@ -777,7 +789,7 @@ class SettingsDialog(QDialog):
             "are silenced in the engine, because it runs inside ChromIQ. The "
             "separate chartread program beeps on its own and offers no way to "
             "turn that off, so with it you may hear both its beeps and your "
-            "chosen sounds.\n\nDefault: off"),
+            "chosen sounds.\n\nDefault: on"),
             self,
             min_width=680,
         )
@@ -785,7 +797,7 @@ class SettingsDialog(QDialog):
         _cr_row.addWidget(self._chartread_engine_check)
         _cr_row.addStretch()
         _cr_row.addWidget(chartread_engine_tip)
-        _beta.addLayout(_cr_row)
+        _meas.addLayout(_cr_row)
 
         # XY / chart-reader engine support (opt-in). Sits right under the engine
         # toggle. Off by default → these niche instruments use stock chartread.
@@ -818,7 +830,7 @@ class SettingsDialog(QDialog):
         _xy_row.addWidget(self._engine_all_modes_check)
         _xy_row.addStretch()
         _xy_row.addWidget(engine_all_modes_tip)
-        _beta.addLayout(_xy_row)
+        _meas.addLayout(_xy_row)
 
         # Patch-reading error limit (#126, Knut): the ΔE at which a just-measured
         # patch gets the red warning outline in the live split-patch preview.
@@ -886,8 +898,34 @@ class SettingsDialog(QDialog):
             "measurements.\n\n"
             "Default: 50 ΔE"),
             self))
-        _beta.addLayout(_pw_row)
-        _beta.addWidget(self._patch_fence_check)
+        _meas.addLayout(_pw_row)
+        _fence_row = QHBoxLayout()
+        _fence_row.addWidget(self._patch_fence_check)
+        _fence_row.addStretch()
+        _fence_row.addWidget(TooltipButton(
+            tr("Only flag a patch that stands out from its own strip"),
+            tr("While you read strips, every patch is compared with the "
+            "colour the chart was designed to have — and vivid design "
+            "colours legitimately measure far away on a perfectly good "
+            "print, because a printer does not reproduce sRGB. Flagging "
+            "every patch past the limit above would light up half of a "
+            "healthy chart in red.\n\n"
+            "On (the default): a patch gets the red outline only when it is "
+            "past the limit above AND clearly stands out from the other "
+            "patches of its own strip. A real misread — a smudge, a doubled "
+            "patch, a swipe that drifted a row — spikes far above its "
+            "neighbours, so it is caught; the normal, even difference "
+            "between print and design stays quiet.\n\n"
+            "Off: the limit above means exactly what it says, and every "
+            "patch past it is flagged. Choose this when you already suspect "
+            "the chart is wrong and want to see everything the limit "
+            "catches.\n\n"
+            "This applies to strip reading only — reading patch by patch "
+            "there is no strip to compare against, so there the limit above "
+            "is always the whole rule.\n\n"
+            "Default: on"),
+            self))
+        _meas.addLayout(_fence_row)
 
         # Automatic calibration retries (#126, mavtop): how many times a failed
         # instrument calibration is retried before giving up.
@@ -929,7 +967,7 @@ class SettingsDialog(QDialog):
             "Default: 3 (four attempts in total)"),
             self,
             min_width=620))
-        _beta.addLayout(_car_row)
+        _meas.addLayout(_car_row)
 
         # Faster instrument connection: skip Argyll's slow serial-port probe.
         self._fast_connect_check = QCheckBox(
@@ -963,7 +1001,7 @@ class SettingsDialog(QDialog):
             "instrument from being found.\n\n"
             "Default: on"),
             self))
-        _beta.addLayout(_fc_row)
+        _meas.addLayout(_fc_row)
 
         # Misalignment safety net (#50, opt-in): warn when a strip fits
         # dramatically better shifted by a patch (a likely one-off misread).
@@ -995,7 +1033,7 @@ class SettingsDialog(QDialog):
             "subtler one-patch slips that slip past it.\n\n"
             "Default: off"),
             self))
-        _beta.addLayout(_sn_row)
+        _meas.addLayout(_sn_row)
 
         # (The measurement-report options moved to their own Reports tab, Knut.)
         _beta.addStretch()
@@ -1441,6 +1479,10 @@ class SettingsDialog(QDialog):
         v = QVBoxLayout(page)
         v.setSpacing(12)
         v.setContentsMargins(12, 12, 12, 12)
+
+        # The reading-engine block, moved here from Beta (2026-08-13) --
+        # first on the tab, in its original order, before the pace text.
+        v.addWidget(self._measure_engine_block)
 
         intro = QLabel(tr(
             "Reading a strip too quickly is the most common reason a scan is "
