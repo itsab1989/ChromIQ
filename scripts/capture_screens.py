@@ -442,11 +442,25 @@ def rerender_gamut(win) -> None:
             pump(50)
             if not win._runner.is_running:
                 break
-        pump(3500)
+        pump(6000)
+        # Nudge the web view's size by a pixel and back: the theme switch
+        # relayouts the panel, and X3DOM keeps projecting through the OLD
+        # viewport until something resizes it — deterministically, not as a
+        # race: the first theme pass always shipped the solid as a stretched
+        # smear with the camera inside it (Sebastian, 2026-08-12), while the
+        # second pass (same code, size long settled) was fine. The nudge
+        # forces X3DOM's onresize, and only then is the camera reset.
+        wv = getattr(gp, "_web_view", None)
+        if wv is not None:
+            sz = wv.size()
+            wv.resize(sz.width() - 2, sz.height())
+            pump(400)
+            wv.resize(sz)
+            pump(600)
         # Auto-fit the camera (X3DOM showAll) so the solid is centered, then let
         # it settle — without this the dark-mode render framed mostly background.
         gp._on_reset_view()
-        pump(1200)
+        pump(1500)
     except Exception as e:
         log(f"gamut rerender: {e}")
 
