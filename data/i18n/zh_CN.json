@@ -1326,7 +1326,6 @@
   "Greys are where your eyes are pickiest, and where a printer drifts first. This set places rings of patches around the grey axis, so the profile learns exactly how much cyan, magenta and yellow your printer needs for a clean, cast-free neutral — the classic \"grey balance\" chart, built in.\n\nWithout a preconditioning profile the rings are centred on equal amounts of C, M and Y. On a real printer that mix usually looks slightly warm or green — that's expected, and it's exactly why the rings exist: they bracket the neutral region generously, and the measurement finds the true neutral inside them. Tip: keep the ring offset at its default or larger here.\n\nWith a preconditioning profile (see the field above) the same rings are re-centred on your printer's actual neutral, so every patch lands closer to where it matters most. Same checkbox — the app simply aims better once it knows your printer.": "灰色是你的眼睛最挑剔、也是打印机最先漂移的地方。此色组在灰轴周围放置一圈圈色块，让配置文件精确了解打印机需要多少青、品红和黄才能得到干净、无偏色的中性灰 — 内置的经典「灰平衡」色卡。\n\n没有预处理配置文件时，这些环以等量的 C、M、Y 为中心。在真实打印机上，该混合通常看起来略暖或偏绿 — 这是预期之中的，也正是这些环存在的原因：它们宽裕地框住中性区域，测量会在其中找到真正的中性。提示：此处请将环偏移保持在默认值或更大。\n\n有预处理配置文件时（见上方字段），同样的环会重新以打印机的实际中性为中心，因此每个色块都落得更靠近最要紧之处。同一个复选框 — 应用一旦了解你的打印机，只是瞄得更准。",
   "Grid position curves remap where device values land on the cLUT grid,\nconcentrating grid nodes in regions of greater tonal importance.\n\nDisabling forces a uniform grid distribution instead. Advanced diagnostic\noption — leave unchecked for normal profiling.": "网格位置曲线重新映射设备值落在cLUT网格的位置，\n把网格节点集中到色调上更重要的区域。\n\n禁用则强制均匀的网格分布。高级诊断选项 —\n正常配置文件制作请不要勾选。",
   "Grows or shrinks every patch (and its spacer) together. 1.0 is the instrument's standard size. Below 1.0 fits more patches per sheet but each is harder for the instrument to read reliably — watch the warning if patches get too small.": "同时放大或缩小每个色块（及其间隔条）。1.0 是仪器的标准尺寸。低于 1.0 每张纸可放更多色块，但每个都更难被仪器可靠读取——色块过小时请留意警告。",
-  "Guide Me Through Refinement": "引导我完成优化",
   "Guided mode applies these fixed settings:": "引导模式应用以下固定设置:",
   "Guided settings copied to Manual mode — edit and regenerate as needed.": "已将向导模式的设置复制到手动模式——可按需编辑并重新生成。",
   "H": "高",
@@ -4318,5 +4317,6 @@
   "⟳ Rotate 90°": "⟳ 旋转 90°",
   "⤢ Dock back": "⤢ 收回停靠",
   "⤢ Pop out for a bigger view": "⤢ 弹出放大视图",
-  "＋ Add another scan to average": "＋ 添加另一次扫描以求平均"
+  "＋ Add another scan to average": "＋ 添加另一次扫描以求平均",
+  "← Guide Me Through Refinement": "← 引导我完成优化"
 }

@@ -1608,7 +1608,11 @@ class TabCheckRefine(QWidget):
 
         guide_btn: QPushButton | None = None
         if strips_file and refine_strips and not recommend_start_over and self._ti3_path:
-            guide_btn = QPushButton(tr("Guide Me Through Refinement"), dlg)
+            # The ← matches "← Use as Pre-conditioning" beside it: both leave
+            # this tab leftwards (Measure and Create Chart), and the arrow
+            # rule puts it on the side the button points (Sebastian,
+            # 2026-08-12, spotting the lone arrow).
+            guide_btn = QPushButton(tr("← Guide Me Through Refinement"), dlg)
             guide_btn.setObjectName("primary")
         elif install_btn and grade == "Excellent":
             install_btn.setObjectName("primary")

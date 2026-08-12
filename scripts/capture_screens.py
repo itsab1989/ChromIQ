@@ -378,6 +378,14 @@ def run_real_analysis(win) -> None:
     check._show_result_dialog = _swallow
     try:
         check.set_paths(A_TI3, A_ICC, propagate=False)
+        # Flag threshold 1.0 so the excellent demo profile still flags a few
+        # strips — with the default 2.0 nothing is flagged, the analysis
+        # yields no refine candidates, and the result dialog then
+        # (correctly) hides "← Guide Me Through Refinement". The docs shot
+        # should show the dialog with every door open — but only a FEW
+        # flagged strips: at 0.5 all 39 flagged and the one-line strip list
+        # clipped at the dialog edge.
+        check._threshold_spin.setValue(1.0)
         check._on_run()
         # profcheck runs via QProcess; pump until the run finishes.
         for _ in range(400):
@@ -673,6 +681,12 @@ def capture_dialogs(app, win) -> None:
 
     def t_quality():
         if "args" in _QUALITY_ARGS:
+            # Re-arm the tab's file fields: the scene walk switches targets,
+            # and since the per-target reload work (4.0.0 betas 2-5) that
+            # clears them — replaying the dialog with empty paths hid the
+            # "← Use as Pre-conditioning" and Install buttons in the
+            # published set (Sebastian, 2026-08-12).
+            win._tab_check.set_paths(A_TI3, A_ICC, propagate=False)
             win._tab_check._show_result_dialog(
                 *_QUALITY_ARGS["args"], **_QUALITY_ARGS["kwargs"]
             )

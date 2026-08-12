@@ -1326,7 +1326,6 @@
   "Greys are where your eyes are pickiest, and where a printer drifts first. This set places rings of patches around the grey axis, so the profile learns exactly how much cyan, magenta and yellow your printer needs for a clean, cast-free neutral — the classic \"grey balance\" chart, built in.\n\nWithout a preconditioning profile the rings are centred on equal amounts of C, M and Y. On a real printer that mix usually looks slightly warm or green — that's expected, and it's exactly why the rings exist: they bracket the neutral region generously, and the measurement finds the true neutral inside them. Tip: keep the ring offset at its default or larger here.\n\nWith a preconditioning profile (see the field above) the same rings are re-centred on your printer's actual neutral, so every patch lands closer to where it matters most. Same checkbox — the app simply aims better once it knows your printer.": "グレーは目が最も敏感で、プリンターが最初にずれる領域です。このセットはグレー軸の周りにパッチのリングを配置し、プリンターがクリーンでかぶりのないニュートラルにどれだけのシアン・マゼンタ・イエローを必要とするかをプロファイルに正確に学習させます — 定番の「グレーバランス」チャートが組み込まれています。\n\n前処理プロファイルがない場合、リングは C・M・Y が等量の点を中心にします。実際のプリンターではその混色はたいてい少し暖色または緑がかって見えます — これは想定どおりで、まさにリングが存在する理由です：ニュートラル領域を余裕をもって囲み、測定がその内部で真のニュートラルを見つけます。ヒント：ここではリングのオフセットを既定値以上に保ってください。\n\n前処理プロファイルがある場合（上の欄を参照）、同じリングがプリンターの実際のニュートラルを中心に再配置され、各パッチが最も重要な位置により近く配置されます。同じチェックボックスですが、プリンターを把握するとアプリの狙いが良くなります。",
   "Grid position curves remap where device values land on the cLUT grid,\nconcentrating grid nodes in regions of greater tonal importance.\n\nDisabling forces a uniform grid distribution instead. Advanced diagnostic\noption — leave unchecked for normal profiling.": "グリッド位置カーブは、デバイス値がcLUTグリッド上のどこに乗るかを\n再配置し、階調的に重要な領域にグリッドノードを集中させます。\n\n無効にすると均一なグリッド分布が強制されます。高度な診断\nオプション — 通常のプロファイル作成ではチェックなしのままに。",
   "Grows or shrinks every patch (and its spacer) together. 1.0 is the instrument's standard size. Below 1.0 fits more patches per sheet but each is harder for the instrument to read reliably — watch the warning if patches get too small.": "各パッチ（とそのスペーサー）をまとめて拡大・縮小します。1.0が測定器の標準サイズです。1.0未満では1枚あたりのパッチが増えますが、各パッチは測定器で確実に読み取りにくくなります。パッチが小さくなりすぎたら警告に注意してください。",
-  "Guide Me Through Refinement": "改良をガイドして",
   "Guided mode applies these fixed settings:": "ガイドモードは以下の固定設定を適用します:",
   "Guided settings copied to Manual mode — edit and regenerate as needed.": "ガイドモードの設定をマニュアルモードにコピーしました。必要に応じて編集して再生成してください。",
   "H": "高さ",
@@ -4318,5 +4317,6 @@
   "⟳ Rotate 90°": "⟳ 90°回転",
   "⤢ Dock back": "⤢ 元に戻す",
   "⤢ Pop out for a bigger view": "⤢ 別ウィンドウで拡大",
-  "＋ Add another scan to average": "＋ 平均するスキャンを追加"
+  "＋ Add another scan to average": "＋ 平均するスキャンを追加",
+  "← Guide Me Through Refinement": "← 改良をガイドして"
 }
