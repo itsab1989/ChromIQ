@@ -698,3 +698,39 @@ def test_migrate_schema2_moves_beta3_defaults(tmp_path):
     s = _fresh("cells_chosen", scanner_flank_min_cells=12)
     assert s.migrate() == []
     assert int(s.get("scanner_flank_min_cells")) == 12
+
+
+def test_migrate_makes_the_layout_engine_the_manual_default(tmp_path):
+    """schema 18 (Knut, 2026-08-13): the ChromIQ layout engine is the Manual
+    default now. A stored echo of the old False — native bool or the INI
+    string spelling — is dropped once; an explicit True (or anything the
+    user re-chooses later) survives; never-saved resolves to the new True."""
+    from PyQt6.QtCore import QSettings
+    from core.settings import AppSettings
+
+    def _fresh(tag, stored=None):
+        s = AppSettings()
+        s._qs = QSettings(str(tmp_path / f"eng-{tag}.ini"),
+                          QSettings.Format.IniFormat)
+        s._qs.clear()
+        if stored is not None:
+            s._qs.setValue("use_chromiq_layout_engine", stored)
+        return s
+
+    s = _fresh("echo", False)              # the old default, echoed by Save
+    assert "use_chromiq_layout_engine (ChromIQ layout engine " \
+           "now the Manual default)" in s.migrate()
+    assert bool(s.get("use_chromiq_layout_engine")) is True
+    assert s.migrate() == []               # idempotent
+
+    s = _fresh("str-echo", "false")        # the INI backend's spelling
+    assert any("use_chromiq_layout_engine" in d for d in s.migrate())
+    assert bool(s.get("use_chromiq_layout_engine")) is True
+
+    s = _fresh("chosen", True)             # already on — untouched
+    assert not any("use_chromiq_layout_engine" in d for d in s.migrate())
+    assert bool(s.get("use_chromiq_layout_engine")) is True
+
+    s = _fresh("never", None)              # never saved → new default
+    assert not any("use_chromiq_layout_engine" in d for d in s.migrate())
+    assert bool(s.get("use_chromiq_layout_engine")) is True

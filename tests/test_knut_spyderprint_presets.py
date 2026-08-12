@@ -48,6 +48,10 @@ def qapp():
 def settings(tmp_path):
     s = AppSettings()
     s._qs = QSettings(str(tmp_path / "chromiq_test.ini"), QSettings.Format.IniFormat)
+    # These tests exercise the printtarg path explicitly — since 4.0.0
+    # the ChromIQ layout engine is the Manual default (schema 18), so
+    # the mode under test is pinned rather than inherited.
+    s.set("use_chromiq_layout_engine", False)
     # Overriding QSettings alone is not enough: `custom_output_path` then falls
     # back to its default of "", which means the REAL ~/ChromIQ. Seeding a
     # preset asks the FileManager where it is working, that invents a

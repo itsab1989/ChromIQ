@@ -92,16 +92,21 @@ def test_the_cannot_do_list_is_carried_with_it(qapp):
         assert _h.escape(instead, quote=False) in page, what
 
 
-def test_printing_through_a_profile_is_recorded_as_a_future_improvement():
-    """His ruling: not a feature to build — explain what it means, and note it
-    as a possible future improvement."""
-    row = next((c for c in CANNOT_ROWS if "Print through a profile" in c[0]), None)
-    assert row is not None, "it must appear in the cannot-do list"
-    _what, instead = row
-    assert "possible future improvement" in instead
-    assert "colour management off" in instead, "it must explain WHY"
-    assert "the program you normally print from" in instead, \
-        "it must say where printing through a profile is actually done"
+def test_printing_through_a_profile_is_a_main_action_now():
+    """Knut's ruling of 2026-08-13 supersedes his 2026-08-01 one: feature A
+    shipped in 4.0.0, so printing through a profile moves OUT of the
+    future-improvements table and INTO the main actions list — with the
+    exact controls named and the prerequisite stated."""
+    assert not any("Print through a profile" in c[0] for c in CANNOT_ROWS), \
+        "the future-improvement row must be gone — the feature shipped"
+    row = next((r for r in ACTION_ROWS
+                if "verification chart through your profile" in r[0]), None)
+    assert row is not None, "it must appear in the main actions list"
+    _what, routes = row
+    body = " ".join(routes)
+    assert "Through the profile" in body, "it must name the exact control"
+    assert "colour management off" in body, "it must explain WHY it is safe"
+    assert "verification run" in body, "it must state the prerequisite"
 
 
 def test_the_future_improvements_are_marked_as_such():

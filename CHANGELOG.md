@@ -185,6 +185,12 @@ each have a plain-language Dictionary entry: open the Welcome window's
 
 ### Changed
 
+- **The ChromIQ layout engine is the default for new charts** — in Manual
+  mode too, where printtarg stays one untick away (Guided has used the
+  engine all along). A saved echo of the old off-default is migrated once;
+  a choice you make yourself is never touched, and charts that exist keep
+  the layout recipe recorded in their own file.
+
 - **The measurement model is consistent everywhere.** Replacing a chart,
   rebuilding one, measuring over an existing measurement, deleting a run —
   each has one window, one wording and one outcome, whichever tab you reach

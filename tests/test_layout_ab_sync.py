@@ -90,6 +90,10 @@ def _chart_tab(tmp_path):
     from ui.tabs.tab_chart import TabChart
     s = AppSettings()
     s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    # These tests exercise the printtarg path explicitly — since 4.0.0
+    # the ChromIQ layout engine is the Manual default (schema 18), so
+    # the mode under test is pinned rather than inherited.
+    s.set("use_chromiq_layout_engine", False)
     s.set("custom_output_path", str(tmp_path / "projects"))
     tab = TabChart(ArgyllRunner(s), FileManager(s), s)
     tab._switch_mode("manual")

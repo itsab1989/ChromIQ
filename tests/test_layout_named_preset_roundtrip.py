@@ -27,6 +27,10 @@ def qapp():
 def _tab(qapp):
     s = AppSettings()
     s._qs = QSettings(tempfile.mktemp(suffix=".ini"), QSettings.Format.IniFormat)
+    # These tests exercise the printtarg path explicitly — since 4.0.0
+    # the ChromIQ layout engine is the Manual default (schema 18), so
+    # the mode under test is pinned rather than inherited.
+    s.set("use_chromiq_layout_engine", False)
     t = TabChart(ArgyllRunner(s), FileManager(s), s)
     t._switch_mode("manual")
     return t

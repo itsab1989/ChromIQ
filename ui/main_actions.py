@@ -105,6 +105,18 @@ ACTION_ROWS: "list[tuple[str, list[str]]]" = [
         tr("Print Chart ▸ “Print All Pages” or “Print Current Page”."),
         tr("Print the page TIFF files from any other program."),
     ]),
+    (tr("Print a verification chart through your profile"), [
+        # Shipped in 4.0.0 (feature A) — moved here from the
+        # future-improvements table at Knut's request (2026-08-13).
+        tr("Print Chart ▸ set “Colour” to “Through the profile” — ChromIQ "
+        "converts every patch itself and keeps the printer's own colour "
+        "management off, so nothing is converted twice. You need a "
+        "verification run whose profile is already built; a chart from the "
+        "FROM PROFILE GAMUT module chooses Raw by itself, because its "
+        "colours are already the profile's own. How the sheet was printed "
+        "is recorded with the chart, and the measurement report judges it "
+        "accordingly."),
+    ]),
     (tr("Measure a chart"), [
         tr("Measure ▸ “Start Measurement”."),
         tr("Patch by patch, with that option ticked."),
@@ -184,12 +196,6 @@ CANNOT_ROWS: "list[tuple[str, str]]" = [
     (tr("Undo a deletion"),
      tr("A Delete is permanent by design, and every Delete window says so before "
      "you confirm. What a Replace displaced is still in “old”.")),
-    (tr("Print through a profile from inside ChromIQ"),
-     tr("ChromIQ prints charts with colour management off, which is what "
-     "profiling needs — and it does not drive your printer's own colour "
-     "settings, so printing THROUGH a profile is done in the program you "
-     "normally print from (or with Tools ▸ device-link). A possible future "
-     "improvement.")),
     (tr("Compare two runs or two profiles side by side"),
      tr("Build a measurement report for each, or use Tools ▸ “Verify against "
      "reference”. A possible future improvement.")),
