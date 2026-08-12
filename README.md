@@ -12,6 +12,12 @@
 </p>
 
 <p align="center">
+  <strong><a href="https://itsab1989.github.io/ChromIQ/">🌐 Website</a></strong>
+  &nbsp;·&nbsp;
+  <strong><a href="https://github.com/itsab1989/ChromIQ/releases/latest">⬇️ Download</a></strong>
+</p>
+
+<p align="center">
   <img src="docs/title.png" alt="ChromIQ — Create Chart tab with a full A4 test chart in the preview" width="900">
 </p>
 

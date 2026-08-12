@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://itsab1989.github.io/ChromIQ/sitemap.xml
