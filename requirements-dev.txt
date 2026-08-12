@@ -17,3 +17,4 @@ pytest-xdist>=3.8   # parallel runs: -n 8 --dist loadfile. loadfile keeps a
                     # load-bearing in places, and this suite has had a
                     # stylesheet leak travel 400 tests before now.
 pypdf>=4.0          # test-only: parses the vector-PDF export for fidelity checks
+pymupdf                # scripts/make_workflow_diagram.py (diagram generation only)

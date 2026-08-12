@@ -251,12 +251,16 @@ def _chapters() -> "list[tuple[str, str]]":
     list the index, the links and the section renderer all share, so a chapter
     added later appears in the index automatically."""
     return [
-        ("areas",   tr("Finding your way around")),
-        ("steps",   tr("Your first profile, start to finish")),
-        ("verify",  tr("Checking the profile you built (verification)")),
-        ("files",   tr("Where your files live")),
-        ("alts",    tr("More than one way to do most things")),
-        ("keeping", tr("Trying again, and what is kept")),
+        ("areas",    tr("Finding your way around")),
+        # Knut's example-workflow diagram (2026-08-12), placed exactly where
+        # he asked: after the tour, before the step-by-step — so the two
+        # sections that follow read as the diagram's left and right columns.
+        ("workflow", tr("An example workflow, and where its files land")),
+        ("steps",    tr("Your first profile, start to finish")),
+        ("verify",   tr("Checking the profile you built (verification)")),
+        ("files",    tr("Where your files live")),
+        ("alts",     tr("More than one way to do most things")),
+        ("keeping",  tr("Trying again, and what is kept")),
     ]
 
 
@@ -308,14 +312,44 @@ def getting_started_sections() -> "list[tuple[str | None, str]]":
     areas.append("</table>")
     sections.append(("areas", "\n".join(areas)))
 
-    def _rows_section(key: str, rows) -> "tuple[str, str]":
+    def _rows_section(key: str, rows, lead: str = "") -> "tuple[str, str]":
         out = [f"<h3>{esc(titles[key])}</h3>"]
+        if lead:
+            out.append(f"<p>{esc(lead)}</p>")
         for title, body in rows:
             out.append(f"<p><b>{esc(title)}</b><br>{esc(body)}</p>")
         return key, "\n".join(out)
 
-    sections.append(_rows_section("steps", _steps()))
-    sections.append(_rows_section("verify", _verifying()))
+    # The example-workflow chapter: a short read-me for the diagram, which
+    # the Welcome window inserts right below this block (the picture itself
+    # is not HTML — it is Knut's SVG, rendered crisp at the window's scale).
+    sections.append(("workflow", "\n".join([
+        f"<h3>{esc(titles['workflow'])}</h3>",
+        "<p>" + esc(tr(
+            "The picture below shows one complete project exactly as it "
+            "lands on your disk. The example profiles one printer with "
+            "three paper-and-quality variants — each variant is its own "
+            "profile run, and each run has its profiling steps on the "
+            "left and its repeated dated checks on the right. Every tag "
+            "ending in a slash (runs/, run1/, verifications/) is a real "
+            "folder inside your working folder, so each action in the "
+            "picture also shows you where its results go.")) + "</p>",
+        "<p>" + esc(tr(
+            "The next two sections walk through the picture's left and "
+            "right columns step by step, and the card “Where are my "
+            "files?” lists which files each step writes. The picture's "
+            "labels are in English; everything in it is explained in "
+            "your language in the text.")) + "</p>"])))
+
+    sections.append(_rows_section("steps", _steps(), lead=tr(
+        "These are the five boxes of the picture's left-hand column — "
+        "Profile run: run 1, Run type: Profiling — in the same order, with "
+        "the details the picture leaves out.")))
+    sections.append(_rows_section("verify", _verifying(), lead=tr(
+        "This is the picture's right-hand column: one FROM PROFILE GAMUT "
+        "chart made per run, then dated checks that repeat over time — "
+        "each check lives in its own dated folder under verifications/, "
+        "and the Measurement Report gathers them all into one trend.")))
     sections.append(("files", f"<h3>{esc(titles['files'])}</h3>"
                               f"<p>{esc(_files_overview())}</p>"))
     sections.append(_rows_section("alts", _alternatives()))

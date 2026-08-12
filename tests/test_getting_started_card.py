@@ -181,3 +181,33 @@ def test_it_survives_a_language_switch(qapp):
             assert getting_started_body()
         finally:
             I.set_language("en")
+
+
+def test_workflow_diagram_chapter_sits_between_tour_and_steps():
+    """Knut's example-workflow diagram (2026-08-12): its chapter goes after
+    "Finding your way around" and before "Your first profile" — his exact
+    placement — and the SVG it needs ships with the app."""
+    from ui.getting_started import _chapters, getting_started_sections
+    keys = [k for k, _t in _chapters()]
+    assert keys.index("workflow") == keys.index("areas") + 1
+    assert keys.index("workflow") == keys.index("steps") - 1
+    html = dict((k, h) for k, h in getting_started_sections() if k)
+    assert "runs/" in html["workflow"]          # the folder-tag explanation
+    from core.resource_path import resource_path
+    from pathlib import Path
+    from PyQt6.QtSvg import QSvgRenderer
+    # One diagram per language (scripts/make_workflow_diagram.py), English
+    # as the fallback — every catalogue language must have its file, valid
+    # and translated (spot-checked: no untranslated tab label left behind).
+    langs = ["en", "de", "es", "fr", "it", "ja", "nl", "no", "pl", "pt",
+             "ru", "sv", "zh_CN"]
+    for lang in langs:
+        svg = Path(resource_path(f"assets/help/workflow/{lang}.svg"))
+        assert svg.is_file() and svg.stat().st_size > 10_000, lang
+        assert QSvgRenderer(str(svg)).isValid(), lang
+    de = Path(resource_path("assets/help/workflow/de.svg")).read_text()
+    assert "erstellen" in de and ">Create <" not in de
+    assert "runs/" in de                     # folder names stay literal
+    assert "Legende:" in de                  # the truncated legend, repaired
+    en = Path(resource_path("assets/help/workflow/en.svg")).read_text()
+    assert "Legend:" in en and "&#x2026;" not in en

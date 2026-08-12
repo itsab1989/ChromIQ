@@ -2179,6 +2179,10 @@ class WelcomeDialog(QDialog):
                     if key is not None:
                         self._gs_chapter_widgets[key] = lbl
                     self._steps_layout.addWidget(lbl)
+                    if key == "workflow":
+                        img = self._gs_workflow_diagram_label()
+                        if img is not None:
+                            self._steps_layout.addWidget(img)
                 self._steps_layout.addStretch(1)
                 self._apply_detail_text_colors()
                 self._stack.setCurrentIndex(1)
@@ -2214,6 +2218,123 @@ class WelcomeDialog(QDialog):
         self._stack.setCurrentIndex(1)
 
     # ------------------------------------------------------------------
+    def _gs_workflow_diagram_label(self) -> "QWidget | None":
+        """Knut's example-workflow diagram (2026-08-12), painted straight
+        from the bundled SVG at whatever width the card currently has —
+        vector rendering, so it is crisp at every size and pixel ratio
+        (a pre-rendered pixmap showed at double size on Retina, spilling
+        into a horizontal scrollbar — Sebastian, live). Widening the
+        window enlarges the diagram with it (Knut's fit-width wish). The
+        labels in it are vector outlines, no font on the user's machine
+        involved. It sits on its own white sheet because the diagram is
+        designed for a light ground; in dark mode it reads as a figure,
+        like a picture in a book. Returns None when the asset is missing
+        — the text above it stands on its own."""
+        from core.resource_path import resource_path
+        try:
+            from PyQt6.QtSvg import QSvgRenderer
+        except ImportError:
+            return None
+        # One SVG per language (scripts/make_workflow_diagram.py generates
+        # them from Knut's PDF); a language without its file falls back to
+        # English rather than showing nothing.
+        from pathlib import Path
+        lang = str(self._settings.get("language", "en") or "en")
+        path = resource_path(f"assets/help/workflow/{lang}.svg")
+        if not Path(path).is_file():
+            path = resource_path("assets/help/workflow/en.svg")
+        renderer = QSvgRenderer(str(path))
+        if not renderer.isValid():
+            return None
+        from PyQt6.QtCore import QRectF, QSize
+        from PyQt6.QtGui import QColor, QImage, QPainter
+        from PyQt6.QtWidgets import QSizePolicy, QWidget
+        from ui.theme import resolve_mode
+
+        size = renderer.defaultSize()
+        ratio = size.height() / max(1, size.width())
+        settings = self._settings
+
+        def _dark() -> bool:
+            return resolve_mode(settings.get("appearance", "auto")) == "dark"
+
+        class _Diagram(QWidget):
+            def __init__(self, parent) -> None:
+                super().__init__(parent)
+                sp = QSizePolicy(QSizePolicy.Policy.Expanding,
+                                 QSizePolicy.Policy.Fixed)
+                sp.setHeightForWidth(True)
+                self.setSizePolicy(sp)
+                self.setMinimumWidth(320)
+                self._cache_key: "tuple | None" = None
+                self._cache_img: "QImage | None" = None
+
+            def hasHeightForWidth(self) -> bool:      # noqa: N802
+                return True
+
+            def heightForWidth(self, w: int) -> int:  # noqa: N802
+                return round(w * ratio)
+
+            def sizeHint(self) -> QSize:              # noqa: N802
+                return QSize(790, round(790 * ratio))
+
+            def resizeEvent(self, event) -> None:     # noqa: N802
+                # QVBoxLayout honours height-for-width unreliably; pinning
+                # the height on every width change keeps the aspect exact
+                # (idempotent, so no resize recursion).
+                super().resizeEvent(event)
+                h = self.heightForWidth(self.width())
+                if self.height() != h:
+                    self.setFixedHeight(h)
+
+            def paintEvent(self, event) -> None:      # noqa: N802
+                # Rendered into a device-pixel image and, in dark mode,
+                # INVERTED: the diagram is pure greyscale, so inversion
+                # turns it into the dark variant Sebastian asked for —
+                # dark sheet, light lines and text — without maintaining
+                # a second drawing. Cached per size/theme; the explicit
+                # device-pixel image also sidesteps the pixmap
+                # device-pixel-ratio loss that once showed the diagram at
+                # double size on Retina.
+                dpr = self.devicePixelRatioF() or 1.0
+                key = (self.width(), self.height(), round(dpr * 100),
+                       _dark())
+                if key != self._cache_key:
+                    img = QImage(max(1, int(self.width() * dpr)),
+                                 max(1, int(self.height() * dpr)),
+                                 QImage.Format.Format_ARGB32_Premultiplied)
+                    img.fill(QColor("white"))
+                    ip = QPainter(img)
+                    renderer.render(
+                        ip, QRectF(0, 0, img.width(), img.height()))
+                    ip.end()
+                    if key[3]:
+                        img.invertPixels()
+                        # Lift the shadows after inverting: the diagram's
+                        # nesting shows as slightly different light greys,
+                        # and plain inversion squeezes those into
+                        # near-blacks that all look alike (Knut: "the
+                        # group boxes became not so visible"). A gamma
+                        # lift spreads them into clearly separate dark
+                        # greys while pure black and the white lines and
+                        # text stay exactly where they are.
+                        import numpy as np
+                        lut = (255.0 * (np.arange(256) / 255.0) ** 0.55
+                               ).astype(np.uint8)
+                        ptr = img.bits()
+                        ptr.setsize(img.sizeInBytes())
+                        arr = np.frombuffer(ptr, dtype=np.uint8).reshape(
+                            img.height(), img.bytesPerLine())
+                        px = arr[:, :img.width() * 4].reshape(
+                            img.height(), img.width(), 4)
+                        px[..., 0:3] = lut[px[..., 0:3]]
+                    self._cache_img, self._cache_key = img, key
+                painter = QPainter(self)
+                painter.drawImage(QRectF(self.rect()), self._cache_img)
+                painter.end()
+
+        return _Diagram(self._steps_host)
+
     def _on_gs_index_link(self, href: str) -> None:
         """A Getting-Started index line was clicked: scroll to its chapter.
 
