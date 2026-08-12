@@ -337,9 +337,9 @@ def getting_started_sections() -> "list[tuple[str | None, str]]":
         "<p>" + esc(tr(
             "The next two sections walk through the picture's left and "
             "right columns step by step, and the card “Where are my "
-            "files?” lists which files each step writes. The picture's "
-            "labels are in English; everything in it is explained in "
-            "your language in the text.")) + "</p>"])))
+            "files?” lists which files each step writes. Only the folder "
+            "names and dates in the picture stay in English — they are "
+            "the real names on your disk.")) + "</p>"])))
 
     sections.append(_rows_section("steps", _steps(), lead=tr(
         "These are the five boxes of the picture's left-hand column — "
