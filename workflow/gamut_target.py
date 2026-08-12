@@ -16,8 +16,22 @@ the profile can actually reach it. Two numbers fall out, answering two
 different questions (§5.1):
 
 * **coverage** — how many of the master set this profile can print at all;
-* the **chart** — the first *n* reachable colours in master order, so a small
-  chart is a genuine sample of a large one.
+* the **chart** — reachable colours in master order, with one adjustment for
+  small charts: the master list opens with a 38-entry neutral block (4 white,
+  4 black, a 30-step grey wedge — the ``-e4 -B4 -g32`` of its recipe), and
+  taking it whole meant a ~100-colour chart was more than a third neutral
+  (Sebastian, on his ColorMunki plain-paper chart, 2026-08-12). The neutral
+  block now has a **budget of about one patch in eight** (floor 6, and never
+  more than half the chart): one white, one black, and grey steps taken in a
+  fixed ends-first bisection order — so every prefix of the wedge is evenly
+  spaced AND a subset of every longer one. The master's duplicate white/black
+  patches are never budget picks (the unconditional corners already anchor
+  both ends); unused budget flows to the body. The remaining slots go to the
+  first reachable chromatic colours in master order, unchanged. From about
+  260 colours up the budget covers white, black and every grey step.
+  Everything stays deterministic (same profile + same count = same chart),
+  and any smaller chart's colours are a subset of any larger chart's for the
+  same profile.
 
 The eight cube corners are appended **unconditionally, outside the filter**
 (§9a): they measure how far the ink and paper reach, which is a property the
@@ -154,6 +168,66 @@ def _corner_ideal_labs() -> "list[tuple[float, float, float]]":
     return _srgb_to_lab_rows(list(CORNER_DEVICES))
 
 
+def _master_keywords(path: "Path | None" = None) -> dict:
+    """The master set's own header keywords ({} when unreadable)."""
+    from workflow.ti3_analysis import parse_ti3
+    p = Path(path) if path is not None else master_set_path()
+    try:
+        return dict(parse_ti3(p).keywords or {})
+    except Exception:      # noqa: BLE001 — no keywords just means no budgeting
+        return {}
+
+
+def _neutral_prefix_counts(keywords: dict) -> "tuple[int, int, int]":
+    """``(whites, blacks, mid greys)`` at the START of the master order, read
+    from the set's own header (targen stamps its recipe there). A master
+    without the keywords — a test fixture, a custom set — gets ``(0, 0, 0)``
+    and the selection stays the plain first-*n* prefix."""
+    try:
+        w = int(keywords.get("WHITE_COLOR_PATCHES", 0))
+        k = int(keywords.get("BLACK_COLOR_PATCHES", 0))
+        # targen counts white and black as the wedge's own endpoints.
+        g = max(0, int(keywords.get("COMP_GREY_STEPS", 0)) - 2)
+    except (TypeError, ValueError):
+        return (0, 0, 0)
+    return (max(0, w), max(0, k), g)
+
+
+def _neutral_budget(count: int) -> int:
+    """How many of *count* requested colours the neutral block may take:
+    about one in eight, floor 6, never more than half the chart."""
+    return min(max(6, round(count / 8)), count // 2)
+
+
+def _spread_order(n: int) -> "list[int]":
+    """``0..n-1`` in an ends-first bisection order: every prefix is an
+    approximately even sample of the range, and every prefix contains all
+    shorter ones — which is what keeps a small chart's grey steps a subset
+    of a large chart's."""
+    if n <= 0:
+        return []
+    if n == 1:
+        return [0]
+    import heapq
+    order = [0, n - 1]
+    seen = {0, n - 1}
+    heap = [(-(n - 1), 0, n - 1)]
+    while heap and len(order) < n:
+        _neg, lo, hi = heapq.heappop(heap)
+        if hi - lo < 2:                     # no interior point left in here
+            continue
+        mid = (lo + hi) // 2
+        if mid not in seen:
+            order.append(mid)
+            seen.add(mid)
+        heapq.heappush(heap, (-(mid - lo), lo, mid))
+        heapq.heappush(heap, (-(hi - mid), mid, hi))
+    for i in range(n):                      # safety net, ascending
+        if i not in seen:
+            order.append(i)
+    return order
+
+
 def select_gamut_targets(
     profile: Path,
     count: int,
@@ -164,12 +238,19 @@ def select_gamut_targets(
     master_path: "Path | None" = None,
     runner: "Callable[..., subprocess.CompletedProcess]" = subprocess.run,
 ) -> GamutSelection:
-    """Filter the master set through *profile* and pick the first *count*
-    reachable colours (nested order), plus the eight corners.
+    """Filter the master set through *profile* and pick *count* reachable
+    colours, plus the eight corners.
 
     The round trip: master Lab → B2A → device → A2B → Lab′. A colour the
     profile can reach comes back within interpolation error; a clipped one
     lands on the gamut surface and moves far. The margin picks the threshold.
+
+    The pick is the first *count* reachable colours in master order, EXCEPT
+    that the master's opening neutral block (white, black, grey wedge — read
+    from the set's own header) is capped at :func:`_neutral_budget` so a
+    small chart is not swallowed by greys; see the module docstring. The
+    result is deterministic, and a smaller chart's colours are a subset of a
+    larger chart's for the same profile.
     """
     from workflow.xicclu_runner import XiccluError, backward_device, forward_lab
     profile = Path(profile)
@@ -196,17 +277,65 @@ def select_gamut_targets(
         master_version=MASTER_SET_VERSION, master_total=len(labs),
         in_gamut_total=0, requested=int(count),
         intent=intent, margin=margin)
-    for i, (lab, dev, lab2) in enumerate(zip(labs, device, back)):
-        moved = math.dist(lab, lab2)
-        if moved <= threshold:
-            selection.in_gamut_total += 1
-            if len(selection.targets) < count:
-                selection.targets.append((i, lab, tuple(dev)))
+
+    passing = []
+    for i, (lab, lab2) in enumerate(zip(labs, back)):
+        if math.dist(lab, lab2) <= threshold:
+            passing.append(i)
+    selection.in_gamut_total = len(passing)
+
+    # The neutral block at the head of the master order, budgeted. The
+    # header says where it ends; the chroma check makes sure the entries
+    # really are neutral, so a re-cut master with a different layout can
+    # never make the budget pick coloured patches as "greys".
+    n_w, n_k, n_g = _neutral_prefix_counts(_master_keywords(master_path))
+    prefix_end = n_w + n_k + n_g
+
+    def _is_neutral(i: int) -> bool:
+        return math.hypot(labs[i][1], labs[i][2]) < 1.0
+
+    whites = [i for i in passing if i < n_w and _is_neutral(i)]
+    blacks = [i for i in passing if n_w <= i < n_w + n_k and _is_neutral(i)]
+    greys = [i for i in passing
+             if n_w + n_k <= i < prefix_end and _is_neutral(i)]
+    neutral_all = set(whites) | set(blacks) | set(greys)
+
+    chosen: "list[int]" = []
+    if prefix_end:
+        budget = _neutral_budget(count)
+        if whites and len(chosen) < budget:
+            chosen.append(whites[0])
+        if blacks and len(chosen) < budget:
+            chosen.append(blacks[0])
+        # Grey steps in ends-first bisection order: evenly spaced at every
+        # budget, and every smaller budget's picks are inside every larger
+        # one's. The master's duplicate white/black patches are never budget
+        # picks — the corners already anchor both ends, so unused budget is
+        # better spent on real colours (it simply flows to the body below).
+        g_room = budget - len(chosen)
+        if g_room > 0 and greys:
+            picks = _spread_order(len(greys))[:g_room]
+            chosen.extend(greys[j] for j in sorted(picks))
+
+    body = [i for i in passing if i not in neutral_all]
+    chosen.extend(body[:count - len(chosen)])
+    if len(chosen) < count:
+        # A gamut so small (or a chart so large) that the body runs dry:
+        # top up with the remaining reachable neutrals rather than shipping
+        # a shorter chart than the reachable colours allow.
+        have = set(chosen)
+        rest = [i for i in passing if i not in have]
+        chosen.extend(rest[:count - len(chosen)])
+
+    for i in sorted(chosen):
+        selection.targets.append((i, labs[i], tuple(device[i])))
     selection.corners = list(zip(CORNER_DEVICES, _corner_ideal_labs()))
     log.info("gamut selection: %d of %d master colours in gamut (%s margin), "
-             "%d requested, %d chosen + %d corners",
+             "%d requested, %d chosen (%d neutral) + %d corners",
              selection.in_gamut_total, selection.master_total, margin,
-             count, selection.achieved, len(selection.corners))
+             count, selection.achieved,
+             sum(1 for t in selection.targets if t[0] in neutral_all),
+             len(selection.corners))
     return selection
 
 

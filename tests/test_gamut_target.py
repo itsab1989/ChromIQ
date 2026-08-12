@@ -205,3 +205,113 @@ def test_plain_charts_are_untouched(tmp_path):
     r = build_report(tmp_path / "c.ti3")
     assert r["reference_source"] == "design"
     assert r["de00"]["n"] == 3
+
+
+# ---------------------------------------------------------------------------
+# The neutral-block budget (Sebastian, 2026-08-12: a ~100-colour plain-paper
+# chart was more than a third white/black/greys, because the master order
+# opens with the whole wedge and selection took it first).
+# ---------------------------------------------------------------------------
+
+def _neutral_xyz(y: float) -> str:
+    return f"{96.42 * y / 100:.4f} {y:.4f} {82.49 * y / 100:.4f}"
+
+
+def _wedge_master(tmp_path: Path) -> Path:
+    """2 white + 2 black + 4 mid greys + 16 chromatic, with the recipe
+    keywords targen stamps (COMP_GREY_STEPS counts the endpoints)."""
+    rows = []
+    rows += [f"{i + 1} 100 100 100 {_neutral_xyz(100)}" for i in range(2)]
+    rows += [f"{i + 3} 0 0 0 {_neutral_xyz(0.01)}" for i in range(2)]
+    for i, y in enumerate((70.0, 50.0, 30.0, 10.0)):
+        rows.append(f"{i + 5} 50 50 50 {_neutral_xyz(y)}")
+    for i in range(16):
+        rows.append(f"{i + 9} 80 10 10 {40 + i:.2f} {20 + i:.2f} {3 + i:.2f}")
+    body = "\n".join(rows)
+    text = f"""CTI1
+
+DESCRIPTOR "test master with wedge"
+ORIGINATOR "ChromIQ"
+COLOR_REP "iRGB"
+WHITE_COLOR_PATCHES "2"
+BLACK_COLOR_PATCHES "2"
+COMP_GREY_STEPS "6"
+
+NUMBER_OF_FIELDS 7
+BEGIN_DATA_FORMAT
+SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z
+END_DATA_FORMAT
+
+NUMBER_OF_SETS 24
+BEGIN_DATA
+{body}
+END_DATA
+"""
+    p = tmp_path / "wedge-master.ti1"
+    p.write_text(text)
+    return p
+
+
+def _select(tmp_path, master, count, moved=None):
+    profile = tmp_path / "p.icc"
+    profile.write_bytes(b"icc")
+    return gt.select_gamut_targets(profile, count, gt.MARGIN_SAFE,
+                                   gt.INTENT_ABSOLUTE, bin_dir="/nowhere",
+                                   master_path=master)
+
+
+def test_small_chart_caps_the_neutral_block(tmp_path, monkeypatch):
+    master = _wedge_master(tmp_path)
+    labs = gt.load_master_labs(master)
+    _stub_xicclu.labs = labs
+    _stub_xicclu(monkeypatch, {})
+    sel = _select(tmp_path, master, 16)
+    ids = [t[0] for t in sel.targets]
+    # Budget min(max(6, 2), 8) = 6: one white, one black, all four greys —
+    # the rest of the chart is chromatic body, in master order.
+    assert ids == [0, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
+    # The duplicate white/black (indices 1 and 3) stayed out.
+    assert 1 not in ids and 3 not in ids
+
+
+def test_selection_is_deterministic_and_nested_across_counts(tmp_path, monkeypatch):
+    master = _wedge_master(tmp_path)
+    labs = gt.load_master_labs(master)
+    _stub_xicclu.labs = labs
+    _stub_xicclu(monkeypatch, {})
+    a = {t[0] for t in _select(tmp_path, master, 10).targets}
+    b = {t[0] for t in _select(tmp_path, master, 16).targets}
+    assert a <= b
+    again = {t[0] for t in _select(tmp_path, master, 10).targets}
+    assert again == a
+
+
+def test_clipped_greys_release_their_budget_to_the_body(tmp_path, monkeypatch):
+    master = _wedge_master(tmp_path)
+    labs = gt.load_master_labs(master)
+    _stub_xicclu.labs = labs
+    # Greys at indices 5 and 6 clip; so do the whites (absolute intent on
+    # real paper does exactly that to L*100).
+    _stub_xicclu(monkeypatch, {0: 9.0, 1: 9.0, 5: 9.0, 6: 9.0})
+    sel = _select(tmp_path, master, 16)
+    ids = [t[0] for t in sel.targets]
+    assert sel.in_gamut_total == 20
+    for clipped in (0, 1, 5, 6):
+        assert clipped not in ids
+    # Budget 6 → black + the two surviving greys; the freed slots went to
+    # the chromatic body.
+    assert [i for i in ids if i < 8] == [2, 4, 7]
+    assert len(ids) == 16
+
+
+def test_everything_reachable_is_used_before_the_chart_runs_short(tmp_path, monkeypatch):
+    master = _wedge_master(tmp_path)
+    labs = gt.load_master_labs(master)
+    _stub_xicclu.labs = labs
+    _stub_xicclu(monkeypatch, {})
+    # Ask for more than exists: every reachable colour ships, neutrals
+    # beyond the budget included — never a shorter chart than the gamut
+    # allows.
+    sel = _select(tmp_path, master, 30)
+    assert sel.achieved == sel.in_gamut_total == 24
+    assert {t[0] for t in sel.targets} == set(range(24))

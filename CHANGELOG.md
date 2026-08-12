@@ -41,9 +41,11 @@ each have a plain-language Dictionary entry: open the Welcome window's
   PROFILE GAMUT** module on Create Chart asks the profile which colours it
   can actually print — from a fixed, published reference set — and builds the
   chart out of exactly those, so no patch is wasted on a colour that was
-  never possible on this paper. Repeated checks of one profile always get the
-  same colours, so this month's figures compare patch by patch with last
-  month's. The chart already carries the profile, the Print Chart tab selects
+  never possible on this paper. White, black and evenly spaced grey steps
+  take about one patch in eight — enough of a grey wedge to catch a
+  drifting printer, without swallowing a small chart. Repeated checks of
+  one profile always get the same colours, so this month's figures compare
+  patch by patch with last month's. The chart already carries the profile, the Print Chart tab selects
   Raw for it by itself, and for a verification run with a built profile this
   module is the one Create Chart opens on.
 
