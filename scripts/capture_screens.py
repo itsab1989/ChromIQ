@@ -390,7 +390,14 @@ def stage_the_project(settings) -> bool:
         # use_instrument_margins then holds each side at the instrument's own
         # minimum, so the banner is satisfied rather than suppressed.
         targen = shutil.which("targen") or "/opt/homebrew/bin/targen"
-        subprocess.run([targen, "-d2", "-G", "-e4", "-B4", "-g28", "-f463",
+        # 520 FILLS THE SHEET. The engine packs 23 strips x 23 rows = 529
+        # patches into the whole printable area; 463 gave 21 strips and left a
+        # 15 mm white gutter down the right-hand side, which is the empty space
+        # Sebastian saw (2026-08-13). Measured across counts: 463 covers 91% of
+        # the width, 520 covers 100%, and 560 upwards spills onto a second page.
+        # The white bands at top, left and bottom are the i1Pro's own minimum
+        # margins and are meant to be there.
+        subprocess.run([targen, "-d2", "-G", "-e4", "-B4", "-g28", "-f520",
                         str(stem)],
                        check=True, capture_output=True, timeout=300)
         for leftover in run1.glob(f"{A.name}*.tif"):
