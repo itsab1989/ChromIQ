@@ -186,6 +186,43 @@ def pump(ms: int) -> None:
 # ---------------------------------------------------------------------------
 # Seeding
 # ---------------------------------------------------------------------------
+def _merge_engine_geometry(stem) -> bool:
+    """Make the rebuilt chart a REAL ChromIQ-engine chart on disk.
+
+    Building through ``le_chart.build_chart`` writes ``<stem>.strips.json``,
+    but the app reads its strip geometry from ``<stem>.channels.json`` — the
+    merge normally done by ``chart_creator``, which this script bypasses. The
+    source project predates the engine, so its sidecar carries no layout at
+    all, and the app fell back to DETECTING strips from the page image. That
+    detector handed back rects reaching past the page (3516 px on a 3508 px
+    page), and anything anchored to them, the overlay legend included, went
+    with it — the gap Sebastian spotted in the screenshot, 2026-08-13.
+
+    Mirrors what chart_creator writes, so the staged chart behaves on screen
+    exactly like one a user generated.
+    """
+    import json
+    strips = Path(str(stem) + ".strips.json")
+    sidecar = Path(str(stem) + ".channels.json")
+    if not strips.is_file():
+        log("  no engine geometry to merge (chart not engine-built?)")
+        return False
+    try:
+        doc = json.loads(sidecar.read_text()) if sidecar.is_file() else {}
+        layout = json.loads(strips.read_text())
+        layout["engine"] = "chromiq"
+        layout["engine_version"] = 1
+        doc["layout"] = layout
+        sidecar.write_text(json.dumps(doc))
+    except Exception as e:      # noqa: BLE001
+        log(f"  could not merge engine geometry: {e}")
+        return False
+    log(f"engine geometry merged into the sidecar "
+        f"({len(layout.get('strips') or [])} strips, "
+        f"{len(layout.get('patches') or [])} patches)")
+    return True
+
+
 def _make_a_matching_measurement(stem) -> bool:
     """Give the rebuilt run chart a measurement that actually fits it.
 
@@ -308,6 +345,7 @@ def stage_the_project(settings) -> bool:
             use_instrument_margins=True, clip_content_mode="notes",
             clip_text="Canon PRO-300  ·  Canon SG  ·  i1Pro")
         log("run chart rebuilt with the layout engine + notes clip border")
+        _merge_engine_geometry(stem)
         _make_a_matching_measurement(stem)
         return True
     except Exception as e:                        # noqa: BLE001
@@ -566,6 +604,32 @@ def scene_list():
             win._tab_chart._manual_paper_pw.set_value("A4")
         except Exception as e:
             log(f"manual instr/paper: {e}")
+        # NO MODALS DURING A CAPTURE. Touching a layout control asks for a
+        # redraw, and this run holds a measurement the redraw would replace, so
+        # the tab says so in a window ("The live preview is not being
+        # re-drawn") — which stops the run until someone clicks OK (Sebastian
+        # hit it, 2026-08-13). The tab already says that note only once per
+        # switch-on and logs it thereafter; pre-setting its flag takes the
+        # quiet path instead of patching exec.
+        win._tab_chart._said_auto_update_paused = True
+        # …AND THE ENGINE PANEL, WHICH IS WHAT ACTUALLY LAYS THE SHEET OUT.
+        # With the ChromIQ layout engine on (the default since 4.0.0) the
+        # printtarg -i/-p widgets above are not the source: the panel is. Set
+        # only those two and the auto-update redraw uses whatever instrument
+        # the panel happened to hold, which put a ColorMunki sheet in the
+        # i1Pro screenshot (Sebastian spotted it, 2026-08-13). Setting both
+        # keeps the shot the same on any machine, whatever a project or a
+        # preference carries.
+        try:
+            p = win._tab_chart._manual_layout_panel
+            ii = p.instr.findData("i1")
+            if ii >= 0:
+                p.instr.setCurrentIndex(ii)          # rebuilds the paper list
+            pi = p.paper.findData("A4")
+            if pi >= 0:
+                p.paper.setCurrentIndex(pi)
+        except Exception as e:
+            log(f"engine panel instr/paper: {e}")
         _keep_the_runs_own_chart(win)
         show_tab(win, "chart")
         # SETTING INSTRUMENT/PAPER RE-LAYS THE CHART OUT, AND THE SHOT MUST

@@ -1316,9 +1316,43 @@ class TiffPreview(QWidget):
         top (the anchor is a label-band bottom — printtarg charts and engine
         charts with strip labels). "tip" floats the arrow ABOVE the rect top
         with its tip a tiny gap over the patches — engine charts without
-        strip labels, where there is no label band to hang from."""
+        strip labels, where there is no label band to hang from.
+
+        RECTS ARE CLAMPED TO THE PAGE. A chart carrying no engine geometry
+        (one made before the layout engine, or in another program) has its
+        strips DETECTED from the page image instead, and that detector can
+        return a rect reaching past the paper: measured 3516 px on a 3508 px
+        page (2026-08-13). Everything anchored to a strip inherits the error —
+        the scan arrow, the measured-patch blanking, and the overlay legend,
+        which is where it surfaced. Clamping here covers all of them, because
+        this is the one door every source comes through.
+        """
         self._stripe_rects = rects
         self._stripe_arrow_mode = arrow_mode
+        self._clamp_stripe_rects_to_page()
+
+    def _clamp_stripe_rects_to_page(self) -> None:
+        """Trim the strip rects to the page, whenever the page is known.
+
+        Called from :meth:`set_stripe_rects` AND from the render, because the
+        page image is built by a deferred timer: rects usually arrive BEFORE
+        there is a pixmap to measure against, so clamping only in the setter
+        silently did nothing (caught while testing the fix itself, 2026-08-13).
+        Idempotent, so running it on every render costs nothing once the rects
+        already fit.
+        """
+        page = self._pixmap
+        if page is None or not self._stripe_rects:
+            return
+        pw, ph = page.width(), page.height()
+        fixed = []
+        for r in self._stripe_rects:
+            x = max(0, min(r.x(), pw))
+            y = max(0, min(r.y(), ph))
+            fixed.append(QRect(x, y,
+                               max(1, min(r.width(), pw - x)),
+                               max(1, min(r.height(), ph - y))))
+        self._stripe_rects = fixed
 
     def show_page(self, index: int) -> None:
         """Switch to page by index and repaint."""
@@ -1698,6 +1732,10 @@ class TiffPreview(QWidget):
             log.warning("Preview render error: %s", exc)
             self._img_label.setText(tr("Preview error:\n{exc}").format(exc=exc))
             return
+
+        # The page is known now, so any strip rects that arrived before it can
+        # finally be measured against it.
+        self._clamp_stripe_rects_to_page()
 
         self._update_render_badge()
         self._repaint_label()
