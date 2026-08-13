@@ -2261,10 +2261,26 @@ class TiffPreview(QWidget):
             patch_bottom = oy
             for r in self._stripe_rects:
                 patch_bottom = max(patch_bottom, oy + (r.y() + r.height()) * s)
+            # THE STRIP DOES NOT END AT ITS LAST PATCH. A chart with edge
+            # spacers draws one more band below it — the recorded geometry
+            # stops at the patch (see edge_spacer_px_from_sidecar: they
+            # "aren't in the recorded patch geometry"), so a chip placed 6 px
+            # under the patches lands ON the trailing spacer. Sebastian's
+            # ColorMunki verification chart has 12 px of it, which is why the
+            # legend looked as if it were touching (2026-08-13). The strip
+            # HOVER frame already grows over these; this makes the legend
+            # agree with it instead of holding a second opinion.
+            patch_bottom += self._edge_spacer_px * s
             cx = int((img_l + img_r) / 2 - tw / 2)
             # Keep the whole chip within the paper width so it never clips.
             cx = max(int(img_l), min(cx, int(img_r - tw)))
-            cy = int(min(img_b - th - 4, patch_bottom + 6))
+            # …AND OUT OF THE SCAN ARROW'S BAND. Reading both ways mirrors an
+            # arrow at the very bottom of the sheet (`chart_bottom - 5`, 20 px
+            # tall), which is exactly where the fall-back position below puts
+            # the chip on a densely filled chart — the two would sit on top of
+            # each other (Sebastian). Reserve that band while it is in use.
+            floor = img_b - th - 4 - (25 if self._bidirectional else 0)
+            cy = int(min(floor, patch_bottom + 6))
             cy = max(cy, int(patch_bottom + 2))
             # …AND KEEP THE WHOLE CHIP ON THE PAPER, like the width above.
             # The line before prefers "below the last patch", which on a chart
@@ -2274,7 +2290,7 @@ class TiffPreview(QWidget):
             # bottom margin cannot hold it, resting on the last row is the
             # lesser evil: the chip is semi-transparent and readable, whereas
             # a clipped one says nothing at all.
-            cy = max(int(oy), min(cy, int(img_b - th - 4)))
+            cy = max(int(oy), min(cy, int(floor)))
             painter.fillRect(cx, cy, tw, th, QColor(20, 20, 20, 190))
             painter.setPen(QColor("#f4f2ef"))
             painter.drawText(cx + 8, cy + th - 6, txt)

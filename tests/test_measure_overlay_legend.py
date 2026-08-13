@@ -37,7 +37,7 @@ def test_the_chip_is_clamped_on_both_axes():
     clamp knew the rule, and the height quietly kept its own."""
     block = _legend_block()
     assert "min(cx, int(img_r - tw))" in block, "the width clamp is gone"
-    assert re.search(r"min\(cy, int\(img_b - th - 4\)\)", block), \
+    assert re.search(r"min\(cy, int\(floor\)\)", block), \
         "the chip's height must be clamped inside the paper too"
 
 
@@ -46,7 +46,7 @@ def test_the_bottom_clamp_comes_last():
     below-the-patches preference, or the preference overrides it again."""
     block = _legend_block()
     prefer = block.index("patch_bottom + 2")
-    clamp = block.index("img_b - th - 4", block.index("patch_bottom + 2"))
+    clamp = block.index("min(cy, int(floor))", block.index("patch_bottom + 2"))
     assert clamp > prefer, "the paper clamp must be the last word on cy"
 
 
@@ -104,3 +104,38 @@ def test_the_render_applies_the_clamp():
     import inspect
     src = inspect.getsource(TiffPreview._update_display)
     assert "_clamp_stripe_rects_to_page" in src
+
+
+# ---- the legend must clear what is drawn AROUND the strips ---------------
+def test_the_anchor_includes_the_edge_spacer():
+    """A chart with edge spacers draws one more band below the last patch, and
+    the recorded geometry stops at the patch — so a chip placed 6 px under the
+    patches lands on the spacer. Sebastian's ColorMunki chart has 12 px of it
+    (2026-08-13). The strip hover frame already grows over these; the legend
+    now agrees with it."""
+    block = _legend_block()
+    assert "self._edge_spacer_px * s" in block, \
+        "the anchor must include the edge spacer, scaled to display px"
+    assert block.index("_edge_spacer_px") < block.index("patch_bottom + 6"), \
+        "the spacer has to be added BEFORE the 6 px gap is measured"
+
+
+def test_the_floor_reserves_the_scan_arrow_band():
+    """Reading both ways mirrors an arrow at the very bottom of the sheet
+    (chart_bottom - 5, 20 px tall) — exactly where the fall-back position puts
+    the chip on a dense chart. It is reserved only while in use, so a
+    one-directional read loses no room."""
+    block = _legend_block()
+    assert "self._bidirectional" in block, "the arrow band must be conditional"
+    assert "25 if" in block, "reserve the arrow's own 20 px plus its 5 px offset"
+
+
+def test_a_chart_without_spacers_or_arrows_is_unchanged(qapp_for_preview):
+    """The two new terms are additive and both zero on a plain chart, so
+    nothing moves for charts that have neither — which is why the shipped
+    screenshots stay valid."""
+    from PyQt6.QtGui import QPixmap
+    pv = TiffPreview()
+    pv._pixmap = QPixmap(2480, 3508)
+    assert pv._edge_spacer_px == 0
+    assert pv._bidirectional is False
