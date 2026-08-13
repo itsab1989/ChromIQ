@@ -1049,7 +1049,7 @@ def render_pages(
                             and collect_device_geom:
                         _geom_rows.append(
                             ("rect", (x0, y0, xR, yB), dev_by_slot[gslot]))
-                if sp_px > 0 and j + 1 < len(col_slots):
+                if sp_px > 0 and spacer_mode != "none" and j + 1 < len(col_slots):
                     y_next = px(place.y_of(j + 1)) + _stag     # next patch top
                     nxt = rgb_by_slot[col_slots[j + 1]]
                     # A per-spacer manual override (keyed by flat geometric index)
@@ -1067,7 +1067,15 @@ def render_pages(
             # change the patch count. Auto-coloured against the paper white on the
             # outer side and the adjacent patch on the inner; not individually
             # recolourable (the override scheme covers the between-patch spacers).
-            if edge_spacers and sp_px > 0 and col_slots:
+            # SPACER MODE "none" MEANS BARE PAPER, NOT A BLACK BAR.
+            # Asking for a gap without a spacer used to draw one anyway,
+            # because the colour chooser falls back to its black/white rule for
+            # any mode it does not recognise — so a chart set to "none" with a
+            # 2.5 mm gap came out banded (Sebastian, 2026-08-13). Skipping the
+            # fill leaves the gap the colour of the sheet, which is what the
+            # setting says. The geometry is unchanged, so patch positions,
+            # capacity and every recorded box stay exactly as they were.
+            if edge_spacers and sp_px > 0 and spacer_mode != "none" and col_slots:
                 _white = (255, 255, 255)
                 _first = rgb_by_slot[col_slots[0]]
                 _last = rgb_by_slot[col_slots[-1]]

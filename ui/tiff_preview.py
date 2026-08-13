@@ -1909,6 +1909,18 @@ class TiffPreview(QWidget):
         expected/measured legend once any patches are shown."""
         from PyQt6.QtGui import QPen, QPainterPath as _QP
 
+        # Device-pixel snapping: see the split-patch block below. Read once —
+        # the ratio cannot change mid-paint, and a widget with no window yet
+        # reports 1.0, which is the honest fallback.
+        try:
+            _dpr = float(self.devicePixelRatioF()) or 1.0
+        except Exception:      # noqa: BLE001 — never fail a repaint over this
+            _dpr = 1.0
+
+        def _dsnap(v: float) -> float:
+            """*v* (logical px) moved to the nearest real device pixel."""
+            return round(v * _dpr) / _dpr
+
         items = self._patch_overlay.get(self._current, [])
         # "Show only measured patches" (Knut): blank every patch on the page to
         # white with a thin outline first, so unread patches read as empty; the
@@ -2126,16 +2138,24 @@ class TiffPreview(QWidget):
             # same span as the printed patch — flooring each of x/y/w/h
             # separately (the old int() calls) shifted every patch up-left by
             # up to a pixel and let edges drift (Knut/Basti).
-            x0 = round(rect.x() * s + ox)
-            y0 = round(rect.y() * s + oy)
-            x1 = round((rect.x() + rect.width()) * s + ox)
-            y1 = round((rect.y() + rect.height()) * s + oy)
-            w = max(2, x1 - x0)
-            h = max(2, y1 - y0)
+            # …AND SNAP THEM TO THE DEVICE GRID, NOT THE LOGICAL ONE. A Retina
+            # screen paints two device pixels per logical pixel, so rounding to
+            # whole logical pixels can land half a logical pixel from the
+            # image's own edge — one device pixel of the printed patch left
+            # showing along an edge, which is the colour fringe Sebastian saw
+            # around the split (2026-08-13). Rounding at device resolution puts
+            # every edge on a real screen pixel. On a non-Retina display the
+            # ratio is 1 and this is exactly the old behaviour.
+            x0 = _dsnap(rect.x() * s + ox)
+            y0 = _dsnap(rect.y() * s + oy)
+            x1 = _dsnap((rect.x() + rect.width()) * s + ox)
+            y1 = _dsnap((rect.y() + rect.height()) * s + oy)
+            w = max(2.0 / _dpr, x1 - x0)
+            h = max(2.0 / _dpr, y1 - y0)
             if self._overlay_mode == "expected":
-                painter.fillRect(x0, y0, w, h, c_exp)
+                painter.fillRect(QRectF(x0, y0, w, h), c_exp)
             elif self._overlay_mode == "measured":
-                painter.fillRect(x0, y0, w, h, c_meas)
+                painter.fillRect(QRectF(x0, y0, w, h), c_meas)
             else:
                 # Expected: upper-left triangle; measured: lower-right — the
                 # i1Profiler split, corner to corner, hard edge, no gap.
@@ -2144,7 +2164,7 @@ class TiffPreview(QWidget):
                 tri.lineTo(x0 + w, y0)
                 tri.lineTo(x0, y0 + h)
                 tri.closeSubpath()
-                painter.fillRect(x0, y0, w, h, c_meas)
+                painter.fillRect(QRectF(x0, y0, w, h), c_meas)
                 painter.fillPath(tri, c_exp)
             if warn:
                 # A bright red outline over a white halo (the same trick the

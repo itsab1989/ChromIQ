@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.i18n import tr
+from core.logger import get_logger
 from ui.tooltip_button import TooltipButton
 from ui.widgets import (
     CollapsibleGroupBox,
@@ -25,6 +26,8 @@ from ui.widgets import (
     NoScrollSpinBox,
 )
 from workflow.layout_engine.presets import LayoutRecipe
+
+log = get_logger(__name__)
 
 # Sheet-text placeholders, filled in at build time by chart.build_chart with
 # human-readable values (e.g. {instrument} → "i1Pro3+", {paper} → "A4 landscape",
@@ -2485,6 +2488,22 @@ class LayoutOptionsPanel(QWidget):
             self.changed.emit()
 
     def set_recipe(self, r: LayoutRecipe) -> None:
+        # WHO OVERWROTE THE PANEL? Sebastian watched his spacer and gap
+        # settings revert a second after Generate Chart (2026-08-13), and
+        # neither a headless harness nor the app driven on screen reproduced
+        # it — so the trigger lives in a real session's own state. This line
+        # turns the next occurrence into evidence: every write to the panel is
+        # logged with the values and the caller that made it, at DEBUG, where
+        # the rest of the diagnosis already looks.
+        try:
+            import traceback
+            caller = "  ←  ".join(
+                f"{f.name}:{f.lineno}" for f in traceback.extract_stack()[-4:-1])
+            log.debug("layout panel set_recipe: spacer=%s/%s gaps=%s/%s  [%s]",
+                      r.spacer_mode, r.spacer_on, r.inter_patch_mm,
+                      r.strip_gap_mm, caller)
+        except Exception:      # noqa: BLE001 — diagnostics never break the UI
+            pass
         self._loading = True
         if self.instr is not None:
             ii = self.instr.findData(r.instrument)

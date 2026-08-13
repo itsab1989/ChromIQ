@@ -449,6 +449,8 @@ def patch_rects_px(geom: Geom, paper_w_mm: float, paper_h_mm: float,
     def px(mm: float) -> int:
         return round(mm * mm2px)
 
+    # The same test the renderer uses to decide it is drawing hexagons.
+    _ss_hex = getattr(geom, "key", "") == "SS" and getattr(geom, "hxew", 0.0) > 0
     out: list[dict] = []
     for page in range(layout.pages):
         first = page * pppage
@@ -461,10 +463,38 @@ def patch_rects_px(geom: Geom, paper_w_mm: float, paper_h_mm: float,
             _stag = (px(geom.row_stagger_mm)
                      if (((first // steps) + p) & 1) else 0)
             loc = permutation.location_label(gslot, steps, strip_pattern, patch_pattern)
+            # RECORD THE BOX THE RASTER ACTUALLY PAINTS. It derives each patch's
+            # far edge from the SUM — `px(x_of(p) + pwid)` — while this used to
+            # round the SIZE on its own, so the recorded box came out up to a
+            # pixel smaller than the ink. Everything drawn from this geometry
+            # then left a hairline of the real patch showing: measured on a
+            # 300 dpi chart, 35 of 60 patches were 1 px short on the right edge
+            # and 4 short on the bottom, which is the coloured fringe Sebastian
+            # saw around the expected-vs-measured overlay (2026-08-13). Rounding
+            # both edges and taking the difference makes the record match the
+            # paint exactly — the same rule the overlay already follows on its
+            # own side.
+            _x0, _y0 = px(place.x_of(p)), px(place.y_of(j)) + _stag
+            _x1 = px(place.x_of(p) + place.pwid)
+            _y1 = px(place.y_of(j) + place.plen) + _stag
+            # SPECTROSCAN HEXAGONS SIT ±¼ WIDTH OFF THEIR SLOT. `raster
+            # ._hexagon_points` staggers every hexagon horizontally by the
+            # patch's index in the strip, which is what makes the rows
+            # interlock like printtarg -h — but the recorded box stayed on the
+            # slot, so it described a place no ink is: measured ±21 px on an
+            # 84 px patch (Sebastian, 2026-08-13, seen as overlay hexagons
+            # sitting over their neighbours). Everything reading this geometry
+            # inherited it, the expected-vs-measured overlay and the scanner
+            # target's patch boxes alike (workflow/scanin_target.py reads these
+            # very rects), so recording the stagger corrects both at once.
+            if _ss_hex:
+                _dx = round(-(_x1 - _x0) / 4) if j % 2 == 0 else round((_x1 - _x0) / 4)
+                _x0 += _dx
+                _x1 += _dx
             out.append({
                 "page": page, "slot": gslot, "loc": loc,
-                "x": px(place.x_of(p)), "y": px(place.y_of(j)) + _stag,
-                "w": px(place.pwid), "h": px(place.plen),
+                "x": _x0, "y": _y0,
+                "w": max(1, _x1 - _x0), "h": max(1, _y1 - _y0),
             })
     return out
 

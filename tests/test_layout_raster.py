@@ -99,11 +99,17 @@ def test_hex_strip_count_matches_columns_not_interlock(tmp_path):
     w, h = papers.dimensions_mm("A4")
     rects = geometry.patch_rects_px(geom, w, h, res.layout, 150)
     page0 = [d for d in rects if d["page"] == 0]
-    n_cols = len({d["x"] for d in page0})            # slot columns (strip x's)
     n_rows = len({d["y"] for d in page0})
     n_letters = len({d["loc"][0] for d in page0})    # distinct strip labels
-    assert n_cols == n_letters == 10                 # not 2×-1 interlock columns
-    assert n_cols * n_rows == len(page0)             # no phantom strip
+    assert n_letters == 10                           # not 2×-1 interlock columns
+    assert n_letters * n_rows == len(page0)          # no phantom strip
+    # patch_rects_px returns the hexagon's OWN box, honeycomb shift included, so
+    # a column has two x values (one per row parity) — 20 for 10 strips, and
+    # they must pair up. Counting raw x values would read that as 20 columns.
+    xs = sorted({d["x"] for d in page0})
+    assert len(xs) == 20
+    half = [b - a for a, b in zip(xs[::2], xs[1::2])]
+    assert len(set(half)) == 1                       # one uniform stagger step
 
 
 def test_saved_tiff_colours_match_ti2_at_every_location(tmp_path):
@@ -533,8 +539,10 @@ def test_spectroscan_hex_pokes_above_first_row():
     checked = 0
     for r in (r for r in rects if r["y"] == top_y):
         cy0 = r["y"] + r["h"] // 2
-        dx = -(r["w"] // 4)                             # step 0 (even) shifts left
-        cx = r["x"] + r["w"] // 2 + dx                  # apex x
+        # patch_rects_px already carries the honeycomb shift, so the rect centre
+        # IS the apex x — re-applying it here (as this test used to) landed on
+        # the hexagon's flank instead.
+        cx = r["x"] + r["w"] // 2                       # apex x
         if max(hex_img[cy0, cx]) >= 240:               # skip near-white patches
             continue
         ay = r["y"] - r["h"] // 12                       # just above the slot top
