@@ -5823,9 +5823,17 @@ class TabMeasure(QWidget):
 
         from PyQt6.QtWidgets import QMessageBox
         from ui.widgets import fit_message_box_buttons
-        from workflow.measurement_messages import M_NO_INSTRUMENT
+        from workflow.measurement_messages import (M_NO_INSTRUMENT,
+                                                   M_NO_INSTRUMENT_FAST)
 
-        title, body = M_NO_INSTRUMENT.render(n=self._NO_INSTRUMENT_DELAY_S)
+        # While the "Faster instrument connection" shortcut is on it is the
+        # likeliest cause on older hardware (Knut, 2026-08-13: his ColorMunki
+        # was invisible on a 2019 MacBook until he switched it off), so that
+        # case gets the variant naming it — and the switch itself, so nobody
+        # has to go hunting through Preferences mid-measurement (Sebastian).
+        fast_on = bool(self._settings.get("fast_instrument_connect", True))
+        msg = M_NO_INSTRUMENT_FAST if fast_on else M_NO_INSTRUMENT
+        title, body = msg.render(n=self._NO_INSTRUMENT_DELAY_S)
         self._log.appendPlainText("\n" + title + "\n" + body)
         self._log.ensureCursorVisible()
 
@@ -5834,9 +5842,19 @@ class TabMeasure(QWidget):
         box.setWindowTitle(title)
         box.setText(title)
         box.setInformativeText(body)
+        # ResetRole, not ActionRole: the role decides the placement, and OK
+        # belongs on the right (Sebastian, 2026-08-13). ActionRole puts the
+        # extra button there instead, which reads as the default action.
+        turn_off = (box.addButton(tr("Turn off faster connection"),
+                                  QMessageBox.ButtonRole.ResetRole)
+                    if fast_on else None)
         box.addButton(tr("OK"), QMessageBox.ButtonRole.AcceptRole)
         fit_message_box_buttons(box)
         self._exec_measurement_window(box)
+        if turn_off is not None and box.clickedButton() is turn_off:
+            self._settings.set("fast_instrument_connect", False)
+            log.info("No-instrument window: faster instrument connection "
+                     "switched OFF at the user's request")
         # …and then the one ending every route shares.
         if self._runner.is_running:
             self._end_session(self._confirm_end_of_session(self.END_FAILURE_WINDOW))

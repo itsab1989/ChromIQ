@@ -1,7 +1,7 @@
 # Unified Measurement Management — Design Specification
 
 > **Revision 2026-08-09 (e) — two approved messages carry a revised print step.**
-> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), M-IMPORT-MISMATCH and M-IMPORT-DATE-TAKEN (the Measure tab's IMPORT module; its import-done window was approved by Sebastian 2026-08-10), plus the revised M-CHART-VERIFY (W5, reworked after the 2026-08-10 hardware session) and M-HOW-PRINTED (pairing 3 — the measure-time question for sheets ChromIQ did not print) — all defined in the awaiting-review section below.
+> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), M-IMPORT-MISMATCH and M-IMPORT-DATE-TAKEN (the Measure tab's IMPORT module; its import-done window was approved by Sebastian 2026-08-10), plus the revised M-CHART-VERIFY (W5, reworked after the 2026-08-10 hardware session) and M-HOW-PRINTED (pairing 3 — the measure-time question for sheets ChromIQ did not print), plus M-NO-INSTRUMENT-FAST (new, 2026-08-13 — Knut's ColorMunki was invisible on older hardware until "Faster instrument connection" was switched off, so that variant of the no-instrument window names the shortcut and carries its switch) — all defined in the awaiting-review section below.
 > Both were approved by Knut on 2026-08-04, but one step in each instructed *"(with colour management on)"* — a setting ChromIQ deliberately locks **off** on every print path, so the approved text told the user to do something the app prevents (established in `verification_printing_and_target.md` §1, and A0.1 of its plan). With feature A the instruction has a real control to name — the Print Chart tab's **Colour** row — so that one step is revised and the revision waits in §M-PROPOSED. Every other message in §M remains approved as before: the last, **M-BUILD-ELSEWHERE**, was accepted on 2026-08-04 — *"Message M-BUILD-ELSEWHERE accepted"* — and M-CHART-CORRUPT, M-REPLACE-UNCOUNTABLE and M-PREVIEW-PAUSED the day before. A new message goes to §M-PROPOSED first, and `tests/test_message_catalogue.py` fails if one is added to the code without it.
 
 > **Status:** specification, agreed on [issue #130](https://github.com/itsab1989/ChromIQ/issues/130).
@@ -1113,6 +1113,41 @@ sheet unrecorded, exactly as today.*
 > With colour management: the sheet was printed from another application (for example Photoshop) with this run's profile applied. Measuring it checks your whole everyday printing chain, and the report judges it relative to the sheet's own paper white — so the paper is not counted against the profile.
 >
 > Not sure is always safe: the report simply notes that the printing method is not recorded, and judges the colours as they are. Your answer is stored with this measurement only — it changes nothing else.
+
+### M-NO-INSTRUMENT-FAST · PROPOSED · the instrument is not there, and the connection shortcut is on — §S2
+
+*The same moment as M-NO-INSTRUMENT, and the same text, plus one paragraph.
+Knut, 2026-08-13: his ColorMunki was found on a 2023 MacBook Pro and not on a
+2019 one — in strip mode, patch-by-patch and Read Single Patches alike — and
+switching off "Faster instrument connection" was the whole fix:* "That did it…
+Now it works. Maybe the No Instrument detected message could warn about this
+setting?" … "warning about this setting not working on all computers,
+especially some older hardware, might be good. And suggesting to also test
+connecting without that setting."
+
+*Two things about it are instruction rather than text. The window carries the
+switch itself —* "Maybe the pop-up should have this option linked already so
+the user does not have to go to preferences to find it" *(Sebastian; Knut:*
+"Sounds ok"*) — as a **Turn off faster connection** button beside OK, which
+sets the preference and leaves the session ending exactly as before. And the
+paragraph names where the option lives for later (Sebastian: Preferences ▸
+Measurement), so someone who wants the shortcut back can find it. Which of the
+two messages is shown follows the preference: with the shortcut off, Knut's
+original text is unchanged.*
+
+> **No Instrument Found**
+>
+> ChromIQ has started the measurement and asked your instrument to wake up, and it has not replied for {n} seconds. A working instrument answers almost at once, so something is in the way.
+>
+> This is nearly always the connection rather than anything you did. Try these in order:
+>
+> •  Unplug the instrument's USB cable and plug it back in.
+> •  Use a different USB port, and plug straight into the computer rather than through a hub.
+> •  Close anything else that may be holding the instrument — another profiling program, or a virtual machine.
+>
+> One more thing is worth trying, and it is the likeliest cause on an older computer. ChromIQ is using a shortcut called “Faster instrument connection”: it skips the ports an instrument is never plugged into, so the calibration prompt appears sooner. On some computers that shortcut is what stops the instrument being found at all. The button below turns it off straight away — then start the measurement again, and your instrument will very likely be found. Nothing else about your measurements changes, and you can switch it back on whenever you like in Preferences ▸ Measurement, where it is called “Faster instrument connection”.
+>
+> Nothing has been lost. The measurement you already had is put back exactly as it was if this session ends without reading anything, and you can keep waiting instead if you would rather.
 
 ### M-x. Which table uses which message
 

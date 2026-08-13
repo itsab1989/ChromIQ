@@ -441,6 +441,33 @@ class ArgyllRunner(QObject):
             self._process.kill()
             log.info("ArgyllRunner: process killed")
 
+    def forget_run_callbacks(self) -> None:
+        """Drop the current run's ``on_line`` / ``on_finish`` callbacks.
+
+        THE RUNNER OUTLIVES EVERY DIALOG (it is the app-wide singleton), and a
+        run's callbacks are plain Python closures that capture the object that
+        started it. When that object is a window being closed, the PTY reader
+        thread can still deliver a queued completion afterwards — and calling
+        the closure then emits a signal on an already-freed C++ object, which
+        is a segfault rather than an exception.
+
+        That is issue #145: Knut's ColorMunki kept dropping off a 2019 MacBook,
+        spotread exited on its own each time, and after enough open-and-close
+        rounds the app died in ``PyQtSlotProxy::unislot`` calling
+        ``deleteLater()`` on a null object. :meth:`cleanup` already documented
+        the same failure mode for app shutdown; this is the per-window half of
+        it, so a dialog can leave the singleton clean without tearing down a
+        runner other windows still use.
+        """
+        on_line = self._run_on_line
+        self._run_on_finish = None
+        self._run_on_line = None
+        if on_line is not None:
+            try:
+                self.line_received.disconnect(on_line)
+            except (TypeError, RuntimeError):
+                pass
+
     def cleanup(self) -> None:
         """Kill any running process and join the PTY thread before app shutdown.
 

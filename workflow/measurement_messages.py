@@ -633,11 +633,49 @@ M_NO_INSTRUMENT = _m(
     "•  Unplug the instrument's USB cable and plug it back in.\n"
     "•  Use a different USB port, and plug straight into the computer rather "
     "than through a hub.\n"
-    "•  Close anything else that may be holding the instrument — another "
+    "•  Close anything else that may be holding the instrument: another "
     "profiling program, or a virtual machine.\n\n"
     "Nothing has been lost. The measurement you already had is put back "
     "exactly as it was if this session ends without reading anything, and you "
     "can keep waiting instead if you would rather.")
+
+#: The same moment, but while "Faster instrument connection" is switched on.
+#: Knut, 2026-08-13: his ColorMunki was found on a 2023 MacBook Pro and not on
+#: a 2019 one, in every mode — turning that option off was the whole fix, and
+#: he asked for the window to say so: *"Maybe the No Instrument detected
+#: message could warn about this setting?"* … *"warning about this setting not
+#: working on all computers, especially some older hardware, might be good.
+#: And suggesting to also test connecting without that setting."* Sebastian
+#: added that the window should carry the switch itself, and say where the
+#: option lives for later. Knut's own text above is kept word for word; this
+#: variant only adds the paragraph about the shortcut.
+M_NO_INSTRUMENT_FAST = _m(
+    "M-NO-INSTRUMENT-FAST",
+    "No Instrument Found",
+    "ChromIQ has started the measurement and asked your instrument to wake "
+    "up, and it has not replied for {n} seconds. A working instrument answers "
+    "almost at once, so something is in the way.\n\n"
+    "This is nearly always the connection rather than anything you did. Try "
+    "these in order:\n\n"
+    "•  Unplug the instrument's USB cable and plug it back in.\n"
+    "•  Use a different USB port, and plug straight into the computer rather "
+    "than through a hub.\n"
+    "•  Close anything else that may be holding the instrument: another "
+    "profiling program, or a virtual machine.\n\n"
+    "One more thing is worth trying, and it is the likeliest cause on an "
+    "older computer. ChromIQ is using a shortcut called “Faster instrument "
+    "connection”: it skips the ports an instrument is never plugged into, so "
+    "the calibration prompt appears sooner. On some computers that shortcut "
+    "is what stops the instrument being found at all. The button below turns "
+    "it off straight away. Start the measurement again afterwards, and "
+    "your instrument will very likely be found. Nothing else about your "
+    "measurements changes, and you can switch it back on whenever you like "
+    "in Preferences ▸ Measurement, where it is called “Faster instrument "
+    "connection”.\n\n"
+    "Nothing has been lost. The measurement you already had is put back "
+    "exactly as it was if this session ends without reading anything, and you "
+    "can keep waiting instead if you would rather.",
+    approved=False)
 
 
 CATALOGUE = {m.id: m for m in (
@@ -651,7 +689,7 @@ CATALOGUE = {m.id: m for m in (
     M_VERIFY_CREATE_NO_PROFILE, M_GAMUT_NO_PROFILE,
     M_IMPORT_MISMATCH, M_IMPORT_DATE_TAKEN, M_IMPORT_DONE,
     M_VERIFY_SAVED, M_HOW_PRINTED,
-    M_NO_INSTRUMENT,
+    M_NO_INSTRUMENT, M_NO_INSTRUMENT_FAST,
 )}
 
 #: Paragraphs appended to another message rather than shown on their own.

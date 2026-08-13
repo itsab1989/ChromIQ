@@ -119,7 +119,13 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # Pairing 3 (2026-08-10): the measure-time
                                  # question for verification sheets ChromIQ
                                  # did not print itself.
-                                 "M-HOW-PRINTED"}
+                                 "M-HOW-PRINTED",
+                                 # 2026-08-13: the no-instrument window while
+                                 # "Faster instrument connection" is on —
+                                 # Knut's ColorMunki was invisible on a 2019
+                                 # MacBook until that shortcut was switched
+                                 # off, so the window names it and carries it.
+                                 "M-NO-INSTRUMENT-FAST"}
 
 
 def test_nothing_is_quietly_proposed():

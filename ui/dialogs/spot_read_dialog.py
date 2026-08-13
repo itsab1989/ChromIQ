@@ -705,11 +705,46 @@ class SpotReadDialog(QDialog):
             self._manager.send_key("\x1b")
 
     def _on_no_instrument(self) -> None:
+        """Knut, 2026-08-13: Read Single Patches failed to see his ColorMunki
+        on a 2019 MacBook exactly as the measurement did, and "Faster
+        instrument connection" was the cause. So this window names the same
+        shortcut and carries the same switch as the measurement's
+        no-instrument window, rather than the bare "connect it and try again"
+        it used to show."""
         self._set_status(tr("No instrument detected."))
-        QMessageBox.warning(
-            self, tr("No instrument detected"),
-            tr("No measuring instrument was found. Connect it and try again."),
-        )
+        fast_on = bool(self._settings.get("fast_instrument_connect", True))
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle(tr("No instrument detected"))
+        box.setText(tr("No measuring instrument was found."))
+        if fast_on:
+            box.setInformativeText(tr(
+                "Check that the instrument is plugged in, try a different USB "
+                "port and plug straight into the computer rather than through "
+                "a hub, and close any other program that may be holding it.\n\n"
+                "If it still is not found, the likeliest cause on an older "
+                "computer is a shortcut ChromIQ uses called “Faster "
+                "instrument connection”: it skips the ports an instrument is "
+                "never plugged into, and on some computers that is what stops "
+                "the instrument being seen at all. The button below turns it "
+                "off straight away. Try again afterwards. You can switch it "
+                "back on whenever you like in Preferences ▸ Measurement."))
+            # ResetRole keeps OK on the right (Sebastian), as in the same
+            # window in the Measure tab.
+            turn_off = box.addButton(tr("Turn off faster connection"),
+                                     QMessageBox.ButtonRole.ResetRole)
+        else:
+            turn_off = None
+            box.setInformativeText(tr(
+                "Check that the instrument is plugged in, try a different USB "
+                "port and plug straight into the computer rather than through "
+                "a hub, and close any other program that may be holding it."))
+        box.addButton(tr("OK"), QMessageBox.ButtonRole.AcceptRole)
+        box.exec()
+        if turn_off is not None and box.clickedButton() is turn_off:
+            self._settings.set("fast_instrument_connect", False)
+            log.info("Read single patches: faster instrument connection "
+                     "switched OFF at the user's request")
 
     def _on_device_busy(self) -> None:
         self._set_status(tr("Instrument is in use by another program."))
@@ -728,14 +763,24 @@ class SpotReadDialog(QDialog):
     def _set_status(self, text: str) -> None:
         self._status.setText(text)
 
-    def reject(self) -> None:  # noqa: D102
+    def _release_instrument(self) -> None:
+        """End the session and let go of the shared runner (#145).
+
+        Both closing routes come through here. The detach is the important
+        half: the process is killed at once, but the reader thread can still
+        report the exit a moment later, and by then this window and its
+        manager may be gone. Knut's app died exactly there after his
+        ColorMunki dropped off the USB bus over and over.
+        """
         if self._manager.is_running:
             self._manager.quit()
             self._manager.abort()
+        self._manager.detach()
+
+    def reject(self) -> None:  # noqa: D102
+        self._release_instrument()
         super().reject()
 
     def closeEvent(self, event) -> None:  # noqa: N802
-        if self._manager.is_running:
-            self._manager.quit()
-            self._manager.abort()
+        self._release_instrument()
         super().closeEvent(event)

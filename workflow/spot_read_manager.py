@@ -131,6 +131,20 @@ class SpotReadManager(QObject):
     def abort(self) -> None:
         self._runner.abort()
 
+    def detach(self) -> None:
+        """Let go of the shared runner, so nothing can call back into a window
+        that is closing (#145).
+
+        Killing the process is not enough on its own: the PTY reader thread
+        can still deliver its completion afterwards, and this manager's
+        callbacks would then emit signals on a C++ object Qt has already
+        destroyed with the dialog. See ``ArgyllRunner.forget_run_callbacks``.
+        """
+        try:
+            self._runner.forget_run_callbacks()
+        except Exception:      # noqa: BLE001 — closing must never raise
+            log.warning("Could not detach the spot-read session", exc_info=True)
+
     @property
     def is_running(self) -> bool:
         return self._runner.is_running

@@ -30,6 +30,21 @@ what you type before the first Generate had nowhere to live yet.
   every future fresh start with an old project's name, one Generate away from
   building into it. The saved name from older versions is cleared too.
 
+- **The app no longer crashes when an instrument keeps dropping off the USB
+  bus.** Closing Read Single Patches now lets go of the measuring engine
+  properly. Before, a session that ended by itself could report back a moment
+  later, into a window that had already closed, and the app died outright
+  (reported by Knut with a ColorMunki on a 2019 MacBook).
+
+- **"No instrument found" now names the likeliest cause and offers the fix.**
+  On some computers, older Macs in particular, the "Faster instrument
+  connection" shortcut is what stops an instrument being seen at all. Both the
+  measurement window and Read Single Patches now explain this and carry a
+  **Turn off faster connection** button, so you do not have to go hunting
+  through Preferences in the middle of a measurement; the text also says where
+  the option lives (Preferences ▸ Measurement) for switching it back on. The
+  option's own help text says when turning it off is the right move.
+
 ## v4.0.0
 
 > **This entry covers everything that changed since v3.14.7, the last stable release** — 224 betas' worth of work, grouped so you can find what affects you instead of reading a diary. The individual beta histories remain in the repository.
