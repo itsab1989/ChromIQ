@@ -418,9 +418,20 @@ def strip_rects_px(geom: Geom, paper_w_mm: float, paper_h_mm: float,
         n_passes = (last - first + steps - 1) // steps
         for p in range(n_passes):
             col_n = min(last, first + (p + 1) * steps) - (first + p * steps)
+            # THE COLORMUNKI STAGGER MOVES THE WHOLE STRIP DOWN. Every other
+            # strip is offset by `row_stagger_mm` — the raster paints it there
+            # (raster.py, `_stag`) and patch_rects_px records it — but this
+            # function did not, so an odd strip's rectangle ended one stagger
+            # ABOVE its own patches: 88 px on an A4 ColorMunki chart at 300 dpi.
+            # Everything that asks "where does the chart end" was told the wrong
+            # answer, which is why the measure overlay's legend sat on the last
+            # patches of the lower strips (Sebastian, 2026-08-13). Same offset,
+            # same parity test as the two places that already had it.
+            _stag = (px(geom.row_stagger_mm)
+                     if (((first // steps) + p) & 1) else 0)
             x = px(place.x_of(p))
-            y = px(place.y_of(0))
-            h = px(place.y_of(col_n - 1) + place.plen) - y
+            y = px(place.y_of(0)) + _stag
+            h = px(place.y_of(col_n - 1) + place.plen) + _stag - y
             rects.append({
                 "page": page, "pass": p,
                 "x": x, "y": y, "w": px(place.pwid), "h": h,

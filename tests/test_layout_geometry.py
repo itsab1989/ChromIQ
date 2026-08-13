@@ -805,3 +805,50 @@ def test_area_first_by_grid_pinned_rows_render_exactly():
             assert lay.steps_in_pass == rows, (
                 f"cols={cols} rows={rows}: rendered {lay.steps_in_pass} rows "
                 f"(ph={ph:.2f})")
+
+
+def test_every_strip_rect_bounds_exactly_its_own_patches():
+    """A strip's rectangle must contain its patches and nothing more, on EVERY
+    layout — the rule the ColorMunki stagger broke.
+
+    Sebastian, 2026-08-13: on a staggered double-density ColorMunki chart the
+    measure overlay's legend sat on the last patches of the lower strips. It
+    places itself below the lowest strip rectangle, and every odd strip's
+    rectangle was one `row_stagger_mm` (88 px at 300 dpi) above its own patches
+    — the raster and patch_rects_px staggered, strip_rects_px did not. Stated
+    as a general property rather than as one number, so the next layout that
+    moves a strip is caught here instead of on screen.
+    """
+    from workflow.layout_engine import instruments
+    from workflow.layout_engine.presets import default_recipe
+
+    cases = [("CM", "rect", {"density": 2, "cm_stagger": True}),
+             ("CM", "rect", {"cm_stagger": True}),
+             ("CM", "rect", {}),
+             ("i1", "rect", {}),
+             ("SS", "hex", {}),
+             ("SS", "rect", {})]
+    for inst, mode, extra in cases:
+        rec = default_recipe(inst, "A4", mode=mode)
+        rec.randomize = False
+        kw = rec.build_kwargs()
+        kw["dpi"] = 300
+        kw.update(extra)
+        geom = instruments.geom_from_build_kwargs(kw)
+        lay = geometry.compute(geom, 210.0, 297.0, 120)
+        strips = geometry.strip_rects_px(geom, 210.0, 297.0, lay, 300)
+        patches = geometry.patch_rects_px(geom, 210.0, 297.0, lay, 300)
+        steps = lay.steps_in_pass
+        checked = 0
+        for s in strips:
+            own = [p for p in patches
+                   if p["page"] == s["page"]
+                   and (p["slot"] % lay.patches_per_page) // steps == s["pass"]]
+            if not own:
+                continue
+            checked += 1
+            label = f"{inst}/{mode}{extra or ''} strip {s['pass']}"
+            assert min(p["y"] for p in own) == s["y"], f"{label}: top"
+            assert max(p["y"] + p["h"] for p in own) == s["y"] + s["h"], \
+                f"{label}: bottom"
+        assert checked > 1, f"{inst}/{mode}: nothing compared"

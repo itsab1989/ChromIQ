@@ -30,6 +30,11 @@ inaccurately.
 
 - **The overlay legend keeps clear of the chart.** It could overlap the last
   row of patches, the edge spacer or the scan arrow, depending on the layout.
+  On a ColorMunki chart with staggered strips it sat across the last patches
+  of the lower strips: every second strip is offset down the page, and its
+  recorded position did not include that offset. The strip highlight and the
+  click-to-jump target on the Measure tab were off by the same amount on those
+  charts, and are now exact.
 
 - **"No spacers" now means bare paper.** Choosing no spacer still drew black
   bars between the patches and the strips; the gaps are left blank, as asked
