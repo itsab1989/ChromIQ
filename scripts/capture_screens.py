@@ -166,7 +166,32 @@ def tabs(win):
 
 def show_tab(win, key: str) -> None:
     idx = {"chart": 0, "print": 1, "measure": 2, "profile": 3, "check": 4}[key]
+    # Answer the existing-measurement window BEFORE the tab can be shown: the
+    # Measure tab offers it from showEvent, so silencing it afterwards is too
+    # late. Cheap, and it costs nothing on the tabs that never ask.
+    decline_existing_measurement_offer(win)
     win._tabs.setCurrentIndex(idx)
+
+
+def decline_existing_measurement_offer(win) -> None:
+    """Silence the "This chart already has a measurement" window for whatever
+    the Measure tab now points at.
+
+    Every chart in this project has readings, so that window is offered
+    whenever a chart is loaded or the tab is shown — and it is modal, so it
+    stops the capture dead. Silencing it once at the start is not enough: the
+    app remembers the answer per RUN (`_replace_warning_scope`), and the scene
+    walk moves between runs and run types, each of which is a fresh scope that
+    has never been answered. It stopped a run after scene 07 (Sebastian,
+    2026-08-13). Called on every tab switch, so a scope can never go unanswered.
+    """
+    try:
+        mt = win._tab_measure
+        scope = mt._replace_warning_scope()
+        if scope is not None:
+            mt._offer_silenced.add(scope)
+    except Exception as e:      # noqa: BLE001 — never stop a capture over this
+        log(f"  could not silence the existing-measurement offer: {e}")
 
 
 def pump(ms: int) -> None:
@@ -591,8 +616,28 @@ def scene_list():
     def create_guided(app, win):
         win._tab_chart._switch_mode("guided")
         win._tab_chart._target_name_edit.setText(A_NAME)
+        # THE PANEL MUST DESCRIBE THE CHART BESIDE IT. Guided reads its
+        # instrument and paper from the settings store, and opening a project
+        # loads THAT target's own values over the ones main() pins — so the
+        # panel came up on ColorMunki while the preview held the i1Pro sheet,
+        # and "Calculated Patches" said 105 next to a 483-patch chart
+        # (Sebastian, 2026-08-13). The manual scene already pins its own two
+        # widgets for the same reason; this is the guided pair.
+        try:
+            ch = win._tab_chart
+            ii = ch._instr_combo.findData("i1")
+            if ii >= 0:
+                ch._instr_combo.setCurrentIndex(ii)
+            ch._rebuild_paper_combo()      # the app's own order: instrument first
+            pi = ch._paper_combo.findData("A4")
+            if pi >= 0:
+                ch._paper_combo.setCurrentIndex(pi)
+            ch._pages_spin.setValue(1)
+        except Exception as e:             # noqa: BLE001
+            log(f"guided instr/paper: {e}")
         _keep_the_runs_own_chart(win)
         show_tab(win, "chart")
+        pump(400)                          # let the patch count recompute
 
     def create_manual(app, win):
         win._tab_chart._switch_mode("manual")
