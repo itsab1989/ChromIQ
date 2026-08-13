@@ -2,11 +2,38 @@
 
 ## v4.0.1
 
-Four fixes around the very first chart of a new project — found by Knut and
+Fixes around the very first chart of a new project — found by Knut and
 Sebastian testing side by side on one afternoon, all sharing a single root:
-what you type before the first Generate had nowhere to live yet.
+what you type before the first Generate had nowhere to live yet — together
+with a group of measuring aids that were describing the chart slightly
+inaccurately.
 
 ### Fixed
+
+- **The pointer ruler measures the chart you are looking at.** With "Show
+  measurement coordinates on pointer" ticked, the readout used the Resolution
+  setting rather than the resolution the chart on screen was actually made at.
+  On a 200 dpi chart every reading came out at two thirds of the truth — an A4
+  sheet's far corner read 140.0 × 198.3 mm instead of 210 × 297, and the ruler
+  disagreed with the margins listed right below it. Both now read the page's
+  own resolution, so they always agree, on any paper size and either
+  orientation (reported by Knut).
+
+- **The expected-vs-measured overlay sits exactly on its patches.** During a
+  measurement the coloured split could leave a thin rim of the real patch
+  showing along an edge. Four separate causes, all fixed: the patch boxes were
+  rounded in a way that shifted them up and to the left; on a hexagonal
+  SpectroScan chart the honeycomb offset was missing entirely; on a Retina
+  screen an edge could land half a pixel off; and the strips were not always
+  kept inside the page. Scanner reference files (.cht) for hexagonal charts
+  were affected by the same offset and are now correct too.
+
+- **The overlay legend keeps clear of the chart.** It could overlap the last
+  row of patches, the edge spacer or the scan arrow, depending on the layout.
+
+- **"No spacers" now means bare paper.** Choosing no spacer still drew black
+  bars between the patches and the strips; the gaps are left blank, as asked
+  for.
 
 - **Your run description survives the first Generate.** Typing a description
   for a brand-new project and pressing Generate Chart cleared the field and
