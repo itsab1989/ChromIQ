@@ -25,8 +25,11 @@ inaccurately.
   rounded in a way that shifted them up and to the left; on a hexagonal
   SpectroScan chart the honeycomb offset was missing entirely; on a Retina
   screen an edge could land half a pixel off; and the strips were not always
-  kept inside the page. Scanner reference files (.cht) for hexagonal charts
-  were affected by the same offset and are now correct too.
+  kept inside the page. The corrected patch rounding also makes the patch
+  boxes in a scanner or camera target exact for rectangular charts. Scanner
+  and camera work stays unavailable for hexagonal SpectroScan charts, as it
+  always has been — a CHT recognition file cannot describe a hexagon, so
+  those charts are measured with the SpectroScan itself.
 
 - **The overlay legend keeps clear of the chart.** It could overlap the last
   row of patches, the edge spacer or the scan arrow, depending on the layout.
