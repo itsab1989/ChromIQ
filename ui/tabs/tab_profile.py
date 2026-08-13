@@ -4876,6 +4876,11 @@ class TabProfile(QWidget):
         self._progress_bar.set_value(None)
         self._progress_bar.start()
         self.profile_active.emit(True)
+        # #148: a build ends with the "profile built" sound, and that sound
+        # plays when no measurement is running — so nothing else is holding the
+        # audio device open. Without this the device is asleep when the build
+        # finishes and the sound loses its attack.
+        self._take_audio_hold()
 
         if engine == "engine":
             self._engine_builder.build(
@@ -4889,6 +4894,35 @@ class TabProfile(QWidget):
                 on_line=self._on_log_line,
                 on_finish=self._on_build_done,
             )
+
+    def _take_audio_hold(self) -> None:
+        """Keep the audio device awake for the length of a build (#148).
+
+        Balanced by :meth:`_release_audio_hold`, which every finish path calls.
+        The flag makes the pair safe in any order: a second build cannot take a
+        second hold, and a finish path that runs twice cannot give back one that
+        was never taken.
+        """
+        if getattr(self, "_audio_held", False):
+            return
+        try:
+            import core.sound as _snd
+            if self._sound.enabled():
+                self._audio_held = True
+                _snd.hold_audio_device(self._settings)
+        except Exception:      # noqa: BLE001 — audio must never break a build
+            log.debug("could not hold the audio device", exc_info=True)
+
+    def _release_audio_hold(self) -> None:
+        """Give back the hold taken by :meth:`_take_audio_hold`."""
+        if not getattr(self, "_audio_held", False):
+            return
+        self._audio_held = False
+        try:
+            import core.sound as _snd
+            _snd.release_audio_device()
+        except Exception:      # noqa: BLE001
+            log.debug("could not release the audio device", exc_info=True)
 
     def _on_log_line(self, line: str) -> None:
         self._log.appendPlainText(line)
@@ -4913,6 +4947,7 @@ class TabProfile(QWidget):
     def _on_engine_done(self, code: int) -> None:
         """Finish path for ChromIQ-engine builds (#122)."""
         self._reset_build_ui()
+        self._release_audio_hold()          # balances _on_build (#148)
         if code != 0:
             failure = self._engine_builder.primary_failure()
             self._show_tool_failure_dialog(
@@ -4936,6 +4971,9 @@ class TabProfile(QWidget):
 
     def _on_build_done(self, code: int) -> None:
         self._reset_build_ui()
+        # Give back the hold taken in _on_build. The linger keeps the device
+        # awake past this point, so the completion sound is still heard whole.
+        self._release_audio_hold()
 
         if code != 0:
             self._log.appendPlainText(f"\n[ERROR] colprof exited with code {code}.")

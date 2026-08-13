@@ -16,7 +16,18 @@ exits, by which time ``disarm()`` has run. Inspecting the wiring could never
 have found that.
 
 So these tests do not read the source. They drive the real slots with a
-recording sound manager and assert **what came out of the speaker**, once.
+recording sound manager and assert that the right cue was **triggered**, once,
+having passed every gate that can drop it.
+
+**What they do not prove — and #148 is the proof of that.** Recording at the
+effect means the speaker is never reached, so a sound can be triggered
+perfectly and still be inaudible. That is exactly what happened: Qt suspends the
+audio device between sounds, and every cue shorter than the device's wake-up was
+silent while these tests stayed green. The docstring here used to claim it
+asserted "what came out of the speaker"; it never did, and believing it is part
+of why #148 shipped. Nothing headless can close that gap — see
+``tests/test_sound_device_keepalive.py`` for the invariant that can be checked,
+and expect the speaker end to need a human ear.
 """
 from __future__ import annotations
 

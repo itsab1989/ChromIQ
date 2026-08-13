@@ -10,6 +10,22 @@ inaccurately.
 
 ### Fixed
 
+- **Every measurement sound is heard again, whole.** Most of the short sounds
+  made no sound at all — the tick for each patch, the thump for a patch that is
+  off-colour, and ding, click, chime, buzz, bump and ding-hi — and the longer
+  ones lost their beginning, which is what stopped the bell sounding like a
+  bell and the trumpet like a trumpet. The sound files were never at fault: the
+  Mac was putting its sound hardware to sleep between one sound and the next,
+  and whatever was played while it woke up again was lost. Anything shorter
+  than the wake-up simply vanished. How long that wake-up takes depends on the
+  machine, which is why this was barely noticeable on some Macs and severe on
+  others. ChromIQ now keeps the sound hardware gently awake whenever a sound
+  might be needed — while you measure, while a profile builds, and while the
+  Sounds tab of Preferences is open so the "Play" buttons audition truthfully.
+  This applies to your own sounds too, if you have pointed Preferences → Paths
+  at a sounds folder of your own (reported by soul-traveller with a ColorMunki
+  on an Intel MacBook Pro).
+
 - **The pointer ruler measures the chart you are looking at.** With "Show
   measurement coordinates on pointer" ticked, the readout used the Resolution
   setting rather than the resolution the chart on screen was actually made at.
