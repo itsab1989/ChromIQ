@@ -796,3 +796,77 @@ def test_chart_measured_fills_all_pages(monkeypatch):
     assert len(tab._preview._patch_overlay.get(0, [])) == 1     # A1
     assert len(tab._preview._patch_overlay.get(1, [])) == 1     # B1
     assert len(tab._preview._patch_info.get(0, [])) == 1
+
+
+def test_coord_readout_uses_the_pages_own_resolution_not_the_setting(tmp_path):
+    """#146 (Knut): the pointer ruler must describe the chart on screen, not the
+    current "Resolution" preference. His A4 ColorMunki chart is rendered at 200
+    dpi; read as the 300 dpi the preference happened to hold, the sheet's
+    bottom-right corner came out at 140.0 x 198.0 mm instead of 210 x 297, and
+    the ruler contradicted the measured-margins panel beside it (which has
+    always read the TIFF's own tag)."""
+    import numpy as np
+    import tifffile
+
+    dpi = 200.0
+    w_px, h_px = 1654, 2339                     # A4 at 200 dpi, as Knut's is
+    tif = tmp_path / "chart_01.tif"
+    tifffile.imwrite(str(tif), np.full((h_px, w_px, 3), 255, np.uint8),
+                     resolution=(dpi / 2.54, dpi / 2.54), resolutionunit=3)
+
+    pv = _make_preview()
+    pv._pages = [(tif, 0)]
+    pv._page_dpi = {}
+    pv.set_coord_readout(True, dpi=300.0)       # the stale preference value
+    s, ox, oy = pv._paint_geom
+
+    # The sheet's bottom-right corner reads as the real A4 size, not 140 x 198.
+    corner = QPoint(int(ox + w_px * s), int(oy + h_px * s))
+    x_mm, y_mm = pv._coord_mm_at(corner)
+    assert abs(x_mm - 210.1) < 0.5
+    assert abs(y_mm - 297.1) < 0.5
+
+    # …and the ruler agrees with the margin inspector, patch for patch: both go
+    # through the same reader, so they cannot drift apart.
+    from workflow.margin_inspector import _tiff_dpi
+    assert pv._current_page_dpi() == _tiff_dpi(tif, 300.0) == dpi
+
+
+def test_coord_readout_falls_back_to_the_given_dpi_without_a_tag(tmp_path):
+    """A page with no resolution tag (or one that cannot be opened at all) still
+    reads through the dpi the caller supplied — the fallback stays intact."""
+    import numpy as np
+    import tifffile
+
+    bare = tmp_path / "bare.tif"
+    tifffile.imwrite(str(bare), np.full((50, 40, 3), 255, np.uint8))
+    pv = _make_preview()
+    pv._pages = [(bare, 0)]
+    pv._page_dpi = {}
+    pv.set_coord_readout(True, dpi=150.0)
+    assert pv._current_page_dpi() == 150.0
+
+    pv._pages = [(tmp_path / "not-there.tif", 0)]
+    pv._page_dpi = {}
+    assert pv._current_page_dpi() == 150.0
+
+
+def test_coord_readout_follows_the_page_that_is_showing(tmp_path):
+    """Each page is read on its own, so paging through a chart cannot leave the
+    ruler on a previous page's resolution."""
+    import numpy as np
+    import tifffile
+
+    pages = []
+    for name, dpi in (("p1.tif", 200.0), ("p2.tif", 400.0)):
+        p = tmp_path / name
+        tifffile.imwrite(str(p), np.full((60, 50, 3), 255, np.uint8),
+                         resolution=(dpi / 2.54, dpi / 2.54), resolutionunit=3)
+        pages.append((p, 0))
+    pv = _make_preview()
+    pv._pages = pages
+    pv._page_dpi = {}
+    pv.set_coord_readout(True, dpi=300.0)
+    assert pv._current_page_dpi() == 200.0
+    pv._current = 1
+    assert pv._current_page_dpi() == 400.0

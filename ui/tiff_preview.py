@@ -518,6 +518,10 @@ class TiffPreview(QWidget):
         # cursor position in paper mm/inch, measured from the paper top-left.
         self._coord_readout: bool = False
         self._coord_dpi: float = 300.0
+        # Resolution of each loaded page, read from the TIFF itself and cached
+        # by page index — filled on demand, so a preview that never shows the
+        # ruler pays nothing for it (#146).
+        self._page_dpi: dict[int, "float | None"] = {}
         self._coord_pos: "QPoint | None" = None   # label-space cursor position
         self._cursor_overlay: "_CursorOverlay | None" = None
         self._mode: str = "dark"
@@ -604,6 +608,7 @@ class TiffPreview(QWidget):
             log.warning("TiffPreview: received %d path(s) but none could be opened: %s",
                         len(paths), [str(p) for p in paths])
 
+        self._page_dpi = {}         # a new chart may render at another dpi
         self._current = 0
         self._active_stripe = -1
         self._stripe_rects = []
@@ -671,10 +676,17 @@ class TiffPreview(QWidget):
             self._repaint_label()
 
     def set_coord_readout(self, on: bool, dpi: float | None = None) -> None:
-        """Turn the pointer coordinate readout on/off (#29, Knut). *dpi* is the
-        render resolution of the shown page, so image pixels convert to paper
-        millimetres. The chart TIFF spans the whole sheet (printtarg -M), so
-        image pixel (0, 0) is the paper's top-left corner."""
+        """Turn the pointer coordinate readout on/off (#29, Knut).
+
+        Image pixels convert to paper millimetres through the resolution of the
+        page on screen, which is read from the TIFF itself. *dpi* is only the
+        fallback for a page that carries no resolution tag — do not rely on it
+        to describe a chart, because the caller's idea of the resolution and the
+        chart's own can differ (#146).
+
+        ChromIQ renders every chart with printtarg ``-M`` / a full-sheet engine
+        page, so image pixel (0, 0) is the paper's top-left corner.
+        """
         self._coord_readout = bool(on)
         if dpi and dpi > 0:
             self._coord_dpi = float(dpi)
@@ -701,19 +713,56 @@ class TiffPreview(QWidget):
         ov.setGeometry(0, 0, self._img_label.width(), self._img_label.height())
         ov.raise_()
 
+    @staticmethod
+    def _read_page_dpi(path) -> "float | None":
+        """The resolution baked into a page TIFF, or None when it carries none.
+
+        Reuses the margin inspector's reader, so the pointer ruler and the
+        measured-margins panel convert pixels to millimetres through exactly the
+        same number and can never disagree (#146). Imported lazily: this widget
+        is created long before anything needs numpy/tifffile.
+        """
+        try:
+            from workflow.margin_inspector import _tiff_dpi
+            dpi = _tiff_dpi(Path(path), 0.0)
+            return dpi if dpi > 1.0 else None
+        except Exception as exc:            # unreadable / not a TIFF at all
+            log.debug("TiffPreview: no resolution in %s: %s", path, exc)
+            return None
+
+    def _current_page_dpi(self) -> float:
+        """Resolution of the page on screen: the TIFF's own, falling back to the
+        value the caller supplied.
+
+        The page's own tag has to win. The fallback used to be the only source,
+        and it is the *current* "Resolution" preference — which says nothing
+        about a chart generated earlier, or by a preset that renders at another
+        resolution. A 200 dpi chart read as 300 put the bottom-right corner of
+        an A4 sheet at 140.0 x 198.0 mm instead of 210 x 297 (Knut, #146).
+        """
+        idx = self._current
+        if 0 <= idx < len(self._pages):
+            if idx not in self._page_dpi:
+                self._page_dpi[idx] = self._read_page_dpi(self._pages[idx][0])
+            dpi = self._page_dpi[idx]
+            if dpi and dpi > 0:
+                return float(dpi)
+        return float(self._coord_dpi)
+
     def _coord_mm_at(self, label_pos) -> "tuple[float, float] | None":
         """Paper (x, y) in mm at a label-space position, from the paper's
         top-left corner. Uses the current fit/zoom/pan transform; values may be
         negative or past the sheet when the pointer is off the paper — that is
         intentional, so the ruler still reads there."""
-        if self._paint_geom is None or self._coord_dpi <= 0:
+        dpi = self._current_page_dpi()
+        if self._paint_geom is None or dpi <= 0:
             return None
         scale, ox, oy = self._paint_geom
         if scale <= 0:
             return None
         ix = (label_pos.x() - ox) / scale      # image pixels (may be off-sheet)
         iy = (label_pos.y() - oy) / scale
-        k = 25.4 / self._coord_dpi
+        k = 25.4 / dpi
         return ix * k, iy * k
 
     def set_navigation_visible(self, visible: bool) -> None:
