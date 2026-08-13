@@ -211,6 +211,14 @@ each have a plain-language Dictionary entry: open the Welcome window's
   the buttons carries a **Website** link in the app's accent colour — one
   click to the showcase page.
 
+- **The measurement report breathes, and its PDF prints the same
+  everywhere.** A small gap under every section headline, after the intro
+  lines, and between the four trend charts; each section starts on its own
+  PDF page, and a table always keeps its headline beside it. Headline sizes
+  are pinned, so a saved report renders identically wherever it is made.
+  The report window opens a little wider, and the console warning about a
+  missing "Sans-serif" font is gone.
+
 - **The measurement model is consistent everywhere.** Replacing a chart,
   rebuilding one, measuring over an existing measurement, deleting a run —
   each has one window, one wording and one outcome, whichever tab you reach

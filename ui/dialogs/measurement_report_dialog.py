@@ -16,9 +16,9 @@ from pathlib import Path
 from PyQt6.QtCore import QPointF, QRectF, Qt
 from PyQt6.QtGui import QColor, QFont, QPainter, QPen
 from PyQt6.QtWidgets import (
-    QCheckBox, QDialog, QFrame, QHBoxLayout, QLabel, QListWidget,
-    QListWidgetItem, QPushButton, QTabWidget, QTextBrowser, QVBoxLayout,
-    QWidget,
+    QApplication, QCheckBox, QDialog, QFrame, QHBoxLayout, QLabel,
+    QListWidget, QListWidgetItem, QPushButton, QTabWidget, QTextBrowser,
+    QVBoxLayout, QWidget,
 )
 
 from core.i18n import tr
@@ -123,15 +123,33 @@ def _colour_line_html(height: int = 5) -> str:
 
 
 def _h2(text: str, *, page_break: bool = False) -> str:
-    """A main section heading, matching 'Trend over time (this printer)' etc."""
+    """A main section heading, matching 'Trend over time (this printer)' etc.
+
+    A styled div, not an <h2>: Qt sizes h-tags from the *application*
+    default font and ignores any font-size set on or inside them, so a PDF
+    exported outside the running app (a test driver, a script) came out
+    with headings ~10% smaller than the same report saved from the app
+    (measured 2026-08-13). A div honours an explicit px size, which makes
+    the report identical wherever it is rendered. 20px matches what the
+    app's h2 rendered.
+    """
     brk = "page-break-before:always;" if page_break else ""
-    return (f"<h2 style='color:{_C["head"]};{brk}margin:14px 0 4px'>"
-            f"{html.escape(text)}</h2>")
+    return (f"<div style='color:{_C["head"]};{brk}font-size:20px;"
+            f"font-weight:bold;margin-top:14px;margin-bottom:4px'>"
+            f"{html.escape(text)}</div>")
 
 
 def _h3(text: str) -> str:
-    return (f"<h3 style='color:{_C["head"]};margin:12px 0 3px'>"
-            f"{html.escape(text)}</h3>")
+    return (f"<div style='color:{_C["head"]};font-size:16px;"
+            f"font-weight:bold;margin-top:12px;margin-bottom:3px'>"
+            f"{html.escape(text)}</div>")
+
+
+def _gap() -> str:
+    """One small empty line (Sebastian, 2026-08-13): air under the main
+    section headlines, after their intro lines, and between the trend
+    charts — the same in the window and the saved PDF."""
+    return "<p style='font-size:8px;margin:0'>&nbsp;</p>"
 
 
 def _fmt(v, dec: int = 2) -> str:
@@ -184,6 +202,24 @@ def _paginate_tables(doc, body_h: float) -> None:
     def _push_to_next_page(table) -> None:
         lay = doc.documentLayout()
         block = doc.findBlock(table.firstPosition() - 1)
+        # The spacer lines of the gap batch (2026-08-13) are whitespace-only
+        # blocks sitting between a heading and its table; without skipping
+        # them the "take the heading along" rule below would see only the
+        # spacer and leave the heading behind — the exact orphan this
+        # function exists to prevent. Walk up past pure-whitespace blocks;
+        # the same_page/close checks still decide whether what we find is
+        # really attached.
+        while (block.isValid() and not block.text().strip()
+               and doc.findBlock(block.position() - 1).isValid()):
+            prev = doc.findBlock(block.position() - 1)
+            if prev == block:
+                break
+            block = prev
+        # Never a block inside another table: two stacked tables are joined
+        # by an empty separator, and walking past it must not split the
+        # table above — fall through to breaking this table instead.
+        if block.isValid() and QTextCursor(block).currentTable() is not None:
+            block = doc.findBlock(-1)             # invalid → fallback below
         if block.isValid() and block.text().strip():
             t_top = lay.frameBoundingRect(table).top()
             b_rect = lay.blockBoundingRect(block)
@@ -913,7 +949,7 @@ class MeasurementReportDialog(QDialog):
         # centre the whole window inside the available area, so both very
         # tall and very short screens end up with the full window — Close
         # button included — on screen (2026-08-10).
-        w = max(self.width(), 920)
+        w = max(self.width(), 940)      # +20 px default width (Sebastian, 2026-08-13)
         cap = max(1, area.height() - 40)          # never claim the whole screen
         h = min(int(area.height() * 0.88), cap)
         h = max(h, min(640, cap))                 # the 640 px floor, screen-capped
@@ -1438,8 +1474,10 @@ class MeasurementReportDialog(QDialog):
                 ip.end()
                 url = QUrl(f"chart://{i}")
                 doc.addResource(QTextDocument.ResourceType.ImageResource, url, img)
-                charts_html += (f"<h3 style='margin:4px 0 0'>{html.escape(title)}</h3>"
-                                f"<img src='chart://{i}' width='600'>")
+                charts_html += (
+                    "<div style='font-size:16px;font-weight:bold;"
+                    "margin-top:4px'>" + html.escape(title) + "</div>"
+                    f"<img src='chart://{i}' width='600'>" + _gap())
         # The exact same run set the window shows, so the PDF matches it (Knut).
         runs = self._runs_for_report()
         doc.setHtml(self._pdf_html(runs, charts_html))
@@ -1679,7 +1717,7 @@ class MeasurementReportDialog(QDialog):
         intro = (tr("The following profile verification runs are included:")
                  if verification
                  else tr("The following profiles' measurement runs are included:"))
-        out = (_h2(tr("Report Scope"))
+        out = (_h2(tr("Report Scope")) + _gap()
                + "<div>" + html.escape(intro)
                + "</div><ul style='margin:2px 0 6px'>" + items + "</ul>"
                + "<div><b>" + html.escape(tr("No. of Measurements:")) + "</b></div>"
@@ -1844,7 +1882,9 @@ class MeasurementReportDialog(QDialog):
                 "build that history. Screen and print colours here are "
                 "approximate; the numbers come from your measurement file and are "
                 "exact.")) + "</p>")
-        return (_h2(tr("How to read this report"))
+        # page_break: the gap batch (2026-08-13) could leave this headline
+        # orphaned at a page bottom; a fixed break makes page 2 deterministic.
+        return (_h2(tr("How to read this report"), page_break=True) + _gap()
                 + "<table width='100%' cellpadding='12' cellspacing='0'>"
                 f"<tr><td style='background:{_C['panel']}'>" + body
                 + "</td></tr></table>")
@@ -1913,9 +1953,10 @@ class MeasurementReportDialog(QDialog):
                     "perfectly healthy printer. For those sheets the "
                     "detailed chapter shows how far the printer has moved "
                     "since the previous raw check instead.")) + "</div>")
-        return (_h2(tr("Report Results"), page_break=True)
+        return (_h2(tr("Report Results"), page_break=True) + _gap()
                 + f"<div style='color:{_C['dim']};margin-bottom:4px'>" + html.escape(intro)
-                + "</div>" + self._chunked_metric_tables(runs, row_getters)
+                + "</div>" + _gap()
+                + self._chunked_metric_tables(runs, row_getters)
                 + drift_note)
 
     def _comparison_table_html(self, runs: list) -> str:
@@ -1970,7 +2011,7 @@ class MeasurementReportDialog(QDialog):
             lbl = tr("{corner} ΔE00").format(corner=_CORNER_LABELS[code]())
             row_getters.append((lbl, num((lambda r, c=code: corner_de(r, c)), 2)))
         return (_h2(tr("Overview of Measurement Metrics"), page_break=True)
-                + self._chunked_metric_tables(runs, row_getters))
+                + _gap() + self._chunked_metric_tables(runs, row_getters))
 
     def _report_kind(self, runs: list) -> str:
         """"verification" when every included measurement is a colour-managed
@@ -2045,18 +2086,24 @@ class MeasurementReportDialog(QDialog):
                  self._report_results_html(runs)]
         if for_pdf and charts_html:
             parts.append(
-                _h2(tr("Trend over time (this printer)"), page_break=True)
+                _h2(tr("Trend over time (this printer)"), page_break=True) + _gap()
                 + f"<div style='color:{_C['dim']};margin-bottom:6px'>" + html.escape(tr(
                     "A rising average or shifting white/black/colour over time "
                     "points to ageing inks, printer drift, or instrument drift."))
-                + "</div>" + charts_html)
+                + "</div>" + _gap() + charts_html)
         if len(runs) > 1:
             parts.append(self._comparison_table_html(runs))
         if getattr(self, "_detail_check", None) is not None \
                 and self._detail_check.isChecked():
             parts.append(self._detailed_section_html(runs))
-        return (f"<div style='font-family:sans-serif;color:{_C['text']};"
-                f"font-size:12px'>"
+        # The app's own font family, not the literal "sans-serif": Qt's rich
+        # text reads that as a family NAME, warns "missing font family
+        # Sans-serif" on the console (Sebastian, 2026-08-13), and substitutes
+        # anyway — naming the running application's family gets the same look
+        # with no lookup and no warning.
+        family = QApplication.font().family().replace("'", "")
+        return (f"<div style=\"font-family:'{family}';color:{_C['text']};"
+                f"font-size:12px\">"
                 + "".join(parts) + "</div>")
 
     def _pdf_html(self, runs: list, charts_html: str) -> str:
