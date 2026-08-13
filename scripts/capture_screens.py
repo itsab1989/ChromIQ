@@ -23,6 +23,7 @@ Usage:
 """
 from __future__ import annotations
 
+import os
 import pathlib
 
 import sys
@@ -45,6 +46,16 @@ from ui.main_window import MainWindow
 
 HOME_PROJECTS = Path.home() / "ChromIQ"
 DOCS = ROOT / "docs"
+#: Write somewhere other than docs/ — the landing page wants its own set, shot
+#: differently, and must not overwrite the README's.
+if os.environ.get("CHROMIQ_SHOTS_OUT"):
+    DOCS = Path(os.environ["CHROMIQ_SHOTS_OUT"])
+#: Landing-page framing: hide the two frames under the Create Chart preview
+#: ("Measured from Preview" and "Chart layout information") and the margin
+#: warning, so the sheet is shown on its own. Turning the inspector off also
+#: clears the guide lines from the preview (tab_chart._update_margin_inspector),
+#: which is the "no overlay on the TIFF" Sebastian asked for.
+CLEAN_PREVIEW = bool(os.environ.get("CHROMIQ_SHOTS_CLEAN_PREVIEW"))
 # Where the capture stages its disposable copy of the sample project. A real,
 # readable folder rather than a temp dir, because tabs print their paths on
 # screen. Created and removed by the run; never the user's own ChromIQ folder.
@@ -1011,6 +1022,16 @@ def main() -> int:
     # the user happens to have saved) to keep the chart's identity coherent.
     settings.set("chart_instrument", "i1")
     settings.set("chart_paper", "A4")
+    if CLEAN_PREVIEW:
+        # The three Preferences ▸ Instrument Limits checkboxes, off.
+        settings.set("margin_inspector_show", False)
+        settings.set("layout_info_show", False)
+        settings.set("margin_violation_notify", False)
+        # …and the preview's own three, so nothing is drawn over the sheet.
+        settings.set("margin_guides_show", False)
+        settings.set("margin_measured_guides_show", False)
+        settings.set("margin_coords_show", False)
+        log("clean preview: the frames under the chart and every guide are off")
     stage_the_project(settings)
     apply_appearance(app, None, "dark")
     # Clean marketing shots: the masthead shows APP_VERSION, so drop the
