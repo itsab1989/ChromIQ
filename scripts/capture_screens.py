@@ -20,6 +20,23 @@ Usage:
     source .venv/bin/activate
     python scripts/capture_screens.py            # all scenes, both themes
     python scripts/capture_screens.py measure    # only scenes matching "measure"
+
+Two environment switches, for the landing page's own set (docs/index.html),
+which is framed differently from the README's and must not overwrite it:
+
+    CHROMIQ_SHOTS_OUT=<dir>          write there instead of docs/
+    CHROMIQ_SHOTS_CLEAN_PREVIEW=1    hide the two frames under the Create Chart
+                                     preview and every guide line, so the sheet
+                                     is shown on its own
+
+The landing page then takes its images from that folder:
+
+    CHROMIQ_SHOTS_OUT=/tmp/landing CHROMIQ_SHOTS_CLEAN_PREVIEW=1 \
+        python scripts/capture_screens.py
+    python scripts/splice_landing_shots.py /tmp/landing
+
+The chart is built from a FIXED SEED, so every run of this script produces the
+same sheet and the two sets always agree; see stage_the_project.
 """
 from __future__ import annotations
 
