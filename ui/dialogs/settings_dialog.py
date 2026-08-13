@@ -34,8 +34,9 @@ from core.platform_paths import (
     is_windows,
     native_print_supported,
 )
-from core.updater import UpdateChecker, _RELEASES_PAGE
+from core.updater import UpdateChecker, WEBSITE_URL, _RELEASES_PAGE
 from core.version import APP_VERSION
+from ui.styles import SPEC_MAGENTA
 from ui.tooltip_button import TooltipButton
 from ui.widgets import (
     NoScrollComboBox,
@@ -1305,7 +1306,17 @@ class SettingsDialog(QDialog):
             "QTabBar::tab { min-width: 78px; padding: 9px 12px; }")
 
         # ---- About / Updates (below the tabs) ----
-        credit1 = QLabel(tr("ChromIQ v{APP_VERSION} · Created by Sebastian Reiprich").format(APP_VERSION=APP_VERSION), self)
+        # The link word instead of the raw URL, in the app's magenta accent
+        # (Sebastian: "something that looks nice", "use the magenta accent") —
+        # SPEC_MAGENTA is theme-independent, so it reads in both modes.
+        credit1 = QLabel(tr(
+            "ChromIQ v{APP_VERSION} · Created by Sebastian Reiprich · "
+            "<a href=\"{url}\" style=\"color:{accent}\">Website</a>").format(
+                APP_VERSION=APP_VERSION, url=WEBSITE_URL,
+                accent=SPEC_MAGENTA), self)
+        credit1.setTextFormat(Qt.TextFormat.RichText)
+        credit1.setOpenExternalLinks(True)
+        credit1.setToolTip(tr("Open the ChromIQ website in your browser."))
         credit1.setAlignment(Qt.AlignmentFlag.AlignCenter)
         credit1.setStyleSheet("color: #606060; font-size: 11px;")
         outer.addWidget(credit1)

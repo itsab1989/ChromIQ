@@ -1064,6 +1064,36 @@ proposed there; §4 and `cm_5_reconciled.png` are what would actually be built.
 
 ---
 
+## 10a. The external audit of 2026-08-13, and what it changed
+
+An independent review (PDF, delivered by Sebastian 2026-08-13) checked the
+four methodological concerns about #133's module against issue #133 and this
+document. Its verdicts held up against the shipped code, with these outcomes:
+
+**Adopted — wording approved by Sebastian, 2026-08-13** (approval covers the
+wording; the rendered windows are ⏳ until he sees them live):
+
+1. *"How to read this report"* gains a paragraph naming what the one ΔE
+   figure bundles (profile conversion, the printer on the day, instrument
+   uncertainty) and pointing to Check & Refine ▸ "Analyse Profile Quality"
+   as the check that isolates the profile. Closes the audit's concern 3.
+2. *"How to read this report"* gains a comparability paragraph: compare a
+   profile with itself over time; filtered averages are not a fair ranking
+   across papers or printers (glossy keeps harder colours than matte, so a
+   better paper can score worse). Closes the audit's concern 1, first half.
+3. The chart tab's coverage line and the report's gamut-split note carry the
+   percentage besides the absolute counts. Closes concern 1, second half.
+
+**Rejected — profcheck's A2B figure inside the verification report.** The
+audit suggested showing it beside the B2A figures. Decided against
+(recommendation mine, Sebastian delegated): it would put the two measurands
+the audit's concern 3 wants separated into one window; the profiling `.ti3`
+it needs is often gone (imports, deleted runs), so the slot would frequently
+be an apology; and the pointer text in item 1 reaches the same diagnostic
+without a second number to misread.
+
+**Recorded as an open question (§11, question 9): device-space sampling.**
+
 ## 11. Open questions
 
 1. **Build feature A?** Recommendation: yes. Today's verification does not
@@ -1169,6 +1199,18 @@ proposed there; §4 and `cm_5_reconciled.png` are what would actually be built.
 8. **The margin default** — "safely inside" or the full printable range?
    ⚠️ Also weak: no measurement stands behind it. Worth settling with one real
    print rather than an argument.
+9. **Device-space sampling** (raised by the external audit of 2026-08-13,
+   its concern 4). Generating the test colours directly in the *printer's*
+   device space would make every patch in-gamut by construction — the
+   gamut-edge problem, and with it the margin threshold, would disappear.
+   The trade-off is total: the fixed reference base would disappear with
+   it, because every printer would define its own colours — no shared
+   master set, no cross-check against the same list, and the corners'
+   "how far does this ink reach" question loses its fixed yardstick. The
+   current design (fixed set sampled in sRGB space by targen, selection by
+   B2A round trip) chooses the reference base deliberately. Revisit only
+   if a second, printer-local chart type is ever wanted *alongside* the
+   fixed one — never as a replacement.
 
 ## 12. Rating
 

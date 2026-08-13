@@ -238,3 +238,30 @@ def test_raw_sheets_show_drift_not_pass_fail(qapp, tmp_path, monkeypatch):
         assert ">Pass<" not in detail and ">Fail<" not in detail
     finally:
         dlg.deleteLater()
+
+
+def test_the_audit_batch_texts_are_in_the_report(qapp, tmp_path, monkeypatch):
+    """The 2026-08-13 external-audit batch (wording approved by Sebastian):
+    the split note carries the within-gamut share as a percentage, and the
+    how-to section explains what the one ΔE number bundles — with the
+    profcheck pointer — and that filtered averages do not rank papers or
+    printers against each other."""
+    from workflow.measurement_report import build_report
+    s, run, ti3 = _measured(tmp_path, monkeypatch,
+                            lambda labs, *a, **kw:
+                            [i % 2 == 0 for i in range(len(labs))])
+    rep = build_report(ti3, argyll_bin="/x/bin")
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    dlg = MeasurementReportDialog(s, None, initial_ti3=ti3)
+    try:
+        import html as _html
+        detail = _html.unescape(dlg._run_detail_html(rep))
+        gs = rep["gamut_split"]
+        pct = round(100 * gs["n_in"] / (gs["n_in"] + gs["n_out"]))
+        assert f"({pct} %)" in detail
+        how = _html.unescape(dlg._how_to_read_html())
+        assert "Analyse Profile Quality" in how
+        assert "not a fair way to rank papers or printers" in how
+        assert "whole chain in one number" in how
+    finally:
+        dlg.deleteLater()

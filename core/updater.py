@@ -21,6 +21,8 @@ _RELEASES_API = "https://api.github.com/repos/itsab1989/ChromIQ/releases?per_pag
 #: The latest FULL release, however many pre-release tags sit above it.
 _LATEST_API = "https://api.github.com/repos/itsab1989/ChromIQ/releases/latest"
 _RELEASES_PAGE = "https://github.com/itsab1989/ChromIQ/releases"
+#: The project's showcase page (Knut, 2026-08-12: linked from Preferences).
+WEBSITE_URL = "https://itsab1989.github.io/ChromIQ/"
 
 _VERSION_RE = re.compile(
     r"^v?(\d+(?:\.\d+)*)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$"

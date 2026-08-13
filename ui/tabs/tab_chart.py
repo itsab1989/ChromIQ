@@ -10986,8 +10986,10 @@ class TabChart(QWidget):
         parts = []
         if cover is not None and master:
             parts.append(tr(
-                "{n} of the {total} reference colours are printable with "
-                "this profile.").format(n=cover, total=master))
+                "{n} of the {total} reference colours ({pct} %) are "
+                "printable with this profile.").format(
+                    n=cover, total=master,
+                    pct=round(100 * cover / master)))
             if cover < count:
                 parts.append(tr(
                     "Only {n} can be tested, so the chart will hold {n} "

@@ -1819,6 +1819,24 @@ class MeasurementReportDialog(QDialog):
                 "patch stays counted and visible; the Pass/Fail verdict "
                 "judges the within-gamut figures.")) + "</p>"
             "<p>" + html.escape(tr(
+                "The ΔE figures measure a whole chain in one number: the "
+                "profile's conversion of each colour to printer values, the "
+                "printer's behaviour on the day, and your instrument's own "
+                "small uncertainty. A rising number tells you something in "
+                "that chain has moved — not, by itself, which part. To look "
+                "at the profile alone, use Check & Refine ▸ “Analyse Profile "
+                "Quality”: it checks how well the profile describes your "
+                "printer, using the measurement it was built from.")) + "</p>"
+            "<p>" + html.escape(tr(
+                "Compare a profile with itself over time — that is what "
+                "these figures are for. They are not a fair way to rank "
+                "papers or printers against each other, because the averages "
+                "cover only the colours each profile can actually print, and "
+                "that set differs with every paper: a glossy paper keeps "
+                "more of the difficult, saturated colours than a matte one, "
+                "so its average can look worse while it is printing "
+                "better.")) + "</p>"
+            "<p>" + html.escape(tr(
                 "Because the design reference never changes, comparing dated "
                 "reports of the same chart on the same printer is a clean, reliable "
                 "signal of drift — ageing inks, a wandering printer, or an "
@@ -2360,7 +2378,7 @@ class MeasurementReportDialog(QDialog):
                 parts.append(
                     f"<p style='color:{_C['faint']};font-size:10px'>" + html.escape(tr(
                         "Within what the profile ({profile}) can print: {n} of "
-                        "this sheet's colours; beyond it: {m}. The Result "
+                        "this sheet's colours ({pct} %); beyond it: {m}. The Result "
                         "judges the within-gamut figures — a colour beyond "
                         "the gamut was never printable, so its distance "
                         "describes the gamut's limit, not a mistake of the "
@@ -2368,6 +2386,9 @@ class MeasurementReportDialog(QDialog):
                         "column, and how steady they are from check to check "
                         "is a drift signal.").format(
                             n=split.get("n_in"), m=split.get("n_out"),
+                            pct=round(100 * (split.get("n_in") or 0)
+                                      / max((split.get("n_in") or 0)
+                                            + (split.get("n_out") or 0), 1)),
                             profile=split.get("profile", ""))) + "</p>")
             if device_ref:
                 parts.append(f"<p style='color:{_C['faint']};font-size:10px'>" + html.escape(tr(

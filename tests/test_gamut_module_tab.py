@@ -320,3 +320,20 @@ def test_auto_update_assesses_the_verify_chart_not_the_profiling_one(
     built.clear(); paused.clear()
     tab._auto_regenerate_preview()
     assert built and not paused
+
+
+def test_the_coverage_line_carries_the_percentage(qapp, tmp_path, monkeypatch):
+    """The 2026-08-13 audit batch: coverage as a share besides n of N — and
+    the label wraps, so the longer line can never widen the tab."""
+    s, fm, ctl = _env(tmp_path)
+    run = fm.project().run("run1")
+    run.profile_icc.write_bytes(b"icc")
+    tab = _chart_tab(s, fm, ctl)
+    monkeypatch.setattr(tab, "_gamut_coverage", lambda *a, **k: 5413)
+    tab._gamut_master_total = 5960
+    ctl.set_profile_run("run1")
+    ctl.set_run_type(RUN_TYPE_VERIFICATION)
+    tab._switch_mode("gamut")
+    tab._update_gamut_count_line()
+    assert "(91 %)" in tab._gamut_count_lbl.text()      # round(5413/5960*100)
+    assert tab._gamut_count_lbl.wordWrap()

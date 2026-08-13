@@ -197,6 +197,20 @@ each have a plain-language Dictionary entry: open the Welcome window's
   Preferences ▸ Measurement, and the engine no longer carries a beta
   label — only the profile engine is still experimental.
 
+- **The measurement report explains its own limits.** *How to read this
+  report* now says what the one ΔE figure bundles — the profile's
+  conversion of each colour, the printer's behaviour on the day, the
+  instrument's own small uncertainty — and points to Check & Refine ▸
+  **Analyse Profile Quality** as the check that looks at the profile
+  alone. It also says plainly what the figures are for: comparing a
+  profile with itself over time, not ranking papers or printers against
+  each other. The coverage line in Create Chart and the report's
+  within-gamut note now carry percentages besides the counts.
+
+- **Preferences links the ChromIQ website.** The "Created by" line above
+  the buttons carries a **Website** link in the app's accent colour — one
+  click to the showcase page.
+
 - **The measurement model is consistent everywhere.** Replacing a chart,
   rebuilding one, measuring over an existing measurement, deleting a run —
   each has one window, one wording and one outcome, whichever tab you reach

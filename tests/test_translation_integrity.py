@@ -96,6 +96,9 @@ _MIN_LEN = 80
 _NEAR_ENGLISH_OK = (
     "{name}.ti1, {name}.ti2",          # a file listing: placeholders + extensions
     "Built on ArgyllCMS by Graeme Gill",   # the credits line: proper nouns
+    # The version/author line: proper nouns plus the website anchor's HTML —
+    # only "Created by" and the link word are translatable at all.
+    "ChromIQ v{APP_VERSION} · Created by Sebastian Reiprich",
 )
 
 _GLOSSARY = {
