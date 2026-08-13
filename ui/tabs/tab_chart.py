@@ -1680,6 +1680,7 @@ class TabChart(QWidget):
         self._guided_panel = self._make_guided_panel()
         self._manual_panel = self._make_manual_panel()
         self._link_instrument_controls()
+        self._link_name_fields()
         self._stack.addWidget(self._guided_panel)
         self._stack.addWidget(self._manual_panel)
         # #133: the gamut module is embedded in the Manual panel (it replaces
@@ -4819,6 +4820,40 @@ class TabChart(QWidget):
             if pw.flag == "-i":
                 pw.value_changed.connect(lambda *_: _mirror("manual"))
                 break
+
+    def _link_name_fields(self) -> None:
+        """Keep the Guided and Manual profile-name fields as ONE value.
+
+        Knut, 2026-08-13: *"the main profile project name did not follow to
+        the manual mode. There should be a direct link between the guided and
+        manual for this field."* The two fields were only filled together once
+        a project existed, so a name typed on a fresh start lived in one mode
+        only. Same reasoning as :meth:`_link_instrument_controls`: a link makes
+        every path right — typing, presets, loads, and ones written later —
+        where a copy-on-switch would fix only today's report.
+        """
+        self._syncing_target_name = False
+
+        def _mirror(src_edit, dst_edit) -> None:
+            if self._syncing_target_name or dst_edit is None:
+                return
+            self._syncing_target_name = True
+            try:
+                text = src_edit.text()
+                if dst_edit.text() != text:
+                    dst_edit.setText(text)
+            except Exception:      # noqa: BLE001 — a mirror must never block typing
+                log.warning("Could not mirror the profile name between modes",
+                            exc_info=True)
+            finally:
+                self._syncing_target_name = False
+
+        guided = getattr(self, "_target_name_edit", None)
+        manual = getattr(self, "_manual_target_name_edit", None)
+        if guided is None or manual is None:
+            return
+        guided.textChanged.connect(lambda *_: _mirror(guided, manual))
+        manual.textChanged.connect(lambda *_: _mirror(manual, guided))
 
     def _snapshot_shared_settings(self, tab: str) -> None:
         """Remember *tab*'s shared settings as they are now, so the next switch
@@ -8942,6 +8977,8 @@ class TabChart(QWidget):
         if not cal_target_active and not self._preconditioning_from_dialog \
                 and _same_project:
             self._align_current_run_to_target()
+        elif not _same_project:
+            self._seed_new_project_text(cal_target_active)
 
         # #130 (Knut bug): a verification chart must live ONLY in the run's
         # verifications/ folder — the profiling chart at the run root must
@@ -10413,6 +10450,43 @@ class TabChart(QWidget):
         except Exception:      # noqa: BLE001 — never lose the tab over a write
             log.warning("Could not save the restored chart notes", exc_info=True)
 
+    def _seed_new_project_text(self, cal_target_active: bool) -> None:
+        """Give the fields' text a home in the project a Generate just claimed.
+
+        THE FIRST GENERATE OF A NEW PROJECT IS "NEW RUN" IN DISGUISE (Knut +
+        Sebastian, 2026-08-13). The description and chart notes typed before
+        this moment had nowhere to live — no project existed — so they were
+        held in the fields (beta.147's rule). Creating the project here gives
+        them their home, and the write must happen before anything re-reads
+        the fields from the fresh, empty ``meta.json``: that re-read is
+        exactly what wiped them. The bar still says "New run" at this point,
+        so the store cannot be resolved through it — it is taken from the
+        project directly: its first run for a profile build, ``cal/`` for a
+        calibration build.
+        """
+        try:
+            proj_new = self._file_mgr.project()        # creates on first call
+            store = (proj_new.calibration if cal_target_active
+                     else proj_new.current_run())
+            self._write_target_text_into(store)
+            # …and the SETTINGS the chart is being built from, for the same
+            # reason: run1 is born with nothing stored, and §4's "nothing
+            # stored opens on its defaults" would then reset the screen the
+            # moment the post-generate load arrives — Sebastian watched the
+            # Guided instrument flip ColorMunki → i1Pro exactly that way
+            # (2026-08-13). Generate is a §3 save event for the selected
+            # target; the fresh run simply did not exist as a destination
+            # until this moment.
+            from workflow.per_target_settings import snapshot
+            meta = store.load_meta()
+            meta.create_chart_settings = snapshot(self)
+            store.save_meta(meta)
+            log.info("create-chart settings seeded into the new project's %s",
+                     getattr(store, "id", "calibration"))
+        except Exception:      # noqa: BLE001 — never block a build over text
+            log.warning("Could not seed the new project's description",
+                        exc_info=True)
+
     def _write_target_text_into(self, store) -> None:
         """Put what is on screen into ``store``'s meta, whatever is selected.
 
@@ -11768,7 +11842,13 @@ class TabChart(QWidget):
         # the user had typed — on nothing more than a Run-type toggle. Only a
         # name that genuinely belongs to a loaded project should be reflected.
         cur_name = getattr(self._file_mgr, "_target_name", "")
-        if cur_name and cur_name != getattr(self, "_last_shown_project_name", None):
+        # …and never while the Guided↔Manual name mirror is writing: the
+        # mirror's setText re-enters here via set_pending_project_name, and
+        # reflecting the stored project name mid-keystroke would overwrite
+        # the very text being typed (found by the mirror's own test,
+        # 2026-08-13). A mirror write is not a project change.
+        if (cur_name and not getattr(self, "_syncing_target_name", False)
+                and cur_name != getattr(self, "_last_shown_project_name", None)):
             self._last_shown_project_name = cur_name
             self._update_name_fields()
         # #133: the FROM PROFILE GAMUT module exists only for a verification
@@ -12946,12 +13026,13 @@ class TabChart(QWidget):
     def _on_save_defaults(self) -> None:
         params = self._collect_params()
         s = self._settings
-        name = self._file_mgr.strip_workfile_ext(
-            self._target_name_edit.text().strip()
-            if self._current_mode() == "guided"
-            else self._manual_target_name_edit.text().strip()
-        )
-        s.set("chart_target_name",         name or "ChromIQ Test Chart")
+        # The project NAME is deliberately not saved (Sebastian, 2026-08-13):
+        # every other row here is a preference, but the name is the project's
+        # identity — a saved name would seed every future fresh start with an
+        # old project's name, one Generate away from building into it. The
+        # stored key is reset so a name saved by an older version stops
+        # leaking into new sessions too.
+        s.set("chart_target_name",         "ChromIQ Test Chart")
         s.set("chart_stamp_commands",      bool(params.stamp_commands))
         s.set("chart_left_clip_info",      bool(params.left_clip_info))
         s.set("chart_instrument",          params.instrument)

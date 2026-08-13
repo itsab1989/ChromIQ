@@ -1,5 +1,35 @@
 # Changelog
 
+## v4.0.1
+
+Four fixes around the very first chart of a new project — found by Knut and
+Sebastian testing side by side on one afternoon, all sharing a single root:
+what you type before the first Generate had nowhere to live yet.
+
+### Fixed
+
+- **Your run description survives the first Generate.** Typing a description
+  for a brand-new project and pressing Generate Chart cleared the field and
+  lost the text; it is now written into the freshly created run, exactly as
+  it already was when adding a run to an existing project.
+
+- **The project name is one value in Guided and Manual.** A name typed in
+  Guided now appears in Manual immediately (and the other way round) — before,
+  the two fields only agreed once a project existed, so a fresh start showed
+  the name in one mode only.
+
+- **The first chart of a new project keeps your settings.** After the first
+  Generate, the screen could snap back to factory defaults — the instrument
+  jumped from ColorMunki to i1Pro by itself, and a re-layout could redraw the
+  chart with the wrong instrument's geometry, leaving the page half filled.
+  A new project's first run is now born with the exact settings its chart was
+  built from.
+
+- **Save as Defaults no longer stores the project name.** Every other row on
+  the tab is a preference; the name identifies a project — saving it seeded
+  every future fresh start with an old project's name, one Generate away from
+  building into it. The saved name from older versions is cleared too.
+
 ## v4.0.0
 
 > **This entry covers everything that changed since v3.14.7, the last stable release** — 224 betas' worth of work, grouped so you can find what affects you instead of reading a diary. The individual beta histories remain in the repository.

@@ -190,3 +190,149 @@ def test_typing_before_the_run_exists_does_not_raise(tab):
     widget._refresh_target_text()
     _type(widget, "for a run that is not there yet", "")
     assert widget._manual_run_desc_edit.text() == "for a run that is not there yet"
+
+
+# ---- 2026-08-13: the two bugs Knut and Sebastian hit the same afternoon ---
+def test_first_generate_of_a_new_project_keeps_the_typed_text(qapp, tmp_path):
+    """Fresh start, no project: name the project, type a description, press
+    Generate. The first build CREATES the project — and the text typed before
+    that moment must land in run1's meta, not be wiped by the post-generate
+    reload (Knut + Sebastian, both hit it on 2026-08-13). The "New run"
+    flush of beta.147 covered a new run inside an existing project; this is
+    the same rule for the project that does not exist yet."""
+    from core.argyll_runner import ArgyllRunner
+    from core.file_manager import FileManager
+    from core.settings import AppSettings
+    from ui.measurement_target_bar import MeasurementTargetController
+    from ui.tabs.tab_chart import TabChart
+
+    class _Settings(AppSettings):
+        def get(self, key, default=None):
+            if key == "custom_output_path":
+                return str(tmp_path)
+            return super().get(key, default)
+
+    st = _Settings()
+    fm = FileManager(st)
+    fm.set_target_name("Fresh-Project")     # named, but never created
+    ctl = MeasurementTargetController(fm)
+    widget = TabChart(ArgyllRunner(st), fm, st, None)
+    widget.set_target_controller(ctl)
+
+    _type(widget, "typed before the project existed", "and these notes too")
+    assert widget._new_run_text is not None, "nowhere to write yet → held"
+    assert not (tmp_path / "Fresh-Project" / "project.json").exists()
+
+    # The moment _on_generate reaches for a build that is NOT into a loaded
+    # project — the real handler calls exactly this, before the build runs.
+    widget._seed_new_project_text(False)
+
+    run1 = fm.project().current_run()
+    meta = run1.load_meta()
+    assert meta.description == "typed before the project existed"
+    assert meta.chart_notes == "and these notes too"
+    assert widget._new_run_text is None, "the text has a home now"
+    # …and the reload that used to wipe the fields now finds the text.
+    widget._refresh_target_text()
+    assert widget._manual_run_desc_edit.text() == \
+        "typed before the project existed"
+
+
+def test_the_generate_path_actually_calls_the_seed(qapp):
+    """The seed helper is only worth anything if _on_generate reaches it on
+    the new-project branch — pin the wiring, not just the helper."""
+    import inspect
+
+    from ui.tabs.tab_chart import TabChart
+    src = inspect.getsource(TabChart._on_generate)
+    assert "_seed_new_project_text" in src
+    assert src.index("_builds_into_project") \
+        < src.index("_seed_new_project_text"), \
+        "the seed must run on the not-same-project branch"
+
+
+def test_the_two_name_fields_are_one_value(tab):
+    """Knut, 2026-08-13: "the main profile project name did not follow to the
+    manual mode. There should be a direct link between the guided and manual
+    for this field." Typed in either mode, the other shows it — before any
+    project exists, which is the window where nothing else fills them."""
+    widget, _ctl, _project = tab
+    widget._target_name_edit.setText("Typed-In-Guided")
+    assert widget._manual_target_name_edit.text() == "Typed-In-Guided"
+    widget._manual_target_name_edit.setText("Renamed-In-Manual")
+    assert widget._target_name_edit.text() == "Renamed-In-Manual"
+
+
+def test_first_generate_of_a_new_project_seeds_its_settings(qapp, tmp_path):
+    """The instrument flip Sebastian watched live (2026-08-13): run1 of a
+    brand-new project was born with nothing stored, so §4's "nothing stored
+    opens on its defaults" reset the screen — ColorMunki became i1Pro — the
+    moment the post-generate load arrived. The seed writes the screen's
+    settings into the fresh run before anything can read it back."""
+    from core.argyll_runner import ArgyllRunner
+    from core.file_manager import FileManager
+    from core.settings import AppSettings
+    from ui.measurement_target_bar import MeasurementTargetController
+    from ui.tabs.tab_chart import TabChart
+
+    class _Settings(AppSettings):
+        def get(self, key, default=None):
+            if key == "custom_output_path":
+                return str(tmp_path)
+            return super().get(key, default)
+
+    st = _Settings()
+    fm = FileManager(st)
+    fm.set_target_name("Fresh-Settings")
+    ctl = MeasurementTargetController(fm)
+    widget = TabChart(ArgyllRunner(st), fm, st, None)
+    widget.set_target_controller(ctl)
+    combo = widget._instr_combo
+    combo.setCurrentIndex(next(i for i in range(combo.count())
+                               if combo.itemData(i) == "CM"))
+
+    widget._seed_new_project_text(False)     # what _on_generate calls
+
+    meta = fm.project().current_run().load_meta()
+    stored = meta.create_chart_settings or {}
+    assert stored, "run1 must be born with the screen's settings"
+    import json
+    assert '"CM"' in json.dumps(stored), \
+        "the seeded settings must carry the instrument on screen"
+
+
+def test_save_as_defaults_leaves_the_project_name_out(qapp, tmp_path):
+    """Sebastian, 2026-08-13: Save as Defaults stored the current project
+    name, so every future fresh start opened seeded with an old project's
+    name — one Generate away from building into it. Every knob is a
+    preference; the name is the project's identity, and the stored key is
+    reset so older saves stop leaking too."""
+    from core.argyll_runner import ArgyllRunner
+    from core.file_manager import FileManager
+    from core.settings import AppSettings
+    from ui.measurement_target_bar import MeasurementTargetController
+    from ui.tabs.tab_chart import TabChart
+
+    class _Settings(AppSettings):
+        def __init__(self):
+            super().__init__()
+            self.written = {}
+        def get(self, key, default=None):
+            if key == "custom_output_path":
+                return str(tmp_path)
+            return self.written.get(key, super().get(key, default))
+        def set(self, key, value):
+            self.written[key] = value
+
+    st = _Settings()
+    fm = FileManager(st)
+    fm.set_target_name("My-Precious-Project")
+    ctl = MeasurementTargetController(fm)
+    widget = TabChart(ArgyllRunner(st), fm, st, None)
+    widget.set_target_controller(ctl)
+    widget._target_name_edit.setText("My-Precious-Project")
+
+    widget._on_save_defaults()
+
+    assert st.written.get("chart_target_name") == "ChromIQ Test Chart", \
+        "the name must be reset to the factory seed, never saved"
