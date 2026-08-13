@@ -184,6 +184,26 @@ def show_tab(win, key: str) -> None:
     win._tabs.setCurrentIndex(idx)
 
 
+def ensure_chart_mode(win, mode: str) -> None:
+    """Leave the Create Chart tab in *mode*, and prove it before the grab.
+
+    Switching once is not enough. The tab remembers its module PER TARGET
+    (tab_chart, "mode" in the stored UI state) and re-applies the stored value
+    whenever that target's settings are reloaded — which the scene walk causes
+    every time it changes run type. So the Manual scene's choice was restored
+    over the Guided scene's on the second theme pass, and the light Guided shot
+    came out showing Manual (Sebastian spotted it, 2026-08-13). Re-assert after
+    the tab is up, and say so loudly if it will not stick.
+    """
+    ch = win._tab_chart
+    for _ in range(5):
+        if ch._mode_name() == mode:
+            return
+        ch._switch_mode(mode)
+        pump(150)
+    log(f"  WARNING: Create Chart stayed on '{ch._mode_name()}', wanted '{mode}'")
+
+
 def decline_existing_measurement_offer(win) -> None:
     """Silence the "This chart already has a measurement" window for whatever
     the Measure tab now points at.
@@ -377,7 +397,14 @@ def stage_the_project(settings) -> bool:
             leftover.unlink()
         le_chart.build_chart(
             str(ti1), stem, instrument="i1", paper="A4", dpi=300,
-            randomize=True, pscale=0.95, margins=(38.0, 9.0, 19.0, 26.0),
+            # A FIXED SEED, SO EVERY CAPTURE RUN MAKES THE SAME SHEET.
+            # Randomising with no seed gave each run a different patch order,
+            # so the README set and the landing-page set showed two different
+            # charts — and re-shooting either one drifted again (Sebastian,
+            # 2026-08-13). The chart is still randomised, as a real one is;
+            # it is just the same randomisation every time.
+            randomize=True, seed=20260813,
+            pscale=0.95, margins=(38.0, 9.0, 19.0, 26.0),
             use_instrument_margins=True, clip_content_mode="notes",
             clip_text="Canon PRO-300  ·  Canon SG  ·  i1Pro")
         log("run chart rebuilt with the layout engine + notes clip border")
@@ -649,6 +676,7 @@ def scene_list():
         _keep_the_runs_own_chart(win)
         show_tab(win, "chart")
         pump(400)                          # let the patch count recompute
+        ensure_chart_mode(win, "guided")   # a reload can restore Manual
 
     def create_manual(app, win):
         win._tab_chart._switch_mode("manual")
@@ -688,6 +716,7 @@ def scene_list():
             log(f"engine panel instr/paper: {e}")
         _keep_the_runs_own_chart(win)
         show_tab(win, "chart")
+        ensure_chart_mode(win, "manual")
         # SETTING INSTRUMENT/PAPER RE-LAYS THE CHART OUT, AND THE SHOT MUST
         # NOT LAND IN THE GAP. Those two set_value calls change the layout
         # signature, so with "Auto-update preview" on the tab starts a 450 ms
