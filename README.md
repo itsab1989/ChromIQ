@@ -275,6 +275,7 @@ a System/Auto mode that follows your OS live). Click any step to expand it.
 |---|---|---|
 | **Guided** | ![Measure, guided, dark](docs/05-measure-guided-dark.png) | ![Measure, guided, light](docs/05-measure-guided-light.png) |
 | **Manual** | ![Measure, manual, dark](docs/06-measure-manual-dark.png) | ![Measure, manual, light](docs/06-measure-manual-light.png) |
+| **Expected vs. measured overlay** | ![Measure overlay, dark](docs/06b-measure-overlay-dark.png) | ![Measure overlay, light](docs/06b-measure-overlay-light.png) |
 | **"All stripes read" prompt** | ![Measure dialog, dark](docs/17-dialog-measure-stripes-dark.png) | ![Measure dialog, light](docs/17-dialog-measure-stripes-light.png) |
 </details>
 

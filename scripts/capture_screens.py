@@ -186,6 +186,41 @@ def pump(ms: int) -> None:
 # ---------------------------------------------------------------------------
 # Seeding
 # ---------------------------------------------------------------------------
+def _make_a_matching_measurement(stem) -> bool:
+    """Give the rebuilt run chart a measurement that actually fits it.
+
+    Staging regenerates the run's patch set with targen, so the project's own
+    .ti3 describes a sheet that no longer exists: the overlay has nothing it
+    can place, and the Measure tab simply shows the plain chart. Argyll's
+    ``fakeread`` reads the rebuilt chart THROUGH the project's real profile,
+    which gives a genuine measurement of this exact sheet.
+
+    Made by Argyll, never by hand — a .ti3 written by us would be fiction, and
+    the overlay is supposed to show what a real instrument reported.
+    """
+    import shutil
+    import subprocess
+    icc = A_ICC if A_ICC.exists() else None
+    ti2 = stem.with_suffix(".ti2")
+    if icc is None or not ti2.exists():
+        log("  no profile or chart to fake a measurement from")
+        return False
+    fakeread = shutil.which("fakeread") or "/Applications/Argyll/bin/fakeread"
+    try:
+        r = subprocess.run([fakeread, str(icc), str(stem)],
+                           cwd=str(stem.parent), capture_output=True,
+                           text=True, timeout=300)
+    except Exception as e:      # noqa: BLE001 — a shot is not worth a crash
+        log(f"  fakeread failed: {e}")
+        return False
+    if r.returncode != 0 or not stem.with_suffix(".ti3").exists():
+        log(f"  fakeread did not produce a measurement: "
+            f"{(r.stderr or r.stdout).strip()[:100]}")
+        return False
+    log("run chart measured with fakeread — the overlay has real data to show")
+    return True
+
+
 def stage_the_project(settings) -> bool:
     """Copy the sample project somewhere disposable and give it a modern chart.
 
@@ -273,6 +308,7 @@ def stage_the_project(settings) -> bool:
             use_instrument_margins=True, clip_content_mode="notes",
             clip_text="Canon PRO-300  ·  Canon SG  ·  i1Pro")
         log("run chart rebuilt with the layout engine + notes clip border")
+        _make_a_matching_measurement(stem)
         return True
     except Exception as e:                        # noqa: BLE001
         log(f"engine chart build failed ({e}) — falling back to the copied chart")
@@ -469,6 +505,27 @@ def rerender_gamut(win) -> None:
 # Scenes: name → setup(app, win). Each captured in BOTH themes.
 # Heavy async prep (analysis, compare) happens once via prep hooks keyed by name.
 # ---------------------------------------------------------------------------
+def _wait_for_preview(win, timeout_ms: int = 6000) -> bool:
+    """Pump the event loop until the Create Chart preview holds a page.
+
+    A fixed wait cannot cover a re-layout: it is a debounce plus a render, and
+    how long that takes depends on the chart. Waiting for the RESULT instead of
+    a guessed duration is what keeps the shot honest — and it costs nothing on
+    the passes where the preview is already up.
+    """
+    ch = win._tab_chart
+    step = 100
+    for _ in range(max(1, timeout_ms // step)):
+        try:
+            if ch._preview.page_count() > 0:
+                return True
+        except Exception:      # noqa: BLE001 — a probe must not stop a capture
+            pass
+        pump(step)
+    log("  preview did not appear in time")
+    return False
+
+
 def _keep_the_runs_own_chart(win) -> None:
     """Show the chart the open run actually holds, not a second one on top of it.
 
@@ -511,6 +568,15 @@ def scene_list():
             log(f"manual instr/paper: {e}")
         _keep_the_runs_own_chart(win)
         show_tab(win, "chart")
+        # SETTING INSTRUMENT/PAPER RE-LAYS THE CHART OUT, AND THE SHOT MUST
+        # NOT LAND IN THE GAP. Those two set_value calls change the layout
+        # signature, so with "Auto-update preview" on the tab starts a 450 ms
+        # debounce and then re-renders; until that lands the pane reads "NO
+        # PREVIEW". The scene's own 700 ms wait was not enough, so the FIRST
+        # theme captured came out empty while the second (rendered by then)
+        # was fine — the dark Manual shot on the landing page had no chart in
+        # it (Sebastian spotted it, 2026-08-13).
+        _wait_for_preview(win)
 
     def _pick_printer(win):
         # Prefer a native-driver printer matching the project over a driverless
@@ -551,6 +617,47 @@ def scene_list():
         win._tab_measure._switch_mode("manual")
         win._tab_measure.set_ti1_path(engine_preview()["ti2"])
         show_tab(win, "measure")
+
+    def measure_overlay(app, win):
+        """The expected-vs-measured overlay on the project's own chart (#134).
+
+        The same sheet as the other Measure shots, with the run's real
+        measurement laid over it, so each patch shows what was asked for beside
+        what came back. Asked for by Sebastian, 2026-08-13.
+
+        The chart is the PROJECT's, not the engine preview: the overlay needs a
+        measurement whose patch geometry matches the sheet on screen, and only
+        the run's own chart and .ti3 are that pair.
+        """
+        mt = win._tab_measure
+        mt._switch_mode("guided")
+        # THE SAME SHEET AS EVERY OTHER SHOT. The run's own rebuilt chart, not
+        # the project's original one: Sebastian saw a different chart here than
+        # in the neighbouring screenshots, and he was right — this scene was
+        # loading the pre-migration chart from the project root.
+        mt.set_ti1_path(engine_preview()["ti2"])
+        # AND NO MODAL. Loading a chart that already has readings offers the
+        # "This chart already has a measurement" window, which blocks a capture
+        # run for ever (it stopped the first attempt dead). The app's own
+        # silencing set is the honest way to decline it — the same one the
+        # window's "don't ask again" tick uses.
+        try:
+            scope = mt._replace_warning_scope()
+            if scope is not None:
+                mt._offer_silenced.add(scope)
+        except Exception as e:      # noqa: BLE001
+            log(f"  could not silence the existing-measurement offer: {e}")
+        show_tab(win, "measure")
+        pump(400)
+        cb = mt._overlay_cb
+        cb.setVisible(True)
+        if cb.isChecked():
+            mt._show_overlay_from_existing_ti3()
+        else:
+            cb.setChecked(True)          # fires _on_overlay_toggled for real
+        pump(600)
+        if not mt._preview.has_patch_overlay():
+            log("  overlay did not render — shot would show the plain chart")
 
     def profile_guided(app, win):
         win._settings.set("calibration_mode", False)
@@ -609,6 +716,10 @@ def scene_list():
         s("04-print-chart-postscript", print_postscript),
         s("05-measure-guided", measure_guided),
         s("06-measure-manual", measure_manual),
+        # A letter rather than a new number: the numbering is referenced from
+        # the README and the landing page, and renumbering would rename every
+        # later file for the sake of one insertion.
+        s("06b-measure-overlay", measure_overlay),
         s("07-build-profile-guided", profile_guided),
         s("08-build-profile-manual", profile_manual),
         s("09-calibration-create-file", cal_create),

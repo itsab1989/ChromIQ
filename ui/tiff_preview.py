@@ -2228,6 +2228,15 @@ class TiffPreview(QWidget):
             cx = max(int(img_l), min(cx, int(img_r - tw)))
             cy = int(min(img_b - th - 4, patch_bottom + 6))
             cy = max(cy, int(patch_bottom + 2))
+            # …AND KEEP THE WHOLE CHIP ON THE PAPER, like the width above.
+            # The line before prefers "below the last patch", which on a chart
+            # whose patches run close to the bottom edge pushes the chip past
+            # the paper and the pane, so it is drawn half cut off (Sebastian
+            # spotted it in the overlay screenshot, 2026-08-13). When the
+            # bottom margin cannot hold it, resting on the last row is the
+            # lesser evil: the chip is semi-transparent and readable, whereas
+            # a clipped one says nothing at all.
+            cy = max(int(oy), min(cy, int(img_b - th - 4)))
             painter.fillRect(cx, cy, tw, th, QColor(20, 20, 20, 190))
             painter.setPen(QColor("#f4f2ef"))
             painter.drawText(cx + 8, cy + th - 6, txt)
