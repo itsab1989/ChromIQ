@@ -278,3 +278,24 @@ def test_choosing_hexagonal_greys_it_without_generating_a_chart():
     from ui.tabs.tab_chart import TabChart
     src = inspect.getsource(TabChart)
     assert "changed.connect(self._refresh_helper_marker_support)" in src
+
+
+# --- the preview must not promise dashes the file does not have -------------
+
+def test_the_help_says_generate_chart_is_still_needed(panel):
+    """From Knut's beta.5 log (#152): he ticked the markers on at 22:11:46, after
+    his last Generate Chart at 22:11:27, and nothing re-rendered — auto-update
+    was off, which is the default.
+
+    So the preview showed dashes while the chart file on disk had none. The
+    checkbox says "(visible on print)" and the preview agrees with it, which is
+    exactly the reading that ends with a printed sheet that has no dashes on it.
+    The overlay is still the right behaviour — judging the distances without a
+    rebuild is the whole point — but the help has to say plainly where the line
+    between preview and file falls.
+    """
+    body = panel._helper_marker_help()
+    assert "Generate Chart" in body, "the help never mentions the missing step"
+    assert "print" in body.lower()
+    assert "Auto-update preview" in body, (
+        "users with auto-update on must be told they need do nothing extra")

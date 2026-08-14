@@ -1,5 +1,15 @@
 # Changelog
 
+## v4.0.2-beta.8
+
+### Changed
+
+- **The helper-marker help now says when the dashes reach the chart file.**
+  Ticking the box shows them in the preview straight away, so you can judge the
+  two distances against your patches — but they are not in the chart file until
+  you press "Generate Chart", and a sheet printed before that comes out without
+  them. The help says so, and notes that "Auto-update preview" does it for you.
+
 ## v4.0.2-beta.7
 
 ### Fixed
