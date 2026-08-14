@@ -108,14 +108,30 @@ SUBFOLDER_OF = {
 }
 SUBFOLDERS = ("measurement-events", "slow-down", "task-complete")
 
-#: default sound (filename stem) for each event
+#: default sound (filename stem) for each event.
+#:
+#: Knut chose these after living with the pack through a real measurement
+#: (#148, 2026-08-14): *"Patch reading looks off" to be set to "bump"*,
+#: *"Measurement finished" to be set to "Chime-long"*, *"Profile build
+#: finished" to be set to "applause"*. Anyone who has ever pressed Save in
+#: Preferences carries a stored copy of the old choice, so schema 20 drops
+#: those echoes — see AppSettings._migrate_sound_defaults.
 DEFAULT_CHOICE = {
     PATCH_OK: "tick",
-    PATCH_OUT_OF_TOL: "thump",
+    PATCH_OUT_OF_TOL: "bump",
     STRIP_OK: "bell",
     STRIP_FAIL: "failure",
     INSTRUMENT_ERROR: "error",
     SLOW_DOWN: "slowdown",
+    MEASUREMENT_FINISHED: "chime-long",
+    PROFILE_BUILT: "applause",
+}
+
+#: What each of those events defaulted to before Knut's choice, so a stored
+#: value that is only an echo of the old default can be dropped and resolve to
+#: the new one. A sound the user picked themselves is never touched.
+SUPERSEDED_DEFAULT_CHOICE = {
+    PATCH_OUT_OF_TOL: "thump",
     MEASUREMENT_FINISHED: "drumroll",
     PROFILE_BUILT: "trumpet",
 }
