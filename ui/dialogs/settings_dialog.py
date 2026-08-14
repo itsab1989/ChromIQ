@@ -1935,12 +1935,25 @@ class SettingsDialog(QDialog):
         if cls is None:                     # no audio backend in this build/env
             return
         try:
-            from PyQt6.QtCore import QUrl
+            from PyQt6.QtCore import QTimer, QUrl
             eff = getattr(self, "_preview_effect", None) or cls(self)
             self._preview_effect = eff       # keep a ref so it isn't GC'd mid-play
             eff.setSource(QUrl.fromLocalFile(str(path)))
             eff.setVolume(0.85)
-            eff.play()
+            # WAKE THE DEVICE, THEN PLAY INTO IT (#148).
+            #
+            # Every press of this button is a cold start: the audio device has
+            # been idle since the last one, and whatever wakes it loses its own
+            # opening. That is why auditioning the short sounds here found
+            # nothing at all — the sound WAS the thing waking the device.
+            #
+            # So an inaudible clip is played first and the real one follows
+            # 200 ms later, while the warm-up is still running and the device is
+            # certainly awake. The delay belongs to a "let me hear this" button
+            # where it costs nothing; the measurement cues are never delayed
+            # this way — arming warms the device long before the first patch.
+            snd.warm_up_audio(self._settings)
+            QTimer.singleShot(200, eff.play)
         except Exception:                    # noqa: BLE001 — preview must never crash
             pass
 

@@ -125,6 +125,127 @@ def _setting_key(event: str) -> str:
     return f"sound_choice_{event}"
 
 
+# ---- waking the audio device once, before it is needed (#148) --------------
+#
+# What the fault actually is, measured rather than assumed. Playing the same
+# clip several times a second apart, only the FIRST was quiet:
+#
+#     *"the very first one was pretty quiet. then they became louder and better
+#     to hear for me … the repetitions were the same to my ear."*
+#
+# So this is a COLD START, not a per-sound cost. Qt 6.10's QRtAudioEngine
+# suspends the audio device when the last voice ends, but the hardware itself
+# stays warm for a while afterwards — which is why a sound that follows another
+# within a second or so is fine, and why the first sound after a silence loses
+# its opening. During a measurement the per-patch cues come every half second or
+# so and keep each other alive; the one that suffers is the first.
+#
+# The cure is therefore to make sure the first real sound is never the cold one:
+# play a single inaudible clip in advance and let the real cue follow into an
+# already-running device.
+#
+# **This clip ends.** That is the whole safety argument, and it is the
+# difference between this and the version that had to be withdrawn. That one
+# held a voice that never ended, which pinned one CoreAudio stream open for the
+# life of the app; on an external USB device that stream could die with no way
+# back and every later sound went into it — *"After your fix not a single sound
+# is playing."* A warm-up that finishes is just an ordinary short sound. If it
+# fails, or the device ignores it, the worst case is that nothing is gained —
+# never that something is lost.
+
+#: How long the inaudible warm-up clip runs. Long enough to span a device
+#: start-up, short enough that nothing waits on it.
+_WARMUP_SECONDS = 0.30
+
+
+def _warmup_file(rate: int, channels: int) -> "Path | None":
+    """A tiny near-silent ``.wav`` at *rate*/*channels*, written once and cached
+    in the temp directory. ``None`` if it cannot be written.
+
+    Not digital silence: it carries a ±1 LSB dither (-90 dBFS, far below what
+    any speaker can reproduce) so it travels the normal mixing path rather than
+    a "this voice is muted" shortcut.
+    """
+    import tempfile
+    path = (Path(tempfile.gettempdir())
+            / f"chromiq_warmup_{rate}_{channels}.wav")
+    try:
+        if path.is_file() and path.stat().st_size > 44:
+            return path
+        import random
+        import wave
+        rnd = random.Random(0)                    # reproducible
+        n = int(rate * _WARMUP_SECONDS) * channels
+        data = bytearray()
+        for _ in range(n):
+            data += rnd.choice((-1, 0, 1)).to_bytes(2, "little", signed=True)
+        with wave.open(str(path), "wb") as w:
+            w.setnchannels(channels)
+            w.setsampwidth(2)
+            w.setframerate(rate)
+            w.writeframes(bytes(data))
+        return path
+    except Exception as exc:      # noqa: BLE001 — never break a measurement
+        log.debug("could not create the warm-up clip: %s", exc)
+        return None
+
+
+def formats_in_use(settings) -> set:
+    """The distinct ``(sample_rate, channels)`` of every sound currently
+    selected.
+
+    Qt pools its audio engine per (device, format) and keeps each ``.wav``'s own
+    rate and channel count, so a 44.1 kHz warm-up wakes only the 44.1 kHz
+    engine. The bundled pack is uniformly 44.1 kHz mono, but a user's own file
+    may be anything, so each format in use is warmed.
+    """
+    import wave
+    out: set = set()
+    for event in ALL_EVENTS:
+        path = resolve_file(settings, event)
+        if path is None:
+            continue
+        try:
+            with wave.open(str(path)) as w:
+                out.add((w.getframerate(), w.getnchannels()))
+        except Exception:         # noqa: BLE001 — an unreadable/odd .wav
+            continue
+    return out
+
+
+def warm_up_audio(settings) -> None:
+    """Wake the audio device now, so the next real sound is not the cold one.
+
+    Fire and forget: each clip plays once and finishes, and the effects are
+    dropped as soon as they have been started. Safe to call at any time, and
+    safe to call when there is no audio at all.
+    """
+    cls = _sound_effect_cls()
+    if cls is None:                       # no audio in this build/environment
+        return
+    try:
+        from PyQt6.QtCore import QTimer, QUrl
+        held = []
+        for rate, channels in formats_in_use(settings):
+            path = _warmup_file(rate, channels)
+            if path is None:
+                continue
+            eff = cls()
+            eff.setSource(QUrl.fromLocalFile(str(path)))
+            eff.setVolume(0.02)
+            eff.play()
+            held.append(eff)
+        if not held:
+            return
+        # Keep them referenced until the clip has certainly finished, then let
+        # them go — a QSoundEffect collected mid-play would stop the very sound
+        # that is doing the waking.
+        QTimer.singleShot(int(_WARMUP_SECONDS * 1000) + 1500,
+                          lambda _h=held: _h.clear())
+    except Exception as exc:      # noqa: BLE001 — a warm-up must never break a read
+        log.debug("could not warm the audio device: %s", exc)
+
+
 # ---- why there is no "keep the audio device awake" here (#148) -------------
 #
 # Qt 6.10 rewrote QSoundEffect onto QRtAudioEngine, which suspends the audio
@@ -259,6 +380,13 @@ class SoundManager:
         if not self.enabled():
             return
         self._preload(ALL_EVENTS)
+        # Pre-loading puts the SAMPLES in memory; it does nothing about the
+        # DEVICE, which is asleep until something wakes it and swallows the
+        # opening of whatever wakes it. Arming happens well before the first
+        # patch is read, so waking it here means the first tick lands in a
+        # running device — and the ticks that follow keep it awake themselves
+        # (#148). One clip, played once.
+        warm_up_audio(self._settings)
 
     def disarm(self) -> None:
         """Leave measurement mode. Completion sounds may still play afterwards

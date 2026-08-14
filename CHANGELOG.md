@@ -79,19 +79,19 @@ inaccurately.
   of colours again. Any file you exported before this will still be empty, so
   generate the chart again if you need one of them.
 
-- **Measurement sounds: an attempted fix has been withdrawn.** Many of the
-  short sounds — the tick for each patch, the thump for a patch that is
-  off-colour, and ding, click, chime, buzz, bump and ding-hi — can be missing,
-  and longer ones can lose their beginning, which is what stops the bell
-  sounding like a bell. The cause is understood: on some Macs the sound
-  hardware is put to sleep between one sound and the next, and whatever is
-  played while it wakes up again is lost. A first attempt at a cure held the
-  sound hardware awake, and on some setups that stopped **every** sound from
-  playing, which is worse than the problem it was meant to solve. It has been
-  removed, so sounds behave as they did in 4.0.0 while a safer cure is worked
-  out. If sounds are getting in your way meanwhile, the **Play sounds during
-  measurement** box on the Measure tab turns them off (reported by
-  soul-traveller).
+- **The measurement sounds are heard again.** Many of the short sounds went
+  missing entirely — the tick for each patch, the thump for a patch that is
+  off-colour, and ding, click, chime, buzz, bump and ding-hi — and longer ones
+  could lose their opening, which is what stopped the bell sounding like a
+  bell. The sound files were never at fault. On a Mac the sound hardware is
+  allowed to go to sleep when nothing has been played for a while, and whatever
+  wakes it up loses its own beginning while the hardware starts. A short sound
+  can be over before the hardware is properly awake, so it is never heard at
+  all. ChromIQ now wakes the sound hardware quietly in advance — when a
+  measurement starts, and when you press **Play** in **Preferences ▸ Sounds** —
+  so the sound you actually want to hear arrives into hardware that is already
+  running. During a measurement the cues follow each other closely enough to
+  keep it awake by themselves (reported by soul-traveller).
 
 - **The pointer ruler measures the chart you are looking at.** With "Show
   measurement coordinates on pointer" ticked, the readout used the Resolution
