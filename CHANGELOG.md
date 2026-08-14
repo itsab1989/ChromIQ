@@ -1,5 +1,15 @@
 # Changelog
 
+## v4.0.2-beta.9
+
+### Fixed
+
+- **The helper-marker help icon now sits level with its own row.** In the
+  "Measured from Preview" panel the ⓘ beside "Show helper markers" sat slightly
+  low against the checkbox and the two distance boxes. It is centred on that
+  line now, and still lines up with the panel's other ⓘ (reported by
+  soul-traveller).
+
 ## v4.0.2-beta.8
 
 ### Changed

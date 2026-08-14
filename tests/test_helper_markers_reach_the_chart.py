@@ -299,3 +299,23 @@ def test_the_help_says_generate_chart_is_still_needed(panel):
     assert "print" in body.lower()
     assert "Auto-update preview" in body, (
         "users with auto-update on must be told they need do nothing extra")
+
+
+def test_the_help_icon_is_centred_on_its_own_row(panel):
+    """Knut, beta.8 (#152): *"the help icon is not vertically centered with the
+    other objects on the line for 'Show helper markers...'"*.
+
+    The four lines were one nested column in a single grid cell, so the icons had
+    no row to align against — they could only be pinned to the top and bottom of
+    the whole block, and the bottom of a block is not the middle of its last
+    line. Asserted against the widgets on that line rather than a fixed number,
+    so it survives a font or theme change.
+    """
+    def centre(w):
+        return w.mapTo(panel, w.rect().topLeft()).y() + w.height() / 2
+
+    row = [panel._helper_check, panel._helper_edge_lbl, panel._helper_edge,
+           panel._helper_len_lbl, panel._helper_len]
+    want = sum(centre(w) for w in row) / len(row)
+    assert abs(centre(panel._helper_tip) - want) <= 2, (
+        f"the ⓘ centre is {centre(panel._helper_tip)}, the row's is {want}")

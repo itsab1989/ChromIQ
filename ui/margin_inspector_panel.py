@@ -289,20 +289,18 @@ class MarginInspectorPanel(QGroupBox):
         bottom.setContentsMargins(0, 0, 0, 0)
         bottom.setHorizontalSpacing(8)
         bottom.setVerticalSpacing(2)
-        checks = QVBoxLayout()
-        checks.setSpacing(2)
         self._guide_check = QCheckBox(
             tr("Show instrument-margin guide lines on preview (dotted lines)"), self)
         self._guide_check.toggled.connect(self.guides_toggled.emit)
-        checks.addWidget(self._guide_check)
+        bottom.addWidget(self._guide_check, 0, 0)
         self._measured_check = QCheckBox(
             tr("Show margin guide lines on preview (long dotted lines)"), self)
         self._measured_check.toggled.connect(self.measured_guides_toggled.emit)
-        checks.addWidget(self._measured_check)
+        bottom.addWidget(self._measured_check, 1, 0)
         self._coord_check = QCheckBox(
             tr("Show measurement coordinates on pointer"), self)
         self._coord_check.toggled.connect(self.coords_toggled.emit)
-        checks.addWidget(self._coord_check)
+        bottom.addWidget(self._coord_check, 2, 0)
 
         # Ruler helper markers (#152, Knut). Under and left-aligned with the
         # coordinates box, with the two distances on the same row to its right,
@@ -344,15 +342,22 @@ class MarginInspectorPanel(QGroupBox):
         _hm.addStretch()
         self._helper_tip = TooltipButton(
             tr("Helper markers"), self._helper_marker_help(), self)
-        checks.addLayout(_hm)
+        bottom.addLayout(_hm, 3, 0)
         for _w in (self._helper_check,):
             _w.toggled.connect(self._emit_helper_markers)
         for _w in (self._helper_edge, self._helper_len):
             _w.valueChanged.connect(self._emit_helper_markers)
-        bottom.addLayout(checks, 0, 0)
         bottom.setColumnStretch(0, 1)
-        bottom.addWidget(self._helper_tip, 0, 1,
-                         Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom)
+        # ONE GRID ROW PER LINE, so each ⓘ centres on the line it explains.
+        # Knut, beta.8 (#152): *"the help icon is not vertically centered with
+        # the other objects on the line for 'Show helper markers...'"*. The four
+        # lines used to be a single nested column occupying one cell, which left
+        # the icons nothing to align against — they could only be pinned to the
+        # top and bottom of the whole block, and the bottom of that block is not
+        # the middle of its last line. With real rows, AlignVCenter means what it
+        # says, and column 1 still keeps both icons on the same right edge.
+        bottom.addWidget(self._helper_tip, 3, 1,
+                         Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         bottom.addWidget(TooltipButton(
             tr("About the margin inspector"),
             tr("This little panel checks that the chart you just made will be "
@@ -406,11 +411,9 @@ class MarginInspectorPanel(QGroupBox):
                "to check a real distance on screen: hover over the edge of a "
                "patch, or a margin, and read off exactly where it sits."),
             self),
-            # Same cell as the helper-marker ⓘ, opposite ends of it: the cell
-            # spans the whole checkbox column, so Top and Bottom put one against
-            # the first row and one against the last, both on the same right
-            # edge — which is the alignment Knut asked for.
-            0, 1, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
+            # Column 1 like the helper-marker ⓘ, centred on its own row — the
+            # first line here, as that is the one it introduces.
+            0, 1, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         v.addLayout(bottom)
 
     # ------------------------------------------------------------------
