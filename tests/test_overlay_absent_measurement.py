@@ -117,31 +117,27 @@ def test_the_four_states_are_all_distinct():
         assert f'"{reason}"' in src, reason
 
 
-# --- the message says what it compared (his second question) ----------------
+# --- no invented wording ---------------------------------------------------
 
-def test_the_mismatch_message_shows_its_evidence():
-    """Knut: *"Should maybe this message also inform the user what the basis for
-    this message coming is, as the text today is not very specific?"*"""
-    src = inspect.getsource(tab_measure.TabMeasure._on_overlay_toggled)
-    assert "_overlay_mismatch_detail" in src
+def test_the_absent_case_shows_no_window_at_all():
+    """The bug fix is to stop making a false claim, and nothing more.
 
-
-def test_the_evidence_names_both_counts(tmp_path):
-    tab = _chart(tmp_path, ti3_body=TI3_WITH_READINGS)
-    (tmp_path / "chart.ti2").write_text(TI3_WITH_READINGS.replace("CTI3", "CTI2"))
-    detail = tab_measure.TabMeasure._overlay_mismatch_detail(tab)
-    assert "2" in detail, detail
-
-
-def test_the_evidence_never_raises_on_missing_files(tmp_path):
-    """It sits inside a message box; it must never be the thing that fails."""
-    tab = _chart(tmp_path, ti3_body=None)
-    assert tab_measure.TabMeasure._overlay_mismatch_detail(tab)
-
-
-def test_the_absent_message_does_not_mention_a_different_chart():
+    Knut, #155: *"You are inventing new messages and new functions at your own
+    initiative, which is NOT allowed for an app that is released for users."*
+    New measurement wording goes to §M-PROPOSED for approval before it reaches a
+    tab, so until that text exists the tab says its piece in the log.
+    """
     src = inspect.getsource(tab_measure.TabMeasure._on_overlay_toggled)
     start = src.index('if reason == "absent"')
     block = src[start:src.index('elif reason == "empty"')]
-    assert "different chart" not in block
-    assert "not been measured yet" in block
+    assert "_log.appendPlainText" in block
+    assert "setWindowTitle" not in block, "an unapproved window came back"
+
+
+def test_the_approved_mismatch_wording_is_untouched():
+    """§M's M-TI3-MISMATCH already states the counts and names Restore Used
+    Chart. Rewriting this window's text to say the same things differently was
+    the breach; the original wording stands."""
+    src = inspect.getsource(tab_measure.TabMeasure._on_overlay_toggled)
+    assert "Open it in Tools ▸ Inspect a measurement" in src
+    assert not hasattr(tab_measure.TabMeasure, "_overlay_mismatch_detail")

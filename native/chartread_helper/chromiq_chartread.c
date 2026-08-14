@@ -2679,6 +2679,27 @@ a1log *log			/* verb, debug & error log */
 
 				if (pix >= npat)
 					pix = 0;
+				/* CHROMIQ_EXT (#156): search from AFTER the current patch.
+				 *
+				 * The scan used to start on `pix` itself, and in patch-by-patch
+				 * mode you are always sitting on a patch you have not read yet —
+				 * so the very first test matched where you already were and 'n'
+				 * did nothing. Knut: "When I try command 'n' in patch-by-patch
+				 * mode, the selected patch (Here standing on B3 I think) does
+				 * not jump to next patch."
+				 *
+				 * The prompt promises "'n' for next unread", and "next" has to
+				 * mean somewhere else. Starting one along still finds the same
+				 * patch when it is the only unread one left, because the loop
+				 * wraps and stops on `opix`.
+				 *
+				 * The other user of incflag 3 — the session-start skip when
+				 * patch 0 has already been read — is unaffected: that patch is
+				 * read, so it was being skipped either way.
+				 */
+				pix++;
+				if (pix >= npat)
+					pix = 0;
 				for (;;) {
 					if (scols[pix]->rr == 0 && strcmp(scols[pix]->id, "0") != 0)
 						break;

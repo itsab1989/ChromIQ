@@ -1,7 +1,7 @@
 # Unified Measurement Management — Design Specification
 
 > **Revision 2026-08-09 (e) — two approved messages carry a revised print step.**
-> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), M-IMPORT-MISMATCH and M-IMPORT-DATE-TAKEN (the Measure tab's IMPORT module; its import-done window was approved by Sebastian 2026-08-10), plus the revised M-CHART-VERIFY (W5, reworked after the 2026-08-10 hardware session) and M-HOW-PRINTED (pairing 3 — the measure-time question for sheets ChromIQ did not print), plus M-NO-INSTRUMENT-FAST (new, 2026-08-13 — Knut's ColorMunki was invisible on older hardware until "Faster instrument connection" was switched off, so that variant of the no-instrument window names the shortcut and carries its switch) — all defined in the awaiting-review section below.
+> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), M-IMPORT-MISMATCH and M-IMPORT-DATE-TAKEN (the Measure tab's IMPORT module; its import-done window was approved by Sebastian 2026-08-10), plus the revised M-CHART-VERIFY (W5, reworked after the 2026-08-10 hardware session) and M-HOW-PRINTED (pairing 3 — the measure-time question for sheets ChromIQ did not print), plus M-OVERLAY-NO-MEASUREMENT (new, 2026-08-14 — the overlay asked for on a chart that has never been measured, #155) and M-ALL-STRIPS-PATCHES-LEFT (new, 2026-08-14 — every strip read while patches inside them are not, #156; both are wording only, their bug fixes are already in the code and speak through the log until these are approved), plus M-NO-INSTRUMENT-FAST (new, 2026-08-13 — Knut's ColorMunki was invisible on older hardware until "Faster instrument connection" was switched off, so that variant of the no-instrument window names the shortcut and carries its switch) — all defined in the awaiting-review section below.
 > Both were approved by Knut on 2026-08-04, but one step in each instructed *"(with colour management on)"* — a setting ChromIQ deliberately locks **off** on every print path, so the approved text told the user to do something the app prevents (established in `verification_printing_and_target.md` §1, and A0.1 of its plan). With feature A the instruction has a real control to name — the Print Chart tab's **Colour** row — so that one step is revised and the revision waits in §M-PROPOSED. Every other message in §M remains approved as before: the last, **M-BUILD-ELSEWHERE**, was accepted on 2026-08-04 — *"Message M-BUILD-ELSEWHERE accepted"* — and M-CHART-CORRUPT, M-REPLACE-UNCOUNTABLE and M-PREVIEW-PAUSED the day before. A new message goes to §M-PROPOSED first, and `tests/test_message_catalogue.py` fails if one is added to the code without it.
 
 > **Status:** specification, agreed on [issue #130](https://github.com/itsab1989/ChromIQ/issues/130).
@@ -1113,6 +1113,38 @@ sheet unrecorded, exactly as today.*
 > With colour management: the sheet was printed from another application (for example Photoshop) with this run's profile applied. Measuring it checks your whole everyday printing chain, and the report judges it relative to the sheet's own paper white — so the paper is not counted against the profile.
 >
 > Not sure is always safe: the report simply notes that the printing method is not recorded, and judges the colours as they are. Your answer is stored with this measurement only — it changes nothing else.
+
+### M-OVERLAY-NO-MEASUREMENT · PROPOSED · the overlay is asked for on a chart that has never been measured — Measure tab
+
+> **This chart has not been measured yet**
+>
+> There is no measurement file beside this chart, so there is nothing to draw on the patches.
+>
+> Read the chart with your instrument and the overlay will fill in as you go, showing what you measured against the colour each patch was meant to be.
+
+*Why it is proposed rather than in use.* Switching to a run that had never been
+measured showed **M-TI3-MISMATCH**'s claim — that the measurement was made for a
+different chart — about a file that does not exist (#155, Knut). Stopping that
+false claim is a bug fix and is in the code; a window to replace it is new
+wording, so it waits here. Until it is approved the Measure tab writes the same
+information into its log instead of opening a window.
+
+### M-ALL-STRIPS-PATCHES-LEFT · PROPOSED · every strip read, but patches inside them are not — Measure tab
+
+> **Some patches are still unread**
+>
+> Every strip has been read, but {n} patches still have no reading.
+>
+> A strip can be accepted while one or two patches inside it are not recorded — a slight wobble as the instrument passes over them is enough. Everything you have read so far is safe and will be saved.
+>
+> To finish the chart, press **Stop & Save**, then start measuring again with **Patch-by-patch mode** ticked. ChromIQ picks up where the readings stop, so you only measure the patches that are still missing rather than the whole chart again.
+
+*Why it is proposed rather than in use.* Knut, #156: *"the 'All Strips Read'
+message comes, despite that the progress percentage shows 97.1% … This message
+must come only when all patches are read."* Suppressing the finished message
+while patches are unread is the bug fix and is in the code; announcing it in a
+window is new wording, so it waits here. Until it is approved the tab writes the
+count into its log.
 
 ### M-NO-INSTRUMENT-FAST · PROPOSED · the instrument is not there, and the connection shortcut is on — §S2
 

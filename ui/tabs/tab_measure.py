@@ -1832,6 +1832,12 @@ class TabMeasure(QWidget):
             "earlier in the same session and do not want to repeat the step."),
         )
         self._nocal_cb.setVisible(False)
+        # NOT PERSISTED, DELIBERATELY. Guided hides this control outright, and a
+        # remembered `measure_no_cal` once ran every guided measurement
+        # uncalibrated with nothing on screen to say so — beta.148, where every
+        # patch came back "Reading is inconsistent". Guided does not offer the
+        # option, so Guided does not store one. Only the Manual box below is
+        # remembered (#156).
         _nocal_tip.setVisible(False)
         self._pbp_cb, _pbp_tip = _bool_row(
             tr("Patch-by-patch mode (-p)"), False,
@@ -2285,6 +2291,7 @@ class TabMeasure(QWidget):
             "Enable this only if you have already calibrated the instrument\n"
             "earlier in the same session and do not want to repeat the step."),
         )
+        self._m_nocal_cb.toggled.connect(self._persist_skip_calibration)
         self._m_pbp_cb = _bool_row_m(
             tr("Patch-by-patch mode (-p)"), False,
             tr("Patch-by-Patch Mode (-p)"),
@@ -4249,6 +4256,29 @@ class TabMeasure(QWidget):
         # read runs — it gets in the way of swiping and the patch hover tile.
         self._preview.set_suppress_file_tooltip(not enabled)
 
+    def _persist_skip_calibration(self, on: bool) -> None:
+        """Remember Manual's "Skip initial calibration" as soon as it is ticked.
+
+        Knut, #156: *"Every time I start a measurement and then stop, the 'Skip
+        initial calibration' is unticked, instead of keeping the setting I last
+        used."* It was written only by "Save as Defaults", so any settings
+        reload — and one follows a measurement — put back a value that had never
+        been stored, which is False.
+
+        **Manual only.** Guided hides this control, and remembering a value for
+        a control the user cannot see is what made every guided measurement run
+        uncalibrated in beta.148. Not written while a settings load is putting
+        values on screen either, or the load would immediately store what it had
+        just restored.
+        """
+        if getattr(self, "_loading_measure_settings", False):
+            return
+        try:
+            self._settings.set("manual2_chartread_nocal", bool(on))
+        except Exception:      # noqa: BLE001 — a checkbox must never raise
+            log.debug("could not remember the skip-calibration choice",
+                      exc_info=True)
+
     def _on_sound_toggled(self, on: bool) -> None:
         """Master switch for measurement sounds (#131): persist it so it's
         remembered, and pre-load the selected sounds when turning it on so the
@@ -5210,6 +5240,24 @@ class TabMeasure(QWidget):
         if not self._read_builds_on_existing():
             self._sync_overlay_checkboxes(False)
             self._clear_overlay()
+        else:
+            # SHOW EVERYTHING ALREADY MEASURED, NOT JUST THIS SESSION (#156).
+            #
+            # Knut: *"When starting a measurement ALL previously measured
+            # patches shall ALWAYS be shown, so that user knows where to measure
+            # if patches are missing."* That is the whole point of the overlay
+            # during a refinement — the gaps are what he is there to fill.
+            #
+            # The overlay was not being cleared here, but nor was it seeded, so
+            # a refinement began with a blank chart and filled in only what this
+            # session read. Painting the existing measurement first means the
+            # session's own patches land on top of a complete picture.
+            try:
+                if self._show_overlay_from_existing_ti3():
+                    self._sync_overlay_checkboxes(True)
+            except Exception:      # noqa: BLE001 — never block a measurement
+                log.warning("Could not seed the overlay from the existing "
+                            "measurement", exc_info=True)
         self._preview.set_bidirectional(self._effective_bidirectional(params))
         self._log.clear()
         self._auto_proceed = False
@@ -7236,6 +7284,38 @@ class TabMeasure(QWidget):
             self._skip_next_all_done = False
             return
         if self._all_done_shown:
+            return
+        # ALL STRIPS IS NOT ALL PATCHES (#156, Knut).
+        #
+        #     "When finishing strip G (last strip) the 'All Strips Read' message
+        #     comes, despite that the progress percentage shows 97.1% (since 3
+        #     patches are not read in strip B). This message must come only when
+        #     all patches are read, as some patches may be missing, so all
+        #     patches read shall be the finishing metric, not strips read."
+        #
+        # A strip can be accepted while individual patches inside it were never
+        # recorded — which is exactly what a refinement pass exists to pick up.
+        # Announcing the chart finished at that moment invites the user to walk
+        # away from an unfinished measurement, and it was his own progress bar
+        # that caught the contradiction on screen.
+        unread = self._unread_patch_count()
+        if unread:
+            # Say nothing in a window. Knut's requirement is that the finished
+            # message *"must come only when all patches are read"* — so the fix
+            # is to stop showing it, not to invent a replacement. A new window
+            # needs new wording, and measurement wording goes to §M-PROPOSED for
+            # approval before it reaches a tab.
+            self._all_done_shown = True
+            if unread == 1:
+                self._log.appendPlainText(tr(
+                    "Every strip has been read, but 1 patch still has no "
+                    "reading. Measure again with patch-by-patch mode to pick "
+                    "it up."))
+            else:
+                self._log.appendPlainText(tr(
+                    "Every strip has been read, but {n} patches still have no "
+                    "reading. Measure again with patch-by-patch mode to pick "
+                    "them up.").format(n=unread))
             return
         self._all_done_shown = True
 
@@ -9820,9 +9900,15 @@ class TabMeasure(QWidget):
             return True
 
     def _count_strip_progress(self, ev: dict) -> None:
-        """Every patch of a finished strip counts, by its own location id."""
-        if not self._progress_enabled():
-            return
+        """Every patch of a finished strip counts, by its own location id.
+
+        Collected whether or not the progress bar is switched on. Knut's #153
+        wording turns off *"the calculation of patches read in relation to total
+        patches"* — the percentage on screen — and #156 needs the record of
+        WHICH patches have a reading to know when a chart is actually finished.
+        Keeping a set of short strings costs nothing; getting the completion
+        metric wrong cost him a chart he thought was done.
+        """
         try:
             for p in (ev.get("patches") or []):
                 loc = str(p.get("loc", "")).strip()
@@ -9833,8 +9919,6 @@ class TabMeasure(QWidget):
             log.debug("could not count strip progress", exc_info=True)
 
     def _count_patch_progress(self, ev: dict) -> None:
-        if not self._progress_enabled():
-            return
         try:
             loc = str(ev.get("loc", "")).strip()
             if loc:
@@ -9842,6 +9926,43 @@ class TabMeasure(QWidget):
             self._refresh_progress()
         except Exception:      # noqa: BLE001
             log.debug("could not count patch progress", exc_info=True)
+
+    def refresh_progress_setting(self) -> None:
+        """Apply a changed "Show measurement progress bar" straight away (#153).
+
+        Called by the main window when Preferences closes. Knut: *"the checkbox
+        did not remove progress bar when disabled and pressing OK … Changing
+        tabs did also not update"* — the option was read when the bar was drawn
+        and never again, so switching it off left the last bar on screen.
+
+        Switching it back on repaints from what the run has actually measured,
+        rather than showing whatever figure was last calculated.
+        """
+        try:
+            self._refresh_progress()
+        except Exception:      # noqa: BLE001 — a preference must never break the tab
+            log.debug("could not apply the progress-bar preference",
+                      exc_info=True)
+
+    def _unread_patch_count(self) -> "int | None":
+        """How many patches of this chart still have no reading, or ``None``
+        when that cannot be established (#156).
+
+        ``None`` is not zero. It means the chart's patch count could not be
+        read, and a completion claim must never be made on a guess.
+        """
+        try:
+            from workflow.measurement_state import expected_patches
+            _ti3, ti2 = self._progress_files()
+            total = expected_patches(ti2)
+            if not total or total <= 0:
+                return None
+            measured = getattr(self, "_progress_base", 0) + len(
+                getattr(self, "_progress_locs", ()))
+            return max(0, int(total) - int(measured))
+        except Exception:      # noqa: BLE001
+            log.debug("could not count the unread patches", exc_info=True)
+            return None
 
     def _reset_progress(self, *, from_files: bool = True) -> None:
         """Start the count again — a different chart, or a fresh session.
@@ -10663,14 +10784,18 @@ class TabMeasure(QWidget):
         # setInformativeText. Written as one bold block before, which is the
         # fault Basti reported on the chart-choice window in beta.189.
         if reason == "absent":
-            box.setWindowTitle(tr("There is no measurement for this chart yet"))
-            box.setText(tr("This chart has not been measured yet"))
-            box.setInformativeText(
-                tr("There is no measurement file beside this chart, so there is "
-                   "nothing to draw on the patches.\n\n"
-                   "Read the chart with your instrument and the overlay will "
-                   "fill in as you go, showing what you measured against the "
-                   "colour each patch was meant to be."))
+            # NO WINDOW, AND NO INVENTED TEXT.
+            #
+            # A chart that has never been measured used to be told *"This
+            # measurement was made for a different chart"* — a claim about a
+            # file that does not exist (#155). Stopping that claim is the bug
+            # fix. A new window needs new wording, and measurement wording goes
+            # to §M-PROPOSED for approval before it reaches a tab — so this says
+            # its piece in the log until that text exists.
+            self._log.appendPlainText(tr(
+                "There is no measurement for this chart yet, so there is "
+                "nothing to show on the patches."))
+            return
         elif reason == "empty":
             box.setWindowTitle(tr("There is nothing measured yet to show"))
             box.setText(tr("This measurement holds no readings yet"))
@@ -10703,61 +10828,16 @@ class TabMeasure(QWidget):
         else:
             box.setWindowTitle(tr("Can't show the overlay"))
             box.setText(tr("This measurement was made for a different chart"))
-            # SAY WHAT WAS COMPARED, NOT JUST THE VERDICT. Knut, #155: *"Should
-            # maybe this message also inform the user what the basis for this
-            # message coming is, as the text today is not very specific?"* A
-            # bare verdict about your own printed chart is impossible to argue
-            # with or act on, so the counts that produced it are shown.
             box.setInformativeText(
                 tr("The patches in the measurement don't line up with the "
                    "patches in this chart, so drawing them here would put "
                    "colours on the wrong squares.\n\n"
-                   "{detail}\n\n"
-                   "This compares the patch positions recorded in the "
-                   "measurement with the positions in the chart now on screen. "
-                   "Re-laying out a chart keeps its colours but can renumber "
-                   "its patches, so a measurement taken from an earlier layout "
-                   "no longer fits. If this chart is the one you printed, "
-                   "“Restore Used Chart” puts back the exact chart the "
-                   "measurement was taken from.\n\n"
                    "Open it in Tools ▸ Inspect a measurement to see the measured "
-                   "values as a table instead.").format(
-                       detail=self._overlay_mismatch_detail()))
+                   "values as a table instead."))
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
         from ui.widgets import fit_message_box_buttons
         fit_message_box_buttons(box)
         box.exec()
-
-    def _overlay_mismatch_detail(self) -> str:
-        """One sentence of evidence for the mismatch verdict (#155).
-
-        Deliberately the numbers rather than an explanation: how many patches
-        the measurement holds, how many the chart has, and how many of them
-        could be paired up. A user looking at a chart they printed themselves
-        can check those against what they know.
-        """
-        try:
-            from workflow.measurement_state import count_sets
-            ti3 = (self._ti1_path.with_suffix(".ti3")
-                   if self._ti1_path is not None else None)
-            ti2 = (self._ti1_path.with_suffix(".ti2")
-                   if self._ti1_path is not None else None)
-            held = chart = None
-            if ti3 is not None and ti3.is_file():
-                counts = count_sets(ti3)
-                held = counts[1] if counts else None
-            if ti2 is not None and ti2.is_file():
-                counts = count_sets(ti2)
-                chart = (counts[1] or counts[0]) if counts else None
-            if held is None or chart is None:
-                return tr("ChromIQ could not pair any of the measured patches "
-                          "with a patch in this chart.")
-            return tr("The measurement holds {held} measured patches and this "
-                      "chart has {chart}, and none of them could be paired "
-                      "up.").format(held=held, chart=chart)
-        except Exception:      # noqa: BLE001 — evidence must never break the window
-            return tr("ChromIQ could not pair any of the measured patches "
-                      "with a patch in this chart.")
 
     def _overlay_failure_reason(self) -> str:
         """Why the overlay could not be drawn: ``empty`` / ``no_geometry`` /

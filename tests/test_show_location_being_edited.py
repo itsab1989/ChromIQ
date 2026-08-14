@@ -164,12 +164,17 @@ def test_closing_preferences_refreshes_the_bar(qapp):
     """
     import inspect
     from ui.main_window import MainWindow
-    src = inspect.getsource(MainWindow._open_settings_dialog) \
-        if hasattr(MainWindow, "_open_settings_dialog") else None
-    if src is None:
-        # The method name has moved; find whichever one opens SettingsDialog.
-        whole = inspect.getsource(MainWindow)
-        i = whole.index("dlg = SettingsDialog(")
-        src = whole[i:i + 3000]
+    # Read the WHOLE method that opens Preferences, not a fixed slice of it.
+    # A 3000-character window was fine until the method grew — adding one more
+    # widget to the refresh list pushed the call being asserted out of view and
+    # failed a test whose subject had not changed at all.
+    src = None
+    for name in ("_open_settings", "_open_settings_dialog"):
+        fn = getattr(MainWindow, name, None)
+        if fn is not None:
+            src = inspect.getsource(fn)
+            break
+    assert src is not None and "SettingsDialog(" in src, \
+        "could not find the method that opens Preferences"
     assert "_target_bar.refresh()" in src, \
         "closing Preferences must refresh the bar, or the setting appears dead"

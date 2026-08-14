@@ -1,5 +1,40 @@
 # Changelog
 
+## v4.0.2-beta.4
+
+### Fixed
+
+- **"All strips read" waits until every patch really is read.** A strip can be
+  accepted while one or two patches inside it were never recorded, and the
+  finished message still appeared — on a chart that was 97.1% measured. The
+  message now waits until nothing is left, and the measurement log says how
+  many patches are still missing (reported by soul-traveller).
+
+- **A chart with no measurement is no longer said to belong to another chart.**
+  Switching to a run that had never been measured could report that its
+  measurement was made for a different chart — about a file that does not
+  exist. That claim is gone (reported by soul-traveller).
+
+- **"Skip initial calibration" stays as you set it.** In the Manual module the
+  tick was forgotten as soon as a measurement finished. It is now remembered
+  from the moment you set it. The Guided module deliberately does not offer this
+  option, and does not remember one either (reported by soul-traveller).
+
+- **Pressing "n" moves to the next unread patch.** While measuring patch by
+  patch, "n" is meant to jump to the next patch that has no reading yet. It
+  looked at the patch you were already standing on — which has no reading, being
+  the one you are about to measure — and so stayed where it was (reported by
+  soul-traveller).
+
+- **Refining a measurement shows everything measured so far.** Starting a
+  refinement drew only the patches read in that session, so the gaps you were
+  there to fill were invisible. Every patch already measured is shown from the
+  moment the measurement starts (reported by soul-traveller).
+
+- **Switching the progress bar off in Preferences takes effect at once.**
+  Unticking **Show measurement progress bar** and pressing OK left the bar on
+  screen until the app was restarted (reported by soul-traveller).
+
 ## v4.0.2-beta.3
 
 ### Fixed
