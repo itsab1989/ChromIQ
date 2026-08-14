@@ -46,10 +46,43 @@ class PaceConfig:
     min_samples: int = 8
     sample_hz: float = 0.0
     min_patch_seconds: float = 0.10
+    #: How close to the limit a strip has to be before it is called "close to
+    #: the limit", as a percentage of that instrument's own limit (#149, Knut
+    #: 2026-08-14). It was a fixed 35%, which is far too wide:
+    #:
+    #:     *"The typical message is 'Close to the limit - 521 ms per patch …
+    #:     (aim for 400 ms or more)'. 521 is more than 30% above 400. This is
+    #:     too far away from the limit to say that it is close."*
+    #:
+    #: He is right — 400 × 1.35 = 540 ms, so his 521 ms sat just inside the old
+    #: band. At the 10% default the band is 400–440 ms and 521 ms reads as a
+    #: good speed, which is what it deserved. 0 means "never say close to the
+    #: limit; only warn when a strip is genuinely too fast".
+    marginal_percent: float = 10.0
 
     @property
     def knows_rate(self) -> bool:
         return self.sample_hz > 0.0
+
+    @property
+    def marginal_seconds(self) -> float:
+        """The upper edge of the "close to the limit" band, in seconds per
+        patch. Equal to the limit itself when the band is 0%."""
+        pct = max(0.0, float(self.marginal_percent or 0.0))
+        return self.target_seconds * (1.0 + pct / 100.0)
+
+    def strip_target_seconds(self, patches: int) -> "float | None":
+        """The shortest acceptable time for a whole strip of *patches*, or None
+        when the count is unknown.
+
+        Knut, #149: *"the actual limit relatable is the limit for a full strip,
+        which is the 'per patch limit' multiplied by 'the number of patches per
+        strip'."* Milliseconds per patch are hard to feel; seconds per strip are
+        what a person actually experiences at the instrument.
+        """
+        if not patches or patches <= 0:
+            return None
+        return self.target_seconds * patches
 
     @property
     def target_seconds(self) -> float:
@@ -170,7 +203,7 @@ class PaceTracker:
         # 0.46 in binary, so the exactly-correct strip would be called too fast.
         result.too_fast = result.mean_seconds < target * (1 - 1e-9)
         result.marginal = (not result.too_fast
-                           and result.mean_seconds < target * 1.35)
+                           and result.mean_seconds < self.config.marginal_seconds)
         return result
 
     # ---- judging -----------------------------------------------------------
@@ -188,7 +221,7 @@ class PaceTracker:
             result.too_fast = self.enough_data and result.mean_seconds < target
             # "Marginal" = it passed, but a little slower and it would not have.
             result.marginal = (self.enough_data and not result.too_fast
-                               and result.mean_seconds < target * 1.35)
+                               and result.mean_seconds < self.config.marginal_seconds)
         if when is not None and self._strip_start is not None:
             result.elapsed = max(0.0, when - self._strip_start)
         elif self._intervals:
@@ -203,6 +236,49 @@ class PaceTracker:
 # ---------------------------------------------------------------------------
 # plain-language wording (the UI never formats these itself)
 # ---------------------------------------------------------------------------
+def strip_limit_phrase(config: PaceConfig, patches: int) -> str:
+    """"400 ms or more per patch — 6.0 sec. or more per strip", or just the
+    per-patch half when the strip length is unknown.
+
+    Knut asked for the whole-strip figure because milliseconds per patch are
+    hard to relate to (#149), and for it to be kept short because the message
+    sits under the preview where width is scarce: *"there is no need mentioning
+    how many patches a strip has, as it is visible in the preview"*. Always one
+    decimal, and "sec." rather than "seconds", both his ruling.
+    """
+    from core.i18n import tr
+    target_ms = int(round(config.target_seconds * 1000))
+    strip_s = config.strip_target_seconds(patches)
+    if strip_s is None:
+        return tr("{target} ms or more per patch").format(target=target_ms)
+    return tr("{target} ms or more per patch — {secs} sec. or more per strip"
+              ).format(target=target_ms, secs=f"{strip_s:.1f}")
+
+
+def strip_limit_fact(config: PaceConfig, patches: int) -> str:
+    """The same limit stated as a fact rather than an instruction, for a strip
+    that was read well — "aim for 400 ms" reads oddly at someone already doing
+    better than that."""
+    from core.i18n import tr
+    target_ms = int(round(config.target_seconds * 1000))
+    strip_s = config.strip_target_seconds(patches)
+    if strip_s is None:
+        return tr("The limit is {target} ms per patch").format(target=target_ms)
+    return tr("The limit is {target} ms per patch — {secs} sec. per strip"
+              ).format(target=target_ms, secs=f"{strip_s:.1f}")
+
+
+def measured_phrase(pace: StripPace) -> str:
+    """"415 ms per patch, roughly 20 readings each" — the sample count only
+    when the instrument's rate is known, never a guess dressed as a fact."""
+    from core.i18n import tr
+    ms = int(round(pace.mean_seconds * 1000))
+    if pace.est_samples is None:
+        return tr("{ms} ms per patch").format(ms=ms)
+    return tr("{ms} ms per patch, roughly {n} readings each").format(
+        ms=ms, n=pace.est_samples)
+
+
 def strip_pace_message(pace: StripPace, config: PaceConfig) -> str:
     """A friendly sentence about a finished strip, or "" when it read fine.
 
@@ -212,22 +288,20 @@ def strip_pace_message(pace: StripPace, config: PaceConfig) -> str:
     from core.i18n import tr
     if pace.patches <= 1 or not (pace.too_fast or pace.marginal):
         return ""
-    per_patch = tr("{ms} ms per patch").format(ms=int(pace.mean_seconds * 1000))
-    if pace.est_samples is not None:
-        per_patch = tr("{ms} ms per patch — roughly {n} samples").format(
-            ms=int(pace.mean_seconds * 1000), n=pace.est_samples)
-    target_ms = int(config.target_seconds * 1000)
+    measured = measured_phrase(pace)
     if pace.too_fast:
         return tr(
-            "That strip was read quickly: {measured}. Aim for at least {target} "
-            "ms per patch — a slower, steadier swipe gives the instrument more "
-            "light to work with, and is read more accurately."
-        ).format(measured=per_patch, target=target_ms)
+            "That strip was read quickly: {measured}. Aim for {limit}. A "
+            "slower, steadier swipe gives the instrument more light to work "
+            "with, and is read more accurately."
+        ).format(measured=measured,
+                 limit=strip_limit_phrase(config, pace.patches))
     return tr(
-        "That strip read fine, but it was close to the limit: {measured}. A "
-        "slightly slower swipe leaves more margin, so fewer strips need reading "
-        "twice."
-    ).format(measured=per_patch)
+        "That strip read fine, but it was close to the limit: {measured}. "
+        "{limit}. A slightly slower swipe leaves more margin, so fewer strips "
+        "need reading twice."
+    ).format(measured=measured,
+             limit=strip_limit_fact(config, pace.patches))
 
 
 # ---------------------------------------------------------------------------

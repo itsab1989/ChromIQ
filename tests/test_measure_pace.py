@@ -90,7 +90,7 @@ def test_a_marginal_strip_is_flagged_separately():
     """It passed, but only just — the case Argyll never warns about."""
     cfg = PaceConfig(min_samples=8, sample_hz=200.0)      # target 40 ms
     t = PaceTracker(cfg)
-    end, _ = _read(t, 0.0, 0.045, 10)            # 45 ms: over, but close
+    end, _ = _read(t, 0.0, 0.043, 10)            # 43 ms: over, but close
     pace = t.strip_finished(end)
     assert pace.too_fast is False and pace.marginal is True
 
@@ -118,8 +118,12 @@ def test_the_tracker_resets_between_strips():
 def test_message_names_the_sample_estimate_only_when_the_rate_is_known():
     fast = StripPace(patches=10, mean_seconds=0.02, est_samples=4, too_fast=True)
     with_rate = strip_pace_message(fast, PaceConfig(min_samples=8, sample_hz=200.0))
-    assert "20 ms per patch" in with_rate and "4 samples" in with_rate
-    assert "40 ms" in with_rate, "it states the target too"
+    assert "20 ms per patch" in with_rate and "roughly 4 readings" in with_rate
+    assert "40 ms" in with_rate, "it states the per-patch limit too"
+    # #149: the whole-strip limit as well — 40 ms x 10 patches = 0.4 sec.
+    assert "0.4 sec. or more per strip" in with_rate, (
+        "a person cannot feel milliseconds per patch; the strip total is the "
+        "figure they actually experience (Knut, #149)")
 
     blind = StripPace(patches=10, mean_seconds=0.02, est_samples=None, too_fast=True)
     without = strip_pace_message(blind, PaceConfig(sample_hz=0.0,
@@ -262,10 +266,57 @@ def test_a_strip_is_judged_from_its_scan_time_and_patch_count():
 
 
 def test_a_strip_read_only_just_fast_enough_is_marginal():
+    """Inside the band: over the limit, but not by much.
+
+    #149 narrowed the band from a fixed 35% to the user's own percentage,
+    default 10%. At a 100 ms limit that is 100-110 ms, so 105 ms is "close" and
+    the 110.3 ms this test used to assert on is now simply a good speed —
+    which is the whole point of Knut's report.
+    """
     from core.measure_pace import PaceConfig, PaceTracker
     cfg = PaceConfig(min_samples=20, sample_hz=200.0)    # i1Pro 2: 100 ms
-    pace = PaceTracker(cfg).strip_timed(seconds=3.2, patches=29)  # 110 ms
+    pace = PaceTracker(cfg).strip_timed(seconds=3.15, patches=30)  # 105 ms
     assert pace.too_fast is False and pace.marginal is True
+
+
+def test_a_strip_comfortably_over_the_limit_is_not_called_close():
+    """Knut's actual complaint, as a test.
+
+        *"The typical message is 'Close to the limit - 521 ms per patch …
+        (aim for 400 ms or more)'. 521 is more than 30% above 400. This is too
+        far away from the limit to say that it is close."*
+
+    A ColorMunki: 50 Hz x 20 samples = a 400 ms limit. 521 ms is 30% over, well
+    outside the 10% band, and must read as a good speed.
+    """
+    from core.measure_pace import PaceConfig, PaceTracker
+    cfg = PaceConfig(min_samples=20, sample_hz=50.0)     # ColorMunki: 400 ms
+    pace = PaceTracker(cfg).strip_timed(seconds=0.521 * 15, patches=15)
+    assert pace.too_fast is False
+    assert pace.marginal is False, (
+        "521 ms against a 400 ms limit is 30% clear of it — calling that "
+        "'close to the limit' is #149")
+
+
+def test_the_band_is_the_users_own_percentage():
+    """The whole point of the setting: widen it and the same strip changes
+    verdict, so the user can tune how cautious the amber warning is."""
+    from core.measure_pace import PaceConfig, PaceTracker
+    args = dict(min_samples=20, sample_hz=50.0)          # 400 ms limit
+    strip = dict(seconds=0.521 * 15, patches=15)         # 521 ms per patch
+    assert PaceTracker(PaceConfig(**args, marginal_percent=10.0)) \
+        .strip_timed(**strip).marginal is False
+    assert PaceTracker(PaceConfig(**args, marginal_percent=35.0)) \
+        .strip_timed(**strip).marginal is True, "35% is the old behaviour"
+
+
+def test_a_zero_band_never_says_close_to_the_limit():
+    """0% means "only tell me when a strip is genuinely too fast"."""
+    from core.measure_pace import PaceConfig, PaceTracker
+    cfg = PaceConfig(min_samples=20, sample_hz=50.0, marginal_percent=0.0)
+    t = PaceTracker(cfg)
+    assert t.strip_timed(seconds=0.401 * 15, patches=15).marginal is False
+    assert t.strip_timed(seconds=0.300 * 15, patches=15).too_fast is True
 
 
 def test_a_strip_with_no_patches_or_no_time_says_nothing():

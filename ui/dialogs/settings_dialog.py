@@ -1675,6 +1675,41 @@ class SettingsDialog(QDialog):
 
         v.addWidget(grp)
 
+        # How close to the limit still counts as "close" (#149, Knut). Below
+        # the Per-instrument frame because it applies to all of them at once:
+        # it is a percentage of whichever limit that row defines, so one number
+        # is right for every instrument however fast each has to be read.
+        band = QGroupBox(tr("Close to the limit"), self)
+        bl = QHBoxLayout(band)
+        bl.setContentsMargins(12, 12, 12, 12)
+        bl.setSpacing(8)
+        bl.addWidget(QLabel(
+            tr("Warn when a strip is within this much of the limit:"), band))
+        self._pace_marginal_spin = NoScrollSpinBox(band)
+        self._pace_marginal_spin.setRange(0, 100)
+        self._pace_marginal_spin.setSuffix(" %")
+        try:
+            self._pace_marginal_spin.setValue(
+                int(float(self._settings.get("pace_marginal_percent", 10))))
+        except (TypeError, ValueError):
+            self._pace_marginal_spin.setValue(10)
+        bl.addWidget(self._pace_marginal_spin)
+        self._pace_marginal_tip = TooltipButton(
+            tr("Close to the limit"), "", self)
+        bl.addWidget(self._pace_marginal_tip)
+        bl.addStretch(1)
+        v.addWidget(band)
+        # The tooltip quotes real numbers, so it has to be rebuilt whenever any
+        # of them changes. Knut, #149: *"The tool tip numbers … must be dynamic
+        # and change according to actually set limit, so that the tool-tip does
+        # not become wrong when user changes the setting for colormunki."*
+        self._pace_marginal_spin.valueChanged.connect(
+            self._refresh_pace_marginal_tip)
+        for _k in self._pace_hz:
+            self._pace_hz[_k].valueChanged.connect(self._refresh_pace_marginal_tip)
+            self._pace_min[_k].valueChanged.connect(self._refresh_pace_marginal_tip)
+        self._refresh_pace_marginal_tip()
+
         # The single "No. of patches per strip for estimation of speed" box that
         # used to sit here is gone: each instrument now carries its own strip
         # length in the table above, and its explanation moved into each
@@ -1682,6 +1717,58 @@ class SettingsDialog(QDialog):
         self._refresh_pace_estimates()
         v.addStretch(1)
         return page
+
+    def _refresh_pace_marginal_tip(self) -> None:
+        """Rebuild the "close to the limit" tooltip from the numbers on screen.
+
+        Knut, #149: *"The tool tip numbers … must be dynamic and change
+        according to actually set limit, so that the tool-tip does not become
+        wrong when user changes the setting for colormunki."* So the example is
+        computed from this dialog's own live boxes rather than written into the
+        text — an explanation that can go stale is worse than none, because it
+        will be believed.
+        """
+        tip = getattr(self, "_pace_marginal_tip", None)
+        spin = getattr(self, "_pace_marginal_spin", None)
+        if tip is None or spin is None:
+            return
+        pct = int(spin.value())
+        # Quote whichever instrument the user can actually see a limit for,
+        # preferring the ColorMunki because that is the one in the report.
+        example = ""
+        for key in ("colormunki", "i1pro2", "i1pro", "i1pro3", "i1pro3plus"):
+            hz_box, mn_box = self._pace_hz.get(key), self._pace_min.get(key)
+            if hz_box is None or mn_box is None:
+                continue
+            hz, mn = float(hz_box.value()), int(mn_box.value())
+            if hz <= 0 or mn <= 0:
+                continue
+            limit_ms = int(round(mn / hz * 1000))
+            upper_ms = int(round(limit_ms * (1 + pct / 100.0)))
+            name = {"colormunki": "ColorMunki", "i1pro": "i1Pro",
+                    "i1pro2": "i1Pro 2", "i1pro3": "i1Pro 3",
+                    "i1pro3plus": "i1Pro 3+"}[key]
+            if pct <= 0:
+                example = tr(
+                    "\n\nRight now the {name} limit is {limit} ms per patch, "
+                    "and at 0% you will only be told when a strip is faster "
+                    "than that."
+                ).format(name=name, limit=limit_ms)
+            else:
+                example = tr(
+                    "\n\nRight now the {name} limit is {limit} ms per patch, so "
+                    "a strip is called close to the limit between {limit} and "
+                    "{upper} ms per patch. Anything slower than {upper} ms is "
+                    "simply reported as a good speed."
+                ).format(name=name, limit=limit_ms, upper=upper_ms)
+            break
+        tip.set_content(tr("Close to the limit"), tr(
+            "A strip that is read fast enough still passes. But if it only just "
+            "scraped through, a slightly slower swipe next time would give you "
+            "more margin — and this is how close to the limit a strip has to be "
+            "before ChromIQ mentions it in amber.\n\n"
+            "Set it to 0% to be told only when a strip is genuinely too fast."
+        ) + example + tr("\n\nDefault: 10%"))
 
     def _refresh_pace_estimates(self) -> None:
         """Update every instrument's "fastest a strip may be read" figure.
@@ -3535,6 +3622,8 @@ class SettingsDialog(QDialog):
                 s.set(f"pace_min_samples_{_key}", int(_mn.value()))
             for _key, _pp in self._pace_patches.items():
                 s.set(f"pace_estimate_patches_{_key}", int(_pp.value()))
+        if hasattr(self, "_pace_marginal_spin"):
+            s.set("pace_marginal_percent", int(self._pace_marginal_spin.value()))
         from core.platform_paths import set_icc_install_override
         set_icc_install_override(self._profile_dir_edit.text())
         # Margin inspector: behaviour flags + the per-combo threshold table.

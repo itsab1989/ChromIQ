@@ -4531,6 +4531,21 @@ class TabChart(QWidget):
                 return
             self._preset_ti1_path = Path(ti1)
             self._preset_ti1_targen_sig = self._targen_signature()
+            # SHOW the lock, don't just hold it. `_ti1_preset_active` is true
+            # the moment `_preset_ti1_path` is set, which is what puts the
+            # "Edit patch recipe (override preset)" box on screen and greys the
+            # targen panel behind it. Knut spotted the missing box before we
+            # spotted the missing binding:
+            #
+            #   *"the checkmark 'Edit patch recipe (override preset)' is shown
+            #   and is disabled. This checkmark was missing on both run 1 and
+            #   run 2 … That might be one cause that allowed targen to run
+            #   after I applied the patch set from the editor."*
+            #
+            # He was reading the right signal. Without this refresh the patch
+            # set would be protected while the screen still said it was not,
+            # which is the state that cost him thirteen printed pages.
+            self._update_preset_locks()
             log.info("Create Chart: this run's own patch set (%s) is attached, "
                      "so regenerating reproduces it", Path(ti1).name)
         except Exception as exc:  # noqa: BLE001 — never block showing a chart

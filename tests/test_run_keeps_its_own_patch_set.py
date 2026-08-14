@@ -68,16 +68,20 @@ EDITED_TI1 = TARGEN_TI1.replace('ORIGINATOR "Argyll targen"',
 
 
 class _Tab:
-    """The two attributes and one helper the rebind touches — driving the real
-    method without building a whole Create Chart tab."""
+    """The attributes and helpers the rebind touches — driving the real method
+    without building a whole Create Chart tab."""
 
     def __init__(self, sig="SIG"):
         self._preset_ti1_path = None
         self._preset_ti1_targen_sig = None
         self._sig = sig
+        self.locks_refreshed = 0
 
     def _targen_signature(self):
         return self._sig
+
+    def _update_preset_locks(self):
+        self.locks_refreshed += 1
 
     _rebind_patch_set_from_run = None      # bound in the fixture
 
@@ -116,6 +120,33 @@ def test_the_signature_is_captured_so_the_escape_hatch_survives(tab, tmp_path):
     ti1 = _write(tmp_path, "chart.ti1", EDITED_TI1)
     tab._rebind_patch_set_from_run(ti1)
     assert tab._preset_ti1_targen_sig == "SIG"
+
+
+def test_the_lock_is_shown_not_just_held(tab, tmp_path):
+    """Knut read the missing lock before anyone found the missing binding:
+
+        *"the checkmark 'Edit patch recipe (override preset)' is shown and is
+        disabled. This checkmark was missing on both run 1 and run 2 … That
+        might be one cause that allowed targen to run after I applied the patch
+        set from the editor."*
+
+    ``_ti1_preset_active`` turns true the moment the path is set, and that is
+    what puts the box on screen and greys the targen panel. Setting the state
+    without refreshing would protect the patch set while the screen still said
+    it was unprotected — the exact state that cost him thirteen printed pages.
+    """
+    ti1 = _write(tmp_path, "chart.ti1", EDITED_TI1)
+    tab._rebind_patch_set_from_run(ti1)
+    assert tab.locks_refreshed == 1, (
+        "the override row and the greying were never refreshed, so the lock "
+        "would be invisible")
+
+
+def test_no_lock_refresh_when_nothing_was_bound(tab, tmp_path):
+    """A targen chart changes nothing, so it must not disturb the panels."""
+    ti1 = _write(tmp_path, "chart.ti1", TARGEN_TI1)
+    tab._rebind_patch_set_from_run(ti1)
+    assert tab.locks_refreshed == 0
 
 
 def test_a_targen_chart_is_not_bound(tab, tmp_path):

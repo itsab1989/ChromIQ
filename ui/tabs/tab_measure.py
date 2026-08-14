@@ -4307,13 +4307,23 @@ class TabMeasure(QWidget):
             min_samples = int(stored_min or 0)
         except (TypeError, ValueError):
             min_samples = min_default or 0
+        # How close to the limit still counts as "close" (#149). A percentage
+        # of this instrument's own limit, so one setting is right for every
+        # instrument however fast each one has to be read.
+        try:
+            marginal_pct = float(self._settings.get("pace_marginal_percent", 10.0))
+        except (TypeError, ValueError):
+            marginal_pct = 10.0
+        marginal_pct = max(0.0, min(100.0, marginal_pct))
         # 0 = off for this instrument: a rate of 0 makes samples_for() return
         # None and target_seconds fall back to a threshold nothing can trip.
         if min_samples <= 0:
             return PaceConfig(min_samples=0, sample_hz=0.0,
-                              min_patch_seconds=0.0)
+                              min_patch_seconds=0.0,
+                              marginal_percent=marginal_pct)
         return PaceConfig(min_samples=min_samples, sample_hz=hz,
-                          min_patch_seconds=0.0)
+                          min_patch_seconds=0.0,
+                          marginal_percent=marginal_pct)
 
     def _pace_tracker(self):
         """The tracker for this measurement, created on first use."""
@@ -9094,6 +9104,19 @@ class TabMeasure(QWidget):
                                      QEvent.Type.HideToParent):
             self._sync_pace_area_visible()
             return False
+        # THE VERDICT MUST STILL FIT AFTER THE WINDOW IS NARROWED.
+        #
+        # Its minimum height is computed from heightForWidth at the width it had
+        # when the text was set. Narrow the window afterwards and the same words
+        # need another line, but the floor still describes the old, wider
+        # label — so the last line is clipped. #149 makes this reachable: the
+        # message now carries the whole-strip limit as well, and Knut asked what
+        # happens to it when the preview area is made smaller —
+        # *"the message area must be adapted in height to fit the text"*.
+        if obj is getattr(self, "_pace_verdict_lbl", None) \
+                and event.type() == QEvent.Type.Resize:
+            self._refit_pace_verdict_height()
+            return False
         if event.type() == QEvent.Type.KeyPress:
             # NO PROCESS, NO BUSINESS SWALLOWING KEYS.
             #
@@ -9413,21 +9436,35 @@ class TabMeasure(QWidget):
             return
         self._pace_patches = pace.patches
         self._pace_times[strip or "?"] = (pace.elapsed, True)
-        ms = int(pace.mean_seconds * 1000)
-        target_ms = int(config.target_seconds * 1000)
+        # #149, approved by Knut 2026-08-14. Two things changed: the whole-strip
+        # limit is stated as well as the per-patch one, because "milliseconds
+        # per patch" is hard for a person to relate to; and the "close to the
+        # limit" band is now the user's own percentage rather than a fixed 35%,
+        # which used to call a 521 ms strip "close" to a 400 ms limit.
+        #
+        # The trailing clause is deliberately terse — "6.0 sec. or more per
+        # strip", not "for this 15-patch strip". His reasoning: the panel sits
+        # under the preview where width is scarce, and *"there is no need
+        # mentioning how many patches a strip has, as it is visible in the
+        # preview"*.
+        from core.measure_pace import (measured_phrase, strip_limit_fact,
+                                       strip_limit_phrase)
+        measured = measured_phrase(pace)
         if pace.too_fast:
             colour, verdict = "#ff6b6b", tr("Too fast — read more slowly")
+            limit = tr("Aim for {limit}.").format(
+                limit=strip_limit_phrase(config, pace.patches))
         elif pace.marginal:
             colour, verdict = "#e0a63a", tr("Close to the limit")
+            limit = tr("Aim for {limit}.").format(
+                limit=strip_limit_phrase(config, pace.patches))
         else:
             colour, verdict = "#5cb85c", tr("Good reading speed")
-        detail = tr("{ms} ms per patch (aim for {target} ms or more)").format(
-            ms=ms, target=target_ms)
-        if pace.est_samples is not None:
-            detail = tr(
-                "{ms} ms per patch — roughly {n} readings (aim for {target} ms "
-                "or more)").format(ms=ms, n=pace.est_samples, target=target_ms)
-        self._refresh_pace_panel(f"{verdict} · {detail}", colour)
+            # Already faster than the limit, so the limit is stated as a fact
+            # rather than as an instruction to do what they are doing.
+            limit = tr("{limit}.").format(
+                limit=strip_limit_fact(config, pace.patches))
+        self._refresh_pace_panel(f"{verdict} · {measured}. {limit}", colour)
 
     def _measurement_summary(self) -> str:
         """How the whole chart went, for the window that closes a measurement
@@ -9517,12 +9554,32 @@ class TabMeasure(QWidget):
             lbl.setVisible(bool(verdict))
             self._sync_pace_area_visible()
             if verdict:
-                # A floor under its own height: the warning disappearing is the
-                # one failure Knut has reported three times, and a label with a
-                # minimum cannot be squeezed out of a layout.
-                lbl.setMinimumHeight(lbl.heightForWidth(max(lbl.width(), 200))
-                                     if lbl.wordWrap() else
-                                     lbl.sizeHint().height())
+                self._refit_pace_verdict_height()
+
+    def _refit_pace_verdict_height(self) -> None:
+        """Give the verdict a height floor that matches its CURRENT width.
+
+        A floor under its own height is why the warning cannot be squeezed out
+        of the layout — the one failure Knut has reported three times. But the
+        floor has to be recomputed whenever the width changes, or a narrower
+        window wraps the text onto another line that the old floor has no room
+        for. Called on set and on every resize.
+        """
+        lbl = getattr(self, "_pace_verdict_lbl", None)
+        if lbl is None or not lbl.text():
+            return
+        try:
+            if lbl.wordWrap():
+                # 200 px is a floor for the *measurement*, not for the label:
+                # heightForWidth on a not-yet-laid-out label can be asked about
+                # width 0 and answer with a single line.
+                want = lbl.heightForWidth(max(lbl.width(), 200))
+            else:
+                want = lbl.sizeHint().height()
+            if want > 0 and want != lbl.minimumHeight():
+                lbl.setMinimumHeight(want)
+        except Exception:      # noqa: BLE001 — a verdict must never break a read
+            log.debug("could not refit the pace verdict height", exc_info=True)
 
     def _clear_pace_readout(self) -> None:
         """Forget the pace shown on screen — a new or re-read chart starts from

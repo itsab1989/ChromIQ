@@ -5368,7 +5368,16 @@ class Ti2RelayoutDialog(QDialog):
             except Exception as exc:  # noqa: BLE001
                 log.warning("seed engine panel for loaded colours failed: %s", exc)
         self._refresh_engine_panel_visible()
-        self._set_chart(spec, program, f"Loaded {path.name}")
+        # Say how many patches arrived (#150). Knut, on being offered a note
+        # about the reference tables as well: *"No, it is enough that the editor
+        # says how many patches loaded. The user does not need to know about the
+        # other tables."* So the count alone — it is what he checked the file
+        # against, and it is the number that was wrong.
+        self._set_chart(spec, program, tr(
+            "Loaded {name} — {n} patches.").format(name=path.name,
+                                                   n=len(program))
+            if len(program) != 1 else tr(
+            "Loaded {name} — 1 patch.").format(name=path.name))
         return True
 
     def _new_chart(self) -> None:

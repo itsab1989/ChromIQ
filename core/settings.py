@@ -241,6 +241,12 @@ DEFAULTS: dict[str, Any] = {
     "pace_hint_enabled":         True,
     "pace_min_samples":          8,
     "pace_min_patch_ms":         100,
+    # How close to the limit a strip has to be before it is called "close to
+    # the limit", as a percentage of the instrument's own limit (#149, Knut
+    # 2026-08-14). It was a fixed 35%, wide enough to call a 521 ms strip
+    # "close" to a 400 ms limit. 0 = only ever warn about a strip that is
+    # genuinely too fast.
+    "pace_marginal_percent":     10,
     # Strip length used for the live "fastest a strip may be read" figures in
     # Preferences → Measurement. Per instrument since #130 (Knut, 2026-07-29):
     # pace_estimate_patches_<model>, seeded from measure_pace.ESTIMATE_PATCHES.
@@ -482,9 +488,12 @@ _MARGIN_SEED: dict[str, dict[str, Any]] = {
     **{f"i1Pro|{c}": _i1_primary(c) for c in _PRIMARY_COMBOS},
     **_seed_rows("i1Pro 3+", _I1P3_DESC, 9, 9, _ALL_COMBOS),
     **{f"i1Pro 3+|{c}": dict(_I1P3_PRIMARY) for c in _PRIMARY_COMBOS},
-    # Knut, #131 2026-07-27: the ColorMunki needs 30 mm at the top and 10 mm at
-    # the bottom on every page size; the sides stay at 6 mm.
-    **_seed_rows("ColorMunki", _CM_DESC, 6, 30, _ALL_COMBOS, bottom=10),
+    # Knut, #151 2026-08-14: 33 mm at the top on every page size, not 30. The
+    # ColorMunki has two knobs on its underside that catch on the edge of the
+    # sheet as a strip is started, so the head needs a little more paper in
+    # front of the first patch than the optics alone would suggest. The bottom
+    # stays at 10 mm and the sides at 6 mm (#131).
+    **_seed_rows("ColorMunki", _CM_DESC, 6, 33, _ALL_COMBOS, bottom=10),
 }
 
 
@@ -503,6 +512,12 @@ def _same_margin(a: dict[str, Any], b: dict[str, Any]) -> bool:
 _CM_OLD_MARGINS = {"L": 6, "R": 6, "T": 24, "B": 6}
 _CM_NEW_MARGINS = {"L": 6, "R": 6, "T": 30, "B": 10}
 
+#: Schema 19 (#151): the top goes 30 → 33 mm. Both earlier defaults are listed
+#: because a blob may hold either — 6/6/24/6 from before schema 13 if the user
+#: has never opened Preferences since, or 6/6/30/10 from schema 13 onwards.
+_CM_TOP33_OLD = (_CM_OLD_MARGINS, _CM_NEW_MARGINS)
+_CM_TOP33_MARGINS = {"L": 6, "R": 6, "T": 33, "B": 10}
+
 
 def upgrade_colormunki_margins(
     table: dict[str, dict[str, Any]]
@@ -520,6 +535,31 @@ def upgrade_colormunki_margins(
             continue
         if _same_margin(row, _CM_OLD_MARGINS):
             row.update(_CM_NEW_MARGINS)
+            changed = True
+    return table, changed
+
+
+def upgrade_colormunki_top_margin_33(
+    table: dict[str, dict[str, Any]]
+) -> tuple[dict[str, dict[str, Any]], bool]:
+    """Give every ColorMunki page combination a 33 mm top margin (schema 19,
+    Knut #151), returning ``(table, changed)``.
+
+    *"Due to two knobs underneath the colormunki, which keeps getting caught in
+    the paper edge when starting a strip, the top margin instrument limit should
+    be set to 33.0 mm."*
+
+    Only rows still holding a shipped default are raised — either the pre-schema-13
+    6/6/24/6 or the schema-13 6/6/30/10. A threshold the user tuned for their own
+    rig is left exactly as it is, because these values are seeds to adjust, not
+    physical minima.
+    """
+    changed = False
+    for key, row in list(table.items()):
+        if not key.startswith("ColorMunki|"):
+            continue
+        if any(_same_margin(row, old) for old in _CM_TOP33_OLD):
+            row.update(_CM_TOP33_MARGINS)
             changed = True
     return table, changed
 
@@ -647,7 +687,7 @@ def thresholds_for_combo(
 # Bump when a shipped default changes in a way that must reach users who have
 # the OLD default persisted. Settings → Save writes every key, so a stored
 # value otherwise pins a user to the old behaviour for good.
-SETTINGS_SCHEMA = 18
+SETTINGS_SCHEMA = 19
 
 # key → the old default(s) it must no longer be stuck on. Only a stored value
 # EQUAL to one of the old defaults is dropped (so it falls through to the new
@@ -732,6 +772,8 @@ class AppSettings:
             dropped.append("margin_thresholds[i1Pro A4 Portrait/A3 Landscape bottom→19mm]")
         if self._migrate_colormunki_margins():
             dropped.append("margin_thresholds[ColorMunki top→30mm, bottom→10mm]")
+        if self._migrate_colormunki_top_margin_33():
+            dropped.append("margin_thresholds[ColorMunki top→33mm]")
         if self._migrate_colormunki_min_samples():
             dropped.append("pace_min_samples_colormunki (30 → 23)")
         if self._migrate_patch_warn_floor():
@@ -877,6 +919,28 @@ class AppSettings:
         except Exception:  # noqa: BLE001
             return False
         table, changed = upgrade_colormunki_margins(table)
+        if changed:
+            self._qs.setValue("margin_thresholds",
+                              serialize_margin_thresholds(table))
+        return changed
+
+    def _migrate_colormunki_top_margin_33(self) -> bool:
+        """schema 19 (#151, Knut 2026-08-14): the ColorMunki's top margin goes
+        from 30 mm to 33 mm on every page size — the two knobs on its underside
+        catch on the edge of the sheet when a strip is started.
+
+        Upgrades a stored ``margin_thresholds`` blob in place, but only rows
+        still holding a shipped default. A threshold the user tuned is left
+        untouched. Fresh installs need nothing — the seed carries 33 already.
+        """
+        raw = self._qs.value("margin_thresholds", None)
+        if not raw:
+            return False
+        try:
+            table = parse_margin_thresholds(str(raw))
+        except Exception:  # noqa: BLE001
+            return False
+        table, changed = upgrade_colormunki_top_margin_33(table)
         if changed:
             self._qs.setValue("margin_thresholds",
                               serialize_margin_thresholds(table))
