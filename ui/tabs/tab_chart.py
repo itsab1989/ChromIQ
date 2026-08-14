@@ -4485,8 +4485,56 @@ class TabChart(QWidget):
         self._current_ti1_path = ti1 if ti1.is_file() else None
         self._shown_chart_ti2 = ti2      # track the artefact now on screen (#130)
         self._shown_chart_stamp = self._chart_stamp(ti2)
+        # A chart built from a patch set of the user's own keeps that patch set
+        # when it is regenerated (#147). This has to happen AFTER
+        # _restore_chart_settings, because the signature we store is only
+        # meaningful once the panels hold this chart's own settings.
+        self._rebind_patch_set_from_run(ti1)
         # Let Print / Measure pick the chart up, as if it had just been built.
         self.chart_finished.emit(list(tiffs), ti2, False)
+
+    def _rebind_patch_set_from_run(self, ti1: Path | None) -> None:
+        """Re-attach the run's own patch set so regenerating reproduces it (#147).
+
+        Knut printed a chart, duplicated its run, then went back to the first
+        run, edited its description and chart notes, and pressed Generate Chart
+        purely to restamp the notes. He got a **different chart** — 2002 fresh
+        targen patches in place of the 1994 he had edited by hand — while the
+        seed on screen never changed.
+
+        The seed was innocent. targen is deterministic (same arguments, same
+        ``.ti1``, verified), and the seed only shuffles the *order* of a patch
+        set. What changed was the patch **set**: the binding to his edited patch
+        set lived only in memory, so opening the project cleared it
+        (:meth:`_load_existing_profile`), and Generate silently fell through to
+        a fresh targen run.
+
+        That is worse than an irreproducible chart. The sheet was already
+        printed, and its patches no longer match the ``.ti2`` ChromIQ would
+        measure it against — every reading would land on the wrong patch and
+        the profile would be quietly wrong, with nothing on screen to say so.
+
+        So the run's own ``.ti1`` is re-attached as the patch source whenever it
+        did not come from targen. Its signature is snapshotted at the same
+        moment, which preserves the existing escape hatch: change a setting that
+        defines the patch *set* and Generate still builds a fresh one, while
+        changing only the *layout* re-lays-out the very same patches.
+        """
+        try:
+            if ti1 is None or not Path(ti1).is_file():
+                return
+            # targen's own output needs no binding — it is reproducible from
+            # the same arguments, so regenerating already returns it unchanged.
+            head = Path(ti1).read_text(encoding="utf-8", errors="replace")[:2048]
+            m = re.search(r'^ORIGINATOR\s+"([^"]*)"', head, re.MULTILINE)
+            if m and "targen" in m.group(1).lower():
+                return
+            self._preset_ti1_path = Path(ti1)
+            self._preset_ti1_targen_sig = self._targen_signature()
+            log.info("Create Chart: this run's own patch set (%s) is attached, "
+                     "so regenerating reproduces it", Path(ti1).name)
+        except Exception as exc:  # noqa: BLE001 — never block showing a chart
+            log.warning("Could not re-attach the run's patch set: %s", exc)
 
     def _load_yaml_params(self) -> dict:
         path = resource_path("data/parameters.yaml")

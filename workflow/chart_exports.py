@@ -17,26 +17,17 @@ from pathlib import Path
 
 
 def _parse_cgats(path: Path) -> tuple[list[str], list[list[str]]]:
-    """Return (field names, data rows) from a CGATS ``.ti1``/``.ti2`` file."""
-    text = Path(path).read_text(encoding="utf-8", errors="replace")
-    fields: list[str] = []
-    rows: list[list[str]] = []
-    in_fmt = in_data = False
-    for line in text.splitlines():
-        s = line.strip()
-        if s == "BEGIN_DATA_FORMAT":
-            in_fmt = True; continue
-        if s == "END_DATA_FORMAT":
-            in_fmt = False; continue
-        if s == "BEGIN_DATA":
-            in_data = True; continue
-        if s == "END_DATA":
-            in_data = False; continue
-        if in_fmt:
-            fields += s.split()
-        elif in_data and s:
-            rows.append(s.split())
-    return fields, rows
+    """Return (field names, data rows) from a CGATS ``.ti1``/``.ti2`` file.
+
+    Only the file's **first** table — the patch set. An Argyll ``.ti1`` carries
+    two reference tables after it, and reading straight through the file used to
+    concatenate all three: the field list came out as 21 names with ``RGB_R``
+    appearing three times, so the column lookup resolved to index 15 on rows
+    only 7 wide, every row was skipped as malformed, and the ``-colours.txt``
+    hand-off sidecar was written **empty** for every chart ChromIQ generates.
+    """
+    from workflow.i1profiler_import import read_first_cgats_table
+    return read_first_cgats_table(Path(path))
 
 
 def write_colours_txt(ti1_path: str | Path, txt_path: str | Path) -> Path | None:

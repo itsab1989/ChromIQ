@@ -150,30 +150,64 @@ def _rgb_columns(fields: list[str]) -> tuple[int, int, int] | None:
     return None
 
 
+def read_first_cgats_table(path: Path) -> tuple[list[str], list[list[str]]]:
+    """The field names and data rows of a CGATS file's **first table only**.
+
+    A CGATS file may hold several tables, and in Argyll's ``.ti1`` only the
+    first one is the patch set. targen writes two more after it, and ChromIQ
+    reproduces them (see ``_DEVICE_COMBINATIONS`` below) because printtarg
+    expects them:
+
+    ===== ============================== ========= ================================
+    Table Header key                     Key field What it is
+    ===== ============================== ========= ================================
+    1     ``NUMBER_OF_SETS``             SAMPLE_ID the patches to print
+    2     ``DENSITY_EXTREME_VALUES``     INDEX     the 8 RGB cube corners
+    3     ``DEVICE_COMBINATION_VALUES``  INDEX     those corners plus mid grey
+    ===== ============================== ========= ================================
+
+    Tables 2 and 3 are reference values for Argyll's own use — they are not
+    patches and must never be added to a patch set. Reading straight through
+    the file appended them: a 2002-patch chart imported as 2019 (#150).
+
+    Worse, the tables need not share a column layout, and a reader that keeps
+    the *last* ``BEGIN_DATA_FORMAT`` while keeping *every* table's rows will
+    index the wrong columns — silently wrong colours rather than an error. So
+    stop at the end of the first table and read its own format.
+    """
+    fields: list[str] = []
+    rows: list[list[str]] = []
+    in_fmt = in_data = False
+    seen_data = False
+    for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = raw.strip()
+        if line == "BEGIN_DATA_FORMAT":
+            in_fmt, fields = True, []
+        elif line == "END_DATA_FORMAT":
+            in_fmt = False
+        elif line == "BEGIN_DATA":
+            in_data, seen_data = True, True
+        elif line == "END_DATA":
+            break                     # first table complete — ignore the rest
+        elif in_fmt:
+            fields.extend(line.split())
+        elif in_data and line:
+            rows.append(line.split())
+    if not seen_data:
+        return fields, []
+    return fields, rows
+
+
 def parse_cgats(path: Path) -> list[RgbPatch]:
     """Parse a CGATS / CTI1 ASCII table (``.cgats``/``.txt``) into RGB patches.
 
     Handles any CGATS dialect with ``RGB_R``/``RGB_G``/``RGB_B`` (or bare
     ``R``/``G``/``B``) columns; scale (0..100 vs 0..255) is auto-detected.
+
+    Only the **first** table is read — see :func:`read_first_cgats_table` for
+    what the later tables of a ``.ti1`` hold and why they are not patches.
     """
-    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-    fmt: list[str] = []
-    rows: list[list[str]] = []
-    in_fmt = in_data = False
-    for raw in lines:
-        line = raw.strip()
-        if line == "BEGIN_DATA_FORMAT":
-            in_fmt, fmt = True, []
-        elif line == "END_DATA_FORMAT":
-            in_fmt = False
-        elif line == "BEGIN_DATA":
-            in_data = True
-        elif line == "END_DATA":
-            in_data = False
-        elif in_fmt:
-            fmt.extend(line.split())
-        elif in_data and line:
-            rows.append(line.split())
+    fmt, rows = read_first_cgats_table(path)
 
     if not fmt or not rows:
         raise ValueError(f"{path.name}: no CGATS data table found.")
