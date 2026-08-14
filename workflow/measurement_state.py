@@ -201,3 +201,53 @@ def added_by_session(before: "int | None", after: "int | None") -> int:
     result means something went wrong, which :func:`judge_session` reports as a
     verdict rather than as a number."""
     return max(0, (after or 0) - (before or 0))
+
+
+# ---------------------------------------------------------------------------
+# Measurement progress (#153, Knut)
+# ---------------------------------------------------------------------------
+#: Which measurement states may show a progress bar at all.
+#:
+#: Knut asked for the same validity rules the rest of ChromIQ uses: *"If no ti3
+#: file, or an empty or corrupted ti3 file (using same rules as for checking if
+#: ti3 is valid on other features), then no progress bar is shown."*
+#:
+#: MISMATCHED is deliberately excluded even though it holds readings. When the
+#: header and the body disagree, ChromIQ refuses to resume the file
+#: (:attr:`Ti3Facts.can_resume`), and a bar reading "73%" beside a refusal to
+#: continue would be telling the user two different things about one file.
+PROGRESS_STATES = frozenset({Ti3State.PARTIAL, Ti3State.COMPLETE})
+
+
+def progress_percent(measured: "int | None",
+                     total: "int | None") -> "float | None":
+    """How far a measurement has got, 0-100, or ``None`` when it cannot be said.
+
+    ``None`` means "draw no bar" — the caller still shows ``Progress: 0.0%``,
+    which is what Knut asked for: the label is always there, the coloured bar
+    only appears once there is something true to draw.
+
+    Clamped to 100: a session that re-reads a patch already counted in the file
+    it resumed from can momentarily count one patch twice, and a bar that reads
+    101% would be a worse lie than one that sits at 100 until the file is read
+    again and settles it.
+    """
+    if not total or total <= 0 or measured is None or measured < 0:
+        return None
+    return min(100.0, measured / total * 100.0)
+
+
+def progress_from_files(ti3_path: "Path | str | None",
+                        ti2_path: "Path | str | None") -> "float | None":
+    """The progress a run's files describe, or ``None`` for no bar.
+
+    Used when the Measure tab opens, so a part-finished measurement is picked
+    up where it was left. During a live measurement the files are NOT the
+    truth — ArgyllCMS writes the ``.ti3`` only when a session ends cleanly — so
+    the tab counts patches as they are reported instead, and comes back to this
+    once the session is over.
+    """
+    facts = classify(ti3_path, ti2_path)
+    if facts.state not in PROGRESS_STATES:
+        return None
+    return progress_percent(facts.held, facts.expected)

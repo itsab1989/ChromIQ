@@ -238,6 +238,10 @@ DEFAULTS: dict[str, Any] = {
     # threshold is expressed as "minimum samples per patch" (Knut's method:
     # samples ≈ seconds × rate). Rate 0 = not known for this instrument, so no
     # sample count is claimed — ChromIQ never invents that number.
+    # Measurement progress bar (#153, Knut): the percentage and coloured fill
+    # in the strip above the chart preview while a chart is being measured.
+    # Off means neither is shown and no patches are counted.
+    "measure_progress_bar":      True,
     "pace_hint_enabled":         True,
     "pace_min_samples":          8,
     "pace_min_patch_ms":         100,

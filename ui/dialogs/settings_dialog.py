@@ -1044,6 +1044,41 @@ class SettingsDialog(QDialog):
             self))
         _meas.addLayout(_sn_row)
 
+        # Measurement progress bar (#153, Knut). Directly below the misalignment
+        # box, with a blank line after it to separate it from the reading-speed
+        # topic that follows — his layout, and it reads better for it.
+        self._progress_bar_check = QCheckBox(
+            tr("Show measurement progress bar"), self)
+        _pb_row = QHBoxLayout()
+        _pb_row.addWidget(self._progress_bar_check)
+        _pb_row.addStretch()
+        _pb_row.addWidget(TooltipButton(
+            tr("Measurement progress bar"),
+            tr("While you measure a chart, this shows how far through it you "
+            "are — as a percentage on the left of the strip just above the "
+            "chart preview, and as a coloured bar that fills that strip from "
+            "left to right as you go.\n\n"
+            "It counts PATCHES, not strips, and that is the point of it. If you "
+            "switch between reading whole strips and reading single patches — "
+            "to go back and pick up one patch you missed, say — a count of "
+            "finished strips would quietly tell you the wrong thing. Counting "
+            "the patches that actually have a reading is true in both ways of "
+            "working, and re-reading a patch you have already measured does not "
+            "move the number, because that patch was already counted.\n\n"
+            "When you open the Measure tab it picks up where you left off, "
+            "reading the measurement file your run already holds, so a chart you "
+            "started yesterday does not start again from zero. If there is no "
+            "measurement yet, or the file cannot be trusted, no coloured bar is "
+            "drawn and the percentage simply reads 0.0%.\n\n"
+            "The bar uses the Measure tab's own green, so it matches the "
+            "heading beside it.\n\n"
+            "Turn it off and neither the percentage nor the bar appears, and "
+            "ChromIQ does not count patches at all.\n\n"
+            "Default: on"),
+            self))
+        _meas.addLayout(_pb_row)
+        _meas.addSpacing(10)
+
         # (The measurement-report options moved to their own Reports tab, Knut.)
         _beta.addStretch()
 
@@ -2836,6 +2871,8 @@ class SettingsDialog(QDialog):
         self._fast_connect_check.setChecked(
             bool(s.get("fast_instrument_connect", True)))
         self._safenet_check.setChecked(bool(s.get("misalign_safenet", False)))
+        self._progress_bar_check.setChecked(
+            bool(s.get("measure_progress_bar", True)))
         self._native_print_check.setChecked(bool(s.get("use_native_print_dialog", False)))
         self._pdf_fallback_check.setChecked(bool(s.get("pdf_print_fallback", False)))
         self._confirm_print_check.setChecked(bool(s.get("confirm_before_printing", True)))
@@ -3569,6 +3606,7 @@ class SettingsDialog(QDialog):
         s.set("cal_auto_retries", int(self._cal_retries_spin.value()))
         s.set("fast_instrument_connect", self._fast_connect_check.isChecked())
         s.set("misalign_safenet", self._safenet_check.isChecked())
+        s.set("measure_progress_bar", self._progress_bar_check.isChecked())
         s.set("use_native_print_dialog",   self._native_print_check.isChecked())
         s.set("pdf_print_fallback",        self._pdf_fallback_check.isChecked())
         s.set("confirm_before_printing",   self._confirm_print_check.isChecked())

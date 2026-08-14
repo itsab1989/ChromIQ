@@ -1,5 +1,35 @@
 # Changelog
 
+## v4.0.2-beta.1
+
+The first beta of the next version, carrying one new feature for testing.
+
+### New
+
+- **A progress bar while you measure.** The strip just above the chart preview
+  now doubles as a progress bar: **"Progress: 42.5%"** on the left, and a
+  coloured bar filling that strip from left to right as you work through the
+  chart. It uses the Measure tab's own green, so it matches the heading beside
+  it.
+
+  It counts **patches**, not strips, and that is the point of it. If you switch
+  between reading whole strips and reading single patches — to go back and pick
+  up one patch you missed, say — a count of finished strips would quietly tell
+  you the wrong thing. Counting the patches that actually have a reading is true
+  in both ways of working, and re-reading a patch you have already measured does
+  not move the number, because that patch was already counted.
+
+  Opening the Measure tab picks up where you left off, reading the measurement
+  your run already holds, so a chart you started yesterday does not start again
+  from zero. If there is no measurement yet, or the file is one ChromIQ would
+  not trust, no coloured bar is drawn and the percentage simply reads 0.0%.
+
+  You can turn it off with **Show measurement progress bar** in **Preferences ▸
+  Measurement**, below "Warn me if a strip looks misaligned". With it off,
+  neither the percentage nor the bar appears and no patches are counted at all
+  (requested by soul-traveller).
+
+
 ## v4.0.1
 
 Fixes around the very first chart of a new project — found by Knut and

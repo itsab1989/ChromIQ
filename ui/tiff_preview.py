@@ -20,7 +20,9 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from core.i18n import tr
 from core.logger import get_logger
+from ui.styles import SPEC_GREEN
 from core.i18n import tr
 
 log = get_logger(__name__)
@@ -426,6 +428,90 @@ class _PatchInfoTile(QWidget):
 # Widget
 # ---------------------------------------------------------------------------
 
+class _ProgressHeader(QWidget):
+    """The strip above the preview, doubling as a measurement progress bar.
+
+    Knut asked for the header to be *"repurposed for dual use"* (#153): the
+    caption and file name it already carries stay exactly where they are, and a
+    coloured fill grows across it from the left as patches are measured, with
+    ``Progress: 42.5%`` pinned to the left edge.
+
+    Both the fill and the label are painted rather than added as widgets, so the
+    header keeps its existing height and the caption stays centred where it has
+    always been — a progress readout must not push the preview down the screen.
+
+    The fill is the Measure tab's own accent from the shared palette, not a
+    colour copied in here, so the bar always matches the coloured step header
+    beside it. It is drawn at reduced opacity for one reason: the caption and
+    file name sit ON the fill, and ChromIQ runs in light and dark mode. A tint
+    reads unmistakably as the accent in both, while a solid block turns the grey
+    caption to mush in one of them.
+    """
+
+    #: How much of the fill's colour lands on the header. Enough to read as the
+    #: accent, light enough to keep the text on top of it legible in both modes.
+    FILL_ALPHA = 90
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._fraction: "float | None" = None
+        self._accent = QColor(SPEC_GREEN)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
+
+    def set_progress(self, percent: "float | None") -> None:
+        """*percent* 0-100 draws the bar; ``None`` draws no bar at all.
+
+        ``None`` is not the same as 0. It means ChromIQ has nothing it can
+        honestly say about this measurement — no file, or one it would refuse to
+        resume — and Knut's rule is that the bar disappears while the label
+        stays, reading ``Progress: 0.0%``.
+        """
+        frac = None if percent is None else max(0.0, min(100.0, float(percent)))
+        if frac == self._fraction:
+            return
+        self._fraction = frac
+        self.update()
+
+    def progress(self) -> "float | None":
+        return self._fraction
+
+    def set_accent(self, colour: str) -> None:
+        self._accent = QColor(colour)
+        self.update()
+
+    def paintEvent(self, _ev) -> None:  # noqa: N802
+        if self._fraction is None and not self._show_label():
+            return
+        p = QPainter(self)
+        if self._fraction:
+            fill = QColor(self._accent)
+            fill.setAlpha(self.FILL_ALPHA)
+            w = int(round(self.width() * self._fraction / 100.0))
+            if w > 0:
+                p.fillRect(0, 0, w, self.height(), fill)
+        if self._show_label():
+            pct = 0.0 if self._fraction is None else self._fraction
+            f = QFont("Menlo")
+            f.setPointSize(10)
+            p.setFont(f)
+            p.setPen(self.palette().color(self.foregroundRole()))
+            p.drawText(QRect(8, 0, self.width() - 16, self.height()),
+                       int(Qt.AlignmentFlag.AlignLeft
+                           | Qt.AlignmentFlag.AlignVCenter),
+                       tr("Progress: {pct}%").format(pct=f"{pct:.1f}"))
+        p.end()
+
+    # The label shows whenever progress is being tracked at all, including at
+    # 0.0% — it is how the user knows the feature is on and simply has nothing
+    # to report yet.
+    def _show_label(self) -> bool:
+        return getattr(self, "_label_on", False)
+
+    def set_label_visible(self, on: bool) -> None:
+        self._label_on = bool(on)
+        self.update()
+
+
 class TiffPreview(QWidget):
     """Displays multi-page TIFF files with optional stripe highlight overlay."""
 
@@ -635,6 +721,26 @@ class TiffPreview(QWidget):
         """Set the small ALL-CAPS caption above the preview (e.g. 'PRINT PREVIEW')."""
         self._caption_lbl.setText(text)
         self._caption_lbl.setVisible(bool(text))
+
+    def set_measurement_progress(self, percent: "float | None",
+                                 *, tracking: bool = True) -> None:
+        """Drive the progress bar in the header (#153).
+
+        *percent* 0-100 draws the fill; ``None`` draws no fill while the label
+        still reads ``Progress: 0.0%``. *tracking* False removes the label as
+        well, for when the user has switched the feature off entirely — then the
+        header looks exactly as it always did.
+        """
+        hdr = getattr(self, "_header", None)
+        if hdr is None:
+            return
+        hdr.set_label_visible(tracking)
+        hdr.set_progress(percent if tracking else None)
+
+    def measurement_progress(self) -> "float | None":
+        """What the bar is showing, for tests and for the Measure tab."""
+        hdr = getattr(self, "_header", None)
+        return None if hdr is None else hdr.progress()
 
     def set_notice(self, text: str | None) -> None:
         """Show an advisory notice at the bottom of the preview (same style as
@@ -1454,7 +1560,8 @@ class TiffPreview(QWidget):
         # Spacers below are explicit so the header→image gap only appears when
         # a filename is showing — caption alone hugs the image like the
         # pre-load layout did.
-        header = QWidget(self)
+        header = _ProgressHeader(self)
+        self._header = header
         hl = QVBoxLayout(header)
         hl.setContentsMargins(0, 0, 0, 0)
         hl.setSpacing(0)

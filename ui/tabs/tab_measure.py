@@ -953,6 +953,12 @@ class TabMeasure(QWidget):
         # #126 chart-reading engine
         self._manager.session_map.connect(self._on_session_map)
         self._manager.strip_measured.connect(self._on_strip_measured)
+        # #153: progress counts PATCHES, so both reading modes feed one
+        # set of patch locations. A set makes re-reading idempotent,
+        # which is exactly what Knut asked for — measuring a patch again
+        # must not move the number, because that patch was already read.
+        self._manager.strip_measured.connect(self._count_strip_progress)
+        self._manager.patch_measured.connect(self._count_patch_progress)
         # #131 Phase 2: reading pace is judged per STRIP, not per patch. Knut
         # (2026-07-26): timing single patches in patch-by-patch mode has no
         # value — pace only means something while swiping a whole strip — so
@@ -1731,6 +1737,10 @@ class TabMeasure(QWidget):
         rl.addWidget(pace_area)
         # Times measured so far, per strip letter, plus whether each passed.
         self._pace_times: dict = {}
+        # #153: patch locations measured so far, plus what the run's own
+        # measurement file already held when this chart was opened.
+        self._progress_locs: set = set()
+        self._progress_base = 0
         self._pace_patches = 0
 
         splitter.addWidget(right)
@@ -3085,6 +3095,8 @@ class TabMeasure(QWidget):
             self._averaging_active = False   # new chart → fresh averaging session
         self._ti1_path = path
         self._ti1_lbl.setText(str(path))
+        # #153: pick this chart up where it was left, from its own .ti3.
+        self._reset_progress()
         # Only when there is a laid-out chart to read. chartread measures the
         # `.ti2` — it is the file that says where each patch sits on the sheet —
         # so without one there is nothing a measurement could do.
@@ -3562,6 +3574,7 @@ class TabMeasure(QWidget):
 
     def clear_chart_file(self) -> None:
         self._ti1_path = None
+        self._reset_progress(from_files=False)
         self._averaging_active = False
         self._ti1_lbl.setText(tr("No file selected"))
         self._ti1_lbl.setStyleSheet("color: #909090; font-size: 11px;")
@@ -8448,6 +8461,18 @@ class TabMeasure(QWidget):
         fit_message_box_buttons(box)
         box.exec()
 
+    def _refresh_progress_from_files(self) -> None:
+        """Re-read the run's measurement once a session has ended.
+
+        ArgyllCMS writes the .ti3 only on a clean exit, so this is the first
+        moment the file is authoritative again. It corrects the live count,
+        including the one case the set cannot see for itself: re-reading a patch
+        that was already in the file this session resumed from.
+        """
+        if not self._progress_enabled():
+            return
+        self._reset_progress()
+
     def _on_measure_done(self, code: int) -> None:
         # EVERYTHING THAT BELONGS TO THE MEASUREMENT GOES WITH IT (Knut,
         # beta.139). First, before any of the tidying below, so a window that
@@ -8459,6 +8484,8 @@ class TabMeasure(QWidget):
         # fires; per-patch/strip sounds can no longer sound outside a read.
         if getattr(self, "_sound", None) is not None:
             self._sound.disarm()
+        # #153: the .ti3 has just been written, so it can settle the count.
+        self._refresh_progress_from_files()
         self._preview.highlight_stripe(-1)
         self._preview.set_bidirectional(False)
         # #126: click-to-jump only lives while an engine session runs; the
@@ -9768,6 +9795,100 @@ class TabMeasure(QWidget):
                                             pace, tracker.config)
         except Exception:      # noqa: BLE001 — a hint must never break a read
             log.warning("pace hint failed", exc_info=True)
+
+    # ---- measurement progress (#153, Knut) --------------------------------
+    #
+    # "The calculation of progress shall count actual measured patches (not
+    # strips), so that same calculation works for both strip mode or
+    # patch-by-patch mode. This is also important because a user may go back and
+    # forth between strip mode and patch-by-patch mode to read and re-read
+    # patches, which may lead to single patches not read in a strip."
+    #
+    # So the count is a SET of patch location ids, not a running total. Reading
+    # a strip adds every patch in it; reading a single patch adds one; reading
+    # either again adds nothing, because the ids are already there.
+    #
+    # The .ti3 cannot be the live source: ArgyllCMS writes it only when a
+    # session ends cleanly, so during a measurement it is stale or absent. The
+    # files are read when the tab opens and again when a session ends, and the
+    # set carries the truth in between.
+
+    def _progress_enabled(self) -> bool:
+        try:
+            return bool(self._settings.get("measure_progress_bar", True))
+        except Exception:      # noqa: BLE001
+            return True
+
+    def _count_strip_progress(self, ev: dict) -> None:
+        """Every patch of a finished strip counts, by its own location id."""
+        if not self._progress_enabled():
+            return
+        try:
+            for p in (ev.get("patches") or []):
+                loc = str(p.get("loc", "")).strip()
+                if loc:
+                    self._progress_locs.add(loc)
+            self._refresh_progress()
+        except Exception:      # noqa: BLE001 — a readout must never break a read
+            log.debug("could not count strip progress", exc_info=True)
+
+    def _count_patch_progress(self, ev: dict) -> None:
+        if not self._progress_enabled():
+            return
+        try:
+            loc = str(ev.get("loc", "")).strip()
+            if loc:
+                self._progress_locs.add(loc)
+            self._refresh_progress()
+        except Exception:      # noqa: BLE001
+            log.debug("could not count patch progress", exc_info=True)
+
+    def _reset_progress(self, *, from_files: bool = True) -> None:
+        """Start the count again — a different chart, or a fresh session.
+
+        With *from_files* the run's own measurement is read first, so a chart
+        started earlier is picked up where it was left rather than beginning at
+        zero again.
+        """
+        self._progress_locs = set()
+        self._progress_base = 0
+        if from_files:
+            try:
+                from workflow.measurement_state import classify, PROGRESS_STATES
+                ti3, ti2 = self._progress_files()
+                facts = classify(ti3, ti2)
+                if facts.state in PROGRESS_STATES and facts.held:
+                    self._progress_base = int(facts.held)
+            except Exception:  # noqa: BLE001
+                log.debug("could not read progress from the run", exc_info=True)
+        self._refresh_progress()
+
+    def _progress_files(self):
+        """``(ti3, ti2)`` for the chart on screen, or ``(None, None)``."""
+        ti1 = getattr(self, "_ti1_path", None)
+        if ti1 is None:
+            return None, None
+        return ti1.with_suffix(".ti3"), ti1.with_suffix(".ti2")
+
+    def _refresh_progress(self) -> None:
+        """Push the current figure at the preview header."""
+        preview = getattr(self, "_preview", None)
+        if preview is None or not hasattr(preview, "set_measurement_progress"):
+            return
+        if not self._progress_enabled():
+            preview.set_measurement_progress(None, tracking=False)
+            return
+        try:
+            from workflow.measurement_state import (expected_patches,
+                                                    progress_percent)
+            _ti3, ti2 = self._progress_files()
+            total = expected_patches(ti2)
+            measured = getattr(self, "_progress_base", 0) + len(
+                getattr(self, "_progress_locs", ()))
+            preview.set_measurement_progress(
+                progress_percent(measured, total), tracking=True)
+        except Exception:      # noqa: BLE001
+            log.debug("could not refresh the progress bar", exc_info=True)
 
     def _on_strip_measured(self, ev: dict) -> None:
         letter = str(ev.get("strip", ""))
