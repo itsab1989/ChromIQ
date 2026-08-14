@@ -10,6 +10,38 @@ inaccurately.
 
 ### Fixed
 
+- **A chart keeps the patch set it was built from.** If you built a chart from
+  a patch set of your own — one you made with the patch generators, edited in
+  the Patch Set editor, or loaded from a file — and later pressed **Generate
+  Chart** again, ChromIQ could quietly build a completely different chart with
+  a fresh set of patches. It happened once the project had been closed and
+  opened again, which is easy to do without thinking about it: the link between
+  the chart and your patch set was only remembered while the app stayed open.
+  This mattered most when the chart had already been printed, because the
+  sheets on your desk then no longer matched the chart ChromIQ would measure
+  them against, and nothing on screen said so. A run now keeps its own patch
+  set, so generating again lays out the very same patches. Changing something
+  that defines the patch set itself — the patch count, the grey steps, the
+  white or black patches — still gives you a fresh chart, because that is what
+  asking for different patches means (reported by soul-traveller).
+
+- **Loading a patch set no longer adds patches that are not there.** In **Edit /
+  Create Chart Patch Set**, choosing **Load Patch Set…** and picking a `.ti1`
+  file added more patches than the file contains — 2019 instead of 2002 for a
+  typical chart. A `.ti1` file holds three tables, and only the first one is
+  the patches to print; the two after it hold reference values that ArgyllCMS
+  needs, such as the corners of the colour cube. Those were being read in as
+  though they were patches. Only the patch table is loaded now (reported by
+  soul-traveller).
+
+- **The colour list handed to a print shop is no longer empty.** Every chart
+  writes a `-colours.txt` file into its run's `exports` folder — a plain list
+  of the chart's colours you can pass to a print shop or another program. That
+  file was being written completely empty, for every chart, because of the same
+  misreading of the three tables described above. It now contains the full list
+  of colours again. Any file you exported before this will still be empty, so
+  generate the chart again if you need one of them.
+
 - **Every measurement sound is heard again, whole.** Most of the short sounds
   made no sound at all — the tick for each patch, the thump for a patch that is
   off-colour, and ding, click, chime, buzz, bump and ding-hi — and the longer
