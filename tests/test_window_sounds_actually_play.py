@@ -25,9 +25,15 @@ perfectly and still be inaudible. That is exactly what happened: Qt suspends the
 audio device between sounds, and every cue shorter than the device's wake-up was
 silent while these tests stayed green. The docstring here used to claim it
 asserted "what came out of the speaker"; it never did, and believing it is part
-of why #148 shipped. Nothing headless can close that gap — see
-``tests/test_sound_device_keepalive.py`` for the invariant that can be checked,
-and expect the speaker end to need a human ear.
+of why #148 shipped.
+
+**Nothing headless can close that gap, and the attempt to work around it made
+things worse.** The first cure — an inaudible voice held open so the device
+never slept — passed every check available here and silenced the reporter's
+machine completely. Only his ear found that. See
+``tests/test_no_permanent_audio_voice.py``, and expect the speaker end of any
+sound change to need a human listening on real hardware, including an external
+audio device rather than only built-in speakers.
 """
 from __future__ import annotations
 

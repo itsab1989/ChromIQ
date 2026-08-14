@@ -1302,8 +1302,8 @@ class SettingsDialog(QDialog):
                           tr("Reports"))
         self._tabs.addTab(self._scroll_wrap(self._build_measurement_tab()),
                           tr("Measurement"))
-        self._sounds_tab_index = self._tabs.addTab(
-            self._scroll_wrap(self._build_sounds_tab()), tr("Sounds"))
+        self._tabs.addTab(self._scroll_wrap(self._build_sounds_tab()),
+                          tr("Sounds"))
         self._tabs.addTab(self._scroll_wrap(self._beta_page), tr("Beta"))
         # Run the (deferred) Chart Layout estimate the first time that tab is
         # actually opened — it's suspended during build to keep the window quick.
@@ -1922,40 +1922,6 @@ class SettingsDialog(QDialog):
 
         v.addStretch()
         return page
-
-    def _sync_sounds_audio_hold(self) -> None:
-        """Hold the audio device open exactly while the Sounds tab is showing.
-
-        The audition ignores the master on/off switch, so this does too — the
-        point of the “Play” buttons is to hear a sound whether or not sounds are
-        currently switched on.
-        """
-        want = (getattr(self, "_sounds_tab_index", -1) >= 0
-                and self._tabs.currentIndex() == self._sounds_tab_index)
-        if want == getattr(self, "_audio_held", False):
-            return
-        try:
-            import core.sound as snd
-            if want:
-                self._audio_held = True
-                snd.hold_audio_device(self._settings)
-            else:
-                self._audio_held = False
-                snd.release_audio_device()
-        except Exception:      # noqa: BLE001 — never break the dialog
-            log.debug("could not change the audio hold", exc_info=True)
-
-    def done(self, result: int) -> None:
-        """Release the audio hold whichever way the dialog is dismissed —
-        Save, Cancel, Escape or the window's close button all land here."""
-        try:
-            if getattr(self, "_audio_held", False):
-                import core.sound as snd
-                self._audio_held = False
-                snd.release_audio_device()
-        except Exception:      # noqa: BLE001
-            log.debug("could not release the audio device", exc_info=True)
-        super().done(result)
 
     def _preview_sound(self, event: str, combo) -> None:
         """Audition the dropdown's currently-selected sound (ignores the on/off
@@ -3173,13 +3139,7 @@ class SettingsDialog(QDialog):
         The estimate (font-measured layout math) is suspended while the dialog
         is built, so opening Preferences stays quick. The moment the user
         switches to the Chart Layout tab, compute it once and re-enable live
-        recomputation. Guarded so it runs at most once and only for that tab.
-
-        It also keeps the audio device awake while the Sounds tab is open, so
-        that pressing “Play” is heard whole rather than being clipped by the
-        device starting up (#148) — which is how this fault was first noticed.
-        """
-        self._sync_sounds_audio_hold()
+        recomputation. Guarded so it runs at most once and only for that tab."""
         if not getattr(self, "_layout_estimate_pending", False):
             return
         w = getattr(self, "_chart_layout_tab_widget", None)

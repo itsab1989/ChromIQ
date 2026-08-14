@@ -79,21 +79,19 @@ inaccurately.
   of colours again. Any file you exported before this will still be empty, so
   generate the chart again if you need one of them.
 
-- **Every measurement sound is heard again, whole.** Most of the short sounds
-  made no sound at all — the tick for each patch, the thump for a patch that is
-  off-colour, and ding, click, chime, buzz, bump and ding-hi — and the longer
-  ones lost their beginning, which is what stopped the bell sounding like a
-  bell and the trumpet like a trumpet. The sound files were never at fault: the
-  Mac was putting its sound hardware to sleep between one sound and the next,
-  and whatever was played while it woke up again was lost. Anything shorter
-  than the wake-up simply vanished. How long that wake-up takes depends on the
-  machine, which is why this was barely noticeable on some Macs and severe on
-  others. ChromIQ now keeps the sound hardware gently awake whenever a sound
-  might be needed — while you measure, while a profile builds, and while the
-  Sounds tab of Preferences is open so the "Play" buttons audition truthfully.
-  This applies to your own sounds too, if you have pointed Preferences → Paths
-  at a sounds folder of your own (reported by soul-traveller with a ColorMunki
-  on an Intel MacBook Pro).
+- **Measurement sounds: an attempted fix has been withdrawn.** Many of the
+  short sounds — the tick for each patch, the thump for a patch that is
+  off-colour, and ding, click, chime, buzz, bump and ding-hi — can be missing,
+  and longer ones can lose their beginning, which is what stops the bell
+  sounding like a bell. The cause is understood: on some Macs the sound
+  hardware is put to sleep between one sound and the next, and whatever is
+  played while it wakes up again is lost. A first attempt at a cure held the
+  sound hardware awake, and on some setups that stopped **every** sound from
+  playing, which is worse than the problem it was meant to solve. It has been
+  removed, so sounds behave as they did in 4.0.0 while a safer cure is worked
+  out. If sounds are getting in your way meanwhile, the **Play sounds during
+  measurement** box on the Measure tab turns them off (reported by
+  soul-traveller).
 
 - **The pointer ruler measures the chart you are looking at.** With "Show
   measurement coordinates on pointer" ticked, the readout used the Resolution

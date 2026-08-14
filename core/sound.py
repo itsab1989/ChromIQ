@@ -125,202 +125,32 @@ def _setting_key(event: str) -> str:
     return f"sound_choice_{event}"
 
 
-# ---- keeping the audio device awake (#148) ---------------------------------
+# ---- why there is no "keep the audio device awake" here (#148) -------------
 #
-# Qt 6.10 rewrote QSoundEffect on top of a new real-time engine
-# (qtmultimedia/src/multimedia/audio/qrtaudioengine.cpp) that parks the audio
-# device between sounds:
+# Qt 6.10 rewrote QSoundEffect onto QRtAudioEngine, which suspends the audio
+# device the moment the last voice finishes and resumes it for the next sound
+# (qtmultimedia/src/multimedia/audio/qrtaudioengine.cpp). Every sound therefore
+# pays a device start-up, and whatever is handed over while the hardware is
+# still starting is lost — which is why the short cues went missing entirely.
 #
-#     m_sink.start(...); m_sink.suspend();          // starts asleep
-#     void QRtAudioEngine::play(SharedVoice voice) {
-#         if (m_voices.empty()) m_sink.resume();     // wake the device…
-#         sendAppToRtCommand(PlayCommand{voice});    // …then queue the voice,
-#     }                                              // rendered only once the
-#                                                    // audio callback runs
-#     // and when the last voice finishes:
-#     if (m_voices.empty()) m_sink.suspend();
+# ChromIQ briefly countered that with an inaudible voice that never ended, so
+# `m_voices` was never empty and the device was never suspended. It worked on
+# an Apple Silicon Mac's built-in speakers, and was a disaster on the reporter's
+# machine: *"After your fix not a single sound is playing. Not even those that
+# previously played fine."*
 #
-# So every single sound pays a device resume, and whatever is handed over while
-# the hardware is still starting is lost. How long that takes is a property of
-# the machine: on an Apple Silicon Mac it costs a few milliseconds, on a 2018
-# Intel MacBook Pro roughly a quarter of a second. That was #148 — every sound
-# shorter than the resume window was silent (tick, thump, ding, chime …), and
-# longer ones lost their attack, which is what stops a bell sounding like a
-# bell.
+# The reason is structural rather than a detail that could be patched. Qt's
+# engine registry holds only weak references, so an engine — and its CoreAudio
+# stream — lives exactly as long as some effect holds it. A permanent voice
+# pins one stream open for the life of the app, and because `m_voices` is never
+# empty the sink is never re-resumed either. On an external USB audio device,
+# the kind that power-saves, drops out or renegotiates its sample rate, that
+# single long-lived stream can die with no way back, and every later sound goes
+# into it. A transient per-sound cost had been turned into a permanent
+# dependency on one stream staying healthy, which is the worse bargain.
 #
-# The cure is to give the engine a voice that never ends, so ``m_voices`` is
-# never empty and the device is never suspended. Then a real sound plays into an
-# already-running stream and is heard whole, from its first sample.
-#
-# Two details matter:
-#
-# * **Per format.** The engine is pooled per (device, format), and
-#   ``QSample`` keeps the .wav's own sample rate and channel count
-#   (qsamplecache_p.cpp sets only the sample *format* to Float). A 44.1 kHz mono
-#   keep-alive therefore holds open only the 44.1 kHz mono engine — which covers
-#   the bundled pack, but not a user's own 48 kHz file. So one keep-alive is
-#   started per distinct format actually in use.
-# * **Not digital silence.** The clip carries a ±1 LSB dither (-90 dBFS, far
-#   below anything a speaker can reproduce) and plays at a low volume rather
-#   than at zero. Qt today skips the mixing loop for a muted voice but still
-#   counts it as active; a clip that is genuinely non-zero keeps working even if
-#   that ever changes.
-
-#: how long the device is held after the last thing that could make a sound —
-#: long enough to cover the windows a measurement raises as it finishes, and the
-#: completion sound that follows them.
-KEEP_AWAKE_LINGER_MS = 30_000
-
-#: length of the looping keep-alive clip
-_SILENCE_SECONDS = 0.5
-
-
-def _silence_file(rate: int, channels: int) -> "Path | None":
-    """A tiny looping near-silent .wav at *rate*/*channels*, created once and
-    cached in the temp directory. ``None`` if it cannot be written."""
-    import tempfile
-    path = (Path(tempfile.gettempdir())
-            / f"chromiq_keepalive_{rate}_{channels}.wav")
-    try:
-        if path.is_file() and path.stat().st_size > 44:
-            return path
-        import random
-        import wave
-        rnd = random.Random(0)                    # reproducible
-        frames = int(rate * _SILENCE_SECONDS)
-        data = bytearray()
-        for _ in range(frames * channels):
-            data += (rnd.choice((-1, 0, 1))).to_bytes(2, "little", signed=True)
-        with wave.open(str(path), "wb") as w:
-            w.setnchannels(channels)
-            w.setsampwidth(2)
-            w.setframerate(rate)
-            w.writeframes(bytes(data))
-        return path
-    except Exception as exc:      # noqa: BLE001 — never break a measurement
-        log.debug("could not create the keep-alive clip: %s", exc)
-        return None
-
-
-def formats_in_use(settings) -> set:
-    """The distinct ``(sample_rate, channels)`` of every sound currently
-    selected. Files that cannot be read fall back to nothing rather than
-    raising — a sound we cannot parse is one Qt cannot play either."""
-    import wave
-    out: set = set()
-    for event in ALL_EVENTS:
-        path = resolve_file(settings, event)
-        if path is None:
-            continue
-        try:
-            with wave.open(str(path)) as w:
-                out.add((w.getframerate(), w.getnchannels()))
-        except Exception:         # noqa: BLE001 — an unreadable/odd .wav
-            continue
-    return out
-
-
-class _AudioDeviceKeepAlive:
-    """Holds the audio device open so short sounds are not swallowed while it
-    wakes up. Shared by every :class:`SoundManager` and by the Preferences
-    audition, and reference-counted so whichever finishes last releases it."""
-
-    def __init__(self) -> None:
-        self._effects: dict = {}          # (rate, channels) -> QSoundEffect
-        self._holds = 0
-        #: bumped on every hold and release, so a linger that is already in
-        #: flight can tell whether it is still the current one. See
-        #: :meth:`_stop_after_linger` for why this is a counter rather than a
-        #: QTimer we keep hold of.
-        self._generation = 0
-
-    # -- reference counting -------------------------------------------------
-    def hold(self, settings) -> None:
-        """Take a reference and make sure the device is awake."""
-        self._holds += 1
-        self._generation += 1             # any pending linger is now stale
-        self._start(settings)
-
-    def release(self, *, linger_ms: int = KEEP_AWAKE_LINGER_MS) -> None:
-        """Drop a reference. When the last one goes the device is released
-        after *linger_ms*, so a sound that follows straight after (a window, a
-        completion cue) still lands in a running stream."""
-        self._holds = max(0, self._holds - 1)
-        if self._holds:
-            return
-        if linger_ms <= 0:
-            self._stop()
-            return
-        self._generation += 1
-        generation = self._generation
-        try:
-            from PyQt6.QtCore import QTimer
-            # A fire-and-forget single shot, deliberately: owning the QTimer
-            # would mean dropping our last reference to it from inside its own
-            # timeout handler, which destroys a QObject while its signal is
-            # still being emitted. The generation counter does the same job
-            # with nothing to destroy.
-            QTimer.singleShot(linger_ms,
-                              lambda: self._stop_after_linger(generation))
-        except Exception:             # noqa: BLE001 — no event loop / no Qt
-            self._stop()
-
-    def _stop_after_linger(self, generation: int) -> None:
-        """Release the device, unless someone took it again while we waited."""
-        if generation != self._generation or self._holds:
-            return
-        self._stop()
-
-    # -- the voices themselves ----------------------------------------------
-    def _start(self, settings) -> None:
-        cls = _sound_effect_cls()
-        if cls is None:                   # no audio in this build/environment
-            return
-        try:
-            from PyQt6.QtCore import QUrl
-            for fmt in formats_in_use(settings):
-                if fmt in self._effects:
-                    continue
-                path = _silence_file(*fmt)
-                if path is None:
-                    continue
-                eff = cls()
-                eff.setSource(QUrl.fromLocalFile(str(path)))
-                eff.setLoopCount(cls.Loop.Infinite.value)
-                eff.setVolume(0.02)
-                eff.play()
-                self._effects[fmt] = eff
-        except Exception as exc:      # noqa: BLE001 — audio must never break a read
-            log.debug("could not hold the audio device awake: %s", exc)
-
-    def _stop(self) -> None:
-        for eff in self._effects.values():
-            try:
-                eff.stop()
-            except Exception:         # noqa: BLE001
-                pass
-        self._effects.clear()
-
-    # -- for tests ----------------------------------------------------------
-    def is_holding(self) -> bool:
-        return bool(self._effects)
-
-
-#: one keep-alive for the whole application — the audio device is one device,
-#: however many SoundManagers happen to exist.
-_KEEP_ALIVE = _AudioDeviceKeepAlive()
-
-
-def hold_audio_device(settings) -> None:
-    """Keep the audio device awake until a matching :func:`release_audio_device`
-    — so a short sound is heard whole instead of being eaten by the device
-    starting up (#148). Safe to call when there is no audio at all."""
-    _KEEP_ALIVE.hold(settings)
-
-
-def release_audio_device(*, linger_ms: int = KEEP_AWAKE_LINGER_MS) -> None:
-    """Give back one :func:`hold_audio_device` reference."""
-    _KEEP_ALIVE.release(linger_ms=linger_ms)
+# So: not this way. Do not reintroduce a permanently-playing voice without
+# testing on an external USB audio interface, not only built-in speakers.
 
 
 def bundled_sounds_root() -> Path:
@@ -410,10 +240,6 @@ class SoundManager:
         #: event. Knut's ruling (#131, 2026-07-27): "the ChromIQ sounds should
         #: not at all be wired or used for stock argyllcms chartread".
         self._reading_engine = True
-        #: whether this manager currently holds the audio device awake (#148).
-        #: Tracked per manager so arm/disarm can be called in any order without
-        #: unbalancing the shared reference count.
-        self._holding = False
 
     # -- lifecycle ----------------------------------------------------------
     def enabled(self) -> bool:
@@ -433,27 +259,11 @@ class SoundManager:
         if not self.enabled():
             return
         self._preload(ALL_EVENTS)
-        # Hold the device open for the whole measurement. Pre-loading alone is
-        # not enough: the sample is in memory, but the *device* still has to
-        # wake for each sound, and the per-patch cues are far too short to
-        # survive that (#148).
-        if not self._holding:
-            self._holding = True
-            hold_audio_device(self._settings)
 
     def disarm(self) -> None:
         """Leave measurement mode. Completion sounds may still play afterwards
-        (they pre-load on demand).
-
-        The device is released only after :data:`KEEP_AWAKE_LINGER_MS`, because
-        the measurement being over is exactly when the instrument windows are
-        raised and the completion sound plays — all of which still need to be
-        heard whole.
-        """
+        (they pre-load on demand)."""
         self._in_measurement = False
-        if self._holding:
-            self._holding = False
-            release_audio_device()
 
     def _preload(self, events) -> None:
         cls = _sound_effect_cls()
