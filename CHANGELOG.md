@@ -10,6 +10,39 @@ inaccurately.
 
 ### Fixed
 
+- **"Close to the limit" is only said when a strip really is close.** While you
+  measure, the message under the chart preview tells you how your reading speed
+  is doing. It was calling a strip "close to the limit" when it was as much as
+  35% clear of it — so a ColorMunki strip read at 521 ms per patch was warned
+  about even though the limit is 400 ms. How close is close enough to mention
+  is now yours to choose, in **Preferences ▸ Measurement ▸ Close to the
+  limit**, and it starts at 10%. At that setting the 521 ms strip in the report
+  is simply called a good reading speed, which is what it was. Set it to 0% if
+  you would rather only ever be told when a strip is genuinely too fast
+  (reported by soul-traveller).
+
+- **The reading-speed message now tells you the whole-strip time as well.**
+  Milliseconds per patch is a hard thing to picture while you are holding an
+  instrument. The message now also gives the figure you can actually feel — the
+  seconds a whole strip should take — so instead of just "400 ms or more per
+  patch" you get "400 ms or more per patch — 6.0 sec. or more per strip". If
+  the window is narrow the message wraps onto another line and the area grows
+  to fit it, rather than cutting the end off (reported by soul-traveller).
+
+- **The ColorMunki gets more room at the top of the page.** The top margin
+  ChromIQ warns below is now 33 mm for every paper size, instead of 30 mm. The
+  reason is mechanical rather than optical: the two knobs on the underside of a
+  ColorMunki catch on the edge of the sheet as you start a strip, so the
+  instrument needs a little more paper in front of the first patch than the
+  light path alone would suggest. If you had already set a margin of your own
+  for a page size, your value is kept exactly as it is (reported by
+  soul-traveller).
+
+- **Loading a patch set tells you how many patches arrived.** The **Edit /
+  Create Chart Patch Set** window now says, for example, "Loaded MyChart.ti1 —
+  2002 patches", so you can check the number against the file you chose
+  (reported by soul-traveller).
+
 - **A chart keeps the patch set it was built from.** If you built a chart from
   a patch set of your own — one you made with the patch generators, edited in
   the Patch Set editor, or loaded from a file — and later pressed **Generate
@@ -23,7 +56,11 @@ inaccurately.
   set, so generating again lays out the very same patches. Changing something
   that defines the patch set itself — the patch count, the grey steps, the
   white or black patches — still gives you a fresh chart, because that is what
-  asking for different patches means (reported by soul-traveller).
+  asking for different patches means. You can also see that your patches are
+  protected: the **"Edit patch recipe (override preset)"** box is shown with
+  the patch settings greyed out behind it, and you tick that box on the
+  occasions when you do want a brand-new set of patches (reported by
+  soul-traveller).
 
 - **Loading a patch set no longer adds patches that are not there.** In **Edit /
   Create Chart Patch Set**, choosing **Load Patch Set…** and picking a `.ti1`
