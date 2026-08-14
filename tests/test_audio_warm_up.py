@@ -51,8 +51,16 @@ import core.sound as snd                              # noqa: E402
 
 
 class _Settings:
+    """Sounds on, and the warm-up ON — because it is now OFF by default.
+
+    Switching it on here is deliberate: the tests below are about what the
+    warm-up does WHEN ASKED FOR. That it is not asked for unless the user says
+    so is the subject of its own section at the end of this file, which is the
+    more important property of the two.
+    """
+
     def __init__(self, **kw):
-        self._d = {"sound_enabled": True}
+        self._d = {"sound_enabled": True, "sound_warm_up_device": True}
         self._d.update(kw)
 
     def get(self, k, d=None): return self._d.get(k, d)
@@ -223,3 +231,72 @@ def test_the_warm_up_outlasts_the_lead():
     """The clip must still be playing when the real sound starts, so the device
     is continuously busy across the join and cannot doze in between."""
     assert snd._WARMUP_SECONDS * 1000 > snd.WARMUP_LEAD_MS
+
+
+# --- and it does nothing at all unless the user asks (#148, round three) -----
+#
+# Knut, on the beta carrying the warm-up: *"No sounds what so ever … you have
+# messed up the sounds for all events, all messages, all measurements, button
+# click on instrument, and all sounds in preferences sounds tab."* The version
+# without it worked. It runs in exactly the two places he reports dead — arming
+# a measurement, and every press of Play in Preferences — and it is the only
+# audio change between the two versions.
+#
+# Twice now a change meant to make the first sound louder has instead made every
+# sound disappear on his machine, and neither could be reproduced on any machine
+# here. So the rule these tests hold the code to is blunt: by default ChromIQ
+# does not touch the audio device before playing a sound. A fix for "too quiet"
+# must never be able to produce "silent".
+
+
+def _plain():
+    """Settings as a real user has them: sounds on, nothing else asked for."""
+    s = _Settings()
+    s.set("sound_warm_up_device", False)
+    return s
+
+
+def test_the_warm_up_is_off_by_default():
+    from core.settings import DEFAULTS
+    assert DEFAULTS["sound_warm_up_device"] is False
+
+
+def test_nothing_is_played_when_it_was_not_asked_for(played):
+    snd.warm_up_audio(_plain())
+    assert not played, "the warm-up ran without being switched on"
+
+
+def test_nothing_is_even_built_when_it_was_not_asked_for(played):
+    """Not just inaudible — no QSoundEffect against the device at all. The point
+    of the default is that nothing touches the hardware."""
+    snd.preload_warm_up(_plain())
+    assert snd._WARMUP_EFFECTS == {}
+    assert not played
+
+
+def test_arming_a_measurement_touches_nothing_by_default(played):
+    m = snd.SoundManager(_plain())
+    m._preload = lambda events: None
+    m.arm()
+    assert not played, "arming warmed the device although nobody asked it to"
+
+
+def test_a_missing_setting_means_off():
+    """An older settings file has no such key. It must read as off, not as on —
+    the default has to fail safe."""
+    class _Bare:
+        def get(self, k, d=None): return d
+    assert snd.warm_up_enabled(_Bare()) is False
+
+
+def test_a_broken_settings_object_means_off():
+    class _Boom:
+        def get(self, k, d=None): raise RuntimeError("no settings")
+    assert snd.warm_up_enabled(_Boom()) is False
+
+
+def test_switching_it_on_brings_it_back(played):
+    """It is still there for anyone who wants it — the fault it addresses is
+    real on some hardware, it just must not be the default."""
+    snd.warm_up_audio(_Settings())          # the fixture switches it on
+    assert played

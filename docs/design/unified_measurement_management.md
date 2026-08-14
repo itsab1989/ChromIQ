@@ -1,7 +1,7 @@
 # Unified Measurement Management — Design Specification
 
 > **Revision 2026-08-09 (e) — two approved messages carry a revised print step.**
-> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), M-IMPORT-MISMATCH and M-IMPORT-DATE-TAKEN (the Measure tab's IMPORT module; its import-done window was approved by Sebastian 2026-08-10), plus the revised M-CHART-VERIFY (W5, reworked after the 2026-08-10 hardware session) and M-HOW-PRINTED (pairing 3 — the measure-time question for sheets ChromIQ did not print), plus M-OVERLAY-NO-MEASUREMENT (new, 2026-08-14 — the overlay asked for on a chart that has never been measured, #155) and M-ALL-STRIPS-PATCHES-LEFT (new, 2026-08-14 — every strip read while patches inside them are not, #156; both are wording only, their bug fixes are already in the code and speak through the log until these are approved), plus M-NO-INSTRUMENT-FAST (new, 2026-08-13 — Knut's ColorMunki was invisible on older hardware until "Faster instrument connection" was switched off, so that variant of the no-instrument window names the shortcut and carries its switch) — all defined in the awaiting-review section below.
+> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), M-IMPORT-MISMATCH and M-IMPORT-DATE-TAKEN (the Measure tab's IMPORT module; its import-done window was approved by Sebastian 2026-08-10), plus the revised M-CHART-VERIFY (W5, reworked after the 2026-08-10 hardware session) and M-HOW-PRINTED (pairing 3 — the measure-time question for sheets ChromIQ did not print), plus M-OVERLAY-NO-MEASUREMENT (new, 2026-08-14 — the overlay asked for on a chart that has never been measured, #155) and M-ALL-STRIPS-PATCHES-LEFT (new, 2026-08-14 — every strip read while patches inside them are not, #156; both are wording only, their bug fixes are already in the code and speak through the log until these are approved), plus M-NO-INSTRUMENT-FAST (new, 2026-08-13 — Knut's ColorMunki was invisible on older hardware until "Faster instrument connection" was switched off, so that variant of the no-instrument window names the shortcut and carries its switch), plus M-ENGINE-FELL-BACK (new, 2026-08-14 — asked for by Knut on #148: ChromIQ's own measuring engine could not use the instrument, so stock chartread took over, which also silences ChromIQ's measurement sounds without saying so) — all defined in the awaiting-review section below.
 > Both were approved by Knut on 2026-08-04, but one step in each instructed *"(with colour management on)"* — a setting ChromIQ deliberately locks **off** on every print path, so the approved text told the user to do something the app prevents (established in `verification_printing_and_target.md` §1, and A0.1 of its plan). With feature A the instruction has a real control to name — the Print Chart tab's **Colour** row — so that one step is revised and the revision waits in §M-PROPOSED. Every other message in §M remains approved as before: the last, **M-BUILD-ELSEWHERE**, was accepted on 2026-08-04 — *"Message M-BUILD-ELSEWHERE accepted"* — and M-CHART-CORRUPT, M-REPLACE-UNCOUNTABLE and M-PREVIEW-PAUSED the day before. A new message goes to §M-PROPOSED first, and `tests/test_message_catalogue.py` fails if one is added to the code without it.
 
 > **Status:** specification, agreed on [issue #130](https://github.com/itsab1989/ChromIQ/issues/130).
@@ -1145,6 +1145,37 @@ must come only when all patches are read."* Suppressing the finished message
 while patches are unread is the bug fix and is in the code; announcing it in a
 window is new wording, so it waits here. Until it is approved the tab writes the
 count into its log.
+
+### M-ENGINE-FELL-BACK · PROPOSED · ChromIQ's own measuring engine could not use the instrument — Measure tab
+
+> **Measuring with ArgyllCMS instead**
+>
+> ChromIQ's own measuring engine could not use your instrument this time, so the measurement has been started again using ArgyllCMS's chartread. Carry on measuring exactly as you would normally — nothing you have already read is lost.
+>
+> One thing changes while this is running: **ChromIQ's measurement sounds are silent.** ArgyllCMS makes its own beeps as it reads, and playing ChromIQ's sounds on top would double every one of them. The beeps you hear are coming from ArgyllCMS.
+>
+> Reason: {reason}
+
+*Why it is proposed rather than in use.* Knut asked for it directly (#148,
+2026-08-14): *"there should be a defined and approved instrument error message in
+the design specification for this error, is there not? I think there should be a
+warning message so the user knows."* He is right that there is none — the
+fallback is announced only in the measurement log
+(`workflow/measure_manager.py`, `engine_fell_back_resumed`), which is easy to
+miss mid-measurement.
+
+*Why the second paragraph matters as much as the first.* The fallback silently
+changes a second thing: `SoundManager.play` deliberately suppresses every
+per-patch and per-strip sound while stock chartread is driving, because chartread
+beeps for itself and cannot be silenced (Knut's own ruling, #131 2026-07-27). So
+a user whose engine falls back loses ChromIQ's sounds for the rest of that
+measurement, is told nothing about it, and has every reason to report it as the
+sound feature being broken — which is one of the two things being untangled in
+#148. The suppression itself is correct and stays; what is missing is saying so.
+
+Until this is approved, the fallback continues to write its line into the
+measurement log, and `core.sound` now logs each suppressed sound with the reason,
+so a log can at least distinguish "deliberately quiet" from "audio broken".
 
 ### M-NO-INSTRUMENT-FAST · PROPOSED · the instrument is not there, and the connection shortcut is on — §S2
 

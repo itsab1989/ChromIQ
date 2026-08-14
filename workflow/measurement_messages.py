@@ -680,6 +680,30 @@ M_ALL_STRIPS_PATCHES_LEFT = _m(
     "you only measure the patches that are still missing rather than the whole "
     "chart again.", approved=False)
 
+#: PROPOSED (#148). Asked for by Knut, 2026-08-14: *"there should be a defined
+#: and approved instrument error message in the design specification for this
+#: error, is there not? I think there should be a warning message so the user
+#: knows."* He is right that there is none — the fallback is announced only in
+#: the measurement log, which is easy to miss mid-measurement.
+#:
+#: The second paragraph is the one that matters for #148. Falling back also
+#: silences ChromIQ's per-patch and per-strip sounds, because stock chartread
+#: beeps for itself and cannot be quietened (his own ruling, #131). That
+#: suppression is correct and stays; what was missing is saying so, which left a
+#: user with every reason to report the sound feature as broken.
+M_ENGINE_FELL_BACK = _m(
+    "M-ENGINE-FELL-BACK",
+    "Measuring with ArgyllCMS instead",
+    "ChromIQ's own measuring engine could not use your instrument this time, "
+    "so the measurement has been started again using ArgyllCMS's chartread. "
+    "Carry on measuring exactly as you would normally — nothing you have "
+    "already read is lost.\n\n"
+    "One thing changes while this is running: ChromIQ's measurement sounds are "
+    "silent. ArgyllCMS makes its own beeps as it reads, and playing ChromIQ's "
+    "sounds on top would double every one of them. The beeps you hear are "
+    "coming from ArgyllCMS.\n\n"
+    "Reason: {reason}", approved=False)
+
 M_NO_INSTRUMENT_FAST = _m(
     "M-NO-INSTRUMENT-FAST",
     "No Instrument Found",
@@ -722,6 +746,7 @@ CATALOGUE = {m.id: m for m in (
     M_VERIFY_SAVED, M_HOW_PRINTED,
     M_NO_INSTRUMENT, M_NO_INSTRUMENT_FAST,
     M_OVERLAY_NO_MEASUREMENT, M_ALL_STRIPS_PATCHES_LEFT,
+    M_ENGINE_FELL_BACK,
 )}
 
 #: Paragraphs appended to another message rather than shown on their own.

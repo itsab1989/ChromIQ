@@ -257,6 +257,11 @@ DEFAULTS: dict[str, Any] = {
     "pace_sample_hz_i1pro":      0.0,
     "pace_sample_hz_colormunki": 0.0,
     "sound_folder":              "",     # blank = the bundled default pack
+    # Wake the audio device with an inaudible clip before playing a real sound
+    # (#148). OFF, and staying off unless a user asks for it: on the machine
+    # this was written for it silenced every sound in the app instead of making
+    # the first one louder. See core.sound.warm_up_enabled for the full story.
+    "sound_warm_up_device":      False,
     # ONE source of truth, spliced in below from core.sound.DEFAULT_CHOICE.
     # These used to be written out again here, and the second copy quietly won:
     # changing a default in core.sound had no effect at all, because AppSettings

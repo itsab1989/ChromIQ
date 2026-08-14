@@ -132,7 +132,14 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # Knut objected to text being invented rather
                                  # than proposed.
                                  "M-OVERLAY-NO-MEASUREMENT",
-                                 "M-ALL-STRIPS-PATCHES-LEFT"}
+                                 "M-ALL-STRIPS-PATCHES-LEFT",
+                                 # #148, 2026-08-14. Knut asked for this one
+                                 # outright: the engine falling back to stock
+                                 # chartread is announced only in the log, and
+                                 # it silences ChromIQ's sounds without saying
+                                 # so — which is half of why the sound feature
+                                 # looked broken.
+                                 "M-ENGINE-FELL-BACK"}
 
 
 def test_nothing_is_quietly_proposed():

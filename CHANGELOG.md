@@ -1,5 +1,32 @@
 # Changelog
 
+## v4.0.2-beta.6
+
+### Fixed
+
+- **Sounds work again — the audio "warm-up" is now off unless you ask for it.**
+  Waking the audio device with a silent clip before each sound was meant to stop
+  the first one being quiet. On some setups, particularly an external or USB
+  audio device, it stopped every sound instead: during a measurement, on the
+  instrument button, and on the Play buttons in Preferences. ChromIQ no longer
+  touches the audio device before playing, which is exactly how it behaved in
+  4.0.0. If you liked the warm-up, there is a new switch for it in
+  **Preferences → Sounds → "Wake the audio device before playing a sound"**
+  (reported by soul-traveller).
+
+- **The measurement log now says when a sound was deliberately not played.**
+  ChromIQ stays silent on purpose in two situations — when no measurement is
+  running, and when ArgyllCMS's own chartread is driving, because it beeps for
+  itself. Neither was recorded anywhere, so a quiet measurement looked exactly
+  like broken audio. Every sound now writes a line saying it played, or why it
+  did not.
+
+### New
+
+- **Preferences → Sounds: "Wake the audio device before playing a sound".** Off
+  by default. Turn it on if the first sound after a silence is too quiet or
+  seems to start halfway through; turn it off again if your sounds stop.
+
 ## v4.0.2-beta.5
 
 ### Fixed

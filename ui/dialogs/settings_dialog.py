@@ -1955,6 +1955,38 @@ class SettingsDialog(QDialog):
                 "measuring.")),
         ])
 
+        # Waking the audio device first (#148) — off unless asked for, because
+        # on one reporter's hardware it silenced everything instead of helping.
+        _wu = QHBoxLayout()
+        self._sound_warmup = QCheckBox(
+            tr("Wake the audio device before playing a sound"), page)
+        self._sound_warmup.setChecked(
+            bool(self._settings.get("sound_warm_up_device", False)))
+        _wu.addWidget(self._sound_warmup)
+        _wu.addWidget(TooltipButton(
+            tr("Wake the audio device before playing a sound"),
+            tr("Try this if the FIRST sound after a quiet spell is too quiet, "
+               "or seems to start halfway through.\n\n"
+               "Some computers put the sound hardware to sleep whenever nothing "
+               "is playing, and waking it takes a moment. The sound that does "
+               "the waking is the one that suffers: you hear only the tail of "
+               "it, or nothing at all. During a measurement the ticks keep each "
+               "other awake, so it's usually just the first one that's affected "
+               "— and the “Play” buttons above, where every press comes after a "
+               "silence.\n\n"
+               "With this on, ChromIQ plays a silent clip first to wake the "
+               "hardware, then plays your sound a fraction of a second later. "
+               "You won't hear the silent clip.\n\n"
+               "Leave it off if your sounds are fine. On some setups — "
+               "particularly an external or USB audio device — touching the "
+               "hardware this way can stop sounds working altogether, which is "
+               "why it isn't switched on for everybody. If you turn it on and "
+               "your sounds stop, turn it straight back off and they will "
+               "return.\n\n"
+               "Default: off"), page))
+        _wu.addStretch(1)
+        v.addLayout(_wu)
+
         v.addStretch()
         return page
 
@@ -1965,10 +1997,13 @@ class SettingsDialog(QDialog):
         stem = combo.currentData()
         path = snd.file_for_stem(self._settings, event, stem)
         if path is None:
+            log.warning("preview %s: no file for choice %r", event, stem)
             return
         cls = snd._sound_effect_cls()
         if cls is None:                     # no audio backend in this build/env
+            log.warning("preview %s: no audio backend in this build", event)
             return
+        log.debug("preview %s: playing %s", event, path)
         # Build the warm-up clips before the first press needs them: setSource
         # is asynchronous, and a warm-up that only starts loading now would
         # still be loading when the real sound is due (#148).
@@ -1987,14 +2022,25 @@ class SettingsDialog(QDialog):
             # nothing at all — the sound WAS the thing waking the device.
             #
             # So an inaudible clip is played first and the real one follows
-            # 200 ms later, while the warm-up is still running and the device is
+            # 300 ms later, while the warm-up is still running and the device is
             # certainly awake. The delay belongs to a "let me hear this" button
             # where it costs nothing; the measurement cues are never delayed
             # this way — arming warms the device long before the first patch.
-            snd.warm_up_audio(self._settings)
-            QTimer.singleShot(snd.WARMUP_LEAD_MS, eff.play)
+            #
+            # OFF BY DEFAULT (#148). On the reporter's machine this warm-up did
+            # not make the first sound louder, it made every sound disappear —
+            # here, in the measurement, everywhere. So unless he has switched it
+            # on, nothing touches the device and the clip is played straight
+            # away, exactly as it was in the version he confirms worked. The
+            # delay only ever existed to let the warm-up run first, so with no
+            # warm-up there is nothing to wait for.
+            if snd.warm_up_enabled(self._settings):
+                snd.warm_up_audio(self._settings)
+                QTimer.singleShot(snd.WARMUP_LEAD_MS, eff.play)
+            else:
+                eff.play()
         except Exception:                    # noqa: BLE001 — preview must never crash
-            pass
+            log.warning("preview %s failed", event, exc_info=True)
 
     def _build_reports_tab(self) -> QWidget:
         """Measurement-report settings (Knut): the auto-save toggle, moved here
@@ -3628,6 +3674,8 @@ class SettingsDialog(QDialog):
             s.set("sound_folder", self._sound_dir_edit.text().strip())
         for _event, _combo in getattr(self, "_sound_combos", {}).items():
             s.set(f"sound_choice_{_event}", _combo.currentData())
+        if hasattr(self, "_sound_warmup"):
+            s.set("sound_warm_up_device", self._sound_warmup.isChecked())
         # Measurement pace (#131 Phase 2)
         if hasattr(self, "_pace_enable"):
             s.set("pace_hint_enabled", self._pace_enable.isChecked())
