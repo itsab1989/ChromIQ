@@ -1,5 +1,37 @@
 # Changelog
 
+## v4.0.2-beta.5
+
+### Fixed
+
+- **Helper markers now actually appear.** Ticking "Show helper markers" did
+  nothing at all: the layout recipe dropped the three marker values on the way
+  from the checkbox to the chart renderer, so no chart was ever built with them
+  — with or without pressing Generate Chart. They are printed now, and the
+  preview draws them as soon as you tick the box, so you can judge where they
+  land without rebuilding the chart each time you nudge a distance (reported by
+  soul-traveller).
+
+- **The markers follow the spacers.** Beyond the patch area the dashes
+  continued at half a patch width, which is only the patch rhythm when there are
+  no spacers. With a spacer switched on in Create Chart they drifted away from
+  the patches, and the further from the patch area the worse it got. The fill
+  now steps at the real patch pitch, read back off the layout, so it stays in
+  step with whatever spacer width is set (reported by soul-traveller).
+
+- **The "Measured from Preview" panel is tidier.** Its two ⓘ icons sat 28 px
+  apart on different lines and now share one right-hand column; the frame is no
+  longer wider than its widest row (917 px → 829 px); and the two marker
+  distance boxes are down from 142 px to 112 px — the narrowest that still shows
+  "50.0 mm" without cutting the unit off (reported by soul-traveller).
+
+### Changed
+
+- The help for **Clip border** and **Text distance from edge** now says what
+  happens when a helper marker crosses them: nothing is hidden or moved
+  automatically, because the dashes have to keep step with the patches, so move
+  whichever one is in the way.
+
 ## v4.0.2-beta.4
 
 ### Fixed

@@ -26,6 +26,11 @@ from ui.tooltip_button import TooltipButton
 from ui.widgets import NoScrollDoubleSpinBox
 from workflow.margin_inspector import MarginReport, Violation
 
+# Frame, text margin, the up/down buttons and the theme's padding around a spin
+# box's editable text — measured on the real panel (#152). Only a fallback: the
+# width actually used is the larger of this and Qt's own minimumSizeHint.
+_SPIN_CHROME_PX = 56
+
 _MM_PER_INCH = 25.4
 _EDGES = (("L", "Left"), ("R", "Right"), ("T", "Top"), ("B", "Bottom"))
 
@@ -76,6 +81,45 @@ class MarginInspectorPanel(QGroupBox):
             "Not available for a SpectroScan chart with six-sided patches: a "
             "honeycomb has no straight rows for a ruler to follow.\n\n"
             "Default: off, 1.0 mm from the edge, 3.0 mm long")
+
+    def _fit_spin_widths(self) -> None:
+        """Size the two marker spin boxes to the widest value they can hold.
+
+        A default ``QDoubleSpinBox`` asks for far more room than a two-character
+        value needs — 142 px here for a box whose widest possible content,
+        "50.0 mm", measures 54 px. Knut, #152: *"The two spinboxes … are double as
+        wide as needed."* He is right, and the fix is to ask for the content
+        rather than accept Qt's generous default.
+
+        **Why this stops short of the 55-60 % he suggested.** Measured on the
+        real panel: the text needs 54 px and the box's own chrome — frame, text
+        margin, the up/down buttons and the theme's padding — takes another
+        55 px, so anything under about 110 px cuts the " mm" off the end. The
+        first attempt at 86 px did exactly that, and a spin box reading "1,0 m"
+        is worse than a wide one. So the width asked for here is Qt's own
+        ``minimumSizeHint`` — the smallest the widget says it can be drawn at
+        without losing anything — which comes out at roughly 112 px, a 21 %
+        reduction. Getting to 60 % would mean moving the "mm" out of the boxes
+        and into their labels; that is a change to on-screen wording, so it is
+        Knut's call, not one to make silently.
+
+        Computed rather than hard-coded, so a larger UI font or a longer
+        translated suffix still fits. Re-run on a style change, because Qt only
+        applies QSS metrics at polish time — a width measured before that is
+        measured in the wrong font.
+        """
+        for box in (self._helper_edge, self._helper_len):
+            widest = f"{box.maximum():.{box.decimals()}f}{box.suffix()}"
+            text_w = box.fontMetrics().horizontalAdvance(widest)
+            box.setMaximumWidth(
+                max(box.minimumSizeHint().width(), text_w + _SPIN_CHROME_PX))
+
+    def changeEvent(self, ev) -> None:  # noqa: N802
+        from PyQt6.QtCore import QEvent
+        super().changeEvent(ev)
+        if ev.type() in (QEvent.Type.StyleChange, QEvent.Type.FontChange):
+            if getattr(self, "_helper_edge", None) is not None:
+                self._fit_spin_widths()
 
     def _emit_helper_markers(self, *_a) -> None:
         self.helper_markers_changed.emit(
@@ -201,7 +245,20 @@ class MarginInspectorPanel(QGroupBox):
         # the corner so it doesn't take space at the top (#86).
         from PyQt6.QtWidgets import QHBoxLayout
         from ui.tooltip_button import TooltipButton
-        bottom = QHBoxLayout()
+        # A GRID, so every ⓘ in this panel shares one right-hand column.
+        #
+        # It used to be an HBox holding a column of checkboxes, a stretch and the
+        # panel's own ⓘ — which put the helper-marker ⓘ at the end of its own row
+        # and the panel ⓘ hard against the frame, 28 px further right and on a
+        # different line. Knut, beta.3 of 4.0.2 (#152): *"The info icons on the
+        # right side of the 'Measured from Preview' frame are not aligned to each
+        # other and the frame is too wide."* Both are now cells in column 1, so
+        # they line up by construction, and the frame is exactly as wide as its
+        # widest row plus that column — no stretch pushing it out.
+        bottom = QGridLayout()
+        bottom.setContentsMargins(0, 0, 0, 0)
+        bottom.setHorizontalSpacing(8)
+        bottom.setVerticalSpacing(2)
         checks = QVBoxLayout()
         checks.setSpacing(2)
         self._guide_check = QCheckBox(
@@ -243,17 +300,24 @@ class MarginInspectorPanel(QGroupBox):
         self._helper_len.setSuffix(tr(" mm"))
         self._helper_len.setValue(3.0)
         _hm.addWidget(self._helper_len)
+        # NARROW ENOUGH FOR WHAT THEY HOLD. Knut: *"The two spinboxes … are double
+        # as wide as needed."* The width is measured off the font rather than
+        # nailed to a number, so a longer suffix or a bigger UI font still fits:
+        # the widest value either box can show is "50.0 mm", plus the up/down
+        # buttons and the frame.
+        self._fit_spin_widths()
+        _hm.addStretch()
         self._helper_tip = TooltipButton(
             tr("Helper markers"), self._helper_marker_help(), self)
-        _hm.addWidget(self._helper_tip)
-        _hm.addStretch()
         checks.addLayout(_hm)
         for _w in (self._helper_check,):
             _w.toggled.connect(self._emit_helper_markers)
         for _w in (self._helper_edge, self._helper_len):
             _w.valueChanged.connect(self._emit_helper_markers)
-        bottom.addLayout(checks)
-        bottom.addStretch()
+        bottom.addLayout(checks, 0, 0)
+        bottom.setColumnStretch(0, 1)
+        bottom.addWidget(self._helper_tip, 0, 1,
+                         Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom)
         bottom.addWidget(TooltipButton(
             tr("About the margin inspector"),
             tr("This little panel checks that the chart you just made will be "
@@ -306,7 +370,12 @@ class MarginInspectorPanel(QGroupBox):
                "line below it in inches (three decimals). It's the easiest way "
                "to check a real distance on screen: hover over the edge of a "
                "patch, or a margin, and read off exactly where it sits."),
-            self))
+            self),
+            # Same cell as the helper-marker ⓘ, opposite ends of it: the cell
+            # spans the whole checkbox column, so Top and Bottom put one against
+            # the first row and one against the last, both on the same right
+            # edge — which is the alignment Knut asked for.
+            0, 1, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
         v.addLayout(bottom)
 
     # ------------------------------------------------------------------

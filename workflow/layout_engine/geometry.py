@@ -562,27 +562,57 @@ def patches_per_sheet(geom: Geom, paper_w_mm: float, paper_h_mm: float,
 # ---------------------------------------------------------------------------
 # Ruler helper markers (#152, Knut)
 # ---------------------------------------------------------------------------
-def _fill_outward(anchors: list[float], step: float,
+def _fill_outward(anchors: list[float], pitch: float, half: float,
                   lo: float, hi: float) -> list[float]:
-    """*anchors* extended in both directions at *step*, clipped to [lo, hi].
+    """*anchors* continued past both ends at the patch *pitch*, clipped to [lo, hi].
 
     Knut: *"The rest of the top and bottom edges are then filled with these
     markers till they reach the left and right edges, using the same distance
     between them."* So the spacing outside the patch area is the one the patches
-    themselves defined, and the comb simply continues.
+    themselves defined, and the pattern simply continues.
+
+    **The step outside is the pitch, not half the patch** (Knut, 2026-08-14:
+    *"You have to dynamically include the spacers as part of the calculation, as
+    the spacers can change in the create chart settings."*). One patch of the
+    printed rhythm is *start → middle → next start*, and with a spacer in
+    between those two gaps are NOT equal: the middle sits ``half`` after the
+    start, the next start a full ``pitch`` after it. Repeating a single average
+    step drifted against the patches as soon as a spacer was switched on — the
+    further from the patch area, the worse. So the whole two-mark pattern is
+    tiled at the pitch instead, which stays in step with the patches for any
+    spacer width, including zero.
+
+    *anchors* themselves are left exactly as measured, so a layout whose spacers
+    are not uniform (edge spacers, an override on one strip) is still precise
+    where the patches actually are; only the empty margins beyond them are
+    filled with the repeating pattern.
     """
-    if not anchors or step <= 0:
+    if not anchors:
+        return []
+    if pitch <= 0:
         return [a for a in anchors if lo <= a <= hi]
-    out = list(anchors)
-    a = min(anchors) - step
-    while a >= lo:
-        out.append(a)
-        a -= step
-    b = max(anchors) + step
-    while b <= hi:
-        out.append(b)
-        b += step
-    return sorted(v for v in out if lo <= v <= hi)
+    out = [a for a in anchors if lo <= a <= hi]
+    first, last = min(anchors), max(anchors)
+    # Below the patch area: keep stepping the pattern down from the first mark.
+    base = first - pitch
+    while base + half >= lo:
+        for v in (base, base + half):
+            if lo <= v <= hi:
+                out.append(v)
+        base -= pitch
+    # Above it: the same pattern continuing on from the last mark. `last` is the
+    # END of the final patch, which a spacer separates from the next start — so
+    # step up from the FIRST start in whole pitches, which is where the next
+    # patch would have begun had the page been taller.
+    base = first
+    while base <= last:
+        base += pitch
+    while base <= hi:
+        for v in (base, base + half):
+            if lo <= v <= hi:
+                out.append(v)
+        base += pitch
+    return sorted(set(round(v, 4) for v in out))
 
 
 def helper_marker_lines_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
@@ -606,24 +636,28 @@ def helper_marker_lines_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
       middle of every patch, plus the end of the last one
 
     Within the patch area the positions are exact, so a spacer between patches
-    cannot make them drift. Beyond it the comb continues at the spacing the
-    patches defined, out to the page edges.
+    cannot make them drift. Beyond it the same pattern continues at the pitch
+    the patches defined — **spacer included** — out to the page edges. Knut,
+    2026-08-14: *"You have to dynamically include the spacers as part of the
+    calculation, as the spacers can change in the create chart settings."*
+    Nothing here hard-codes a spacer width: the pitch is read back off the
+    layout, so whatever Create Chart is set to is what the markers follow.
 
     **The ColorMunki's staggered strips take the first strip as their
-    reference**, which is Knut's ruling (#152): every second strip is offset
-    downward, and the row markers are already half a patch apart, so markers
-    taken from the first strip serve the offset ones too.
-
-    That is exact only when there are no spacers. ``instruments.build`` sets the
-    stagger to ``0.5 * (plen + 0.5 * pspa)`` — half a patch **plus a quarter of
-    the spacer** — while the marker spacing here is ``plen / 2``. With spacers
-    off the two agree to the micron; with the default 1 mm ColorMunki spacer the
-    staggered rows sit 0.25 mm below their markers. Reported to him rather than
-    silently "corrected", because which of the two strips a ruler should follow
-    is his decision, not this function's.
+    reference**, which is Knut's ruling (#152): *"the offset strip is always half
+    a patch height offset, thus the markers land the correct place if you just
+    use the first strip as the reference … Then the whole left and right edge
+    with markers will be placed correctly."*
 
     Hexagonal SpectroScan charts return no markers at all: a honeycomb has no
     rows to line a ruler up with.
+
+    Markers may cross a margin label or the clip-border text. That is accepted —
+    Knut, on whether they should ever be skipped to avoid a collision:
+    *"overlapping is acceptable. User must adapt settings for the markers,
+    margins and clip-border text etc. to look as desired."* Suppressing a marker
+    would leave a gap in the very rhythm a ruler is being lined up against,
+    which is worse than an overlap the user can move out of the way.
     """
     if getattr(geom, "key", "") == "SS" and getattr(geom, "hxew", 0.0) > 0:
         return []
@@ -649,7 +683,12 @@ def helper_marker_lines_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
         xs.append(x)
         xs.append(x + place.pwid / 2.0)
     xs.append(place.x_of(passes - 1) + place.pwid)
-    xs = _fill_outward(xs, place.pwid / 2.0, 0.0, paper_w_mm)
+    # The pitch is measured off the layout itself, so a spacer the user adds in
+    # Create Chart moves the fill with it (Knut, 2026-08-14). One strip on the
+    # page has no pitch to measure — its own width is then the only rhythm there
+    # is, and there is nothing for a spacer to sit between anyway.
+    x_pitch = (place.x_of(1) - place.x_of(0)) if passes > 1 else place.pwid
+    xs = _fill_outward(xs, x_pitch, place.pwid / 2.0, 0.0, paper_w_mm)
 
     # Rows: the start and middle of each patch of the FIRST strip, plus the last
     # patch's end. Exact even when a spacer sits between patches.
@@ -659,7 +698,8 @@ def helper_marker_lines_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
         ys.append(y)
         ys.append(y + place.plen / 2.0)
     ys.append(place.y_of(steps - 1) + place.plen)
-    ys = _fill_outward(ys, place.plen / 2.0, 0.0, paper_h_mm)
+    y_pitch = (place.y_of(1) - place.y_of(0)) if steps > 1 else place.plen
+    ys = _fill_outward(ys, y_pitch, place.plen / 2.0, 0.0, paper_h_mm)
 
     lines: list[tuple[float, float, float, float]] = []
     for x in xs:                        # top and bottom: vertical dashes

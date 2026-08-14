@@ -12376,6 +12376,9 @@ class TabChart(QWidget):
             panel.set_helper_markers_supported(not self._chart_is_hexagonal())
         except Exception:      # noqa: BLE001 — never block the inspector
             log.debug("could not set helper-marker availability", exc_info=True)
+        # The ruler dashes follow whatever chart and page are on screen, so they
+        # are refreshed here as well as on the checkbox (#152).
+        self._refresh_helper_marker_overlay()
         if not show or not tiffs:
             panel.show_placeholder()
             self._preview.set_margin_guides(None)
@@ -12563,9 +12566,21 @@ class TabChart(QWidget):
                                    len_mm: float) -> None:
         """Remember the ruler-marker choice and redraw with it (#152).
 
-        These dashes are printed, not a preview overlay, so changing them means
-        laying the chart out again — the same as changing any other layout
-        setting. Stored so the next chart starts where this one left off.
+        These dashes are printed, not merely drawn over the preview, so the
+        values have to reach the layout recipe — that is what the renderer
+        reads. Stored in Preferences too, so the next chart starts where this
+        one left off.
+
+        **The preview updates straight away, without re-laying-out the chart.**
+        Knut, on beta.3 (#152): *"Enabling 'Show helper markers…' checkbox does
+        nothing. No markers become visible in preview."* Two separate faults
+        were behind that — the recipe dropped the values on the way to the
+        renderer (fixed in ``LayoutOptionsPanel.apply_to_recipe``), and nothing
+        on screen changed until the chart was generated again. The second half
+        is what this method fixes: the overlay is drawn at the coordinates the
+        renderer will use, so the position can be judged while the spin boxes
+        are being nudged, and a generated chart puts the printed dashes in
+        exactly the same place.
         """
         try:
             self._settings.set("helper_markers_show", bool(on))
@@ -12573,14 +12588,74 @@ class TabChart(QWidget):
             self._settings.set("helper_marker_len_mm", float(len_mm))
             panel = getattr(self, "_manual_layout_panel", None)
             if panel is not None:
-                rec = panel.get_recipe()
-                rec.helper_markers = bool(on)
-                rec.helper_marker_edge_mm = float(edge_mm)
-                rec.helper_marker_len_mm = float(len_mm)
-                panel.set_recipe(rec)
+                # Straight onto the panel's carried state: going through
+                # get_recipe()/set_recipe() would round-trip every other control
+                # as well, which is how a stray write can revert the user's
+                # spacer settings.
+                panel._helper_markers = bool(on)
+                panel._helper_marker_edge_mm = float(edge_mm)
+                panel._helper_marker_len_mm = float(len_mm)
+            self._refresh_helper_marker_overlay()
             self._refresh_manual_command_preview()
+            # With auto-update on, the sheet itself is re-drawn as well, so the
+            # printed dashes catch up with the overlay without a click.
+            self._maybe_schedule_auto_preview()
         except Exception:      # noqa: BLE001 — never break the tab on a toggle
             log.warning("could not apply the helper-marker choice", exc_info=True)
+
+    def _refresh_helper_marker_overlay(self) -> None:
+        """Draw (or clear) the ruler dashes over the chart now in the preview.
+
+        The geometry comes from the chart's OWN recorded layout
+        (``channels.json``) whenever there is one, not from the Create Chart
+        controls — those can describe a chart the user is about to build rather
+        than the one on screen, and dashes that do not line up with the visible
+        patches would defeat the point of showing them. A printtarg chart has no
+        recorded layout, so it gets no overlay.
+        """
+        prev = getattr(self, "_preview", None)
+        if prev is None:
+            return
+        try:
+            lines = self._helper_marker_lines_frac()
+        except Exception:      # noqa: BLE001 — an overlay is never fatal
+            log.debug("helper-marker overlay skipped", exc_info=True)
+            lines = None
+        prev.set_helper_markers(lines)
+
+    def _helper_marker_lines_frac(
+        self,
+    ) -> "list[tuple[float, float, float, float]] | None":
+        """The marker segments for the page on screen, as page fractions."""
+        panel = getattr(self, "_margin_panel", None)
+        if panel is None:
+            return None
+        on, edge_mm, len_mm = panel.helper_markers()
+        if not on:
+            return None
+        if not getattr(self, "_margin_tiffs", None) or self._margin_ti2 is None:
+            return None
+        if self._chart_is_hexagonal():
+            return None
+        from workflow.layout_engine.presets import LayoutRecipe
+        from workflow.layout_engine import instruments, geometry, papers
+        ch = Path(self._margin_ti2).with_suffix(".channels.json")
+        rec = LayoutRecipe.from_channels_json(ch)
+        if rec is None:
+            return None                      # printtarg chart — no engine layout
+        m = re.search(r"NUMBER_OF_SETS\s+(\d+)",
+                      Path(self._margin_ti2).read_text(errors="replace"))
+        if not m:
+            return None
+        geom = instruments.geom_from_build_kwargs(rec.build_kwargs())
+        w_mm, h_mm = papers.dimensions_mm(rec.paper)
+        if w_mm <= 0 or h_mm <= 0:
+            return None
+        lay = geometry.compute(geom, w_mm, h_mm, int(m.group(1)))
+        lines = geometry.helper_marker_lines_mm(
+            geom, w_mm, h_mm, lay, edge_mm=edge_mm, length_mm=len_mm)
+        return [(x0 / w_mm, y0 / h_mm, x1 / w_mm, y1 / h_mm)
+                for x0, y0, x1, y1 in lines]
 
     def _on_margin_coords_toggled(self, on: bool) -> None:
         self._settings.set("margin_coords_show", bool(on))

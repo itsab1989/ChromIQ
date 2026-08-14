@@ -5,7 +5,11 @@ His specification, and his answers to the questions that decided the geometry:
 * **Top and bottom** step ACROSS the page with the strips — the start and the
   middle of every strip, plus the end of the last one.
 * **Left and right** step DOWN the page with the patches, in the same way.
-* The rest of each edge is filled at that same spacing, out to the corners.
+* The rest of each edge is filled by continuing that same pattern out to the
+  corners — at the patch PITCH, which carries whatever spacer Create Chart is
+  set to. Knut, 2026-08-14: *"You have to dynamically include the spacers as
+  part of the calculation, as the spacers can change in the create chart
+  settings."*
 * **The ColorMunki stagger takes the first strip as its reference** — his
   ruling: *"the offset strip is always half a patch height offset, thus the
   markers land the correct place if you just use the first strip as the
@@ -114,11 +118,15 @@ def test_the_edges_are_filled_out_to_the_corners():
     assert min(xs) < place.x_of(0), "nothing was filled left of the first strip"
     assert max(ys) > place.y_of(lay.steps_in_pass - 1) + place.plen, \
         "nothing was filled below the last patch"
-    # And the continuation keeps the spacing the patches defined.
-    step = place.pwid / 2
+    # And the continuation keeps the rhythm the patches defined: the next mark
+    # out is where the previous strip's MIDDLE would have been, i.e. one pitch
+    # back plus half a patch. With no spacer the pitch is the patch width and
+    # that reduces to half a patch; with one, it does not — see
+    # test_the_fill_follows_the_spacer.
+    pitch = place.x_of(1) - place.x_of(0)
     below = sorted(x for x in xs if x < place.x_of(0))
     assert below, "expected dashes left of the first strip"
-    assert abs((place.x_of(0) - max(below)) - step) < 1e-6
+    assert max(below) == pytest.approx(place.x_of(0) - pitch + place.pwid / 2)
 
 
 def test_the_fill_never_invents_a_closer_spacing():
@@ -175,6 +183,76 @@ def test_the_stagger_matches_the_marker_spacing_without_spacers():
     lay = G.compute(geom, A4_W, A4_H, 400)
     place = G.placement(geom, A4_W, A4_H, lay)
     assert geom.row_stagger_mm == pytest.approx(place.plen / 2)
+
+
+# --- the spacers are part of the sum (Knut, 2026-08-14) ---------------------
+
+@pytest.mark.parametrize("spacer_mm", [0.0, 0.5, 1.0, 2.5, 5.0])
+def test_a_dash_lands_on_every_patch_whatever_the_spacer_is(spacer_mm):
+    """*"You have to dynamically include the spacers as part of the calculation,
+    as the spacers can change in the create chart settings."*
+
+    Nothing may assume a spacer width. Whatever Create Chart is set to, the
+    start and the middle of every patch still has a dash on it — that is what
+    makes the dashes usable as a reference for the instrument.
+    """
+    geom = I.build("i1", spacer_on=spacer_mm > 0, spacer_width=spacer_mm)
+    lay = G.compute(geom, A4_W, A4_H, 800)
+    place = G.placement(geom, A4_W, A4_H, lay)
+    ys = _horizontals(G.helper_marker_lines_mm(geom, A4_W, A4_H, lay))
+    for j in range(lay.steps_in_pass):
+        for want in (place.y_of(j), place.y_of(j) + place.plen / 2):
+            assert any(abs(y - want) < 1e-4 for y in ys), (
+                f"no dash at {want:.3f} mm with a {spacer_mm} mm spacer")
+
+
+@pytest.mark.parametrize("spacer_mm", [0.5, 1.0, 2.5, 5.0])
+def test_the_fill_follows_the_spacer(spacer_mm):
+    """THE REGRESSION. Beyond the patch area the pattern used to repeat at half
+    a patch, which is only the patch rhythm when there is no spacer at all.
+
+    One patch of the printed rhythm is *start → middle → next start*: the middle
+    sits half a patch on, the next start a full PITCH on, and with a spacer those
+    two are not the same number. Repeating the half-patch step therefore drifted
+    against the patches the moment a spacer was switched on, and the further from
+    the patch area the worse it got. The fill now steps at the pitch, which the
+    layout is asked for rather than told.
+
+    The spacer this option controls sits BETWEEN PATCHES ALONG A STRIP, so the
+    axis it moves is the one the left and right dashes step down — which is the
+    edge a ruler is laid against anyway.
+    """
+    geom = I.build("i1", spacer_on=True, spacer_width=spacer_mm)
+    lay = G.compute(geom, A4_W, A4_H, 800)
+    place = G.placement(geom, A4_W, A4_H, lay)
+    pitch = place.y_of(1) - place.y_of(0)
+    assert pitch > place.plen, "this chart has no spacer, so it proves nothing"
+    ys = _horizontals(G.helper_marker_lines_mm(geom, A4_W, A4_H, lay))
+    outside = [y for y in ys if y < place.y_of(0) - 1e-6]
+    assert outside, "nothing was filled above the first patch"
+    # Every filled mark is on the continued pattern — a start or a middle of a
+    # patch that would have been there had the sheet been taller.
+    for y in outside:
+        k = round((place.y_of(0) - y) / pitch)
+        offs = [place.y_of(0) - k * pitch,
+                place.y_of(0) - k * pitch + place.plen / 2]
+        assert any(abs(y - o) < 1e-4 for o in offs), (
+            f"dash at {y:.3f} mm is not on the patch rhythm "
+            f"(pitch {pitch:.3f} mm, spacer {spacer_mm} mm)")
+
+
+def test_the_fill_is_not_a_uniform_comb_once_a_spacer_is_on():
+    """Guards the shape of the fix, not just its arithmetic: with a spacer the
+    gaps between consecutive dashes must alternate (half a patch, then half a
+    patch plus the spacer). A single repeated step would mean the old comb is
+    back."""
+    geom = I.build("i1", spacer_on=True, spacer_width=3.0)
+    lay = G.compute(geom, A4_W, A4_H, 800)
+    place = G.placement(geom, A4_W, A4_H, lay)
+    ys = _horizontals(G.helper_marker_lines_mm(geom, A4_W, A4_H, lay))
+    gaps = {round(b - a, 3) for a, b in zip(ys, ys[1:])}
+    assert len(gaps) > 1, f"the dashes are evenly spaced ({gaps}) — spacer ignored"
+    assert round(place.plen / 2, 3) in gaps
 
 
 def test_a_spacer_makes_the_stagger_a_quarter_spacer_deeper():

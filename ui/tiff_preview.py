@@ -600,6 +600,9 @@ class TiffPreview(QWidget):
         # Measured-margin guide lines: (axis, frac) at the actual patch-area
         # edges, drawn as long purple/blue dots (a separate toggle).
         self._measured_guides: list[tuple[str, float]] = []
+        # Ruler helper markers (#152): (x0, y0, x1, y1) as fractions of the page,
+        # shown where the printed dashes will land. Empty = none.
+        self._helper_markers: list[tuple[float, float, float, float]] = []
         # Coordinate readout on the pointer (#29, Knut): a cross-hair + the
         # cursor position in paper mm/inch, measured from the paper top-left.
         self._coord_readout: bool = False
@@ -778,6 +781,30 @@ class TiffPreview(QWidget):
         """Long purple/blue dotted lines at the measured margins (patch-area
         edges). Each guide is ``(axis, frac)``. Pass None/empty to clear."""
         self._measured_guides = list(guides or [])
+        if self._pixmap:
+            self._repaint_label()
+
+    def set_helper_markers(
+        self, lines: "list[tuple[float, float, float, float]] | None"
+    ) -> None:
+        """Show where the printed ruler dashes will land (#152).
+
+        Each line is ``(x0, y0, x1, y1)`` as a fraction of the page width and
+        height, so it survives any zoom, page size or resolution.
+
+        **Why the preview draws these at all, when they are printed.** Every
+        other overlay in this widget is display-only, and these are not: the
+        dashes are rendered into the chart itself. But their whole purpose is to
+        be judged against the patches — how far in from the edge, how long, do
+        they line up — and asking the user to generate a chart after every nudge
+        of a spin box makes that impossible to judge. So the preview shows them
+        immediately, at exactly the coordinates the renderer will use. Once the
+        chart is generated the two coincide to the pixel, which is what makes
+        the overlay safe to leave on.
+
+        Pass ``None`` or an empty list to clear.
+        """
+        self._helper_markers = list(lines or [])
         if self._pixmap:
             self._repaint_label()
 
@@ -2045,6 +2072,10 @@ class TiffPreview(QWidget):
             self._draw_margin_guides(
                 painter, B, scaled.width() / dpr, scaled.height() / dpr)
 
+        if self._helper_markers:
+            self._draw_helper_markers(
+                painter, B, scaled.width() / dpr, scaled.height() / dpr)
+
         # #126 engine overlays (split patches, hover outline, legend)
         self._draw_cq_overlay(painter,
                               (scaled.width() / dpr) / max(1, self._pixmap.width()),
@@ -2534,6 +2565,30 @@ class TiffPreview(QWidget):
             painter.drawLine(int(p1[0]), int(p1[1]), int(p2[0]), int(p2[1]))
 
         painter.setPen(Qt.PenStyle.SolidLine)
+
+    def _draw_helper_markers(
+        self, painter: QPainter, border: float, disp_w: float, disp_h: float
+    ) -> None:
+        """Paint the ruler dashes where the chart will print them (#152).
+
+        Solid black over a white halo — the printed dash is plain black, and the
+        halo is the only concession to the screen: without it a dash lying on a
+        dark patch, or on the black clip border, would be invisible in the very
+        preview that exists to let you judge its position.
+        """
+        from PyQt6.QtGui import QPen
+
+        for x0, y0, x1, y1 in self._helper_markers:
+            p1 = (border + x0 * disp_w, border + y0 * disp_h)
+            p2 = (border + x1 * disp_w, border + y1 * disp_h)
+            halo = QPen(QColor(255, 255, 255, 210))
+            halo.setWidthF(3.0)
+            painter.setPen(halo)
+            painter.drawLine(int(p1[0]), int(p1[1]), int(p2[0]), int(p2[1]))
+            line = QPen(QColor(0, 0, 0))
+            line.setWidthF(1.4)
+            painter.setPen(line)
+            painter.drawLine(int(p1[0]), int(p1[1]), int(p2[0]), int(p2[1]))
 
     def _repaint_interactive(self) -> None:
         """Fit-to-window at zoom 1, then scale + pan within the viewport. The
