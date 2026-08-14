@@ -12,14 +12,23 @@ is why a sound following another within a second is fine, and why the first
 after a silence loses its opening. During a measurement the per-patch cues keep
 each other alive; the one that suffers is the first.
 
-Measured with cold plays six seconds apart, one play each:
+Measured here with cold plays six seconds apart, one play each: ``tick`` (8 ms)
+went from weak to clearly better, ``thump`` (120 ms) was unaffected either way —
+this machine's window is only a few milliseconds.
 
-===== ============ ===================================
-Clip  As today     Warmed 200 ms beforehand
-===== ============ ===================================
-tick  weak         clearly better
-thump unchanged    unchanged (120 ms already survives)
-===== ============ ===================================
+**Knut then measured the window itself, on the hardware where it is severe, and
+settled which end is lost.** With a first, too-short warm-up in place:
+
+    *"'bell', 'ding-hi', 'ding', 'chime', 'buzz', 'bump' are cut off, so only a
+    faint ending is heard."*
+
+Only the ending survives, so it is the BEGINNING that goes — head truncation,
+not tail. And the size falls out of which clips survived: ``bump`` (140 ms) was
+only just audible, *"cut off closest to the sound's end, so a very small tick is
+heard"*, while ``thump`` (120 ms), ``click`` (12 ms) and ``tick`` (8 ms) were
+silent altogether. So roughly 120-140 ms was being swallowed, and he proposed a
+startup time "about the length of the bump sound (maybe rounding up to a nice
+number)". :data:`core.sound.WARMUP_LEAD_MS` is that, doubled.
 
 **Why this is safe, where the previous attempt was not.** The withdrawn fix held
 a voice that never ended, pinning one CoreAudio stream open for the life of the
@@ -52,7 +61,14 @@ class _Settings:
 
 @pytest.fixture
 def played(monkeypatch):
-    """Record the clips a warm-up starts, without touching real audio."""
+    """Record the clips a warm-up starts, without touching real audio.
+
+    The warm-up clips are cached module-wide — deliberately, because building
+    one costs an asynchronous load and a warm-up that is still loading is a
+    warm-up that does not warm. The cache therefore has to be cleared between
+    tests, or one test's recorder keeps catching the next test's plays.
+    """
+    monkeypatch.setattr(snd, "_WARMUP_EFFECTS", {})
     starts: list = []
 
     class _Eff:
@@ -178,3 +194,32 @@ def test_a_failing_warm_up_does_not_raise(monkeypatch):
 def test_no_permanent_voice_anywhere_in_the_module():
     """Belt and braces alongside tests/test_no_permanent_audio_voice.py."""
     assert "Infinite" not in inspect.getsource(snd)
+
+
+def test_the_warm_up_clip_is_built_once_and_reused(played, monkeypatch):
+    """``setSource`` is asynchronous, so a warm-up built at the moment it is
+    needed is still loading when the real sound is due — which is exactly why
+    the first attempt at this left Knut's short sounds cut off. Building them
+    ahead of time is the point, so they must not be rebuilt on every play."""
+    s = _Settings()
+    snd.preload_warm_up(s)
+    built = dict(snd._WARMUP_EFFECTS)
+    assert built, "preloading built nothing"
+    assert not played, "preloading must not make a sound"
+    snd.warm_up_audio(s)
+    snd.warm_up_audio(s)
+    assert snd._WARMUP_EFFECTS == built, "the clips were rebuilt instead of reused"
+    assert len(played) == 2 * len(built), "each warm-up should play each clip once"
+
+
+def test_the_lead_time_covers_the_measured_window():
+    """Knut measured roughly 120-140 ms being swallowed: ``bump`` (140 ms) only
+    just audible, ``thump`` (120 ms) silent. The lead has to clear that with
+    room to spare on hardware we cannot test."""
+    assert snd.WARMUP_LEAD_MS >= 280, snd.WARMUP_LEAD_MS
+
+
+def test_the_warm_up_outlasts_the_lead():
+    """The clip must still be playing when the real sound starts, so the device
+    is continuously busy across the join and cannot doze in between."""
+    assert snd._WARMUP_SECONDS * 1000 > snd.WARMUP_LEAD_MS

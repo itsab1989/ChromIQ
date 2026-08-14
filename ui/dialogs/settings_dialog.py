@@ -1934,6 +1934,10 @@ class SettingsDialog(QDialog):
         cls = snd._sound_effect_cls()
         if cls is None:                     # no audio backend in this build/env
             return
+        # Build the warm-up clips before the first press needs them: setSource
+        # is asynchronous, and a warm-up that only starts loading now would
+        # still be loading when the real sound is due (#148).
+        snd.preload_warm_up(self._settings)
         try:
             from PyQt6.QtCore import QTimer, QUrl
             eff = getattr(self, "_preview_effect", None) or cls(self)
@@ -1953,7 +1957,7 @@ class SettingsDialog(QDialog):
             # where it costs nothing; the measurement cues are never delayed
             # this way — arming warms the device long before the first patch.
             snd.warm_up_audio(self._settings)
-            QTimer.singleShot(200, eff.play)
+            QTimer.singleShot(snd.WARMUP_LEAD_MS, eff.play)
         except Exception:                    # noqa: BLE001 — preview must never crash
             pass
 

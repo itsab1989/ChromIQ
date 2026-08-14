@@ -153,9 +153,27 @@ def _setting_key(event: str) -> str:
 # fails, or the device ignores it, the worst case is that nothing is gained —
 # never that something is lost.
 
-#: How long the inaudible warm-up clip runs. Long enough to span a device
-#: start-up, short enough that nothing waits on it.
-_WARMUP_SECONDS = 0.30
+#: How long the inaudible warm-up clip runs. It must still be playing when the
+#: real sound starts, so that the device is continuously busy across the join
+#: and cannot doze again in between.
+_WARMUP_SECONDS = 0.80
+
+#: How long to wait after starting the warm-up before playing a sound the user
+#: is meant to hear.
+#:
+#: Knut measured the window for us, and his arithmetic is the reason for this
+#: number rather than a guess. With the shipped pack he found ``bump`` (140 ms)
+#: only just audible — *"cut off closest to the sound's end, so a very small
+#: tick is heard"* — while ``thump`` (120 ms), ``click`` (12 ms) and ``tick``
+#: (8 ms) were silent altogether. So roughly 120-140 ms of every sound was
+#: being swallowed, and he suggested a startup time "about the length of the
+#: bump sound (maybe rounding up to a nice number)".
+#:
+#: 300 ms is that, doubled. The margin is deliberate: it is the same figure on
+#: hardware we cannot test, the cost is a delay on a button whose only job is to
+#: let you hear a sound, and being too short is indistinguishable from being
+#: broken.
+WARMUP_LEAD_MS = 300
 
 
 def _warmup_file(rate: int, channels: int) -> "Path | None":
@@ -213,37 +231,60 @@ def formats_in_use(settings) -> set:
     return out
 
 
+#: The warm-up clips, loaded once and kept. Loading matters: ``setSource`` is
+#: asynchronous, so a freshly-built effect does not start playing the instant
+#: ``play()`` is called — and a warm-up that starts late is a warm-up that does
+#: not warm. These are only ever *played*, never left playing, so they hold the
+#: audio engine exactly as the ordinary measurement effects already do.
+_WARMUP_EFFECTS: dict = {}
+
+
 def warm_up_audio(settings) -> None:
     """Wake the audio device now, so the next real sound is not the cold one.
 
-    Fire and forget: each clip plays once and finishes, and the effects are
-    dropped as soon as they have been started. Safe to call at any time, and
-    safe to call when there is no audio at all.
+    Each clip plays once and finishes. Safe to call at any time, safe to call
+    repeatedly, and safe when there is no audio at all.
     """
     cls = _sound_effect_cls()
     if cls is None:                       # no audio in this build/environment
         return
     try:
-        from PyQt6.QtCore import QTimer, QUrl
-        held = []
-        for rate, channels in formats_in_use(settings):
-            path = _warmup_file(rate, channels)
+        from PyQt6.QtCore import QUrl
+        for fmt in formats_in_use(settings):
+            eff = _WARMUP_EFFECTS.get(fmt)
+            if eff is None:
+                path = _warmup_file(*fmt)
+                if path is None:
+                    continue
+                eff = cls()
+                eff.setSource(QUrl.fromLocalFile(str(path)))
+                eff.setVolume(0.02)
+                _WARMUP_EFFECTS[fmt] = eff
+            eff.play()
+    except Exception as exc:      # noqa: BLE001 — a warm-up must never break a read
+        log.debug("could not warm the audio device: %s", exc)
+
+
+def preload_warm_up(settings) -> None:
+    """Build the warm-up clips without playing them, so the first real warm-up
+    starts instantly. Called when the sound layer is first armed."""
+    cls = _sound_effect_cls()
+    if cls is None:
+        return
+    try:
+        from PyQt6.QtCore import QUrl
+        for fmt in formats_in_use(settings):
+            if fmt in _WARMUP_EFFECTS:
+                continue
+            path = _warmup_file(*fmt)
             if path is None:
                 continue
             eff = cls()
             eff.setSource(QUrl.fromLocalFile(str(path)))
             eff.setVolume(0.02)
-            eff.play()
-            held.append(eff)
-        if not held:
-            return
-        # Keep them referenced until the clip has certainly finished, then let
-        # them go — a QSoundEffect collected mid-play would stop the very sound
-        # that is doing the waking.
-        QTimer.singleShot(int(_WARMUP_SECONDS * 1000) + 1500,
-                          lambda _h=held: _h.clear())
-    except Exception as exc:      # noqa: BLE001 — a warm-up must never break a read
-        log.debug("could not warm the audio device: %s", exc)
+            _WARMUP_EFFECTS[fmt] = eff
+    except Exception as exc:      # noqa: BLE001
+        log.debug("could not prepare the warm-up clips: %s", exc)
 
 
 # ---- why there is no "keep the audio device awake" here (#148) -------------
@@ -386,6 +427,7 @@ class SoundManager:
         # patch is read, so waking it here means the first tick lands in a
         # running device — and the ticks that follow keep it awake themselves
         # (#148). One clip, played once.
+        preload_warm_up(self._settings)
         warm_up_audio(self._settings)
 
     def disarm(self) -> None:
