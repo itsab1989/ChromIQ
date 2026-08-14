@@ -123,6 +123,18 @@ inaccurately.
   running. During a measurement the cues follow each other closely enough to
   keep it awake by themselves (reported by soul-traveller).
 
+- **The instrument's own "ready" beep is back.** When you press the button on
+  your instrument to start reading, it plays a short beep to tell you it is
+  ready for you to move. That beep comes from ArgyllCMS rather than from
+  ChromIQ's own sounds, which is why it does not appear in the list on
+  **Preferences ▸ Sounds** — and it had gone quiet on macOS. It sounds again
+  (reported by soul-traveller).
+
+- **Three sounds start out better chosen.** A patch that reads off-colour now
+  starts as **bump**, a finished measurement as **chime-long**, and a finished
+  profile as **applause**. If you had already chosen your own sound for any of
+  these, your choice is kept exactly as it is (chosen by soul-traveller).
+
 - **The pointer ruler measures the chart you are looking at.** With "Show
   measurement coordinates on pointer" ticked, the readout used the Resolution
   setting rather than the resolution the chart on screen was actually made at.

@@ -53,7 +53,20 @@ if(WIN32)
     -Wno-implicit-function-declaration
     -include "${CMAKE_CURRENT_SOURCE_DIR}/chromiq_utf_compat.h")
 elseif(APPLE)
-  target_compile_definitions(instlib PUBLIC UNIX)
+  # NOT UNIX_APPLE. That symbol also selects Argyll's macOS HID/USB code paths
+  # (hidio.c, icoms_ux.c, usbio.c — 81 uses across 20 files), and this engine
+  # talks to instruments perfectly well through the generic UNIX ones. Swapping
+  # the whole communication layer to fix a beep would be a very poor trade.
+  #
+  # CHROMIQ_APPLE_BEEP is scoped to exactly one thing: conv.c's msec_beep. Under
+  # plain UNIX that writes a BEL character to stdout — and ChromIQ reads the
+  # engine's stdout as its JSON channel, so the "ready to scan" cue after you
+  # press the instrument's button went into the pipe and was never heard
+  # (#148, Knut: "The sound of the instrument button click … does not play when
+  # clicking button during measurement. This worked before through 200 beta
+  # releases"). Stock ArgyllCMS is built with UNIX_APPLE and so beeped; this
+  # engine never was. AudioToolbox is already linked below.
+  target_compile_definitions(instlib PUBLIC UNIX CHROMIQ_APPLE_BEEP)
   # -Wno-implicit-function-declaration: Argyll 3.5.0's SALONEINSTLIB mode
   # misses a few prototypes (e.g. sa_Clamp3); upstream builds treat that as
   # a warning, modern clang as an error. Sources stay byte-identical.

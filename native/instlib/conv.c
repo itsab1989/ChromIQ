@@ -122,6 +122,14 @@
 #endif
 #endif /* UNIX_APPLE */
 
+/* ChromIQ (#148): the beep, and only the beep, on a macOS build that is
+ * deliberately NOT UNIX_APPLE. Defining that symbol would also switch Argyll's
+ * HID/USB layer, which this engine has no reason to change — so just the one
+ * header the alert sound needs. AudioToolbox is linked by the CMake build. */
+#if defined(CHROMIQ_APPLE_BEEP) && !defined(UNIX_APPLE)
+# include <AudioToolbox/AudioServices.h>
+#endif
+
 #undef DEBUG
 
 #ifdef DEBUG
@@ -959,6 +967,12 @@ static int delayed_beep(void *pp) {
 # else
 	SysBeep((beep_msec * 60)/1000);
 # endif
+#elif defined(CHROMIQ_APPLE_BEEP)
+	/* ChromIQ (#148): this engine is built without UNIX_APPLE, because that
+	 * symbol also switches the HID/USB layer. Plain UNIX would write a BEL to
+	 * stdout — which ChromIQ reads as its JSON channel, so the cue after the
+	 * instrument's button is pressed was swallowed instead of heard. */
+	AudioServicesPlayAlertSound(kUserPreferredAlert);
 #else	/* UNIX */
 	/* Linux is pretty lame in this regard... */
 	/* Maybe we could write an 8Khz 8 bit sample to /dev/dsp, or /dev/audio ? */
@@ -988,6 +1002,8 @@ void msec_beep(int delay, int freq, int msec) {
 # else
 			SysBeep((msec * 60)/1000);
 # endif
+#elif defined(CHROMIQ_APPLE_BEEP)
+		AudioServicesPlayAlertSound(kUserPreferredAlert);   /* ChromIQ #148 */
 #else	/* UNIX */
 		fprintf(stdout, "\a"); fflush(stdout);
 #endif

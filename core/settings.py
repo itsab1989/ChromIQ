@@ -257,14 +257,11 @@ DEFAULTS: dict[str, Any] = {
     "pace_sample_hz_i1pro":      0.0,
     "pace_sample_hz_colormunki": 0.0,
     "sound_folder":              "",     # blank = the bundled default pack
-    "sound_choice_patch_ok":             "tick",
-    "sound_choice_patch_out_of_tol":     "thump",
-    "sound_choice_strip_ok":             "bell",
-    "sound_choice_strip_fail":           "failure",
-    "sound_choice_instrument_error":     "error",
-    "sound_choice_slow_down":            "slowdown",
-    "sound_choice_measurement_finished": "drumroll",
-    "sound_choice_profile_built":        "trumpet",
+    # ONE source of truth, spliced in below from core.sound.DEFAULT_CHOICE.
+    # These used to be written out again here, and the second copy quietly won:
+    # changing a default in core.sound had no effect at all, because AppSettings
+    # answered from its own stale copy first (found while giving Knut the
+    # defaults he asked for in #148).
     # "Read again & average" — master switch. OFF (default) restores the classic
     # behaviour: a finished full read proceeds straight to Build Profile. ON adds
     # the post-read completion dialog offering measure-again / average.
@@ -691,11 +688,22 @@ def thresholds_for_combo(
 # Bump when a shipped default changes in a way that must reach users who have
 # the OLD default persisted. Settings → Save writes every key, so a stored
 # value otherwise pins a user to the old behaviour for good.
-SETTINGS_SCHEMA = 19
+SETTINGS_SCHEMA = 20
 
 # key → the old default(s) it must no longer be stuck on. Only a stored value
 # EQUAL to one of the old defaults is dropped (so it falls through to the new
 # one); a value the user deliberately chose is never touched.
+# The measurement-sound choices come from the sound layer itself, so a default
+# can only ever be changed in one place (#148).
+def _seed_sound_defaults() -> None:
+    from core.sound import ALL_EVENTS, DEFAULT_CHOICE, OFF
+    for _event in ALL_EVENTS:
+        DEFAULTS[f"sound_choice_{_event}"] = DEFAULT_CHOICE.get(_event, OFF)
+
+
+_seed_sound_defaults()
+
+
 _SUPERSEDED_DEFAULTS: dict[str, tuple[float, ...]] = {
     # #119: the old pair (0.30 + a hard-coded 7 boxes) could not detect a grid
     # with one corner pulled in — at 0.30 a pulled corner leaves 0 flagged
@@ -778,6 +786,8 @@ class AppSettings:
             dropped.append("margin_thresholds[ColorMunki top→30mm, bottom→10mm]")
         if self._migrate_colormunki_top_margin_33():
             dropped.append("margin_thresholds[ColorMunki top→33mm]")
+        for _k in self._migrate_sound_defaults():
+            dropped.append(_k)
         if self._migrate_colormunki_min_samples():
             dropped.append("pace_min_samples_colormunki (30 → 23)")
         if self._migrate_patch_warn_floor():
@@ -949,6 +959,31 @@ class AppSettings:
             self._qs.setValue("margin_thresholds",
                               serialize_margin_thresholds(table))
         return changed
+
+    def _migrate_sound_defaults(self) -> list:
+        """schema 20 (#148, Knut 2026-08-14): three sounds get better defaults.
+
+        After living with the pack through a real measurement he asked for
+        *"Patch reading looks off"* to be **bump**, *"Measurement finished"* to
+        be **chime-long** and *"Profile build finished"* to be **applause**.
+
+        Preferences → Save writes every key, so anyone who has ever opened that
+        dialog carries a stored copy of the old choice that is only an echo of
+        the old default. Those echoes are dropped so they resolve to the new
+        value. A sound the user actually chose is left exactly as it is.
+        """
+        dropped = []
+        try:
+            from core.sound import SUPERSEDED_DEFAULT_CHOICE
+        except Exception:      # noqa: BLE001 — never block start-up
+            return dropped
+        for event, old in SUPERSEDED_DEFAULT_CHOICE.items():
+            key = f"sound_choice_{event}"
+            raw = self._qs.value(key, None)
+            if raw is not None and str(raw) == old:
+                self._qs.remove(key)
+                dropped.append(f"{key} ({old} → default)")
+        return dropped
 
     def _migrate_colormunki_min_samples(self) -> bool:
         """schema 14 (#131, Knut 2026-07-27): the ColorMunki's minimum readings
