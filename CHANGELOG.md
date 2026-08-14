@@ -1,5 +1,23 @@
 # Changelog
 
+## v4.0.2-beta.3
+
+### Fixed
+
+- **A chart you have not measured yet no longer claims to belong to somewhere
+  else.** Switching to a run whose chart had never been measured could bring up
+  "This measurement was made for a different chart" — a statement about a
+  measurement file that does not exist. ChromIQ now says plainly that the chart
+  has not been measured yet, and invites you to measure it (reported by
+  soul-traveller).
+
+- **When a measurement really does belong to another chart, the message says
+  why.** It now tells you how many measured patches the file holds, how many
+  patches the chart on screen has, and that none of them could be paired up —
+  and it points at **Restore Used Chart**, which puts back the exact chart a
+  measurement was taken from. A bare verdict about a chart you printed yourself
+  is impossible to check or act on (reported by soul-traveller).
+
 ## v4.0.2-beta.2
 
 The second beta, adding the printed ruler markers.

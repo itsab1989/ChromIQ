@@ -10662,7 +10662,16 @@ class TabMeasure(QWidget):
         # Headline in setText (QMessageBox paints it bold), body in
         # setInformativeText. Written as one bold block before, which is the
         # fault Basti reported on the chart-choice window in beta.189.
-        if reason == "empty":
+        if reason == "absent":
+            box.setWindowTitle(tr("There is no measurement for this chart yet"))
+            box.setText(tr("This chart has not been measured yet"))
+            box.setInformativeText(
+                tr("There is no measurement file beside this chart, so there is "
+                   "nothing to draw on the patches.\n\n"
+                   "Read the chart with your instrument and the overlay will "
+                   "fill in as you go, showing what you measured against the "
+                   "colour each patch was meant to be."))
+        elif reason == "empty":
             box.setWindowTitle(tr("There is nothing measured yet to show"))
             box.setText(tr("This measurement holds no readings yet"))
             box.setInformativeText(
@@ -10694,16 +10703,61 @@ class TabMeasure(QWidget):
         else:
             box.setWindowTitle(tr("Can't show the overlay"))
             box.setText(tr("This measurement was made for a different chart"))
+            # SAY WHAT WAS COMPARED, NOT JUST THE VERDICT. Knut, #155: *"Should
+            # maybe this message also inform the user what the basis for this
+            # message coming is, as the text today is not very specific?"* A
+            # bare verdict about your own printed chart is impossible to argue
+            # with or act on, so the counts that produced it are shown.
             box.setInformativeText(
                 tr("The patches in the measurement don't line up with the "
                    "patches in this chart, so drawing them here would put "
                    "colours on the wrong squares.\n\n"
+                   "{detail}\n\n"
+                   "This compares the patch positions recorded in the "
+                   "measurement with the positions in the chart now on screen. "
+                   "Re-laying out a chart keeps its colours but can renumber "
+                   "its patches, so a measurement taken from an earlier layout "
+                   "no longer fits. If this chart is the one you printed, "
+                   "“Restore Used Chart” puts back the exact chart the "
+                   "measurement was taken from.\n\n"
                    "Open it in Tools ▸ Inspect a measurement to see the measured "
-                   "values as a table instead."))
+                   "values as a table instead.").format(
+                       detail=self._overlay_mismatch_detail()))
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
         from ui.widgets import fit_message_box_buttons
         fit_message_box_buttons(box)
         box.exec()
+
+    def _overlay_mismatch_detail(self) -> str:
+        """One sentence of evidence for the mismatch verdict (#155).
+
+        Deliberately the numbers rather than an explanation: how many patches
+        the measurement holds, how many the chart has, and how many of them
+        could be paired up. A user looking at a chart they printed themselves
+        can check those against what they know.
+        """
+        try:
+            from workflow.measurement_state import count_sets
+            ti3 = (self._ti1_path.with_suffix(".ti3")
+                   if self._ti1_path is not None else None)
+            ti2 = (self._ti1_path.with_suffix(".ti2")
+                   if self._ti1_path is not None else None)
+            held = chart = None
+            if ti3 is not None and ti3.is_file():
+                counts = count_sets(ti3)
+                held = counts[1] if counts else None
+            if ti2 is not None and ti2.is_file():
+                counts = count_sets(ti2)
+                chart = (counts[1] or counts[0]) if counts else None
+            if held is None or chart is None:
+                return tr("ChromIQ could not pair any of the measured patches "
+                          "with a patch in this chart.")
+            return tr("The measurement holds {held} measured patches and this "
+                      "chart has {chart}, and none of them could be paired "
+                      "up.").format(held=held, chart=chart)
+        except Exception:      # noqa: BLE001 — evidence must never break the window
+            return tr("ChromIQ could not pair any of the measured patches "
+                      "with a patch in this chart.")
 
     def _overlay_failure_reason(self) -> str:
         """Why the overlay could not be drawn: ``empty`` / ``no_geometry`` /
@@ -10722,10 +10776,26 @@ class TabMeasure(QWidget):
         reported as a mismatch): the overlay failing says nothing about *why*,
         so each cause is established from the files rather than inferred.
         """
+        if self._ti1_path is None:
+            return "absent"
         if self._measurement_is_empty():
             return "empty"
+        # NO MEASUREMENT AT ALL IS NOT A FOREIGN MEASUREMENT.
+        #
+        # `_existing_ti3_for_chart` answers None for three different situations:
+        # no chart, no file, and a file holding no readings. Only the last two
+        # were told apart, so a run that has never been measured was reported as
+        # *"This measurement was made for a different chart"* — a claim about a
+        # file that does not exist (#155, Knut: *"This is strange, as the chart
+        # is what I printed and started measurements on."*). His project shows it
+        # exactly: run1 has no .ti3 at all.
+        #
+        # This is the same shape as the empty-file fault he found in #130. That
+        # fix taught the code to recognise EMPTY; ABSENT was left behind it.
+        if not self._ti1_path.with_suffix(".ti3").is_file():
+            return "absent"
         ti3 = self._existing_ti3_for_chart()
-        if ti3 is None or self._ti1_path is None:
+        if ti3 is None:
             return "mismatch"
         try:
             from workflow.measurement_report import per_patch_overlay
