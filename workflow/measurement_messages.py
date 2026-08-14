@@ -649,11 +649,15 @@ M_NO_INSTRUMENT = _m(
 #: added that the window should carry the switch itself, and say where the
 #: option lives for later. Knut's own text above is kept word for word; this
 #: variant only adds the paragraph about the shortcut.
-#: PROPOSED (#155). Switching to a run that had never been measured showed
+#: APPROVED by Knut, 2026-08-14 — *"Text approved. Make Sure to use the
+#: guideline used for other messages, if relevant."* (#155). Switching to a run
+#: that had never been measured showed
 #: M-TI3-MISMATCH's claim — that the measurement belongs to a different chart —
-#: about a file that does not exist. Stopping that false claim is a bug fix and
-#: is in the code; a window to replace it is new wording, so it waits for
-#: approval. Until then the Measure tab writes the same information to its log.
+#: about a file that does not exist. Stopping that false claim was the bug fix;
+#: this is the window that replaces it. Approved by Knut, 2026-08-14 — *"Text
+#: approved."* — together with his ruling on where such things belong: *"all
+#: events shall have windows, and not hidden in a log where user will not see
+#: it."*
 M_OVERLAY_NO_MEASUREMENT = _m(
     "M-OVERLAY-NO-MEASUREMENT",
     "This chart has not been measured yet",
@@ -661,7 +665,7 @@ M_OVERLAY_NO_MEASUREMENT = _m(
     "draw on the patches.\n\n"
     "Read the chart with your instrument and the overlay will fill in as you "
     "go, showing what you measured against the colour each patch was meant to "
-    "be.", approved=False)
+    "be.")
 
 #: PROPOSED (#156). Knut: *"the 'All Strips Read' message comes, despite that
 #: the progress percentage shows 97.1% … This message must come only when all
@@ -679,8 +683,8 @@ M_ALL_STRIPS_PATCHES_LEFT = _m(
     "and “Refine / resume existing measurement” ticked. ChromIQ picks up where "
     "the readings stop, so you only measure the patches that are still missing "
     "rather than the whole chart again.\n\n"
-    "•  Re-read Patches — stay in this session and go back for the missing ones "
-    "now. Use “f” and “b” to move between patches, “n” to jump to the next "
+    "•  Re-read Individual Strips — stay in this session and read a strip "
+    "again now. Use “f” and “b” to move between strips, “n” to jump to the next "
     "unread one, and “d” when you are done.\n\n"
     "•  Close — finish here. ChromIQ asks whether to keep what you have "
     "measured so far, so nothing is decided behind your back.",
@@ -695,9 +699,9 @@ M_ALL_STRIPS_PATCHES_LEFT = _m(
     "and “Refine / resume existing measurement” ticked. ChromIQ picks up where "
     "the readings stop, so you only measure the patch that is still missing "
     "rather than the whole chart again.\n\n"
-    "•  Re-read Patches — stay in this session and go back for it now. Use “f” "
-    "and “b” to move between patches, “n” to jump to the next unread one, and "
-    "“d” when you are done.\n\n"
+    "•  Re-read Individual Strips — stay in this session and read a strip "
+    "again now. Use “f” and “b” to move between strips, “n” to jump to the next "
+    "unread one, and “d” when you are done.\n\n"
     "•  Close — finish here. ChromIQ asks whether to keep what you have "
     "measured so far, so nothing is decided behind your back.")
 

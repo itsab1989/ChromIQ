@@ -30,9 +30,47 @@ C_SRC = Path(__file__).resolve().parent.parent / "native" / \
 
 # --- 1. the tick is remembered ---------------------------------------------
 
-def test_manual_skip_calibration_is_remembered():
+def test_start_measurement_writes_the_targets_settings():
+    """THE FIX, and the actual cause of Knut's report (#156).
+
+    `per_target_settings.md` §3 lists every moment a tab's settings are written,
+    and **W8** is *"Start Measurement / Continue Measurement pressed → the
+    Measure tab's settings"*. Every other event in that table was wired — W6
+    (leaving a tab, changing target) through MainWindow, W1 (Generate Chart) on
+    the Create Chart tab — and W8 was not. So the Measure tab was the one place
+    where pressing the tab's own main button did not record what it was pressed
+    with, and the next load put back the last value that had been stored.
+
+    That is why the tick vanished: *"No matter if I start measurement in
+    patch-by-patch or strip mode, when I stop the measurement, the checkmark is
+    unticked. this also applies to other settings."* It was never one control —
+    it was every control on the panel.
+    """
+    src = inspect.getsource(TabMeasure._on_start)
+    assert "save_target_settings()" in src, (
+        "Start Measurement does not write this target's settings (§3 W8)")
+
+
+def test_it_is_written_before_the_reader_launches():
+    """So what is stored is what the measurement actually ran with, not what the
+    panel looked like after it finished."""
+    src = inspect.getsource(TabMeasure._on_start)
+    assert src.index("save_target_settings()") < src.index(
+        "self._set_settings_enabled(False)")
+
+
+def test_the_setting_is_not_kept_in_a_global_preference():
+    """`per_target_settings.md` §0 names this shape as the fault itself: *"a
+    global parameter … where several actors can change that parameter, but not
+    know when or where."*
+
+    A global write also leaks in the direction hardest to notice — it is what a
+    target with nothing stored opens on, so ticking the box on one run would
+    change what a brand-new run starts with.
+    """
     src = inspect.getsource(TabMeasure._persist_skip_calibration)
-    assert "manual2_chartread_nocal" in src
+    assert "manual2_chartread_nocal" not in src, (
+        "back to a single value shared by every run and run type")
 
 
 def test_guided_skip_calibration_is_never_remembered():
@@ -43,16 +81,10 @@ def test_guided_skip_calibration_is_never_remembered():
     nothing on screen to say so and every patch rejected as inconsistent
     (beta.148). A control the user cannot see must never carry a stored value.
     """
-    src = inspect.getsource(TabMeasure._persist_skip_calibration)
-    assert "measure_no_cal" not in src, (
-        "the hidden Guided box must not persist — this would rebuild the "
+    src = inspect.getsource(TabMeasure._collect_guided)
+    assert "disable_initial_cal = False" in src, (
+        "Guided must not send the hidden box's value — this would rebuild the "
         "beta.148 uncalibrated-measurement bug")
-
-
-def test_it_does_not_write_back_during_a_settings_load():
-    """A load that triggered a save would store what it had just restored."""
-    src = inspect.getsource(TabMeasure._persist_skip_calibration)
-    assert "_loading_measure_settings" in src
 
 
 # --- 2. 'n' moves ----------------------------------------------------------

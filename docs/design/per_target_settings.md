@@ -13,7 +13,22 @@ Issue #130. Source posts, in the order Knut listed them:
 > it and get the change approved** rather than quietly correcting one side to
 > match the other.
 
-**Status: specification COMPLETE. Create Chart is IMPLEMENTED (beta.171); Measure, Build Profile and Calibration & Profiling are not yet.** Everything
+**Status: specification COMPLETE and IMPLEMENTED for every tab in scope.**
+
+> ⚠ **This line was stale for fifty betas, and a stale status line is worse than
+> none.** It said Measure, Build Profile and Calibration & Profiling were *"not
+> yet"* implemented long after they had been built and tested before 4.0.0, and
+> on 2026-08-14 it was quoted back at Knut as the reason his Measure settings
+> did not stick. His answer: *"you are again not comparing later versions of the
+> software with the specification and looking at momentary snapshots at a time
+> when that was true … Re-assess again to the 4.0.0 release for this specific
+> feature, which then has been implemented and tested."* He was right — the
+> store is `workflow/per_target_settings.py`, and the Measure tab's
+> `save_target_settings` / `load_target_settings` have been wired since well
+> before 4.0.0. **Check the code, not this line.** What was genuinely missing
+> was one event, W8 (see §3), not the feature.
+
+Everything
 below is either Knut's ruling quoted, or a consequence of one. The last two
 open questions were answered on 2026-08-06 (§9); the next step is the test plan
 in §8, then the build.
@@ -172,6 +187,18 @@ Knut's general rule, in full:
 | W6 | **leaving a tab** — including a target change (§2.1) and app quit | that tab's settings for the target being left |
 | W7 | **Build Profile** pressed | tab 4's settings — the Build Profile module and the Calibration & Profiling module alike |
 | W8 | **Start Measurement / Continue Measurement** pressed | the Measure tab's settings |
+
+**W8 was the one event never wired, and it is what Knut reported on #156.** W6
+(leaving a tab, changing target) and W1 (Generate Chart) were both connected;
+Start Measurement was not, so the Measure tab was the only place where pressing
+the tab's own main button did not record what it was pressed with. Tick "Skip
+initial calibration", press Start, measure, stop — and the next load put back the
+last value that *had* been stored, which was the old one. *"No matter if I start
+measurement in patch-by-patch or strip mode, when I stop the measurement, the
+checkmark is unticked. this also applies to other settings."* It was never one
+control; it was every control on the panel. Wired in `TabMeasure._on_start`,
+before the reader launches, so what is stored is what the measurement actually
+ran with.
 
 **Not on every keystroke.** W6 is the widest of these and it is still an event,
 not a timer: what is stored is the state of the tab at a moment the user

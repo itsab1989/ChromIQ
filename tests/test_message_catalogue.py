@@ -131,7 +131,8 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # WINDOWS are new wording and wait here, after
                                  # Knut objected to text being invented rather
                                  # than proposed.
-                                 "M-OVERLAY-NO-MEASUREMENT",
+                                 # M-OVERLAY-NO-MEASUREMENT was approved by
+                                 # Knut on 2026-08-14 and is now in §M.
                                  "M-ALL-STRIPS-PATCHES-LEFT",
                                  # #148, 2026-08-14. Knut asked for this one
                                  # outright: the engine falling back to stock

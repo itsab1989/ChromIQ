@@ -119,19 +119,34 @@ def test_the_four_states_are_all_distinct():
 
 # --- no invented wording ---------------------------------------------------
 
-def test_the_absent_case_shows_no_window_at_all():
-    """The bug fix is to stop making a false claim, and nothing more.
+def test_the_absent_case_now_opens_its_approved_window():
+    """The wording went to §M-PROPOSED first, and came back approved.
 
     Knut, #155: *"You are inventing new messages and new functions at your own
-    initiative, which is NOT allowed for an app that is released for users."*
-    New measurement wording goes to §M-PROPOSED for approval before it reaches a
-    tab, so until that text exists the tab says its piece in the log.
+    initiative, which is NOT allowed for an app that is released for users."* So
+    the tab said its piece in the log while the text waited. On 2026-08-14 he
+    approved it — *"Text approved"* — and ruled on where such things belong in
+    the same review: *"all events shall have windows, and not hidden in a log
+    where user will not see it."*
+
+    Both halves matter, and this test holds both: the window exists **and** its
+    text comes from the catalogue rather than being written here.
     """
     src = inspect.getsource(tab_measure.TabMeasure._on_overlay_toggled)
     start = src.index('if reason == "absent"')
     block = src[start:src.index('elif reason == "empty"')]
-    assert "_log.appendPlainText" in block
-    assert "setWindowTitle" not in block, "an unapproved window came back"
+    assert "M_OVERLAY_NO_MEASUREMENT" in block, (
+        "the window must take its text from the approved catalogue")
+    assert "box.exec()" in block, "an approved event must not hide in the log"
+    assert "_log.appendPlainText" not in block
+
+
+def test_that_message_is_approved_in_the_catalogue():
+    """A window whose text is still flagged PROPOSED would be the original
+    breach wearing a catalogue entry."""
+    import workflow.measurement_messages as M
+    assert M.M_OVERLAY_NO_MEASUREMENT.approved is True
+    assert "M-OVERLAY-NO-MEASUREMENT" not in M.PROPOSED
 
 
 def test_the_approved_mismatch_wording_is_untouched():

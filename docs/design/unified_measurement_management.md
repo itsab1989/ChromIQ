@@ -1,7 +1,7 @@
 # Unified Measurement Management — Design Specification
 
 > **Revision 2026-08-09 (e) — two approved messages carry a revised print step.**
-> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), M-IMPORT-MISMATCH and M-IMPORT-DATE-TAKEN (the Measure tab's IMPORT module; its import-done window was approved by Sebastian 2026-08-10), plus the revised M-CHART-VERIFY (W5, reworked after the 2026-08-10 hardware session) and M-HOW-PRINTED (pairing 3 — the measure-time question for sheets ChromIQ did not print), plus M-OVERLAY-NO-MEASUREMENT (new, 2026-08-14 — the overlay asked for on a chart that has never been measured, #155) and M-ALL-STRIPS-PATCHES-LEFT (new, 2026-08-14 — every strip read while patches inside them are not, #156; both are wording only, their bug fixes are already in the code and speak through the log until these are approved), plus M-NO-INSTRUMENT-FAST (new, 2026-08-13 — Knut's ColorMunki was invisible on older hardware until "Faster instrument connection" was switched off, so that variant of the no-instrument window names the shortcut and carries its switch), plus M-ENGINE-FELL-BACK (new, 2026-08-14 — asked for by Knut on #148: ChromIQ's own measuring engine could not use the instrument, so stock chartread took over, which also silences ChromIQ's measurement sounds without saying so) — all defined in the awaiting-review section below.
+> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), M-IMPORT-MISMATCH and M-IMPORT-DATE-TAKEN (the Measure tab's IMPORT module; its import-done window was approved by Sebastian 2026-08-10), plus the revised M-CHART-VERIFY (W5, reworked after the 2026-08-10 hardware session) and M-HOW-PRINTED (pairing 3 — the measure-time question for sheets ChromIQ did not print), plus M-ALL-STRIPS-PATCHES-LEFT (new, 2026-08-14 — every strip read while patches inside them are not, #156; both are wording only, their bug fixes are already in the code and speak through the log until these are approved), plus M-NO-INSTRUMENT-FAST (new, 2026-08-13 — Knut's ColorMunki was invisible on older hardware until "Faster instrument connection" was switched off, so that variant of the no-instrument window names the shortcut and carries its switch), plus M-ENGINE-FELL-BACK (new, 2026-08-14 — asked for by Knut on #148: ChromIQ's own measuring engine could not use the instrument, so stock chartread took over, which also silences ChromIQ's measurement sounds without saying so) — all defined in the awaiting-review section below.
 > Both were approved by Knut on 2026-08-04, but one step in each instructed *"(with colour management on)"* — a setting ChromIQ deliberately locks **off** on every print path, so the approved text told the user to do something the app prevents (established in `verification_printing_and_target.md` §1, and A0.1 of its plan). With feature A the instruction has a real control to name — the Print Chart tab's **Colour** row — so that one step is revised and the revision waits in §M-PROPOSED. Every other message in §M remains approved as before: the last, **M-BUILD-ELSEWHERE**, was accepted on 2026-08-04 — *"Message M-BUILD-ELSEWHERE accepted"* — and M-CHART-CORRUPT, M-REPLACE-UNCOUNTABLE and M-PREVIEW-PAUSED the day before. A new message goes to §M-PROPOSED first, and `tests/test_message_catalogue.py` fails if one is added to the code without it.
 
 > **Status:** specification, agreed on [issue #130](https://github.com/itsab1989/ChromIQ/issues/130).
@@ -763,6 +763,22 @@ Every window this specification can raise, in one place. **ID → where it is us
 >
 > *{pages}:* "The {n} page images in this run are the only ones there will be." · "This run has no page images to lose."
 
+### M-OVERLAY-NO-MEASUREMENT · the overlay is asked for on a chart that has never been measured — Measure tab
+
+> **This chart has not been measured yet**
+>
+> There is no measurement file beside this chart, so there is nothing to draw on the patches.
+>
+> Read the chart with your instrument and the overlay will fill in as you go, showing what you measured against the colour each patch was meant to be.
+
+*Approved by Knut, 2026-08-14: "Text approved. Make Sure to use the guideline
+used for other messages, if relevant." Switching to a run that had never been
+measured showed **M-TI3-MISMATCH**'s claim — that the measurement was made for a
+different chart — about a file that does not exist (#155). Stopping that false
+claim was the bug fix; this is the window that replaces it. It is a **window**
+and not a log line, per his ruling in the same review: "all events shall have
+windows, and not hidden in a log where user will not see it."*
+
 ### M-CHART-CORRUPT · the run's measurement file cannot be read — §4
 
 *Approved by Knut, 2026-08-04. **It is the window**, not a paragraph inside another one — his ruling on beta.133: "M-CHART-CORRUPT (ONLY THIS MESSAGE …)". It replaces M-CHART-PROFILING whenever the run holds a `.ti3` that is corrupt or empty, because M-CHART-PROFILING's `{items}` list cannot describe a file whose readings will not count — "a measurement of 0 patches" would be false, and naming it in a list under a headline about matching files says less than the message below says on its own. M-CHART-NOPAGES and M-DUPLICATE-BLOCKED still append to it when they apply; they are about other things.*
@@ -1114,21 +1130,6 @@ sheet unrecorded, exactly as today.*
 >
 > Not sure is always safe: the report simply notes that the printing method is not recorded, and judges the colours as they are. Your answer is stored with this measurement only — it changes nothing else.
 
-### M-OVERLAY-NO-MEASUREMENT · PROPOSED · the overlay is asked for on a chart that has never been measured — Measure tab
-
-> **This chart has not been measured yet**
->
-> There is no measurement file beside this chart, so there is nothing to draw on the patches.
->
-> Read the chart with your instrument and the overlay will fill in as you go, showing what you measured against the colour each patch was meant to be.
-
-*Why it is proposed rather than in use.* Switching to a run that had never been
-measured showed **M-TI3-MISMATCH**'s claim — that the measurement was made for a
-different chart — about a file that does not exist (#155, Knut). Stopping that
-false claim is a bug fix and is in the code; a window to replace it is new
-wording, so it waits here. Until it is approved the Measure tab writes the same
-information into its log instead of opening a window.
-
 ### M-ALL-STRIPS-PATCHES-LEFT · PROPOSED (revised 2026-08-14) · every strip read, but patches inside them are not — Measure tab
 
 > **Some patches are still unread**
@@ -1139,7 +1140,7 @@ information into its log instead of opening a window.
 >
 > To finish them, start measuring again with **Patch-by-patch mode** ticked and **Refine / resume existing measurement** ticked. ChromIQ picks up where the readings stop, so you only measure the patches that are still missing rather than the whole chart again.
 >
-> • **Re-read Patches** — stay in this session and go back for the missing ones now. Use **f** and **b** to move between patches, **n** to jump to the next unread one, and **d** when you are done.
+> • **Re-read Individual Strips** — stay in this session and read a strip again now. Use **f** and **b** to move between strips, **n** to jump to the next unread one, and **d** when you are done.
 >
 > • **Close** — finish here. ChromIQ asks whether to keep what you have measured so far, so nothing is decided behind your back.
 
@@ -1174,16 +1175,30 @@ raised from code both `_handle_line` and `_handle_engine_line` reach, and its
 Close must delegate to `_confirm_end_of_session`, which already knows which mode
 and which reader it is in rather than sending a key of its own.
 
-**⚠ ONE THING NEEDS HIS RULING BEFORE THIS CAN BE BUILT.** He describes Close on
-the completion windows as *"call[ing] the window where user decides to stop and
-save, or stop and discard"* — but `measurement_exit_strategy.md`, Table 1, row
-**All Strips Read / All Patches Read**, records Close as *"keeps the measurement,
-goes nowhere"*. Those are different behaviours, and he flagged his own memory as
-uncertain (*"if I remember correct"*). Per the binding-specification rule this is
-reported rather than resolved here: **either the table is stale and Close should
-raise the ending, or Close is right as recorded and this window needs a different
-button.** The text above is written for his description; it changes if the table
-is the correct one.
+**4. It is a STRIP-MODE window, so its button re-reads strips.** The first
+revision offered "Re-read Patches", which he corrected: *"this message is for a
+strip mode session (and this message only happens during strip mode), not a
+patch-by-patch session. Here one would 'Re-read strips'."* The button now matches
+the completion window it stands in for, and the guidance in the body still points
+at patch-by-patch + resume, because that is how the missing patches get finished
+in a later session — which he approved separately.
+
+**Close — ruled 2026-08-14.** He answered **(A)**: *"Close should raise the 'Keep
+what you have measured so far?' window. However, the description 'keeps the
+measurement, goes nowhere' is still correct, because it is referring to the other
+button that says to jump to build profile tab."* So the row in
+`measurement_exit_strategy.md` is not stale — it was read against the wrong
+button. Close raises the ending; the Go-to-tab button is the one that keeps the
+measurement and moves on.
+
+**Both readers, per his instruction:** *"If this check is possible to implement
+for the stock argyllcms chartread engine also, then the button commands should be
+made to use the correct command for the specific chartread engine, according to
+the measurement exit strategy in the design specification. Use the All Strips
+Read window for each engine as basis for the correct action to use to re-read or
+to Close / exit."* So both buttons take their keys from the All Strips Read row
+of Table 1 (engine) and Table 2 (stock) rather than sending anything of their
+own.
 
 ### M-ENGINE-FELL-BACK · PROPOSED · ChromIQ's own measuring engine could not use the instrument — Measure tab
 

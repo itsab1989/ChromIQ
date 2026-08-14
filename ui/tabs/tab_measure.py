@@ -4257,27 +4257,28 @@ class TabMeasure(QWidget):
         self._preview.set_suppress_file_tooltip(not enabled)
 
     def _persist_skip_calibration(self, on: bool) -> None:
-        """Remember Manual's "Skip initial calibration" as soon as it is ticked.
+        """Kept as a no-op: this setting belongs to the target, not to the app.
 
-        Knut, #156: *"Every time I start a measurement and then stop, the 'Skip
-        initial calibration' is unticked, instead of keeping the setting I last
-        used."* It was written only by "Save as Defaults", so any settings
-        reload — and one follows a measurement — put back a value that had never
-        been stored, which is False.
+        The first fix for Knut's report (#156) wrote Manual's "Skip initial
+        calibration" into a single global preference the moment it was ticked.
+        That stopped the symptom and was the wrong shape — `per_target_settings.md`
+        §0 is explicit that one value several places can write is the fault
+        itself: *"having fields change randomly because some other
+        run-specification changed something is similar to a global parameter in
+        a programming code where several actors can change that parameter, but
+        not know when or where."*
 
-        **Manual only.** Guided hides this control, and remembering a value for
-        a control the user cannot see is what made every guided measurement run
-        uncalibrated in beta.148. Not written while a settings load is putting
-        values on screen either, or the load would immediately store what it had
-        just restored.
+        A global write here also leaks between runs in the one direction that is
+        hardest to notice: it is what a target with nothing stored opens on, so
+        ticking the box on one run would quietly change what a brand-new run
+        starts with.
+
+        The real cause was that **Start Measurement never wrote the tab's
+        settings at all** (§3 W8) — see `_on_start`. With that wired, this
+        setting is stored against its own run like every other control on the
+        panel, and nothing global is needed.
         """
-        if getattr(self, "_loading_measure_settings", False):
-            return
-        try:
-            self._settings.set("manual2_chartread_nocal", bool(on))
-        except Exception:      # noqa: BLE001 — a checkbox must never raise
-            log.debug("could not remember the skip-calibration choice",
-                      exc_info=True)
+        return
 
     def _on_sound_toggled(self, on: bool) -> None:
         """Master switch for measurement sounds (#131): persist it so it's
@@ -5295,6 +5296,24 @@ class TabMeasure(QWidget):
                 capture_output=True,
                 stdin=subprocess.DEVNULL,
             )
+        # W8 — START MEASUREMENT WRITES THIS TAB'S SETTINGS FOR THIS TARGET.
+        #
+        # `per_target_settings.md` §3: *"Load settings when activating tab, Save
+        # / write settings when leaving tab, and when main button for tab is
+        # pressed (… Start Measurement / Continue Measurement for Measure
+        # tab …)"*, listed as W8. Every other event in that table was wired —
+        # leaving a tab and changing target through MainWindow (W6), Generate
+        # Chart on the Create Chart tab (W1) — and this one was not, so the
+        # Measure tab was the only place where pressing the tab's own main
+        # button did not record what it was pressed with.
+        #
+        # That is the whole of Knut's report (#156): tick "Skip initial
+        # calibration", press Start, measure, stop — and the tick is gone. It
+        # was never stored, so the next load put back the last value that was,
+        # and the same is true of every other control on the panel. Written
+        # BEFORE the reader launches, so what is recorded is what the
+        # measurement actually ran with.
+        self.save_target_settings()
         self._set_settings_enabled(False)
         self._start_btn.setEnabled(False)
         self._stop_btn.setEnabled(True)
@@ -10784,17 +10803,22 @@ class TabMeasure(QWidget):
         # setInformativeText. Written as one bold block before, which is the
         # fault Basti reported on the chart-choice window in beta.189.
         if reason == "absent":
-            # NO WINDOW, AND NO INVENTED TEXT.
+            # M-OVERLAY-NO-MEASUREMENT — approved by Knut, 2026-08-14.
             #
             # A chart that has never been measured used to be told *"This
             # measurement was made for a different chart"* — a claim about a
-            # file that does not exist (#155). Stopping that claim is the bug
-            # fix. A new window needs new wording, and measurement wording goes
-            # to §M-PROPOSED for approval before it reaches a tab — so this says
-            # its piece in the log until that text exists.
-            self._log.appendPlainText(tr(
-                "There is no measurement for this chart yet, so there is "
-                "nothing to show on the patches."))
+            # file that does not exist (#155). Stopping that claim was the bug
+            # fix; this is the window that replaces it. It said its piece in the
+            # log until the text was approved, because measurement wording goes
+            # to §M-PROPOSED first — and his ruling on where it belongs is
+            # equally clear: *"all events shall have windows, and not hidden in
+            # a log where user will not see it."*
+            title, body = M.M_OVERLAY_NO_MEASUREMENT.render()
+            box.setWindowTitle(tr("This chart has not been measured yet"))
+            box.setText(title)
+            box.setInformativeText(body)
+            box.setStandardButtons(QMessageBox.StandardButton.Ok)
+            box.exec()
             return
         elif reason == "empty":
             box.setWindowTitle(tr("There is nothing measured yet to show"))

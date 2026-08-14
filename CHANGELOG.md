@@ -1,5 +1,22 @@
 # Changelog
 
+## v4.0.2-beta.11
+
+### Fixed
+
+- **Your Measure settings are now saved when you press Start Measurement.** Tick
+  "Skip initial calibration", measure, stop — and the tick was gone. The Measure
+  tab recorded its settings when you left the tab or switched run, but not when
+  you pressed its own Start button, so anything changed just before measuring
+  was never stored and the next load put the old values back. This affected
+  every control on the panel, not just that one (reported by soul-traveller).
+
+### New
+
+- **A chart with no measurement now says so in its own window.** Asking for the
+  measurement overlay on a chart you have not measured yet explains that there
+  is nothing to draw on the patches, instead of only mentioning it in the log.
+
 ## v4.0.2-beta.10
 
 ### Fixed
