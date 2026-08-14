@@ -562,62 +562,42 @@ def patches_per_sheet(geom: Geom, paper_w_mm: float, paper_h_mm: float,
 # ---------------------------------------------------------------------------
 # Ruler helper markers (#152, Knut)
 # ---------------------------------------------------------------------------
-def _fill_outward(anchors: list[float], pitch: float, half: float,
-                  lo: float, hi: float) -> list[float]:
-    """*anchors* continued past both ends at the patch *pitch*, clipped to [lo, hi].
+def _comb(anchor: float, step: float, lo: float, hi: float) -> list[float]:
+    """Every ``anchor + k*step`` inside [lo, hi], for any whole number *k*.
 
-    Knut: *"The rest of the top and bottom edges are then filled with these
-    markers till they reach the left and right edges, using the same distance
-    between them."* So the spacing outside the patch area is the one the patches
-    themselves defined, and the pattern simply continues.
+    Uniform **by construction**, which is the point: Knut, 2026-08-14, on the
+    dashes drawn from the previous scheme —
 
-    **The step outside is the pitch, not half the patch** (Knut, 2026-08-14:
-    *"You have to dynamically include the spacers as part of the calculation, as
-    the spacers can change in the create chart settings."*). One patch of the
-    printed rhythm is *start → middle → next start*, and with a spacer in
-    between those two gaps are NOT equal: the middle sits ``half`` after the
-    start, the next start a full ``pitch`` after it. Repeating a single average
-    step drifted against the patches as soon as a spacer was switched on — the
-    further from the patch area, the worse. So the whole two-mark pattern is
-    tiled at the pitch instead, which stays in step with the patches for any
-    spacer width, including zero.
+        *"The distance between every single dash drawn shall be the same, and if
+        they are not, then some calculation y-position is wrong. This must be a
+        criteria for test pass."*
 
-    *anchors* themselves are left exactly as measured, so a layout whose spacers
-    are not uniform (edge spacers, an override on one strip) is still precise
-    where the patches actually are; only the empty margins beyond them are
-    filled with the repeating pattern.
+    The scheme before this one placed a dash at the start and the middle of each
+    patch, plus one at the end of the last. That is only evenly spaced when
+    there is no spacer: with one, start→middle is half a patch and middle→next
+    start is half a patch **plus the spacer**, so the gaps alternated (measured
+    on A4 with a 1 mm spacer: 5 mm, 6 mm, 5 mm, 6 mm…). The end-of-last-patch
+    dash was worse — it landed one spacer width from the continued pattern,
+    putting two dashes 1 mm apart, which is what he saw *"next to the bottom
+    spacer of the last row of patches"* and reported as a marker drawn twice.
+
+    A single phase-locked comb cannot do either of those things. Anchored on the
+    first patch and stepped at half the patch PITCH, it puts a dash on every
+    patch boundary, one midway between each pair, and nothing anywhere else.
     """
-    if not anchors:
+    if step <= 0 or hi <= lo:
         return []
-    if pitch <= 0:
-        return [a for a in anchors if lo <= a <= hi]
-    out = [a for a in anchors if lo <= a <= hi]
-    first, last = min(anchors), max(anchors)
-    # Below the patch area: keep stepping the pattern down from the first mark.
-    base = first - pitch
-    while base + half >= lo:
-        for v in (base, base + half):
-            if lo <= v <= hi:
-                out.append(v)
-        base -= pitch
-    # Above it: the same pattern continuing on from the last mark. `last` is the
-    # END of the final patch, which a spacer separates from the next start — so
-    # step up from the FIRST start in whole pitches, which is where the next
-    # patch would have begun had the page been taller.
-    base = first
-    while base <= last:
-        base += pitch
-    while base <= hi:
-        for v in (base, base + half):
-            if lo <= v <= hi:
-                out.append(v)
-        base += pitch
-    return sorted(set(round(v, 4) for v in out))
+    import math
+    kmin = math.ceil((lo - anchor) / step - 1e-9)
+    kmax = math.floor((hi - anchor) / step + 1e-9)
+    if kmax < kmin:
+        return []
+    return [anchor + k * step for k in range(kmin, kmax + 1)]
 
 
 def helper_marker_lines_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
-                           layout: Layout, *, edge_mm: float = 1.0,
-                           length_mm: float = 3.0
+                           layout: Layout, *, edge_mm: float = 2.0,
+                           length_mm: float = 2.0
                            ) -> "list[tuple[float, float, float, float]]":
     """Short dashes along all four page edges, to align a ruler against (#152).
 
@@ -625,39 +605,41 @@ def helper_marker_lines_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
     orientation and resolution.
 
     **Where they sit.** *edge_mm* from the paper edge, *length_mm* long, pointing
-    inward — so on A4 portrait with the defaults the left dashes run from x=1 mm
-    to x=4 mm, and the right ones from x=206 mm to x=209 mm.
+    inward — so on A4 portrait with 1 mm and 3 mm the left dashes run from
+    x=1 mm to x=4 mm, and the right ones from x=206 mm to x=209 mm.
 
-    **What they line up with.**
+    **What they line up with.** Top and bottom step ACROSS the page with the
+    strips; left and right step DOWN the page with the patches. Both are a
+    single evenly-spaced comb anchored on the first patch and stepped at **half
+    the patch pitch**, so there is a dash on every patch boundary and one midway
+    between each pair — and every gap is identical, which is Knut's pass
+    criterion (see :func:`_comb`).
 
-    * top and bottom step **across** the page with the strips: the start and the
-      middle of every strip, plus the end of the last one
-    * left and right step **down** the page with the patches: the start and the
-      middle of every patch, plus the end of the last one
+    **The pitch is measured off the layout, never assumed**, so whatever spacer
+    Create Chart is set to, the dashes follow it. Knut, 2026-08-14: *"You have
+    to dynamically include the spacers as part of the calculation, as the
+    spacers can change in the create chart settings."*
 
-    Within the patch area the positions are exact, so a spacer between patches
-    cannot make them drift. Beyond it the same pattern continues at the pitch
-    the patches defined — **spacer included** — out to the page edges. Knut,
-    2026-08-14: *"You have to dynamically include the spacers as part of the
-    calculation, as the spacers can change in the create chart settings."*
-    Nothing here hard-codes a spacer width: the pitch is read back off the
-    layout, so whatever Create Chart is set to is what the markers follow.
+    **Corners are kept clear.** A dash along the top edge is dropped where it
+    would reach into the band the left or right dashes occupy, and vice versa —
+    otherwise raising *edge_mm* makes the two sets cross in each corner. His
+    rule, stated for all eight cases and holding in both directions: a dash is
+    not drawn if it lands within, or beyond, the perpendicular edge's band.
 
     **The ColorMunki's staggered strips take the first strip as their
-    reference**, which is Knut's ruling (#152): *"the offset strip is always half
-    a patch height offset, thus the markers land the correct place if you just
-    use the first strip as the reference … Then the whole left and right edge
-    with markers will be placed correctly."*
+    reference**, which is his ruling: *"the offset strip is always half a patch
+    height offset, thus the markers land the correct place if you just use the
+    first strip as the reference."*
 
     Hexagonal SpectroScan charts return no markers at all: a honeycomb has no
     rows to line a ruler up with.
 
-    Markers may cross a margin label or the clip-border text. That is accepted —
-    Knut, on whether they should ever be skipped to avoid a collision:
+    Markers may cross a margin label or the clip-border text; that is accepted —
     *"overlapping is acceptable. User must adapt settings for the markers,
-    margins and clip-border text etc. to look as desired."* Suppressing a marker
-    would leave a gap in the very rhythm a ruler is being lined up against,
-    which is worse than an overlap the user can move out of the way.
+    margins and clip-border text etc. to look as desired."* Suppressing one there
+    would leave a hole in the very rhythm a ruler is being lined up against. The
+    corner rule above is the one deliberate exception, because there the dashes
+    collide with **each other** rather than with something the user placed.
     """
     if getattr(geom, "key", "") == "SS" and getattr(geom, "hxew", 0.0) > 0:
         return []
@@ -671,35 +653,25 @@ def helper_marker_lines_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
     place = placement(geom, paper_w_mm, paper_h_mm, layout)
     steps = max(1, layout.steps_in_pass)
     # Passes ACROSS the page, which is not `strips_per_page` (that is 1 for the
-    # strip-reader instruments). The renderer derives a patch's pass with
+    # strip-reading instruments). The renderer derives a patch's pass with
     # `wp // steps` over the patches on the page, so the column count is the
     # same division — see patch_rects_px.
     passes = max(1, layout.patches_per_page // steps)
 
-    # Columns: the start and middle of each strip, plus the last strip's end.
-    xs: list[float] = []
-    for p in range(passes):
-        x = place.x_of(p)
-        xs.append(x)
-        xs.append(x + place.pwid / 2.0)
-    xs.append(place.x_of(passes - 1) + place.pwid)
-    # The pitch is measured off the layout itself, so a spacer the user adds in
-    # Create Chart moves the fill with it (Knut, 2026-08-14). One strip on the
-    # page has no pitch to measure — its own width is then the only rhythm there
-    # is, and there is nothing for a spacer to sit between anyway.
+    # Half the pitch, taken from the layout itself so a spacer moves it. A
+    # single strip or a single patch per strip has no pitch to measure; its own
+    # width is then the only rhythm there is, and there is no spacer to include.
     x_pitch = (place.x_of(1) - place.x_of(0)) if passes > 1 else place.pwid
-    xs = _fill_outward(xs, x_pitch, place.pwid / 2.0, 0.0, paper_w_mm)
-
-    # Rows: the start and middle of each patch of the FIRST strip, plus the last
-    # patch's end. Exact even when a spacer sits between patches.
-    ys: list[float] = []
-    for j in range(steps):
-        y = place.y_of(j)
-        ys.append(y)
-        ys.append(y + place.plen / 2.0)
-    ys.append(place.y_of(steps - 1) + place.plen)
     y_pitch = (place.y_of(1) - place.y_of(0)) if steps > 1 else place.plen
-    ys = _fill_outward(ys, y_pitch, place.plen / 2.0, 0.0, paper_h_mm)
+    xs = _comb(place.x_of(0), x_pitch / 2.0, 0.0, paper_w_mm)
+    ys = _comb(place.y_of(0), y_pitch / 2.0, 0.0, paper_h_mm)
+
+    # The band each edge's dashes reach into. A dash on the perpendicular edge
+    # that lands inside it — or past it, off the sheet's usable area — is
+    # dropped, so the four sets never meet in a corner.
+    band = edge + ln
+    xs = [x for x in xs if band < x < paper_w_mm - band]
+    ys = [y for y in ys if band < y < paper_h_mm - band]
 
     lines: list[tuple[float, float, float, float]] = []
     for x in xs:                        # top and bottom: vertical dashes

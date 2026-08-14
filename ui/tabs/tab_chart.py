@@ -3061,6 +3061,11 @@ class TabChart(QWidget):
             self._manual_layout_panel.paper.currentIndexChanged.connect(
                 self._sync_manual_selection_from_panel)
         self._manual_layout_panel.changed.connect(self._refresh_manual_command_preview)
+        # Picking SpectroScan + Hexagonal must grey the ruler-marker controls
+        # straight away, not only once a chart has been generated (#152, Knut):
+        # the inspector's own refresh runs on chart/page changes, which is far
+        # too late to explain why the option cannot be used.
+        self._manual_layout_panel.changed.connect(self._refresh_helper_marker_support)
         _llg.addWidget(self._manual_layout_panel)
         inner_layout.addWidget(self._manual_layout_grp)
         self._manual_layout_grp.setVisible(False)
@@ -12346,17 +12351,30 @@ class TabChart(QWidget):
     def _chart_is_hexagonal(self) -> bool:
         """True for a SpectroScan chart drawn with six-sided patches.
 
-        The same test the renderer and the patch geometry use, so the controls
-        can never disagree with what is actually on the sheet.
+        **Read from the live selectors, not from a stored setting.** Knut,
+        beta.5 (#152): *"When instrument is SpectroScan and Patch shape is
+        Hexagonal, the checkbox for 'Show helper markers' with its spinboxes and
+        belonging labels are not greyed with explanation tool-tip, as
+        specified."* The reason was that this asked ``chart_instrument`` in
+        Preferences, which describes the last chart that was *built* — pick
+        SpectroScan and Hexagonal in the Create Chart selectors and that stored
+        value still says i1, so the controls stayed live on a chart that cannot
+        have markers. The combos on screen are the only honest answer to "what
+        is selected", and they are what ``_warn_if_hexagonal_selected`` already
+        uses, so the two now agree.
         """
         try:
-            if str(self._settings.get("chart_instrument", "i1")).upper() != "SS":
-                return False
             panel = getattr(self, "_manual_layout_panel", None)
             if panel is None:
                 return False
-            # hflag is the SpectroScan hex/flat switch (presets.py:34).
-            return bool(getattr(panel.get_recipe(), "hflag", False))
+            if panel.instr is not None and panel.mode is not None:
+                return (panel.instr.currentData() == "SS"
+                        and panel.mode.currentData() == "hex")
+            # No selectors on this panel (the editor's cut-down variant) — fall
+            # back to the recipe, where hflag is the hex/flat switch.
+            rec = panel.get_recipe()
+            return (str(getattr(rec, "instrument", "")).upper() == "SS"
+                    and bool(getattr(rec, "hflag", False)))
         except Exception:      # noqa: BLE001
             return False
 
@@ -12372,10 +12390,7 @@ class TabChart(QWidget):
         # in both the hover tooltip and the ⓘ, rather than silently doing
         # nothing (Knut: "greyed out with explanation in tool-tip and in help
         # icon").
-        try:
-            panel.set_helper_markers_supported(not self._chart_is_hexagonal())
-        except Exception:      # noqa: BLE001 — never block the inspector
-            log.debug("could not set helper-marker availability", exc_info=True)
+        self._refresh_helper_marker_support()
         # The ruler dashes follow whatever chart and page are on screen, so they
         # are refreshed here as well as on the checkbox (#152).
         self._refresh_helper_marker_overlay()
@@ -12602,6 +12617,21 @@ class TabChart(QWidget):
             self._maybe_schedule_auto_preview()
         except Exception:      # noqa: BLE001 — never break the tab on a toggle
             log.warning("could not apply the helper-marker choice", exc_info=True)
+
+    def _refresh_helper_marker_support(self, *_a) -> None:
+        """Grey (or restore) the ruler-marker controls for the current selection.
+
+        Runs on every layout change as well as on a chart/page change, so
+        choosing SpectroScan + Hexagonal explains itself at the moment it is
+        chosen (#152).
+        """
+        panel = getattr(self, "_margin_panel", None)
+        if panel is None:
+            return
+        try:
+            panel.set_helper_markers_supported(not self._chart_is_hexagonal())
+        except Exception:      # noqa: BLE001 — never block the inspector
+            log.debug("could not set helper-marker availability", exc_info=True)
 
     def _refresh_helper_marker_overlay(self) -> None:
         """Draw (or clear) the ruler dashes over the chart now in the preview.

@@ -816,8 +816,8 @@ def render_pages(
     strip_label_offset_mm: float = 0.0,
     text_ctx: "dict | None" = None,
     helper_markers: bool = False,
-    helper_marker_edge_mm: float = 1.0,
-    helper_marker_len_mm: float = 3.0,
+    helper_marker_edge_mm: float = 2.0,
+    helper_marker_len_mm: float = 2.0,
     collect_device_geom: bool = False,
 ) -> RenderResult:
     """Render one :class:`PIL.Image` per page for *target*.

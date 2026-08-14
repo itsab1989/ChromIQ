@@ -119,8 +119,8 @@ class LayoutRecipe:
     # page edges, lined up with the strips across the page and the patches down
     # it, so a ruler can be laid on the sheet accurately while measuring.
     helper_markers: bool = False
-    helper_marker_edge_mm: float = 1.0   # dash distance from the paper edge
-    helper_marker_len_mm: float = 3.0    # how long each dash is, pointing in
+    helper_marker_edge_mm: float = 2.0   # dash distance from the paper edge
+    helper_marker_len_mm: float = 2.0    # how long each dash is, pointing in
     text_edge_mm: float = 4.0            # min distance, page edge → BOTTOM sheet
     #                                      text (printer-safe inset)
     text_edge_top_mm: float = 4.0        # min distance, page edge → strip labels
@@ -233,8 +233,8 @@ class LayoutRecipe:
             chart_text_font=d.get("chart_text_font", "Inter"),
             chart_text_size_mm=float(d.get("chart_text_size_mm") or 0.0),
             helper_markers=bool(d.get("helper_markers", False)),
-            helper_marker_edge_mm=float(d.get("helper_marker_edge") or 1.0),
-            helper_marker_len_mm=float(d.get("helper_marker_len") or 3.0),
+            helper_marker_edge_mm=float(d.get("helper_marker_edge") or 2.0),
+            helper_marker_len_mm=float(d.get("helper_marker_len") or 2.0),
             text_edge_mm=float(d.get("text_edge") or 4.0),
             text_edge_top_mm=float(d.get("text_edge_top") or 4.0),
             text_edge_clip_mm=float(d.get("text_edge_clip") or 4.0),
@@ -348,8 +348,8 @@ class LayoutRecipe:
             "chart_text_font": self.chart_text_font,
             "chart_text_size_mm": self.chart_text_size_mm,
             "helper_markers": bool(self.helper_markers),
-            "helper_marker_edge": self.helper_marker_edge_mm or 1.0,
-            "helper_marker_len": self.helper_marker_len_mm or 3.0,
+            "helper_marker_edge": self.helper_marker_edge_mm or 2.0,
+            "helper_marker_len": self.helper_marker_len_mm or 2.0,
             "text_edge": self.text_edge_mm or 4.0,
             "text_edge_top": self.text_edge_top_mm or 4.0,
             "text_edge_clip": self.text_edge_clip_mm or 4.0,

@@ -208,3 +208,73 @@ def test_the_spin_boxes_still_show_their_largest_value(panel):
         needed = box.fontMetrics().horizontalAdvance(widest)
         assert box.width() >= needed, (
             f"{box.width()} px cannot show {widest!r} ({needed} px of text)")
+
+
+# --- the hexagonal case really does grey out (Knut, beta.5) -----------------
+#
+# *"When instrument is SpectroScan and Patch shape is Hexagonal, the checkbox for
+# 'Show helper markers' with its spinboxes and belonging labels are not greyed
+# with explanation tool-tip, as specified."*
+#
+# Two faults behind that. The check asked `chart_instrument` in Preferences,
+# which describes the last chart BUILT — so picking SpectroScan + Hexagonal in
+# the Create Chart selectors left it reading "i1". And nothing re-ran the check
+# when those selectors changed: it hung off the margin inspector's refresh,
+# which fires on a chart or page change, long after the user has made the
+# selection and wants to know why the option does nothing.
+
+def test_the_controls_and_their_labels_all_grey_together(panel):
+    panel.set_helper_markers_supported(False)
+    dead = [panel._helper_check, panel._helper_edge, panel._helper_len,
+            panel._helper_edge_lbl, panel._helper_len_lbl]
+    assert not any(w.isEnabled() for w in dead), (
+        "a live label beside a dead spin box reads as a glitch, not as "
+        "'this option does not apply here'")
+    assert all(w.toolTip() for w in dead), "greyed with no reason given"
+
+
+def test_they_come_back(panel):
+    panel.set_helper_markers_supported(False)
+    panel.set_helper_markers_supported(True)
+    for w in (panel._helper_check, panel._helper_edge, panel._helper_len,
+              panel._helper_edge_lbl, panel._helper_len_lbl):
+        assert w.isEnabled()
+        assert not w.toolTip()
+
+
+def test_the_reason_reaches_the_help_icon_too(panel):
+    """Knut asked for it in both places a user might look — the hover tooltip
+    and the ⓘ."""
+    panel.set_helper_markers_supported(False)
+    body = panel._helper_tip._body if hasattr(panel._helper_tip, "_body") else ""
+    assert "six-sided" in body or "honeycomb" in body, body[:200]
+
+
+def test_the_hex_check_reads_the_live_selectors_not_a_stored_setting():
+    """The specific fault: `chart_instrument` describes the chart last BUILT.
+
+    Judged on the parsed code with the docstring removed, because that docstring
+    names the old setting in order to explain the fault.
+    """
+    import ast
+    import inspect
+    import textwrap
+    from ui.tabs.tab_chart import TabChart
+
+    fn = ast.parse(textwrap.dedent(
+        inspect.getsource(TabChart._chart_is_hexagonal))).body[0]
+    if (fn.body and isinstance(fn.body[0], ast.Expr)
+            and isinstance(fn.body[0].value, ast.Constant)):
+        fn.body.pop(0)                      # drop the docstring
+    code = ast.dump(ast.Module(body=[fn], type_ignores=[]))
+    assert "chart_instrument" not in code, (
+        "back to asking a stored setting about a live selection")
+    assert "currentData" in code
+
+
+def test_choosing_hexagonal_greys_it_without_generating_a_chart():
+    """It must react to the selectors, not wait for a chart/page change."""
+    import inspect
+    from ui.tabs.tab_chart import TabChart
+    src = inspect.getsource(TabChart)
+    assert "changed.connect(self._refresh_helper_marker_support)" in src

@@ -57,18 +57,23 @@ class MarginInspectorPanel(QGroupBox):
         return tr(
             "Short dashes printed along all four edges of the sheet, to lay a "
             "ruler against while you measure.\n\n"
-            "The dashes along the top and bottom line up with the strips going "
-            "across the page — the start and the middle of every strip, and the "
-            "end of the last one. The dashes down the left and right line up "
-            "with the patches going down the page in the same way. The rest of "
-            "each edge is filled with dashes at that same spacing, right out to "
-            "the corners, so there is always one near wherever you put the "
-            "ruler.\n\n"
+            "The dashes are evenly spaced all the way along each edge, and "
+            "they follow your patches: there is a dash at every patch boundary "
+            "and one exactly halfway between each pair. The gap between any two "
+            "neighbouring dashes is always the same, so you can lay a ruler "
+            "anywhere along the edge and it will line up.\n\n"
+            "If you add or widen the spacers between patches, the dashes move "
+            "with them automatically — you do not need to adjust anything "
+            "here.\n\n"
             "“Distance from page edge” is how far in from the paper's edge the "
             "dashes sit, and “Marker length” is how long each dash is, pointing "
-            "inwards. With 1 mm and 3 mm on an A4 sheet, the dashes on the left "
-            "run from 1 mm to 4 mm across, and those on the right from 206 mm "
-            "to 209 mm.\n\n"
+            "inwards. With both set to 2 mm on an A4 sheet, the dashes on the "
+            "left run from 2 mm to 4 mm across, and those on the right from "
+            "206 mm to 208 mm.\n\n"
+            "Near each corner the dashes stop, so the ones coming down the side "
+            "never run into the ones coming across the top or bottom. Increase "
+            "“Distance from page edge” and the corners simply clear a little "
+            "more.\n\n"
             "These dashes are part of the printed chart, so they appear on "
             "paper as well as on screen. They are drawn last, which means they "
             "can cross the sheet text, the notes band or the clip border if "
@@ -80,7 +85,7 @@ class MarginInspectorPanel(QGroupBox):
             "patch they line up with the shifted strips as well.\n\n"
             "Not available for a SpectroScan chart with six-sided patches: a "
             "honeycomb has no straight rows for a ruler to follow.\n\n"
-            "Default: off, 1.0 mm from the edge, 3.0 mm long")
+            "Default: off, 2.0 mm from the edge, 2.0 mm long")
 
     def _fit_spin_widths(self) -> None:
         """Size the two marker spin boxes to the widest value they can hold.
@@ -150,15 +155,33 @@ class MarginInspectorPanel(QGroupBox):
         look — the hover tooltip and the ⓘ — rather than the box simply going
         dead with no explanation.
         """
-        for w in (self._helper_check, self._helper_edge, self._helper_len):
+        # THE LABELS GREY WITH THEIR BOXES. Knut, beta.5: *"the checkbox for
+        # 'Show helper markers' with its spinboxes and belonging labels are not
+        # greyed"*. A live label beside a dead spin box reads as a rendering
+        # glitch rather than as "this option does not apply here".
+        widgets = (self._helper_check, self._helper_edge, self._helper_len,
+                   self._helper_edge_lbl, self._helper_len_lbl)
+        for w in widgets:
             w.setEnabled(bool(supported))
+        # setEnabled(False) alone leaves the two QLabels looking live: this
+        # theme's Disabled palette entry is the same colour as the normal one
+        # (#e6e6e6 in dark), so Qt has nothing different to paint them with.
+        # Rather than pick a grey here, the labels carry the app's own
+        # convention for a dimmed caption — `param_label`, which BOTH themes
+        # already style for the :disabled state (ui/styles.py, ui/light_styles.py).
+        # Set once at build time; the stylesheet then follows enabled/disabled by
+        # itself, and light mode gets its own colour for free.
         why = reason or tr(
             "This chart's patches are six-sided, so it has no straight rows or "
             "columns for a ruler to line up with. Helper markers are available "
             "on charts with rectangular patches.")
+        # A disabled widget does not deliver its own tooltip on some styles, so
+        # the reason is put on the row's container as well — hovering anywhere
+        # along the greyed row explains it.
         tip = "" if supported else why
-        for w in (self._helper_check, self._helper_edge, self._helper_len):
+        for w in widgets:
             w.setToolTip(tip)
+        self.setToolTip(tip)
         self._helper_tip.set_content(
             tr("Helper markers"),
             self._helper_marker_help() if supported
@@ -284,21 +307,26 @@ class MarginInspectorPanel(QGroupBox):
             tr("Show helper markers (visible on print)"), self)
         _hm.addWidget(self._helper_check)
         _hm.addSpacing(10)
-        _hm.addWidget(QLabel(tr("Distance from page edge:"), self))
+        self._helper_edge_lbl = QLabel(tr("Distance from page edge:"), self)
+        # Greys with its spin box — see set_helper_markers_supported.
+        self._helper_edge_lbl.setObjectName("param_label")
+        _hm.addWidget(self._helper_edge_lbl)
         self._helper_edge = NoScrollDoubleSpinBox(self)
         self._helper_edge.setRange(0.0, 50.0)
         self._helper_edge.setDecimals(1)
         self._helper_edge.setSingleStep(0.5)
         self._helper_edge.setSuffix(tr(" mm"))
-        self._helper_edge.setValue(1.0)
+        self._helper_edge.setValue(2.0)
         _hm.addWidget(self._helper_edge)
-        _hm.addWidget(QLabel(tr("Marker length:"), self))
+        self._helper_len_lbl = QLabel(tr("Marker length:"), self)
+        self._helper_len_lbl.setObjectName("param_label")
+        _hm.addWidget(self._helper_len_lbl)
         self._helper_len = NoScrollDoubleSpinBox(self)
         self._helper_len.setRange(0.5, 50.0)
         self._helper_len.setDecimals(1)
         self._helper_len.setSingleStep(0.5)
         self._helper_len.setSuffix(tr(" mm"))
-        self._helper_len.setValue(3.0)
+        self._helper_len.setValue(2.0)
         _hm.addWidget(self._helper_len)
         # NARROW ENOUGH FOR WHAT THEY HOLD. Knut: *"The two spinboxes … are double
         # as wide as needed."* The width is measured off the font rather than

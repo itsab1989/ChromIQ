@@ -1,5 +1,39 @@
 # Changelog
 
+## v4.0.2-beta.7
+
+### Fixed
+
+- **Helper markers are now evenly spaced, everywhere.** The dashes were placed
+  at the start and the middle of each patch, which is only even spacing when
+  there are no spacers between patches — with a 1 mm spacer the gaps alternated
+  between 5 mm and 6 mm. They are now one evenly-spaced comb per edge, stepped
+  at half the patch pitch, so every gap is identical and there is still a dash
+  on every patch boundary (reported by soul-traveller).
+
+- **No more doubled dash at the end of a row.** A separate dash marked the end
+  of the last patch, landing one spacer width from the next dash — two marks
+  about a millimetre apart, which read as one marker drawn twice. That special
+  case is gone (reported by soul-traveller).
+
+- **The dashes no longer collide in the corners.** Raising "Distance from page
+  edge" made the dashes coming down the sides run into the ones coming across
+  the top and bottom. Each set now stops short of the other, so the corners stay
+  clear at any distance (reported by soul-traveller).
+
+- **Hexagonal SpectroScan charts grey the marker controls out properly.** The
+  checkbox, both distance boxes and their labels stayed active, because the
+  check asked which instrument the last chart was *built* with rather than which
+  one is selected. It now follows the Create Chart selectors, greys the whole
+  row together, and explains why in the tooltip and the ⓘ (reported by
+  soul-traveller).
+
+### Changed
+
+- **Helper markers now default to 2.0 mm from the page edge and 2.0 mm long**
+  (was 1.0 mm and 3.0 mm), at soul-traveller's request. If you had already
+  changed either distance yourself, your value is kept.
+
 ## v4.0.2-beta.6
 
 ### Fixed
