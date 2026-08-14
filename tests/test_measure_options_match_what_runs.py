@@ -39,11 +39,20 @@ def test_both_modules_read_their_own_resume_box():
     """
     import inspect
 
-    src = inspect.getsource(TabMeasure)
-    assert "resume              = self._resume_cb.isChecked()" in src, \
+    guided = inspect.getsource(TabMeasure._collect_guided)
+    manual = inspect.getsource(TabMeasure._collect_manual)
+    assert "self._resume_cb.isChecked()" in guided, \
         "the guided command no longer reads _resume_cb"
-    assert "resume              = self._m_resume_cb.isChecked()" in src, \
+    assert "self._m_resume_cb.isChecked()" in manual, \
         "the manual command no longer reads _m_resume_cb"
+    # Each still reads its OWN box, and neither reads the other's.
+    assert "_m_resume_cb" not in guided, "guided is reading manual's box"
+    assert "self._resume_cb." not in manual, "manual is reading guided's box"
+    # Both resolve it through the one shared rule, so the two cannot drift
+    # apart — the fault that ran every guided measurement uncalibrated.
+    for name, src in (("guided", guided), ("manual", manual)):
+        assert "_resume_has_anything_to_resume" in src, (
+            f"{name} bypasses the shared §3a check")
 
 
 def test_the_pop_up_sets_both_boxes():

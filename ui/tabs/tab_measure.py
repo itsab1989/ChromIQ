@@ -11029,6 +11029,34 @@ class TabMeasure(QWidget):
     # Param collection
     # ------------------------------------------------------------------
 
+    def _resume_has_anything_to_resume(self, ticked: bool) -> bool:
+        """The resume tick, honoured only when there is something behind it.
+
+        Specification §3a/§5: a missing, empty, header-only or corrupt `.ti3`
+        gives ``C₀ = 0`` and is *"treated exactly as 'no measurement'"*, and §5's
+        first row pairs that state with **no warning** — the measurement just
+        starts. Sending ``-r`` there makes chartread refuse before the first
+        patch (*"Unable to read chart being resumed"*), and the fallback to stock
+        chartread keeps the flag and fails identically (Knut's log, #148).
+
+        Applied in BOTH modules from one place on purpose. Guided and Manual have
+        separate resume checkboxes, and the last time a flag was resolved twice
+        the two drifted — every Guided measurement ran with `-N` because a hidden
+        control was still being read. One rule, both callers.
+        """
+        if not ticked:
+            return False
+        ti1 = getattr(self, "_ti1_path", None)
+        if ti1 is None:
+            return False
+        from workflow.measurement_state import can_resume
+        ti1 = Path(ti1)
+        ok = can_resume(ti1.with_suffix(".ti3"), ti1.with_suffix(".ti2"))
+        if not ok:
+            log.info("Refine / resume is ticked, but this run has no measurement "
+                     "to resume from — measuring from the start instead.")
+        return ok
+
     def _collect_guided(self) -> MeasureParams:
         extra_args: list[str] = []
         for opt in self._chartread_opts:
@@ -11058,7 +11086,8 @@ class TabMeasure(QWidget):
             # not use it.
             disable_initial_cal = False,
             patch_by_patch      = self._pbp_cb.isChecked(),
-            resume              = self._resume_cb.isChecked(),
+            resume              = self._resume_has_anything_to_resume(
+                self._resume_cb.isChecked()),
             extra_args          = " ".join(extra_args),
         )
 
@@ -11075,7 +11104,8 @@ class TabMeasure(QWidget):
             suppress_warnings   = self._m_suppress_cb.isChecked(),
             disable_initial_cal = self._m_nocal_cb.isChecked(),
             patch_by_patch      = self._m_pbp_cb.isChecked(),
-            resume              = self._m_resume_cb.isChecked(),
+            resume              = self._resume_has_anything_to_resume(
+                self._m_resume_cb.isChecked()),
             extra_args          = " ".join(extra_args),
         )
 

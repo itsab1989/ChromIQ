@@ -18,16 +18,29 @@ end-of-last-patch dash landed one spacer width from the continued pattern,
 putting two dashes 1 mm apart — the "drawn twice" he saw *"next to the bottom
 spacer of the last row of patches"*.
 
-So the geometry is now **one evenly-spaced comb per axis**, anchored on the first
-patch and stepped at half the patch pitch. Every gap is identical by
-construction, every patch boundary still carries a dash, and there is no special
+So the geometry is now **one evenly-spaced comb per axis**, stepped at half the
+patch pitch. Every gap is identical by construction, and there is no special
 last-patch case to go wrong.
+
+**Where the comb starts changed once more**, after he saw beta.7 on paper:
+
+    *"the dashes at the start of each patch is positioned at the end of its above
+    spacer. It would be better if the dash would be centred vertically to the
+    centre of the spacer thickness (height) above each patch, either the spacer
+    is wide, thin, thick or not existing. This would result in a centre to centre
+    distance between spacers, and then the middle dash between them will always
+    fall centred within in the patch height."*
+
+Anchored on the patch boundary, the in-between dash lands half a spacer past the
+middle of the patch. Anchored half a gap earlier — on the centre of the spacer —
+the marks fall alternately on a spacer centre and a **patch centre**, still one
+pitch/2 apart. Both properties hold at once, at any spacer width including zero.
 
 The specification these tests hold the code to:
 
 1. **Every gap between neighbouring dashes is the same** — his pass criterion,
    and the first thing asserted here.
-2. A dash sits on every patch boundary, and one midway between each pair.
+2. A dash sits at the centre of every patch, and at the centre of every spacer.
 3. The pitch is measured off the layout, so **any spacer width** is followed
    automatically: *"You have to dynamically include the spacers as part of the
    calculation, as the spacers can change in the create chart settings."*
@@ -112,40 +125,80 @@ def test_the_ends_of_the_page_keep_the_same_gap_as_the_middle():
 # --- 2. what they line up with ----------------------------------------------
 
 @pytest.mark.parametrize("spacer_mm", [0.0, 0.5, 1.0, 2.5, 5.0])
-def test_a_dash_sits_on_every_patch_boundary(spacer_mm):
-    """The point of the whole feature: a reference the instrument can be lined
-    up against. Holds for any spacer, because the pitch is measured rather than
-    assumed."""
+def test_a_dash_sits_at_the_centre_of_every_patch(spacer_mm):
+    """The point of the whole feature, in the form Knut settled on after seeing
+    beta.7 on paper:
+
+        *"It would be better if the dash would be centred vertically to the
+        centre of the spacer thickness (height) above each patch … then the
+        middle dash between them will always fall centred within in the patch
+        height."*
+
+    Anchoring on the patch BOUNDARY put that in-between dash half a spacer past
+    the patch centre. Anchoring on the centre of the gap puts it exactly on the
+    centre, for any spacer width.
+    """
     geom, lay, lines = _lines(key="i1", n=800, spacer_on=spacer_mm > 0,
                               spacer_width=spacer_mm)
     place = G.placement(geom, A4_W, A4_H, lay)
     ys = _horizontals(lines)
     band = 2.0 + 2.0            # the corner-clear band, where dashes are dropped
     for j in range(lay.steps_in_pass):
-        want = place.y_of(j)
+        want = place.y_of(j) + place.plen / 2.0
         if not (band < want < A4_H - band):
             continue            # inside a corner, deliberately not drawn
         assert any(abs(y - want) < 1e-4 for y in ys), (
-            f"no dash at patch {j}'s boundary ({want:.3f} mm) with a "
+            f"no dash at the centre of patch {j} ({want:.3f} mm) with a "
             f"{spacer_mm} mm spacer")
 
 
-def test_a_dash_sits_on_every_strip_boundary():
+@pytest.mark.parametrize("spacer_mm", [0.5, 1.0, 2.5, 5.0])
+def test_a_dash_sits_at_the_centre_of_every_spacer(spacer_mm):
+    """The other half of his rule — the marks alternate spacer centre, patch
+    centre, spacer centre — which is what keeps the spacing even."""
+    geom, lay, lines = _lines(key="i1", n=800, spacer_on=True,
+                              spacer_width=spacer_mm)
+    place = G.placement(geom, A4_W, A4_H, lay)
+    ys = _horizontals(lines)
+    pitch = place.y_of(1) - place.y_of(0)
+    band = 4.0
+    for j in range(lay.steps_in_pass):
+        want = place.y_of(j) - (pitch - place.plen) / 2.0
+        if not (band < want < A4_H - band):
+            continue
+        assert any(abs(y - want) < 1e-4 for y in ys), (
+            f"no dash at the centre of the spacer above patch {j} "
+            f"({want:.3f} mm)")
+
+
+def test_the_boundary_is_no_longer_where_a_dash_goes_when_there_is_a_spacer():
+    """Guards the shape of his change: with a spacer the dashes must have MOVED
+    off the patch edges, or the previous scheme is still in place."""
+    geom, lay, lines = _lines(key="i1", n=800, spacer_on=True, spacer_width=3.0)
+    place = G.placement(geom, A4_W, A4_H, lay)
+    ys = _horizontals(lines)
+    on_edge = [j for j in range(1, lay.steps_in_pass - 1)
+               if any(abs(y - place.y_of(j)) < 1e-4 for y in ys)]
+    assert not on_edge, f"dashes still sit on the patch edges of {on_edge[:5]}"
+
+
+def test_a_dash_sits_at_the_centre_of_every_strip():
+    """The same rule across the page, so both edges behave identically."""
     geom, lay, lines = _lines(n=800)
     place = G.placement(geom, A4_W, A4_H, lay)
     xs = _verticals(lines)
     band = 4.0
     cols = lay.patches_per_page // lay.steps_in_pass
     for p in range(cols):
-        want = place.x_of(p)
+        want = place.x_of(p) + place.pwid / 2.0
         if not (band < want < A4_W - band):
             continue
         assert any(abs(x - want) < 1e-4 for x in xs), (p, want)
 
 
 def test_the_step_is_half_the_patch_pitch():
-    """Which is what makes 'a dash on every boundary' and 'every gap equal' hold
-    at the same time — the two would otherwise be incompatible with a spacer."""
+    """Which is what makes 'a dash at every patch centre' and 'every gap equal'
+    hold at the same time — the two are otherwise incompatible with a spacer."""
     geom, lay, lines = _lines(key="i1", n=800, spacer_on=True, spacer_width=2.0)
     place = G.placement(geom, A4_W, A4_H, lay)
     pitch = place.y_of(1) - place.y_of(0)

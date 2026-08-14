@@ -671,14 +671,35 @@ M_OVERLAY_NO_MEASUREMENT = _m(
 M_ALL_STRIPS_PATCHES_LEFT = _m(
     "M-ALL-STRIPS-PATCHES-LEFT",
     "Some patches are still unread",
-    "Every strip has been read, but {n} patches still have no reading.\n\n"
-    "A strip can be accepted while one or two patches inside it are not "
-    "recorded — a slight wobble as the instrument passes over them is enough. "
-    "Everything you have read so far is safe and will be saved.\n\n"
-    "To finish the chart, press “Stop & Save”, then start measuring again with "
-    "“Patch-by-patch mode” ticked. ChromIQ picks up where the readings stop, so "
-    "you only measure the patches that are still missing rather than the whole "
-    "chart again.", approved=False)
+    "Every strip has been read, but {n} patches still have no reading. "
+    "Everything you have read so far is safe.\n\n"
+    "This usually happens when some patches were read one at a time in "
+    "“Patch-by-patch mode” and a few were stepped over.\n\n"
+    "To finish them, start measuring again with “Patch-by-patch mode” ticked "
+    "and “Refine / resume existing measurement” ticked. ChromIQ picks up where "
+    "the readings stop, so you only measure the patches that are still missing "
+    "rather than the whole chart again.\n\n"
+    "•  Re-read Patches — stay in this session and go back for the missing ones "
+    "now. Use “f” and “b” to move between patches, “n” to jump to the next "
+    "unread one, and “d” when you are done.\n\n"
+    "•  Close — finish here. ChromIQ asks whether to keep what you have "
+    "measured so far, so nothing is decided behind your back.",
+    approved=False,
+    count_key="n",
+    body_one=
+    "Every strip has been read, but one patch still has no reading. "
+    "Everything you have read so far is safe.\n\n"
+    "This usually happens when some patches were read one at a time in "
+    "“Patch-by-patch mode” and one was stepped over.\n\n"
+    "To finish it, start measuring again with “Patch-by-patch mode” ticked "
+    "and “Refine / resume existing measurement” ticked. ChromIQ picks up where "
+    "the readings stop, so you only measure the patch that is still missing "
+    "rather than the whole chart again.\n\n"
+    "•  Re-read Patches — stay in this session and go back for it now. Use “f” "
+    "and “b” to move between patches, “n” to jump to the next unread one, and "
+    "“d” when you are done.\n\n"
+    "•  Close — finish here. ChromIQ asks whether to keep what you have "
+    "measured so far, so nothing is decided behind your back.")
 
 #: PROPOSED (#148). Asked for by Knut, 2026-08-14: *"there should be a defined
 #: and approved instrument error message in the design specification for this

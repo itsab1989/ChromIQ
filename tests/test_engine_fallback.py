@@ -109,8 +109,31 @@ def test_no_fresh_restart_once_a_strip_was_read(tmp_path):
 
 # --- the with-progress resume fallback (#134) -----------------------------
 
-def _partial_ti3(tmp_path: Path) -> Path:
-    """A non-empty <stem>.ti3 standing in for the engine's autosave."""
+def _partial_ti3(tmp_path: Path, readings: int = 1) -> Path:
+    """A <stem>.ti3 standing in for the engine's autosave.
+
+    **It has to be a real CGATS file with real rows in it.** This used to be
+    ``CTI3\\nNUMBER_OF_SETS 1\\n`` — a header and nothing else — which passed the
+    old "is the file non-empty?" test while containing no readings whatsoever.
+    ``chartread -r`` refuses such a file outright, so the rescue it was standing
+    in for could never have worked on it.
+
+    The real autosave goes through ArgyllCMS's own ``save_ti3()``
+    (``cq_write_ti3_atomic``, native/chartread_helper/chromiq_chartread.c:447),
+    which writes a complete file every time — header, format block, and one row
+    per reading taken so far. This mirrors that.
+    """
+    ti3 = tmp_path / "chart.ti3"
+    rows = "\n".join(f"{i + 1} 50 50 50 20 20 20" for i in range(readings))
+    ti3.write_text(
+        "CTI3\n\nNUMBER_OF_FIELDS 7\nBEGIN_DATA_FORMAT\n"
+        "SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z\nEND_DATA_FORMAT\n"
+        f"NUMBER_OF_SETS {readings}\nBEGIN_DATA\n{rows}\nEND_DATA\n")
+    return ti3
+
+
+def _header_only_ti3(tmp_path: Path) -> Path:
+    """A `.ti3` with a header and no readings — what the old stand-in was."""
     ti3 = tmp_path / "chart.ti3"
     ti3.write_text("CTI3\nNUMBER_OF_SETS 1\n")
     return ti3
@@ -460,3 +483,31 @@ def test_default_budget_when_unset(tmp_path):
     from workflow.measure_manager import CAL_AUTO_RETRIES
     mgr, runner, lines, finished = _start_engine_run(tmp_path)  # sets no retries
     assert mgr._cal_auto_retries == CAL_AUTO_RETRIES
+
+
+def test_a_header_only_autosave_is_not_resumed(tmp_path):
+    """The stand-in this file used to rely on: a `.ti3` carrying a header and no
+    readings. `chartread -r` refuses it — *"Unable to read chart being resumed"*
+    — so handing it over would just fail the measurement a second time, which is
+    exactly what happened to Knut (#148). There is nothing in it to lose.
+    """
+    mgr, runner, lines, finished = _start_engine_run(tmp_path)
+    _header_only_ti3(tmp_path)
+    _feed_engine(mgr, {"event": "strip_read", "strip": "A"}, lines)
+    _feed_engine(mgr, {"event": "error", "kind": "coms"}, lines)
+    _finish(runner, 1)
+    for run in runner.runs[1:]:
+        assert "-r" not in run["args"], (
+            "resumed from a file with no readings in it")
+
+
+def test_a_real_autosave_is_still_resumed(tmp_path):
+    """The counterweight: the rescue must keep working for the file the engine
+    actually writes, or a crash costs the user every strip they measured."""
+    mgr, runner, lines, finished = _start_engine_run(tmp_path)
+    _partial_ti3(tmp_path, readings=3)
+    _feed_engine(mgr, {"event": "strip_read", "strip": "A"}, lines)
+    _feed_engine(mgr, {"event": "error", "kind": "coms"}, lines)
+    _finish(runner, 1)
+    assert len(runner.runs) == 2, "the rescue did not happen"
+    assert "-r" in runner.runs[1]["args"]

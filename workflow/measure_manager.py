@@ -388,7 +388,9 @@ class MeasureManager(QObject):
                 self._engine_fallback_used = True
                 on_line(tr("[Engine] This instrument reads whole sheets; "
                            "using ArgyllCMS chartread for it."))
-                self._launch_stock(args, cwd, on_line, _on_finish)
+                self._launch_stock(
+                    self._without_resume_when_nothing_to_resume(
+                        args, params.ti1_path), cwd, on_line, _on_finish)
                 return
             if was_engine:
                 partial = self._resumable_partial_ti3(params.ti1_path)
@@ -429,7 +431,12 @@ class MeasureManager(QObject):
                     "chartread instead — just carry on measuring as usual."
                 ).format(reason=reason))
                 self.engine_fell_back.emit(reason)
-                self._launch_stock(args, cwd, on_line, _on_finish)
+                # This is the path Knut's log took at 19:09 (#148): the engine
+                # refused the missing resume file, and the fallback re-launched
+                # with the same -r and failed identically.
+                self._launch_stock(
+                    self._without_resume_when_nothing_to_resume(
+                        args, params.ti1_path), cwd, on_line, _on_finish)
                 return
             on_finish(code)
 
@@ -557,15 +564,55 @@ class MeasureManager(QObject):
         The engine saves readings to ``<stem>.ti3`` as it goes, so if the
         instrument fails partway through, that file holds the strips already
         measured — exactly what stock chartread ``-r`` reads to continue. Returns
-        the path only when the file exists and is non-empty; otherwise ``None``
-        (nothing safe to resume, so the run is handled the ordinary way)."""
+        the path only when the file holds at least one readable reading;
+        otherwise ``None`` (nothing safe to resume, so the run is handled the
+        ordinary way).
+
+        **"Non-empty" is not the same as "resumable".** This used to accept any
+        file of non-zero size, and a `.ti3` that carries only a CGATS header is
+        several hundred bytes of exactly that — no ``BEGIN_DATA``, no rows, and
+        nothing for ``-r`` to continue from. Specification §3a puts that file in
+        the *header only* row: *"no measurements — treat as empty"*, giving
+        ``C₀ = 0``. The test is now
+        :func:`workflow.measurement_state.has_any_readings`, so a fallback can no
+        longer hand stock chartread a file it will refuse.
+
+        **Not the stricter `can_resume`, on purpose.** That one implements §3a for
+        the user's Refine / resume tick, where a corrupt file must never be
+        resumed. Here a refusal throws away strips the user has already measured,
+        which is the one thing this rescue exists to prevent — so a damaged
+        autosave, exactly what a crash is most likely to leave behind, is still
+        handed to chartread rather than abandoned.
+        """
+        from workflow.measurement_state import has_any_readings
         ti3 = ti1_path.with_suffix(".ti3")
         try:
-            if ti3.is_file() and ti3.stat().st_size > 0:
+            if has_any_readings(ti3):
                 return ti3
         except OSError:
             pass
         return None
+
+    def _without_resume_when_nothing_to_resume(
+            self, args: list, ti1_path: Path) -> list:
+        """*args* with ``-r`` removed when there is nothing to resume from.
+
+        Belt and braces for the fallback paths. The flag is already withheld at
+        source (the Measure tab asks §3a before setting it), but a fallback
+        re-launches with whatever the engine was given — and Knut's log shows
+        both readers failing on the same missing file, one after the other,
+        because the second inherited the first's flag. Anything that re-launches
+        should re-check rather than trust the arguments it was handed.
+        """
+        if "-r" not in args:
+            return args
+        try:
+            if self._resumable_partial_ti3(ti1_path) is not None:
+                return args
+        except Exception:      # noqa: BLE001 — never block a fallback
+            return args
+        log.info("dropping -r for the fallback: nothing to resume from")
+        return [a for a in args if a != "-r"]
 
     def _engine_should_resume_fallback(self, code: int) -> bool:
         """Whether a failed engine run that ALREADY read part of the chart should

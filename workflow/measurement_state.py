@@ -159,6 +159,67 @@ def classify(ti3_path: "Path | str | None",
     return Ti3Facts(Ti3State.PARTIAL, claimed, held, None)
 
 
+def can_resume(ti3_path: "Path | str | None",
+               ti2_path: "Path | str | None" = None) -> bool:
+    """Whether ``chartread -r`` has anything to resume from — specification §3a/§5.
+
+    **Only a file with at least one readable reading can be resumed.** The model
+    is explicit about every other case:
+
+    * *"No `.ti3` at all … nothing measured yet | normal for a fresh run; C₀ = 0"*,
+      and §5's first row pairs "None" with **no warning** — so the measurement
+      simply starts.
+    * A header-only or empty file *"holds no measurements — treat as empty"*.
+    * A corrupt file (``B ≠ C``) is to be **"never offer[ed] for resume"**.
+    * And §3a is explicit that all of these give ``C₀ = 0``: *"When the `.ti3`
+      present at the start of a measurement is corrupt or empty … there is
+      nothing in it to resume from and nothing to lose by measuring again, and it
+      is treated exactly as 'no measurement'."*
+
+    ChromIQ was sending ``-r`` on the strength of the checkbox alone, so a run
+    whose measurement had been replaced or never made was started in resume mode
+    against a file that was not there. chartread refuses outright —
+    ``Unable to read chart being resumed … Unable to open file`` — and the
+    fallback to stock chartread kept the flag and failed the same way, which is
+    what Knut's log shows at 19:09 (#148). His ruling: *"The action when a ti3
+    file is not existing or is corrupt or empty is defined by the design
+    specification and the unified measurement management model. Make sure this
+    is handled accordingly."*
+
+    So the tick is honoured whenever it can be, and quietly ignored when there is
+    nothing behind it — which is what §5's "no warning" row asks for. Nothing is
+    lost either way: resuming from nothing and starting fresh are the same
+    measurement.
+    """
+    facts = classify(ti3_path, ti2_path)
+    return facts.state in (Ti3State.PARTIAL, Ti3State.COMPLETE)
+
+
+def has_any_readings(ti3_path: "Path | str | None") -> bool:
+    """Whether the file holds at least one reading — the RESCUE test, not §3a's.
+
+    **Deliberately weaker than :func:`can_resume`, and the difference matters.**
+    They answer two different questions:
+
+    * `can_resume` answers *"the user ticked Refine / resume — should ChromIQ act
+      on it?"*, and follows §3a strictly: a corrupt file (``B ≠ C``) is *"never
+      offer[ed] for resume"*, because resuming into a mismatch would write
+      readings against patch positions that may not be the ones on the paper.
+    * This one answers *"the instrument just died mid-chart — is there anything
+      worth saving?"* (#134). Here a refusal **throws away measured strips**,
+      which is the one outcome the whole rescue exists to prevent. So it declines
+      only when it is certain there is nothing: no file, an empty one, a
+      header-only one, or one that cannot be parsed at all.
+
+    Tightening this to `can_resume` looked tidy and was wrong: it would have made
+    a damaged autosave — precisely the case a crash is most likely to leave —
+    the one case where the readings are silently abandoned.
+    """
+    facts = classify(ti3_path, None)
+    return facts.state not in (Ti3State.ABSENT, Ti3State.EMPTY,
+                               Ti3State.NO_DATA_BLOCK, Ti3State.UNREADABLE)
+
+
 class SessionVerdict(Enum):
     """What to do with what a session left behind — specification §3b."""
 

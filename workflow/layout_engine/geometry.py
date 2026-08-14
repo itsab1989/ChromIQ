@@ -663,8 +663,27 @@ def helper_marker_lines_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
     # width is then the only rhythm there is, and there is no spacer to include.
     x_pitch = (place.x_of(1) - place.x_of(0)) if passes > 1 else place.pwid
     y_pitch = (place.y_of(1) - place.y_of(0)) if steps > 1 else place.plen
-    xs = _comb(place.x_of(0), x_pitch / 2.0, 0.0, paper_w_mm)
-    ys = _comb(place.y_of(0), y_pitch / 2.0, 0.0, paper_h_mm)
+    # ANCHORED ON THE MIDDLE OF THE GAP, NOT ON THE EDGE OF THE PATCH.
+    #
+    # Knut, after seeing beta.7 on paper: *"the dashes at the start of each patch
+    # is positioned at the end of its above spacer. It would be better if the
+    # dash would be centred vertically to the centre of the spacer thickness
+    # (height) above each patch … This would result in a centre to centre
+    # distance between spacers, and then the middle dash between them will
+    # always fall centred within in the patch height."*
+    #
+    # He is right, and it is a better answer than either option put to him. A
+    # comb anchored on the patch BOUNDARY keeps every gap equal but puts its
+    # in-between dash at ``start + pitch/2``, which is half a spacer past the
+    # middle of the patch. Anchoring half a gap earlier — on the centre of the
+    # spacer — shifts the whole comb by ``(pitch - size) / 2`` and the marks land
+    # alternately on a spacer centre and a patch centre, still one pitch/2 apart.
+    # So both properties hold at once, for any spacer width including zero, where
+    # the shift is nothing and the dashes sit on the boundaries as before.
+    x_anchor = place.x_of(0) - (x_pitch - place.pwid) / 2.0
+    y_anchor = place.y_of(0) - (y_pitch - place.plen) / 2.0
+    xs = _comb(x_anchor, x_pitch / 2.0, 0.0, paper_w_mm)
+    ys = _comb(y_anchor, y_pitch / 2.0, 0.0, paper_h_mm)
 
     # The band each edge's dashes reach into. A dash on the perpendicular edge
     # that lands inside it — or past it, off the sheet's usable area — is

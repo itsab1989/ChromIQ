@@ -1129,22 +1129,61 @@ false claim is a bug fix and is in the code; a window to replace it is new
 wording, so it waits here. Until it is approved the Measure tab writes the same
 information into its log instead of opening a window.
 
-### M-ALL-STRIPS-PATCHES-LEFT · PROPOSED · every strip read, but patches inside them are not — Measure tab
+### M-ALL-STRIPS-PATCHES-LEFT · PROPOSED (revised 2026-08-14) · every strip read, but patches inside them are not — Measure tab
 
 > **Some patches are still unread**
 >
-> Every strip has been read, but {n} patches still have no reading.
+> Every strip has been read, but {n} patches still have no reading. Everything you have read so far is safe.
 >
-> A strip can be accepted while one or two patches inside it are not recorded — a slight wobble as the instrument passes over them is enough. Everything you have read so far is safe and will be saved.
+> This usually happens when some patches were read one at a time in **Patch-by-patch mode** and a few were stepped over.
 >
-> To finish the chart, press **Stop & Save**, then start measuring again with **Patch-by-patch mode** ticked. ChromIQ picks up where the readings stop, so you only measure the patches that are still missing rather than the whole chart again.
+> To finish them, start measuring again with **Patch-by-patch mode** ticked and **Refine / resume existing measurement** ticked. ChromIQ picks up where the readings stop, so you only measure the patches that are still missing rather than the whole chart again.
+>
+> • **Re-read Patches** — stay in this session and go back for the missing ones now. Use **f** and **b** to move between patches, **n** to jump to the next unread one, and **d** when you are done.
+>
+> • **Close** — finish here. ChromIQ asks whether to keep what you have measured so far, so nothing is decided behind your back.
 
-*Why it is proposed rather than in use.* Knut, #156: *"the 'All Strips Read'
-message comes, despite that the progress percentage shows 97.1% … This message
-must come only when all patches are read."* Suppressing the finished message
-while patches are unread is the bug fix and is in the code; announcing it in a
-window is new wording, so it waits here. Until it is approved the tab writes the
-count into its log.
+*Revised after Knut's review of the first draft (2026-08-14), which he corrected
+on three counts.*
+
+**1. The cause was wrong.** The first draft said *"a slight wobble as the
+instrument passes over them is enough"*. His answer: *"is not likely. if not
+enough patches are registered it is caught. The likely reason is that a user has
+used patch-by-patch mode to read some patches and missed some."* The message now
+says that instead. Nothing here asserts a mechanism that has not been observed.
+
+**2. The button was invented.** The first draft told the user to press
+**"Stop & Save"**, which is not a button this app has. His answer: *"The button
+'Stop & Save' is not the wording used for other windows … like the All Patches
+Read (for patch-by-patch mode) and All Strips Read (for strip mode) [which] have
+one button to Close, which calls the window where user decides to stop and save,
+or stop and discard. This is the unified exit method defined in the design spec,
+which you would have known."* He is right that it is defined, and right that I
+should have read it: `measurement_exit_strategy.md` §"The single exit".
+
+**3. Every button needs its own explanation** — *"the rules used in the design
+specification is that all windows have an explanation for each button in a
+window"* — so both now carry one.
+
+**It must exist in all four cases.** Strip mode and patch-by-patch, on ChromIQ's
+engine and on stock ArgyllCMS chartread, are four separate windows with different
+exit keys behind the same buttons (`measurement_exit_strategy.md`, Tables 1 and
+2). A window raised from one parser only reaches half the users, and the stock
+half working is what has hidden that four times already. So this window is to be
+raised from code both `_handle_line` and `_handle_engine_line` reach, and its
+Close must delegate to `_confirm_end_of_session`, which already knows which mode
+and which reader it is in rather than sending a key of its own.
+
+**⚠ ONE THING NEEDS HIS RULING BEFORE THIS CAN BE BUILT.** He describes Close on
+the completion windows as *"call[ing] the window where user decides to stop and
+save, or stop and discard"* — but `measurement_exit_strategy.md`, Table 1, row
+**All Strips Read / All Patches Read**, records Close as *"keeps the measurement,
+goes nowhere"*. Those are different behaviours, and he flagged his own memory as
+uncertain (*"if I remember correct"*). Per the binding-specification rule this is
+reported rather than resolved here: **either the table is stale and Close should
+raise the ending, or Close is right as recorded and this window needs a different
+button.** The text above is written for his description; it changes if the table
+is the correct one.
 
 ### M-ENGINE-FELL-BACK · PROPOSED · ChromIQ's own measuring engine could not use the instrument — Measure tab
 

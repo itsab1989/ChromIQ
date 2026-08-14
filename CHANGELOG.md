@@ -1,5 +1,25 @@
 # Changelog
 
+## v4.0.2-beta.10
+
+### Fixed
+
+- **Helper markers now sit at the centre of each patch.** The dashes were
+  anchored on the patch edge, which put the in-between dash half a spacer past
+  the middle of the patch. They are anchored on the middle of the gap instead,
+  so one dash lands exactly at each patch centre and the next midway to its
+  neighbour — with every gap still identical, at any spacer width (reported by
+  soul-traveller).
+
+- **"Refine / resume" no longer breaks a measurement when there is nothing to
+  resume.** Ticking it on a run whose measurement is missing, empty or damaged
+  made ChromIQ start in resume mode against a file that was not there, and the
+  measurement failed before the first patch — twice over, because the fallback
+  to ArgyllCMS's chartread kept the same setting. The tick is now honoured only
+  when there really is a measurement behind it, exactly as the measurement model
+  defines; otherwise the chart is simply measured from the start (reported by
+  soul-traveller).
+
 ## v4.0.2-beta.9
 
 ### Fixed
