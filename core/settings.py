@@ -318,6 +318,12 @@ DEFAULTS: dict[str, Any] = {
     "margin_guides_show":        False,   # dotted threshold guide lines on preview
     "margin_measured_guides_show": False,  # long dotted lines at the measured margins
     "margin_coords_show":         False,   # cross-hair + paper-mm/inch readout on pointer (#29)
+    # Ruler helper markers (#152, Knut): short dashes printed along all four
+    # page edges so a ruler can be laid on the sheet while measuring. These are
+    # printed into the chart, not a preview overlay.
+    "helper_markers_show":        False,
+    "helper_marker_edge_mm":      1.0,
+    "helper_marker_len_mm":       3.0,
     "declutter_on_load":          True,    # tidy legacy flat folders into v2 subfolders on file load (#36)
     "export_shuffled_pxf":        False,   # also write a patch-order-shuffled i1Profiler .pxf copy (Nelson)
     "margin_thresholds":         "",      # JSON blob; "" → default_margin_thresholds()

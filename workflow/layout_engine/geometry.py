@@ -557,3 +557,115 @@ def patches_per_sheet(geom: Geom, paper_w_mm: float, paper_h_mm: float,
     page capacity (``patches_per_page``).
     """
     return compute(geom, paper_w_mm, paper_h_mm, 100_000, scanc=scanc).patches_per_page
+
+
+# ---------------------------------------------------------------------------
+# Ruler helper markers (#152, Knut)
+# ---------------------------------------------------------------------------
+def _fill_outward(anchors: list[float], step: float,
+                  lo: float, hi: float) -> list[float]:
+    """*anchors* extended in both directions at *step*, clipped to [lo, hi].
+
+    Knut: *"The rest of the top and bottom edges are then filled with these
+    markers till they reach the left and right edges, using the same distance
+    between them."* So the spacing outside the patch area is the one the patches
+    themselves defined, and the comb simply continues.
+    """
+    if not anchors or step <= 0:
+        return [a for a in anchors if lo <= a <= hi]
+    out = list(anchors)
+    a = min(anchors) - step
+    while a >= lo:
+        out.append(a)
+        a -= step
+    b = max(anchors) + step
+    while b <= hi:
+        out.append(b)
+        b += step
+    return sorted(v for v in out if lo <= v <= hi)
+
+
+def helper_marker_lines_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
+                           layout: Layout, *, edge_mm: float = 1.0,
+                           length_mm: float = 3.0
+                           ) -> "list[tuple[float, float, float, float]]":
+    """Short dashes along all four page edges, to align a ruler against (#152).
+
+    Returns ``(x0, y0, x1, y1)`` segments in millimetres, for any page size,
+    orientation and resolution.
+
+    **Where they sit.** *edge_mm* from the paper edge, *length_mm* long, pointing
+    inward — so on A4 portrait with the defaults the left dashes run from x=1 mm
+    to x=4 mm, and the right ones from x=206 mm to x=209 mm.
+
+    **What they line up with.**
+
+    * top and bottom step **across** the page with the strips: the start and the
+      middle of every strip, plus the end of the last one
+    * left and right step **down** the page with the patches: the start and the
+      middle of every patch, plus the end of the last one
+
+    Within the patch area the positions are exact, so a spacer between patches
+    cannot make them drift. Beyond it the comb continues at the spacing the
+    patches defined, out to the page edges.
+
+    **The ColorMunki's staggered strips take the first strip as their
+    reference**, which is Knut's ruling (#152): every second strip is offset
+    downward, and the row markers are already half a patch apart, so markers
+    taken from the first strip serve the offset ones too.
+
+    That is exact only when there are no spacers. ``instruments.build`` sets the
+    stagger to ``0.5 * (plen + 0.5 * pspa)`` — half a patch **plus a quarter of
+    the spacer** — while the marker spacing here is ``plen / 2``. With spacers
+    off the two agree to the micron; with the default 1 mm ColorMunki spacer the
+    staggered rows sit 0.25 mm below their markers. Reported to him rather than
+    silently "corrected", because which of the two strips a ruler should follow
+    is his decision, not this function's.
+
+    Hexagonal SpectroScan charts return no markers at all: a honeycomb has no
+    rows to line a ruler up with.
+    """
+    if getattr(geom, "key", "") == "SS" and getattr(geom, "hxew", 0.0) > 0:
+        return []
+    if paper_w_mm <= 0 or paper_h_mm <= 0 or length_mm <= 0:
+        return []
+    edge = max(0.0, float(edge_mm))
+    ln = float(length_mm)
+    if edge + ln > min(paper_w_mm, paper_h_mm) / 2:
+        return []                      # would meet in the middle of the sheet
+
+    place = placement(geom, paper_w_mm, paper_h_mm, layout)
+    steps = max(1, layout.steps_in_pass)
+    # Passes ACROSS the page, which is not `strips_per_page` (that is 1 for the
+    # strip-reader instruments). The renderer derives a patch's pass with
+    # `wp // steps` over the patches on the page, so the column count is the
+    # same division — see patch_rects_px.
+    passes = max(1, layout.patches_per_page // steps)
+
+    # Columns: the start and middle of each strip, plus the last strip's end.
+    xs: list[float] = []
+    for p in range(passes):
+        x = place.x_of(p)
+        xs.append(x)
+        xs.append(x + place.pwid / 2.0)
+    xs.append(place.x_of(passes - 1) + place.pwid)
+    xs = _fill_outward(xs, place.pwid / 2.0, 0.0, paper_w_mm)
+
+    # Rows: the start and middle of each patch of the FIRST strip, plus the last
+    # patch's end. Exact even when a spacer sits between patches.
+    ys: list[float] = []
+    for j in range(steps):
+        y = place.y_of(j)
+        ys.append(y)
+        ys.append(y + place.plen / 2.0)
+    ys.append(place.y_of(steps - 1) + place.plen)
+    ys = _fill_outward(ys, place.plen / 2.0, 0.0, paper_h_mm)
+
+    lines: list[tuple[float, float, float, float]] = []
+    for x in xs:                        # top and bottom: vertical dashes
+        lines.append((x, edge, x, edge + ln))
+        lines.append((x, paper_h_mm - edge - ln, x, paper_h_mm - edge))
+    for y in ys:                        # left and right: horizontal dashes
+        lines.append((edge, y, edge + ln, y))
+        lines.append((paper_w_mm - edge - ln, y, paper_w_mm - edge, y))
+    return lines

@@ -1813,6 +1813,12 @@ class TabChart(QWidget):
             bool(self._settings.get("margin_measured_guides_show", False)))
         self._margin_panel.set_coords_checked(
             bool(self._settings.get("margin_coords_show", False)))
+        # #152: the markers are a chart-layout choice, so the panel opens on the
+        # values the engine will actually use.
+        self._margin_panel.set_helper_markers(
+            bool(self._settings.get("helper_markers_show", False)),
+            float(self._settings.get("helper_marker_edge_mm", 1.0) or 1.0),
+            float(self._settings.get("helper_marker_len_mm", 3.0) or 3.0))
         self._margin_panel.setVisible(
             bool(self._settings.get("margin_inspector_show", True)))
         self._layout_info_panel.setVisible(
@@ -1823,6 +1829,8 @@ class TabChart(QWidget):
         self._margin_panel.measured_guides_toggled.connect(
             self._on_margin_measured_guides_toggled)
         self._margin_panel.coords_toggled.connect(self._on_margin_coords_toggled)
+        self._margin_panel.helper_markers_changed.connect(
+            self._on_helper_markers_changed)
         # Restore the coordinate readout state on the preview (dpi = render res).
         if self._margin_panel.coords_enabled():
             self._preview.set_coord_readout(
@@ -12335,6 +12343,23 @@ class TabChart(QWidget):
         except Exception:
             return (0.0, 0.0)
 
+    def _chart_is_hexagonal(self) -> bool:
+        """True for a SpectroScan chart drawn with six-sided patches.
+
+        The same test the renderer and the patch geometry use, so the controls
+        can never disagree with what is actually on the sheet.
+        """
+        try:
+            if str(self._settings.get("chart_instrument", "i1")).upper() != "SS":
+                return False
+            panel = getattr(self, "_manual_layout_panel", None)
+            if panel is None:
+                return False
+            # hflag is the SpectroScan hex/flat switch (presets.py:34).
+            return bool(getattr(panel.get_recipe(), "hflag", False))
+        except Exception:      # noqa: BLE001
+            return False
+
     def _update_margin_inspector(self) -> None:
         panel = getattr(self, "_margin_panel", None)
         if panel is None:
@@ -12342,6 +12367,15 @@ class TabChart(QWidget):
         tiffs = getattr(self, "_margin_tiffs", None)
         show = bool(self._settings.get("margin_inspector_show", True))
         panel.setVisible(show)
+        # #152: a hexagonal SpectroScan chart has no straight rows or columns
+        # for a ruler, so the marker controls grey out with the reason showing
+        # in both the hover tooltip and the ⓘ, rather than silently doing
+        # nothing (Knut: "greyed out with explanation in tool-tip and in help
+        # icon").
+        try:
+            panel.set_helper_markers_supported(not self._chart_is_hexagonal())
+        except Exception:      # noqa: BLE001 — never block the inspector
+            log.debug("could not set helper-marker availability", exc_info=True)
         if not show or not tiffs:
             panel.show_placeholder()
             self._preview.set_margin_guides(None)
@@ -12524,6 +12558,29 @@ class TabChart(QWidget):
     def _on_margin_measured_guides_toggled(self, on: bool) -> None:
         self._settings.set("margin_measured_guides_show", bool(on))
         self._update_margin_inspector()
+
+    def _on_helper_markers_changed(self, on: bool, edge_mm: float,
+                                   len_mm: float) -> None:
+        """Remember the ruler-marker choice and redraw with it (#152).
+
+        These dashes are printed, not a preview overlay, so changing them means
+        laying the chart out again — the same as changing any other layout
+        setting. Stored so the next chart starts where this one left off.
+        """
+        try:
+            self._settings.set("helper_markers_show", bool(on))
+            self._settings.set("helper_marker_edge_mm", float(edge_mm))
+            self._settings.set("helper_marker_len_mm", float(len_mm))
+            panel = getattr(self, "_manual_layout_panel", None)
+            if panel is not None:
+                rec = panel.get_recipe()
+                rec.helper_markers = bool(on)
+                rec.helper_marker_edge_mm = float(edge_mm)
+                rec.helper_marker_len_mm = float(len_mm)
+                panel.set_recipe(rec)
+            self._refresh_manual_command_preview()
+        except Exception:      # noqa: BLE001 — never break the tab on a toggle
+            log.warning("could not apply the helper-marker choice", exc_info=True)
 
     def _on_margin_coords_toggled(self, on: bool) -> None:
         self._settings.set("margin_coords_show", bool(on))

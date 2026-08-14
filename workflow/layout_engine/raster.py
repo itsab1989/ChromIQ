@@ -20,6 +20,10 @@ from core.resource_path import resource_path
 from . import contrast, geometry, permutation
 from .colorants import to_device_approx, to_device_approx_array, to_display_rgb
 from .geometry import Layout
+
+#: How thick the ruler helper markers are drawn (#152). Knut: *"a line thin
+#: enough to be precise but visible — around 0.2 mm. Answer: sounds Good."*
+_HELPER_MARKER_W_MM = 0.2
 from .instruments import Geom
 from .ti1_reader import ColorTarget
 
@@ -811,6 +815,9 @@ def render_pages(
     clip_flip_180: bool = False,
     strip_label_offset_mm: float = 0.0,
     text_ctx: "dict | None" = None,
+    helper_markers: bool = False,
+    helper_marker_edge_mm: float = 1.0,
+    helper_marker_len_mm: float = 3.0,
     collect_device_geom: bool = False,
 ) -> RenderResult:
     """Render one :class:`PIL.Image` per page for *target*.
@@ -1168,6 +1175,21 @@ def render_pages(
                     _geom_rows.append(("text", px(geom.margin_l), yy + _sasc, ln,
                                        _sfile, _sfont_px, 0, 0, (0, 0, 0), _svar))
                 yy += line_h
+        # Ruler helper markers (#152, Knut). Drawn LAST so nothing already on
+        # the page can cover them, and on every page — they help while reading
+        # any sheet of any chart type. Overlapping other furniture is allowed;
+        # the help text tells the user to adjust the distances if it bothers
+        # them, which was his ruling rather than an omission.
+        if helper_markers:
+            try:
+                for (mx0, my0, mx1, my1) in geometry.helper_marker_lines_mm(
+                        geom, paper_w_mm, paper_h_mm, layout,
+                        edge_mm=helper_marker_edge_mm,
+                        length_mm=helper_marker_len_mm):
+                    draw.line((px(mx0), px(my0), px(mx1), px(my1)),
+                              fill=(0, 0, 0), width=max(1, px(_HELPER_MARKER_W_MM)))
+            except Exception:      # noqa: BLE001 — never lose a chart to a marker
+                log.warning("could not draw the helper markers", exc_info=True)
         images.append(img)
         page_geoms.append(_geom_rows)
 

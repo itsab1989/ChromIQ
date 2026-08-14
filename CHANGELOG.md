@@ -1,5 +1,31 @@
 # Changelog
 
+## v4.0.2-beta.2
+
+The second beta, adding the printed ruler markers.
+
+### New
+
+- **Helper markers for lining up a ruler.** Short dashes can now be printed
+  along all four edges of the sheet, to lay a ruler against while you measure.
+  The dashes along the top and bottom line up with the strips going across the
+  page — the start and the middle of every strip, and the end of the last one —
+  and those down the left and right line up with the patches going down the
+  page in the same way. The rest of each edge is filled at that same spacing,
+  right out to the corners.
+
+  Switch them on with **Show helper markers (visible on print)** in the
+  **Measured from Preview** frame under the Create Chart preview, and set how
+  far in from the paper's edge they sit and how long they are. They are part of
+  the printed chart, so they appear on paper as well as on screen, on every kind
+  of chart — profiling, calibration and verification alike.
+
+  On a ColorMunki chart, where every second strip is offset down the page, the
+  dashes follow the first strip and line up with the shifted strips as well.
+  They are not available for a SpectroScan chart with six-sided patches, where
+  a honeycomb has no straight rows for a ruler to follow; there the controls are
+  greyed out and say why (requested by soul-traveller).
+
 ## v4.0.2-beta.1
 
 The first beta of the next version, carrying one new feature for testing.

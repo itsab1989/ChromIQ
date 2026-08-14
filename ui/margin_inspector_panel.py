@@ -15,12 +15,15 @@ from PyQt6.QtWidgets import (
     QCheckBox,
     QGridLayout,
     QGroupBox,
+    QHBoxLayout,
     QLabel,
     QVBoxLayout,
     QWidget,
 )
 
 from core.i18n import tr
+from ui.tooltip_button import TooltipButton
+from ui.widgets import NoScrollDoubleSpinBox
 from workflow.margin_inspector import MarginReport, Violation
 
 _MM_PER_INCH = 25.4
@@ -33,6 +36,8 @@ class MarginInspectorPanel(QGroupBox):
     guides_toggled = pyqtSignal(bool)
     measured_guides_toggled = pyqtSignal(bool)
     coords_toggled = pyqtSignal(bool)
+    #: (on, distance from edge mm, marker length mm) — #152
+    helper_markers_changed = pyqtSignal(bool, float, float)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(tr("Measured from Preview"), parent)
@@ -40,6 +45,80 @@ class MarginInspectorPanel(QGroupBox):
         self._value_labels: dict[str, tuple[QLabel, QLabel]] = {}
         self._build_ui()
         self.show_placeholder()
+
+    @staticmethod
+    def _helper_marker_help() -> str:
+        """Friendly, extensive help for the marker controls (#152)."""
+        return tr(
+            "Short dashes printed along all four edges of the sheet, to lay a "
+            "ruler against while you measure.\n\n"
+            "The dashes along the top and bottom line up with the strips going "
+            "across the page — the start and the middle of every strip, and the "
+            "end of the last one. The dashes down the left and right line up "
+            "with the patches going down the page in the same way. The rest of "
+            "each edge is filled with dashes at that same spacing, right out to "
+            "the corners, so there is always one near wherever you put the "
+            "ruler.\n\n"
+            "“Distance from page edge” is how far in from the paper's edge the "
+            "dashes sit, and “Marker length” is how long each dash is, pointing "
+            "inwards. With 1 mm and 3 mm on an A4 sheet, the dashes on the left "
+            "run from 1 mm to 4 mm across, and those on the right from 206 mm "
+            "to 209 mm.\n\n"
+            "These dashes are part of the printed chart, so they appear on "
+            "paper as well as on screen. They are drawn last, which means they "
+            "can cross the sheet text, the notes band or the clip border if "
+            "those reach the same place. That is expected: if a dash lands "
+            "somewhere awkward, move it with “Distance from page edge”, or give "
+            "the text more room with its own distance setting.\n\n"
+            "A ColorMunki chart offsets every second strip down the page. The "
+            "dashes follow the first strip, and because the offset is half a "
+            "patch they line up with the shifted strips as well.\n\n"
+            "Not available for a SpectroScan chart with six-sided patches: a "
+            "honeycomb has no straight rows for a ruler to follow.\n\n"
+            "Default: off, 1.0 mm from the edge, 3.0 mm long")
+
+    def _emit_helper_markers(self, *_a) -> None:
+        self.helper_markers_changed.emit(
+            self._helper_check.isChecked(),
+            float(self._helper_edge.value()),
+            float(self._helper_len.value()))
+
+    def set_helper_markers(self, on: bool, edge_mm: float, len_mm: float) -> None:
+        """Show what the chart on screen was actually made with, without
+        bouncing a change straight back out again."""
+        for w, v in ((self._helper_check, bool(on)),
+                     (self._helper_edge, float(edge_mm)),
+                     (self._helper_len, float(len_mm))):
+            w.blockSignals(True)
+            w.setChecked(v) if isinstance(w, QCheckBox) else w.setValue(v)
+            w.blockSignals(False)
+
+    def helper_markers(self) -> "tuple[bool, float, float]":
+        return (self._helper_check.isChecked(),
+                float(self._helper_edge.value()),
+                float(self._helper_len.value()))
+
+    def set_helper_markers_supported(self, supported: bool,
+                                     reason: str = "") -> None:
+        """Grey the markers out when the chart cannot carry them (#152).
+
+        Knut asked for the reason to be visible in both places a user might
+        look — the hover tooltip and the ⓘ — rather than the box simply going
+        dead with no explanation.
+        """
+        for w in (self._helper_check, self._helper_edge, self._helper_len):
+            w.setEnabled(bool(supported))
+        why = reason or tr(
+            "This chart's patches are six-sided, so it has no straight rows or "
+            "columns for a ruler to line up with. Helper markers are available "
+            "on charts with rectangular patches.")
+        tip = "" if supported else why
+        for w in (self._helper_check, self._helper_edge, self._helper_len):
+            w.setToolTip(tip)
+        self._helper_tip.set_content(
+            tr("Helper markers"),
+            self._helper_marker_help() if supported
+            else why + "\n\n" + self._helper_marker_help())
 
     # ------------------------------------------------------------------
     def _build_ui(self) -> None:
@@ -137,6 +216,42 @@ class MarginInspectorPanel(QGroupBox):
             tr("Show measurement coordinates on pointer"), self)
         self._coord_check.toggled.connect(self.coords_toggled.emit)
         checks.addWidget(self._coord_check)
+
+        # Ruler helper markers (#152, Knut). Under and left-aligned with the
+        # coordinates box, with the two distances on the same row to its right,
+        # exactly as he laid it out.
+        _hm = QHBoxLayout()
+        _hm.setContentsMargins(0, 0, 0, 0)
+        _hm.setSpacing(8)
+        self._helper_check = QCheckBox(
+            tr("Show helper markers (visible on print)"), self)
+        _hm.addWidget(self._helper_check)
+        _hm.addSpacing(10)
+        _hm.addWidget(QLabel(tr("Distance from page edge:"), self))
+        self._helper_edge = NoScrollDoubleSpinBox(self)
+        self._helper_edge.setRange(0.0, 50.0)
+        self._helper_edge.setDecimals(1)
+        self._helper_edge.setSingleStep(0.5)
+        self._helper_edge.setSuffix(tr(" mm"))
+        self._helper_edge.setValue(1.0)
+        _hm.addWidget(self._helper_edge)
+        _hm.addWidget(QLabel(tr("Marker length:"), self))
+        self._helper_len = NoScrollDoubleSpinBox(self)
+        self._helper_len.setRange(0.5, 50.0)
+        self._helper_len.setDecimals(1)
+        self._helper_len.setSingleStep(0.5)
+        self._helper_len.setSuffix(tr(" mm"))
+        self._helper_len.setValue(3.0)
+        _hm.addWidget(self._helper_len)
+        self._helper_tip = TooltipButton(
+            tr("Helper markers"), self._helper_marker_help(), self)
+        _hm.addWidget(self._helper_tip)
+        _hm.addStretch()
+        checks.addLayout(_hm)
+        for _w in (self._helper_check,):
+            _w.toggled.connect(self._emit_helper_markers)
+        for _w in (self._helper_edge, self._helper_len):
+            _w.valueChanged.connect(self._emit_helper_markers)
         bottom.addLayout(checks)
         bottom.addStretch()
         bottom.addWidget(TooltipButton(
