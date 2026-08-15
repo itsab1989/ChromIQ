@@ -1,5 +1,15 @@
 # Changelog
 
+## v4.0.2-beta.12
+
+### Fixed
+
+- **ArgyllCMS's own beeps play again while ChromIQ's engine is reading.** They
+  had been switched off so that ChromIQ's chosen sounds would be the only ones
+  during a measurement. They are separate cues, not duplicates — the reader's
+  beep confirms the instrument is ready for you to start, which none of
+  ChromIQ's sounds covers — so both play now (reported by soul-traveller).
+
 ## v4.0.2-beta.11
 
 ### Fixed
