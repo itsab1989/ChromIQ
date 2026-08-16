@@ -2,9 +2,10 @@
 
 ## v4.1.0
 
-Everything reported against 4.0.0 and 4.0.1 by soul-traveller is fixed, two
-features he asked for are in, and the ColorMunki now has a complete set of
-ready-made charts built around them. Verified by him on real hardware.
+Everything reported against 4.0.0 and 4.0.1 by soul-traveller is fixed — verified
+by him on real hardware — and two features he asked for are in. The ColorMunki
+also gains a complete set of ready-made charts, which he made and measured on
+paper himself.
 
 ### New
 
