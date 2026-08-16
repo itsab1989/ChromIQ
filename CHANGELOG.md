@@ -17,7 +17,8 @@ paper himself.
   the ~10 mm patch width most of them use, the ruler goes four markers below the
   strip you are reading.
 
-  Pick one under **Create Chart → Manual → Presets**, or from the ★ button. There
+  Pick one under **Create Chart → Manual → Presets**, or from the magenta list
+  button next to the GUIDED / MANUAL switch. There
   is a size for every job — 84 to 2,280 patches on A4, US Letter, A3 and A3+, in
   portrait and landscape. Most sizes come as a **Fast** and a **Slow Reading
   Speed** pair: same patches, but the fast one puts shorter strips on more sheets,

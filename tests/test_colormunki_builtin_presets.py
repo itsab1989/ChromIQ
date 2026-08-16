@@ -151,6 +151,9 @@ def test_the_clip_border_explains_every_margin():
         assert "Top margin: 34 mm" in text
         assert "Bottom margin: 18 mm" in text
         assert "Right margin: 24 mm" in text
+        # Knut's own wording, 2026-08-16: the knobs are *underneath* the
+        # instrument, not "on bottom" — his phrasing, kept verbatim.
+        assert "knobs underneath" in text and "knobs on bottom" not in text
 
 
 # ---------------------------------------------------------------------------
