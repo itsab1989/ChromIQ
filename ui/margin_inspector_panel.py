@@ -27,9 +27,11 @@ from ui.widgets import NoScrollDoubleSpinBox
 from workflow.margin_inspector import MarginReport, Violation
 
 # Frame, text margin, the up/down buttons and the theme's padding around a spin
-# box's editable text — measured on the real panel (#152). Only a fallback: the
-# width actually used is the larger of this and Qt's own minimumSizeHint.
-_SPIN_CHROME_PX = 56
+# box's editable text — measured on the real panel with the app's #compact_input
+# rule applied (6 px left padding, 20 px for the buttons, plus the frame). Only a
+# fallback: the width actually used is the larger of this and Qt's own
+# minimumSizeHint.
+_SPIN_CHROME_PX = 34
 
 _MM_PER_INCH = 25.4
 _EDGES = (("L", "Left"), ("R", "Right"), ("T", "Top"), ("B", "Bottom"))
@@ -318,6 +320,10 @@ class MarginInspectorPanel(QGroupBox):
         self._helper_edge_lbl.setObjectName("param_label")
         _hm.addWidget(self._helper_edge_lbl)
         self._helper_edge = NoScrollDoubleSpinBox(self)
+        # The app's slim input look — same object name the Create Chart margin
+        # boxes use, so these two match them in height and in the size of the
+        # up/down buttons instead of standing a third taller (Basti, #158).
+        self._helper_edge.setObjectName("compact_input")
         self._helper_edge.setRange(0.0, 50.0)
         self._helper_edge.setDecimals(1)
         self._helper_edge.setSingleStep(0.5)
@@ -328,6 +334,7 @@ class MarginInspectorPanel(QGroupBox):
         self._helper_len_lbl.setObjectName("param_label")
         _hm.addWidget(self._helper_len_lbl)
         self._helper_len = NoScrollDoubleSpinBox(self)
+        self._helper_len.setObjectName("compact_input")
         self._helper_len.setRange(0.5, 50.0)
         self._helper_len.setDecimals(1)
         self._helper_len.setSingleStep(0.5)

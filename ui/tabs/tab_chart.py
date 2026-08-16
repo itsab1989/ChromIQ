@@ -399,6 +399,106 @@ _REDRIVER_RECIPE_CM: dict = {
 }
 
 
+# --- ColorMunki family (Knut, 2026-08-16) ----------------------------------
+# The ColorMunki built-in line-up, re-made from scratch by Knut and measured on
+# paper: margins and clip border chosen so a ruler can be laid across the sheet,
+# so the FIRST and LAST strip are both readable, and so the knobs under the
+# instrument can't catch on the page edge at the start of a read. Every chart is
+# engine-built (the ChromIQ layout engine, not printtarg) with the helper markers
+# ON: at ~10 mm patch width the ruler goes four markers below the strip being
+# read, which is what makes them comfortable to use. ~10 mm is also why most of
+# the family sits at that width — 14 mm reads even more easily (the ruler can sit
+# a whole strip lower) but fits far fewer patches per sheet.
+#
+# Two variants exist for most sizes, Fast and Slow Reading Speed: the ColorMunki
+# reads a strip at a speed the patch count per strip dictates, so the same paper
+# gets a short-strip (fast) and a long-strip (slow) layout.
+#
+# Every chart shares the recipe below and sets only its paper, its columns × rows
+# grid and — for the three big-patch "Hand Held" charts — a narrower left margin
+# and a matching clip-border note. scripts/import_colormunki_presets.py enforces
+# that: an export that differs anywhere else is rejected rather than imported.
+_CM_DIR = "assets/charts/knut/rgb/colormunki"
+
+# The clip-border band records WHY each margin is what it is, so the reasoning
+# travels on the printed sheet. Knut's text, verbatim — the leading em-dash rule
+# separates the band from the patches, and the {placeholders} are filled in at
+# print time (project, run description, paper, instrument, patches, page, date,
+# seed).
+_CM_CLIP_TEXT = (
+    "————————————————————————————————————————————————————————————————————————\n"
+    "{project} - {rundescription} - {paper} - {instrument} - {patchcount} - "
+    "{page} - {date} - {seed}\n"
+    "Top margin: 34 mm to avoid knobs on bottom to get caught in page edge. "
+    "Bottom margin: 18 mm to have 12 mm white space for comfortably ending "
+    "strip.\n"
+    "Left margin: 14 mm so 'glide-rails' do not fall outside of page (needs "
+    "18 mm to patch centre). Right margin: 24 mm to allow for reading last "
+    "strip using ruler."
+)
+# The three "Hand Held" charts use 26 mm patches read by hand rather than along a
+# ruler, so the glide-rails don't matter and the left margin drops to 6 mm.
+_CM_CLIP_TEXT_HAND_HELD = (
+    "————————————————————————————————————————————————————————————————————————\n"
+    "{project} - {rundescription} - {paper} - {instrument} - {patchcount} - "
+    "{page} - {date} - {seed}\n"
+    "Top margin: 34 mm to avoid knobs on bottom to get caught in page edge. "
+    "Bottom margin: 18 mm to have 12 mm white space for comfortably ending "
+    "strip.\n"
+    "Left margin: 6 mm so 'glide-rails' do not fall outside of page (needs "
+    "18 mm to patch centre). Right margin: 24 mm for text."
+)
+
+# Everything the whole family agrees on. Paper, area_cols, area_rows,
+# margin_left and clip_text are per chart — see _cm_preset below.
+_CM_BASE: dict = {
+    # device + patch grid
+    "instrument": "CM", "cm_density": 2, "cm_stagger": False, "hflag": False,
+    "dpi": 200, "bit16": False, "compression": "lzw", "export_pdf": False,
+    # layout — "area first" (prioritise the chart area, then fit the patches),
+    # by grid, so the margins are law and the columns × rows below decide the
+    # patch size. Knut uses this everywhere: it makes A4 ↔ Letter ↔ A3 a change
+    # of paper alone.
+    "layout_mode": "area_first", "area_method": "by_grid", "area_ratio": 1.0,
+    "area_min_patch_mm": 0.0, "patch_w_mm": 0.0, "patch_h_mm": 0.0,
+    "patch_area_align": "center-left", "pscale": 1.0, "sscale": 1.0,
+    "border": 6.0, "nolimit": True,
+    # margins (the left one varies — see above)
+    "use_instrument_margins": False, "margin_top": 34.0,
+    "margin_right": 24.0, "margin_bottom": 18.0,
+    # spacers
+    "spacer_on": True, "spacer_mode": "colored", "spacer_palette": [],
+    "spacer_overrides": {}, "edge_spacers": True, "spacer_width_mm": 1.2,
+    "inter_patch_mm": 0.0, "strip_gap_mm": 0.0, "max_strip_mm": 0.0,
+    "strip_indicator_gap_mm": 0.0, "offset_x_mm": 0.0, "offset_y_mm": 0.0,
+    # patch order
+    "randomize": True, "seed": None, "strip_pattern": "A-Z, A-Z",
+    "patch_pattern": "0-9,@-9,@-9;1-999",
+    # strip indicators
+    "show_strip_indicators": True, "indicator_font": "JetBrains Mono",
+    "indicator_size_mm": 0.0, "indicator_bold": False,
+    "indicator_italic": False, "indicator_rotation": 0,
+    "indicator_align": "left", "strip_label_offset_mm": 0.0,
+    "underline_mode": "off", "underline_thickness_mm": 0.5,
+    "underline_gap_mm": 0.5,
+    # helper markers (the point of the family) + page text
+    "helper_markers": True, "helper_marker_edge_mm": 4.0,
+    "helper_marker_len_mm": 2.0, "text_edge_mm": 4.0,
+    "text_edge_top_mm": 8.0, "text_edge_clip_mm": 4.0, "chart_text": "",
+    "chart_text_font": "Inter", "chart_text_size_mm": 0.0,
+    "chart_text_bold": False, "chart_text_italic": False,
+    "stamp_command": False,
+    # clip border — the 24 mm band on the right, flipped 180° so it reads the
+    # right way up when the sheet is turned to start a strip.
+    "clip_border": True, "clip_border_width_mm": 24.0, "clip_side": "right",
+    "clip_content_mode": "text", "clip_text_font": "Inter",
+    "clip_text_size_mm": 3.53, "clip_image_path": "",
+    "clip_image_rotation": 0, "clip_image_scale": 100.0,
+    "clip_image_offset_x_mm": 0.0, "clip_image_offset_y_mm": 0.0,
+    "clip_flip_180": True,
+}
+
+
 # Pulls a "-w<number>mm" patch-width token (e.g. "-w11.5mm") out of a name.
 _WIDTH_TOKEN_RE = re.compile(r"-w\d+(?:\.\d+)?mm")
 
@@ -494,6 +594,32 @@ class _Ti1Preset:
         return _sortable_builtin_name(self.display_group, self.name, self.suffix)
 
 
+def _cm_preset(slug: str, name: str, paper: str, cols: int, rows: int,
+               patches: int, pages: int, white: int, black: int, *,
+               margin_left: float = 14.0,
+               clip_text: str = _CM_CLIP_TEXT) -> "_Ti1Preset":
+    """One chart of Knut's ColorMunki family (see _CM_BASE above).
+
+    Only the five fields that genuinely differ between his charts are arguments;
+    everything else comes from the shared base recipe, so a reviewer can see at a
+    glance that two charts differ in paper and grid alone. ``white`` / ``black``
+    are the counts the bundled .ti1 declares — they only make the (greyed) targen
+    panel describe what was loaded; the .ti1 is the real patch set.
+    """
+    return _Ti1Preset(
+        slug, name, "CM", paper,
+        1.0,        # printtarg -a: unused, the engine lays this family out
+        6,          # printtarg -m: likewise unused (margins live in the recipe)
+        pages,
+        ti1_asset=f"{_CM_DIR}/{slug}/chart.ti1",
+        patches=patches, white=white, black=black,
+        tiff_16bit=False, suffix="",
+        layout_recipe=dict(_CM_BASE, paper=paper, area_cols=cols,
+                           area_rows=rows, margin_left=margin_left,
+                           clip_text=clip_text),
+    )
+
+
 # Named printtarg page sizes in mm (only those the presets use); custom sizes are
 # given as "WxH" and parsed directly. Used to order the presets by paper size.
 _PAPER_MM = {
@@ -583,40 +709,149 @@ KNUT_PRESETS: list[_Ti1Preset] = [
     # chart. Several ColorMunki ones are triple density (i1Pro layout + ColorMunki
     # tag); the i1Pro ones keep the left clip + strip limit (-L/-P). All 8-bit.
     # Rows + assets generated from his JSON exports (see scripts).
-    # ColorMunki Full-layout-setup family — reworked by Knut (#89). The multi-
-    # page charts are double density; the dense single-page charts stay triple
-    # density (the export's printtarg block diverges from its editor_recipe for
-    # those — the recipe's td/scale is authoritative). Patch width is in each name.
-    _Ti1Preset("fls_colormunki_a3_1196p_2pages_portrait", "A3-1196p-2pages-Portrait-w12.0mm" + KNUT_FLS_SUFFIX,
-               _KNUT_CM, "A3", 0.88, 6, 2,
-               double_density=True, ti1_asset=f"{_KNUT_FLS_DIR}/fls_colormunki_a3_1196p_2pages_portrait/chart.ti1", patches=1196, white=9, black=8, no_strip_limit=True, tiff_16bit=False, suffix=KNUT_FLS_SUFFIX, engine=True),
-    _Ti1Preset("fls_colormunki_a3_1224p_2pages_landscape", "A3-1224p-2pages-Landscape-w12.0mm" + KNUT_FLS_SUFFIX,
-               _KNUT_CM, "420x297", 0.85, 6, 2,
-               double_density=True, ti1_asset=f"{_KNUT_FLS_DIR}/fls_colormunki_a3_1224p_2pages_landscape/chart.ti1", patches=1224, white=9, black=8, no_strip_limit=True, tiff_16bit=False, suffix=KNUT_FLS_SUFFIX),
-    _Ti1Preset("fls_colormunki_a3_1575p_3pages_portrait", "A3-1575p-3pages-Portrait-w13.0mm" + KNUT_FLS_SUFFIX,
-               _KNUT_CM, "A3", 0.94, 6, 3,
-               double_density=True, ti1_asset=f"{_KNUT_FLS_DIR}/fls_colormunki_a3_1575p_3pages_portrait/chart.ti1", patches=1575, white=9, black=8, no_strip_limit=True, tiff_16bit=False, suffix=KNUT_FLS_SUFFIX),
-    _Ti1Preset("fls_colormunki_a3_2016p_4pages_portrait", "A3-2016p-4pages-Portrait-w13.0mm" + KNUT_FLS_SUFFIX,
-               _KNUT_CM, "A3", 0.96, 6, 4,
-               double_density=True, ti1_asset=f"{_KNUT_FLS_DIR}/fls_colormunki_a3_2016p_4pages_portrait/chart.ti1", patches=2016, white=9, black=8, no_strip_limit=True, tiff_16bit=False, suffix=KNUT_FLS_SUFFIX, engine=True),
-    _Ti1Preset("fls_colormunki_a3_2016p_4pages_portrait_nature_focus", "A3-2016p-4pages-Portrait-w13.0mm-Nature Focus" + KNUT_FLS_SUFFIX,
-               _KNUT_CM, "A3", 0.96, 6, 4,
-               double_density=True, ti1_asset=f"{_KNUT_FLS_DIR}/fls_colormunki_a3_2016p_4pages_portrait_nature_focus/chart.ti1", patches=2016, white=9, black=8, no_strip_limit=True, tiff_16bit=False, suffix=KNUT_FLS_SUFFIX, engine=True),
-    _Ti1Preset("fls_colormunki_a3plus_1190p_1page_portrait", "A3Plus-1190p-1page-Portrait-w9.0mm" + KNUT_FLS_SUFFIX,
-               _KNUT_CM, "329x483", 1.14, 6, 1,
-               triple_density=True, ti1_asset=f"{_KNUT_FLS_DIR}/fls_colormunki_a3plus_1190p_1page_portrait/chart.ti1", patches=1190, white=9, black=8, no_strip_limit=True, suppress_left_clip=True, tiff_16bit=False, suffix=KNUT_FLS_SUFFIX, engine=True),
-    _Ti1Preset("fls_colormunki_a3plus_1196p_1page_landscape", "A3Plus-1196p-1page-Landscape-w9.0mm" + KNUT_FLS_SUFFIX,
-               _KNUT_CM, "483x329", 1.12, 6, 1,
-               triple_density=True, ti1_asset=f"{_KNUT_FLS_DIR}/fls_colormunki_a3plus_1196p_1page_landscape/chart.ti1", patches=1196, white=9, black=8, no_strip_limit=True, suppress_left_clip=True, tiff_16bit=False, suffix=KNUT_FLS_SUFFIX, engine=True),
-    _Ti1Preset("fls_colormunki_a4_480p_2pages_portrait", "A4-480p-2pages-Portrait-w13.0mm" + KNUT_FLS_SUFFIX,
-               _KNUT_CM, "A4", 0.93, 6, 2,
-               double_density=True, ti1_asset=f"{_KNUT_FLS_DIR}/fls_colormunki_a4_480p_2pages_portrait/chart.ti1", patches=480, white=9, black=8, no_strip_limit=True, tiff_16bit=False, suffix=KNUT_FLS_SUFFIX, engine=True),
-    _Ti1Preset("fls_colormunki_a4_484p_1page_portrait", "A4-484p-1page-Portrait-w8.5mm" + KNUT_FLS_SUFFIX,
-               _KNUT_CM, "A4", 1.08, 6, 1,
-               triple_density=True, ti1_asset=f"{_KNUT_FLS_DIR}/fls_colormunki_a4_484p_1page_portrait/chart.ti1", patches=484, white=9, black=8, no_strip_limit=True, suppress_left_clip=True, tiff_16bit=False, suffix=KNUT_FLS_SUFFIX, engine=True),
-    _Ti1Preset("fls_colormunki_a4_495p_1page_landscape", "A4-495p-1page-Landscape-w8.0mm" + KNUT_FLS_SUFFIX,
-               _KNUT_CM, "A4R", 1.06, 6, 1,
-               triple_density=True, ti1_asset=f"{_KNUT_FLS_DIR}/fls_colormunki_a4_495p_1page_landscape/chart.ti1", patches=495, white=9, black=8, no_strip_limit=True, suppress_left_clip=True, tiff_16bit=False, suffix=KNUT_FLS_SUFFIX, engine=True),
+    # --- ColorMunki family (Knut, 2026-08-16) -----------------------------
+    # The whole ColorMunki line-up, re-made from scratch by Knut and measured on
+    # paper: see _CM_BASE above for the shared recipe and what each chart is
+    # allowed to change. They replaced every earlier ColorMunki built-in (the
+    # four "by Pharmacist" prebuilt charts and the ten Full-layout-setup ones).
+    # Ordered smallest sheet first, then by patch count — the same order the
+    # dropdown and the built-in overlay show.
+    _cm_preset("cm_a4_84p_1page_portrait_w26_0mm_fast_reading_speed_hand_held",
+               "A4-84p-1page-Portrait-w26.0mm-Fast Reading Speed-Hand Held",
+               "A4", 7, 12, 84, 1, 1, 1, margin_left=6.0, clip_text=_CM_CLIP_TEXT_HAND_HELD),
+    _cm_preset("cm_a4_144p_1page_portrait_w14_0mm_fast_reading_speed",
+               "A4-144p-1page-Portrait-w14.0mm-Fast Reading Speed",
+               "A4", 12, 12, 144, 1, 1, 1),
+    _cm_preset("cm_a4_204p_1page_portrait_w10_0mm_fast_reading_speed",
+               "A4-204p-1page-Portrait-w10.0mm-Fast Reading Speed",
+               "A4", 17, 12, 204, 1, 1, 1),
+    _cm_preset("cm_a4_306p_1page_portrait_w10_0mm_slow_reading_speed",
+               "A4-306p-1page-Portrait-w10.0mm-Slow Reading Speed",
+               "A4", 17, 18, 306, 1, 1, 1),
+    _cm_preset("cm_a4_374p_1page_portrait_w10_0mm_very_slow_reading_speed",
+               "A4-374p-1page-Portrait-w10.0mm-Very Slow Reading Speed",
+               "A4", 17, 22, 374, 1, 1, 1),
+    _cm_preset("cm_a4_408p_2pages_portrait_w10_0mm_fast_reading_speed",
+               "A4-408p-2pages-Portrait-w10.0mm-Fast Reading Speed",
+               "A4", 17, 12, 408, 2, 1, 1),
+    _cm_preset("cm_a4_612p_2pages_portrait_w10_0mm_slow_reading_speed",
+               "A4-612p-2pages-Portrait-w10.0mm-Slow Reading Speed",
+               "A4", 17, 18, 612, 2, 1, 1),
+    _cm_preset("cm_a4_612p_3pages_portrait_w10_0mm_fast_reading_speed",
+               "A4-612p-3pages-Portrait-w10.0mm-Fast Reading Speed",
+               "A4", 17, 12, 612, 3, 1, 1),
+    _cm_preset("cm_a4_1224p_4pages_portrait_w10_0mm_slow_reading_speed",
+               "A4-1224p-4pages-Portrait-w10.0mm-Slow Reading Speed",
+               "A4", 17, 18, 1224, 4, 1, 1),
+    _cm_preset("cm_a4_1224p_6pages_portrait_w10_0mm_fast_reading_speed",
+               "A4-1224p-6pages-Portrait-w10.0mm-Fast Reading Speed",
+               "A4", 17, 12, 1224, 6, 1, 1),
+    _cm_preset("cm_a4_1615p_5pages_portrait_w10_0mm_slow_reading_speed",
+               "A4-1615p-5pages-Portrait-w10.0mm-Slow Reading Speed",
+               "A4", 17, 19, 1615, 5, 2, 2),
+    _cm_preset("cm_a4_1623p_8pages_portrait_w10_0mm_fast_reading_speed",
+               "A4-1623p-8pages-Portrait-w10.0mm-Fast Reading Speed",
+               "A4", 17, 12, 1623, 8, 2, 2),
+    _cm_preset("cm_a4_2040p_10pages_portrait_w10_0mm_fast_reading_speed",
+               "A4-2040p-10pages-Portrait-w10.0mm-Fast Reading Speed",
+               "A4", 17, 12, 2040, 10, 2, 2),
+    _cm_preset("cm_a4_2142p_7pages_portrait_w10_0mm_slow_reading_speed",
+               "A4-2142p-7pages-Portrait-w10.0mm-Slow Reading Speed",
+               "A4", 17, 18, 2142, 7, 2, 2),
+    _cm_preset("cm_letter_84p_1page_portrait_w26_0mm_fast_reading_speed_hand_held",
+               "Letter-84p-1page-Portrait-w26.0mm-Fast Reading Speed-Hand Held",
+               "Letter", 7, 12, 84, 1, 1, 1, margin_left=6.0, clip_text=_CM_CLIP_TEXT_HAND_HELD),
+    _cm_preset("cm_letter_144p_1page_portrait_w15_0mm_fast_reading_speed",
+               "Letter-144p-1page-Portrait-w15.0mm-Fast Reading Speed",
+               "Letter", 12, 12, 144, 1, 1, 1),
+    _cm_preset("cm_letter_204p_1page_portrait_w10_0mm_fast_reading_speed",
+               "Letter-204p-1page-Portrait-w10.0mm-Fast Reading Speed",
+               "Letter", 17, 12, 204, 1, 1, 1),
+    _cm_preset("cm_letter_306p_1page_portrait_w10_0mm_slow_reading_speed",
+               "Letter-306p-1page-Portrait-w10.0mm-Slow Reading Speed",
+               "Letter", 17, 18, 306, 1, 1, 1),
+    _cm_preset("cm_letter_374p_1page_portrait_w10_0mm_very_slow_reading_speed",
+               "Letter-374p-1page-Portrait-w10.0mm-Very Slow Reading Speed",
+               "Letter", 17, 22, 374, 1, 1, 1),
+    _cm_preset("cm_letter_408p_2pages_portrait_w10_0mm_fast_reading_speed",
+               "Letter-408p-2pages-Portrait-w10.0mm-Fast Reading Speed",
+               "Letter", 17, 12, 408, 2, 1, 1),
+    _cm_preset("cm_letter_612p_2pages_portrait_w10_0mm_slow_reading_speed",
+               "Letter-612p-2pages-Portrait-w10.0mm-Slow Reading Speed",
+               "Letter", 17, 18, 612, 2, 1, 1),
+    _cm_preset("cm_letter_612p_3pages_portrait_w10_0mm_fast_reading_speed",
+               "Letter-612p-3pages-Portrait-w10.0mm-Fast Reading Speed",
+               "Letter", 17, 12, 612, 3, 1, 1),
+    _cm_preset("cm_letter_1224p_4pages_portrait_w10_0mm_slow_reading_speed",
+               "Letter-1224p-4pages-Portrait-w10.0mm-Slow Reading Speed",
+               "Letter", 17, 18, 1224, 4, 1, 1),
+    _cm_preset("cm_letter_1224p_6pages_portrait_w10_0mm_fast_reading_speed",
+               "Letter-1224p-6pages-Portrait-w10.0mm-Fast Reading Speed",
+               "Letter", 17, 12, 1224, 6, 1, 1),
+    _cm_preset("cm_letter_1615p_5pages_portrait_w10_0mm_slow_reading_speed",
+               "Letter-1615p-5pages-Portrait-w10.0mm-Slow Reading Speed",
+               "Letter", 17, 19, 1615, 5, 2, 2),
+    _cm_preset("cm_letter_1623p_8pages_portrait_w10_0mm_fast_reading_speed",
+               "Letter-1623p-8pages-Portrait-w10.0mm-Fast Reading Speed",
+               "Letter", 17, 12, 1623, 8, 2, 2),
+    _cm_preset("cm_letter_2040p_10pages_portrait_w10_0mm_fast_reading_speed",
+               "Letter-2040p-10pages-Portrait-w10.0mm-Fast Reading Speed",
+               "Letter", 17, 12, 2040, 10, 2, 2),
+    _cm_preset("cm_letter_2142p_7pages_portrait_w10_0mm_slow_reading_speed",
+               "Letter-2142p-7pages-Portrait-w10.0mm-Slow Reading Speed",
+               "Letter", 17, 18, 2142, 7, 2, 2),
+    _cm_preset("cm_a3_180p_1page_landscape_w26_0mm_fast_reading_speed_hand_held",
+               "A3-180p-1page-Landscape-w26.0mm-Fast Reading Speed-Hand Held",
+               "420x297", 15, 12, 180, 1, 1, 1, margin_left=6.0, clip_text=_CM_CLIP_TEXT_HAND_HELD),
+    _cm_preset("cm_a3_450p_1page_portrait_w10_0mm_fast_reading_speed",
+               "A3-450p-1page-Portrait-w10.0mm-Fast Reading Speed",
+               "A3", 25, 18, 450, 1, 1, 1),
+    _cm_preset("cm_a3_456p_1page_landscape_w10_0mm_fast_reading_speed",
+               "A3-456p-1page-Landscape-w10.0mm-Fast Reading Speed",
+               "420x297", 38, 12, 456, 1, 2, 2),
+    _cm_preset("cm_a3_800p_1page_portrait_w10_0mm_slow_reading_speed",
+               "A3-800p-1page-Portrait-w10.0mm-Slow Reading Speed",
+               "A3", 25, 32, 800, 1, 2, 2),
+    _cm_preset("cm_a3_900p_2pages_portrait_w10_0mm_fast_reading_speed",
+               "A3-900p-2pages-Portrait-w10.0mm-Fast Reading Speed",
+               "A3", 25, 18, 900, 2, 2, 2),
+    _cm_preset("cm_a3_912p_2pages_landscape_w10_0mm_fast_reading_speed",
+               "A3-912p-2pages-Landscape-w10.0mm-Fast Reading Speed",
+               "420x297", 38, 12, 912, 2, 2, 2),
+    _cm_preset("cm_a3_1224p_2pages_landscape_w10_0mm_slow_reading_speed",
+               "A3-1224p-2pages-Landscape-w10.0mm-Slow Reading Speed",
+               "420x297", 36, 17, 1224, 2, 1, 1),
+    _cm_preset("cm_a3_1350p_3pages_portrait_w10_0mm_fast_reading_speed",
+               "A3-1350p-3pages-Portrait-w10.0mm-Fast Reading Speed",
+               "A3", 25, 18, 1350, 3, 2, 2),
+    _cm_preset("cm_a3_1368p_2pages_landscape_w10_0mm_slow_reading_speed",
+               "A3-1368p-2pages-Landscape-w10.0mm-Slow Reading Speed",
+               "420x297", 38, 18, 1368, 2, 1, 1),
+    _cm_preset("cm_a3_1368p_3pages_landscape_w10_0mm_fast_reading_speed",
+               "A3-1368p-3pages-Landscape-w10.0mm-Fast Reading Speed",
+               "420x297", 38, 12, 1368, 3, 1, 1),
+    _cm_preset("cm_a3_1600p_2pages_portrait_w10_0mm_slow_reading_speed",
+               "A3-1600p-2pages-Portrait-w10.0mm-Slow Reading Speed",
+               "A3", 25, 32, 1600, 2, 2, 2),
+    _cm_preset("cm_a3_2052p_3pages_landscape_w10_0mm_slow_reading_speed_nature",
+               "A3-2052p-3pages-Landscape-w10.0mm-Slow Reading Speed-Nature",
+               "420x297", 38, 18, 2052, 3, 2, 2),
+    _cm_preset("cm_a3_2280p_5pages_landscape_w10_0mm_fast_reading_speed_nature",
+               "A3-2280p-5pages-Landscape-w10.0mm-Fast Reading Speed-Nature",
+               "420x297", 38, 12, 2280, 5, 2, 2),
+    _cm_preset("cm_a3plus_588p_1page_portrait_w10_0mm_fast_reading_speed",
+               "A3Plus-588p-1page-Portrait-w10.0mm-Fast Reading Speed",
+               "329x483", 28, 21, 588, 1, 1, 1),
+    _cm_preset("cm_a3plus_616p_1page_landscape_w10_0mm_fast_reading_speed",
+               "A3Plus-616p-1page-Landscape-w10.0mm-Fast Reading Speed",
+               "483x329", 44, 14, 616, 1, 1, 1),
+    _cm_preset("cm_a3plus_1176p_2pages_portrait_w10_0mm_fast_reading_speed",
+               "A3Plus-1176p-2pages-Portrait-w10.0mm-Fast Reading Speed",
+               "329x483", 28, 21, 1176, 2, 1, 1),
+    _cm_preset("cm_a3plus_1232p_2pages_landscape_w10_0mm_fast_reading_speed",
+               "A3Plus-1232p-2pages-Landscape-w10.0mm-Fast Reading Speed",
+               "483x329", 44, 14, 1232, 2, 1, 1),
+
     # i1Pro A4 portrait family — reworked by Knut (#88) to keep the i1Pro clip
     # border (no -L) and honour the strip-length limit (no -P), with patch
     # widths baked into the names. The 960p landscape preset was retired.
@@ -1714,6 +1949,9 @@ class TabChart(QWidget):
         self._auto_preview_timer.setSingleShot(True)
         self._auto_preview_timer.timeout.connect(self._auto_regenerate_preview)
         self._last_auto_sig: str | None = None
+        #: Set while a build's layout is newer than the run's stored copy — see
+        #: _apply_ui_state. Cleared by the first target-change cycle after it.
+        self._layout_owned_by_build = False
         auto_row.addWidget(self._auto_preview_check)
         auto_row.addStretch()
         auto_row.addWidget(TooltipButton(
@@ -3263,7 +3501,7 @@ class TabChart(QWidget):
                                    else cur.clip_content_mode),
                 **margins,
             )
-            panel.set_recipe(recipe)
+            self._set_engine_recipe(recipe)
             if (getattr(panel, "pages", None) is not None
                     and self._manual_pages_spin is not None):
                 panel.pages.setValue(int(self._manual_pages_spin.value()))
@@ -3645,7 +3883,7 @@ class TabChart(QWidget):
         if isinstance(saved, dict):
             from workflow.layout_engine.presets import LayoutRecipe
             try:
-                self._manual_layout_panel.set_recipe(LayoutRecipe.from_dict(saved))
+                self._set_engine_recipe(LayoutRecipe.from_dict(saved))
                 return
             except Exception as exc:  # noqa: BLE001 — fall back to the preset
                 log.warning("restore engine layout defaults failed: %s", exc)
@@ -3653,7 +3891,7 @@ class TabChart(QWidget):
         store = self._layout_store()
         # No styling overlay here: _current_layout_recipe applies the Settings
         # strip-indicator styling at read time, so seeding stays verbatim.
-        self._manual_layout_panel.set_recipe(store.get(inst, paper, mode))
+        self._set_engine_recipe(store.get(inst, paper, mode))
 
     def _sync_engine_panel_selection(self) -> None:
         """Seed the engine layout panel's instrument/paper from the canonical
@@ -3807,7 +4045,7 @@ class TabChart(QWidget):
         except Exception as exc:
             log.warning("reset-to-preset failed: %s", exc)
             return
-        self._manual_layout_panel.set_recipe(preset)
+        self._set_engine_recipe(preset)
         self._refresh_manual_command_preview()
 
     def _update_manual_preset(self) -> None:
@@ -4999,7 +5237,7 @@ class TabChart(QWidget):
             from workflow.layout_engine.presets import LayoutRecipe
             kw = self._creator._engine_build_kwargs(guided_params)
             recipe = LayoutRecipe.from_build_kwargs(kw)
-            panel.set_recipe(recipe)
+            self._set_engine_recipe(recipe)
             if (getattr(panel, "pages", None) is not None
                     and self._manual_pages_spin is not None):
                 panel.pages.setValue(int(self._manual_pages_spin.value()))
@@ -5764,9 +6002,10 @@ class TabChart(QWidget):
     def _knut_tooltip(key: str) -> str:
         """Tooltip for a ti1 → printtarg built-in preset (TC9.18 or Full layout setup)."""
         p = KNUT_PRESETS_BY_KEY[key]
-        if p.layout_recipe is not None:
-            # Engine preset (Scanner family, #100).
-            rec = p.layout_recipe
+        if p.group == "Scanner":
+            # Scanner family (#100) — a flatbed scanner reads these, not a
+            # spectrophotometer, so the tooltip explains the whole detour.
+            rec = p.layout_recipe or {}
             return (
                 "Built-in chart — cannot be deleted.\n"
                 f"Loads the bundled {p.patches}-patch set and lays it out with "
@@ -5779,6 +6018,32 @@ class TabChart(QWidget):
                 "printer from this scan”.\n"
                 "Creates the target right away; the patch set stays fixed but "
                 "you can adjust\nany layout setting and regenerate."
+            )
+        if p.layout_recipe is not None:
+            # Any other engine-built preset (ColorMunki family, Red River).
+            # Describe what the user gets on paper: sheet, pages, and the grid
+            # that decides how big each patch is.
+            rec = p.layout_recipe
+            instr = _MARGIN_INSTR_LABEL.get(p.instrument, p.instrument)
+            grid = ""
+            if rec.get("area_cols") and rec.get("area_rows"):
+                grid = (f"\n{rec['area_cols']} patches across × "
+                        f"{rec['area_rows']} strips down per sheet.")
+            width = _WIDTH_TOKEN_RE.search(p.name)
+            ruler = ""
+            if rec.get("helper_markers"):
+                ruler = ("\nThe small helper marks along the edges let you line "
+                         "a ruler up with the strip\nyou are reading.")
+            return (
+                "Built-in chart — cannot be deleted.\n"
+                f"A ready-made {p.patches}-patch target for the {instr} on "
+                f"{rec.get('paper', p.paper)}, {p.pages} "
+                f"{'page' if p.pages == 1 else 'pages'}"
+                + (f", {width.group(0)[2:]} patches" if width else "") + "."
+                + grid + ruler +
+                "\nPicking it asks for a name and builds the chart right away. "
+                "The colours stay\nfixed, but every layout setting can be "
+                "changed and the chart regenerated."
             )
         instr = "i1Pro" if p.instrument == _KNUT_I1 else "ColorMunki (double density)"
         family = ("TC9.18 + Spyderprint-greys" if p.suffix == KNUT_SUFFIX
@@ -6155,7 +6420,7 @@ class TabChart(QWidget):
             self._refresh_manual_command_preview()   # swap groups + init panel
             if getattr(self, "_manual_layout_panel", None) is not None:
                 from workflow.layout_engine.presets import LayoutRecipe
-                self._manual_layout_panel.set_recipe(LayoutRecipe.from_dict(lr))
+                self._set_engine_recipe(LayoutRecipe.from_dict(lr))
                 # The recipe carries its own instrument/paper — mirror them onto
                 # the printtarg -i/-p so Preferences preselect + naming follow the
                 # loaded engine preset (set_recipe suppresses the live mirror) (#93).
@@ -7208,7 +7473,7 @@ class TabChart(QWidget):
                 recipe = (LayoutRecipe.from_dict(p.layout_recipe)
                           if p.layout_recipe is not None
                           else self._fls_engine_recipe(p))
-                self._manual_layout_panel.set_recipe(recipe)
+                self._set_engine_recipe(recipe)
                 self._manual_layout_panel.set_pages(p.pages)
             if self._bit16_radio is not None and self._bit8_radio is not None:
                 (self._bit16_radio if p.tiff_16bit
@@ -7498,7 +7763,7 @@ class TabChart(QWidget):
                         and not self._manual_engine_check.isChecked()):
                     self._manual_engine_check.setChecked(True)
                 if self._manual_layout_panel is not None:
-                    self._manual_layout_panel.set_recipe(recipe)
+                    self._set_engine_recipe(recipe)
                 n_pages = 1 + max((int(p.get("page", 0))
                                    for p in layout.get("patches") or []),
                                   default=0)
@@ -7990,7 +8255,7 @@ class TabChart(QWidget):
             self._settings.set("use_chromiq_layout_engine", eng is not None)
             self._refresh_manual_command_preview()
             if eng is not None and getattr(self, "_manual_layout_panel", None) is not None:
-                self._manual_layout_panel.set_recipe(eng)
+                self._set_engine_recipe(eng)
         except Exception as exc:  # noqa: BLE001 — carry-back is best-effort
             log.warning("Could not carry engine recipe back from editor: %s", exc)
 
@@ -8301,6 +8566,8 @@ class TabChart(QWidget):
         if self._runner.is_running:
             log.warning("A process is already running")
             return
+        self._log_chart_build("live preview" if not ask else "user", ti1_path)
+        self._cancel_pending_auto_preview()
         # §4: every path that lays out a new chart asks first, not just the
         # Generate Chart button — a preset, an imported chart and a bundled
         # patch set all replace the chart a measurement describes.
@@ -8313,6 +8580,16 @@ class TabChart(QWidget):
                 self, min_width=520,
             ).exec()
             return
+        # THE BUILD STARTS HERE, not at the call to the creator further down.
+        # Everything below — naming the target, re-aligning the run, arming the
+        # verification snapshot — can fire the target-switch handler, which loads
+        # the run's stored Create Chart state over the layout this build is about
+        # to use. `_chart_build_in_flight` reads this button, so disabling it any
+        # later leaves exactly that window open, and Basti's log showed the four
+        # loads landing in it (2026-08-16). Every path out of this build
+        # re-enables the button, including the failures.
+        self._generate_btn.setEnabled(False)
+        self._layout_owned_by_build = True
         self.target_started.emit()
         # Remember the loaded project before the name is applied (#130).
         _ctl = getattr(self, "_target_ctl", None)
@@ -8341,7 +8618,6 @@ class TabChart(QWidget):
         self._last_target_name = base_name
         self._log.clear()
         self._preview.clear()
-        self._generate_btn.setEnabled(False)
         self._creator.load_ti1_and_generate_preview(
             ti1_path, params,
             on_line=self._on_log_line,
@@ -8835,6 +9111,8 @@ class TabChart(QWidget):
         if self._runner.is_running:
             log.warning("A process is already running")
             return
+        self._log_chart_build("Generate Chart", "targen")
+        self._cancel_pending_auto_preview()
         # #133: the FROM PROFILE GAMUT module has its own generate route — the
         # colours come from the master set through this run's profile, and the
         # layout from Manual via the ordinary from-.ti1 build (which asks the
@@ -8980,6 +9258,13 @@ class TabChart(QWidget):
         if not self._handle_target_rename(name):
             return
 
+        # From here on this IS a build (nothing below returns without going
+        # through _on_generate_finished), and everything below can fire the
+        # target-switch handler — so mark it in flight before it can load the
+        # run's stored layout over the one being built with. Same reasoning as
+        # in _generate_from_ti1.
+        self._generate_btn.setEnabled(False)
+        self._layout_owned_by_build = True
         self.target_started.emit()
 
         # #130: remember which project we're in BEFORE the profile name is
@@ -10303,7 +10588,27 @@ class TabChart(QWidget):
             except Exception:      # noqa: BLE001
                 log.debug("ui-state: engine toggle not applied")
         rec_d = stored.get("engine_recipe")
-        if isinstance(rec_d, dict):
+        # NOT WHILE THAT LAYOUT IS BEING BUILT WITH. Building a chart makes the
+        # run its own — creating or re-aligning it fires the target-switch
+        # handler, which loads the run's *stored* Create Chart state right on top
+        # of the layout the build is using. The chart on disk was then correct
+        # and the panel was not, and with "Update the preview automatically" on,
+        # the panel won two seconds later: Basti, 2026-08-16, picking the
+        # 84-patch Hand Held preset — built at 7 columns with a 6 mm left margin,
+        # replaced by a re-layout at 17 columns and 14 mm, so "same amount of
+        # patches but less wide". His log named the path outright:
+        #   chart build (user): chart.ti1, A4, 7x12 grid, margins … L6.0
+        #   layout panel set_recipe [load_target_settings ← _apply_ui_state]  ×4
+        #   chart build (live preview): …, 17x12 grid, margins … L14.0
+        # A build in flight IS the newer state, so it wins here, and the next
+        # write files it as the run's own. Every other stored value still loads —
+        # only the layout being built with is protected.
+        if isinstance(rec_d, dict) and (
+                self._chart_build_in_flight()
+                or getattr(self, "_layout_owned_by_build", False)):
+            log.debug("ui-state: kept the layout this build used "
+                      "(the run's stored copy is the older one)")
+        elif isinstance(rec_d, dict):
             try:
                 import dataclasses as _dc
 
@@ -10311,7 +10616,7 @@ class TabChart(QWidget):
                 names = {f.name for f in _dc.fields(LayoutRecipe)}
                 rec = LayoutRecipe(
                     **{k: v for k, v in rec_d.items() if k in names})
-                self._manual_layout_panel.set_recipe(rec)
+                self._set_engine_recipe(rec)
             except Exception:      # noqa: BLE001
                 log.debug("ui-state: engine recipe not applied", exc_info=True)
         ec = stored.get("engine_cal")
@@ -11905,6 +12210,15 @@ class TabChart(QWidget):
         self._apply_calibration_knobs(
             bool(getattr(ctl.target, "is_calibration", bool)()))
         self.load_target_settings()
+        # ONE protected load, then back to normal. The flag is set when a build
+        # starts and shields the layout that build used from the run's older
+        # stored copy — see _apply_ui_state. It is cleared here rather than when
+        # the build ends, because the build's own run does not resolve until
+        # this handler has run once: the write that files the new layout can
+        # only succeed on the NEXT pass, and until then the screen is the only
+        # place the truth exists. Clearing unconditionally means it can never
+        # latch on and freeze a run's stored layout out.
+        self._layout_owned_by_build = False
         self._settings_store = self._target_settings_store()
         self._settings_key = self._target_settings_key()
         # #130 Bug C (Knut): if the loaded PROJECT changed (e.g. a Print/Measure
@@ -12223,6 +12537,48 @@ class TabChart(QWidget):
                            "chart again in this tab when you need to print it."
                            ).format(said=said),
                         self, min_width=560).exec()
+        # THE CHART THAT WAS JUST BUILT IS NOW THIS RUN'S OWN SETTINGS.
+        #
+        # §3 lists Generate Chart as a write event, and save_target_settings'
+        # own docstring says so — but the target-change handler was its only
+        # caller, so a build never told the store what it had used. The run kept
+        # whatever layout was filed against it BEFORE, and the next target
+        # change — which a build itself causes, by creating or re-aligning the
+        # run — loaded that older layout straight back over the screen.
+        #
+        # Basti, 2026-08-16, opening the app, turning "Show helper markers" off
+        # and picking the 84-patch Hand Held preset. Traced on his own settings
+        # and project:
+        #     7.475  build starts   7 columns, 6 mm left margin   (the preset)
+        #     7.605  build finished
+        #     7.9-8.6 the run's stored settings load, four times, putting
+        #             17 columns and 14 mm back on screen
+        #     9.358  the live preview rebuilds the chart from THAT
+        # — "same amount of patches but less wide". The chart on disk was right
+        # the whole time; the screen, and then the sheet, were rebuilt from a
+        # layout the user had left behind.
+        #
+        # Writing here, before those loads run, makes them re-apply the values
+        # that just built the chart instead of contradicting them. It is also
+        # simply the truth: this run's chart was made with this layout.
+        try:
+            self.save_target_settings()
+        except Exception:      # noqa: BLE001 — a failed write must not lose the chart
+            log.warning("could not file the built chart's settings against its "
+                        "run", exc_info=True)
+        # RE-BASELINE LAST. The earlier baseline is taken part-way through this
+        # handler, and everything after it — restoring the chart's own settings,
+        # the margin inspector, the helper-marker controls — can still nudge the
+        # layout signature. Any nudge made the live preview think the layout had
+        # changed and re-render the chart that had just been drawn: the same
+        # sheet twice, which is the "it loaded and immediately reloaded" Basti
+        # saw even when the second chart looked right. Taking the fingerprint
+        # once more, when the screen has actually settled, costs nothing and
+        # leaves a real later edit still triggering a refresh.
+        try:
+            self._last_auto_sig = self._layout_signature()
+        except Exception:      # noqa: BLE001
+            pass
 
     # ------------------------------------------------------------------
     # Margin inspector
@@ -12618,6 +12974,51 @@ class TabChart(QWidget):
         except Exception:      # noqa: BLE001 — never break the tab on a toggle
             log.warning("could not apply the helper-marker choice", exc_info=True)
 
+    def _set_engine_recipe(self, recipe) -> None:
+        """Apply *recipe* to the Manual layout panel **and to the controls that
+        show part of it elsewhere on screen**.
+
+        The ruler helper markers are a layout setting like any other, but their
+        on-screen controls do not live in the layout panel — the tick box and the
+        two distances sit under the preview, in "Measured from Preview", because
+        that is where a ruler is judged. So ``set_recipe`` alone leaves them
+        showing the previous chart's values: Basti, 2026-08-16, on Knut's
+        ColorMunki presets — *"loading knuts presets with the helper markers
+        turned on did not set the show helper markers option there."* The chart
+        was built with markers; only the tick box disagreed.
+
+        Every path that loads a recipe — a built-in preset, a user preset, a
+        chart loaded from disk, a carry-back from the patch-set editor, the
+        restored session — goes through here, so none of them can drift again.
+        """
+        panel = getattr(self, "_manual_layout_panel", None)
+        if panel is None:
+            return
+        panel.set_recipe(recipe)
+        self._sync_helper_marker_controls()
+
+    def _sync_helper_marker_controls(self) -> None:
+        """Push the live recipe's helper-marker state onto the controls under the
+        preview (and remember it, exactly as a click on them would)."""
+        mp = getattr(self, "_margin_panel", None)
+        panel = getattr(self, "_manual_layout_panel", None)
+        if mp is None or panel is None:
+            return
+        try:
+            on = bool(getattr(panel, "_helper_markers", False))
+            edge = float(getattr(panel, "_helper_marker_edge_mm", 2.0) or 0.0)
+            length = float(getattr(panel, "_helper_marker_len_mm", 2.0) or 0.0)
+            # setter blocks signals, so this doesn't re-enter
+            # _on_helper_markers_changed and re-write the panel we just read.
+            mp.set_helper_markers(on, edge, length)
+            self._settings.set("helper_markers_show", on)
+            self._settings.set("helper_marker_edge_mm", edge)
+            self._settings.set("helper_marker_len_mm", length)
+            self._refresh_helper_marker_overlay()
+        except Exception:      # noqa: BLE001 — never break a recipe load
+            log.warning("could not sync the helper-marker controls",
+                        exc_info=True)
+
     def _refresh_helper_marker_support(self, *_a) -> None:
         """Grey (or restore) the ruler-marker controls for the current selection.
 
@@ -12971,6 +13372,63 @@ class TabChart(QWidget):
         except Exception:  # noqa: BLE001
             return None
 
+    def _log_chart_build(self, trigger: str, ti1_path) -> None:
+        """One line per chart build, saying what started it and what it will lay
+        out — on the SUCCESS path, not only when something goes wrong.
+
+        A chart that is built and then immediately replaced is impossible to
+        diagnose from the outside: both builds look like "a chart appeared".
+        With this line a log says which patch set each build used and whether the
+        user or the live preview asked for it, which is the whole question.
+        """
+        try:
+            rec = self._manual_layout_panel.get_recipe().to_dict() \
+                if getattr(self, "_manual_layout_panel", None) is not None else {}
+            log.info("chart build (%s): patch set %s, %s, %sx%s grid, "
+                     "margins T%s R%s B%s L%s",
+                     trigger, getattr(ti1_path, "name", ti1_path),
+                     rec.get("paper"), rec.get("area_cols"), rec.get("area_rows"),
+                     rec.get("margin_top"), rec.get("margin_right"),
+                     rec.get("margin_bottom"), rec.get("margin_left"))
+        except Exception:      # noqa: BLE001 — a log line must never break a build
+            pass
+
+    def _chart_build_in_flight(self) -> bool:
+        """True while a chart is being built and has not come back yet.
+
+        ``_runner.is_running`` only knows about ArgyllCMS processes. A chart laid
+        out by the **ChromIQ layout engine** runs no external tool, so that guard
+        sees nothing and the live preview happily started a second, competing
+        build over the top of the first (Basti, 2026-08-16). The Generate button
+        is the honest marker: every build path disables it on the way in and
+        re-enables it in ``_on_generate_finished`` — including the failure paths,
+        so this cannot latch on and silence the preview for good.
+        """
+        if self._runner.is_running:
+            return True
+        btn = getattr(self, "_generate_btn", None)
+        return btn is not None and not btn.isEnabled()
+
+    def _cancel_pending_auto_preview(self) -> None:
+        """Drop a queued live re-render because a real chart build is starting.
+
+        The live preview re-lays out **the chart currently on screen**
+        (``_current_ti1_path``). Choosing a built-in preset changes the layout
+        options first — which queues a re-render of the OLD chart — and only then
+        builds the preset's own patch set. If the queued timer fired before that
+        build finished, the preset the user had just picked was replaced by the
+        previous chart's patches re-flowed into the preset's layout: a chart that
+        looked wrong and belonged to nothing (Basti, 2026-08-16, first preset
+        picked in a session).
+
+        Whatever a queued re-render was going to show, the build starting now
+        supersedes it, and ``_on_generate_finished`` re-baselines the layout
+        signature — so cancelling here loses nothing.
+        """
+        timer = getattr(self, "_auto_preview_timer", None)
+        if timer is not None and timer.isActive():
+            timer.stop()
+
     def _maybe_schedule_auto_preview(self) -> None:
         """Start the debounce timer to re-render the preview, if auto-update is on,
         a chart already exists, nothing is running, and the layout actually
@@ -12980,7 +13438,10 @@ class TabChart(QWidget):
         # Manual mode only — ignored in Guided even if the option is on (Knut).
         if self._current_mode() != "manual":
             return
-        if self._runner.is_running:
+        # A build already under way will finish by re-baselining the signature,
+        # so queueing a re-render here would only race it — with the chart from
+        # BEFORE that build, which is still what _current_ti1_path points at.
+        if self._chart_build_in_flight():
             return
         ti1 = getattr(self, "_current_ti1_path", None)
         if not (ti1 is not None and ti1.is_file()):
@@ -12992,7 +13453,7 @@ class TabChart(QWidget):
     def _auto_regenerate_preview(self) -> None:
         """Re-lay-out the current chart's patch set with the current layout, to
         refresh the preview live (Knut). Fast: no targen, same patches."""
-        if (self._runner.is_running
+        if (self._chart_build_in_flight()
                 or self._current_mode() != "manual"
                 or not bool(self._settings.get("auto_update_preview", False))):
             return

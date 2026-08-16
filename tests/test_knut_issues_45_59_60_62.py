@@ -264,7 +264,7 @@ def test_preset_does_not_overwrite_typed_profile_name(qapp, settings):
     f = t._manual_target_name_edit
     f.setText("MyCanonProfile")                     # the user's chosen name
     key = next(k for k, p in KNUT_PRESETS_BY_KEY.items()
-               if p.slug == "fls_colormunki_a3plus_1196p_1page_landscape")
+               if p.slug == "fls_i1pro_a4_484p_1page_portrait")
     t._knut_active, t._knut_active_key = True, key
     t._seed_knut_preset(key, KNUT_PRESETS_BY_KEY[key].default_target_name)
     assert f.text() == "MyCanonProfile"             # untouched by the preset
@@ -279,7 +279,7 @@ def test_preset_seeds_name_only_when_field_empty(qapp, settings):
     f = t._manual_target_name_edit
     f.setText("")                                   # nothing typed yet
     key = next(k for k, p in KNUT_PRESETS_BY_KEY.items()
-               if p.slug == "fls_colormunki_a3plus_1196p_1page_landscape")
+               if p.slug == "fls_i1pro_a4_484p_1page_portrait")
     t._knut_active, t._knut_active_key = True, key
     default = KNUT_PRESETS_BY_KEY[key].default_target_name
     t._seed_knut_preset(key, default)

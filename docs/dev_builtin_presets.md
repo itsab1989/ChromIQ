@@ -311,6 +311,68 @@ printtarg line) instead of `_prebuilt_tooltip`.
 > and `-M` write the same margin; `-M` only also includes it in the TIFF). The
 > i1 charts keep the left clip border (no `-L`, seeded off) to match Knut.
 
+### ColorMunki family (Knut, 2026-08-16) — 45 charts, one shared recipe
+
+Knut re-made the whole ColorMunki line-up from scratch and measured it on paper.
+It **replaced** his ten `fls_colormunki_*` Full-layout-setup charts; the four
+"by Pharmacist" ColorMunki prebuilts and the Red River ColorMunki variants were
+deliberately left alone (Basti). Three of the retired `.ti1` files moved to
+`tests/fixtures/charts/` — five margin-inspector tests are pinned against those
+exact sheets.
+
+What the family is for: margins and a clip border chosen so a ruler can be laid
+across the sheet, so the **first and last** strip are both readable, and so the
+knobs under the instrument can't catch on the page edge at the start of a read.
+Every chart is engine-built with the helper markers **on** — at ~10 mm patch
+width the ruler goes four markers below the strip being read, which is the whole
+point of the 10 mm sizing. Most sizes come in a **Fast** and a **Slow Reading
+Speed** cut (the ColorMunki's reading speed follows the patch count per strip),
+plus three big-patch **Hand Held** charts.
+
+Structurally it is the kind-3 (ti1 → layout engine) mechanism, with one
+difference worth copying: **the recipe is shared.** `_CM_BASE` in
+`ui/tabs/tab_chart.py` holds every setting the 45 charts agree on, and
+`_cm_preset()` builds a row from the five that actually differ — paper,
+`area_cols`, `area_rows`, `margin_left` and `clip_text`. So a row reads:
+
+```python
+_cm_preset("cm_a4_204p_1page_portrait_w10_0mm_fast_reading_speed",
+           "A4-204p-1page-Portrait-w10.0mm-Fast Reading Speed",
+           "A4", 17, 12, 204, 1, 1, 1),
+```
+
+Assets live at `assets/charts/knut/rgb/colormunki/<slug>/chart.ti1` with the
+usual `recipe.json` sidecar. **Adding or replacing charts is scripted:**
+
+```bash
+python scripts/import_colormunki_presets.py <folder-of-exports> --write
+```
+
+It reads Knut's `<name>.ti1` + `<name>.json` export pairs, stages the assets and
+prints the rows. Two things it does that matter:
+
+1. **It rejects an export that diverges.** Every recipe must equal `_CM_BASE`
+   outside the five per-chart fields. Silently folding a stray setting into the
+   base would change all 45 charts at once — so a divergence is reported and the
+   import fails instead. `tests/test_colormunki_builtin_presets.py` re-checks
+   the same invariant against the shipped rows.
+2. **It re-points the colour-set recipe (Set B) at the chart it built (Set A).**
+   Knut designs a colour set once and lays it out on several sheets, so his
+   export keeps whatever instrument and paper were on screen when the *colours*
+   were designed — that was wrong for 33 of the 45. Left alone, "Load setup from
+   preset" for a ColorMunki A3 chart would seed an i1Pro on A4. Only the chart's
+   identity is corrected (instrument, paper, page size, density/dpi/bit depth);
+   the printtarg-style scale and margin knobs are carried forward untouched,
+   because an engine chart's four per-side margins have no honest single-margin
+   equivalent. Same normalisation the Full-layout-setup family already went
+   through.
+
+`tests/test_colormunki_builtin_presets.py` also builds a five-chart sample in
+the everyday tier and **all 45** under `--runslow`, checking each lands on the
+page count its name promises. A count that doesn't fill the last strip is padded
+out with white by the engine (e.g. 1623 → 1632 across 8 sheets) — ordinary
+behaviour, so the test asserts a range, not equality.
+
 ### Rename or re-file an existing preset
 
 - **Rename (label only):** change `*_PRESET_LABEL` and update

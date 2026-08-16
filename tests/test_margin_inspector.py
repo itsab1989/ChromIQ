@@ -114,36 +114,28 @@ def test_landscape_orientation_measured_in_tiff_frame(tmp_path):
     assert r.top_mm + r.bottom_mm < r.page_h_mm
 
 
-def _preset_args(p) -> list[str]:
-    """printtarg flags for a ti1 preset (mirrors tab_chart's render path)."""
-    triple = p.triple_density and p.instrument == "CM"
-    instr = "i1" if triple else ("3p" if p.instrument == "p3" else p.instrument)
-    args = [f"-i{instr}", f"-p{p.paper}", "-t300"]
-    if not triple and p.double_density and p.instrument in {"CM", "SS"}:
-        args.append("-h")
-    if p.suppress_left_clip or triple:
-        args.append("-L")
-    if abs(p.patch_scale - 1.0) > 0.01:
-        args.append(f"-a{p.patch_scale:.2f}")
-    if p.margin != 6:
-        args.append(f"-m{p.margin}")
-    args.append(f"-M{p.margin}")
-    if p.no_strip_limit:
-        args.append("-P")
-    return args
+# ColorMunki double-density charts the margin readout is pinned against. They
+# were Knut's "Full layout setup" built-ins until his 2026-08-16 ColorMunki
+# rework replaced that family; the .ti1 files moved here, and the printtarg
+# flags each preset used are spelled out below, so these tests still measure the
+# very same sheets they were written against.
+_FIXTURES = Path(__file__).resolve().parent / "fixtures" / "charts"
+_CM_A4_480P = ("cm_a4_480p_2pages.ti1",
+               ["-iCM", "-pA4", "-t300", "-h", "-a0.93", "-M6", "-P"])
+_CM_A3_1575P = ("cm_a3_1575p_3pages.ti1",
+                ["-iCM", "-pA3", "-t300", "-h", "-a0.94", "-M6", "-P"])
 
 
-def _measure_preset(tmp_path, slug):
-    from core.resource_path import resource_path
-    from ui.tabs.tab_chart import KNUT_PRESETS
-    preset = next(p for p in KNUT_PRESETS if p.slug == slug)
-    shutil.copy(resource_path(preset.ti1_asset), tmp_path / "chart.ti1")
-    subprocess.run([PRINTTARG, *_preset_args(preset), "chart"],
+def _measure_preset(tmp_path, chart, dpi: int = 300):
+    """Lay a bundled ColorMunki .ti1 out with printtarg and measure every page."""
+    name, args = chart
+    shutil.copy(_FIXTURES / name, tmp_path / "chart.ti1")
+    subprocess.run([PRINTTARG, *args, "chart"],
                    cwd=tmp_path, check=True,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    reports = [measure_margins(t, dpi=300, ti2_path=tmp_path / "chart.ti2")
+    reports = [measure_margins(t, dpi=dpi, ti2_path=tmp_path / "chart.ti2")
                for t in sorted(tmp_path.glob("chart*.tif"))]
-    return preset, [r for r in reports if r is not None]
+    return name, [r for r in reports if r is not None]
 
 
 @requires_argyll
@@ -151,7 +143,7 @@ def test_colormunki_a4_preset_margins_not_inflated(tmp_path):
     """#83: a ColorMunki A4 2-page preset must measure small, sane margins from
     its full-page (-M) TIFF — NOT the inflated values seen when a wrong paper
     size was fed in (the bug was passing a stale A3 paper combo → +43/+61 mm)."""
-    _, reports = _measure_preset(tmp_path, "fls_colormunki_a4_480p_2pages_portrait")
+    _, reports = _measure_preset(tmp_path, _CM_A4_480P)
     assert reports
     for r in reports:
         assert r.page_w_mm == pytest.approx(210, abs=1.5)
@@ -166,7 +158,7 @@ def test_wrong_paper_size_would_inflate_but_default_does_not(tmp_path):
     full-page TIFF) gives the true margins; feeding a too-large paper size adds
     a bogus (paper − tiff)/2 offset. The tab must therefore not pass a paper
     size that may be stale."""
-    preset, _ = _measure_preset(tmp_path, "fls_colormunki_a4_480p_2pages_portrait")
+    preset, _ = _measure_preset(tmp_path, _CM_A4_480P)
     tif = sorted(tmp_path.glob("chart*.tif"))[0]
     good = measure_margins(tif, dpi=300)
     inflated = measure_margins(tif, dpi=300, paper_w_mm=297, paper_h_mm=420)
@@ -178,7 +170,7 @@ def test_wrong_paper_size_would_inflate_but_default_does_not(tmp_path):
 def test_strip_length_is_page_minus_top_bottom(tmp_path):
     """#87: strip length = patch-block extent in the reading direction =
     page height − top − bottom on a portrait chart."""
-    _, reports = _measure_preset(tmp_path, "fls_colormunki_a4_480p_2pages_portrait")
+    _, reports = _measure_preset(tmp_path, _CM_A4_480P)
     assert reports
     for r in reports:
         assert r.strip_length_mm is not None
@@ -194,8 +186,7 @@ def test_landscape_strips_still_vertical(tmp_path):
     is block width ÷ strip count — both measured in the preview frame, not
     swapped by orientation."""
     work = tmp_path / "chart.ti1"
-    src = (Path(__file__).resolve().parent.parent
-           / "assets/charts/knut/rgb/fulllayout/fls_colormunki_a3_1224p_2pages_landscape/chart.ti1")
+    src = _FIXTURES / "cm_a3_1224p_2pages_landscape.ti1"
     shutil.copy(src, work)
     subprocess.run([PRINTTARG, "-iCM", "-p420x297", "-t200", "-h", "-a0.9",
                     "-M6", "-P", "chart"], cwd=tmp_path, check=True,
@@ -214,7 +205,7 @@ def test_patch_width_is_cross_strip_pitch(tmp_path):
     (block_w/passes on a portrait page) — a ruler measurement across a strip,
     ~12.7 mm for the ColorMunki A4 double-density chart, not the ~14 mm
     reading-direction pitch the old squareness heuristic returned."""
-    _, reports = _measure_preset(tmp_path, "fls_colormunki_a4_480p_2pages_portrait")
+    _, reports = _measure_preset(tmp_path, _CM_A4_480P)
     assert reports
     for r in reports:
         assert r.strip_width_mm == pytest.approx(12.7, abs=0.6)
@@ -226,7 +217,7 @@ def test_zigzag_top_bottom_consistent_across_pages(tmp_path):
     outermost row has ~half the strips (fill ≈ 0.5). The patch-area top/bottom must
     still include those half-rows and read the same on every page, instead of
     flipping by parity (page 2 used to read a too-large top/bottom)."""
-    _, reports = _measure_preset(tmp_path, "fls_colormunki_a3_1575p_3pages_portrait")
+    _, reports = _measure_preset(tmp_path, _CM_A3_1575P)
     assert len(reports) >= 2
     tops = [r.top_mm for r in reports]
     bottoms = [r.bottom_mm for r in reports]

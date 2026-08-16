@@ -60,8 +60,8 @@ def test_inspector_follows_the_displayed_page(qapp, tmp_path, monkeypatch):
     inspector describes the visible page, not a fixed 'worst' page. (printtarg
     keeps per-page margins identical, so the proof is that it re-measures the
     *current page's* TIFF, not that the numbers change.)"""
-    cm = (Path(__file__).resolve().parent.parent
-          / "assets/charts/knut/rgb/fulllayout/fls_colormunki_a4_480p_2pages_portrait/chart.ti1")
+    cm = (Path(__file__).resolve().parent
+          / "fixtures" / "charts" / "cm_a4_480p_2pages.ti1")
     shutil.copy(cm, tmp_path / "chart.ti1")
     subprocess.run([_PT, "-iCM", "-pA4", "-t200", "-h", "-a0.93", "-M6", "-P", "chart"],
                    cwd=tmp_path, check=True,

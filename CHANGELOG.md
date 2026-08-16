@@ -2,10 +2,30 @@
 
 ## v4.1.0
 
-Everything reported against 4.0.0 and 4.0.1 by soul-traveller is fixed, and two
-features he asked for are in. Verified by him on real hardware.
+Everything reported against 4.0.0 and 4.0.1 by soul-traveller is fixed, two
+features he asked for are in, and the ColorMunki now has a complete set of
+ready-made charts built around them. Verified by him on real hardware.
 
 ### New
+
+- **A new set of 45 built-in ColorMunki charts**, made and measured on paper by
+  soul-traveller. They replace the older ColorMunki charts of his, and are built
+  for reading with a ruler: the margins keep the knobs under the instrument off
+  the edge of the page, leave white paper to finish a strip on, and keep both the
+  first and the last strip reachable. The helper markers are switched on, and at
+  the ~10 mm patch width most of them use, the ruler goes four markers below the
+  strip you are reading.
+
+  Pick one under **Create Chart → Manual → Presets**, or from the ★ button. There
+  is a size for every job — 84 to 2,280 patches on A4, US Letter, A3 and A3+, in
+  portrait and landscape. Most sizes come as a **Fast** and a **Slow Reading
+  Speed** pair: same patches, but the fast one puts shorter strips on more sheets,
+  because the ColorMunki reads a short strip more quickly. Three **Hand Held**
+  charts use big 26 mm patches for reading without a ruler at all. Each chart
+  prints the reason for every margin down its side, so the sheet explains itself.
+
+  The colours are fixed, but the layout is not: change the paper, the margins or
+  anything else and press **Generate Chart** to re-flow the same patches.
 
 - **Ruler helper markers on the printed chart.** Short dashes along all four
   edges of the sheet, so you can lay a ruler against the paper and line your
@@ -65,6 +85,21 @@ features he asked for are in. Verified by him on real hardware.
   file contains.
 
 - **A fixed seed reproduces the same chart** when a target is duplicated.
+
+- **"Show helper markers" now follows the chart you load.** Opening a preset or a
+  saved chart that uses the markers built them onto the sheet correctly, but left
+  the tick box under the preview showing off. The tick box and the two distances
+  now match whatever chart is loaded — and the two distance boxes are the same
+  slim size as the margin boxes in Create Chart.
+
+- **The live preview no longer replaces a chart you have just built.** With
+  "Update the preview automatically" on, choosing a preset could show the right
+  chart and then, a second later, replace it with one laid out the old way — the
+  same patches, but narrower. A chart's own settings were not being filed against
+  its run when it was built, so the run's previous settings loaded back over the
+  screen and the preview redrew the sheet from those. Building a chart now saves
+  its settings with its run straight away, and the preview follows the chart in
+  front of you.
 
 ## v4.0.1
 

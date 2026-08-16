@@ -35,16 +35,32 @@ not `tc924_a4.ti1`). Resolve a file at runtime with
 | `pharmacist/rgb/colormunki/a3/tc924/` | ★ ColorMunki TC9.24 (A3) by Pharmacist | prebuilt-files | `tc924.ti1` `tc924.ti2` `tc924_01.tif` |
 | `pharmacist/rgb/colormunki/a3plus/tc918eg/` | ★ ColorMunki TC9.18 extended greys 1160 (A3+) by Pharmacist | prebuilt-files | `tc918eg.ti1` `tc918eg.ti2` `tc918eg_01.tif` |
 
-## How each kind is used
+Knut's charts don't ship rendered pages — the app builds them on selection — so
+they are filed by **family** rather than by paper, one folder per chart holding
+just the patch set and the design it came from:
 
-Every shipped preset is **prebuilt-files** (the earlier ti1-based / targen-based
-kinds were removed — see `docs/dev_builtin_presets.md` for the history).
+| Path | Preset (Create Chart → Manual) | Kind | Files |
+|------|--------------------------------|------|-------|
+| `knut/rgb/colormunki/<slug>/` | ★ ColorMunki · the 45-chart ColorMunki line-up | ti1 → layout engine | `chart.ti1` `recipe.json` |
+| `knut/rgb/fulllayout/fls_i1pro_*/` | ★ i1Pro · … · Full layout setup | ti1 → printtarg / engine | `chart.ti1` `recipe.json` |
+| `knut/rgb/scanner/<paper>/` | ★ Scanner · flatbed printer-profiling charts | ti1 → layout engine | `chart.ti1` `recipe.json` |
+| `redriver/rgb/standard_patch_set_v25/` | ★ Red River Paper · Standard Patch Set v25 | ti1 → layout engine | `chart.ti1` `recipe.json` `clip_logo.png` |
+
+## How each kind is used
 
 - **prebuilt-files** (`…/tc924/`) — a complete, pre-generated target (`.ti1` +
   `.ti2` + page TIFFs). Selecting the preset prompts for a name and **copies all
   the files verbatim** into a fresh `~/ChromIQ/<name>/` (renamed to the chosen
   target name); no targen and no printtarg are run. The `_NN.tif` pages are
   located by globbing `<stem>_*.tif` next to the `.ti1`.
+
+- **ti1 → printtarg / layout engine** (`knut/…`, `redriver/…`) — only the patch
+  set is bundled; the pages are laid out when the preset is picked, from a
+  layout recipe held in `ui/tabs/tab_chart.py`. targen is greyed (the colours are
+  fixed) but every layout control stays editable, so the same patches can be
+  re-flowed onto different paper. The `recipe.json` beside each `chart.ti1` is
+  the *colour-set* design, which "Load setup from preset" in the New-chart
+  window starts from — not the page layout.
 
 Either way the resulting `~/ChromIQ/<name>/` folder is self-contained: it holds
 a `<name>.ti1` plus the generated/copied `<name>.ti2` and `<name>_NN.tif` pages.
@@ -56,3 +72,11 @@ leaf (create the levels that don't exist yet; keep the `<target>` stem on the
 files) and wire the preset in `ui/tabs/tab_chart.py` — see
 `docs/dev_builtin_presets.md` for the full recipe. Source charts in this batch
 came from Pharmacist.
+
+Another chart for Knut's ColorMunki family is a one-liner: drop his exported
+`<name>.ti1` + `<name>.json` pair in a folder and run
+`python scripts/import_colormunki_presets.py <folder> --write`. It validates the
+export against the family's shared recipe, stages the assets, and prints the
+registry row to paste. An export that differs from the shared recipe anywhere
+except its paper, its grid, its left margin and its clip text is **rejected**,
+not quietly folded in.

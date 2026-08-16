@@ -83,14 +83,17 @@ def _fmt_scale(v: float) -> str:
 # ---------------------------------------------------------------------------
 
 def test_registry_shape():
-    # The 15 "Full layout setup" presets (#63; the 17 shared-.ti1
-    # "TC9.18+Spyderprint Grays" presets were removed in #89), the six
+    # The five i1Pro "Full layout setup" presets (#63; the 17 shared-.ti1
+    # "TC9.18+Spyderprint Grays" ones went in #89, and the ten ColorMunki ones
+    # were replaced by Knut's 2026-08-16 ColorMunki family — see
+    # test_colormunki_builtin_presets.py), his 45 ColorMunki charts, the six
     # engine-built Scanner charts (#100, #108, #118), and the six Red River
     # Paper vendor variants (one shared 2052-patch .ti1: i1Pro A4/Letter, and
     # ColorMunki A4/Letter in both a compact 8-page and a ruler-size 10-page cut).
-    assert len(KNUT_PRESETS) == 27
-    assert len(KNUT_PRESET_KEYS) == 27  # all keys unique
-    assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("fls_")) == 15
+    assert len(KNUT_PRESETS) == 62
+    assert len(KNUT_PRESET_KEYS) == 62  # all keys unique
+    assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("fls_")) == 5
+    assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("cm_")) == 45
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("scanner_")) == 6
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("redriver_")) == 6
     assert KNUT_PRESET_KEYS <= BUILTIN_PRESET_KEYS
@@ -104,7 +107,7 @@ def test_fulllayout_ti1_assets_present():
     # Every Full-layout-setup chart (#63) ships its own .ti1 + recipe.json —
     # guard the bundled files.
     fls = [p for p in KNUT_PRESETS if p.slug.startswith("fls_")]
-    assert len(fls) == 15
+    assert len(fls) == 5
     for p in fls:
         assert resource_path(p.ti1_asset).is_file(), f"missing {p.ti1_asset}"
         recipe = resource_path(p.ti1_asset).parent / "recipe.json"
@@ -172,10 +175,10 @@ def test_seeded_command_matches_recipe(qapp, settings, key):
 def test_fulllayout_preset_uses_its_own_ti1_and_count(qapp, settings):
     # #58: a Full-layout-setup preset bundles its OWN .ti1 (not the shared TC9.18
     # set), and its reuse info box reports that preset's patch count, not 1168.
-    key = "__chromiq_knut_fls_colormunki_a3_2016p_4pages_portrait__"
+    key = "__chromiq_knut_fls_i1pro_a4_1200p_3pages_portrait__"
     p = KNUT_PRESETS_BY_KEY[key]
     assert p.ti1_asset != KNUT_TI1_ASSET
-    assert p.patches == 2016
+    assert p.patches == 1200
     tab = _make_tab(qapp, settings)
     tab._seed_knut_preset(key)
     tab._knut_active = True
@@ -183,12 +186,12 @@ def test_fulllayout_preset_uses_its_own_ti1_and_count(qapp, settings):
     tab._knut_targen_sig = tab._targen_signature()
     tab._refresh_manual_command_preview()
     info = tab._manual_info_lbl.text()
-    assert "2016" in info and "1168" not in info
+    assert "1200" in info and "1168" not in info
     assert "Full layout setup" in tab._knut_tooltip(key)
 
 
 # A surviving Full-layout-setup preset used across the generic tests below.
-_FLS_KEY = "__chromiq_knut_fls_colormunki_a4_480p_2pages_portrait__"
+_FLS_KEY = "__chromiq_knut_fls_i1pro_a4_924p_2pages_portrait__"
 
 
 def test_targen_signature_ignores_printtarg_changes(qapp, settings):
@@ -212,7 +215,7 @@ def test_info_box_announces_ti1_reuse(qapp, settings):
     tab._knut_targen_sig = tab._targen_signature()
     tab._refresh_manual_command_preview()
     txt = tab._manual_info_lbl.text()
-    assert "targen skipped" in txt and "480" in txt   # this preset's own count
+    assert "targen skipped" in txt and "924" in txt   # this preset's own count
     # A targen change flips the note back to the normal targen+printtarg view.
     tab._set_manual_value("targen", "-f", 500)
     tab._refresh_manual_command_preview()
