@@ -1,5 +1,71 @@
 # Changelog
 
+## v4.1.0
+
+Everything reported against 4.0.0 and 4.0.1 by soul-traveller is fixed, and two
+features he asked for are in. Verified by him on real hardware.
+
+### New
+
+- **Ruler helper markers on the printed chart.** Short dashes along all four
+  edges of the sheet, so you can lay a ruler against the paper and line your
+  instrument up with the patches. One dash sits exactly at the centre of each
+  patch and the next midway to its neighbour, evenly spaced all the way along —
+  and they follow your patch spacers automatically, however you set them. Switch
+  them on under the preview with **"Show helper markers"**, choose how far in
+  from the edge they sit and how long they are, then press **Generate Chart**.
+  The corners stay clear, and charts with six-sided patches grey the option out
+  and say why.
+
+- **A measurement progress bar in the preview header.** While you measure, the
+  header fills in your accent colour and shows how far through the chart you
+  are, so you can see progress without counting strips. Turn it off in
+  **Preferences → Measurement** if you prefer the plain header.
+
+- **Preferences → Sounds: "Wake the audio device before playing a sound".** Off
+  by default. Turn it on if the first sound after a silence is too quiet or
+  seems to start halfway through.
+
+### Fixed
+
+- **Measurement sounds work again.** An attempt to make the first sound louder
+  could stop every sound instead — during a measurement, on the instrument
+  button, and on the Play buttons in Preferences. ChromIQ no longer touches the
+  audio device before playing, and the behaviour that caused it is now the
+  optional setting above.
+
+- **ArgyllCMS's own beeps play again**, alongside ChromIQ's sounds rather than
+  instead of them. They are separate cues: the reader's beep tells you the
+  instrument is ready for you to start, which none of ChromIQ's sounds covers.
+
+- **Your Measure settings are saved when you press Start Measurement.** Anything
+  you changed just before measuring — "Skip initial calibration", patch-by-patch,
+  the tolerance, resume — was not being stored, so it reverted afterwards. Every
+  control on that panel is now kept with its own run.
+
+- **"Refine / resume existing measurement" no longer breaks a measurement when
+  there is nothing to resume.** Ticking it on a run whose measurement is missing,
+  empty or damaged made the measurement fail before the first patch. The tick is
+  now honoured only when there really is a measurement behind it.
+
+- **A chart with no measurement no longer claims its measurement belongs to a
+  different chart**, and says plainly that it has not been measured yet.
+
+- **"All strips read" waits until every patch really is read**, instead of
+  appearing on a chart that is 97% measured, and the log says how many patches
+  are still missing.
+
+- **"n" during patch-by-patch reading moves to the next unread patch** instead of
+  stopping on the one you are already on.
+
+- **The ColorMunki's patch limit and the reading-speed guidance** now match what
+  the instrument and the paper actually allow.
+
+- **Loading a .ti1 in the patch editor** no longer adds more patches than the
+  file contains.
+
+- **A fixed seed reproduces the same chart** when a target is duplicated.
+
 ## v4.0.1
 
 Fixes around the very first chart of a new project — found by Knut and

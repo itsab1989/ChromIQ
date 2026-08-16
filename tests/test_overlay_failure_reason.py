@@ -126,9 +126,18 @@ def test_a_genuinely_foreign_measurement_still_says_so(tmp_path):
 
 
 def test_no_measurement_at_all_is_not_a_geometry_claim(tmp_path):
+    """No measurement is its own state — not a geometry problem, and not a
+    foreign chart either.
+
+    This test used to assert ``"mismatch"``, which locked in the very fault Knut
+    reported in #155: a run that has never been measured was told *"This
+    measurement was made for a different chart"*, a claim about a file that does
+    not exist. The intent the name describes was always right; the answer it
+    settled on was wrong.
+    """
     ti2 = tmp_path / "chart.ti2"
     ti2.write_text(_CHART)
-    assert _Stub(ti2, None)._overlay_failure_reason() == "mismatch"
+    assert _Stub(ti2, None)._overlay_failure_reason() == "absent"
 
 
 _REPRO_TI3 = os.path.expanduser(

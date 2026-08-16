@@ -238,6 +238,10 @@ DEFAULTS: dict[str, Any] = {
     # threshold is expressed as "minimum samples per patch" (Knut's method:
     # samples ≈ seconds × rate). Rate 0 = not known for this instrument, so no
     # sample count is claimed — ChromIQ never invents that number.
+    # Measurement progress bar (#153, Knut): the percentage and coloured fill
+    # in the strip above the chart preview while a chart is being measured.
+    # Off means neither is shown and no patches are counted.
+    "measure_progress_bar":      True,
     "pace_hint_enabled":         True,
     "pace_min_samples":          8,
     "pace_min_patch_ms":         100,
@@ -253,6 +257,11 @@ DEFAULTS: dict[str, Any] = {
     "pace_sample_hz_i1pro":      0.0,
     "pace_sample_hz_colormunki": 0.0,
     "sound_folder":              "",     # blank = the bundled default pack
+    # Wake the audio device with an inaudible clip before playing a real sound
+    # (#148). OFF, and staying off unless a user asks for it: on the machine
+    # this was written for it silenced every sound in the app instead of making
+    # the first one louder. See core.sound.warm_up_enabled for the full story.
+    "sound_warm_up_device":      False,
     # ONE source of truth, spliced in below from core.sound.DEFAULT_CHOICE.
     # These used to be written out again here, and the second copy quietly won:
     # changing a default in core.sound had no effect at all, because AppSettings
@@ -314,6 +323,12 @@ DEFAULTS: dict[str, Any] = {
     "margin_guides_show":        False,   # dotted threshold guide lines on preview
     "margin_measured_guides_show": False,  # long dotted lines at the measured margins
     "margin_coords_show":         False,   # cross-hair + paper-mm/inch readout on pointer (#29)
+    # Ruler helper markers (#152, Knut): short dashes printed along all four
+    # page edges so a ruler can be laid on the sheet while measuring. These are
+    # printed into the chart, not a preview overlay.
+    "helper_markers_show":        False,
+    "helper_marker_edge_mm":      2.0,
+    "helper_marker_len_mm":       2.0,
     "declutter_on_load":          True,    # tidy legacy flat folders into v2 subfolders on file load (#36)
     "export_shuffled_pxf":        False,   # also write a patch-order-shuffled i1Profiler .pxf copy (Nelson)
     "margin_thresholds":         "",      # JSON blob; "" → default_margin_thresholds()
@@ -684,7 +699,7 @@ def thresholds_for_combo(
 # Bump when a shipped default changes in a way that must reach users who have
 # the OLD default persisted. Settings → Save writes every key, so a stored
 # value otherwise pins a user to the old behaviour for good.
-SETTINGS_SCHEMA = 20
+SETTINGS_SCHEMA = 21
 
 # key → the old default(s) it must no longer be stuck on. Only a stored value
 # EQUAL to one of the old defaults is dropped (so it falls through to the new
@@ -783,6 +798,8 @@ class AppSettings:
         if self._migrate_colormunki_top_margin_33():
             dropped.append("margin_thresholds[ColorMunki top→33mm]")
         for _k in self._migrate_sound_defaults():
+            dropped.append(_k)
+        for _k in self._migrate_helper_marker_sizes():
             dropped.append(_k)
         if self._migrate_colormunki_min_samples():
             dropped.append("pace_min_samples_colormunki (30 → 23)")
@@ -979,6 +996,35 @@ class AppSettings:
             if raw is not None and str(raw) == old:
                 self._qs.remove(key)
                 dropped.append(f"{key} ({old} → default)")
+        return dropped
+
+    def _migrate_helper_marker_sizes(self) -> list:
+        """schema 21 (#152, Knut 2026-08-14): both marker distances become 2.0 mm.
+
+        After seeing them on a real sheet he asked for it plainly: *"change the
+        default value for the two spinboxes to 2.0 mm (same for both)"* — in
+        place of 1.0 mm from the edge and a 3.0 mm dash.
+
+        Preferences → Save writes every key, so anyone who has ever opened that
+        dialog carries a stored copy of the old default that is only an echo of
+        it. Those echoes are dropped so they resolve to the new value. A
+        distance the user actually set themselves is left exactly as it is —
+        which is why each key is checked against its own old default rather than
+        cleared outright.
+        """
+        dropped = []
+        for key, old in (("helper_marker_edge_mm", 1.0),
+                         ("helper_marker_len_mm", 3.0)):
+            raw = self._qs.value(key, None)
+            if raw is None:
+                continue
+            try:
+                if abs(float(raw) - old) > 1e-9:
+                    continue           # the user's own choice — leave it
+            except (TypeError, ValueError):
+                continue
+            self._qs.remove(key)
+            dropped.append(f"{key} ({old} → 2.0)")
         return dropped
 
     def _migrate_colormunki_min_samples(self) -> bool:

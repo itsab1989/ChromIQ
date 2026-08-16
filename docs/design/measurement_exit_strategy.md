@@ -105,9 +105,18 @@ whether the handler works.**
 | **Abort?** (Esc pressed) | Yes | `n` to chartread, then the ending | chartread leaves its own question; ours runs | ✅ *(beta.156; **unreachable until beta.160** — see note 4)* |
 | | No | `n` | keep measuring | ✅ |
 | **Calibration required** | OK / Skip / Cancel | `\r` / `s` / `\x1b` | the instrument's own calibration prompt | ⚠️ **see note 3** |
-| **All Strips Read / All Patches Read** | Go to … Tab | `d` | "done" — chartread writes and exits normally | ✅ not a failure exit |
+| **All Strips Read / All Patches Read** | Go to … Tab | `d` | "done" — chartread writes and exits normally; keeps the measurement and moves on | ✅ not a failure exit |
 | | Re-read … | — | the window closes; the session continues | ✅ |
-| | Close | — | keeps the measurement, goes nowhere | ✅ |
+| | Close | — | raises **"Keep what you have measured so far?"** — the single exit | ✅ |
+
+**The Close row, corrected 2026-08-14.** It read *"keeps the measurement, goes
+nowhere"*, which described the **Go to … Tab** button rather than Close. Knut, on
+being asked which of the two was right: *"(A) Close should raise the 'Keep what
+you have measured so far?' window. However, the description 'keeps the
+measurement, goes nowhere' is still correct, because it is referring to the other
+button that says to jump to build profile tab."* So the table was not stale — it
+was read against the wrong button, and a message written from that reading would
+have told users to press something that does not do what it says.
 
 ## Table 2 — stock ArgyllCMS chartread
 

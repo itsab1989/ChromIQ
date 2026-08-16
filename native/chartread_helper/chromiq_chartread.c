@@ -223,9 +223,27 @@ typedef struct {
 static void cq_beep_good(void) { good_beep(); }
 static void cq_beep_bad(void)  { bad_beep(); }
 static void cq_beep_norm(void) { normal_beep(); }
-#define good_beep()   do { if (!cq_json) cq_beep_good(); } while (0)
-#define bad_beep()    do { if (!cq_json) cq_beep_bad();  } while (0)
-#define normal_beep() do { if (!cq_json) cq_beep_norm(); } while (0)
+/* CHROMIQ_EXT (#148): ArgyllCMS's own beeps play in JSON mode too.
+ *
+ * These were gated behind `!cq_json` in beta.34 so that ChromIQ's sound layer
+ * would be the only source and a failed strip could not play an Argyll beep
+ * instead of the user's chosen clip. Knut has ruled that back out (2026-08-14,
+ * option C): the reader's beeps and ChromIQ's sounds are BOTH to play, because
+ * they are not the same cue and never were. His words:
+ *
+ *   "A read confirmation is NOT the same thing as clicking the instrument
+ *    button. The confirmation comes after the reading has happened. The button
+ *    click sound comes as a confirmation that I want to start reading and the
+ *    system is now ready for me to start ... This sound is not part of the
+ *    ChromIQ sounds and has previously worked fine."
+ *
+ * Note that the ready-to-scan cue he is describing does not come through here
+ * at all — the instrument driver raises it directly (i1pro_imp.c:3202,
+ * munki_imp.c:2323), and it was never gated by this macro. These three are
+ * chartread's own good/bad/normal beeps, and they are simply restored. */
+#define good_beep()   cq_beep_good()
+#define bad_beep()    cq_beep_bad()
+#define normal_beep() cq_beep_norm()
 
 /* Per-row auto-ID eligibility for fixed-order charts (F7-R). Computed once
  * from the chart's expected values; NULL when unused. */
@@ -2677,6 +2695,27 @@ a1log *log			/* verb, debug & error log */
 			} else if (incflag == 3) {		/* Increment to next unread */
 				int opix = pix;
 
+				if (pix >= npat)
+					pix = 0;
+				/* CHROMIQ_EXT (#156): search from AFTER the current patch.
+				 *
+				 * The scan used to start on `pix` itself, and in patch-by-patch
+				 * mode you are always sitting on a patch you have not read yet —
+				 * so the very first test matched where you already were and 'n'
+				 * did nothing. Knut: "When I try command 'n' in patch-by-patch
+				 * mode, the selected patch (Here standing on B3 I think) does
+				 * not jump to next patch."
+				 *
+				 * The prompt promises "'n' for next unread", and "next" has to
+				 * mean somewhere else. Starting one along still finds the same
+				 * patch when it is the only unread one left, because the loop
+				 * wraps and stops on `opix`.
+				 *
+				 * The other user of incflag 3 — the session-start skip when
+				 * patch 0 has already been read — is unaffected: that patch is
+				 * read, so it was being skipped either way.
+				 */
+				pix++;
 				if (pix >= npat)
 					pix = 0;
 				for (;;) {

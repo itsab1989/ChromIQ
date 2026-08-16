@@ -557,3 +557,146 @@ def patches_per_sheet(geom: Geom, paper_w_mm: float, paper_h_mm: float,
     page capacity (``patches_per_page``).
     """
     return compute(geom, paper_w_mm, paper_h_mm, 100_000, scanc=scanc).patches_per_page
+
+
+# ---------------------------------------------------------------------------
+# Ruler helper markers (#152, Knut)
+# ---------------------------------------------------------------------------
+def _comb(anchor: float, step: float, lo: float, hi: float) -> list[float]:
+    """Every ``anchor + k*step`` inside [lo, hi], for any whole number *k*.
+
+    Uniform **by construction**, which is the point: Knut, 2026-08-14, on the
+    dashes drawn from the previous scheme —
+
+        *"The distance between every single dash drawn shall be the same, and if
+        they are not, then some calculation y-position is wrong. This must be a
+        criteria for test pass."*
+
+    The scheme before this one placed a dash at the start and the middle of each
+    patch, plus one at the end of the last. That is only evenly spaced when
+    there is no spacer: with one, start→middle is half a patch and middle→next
+    start is half a patch **plus the spacer**, so the gaps alternated (measured
+    on A4 with a 1 mm spacer: 5 mm, 6 mm, 5 mm, 6 mm…). The end-of-last-patch
+    dash was worse — it landed one spacer width from the continued pattern,
+    putting two dashes 1 mm apart, which is what he saw *"next to the bottom
+    spacer of the last row of patches"* and reported as a marker drawn twice.
+
+    A single phase-locked comb cannot do either of those things. Anchored on the
+    first patch and stepped at half the patch PITCH, it puts a dash on every
+    patch boundary, one midway between each pair, and nothing anywhere else.
+    """
+    if step <= 0 or hi <= lo:
+        return []
+    import math
+    kmin = math.ceil((lo - anchor) / step - 1e-9)
+    kmax = math.floor((hi - anchor) / step + 1e-9)
+    if kmax < kmin:
+        return []
+    return [anchor + k * step for k in range(kmin, kmax + 1)]
+
+
+def helper_marker_lines_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
+                           layout: Layout, *, edge_mm: float = 2.0,
+                           length_mm: float = 2.0
+                           ) -> "list[tuple[float, float, float, float]]":
+    """Short dashes along all four page edges, to align a ruler against (#152).
+
+    Returns ``(x0, y0, x1, y1)`` segments in millimetres, for any page size,
+    orientation and resolution.
+
+    **Where they sit.** *edge_mm* from the paper edge, *length_mm* long, pointing
+    inward — so on A4 portrait with 1 mm and 3 mm the left dashes run from
+    x=1 mm to x=4 mm, and the right ones from x=206 mm to x=209 mm.
+
+    **What they line up with.** Top and bottom step ACROSS the page with the
+    strips; left and right step DOWN the page with the patches. Both are a
+    single evenly-spaced comb anchored on the first patch and stepped at **half
+    the patch pitch**, so there is a dash on every patch boundary and one midway
+    between each pair — and every gap is identical, which is Knut's pass
+    criterion (see :func:`_comb`).
+
+    **The pitch is measured off the layout, never assumed**, so whatever spacer
+    Create Chart is set to, the dashes follow it. Knut, 2026-08-14: *"You have
+    to dynamically include the spacers as part of the calculation, as the
+    spacers can change in the create chart settings."*
+
+    **Corners are kept clear.** A dash along the top edge is dropped where it
+    would reach into the band the left or right dashes occupy, and vice versa —
+    otherwise raising *edge_mm* makes the two sets cross in each corner. His
+    rule, stated for all eight cases and holding in both directions: a dash is
+    not drawn if it lands within, or beyond, the perpendicular edge's band.
+
+    **The ColorMunki's staggered strips take the first strip as their
+    reference**, which is his ruling: *"the offset strip is always half a patch
+    height offset, thus the markers land the correct place if you just use the
+    first strip as the reference."*
+
+    Hexagonal SpectroScan charts return no markers at all: a honeycomb has no
+    rows to line a ruler up with.
+
+    Markers may cross a margin label or the clip-border text; that is accepted —
+    *"overlapping is acceptable. User must adapt settings for the markers,
+    margins and clip-border text etc. to look as desired."* Suppressing one there
+    would leave a hole in the very rhythm a ruler is being lined up against. The
+    corner rule above is the one deliberate exception, because there the dashes
+    collide with **each other** rather than with something the user placed.
+    """
+    if getattr(geom, "key", "") == "SS" and getattr(geom, "hxew", 0.0) > 0:
+        return []
+    if paper_w_mm <= 0 or paper_h_mm <= 0 or length_mm <= 0:
+        return []
+    edge = max(0.0, float(edge_mm))
+    ln = float(length_mm)
+    if edge + ln > min(paper_w_mm, paper_h_mm) / 2:
+        return []                      # would meet in the middle of the sheet
+
+    place = placement(geom, paper_w_mm, paper_h_mm, layout)
+    steps = max(1, layout.steps_in_pass)
+    # Passes ACROSS the page, which is not `strips_per_page` (that is 1 for the
+    # strip-reading instruments). The renderer derives a patch's pass with
+    # `wp // steps` over the patches on the page, so the column count is the
+    # same division — see patch_rects_px.
+    passes = max(1, layout.patches_per_page // steps)
+
+    # Half the pitch, taken from the layout itself so a spacer moves it. A
+    # single strip or a single patch per strip has no pitch to measure; its own
+    # width is then the only rhythm there is, and there is no spacer to include.
+    x_pitch = (place.x_of(1) - place.x_of(0)) if passes > 1 else place.pwid
+    y_pitch = (place.y_of(1) - place.y_of(0)) if steps > 1 else place.plen
+    # ANCHORED ON THE MIDDLE OF THE GAP, NOT ON THE EDGE OF THE PATCH.
+    #
+    # Knut, after seeing beta.7 on paper: *"the dashes at the start of each patch
+    # is positioned at the end of its above spacer. It would be better if the
+    # dash would be centred vertically to the centre of the spacer thickness
+    # (height) above each patch … This would result in a centre to centre
+    # distance between spacers, and then the middle dash between them will
+    # always fall centred within in the patch height."*
+    #
+    # He is right, and it is a better answer than either option put to him. A
+    # comb anchored on the patch BOUNDARY keeps every gap equal but puts its
+    # in-between dash at ``start + pitch/2``, which is half a spacer past the
+    # middle of the patch. Anchoring half a gap earlier — on the centre of the
+    # spacer — shifts the whole comb by ``(pitch - size) / 2`` and the marks land
+    # alternately on a spacer centre and a patch centre, still one pitch/2 apart.
+    # So both properties hold at once, for any spacer width including zero, where
+    # the shift is nothing and the dashes sit on the boundaries as before.
+    x_anchor = place.x_of(0) - (x_pitch - place.pwid) / 2.0
+    y_anchor = place.y_of(0) - (y_pitch - place.plen) / 2.0
+    xs = _comb(x_anchor, x_pitch / 2.0, 0.0, paper_w_mm)
+    ys = _comb(y_anchor, y_pitch / 2.0, 0.0, paper_h_mm)
+
+    # The band each edge's dashes reach into. A dash on the perpendicular edge
+    # that lands inside it — or past it, off the sheet's usable area — is
+    # dropped, so the four sets never meet in a corner.
+    band = edge + ln
+    xs = [x for x in xs if band < x < paper_w_mm - band]
+    ys = [y for y in ys if band < y < paper_h_mm - band]
+
+    lines: list[tuple[float, float, float, float]] = []
+    for x in xs:                        # top and bottom: vertical dashes
+        lines.append((x, edge, x, edge + ln))
+        lines.append((x, paper_h_mm - edge - ln, x, paper_h_mm - edge))
+    for y in ys:                        # left and right: horizontal dashes
+        lines.append((edge, y, edge + ln, y))
+        lines.append((paper_w_mm - edge - ln, y, paper_w_mm - edge, y))
+    return lines

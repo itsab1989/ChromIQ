@@ -1813,6 +1813,12 @@ class TabChart(QWidget):
             bool(self._settings.get("margin_measured_guides_show", False)))
         self._margin_panel.set_coords_checked(
             bool(self._settings.get("margin_coords_show", False)))
+        # #152: the markers are a chart-layout choice, so the panel opens on the
+        # values the engine will actually use.
+        self._margin_panel.set_helper_markers(
+            bool(self._settings.get("helper_markers_show", False)),
+            float(self._settings.get("helper_marker_edge_mm", 1.0) or 1.0),
+            float(self._settings.get("helper_marker_len_mm", 3.0) or 3.0))
         self._margin_panel.setVisible(
             bool(self._settings.get("margin_inspector_show", True)))
         self._layout_info_panel.setVisible(
@@ -1823,6 +1829,8 @@ class TabChart(QWidget):
         self._margin_panel.measured_guides_toggled.connect(
             self._on_margin_measured_guides_toggled)
         self._margin_panel.coords_toggled.connect(self._on_margin_coords_toggled)
+        self._margin_panel.helper_markers_changed.connect(
+            self._on_helper_markers_changed)
         # Restore the coordinate readout state on the preview (dpi = render res).
         if self._margin_panel.coords_enabled():
             self._preview.set_coord_readout(
@@ -3053,6 +3061,11 @@ class TabChart(QWidget):
             self._manual_layout_panel.paper.currentIndexChanged.connect(
                 self._sync_manual_selection_from_panel)
         self._manual_layout_panel.changed.connect(self._refresh_manual_command_preview)
+        # Picking SpectroScan + Hexagonal must grey the ruler-marker controls
+        # straight away, not only once a chart has been generated (#152, Knut):
+        # the inspector's own refresh runs on chart/page changes, which is far
+        # too late to explain why the option cannot be used.
+        self._manual_layout_panel.changed.connect(self._refresh_helper_marker_support)
         _llg.addWidget(self._manual_layout_panel)
         inner_layout.addWidget(self._manual_layout_grp)
         self._manual_layout_grp.setVisible(False)
@@ -12335,6 +12348,36 @@ class TabChart(QWidget):
         except Exception:
             return (0.0, 0.0)
 
+    def _chart_is_hexagonal(self) -> bool:
+        """True for a SpectroScan chart drawn with six-sided patches.
+
+        **Read from the live selectors, not from a stored setting.** Knut,
+        beta.5 (#152): *"When instrument is SpectroScan and Patch shape is
+        Hexagonal, the checkbox for 'Show helper markers' with its spinboxes and
+        belonging labels are not greyed with explanation tool-tip, as
+        specified."* The reason was that this asked ``chart_instrument`` in
+        Preferences, which describes the last chart that was *built* — pick
+        SpectroScan and Hexagonal in the Create Chart selectors and that stored
+        value still says i1, so the controls stayed live on a chart that cannot
+        have markers. The combos on screen are the only honest answer to "what
+        is selected", and they are what ``_warn_if_hexagonal_selected`` already
+        uses, so the two now agree.
+        """
+        try:
+            panel = getattr(self, "_manual_layout_panel", None)
+            if panel is None:
+                return False
+            if panel.instr is not None and panel.mode is not None:
+                return (panel.instr.currentData() == "SS"
+                        and panel.mode.currentData() == "hex")
+            # No selectors on this panel (the editor's cut-down variant) — fall
+            # back to the recipe, where hflag is the hex/flat switch.
+            rec = panel.get_recipe()
+            return (str(getattr(rec, "instrument", "")).upper() == "SS"
+                    and bool(getattr(rec, "hflag", False)))
+        except Exception:      # noqa: BLE001
+            return False
+
     def _update_margin_inspector(self) -> None:
         panel = getattr(self, "_margin_panel", None)
         if panel is None:
@@ -12342,6 +12385,15 @@ class TabChart(QWidget):
         tiffs = getattr(self, "_margin_tiffs", None)
         show = bool(self._settings.get("margin_inspector_show", True))
         panel.setVisible(show)
+        # #152: a hexagonal SpectroScan chart has no straight rows or columns
+        # for a ruler, so the marker controls grey out with the reason showing
+        # in both the hover tooltip and the ⓘ, rather than silently doing
+        # nothing (Knut: "greyed out with explanation in tool-tip and in help
+        # icon").
+        self._refresh_helper_marker_support()
+        # The ruler dashes follow whatever chart and page are on screen, so they
+        # are refreshed here as well as on the checkbox (#152).
+        self._refresh_helper_marker_overlay()
         if not show or not tiffs:
             panel.show_placeholder()
             self._preview.set_margin_guides(None)
@@ -12524,6 +12576,116 @@ class TabChart(QWidget):
     def _on_margin_measured_guides_toggled(self, on: bool) -> None:
         self._settings.set("margin_measured_guides_show", bool(on))
         self._update_margin_inspector()
+
+    def _on_helper_markers_changed(self, on: bool, edge_mm: float,
+                                   len_mm: float) -> None:
+        """Remember the ruler-marker choice and redraw with it (#152).
+
+        These dashes are printed, not merely drawn over the preview, so the
+        values have to reach the layout recipe — that is what the renderer
+        reads. Stored in Preferences too, so the next chart starts where this
+        one left off.
+
+        **The preview updates straight away, without re-laying-out the chart.**
+        Knut, on beta.3 (#152): *"Enabling 'Show helper markers…' checkbox does
+        nothing. No markers become visible in preview."* Two separate faults
+        were behind that — the recipe dropped the values on the way to the
+        renderer (fixed in ``LayoutOptionsPanel.apply_to_recipe``), and nothing
+        on screen changed until the chart was generated again. The second half
+        is what this method fixes: the overlay is drawn at the coordinates the
+        renderer will use, so the position can be judged while the spin boxes
+        are being nudged, and a generated chart puts the printed dashes in
+        exactly the same place.
+        """
+        try:
+            self._settings.set("helper_markers_show", bool(on))
+            self._settings.set("helper_marker_edge_mm", float(edge_mm))
+            self._settings.set("helper_marker_len_mm", float(len_mm))
+            panel = getattr(self, "_manual_layout_panel", None)
+            if panel is not None:
+                # Straight onto the panel's carried state: going through
+                # get_recipe()/set_recipe() would round-trip every other control
+                # as well, which is how a stray write can revert the user's
+                # spacer settings.
+                panel._helper_markers = bool(on)
+                panel._helper_marker_edge_mm = float(edge_mm)
+                panel._helper_marker_len_mm = float(len_mm)
+            self._refresh_helper_marker_overlay()
+            self._refresh_manual_command_preview()
+            # With auto-update on, the sheet itself is re-drawn as well, so the
+            # printed dashes catch up with the overlay without a click.
+            self._maybe_schedule_auto_preview()
+        except Exception:      # noqa: BLE001 — never break the tab on a toggle
+            log.warning("could not apply the helper-marker choice", exc_info=True)
+
+    def _refresh_helper_marker_support(self, *_a) -> None:
+        """Grey (or restore) the ruler-marker controls for the current selection.
+
+        Runs on every layout change as well as on a chart/page change, so
+        choosing SpectroScan + Hexagonal explains itself at the moment it is
+        chosen (#152).
+        """
+        panel = getattr(self, "_margin_panel", None)
+        if panel is None:
+            return
+        try:
+            panel.set_helper_markers_supported(not self._chart_is_hexagonal())
+        except Exception:      # noqa: BLE001 — never block the inspector
+            log.debug("could not set helper-marker availability", exc_info=True)
+
+    def _refresh_helper_marker_overlay(self) -> None:
+        """Draw (or clear) the ruler dashes over the chart now in the preview.
+
+        The geometry comes from the chart's OWN recorded layout
+        (``channels.json``) whenever there is one, not from the Create Chart
+        controls — those can describe a chart the user is about to build rather
+        than the one on screen, and dashes that do not line up with the visible
+        patches would defeat the point of showing them. A printtarg chart has no
+        recorded layout, so it gets no overlay.
+        """
+        prev = getattr(self, "_preview", None)
+        if prev is None:
+            return
+        try:
+            lines = self._helper_marker_lines_frac()
+        except Exception:      # noqa: BLE001 — an overlay is never fatal
+            log.debug("helper-marker overlay skipped", exc_info=True)
+            lines = None
+        prev.set_helper_markers(lines)
+
+    def _helper_marker_lines_frac(
+        self,
+    ) -> "list[tuple[float, float, float, float]] | None":
+        """The marker segments for the page on screen, as page fractions."""
+        panel = getattr(self, "_margin_panel", None)
+        if panel is None:
+            return None
+        on, edge_mm, len_mm = panel.helper_markers()
+        if not on:
+            return None
+        if not getattr(self, "_margin_tiffs", None) or self._margin_ti2 is None:
+            return None
+        if self._chart_is_hexagonal():
+            return None
+        from workflow.layout_engine.presets import LayoutRecipe
+        from workflow.layout_engine import instruments, geometry, papers
+        ch = Path(self._margin_ti2).with_suffix(".channels.json")
+        rec = LayoutRecipe.from_channels_json(ch)
+        if rec is None:
+            return None                      # printtarg chart — no engine layout
+        m = re.search(r"NUMBER_OF_SETS\s+(\d+)",
+                      Path(self._margin_ti2).read_text(errors="replace"))
+        if not m:
+            return None
+        geom = instruments.geom_from_build_kwargs(rec.build_kwargs())
+        w_mm, h_mm = papers.dimensions_mm(rec.paper)
+        if w_mm <= 0 or h_mm <= 0:
+            return None
+        lay = geometry.compute(geom, w_mm, h_mm, int(m.group(1)))
+        lines = geometry.helper_marker_lines_mm(
+            geom, w_mm, h_mm, lay, edge_mm=edge_mm, length_mm=len_mm)
+        return [(x0 / w_mm, y0 / h_mm, x1 / w_mm, y1 / h_mm)
+                for x0, y0, x1, y1 in lines]
 
     def _on_margin_coords_toggled(self, on: bool) -> None:
         self._settings.set("margin_coords_show", bool(on))

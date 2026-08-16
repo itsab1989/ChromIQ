@@ -159,6 +159,67 @@ def classify(ti3_path: "Path | str | None",
     return Ti3Facts(Ti3State.PARTIAL, claimed, held, None)
 
 
+def can_resume(ti3_path: "Path | str | None",
+               ti2_path: "Path | str | None" = None) -> bool:
+    """Whether ``chartread -r`` has anything to resume from — specification §3a/§5.
+
+    **Only a file with at least one readable reading can be resumed.** The model
+    is explicit about every other case:
+
+    * *"No `.ti3` at all … nothing measured yet | normal for a fresh run; C₀ = 0"*,
+      and §5's first row pairs "None" with **no warning** — so the measurement
+      simply starts.
+    * A header-only or empty file *"holds no measurements — treat as empty"*.
+    * A corrupt file (``B ≠ C``) is to be **"never offer[ed] for resume"**.
+    * And §3a is explicit that all of these give ``C₀ = 0``: *"When the `.ti3`
+      present at the start of a measurement is corrupt or empty … there is
+      nothing in it to resume from and nothing to lose by measuring again, and it
+      is treated exactly as 'no measurement'."*
+
+    ChromIQ was sending ``-r`` on the strength of the checkbox alone, so a run
+    whose measurement had been replaced or never made was started in resume mode
+    against a file that was not there. chartread refuses outright —
+    ``Unable to read chart being resumed … Unable to open file`` — and the
+    fallback to stock chartread kept the flag and failed the same way, which is
+    what Knut's log shows at 19:09 (#148). His ruling: *"The action when a ti3
+    file is not existing or is corrupt or empty is defined by the design
+    specification and the unified measurement management model. Make sure this
+    is handled accordingly."*
+
+    So the tick is honoured whenever it can be, and quietly ignored when there is
+    nothing behind it — which is what §5's "no warning" row asks for. Nothing is
+    lost either way: resuming from nothing and starting fresh are the same
+    measurement.
+    """
+    facts = classify(ti3_path, ti2_path)
+    return facts.state in (Ti3State.PARTIAL, Ti3State.COMPLETE)
+
+
+def has_any_readings(ti3_path: "Path | str | None") -> bool:
+    """Whether the file holds at least one reading — the RESCUE test, not §3a's.
+
+    **Deliberately weaker than :func:`can_resume`, and the difference matters.**
+    They answer two different questions:
+
+    * `can_resume` answers *"the user ticked Refine / resume — should ChromIQ act
+      on it?"*, and follows §3a strictly: a corrupt file (``B ≠ C``) is *"never
+      offer[ed] for resume"*, because resuming into a mismatch would write
+      readings against patch positions that may not be the ones on the paper.
+    * This one answers *"the instrument just died mid-chart — is there anything
+      worth saving?"* (#134). Here a refusal **throws away measured strips**,
+      which is the one outcome the whole rescue exists to prevent. So it declines
+      only when it is certain there is nothing: no file, an empty one, a
+      header-only one, or one that cannot be parsed at all.
+
+    Tightening this to `can_resume` looked tidy and was wrong: it would have made
+    a damaged autosave — precisely the case a crash is most likely to leave —
+    the one case where the readings are silently abandoned.
+    """
+    facts = classify(ti3_path, None)
+    return facts.state not in (Ti3State.ABSENT, Ti3State.EMPTY,
+                               Ti3State.NO_DATA_BLOCK, Ti3State.UNREADABLE)
+
+
 class SessionVerdict(Enum):
     """What to do with what a session left behind — specification §3b."""
 
@@ -201,3 +262,53 @@ def added_by_session(before: "int | None", after: "int | None") -> int:
     result means something went wrong, which :func:`judge_session` reports as a
     verdict rather than as a number."""
     return max(0, (after or 0) - (before or 0))
+
+
+# ---------------------------------------------------------------------------
+# Measurement progress (#153, Knut)
+# ---------------------------------------------------------------------------
+#: Which measurement states may show a progress bar at all.
+#:
+#: Knut asked for the same validity rules the rest of ChromIQ uses: *"If no ti3
+#: file, or an empty or corrupted ti3 file (using same rules as for checking if
+#: ti3 is valid on other features), then no progress bar is shown."*
+#:
+#: MISMATCHED is deliberately excluded even though it holds readings. When the
+#: header and the body disagree, ChromIQ refuses to resume the file
+#: (:attr:`Ti3Facts.can_resume`), and a bar reading "73%" beside a refusal to
+#: continue would be telling the user two different things about one file.
+PROGRESS_STATES = frozenset({Ti3State.PARTIAL, Ti3State.COMPLETE})
+
+
+def progress_percent(measured: "int | None",
+                     total: "int | None") -> "float | None":
+    """How far a measurement has got, 0-100, or ``None`` when it cannot be said.
+
+    ``None`` means "draw no bar" — the caller still shows ``Progress: 0.0%``,
+    which is what Knut asked for: the label is always there, the coloured bar
+    only appears once there is something true to draw.
+
+    Clamped to 100: a session that re-reads a patch already counted in the file
+    it resumed from can momentarily count one patch twice, and a bar that reads
+    101% would be a worse lie than one that sits at 100 until the file is read
+    again and settles it.
+    """
+    if not total or total <= 0 or measured is None or measured < 0:
+        return None
+    return min(100.0, measured / total * 100.0)
+
+
+def progress_from_files(ti3_path: "Path | str | None",
+                        ti2_path: "Path | str | None") -> "float | None":
+    """The progress a run's files describe, or ``None`` for no bar.
+
+    Used when the Measure tab opens, so a part-finished measurement is picked
+    up where it was left. During a live measurement the files are NOT the
+    truth — ArgyllCMS writes the ``.ti3`` only when a session ends cleanly — so
+    the tab counts patches as they are reported instead, and comes back to this
+    once the session is over.
+    """
+    facts = classify(ti3_path, ti2_path)
+    if facts.state not in PROGRESS_STATES:
+        return None
+    return progress_percent(facts.held, facts.expected)

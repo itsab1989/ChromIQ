@@ -125,7 +125,22 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # Knut's ColorMunki was invisible on a 2019
                                  # MacBook until that shortcut was switched
                                  # off, so the window names it and carries it.
-                                 "M-NO-INSTRUMENT-FAST"}
+                                 "M-NO-INSTRUMENT-FAST",
+                                 # #155 / #156, 2026-08-14. Both bug fixes are
+                                 # in the code and speak through the log; the
+                                 # WINDOWS are new wording and wait here, after
+                                 # Knut objected to text being invented rather
+                                 # than proposed.
+                                 # M-OVERLAY-NO-MEASUREMENT was approved by
+                                 # Knut on 2026-08-14 and is now in §M.
+                                 "M-ALL-STRIPS-PATCHES-LEFT",
+                                 # #148, 2026-08-14. Knut asked for this one
+                                 # outright: the engine falling back to stock
+                                 # chartread is announced only in the log, and
+                                 # it silences ChromIQ's sounds without saying
+                                 # so — which is half of why the sound feature
+                                 # looked broken.
+                                 "M-ENGINE-FELL-BACK"}
 
 
 def test_nothing_is_quietly_proposed():
@@ -223,6 +238,20 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_measure", "TabMeasure", "_show_import_done"),
     ("ui.tabs.tab_measure", "TabMeasure", "_show_verification_saved"),
     ("ui.tabs.tab_measure", "TabMeasure", "_ask_how_printed"),
+]
+
+#: Measurement windows that are NOT yet in §M, listed so the gap is visible.
+#:
+#: WINDOW_SOURCES is an allow-list, and that is its weakness: a window nobody
+#: added to it can invent its own wording and this file stays green. That is
+#: exactly how new text reached the overlay-failure window in #155 — Knut:
+#: *"You are inventing new messages and new functions at your own initiative,
+#: which is NOT allowed for an app that is released for users."*
+#:
+#: Naming them here does not approve them. It records the debt so the next
+#: person can see it, and the test below fails if the list grows.
+UNCATALOGUED_MEASUREMENT_WINDOWS = [
+    ("ui.tabs.tab_measure", "TabMeasure", "_on_overlay_toggled"),
 ]
 
 
@@ -323,3 +352,21 @@ def test_no_message_uses_a_bracketed_plural():
     """House rule, and the model follows it too."""
     for mid, msg in sorted(M.CATALOGUE.items()):
         assert "(s)" not in msg.title + msg.body, mid
+
+
+def test_the_uncatalogued_window_list_does_not_grow():
+    """A measurement window whose text is not in §M is a debt, not a licence.
+
+    The catalogue test guards an allow-list, so anything absent from it could
+    always invent wording freely — which is how #155 happened. Pinning the known
+    exceptions means adding another one is a deliberate act that shows up in a
+    diff, instead of something nobody notices.
+    """
+    assert len(UNCATALOGUED_MEASUREMENT_WINDOWS) == 1, (
+        "a new measurement window appeared outside §M — propose its text in "
+        "§M-PROPOSED and add it to WINDOW_SOURCES instead")
+
+
+def test_every_catalogued_window_still_uses_the_catalogue():
+    """Belt and braces: the allow-list must not shrink either."""
+    assert len(WINDOW_SOURCES) >= 12

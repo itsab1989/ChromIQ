@@ -1044,6 +1044,41 @@ class SettingsDialog(QDialog):
             self))
         _meas.addLayout(_sn_row)
 
+        # Measurement progress bar (#153, Knut). Directly below the misalignment
+        # box, with a blank line after it to separate it from the reading-speed
+        # topic that follows — his layout, and it reads better for it.
+        self._progress_bar_check = QCheckBox(
+            tr("Show measurement progress bar"), self)
+        _pb_row = QHBoxLayout()
+        _pb_row.addWidget(self._progress_bar_check)
+        _pb_row.addStretch()
+        _pb_row.addWidget(TooltipButton(
+            tr("Measurement progress bar"),
+            tr("While you measure a chart, this shows how far through it you "
+            "are — as a percentage on the left of the strip just above the "
+            "chart preview, and as a coloured bar that fills that strip from "
+            "left to right as you go.\n\n"
+            "It counts PATCHES, not strips, and that is the point of it. If you "
+            "switch between reading whole strips and reading single patches — "
+            "to go back and pick up one patch you missed, say — a count of "
+            "finished strips would quietly tell you the wrong thing. Counting "
+            "the patches that actually have a reading is true in both ways of "
+            "working, and re-reading a patch you have already measured does not "
+            "move the number, because that patch was already counted.\n\n"
+            "When you open the Measure tab it picks up where you left off, "
+            "reading the measurement file your run already holds, so a chart you "
+            "started yesterday does not start again from zero. If there is no "
+            "measurement yet, or the file cannot be trusted, no coloured bar is "
+            "drawn and the percentage simply reads 0.0%.\n\n"
+            "The bar uses the Measure tab's own green, so it matches the "
+            "heading beside it.\n\n"
+            "Turn it off and neither the percentage nor the bar appears, and "
+            "ChromIQ does not count patches at all.\n\n"
+            "Default: on"),
+            self))
+        _meas.addLayout(_pb_row)
+        _meas.addSpacing(10)
+
         # (The measurement-report options moved to their own Reports tab, Knut.)
         _beta.addStretch()
 
@@ -1920,6 +1955,38 @@ class SettingsDialog(QDialog):
                 "measuring.")),
         ])
 
+        # Waking the audio device first (#148) — off unless asked for, because
+        # on one reporter's hardware it silenced everything instead of helping.
+        _wu = QHBoxLayout()
+        self._sound_warmup = QCheckBox(
+            tr("Wake the audio device before playing a sound"), page)
+        self._sound_warmup.setChecked(
+            bool(self._settings.get("sound_warm_up_device", False)))
+        _wu.addWidget(self._sound_warmup)
+        _wu.addWidget(TooltipButton(
+            tr("Wake the audio device before playing a sound"),
+            tr("Try this if the FIRST sound after a quiet spell is too quiet, "
+               "or seems to start halfway through.\n\n"
+               "Some computers put the sound hardware to sleep whenever nothing "
+               "is playing, and waking it takes a moment. The sound that does "
+               "the waking is the one that suffers: you hear only the tail of "
+               "it, or nothing at all. During a measurement the ticks keep each "
+               "other awake, so it's usually just the first one that's affected "
+               "— and the “Play” buttons above, where every press comes after a "
+               "silence.\n\n"
+               "With this on, ChromIQ plays a silent clip first to wake the "
+               "hardware, then plays your sound a fraction of a second later. "
+               "You won't hear the silent clip.\n\n"
+               "Leave it off if your sounds are fine. On some setups — "
+               "particularly an external or USB audio device — touching the "
+               "hardware this way can stop sounds working altogether, which is "
+               "why it isn't switched on for everybody. If you turn it on and "
+               "your sounds stop, turn it straight back off and they will "
+               "return.\n\n"
+               "Default: off"), page))
+        _wu.addStretch(1)
+        v.addLayout(_wu)
+
         v.addStretch()
         return page
 
@@ -1930,10 +1997,13 @@ class SettingsDialog(QDialog):
         stem = combo.currentData()
         path = snd.file_for_stem(self._settings, event, stem)
         if path is None:
+            log.warning("preview %s: no file for choice %r", event, stem)
             return
         cls = snd._sound_effect_cls()
         if cls is None:                     # no audio backend in this build/env
+            log.warning("preview %s: no audio backend in this build", event)
             return
+        log.debug("preview %s: playing %s", event, path)
         # Build the warm-up clips before the first press needs them: setSource
         # is asynchronous, and a warm-up that only starts loading now would
         # still be loading when the real sound is due (#148).
@@ -1952,14 +2022,25 @@ class SettingsDialog(QDialog):
             # nothing at all — the sound WAS the thing waking the device.
             #
             # So an inaudible clip is played first and the real one follows
-            # 200 ms later, while the warm-up is still running and the device is
+            # 300 ms later, while the warm-up is still running and the device is
             # certainly awake. The delay belongs to a "let me hear this" button
             # where it costs nothing; the measurement cues are never delayed
             # this way — arming warms the device long before the first patch.
-            snd.warm_up_audio(self._settings)
-            QTimer.singleShot(snd.WARMUP_LEAD_MS, eff.play)
+            #
+            # OFF BY DEFAULT (#148). On the reporter's machine this warm-up did
+            # not make the first sound louder, it made every sound disappear —
+            # here, in the measurement, everywhere. So unless he has switched it
+            # on, nothing touches the device and the clip is played straight
+            # away, exactly as it was in the version he confirms worked. The
+            # delay only ever existed to let the warm-up run first, so with no
+            # warm-up there is nothing to wait for.
+            if snd.warm_up_enabled(self._settings):
+                snd.warm_up_audio(self._settings)
+                QTimer.singleShot(snd.WARMUP_LEAD_MS, eff.play)
+            else:
+                eff.play()
         except Exception:                    # noqa: BLE001 — preview must never crash
-            pass
+            log.warning("preview %s failed", event, exc_info=True)
 
     def _build_reports_tab(self) -> QWidget:
         """Measurement-report settings (Knut): the auto-save toggle, moved here
@@ -2836,6 +2917,8 @@ class SettingsDialog(QDialog):
         self._fast_connect_check.setChecked(
             bool(s.get("fast_instrument_connect", True)))
         self._safenet_check.setChecked(bool(s.get("misalign_safenet", False)))
+        self._progress_bar_check.setChecked(
+            bool(s.get("measure_progress_bar", True)))
         self._native_print_check.setChecked(bool(s.get("use_native_print_dialog", False)))
         self._pdf_fallback_check.setChecked(bool(s.get("pdf_print_fallback", False)))
         self._confirm_print_check.setChecked(bool(s.get("confirm_before_printing", True)))
@@ -3569,6 +3652,7 @@ class SettingsDialog(QDialog):
         s.set("cal_auto_retries", int(self._cal_retries_spin.value()))
         s.set("fast_instrument_connect", self._fast_connect_check.isChecked())
         s.set("misalign_safenet", self._safenet_check.isChecked())
+        s.set("measure_progress_bar", self._progress_bar_check.isChecked())
         s.set("use_native_print_dialog",   self._native_print_check.isChecked())
         s.set("pdf_print_fallback",        self._pdf_fallback_check.isChecked())
         s.set("confirm_before_printing",   self._confirm_print_check.isChecked())
@@ -3590,6 +3674,8 @@ class SettingsDialog(QDialog):
             s.set("sound_folder", self._sound_dir_edit.text().strip())
         for _event, _combo in getattr(self, "_sound_combos", {}).items():
             s.set(f"sound_choice_{_event}", _combo.currentData())
+        if hasattr(self, "_sound_warmup"):
+            s.set("sound_warm_up_device", self._sound_warmup.isChecked())
         # Measurement pace (#131 Phase 2)
         if hasattr(self, "_pace_enable"):
             s.set("pace_hint_enabled", self._pace_enable.isChecked())

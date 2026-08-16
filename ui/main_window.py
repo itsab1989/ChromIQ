@@ -1364,6 +1364,13 @@ class MainWindow(QMainWindow):
         # Margin-inspector visibility / thresholds / guide toggle may have changed.
         if hasattr(self._tab_chart, "refresh_margin_inspector_settings"):
             self._tab_chart.refresh_margin_inspector_settings()
+        # "Show measurement progress bar" takes effect at once (#153, Knut:
+        # *"the checkbox did not remove progress bar when disabled and pressing
+        # OK … Changing tabs did also not update"*). Preferences pushes changes
+        # at the tabs rather than the tabs polling, so a new option that is not
+        # pushed here simply never arrives.
+        if hasattr(self._tab_measure, "refresh_progress_setting"):
+            self._tab_measure.refresh_progress_setting()
         # Engine-only Manual rows (#123) follow the engine beta + accuracy
         # mode — the Build Profile tab stays visible while Settings is
         # open, so its showEvent alone would miss the change.

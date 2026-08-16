@@ -255,12 +255,51 @@ def formats_in_use(settings) -> set:
 _WARMUP_EFFECTS: dict = {}
 
 
+def warm_up_enabled(settings) -> bool:
+    """Whether to touch the audio device before playing a sound — **off unless
+    the user asks for it** (#148).
+
+    THIS DEFAULT IS THE WHOLE POINT, so it is worth saying why plainly.
+
+    Twice now, a change made to improve the first sound has left the reporter's
+    machine with **no sound at all**. First a permanent voice held to stop the
+    device suspending; then this warm-up, an inaudible clip played to wake the
+    device before the real one. Both are harmless here and on every machine we
+    can test. Neither is harmless on his: an external audio device on a USB-C
+    hub, where whatever ChromIQ does to the device first appears to take the
+    real sound with it.
+
+    Knut, 2026-08-14, on the beta carrying the warm-up: *"No sounds what so
+    ever. And during measurement there was no sounds … you have messed up the
+    sounds for all events, all messages, all measurements, button click on
+    instrument, and all sounds in preferences sounds tab."* The version without
+    it worked. The warm-up runs in exactly the two places he reports dead —
+    arming a measurement, and every press of Play in Preferences — and it is the
+    only audio change between the two versions.
+
+    So the rule this default encodes: **a fix for a sound being quiet must never
+    be able to make it silent.** Quiet is a nuisance; silent is a broken
+    feature, and worse, one that reports nothing. Since the fault cannot be
+    reproduced on any machine here, the safe shape is not a cleverer warm-up —
+    it is to not touch the device at all by default, and let anyone who wants
+    the louder first sound switch it on and judge for themselves.
+    """
+    try:
+        return bool(settings.get("sound_warm_up_device", False))
+    except Exception:      # noqa: BLE001 — a missing setting means "don't"
+        return False
+
+
 def warm_up_audio(settings) -> None:
     """Wake the audio device now, so the next real sound is not the cold one.
 
-    Each clip plays once and finishes. Safe to call at any time, safe to call
-    repeatedly, and safe when there is no audio at all.
+    Does nothing unless the user has switched it on — see :func:`warm_up_enabled`
+    for why that is the default. Each clip plays once and finishes. Safe to call
+    at any time, safe to call repeatedly, and safe when there is no audio at all.
     """
+    if not warm_up_enabled(settings):
+        log.debug("audio warm-up skipped (switched off)")
+        return
     cls = _sound_effect_cls()
     if cls is None:                       # no audio in this build/environment
         return
@@ -283,7 +322,15 @@ def warm_up_audio(settings) -> None:
 
 def preload_warm_up(settings) -> None:
     """Build the warm-up clips without playing them, so the first real warm-up
-    starts instantly. Called when the sound layer is first armed."""
+    starts instantly. Called when the sound layer is first armed.
+
+    Skipped entirely when the warm-up is off, so that a user who never asked for
+    it has no extra QSoundEffect objects against the audio device at all — the
+    point of the default is that nothing touches the device, not merely that
+    nothing is heard.
+    """
+    if not warm_up_enabled(settings):
+        return
     cls = _sound_effect_cls()
     if cls is None:
         return
@@ -505,10 +552,26 @@ class SoundManager:
     def play(self, event: str) -> None:
         """Play *event*'s sound now, if sounds are on, a file is selected, and
         the event is allowed in the current context (only completion sounds play
-        when no measurement is running). Safe to call from signal handlers."""
+        when no measurement is running). Safe to call from signal handlers.
+
+        **Every decision here is logged, including the decisions to stay quiet.**
+        Three rounds of #148 were spent guessing because the log could not answer
+        the first question anybody asks — did ChromIQ try to play a sound, and if
+        not, why not? A 36,000-line log of a completely silent session contained
+        not one line from this module, because every log call sat on a failure
+        path and nothing here fails: a suppressed sound is a normal return.
+
+        The suppression rules are real and easy to mistake for a fault — sounds
+        legitimately stop when no measurement is running, and legitimately stop
+        when stock ArgyllCMS chartread is driving, because it beeps for itself.
+        A user hearing nothing cannot tell those apart from a broken audio
+        device, and neither could I. Now the log says which it was.
+        """
         if not self.enabled():
+            log.debug("sound %s not played: sounds are switched off", event)
             return
         if not self._in_measurement and event not in OUTSIDE_MEASUREMENT_EVENTS:
+            log.debug("sound %s not played: no measurement is running", event)
             return
         # Stock ArgyllCMS chartread beeps for itself and cannot be silenced, so
         # ChromIQ stays quiet there rather than doubling every event (Knut,
@@ -516,13 +579,20 @@ class SoundManager:
         # not to the reading, so they are unaffected.
         if (self._in_measurement and not self._reading_engine
                 and event not in OUTSIDE_MEASUREMENT_EVENTS):
+            log.debug("sound %s not played: stock ArgyllCMS chartread is "
+                      "driving and beeps for itself", event)
             return
         try:
             eff = self._effects.get(event)
             if eff is None:
                 self._preload([event])
                 eff = self._effects.get(event)
-            if eff is not None:
-                eff.play()
+            if eff is None:
+                log.warning("sound %s not played: no clip could be loaded "
+                            "(choice=%s)", event, choice_for(self._settings, event))
+                return
+            eff.play()
+            log.debug("sound %s played (choice=%s, source=%s)", event,
+                      choice_for(self._settings, event), eff.source().toString())
         except Exception as exc:      # noqa: BLE001 — audio must never break a read
             log.warning("Sound play failed for %s: %s", event, exc)

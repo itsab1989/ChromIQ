@@ -649,6 +649,86 @@ M_NO_INSTRUMENT = _m(
 #: added that the window should carry the switch itself, and say where the
 #: option lives for later. Knut's own text above is kept word for word; this
 #: variant only adds the paragraph about the shortcut.
+#: APPROVED by Knut, 2026-08-14 — *"Text approved. Make Sure to use the
+#: guideline used for other messages, if relevant."* (#155). Switching to a run
+#: that had never been measured showed
+#: M-TI3-MISMATCH's claim — that the measurement belongs to a different chart —
+#: about a file that does not exist. Stopping that false claim was the bug fix;
+#: this is the window that replaces it. Approved by Knut, 2026-08-14 — *"Text
+#: approved."* — together with his ruling on where such things belong: *"all
+#: events shall have windows, and not hidden in a log where user will not see
+#: it."*
+M_OVERLAY_NO_MEASUREMENT = _m(
+    "M-OVERLAY-NO-MEASUREMENT",
+    "This chart has not been measured yet",
+    "There is no measurement file beside this chart, so there is nothing to "
+    "draw on the patches.\n\n"
+    "Read the chart with your instrument and the overlay will fill in as you "
+    "go, showing what you measured against the colour each patch was meant to "
+    "be.")
+
+#: PROPOSED (#156). Knut: *"the 'All Strips Read' message comes, despite that
+#: the progress percentage shows 97.1% … This message must come only when all
+#: patches are read."* Suppressing the finished message while patches are
+#: unread is the bug fix and is in the code; announcing it in a window is new
+#: wording, so it waits for approval. Until then the count goes to the log.
+M_ALL_STRIPS_PATCHES_LEFT = _m(
+    "M-ALL-STRIPS-PATCHES-LEFT",
+    "Some patches are still unread",
+    "Every strip has been read, but {n} patches still have no reading. "
+    "Everything you have read so far is safe.\n\n"
+    "This usually happens when some patches were read one at a time in "
+    "“Patch-by-patch mode” and a few were stepped over.\n\n"
+    "To finish them, start measuring again with “Patch-by-patch mode” ticked "
+    "and “Refine / resume existing measurement” ticked. ChromIQ picks up where "
+    "the readings stop, so you only measure the patches that are still missing "
+    "rather than the whole chart again.\n\n"
+    "•  Re-read Individual Strips — stay in this session and read a strip "
+    "again now. Use “f” and “b” to move between strips, “n” to jump to the next "
+    "unread one, and “d” when you are done.\n\n"
+    "•  Close — finish here. ChromIQ asks whether to keep what you have "
+    "measured so far, so nothing is decided behind your back.",
+    approved=False,
+    count_key="n",
+    body_one=
+    "Every strip has been read, but one patch still has no reading. "
+    "Everything you have read so far is safe.\n\n"
+    "This usually happens when some patches were read one at a time in "
+    "“Patch-by-patch mode” and one was stepped over.\n\n"
+    "To finish it, start measuring again with “Patch-by-patch mode” ticked "
+    "and “Refine / resume existing measurement” ticked. ChromIQ picks up where "
+    "the readings stop, so you only measure the patch that is still missing "
+    "rather than the whole chart again.\n\n"
+    "•  Re-read Individual Strips — stay in this session and read a strip "
+    "again now. Use “f” and “b” to move between strips, “n” to jump to the next "
+    "unread one, and “d” when you are done.\n\n"
+    "•  Close — finish here. ChromIQ asks whether to keep what you have "
+    "measured so far, so nothing is decided behind your back.")
+
+#: PROPOSED (#148). Asked for by Knut, 2026-08-14: *"there should be a defined
+#: and approved instrument error message in the design specification for this
+#: error, is there not? I think there should be a warning message so the user
+#: knows."* He is right that there is none — the fallback is announced only in
+#: the measurement log, which is easy to miss mid-measurement.
+#:
+#: The second paragraph is the one that matters for #148. Falling back also
+#: silences ChromIQ's per-patch and per-strip sounds, because stock chartread
+#: beeps for itself and cannot be quietened (his own ruling, #131). That
+#: suppression is correct and stays; what was missing is saying so, which left a
+#: user with every reason to report the sound feature as broken.
+M_ENGINE_FELL_BACK = _m(
+    "M-ENGINE-FELL-BACK",
+    "Measuring with ArgyllCMS instead",
+    "ChromIQ's own measuring engine could not use your instrument this time, "
+    "so the measurement has been started again using ArgyllCMS's chartread. "
+    "Carry on measuring exactly as you would normally — nothing you have "
+    "already read is lost.\n\n"
+    "One thing changes while this is running: ChromIQ's measurement sounds are "
+    "silent. ArgyllCMS makes its own beeps as it reads, and playing ChromIQ's "
+    "sounds on top would double every one of them. The beeps you hear are "
+    "coming from ArgyllCMS.\n\n"
+    "Reason: {reason}", approved=False)
+
 M_NO_INSTRUMENT_FAST = _m(
     "M-NO-INSTRUMENT-FAST",
     "No Instrument Found",
@@ -690,6 +770,8 @@ CATALOGUE = {m.id: m for m in (
     M_IMPORT_MISMATCH, M_IMPORT_DATE_TAKEN, M_IMPORT_DONE,
     M_VERIFY_SAVED, M_HOW_PRINTED,
     M_NO_INSTRUMENT, M_NO_INSTRUMENT_FAST,
+    M_OVERLAY_NO_MEASUREMENT, M_ALL_STRIPS_PATCHES_LEFT,
+    M_ENGINE_FELL_BACK,
 )}
 
 #: Paragraphs appended to another message rather than shown on their own.

@@ -141,6 +141,11 @@ class LayoutOptionsPanel(QWidget):
         # Per-spacer manual colour overrides {str(flat_idx): "#hex"} — set by
         # clicking spacers in the editor preview; carried in the recipe (#93).
         self._spacer_overrides: dict = {}
+        # Ruler helper markers (#152) — carried through the recipe, controlled
+        # from the preview's "Measure from Preview" panel. See apply_to_recipe.
+        self._helper_markers: bool = False
+        self._helper_marker_edge_mm: float = 1.0
+        self._helper_marker_len_mm: float = 3.0
         self._border: float = 6.0      # base margin (-m); preserved, no control
         self._inst = "i1"           # last-known instrument / clip state, for
         self._clip = True           # clip-border-width row visibility
@@ -183,7 +188,13 @@ class LayoutOptionsPanel(QWidget):
                    "i1Pro has). On reserves a band you can fill with a notes box, "
                    "text or a logo in the Clip-border content section below; Off "
                    "uses the whole page for patches. Choose which edge it sits on "
-                   "in that section."), self)
+                   "in that section.\n\n"
+                   "If you also print the ruler helper markers (the short dashes "
+                   "along the page edges, switched on under the preview), a dash "
+                   "can cross this band. That is allowed on purpose — the dashes "
+                   "keep step with the patches wherever they fall. If one lands "
+                   "awkwardly, move it with its own “Distance from page edge”, "
+                   "or make it shorter."), self)
             # Paper + Pages share a row, directly under Instrument (Knut #93);
             # paper gets the stretch (wider).
             self.paper = NoScrollComboBox(self)
@@ -1179,7 +1190,14 @@ class LayoutOptionsPanel(QWidget):
                "Clip = the clip-border / notes band. Increase a value if your "
                "printer clips text near that edge. These are independent of the "
                "page margins; if a margin is too small for its text, the text "
-               "overflows toward this line and a margin warning is shown."), self),
+               "overflows toward this line and a margin warning is shown.\n\n"
+               "If you also print the ruler helper markers (the short dashes "
+               "along the page edges, switched on under the preview), a dash "
+               "can land on top of this text. Nothing is hidden or moved "
+               "automatically, because the dashes have to keep step with the "
+               "patches to be useful. Move whichever one is in the way: give "
+               "the text more room here, or shift the dashes with their own "
+               "“Distance from page edge”."), self),
             5, 2)
         _expert_v.addWidget(st)
         self._update_text_preview()
@@ -2504,6 +2522,10 @@ class LayoutOptionsPanel(QWidget):
                       r.strip_gap_mm, caller)
         except Exception:      # noqa: BLE001 — diagnostics never break the UI
             pass
+        # Carried, not shown — see apply_to_recipe.
+        self._helper_markers = bool(getattr(r, "helper_markers", False))
+        self._helper_marker_edge_mm = float(getattr(r, "helper_marker_edge_mm", 1.0))
+        self._helper_marker_len_mm = float(getattr(r, "helper_marker_len_mm", 3.0))
         self._loading = True
         if self.instr is not None:
             ii = self.instr.findData(r.instrument)
@@ -2656,6 +2678,21 @@ class LayoutOptionsPanel(QWidget):
 
     def apply_to_recipe(self, r: LayoutRecipe) -> LayoutRecipe:
         """Write the panel's values onto *r* (keeps r's instrument/paper/mode)."""
+        # THE RULER MARKERS HAVE NO CONTROL HERE, AND STILL BELONG TO THE RECIPE.
+        #
+        # Their checkbox lives in the preview's "Measure from Preview" panel,
+        # because that is where you look while judging where the dashes land —
+        # but they are printed onto the sheet, so the layout recipe is what has
+        # to carry them to the renderer. This panel rebuilds the recipe from
+        # scratch on every `get_recipe()`, so anything it does not know about is
+        # silently dropped on the way to Generate Chart: that is why ticking the
+        # box produced no markers at all (Knut, beta.3 of 4.0.2, #152 — *"Enabling
+        # 'Show helper markers…' checkbox does nothing"*). Holding the three
+        # values as plain state, set by `set_recipe` and written back here, makes
+        # the round-trip lossless without putting a duplicate control on screen.
+        r.helper_markers = bool(self._helper_markers)
+        r.helper_marker_edge_mm = float(self._helper_marker_edge_mm)
+        r.helper_marker_len_mm = float(self._helper_marker_len_mm)
         r.pscale = self.pscale.value()
         r.sscale = self.sscale.value()
         r.spacer_mode = self.spacer_mode.currentData() or "colored"
