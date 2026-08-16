@@ -1,273 +1,70 @@
 # Changelog
 
-## v4.0.2-beta.12
+## v4.1.0
 
-### Fixed
-
-- **ArgyllCMS's own beeps play again while ChromIQ's engine is reading.** They
-  had been switched off so that ChromIQ's chosen sounds would be the only ones
-  during a measurement. They are separate cues, not duplicates — the reader's
-  beep confirms the instrument is ready for you to start, which none of
-  ChromIQ's sounds covers — so both play now (reported by soul-traveller).
-
-## v4.0.2-beta.11
-
-### Fixed
-
-- **Your Measure settings are now saved when you press Start Measurement.** Tick
-  "Skip initial calibration", measure, stop — and the tick was gone. The Measure
-  tab recorded its settings when you left the tab or switched run, but not when
-  you pressed its own Start button, so anything changed just before measuring
-  was never stored and the next load put the old values back. This affected
-  every control on the panel, not just that one (reported by soul-traveller).
+Everything reported against 4.0.0 and 4.0.1 by soul-traveller is fixed, and two
+features he asked for are in. Verified by him on real hardware.
 
 ### New
 
-- **A chart with no measurement now says so in its own window.** Asking for the
-  measurement overlay on a chart you have not measured yet explains that there
-  is nothing to draw on the patches, instead of only mentioning it in the log.
+- **Ruler helper markers on the printed chart.** Short dashes along all four
+  edges of the sheet, so you can lay a ruler against the paper and line your
+  instrument up with the patches. One dash sits exactly at the centre of each
+  patch and the next midway to its neighbour, evenly spaced all the way along —
+  and they follow your patch spacers automatically, however you set them. Switch
+  them on under the preview with **"Show helper markers"**, choose how far in
+  from the edge they sit and how long they are, then press **Generate Chart**.
+  The corners stay clear, and charts with six-sided patches grey the option out
+  and say why.
 
-## v4.0.2-beta.10
-
-### Fixed
-
-- **Helper markers now sit at the centre of each patch.** The dashes were
-  anchored on the patch edge, which put the in-between dash half a spacer past
-  the middle of the patch. They are anchored on the middle of the gap instead,
-  so one dash lands exactly at each patch centre and the next midway to its
-  neighbour — with every gap still identical, at any spacer width (reported by
-  soul-traveller).
-
-- **"Refine / resume" no longer breaks a measurement when there is nothing to
-  resume.** Ticking it on a run whose measurement is missing, empty or damaged
-  made ChromIQ start in resume mode against a file that was not there, and the
-  measurement failed before the first patch — twice over, because the fallback
-  to ArgyllCMS's chartread kept the same setting. The tick is now honoured only
-  when there really is a measurement behind it, exactly as the measurement model
-  defines; otherwise the chart is simply measured from the start (reported by
-  soul-traveller).
-
-## v4.0.2-beta.9
-
-### Fixed
-
-- **The helper-marker help icon now sits level with its own row.** In the
-  "Measured from Preview" panel the ⓘ beside "Show helper markers" sat slightly
-  low against the checkbox and the two distance boxes. It is centred on that
-  line now, and still lines up with the panel's other ⓘ (reported by
-  soul-traveller).
-
-## v4.0.2-beta.8
-
-### Changed
-
-- **The helper-marker help now says when the dashes reach the chart file.**
-  Ticking the box shows them in the preview straight away, so you can judge the
-  two distances against your patches — but they are not in the chart file until
-  you press "Generate Chart", and a sheet printed before that comes out without
-  them. The help says so, and notes that "Auto-update preview" does it for you.
-
-## v4.0.2-beta.7
-
-### Fixed
-
-- **Helper markers are now evenly spaced, everywhere.** The dashes were placed
-  at the start and the middle of each patch, which is only even spacing when
-  there are no spacers between patches — with a 1 mm spacer the gaps alternated
-  between 5 mm and 6 mm. They are now one evenly-spaced comb per edge, stepped
-  at half the patch pitch, so every gap is identical and there is still a dash
-  on every patch boundary (reported by soul-traveller).
-
-- **No more doubled dash at the end of a row.** A separate dash marked the end
-  of the last patch, landing one spacer width from the next dash — two marks
-  about a millimetre apart, which read as one marker drawn twice. That special
-  case is gone (reported by soul-traveller).
-
-- **The dashes no longer collide in the corners.** Raising "Distance from page
-  edge" made the dashes coming down the sides run into the ones coming across
-  the top and bottom. Each set now stops short of the other, so the corners stay
-  clear at any distance (reported by soul-traveller).
-
-- **Hexagonal SpectroScan charts grey the marker controls out properly.** The
-  checkbox, both distance boxes and their labels stayed active, because the
-  check asked which instrument the last chart was *built* with rather than which
-  one is selected. It now follows the Create Chart selectors, greys the whole
-  row together, and explains why in the tooltip and the ⓘ (reported by
-  soul-traveller).
-
-### Changed
-
-- **Helper markers now default to 2.0 mm from the page edge and 2.0 mm long**
-  (was 1.0 mm and 3.0 mm), at soul-traveller's request. If you had already
-  changed either distance yourself, your value is kept.
-
-## v4.0.2-beta.6
-
-### Fixed
-
-- **Sounds work again — the audio "warm-up" is now off unless you ask for it.**
-  Waking the audio device with a silent clip before each sound was meant to stop
-  the first one being quiet. On some setups, particularly an external or USB
-  audio device, it stopped every sound instead: during a measurement, on the
-  instrument button, and on the Play buttons in Preferences. ChromIQ no longer
-  touches the audio device before playing, which is exactly how it behaved in
-  4.0.0. If you liked the warm-up, there is a new switch for it in
-  **Preferences → Sounds → "Wake the audio device before playing a sound"**
-  (reported by soul-traveller).
-
-- **The measurement log now says when a sound was deliberately not played.**
-  ChromIQ stays silent on purpose in two situations — when no measurement is
-  running, and when ArgyllCMS's own chartread is driving, because it beeps for
-  itself. Neither was recorded anywhere, so a quiet measurement looked exactly
-  like broken audio. Every sound now writes a line saying it played, or why it
-  did not.
-
-### New
+- **A measurement progress bar in the preview header.** While you measure, the
+  header fills in your accent colour and shows how far through the chart you
+  are, so you can see progress without counting strips. Turn it off in
+  **Preferences → Measurement** if you prefer the plain header.
 
 - **Preferences → Sounds: "Wake the audio device before playing a sound".** Off
   by default. Turn it on if the first sound after a silence is too quiet or
-  seems to start halfway through; turn it off again if your sounds stop.
-
-## v4.0.2-beta.5
+  seems to start halfway through.
 
 ### Fixed
 
-- **Helper markers now actually appear.** Ticking "Show helper markers" did
-  nothing at all: the layout recipe dropped the three marker values on the way
-  from the checkbox to the chart renderer, so no chart was ever built with them
-  — with or without pressing Generate Chart. They are printed now, and the
-  preview draws them as soon as you tick the box, so you can judge where they
-  land without rebuilding the chart each time you nudge a distance (reported by
-  soul-traveller).
+- **Measurement sounds work again.** An attempt to make the first sound louder
+  could stop every sound instead — during a measurement, on the instrument
+  button, and on the Play buttons in Preferences. ChromIQ no longer touches the
+  audio device before playing, and the behaviour that caused it is now the
+  optional setting above.
 
-- **The markers follow the spacers.** Beyond the patch area the dashes
-  continued at half a patch width, which is only the patch rhythm when there are
-  no spacers. With a spacer switched on in Create Chart they drifted away from
-  the patches, and the further from the patch area the worse it got. The fill
-  now steps at the real patch pitch, read back off the layout, so it stays in
-  step with whatever spacer width is set (reported by soul-traveller).
+- **ArgyllCMS's own beeps play again**, alongside ChromIQ's sounds rather than
+  instead of them. They are separate cues: the reader's beep tells you the
+  instrument is ready for you to start, which none of ChromIQ's sounds covers.
 
-- **The "Measured from Preview" panel is tidier.** Its two ⓘ icons sat 28 px
-  apart on different lines and now share one right-hand column; the frame is no
-  longer wider than its widest row (917 px → 829 px); and the two marker
-  distance boxes are down from 142 px to 112 px — the narrowest that still shows
-  "50.0 mm" without cutting the unit off (reported by soul-traveller).
+- **Your Measure settings are saved when you press Start Measurement.** Anything
+  you changed just before measuring — "Skip initial calibration", patch-by-patch,
+  the tolerance, resume — was not being stored, so it reverted afterwards. Every
+  control on that panel is now kept with its own run.
 
-### Changed
+- **"Refine / resume existing measurement" no longer breaks a measurement when
+  there is nothing to resume.** Ticking it on a run whose measurement is missing,
+  empty or damaged made the measurement fail before the first patch. The tick is
+  now honoured only when there really is a measurement behind it.
 
-- The help for **Clip border** and **Text distance from edge** now says what
-  happens when a helper marker crosses them: nothing is hidden or moved
-  automatically, because the dashes have to keep step with the patches, so move
-  whichever one is in the way.
+- **A chart with no measurement no longer claims its measurement belongs to a
+  different chart**, and says plainly that it has not been measured yet.
 
-## v4.0.2-beta.4
+- **"All strips read" waits until every patch really is read**, instead of
+  appearing on a chart that is 97% measured, and the log says how many patches
+  are still missing.
 
-### Fixed
+- **"n" during patch-by-patch reading moves to the next unread patch** instead of
+  stopping on the one you are already on.
 
-- **"All strips read" waits until every patch really is read.** A strip can be
-  accepted while one or two patches inside it were never recorded, and the
-  finished message still appeared — on a chart that was 97.1% measured. The
-  message now waits until nothing is left, and the measurement log says how
-  many patches are still missing (reported by soul-traveller).
+- **The ColorMunki's patch limit and the reading-speed guidance** now match what
+  the instrument and the paper actually allow.
 
-- **A chart with no measurement is no longer said to belong to another chart.**
-  Switching to a run that had never been measured could report that its
-  measurement was made for a different chart — about a file that does not
-  exist. That claim is gone (reported by soul-traveller).
+- **Loading a .ti1 in the patch editor** no longer adds more patches than the
+  file contains.
 
-- **"Skip initial calibration" stays as you set it.** In the Manual module the
-  tick was forgotten as soon as a measurement finished. It is now remembered
-  from the moment you set it. The Guided module deliberately does not offer this
-  option, and does not remember one either (reported by soul-traveller).
-
-- **Pressing "n" moves to the next unread patch.** While measuring patch by
-  patch, "n" is meant to jump to the next patch that has no reading yet. It
-  looked at the patch you were already standing on — which has no reading, being
-  the one you are about to measure — and so stayed where it was (reported by
-  soul-traveller).
-
-- **Refining a measurement shows everything measured so far.** Starting a
-  refinement drew only the patches read in that session, so the gaps you were
-  there to fill were invisible. Every patch already measured is shown from the
-  moment the measurement starts (reported by soul-traveller).
-
-- **Switching the progress bar off in Preferences takes effect at once.**
-  Unticking **Show measurement progress bar** and pressing OK left the bar on
-  screen until the app was restarted (reported by soul-traveller).
-
-## v4.0.2-beta.3
-
-### Fixed
-
-- **A chart you have not measured yet no longer claims to belong to somewhere
-  else.** Switching to a run whose chart had never been measured could bring up
-  "This measurement was made for a different chart" — a statement about a
-  measurement file that does not exist. ChromIQ now says plainly that the chart
-  has not been measured yet, and invites you to measure it (reported by
-  soul-traveller).
-
-- **When a measurement really does belong to another chart, the message says
-  why.** It now tells you how many measured patches the file holds, how many
-  patches the chart on screen has, and that none of them could be paired up —
-  and it points at **Restore Used Chart**, which puts back the exact chart a
-  measurement was taken from. A bare verdict about a chart you printed yourself
-  is impossible to check or act on (reported by soul-traveller).
-
-## v4.0.2-beta.2
-
-The second beta, adding the printed ruler markers.
-
-### New
-
-- **Helper markers for lining up a ruler.** Short dashes can now be printed
-  along all four edges of the sheet, to lay a ruler against while you measure.
-  The dashes along the top and bottom line up with the strips going across the
-  page — the start and the middle of every strip, and the end of the last one —
-  and those down the left and right line up with the patches going down the
-  page in the same way. The rest of each edge is filled at that same spacing,
-  right out to the corners.
-
-  Switch them on with **Show helper markers (visible on print)** in the
-  **Measured from Preview** frame under the Create Chart preview, and set how
-  far in from the paper's edge they sit and how long they are. They are part of
-  the printed chart, so they appear on paper as well as on screen, on every kind
-  of chart — profiling, calibration and verification alike.
-
-  On a ColorMunki chart, where every second strip is offset down the page, the
-  dashes follow the first strip and line up with the shifted strips as well.
-  They are not available for a SpectroScan chart with six-sided patches, where
-  a honeycomb has no straight rows for a ruler to follow; there the controls are
-  greyed out and say why (requested by soul-traveller).
-
-## v4.0.2-beta.1
-
-The first beta of the next version, carrying one new feature for testing.
-
-### New
-
-- **A progress bar while you measure.** The strip just above the chart preview
-  now doubles as a progress bar: **"Progress: 42.5%"** on the left, and a
-  coloured bar filling that strip from left to right as you work through the
-  chart. It uses the Measure tab's own green, so it matches the heading beside
-  it.
-
-  It counts **patches**, not strips, and that is the point of it. If you switch
-  between reading whole strips and reading single patches — to go back and pick
-  up one patch you missed, say — a count of finished strips would quietly tell
-  you the wrong thing. Counting the patches that actually have a reading is true
-  in both ways of working, and re-reading a patch you have already measured does
-  not move the number, because that patch was already counted.
-
-  Opening the Measure tab picks up where you left off, reading the measurement
-  your run already holds, so a chart you started yesterday does not start again
-  from zero. If there is no measurement yet, or the file is one ChromIQ would
-  not trust, no coloured bar is drawn and the percentage simply reads 0.0%.
-
-  You can turn it off with **Show measurement progress bar** in **Preferences ▸
-  Measurement**, below "Warn me if a strip looks misaligned". With it off,
-  neither the percentage nor the bar appears and no patches are counted at all
-  (requested by soul-traveller).
-
+- **A fixed seed reproduces the same chart** when a target is duplicated.
 
 ## v4.0.1
 
