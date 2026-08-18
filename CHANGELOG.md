@@ -1,6 +1,6 @@
 # Changelog
 
-## v4.2.0
+## v4.1.1
 
 ### New
 
@@ -22,6 +22,17 @@
 
   The colours are fixed, but the layout is not: change the paper, the margins or
   anything else and press **Generate Chart** to re-flow the same patches.
+
+### Changed
+
+- **The preset lists now name each instrument group the way the Instrument field
+  does.** The headings in the **Presets** dropdown and in the ★ overlay used
+  short names — "ColorMunki", "i1Pro" — which hid who the charts are for: the
+  i1Pro charts suit an i1Pro 2 and an i1Pro 3 as well. The headings now read
+  **ColorMunki / i1Studio / ColorChecker Studio**, **i1Pro / i1Pro 2 / i1Pro 3**
+  and **i1Pro 3 Plus**, exactly as the Instrument box lists them, and the
+  dropdown shows a proper heading above each group instead of only a dividing
+  line. Chart and folder names are unchanged.
 
 ### Internal
 

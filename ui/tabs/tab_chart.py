@@ -599,6 +599,19 @@ def _sortable_builtin_name(instr_label: str, full_name: str, suffix: str) -> str
     return f"{name}-{tail}" if tail else name
 
 
+# The heading each instrument's presets are grouped under, in the dropdown and
+# the ★ overlay. These are the Instrument selection field's own words
+# (data/patch_db.py INSTRUMENT_LABELS) rather than a second set of names for the
+# same devices — Knut, 2026-08-18: a heading of "i1Pro" hides the fact that those
+# charts suit an i1Pro 2 and an i1Pro 3 as well. Groups that are not a single
+# instrument ("Scanner", "Red River Paper") are absent and keep their own name.
+INSTRUMENT_GROUP_LABELS: dict[str, str] = {
+    "ColorMunki": INSTRUMENT_LABELS["CM"],
+    "i1Pro": INSTRUMENT_LABELS["i1"],
+    "i1Pro 3 Plus": INSTRUMENT_LABELS["p3"],
+}
+
+
 @dataclass(frozen=True)
 class _Ti1Preset:
     """One TC9.18+Spyderprint preset: a printtarg layout over the shared .ti1."""
@@ -644,15 +657,35 @@ class _Ti1Preset:
         return f"__chromiq_knut_{self.slug}__"
 
     @property
-    def display_group(self) -> str:
-        """Group header in the dropdown + overlay — an explicit family group
-        ("Scanner") or, classically, the instrument the chart targets."""
+    def file_group(self) -> str:
+        """The instrument token used in FILE and TARGET names (#68's sortable
+        convention). Short and path-safe on purpose — the heading a user reads
+        may be "ColorMunki / i1Studio / ColorChecker Studio", but a folder called
+        that would carry path separators, and renaming it would orphan every
+        project already on disk."""
         return self.group or ("i1Pro" if self.instrument == _KNUT_I1
                               else "ColorMunki")
 
     @property
+    def display_group(self) -> str:
+        """Group heading in the dropdown + overlay.
+
+        Knut, 2026-08-18: *"The headings shown that groups the various presets
+        for the instruments should follow the same group-naming used in the
+        Instrument selection field … the i1Pro preset actually fits i1Pro 2 and
+        i1Pro 3 too."* So an instrument group is named exactly as the Instrument
+        field names it, and an owner of an i1Pro 2 can see their own device in
+        the heading. Family groups that are not one instrument ("Scanner", a
+        paper vendor) keep their own name."""
+        return INSTRUMENT_GROUP_LABELS.get(self.file_group, self.file_group)
+
+    @property
     def combo_label(self) -> str:
-        return f"★  {self.display_group} · {self.name}  ·  built-in"
+        """The dropdown row. It keeps the SHORT device token, because the group
+        heading above it already spells the instrument out in the Instrument
+        field's words — repeating "ColorMunki / i1Studio / ColorChecker Studio"
+        on all 49 rows would push the chart's own name off the edge."""
+        return f"★  {self.file_group} · {self.name}  ·  built-in"
 
     @property
     def overlay_label(self) -> str:
@@ -660,7 +693,7 @@ class _Ti1Preset:
 
     @property
     def default_target_name(self) -> str:
-        return _sortable_builtin_name(self.display_group, self.name, self.suffix)
+        return _sortable_builtin_name(self.file_group, self.name, self.suffix)
 
 
 def _cm_preset(slug: str, name: str, paper: str, cols: int, rows: int,
@@ -1167,10 +1200,16 @@ KNUT_PRESET_KEYS = frozenset(KNUT_PRESETS_BY_KEY)
 # optional shared ``recipes.json`` keyed by the preset's display name (a legacy
 # fallback; no shipped family relies on it any more).
 def _recipe_display_key(p: "_Ti1Preset") -> str:
-    """The name a preset's recipe is filed under in a shared recipes.json —
-    group label (instrument, or "Scanner" for that family, #107) + the
-    preset's name without its family suffix."""
-    return f"{p.display_group} {p.name.replace(p.suffix, '').strip()}"
+    """The name a preset's recipe is filed under in a shared recipes.json, and
+    shown in the New-chart window's preset list — the SHORT device token (or
+    "Scanner" for that family, #107) plus the preset's name without its family
+    suffix.
+
+    It stays short deliberately. This string is an identity, not a heading: a
+    user preset of the same name is dropped as a duplicate of the built-in, so
+    widening it to the Instrument field's full wording would orphan every custom
+    preset already saved under the old name."""
+    return f"{p.file_group} {p.name.replace(p.suffix, '').strip()}"
 
 
 def _load_shared_wg_recipes() -> dict:
@@ -1250,19 +1289,25 @@ BUILTIN_PRESET_LABELS = frozenset({
 # the same paper keep their registry order (e.g. 2-page before 3-page).
 _KNUT_GROUP_ENTRIES = {
     grp: [(p.combo_label, p.overlay_label, p.key)
-          for p in sorted((q for q in KNUT_PRESETS if q.display_group == grp),
+          for p in sorted((q for q in KNUT_PRESETS if q.file_group == grp),
                           key=lambda q: _paper_sort_key(q.paper))]
     for grp in ("ColorMunki", "i1Pro", _P3_GROUP, "Scanner", "Red River Paper")
 }
+
+
+def _group_heading(group: str) -> str:
+    """The heading shown for a group — the Instrument field's own name for that
+    device, or the family's own name when the group is not one instrument."""
+    return INSTRUMENT_GROUP_LABELS.get(group, group)
 BUILTIN_PRESET_GROUPS: list[tuple[str, list[tuple[str, str, str]]]] = [
-    ("ColorMunki", [
+    (_group_heading("ColorMunki"), [
         (TC300_PRESET_LABEL,   "A4-300p-1page TC3.00 by Pharmacist",          TC300_PRESET_KEY),
         (ABW702_PRESET_LABEL,  "A4-702p-2pages ABW-optimized by Pharmacist",   ABW702_PRESET_KEY),
         (TC924_CM_A3_PRESET_LABEL, "A3-924p-1page TC9.24 by Pharmacist",       TC924_CM_A3_PRESET_KEY),
         (TC918EG_CM_A3_PRESET_LABEL, "A3+-1160p-1page TC9.18 extended greys by Pharmacist", TC918EG_CM_A3_PRESET_KEY),
         *_KNUT_GROUP_ENTRIES["ColorMunki"],
     ]),
-    ("i1Pro", [
+    (_group_heading("i1Pro"), [
         # A4 first (ascending patch count), then US-Letter — keep paper grouped.
         (TC924_PRESET_LABEL,   "A4-924p-2pages TC9.24 by Pharmacist",          TC924_PRESET_KEY),
         (ABW1110_PRESET_LABEL, "A4-1110p-2pages ABW-optimized by Pharmacist",  ABW1110_PRESET_KEY),
@@ -1275,17 +1320,17 @@ BUILTIN_PRESET_GROUPS: list[tuple[str, list[tuple[str, str, str]]]] = [
     # i1Pro 3 Plus family (Knut, 2026-08-18): its own group, not folded into
     # i1Pro — these layouts are cut for the 3 Plus, and the layout panel calls
     # that instrument "i1Pro 3 Plus" too.
-    (_P3_GROUP, [
+    (_group_heading(_P3_GROUP), [
         *_KNUT_GROUP_ENTRIES[_P3_GROUP],
     ]),
     # Scanner family (#100): engine-built charts for flatbed-scanner printer
     # profiling — its own group, since no spectrophotometer is involved.
-    ("Scanner", [
+    (_group_heading("Scanner"), [
         *_KNUT_GROUP_ENTRIES["Scanner"],
     ]),
     # Vendor family: Red River Paper's shared verification patch set, four ready
     # starting points (its own group so it reads as a partner section).
-    ("Red River Paper", [
+    (_group_heading("Red River Paper"), [
         *_KNUT_GROUP_ENTRIES["Red River Paper"],
     ]),
 ]
@@ -6043,6 +6088,22 @@ class TabChart(QWidget):
         data = self._preset_combo.itemData(index)
         return data is not None and data not in BUILTIN_PRESET_KEYS
 
+    def _add_builtin_group_heading(self, heading: str) -> None:
+        """A non-selectable heading row naming the instrument a group is for.
+
+        Selecting it must do nothing, so it is disabled in the model the same
+        way a parked built-in is; it carries no key, so nothing can dispatch on
+        it even if a future change re-enables selection.
+        """
+        self._preset_combo.addItem(heading, userData=None)
+        i = self._preset_combo.count() - 1
+        font = self._preset_combo.font()
+        font.setBold(True)
+        self._preset_combo.setItemData(i, font, Qt.ItemDataRole.FontRole)
+        item = self._preset_combo.model().item(i)
+        if item is not None:
+            item.setEnabled(False)
+
     def _add_builtin_preset_item(
         self, label: str, key: str, tooltip: str, *, disabled: bool = False
     ) -> None:
@@ -6144,6 +6205,11 @@ class TabChart(QWidget):
         for instr, label, key, tip in builtins:
             if instr != prev_instr:
                 self._preset_combo.insertSeparator(self._preset_combo.count())
+                # A real heading, in the Instrument field's own words (Knut,
+                # 2026-08-18): the overlay has always shown one, the dropdown
+                # only had a separator, so "i1Pro" had to be inferred from the
+                # rows — and it never said that those charts suit an i1Pro 2 or 3.
+                self._add_builtin_group_heading(instr)
                 prev_instr = instr
             self._add_builtin_preset_item(
                 label, key, tip, disabled=key in DISABLED_BUILTIN_PRESET_KEYS

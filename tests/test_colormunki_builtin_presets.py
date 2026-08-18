@@ -25,6 +25,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 pytest.importorskip("PyQt6")
 
 from core.resource_path import resource_path  # noqa: E402
+from data.patch_db import INSTRUMENT_LABELS  # noqa: E402
 from ui.tabs.tab_chart import (  # noqa: E402
     _CM_BASE, _CM_CLIP_TEXT, _CM_CLIP_TEXT_HAND_HELD,
     BUILTIN_PRESET_GROUPS, BUILTIN_PRESET_KEYS, BUILTIN_PRESET_LABELS,
@@ -49,13 +50,16 @@ def test_forty_five_charts_registered():
     assert len(CM) == 45
     assert len({p.slug for p in CM}) == 45           # slugs are the identity
     assert len({p.name for p in CM}) == 45
-    assert all(p.display_group == "ColorMunki" for p in CM)
+    # The heading follows the Instrument selection field (Knut, 2026-08-18);
+    # the short token that names files and folders does not.
+    assert all(p.file_group == "ColorMunki" for p in CM)
+    assert all(p.display_group == INSTRUMENT_LABELS["CM"] for p in CM)
     assert all(p.key in BUILTIN_PRESET_KEYS for p in CM)
     assert all(p.combo_label in BUILTIN_PRESET_LABELS for p in CM)
 
 
 def test_every_chart_reaches_the_dropdown_and_the_overlay():
-    entries = dict(BUILTIN_PRESET_GROUPS)["ColorMunki"]
+    entries = dict(BUILTIN_PRESET_GROUPS)[INSTRUMENT_LABELS["CM"]]
     keys = [k for (_combo, _overlay, k) in entries]
     for p in CM:
         assert p.key in keys, f"{p.slug} is registered but never offered"
@@ -64,7 +68,7 @@ def test_every_chart_reaches_the_dropdown_and_the_overlay():
 def test_shown_smallest_sheet_first_then_by_patch_count():
     # The dropdown and the built-in overlay read the same list, so this order is
     # what the user sees in both.
-    entries = dict(BUILTIN_PRESET_GROUPS)["ColorMunki"]
+    entries = dict(BUILTIN_PRESET_GROUPS)[INSTRUMENT_LABELS["CM"]]
     by_key = {p.key: p for p in CM}
     ours = [by_key[k] for (_c, _o, k) in entries if k in by_key]
     assert len(ours) == 45

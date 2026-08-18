@@ -30,6 +30,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 pytest.importorskip("PyQt6")
 
 from core.resource_path import resource_path  # noqa: E402
+from data.patch_db import INSTRUMENT_LABELS  # noqa: E402
 from ui.tabs.tab_chart import (  # noqa: E402
     _P3_BASE, _P3_GROUP,
     BUILTIN_PRESET_GROUPS, BUILTIN_PRESET_KEYS, BUILTIN_PRESET_LABELS,
@@ -62,12 +63,13 @@ def test_the_family_has_its_own_group_and_never_joins_the_i1pro_one():
     """An i1Pro 1/2 owner must not be handed a layout cut for the 3 Plus, so the
     group is explicit rather than derived from the instrument."""
     assert all(p.display_group == _P3_GROUP for p in P3)
-    assert _P3_GROUP == "i1Pro 3 Plus"               # what the layout panel calls it
+    # The heading is the Instrument selection field's own name for the device.
+    assert _P3_GROUP == INSTRUMENT_LABELS["p3"] == "i1Pro 3 Plus"
     groups = dict(BUILTIN_PRESET_GROUPS)
     assert _P3_GROUP in groups
     own = {k for (_c, _o, k) in groups[_P3_GROUP]}
     assert {p.key for p in P3} == own
-    i1_keys = {k for (_c, _o, k) in groups["i1Pro"]}
+    i1_keys = {k for (_c, _o, k) in groups[INSTRUMENT_LABELS["i1"]]}
     assert not (own & i1_keys)
 
 
