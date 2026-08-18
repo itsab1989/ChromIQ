@@ -224,10 +224,12 @@ def test_builtin_fulllayout_recipes_appear_starred(qapp):
     d = _NewChartDialog(Path("/x"), _FakeSettings())
     starred = [n for n in d._preset_recipes if n.startswith("★")]
     # Every built-in that ships a sidecar recipe.json: the five remaining
-    # Full-layout-setup charts (#63), the six Scanner charts (#107, #108, #118)
-    # and Knut's 45 ColorMunki charts (2026-08-16).
-    assert len(starred) == 5 + 6 + 45
+    # Full-layout-setup charts (#63), the six Scanner charts (#107, #108, #118),
+    # Knut's 45 ColorMunki charts (2026-08-16) and his 24 i1Pro 3 Plus charts
+    # (2026-08-18).
+    assert len(starred) == 5 + 6 + 45 + 24
     assert sum(1 for n in starred if n.startswith("★ ColorMunki")) == 45
+    assert sum(1 for n in starred if n.startswith("★ i1Pro 3 Plus")) == 24
     assert sum(1 for n in starred if "Scanner" in n) == 6
     assert any("A4-924p" in n for n in starred)
 

@@ -1,5 +1,37 @@
 # Changelog
 
+## v4.2.0
+
+### New
+
+- **A set of 24 built-in charts for the i1Pro 3 Plus**, made and measured on
+  paper by soul-traveller — the same treatment his ColorMunki charts had, for
+  the other instrument. There is a size for every job: 84 patches on one sheet
+  up to 2,016 across six A3 sheets, on A4, US Letter and A3.
+
+  Pick one under **Create Chart → Manual → Presets**, or from the magenta list
+  button next to the GUIDED / MANUAL switch, where they have their own
+  **i1Pro 3 Plus** section. They are kept apart from the i1Pro charts on
+  purpose: these layouts are cut for the 3 Plus.
+
+  Every chart leaves a 40 mm run-in at the top so the instrument clears the
+  first patch, 20 mm of white paper at the bottom to finish a strip on, and a
+  28 mm band down the left for the instrument to run up before it reaches the
+  first patch — the chart's details are printed in that band for you. Patches
+  are 16 mm wide, except the two 84-patch quick charts, which use 25 mm.
+
+  The colours are fixed, but the layout is not: change the paper, the margins or
+  anything else and press **Generate Chart** to re-flow the same patches.
+
+### Internal
+
+- The importer that stages Knut's exported charts is now family-driven
+  (`scripts/import_knut_presets.py <family> <folder>`), so a future line-up is a
+  table entry rather than a second script. It still rejects any export that
+  differs from its family's shared recipe outside the fields one chart may own,
+  and re-points the colour-set recipe at the chart it actually built — which all
+  24 of these needed.
+
 ## v4.1.0
 
 Everything reported against 4.0.0 and 4.0.1 by soul-traveller is fixed — verified

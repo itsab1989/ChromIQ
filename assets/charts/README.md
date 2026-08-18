@@ -73,10 +73,16 @@ files) and wire the preset in `ui/tabs/tab_chart.py` — see
 `docs/dev_builtin_presets.md` for the full recipe. Source charts in this batch
 came from Pharmacist.
 
-Another chart for Knut's ColorMunki family is a one-liner: drop his exported
-`<name>.ti1` + `<name>.json` pair in a folder and run
-`python scripts/import_colormunki_presets.py <folder> --write`. It validates the
-export against the family's shared recipe, stages the assets, and prints the
-registry row to paste. An export that differs from the shared recipe anywhere
-except its paper, its grid, its left margin and its clip text is **rejected**,
-not quietly folded in.
+Another chart for one of Knut's shared-recipe families is a one-liner: drop his
+exported `<name>.ti1` + `<name>.json` pair in a folder and run
+`python scripts/import_knut_presets.py <family> <folder> --write`, naming the
+family first — `cm` for the ColorMunki charts
+(`knut/rgb/colormunki/`, 45 of them), `p3` for the i1Pro 3 Plus charts
+(`knut/rgb/i1pro3/`, 24). It validates the export against that family's shared
+recipe, stages the assets, and prints the registry row to paste.
+
+An export that differs from the shared recipe outside the fields its family lets
+a single chart own is **rejected**, not quietly folded in — paper, grid, left
+margin and clip text for the ColorMunki family; paper and grid alone for the
+i1Pro 3 Plus one, which shares its margins and shows the automatic notes box in
+the clip border. A third family is a `FAMILIES` entry in that script.

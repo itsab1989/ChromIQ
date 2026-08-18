@@ -86,14 +86,16 @@ def test_registry_shape():
     # The five i1Pro "Full layout setup" presets (#63; the 17 shared-.ti1
     # "TC9.18+Spyderprint Grays" ones went in #89, and the ten ColorMunki ones
     # were replaced by Knut's 2026-08-16 ColorMunki family — see
-    # test_colormunki_builtin_presets.py), his 45 ColorMunki charts, the six
-    # engine-built Scanner charts (#100, #108, #118), and the six Red River
+    # test_colormunki_builtin_presets.py), his 45 ColorMunki charts, his 24
+    # i1Pro 3 Plus charts (2026-08-18 — see test_i1pro3_builtin_presets.py), the
+    # six engine-built Scanner charts (#100, #108, #118), and the six Red River
     # Paper vendor variants (one shared 2052-patch .ti1: i1Pro A4/Letter, and
     # ColorMunki A4/Letter in both a compact 8-page and a ruler-size 10-page cut).
-    assert len(KNUT_PRESETS) == 62
-    assert len(KNUT_PRESET_KEYS) == 62  # all keys unique
+    assert len(KNUT_PRESETS) == 86
+    assert len(KNUT_PRESET_KEYS) == 86  # all keys unique
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("fls_")) == 5
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("cm_")) == 45
+    assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("p3_")) == 24
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("scanner_")) == 6
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("redriver_")) == 6
     assert KNUT_PRESET_KEYS <= BUILTIN_PRESET_KEYS

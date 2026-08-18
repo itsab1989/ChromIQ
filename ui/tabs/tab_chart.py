@@ -416,7 +416,7 @@ _REDRIVER_RECIPE_CM: dict = {
 #
 # Every chart shares the recipe below and sets only its paper, its columns × rows
 # grid and — for the three big-patch "Hand Held" charts — a narrower left margin
-# and a matching clip-border note. scripts/import_colormunki_presets.py enforces
+# and a matching clip-border note. scripts/import_knut_presets.py enforces
 # that: an export that differs anywhere else is rejected rather than imported.
 _CM_DIR = "assets/charts/knut/rgb/colormunki"
 
@@ -496,6 +496,75 @@ _CM_BASE: dict = {
     "clip_image_rotation": 0, "clip_image_scale": 100.0,
     "clip_image_offset_x_mm": 0.0, "clip_image_offset_y_mm": 0.0,
     "clip_flip_180": True,
+}
+
+
+# --- i1Pro 3 Plus family (Knut, 2026-08-18) --------------------------------
+# The same idea as the ColorMunki line-up above, for the i1Pro 3 Plus: one
+# colour set per size, laid out by the ChromIQ engine, so a user picks a chart
+# by how many patches they want and how many sheets they will print.
+#
+# It is a TIGHTER family than the ColorMunki one. Every chart shares all four
+# margins, and the clip border shows the automatic notes box rather than an
+# authored note, so a single chart owns only its sheet and its grid. The
+# importer enforces exactly that: an export differing anywhere else is rejected.
+#
+# The reading aids differ from the ColorMunki family because the instrument
+# does: the i1Pro 3 Plus reads a strip in one pass along its own ruler, so the
+# clip band is a wide 28 mm run-up on the LEFT for the ruler to sit against, and
+# the patches are 16 mm wide (25 mm on the two 84-patch charts).
+# The dropdown / overlay group. It matches the instrument name the layout panel
+# shows ("i1Pro 3 Plus"), so the same device is called the same thing everywhere.
+_P3_GROUP = "i1Pro 3 Plus"
+_P3_DIR = "assets/charts/knut/rgb/i1pro3"
+
+# Everything the whole family agrees on. Only paper, area_cols and area_rows are
+# per chart — see _p3_preset below.
+_P3_BASE: dict = {
+    # device + patch grid
+    "instrument": "p3", "cm_density": 1, "cm_stagger": False, "hflag": False,
+    "dpi": 200, "bit16": False, "compression": "lzw", "export_pdf": False,
+    # layout — "area first" by grid, exactly as the ColorMunki family: the
+    # margins are law and the columns × rows decide the patch size, so moving a
+    # chart from A4 to Letter or A3 is a change of paper alone.
+    "layout_mode": "area_first", "area_method": "by_grid", "area_ratio": 1.0,
+    "area_min_patch_mm": 0.0, "patch_w_mm": 0.0, "patch_h_mm": 0.0,
+    "patch_area_align": "center-left", "pscale": 1.0, "sscale": 1.0,
+    "border": 6.0, "nolimit": True,
+    # margins — the 40 mm top keeps the instrument's own body off the patches
+    # at the start of a strip, the 20 mm bottom leaves white paper to finish on.
+    "use_instrument_margins": False, "margin_top": 40.0,
+    "margin_right": 10.0, "margin_bottom": 20.0, "margin_left": 28.0,
+    # spacers
+    "spacer_on": True, "spacer_mode": "colored", "spacer_palette": [],
+    "spacer_overrides": {}, "edge_spacers": True, "spacer_width_mm": 1.2,
+    "inter_patch_mm": 0.0, "strip_gap_mm": 0.0, "max_strip_mm": 0.0,
+    "strip_indicator_gap_mm": 0.0, "offset_x_mm": 0.0, "offset_y_mm": 0.0,
+    # patch order
+    "randomize": True, "seed": None, "strip_pattern": "A-Z, A-Z",
+    "patch_pattern": "0-9,@-9,@-9;1-999",
+    # strip indicators
+    "show_strip_indicators": True, "indicator_font": "JetBrains Mono",
+    "indicator_size_mm": 0.0, "indicator_bold": False,
+    "indicator_italic": False, "indicator_rotation": 0,
+    "indicator_align": "left", "strip_label_offset_mm": 0.0,
+    "underline_mode": "off", "underline_thickness_mm": 0.5,
+    "underline_gap_mm": 0.5,
+    # helper markers + page text
+    "helper_markers": True, "helper_marker_edge_mm": 2.0,
+    "helper_marker_len_mm": 1.0, "text_edge_mm": 4.0,
+    "text_edge_top_mm": 6.0, "text_edge_clip_mm": 4.0, "chart_text": "",
+    "chart_text_font": "Inter", "chart_text_size_mm": 0.0,
+    "chart_text_bold": False, "chart_text_italic": False,
+    "stamp_command": False,
+    # clip border — a 28 mm run-up band on the left, upright (the sheet is read
+    # the way it is printed), carrying the automatic notes box rather than text.
+    "clip_border": True, "clip_border_width_mm": 28.0, "clip_side": "left",
+    "clip_content_mode": "notes", "clip_text": "", "clip_text_font": "Inter",
+    "clip_text_size_mm": 4.23, "clip_image_path": "",
+    "clip_image_rotation": 0, "clip_image_scale": 100.0,
+    "clip_image_offset_x_mm": 0.0, "clip_image_offset_y_mm": 0.0,
+    "clip_flip_180": False,
 }
 
 
@@ -617,6 +686,33 @@ def _cm_preset(slug: str, name: str, paper: str, cols: int, rows: int,
         layout_recipe=dict(_CM_BASE, paper=paper, area_cols=cols,
                            area_rows=rows, margin_left=margin_left,
                            clip_text=clip_text),
+    )
+
+
+def _p3_preset(slug: str, name: str, paper: str, cols: int, rows: int,
+               patches: int, pages: int, white: int, black: int) -> "_Ti1Preset":
+    """One chart of Knut's i1Pro 3 Plus family (see _P3_BASE above).
+
+    Only the sheet and the grid are this chart's own — every other field comes
+    from the shared base, so a reviewer can see that two charts of this family
+    differ in nothing else. ``white`` / ``black`` are the counts the bundled
+    .ti1 declares; they only make the (greyed) targen panel describe what was
+    loaded, since the .ti1 is the real patch set.
+
+    The group is named explicitly: the layout is cut for the i1Pro 3 Plus, and
+    handing it to an i1Pro 1/2 owner as an "i1Pro" chart would be wrong.
+    """
+    return _Ti1Preset(
+        slug, name, "p3", paper,
+        1.0,        # printtarg -a: unused, the engine lays this family out
+        6,          # printtarg -m: likewise unused (margins live in the recipe)
+        pages,
+        ti1_asset=f"{_P3_DIR}/{slug}/chart.ti1",
+        patches=patches, white=white, black=black,
+        tiff_16bit=False, suffix="",
+        group=_P3_GROUP,
+        layout_recipe=dict(_P3_BASE, paper=paper, area_cols=cols,
+                           area_rows=rows),
     )
 
 
@@ -977,6 +1073,85 @@ KNUT_PRESETS: list[_Ti1Preset] = [
                layout_recipe=dict(_REDRIVER_RECIPE_CM, paper="Letter", area_rows=16,
                                   margin_top=26.0, margin_left=20.0,
                                   clip_border_width_mm=20.0)),
+
+    # --- i1Pro 3 Plus family (Knut, 2026-08-18) ---------------------------
+    # His whole i1Pro 3 Plus line-up: one colour set per size, from a single
+    # sheet of 84 big patches to 2,016 on six A3 sheets. See _P3_BASE above for
+    # the shared recipe — a chart here owns only its paper and its grid.
+    # Ordered smallest sheet first, then by patch count, which is the order the
+    # dropdown and the built-in overlay show.
+    _p3_preset("p3_a4_84p_1page_portrait_w25_0mm",
+               "A4-84p-1page-Portrait-w25.0mm",
+               "A4", 7, 12, 84, 1, 1, 1),
+    _p3_preset("p3_a4_154p_1page_portrait_w16_0mm",
+               "A4-154p-1page-Portrait-w16.0mm",
+               "A4", 11, 14, 154, 1, 1, 1),
+    _p3_preset("p3_a4_308p_2pages_portrait_w16_0mm",
+               "A4-308p-2pages-Portrait-w16.0mm",
+               "A4", 11, 14, 308, 2, 1, 1),
+    _p3_preset("p3_a4_462p_3pages_portrait_w16_0mm",
+               "A4-462p-3pages-Portrait-w16.0mm",
+               "A4", 11, 14, 462, 3, 1, 1),
+    _p3_preset("p3_a4_616p_4pages_portrait_w16_0mm",
+               "A4-616p-4pages-Portrait-w16.0mm",
+               "A4", 11, 14, 616, 4, 1, 1),
+    _p3_preset("p3_a4_924p_6pages_portrait_w16_0mm",
+               "A4-924p-6pages-Portrait-w16.0mm",
+               "A4", 11, 14, 924, 6, 3, 3),
+    _p3_preset("p3_a4_1232p_8pages_portrait_w16_0mm",
+               "A4-1232p-8pages-Portrait-w16.0mm",
+               "A4", 11, 14, 1232, 8, 1, 1),
+    _p3_preset("p3_a4_1540p_10pages_portrait_w16_0mm",
+               "A4-1540p-10pages-Portrait-w16.0mm",
+               "A4", 11, 14, 1540, 10, 2, 2),
+    _p3_preset("p3_a4_2002p_13pages_portrait_w16_0mm",
+               "A4-2002p-13pages-Portrait-w16.0mm",
+               "A4", 11, 14, 2002, 13, 2, 2),
+    _p3_preset("p3_letter_84p_1page_portrait_w25_0mm",
+               "Letter-84p-1page-Portrait-w25.0mm",
+               "Letter", 7, 12, 84, 1, 1, 1),
+    _p3_preset("p3_letter_143p_1page_portrait_w16_0mm",
+               "Letter-143p-1page-Portrait-w16.0mm",
+               "Letter", 11, 13, 143, 1, 1, 1),
+    _p3_preset("p3_letter_286p_2pages_portrait_w16_0mm",
+               "Letter-286p-2pages-Portrait-w16.0mm",
+               "Letter", 11, 13, 286, 2, 1, 1),
+    _p3_preset("p3_letter_429p_3pages_portrait_w16_0mm",
+               "Letter-429p-3pages-Portrait-w16.0mm",
+               "Letter", 11, 13, 429, 3, 1, 1),
+    _p3_preset("p3_letter_572p_4pages_portrait_w16_0mm",
+               "Letter-572p-4pages-Portrait-w16.0mm",
+               "Letter", 11, 13, 572, 4, 1, 1),
+    _p3_preset("p3_letter_858p_6pages_portrait_w16_0mm",
+               "Letter-858p-6pages-Portrait-w16.0mm",
+               "Letter", 11, 13, 858, 6, 3, 3),
+    _p3_preset("p3_letter_1144p_8pages_portrait_w16_0mm",
+               "Letter-1144p-8pages-Portrait-w16.0mm",
+               "Letter", 11, 13, 1144, 8, 1, 1),
+    _p3_preset("p3_letter_1430p_10pages_portrait_w16_0mm",
+               "Letter-1430p-10pages-Portrait-w16.0mm",
+               "Letter", 11, 13, 1430, 10, 2, 2),
+    _p3_preset("p3_letter_2002p_14pages_portrait_w16_0mm",
+               "Letter-2002p-14pages-Portrait-w16.0mm",
+               "Letter", 11, 13, 2002, 14, 2, 2),
+    _p3_preset("p3_a3_336p_1page_portrait_w16_0mm",
+               "A3-336p-1page-Portrait-w16.0mm",
+               "A3", 16, 21, 336, 1, 1, 1),
+    _p3_preset("p3_a3_672p_2pages_portrait_w16_0mm",
+               "A3-672p-2pages-Portrait-w16.0mm",
+               "A3", 16, 21, 672, 2, 1, 1),
+    _p3_preset("p3_a3_1008p_3pages_portrait_w16_0mm",
+               "A3-1008p-3pages-Portrait-w16.0mm",
+               "A3", 16, 21, 1008, 3, 1, 1),
+    _p3_preset("p3_a3_1344p_4pages_portrait_w16_0mm",
+               "A3-1344p-4pages-Portrait-w16.0mm",
+               "A3", 16, 21, 1344, 4, 2, 2),
+    _p3_preset("p3_a3_1680p_5pages_portrait_w16_0mm",
+               "A3-1680p-5pages-Portrait-w16.0mm",
+               "A3", 16, 21, 1680, 5, 2, 2),
+    _p3_preset("p3_a3_2016p_6pages_portrait_w16_0mm",
+               "A3-2016p-6pages-Portrait-w16.0mm",
+               "A3", 16, 21, 2016, 6, 2, 2),
 ]
 KNUT_PRESETS_BY_KEY: dict[str, _Ti1Preset] = {p.key: p for p in KNUT_PRESETS}
 KNUT_PRESET_KEYS = frozenset(KNUT_PRESETS_BY_KEY)
@@ -1077,7 +1252,7 @@ _KNUT_GROUP_ENTRIES = {
     grp: [(p.combo_label, p.overlay_label, p.key)
           for p in sorted((q for q in KNUT_PRESETS if q.display_group == grp),
                           key=lambda q: _paper_sort_key(q.paper))]
-    for grp in ("ColorMunki", "i1Pro", "Scanner", "Red River Paper")
+    for grp in ("ColorMunki", "i1Pro", _P3_GROUP, "Scanner", "Red River Paper")
 }
 BUILTIN_PRESET_GROUPS: list[tuple[str, list[tuple[str, str, str]]]] = [
     ("ColorMunki", [
@@ -1096,6 +1271,12 @@ BUILTIN_PRESET_GROUPS: list[tuple[str, list[tuple[str, str, str]]]] = [
         (TC918EG_LETTER_PRESET_LABEL, "Letter-1160p-2pages TC9.18 extended greys by Pharmacist", TC918EG_LETTER_PRESET_KEY),
         (EXT1944_LETTER_PRESET_LABEL, "Letter-1944p-3pages extended target by Pharmacist", EXT1944_LETTER_PRESET_KEY),
         *_KNUT_GROUP_ENTRIES["i1Pro"],
+    ]),
+    # i1Pro 3 Plus family (Knut, 2026-08-18): its own group, not folded into
+    # i1Pro — these layouts are cut for the 3 Plus, and the layout panel calls
+    # that instrument "i1Pro 3 Plus" too.
+    (_P3_GROUP, [
+        *_KNUT_GROUP_ENTRIES[_P3_GROUP],
     ]),
     # Scanner family (#100): engine-built charts for flatbed-scanner printer
     # profiling — its own group, since no spectrophotometer is involved.
@@ -6024,7 +6205,11 @@ class TabChart(QWidget):
             # Describe what the user gets on paper: sheet, pages, and the grid
             # that decides how big each patch is.
             rec = p.layout_recipe
-            instr = _MARGIN_INSTR_LABEL.get(p.instrument, p.instrument)
+            # An explicit family group already names the device the way the rest
+            # of the UI does ("i1Pro 3 Plus"); fall back to the margin-table
+            # label, whose keys are stored settings and must not be renamed.
+            instr = (p.group
+                     or _MARGIN_INSTR_LABEL.get(p.instrument, p.instrument))
             grid = ""
             if rec.get("area_cols") and rec.get("area_rows"):
                 grid = (f"\n{rec['area_cols']} patches across × "
@@ -6034,6 +6219,13 @@ class TabChart(QWidget):
             if rec.get("helper_markers"):
                 ruler = ("\nThe small helper marks along the edges let you line "
                          "a ruler up with the strip\nyou are reading.")
+            # This family prints a wide empty band down one side — the run-up the
+            # instrument needs before it reaches the first patch. Say so, or it
+            # reads as wasted paper.
+            if rec.get("clip_border") and rec.get("clip_content_mode") == "notes":
+                ruler += ("\nThe wide white band down the side is the run-up your "
+                          "instrument needs before\nthe first patch; the chart's "
+                          "details are printed in it.")
             return (
                 "Built-in chart — cannot be deleted.\n"
                 f"A ready-made {p.patches}-patch target for the {instr} on "

@@ -345,7 +345,7 @@ Assets live at `assets/charts/knut/rgb/colormunki/<slug>/chart.ti1` with the
 usual `recipe.json` sidecar. **Adding or replacing charts is scripted:**
 
 ```bash
-python scripts/import_colormunki_presets.py <folder-of-exports> --write
+python scripts/import_knut_presets.py cm <folder-of-exports> --write
 ```
 
 It reads Knut's `<name>.ti1` + `<name>.json` export pairs, stages the assets and
@@ -372,6 +372,59 @@ the everyday tier and **all 45** under `--runslow`, checking each lands on the
 page count its name promises. A count that doesn't fill the last strip is padded
 out with white by the engine (e.g. 1623 → 1632 across 8 sheets) — ordinary
 behaviour, so the test asserts a range, not equality.
+
+### The i1Pro 3 Plus family (Knut, 2026-08-18) — 24 charts
+
+His i1Pro 3 Plus line-up, added the same way the ColorMunki one was and worth
+reading beside it: one colour set per size, from a single sheet of 84 big
+patches up to 2,016 patches across six A3 sheets, on A4, US Letter and A3.
+
+**It is deliberately its own group.** The dropdown and the ★ overlay show
+"i1Pro 3 Plus", the name the layout panel uses for the instrument — these
+layouts are cut for that device, and offering them to an i1Pro 1/2 owner under
+"i1Pro" would hand them a chart their instrument cannot read comfortably.
+
+What the family is for, in the numbers Knut measured: a **40 mm** top margin so
+the instrument body clears the first patch at the start of a strip, **20 mm** at
+the bottom so there is white paper to finish a read on, and a **28 mm** clip
+band down the **left** — the run-up the instrument needs before it reaches the
+first patch. The band carries the automatic **notes** box (chart details printed
+for you), not an authored note, which is the visible difference from the
+ColorMunki family's clip text. Patches are **16 mm** wide, except the two
+84-patch quick charts at **25 mm**.
+
+Structurally it is kind 3 (ti1 → layout engine) with the shared-recipe pattern:
+`_P3_BASE` holds everything the 24 charts agree on and `_p3_preset()` builds a
+row from the three fields that differ — paper, `area_cols`, `area_rows`. It is
+**tighter than the ColorMunki family**, which also lets a chart own its
+`margin_left` and `clip_text`; here nothing else may move, so a row carries no
+keyword arguments at all:
+
+```python
+_p3_preset("p3_a4_154p_1page_portrait_w16_0mm",
+           "A4-154p-1page-Portrait-w16.0mm",
+           "A4", 11, 14, 154, 1, 1, 1),
+```
+
+Assets live at `assets/charts/knut/rgb/i1pro3/<slug>/chart.ti1` with the usual
+`recipe.json` sidecar, staged by the same script with the family named first:
+
+```bash
+python scripts/import_knut_presets.py p3 <folder-of-exports> --write
+```
+
+The importer is family-driven (`FAMILIES` at the top of the script): a family is
+a table entry giving the name prefix, the asset folder, the instrument code and
+the set of fields one chart may own. Adding a third line-up is an entry, not a
+new script. All 24 of Knut's exports needed their Set B re-pointed — every one
+carried `instr: "CM"` from the ColorMunki work, and one pointed at a 483×329
+sheet.
+
+`tests/test_i1pro3_builtin_presets.py` builds **every one of the 24** in the
+everyday tier (five seconds for the family, so no `--runslow` split is needed)
+and checks each lands on the page count its name promises, holds its patch set
+with **no white padding**, and prints patches within 0.5 mm of the width in its
+name.
 
 ### Rename or re-file an existing preset
 
