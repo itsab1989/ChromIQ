@@ -230,6 +230,25 @@ adding a real `instType` *enum value* would, and is avoidable.
 When the CR30 is implemented, the first test in that file is the one that must
 change, deliberately and visibly.
 
+## Sizing: the two parts that look easy, are
+
+**The fork's instrument name** — one guarded block in
+`chromiq_chartread.c:3626-3634`, our own file, ~10 lines. `:968-970` shows a
+chart/instrument mismatch is already only a warning, and the `.ti3` is stamped
+with the instrument that *read* it (`atype`), not the chart's target. Real cost
+is rebuilding and shipping the native helper on three platforms.
+
+**The layout entry** — the i1Pro block in `instruments.py` is already written as
+aperture → patch size (i1 = 5 mm aperture → `pwid 8.0`; p3 = 8 mm → `pwid 16.0`),
+so a CR30 is a third branch. **The unknown aperture blocks the values, not the
+design.** Nine registration points (`presets.py:24`, `instruments.py:30/139/461`,
+`chart.py:265`, `layout_options_panel.py:74/2350`, `patch_db.py:180`,
+`ti2_loader.py:33`), all one-liners bar the geometry block. No patch-capacity
+data needed — an unknown combination falls back to the binary search in
+`chart_creator.py`, as DTP41 already does.
+
+The work is P2-P4: the backend, the `.ti3`, the spot-grid UI, the error paths.
+
 ## Plan, if it goes ahead
 
 - **P1** Decide the identity: the instrument code, the `TARGET_INSTRUMENT`
