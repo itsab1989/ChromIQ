@@ -77,16 +77,41 @@ the path for every supported instrument.
 
 ## Where it breaks — the gaps that decide whether this ships
 
-**G1. 400–700 nm is not enough spectrum, and ChromIQ already depends on the
-rest.** Argyll's instruments give 380–730 nm (`tests/test_ti2_loader.py:206`
-pins `SPECTRAL_BANDS "36"`, `SPECTRAL_START_NM "380.0"`). ChromIQ *uses* that:
-`workflow/engine_builder.py:133` turns on FWA compensation through Argyll's
-`spec2cie`, and `data/parameters.yaml:1470` offers `D50M2 (D50 + UV filter)`.
-FWA needs the near-UV the CR30 cannot see. **Most inkjet papers contain optical
-brighteners**, so paper white — the anchor of the whole profile — is exactly
-where this device is weakest, and the correction for it is unavailable.
+**G1. ~~400–700 nm is not enough spectrum~~ — WITHDRAWN, and it was the wrong
+objection.** Challenged on 2026-08-20 and measured rather than argued, using
+Argyll's own reference data (`ref/StandardObs2deg.cmf`, `ref/D50_0.0.sp`):
 
-**G2. The "31 bands" are probably not 31 measurements.** The article *estimates*
+| | share of a perfect white's value under D50/2° |
+|---|---|
+| 400–700 nm (what a CR30 reports) | **X 99.95 %, Y 100.00 %, Z 100.00 %** |
+| 700–730 nm tail | 0.06 % of X, 0.00 % of Y and Z |
+| 390–400 nm tail | 0.00 % of all three |
+
+The missing tails are colorimetrically irrelevant, and the band spacing is
+10 nm in both devices — a ColorMunki's 36 bands and a CR30's 31 are the same
+resolution over a slightly different range (`native/instlib/munki_imp.h:241-243`:
+`nwav` 36, `wl_short` 380, `wl_long` 730).
+
+What the short range really costs is FWA compensation — and **a ColorMunki
+cannot do that either**. Argyll's `doc/instruments.html` classes the ColorMunki
+as a "reflective/emissive spectrometer (**UV cut only**)", and `doc/colprof.html`
+says `-f` "only works if spectral data is available and, the instrument is not
+UV filtered". So on illumination and spectral range the CR30 is **not below the
+bar ChromIQ already accepts** for its most-used instrument. `-f` is unavailable
+on both; `D50M2` (`data/parameters.yaml:1470`) is the honest choice for both.
+
+Two real differences remain, and neither is about range:
+
+* **Excitation.** A ColorMunki's UV-cut tungsten and a CR30's blue-pump white
+  LED both under-excite optical brighteners, but not identically, so paper white
+  on an OBA paper will not agree between them. That is a cross-instrument
+  consistency problem, not an accuracy floor.
+* **Geometry.** X-Rite publishes 45°/0° for the ColorMunki. The CR30's geometry
+  is documented nowhere. If it is a sphere (d/8) rather than 45/0, gloss behaves
+  differently and glossy photo paper will disagree badly. **This is now the
+  most important unknown after the aperture.**
+
+**G2. The "31 bands" are probably not 31 measurements — with G1 withdrawn, this is now the leading colour-science risk.** The article *estimates*
 an OSRAM AS7341/AS7343 — an 11-channel sensor. If that is right, the 31 values
 are reconstructed in firmware. Writing them into a `.ti3` as `SPECTRAL_NM_400…`
 tells `colprof` it has 31 independent measurements, and it will weight them as
@@ -133,6 +158,77 @@ working is not support.
 released version, no CI. Their `measure()` retries nothing and the chunk loop
 `break`s on a missing chunk, leaving a short SPD that `_parse_spd_data` then
 silently drops (`protocol.py`). Anything we ship must own that robustness.
+
+
+## Can it read strips? No — and that is structural
+
+Asked 2026-08-20. Strip reading is an **instrument** capability, not something a
+host can synthesise: `native/instlib/inst.h:955` defines `read_strip()` as
+taking `npatch` and returning *an array* of values from one drag. The device
+samples continuously while moving and segments the signal into patches itself.
+
+The CR30's decoded command surface is `AA 0A 00` (name), `BB 10/11 00`
+(black/white calibration), `BB 01 00` (trigger), `BB 01 10..13` (fetch the
+spectral chunks), plus an unsolicited packet when the button is pressed. One
+reading is **five serial round-trips** (`protocol.py:_read_all_chunks`), about
+1 s. Both reverse-engineering notebooks (109 kB of captures) were searched for
+any continuous, streaming, scan or integration-time command: there is none. The
+device also has no position or motion sensing — the only other sensor is a hall
+switch that detects the calibration cap.
+
+*Honest caveat:* their repo carries raw sniffer captures they never decoded
+(`serial-sniffer/param change-and-measure.colors`, `experiments - long.spm`), so
+the device's full protocol is unknown. The accurate claim is "nothing published
+supports scanning", not "the hardware cannot".
+
+**What to build instead:** spot mode driven by the device's own button — their
+`wait_measurement()` already blocks on that packet, and our engine already emits
+`spot_ready` (`chromiq_chartread.c:600`). Place, press the button on the device,
+ChromIQ records and highlights the next patch. No keyboard.
+
+At ~1 s per reading plus placement (2.5–4 s per patch, tripled if three
+readings are averaged):
+
+| chart | time |
+|---|---|
+| 84 patches | ~4–6 min |
+| 154 patches | ~7–10 min |
+| 924 patches | ~40–60 min |
+| 2002 patches | ~1.5–2.5 h |
+
+The device's useful band is therefore **roughly 84–300 patches** — verification
+charts and small profiles, not the 2,000-patch targets the ColorMunki and
+i1Pro 3 Plus families are built around. Chart defaults should follow: a
+generously spaced spot grid sized to the aperture, not dense strips.
+
+
+## The TARGET_INSTRUMENT gate — proved by running the binaries
+
+`tests/test_target_instrument_gate.py` pins this against the **real**
+`chromiq-chartread` and stock ArgyllCMS `chartread`:
+
+| chart says | our fork | stock chartread |
+|---|---|---|
+| `"Itohi CR30"` (or any unknown name) | **fatal** — "Unrecognised chart target instrument" | **fatal**, same message |
+| `"GretagMacbeth i1 Pro"` | passes the gate | passes the gate |
+| *keyword omitted entirely* | passes — falls back to `instI1Pro` | passes |
+
+The third row is the surprise: **omitting the keyword is more permissive than
+writing an honest unknown name.** So "just write the new name" is not free, and
+the constraint is Argyll's, not only ours — `chartread_engine: "argyll"`
+(`core/settings.py:189`) is a supported setting and the fallback when the helper
+is not built.
+
+**Ruling (Basti, 2026-08-20): teach the fork this one instrument — do not
+downgrade the error to a warning.** A warning would silently accept *any* wrong
+instrument string and fall back to `instI1Pro`, which is the #155 class of bug
+("made for a different chart"). Strict for unknown, known for the one device we
+support, is the safer contract. The fatal `error()` is in our own file
+(`chromiq_chartread.c:3628`), so this needs no change to vendored Argyll —
+adding a real `instType` *enum value* would, and is avoidable.
+
+When the CR30 is implemented, the first test in that file is the one that must
+change, deliberately and visibly.
 
 ## Plan, if it goes ahead
 
