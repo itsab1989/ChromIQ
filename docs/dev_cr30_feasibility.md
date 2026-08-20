@@ -243,9 +243,10 @@ aperture → patch size (i1 = 5 mm aperture → `pwid 8.0`; p3 = 8 mm → `pwid 
 so a CR30 is a third branch. **The unknown aperture blocks the values, not the
 design.** Nine registration points (`presets.py:24`, `instruments.py:30/139/461`,
 `chart.py:265`, `layout_options_panel.py:74/2350`, `patch_db.py:180`,
-`ti2_loader.py:33`), all one-liners bar the geometry block. No patch-capacity
-data needed — an unknown combination falls back to the binary search in
-`chart_creator.py`, as DTP41 already does.
+`ti2_loader.py:33`), all one-liners bar the geometry block. No patch-capacity data is
+involved: the engine derives capacity from its own `Geom`
+(`layout_engine/geometry.py:140-162`), and `chart_creator.py:696-701` states it
+— the printtarg DB and its binary search belong to the other path entirely.
 
 The work is P2-P4: the backend, the `.ti3`, the spot-grid UI, the error paths.
 
