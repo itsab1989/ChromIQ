@@ -818,6 +818,7 @@ def render_pages(
     helper_markers: bool = False,
     helper_marker_edge_mm: float = 2.0,
     helper_marker_len_mm: float = 2.0,
+    helper_marker_per_patch: int = 3,
     collect_device_geom: bool = False,
 ) -> RenderResult:
     """Render one :class:`PIL.Image` per page for *target*.
@@ -1185,7 +1186,8 @@ def render_pages(
                 for (mx0, my0, mx1, my1) in geometry.helper_marker_lines_mm(
                         geom, paper_w_mm, paper_h_mm, layout,
                         edge_mm=helper_marker_edge_mm,
-                        length_mm=helper_marker_len_mm):
+                        length_mm=helper_marker_len_mm,
+                        per_patch=helper_marker_per_patch):
                     draw.line((px(mx0), px(my0), px(mx1), px(my1)),
                               fill=(0, 0, 0), width=max(1, px(_HELPER_MARKER_W_MM)))
             except Exception:      # noqa: BLE001 — never lose a chart to a marker

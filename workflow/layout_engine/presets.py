@@ -121,6 +121,10 @@ class LayoutRecipe:
     helper_markers: bool = False
     helper_marker_edge_mm: float = 2.0   # dash distance from the paper edge
     helper_marker_len_mm: float = 2.0    # how long each dash is, pointing in
+    # How many dashes fall along one patch, counting the one at each end (#158.3,
+    # Knut). 3 = start, middle, end — the spacing shipped in 4.0.0. Higher counts
+    # subdivide the same comb evenly; see geometry.helper_marker_lines_mm.
+    helper_marker_per_patch: int = 3
     text_edge_mm: float = 4.0            # min distance, page edge → BOTTOM sheet
     #                                      text (printer-safe inset)
     text_edge_top_mm: float = 4.0        # min distance, page edge → strip labels
@@ -235,6 +239,7 @@ class LayoutRecipe:
             helper_markers=bool(d.get("helper_markers", False)),
             helper_marker_edge_mm=float(d.get("helper_marker_edge") or 2.0),
             helper_marker_len_mm=float(d.get("helper_marker_len") or 2.0),
+            helper_marker_per_patch=int(d.get("helper_marker_per_patch") or 3),
             text_edge_mm=float(d.get("text_edge") or 4.0),
             text_edge_top_mm=float(d.get("text_edge_top") or 4.0),
             text_edge_clip_mm=float(d.get("text_edge_clip") or 4.0),
@@ -350,6 +355,7 @@ class LayoutRecipe:
             "helper_markers": bool(self.helper_markers),
             "helper_marker_edge": self.helper_marker_edge_mm or 2.0,
             "helper_marker_len": self.helper_marker_len_mm or 2.0,
+            "helper_marker_per_patch": self.helper_marker_per_patch or 3,
             "text_edge": self.text_edge_mm or 4.0,
             "text_edge_top": self.text_edge_top_mm or 4.0,
             "text_edge_clip": self.text_edge_clip_mm or 4.0,

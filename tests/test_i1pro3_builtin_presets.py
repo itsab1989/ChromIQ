@@ -237,16 +237,18 @@ def tab(qapp, tmp_path):
 
 def test_loading_a_preset_ticks_show_helper_markers(tab, monkeypatch):
     """Same rule the ColorMunki family is held to (Basti, 2026-08-16): the
-    markers are on in every chart here, so the tick box under the preview — the
-    only place they show on screen — must say so after one is loaded."""
+    markers are on in every chart here, so the tick box — the only place they show on screen — must say so after one is loaded."""
     monkeypatch.setattr(TabChart, "_generate_from_ti1",
                         lambda self, ti1, ask=True: None)
-    assert tab._margin_panel.helper_markers()[0] is False
+    lp = tab._manual_layout_panel
+    assert lp.helper_markers_cb.isChecked() is False
 
     preset = next(p for p in P3 if p.slug.startswith("p3_a4_154p"))
     tab._apply_knut_preset(preset.key, "Probe")
 
-    on, edge, length = tab._margin_panel.helper_markers()
+    on = lp.helper_markers_cb.isChecked()
+    edge = lp.helper_marker_edge.value()
+    length = lp.helper_marker_len.value()
     assert on is True
     assert edge == preset.layout_recipe["helper_marker_edge_mm"] == 2.0
     assert length == preset.layout_recipe["helper_marker_len_mm"] == 1.0

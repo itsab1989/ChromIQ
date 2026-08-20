@@ -2279,10 +2279,9 @@ class TabChart(QWidget):
             bool(self._settings.get("margin_coords_show", False)))
         # #152: the markers are a chart-layout choice, so the panel opens on the
         # values the engine will actually use.
-        self._margin_panel.set_helper_markers(
-            bool(self._settings.get("helper_markers_show", False)),
-            float(self._settings.get("helper_marker_edge_mm", 1.0) or 1.0),
-            float(self._settings.get("helper_marker_len_mm", 3.0) or 3.0))
+        # (The ruler-marker controls live in the Manual layout panel since #158;
+        # they are seeded from Preferences in _seed_helper_markers_from_prefs
+        # once that panel exists.)
         self._margin_panel.setVisible(
             bool(self._settings.get("margin_inspector_show", True)))
         self._layout_info_panel.setVisible(
@@ -2293,8 +2292,7 @@ class TabChart(QWidget):
         self._margin_panel.measured_guides_toggled.connect(
             self._on_margin_measured_guides_toggled)
         self._margin_panel.coords_toggled.connect(self._on_margin_coords_toggled)
-        self._margin_panel.helper_markers_changed.connect(
-            self._on_helper_markers_changed)
+
         # Restore the coordinate readout state on the preview (dpi = render res).
         if self._margin_panel.coords_enabled():
             self._preview.set_coord_readout(
@@ -3530,6 +3528,11 @@ class TabChart(QWidget):
         # the inspector's own refresh runs on chart/page changes, which is far
         # too late to explain why the option cannot be used.
         self._manual_layout_panel.changed.connect(self._refresh_helper_marker_support)
+        # The ruler markers are layout controls since #158: their values ride in
+        # the recipe like every other field, so this only keeps them as the
+        # default for the next chart and redraws the preview overlay.
+        self._manual_layout_panel.changed.connect(self._remember_helper_markers)
+        self._seed_helper_markers_from_prefs()
         _llg.addWidget(self._manual_layout_panel)
         inner_layout.addWidget(self._manual_layout_grp)
         self._manual_layout_grp.setVisible(False)
@@ -13191,46 +13194,56 @@ class TabChart(QWidget):
         self._settings.set("margin_measured_guides_show", bool(on))
         self._update_margin_inspector()
 
-    def _on_helper_markers_changed(self, on: bool, edge_mm: float,
-                                   len_mm: float) -> None:
-        """Remember the ruler-marker choice and redraw with it (#152).
+    def _remember_helper_markers(self) -> None:
+        """Keep the ruler-marker choice as the default for the next chart, and
+        redraw the preview overlay with it (#152, moved by #158).
 
-        These dashes are printed, not merely drawn over the preview, so the
-        values have to reach the layout recipe — that is what the renderer
-        reads. Stored in Preferences too, so the next chart starts where this
-        one left off.
-
-        **The preview updates straight away, without re-laying-out the chart.**
-        Knut, on beta.3 (#152): *"Enabling 'Show helper markers…' checkbox does
-        nothing. No markers become visible in preview."* Two separate faults
-        were behind that — the recipe dropped the values on the way to the
-        renderer (fixed in ``LayoutOptionsPanel.apply_to_recipe``), and nothing
-        on screen changed until the chart was generated again. The second half
-        is what this method fixes: the overlay is drawn at the coordinates the
-        renderer will use, so the position can be judged while the spin boxes
-        are being nudged, and a generated chart puts the printed dashes in
-        exactly the same place.
+        The controls are ordinary layout controls now, so the values reach the
+        renderer through the recipe like everything else — this only persists
+        them and updates the overlay, which is what lets the two distances be
+        judged while they are being nudged rather than after a rebuild.
         """
+        panel = getattr(self, "_manual_layout_panel", None)
+        if panel is None or not hasattr(panel, "helper_markers_cb"):
+            return
         try:
-            self._settings.set("helper_markers_show", bool(on))
-            self._settings.set("helper_marker_edge_mm", float(edge_mm))
-            self._settings.set("helper_marker_len_mm", float(len_mm))
-            panel = getattr(self, "_manual_layout_panel", None)
-            if panel is not None:
-                # Straight onto the panel's carried state: going through
-                # get_recipe()/set_recipe() would round-trip every other control
-                # as well, which is how a stray write can revert the user's
-                # spacer settings.
-                panel._helper_markers = bool(on)
-                panel._helper_marker_edge_mm = float(edge_mm)
-                panel._helper_marker_len_mm = float(len_mm)
+            self._settings.set("helper_markers_show",
+                               bool(panel.helper_markers_cb.isChecked()))
+            self._settings.set("helper_marker_edge_mm",
+                               float(panel.helper_marker_edge.value()))
+            self._settings.set("helper_marker_len_mm",
+                               float(panel.helper_marker_len.value()))
+            self._settings.set("helper_marker_per_patch",
+                               int(panel.helper_marker_per_patch.value()))
             self._refresh_helper_marker_overlay()
-            self._refresh_manual_command_preview()
-            # With auto-update on, the sheet itself is re-drawn as well, so the
-            # printed dashes catch up with the overlay without a click.
-            self._maybe_schedule_auto_preview()
         except Exception:      # noqa: BLE001 — never break the tab on a toggle
-            log.warning("could not apply the helper-marker choice", exc_info=True)
+            log.warning("could not remember the helper-marker choice",
+                        exc_info=True)
+
+    def _seed_helper_markers_from_prefs(self) -> None:
+        """Start a session on the ruler-marker values the last chart used."""
+        panel = getattr(self, "_manual_layout_panel", None)
+        if panel is None or not hasattr(panel, "helper_markers_cb"):
+            return
+        try:
+            for w, v in (
+                (panel.helper_markers_cb,
+                 bool(self._settings.get("helper_markers_show", False))),
+                (panel.helper_marker_edge,
+                 float(self._settings.get("helper_marker_edge_mm", 2.0) or 2.0)),
+                (panel.helper_marker_len,
+                 float(self._settings.get("helper_marker_len_mm", 2.0) or 2.0)),
+                (panel.helper_marker_per_patch,
+                 int(self._settings.get("helper_marker_per_patch", 3) or 3)),
+            ):
+                w.blockSignals(True)
+                if hasattr(w, "setChecked"):
+                    w.setChecked(v)
+                else:
+                    w.setValue(v)
+                w.blockSignals(False)
+        except Exception:      # noqa: BLE001
+            log.debug("could not seed the helper-marker controls", exc_info=True)
 
     def _set_engine_recipe(self, recipe) -> None:
         """Apply *recipe* to the Manual layout panel **and to the controls that
@@ -13253,29 +13266,7 @@ class TabChart(QWidget):
         if panel is None:
             return
         panel.set_recipe(recipe)
-        self._sync_helper_marker_controls()
 
-    def _sync_helper_marker_controls(self) -> None:
-        """Push the live recipe's helper-marker state onto the controls under the
-        preview (and remember it, exactly as a click on them would)."""
-        mp = getattr(self, "_margin_panel", None)
-        panel = getattr(self, "_manual_layout_panel", None)
-        if mp is None or panel is None:
-            return
-        try:
-            on = bool(getattr(panel, "_helper_markers", False))
-            edge = float(getattr(panel, "_helper_marker_edge_mm", 2.0) or 0.0)
-            length = float(getattr(panel, "_helper_marker_len_mm", 2.0) or 0.0)
-            # setter blocks signals, so this doesn't re-enter
-            # _on_helper_markers_changed and re-write the panel we just read.
-            mp.set_helper_markers(on, edge, length)
-            self._settings.set("helper_markers_show", on)
-            self._settings.set("helper_marker_edge_mm", edge)
-            self._settings.set("helper_marker_len_mm", length)
-            self._refresh_helper_marker_overlay()
-        except Exception:      # noqa: BLE001 — never break a recipe load
-            log.warning("could not sync the helper-marker controls",
-                        exc_info=True)
 
     def _refresh_helper_marker_support(self, *_a) -> None:
         """Grey (or restore) the ruler-marker controls for the current selection.
@@ -13284,8 +13275,8 @@ class TabChart(QWidget):
         choosing SpectroScan + Hexagonal explains itself at the moment it is
         chosen (#152).
         """
-        panel = getattr(self, "_margin_panel", None)
-        if panel is None:
+        panel = getattr(self, "_manual_layout_panel", None)
+        if panel is None or not hasattr(panel, "set_helper_markers_supported"):
             return
         try:
             panel.set_helper_markers_supported(not self._chart_is_hexagonal())
@@ -13308,7 +13299,12 @@ class TabChart(QWidget):
         try:
             lines = self._helper_marker_lines_frac()
         except Exception:      # noqa: BLE001 — an overlay is never fatal
-            log.debug("helper-marker overlay skipped", exc_info=True)
+            # WARNING, not DEBUG: this handler once hid a real fault (the #158
+            # move left this reading a control that no longer existed, and the
+            # dashes silently stopped appearing — the exact symptom Knut
+            # reported for #152). A swallowed error that changes what is on
+            # screen has to leave a trace somebody will actually see.
+            log.warning("helper-marker overlay skipped", exc_info=True)
             lines = None
         prev.set_helper_markers(lines)
 
@@ -13316,10 +13312,17 @@ class TabChart(QWidget):
         self,
     ) -> "list[tuple[float, float, float, float]] | None":
         """The marker segments for the page on screen, as page fractions."""
-        panel = getattr(self, "_margin_panel", None)
-        if panel is None:
+        # The controls moved into the Manual layout panel in #158, so the values
+        # come from there. They are read off the CONTROLS rather than the chart's
+        # recorded layout on purpose: the overlay is what lets the two distances
+        # be judged while they are being nudged, before anything is rebuilt.
+        panel = getattr(self, "_manual_layout_panel", None)
+        if panel is None or not hasattr(panel, "helper_markers_cb"):
             return None
-        on, edge_mm, len_mm = panel.helper_markers()
+        on = bool(panel.helper_markers_cb.isChecked())
+        edge_mm = float(panel.helper_marker_edge.value())
+        len_mm = float(panel.helper_marker_len.value())
+        per_patch = int(panel.helper_marker_per_patch.value())
         if not on:
             return None
         if not getattr(self, "_margin_tiffs", None) or self._margin_ti2 is None:
@@ -13342,7 +13345,8 @@ class TabChart(QWidget):
             return None
         lay = geometry.compute(geom, w_mm, h_mm, int(m.group(1)))
         lines = geometry.helper_marker_lines_mm(
-            geom, w_mm, h_mm, lay, edge_mm=edge_mm, length_mm=len_mm)
+            geom, w_mm, h_mm, lay, edge_mm=edge_mm, length_mm=len_mm,
+            per_patch=per_patch)
         return [(x0 / w_mm, y0 / h_mm, x1 / w_mm, y1 / h_mm)
                 for x0, y0, x1, y1 in lines]
 

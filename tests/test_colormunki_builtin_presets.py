@@ -267,19 +267,22 @@ def test_loading_a_preset_ticks_show_helper_markers(tab, monkeypatch):
     """Basti, 2026-08-16: *"loading knuts presets with the helper markers turned
     on did not set the show helper markers option there."*
 
-    The markers reached the printed sheet, but the tick box under the preview —
+    The markers reached the printed sheet, but the tick box —
     the only place they are shown on screen — still said off. Every one of these
     charts has them on, so after loading one the box must be ticked and the two
     distances must show the preset's values.
     """
     monkeypatch.setattr(TabChart, "_generate_from_ti1",
                         lambda self, ti1, ask=True: None)
-    assert tab._margin_panel.helper_markers()[0] is False
+    lp = tab._manual_layout_panel
+    assert lp.helper_markers_cb.isChecked() is False
 
     preset = next(p for p in CM if p.slug.startswith("cm_a4_204p"))
     tab._apply_knut_preset(preset.key, "Probe")
 
-    on, edge, length = tab._margin_panel.helper_markers()
+    on = lp.helper_markers_cb.isChecked()
+    edge = lp.helper_marker_edge.value()
+    length = lp.helper_marker_len.value()
     assert on is True
     assert edge == preset.layout_recipe["helper_marker_edge_mm"] == 4.0
     assert length == preset.layout_recipe["helper_marker_len_mm"] == 2.0

@@ -597,7 +597,7 @@ def _comb(anchor: float, step: float, lo: float, hi: float) -> list[float]:
 
 def helper_marker_lines_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
                            layout: Layout, *, edge_mm: float = 2.0,
-                           length_mm: float = 2.0
+                           length_mm: float = 2.0, per_patch: int = 3
                            ) -> "list[tuple[float, float, float, float]]":
     """Short dashes along all four page edges, to align a ruler against (#152).
 
@@ -682,8 +682,19 @@ def helper_marker_lines_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
     # the shift is nothing and the dashes sit on the boundaries as before.
     x_anchor = place.x_of(0) - (x_pitch - place.pwid) / 2.0
     y_anchor = place.y_of(0) - (y_pitch - place.plen) / 2.0
-    xs = _comb(x_anchor, x_pitch / 2.0, 0.0, paper_w_mm)
-    ys = _comb(y_anchor, y_pitch / 2.0, 0.0, paper_h_mm)
+    # HOW MANY DASHES PER PATCH (#158.3, Knut). Three — a dash at the start, the
+    # middle and the end of a patch — is two STEPS, so *n* dashes per patch is
+    # ``pitch / (n - 1)``. The default 3 is therefore ``pitch / 2``, exactly the
+    # spacing shipped in 4.0.0, and `test_helper_marker_count.py` pins that.
+    #
+    # An even count has no dash at the patch centre, and that is his intent
+    # rather than a flaw: *"If increasing that number to 4 then the one in the
+    # middle could be replaced by two placed with equal distance between the
+    # beginning and end markers."* Every gap stays identical either way, which
+    # is his pass criterion.
+    divisor = max(1, int(per_patch) - 1)
+    xs = _comb(x_anchor, x_pitch / divisor, 0.0, paper_w_mm)
+    ys = _comb(y_anchor, y_pitch / divisor, 0.0, paper_h_mm)
 
     # The band each edge's dashes reach into. A dash on the perpendicular edge
     # that lands inside it — or past it, off the sheet's usable area — is

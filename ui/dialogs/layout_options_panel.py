@@ -143,9 +143,7 @@ class LayoutOptionsPanel(QWidget):
         self._spacer_overrides: dict = {}
         # Ruler helper markers (#152) — carried through the recipe, controlled
         # from the preview's "Measure from Preview" panel. See apply_to_recipe.
-        self._helper_markers: bool = False
-        self._helper_marker_edge_mm: float = 1.0
-        self._helper_marker_len_mm: float = 3.0
+
         self._border: float = 6.0      # base margin (-m); preserved, no control
         self._inst = "i1"           # last-known instrument / clip state, for
         self._clip = True           # clip-border-width row visibility
@@ -273,11 +271,18 @@ class LayoutOptionsPanel(QWidget):
 
         from PyQt6.QtCore import Qt as _Qt
 
-        def add_row(grid, r, label, control, tip=None):
+        def add_row(grid, r, label, control, tip=None, *,
+                    align_left: bool = False):
             """label | control (control fills the column → no clipping).
             Returns the placed widgets so a whole row can be shown/hidden."""
             lbl = QLabel(label, self)
-            grid.addWidget(lbl, r, 0, _Qt.AlignmentFlag.AlignRight)
+            # Labels are right-aligned against the control column everywhere
+            # else. `align_left` puts them flush with the group's left edge
+            # instead, so a group whose first line is a full-width checkbox
+            # reads as one block (Basti, on screen) — the controls still share
+            # column 1, so they keep starting at the same x.
+            grid.addWidget(lbl, r, 0, _Qt.AlignmentFlag.AlignLeft if align_left
+                           else _Qt.AlignmentFlag.AlignRight)
             grid.addWidget(control, r, 1)
             if tip is not None:
                 grid.addWidget(tip, r, 2)
@@ -1115,6 +1120,122 @@ class LayoutOptionsPanel(QWidget):
                        "the TIFF.\n\n"
                        "Default: off."), self))
         _expert_v.addWidget(og)
+
+        # ---- Ruler helper markers (#152, moved here by #158) ----
+        # These dashes are PRINTED on the sheet, and Generate Chart is what puts
+        # them there — so they belong beside the rest of the layout, not under
+        # the preview where they used to live. Knut, #158: *"this checkmark and
+        # the spin boxes would actually naturally fit as part of the Create
+        # Chart parameters in the left panel, because one has to click the
+        # Generate Chart button for markers to become visible on the tif files
+        # for print."* The live preview still draws them as they are nudged, so
+        # nothing is lost by the move.
+        hm = self._helper_markers_grp = QGroupBox(
+            tr("Ruler helper markers"), self)
+        hmg = QGridLayout(hm)
+        # Short label, spanning both columns: the long version sat alone in the
+        # control column and made this the widest group in Expert Options
+        # (535 px against 472 for the next one), which pushed the whole right
+        # side into horizontal scrolling (Basti, on screen). The group title
+        # already says these are ruler helper markers.
+        self.helper_markers_cb = QCheckBox(tr("Print helper markers"), self)
+        self.helper_markers_cb.toggled.connect(self._emit)
+        self.helper_marker_edge = small_mm(top=60.0)
+        self.helper_marker_len = small_mm(top=60.0)
+        self.helper_marker_per_patch = NoScrollSpinBox(self)
+        self.helper_marker_per_patch.setRange(2, 12)
+        # A two-digit count, so it takes the narrow width the panel's other
+        # whole-number boxes use rather than the wider millimetre ones.
+        self.helper_marker_per_patch.setMinimumWidth(64)
+        self.helper_marker_per_patch.setMaximumWidth(70)
+        self.helper_marker_per_patch.valueChanged.connect(self._emit)
+        from PyQt6.QtCore import Qt as _QtAlign
+        # Column 0 only, NOT spanning: a widget spanning 0-1 makes Qt charge its
+        # whole width to the spanned columns, which inflated column 0 and pushed
+        # the three spin boxes far to the right of their labels (x=371 against
+        # x=189 in "Patches & spacers"). In one column it lines up with the
+        # labels and the boxes sit where they do in every other group.
+        hmg.addWidget(self.helper_markers_cb, 0, 0,
+                      _QtAlign.AlignmentFlag.AlignLeft)
+        hmg.addWidget(TooltipButton(
+            tr("Ruler helper markers"),
+            tr("Prints short dashes along all four edges of the sheet, so you "
+               "can lay a ruler against the paper and line your instrument up "
+               "with a row of patches.\n\n"
+               "What you get: a dash at the centre of every patch and one "
+               "between each pair, evenly spaced the whole way along. They "
+               "follow your patch spacing automatically, so they stay correct "
+               "whatever else you change.\n\n"
+               "You need this if you read a chart with a hand-held instrument "
+               "along a ruler. Leave it off for a chart you read without one — "
+               "the dashes cost nothing but ink, and some people prefer a clean "
+               "sheet.\n\n"
+               "Press Generate Chart after changing this: the dashes are "
+               "printed onto the sheet, and the preview only shows you where "
+               "they will land. If \u201cAuto-update preview when a layout setting "
+               "changes\u201d is ticked, the sheet is rebuilt for you and there is "
+               "nothing more to do.\n\n"
+               "Default: off."), self), 0, 2)
+        self._hm_rows = []
+        self._hm_rows.append(add_row(hmg, 1, tr("Distance from page edge (mm):"),
+                cell(self.helper_marker_edge), align_left=True,
+                tip=TooltipButton(
+                    tr("Distance from page edge"),
+                    tr("How far in from the edge of the paper each dash starts, "
+                       "in millimetres.\n\n"
+                       "Small values (1–2 mm) keep the dashes out of the way of "
+                       "everything else on the sheet. Larger values move them "
+                       "inward, which helps if your printer cannot print close "
+                       "to the paper edge — many printers leave a few "
+                       "millimetres unprinted.\n\n"
+                       "If a dash would land where the strip labels or the "
+                       "clip-border text sit, they may overlap: move whichever "
+                       "one is in the way.\n\n"
+                       "Default: 2.0 mm."), self)))
+        self._hm_rows.append(add_row(hmg, 2, tr("Marker length (mm):"), cell(self.helper_marker_len),
+                align_left=True, tip=TooltipButton(
+                    tr("Marker length"),
+                    tr("How long each dash is, measured inward from where it "
+                       "starts.\n\n"
+                       "Longer dashes are easier to see and to line a ruler "
+                       "against; shorter ones stay further from the patches. "
+                       "2–4 mm suits most charts.\n\n"
+                       "The four sets of dashes never cross in the corners — a "
+                       "dash is left out where it would run into the dashes "
+                       "coming from the edge next to it.\n\n"
+                       "Default: 2.0 mm."), self)))
+        self._hm_rows.append(add_row(hmg, 3, tr("Markers per patch:"),
+                cell(self.helper_marker_per_patch),
+                align_left=True, tip=TooltipButton(
+                    tr("Markers per patch"),
+                    tr("How many dashes fall along a single patch, counting the "
+                       "one at each end.\n\n"
+                       "3 gives you a dash where two patches meet, one in the "
+                       "middle of the patch, and one where the next patch "
+                       "begins — the usual choice. Raise it if you want finer "
+                       "steps to line your ruler up against: 5 puts three "
+                       "dashes inside each patch instead of one. Lower it to 2 "
+                       "for a single dash where patches meet and nothing in "
+                       "between.\n\n"
+                       "Every gap stays exactly the same size whichever number "
+                       "you pick. With an even number there is no dash at the "
+                       "centre of the patch — the middle one is replaced by two "
+                       "sitting either side of it.\n\n"
+                       "Default: 3."), self)))
+        # The three distances only mean something once the markers are on, so
+        # they grey with the tick box (Basti). The labels take the app's
+        # dimmed-caption object name: this theme's Disabled palette paints a
+        # plain QLabel in exactly the same colour as a live one, so without it
+        # they would be disabled without LOOKING disabled — the same trap the
+        # controls hit in their old home, and both themes already style
+        # #param_label:disabled (ui/styles.py, ui/light_styles.py).
+        for _row in self._hm_rows:
+            for _w in _row:
+                if isinstance(_w, QLabel):
+                    _w.setObjectName("param_label")
+        self.helper_markers_cb.toggled.connect(self._update_helper_marker_rows)
+        self._update_helper_marker_rows()
+        _expert_v.addWidget(hm)
 
         # ---- Sheet text ----
         st = QGroupBox(tr("Sheet text"), self)
@@ -2505,6 +2626,43 @@ class LayoutOptionsPanel(QWidget):
         if not self._loading:
             self.changed.emit()
 
+    def _update_helper_marker_rows(self, *_a) -> None:
+        """Grey the three distances while the markers are switched off.
+
+        The ⓘ buttons stay live: a user looking at a greyed row is exactly the
+        one who wants to read what it would do (Knut's rule for the hexagonal
+        case — greyed, but never unexplained).
+        """
+        on = bool(self.helper_markers_cb.isChecked())
+        for row in getattr(self, "_hm_rows", []):
+            for w in row:
+                if isinstance(w, TooltipButton):
+                    continue
+                w.setEnabled(on)
+
+    def set_helper_markers_supported(self, supported: bool,
+                                     reason: str = "") -> None:
+        """Grey the ruler-marker controls out when the chart cannot carry them.
+
+        A hexagonal SpectroScan chart is a honeycomb — it has no rows to lay a
+        ruler against, so the dashes are meaningless there and the engine draws
+        none. Knut asked (#152) for the reason to be readable rather than the
+        box simply going dead, so it goes on the group and on every control
+        inside it, which is what a hover reaches.
+        """
+        grp = getattr(self, "_helper_markers_grp", None)
+        if grp is None:
+            return
+        grp.setEnabled(bool(supported))
+        tip = "" if supported else (reason or tr(
+            "This chart's patches are hexagons, which have no rows to lay a "
+            "ruler against — so helper markers cannot be printed on it."))
+        for w in (grp, self.helper_markers_cb, self.helper_marker_edge,
+                  self.helper_marker_len, self.helper_marker_per_patch):
+            w.setToolTip(tip)
+        if supported:
+            self._update_helper_marker_rows()
+
     def set_recipe(self, r: LayoutRecipe) -> None:
         # WHO OVERWROTE THE PANEL? Sebastian watched his spacer and gap
         # settings revert a second after Generate Chart (2026-08-13), and
@@ -2522,10 +2680,18 @@ class LayoutOptionsPanel(QWidget):
                       r.strip_gap_mm, caller)
         except Exception:      # noqa: BLE001 — diagnostics never break the UI
             pass
-        # Carried, not shown — see apply_to_recipe.
-        self._helper_markers = bool(getattr(r, "helper_markers", False))
-        self._helper_marker_edge_mm = float(getattr(r, "helper_marker_edge_mm", 1.0))
-        self._helper_marker_len_mm = float(getattr(r, "helper_marker_len_mm", 3.0))
+        # The ruler helper markers are ordinary controls in this panel since
+        # #158 — they used to be carried as plain state because their widgets
+        # lived under the preview, and that split is exactly what let a loaded
+        # preset show the wrong tick (Basti, 2026-08-16).
+        self.helper_markers_cb.setChecked(bool(getattr(r, "helper_markers", False)))
+        self.helper_marker_edge.setValue(
+            float(getattr(r, "helper_marker_edge_mm", 2.0)))
+        self.helper_marker_len.setValue(
+            float(getattr(r, "helper_marker_len_mm", 2.0)))
+        self.helper_marker_per_patch.setValue(
+            int(getattr(r, "helper_marker_per_patch", 3) or 3))
+        self._update_helper_marker_rows()
         self._loading = True
         if self.instr is not None:
             ii = self.instr.findData(r.instrument)
@@ -2690,9 +2856,10 @@ class LayoutOptionsPanel(QWidget):
         # 'Show helper markers…' checkbox does nothing"*). Holding the three
         # values as plain state, set by `set_recipe` and written back here, makes
         # the round-trip lossless without putting a duplicate control on screen.
-        r.helper_markers = bool(self._helper_markers)
-        r.helper_marker_edge_mm = float(self._helper_marker_edge_mm)
-        r.helper_marker_len_mm = float(self._helper_marker_len_mm)
+        r.helper_markers = bool(self.helper_markers_cb.isChecked())
+        r.helper_marker_edge_mm = float(self.helper_marker_edge.value())
+        r.helper_marker_len_mm = float(self.helper_marker_len.value())
+        r.helper_marker_per_patch = int(self.helper_marker_per_patch.value())
         r.pscale = self.pscale.value()
         r.sscale = self.sscale.value()
         r.spacer_mode = self.spacer_mode.currentData() or "colored"

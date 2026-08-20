@@ -131,7 +131,7 @@ def test_ticking_the_box_refreshes_the_overlay():
     switching tabs and hoping."""
     import inspect
     from ui.tabs.tab_chart import TabChart
-    src = inspect.getsource(TabChart._on_helper_markers_changed)
+    src = inspect.getsource(TabChart._remember_helper_markers)
     assert "_refresh_helper_marker_overlay" in src
 
 
@@ -145,6 +145,18 @@ def test_the_overlay_follows_the_chart_and_the_page():
 
 
 # --- the three layout complaints ---------------------------------------------
+
+@pytest.fixture
+def layout_panel(app):
+    """The Manual layout panel, which owns the ruler-marker controls since #158."""
+    from ui.dialogs.layout_options_panel import LayoutOptionsPanel
+    p = LayoutOptionsPanel(None, with_selectors=True, with_calibration=True)
+    p.resize(p.sizeHint())
+    p.show()
+    app.processEvents()
+    yield p
+    p.close()
+
 
 @pytest.fixture
 def panel(app):
@@ -183,10 +195,11 @@ def test_the_frame_is_no_wider_than_its_widest_row(panel):
         f"{slack} px of unused width to the right of the last control")
 
 
-def test_the_spin_boxes_are_not_twice_the_width_they_need(panel):
+def test_the_spin_boxes_are_not_twice_the_width_they_need(layout_panel):
     """*"The two spinboxes … are double as wide as needed."* Qt's default hint
     was 142 px for content measuring 54 px."""
-    for box in (panel._helper_edge, panel._helper_len):
+    for box in (layout_panel.helper_marker_edge,
+                layout_panel.helper_marker_len):
         # A cap was actually applied (the default is Qt's 16777215).
         assert box.maximumWidth() < 16_777_215, "no width cap on the spin box"
         # And it is close to what the content needs, not double it. Measured
@@ -194,16 +207,24 @@ def test_the_spin_boxes_are_not_twice_the_width_they_need(panel):
         # depends on the theme's QSS padding and this test runs unstyled.
         widest = f"{box.maximum():.{box.decimals()}f}{box.suffix()}"
         needed = box.fontMetrics().horizontalAdvance(widest)
-        assert box.width() <= needed + 60, (
-            f"{box.width()} px for {needed} px of text is still too generous")
+        # In the layout panel the house style governs: these must be no wider
+        # than the millimetre boxes already sitting beside them, which is what
+        # keeps the group from being the widest thing in Expert Options (it was
+        # 535 px against 472 for the next one until this was fixed).
+        siblings = [b.maximumWidth() for b in layout_panel.findChildren(type(box))
+                    if b is not box and b.maximumWidth() < 16_777_215]
+        assert box.maximumWidth() <= max(siblings), (
+            f"{box.maximumWidth()} px is wider than every other box in the "
+            f"panel ({max(siblings)} px)")
 
 
-def test_the_spin_boxes_still_show_their_largest_value(panel):
+def test_the_spin_boxes_still_show_their_largest_value(layout_panel):
     """The counterweight to the test above, and the reason the reduction stops
     where it does: the first attempt at 55 % clipped " mm" off the end and
     displayed "1,0 m". Narrower is only better while the value is still legible.
     """
-    for box in (panel._helper_edge, panel._helper_len):
+    for box in (layout_panel.helper_marker_edge,
+                layout_panel.helper_marker_len):
         widest = f"{box.maximum():.{box.decimals()}f}{box.suffix()}"
         needed = box.fontMetrics().horizontalAdvance(widest)
         assert box.width() >= needed, (
@@ -223,31 +244,42 @@ def test_the_spin_boxes_still_show_their_largest_value(panel):
 # which fires on a chart or page change, long after the user has made the
 # selection and wants to know why the option does nothing.
 
-def test_the_controls_and_their_labels_all_grey_together(panel):
-    panel.set_helper_markers_supported(False)
-    dead = [panel._helper_check, panel._helper_edge, panel._helper_len,
-            panel._helper_edge_lbl, panel._helper_len_lbl]
-    assert not any(w.isEnabled() for w in dead), (
-        "a live label beside a dead spin box reads as a glitch, not as "
-        "'this option does not apply here'")
+def test_the_controls_and_their_labels_all_grey_together(layout_panel):
+    """Greying the whole group takes its labels with it, which is what Knut
+    asked for — a live label beside a dead spin box reads as a glitch."""
+    layout_panel.set_helper_markers_supported(False)
+    grp = layout_panel._helper_markers_grp
+    assert not grp.isEnabled()
+    dead = (grp, layout_panel.helper_markers_cb, layout_panel.helper_marker_edge,
+            layout_panel.helper_marker_len, layout_panel.helper_marker_per_patch)
+    assert not any(w.isEnabled() for w in dead)
     assert all(w.toolTip() for w in dead), "greyed with no reason given"
 
 
-def test_they_come_back(panel):
-    panel.set_helper_markers_supported(False)
-    panel.set_helper_markers_supported(True)
-    for w in (panel._helper_check, panel._helper_edge, panel._helper_len,
-              panel._helper_edge_lbl, panel._helper_len_lbl):
+def test_they_come_back(layout_panel):
+    """…and the distances then obey the tick box again, rather than all coming
+    back live: with the markers off they stay greyed, which is the rule added
+    on 2026-08-20."""
+    layout_panel.helper_markers_cb.setChecked(True)
+    layout_panel.set_helper_markers_supported(False)
+    layout_panel.set_helper_markers_supported(True)
+    for w in (layout_panel._helper_markers_grp, layout_panel.helper_markers_cb,
+              layout_panel.helper_marker_edge, layout_panel.helper_marker_len,
+              layout_panel.helper_marker_per_patch):
         assert w.isEnabled()
         assert not w.toolTip()
 
+    layout_panel.helper_markers_cb.setChecked(False)
+    assert layout_panel.helper_markers_cb.isEnabled()
+    assert not layout_panel.helper_marker_edge.isEnabled()
 
-def test_the_reason_reaches_the_help_icon_too(panel):
+
+def test_the_reason_reaches_the_help_icon_too(layout_panel):
     """Knut asked for it in both places a user might look — the hover tooltip
-    and the ⓘ."""
-    panel.set_helper_markers_supported(False)
-    body = panel._helper_tip._body if hasattr(panel._helper_tip, "_body") else ""
-    assert "six-sided" in body or "honeycomb" in body, body[:200]
+    and the ⓘ. The reason now rides on every control in the group."""
+    layout_panel.set_helper_markers_supported(False)
+    tip = layout_panel.helper_markers_cb.toolTip()
+    assert "hexagon" in tip.lower() or "ruler" in tip.lower(), tip[:200]
 
 
 def test_the_hex_check_reads_the_live_selectors_not_a_stored_setting():
@@ -282,7 +314,7 @@ def test_choosing_hexagonal_greys_it_without_generating_a_chart():
 
 # --- the preview must not promise dashes the file does not have -------------
 
-def test_the_help_says_generate_chart_is_still_needed(panel):
+def test_the_help_says_generate_chart_is_still_needed(layout_panel):
     """From Knut's beta.5 log (#152): he ticked the markers on at 22:11:46, after
     his last Generate Chart at 22:11:27, and nothing re-rendered — auto-update
     was off, which is the default.
@@ -294,28 +326,107 @@ def test_the_help_says_generate_chart_is_still_needed(panel):
     rebuild is the whole point — but the help has to say plainly where the line
     between preview and file falls.
     """
-    body = panel._helper_marker_help()
+    from ui.tooltip_button import TooltipButton
+    tips = layout_panel._helper_markers_grp.findChildren(TooltipButton)
+    body = "\n".join(getattr(t, "_body", "") for t in tips)
     assert "Generate Chart" in body, "the help never mentions the missing step"
     assert "print" in body.lower()
     assert "Auto-update preview" in body, (
         "users with auto-update on must be told they need do nothing extra")
+    assert "Markers per patch" not in body or "3" in body
 
 
-def test_the_help_icon_is_centred_on_its_own_row(panel):
-    """Knut, beta.8 (#152): *"the help icon is not vertically centered with the
-    other objects on the line for 'Show helper markers...'"*.
+def test_every_row_has_its_own_help_icon(layout_panel):
+    """Knut, beta.8 (#152): the ⓘ has to sit on the line it explains, not float
+    against a block of them. Each row of the group carries its own."""
+    from ui.tooltip_button import TooltipButton
+    grp = layout_panel._helper_markers_grp
+    tips = grp.findChildren(TooltipButton)
+    assert len(tips) == 4, f"expected one ⓘ per row, got {len(tips)}"
+    rights = {t.mapTo(grp, t.rect().topLeft()).x() + t.width() for t in tips}
+    assert len(rights) == 1, f"the ⓘ icons end at different x positions: {rights}"
 
-    The four lines were one nested column in a single grid cell, so the icons had
-    no row to align against — they could only be pinned to the top and bottom of
-    the whole block, and the bottom of a block is not the middle of its last
-    line. Asserted against the widgets on that line rather than a fixed number,
-    so it survives a font or theme change.
+
+# --- the distances follow the tick box (Basti, 2026-08-20) ------------------
+
+def test_the_distances_grey_out_when_the_markers_are_off(layout_panel):
+    """The three distances mean nothing while the markers are switched off, so
+    they grey with the tick box — labels included."""
+    from PyQt6.QtWidgets import QLabel
+    from ui.tooltip_button import TooltipButton
+    layout_panel.helper_markers_cb.setChecked(False)
+    rows = layout_panel._hm_rows
+    assert len(rows) == 3
+    for row in rows:
+        for w in row:
+            if isinstance(w, TooltipButton):
+                assert w.isEnabled(), "the ⓘ must stay readable on a greyed row"
+            else:
+                assert not w.isEnabled(), f"{w} stayed live with the markers off"
+
+    layout_panel.helper_markers_cb.setChecked(True)
+    for row in rows:
+        for w in row:
+            assert w.isEnabled()
+
+
+def test_the_greyed_labels_actually_look_greyed(layout_panel):
+    """Disabling a plain QLabel changes nothing on screen in this theme — its
+    Disabled palette entry is the same colour as the normal one. The labels
+    therefore carry the app's dimmed-caption object name, which both themes
+    style for :disabled (ui/styles.py, ui/light_styles.py)."""
+    from PyQt6.QtWidgets import QLabel
+    labels = [w for row in layout_panel._hm_rows for w in row
+              if isinstance(w, QLabel)]
+    assert len(labels) == 3
+    assert {l.objectName() for l in labels} == {"param_label"}
+
+
+def test_a_loaded_preset_leaves_the_rows_in_the_right_state(layout_panel):
+    """Loading a chart that uses markers must leave the distances usable, and
+    one that does not must leave them greyed — the state has to follow the
+    recipe, not whatever was on screen before."""
+    from workflow.layout_engine.presets import LayoutRecipe
+    layout_panel.helper_markers_cb.setChecked(False)
+    layout_panel.set_recipe(LayoutRecipe.from_dict(
+        {"helper_markers": True, "helper_marker_edge_mm": 4.0}))
+    assert layout_panel.helper_marker_edge.isEnabled()
+    layout_panel.set_recipe(LayoutRecipe.from_dict({"helper_markers": False}))
+    assert not layout_panel.helper_marker_edge.isEnabled()
+
+
+def test_the_greyed_labels_read_as_greyed_in_BOTH_themes():
+    """Basti asked whether the greying looks right in light mode as well as
+    dark. It relies on ``#param_label:disabled``, so both stylesheets must carry
+    the rule AND dim it enough to read as disabled without vanishing.
+
+    Measured against each theme's panel background: dark #c8c8c8 → #6a6a6a
+    (contrast 169 → 75) and light #22211f → #a8a4a0 (222 → 90). Near-identical
+    ratios, which is why the two themes look consistent.
     """
-    def centre(w):
-        return w.mapTo(panel, w.rect().topLeft()).y() + w.height() / 2
+    import re
+    from pathlib import Path
+    import ui.light_styles as L
 
-    row = [panel._helper_check, panel._helper_edge_lbl, panel._helper_edge,
-           panel._helper_len_lbl, panel._helper_len]
-    want = sum(centre(w) for w in row) / len(row)
-    assert abs(centre(panel._helper_tip) - want) <= 2, (
-        f"the ⓘ centre is {centre(panel._helper_tip)}, the row's is {want}")
+    def lum(h):
+        h = h.lstrip("#")
+        r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+    dark = Path("ui/styles.py").read_text()
+    normal = re.search(r"QLabel#param_label,[^\n]*color: (#\w+)", dark)
+    faint = re.search(r"QLabel#param_label:disabled,[^\n]*color: (#\w+)", dark)
+    assert normal and faint, "the dark theme lost its #param_label rules"
+    d_on = abs(lum(normal.group(1)) - lum("#1f1f1f"))
+    d_off = abs(lum(faint.group(1)) - lum("#1f1f1f"))
+
+    light = Path("ui/light_styles.py").read_text()
+    assert "QLabel#param_label:disabled" in light, (
+        "light mode has no dimmed-caption rule, so the labels would disable "
+        "without looking disabled")
+    l_on = abs(lum("#ffffff") - lum(L.LM_TEXT_MAIN))
+    l_off = abs(lum("#ffffff") - lum(L.LM_TEXT_FAINT))
+
+    for name, on, off in (("dark", d_on, d_off), ("light", l_on, l_off)):
+        assert off < on * 0.75, f"{name}: greyed text is not visibly dimmer"
+        assert off > 25, f"{name}: greyed text has all but vanished ({off:.0f})"
