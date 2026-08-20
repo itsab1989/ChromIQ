@@ -1,5 +1,35 @@
 # Changelog
 
+## v4.1.2-beta.1
+
+### Changed
+
+- **The ruler helper markers moved into Create Chart.** The tick box and the two
+  distances now live under **Create Chart → Manual → Expert Options → "Ruler
+  helper markers"**, beside the rest of the layout, instead of under the chart
+  preview. That is where the decision belongs: the dashes are printed on the
+  sheet, and **Generate Chart** is what puts them there. The live preview still
+  draws them as you nudge the values, so you can still judge the distances while
+  looking at the chart.
+
+  Two things get better as a result. The **Measured from Preview** panel can be
+  narrow again — that row was holding it, and the whole window, to a fixed
+  minimum width. And because the markers are now ordinary layout settings, they
+  travel with a preset and a saved chart automatically, so what you see on
+  screen always matches the chart you loaded.
+
+### New
+
+- **"Markers per patch"**, in the same section. Until now every patch got three
+  dashes — one where two patches meet, one in the middle, one where the next
+  begins. You can now choose between 2 and 12. Raise it for finer steps to line
+  a ruler up against; lower it for a cleaner sheet. Every gap stays exactly the
+  same size whichever number you pick, and the dashes still follow your patch
+  spacing automatically. Existing charts and presets keep the three they had.
+
+- The three distances **grey out while the markers are switched off**, so it is
+  clear they do nothing until you tick the box.
+
 ## v4.1.1
 
 ### New
