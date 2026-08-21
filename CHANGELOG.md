@@ -1,5 +1,39 @@
 # Changelog
 
+## v4.1.2-beta.3
+
+### Fixed
+
+- **The clip border's ChromIQ branding prints the logo *and* your lines.** With
+  a clip-text size set, the wordmark was squeezed smaller for every millimetre
+  your text took, until it was about a millimetre tall — which looked as though
+  the branding option printed the text and nothing else. Worse, once the lines
+  were larger than the band would hold, nothing shrank them either: they were
+  printed off the edge of the band. Both are fixed. The wordmark now keeps a
+  guaranteed share of the band, your lines shrink with it only when they must,
+  and a size the band cannot hold is reduced to fit instead of running off the
+  sheet. A size that already fits is used exactly as you set it, and automatic
+  sizing is unchanged.
+
+- **The clip-border preview shows the size it will print.** The Size box had no
+  effect on the panel's preview at all, so it appeared to do nothing and its
+  effect only showed up on paper. This is why the shrunken branding above went
+  unnoticed for so long.
+
+- **Your Measure settings stop changing when you switch runs.** The Measure
+  tab's Guided and Manual modules keep some settings in step, and loading a
+  run's stored settings let one module's value overwrite the other's — so a
+  setting you had saved came back different, and the next save recorded the
+  wrong value permanently. Each module now gets its own stored value back, and a
+  run whose file only mentions one of them still settles both, instead of
+  leaving the setting from the run you just left on screen. Scan tolerance,
+  patch-by-patch, resume, bidirectional reading and warning suppression were all
+  affected.
+
+- **"Show overlay from existing measurement" now explains itself.** On a chart
+  that had never been measured, ticking it simply sprang back off without a
+  word. The window that should have appeared could never open.
+
 ## v4.1.2-beta.2
 
 ### Fixed
