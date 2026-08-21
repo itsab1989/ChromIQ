@@ -10590,6 +10590,11 @@ class TabMeasure(QWidget):
     #: parameter in both modes follow each other when changed."*
     _LINKED_PAIRS: tuple = (
         ("_resume_cb", "_m_resume_cb"),
+        # Patch-by-patch is visible in BOTH modules since #160, and Knut's rule
+        # (beta.138, confirmed by him 2026-08-21) is that a parameter which is
+        # *shared and visible* must follow between them. It is not a Guided
+        # hard-coded default — those must NOT be linked — so it belongs here.
+        ("_pbp_cb", "_m_pbp_cb"),
         ("_suppress_cb", "_m_suppress_cb"),
         ("_bidir_combo", "_m_bidir_combo"),
         ("_bidir_auto_cb", "_m_bidir_auto_cb"),
