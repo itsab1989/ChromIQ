@@ -1,5 +1,43 @@
 # Changelog
 
+## v4.1.2-beta.2
+
+### Fixed
+
+- **Guided measurements no longer use settings you cannot see.** The Measure
+  tab's Guided module was applying options that had no control on screen: it
+  could switch itself to patch-by-patch reading, and it could add high-resolution
+  mode, a spectral filter, L\*a\*b\* output and XRGA correction — all picked up
+  from Manual or from a setting saved long ago. Guided now uses **only** the
+  options it shows you, and it shows what it uses.
+
+- **"Save as Defaults" can no longer store an option Guided doesn't offer.** One
+  visit to Manual followed by *Save as Defaults* in Guided used to write those
+  hidden options into your defaults, where they applied to every new project on
+  the computer.
+
+- **"Don't save spectral data" no longer goes missing between the modes.** The
+  two modules were built from two separate lists, and that option existed in only
+  one of them. They are built from one list now, so the two can never drift apart
+  again.
+
+- **Your saved measurement settings survive this change.** Runs saved by older
+  versions stored these options under their old names; those are carried over to
+  the Manual panel instead of being ignored — and, as before, nothing you saved
+  is deleted.
+
+### Changed
+
+- **"Patch-by-patch mode" is now available in Guided**, not just Manual. It is
+  the remedy ChromIQ itself suggests when strips keep failing or when a few
+  patches are left unread, so hiding it made that advice impossible to follow.
+  Tick it in either module and the other follows.
+
+- **Guided says what it keeps fixed.** A new information box at the bottom of the
+  Guided panel names the settings it leaves at their standard values and points
+  you to Manual if you need one of them — the same idea as the box in Create
+  Chart, in the Measure tab's green.
+
 ## v4.1.2-beta.1
 
 ### Changed
