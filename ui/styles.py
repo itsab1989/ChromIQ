@@ -349,6 +349,13 @@ QLabel#info {{
     background: #25060f; color: {SPEC_MAGENTA};
     border: 1px solid {SPEC_MAGENTA}; border-radius: 4px; padding: 6px 10px;
 }}
+/* The Measure tab's own information box — same shape as #info, in that tab's
+   green accent (#56d6a5) instead of the Create Chart magenta, so a panel's
+   guidance always reads in the colour of the tab it belongs to. */
+QLabel#info_measure {{
+    background: #062018; color: #56d6a5;
+    border: 1px solid #56d6a5; border-radius: 4px; padding: 6px 10px;
+}}
 QLabel#error {{
     background: #3a0a0a; color: {ACCENT_ERROR};
     border: 1px solid {ACCENT_ERROR}; border-radius: 4px; padding: 6px 10px;

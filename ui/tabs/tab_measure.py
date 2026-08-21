@@ -744,6 +744,27 @@ _OVERLAY_TIP_BODY = (
     "layout), open it in Tools ▸ Inspect a measurement to see the numbers "
     "instead.")
 
+#: Which chartread options the GUIDED module offers. Everything else is Manual
+#: only, and Guided keeps a good fixed default for it (#160).
+#:
+#: Guided is "a few good defaults for a beginner"; Manual is full control. The
+#: split is declared here rather than by hiding rows, because a hidden row that
+#: is still collected is exactly how Guided ended up measuring with options
+#: nobody could see.
+#:
+#: "tolerance" earns its place: a strip that keeps failing is the commonest
+#: thing a beginner hits, and loosening the consistency tolerance is the
+#: documented remedy.
+GUIDED_CHARTREAD_KEYS: "set[str]" = {"tolerance"}
+
+#: The options Manual keeps to itself, in the order Guided's information box
+#: lists them. Derived from the single option table at run time, so this can
+#: never fall out of step with what Guided actually builds.
+def guided_fixed_option_labels(all_opts) -> "list[str]":
+    """Labels of the options Guided does NOT offer, for its information box."""
+    return [o.label for o in all_opts if o.key not in GUIDED_CHARTREAD_KEYS]
+
+
 @dataclass
 class _ChartreadOption:
     """One chartread option row with enable-checkbox and optional value widget."""
@@ -1501,6 +1522,8 @@ class TabMeasure(QWidget):
         self._stack = QStackedWidget(left_container)
         self._guided_panel = self._make_guided_panel()
         self._manual_panel = self._make_manual_panel()
+        # Both option lists exist now, so Guided can name what it fixes.
+        self._update_guided_fixed_info()
         self._import_panel = self._make_import_panel()
         self._stack.addWidget(self._guided_panel)
         self._stack.addWidget(self._manual_panel)
@@ -1871,8 +1894,15 @@ class TabMeasure(QWidget):
             "read as \u201cyour printer is worse than the strips suggested\u201d. If it "
             "flags more than you want, raise the limit in Preferences → Beta."),
         )
-        self._pbp_cb.setVisible(False)
-        _pbp_tip.setVisible(False)
+        # SHOWN IN GUIDED (#160). It used to be hidden here while
+        # `_collect_guided` still read it, so a stored preference put `-p` on
+        # every Guided measurement with no control on screen to change it — the
+        # same fault as the `-N` incident in beta.148, one line below its fix.
+        #
+        # Shown rather than hard-coded off, because it is genuinely useful to a
+        # beginner: it is the documented remedy for a strip that keeps failing
+        # and for textured stock, and §M-ALL-STRIPS-PATCHES-LEFT tells the user
+        # to tick it to finish patches a strip read left behind.
 
         resume_row = QHBoxLayout()
         self._resume_cb = QCheckBox(tr("Refine / resume existing measurement (-r)"), left)
@@ -2006,9 +2036,11 @@ class TabMeasure(QWidget):
                     opt.widget.setValue(
                         float(self._settings.get("measure_tolerance_value", 1.0)))
                     opt.widget.setEnabled(opt.checkbox.isChecked())
-            else:
-                if opt.row_widget is not None:
-                    opt.row_widget.setVisible(False)
+            # NO `else: hide the row` HERE, deliberately. Every key in
+            # GUIDED_CHARTREAD_KEYS gets a row, and `_collect_guided` builds
+            # every option Guided owns — so hiding one would put a flag on the
+            # command line with no control on screen, which is exactly D2. A key
+            # in the set is a key Guided offers, and it must be visible.
 
         ll.addWidget(adv_grp)
 
@@ -2018,6 +2050,15 @@ class TabMeasure(QWidget):
         # unified file handling the Profile-run bar's **Run type** decides
         # whether a read is a verification, and a second control saying the same
         # thing could only ever disagree with it.
+        # WHAT GUIDED KEEPS FIXED — the same slot Create Chart's Guided box
+        # occupies: on the panel itself, after the last group and before the
+        # stretch, so it reads as a footnote to the whole panel rather than as
+        # part of one group (Basti, on screen).
+        self._guided_fixed_lbl = QLabel("", left)
+        self._guided_fixed_lbl.setObjectName("info_measure")
+        self._guided_fixed_lbl.setWordWrap(True)
+        ll.addWidget(self._guided_fixed_lbl)
+
         ll.addStretch(1)
 
         scroll.setWidget(left)
@@ -2699,175 +2740,70 @@ class TabMeasure(QWidget):
     # ------------------------------------------------------------------
 
     def _make_chartread_options(self, parent: QWidget) -> list[_ChartreadOption]:
-        opts = []
+        """Guided's chartread options — **the same definitions Manual uses**,
+        narrowed to the few a beginner benefits from (#160).
 
-        def _spinbox(lo, hi, step, default, decimals=0):
-            if decimals > 0:
-                sb = NoScrollDoubleSpinBox(parent)
-                sb.setRange(lo, hi)
-                sb.setSingleStep(step)
-                sb.setDecimals(decimals)
-                sb.setValue(default)
-                sb.setFixedWidth(90)
-            else:
-                sb = NoScrollSpinBox(parent)
-                sb.setRange(int(lo), int(hi))
-                sb.setSingleStep(int(step))
-                sb.setValue(int(default))
-                sb.setFixedWidth(90)
-            sb.setObjectName("compact_input")
-            return sb
+        Guided therefore *owns* only what it offers, which is what makes
+        `_collect_guided` correct by construction: it can no longer build a flag
+        the user cannot see. Before this, five hidden rows were still collected —
+        ticking them in Manual and measuring in Guided produced
+        ``-H -F 5 -T 0.7 -l -L -A N`` with nothing on the Guided panel to say so,
+        and "Save as Defaults" then baked them into every future target.
 
-        opts.append(_ChartreadOption(
-            key="highres", flag="-H",
-            label=tr("High resolution spectral mode (-H)"),
-            tooltip_title=tr("High Resolution Spectral Mode (-H)"),
-            tooltip_body=(
-                tr("Enables high-resolution spectral sampling on instruments that\n"
-                "support it (i1Pro 2 and i1Pro 3).\n\n"
-                "Standard mode samples the spectrum at 10 nm intervals.\n"
-                "High-resolution mode uses 5 nm intervals, capturing finer\n"
-                "spectral detail and improving colour accuracy for profiling,\n"
-                "particularly on saturated or fluorescent colours.\n\n"
-                "The measurement time increase is small (roughly 10–20% per\n"
-                "strip). Leave this off unless you specifically need the\n"
-                "extra spectral resolution.")
-            ),
-        ))
+        NOT filtered on ``isVisible()``: on a tab that has not been shown yet,
+        even the row Guided *does* offer reports ``isVisible() == False``, so a
+        visibility test would silently drop ``-T`` — a wrong measurement created
+        by the fix meant to prevent wrong measurements.
+        """
+        return self._make_manual_chartread_options(parent, GUIDED_CHARTREAD_KEYS)
 
-        filter_combo = NoScrollComboBox(parent)
-        filter_combo.setFixedWidth(130)
-        filter_combo.setObjectName("compact_input")
-        for code, lbl in [("n", "None (M0)"), ("5", "D50 (M1)"), ("6", "D65"), ("u", "UV Cut (M2)"), ("p", "Polarizing (M3)")]:
-            filter_combo.addItem(lbl, code)
-        filter_combo.setCurrentIndex(1)  # default to D50 (M1)
-        opts.append(_ChartreadOption(
-            key="filter", flag="-F",
-            label=tr("Spectral filter type (-F)"),
-            tooltip_title=tr("Spectral Filter (-F)"),
-            tooltip_body=(
-                tr("Overrides the illuminant/filter condition used for measurement.\n\n"
-                "Select the filter physically in use on your spectrophotometer:\n\n"
-                "  n = None  (M0 — no filter, uncontrolled UV)\n"
-                "  5 = D50   (M1 — controlled UV, ISO 13655 standard)\n"
-                "  6 = D65   illuminant\n"
-                "  u = UV Cut (M2 — UV excluded)\n"
-                "  p = Polarizing filter (M3)\n\n"
-                "The app defaults to D50 (M1), which matches the most common\n"
-                "workflow for ICC print profiling with the i1Pro family.\n"
-                "Change this only if your instrument has a different filter\n"
-                "physically fitted. Wrong selection silently skews measured values.")
-            ),
-            widget=filter_combo,
-        ))
+    def _update_guided_fixed_info(self) -> None:
+        """Name the options Guided keeps fixed, in its information box.
 
-        _tol_spin = _spinbox(0.1, 10.0, 0.1, 0.7, decimals=1)
-        _tol_spin.setObjectName("")
-        opts.append(_ChartreadOption(
-            key="tolerance", flag="-T",
-            label=tr("Patch consistency tolerance (-T)"),
-            tooltip_title=tr("Patch consistency tolerance (-T)"),
-            tooltip_body=(
-                tr("How much colour variation ChromIQ accepts WITHIN a\n"
-                "single patch.\n\n"
-                "Reading a strip, your instrument does not take one reading\n"
-                "per patch — it takes many as it slides along, then divides\n"
-                "them up. It can then compare the readings that belong to the\n"
-                "same patch. On an evenly printed patch they agree closely. If\n"
-                "they disagree by more than this tolerance, the strip is\n"
-                "rejected and you are asked to read it again.\n\n"
-                "WHY THAT IS WORTH HAVING\n"
-                "Patches that are not an even colour are telling you something\n"
-                "about the print, not about your scanning: a nozzle starting\n"
-                "to clog, ink running low, a toner roller leaving banding, a\n"
-                "sheet that was handled. Catching that while you measure is\n"
-                "much cheaper than discovering it in a finished profile — and\n"
-                "the better the print you measure, the better the profile you\n"
-                "get. That is why this is switched on by default.\n\n"
-                "CHOOSING A VALUE\n"
-                "The number multiplies your instrument's own built-in\n"
-                "threshold, so 1.0 means exactly what the manufacturer set.\n"
-                "ChromIQ starts you at 0.7, a little stricter than that, which\n"
-                "has proved comfortable in practice: it still accepts quite\n"
-                "large variation and catches real problems.\n\n"
-                "  • Lower (0.4–0.7) — stricter, and a useful thing to want.\n"
-                "      You are told sooner when a patch is uneven, so a poor\n"
-                "      print gets reprinted rather than profiled. The cost is\n"
-                "      re-reading a strip more often, especially on textured\n"
-                "      or matte papers where the surface itself varies.\n\n"
-                "  • Higher (1.0–2.0) — more forgiving. The right choice for\n"
-                "      coarse-screened media, fabric, canvas and art papers,\n"
-                "      and for laser printers, whose patches vary more than an\n"
-                "      inkjet's by nature. Raise it if you are being asked to\n"
-                "      re-read strips that look perfectly good to you;\n"
-                "      ArgyllCMS suggests 1.5 or 2.0 where the default is\n"
-                "      unreasonably tight for the medium.\n\n"
-                "There is no single right answer — it depends on your printer,\n"
-                "your paper and your instrument. Start at the default; if you\n"
-                "are stopped on strips that look fine, raise it a little, and\n"
-                "if you want earlier warning about print quality, lower it a\n"
-                "little.\n\n"
-                "Only some instruments support this (the i1 Pro and ColorMunki\n"
-                "families do); on others it is quietly ignored.")
-            ),
-            widget=_tol_spin,
-        ))
+        Derived from the one option table at run time (see
+        :func:`guided_fixed_option_labels`), so it can never fall out of step
+        with what Guided actually builds — the failure this box exists to
+        prevent.
+        """
+        lbl = getattr(self, "_guided_fixed_lbl", None)
+        if lbl is None:
+            return
+        fixed = guided_fixed_option_labels(getattr(self, "_m_chartread_opts", []))
+        if not fixed:
+            lbl.setVisible(False)
+            return
+        lbl.setVisible(True)
+        # "standard settings", not "recommended values": Guided simply does not
+        # send these flags, so ArgyllCMS's own defaults apply. Saying we chose a
+        # value would be a small lie about who decided.
+        # Same shape as the Create Chart Guided box (tab_chart.py:9166): a
+        # heading line, then the specifics, then what to do about it. One long
+        # paragraph is harder to scan and does not match the reference.
+        lbl.setText(
+            tr("Guided leaves these at their standard settings:") + "\n"
+            + " · ".join(fixed) + "\n"
+            + tr("Need one of them? Switch to MANUAL at the top — "
+                 "it gives you every option."))
 
-        opts.append(_ChartreadOption(
-            key="save_lab", flag="-l",
-            label=tr("Save L*a*b* instead of XYZ (-l)"),
-            tooltip_title=tr("Save L*a*b* Values (-l)"),
-            tooltip_body=(
-                tr("Saves measurement data as D50 L*a*b* instead of XYZ in the\n"
-                "output .ti3 file.\n\n"
-                "Standard ArgyllCMS tools (including colprof) work with XYZ.\n"
-                "This option is almost never needed — enable it only if a\n"
-                "downstream tool explicitly requires D50 L*a*b* input.")
-            ),
-        ))
+    def _make_manual_chartread_options(
+            self, parent: QWidget,
+            keys: "set[str] | None" = None) -> list[_ChartreadOption]:
+        """**The** chartread option definitions. Both modules are built from
+        here (#160).
 
-        opts.append(_ChartreadOption(
-            key="save_lab_and_xyz", flag="-L",
-            label=tr("Save L*a*b* AND XYZ (-L)"),
-            tooltip_title=tr("Save L*a*b* AND XYZ (-L)"),
-            tooltip_body=(
-                tr("Saves both D50 L*a*b* values and XYZ values in the output\n"
-                ".ti3 file.\n\n"
-                "Use this when you need the .ti3 to be compatible with tools\n"
-                "that require L*a*b* while keeping the XYZ data that colprof\n"
-                "and other ArgyllCMS tools expect.")
-            ),
-        ))
+        *keys* limits which options are created; Guided passes
+        :data:`GUIDED_CHARTREAD_KEYS` so it owns only the options it offers.
+        Everything else — labels, tooltips, ranges, defaults — is therefore
+        written once, and the two modules cannot drift apart.
 
-        # XRGA conversion combo
-        xrga_combo = NoScrollComboBox(parent)
-        xrga_combo.setFixedWidth(110)
-        xrga_combo.setObjectName("compact_input")
-        for code, lbl in [("N", "None"), ("A", "XRGA"), ("X", "XRDI"), ("G", "GMDI")]:
-            xrga_combo.addItem(lbl, code)
-        opts.append(_ChartreadOption(
-            key="xrga", flag="-A",
-            label=tr("XRGA instrument correction (-A)"),
-            tooltip_title=tr("XRGA Correction (-A)"),
-            tooltip_body=(
-                tr("Applies a colorimetric correction to convert between\n"
-                "spectrophotometer calibration standards.\n\n"
-                "Different instrument generations use slightly different white\n"
-                "references. XRGA standardisation corrects for these offsets:\n\n"
-                "  N = No correction   (default — use for modern instruments)\n"
-                "  A = XRGA   (X-Rite Global Reference Architecture)\n"
-                "  X = XRDI   (older X-Rite reference)\n"
-                "  G = GMDI   (GretagMacbeth reference)\n\n"
-                "Only change this if you are combining measurements from\n"
-                "instruments of different generations or manufacturers.")
-            ),
-            widget=xrga_combo,
-        ))
-
-        return opts
-
-    def _make_manual_chartread_options(self, parent: QWidget) -> list[_ChartreadOption]:
-        """Mirror of _make_chartread_options for the manual panel."""
+        They did drift: `-n` existed only in Manual, so the Guided↔Manual mirror
+        (which pairs by key) silently skipped it. Note what this fixes and what
+        it does not — `-n` is still Manual-only, so measuring in Guided still
+        saves spectral data. The difference is that Guided no longer *pretends*
+        to carry the option: it is named in Guided's information box as one of
+        the settings Manual owns, instead of appearing to be honoured and not
+        being.
+        """
         opts = []
 
         def _spinbox(lo, hi, step, default, decimals=0):
@@ -2930,6 +2866,15 @@ class TabMeasure(QWidget):
             widget=filter_combo,
         ))
 
+        _tol_spin = _spinbox(0.1, 10.0, 0.1, 0.7, decimals=1)
+        if keys is not None:
+            # GUIDED KEEPS THE STANDARD INPUT HEIGHT for this one control.
+            # `_spinbox` names every box `compact_input`, which the themes pin
+            # to 22 px — and removing that from this spinbox in Guided is a fix
+            # that shipped in 3.1.2 and is in the CHANGELOG. Merging the two
+            # option tables silently reverted it; this keeps it.
+            _tol_spin.setObjectName("")
+
         opts.append(_ChartreadOption(
             key="tolerance", flag="-T",
             label=tr("Patch consistency tolerance (-T)"),
@@ -2977,7 +2922,7 @@ class TabMeasure(QWidget):
                 "Only some instruments support this (the i1 Pro and ColorMunki\n"
                 "families do); on others it is quietly ignored.")
             ),
-            widget=_spinbox(0.1, 10.0, 0.1, 0.7, decimals=1),
+            widget=_tol_spin,
         ))
 
         opts.append(_ChartreadOption(
@@ -3086,6 +3031,16 @@ class TabMeasure(QWidget):
             widget=xrga_combo,
         ))
 
+        if keys is not None:
+            # Only hand back what this module offers, and destroy the widgets
+            # for the rest: a value widget parented here but never put in a
+            # layout would still be painted, in the corner of the panel.
+            keep = [o for o in opts if o.key in keys]
+            for o in opts:
+                if o.key not in keys and o.widget is not None:
+                    o.widget.setParent(None)
+                    o.widget.deleteLater()
+            return keep
         return opts
 
     # ------------------------------------------------------------------
@@ -11148,7 +11103,10 @@ class TabMeasure(QWidget):
             s.set("measure_bidir_mode",        self._bidir_combo.currentData())
             s.set("measure_bidir_auto",        self._bidir_auto_cb.isChecked())
             s.set("measure_suppress_warnings", self._suppress_cb.isChecked())
-            s.set("measure_no_cal",            self._nocal_cb.isChecked())
+            # NOT measure_no_cal: `_nocal_cb` is hidden in Guided and
+            # `_collect_guided` hard-codes the flag off, so saving its state
+            # would write a default no Guided user can see or change — D4's
+            # exact shape. Manual's Save as Defaults still stores it below.
             s.set("measure_patch_by_patch",    self._pbp_cb.isChecked())
             s.set("measure_overlay_mode",      self._g_overlay_mode.currentData())
             s.set("measure_only_measured",     self._g_only_measured.isChecked())

@@ -433,6 +433,14 @@ QLabel#info {{
     border-radius: 4px;
     padding: 6px 10px;
 }}
+/* Measure-tab information box: the #info shape in this tab's green. */
+QLabel#info_measure {{
+    background: #eefaf5;
+    color: #0f7a5a;
+    border: 1px solid #56d6a5;
+    border-radius: 4px;
+    padding: 6px 10px;
+}}
 QLabel#error {{
     background: #ffebee;
     color: {LM_ACCENT_ERROR};
