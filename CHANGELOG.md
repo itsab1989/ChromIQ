@@ -1,5 +1,26 @@
 # Changelog
 
+## v4.1.2-beta.4
+
+### Changed
+
+- **The in-gamut chart starts from the chart you set up in Manual.** "Colours to
+  test" used to open on a stored number that had nothing to do with your
+  settings. Load a 484-patch preset and the box now reads 476, so the sheet
+  totals 484 — the eight cube corners are always added on top. It follows the
+  Manual chart as you change it, including when you pick a preset while the
+  module is open, and each run gets its own starting point instead of the one
+  from the run you just left.
+
+  It is only a starting point: a number you type is yours and is remembered as
+  *chosen*, not merely stored. One thing to expect once, though — a verification
+  run where you set the count by hand before this version carries nothing to say
+  so, so it will be re-defaulted the first time you open it. After that your
+  number stays.
+
+  "Auto — fill the pages" is unchanged and still fills the sheet, which is a
+  different number from matching your chart.
+
 ## v4.1.2-beta.3
 
 ### Fixed
