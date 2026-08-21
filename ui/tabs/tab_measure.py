@@ -10756,6 +10756,12 @@ class TabMeasure(QWidget):
         # apart is the whole value of the message.
         self._sync_overlay_checkboxes(False)
         reason = self._overlay_failure_reason()
+        # The catalogue, imported here like the six other methods that use it.
+        # It was missing, so the "absent" branch below raised NameError and the
+        # approved M-OVERLAY-NO-MEASUREMENT window never opened — the box just
+        # unticked itself. The test that guards this window read the method's
+        # SOURCE and so stayed green through three releases.
+        from workflow import measurement_messages as M
         from PyQt6.QtWidgets import QMessageBox
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.NoIcon)      # clean style, no icon (Basti)
