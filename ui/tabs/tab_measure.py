@@ -477,20 +477,39 @@ def edge_spacer_px_from_sidecar(ti2_path: "Path | None") -> int:
 
 
 def _apply_hex_stagger(ti2_path: Path, pages: "list[dict[str, QRect]]") -> None:
-    """SpectroScan hexagons are DRAWN with a ±¼-width horizontal zigzag by row
-    (raster._hexagon_points), but the recorded boxes hold only the slot x. So the
-    split overlay would sit a quarter-patch off the real hexagons on every row
-    (Knut #32). Shift each box to match the drawn hexagon: odd patch numbers
-    (1,3,5…) shift left, even ones right — exactly the renderer's step parity."""
+    """Nothing to do — the recorded boxes already hold the drawn position.
+
+    SpectroScan hexagons are drawn with a ±¼-width horizontal zigzag by row
+    (`raster._hexagon_points`), and this shifted every box to match, because
+    "the recorded boxes hold only the slot x" (#32). That was true when it was
+    written. On 2026-08-13 `geometry.patch_rects_px` started recording the
+    stagger itself — so the boxes arrived already shifted and this moved them a
+    SECOND time, putting the patch-by-patch ring and the click target a quarter
+    patch off the hexagon they name, on every row of every hexagonal chart.
+    Seen on screen: the highlight sat between two hexagons (Sebastian).
+
+    A LEGACY sidecar still needs it, and says so itself. Hexagonal charts built
+    between 2026-06-28 (when hexagons began to be drawn) and 2026-08-13 have
+    unstaggered rects frozen in their sidecar, which is written once at chart
+    creation and never rebuilt. `engine_version` is written but never read, so
+    it cannot tell the vintages apart — but the geometry can: in an unstaggered
+    sidecar every patch of a column shares one x, while a staggered one
+    alternates two. Compensate only there.
+
+    The identical stale compensation lived in `workflow.margin_inspector` and
+    was removed at the same time.
+    """
     import re
     from workflow.hex_support import chart_is_hexagonal
     if not chart_is_hexagonal(ti2_path):
         return
     for page in pages:
+        if not page:
+            continue
         for loc, r in list(page.items()):
             m = re.search(r"(\d+)\s*$", loc)
             if not m:
-                continue
+                continue                # the old code skipped these, and was wrong to
             j = int(m.group(1)) - 1                    # 0-based row in the strip
             dx = round(-r.width() / 4) if (j % 2 == 0) else round(r.width() / 4)
             page[loc] = QRect(r.x() + dx, r.y(), r.width(), r.height())

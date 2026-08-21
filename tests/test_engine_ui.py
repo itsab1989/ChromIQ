@@ -151,7 +151,16 @@ def test_patch_boxes_hex_stagger_tracks_drawn_hexagons(tmp_path):
     """#32 (Knut): the split-patch overlay boxes for a SpectroScan hexagonal
     chart must follow the ±¼-width per-row zigzag the renderer draws, so a split
     lands on its hexagon and not a quarter-patch off. Odd patch numbers shift
-    left, even ones right; a non-hex chart is untouched."""
+    left, even ones right; a non-hex chart is untouched.
+
+    THIS FIXTURE IS A LEGACY SIDECAR — every patch of the column shares one x,
+    which is how charts recorded their geometry before 2026-08-13. Since then
+    `geometry.patch_rects_px` writes the stagger itself, and applying it again
+    put the ring and the click target a quarter-patch off the patch they name.
+    So the shift now happens only for sidecars shaped like this one; a modern
+    sidecar is passed through untouched, which
+    `tests/test_hex_overlay_geometry.py` pins from the other side.
+    """
     import json
     from ui.tabs.tab_measure import patch_boxes_from_sidecar
     w = 40

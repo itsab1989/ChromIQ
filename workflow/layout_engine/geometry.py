@@ -234,7 +234,19 @@ def placement(geom: Geom, paper_w_mm: float, paper_h_mm: float, layout: Layout) 
     # (fh = 0). top/bottom and center/right shift the block within the slack only
     # — capacity is unchanged.
     fv, fh = _align_fractions(g.patch_area_align)
-    slack = ph - mints - _block
+    # CENTRE THE INK, NOT THE SLOTS.
+    #
+    # A hexagon's apexes overshoot the slot block by hxeh at BOTH ends, and the
+    # block is then shifted down by hxeh below (so the upper apexes clear the
+    # top). Centring on `_block` alone therefore put the whole 2·hxeh of
+    # overhang at the bottom: at 20 mm with a 2 mm border the lower apex sat
+    # 0.66 mm from the page edge, inside the margin asked for, and at 40 mm with
+    # no border it ran 5.11 mm OFF the sheet. `compute()` already reserves
+    # 2·hxeh when it works out capacity — only the placement disagreed.
+    # Zero for square patches and for the ColorMunki stagger, whose overhang is
+    # downward-only and already absorbed below.
+    _hex_shift = g.hxeh if g.row_stagger_mm <= 0 else 0.0
+    slack = ph - mints - _block - 2.0 * _hex_shift
     amints = mints + fv * (slack - minbs)
     # Horizontal slack: passes tile from the left of the imageable area; the
     # leftover to the right of the block is distributed by fh.
@@ -258,7 +270,6 @@ def placement(geom: Geom, paper_w_mm: float, paper_h_mm: float, layout: Layout) 
     # grid flush at the top and absorbs the whole overhang below, and shifting
     # down here ate 3.3 mm of the CM trailer reserve (verified against
     # printtarg -h: tops 40.4/47.1 mm, trailer stays ≥ tspa 25 mm).
-    _hex_shift = g.hxeh if g.row_stagger_mm <= 0 else 0.0
     _y0 = amints + _lead + _hex_shift + g.offset_y
     if g.margins_are_law:
         # Strip labels live in the top margin at the text-edge distance from the

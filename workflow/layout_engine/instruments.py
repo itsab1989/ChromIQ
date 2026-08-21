@@ -228,6 +228,19 @@ def build(
     # patch (printtarg's rig stagger = 0.5·(plen + ½·spacer)) and reserve hxeh =
     # ¼·plen so the overhang stays on the page. Decoupled from density (#93, Knut).
     hxeh = geom.hxeh
+    hxew = geom.hxew
+    # THE HEX OVERHANG FOLLOWS THE PATCH SIZE.
+    #
+    # A SpectroScan hexagon pokes plen/6 past its slot top and bottom and ¼·pwid
+    # past its sides, and the layout reserves exactly that as hxeh/hxew. Both
+    # were computed by `_build_base` from `pscale` and then never revisited when
+    # `patch_w`/`patch_h` set the size directly — and hxew was not even passed
+    # through the `replace()` below. So a 20 mm hexagon still reserved the 7 mm
+    # geometry's 1.75 mm, overhung it by 5 mm, and printed past the margin. Both
+    # the Manual patch-size boxes and the area-first grid take this path (#159).
+    if key == "SS" and geom.hxew > 0 and (patch_w or patch_h):
+        hxeh = plen / 6.0
+        hxew = 0.25 * pwid
     row_stagger = 0.0
     if key == "CM" and cm_stagger:
         row_stagger = 0.5 * (plen + 0.5 * pspa)
@@ -245,7 +258,7 @@ def build(
             ml = max(ml, clip_w)
     return replace(geom, margin_t=mt, margin_r=mr, margin_b=mb, margin_l=ml,
                    plen=plen, pwid=pwid, rrsp=rrsp, pspa=pspa, mxrowl=mxrowl,
-                   hxeh=hxeh, row_stagger_mm=row_stagger,
+                   hxeh=hxeh, hxew=hxew, row_stagger_mm=row_stagger,
                    strip_indicator_gap=sig, offset_x=offset_x, offset_y=offset_y,
                    edge_spacers=edge_spacers,
                    patch_area_align=patch_area_align or "center-left",

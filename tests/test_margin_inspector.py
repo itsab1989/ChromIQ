@@ -278,40 +278,83 @@ def test_measure_from_engine_exact_geometry(tmp_path):
     assert ruler == 240.0                             # i1Pro ruler for the warning
 
 
-def test_measure_from_engine_hex_expands_to_tips_and_edges(tmp_path):
-    """#28 (Knut): SpectroScan hexagons are drawn beyond their slots — the apex
-    reaches h/6 past the slot top/bottom, the ±w/4 stagger past the left/right
-    sides. So the margins (and the guides they drive) must sit at the hex tips
-    (top/bottom) and flat edges (left/right), not the slot box."""
+def test_measure_from_engine_hex_expands_to_the_tips_only(tmp_path):
+    """#28 (Knut): SpectroScan hexagons are drawn beyond their slots, so the
+    margins the guides mark must sit at the true ink.
+
+    Vertically that means the apex, h/6 past the slot. HORIZONTALLY it means
+    nothing at all: `geometry.patch_rects_px` already writes the ±w/4 row
+    stagger into the recorded rects, and the hexagon's flat sides span exactly
+    that staggered slot — verified against rendered ink, where the recorded x
+    and the hexagon's first inked column agree to the pixel. Expanding again
+    here reported w/4 of margin that does not exist: 3 mm at a 12 mm hexagon,
+    5 mm at 20 mm.
+
+    The fixture must therefore be STAGGERED, as the engine really records it.
+    The previous one laid every row at the same x, which is the one arrangement
+    in which double-counting looks right — a green test guarding the bug.
+    """
     import json
     from workflow.margin_inspector import measure_from_engine
     mm = 200 / 25.4
+
     def px(v):
         return round(v * mm)
+
     w = h = px(7.0)                                  # 7 mm hex slot
     rects = []
     for col in range(3):
         for row in range(4):
-            rects.append({"page": 0, "x": px(20.0) + col * w,
+            dx = -w // 4 if row % 2 == 0 else w // 4   # the engine's own stagger
+            rects.append({"page": 0, "x": px(20.0) + col * w + dx,
                           "y": px(15.0) + row * h, "w": w, "h": h})
-    # rectangular reference (no hex): margins fall on the slot box.
-    base = {"layout": {"engine": "chromiq", "dpi": 200, "paper_mm": [210.0, 297.0],
-                       "patches": rects, "recipe": {"instrument": "i1"}}}
-    scb = tmp_path / "rect.channels.json"; scb.write_text(json.dumps(base))
-    r_rect, _ = measure_from_engine(scb, 0)
+    x_min = min(r["x"] for r in rects)
+    x_max = max(r["x"] + r["w"] for r in rects)
 
-    hexdoc = {"layout": {"engine": "chromiq", "dpi": 200, "paper_mm": [210.0, 297.0],
-                         "patches": rects,
-                         "recipe": {"instrument": "SS", "hflag": True}}}
-    sch = tmp_path / "hex.channels.json"; sch.write_text(json.dumps(hexdoc))
-    r_hex, _ = measure_from_engine(sch, 0)
+    doc = {"layout": {"engine": "chromiq", "dpi": 200, "paper_mm": [210.0, 297.0],
+                      "patches": rects,
+                      "recipe": {"instrument": "SS", "hflag": True}}}
+    sc = tmp_path / "hex.channels.json"
+    sc.write_text(json.dumps(doc))
+    rep, _ = measure_from_engine(sc, 0)
 
     px2mm = 25.4 / 200
-    # hex margins are SMALLER than the slot margins by exactly the overhang.
-    assert abs((r_rect.left_mm - r_hex.left_mm) - (w / 4) * px2mm) < 0.05
-    assert abs((r_rect.right_mm - r_hex.right_mm) - (w / 4) * px2mm) < 0.05
-    assert abs((r_rect.top_mm - r_hex.top_mm) - (h / 6) * px2mm) < 0.05
-    assert abs((r_rect.bottom_mm - r_hex.bottom_mm) - (h / 6) * px2mm) < 0.05
+    assert abs(rep.left_mm - x_min * px2mm) < 0.05, (
+        "the stagger is already in the rects — counting it again invents margin")
+    assert abs(rep.right_mm - (210.0 - x_max * px2mm)) < 0.05
+    # …and the apex, which the rects genuinely do NOT carry, still counts.
+    assert abs(rep.top_mm - (px(15.0) - h / 6.0) * px2mm) < 0.05
+
+
+def test_a_hex_chart_reports_the_margin_its_ink_really_has(tmp_path):
+    """The same rule against the engine's OWN recorded geometry rather than a
+    hand-made fixture, at a CR30-sized hexagon where the double-count was 3 mm.
+
+    `patch_rects_px` is what writes the sidecar the inspector reads, so this
+    pins the two against each other: whatever stagger the engine applies, the
+    reported margin is the leftmost slot and nothing further.
+    """
+    import json
+    from workflow.layout_engine import geometry, instruments
+    from workflow.margin_inspector import measure_from_engine
+
+    g = instruments.build("SS", pscale=12 / 7.0, hflag=True, border=6.0)
+    lay = geometry.compute(g, 210.0, 297.0, 120)
+    rects = geometry.patch_rects_px(g, 210.0, 297.0, lay, 200)
+    assert rects, "the engine recorded no patches"
+    xs = {r["x"] for r in rects}
+    assert len(xs) > lay.passes, "the fixture is not staggered — nothing to test"
+
+    doc = {"layout": {"engine": "chromiq", "dpi": 200, "paper_mm": [210.0, 297.0],
+                      "patches": [dict(r, page=0) for r in rects if r["page"] == 0],
+                      "recipe": {"instrument": "SS", "hflag": True}}}
+    sc = tmp_path / "hexchart.channels.json"
+    sc.write_text(json.dumps(doc))
+    rep, _ = measure_from_engine(sc, 0)
+    left_px = min(r["x"] for r in rects if r["page"] == 0)
+    assert abs(rep.left_mm - left_px * 25.4 / 200) < 0.05, (
+        f"reported {rep.left_mm:.2f} mm, the leftmost hexagon is at "
+        f"{left_px * 25.4 / 200:.2f} mm")
 
 
 def test_measure_from_engine_skips_printtarg_charts(tmp_path):

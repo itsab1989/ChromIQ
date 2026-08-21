@@ -852,3 +852,49 @@ def test_every_strip_rect_bounds_exactly_its_own_patches():
             assert max(p["y"] + p["h"] for p in own) == s["y"] + s["h"], \
                 f"{label}: bottom"
         assert checked > 1, f"{inst}/{mode}: nothing compared"
+
+
+def test_hex_overhang_follows_an_explicit_patch_size():
+    """A SpectroScan hexagon pokes plen/6 past its slot top and bottom and
+    ¼·pwid past its sides, and the layout reserves exactly that as hxeh/hxew.
+
+    Both were computed from `pscale` and never revisited when `patch_w`/
+    `patch_h` set the size directly — and `hxew` was not even carried through
+    the `replace()` — so a 20 mm hexagon still reserved the 7 mm geometry's
+    1.75 mm and overhung it by 5 mm, printing past the margin. The Manual
+    patch-size boxes and the area-first grid both take this path, and every
+    patch size a CR30 chart would use (12–20 mm) is in the affected range.
+    """
+    from workflow.layout_engine import instruments
+    for w_mm in (7.0, 12.0, 16.0, 20.0, 26.0):
+        h_mm = w_mm * (3 ** 0.5) / 2
+        g = instruments.build("SS", pscale=1.0, hflag=True, border=6.0,
+                              patch_w=w_mm, patch_h=h_mm)
+        assert abs(g.pwid - w_mm) < 1e-6
+        assert abs(g.hxeh - g.plen / 6.0) < 1e-6, (
+            f"{w_mm} mm hexagon reserves {g.hxeh:.2f} mm at the apex, "
+            f"needs {g.plen / 6.0:.2f} mm")
+        assert abs(g.hxew - g.pwid / 4.0) < 1e-6, (
+            f"{w_mm} mm hexagon reserves {g.hxew:.2f} mm at the sides, "
+            f"needs {g.pwid / 4.0:.2f} mm")
+
+
+def test_an_explicit_patch_size_matches_the_same_size_via_pscale():
+    """The two ways of asking for the same hexagon must agree. They did not:
+    one route recomputed the overhang, the other kept the base geometry's."""
+    from workflow.layout_engine import instruments
+    for w_mm in (12.0, 20.0):
+        a = instruments.build("SS", pscale=w_mm / 7.0, hflag=True, border=6.0)
+        b = instruments.build("SS", pscale=1.0, hflag=True, border=6.0,
+                              patch_w=w_mm, patch_h=w_mm * (3 ** 0.5) / 2)
+        assert abs(a.hxeh - b.hxeh) < 1e-6
+        assert abs(a.hxew - b.hxew) < 1e-6
+
+
+def test_a_square_spectroscan_chart_reserves_no_hex_overhang():
+    """The counterweight: without the hex flag there is no overhang to reserve,
+    whatever the patch size."""
+    from workflow.layout_engine import instruments
+    g = instruments.build("SS", pscale=1.0, hflag=False, border=6.0,
+                          patch_w=20.0, patch_h=20.0)
+    assert g.hxeh == 0.0 and g.hxew == 0.0

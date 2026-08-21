@@ -190,17 +190,19 @@ def measure_from_engine(
             pass
 
     # SpectroScan hexagonal patches are DRAWN beyond their slot rectangles: the
-    # top/bottom apex pokes ph/6 past the slot (reserved as hxeh) and the ±¼·w
-    # row stagger pushes the flat left/right sides past the slot (reserved as
-    # hxew) — see raster._hexagon_points. So the true ink extremes, and thus the
-    # margins Knut wants the guides to mark, are the hex tips (top/bottom) and
-    # flat edges (left/right), not the slot box. Expand the bbox to match (#28).
+    # top/bottom apex pokes ph/6 past the slot (reserved as hxeh) — see
+    # raster._hexagon_points. So the true ink extremes, and thus the margins
+    # Knut wants the guides to mark, are the hex tips, not the slot box (#28).
+    #
+    # ONLY the apex. The ±¼·w row stagger is ALREADY in the recorded rects —
+    # `geometry.patch_rects_px` applies it when it writes them, precisely so
+    # that everything reading this geometry describes where the ink is. Adding
+    # it again here double-counted it by w/4: 3.0 mm at a 12 mm hexagon, 5.0 mm
+    # at 20 mm, reported as margin that does not exist. The hexagon's flat sides
+    # span exactly the staggered slot, so no horizontal expansion is right.
     from workflow.hex_support import recipe_is_hexagonal
     if recipe_is_hexagonal(rec):
-        w_px = max(r["w"] for r in rects)
         h_px = max(r["h"] for r in rects)
-        x0 -= w_px / 4.0          # flat left edge of the left-shifted rows
-        x1 += w_px / 4.0          # flat right edge of the right-shifted rows
         y0 -= h_px / 6.0          # upper apex of the top row
         y1 += h_px / 6.0          # lower apex of the bottom row
 

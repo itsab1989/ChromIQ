@@ -2392,16 +2392,31 @@ class TiffPreview(QWidget):
             x1 = round((r.x() + r.width()) * s + ox)
             y1 = round((r.y() + r.height()) * s + oy)
             painter.setBrush(Qt.BrushStyle.NoBrush)
+            # A HEXAGONAL chart gets a hexagonal ring. The slot box's corners
+            # fall OUTSIDE the hexagon, so a rectangle here covers slivers of
+            # the six neighbours and points at the wrong patch at its corners —
+            # on the one chart type where the user is being told exactly which
+            # patch to put the instrument on. "Show only measured patches"
+            # already draws the true shape (Knut); this is the same rule for the
+            # patch being read next. (Sebastian, on screen: "i saw a square
+            # overlay over the hex patch".)
+            _hex = self._patch_hexagon(r, s, ox, oy) if self._hex_zigzag else None
             halo = QPen(QColor(255, 255, 255, 235))
             halo.setWidthF(5.0)
             halo.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
             painter.setPen(halo)
-            painter.drawRect(x0, y0, x1 - x0, y1 - y0)
+            if _hex is not None:
+                painter.drawPath(_hex)
+            else:
+                painter.drawRect(x0, y0, x1 - x0, y1 - y0)
             ring = QPen(QColor("#1f8f6b"))
             ring.setWidthF(2.5)
             ring.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
             painter.setPen(ring)
-            painter.drawRect(x0, y0, x1 - x0, y1 - y0)
+            if _hex is not None:
+                painter.drawPath(_hex)
+            else:
+                painter.drawRect(x0, y0, x1 - x0, y1 - y0)
 
         # #126 spot mode: click-to-jump hover outline around the patch under
         # the pointer (mirrors the strip hover outline below).
@@ -2419,7 +2434,12 @@ class TiffPreview(QWidget):
                 pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
                 painter.setPen(pen)
                 painter.setBrush(Qt.BrushStyle.NoBrush)
-                painter.drawRect(x0, y0, x1 - x0, y1 - y0)
+                # …and the same for the hover outline, which says "click here
+                # to read this one".
+                if self._hex_zigzag:
+                    painter.drawPath(self._patch_hexagon(hr, s, ox, oy))
+                else:
+                    painter.drawRect(x0, y0, x1 - x0, y1 - y0)
 
         if self._stripe_click_enabled and self._hover_stripe >= 0 \
                 and self._hover_stripe < len(self._stripe_rects):
