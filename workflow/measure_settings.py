@@ -140,10 +140,30 @@ def apply(tab: Any, stored: "dict[str, dict]") -> "list[str]":
             for o in (getattr(tab, "_chartread_opts", []) or [])}
     opts.update({f"chartread_manual.{o.key}": o
                  for o in (getattr(tab, "_m_chartread_opts", []) or [])})
-    for key, rec in (stored or {}).items():
+    # LEGACY KEYS FROM BEFORE THE MODULES SPLIT (#160, data safety).
+    #
+    # `chartread_manual.*` first shipped in v4.0.0-beta.4; `measure_settings`
+    # itself shipped in v3.14.8-beta.173. Every run written in that window
+    # stored the five advanced options as `chartread.<key>` ONLY — Guided owned
+    # them then. Guided no longer does, so without this those keys would be
+    # "unknown": the target's own stored choice would be ignored, whatever the
+    # PREVIOUS target left on screen would stay (the §4 leak
+    # `load_target_settings` exists to prevent), and the next save would rewrite
+    # meta.json without them — losing the user's record. Route them to the
+    # Manual twin, which is where those options live now, unless the file
+    # already carries one.
+    stored = dict(stored or {})
+    for key in [k for k in stored if k.startswith("chartread.")]:
+        suffix = key.split(".", 1)[1]
+        manual_key = f"chartread_manual.{suffix}"
+        if key not in opts and manual_key in opts and manual_key not in stored:
+            stored[manual_key] = stored[key]
+    for key, rec in stored.items():
         if not isinstance(rec, dict):
             unknown.append(key)
             continue
+        if key.startswith("chartread.") and key not in opts:
+            continue          # migrated above; not an error, and not dropped
         if key in MEASURE_CONTROLS:
             _write(getattr(tab, MEASURE_CONTROLS[key], None), rec.get("value"))
         elif key in opts:

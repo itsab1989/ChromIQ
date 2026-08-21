@@ -133,8 +133,13 @@ def test_the_real_patch_consistency_card(qapp):
     bodies = re.findall(
         r'tooltip_title=tr\("Patch consistency tolerance \(-T\)"\),\s*'
         r'tooltip_body=\(\s*(tr\(.*?\))\s*\),', src, re.S)
-    assert len(bodies) == 2, (
-        f"expected the Guided and Manual copies of the -T help card, "
+    # ONE copy since #160, and that is the point: Guided and Manual are built
+    # from a single option table, so the drift this test was written to catch
+    # cannot happen any more. Two is still accepted so the test keeps working if
+    # a second definition is ever added deliberately — what it must never be is
+    # zero, which would mean the card had been lost altogether.
+    assert 1 <= len(bodies) <= 2, (
+        f"expected the -T help card (one definition since #160, two before), "
         f"found {len(bodies)}"
     )
     # The drift check above is platform-independent; the width measurement below
