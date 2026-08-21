@@ -166,3 +166,45 @@ def test_the_info_box_names_exactly_what_guided_fixes(tab):
         else:
             assert o.label in text, f"{o.key} is fixed but not named"
     assert "MANUAL" in text, "it must say where to go for the rest"
+
+
+# ---------------------------------------------------------------------------
+# Knut's linking rule, as he stated it on 2026-08-21
+# ---------------------------------------------------------------------------
+
+def test_a_shared_visible_option_follows_between_the_modes(tab, qapp):
+    """His beta.138 rule, which he confirmed covers *shared and visible*
+    parameters: patch-by-patch is now offered in both modules, so the two must
+    follow each other."""
+    tab._pbp_cb.setChecked(False)
+    tab._m_pbp_cb.setChecked(False)
+    qapp.processEvents()
+
+    tab._m_pbp_cb.setChecked(True)
+    qapp.processEvents()
+    assert tab._pbp_cb.isChecked(), "Manual did not carry to Guided"
+
+    tab._pbp_cb.setChecked(False)
+    qapp.processEvents()
+    assert not tab._m_pbp_cb.isChecked(), "Guided did not carry to Manual"
+
+
+def test_a_guided_hard_coded_default_is_never_overwritten_from_manual(tab, qapp):
+    """The other half of his ruling, and the more important one: a value Guided
+    fixes must NOT be linked, or Manual could silently change what Guided does.
+
+    ``-N`` is the case that exists today — Guided hard-codes it off because a
+    stored value once ran every guided measurement uncalibrated.
+    """
+    tab._m_nocal_cb.setChecked(True)
+    qapp.processEvents()
+    assert tab._collect_guided().disable_initial_cal is False
+    assert tab._collect_manual().disable_initial_cal is True
+
+    # …and the six options Manual keeps to itself cannot reach Guided either.
+    for o in tab._m_chartread_opts:
+        if o.checkbox is not None:
+            o.checkbox.setChecked(True)
+    qapp.processEvents()
+    assert tab._collect_guided().extra_args.strip() in ("", "-T 0.7"), (
+        "a Manual-only option reached Guided's command line")
