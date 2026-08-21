@@ -433,6 +433,87 @@ def _italic_tile(text: str, font, fill: tuple, stroke_w: int = 0,
     return sheared, base_y, (bbox[0] if bbox else 0)
 
 
+#: The clip band's usable share across (0.92) and along it (0.99). The clip AREA
+#: already keeps the text-edge distance from the page edge, so don't inset twice.
+_CLIP_ACROSS, _CLIP_ALONG = 0.92, 0.99
+#: The wordmark is protected down to an equal share of the band — but never asks
+#: for more than this fraction of its unconstrained size, so a user who sets a
+#: big clip-text size with one or two lines keeps the size they asked for (#163).
+_WORDMARK_FLOOR_FRAC = 0.40
+_BRANDING_MIN_PX = 8
+
+
+def _fit_branding_sizes(extra_lines: list[str], width_px: int, height_px: int,
+                        font_family: str = "Inter",
+                        extra_size_px: float = 0.0) -> tuple[int, int]:
+    """Font sizes for the branding clip band: ``(wordmark, extra lines)``.
+
+    Split out of the drawing so the RULE can be tested exactly instead of being
+    inferred from ink (#163).
+
+    With no clip-text size set, one size serves the whole stack and shrinks to
+    fit — the long-standing automatic behaviour, left untouched.
+
+    With a size set, the wordmark gives way first: it shrinks until it reaches
+    its floor, and only then do the user's lines shrink with it. Both sizes are
+    SOLVED rather than stepped down: the old loop stepped 40 × 0.95, which
+    bottoms out at ×0.129, so a size far above what the band can hold still
+    overflowed and printed off the edge of the sheet.
+
+    The two axes are kept apart. Across the band the wordmark and the lines
+    share one budget. ALONG the strip each is limited only by its own longest
+    line — otherwise a long line of the user's shrinks the wordmark it does not
+    crowd, and a long wordmark crushes the user's text to nothing.
+    """
+    d = ImageDraw.Draw(Image.new("RGBA", (4, 4)))
+    k = len(extra_lines)
+    n = 1 + k
+    across, along = width_px * _CLIP_ACROSS, height_px * _CLIP_ALONG
+    natural = width_px * 0.55
+
+    if not extra_size_px:
+        # AUTO: one size for wordmark and lines alike, shrunk to fit. Unchanged
+        # — this is the default, and it was never what #163 was about.
+        size = max(10, int(natural))
+        for _ in range(40):
+            f = _font(size, WORDMARK_FONT)
+            f_extra = _font(size, font_family)
+            wm_w = d.textlength("Chrom", font=f) + d.textlength("IQ", font=f) * 1.25
+            widest = max([wm_w] + [d.textlength(l, font=f_extra) for l in extra_lines])
+            if size * 1.25 * n <= across and widest <= along:
+                break
+            size = int(size * 0.9)
+            # The floor used to be 10 px, and the loop left the stack OVER the
+            # band when even 10 px could not fit it — a narrow band with several
+            # lines then printed them off the edge. Every case that already
+            # fitted breaks out above and is untouched (#163).
+            if size <= _BRANDING_MIN_PX:
+                size = _BRANDING_MIN_PX
+                break
+        return size, size
+
+    # Advance widths scale linearly with the point size, so one measurement at a
+    # reference size gives the largest size each block may take along the strip.
+    ref = 100
+    f_ref = _font(ref, WORDMARK_FONT)
+    wm_ref = (d.textlength("Chrom", font=f_ref)
+              + d.textlength("IQ", font=f_ref) * 1.25)
+    txt_ref = max((d.textlength(l, font=_font(ref, font_family))
+                   for l in extra_lines), default=0.0)
+    size_along = (along * ref / wm_ref) if wm_ref > 0 else float(width_px)
+    esize_along = (along * ref / txt_ref) if txt_ref > 0 else float(width_px)
+
+    size = min(natural, size_along)
+    esize = min(float(extra_size_px), esize_along)
+    if size * 1.25 + k * esize * 1.25 > across:
+        floor = min(across / n / 1.25, natural * _WORDMARK_FLOOR_FRAC, size_along)
+        size = max(min(size, (across - k * esize * 1.25) / 1.25), floor)
+        if k and size * 1.25 + k * esize * 1.25 > across:
+            esize = (across - size * 1.25) / (k * 1.25)
+    return (max(_BRANDING_MIN_PX, int(size)),
+            max(_BRANDING_MIN_PX, int(esize)))
+
+
 def _vwordmark(extra_lines: list[str], width_px: int, height_px: int,
                font_family: str = "Inter", extra_size_px: float = 0.0) -> Image.Image:
     """The masthead "ChromIQ" wordmark — Instrument Serif, "Chrom" near-black,
@@ -445,26 +526,11 @@ def _vwordmark(extra_lines: list[str], width_px: int, height_px: int,
     legacy behaviour of matching the wordmark's auto-fit size."""
     canvas = Image.new("RGBA", (max(1, height_px), max(1, width_px)), (0, 0, 0, 0))
     d = ImageDraw.Draw(canvas)
-    n = 1 + len(extra_lines)
     chrom_fill = WORDMARK_RGB + (255,)
     iq_fill = WORDMARK_IQ_RGB + (255,)
-    size = max(10, int(width_px * 0.55))
-    esize = max(8, int(extra_size_px)) if extra_size_px else None
-    for _ in range(40):
-        f = _font(size, WORDMARK_FONT)
-        f_extra = _font(esize if esize else size, font_family)
-        wm_w = d.textlength("Chrom", font=f) + d.textlength("IQ", font=f) * 1.25
-        widest = max([wm_w] + [d.textlength(l, font=f_extra) for l in extra_lines])
-        # Total stacked height: wordmark line + each extra line at its own size.
-        stack_h = size * 1.25 + (len(extra_lines)
-                                 * (esize if esize else size) * 1.25)
-        # Fill (almost) the full clip length: the area already keeps the text-edge
-        # distance from the page edge, so don't inset a second time (Knut).
-        if stack_h <= width_px * 0.92 and widest <= height_px * 0.99:
-            break
-        size = int(size * 0.9)
-        if size <= 10:
-            break
+    size, _esize = _fit_branding_sizes(extra_lines, width_px, height_px,
+                                       font_family, extra_size_px)
+    esize = _esize if extra_size_px else None
     f = _font(size, WORDMARK_FONT)
     asc, desc = f.getmetrics()
     line_h = size * 1.25

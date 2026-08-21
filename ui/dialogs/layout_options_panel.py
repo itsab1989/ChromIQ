@@ -2281,7 +2281,11 @@ class LayoutOptionsPanel(QWidget):
             image_rotation=self.clip_image_rotation.value(),
             image_scale=self.clip_image_scale.value(),
             image_offset_x_mm=self.clip_image_offx.value(),
-            image_offset_y_mm=self.clip_image_offy.value())
+            image_offset_y_mm=self.clip_image_offy.value(),
+            # The preview has to size the text exactly as the sheet will, or the
+            # Size box appears to do nothing here and only shows its effect on
+            # paper — which is how #163's shrunken branding went unnoticed.
+            text_size_mm=pt_to_mm(self.clip_text_size.value()))
         # Show it lying down (rotated 90°) so the long strip uses the panel's
         # horizontal space instead of a thin vertical ribbon.
         img = img.rotate(-90, expand=True)
