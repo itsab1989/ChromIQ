@@ -512,6 +512,28 @@ class _ProgressHeader(QWidget):
         self.update()
 
 
+#: Pen widths for the patch-by-patch highlight ring, in logical pixels.
+#:
+#: The white shows (halo - accent)/2 on EACH side of the accent, so that figure
+#: must be a whole number of DEVICE pixels at every device pixel ratio the app
+#: can meet — 1, 1.5, 2 and 3. It was 5.0 over 2.5: 1.25 logical = 2.5 device px
+#: at dpr 2, five device pixels to split between two sides, and five does not
+#: halve. One side got 3 and the other 2, and which side flipped with each
+#: patch's sub-pixel phase. `tests/test_hex_overlay_geometry.py` pins the rule
+#: rather than the numbers, because the fault is invisible at dpr 1 — which is
+#: what an offscreen test renders at.
+RING_HALO_W = 6.0
+RING_ACCENT_W = 2.0
+#: A 6 px halo is a third of a 7 mm patch on screen; below this much patch on
+#: screen (logical px) both strokes thin rather than smother the colour.
+RING_SMALL_PATCH_PX = 24.0
+#: On a small patch BOTH strokes thin, because the per-side white must stay an
+#: even number of logical pixels to survive dpr 1.5 — 4.0/2.0 would leave 1.0,
+#: i.e. 1.5 device px, the same half-pixel fault at a different ratio.
+RING_HALO_W_SMALL = 5.0
+RING_ACCENT_W_SMALL = 1.0
+
+
 class TiffPreview(QWidget):
     """Displays multi-page TIFF files with optional stripe highlight overlay."""
 
@@ -1162,9 +1184,42 @@ class TiffPreview(QWidget):
             return None
         ix, iy = px
         for loc, rect in boxes.items():
-            if rect.contains(ix, iy):
-                return loc, rect
+            if not rect.contains(ix, iy):
+                continue
+            if self._hex_zigzag and not self._in_hexagon(rect, ix, iy):
+                continue        # a box corner belongs to the neighbour, not here
+            return loc, rect
+        if self._hex_zigzag:
+            # The apexes stick OUT of the box, so a click on the drawn point is
+            # outside every rect. Fall back to the nearest patch whose hexagon
+            # really contains the point.
+            for loc, rect in boxes.items():
+                if self._in_hexagon(rect, ix, iy):
+                    return loc, rect
         return None
+
+    @staticmethod
+    def _in_hexagon(b: "QRect", x: float, y: float) -> bool:
+        """Is (x, y) inside the hexagon drawn for patch box *b*?
+
+        The box and the hexagon are not the same shape: the box's four corners
+        lie outside the patch and its apexes lie outside the box. Hit-testing the
+        box meant a click on a drawn apex selected the neighbour, and a click in
+        a corner selected a patch whose ink is not there (7.2–7.7 % of the click
+        area, and 86–92 % of corner clicks).
+        """
+        h = b.height()
+        t6 = h / 6.0
+        cx = b.x() + b.width() / 2.0
+        dx = abs(x - cx) / (b.width() / 2.0) if b.width() else 1.0
+        if dx > 1.0:
+            return False
+        # flat sides between the shoulders, sloping to the apexes beyond them
+        top = b.y() + t6 - dx * t6 * 2.0 if False else b.y() + t6 * (1.0 - dx) - t6 * dx
+        # the apex is t6 above the box top at dx = 0, the shoulder t6 below it at dx = 1
+        top = b.y() - t6 + dx * 2.0 * t6
+        bot = b.y() + h + t6 - dx * 2.0 * t6
+        return top <= y <= bot
 
     def set_patch_overlay(self, page: int,
                           items: "list[tuple[QRect, QColor, QColor, bool]]",
@@ -1345,6 +1400,10 @@ class TiffPreview(QWidget):
                 "ll": (left, y0 + 5 * t6), "ul": (left, y0 + t6),
             }
 
+        # NOT rounded. Snapping the vertices looks like the fix for the uneven
+        # halo and is not: it measured worse (spread 0.14 -> 0.21 device px),
+        # and on a 7 mm hexagon — 18.5 logical px on screen — it moves each
+        # vertex by 2.7% of the patch, off the ink it is describing.
         def X(v: float) -> float:
             return v * s + ox
 
@@ -2401,8 +2460,26 @@ class TiffPreview(QWidget):
             # patch being read next. (Sebastian, on screen: "i saw a square
             # overlay over the hex patch".)
             _hex = self._patch_hexagon(r, s, ox, oy) if self._hex_zigzag else None
+            # A WHOLE NUMBER OF DEVICE PIXELS EACH SIDE.
+            #
+            # The white is (halo - ring)/2 wide on each side. At 5.0 over 2.5
+            # that is 1.25 logical px = 2.5 device px at dpr 2 — five device
+            # pixels to split between two sides, and five does not halve. So one
+            # side got 3 and the other 2, and which side flipped with the patch's
+            # sub-pixel phase: measured 50% variation between the hexagon's two
+            # flat sides, and the same on rectangular charts, where Sebastian
+            # first saw it. 6.0 over 2.0 gives exactly 2.0 logical px each side
+            # and is whole at dpr 1, 1.5, 2 and 3.
+            #
+            # Antialiasing is off by default in QPainter, which pinned every
+            # edge to whole pixels and made the split visible; the ring is the
+            # one thing here that must sit on a slope truthfully.
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            # A 6 px halo is a third of a 7 mm patch on screen. Below ~24 logical
+            # px of patch, thin both strokes rather than smother the colour.
+            _small = min(r.width(), r.height()) * s < RING_SMALL_PATCH_PX
             halo = QPen(QColor(255, 255, 255, 235))
-            halo.setWidthF(5.0)
+            halo.setWidthF(RING_HALO_W_SMALL if _small else RING_HALO_W)
             halo.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
             painter.setPen(halo)
             if _hex is not None:
@@ -2410,7 +2487,7 @@ class TiffPreview(QWidget):
             else:
                 painter.drawRect(x0, y0, x1 - x0, y1 - y0)
             ring = QPen(QColor("#1f8f6b"))
-            ring.setWidthF(2.5)
+            ring.setWidthF(RING_ACCENT_W_SMALL if _small else RING_ACCENT_W)
             ring.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
             painter.setPen(ring)
             if _hex is not None:

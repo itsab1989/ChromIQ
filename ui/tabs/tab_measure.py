@@ -506,14 +506,17 @@ def _apply_hex_stagger(ti2_path: Path, pages: "list[dict[str, QRect]]") -> None:
     for page in pages:
         if not page:
             continue
-        columns: "dict[str, set[int]]" = {}
+        columns: "dict[str, list[int]]" = {}
         for loc, r in page.items():
             m = re.match(r"([A-Za-z]+)", loc)
-            columns.setdefault(m.group(1) if m else "", set()).add(r.x())
-        multi = [xs for xs in columns.values() if len(xs) > 1]
-        if multi or all(len(xs) < 2 for xs in columns.values()) and len(page) < 2:
-            continue                    # already staggered — leave it alone
-        if not any(len(xs) == 1 for xs in columns.values()):
+            columns.setdefault(m.group(1) if m else "", []).append(r.x())
+        # A column of TWO OR MORE patches that all share one x is the fingerprint
+        # of an unstaggered sidecar. Counting distinct x alone called a modern
+        # chart legacy whenever a column held a single patch — real on short or
+        # roll media with a big hexagon (210x40 mm at 20 mm) — and shifted every
+        # box on it. Anything not positively identified as legacy is modern.
+        legacy = any(len(xs) >= 2 and len(set(xs)) == 1 for xs in columns.values())
+        if not legacy:
             continue
         for loc, r in list(page.items()):
             m = re.search(r"(\d+)\s*$", loc)

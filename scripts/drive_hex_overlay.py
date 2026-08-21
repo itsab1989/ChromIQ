@@ -80,7 +80,7 @@ def main() -> int:
              "KEYWORD \"SAMPLE_LOC\"", f"NUMBER_OF_FIELDS 7", "BEGIN_DATA_FORMAT",
              "SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z", "END_DATA_FORMAT",
              f"NUMBER_OF_SETS {n}", "BEGIN_DATA"]
-    MARK = 104                      # the one patch we will look for
+    MARK = 55                       # the one patch we will look for
     for i in range(n):
         r, g, b = (100.0, 0.0, 100.0) if i == MARK else (78.0, 78.0, 78.0)
         lines.append(f"{i+1} {r} {g} {b} 40.0 45.0 50.0")
