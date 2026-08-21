@@ -506,6 +506,15 @@ def _apply_hex_stagger(ti2_path: Path, pages: "list[dict[str, QRect]]") -> None:
     for page in pages:
         if not page:
             continue
+        columns: "dict[str, set[int]]" = {}
+        for loc, r in page.items():
+            m = re.match(r"([A-Za-z]+)", loc)
+            columns.setdefault(m.group(1) if m else "", set()).add(r.x())
+        multi = [xs for xs in columns.values() if len(xs) > 1]
+        if multi or all(len(xs) < 2 for xs in columns.values()) and len(page) < 2:
+            continue                    # already staggered — leave it alone
+        if not any(len(xs) == 1 for xs in columns.values()):
+            continue
         for loc, r in list(page.items()):
             m = re.search(r"(\d+)\s*$", loc)
             if not m:
