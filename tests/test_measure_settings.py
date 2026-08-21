@@ -281,3 +281,147 @@ def test_a_target_with_nothing_stored_does_not_inherit_the_last_one(wired, monke
         "nothing put the tab back to its defaults, so the previous target's "
         "settings stayed on screen"
     )
+
+
+# ---------------------------------------------------------------------------
+# A target's record is the only thing that decides that target's settings
+# ---------------------------------------------------------------------------
+def _real_tab(qapp):
+    from core.argyll_runner import ArgyllRunner
+    from core.settings import DEFAULTS
+    from ui.tabs.tab_measure import TabMeasure
+
+    class _S:
+        def __init__(self):
+            self._d = dict(DEFAULTS)
+
+        def get(self, k, d=None):   return self._d.get(k, d)
+        def set(self, k, v):        self._d[k] = v
+
+    return TabMeasure(ArgyllRunner(_S()), _S())
+
+
+def test_a_stored_manual_value_is_not_overwritten_by_its_guided_twin(qapp):
+    """The two modules mirror their shared controls, and `apply` restores the
+    Manual key fifteen keys before its Guided twin — so the Guided write
+    travelled back down the link and replaced the value that had just been
+    restored from the file.
+
+    Found switching between runs of a real project: the stored ``-p`` was not
+    merely displayed wrong, the next save wrote the loss into meta.json. The
+    binding rule is `docs/design/per_target_settings.md` — a target's settings
+    come from that target's own record.
+
+    This needs the REAL tab: the fault lives in the mirror, which the stand-in
+    controls above do not have.
+    """
+    tab = _real_tab(qapp)
+    stored = {
+        "patch_by_patch":        {"enabled": True,  "value": True},
+        "patch_by_patch_guided": {"enabled": False, "value": False},
+    }
+    assert list(MEASURE_CONTROLS).index("patch_by_patch") < \
+        list(MEASURE_CONTROLS).index("patch_by_patch_guided"), (
+        "the ordering this test is about has changed — re-read the test")
+
+    assert apply(tab, stored) == []
+    qapp.processEvents()
+    assert tab._m_pbp_cb.isChecked() is True, (
+        "Manual's stored True was overwritten by Guided's stored False")
+    assert tab._pbp_cb.isChecked() is False, "Guided lost its own stored value"
+
+    # …and the loss is not merely on screen: the next save files it.
+    assert snapshot(tab)["patch_by_patch"]["value"] is True
+
+
+def test_every_linked_pair_keeps_its_own_stored_value(qapp):
+    """Not just patch-by-patch: the same shape applies to every control both
+    modules store, so cross the whole set rather than the one that was
+    reported."""
+    tab = _real_tab(qapp)
+    pairs = [("suppress_warnings", "suppress_warnings_guided",
+              "_m_suppress_cb", "_suppress_cb"),
+             ("patch_by_patch", "patch_by_patch_guided", "_m_pbp_cb", "_pbp_cb"),
+             ("bidirectional_auto", "bidirectional_auto_guided",
+              "_m_bidir_auto_cb", "_bidir_auto_cb")]
+    for m_key, g_key, m_attr, g_attr in pairs:
+        if g_key not in MEASURE_CONTROLS:
+            continue
+        for m_val in (True, False):
+            stored = {m_key: {"enabled": m_val, "value": m_val},
+                      g_key: {"enabled": not m_val, "value": not m_val}}
+            apply(tab, stored)
+            qapp.processEvents()
+            assert getattr(tab, m_attr).isChecked() is m_val, (
+                f"{m_key}: Manual's stored {m_val} did not survive")
+            assert getattr(tab, g_attr).isChecked() is (not m_val), (
+                f"{g_key}: Guided's stored {not m_val} did not survive")
+
+
+def test_the_link_still_works_for_the_users_own_edits(qapp):
+    """The counterweight. Suspending the mirror while a record is applied must
+    not leave it suspended: a shared, visible control still has to follow
+    between the modules when the USER changes it."""
+    tab = _real_tab(qapp)
+    apply(tab, {"patch_by_patch": {"enabled": False, "value": False},
+                "patch_by_patch_guided": {"enabled": False, "value": False}})
+    qapp.processEvents()
+    tab._m_pbp_cb.setChecked(True)
+    qapp.processEvents()
+    assert tab._pbp_cb.isChecked() is True, "the link did not come back on"
+
+
+def test_a_record_that_speaks_for_one_half_still_sets_both(qapp):
+    """Suspending the mirror closed a data loss and opened a leak.
+
+    `resume` has no Guided key at all — `MEASURE_CONTROLS` maps it to
+    `_m_resume_cb` alone — so a record can only ever speak for the Manual half.
+    The mirror used to carry it across; suspended, Guided's box kept the
+    PREVIOUS target's tick, and the next save filed that as this target's own.
+    That is the §4 leak the per-target store exists to prevent, and three places
+    read the Guided box: the `-r` flag, the #134 overlay dialog, and the
+    decision whether to archive the existing .ti3.
+    """
+    tab = _real_tab(qapp)
+    tab._m_resume_cb.setChecked(True)              # the target we are leaving
+    qapp.processEvents()
+    assert tab._resume_cb.isChecked() is True      # linked, so both are on
+
+    apply(tab, {"resume": {"enabled": False, "value": False}})
+    qapp.processEvents()
+    assert tab._m_resume_cb.isChecked() is False
+    assert tab._resume_cb.isChecked() is False, (
+        "Guided kept the previous target's resume tick")
+
+
+def test_a_legacy_record_carries_the_tolerance_to_both_modules(qapp):
+    """The one option both modules still own, and the one the legacy migration
+    deliberately leaves alone because it belongs to both.
+
+    A record written before the modules split carries only `chartread.tolerance`
+    — a number that goes to the instrument. Without this, Manual keeps the
+    previous target's scan tolerance.
+    """
+    tab = _real_tab(qapp)
+    for o in tab._m_chartread_opts:
+        if o.key == "tolerance":
+            o.checkbox.setChecked(True)
+            o.widget.setValue(2.5)
+    qapp.processEvents()
+
+    apply(tab, {"chartread.tolerance": {"enabled": True, "value": 0.4}})
+    qapp.processEvents()
+    manual = next(o for o in tab._m_chartread_opts if o.key == "tolerance")
+    assert abs(manual.widget.value() - 0.4) < 1e-6, (
+        f"Manual kept {manual.widget.value()}, the previous target's tolerance")
+
+
+def test_both_halves_stored_still_beats_the_pair_sync(qapp):
+    """The counterweight: filling in a half-covered pair must not undo the fix
+    it was added to. When the record speaks for BOTH, each keeps its own."""
+    tab = _real_tab(qapp)
+    apply(tab, {"patch_by_patch":        {"enabled": True,  "value": True},
+                "patch_by_patch_guided": {"enabled": False, "value": False}})
+    qapp.processEvents()
+    assert tab._m_pbp_cb.isChecked() is True
+    assert tab._pbp_cb.isChecked() is False

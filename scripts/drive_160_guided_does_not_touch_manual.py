@@ -68,7 +68,11 @@ def pump(app, ms: int) -> None:
 
 
 def _manual_state(tab) -> dict:
-    """What Manual's six own options say right now."""
+    """What Manual's six own options say right now.
+
+    It used to just collect whatever it found, so renaming an option made it
+    disappear from BOTH sides of every comparison and the checks still passed.
+    """
     out = {}
     for opt in tab._m_chartread_opts:
         if opt.key not in MANUAL_CHOICES:
@@ -78,6 +82,8 @@ def _manual_state(tab) -> dict:
         if w is not None:
             val = w.currentData() if hasattr(w, "currentData") else w.value()
         out[opt.key] = (bool(opt.checkbox.isChecked()), val)
+    missing = set(MANUAL_CHOICES) - set(out)
+    assert not missing, f"Manual no longer has these options at all: {missing}"
     return out
 
 
@@ -162,6 +168,11 @@ def main() -> int:
     print("\nSCENARIO 3 — what Guided would actually run")
     tab._switch_mode("guided")
     pump(app, 300)
+    # TICK THE HIDDEN BOX FIRST. Without this the check below reads False
+    # whether Guided hard-codes the flag or reads `_nocal_cb`, so restoring the
+    # beta.148 fault verbatim left the driver reporting every check passed.
+    tab._nocal_cb.setChecked(True)
+    pump(app, 200)
     g = tab._collect_guided()
     for flag in ("-H", "-F", "-l", "-L", "-n", "-A"):
         check(flag not in g.extra_args.split(),
@@ -169,7 +180,7 @@ def main() -> int:
               f"extra_args={g.extra_args!r}" if flag == "-H" else "")
     check(g.disable_initial_cal is False,
           "Guided never skips the initial calibration",
-          "hard-coded False, not read from the hidden box")
+          "the hidden box is ticked and the flag is still off")
     tab._switch_mode("manual")
     pump(app, 300)
     m = tab._collect_manual()
@@ -182,6 +193,12 @@ def main() -> int:
     pump(app, 300)
     tab._on_save_defaults()
     pump(app, 400)
+    baked = [k for k in MANUAL_CHOICES
+             if settings.get(f"measure_{k}_enabled") is not None]
+    check(not baked,
+          "Guided's Save as Defaults writes none of Manual's options",
+          "D4 wrote -H -l -L -A into the machine-wide defaults from one Manual "
+          f"visit; baked: {baked}" if baked else "")
     tab._switch_mode("manual")
     pump(app, 300)
     check(_manual_state(tab) == typed,
@@ -191,6 +208,14 @@ def main() -> int:
     # MANUAL's own stored keys. Guided's widgets are restored first and seven of
     # them are linked, so a missing manual2_* restore would leave Manual holding
     # whatever Guided's default pushed through the link.
+    # SAVE MANUAL'S SIX AS ITS DEFAULTS FIRST, so `want` below contains
+    # something other than False. It did not, and a restore hard-coded to False
+    # passed the check — it could not tell "restored from Manual's keys" from
+    # "reset to off".
+    tab._switch_mode("manual")
+    pump(app, 300)
+    tab._on_save_defaults()
+    pump(app, 300)
     tab._restore_defaults()
     pump(app, 500)
     restored = _manual_state(tab)
@@ -252,6 +277,44 @@ def main() -> int:
     check("_nocal_cb" not in {n for pair in tab._LINKED_PAIRS for n in pair},
           "the hidden skip-calibration box is not linked to Manual",
           "the one control Guided keeps fixed")
+
+    print("\nSCENARIO 7 — a stored record decides that target, and only that target")
+    # The two modules mirror their shared controls, and `apply` restores the
+    # Manual key long before its Guided twin, so the Guided write used to travel
+    # back down the link and overwrite what the file had just restored.
+    tab._m_pbp_cb.setChecked(True)
+    pump(app, 200)
+    measure_settings.apply(tab, {
+        "patch_by_patch":        {"enabled": True,  "value": True},
+        "patch_by_patch_guided": {"enabled": False, "value": False}})
+    pump(app, 300)
+    check(tab._m_pbp_cb.isChecked() and not tab._pbp_cb.isChecked(),
+          "each module gets its own stored value back",
+          f"manual={tab._m_pbp_cb.isChecked()}, guided={tab._pbp_cb.isChecked()}")
+    check(measure_settings.snapshot(tab)["patch_by_patch"]["value"] is True,
+          "…and the next save files it, rather than the loss")
+
+    # The other half: a record that speaks for only ONE module must still settle
+    # both, or the silent one keeps the target you just left.
+    tab._m_resume_cb.setChecked(True)
+    pump(app, 200)
+    measure_settings.apply(tab, {"resume": {"enabled": False, "value": False}})
+    pump(app, 300)
+    check(not tab._resume_cb.isChecked(),
+          "a record with no Guided key still clears the Guided control",
+          "`resume` has no Guided key at all, so this is every record")
+
+    # …and the user's own edit still travels, i.e. the link came back on.
+    # It has to be a real CHANGE: the box was already ticked from the apply
+    # above, and Qt fires nothing when the value does not move, so the first
+    # version of this check was reading its own setup.
+    tab._m_pbp_cb.setChecked(False)
+    pump(app, 200)
+    tab._m_pbp_cb.setChecked(True)
+    pump(app, 300)
+    check(tab._pbp_cb.isChecked(),
+          "the link is live again for the user's own edits",
+          "suspending the mirror must not leave it suspended")
 
     bad = [r for r in RESULTS if not r[0]]
     print(f"\n{len(RESULTS) - len(bad)}/{len(RESULTS)} checks passed")

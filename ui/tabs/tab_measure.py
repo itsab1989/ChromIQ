@@ -10616,6 +10616,21 @@ class TabMeasure(QWidget):
         def _mirror(src, dst) -> None:
             if src is None or dst is None:
                 return
+            # RESTORING IS NOT CHANGING.
+            #
+            # `measure_settings.apply` writes both modules' stored values, and
+            # the Manual key comes fifteen keys before its Guided twin. With the
+            # mirror live, the Guided write travelled back into Manual and
+            # overwrote the value that had just been restored from the file —
+            # and the next save wrote that loss into meta.json. A target's
+            # settings must come from that target's own record
+            # (docs/design/per_target_settings.md), so the link stands down
+            # while a record is being applied and resumes for the user's own
+            # edits. Only the mirror is suspended, not the signals: the overlay
+            # checkbox loads the overlay on its own signal, and the option rows
+            # grey their spin boxes on theirs.
+            if getattr(self, "_suspend_linking", False):
+                return
             dst.blockSignals(True)
             try:
                 if isinstance(src, QCheckBox) and isinstance(dst, QCheckBox):
