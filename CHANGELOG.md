@@ -1,5 +1,29 @@
 # Changelog
 
+## v4.1.2-beta.5
+
+### Fixed
+
+- **The in-gamut chart no longer offers colours your profile cannot print.**
+  The count could sit above the number of reference colours your profile
+  actually reaches — a 3000-patch chart asked for 2992 while the line
+  underneath said only 2896 could be tested. The starting number now stops at
+  what the profile can print, so the box and the line agree, and it rises again
+  by itself when you widen the margin or change the intent. A number *you* type
+  is still yours: ask for more and the line tells you what you will get.
+
+  This also covers "Auto — fill the pages", which greys the box — so it was the
+  one number you could not correct, and the one that still promised colours
+  that were not there.
+
+- **A profile that can print nothing no longer gets the largest chart.** Zero
+  printable colours was mistaken for "not worked out yet", which produced the
+  biggest suggestion of all.
+
+- **Opening a run is quicker in the in-gamut module.** It asked the colour
+  engine three times, once about a margin-and-intent combination nobody had
+  chosen, and a failed query was never remembered so every refresh asked again.
+
 ## v4.1.2-beta.4
 
 ### Changed
