@@ -158,6 +158,66 @@ def apply(tab: Any, stored: "dict[str, dict]") -> "list[str]":
         manual_key = f"chartread_manual.{suffix}"
         if key not in opts and manual_key in opts and manual_key not in stored:
             stored[manual_key] = stored[key]
+    # The two modules mirror their shared controls, so restoring one module's
+    # stored value would otherwise write it into the other's — see the note in
+    # `TabMeasure._link_mode_controls`. Each module gets its own record back.
+    had_suspend = getattr(tab, "_suspend_linking", False)
+    tab._suspend_linking = True
+    try:
+        _apply_records(tab, stored, opts, unknown)
+        _finish_half_covered_pairs(tab, stored, opts)
+    finally:
+        tab._suspend_linking = had_suspend
+    return unknown
+
+
+def _finish_half_covered_pairs(tab: Any, stored: dict, opts: dict) -> None:
+    """Give BOTH halves of a linked pair the value the record carried for one.
+
+    Suspending the mirror is right when the record speaks for both modules —
+    each gets its own stored value back. It is wrong when the record speaks for
+    only one, which is the common case: `resume` has no Guided key at all, and
+    any file written before a key existed carries just the one half. The mirror
+    used to cover that; without it the other half kept whatever the PREVIOUS
+    target left on screen, which is the §4 leak the per-target store exists to
+    prevent (docs/design/per_target_settings.md) — and the next save filed the
+    leaked value as this target's own.
+
+    So: both halves stored → each keeps its own; one half stored → the other
+    follows it; neither stored → untouched, and `load_target_settings` restores
+    the defaults for a record that is empty altogether.
+    """
+    attr_of = dict(MEASURE_CONTROLS)
+    key_of = {attr: key for key, attr in attr_of.items()}
+    for a_attr, b_attr in getattr(tab, "_LINKED_PAIRS", ()) or ():
+        a_key, b_key = key_of.get(a_attr), key_of.get(b_attr)
+        a_has, b_has = (a_key in stored), (b_key in stored)
+        if a_has == b_has:
+            continue                       # both spoken for, or neither
+        src, dst_attr = (stored[a_key], b_attr) if a_has else (stored[b_key], a_attr)
+        _write(getattr(tab, dst_attr, None), src.get("value"))
+
+    # The chartread option rows are paired by KEY, not by attribute — tolerance
+    # is the one both modules still own, and the legacy migration deliberately
+    # leaves it alone (it belongs to both), so a pre-beta.4 record carries only
+    # the Guided half of a number that goes to the instrument.
+    for key, opt in opts.items():
+        prefix, _, suffix = key.partition(".")
+        twin_key = (f"chartread_manual.{suffix}" if prefix == "chartread"
+                    else f"chartread.{suffix}")
+        if key not in stored or twin_key in stored or twin_key not in opts:
+            continue
+        rec, twin = stored[key], opts[twin_key]
+        if "value" in rec:
+            _write(getattr(twin, "widget", None), rec["value"])
+        cb = getattr(twin, "checkbox", None)
+        if cb is not None:
+            cb.setChecked(bool(rec.get("enabled", False)))
+    return None
+
+
+def _apply_records(tab: Any, stored: dict, opts: dict,
+                   unknown: "list[str]") -> None:
     for key, rec in stored.items():
         if not isinstance(rec, dict):
             unknown.append(key)
@@ -175,4 +235,3 @@ def apply(tab: Any, stored: "dict[str, dict]") -> "list[str]":
                 cb.setChecked(bool(rec.get("enabled", False)))
         else:
             unknown.append(key)
-    return unknown

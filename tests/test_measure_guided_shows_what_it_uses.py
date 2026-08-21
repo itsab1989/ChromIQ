@@ -208,3 +208,96 @@ def test_a_guided_hard_coded_default_is_never_overwritten_from_manual(tab, qapp)
     qapp.processEvents()
     assert tab._collect_guided().extra_args.strip() in ("", "-T 0.7"), (
         "a Manual-only option reached Guided's command line")
+
+
+def test_guided_cannot_write_manuals_own_options(tab, qapp):
+    """soul-traveller, 2026-08-21: *"the hidden hardcoded attributes in guided
+    cannot be transferred to manual mode as that would overwrite changes made in
+    manual mode if one changes from manual to guided and back"*.
+
+    The test above covers Manual → Guided. This is the direction he is worried
+    about, and the one that would cost the user work: it is his exact sequence.
+    """
+    manual_only = [o for o in tab._m_chartread_opts
+                   if o.key not in GUIDED_CHARTREAD_KEYS]
+    assert manual_only, "the fixture built no Manual-only options"
+    for o in manual_only:
+        o.checkbox.setChecked(True)
+    qapp.processEvents()
+    before = {o.key: (o.checkbox.isChecked(),
+                      o.widget.currentIndex() if hasattr(o.widget, "currentIndex")
+                      else (o.widget.value() if o.widget is not None else None))
+              for o in manual_only}
+
+    tab._switch_mode("guided")
+    qapp.processEvents()
+    tab._switch_mode("manual")
+    qapp.processEvents()
+
+    after = {o.key: (o.checkbox.isChecked(),
+                     o.widget.currentIndex() if hasattr(o.widget, "currentIndex")
+                     else (o.widget.value() if o.widget is not None else None))
+             for o in manual_only}
+    assert after == before, "a trip through Guided changed Manual's own options"
+
+
+def test_the_transfer_he_fears_has_nothing_to_travel_through(tab):
+    """Why the test above cannot start failing by accident.
+
+    It is not that Guided is careful with Manual's options — it is that Guided
+    has no control for them at all, so there is no value to send. Pin that,
+    because the day someone builds the full option list in Guided again "just to
+    keep the state", the guarantee is gone and only this assertion says so.
+    """
+    guided_keys = {o.key for o in tab._chartread_opts}
+    assert guided_keys == GUIDED_CHARTREAD_KEYS
+    manual_only = {o.key for o in tab._m_chartread_opts} - guided_keys
+    assert manual_only, "Manual has no options of its own — the split is gone"
+    assert not (guided_keys & manual_only)
+    # …and the mirror pairs by key, so a Manual option with no twin is skipped.
+    twins = {o.key for o in tab._chartread_opts}
+    assert not (manual_only & twins)
+
+
+def test_save_as_defaults_in_guided_leaves_manuals_defaults_alone(tab):
+    """The same worry one level down: Guided's *Save as Defaults* must not write
+    Manual's ``manual2_*`` keys, or the next Restore would hand Manual whatever
+    Guided had on screen."""
+    for o in tab._m_chartread_opts:
+        if o.checkbox is not None:
+            o.checkbox.setChecked(True)
+    tab._switch_mode("manual")
+    tab._on_save_defaults()
+    saved = {o.key: tab._settings.get(f"manual2_chartread_{o.key}_enabled")
+             for o in tab._m_chartread_opts if o.checkbox is not None}
+    assert any(saved.values()), "Manual's own save wrote nothing"
+
+    for o in tab._m_chartread_opts:
+        if o.checkbox is not None:
+            o.checkbox.setChecked(False)
+    tab._switch_mode("guided")
+    tab._on_save_defaults()
+    after = {o.key: tab._settings.get(f"manual2_chartread_{o.key}_enabled")
+             for o in tab._m_chartread_opts if o.checkbox is not None}
+    assert after == saved, "saving defaults in Guided rewrote Manual's defaults"
+
+
+def test_a_control_guided_keeps_fixed_is_never_linked_to_manual(tab):
+    """The mutation the other tests miss, and the one soul-traveller describes.
+
+    `-N` is Guided's only hard-coded parameter: the box exists in the Guided
+    panel but is hidden outright and `_collect_guided` writes False without ever
+    reading it. Adding it to `_LINKED_PAIRS` would break nothing Guided does —
+    Guided still would not send `-N` — so no other test here notices. What it
+    WOULD do is exactly his worry: a control the Guided user cannot see would
+    start writing into Manual's, and `_restore_defaults` sets it from
+    `measure_no_cal` on every restore.
+
+    Being invisible is what disqualifies it, not being unread: the three
+    Live-preview controls are linked and Guided never reads them for a command
+    line either — but the user can see and set them in both modules.
+    """
+    linked = {name for pair in tab._LINKED_PAIRS for name in pair}
+    assert "_nocal_cb" not in linked and "_m_nocal_cb" not in linked, (
+        "the skip-calibration box is hidden in Guided and its value hard-coded; "
+        "linking it would push a setting no Guided user can see into Manual")

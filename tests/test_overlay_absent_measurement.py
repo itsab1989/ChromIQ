@@ -156,3 +156,35 @@ def test_the_approved_mismatch_wording_is_untouched():
     src = inspect.getsource(tab_measure.TabMeasure._on_overlay_toggled)
     assert "Open it in Tools ▸ Inspect a measurement" in src
     assert not hasattr(tab_measure.TabMeasure, "_overlay_mismatch_detail")
+
+
+def test_the_absent_window_actually_opens(qapp, tmp_path, monkeypatch):
+    """RUN the branch, don't read it.
+
+    The test above asserts on `inspect.getsource`, so it passed while the method
+    raised `NameError: name 'M' is not defined` on the very line it was checking
+    — the catalogue import was missing. Three releases shipped with the approved
+    window silently not opening; the tick box just sprang back off.
+    """
+    from PyQt6.QtCore import QSettings
+    from PyQt6.QtWidgets import QMessageBox
+    from core.argyll_runner import ArgyllRunner
+    from core.settings import AppSettings
+    from ui.tabs.tab_measure import TabMeasure
+    import workflow.measurement_messages as M
+
+    s = AppSettings()
+    s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    s.set("custom_output_path", str(tmp_path / "out"))
+    tab = TabMeasure(ArgyllRunner(s), s)
+    tab._ti1_path = tmp_path / "chart.ti1"          # no measurement anywhere
+
+    shown: list[tuple[str, str]] = []
+    monkeypatch.setattr(QMessageBox, "exec",
+                        lambda self: shown.append((self.text(),
+                                                   self.informativeText())) or 0)
+    tab._on_overlay_toggled(True)
+
+    assert shown, "ticking Show overlay with no measurement opened no window"
+    title, body = M.M_OVERLAY_NO_MEASUREMENT.render()
+    assert shown[0] == (title, body), "the window did not use the approved text"

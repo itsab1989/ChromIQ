@@ -10616,6 +10616,21 @@ class TabMeasure(QWidget):
         def _mirror(src, dst) -> None:
             if src is None or dst is None:
                 return
+            # RESTORING IS NOT CHANGING.
+            #
+            # `measure_settings.apply` writes both modules' stored values, and
+            # the Manual key comes fifteen keys before its Guided twin. With the
+            # mirror live, the Guided write travelled back into Manual and
+            # overwrote the value that had just been restored from the file —
+            # and the next save wrote that loss into meta.json. A target's
+            # settings must come from that target's own record
+            # (docs/design/per_target_settings.md), so the link stands down
+            # while a record is being applied and resumes for the user's own
+            # edits. Only the mirror is suspended, not the signals: the overlay
+            # checkbox loads the overlay on its own signal, and the option rows
+            # grey their spin boxes on theirs.
+            if getattr(self, "_suspend_linking", False):
+                return
             dst.blockSignals(True)
             try:
                 if isinstance(src, QCheckBox) and isinstance(dst, QCheckBox):
@@ -10756,6 +10771,12 @@ class TabMeasure(QWidget):
         # apart is the whole value of the message.
         self._sync_overlay_checkboxes(False)
         reason = self._overlay_failure_reason()
+        # The catalogue, imported here like the six other methods that use it.
+        # It was missing, so the "absent" branch below raised NameError and the
+        # approved M-OVERLAY-NO-MEASUREMENT window never opened — the box just
+        # unticked itself. The test that guards this window read the method's
+        # SOURCE and so stayed green through three releases.
+        from workflow import measurement_messages as M
         from PyQt6.QtWidgets import QMessageBox
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.NoIcon)      # clean style, no icon (Basti)
