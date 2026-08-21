@@ -1,12 +1,18 @@
 """Detect SpectroScan hexagonal-patch charts (Knut #126).
 
-The CHT recognition-file format that ChromIQ's scanner / camera tools rely on
-can only describe rectangular patch boxes — it has no way to express a
-hexagon. So a chart made with SpectroScan *hexagonal* patches cannot be turned
-into (or read back with) a CHT file, and the scanner/camera features are not
-supported for it. We detect such charts both at creation (the recipe) and when
-one is loaded into a scanner feature (its ``channels.json`` sidecar), and warn
-the user to use square/rectangular patches instead.
+Used to decide where a chart's HEXAGON SHAPE matters: the measure overlay draws
+the patch's true outline, the strip highlight follows the column's zigzag, and
+the scanner tools draw their alignment cells to match.
+
+It no longer gates anything. The scanner and camera features refused a
+hexagonal chart on the premise that "the CHT format cannot describe a hexagon" —
+true, and beside the point, because a CHT describes the sampling RECTANGLE
+inside each patch and takes it from the chart's recorded per-patch geometry.
+Measured end to end on a 150-hexagon chart: real ``scanin`` returned 0 with a
+standard deviation of 0.106, and real ``colprof`` built a profile from the
+result (peak error 0.59, average 0.20). What genuinely fails is scanin's
+AUTO-recognition — a hexagon has no horizontal edges for its YLIST — and
+ChromIQ places the four corners by hand instead.
 """
 from __future__ import annotations
 
@@ -16,23 +22,43 @@ from pathlib import Path
 from core.i18n import tr
 
 
-def hex_unsupported_message() -> str:
-    """Friendly, extensive explanation for the warning dialogs — lists exactly
-    which features don't work and how to make a chart that does."""
+def hex_scanner_message() -> str:
+    """Why the scanner and camera tools turn a hexagonal chart away, and how to
+    try it anyway. Replaces the old text, which said the CHT format made this
+    impossible — it does not: a CHT describes the rectangle SAMPLED inside each
+    patch, and a hexagonal chart profiles correctly end to end. What is not yet
+    solved is scanin's chart finder, which can abort on a honeycomb."""
     return tr(
-        "This chart uses hexagonal SpectroScan patches.\n\n"
-        "The recognition file (CHT) that ChromIQ's scanner and camera tools "
-        "rely on can only describe rectangular patches — the file format has "
-        "no way to represent a hexagon. So every feature that makes or reads a "
-        "CHT file is unavailable for a hexagonal chart:\n\n"
-        "  •  Create scanner or camera target  (writes the CHT + CIE)\n"
-        "  •  Build profile with scanner or camera  (reads the CHT)\n"
-        "  •  Check alignment  (inside Build profile — it reads the CHT too)\n\n"
-        "Everything else works normally — you can still print the chart and "
-        "measure it with the SpectroScan itself.\n\n"
-        "If you want to profile with a scanner or camera instead, make the "
-        "chart with square / rectangular patches: in Create Chart, with the "
-        "SpectroScan selected, set “Patch shape” to “Rectangular”.")
+        "This chart uses hexagonal patches, and the scanner and camera tools "
+        "are set to turn those away.\n\n"
+        "Not because they cannot work — they can. A hexagonal chart has been "
+        "read and profiled successfully. The trouble is that ScanIn, the "
+        "Argyll program that finds the chart in your scan, looks for long "
+        "straight edges to work out how the sheet is rotated. A honeycomb has "
+        "none running across it, only the slanted sides of the hexagons, so "
+        "ScanIn sometimes measures the rotation badly — and occasionally gives "
+        "up on the whole scan, even when you have placed the four corners "
+        "yourself.\n\n"
+        "There is a second catch: the square that gets sampled inside each "
+        "patch is a comfortable fit in a rectangle and a tight one in a "
+        "hexagon. Above a Sample area of about 64 % it reaches past the "
+        "hexagon's slanted sides into the patches next door, and the colours "
+        "come back mixed.\n\n"
+        "If you would like to try it anyway, turn on \u201cAllow hexagonal "
+        "charts in the scanner and camera tools\u201d in Preferences \u2192 "
+        "Beta. Keep the Sample area at or below 60 %, and check the result "
+        "before you trust the profile.\n\n"
+        "Otherwise, make the chart with square patches: in Create Chart, with "
+        "the SpectroScan selected, set the layout to \u201cRectangular\u201d.")
+
+
+def hex_scanner_allowed(settings) -> bool:
+    """True when the user has opted in (Preferences → Beta). Anything that
+    cannot read the setting gets the proven behaviour, not the new one."""
+    try:
+        return bool(settings.get("scanner_hex_charts", False))
+    except Exception:      # noqa: BLE001 — a missing store must not open the door
+        return False
 
 
 def recipe_is_hexagonal(recipe) -> bool:

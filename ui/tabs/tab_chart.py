@@ -2348,11 +2348,15 @@ class TabChart(QWidget):
         if getattr(pnl, "_loading", False) or getattr(self, "_hex_warned", False):
             return
         self._hex_warned = True
-        from workflow.hex_support import hex_unsupported_message
+        # Only worth saying while the scanner tools still turn these away. The
+        # text no longer claims it is impossible — it explains what is unsolved
+        # and where to turn it on.
+        from workflow.hex_support import hex_scanner_allowed, hex_scanner_message
+        if hex_scanner_allowed(self._settings):
+            return
         from PyQt6.QtWidgets import QMessageBox
-        QMessageBox.information(
-            self, tr("Hexagonal patches — a heads-up"),
-            hex_unsupported_message())
+        QMessageBox.information(self, tr("Hexagonal patches — a heads-up"),
+                                hex_scanner_message())
 
     # ------------------------------------------------------------------
     # Guided panel

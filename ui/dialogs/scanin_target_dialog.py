@@ -365,17 +365,29 @@ class ScaninTargetDialog(_ToolDialogBase):
         self._refresh()
 
     def _reject_if_hexagonal(self, chart_base: Path) -> bool:
-        """When *chart_base* is a SpectroScan hexagonal chart, warn and refuse it
-        — the CHT format can't describe hexagons (Knut). Returns True if
-        rejected."""
-        from workflow.hex_support import chart_is_hexagonal, hex_unsupported_message
-        if chart_is_hexagonal(chart_base):
-            from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.warning(
-                self, tr("Hexagonal chart — not supported here"),
-                hex_unsupported_message())
-            return True
-        return False
+        """Turn a hexagonal chart away unless the user has opted in.
+
+        The old refusal said the CHT format made this impossible. It does not:
+        a CHT describes the rectangle SAMPLED inside each patch, taken from the
+        chart's own recorded geometry, and a hexagonal chart has been read and
+        profiled end to end. What is unsolved is scanin's chart FINDER, which
+        looks for long straight edges to measure rotation and can abort on a
+        honeycomb even with the four corners given — plus the sampling square,
+        which escapes the hexagon above a Sample area of about 64 %.
+
+        So the default stays exactly as it has always been, and Preferences →
+        Beta opens it for anyone who wants to try. Returns True if rejected.
+        """
+        from workflow.hex_support import (chart_is_hexagonal,
+                                          hex_scanner_allowed,
+                                          hex_scanner_message)
+        if not chart_is_hexagonal(chart_base):
+            return False
+        if hex_scanner_allowed(getattr(self, "_settings", None)):
+            return False
+        from PyQt6.QtWidgets import QMessageBox
+        QMessageBox.warning(self, tr("Hexagonal chart"), hex_scanner_message())
+        return True
 
     def _pick_pset(self) -> None:
         path = open_file_dialog(

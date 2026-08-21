@@ -211,6 +211,11 @@ class GridSpec:
     ncols: int = 0        # set when the boxes sit on a uniformly-spaced grid (gaps
     nrows: int = 0        # allowed) → the overlay replicates rectarg's integer edges
     cells: list[tuple[int, int]] | None = None
+    hexagonal: bool = False
+    # ^ True for a SpectroScan hexagonal chart: the CELLS are drawn as the
+    # patch's true shape so the user can see the mesh sitting on the hexagons.
+    # The SAMPLED area stays rectangular — that is what a CHT carries and what
+    # scanin reads, and it sits inside the hexagon at every patch size.
     exact_rects: bool = False
     # ^ True when the rects ARE the render's pixel truth (engine charts):
     #   the rectarg integer-edge rebuild must not touch them — rectarg
@@ -269,10 +274,13 @@ class GridSpec:
         return nc, nr, [(xi[gx(p)], yi[gy(p)]) for p in patches]
 
     @classmethod
-    def from_patches(cls, patches: list[dict]) -> "GridSpec":
+    def from_patches(cls, patches: list[dict], hexagonal: bool = False) -> "GridSpec":
         """Build from engine ``channels.json["layout"]["patches"]`` (top-left px).
         Uses the patch-area bounding box to normalise; page filtering is the
-        caller's job (pass one page's patches)."""
+        caller's job (pass one page's patches).
+
+        *hexagonal* only changes how the cells are DRAWN — the rects, and so the
+        sampled area, are identical either way."""
         if not patches:
             return cls([])
         xs = [p["x"] for p in patches] + [p["x"] + p["w"] for p in patches]
@@ -325,7 +333,7 @@ class GridSpec:
         ink = ((-gx / sw, -gy / sh, 1.0 + gx / sw, 1.0 + gy / sh)
                if (gx or gy) else None)
         return cls(rects, aspect=sw / sh, ncols=nc, nrows=nr, cells=cells,
-                   exact_rects=True, ink_rect=ink)
+                   exact_rects=True, ink_rect=ink, hexagonal=hexagonal)
 
     @classmethod
     def from_cht(cls, text: str) -> "GridSpec":
@@ -611,8 +619,16 @@ class ScanGridMarquee(QWidget):
         for (u, v, w, hh) in cells:
             p.setPen(outline)
             p.setBrush(Qt.BrushStyle.NoBrush)
-            p.drawPolygon(*[self._to_widget(*apply_h(h, x, y)) for x, y in
-                            ((u, v), (u + w, v), (u + w, v + hh), (u, v + hh))])
+            if self._grid.hexagonal:
+                # pointed top and bottom, flat vertical sides — the same shape
+                # raster._hexagon_points draws, so the mesh reads as the chart
+                t6 = hh / 6.0
+                cxu = u + w / 2.0
+                pts = ((cxu, v - t6), (u + w, v + t6), (u + w, v + hh - t6),
+                       (cxu, v + hh + t6), (u, v + hh - t6), (u, v + t6))
+            else:
+                pts = ((u, v), (u + w, v), (u + w, v + hh), (u, v + hh))
+            p.drawPolygon(*[self._to_widget(*apply_h(h, x, y)) for x, y in pts])
             mg = sample_margin(w * asp, hh, self._sample_frac)
             iu, iv = u + mg / asp, v + mg
             iw, ih = w - 2.0 * mg / asp, hh - 2.0 * mg

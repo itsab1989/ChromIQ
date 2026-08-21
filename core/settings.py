@@ -193,6 +193,13 @@ DEFAULTS: dict[str, Any] = {
     # is the proven path for them. Not yet verified on that hardware, so it's
     # opt-in for the adventurous (and for us to test). See --xychart.
     "engine_all_modes":          False,
+    #: Let the scanner / camera tools accept a SpectroScan hexagonal chart.
+    #: Off = the long-proven behaviour, which refuses them. The chart itself
+    #: profiles correctly — measured end to end — but scanin's chart FINDER can
+    #: abort the read on a honeycomb even when the four corners are given, and
+    #: above a Sample area of ~64 % the sampling box escapes the hexagon and
+    #: reads its neighbours. Until both are solved this stays opt-in.
+    "scanner_hex_charts":        False,
     # Faster instrument connection: skip Argyll's slow phantom-serial-port probe
     # (macOS Bluetooth/debug ports, Linux rfcomm) so a USB spectro connects
     # nearly instantly. Default on; real USB-serial adapters are never excluded.

@@ -833,6 +833,52 @@ class SettingsDialog(QDialog):
         _xy_row.addWidget(engine_all_modes_tip)
         _meas.addLayout(_xy_row)
 
+        # Hexagonal charts in the scanner / camera tools (opt-in).
+        self._scanner_hex_check = QCheckBox(
+            tr("Allow hexagonal charts in the scanner and camera tools (beta)"),
+            self)
+        scanner_hex_tip = TooltipButton(
+            tr("Hexagonal charts for scanner and camera (beta)"),
+            tr("A chart can be printed with six-sided patches instead of "
+            "squares — pick the SpectroScan in Create Chart and set the layout "
+            "to Hexagonal. They pack together like a honeycomb, so more patches "
+            "fit on a sheet, and each patch is ringed by six neighbours, which "
+            "helps when you are placing a hand-held instrument on it.\n\n"
+            "Until now the scanner and camera tools refused such a chart "
+            "outright, on the grounds that the recognition file could not "
+            "describe a hexagon. That reasoning was wrong: the recognition file "
+            "describes the little square that gets SAMPLED inside each patch, "
+            "not the shape you printed — and a hexagonal chart has been read "
+            "and turned into a working profile.\n\n"
+            "Two things are still rough, which is why this is a beta "
+            "switch.\n\n"
+            "ScanIn, the Argyll program that finds your chart in the scan, "
+            "works out how the sheet is rotated by looking for long straight "
+            "edges. A honeycomb has none running across it — only the slanted "
+            "sides of the hexagons — so it sometimes measures the rotation "
+            "badly, and occasionally gives up on the scan altogether, even "
+            "when you have placed the four corners yourself.\n\n"
+            "And the square that gets sampled is a comfortable fit inside a "
+            "rectangle but a tight one inside a hexagon. Above a Sample area of "
+            "roughly 64 % it reaches past the slanted sides into the patches "
+            "next door and the colours come back mixed. Keep Sample area at or "
+            "below 60 %.\n\n"
+            "With this off — the default — nothing changes: hexagonal charts "
+            "are turned away with an explanation, exactly as before. With it "
+            "on, they are accepted, and the alignment mesh draws each cell as "
+            "the six-sided patch it really is so you can see it sitting on the "
+            "chart. Check the profile before you trust it; if a scan is "
+            "refused, switch this back off and print the chart with square "
+            "patches instead.\n\nDefault: off"),
+            self,
+            min_width=680,
+        )
+        _hexrow = QHBoxLayout()
+        _hexrow.addWidget(self._scanner_hex_check)
+        _hexrow.addStretch()
+        _hexrow.addWidget(scanner_hex_tip)
+        _meas.addLayout(_hexrow)
+
         # Patch-reading error limit (#126, Knut): the ΔE at which a just-measured
         # patch gets the red warning outline in the live split-patch preview.
         self._patch_warn_spin = NoScrollDoubleSpinBox(self)
@@ -2893,6 +2939,8 @@ class SettingsDialog(QDialog):
             self._profile_engine_check.isChecked())
         self._chartread_engine_check.setChecked(
             str(s.get("chartread_engine", "argyll")) == "chromiq")
+        self._scanner_hex_check.setChecked(
+            bool(s.get("scanner_hex_charts", False)))
         self._engine_all_modes_check.setChecked(
             bool(s.get("engine_all_modes", False)))
         self._save_report_check.setChecked(
@@ -3636,6 +3684,7 @@ class SettingsDialog(QDialog):
         s.set("chartread_engine",
               "chromiq" if self._chartread_engine_check.isChecked() else "argyll")
         s.set("engine_all_modes", self._engine_all_modes_check.isChecked())
+        s.set("scanner_hex_charts", self._scanner_hex_check.isChecked())
         s.set("save_measurement_report", self._save_report_check.isChecked())
         s.set("report_pass_threshold_avg", float(self._report_avg_thr_spin.value()))
         s.set("report_pass_threshold_max", float(self._report_max_thr_spin.value()))

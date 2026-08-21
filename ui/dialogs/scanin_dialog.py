@@ -1691,14 +1691,17 @@ class ScannerProfileDialog(_ToolDialogBase):
         # .ti3, then the .ti2 (aim values) — a chart you only PRINTED still
         # works for a printer profile; both carry loc + RGB + XYZ.
         base = _chart_base(picked)
-        # SpectroScan hexagonal charts can't be read via a CHT file (Knut): warn
-        # and refuse rather than build a target/grid that can never line up.
-        from workflow.hex_support import chart_is_hexagonal, hex_unsupported_message
-        if chart_is_hexagonal(base):
+        # A hexagonal chart is turned away unless the user opted in under
+        # Preferences → Beta. It profiles correctly — that was measured end to
+        # end — but scanin's chart finder can abort on a honeycomb, so the
+        # default stays the long-proven behaviour. See `hex_scanner_message`.
+        from workflow.hex_support import (chart_is_hexagonal,
+                                          hex_scanner_allowed,
+                                          hex_scanner_message)
+        if chart_is_hexagonal(base) and not hex_scanner_allowed(self._settings):
             from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.warning(
-                self, tr("Hexagonal chart — not supported here"),
-                hex_unsupported_message())
+            QMessageBox.warning(self, tr("Hexagonal chart"),
+                                hex_scanner_message())
             return
         ti3, ti2 = base.with_suffix(".ti3"), base.with_suffix(".ti2")
         if (picked.suffix.lower() in (".ti2", ".ti3") and picked.is_file()
@@ -1916,7 +1919,15 @@ class ScannerProfileDialog(_ToolDialogBase):
         patches = [p for p in self._layout.get("patches", [])
                    if int(p.get("page", 0)) == pg]
         if patches:
-            self._marquee.set_grid(GridSpec.from_patches(patches))
+            # The cells take the patch's own shape; the sampled rectangle
+            # inside them is unchanged, which is what the CHT carries. The
+            # recipe is already in the layout this method holds — reaching for
+            # the chart path here raised NameError on EVERY engine chart,
+            # rectangular ones included, because `base` belongs to the loader.
+            from workflow.hex_support import recipe_is_hexagonal
+            self._marquee.set_grid(GridSpec.from_patches(
+                patches,
+                hexagonal=recipe_is_hexagonal(self._layout.get("recipe"))))
         else:
             cht_pages = self._layout.get("cht_pages") or []
             self._marquee.set_grid(
