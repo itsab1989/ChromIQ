@@ -1751,6 +1751,10 @@ _GAMUT_MODULE_HELP_BODY = (
     "should I use?” compares all three."
 )
 
+#: The eight cube corners — paper white, black and the six ink corners — that the
+#: in-gamut chart always adds on top of the count in the box ("+ 8" beside it).
+_GAMUT_CORNER_PATCHES = 8
+
 _GAMUT_SIZE_HELP_TITLE = "How many colours to test"
 _GAMUT_SIZE_HELP_BODY = (
     "How many of the reference colours this chart will test. More colours "
@@ -3260,6 +3264,17 @@ class TabChart(QWidget):
                     # Shrink the patch-count spinbox and add an "Auto" checkbox
                     # that drives live estimation from current paper/layout settings.
                     self._manual_f_pw = pw
+                    # The Presets dropdown stays VISIBLE inside the gamut
+                    # module (only the targen group is hidden), and choosing a
+                    # preset there never switches module — which is exactly the
+                    # action #162 describes: "if I select a 484 patch preset".
+                    # So the default follows the Manual chart as it changes,
+                    # not only when the module is opened.
+                    try:
+                        pw._control.valueChanged.connect(
+                            self._on_manual_patch_count_changed)
+                    except (AttributeError, TypeError):
+                        pass
                     pw._control.setMaximumWidth(90)
                     self._manual_auto_patches_check = QCheckBox(tr("Auto"), pw)
                     self._manual_auto_patches_check.setToolTip(
@@ -10812,6 +10827,14 @@ class TabChart(QWidget):
         try:
             out["gamut"] = {
                 "count": int(self._gamut_count_spin.value()),
+                # WHETHER THE COUNT WAS CHOSEN, not merely what it was.
+                #
+                # This record is written for every target that is merely
+                # visited, so the presence of "count" proves nothing — it is
+                # usually the untouched global. Reading it as a choice left the
+                # default in #162 disarmed on every target that already exists.
+                "count_chosen": bool(getattr(self, "_gamut_count_user_set",
+                                             False)),
                 "auto": bool(self._gamut_auto_check.isChecked()),
                 "margin": self._gamut_margin_combo.currentData(),
                 "intent": self._gamut_intent_combo.currentData(),
@@ -10827,6 +10850,10 @@ class TabChart(QWidget):
         illegal stored mode."""
         if not isinstance(stored, dict):
             return
+        # This target has not chosen a colour count until its record says so —
+        # an empty record is applied deliberately for exactly this reason, so
+        # nothing follows the user from the run they just left (#162).
+        self._gamut_count_user_set = False
         if "stamp" in stored:
             try:
                 self._manual_stamp_cmd_check.setChecked(bool(stored["stamp"]))
@@ -10899,7 +10926,14 @@ class TabChart(QWidget):
         if isinstance(gam, dict):
             try:
                 if "count" in gam:
-                    self._gamut_count_spin.setValue(int(gam["count"]))
+                    self._gamut_count_seeding = True
+                    try:
+                        self._gamut_count_spin.setValue(int(gam["count"]))
+                    finally:
+                        self._gamut_count_seeding = False
+                # A record from before this flag existed carries a number
+                # nobody chose, so it does not disarm the default (#162).
+                self._gamut_count_user_set = bool(gam.get("count_chosen", False))
                 if "auto" in gam:
                     self._gamut_auto_check.setChecked(bool(gam["auto"]))
                 for key, combo in (("margin", self._gamut_margin_combo),
@@ -11521,6 +11555,9 @@ class TabChart(QWidget):
 
         self._gamut_count_spin.valueChanged.connect(
             lambda _v: self._update_gamut_count_line())
+        self._gamut_count_user_set = False
+        self._gamut_count_seeding = False
+        self._gamut_count_spin.valueChanged.connect(self._on_gamut_count_edited)
         self._gamut_auto_check.toggled.connect(
             lambda _c: (self._sync_gamut_pages_enabled(),
                         self._update_gamut_count_line()))
@@ -11638,6 +11675,11 @@ class TabChart(QWidget):
 
     def _refresh_gamut_state(self) -> None:
         """Options vs the no-profile empty state, and the Generate button."""
+        # Selecting another run does NOT re-enter the module — both automatic
+        # routes into it are guarded by "only if the mode would change" — so
+        # seeding from `_switch_mode` alone never fired for the run you switch
+        # to while the module is already open (#162).
+        self._seed_gamut_count_from_manual()
         profile = self._gamut_profile()
         has = profile is not None
         self._gamut_grp.setVisible(has)
@@ -11749,6 +11791,66 @@ class TabChart(QWidget):
         except Exception:      # noqa: BLE001
             return None
 
+    def _gamut_manual_colour_count(self) -> "int | None":
+        """What the Manual settings represent, as a count for THIS box (#162).
+
+        soul-traveller: *"if I select a 484 patch preset, the default value
+        should be 484 patches (including the 8 color extremes)"*. This box is
+        the count BEFORE the corners are added — "+ 8" sits beside it — so a
+        484-patch Manual chart seeds 476 and the chart totals 484.
+
+        Note this is not what "Auto — fill the pages" computes: that fills the
+        sheet to capacity, which for his preset is 550, not 484. Matching the
+        chart and filling the paper are different numbers.
+        """
+        try:
+            patches = int(self._collect_manual().patches)
+        except Exception:      # noqa: BLE001
+            return None
+        if patches <= 0 and self._manual_auto_patches_check is not None \
+                and self._manual_auto_patches_check.isChecked():
+            # Manual is filling the pages itself and has not written a number
+            # into targen -f. The chart it describes is then the sheet's
+            # capacity — the same arithmetic Manual's own Auto uses.
+            per = self._gamut_per_sheet()
+            if per:
+                patches = int(per) * max(1, int(self._gamut_pages()))
+        if patches <= 0:
+            return None
+        spin = self._gamut_count_spin
+        return max(spin.minimum(),
+                   min(spin.maximum(), patches - _GAMUT_CORNER_PATCHES))
+
+    def _seed_gamut_count_from_manual(self) -> None:
+        """Default the colour count to the Manual chart, on entering the module.
+
+        A DEFAULT, not an override: it stands down as soon as the count is this
+        target's own choice — typed here, or restored from the target's stored
+        record. Seeding over a stored value would be the fault the per-target
+        store exists to prevent, and the count is stored (`create_chart_ui`
+        → `gamut.count`).
+        """
+        if getattr(self, "_gamut_count_user_set", False):
+            return
+        want = self._gamut_manual_colour_count()
+        if want is None or want == self._gamut_count_spin.value():
+            return
+        self._gamut_count_seeding = True
+        try:
+            self._gamut_count_spin.setValue(want)
+        finally:
+            self._gamut_count_seeding = False
+
+    def _on_manual_patch_count_changed(self, *_a) -> None:
+        """The Manual chart changed — re-default the module's count (#162)."""
+        if getattr(self, "_gamut_active", False):
+            self._seed_gamut_count_from_manual()
+
+    def _on_gamut_count_edited(self, *_a) -> None:
+        """Any value that is not our own seed is the user's choice, and sticks."""
+        if not getattr(self, "_gamut_count_seeding", False):
+            self._gamut_count_user_set = True
+
     def _gamut_effective_count(self) -> int:
         """The colour count a Generate would use right now: the spin's value,
         or — with Auto on — however many fill the pages set in the layout
@@ -11758,7 +11860,8 @@ class TabChart(QWidget):
             per = self._gamut_per_sheet()
             pages = self._gamut_pages()
             if per:
-                return max(50, per * max(1, int(pages)) - 8)
+                return max(50, per * max(1, int(pages))
+                           - _GAMUT_CORNER_PATCHES)
         return int(self._gamut_count_spin.value())
 
     def _gamut_pages(self) -> int:

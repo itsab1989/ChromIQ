@@ -337,3 +337,179 @@ def test_the_coverage_line_carries_the_percentage(qapp, tmp_path, monkeypatch):
     tab._update_gamut_count_line()
     assert "(91 %)" in tab._gamut_count_lbl.text()      # round(5413/5960*100)
     assert tab._gamut_count_lbl.wordWrap()
+
+
+# ---------------------------------------------------------------------------
+# #162 — the count defaults to the chart the Manual settings describe
+# ---------------------------------------------------------------------------
+def _gamut_ready(s, fm, ctl, patches=484):
+    """A verification target with a profile, and a Manual chart of *patches*.
+
+    THE REAL ENTRY PATH. Selecting a verification run that has a profile opens
+    the module by itself (`_refresh_gamut_visibility`) — calling
+    `_switch_mode("gamut")` afterwards is a re-entry the app never performs, and
+    an earlier version of these tests only passed because of it.
+
+    The patch count goes through the real targen -f control rather than a stub
+    on `_collect_manual`, which also feeds the live command preview.
+    """
+    run = fm.project().run("run1")
+    run.profile_icc.write_bytes(b"icc")
+    tab = _chart_tab(s, fm, ctl)
+    # IN THE USER'S ORDER. Selecting the run loads that target's Create Chart
+    # state, which resets targen -f — so a chart set up before the selection is
+    # wiped by it, and a fixture that did so was testing nothing. The run is
+    # chosen first, then the chart, exactly as loading a preset does.
+    ctl.set_profile_run("run1")
+    ctl.set_run_type(RUN_TYPE_VERIFICATION)
+    if patches:
+        # Manual's own "Auto patch count" is ON by default and recomputes -f
+        # from the layout; a preset turns it off, and so do we.
+        if tab._manual_auto_patches_check is not None:
+            tab._manual_auto_patches_check.setChecked(False)
+        tab._set_manual_value("targen", "-f", patches)
+    return tab
+
+
+def test_the_count_defaults_to_the_chart_manual_describes(qapp, tmp_path):
+    """soul-traveller: *"if I select a 484 patch preset, the default value
+    should be 484 patches (including the 8 color extremes)"*.
+
+    The box is the count BEFORE the corners — "+ 8" sits beside it — so a
+    484-patch Manual chart reads 476 here and totals 484.
+    """
+    s, fm, ctl = _env(tmp_path)
+    s.set("gamut_target_count", 400)          # the stored global he complains of
+    tab = _gamut_ready(s, fm, ctl)
+    assert tab._mode_name() == "gamut", "the module opens on its own"
+    assert tab._gamut_count_spin.value() == 476
+    assert tab._gamut_count_spin.value() + 8 == 484
+
+
+def test_a_count_nobody_chose_does_not_disarm_the_default(qapp, tmp_path):
+    """The fault that made the first version of this feature a no-op.
+
+    `_collect_ui_state` files `gamut.count` for every target that is merely
+    visited, so every verification target that already exists carries the
+    untouched global. Reading "a count is stored" as "the user chose a count"
+    disarmed the default on all of them — the change would have done nothing on
+    anyone's real data.
+    """
+    s, fm, ctl = _env(tmp_path)
+    tab = _gamut_ready(s, fm, ctl)
+    tab._apply_ui_state({"gamut": {"count": 400}})      # no marker: not a choice
+    tab._refresh_gamut_state()
+    assert tab._gamut_count_spin.value() == 476
+
+
+def test_a_count_the_user_typed_is_his(qapp, tmp_path):
+    """A default, not an override."""
+    s, fm, ctl = _env(tmp_path)
+    tab = _gamut_ready(s, fm, ctl)
+    tab._gamut_count_spin.setValue(300)
+    tab._set_manual_value("targen", "-f", 918)          # the chart changes under it
+    tab._refresh_gamut_state()
+    assert tab._gamut_count_spin.value() == 300
+
+
+def test_a_choice_survives_being_saved_and_loaded(qapp, tmp_path):
+    """…and it has to survive as a CHOICE, not merely as a number, or the next
+    load cannot tell it from the global."""
+    s, fm, ctl = _env(tmp_path)
+    tab = _gamut_ready(s, fm, ctl)
+    tab._gamut_count_spin.setValue(300)
+    stored = tab._collect_ui_state()
+    assert stored["gamut"]["count"] == 300
+    assert stored["gamut"]["count_chosen"] is True
+
+    tab._apply_ui_state(stored)
+    tab._refresh_gamut_state()
+    assert tab._gamut_count_spin.value() == 300
+
+
+def test_the_default_follows_a_preset_chosen_inside_the_module(qapp, tmp_path):
+    """His literal action. The Presets dropdown stays visible inside the module
+    and choosing one never switches module, so a default that only fires on
+    entry would never fire for him at all."""
+    s, fm, ctl = _env(tmp_path)
+    tab = _gamut_ready(s, fm, ctl)
+    assert tab._gamut_count_spin.value() == 476
+    tab._set_manual_value("targen", "-f", 200)
+    assert tab._gamut_count_spin.value() == 192
+
+
+def test_another_run_while_the_module_is_open_gets_its_own_default(qapp,
+                                                                   tmp_path):
+    """Selecting another run does not re-enter the module — both automatic
+    routes in are guarded by "only if the mode would change" — so the count
+    must be re-defaulted where the module's state is refreshed, not only where
+    it is opened."""
+    s, fm, ctl = _env(tmp_path)
+    tab = _gamut_ready(s, fm, ctl)
+    tab._gamut_count_spin.setValue(900)                 # run 1's own choice
+    tab._apply_ui_state({})                             # run 2: nothing stored
+    tab._set_manual_value("targen", "-f", 484)
+    tab._refresh_gamut_state()
+    assert tab._gamut_count_spin.value() == 476, (
+        "run 2 kept the count from the run just left")
+
+
+def test_manuals_own_auto_patch_count_still_gives_a_default(qapp, tmp_path,
+                                                            monkeypatch):
+    """Manual's "Auto" patch count is on by default and leaves targen -f at 0,
+    so there would be no chart to match and the box would keep the global."""
+    s, fm, ctl = _env(tmp_path)
+    tab = _gamut_ready(s, fm, ctl, patches=0)
+    assert tab._manual_auto_patches_check.isChecked(), "Auto is the default"
+    monkeypatch.setattr(tab, "_gamut_per_sheet", lambda: 105)
+    monkeypatch.setattr(tab, "_gamut_pages", lambda: 2)
+    tab._gamut_count_user_set = False
+    tab._refresh_gamut_state()
+    assert tab._gamut_count_spin.value() == 105 * 2 - 8
+
+
+def test_the_seed_is_clamped_to_the_box(qapp, tmp_path, monkeypatch):
+    """A Manual chart smaller than the box's minimum, or larger than its
+    maximum, must not produce a value the box cannot hold."""
+    s, fm, ctl = _env(tmp_path)
+    tab = _gamut_ready(s, fm, ctl)
+    lo, hi = tab._gamut_count_spin.minimum(), tab._gamut_count_spin.maximum()
+    for patches, want in ((9, lo), (100000, hi), (484, 476)):
+        monkeypatch.setattr(tab, "_collect_manual",
+                            lambda p=patches: type("P", (), {"patches": p})())
+        assert tab._gamut_manual_colour_count() == want
+    monkeypatch.setattr(tab, "_collect_manual",
+                        lambda: type("P", (), {"patches": 0})())
+    if tab._manual_auto_patches_check is not None:
+        tab._manual_auto_patches_check.setChecked(False)
+    assert tab._gamut_manual_colour_count() is None, "no chart, no default"
+
+
+def test_auto_fill_the_pages_is_untouched(qapp, tmp_path, monkeypatch):
+    """The existing Auto computes the sheet's CAPACITY, which is a different
+    rule — and with Auto on the box is not the input at all."""
+    s, fm, ctl = _env(tmp_path)
+    tab = _gamut_ready(s, fm, ctl)
+    monkeypatch.setattr(tab, "_gamut_per_sheet", lambda: 105)
+    assert tab._gamut_count_spin.value() == 476
+    tab._gamut_auto_check.setChecked(True)
+    if tab._manual_pages_spin is not None:
+        tab._manual_pages_spin.setValue(2)
+    assert tab._gamut_effective_count() == 105 * 2 - 8
+
+
+def test_choosing_the_module_by_hand_defaults_the_count(qapp, tmp_path):
+    """The hand-click path. `_user_switch_mode` goes to `_switch_mode` and
+    nowhere near `_refresh_gamut_state`, so the two seeding sites are not
+    redundant — and no test clicked the button until a mutation said so.
+    """
+    s, fm, ctl = _env(tmp_path)
+    s.set("gamut_target_count", 400)
+    tab = _gamut_ready(s, fm, ctl)
+    tab._user_switch_mode("manual")            # leave the module by hand
+    tab._gamut_count_spin.setValue(400)        # …and put the global back
+    tab._gamut_count_user_set = False          # nobody chose it
+    tab._set_manual_value("targen", "-f", 484)  # not in the module: no seed here
+    assert tab._gamut_count_spin.value() == 400
+    tab._user_switch_mode("gamut")             # click the module button
+    assert tab._gamut_count_spin.value() == 476
