@@ -11561,10 +11561,12 @@ class TabChart(QWidget):
         self._gamut_auto_check.toggled.connect(
             lambda _c: (self._sync_gamut_pages_enabled(),
                         self._update_gamut_count_line()))
+        # Both of these change how many colours are in gamut, so both re-run
+        # the default that is capped by it (#162).
         self._gamut_margin_combo.currentIndexChanged.connect(
-            lambda _i: self._update_gamut_count_line())
+            lambda _i: self._on_gamut_reach_changed())
         self._gamut_intent_combo.currentIndexChanged.connect(
-            lambda _i: self._update_gamut_count_line())
+            lambda _i: self._on_gamut_reach_changed())
         #: (profile path, mtime, margin, intent) → in-gamut total, so flicking
         #: between two settings is instant after the first query (#133 §10).
         self._gamut_coverage_cache: dict = {}
@@ -11713,6 +11715,10 @@ class TabChart(QWidget):
                                            "/Applications/Argyll/bin"))
         except Exception:      # noqa: BLE001 — the count line must never crash
             log.warning("gamut coverage query failed", exc_info=True)
+            # Remember the FAILURE as well. It sat outside the cache, so every
+            # refresh shelled out again — and a hung xicclu would freeze the
+            # window for its whole timeout on every run you select.
+            self._gamut_coverage_cache[key] = None
             return None
         self._gamut_coverage_cache[key] = sel.in_gamut_total
         self._gamut_master_total = sel.master_total
@@ -11817,9 +11823,34 @@ class TabChart(QWidget):
                 patches = int(per) * max(1, int(self._gamut_pages()))
         if patches <= 0:
             return None
+        want = patches - _GAMUT_CORNER_PATCHES
+        # NEVER MORE THAN THE PROFILE CAN PRINT.
+        #
+        # The chart holds `min(count, in-gamut) + 8` whatever the box says, so a
+        # default taken from the Manual chart alone can promise colours that do
+        # not exist for this profile: a 3000-patch chart against a profile with
+        # 2896 in-gamut colours put 2992 in the box while the line underneath
+        # said "Only 2896 can be tested". A number the user types is still his
+        # — the line explains it — but a DEFAULT the app cannot keep is the
+        # app's own contradiction (#162, Sebastian).
+        cover = self._gamut_in_gamut_total()
+        if cover is not None:
+            # `if cover:` read a reach of ZERO as "unknown", so the profile that
+            # can print nothing got the largest default of all.
+            want = min(want, int(cover))
         spin = self._gamut_count_spin
-        return max(spin.minimum(),
-                   min(spin.maximum(), patches - _GAMUT_CORNER_PATCHES))
+        return max(spin.minimum(), min(spin.maximum(), want))
+
+    def _gamut_in_gamut_total(self) -> "int | None":
+        """How many reference colours this profile can print, at the CURRENT
+        margin and intent — cached, and None when it cannot be worked out."""
+        profile = self._gamut_profile()
+        if profile is None:
+            return None
+        return self._gamut_coverage(
+            profile,
+            self._gamut_margin_combo.currentData() or "safe",
+            self._gamut_intent_combo.currentData() or "absolute")
 
     def _seed_gamut_count_from_manual(self) -> None:
         """Default the colour count to the Manual chart, on entering the module.
@@ -11830,6 +11861,8 @@ class TabChart(QWidget):
         store exists to prevent, and the count is stored (`create_chart_ui`
         → `gamut.count`).
         """
+        if not getattr(self, "_gamut_active", False):
+            return                      # the reach query is not free
         if getattr(self, "_gamut_count_user_set", False):
             return
         want = self._gamut_manual_colour_count()
@@ -11840,6 +11873,21 @@ class TabChart(QWidget):
             self._gamut_count_spin.setValue(want)
         finally:
             self._gamut_count_seeding = False
+
+    def _on_gamut_reach_changed(self) -> None:
+        """Margin or intent changed — the in-gamut total moves with them.
+
+        Not while a target's record is being applied: margin and intent arrive
+        as two separate signals there, so a `full`/`relative` record asked the
+        engine about `safe`/`absolute`, then about `full`/`absolute` — a pair
+        nobody ever chose — before its own. Three queries, half a second of
+        frozen window, and the box visibly stepping through the phantom's
+        answer. The refresh that follows the record settles it once.
+        """
+        if getattr(self, "_loading_target_settings", False):
+            return
+        self._seed_gamut_count_from_manual()
+        self._update_gamut_count_line()
 
     def _on_manual_patch_count_changed(self, *_a) -> None:
         """The Manual chart changed — re-default the module's count (#162)."""
@@ -11860,8 +11908,14 @@ class TabChart(QWidget):
             per = self._gamut_per_sheet()
             pages = self._gamut_pages()
             if per:
-                return max(50, per * max(1, int(pages))
-                           - _GAMUT_CORNER_PATCHES)
+                fill = per * max(1, int(pages)) - _GAMUT_CORNER_PATCHES
+                # Filling the pages cannot conjure colours the profile does not
+                # have either — and this is the number the user CANNOT correct,
+                # because Auto greys the box. It was the one left uncapped.
+                cover = self._gamut_in_gamut_total()
+                if cover is not None:
+                    fill = min(fill, int(cover))
+                return max(50, fill)
         return int(self._gamut_count_spin.value())
 
     def _gamut_pages(self) -> int:

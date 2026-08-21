@@ -513,3 +513,134 @@ def test_choosing_the_module_by_hand_defaults_the_count(qapp, tmp_path):
     assert tab._gamut_count_spin.value() == 400
     tab._user_switch_mode("gamut")             # click the module button
     assert tab._gamut_count_spin.value() == 476
+
+
+def _reach(table):
+    """A stand-in for the in-gamut query that HONOURS margin and intent.
+
+    The first version of these tests used `lambda *a, **k: 2896`, which
+    swallowed both — so a cap that ignored the user's margin and intent passed
+    every one of them.
+    """
+    def _q(profile, margin, intent):
+        return table.get((margin, intent))
+    return _q
+
+
+def test_the_default_never_promises_more_than_the_profile_can_print(
+        qapp, tmp_path, monkeypatch):
+    """Measured against a real profile: a 3000-patch Manual chart put 2992 in
+    the box while the line underneath said "Only 2896 can be tested".
+
+    The chart holds `min(count, in-gamut) + 8` whatever the box says, so the
+    box and the line contradicted each other with the user having done nothing.
+    """
+    s, fm, ctl = _env(tmp_path)
+    tab = _gamut_ready(s, fm, ctl, patches=3000)
+    monkeypatch.setattr(tab, "_gamut_coverage", _reach({("safe", "absolute"): 2896}))
+    tab._gamut_count_user_set = False
+    tab._refresh_gamut_state()
+    assert tab._gamut_count_spin.value() == 2896
+
+
+def test_a_wider_reach_raises_the_default_again(qapp, tmp_path, monkeypatch):
+    """Margin and intent decide how many colours are in gamut, so the default
+    capped by that total has to move when they do.
+
+    The combo is MOVED rather than the slot called by hand: the two `connect`
+    lines are the only new wiring, and calling the slot directly leaves them
+    untested — a mutation that dropped both survived.
+    """
+    s, fm, ctl = _env(tmp_path)
+    tab = _gamut_ready(s, fm, ctl, patches=5000)
+    monkeypatch.setattr(tab, "_gamut_coverage",
+                        _reach({("safe", "absolute"): 2896,
+                                ("full", "absolute"): 3805}))
+    tab._gamut_count_user_set = False
+    tab._refresh_gamut_state()
+    assert tab._gamut_count_spin.value() == 2896
+    tab._gamut_margin_combo.setCurrentIndex(
+        tab._gamut_margin_combo.findData("full"))
+    assert tab._gamut_count_spin.value() == 3805
+
+
+def test_the_cap_bounds_the_chart_and_does_not_replace_it(qapp, tmp_path,
+                                                          monkeypatch):
+    """A reach ABOVE the Manual chart must change nothing.
+
+    Every earlier test had the reach below the chart, so a cap written as
+    "use the reach" instead of "at most the reach" passed them all.
+    """
+    s, fm, ctl = _env(tmp_path)
+    tab = _gamut_ready(s, fm, ctl, patches=484)
+    monkeypatch.setattr(tab, "_gamut_coverage",
+                        _reach({("safe", "absolute"): 5000}))
+    tab._gamut_count_user_set = False
+    tab._refresh_gamut_state()
+    assert tab._gamut_count_spin.value() == 476
+
+
+def test_the_cap_uses_the_printable_total_not_the_reference_set(qapp, tmp_path,
+                                                                monkeypatch):
+    """5960 reference colours exist; this profile prints 2896 of them. Capping
+    at the wrong one of those two numbers is invisible unless they differ."""
+    s, fm, ctl = _env(tmp_path)
+    tab = _gamut_ready(s, fm, ctl, patches=5000)
+    monkeypatch.setattr(tab, "_gamut_coverage",
+                        _reach({("safe", "absolute"): 2896}))
+    tab._gamut_master_total = 5960
+    tab._gamut_count_user_set = False
+    tab._refresh_gamut_state()
+    assert tab._gamut_count_spin.value() == 2896
+
+
+def test_a_profile_that_can_print_nothing_gets_the_smallest_default(
+        qapp, tmp_path, monkeypatch):
+    """A reach of zero is an ANSWER, not a missing one. Read as "unknown", the
+    profile that can print nothing got the largest default of all — reproduced
+    on a real .icc at the safe margin with the relative intent."""
+    s, fm, ctl = _env(tmp_path)
+    tab = _gamut_ready(s, fm, ctl, patches=3000)
+    monkeypatch.setattr(tab, "_gamut_coverage",
+                        _reach({("safe", "absolute"): 0}))
+    tab._gamut_count_user_set = False
+    tab._refresh_gamut_state()
+    assert tab._gamut_count_spin.value() == tab._gamut_count_spin.minimum()
+
+
+def test_auto_fill_the_pages_cannot_promise_missing_colours_either(
+        qapp, tmp_path, monkeypatch):
+    """The number the user CANNOT correct — Auto greys the box — was the one
+    left uncapped: it read 267 beside a line saying "Only 100 can be tested"."""
+    s, fm, ctl = _env(tmp_path)
+    tab = _gamut_ready(s, fm, ctl, patches=3000)
+    monkeypatch.setattr(tab, "_gamut_coverage",
+                        _reach({("safe", "absolute"): 100}))
+    monkeypatch.setattr(tab, "_gamut_per_sheet", lambda: 275)
+    tab._gamut_auto_check.setChecked(True)
+    assert tab._gamut_effective_count() == 100
+
+
+def test_the_default_falls_back_when_the_reach_is_unknown(qapp, tmp_path,
+                                                          monkeypatch):
+    """The in-gamut query shells out to xicclu and can fail. It must cost the
+    default nothing — the chart Manual describes is still the best answer."""
+    s, fm, ctl = _env(tmp_path)
+    tab = _gamut_ready(s, fm, ctl, patches=484)
+    monkeypatch.setattr(tab, "_gamut_coverage", _reach({}))
+    tab._gamut_count_user_set = False
+    tab._refresh_gamut_state()
+    assert tab._gamut_count_spin.value() == 476
+
+
+def test_a_number_the_user_types_may_still_exceed_the_reach(qapp, tmp_path,
+                                                            monkeypatch):
+    """The cap belongs to the DEFAULT, not to the control. Asking for more than
+    the profile can print is allowed — the line says what will happen — and
+    lowering it silently would be the override this feature must not become."""
+    s, fm, ctl = _env(tmp_path)
+    tab = _gamut_ready(s, fm, ctl, patches=484)
+    monkeypatch.setattr(tab, "_gamut_coverage", _reach({("safe", "absolute"): 300}))
+    tab._gamut_count_spin.setValue(2000)
+    tab._refresh_gamut_state()
+    assert tab._gamut_count_spin.value() == 2000

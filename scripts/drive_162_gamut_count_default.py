@@ -190,6 +190,39 @@ def main() -> int:
         tab._gamut_auto_check.setChecked(False)
         pump(app, 300)
 
+    print("\nSCENARIO 6 — a chart bigger than the profile can print")
+    # Measured, not supposed: this profile prints 2896 of the 5960 reference
+    # colours at the safe margin. A 3000-patch Manual chart used to put 2992 in
+    # the box while the line underneath said "Only 2896 can be tested".
+    tab._gamut_count_user_set = False
+    tab._manual_auto_patches_check.setChecked(False)
+    tab._set_manual_value("targen", "-f", 3000)
+    pump(app, 1500)
+    tab._update_gamut_count_line()
+    pump(app, 600)
+    reach = tab._gamut_in_gamut_total()
+    box = tab._gamut_count_spin.value()
+    line = tab._gamut_count_lbl.text()
+    check(reach is not None and box == reach,
+          "the default stops at what the profile can actually print",
+          f"{box} colours, and the profile reaches {reach}")
+    check("Only" not in line,
+          "…so the box and the line no longer contradict each other",
+          line[:120])
+    check(f"{box + CORNERS}" in line,
+          "…and the line names the chart the box will really produce",
+          f"{box} + {CORNERS} = {box + CORNERS} patches")
+
+    print("\nSCENARIO 7 — widening the reach raises the default again")
+    before = tab._gamut_count_spin.value()
+    i = tab._gamut_margin_combo.findData("full")
+    if i >= 0:
+        tab._gamut_margin_combo.setCurrentIndex(i)
+    pump(app, 1500)
+    check(tab._gamut_count_spin.value() > before,
+          "using the full printable range offers more colours",
+          f"{before} -> {tab._gamut_count_spin.value()}")
+
     bad = [r for r in RESULTS if not r[0]]
     print(f"\n{len(RESULTS) - len(bad)}/{len(RESULTS)} checks passed")
     win.close()
