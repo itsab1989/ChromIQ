@@ -71,7 +71,21 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle(tr("ChromIQ — Printer Profiling"))
         self.setMinimumSize(900, 650)
-        self._title_bar_mode: str = "dark"
+        # SEEDED FROM THE APPEARANCE ALREADY RESOLVED, NOT ASSUMED DARK.
+        #
+        # This drives the real title bar (_apply_title_bar), the masthead popup —
+        # and, at :393/:444, the is_light flag the five construction-time tab
+        # stylesheets are built and CACHED under. Hard-coded "dark", every one of
+        # them was built dark and filed under "dark", so apply_theme("light")
+        # missed all five and re-styled the lot: 327 ms in dark against 732 ms in
+        # light. main() resolves the appearance long before this runs (measured at
+        # 371 ms of a 5.2 s launch), so the answer is already known here.
+        from ui.theme import resolve_mode
+        try:
+            self._title_bar_mode: str = resolve_mode(
+                settings.get("appearance", "auto"))
+        except Exception:      # noqa: BLE001 — a theme guess must not stop startup
+            self._title_bar_mode = "dark"
         screen = QApplication.primaryScreen().availableGeometry()
         w = min(1440, screen.width())
         h = min(1025, screen.height())
@@ -402,13 +416,23 @@ class MainWindow(QMainWindow):
         self._apply_tab_widget_styling(index)
 
         # The shared QTabWidget pane background follows the *current* tab only.
-        self._tabs.setStyleSheet(f"""
-            QTabWidget::pane {{
-                border: none;
-                border-top: 1px solid {color_glow};
-                background: {pane_bg};
-            }}
-        """)
+        #
+        # CACHED ON THE COMPOSED STRING. Setting a stylesheet re-polishes the
+        # whole pane, and startup set this same 182-character string two or three
+        # times over (twice always; a third when "restore last tab" is on) for
+        # 390 ms of pure repetition. The key is the string itself rather than the
+        # tab index, because the colour follows the current tab's accent AND the
+        # theme — so it cannot go stale the way an index key would.
+        pane_qss = (
+            "\n            QTabWidget::pane {\n"
+            "                border: none;\n"
+            f"                border-top: 1px solid {color_glow};\n"
+            f"                background: {pane_bg};\n"
+            "            }\n        "
+        )
+        if pane_qss != getattr(self, "_pane_qss", None):
+            self._pane_qss = pane_qss
+            self._tabs.setStyleSheet(pane_qss)
 
         # When a tab is shown, Qt hands the initial focus to its first focusable
         # child. If that's a button (e.g. a mode toggle), the space bar would
