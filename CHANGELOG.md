@@ -1,5 +1,25 @@
 # Changelog
 
+## v4.1.2-beta.7
+
+### Fixed
+
+- **Create Chart no longer jumps to Manual when you press Generate.** If the
+  target you were building into had different settings stored from an earlier
+  session, they were loaded back over the top the moment the chart appeared —
+  so a sheet made in Guided with your instrument and paper could leave you in
+  Manual looking at somebody else's ColorMunki on A4. What the chart was built
+  with now stays on screen, and that includes the module, the instrument, the
+  paper size, the layout, the engine switch, its calibration, the gamut count
+  and whether the command is stamped on the sheet.
+
+- **The chart preview no longer draws a white border twice.** Charts from the
+  layout engine carry their own paper margin, and the preview was adding its
+  own on top, so the sheet on screen looked as if it had a wider white edge
+  than it really has. The preview now measures what the image already brings
+  and adds only what is missing — charts that run right to the edge still get
+  the full border, and the soft-proof tool keeps its simulated paper white.
+
 ## v4.1.2-beta.6
 
 ### Fixed
