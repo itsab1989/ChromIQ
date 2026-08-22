@@ -1664,6 +1664,19 @@ class MainWindow(QMainWindow):
                 df = doc.defaultFont()
                 df.setWeight(_log_weight)
                 doc.setDefaultFont(df)
+            # …AND THE VIEWPORT, which is what actually paints the placeholder.
+            #
+            # Without this, going light -> dark left the viewport at Weight.Black
+            # and the placeholder text stayed visibly bolder (3,331 ink pixels
+            # against 4,441). It has never been noticed because the next tab
+            # switch re-styles the whole tree and repairs it by accident — the
+            # same accidental repair the pane-stylesheet fix removes. Found only
+            # with a FRESH profile: hiding the log panes hides the symptom.
+            vp = log.viewport()
+            if vp is not None:
+                vf = vp.font()
+                vf.setWeight(_log_weight)
+                vp.setFont(vf)
 
     def _apply_title_bar(self, mode: str) -> None:
         """Set the macOS native title bar appearance to match `mode`."""
