@@ -13,9 +13,10 @@
   was known, and the tab pane was restyled two or three times over with the same
   values. Nothing about how the app behaves has changed.
 
-  If anything looks wrong, two switches put the old behaviour back without
-  waiting for a new build: **Classic splash screen** in Preferences, and the
-  environment variable `CHROMIQ_SEPARATE_FILTERS=1` for the event filters.
+  If the splash misbehaves — does not appear, appears in the wrong place, or
+  will not go away — **Classic splash screen** in Preferences → Beta puts the
+  old one back, and takes effect next time you start ChromIQ. Please report it
+  as well: that is a fault worth fixing rather than living with.
 
 ## v4.1.2-beta.7
 

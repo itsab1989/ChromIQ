@@ -753,6 +753,41 @@ class SettingsDialog(QDialog):
         _hexrow.addWidget(scanner_hex_tip)
         _beta.addLayout(_hexrow)
 
+        # THE SPLASH ESCAPE HATCH, WITH A ROW OF ITS OWN.
+        #
+        # The setting existed and the changelog told users to reach for it, but
+        # there was nothing on screen to reach for (Basti). A switch nobody can
+        # find is not a switch.
+        self._splash_classic_check = QCheckBox(
+            tr("Classic splash screen"), self)
+        splash_classic_tip = TooltipButton(
+            tr("Classic splash screen"),
+            tr("The splash screen is the small ChromIQ picture that appears "
+               "while the app is starting up. It is there so you can see that "
+               "your click worked and the app is on its way — starting takes a "
+               "few seconds, and without it the screen just sits there and you "
+               "wonder whether anything happened.\n\n"
+               "ChromIQ now draws that picture itself. It used to let the "
+               "toolkit it is built on do it, and that turned out to cost a "
+               "full second of every single start-up: the toolkit waits for the "
+               "screen to confirm the picture is up, gives up after a second, "
+               "and carries on anyway. The picture is exactly the same one — it "
+               "simply appears sooner and stops holding the rest of the app up.\n\n"
+               "Switching this on brings the old way back, and with it that "
+               "extra second on every start.\n\n"
+               "There is only one reason to do that: if the splash is "
+               "misbehaving for you. If it never appears, or turns up in an odd "
+               "place or on the wrong screen, or refuses to go away when the "
+               "main window opens — switch this on so you can work, and please "
+               "tell us what you saw. That is a fault we would rather fix than "
+               "leave you living with.\n\n"
+               "The change takes effect the next time you start ChromIQ."))
+        _sprow = QHBoxLayout()
+        _sprow.addWidget(self._splash_classic_check)
+        _sprow.addStretch()
+        _sprow.addWidget(splash_classic_tip)
+        _beta.addLayout(_sprow)
+
         # Everything that used to follow here on the Beta tab moved to
         # Preferences -> Measurement (Knut + Sebastian, 2026-08-13: the
         # chart-reading engine and its companions have outgrown Beta; only
@@ -2942,6 +2977,7 @@ class SettingsDialog(QDialog):
             str(s.get("chartread_engine", "argyll")) == "chromiq")
         self._scanner_hex_check.setChecked(
             bool(s.get("scanner_hex_charts", False)))
+        self._splash_classic_check.setChecked(bool(s.get("splash_classic", False)))
         self._engine_all_modes_check.setChecked(
             bool(s.get("engine_all_modes", False)))
         self._save_report_check.setChecked(
@@ -3686,6 +3722,7 @@ class SettingsDialog(QDialog):
               "chromiq" if self._chartread_engine_check.isChecked() else "argyll")
         s.set("engine_all_modes", self._engine_all_modes_check.isChecked())
         s.set("scanner_hex_charts", self._scanner_hex_check.isChecked())
+        s.set("splash_classic", self._splash_classic_check.isChecked())
         s.set("save_measurement_report", self._save_report_check.isChecked())
         s.set("report_pass_threshold_avg", float(self._report_avg_thr_spin.value()))
         s.set("report_pass_threshold_max", float(self._report_max_thr_spin.value()))
