@@ -145,7 +145,12 @@ def test_the_targets_stored_layout_does_not_overwrite_the_one_being_built(tab):
     stored_ui = {"engine_recipe": dict(stored.layout_recipe)}
 
     panel.set_recipe(being_built)
-    tab._generate_btn.setEnabled(False)          # …and that build is in flight
+    # THE FLAG, NOT THE BUTTON. This test used to disable Generate to simulate
+    # "a build is in flight" — but on the real path the button is re-enabled at
+    # the top of _on_generate_finished and the clobbering load comes 169 lines
+    # later, so the button is ON and only `_layout_owned_by_build` marks the
+    # build. Pinning the button pinned a half that never fires.
+    tab._layout_owned_by_build = True
     tab._apply_ui_state(stored_ui)
     kept = panel.get_recipe().to_dict()
     assert kept["area_cols"] == 7 and kept["margin_left"] == 6.0, (
@@ -222,3 +227,94 @@ def test_picking_a_builtin_preset_leaves_no_timer_running(tab, monkeypatch):
     tab._apply_knut_preset(preset.key, "Probe")
     assert built and built[0].name == "chart.ti1"
     assert not tab._auto_preview_timer.isActive()
+
+
+def test_the_targets_stored_module_and_guided_row_do_not_overwrite_the_build(tab):
+    """The same fault, on the two things the layout guard did not cover.
+
+    Basti, 2026-08-22, from source: Create Chart in Guided, instrument
+    SpectroScan, paper 4x6, Generate — *"generated the chart but went to manual
+    module on its own and i think colormunki was still selected there"*, twice
+    in a row. It needs a target that has already stored a different state; his
+    "ChromIQ Test Chart" run1 holds ``mode=manual`` and
+    ``guided={instrument: CM, paper: A4}``, which is what came back over the top
+    of the chart he had just made with SpectroScan on 4x6.
+
+    Same mechanism as the layout above — the build fires the target-switch
+    handler, which loads the run's *older* stored state — and the same rule: a
+    build in flight is the newer state, and the next write files it.
+    """
+    tab._switch_mode("guided")
+    tab._instr_combo.setCurrentIndex(tab._instr_combo.findData("SS"))
+    for k in range(tab._paper_combo.count()):
+        if "4x6" in str(tab._paper_combo.itemData(k) or ""):
+            tab._paper_combo.setCurrentIndex(k)
+            break
+    assert tab._paper_combo.currentData() == "4x6", "the 4x6 entry moved"
+
+    stored_ui = {"mode": "manual",
+                 "guided": {"instrument": "CM", "paper": "A4"}}
+    tab._layout_owned_by_build = True                # the build owns the screen
+    tab._apply_ui_state(stored_ui)
+
+    assert tab._mode_name() == "guided", (
+        "the run's stored module moved the user out of Guided the moment his "
+        "chart appeared")
+    assert tab._instr_combo.currentData() == "SS", (
+        "the run's stored instrument overwrote the one the chart was built with")
+    assert tab._paper_combo.currentData() == "4x6", (
+        "the run's stored paper size overwrote the one the chart was built with")
+
+
+def test_with_no_build_running_the_targets_own_module_and_row_still_win(tab):
+    """The guard must be a build guard, not a switch that turns the feature off:
+    selecting a target is exactly when its stored choices are meant to load
+    (per_target_settings.md L1–L4, F3 — a setting's owner is the selected
+    target)."""
+    tab._switch_mode("guided")
+    tab._instr_combo.setCurrentIndex(tab._instr_combo.findData("SS"))
+    tab._layout_owned_by_build = False               # nothing is building
+    tab._apply_ui_state({"mode": "manual",
+                         "guided": {"instrument": "CM", "paper": "A4"}})
+
+    assert tab._mode_name() == "manual"
+    assert tab._instr_combo.currentData() == "CM"
+    assert tab._paper_combo.currentData() == "A4"
+
+
+def test_a_busy_argyll_job_does_not_suppress_a_targets_own_settings(tab):
+    """The shield must be the build, not the Generate button.
+
+    `_chart_build_in_flight()` reads that button, and the button is off in
+    situations that are not builds at all: the gamut module with no profile
+    disables it indefinitely, and so does any Tools-menu Argyll job. If the
+    shield consulted it, selecting a run while one of those was true would drop
+    that run's own module and Guided row — and the write that follows would file
+    the previous run's values onto it (§10 F3, "ownership follows the selected
+    target"). Worse than the fault the shield exists for.
+    """
+    tab._switch_mode("guided")
+    tab._instr_combo.setCurrentIndex(tab._instr_combo.findData("SS"))
+    tab._layout_owned_by_build = False
+    tab._generate_btn.setEnabled(False)          # not a build: a busy tool, say
+    assert tab._chart_build_in_flight(), "precondition: the button reads busy"
+
+    tab._apply_ui_state({"mode": "manual",
+                         "guided": {"instrument": "CM", "paper": "A4"}})
+    assert tab._mode_name() == "manual" and tab._instr_combo.currentData() == "CM", (
+        "a busy button suppressed the incoming target's own settings")
+
+
+def test_the_shield_does_not_stay_armed_after_the_build(tab, tmp_path):
+    """A build that causes no target change — a plain re-Generate, with the bar
+    already on that run — used to leave `_layout_owned_by_build` set, because it
+    is cleared only after `_on_target_changed`'s load. The next GENUINE run
+    switch then skipped the incoming run's settings.
+
+    Driven through the real end-of-build handler rather than by setting the flag
+    back by hand, which would prove nothing about when it is cleared.
+    """
+    tab._layout_owned_by_build = True
+    tab._on_generate_finished([])                # the no-chart tail, same clear
+    assert tab._layout_owned_by_build is False, (
+        "the shield outlived its build and will eat the next run switch")

@@ -10854,23 +10854,50 @@ class TabChart(QWidget):
         illegal stored mode."""
         if not isinstance(stored, dict):
             return
+        # IS THIS LOAD LANDING ON TOP OF A BUILD?
+        #
+        # Building a chart makes the run its own, and creating or re-aligning
+        # that run fires the target-switch handler, which loads the run's
+        # *stored* Create Chart state over the state the build just used. The
+        # chart on disk is then right and the panel is wrong — and with "Update
+        # the preview automatically" on, the panel wins two seconds later and
+        # redraws the sheet from settings the user had left behind.
+        #
+        # `_chart_build_in_flight()` is deliberately NOT consulted. It reads the
+        # Generate button, which on the real path is already re-enabled by the
+        # time this runs (_on_generate_finished re-enables at the top, the load
+        # comes 169 lines later), so it contributed nothing here — while it CAN
+        # be true with no build anywhere: the gamut module with no profile
+        # disables Generate indefinitely, and so does any Tools-menu Argyll job.
+        # A load suppressed then is a target whose own settings never arrive,
+        # which the next write files onto it — the F3 corruption, worse than the
+        # fault being fixed.
+        built_here = bool(getattr(self, "_layout_owned_by_build", False))
         # This target has not chosen a colour count until its record says so —
         # an empty record is applied deliberately for exactly this reason, so
         # nothing follows the user from the run they just left (#162).
         self._gamut_count_user_set = False
-        if "stamp" in stored:
+        if "stamp" in stored and not built_here:
             try:
                 self._manual_stamp_cmd_check.setChecked(bool(stored["stamp"]))
             except Exception:      # noqa: BLE001
                 pass
+        # The Guided row was outside the guard until 2026-08-22, when Basti hit
+        # it from source, twice in a row: Guided, SpectroScan, 4x6, Generate —
+        # "generated the chart but went to manual module on its own and i think
+        # colormunki was still selected there". His run1 holds mode=manual,
+        # guided={instrument: CM, paper: A4}, and that is what came back.
         guided = stored.get("guided")
-        if isinstance(guided, dict):
+        if isinstance(guided, dict) and built_here:
+            log.debug("ui-state: kept the Guided row this build used "
+                      "(the run's stored copy is the older one)")
+        elif isinstance(guided, dict):
             for fld, val in guided.items():
                 try:
                     self._shared_set("guided", fld, val)
                 except Exception:      # noqa: BLE001
                     log.debug("ui-state: guided %s not applied", fld)
-        if "engine_on" in stored:
+        if "engine_on" in stored and not built_here:
             try:
                 on = bool(stored["engine_on"])
                 self._settings.set("use_chromiq_layout_engine", on)
@@ -10895,9 +10922,7 @@ class TabChart(QWidget):
         # A build in flight IS the newer state, so it wins here, and the next
         # write files it as the run's own. Every other stored value still loads —
         # only the layout being built with is protected.
-        if isinstance(rec_d, dict) and (
-                self._chart_build_in_flight()
-                or getattr(self, "_layout_owned_by_build", False)):
+        if isinstance(rec_d, dict) and built_here:
             log.debug("ui-state: kept the layout this build used "
                       "(the run's stored copy is the older one)")
         elif isinstance(rec_d, dict):
@@ -10912,7 +10937,9 @@ class TabChart(QWidget):
             except Exception:      # noqa: BLE001
                 log.debug("ui-state: engine recipe not applied", exc_info=True)
         ec = stored.get("engine_cal")
-        if not isinstance(ec, dict):
+        if built_here:
+            ec = None          # the build's calibration is the newer choice
+        elif not isinstance(ec, dict):
             # A target stored before this key existed must not inherit the
             # previous run's calibration from the screen (Sebastian's beta.5
             # check 3: "when i chose a calibration file in run one it was the
@@ -10921,13 +10948,14 @@ class TabChart(QWidget):
             ec = {"path": "", "mode": "off"}
         # AFTER the recipe, which drives the rest of the panel — the
         # calibration controls are this target's own choice.
-        try:
-            self._manual_layout_panel.set_cal(
-                str(ec.get("path") or ""), str(ec.get("mode") or "off"))
-        except Exception:      # noqa: BLE001
-            log.debug("ui-state: engine calibration not applied")
+        if ec is not None:
+            try:
+                self._manual_layout_panel.set_cal(
+                    str(ec.get("path") or ""), str(ec.get("mode") or "off"))
+            except Exception:      # noqa: BLE001
+                log.debug("ui-state: engine calibration not applied")
         gam = stored.get("gamut")
-        if isinstance(gam, dict):
+        if isinstance(gam, dict) and not built_here:
             try:
                 if "count" in gam:
                     self._gamut_count_seeding = True
@@ -10950,10 +10978,18 @@ class TabChart(QWidget):
                 log.debug("ui-state: gamut options not applied")
         mode = stored.get("mode")
         if mode in ("guided", "manual", "gamut") and mode != self._mode_name():
-            # A stored module IS the user's recorded choice for this target —
-            # marked as such so the verification default cannot override it.
-            self._user_chose_module = True
-            self._switch_mode(mode)
+            if built_here:
+                # The module the chart was just built from is the newer state
+                # too — moving the user out of Guided the moment his chart
+                # appears is the most visible form of this fault.
+                log.debug("ui-state: kept the module this build used "
+                          "(stored %r is the older one)", mode)
+            else:
+                # A stored module IS the user's recorded choice for this target
+                # — marked as such so the verification default cannot override
+                # it.
+                self._user_chose_module = True
+                self._switch_mode(mode)
 
     def _target_settings_store(self):
         """Where this selection's SETTINGS are read from and written to.
@@ -13001,6 +13037,20 @@ class TabChart(QWidget):
             self._last_auto_sig = self._layout_signature()
         except Exception:      # noqa: BLE001
             pass
+        # THE SHIELD LASTS EXACTLY AS LONG AS THE BUILD — AND NO LONGER.
+        #
+        # It is also cleared in _on_target_changed, but only AFTER that
+        # handler's load, so a build that causes no target change (a plain
+        # re-Generate, with the bar already on the run being built into) never
+        # consumed it and left it armed. The next GENUINE run switch then
+        # skipped the incoming run's module and Guided row, and the write that
+        # followed filed the previous run's values onto it — §10 F3,
+        # "ownership follows the selected target".
+        #
+        # Here, at the end of the handler, both branches arrive: a FAILED build
+        # left it armed too, and a failure is exactly when the screen has no
+        # claim to be the newer state.
+        self._layout_owned_by_build = False
 
     # ------------------------------------------------------------------
     # Margin inspector
