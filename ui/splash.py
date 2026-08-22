@@ -127,6 +127,16 @@ class PlainSplash(QWidget):
         # screen it lands on.
         QPainter(self).drawPixmap(self.rect(), self._pm)
 
+    def mousePressEvent(self, event) -> None:  # noqa: N802 — Qt's name
+        """Click to dismiss, as QSplashScreen does.
+
+        Not cosmetic: `MainWindow.__init__` can open the ArgyllCMS-not-found
+        dialog with `exec()` while this window is still up and always-on-top, so
+        on a first launch without ArgyllCMS a modal dialog would sit under a
+        splash the user could not get rid of.
+        """
+        self.hide()
+
     def wait_until_visible(self, timeout_s: float = 0.3) -> bool:
         """Pump until the window is really on screen, or *timeout_s* passes.
 

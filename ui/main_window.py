@@ -1622,6 +1622,27 @@ class MainWindow(QMainWindow):
         # are next navigated to. _on_tab_changed then refreshes the current tab's
         # accent line and pane background.
         if hasattr(self, "_tabs"):
+            # FORGET WHAT WAS STYLED AT CONSTRUCTION.
+            #
+            # The per-tab cache keys on (index, mode). While _title_bar_mode was
+            # hard-coded "dark" this pass was always a cache MISS in light mode
+            # and every tab was genuinely re-styled — and something in that
+            # second pass was needed: seeding the mode correctly turned the miss
+            # into a hit, the re-style stopped happening, and Create Chart came
+            # up wrong on launch until the user switched tabs and back (Basti,
+            # on a real launch). Applying a theme is exactly when a re-style must
+            # not be skipped, so the cache is cleared for it; it still saves the
+            # per-switch re-styling it was written for.
+            # LIGHT ONLY. Rendered comparison of the whole window: with the
+            # clear, both themes are pixel-identical to master; without it, dark
+            # is still identical and light differs by 21% of the window — the
+            # QGroupBox rectangles, because apply_theme turns their
+            # autoFillBackground ON (light only) and the per-tab setStyleSheet
+            # two statements later repolishes it back OFF. The second pass exists
+            # to undo the first. Dark never enters that fight, so it keeps the
+            # cache and a quarter-second of launch.
+            if mode == "light":
+                self._styled_tab_theme.clear()
             for _i in range(self._tabs.count()):
                 self._apply_tab_widget_styling(_i)
             self._on_tab_changed(self._tabs.currentIndex())

@@ -36,7 +36,12 @@ def test_make_splash_returns_ready_splashscreen(qapp):
     splash = make_splash("dark", "v9.9.9")
     assert isinstance(splash, PlainSplash)
     assert not splash._pm.isNull()
-    assert splash.size() == splash._pm.size()
+    # LOGICAL size, not the pixmap's device size. On a Retina screen the pixmap
+    # is 1280x800 at ratio 2 for a 640x400 window, and this line asserted the
+    # bug Basti caught on the first real launch: sized from pixmap.size(), the
+    # window came up twice as large with the artwork in its top-left quarter.
+    # Green only at ratio 1, which is what the test suite runs at.
+    assert splash.size() == splash._pm.deviceIndependentSize().toSize()
     # The escape hatch behind the "Classic splash screen" setting.
     classic = make_splash("dark", "v9.9.9", plain=False)
     assert isinstance(classic, QSplashScreen)
@@ -67,4 +72,22 @@ def test_the_plain_splash_waits_for_the_screen_not_for_a_timeout(qapp):
     assert time.perf_counter() - t0 < 1.0, (
         "the wait is not bounded — a session that cannot expose the splash "
         "would stall the launch")
+    s.finish(None)
+
+
+def test_the_splash_can_be_clicked_away(qapp):
+    """QSplashScreen hides on a click and the replacement must too: the Argyll
+    not-found dialog is opened with exec() from MainWindow.__init__, i.e. while
+    the splash is still up and always-on-top."""
+    from ui.splash import make_splash
+    s = make_splash("dark", "v9.9.9")
+    s.show()
+    assert hasattr(s, "mousePressEvent")
+    from PyQt6.QtCore import QEvent, QPointF, Qt
+    from PyQt6.QtGui import QMouseEvent
+    ev = QMouseEvent(QEvent.Type.MouseButtonPress, QPointF(5.0, 5.0),
+                     Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton,
+                     Qt.KeyboardModifier.NoModifier)
+    s.mousePressEvent(ev)
+    assert not s.isVisible(), "the splash cannot be dismissed"
     s.finish(None)

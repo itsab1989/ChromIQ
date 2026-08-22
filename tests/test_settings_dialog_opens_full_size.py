@@ -31,9 +31,24 @@ from PyQt6.QtWidgets import QApplication, QTabWidget    # noqa: E402
 
 @pytest.fixture(scope="module")
 def qapp():
+    """WITH the app-wide button-font filter installed, which is what the real
+    app does — and what makes this test able to see the fault at all.
+
+    The 253 px dialog reproduces ONLY when a `ButtonFontFilter` is on the
+    application: its `fit_window` ends in `layout().invalidate(); activate()`,
+    which caches the tab widget's hint while the widget is still empty. Without
+    the filter the dialog measures 885 px either way and the test is decoration.
+    The first version of this file had no filter and passed against the broken
+    tree.
+
+    No `app.setStyleSheet` here: it re-polishes every widget the suite has alive
+    (CLAUDE.md), and the fault does not need it.
+    """
     app = QApplication.instance() or QApplication([])
-    from ui.styles import APP_STYLESHEET
-    app.setStyleSheet(APP_STYLESHEET)
+    from ui.widgets import ButtonFontFilter
+    if not getattr(app, "_test_btn_filter", None):
+        app._test_btn_filter = ButtonFontFilter(app)
+        app.installEventFilter(app._test_btn_filter)
     return app
 
 
