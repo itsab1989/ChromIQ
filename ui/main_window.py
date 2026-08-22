@@ -36,6 +36,73 @@ from core.measurement_target import RUN_TYPE_PROFILING
 
 log = get_logger(__name__)
 
+# THE FIRST-LAUNCH "ARGYLLCMS NOT FOUND" TEXT, ONE STEP PER PLATFORM.
+#
+# It used to be a single message telling every user to "move the folder to
+# /Applications". On Windows that folder does not exist, so the first
+# instruction a new Windows user reads is impossible to follow. It was wrong on
+# macOS too, in a quieter way: /Applications is one of eight locations searched
+# (core/platform_paths.py), and naming only it makes a Homebrew user — whose
+# install IS found automatically — think they have done something wrong.
+#
+# Module-level constants, not inline literals, because tr() needs the exact
+# English string as its catalogue key and scripts/i18n_extract.py resolves
+# module-level `NAME = "literal"` for tr(NAME) — by AST walk, not by importing
+# this module. Two consequences, both learned the hard way: they must be PLAIN
+# literals (an f-string is ast.JoinedStr and extracts to nothing), and tr() must
+# wrap the module-level NAME itself, never a local holding it.
+# NB: PLAIN literals, never f-strings. scripts/i18n_extract.py resolves
+# tr(NAME) only for `NAME = <ast.Constant>`; an f-string parses to ast.JoinedStr
+# and the key becomes invisible to extraction, so all 12 catalogues report it as
+# a stale entry. Adjacent literals fold into one Constant, so wrapping is fine.
+# EVERY PATH NAMED BELOW MUST BE ONE core.platform_paths.argyll_candidate_dirs()
+# ACTUALLY SEARCHES. tests/test_argyll_not_found_dialog.py asserts exactly that,
+# because the first draft of this message got it wrong twice: it sent macOS users
+# to ~/Applications (only /Applications gets the versioned scan — the home arm is
+# the literal ~/Applications/Argyll/bin) and told Linux users to unpack to
+# /opt/argyll (there is no versioned scan on Linux at all; the candidate is the
+# literal /opt/argyll/bin). Both would have reproduced the very bug this message
+# exists to fix: telling a user to put ArgyllCMS where ChromIQ does not look.
+#
+# The version number is deliberately NOT named. It would bake "3.5.0" into a
+# translated key, so a 3.6.0 bump would invalidate all 12 catalogues — and the
+# download page always serves the current release.
+_ARGYLL_WHERE_WINDOWS = (
+    "Unzip it and move the Argyll folder it contains into "
+    "<span style='font-family:Menlo, Consolas, \"Courier New\", monospace'>"
+    "C:\\Program Files\\ArgyllCMS\\</span>, or into "
+    "<span style='font-family:Menlo, Consolas, \"Courier New\", monospace'>"
+    "%LOCALAPPDATA%\\ArgyllCMS\\</span> if you do not have administrator rights"
+)
+_ARGYLL_WHERE_MACOS = (
+    "Unpack it and move the Argyll folder it contains into "
+    "<span style='font-family:Menlo, Consolas, \"Courier New\", monospace'>"
+    "/Applications</span> — Homebrew and MacPorts installations are found "
+    "automatically too"
+)
+_ARGYLL_WHERE_LINUX = (
+    "Unpack it so the binaries end up in "
+    "<span style='font-family:Menlo, Consolas, \"Courier New\", monospace'>"
+    "/opt/argyll/bin</span>, or copy them into a directory on your "
+    "<span style='font-family:Menlo, Consolas, \"Courier New\", monospace'>"
+    "PATH</span> such as "
+    "<span style='font-family:Menlo, Consolas, \"Courier New\", monospace'>"
+    "/usr/local/bin</span>"
+)
+_ARGYLL_NOT_FOUND_MSG = (
+    "<b>ArgyllCMS could not be found on your system.</b><br><br>"
+    "ChromIQ requires ArgyllCMS to create and measure ICC profiles. "
+    "It was not detected in any of the usual locations.<br><br>"
+    "<b>To install ArgyllCMS:</b><br>"
+    "&nbsp;&nbsp;1. Download ArgyllCMS from "
+    "<a href='{url}'>argyllcms.com</a><br>"
+    "&nbsp;&nbsp;2. {where}<br>"
+    "&nbsp;&nbsp;3. Restart ChromIQ — it will detect the installation "
+    "automatically.<br><br>"
+    "ChromIQ also finds it anywhere else you may have put it, as long as you "
+    "point it there: click <b>Open Preferences</b> to set the path manually."
+)
+
 
 def _darken_for_light_log(hex_color: str) -> str:
     """Return a tab accent darkened for readable log text on the light-mode
@@ -295,6 +362,10 @@ class MainWindow(QMainWindow):
 
         self.statusBar().hide()
         self._status_msg: str = ""
+        #: Set by _check_argyll_binaries(initial=True); consumed once by
+        #: show_startup_warnings() after the window is up. Initialised here so
+        #: it exists on the healthy path too, where that check early-returns.
+        self._argyll_missing_at_start: bool = False
 
         self._install_shortcuts()
         self._check_argyll_binaries(initial=True)
@@ -1567,6 +1638,23 @@ class MainWindow(QMainWindow):
             "⚠  ArgyllCMS not found. Open Preferences (⚙) to set the path.", warning=True
         )
         if initial:
+            # DEFERRED, not shown here. This runs inside __init__, i.e. while the
+            # startup splash is still up and always-on-top — a modal opened now
+            # sits under it, unreachable except by Alt+Tab (Windows). The status
+            # line above, the auto-detect and the settings write all stay put;
+            # only the dialog waits for main() to call show_startup_warnings().
+            self._argyll_missing_at_start = True
+
+    def show_startup_warnings(self) -> None:
+        """Show the first-launch ArgyllCMS dialog — after the window is up.
+
+        Called by ``main()`` once ``win.show()`` has happened and the splash has
+        been finished, because a modal raised any earlier is covered by the
+        always-on-top splash and cannot be clicked. Safe to call more than once
+        and safe when nothing is pending: it clears the flag as it fires.
+        """
+        if self._argyll_missing_at_start:
+            self._argyll_missing_at_start = False
             self._show_argyll_not_found_dialog()
 
     def _show_argyll_not_found_dialog(self) -> None:
@@ -1580,19 +1668,24 @@ class MainWindow(QMainWindow):
         layout.setSpacing(16)
         layout.setContentsMargins(24, 20, 24, 20)
 
+        # Name the places THIS platform actually searches, and send the user to
+        # its own download page rather than the generic site.
+        # tr() must wrap the MODULE-LEVEL name here, not a local holding it:
+        # scripts/i18n_extract.py resolves tr(NAME) only for module-level
+        # constants, so tr(local) extracts nothing and all 12 catalogues report
+        # the entry as stale.
+        import sys as _sys
+        from core.platform_paths import argyll_download_page
+        if _sys.platform == "win32":
+            where = tr(_ARGYLL_WHERE_WINDOWS)
+        elif _sys.platform == "darwin":
+            where = tr(_ARGYLL_WHERE_MACOS)
+        else:
+            where = tr(_ARGYLL_WHERE_LINUX)
+
         msg = QLabel(
-            tr("<b>ArgyllCMS could not be found on your system.</b><br><br>"
-            "ChromIQ requires ArgyllCMS to create and measure ICC profiles. "
-            "It was not detected in any of the usual locations.<br><br>"
-            "<b>To install ArgyllCMS:</b><br>"
-            "&nbsp;&nbsp;1. Download ArgyllCMS from "
-            "<a href='https://www.argyllcms.com'>argyllcms.com</a><br>"
-            "&nbsp;&nbsp;2. Extract the archive and move the folder to "
-            "<span style='font-family:Menlo, Consolas, \"Courier New\", monospace'>/Applications</span><br>"
-            "&nbsp;&nbsp;3. Restart ChromIQ — it will detect the installation "
-            "automatically.<br><br>"
-            "If ArgyllCMS is already installed in a custom location, click "
-            "<b>Open Preferences</b> to set the path manually."),
+            tr(_ARGYLL_NOT_FOUND_MSG).format(
+                url=argyll_download_page(), where=where),
             dlg,
         )
         msg.setOpenExternalLinks(True)

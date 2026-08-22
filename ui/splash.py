@@ -8,7 +8,7 @@ sponsor content: this is the neutral, product-only splash.
 """
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QEvent, Qt
 from PyQt6.QtGui import QColor, QFont, QFontMetricsF, QPainter, QPixmap
 import time as _time
 
@@ -86,7 +86,70 @@ def make_splash_pixmap(mode: str, version: str = "") -> QPixmap:
     return pm
 
 
-class PlainSplash(QWidget):
+class _YieldsToModals:
+    """Step aside for the duration of an application-modal dialog.
+
+    A splash is always-on-top (``WindowStaysOnTopHint`` → ``WS_EX_TOPMOST``).
+    A modal dialog is NOT, and on Windows a non-topmost window can never be
+    raised above a topmost one — so a modal opened while the splash is up sits
+    UNDER it, ~83% covered, with its buttons unclickable because the topmost
+    splash swallows the clicks. Only Alt+Tab reaches it. Measured on Windows 11
+    with no ArgyllCMS installed: the first thing a new user meets.
+
+    Clicking the splash away cannot rescue this (see
+    :meth:`PlainSplash.mousePressEvent`): ``QDialog.exec()`` is application-modal
+    and Qt discards mouse events to blocked windows, so the one documented
+    escape hatch is inert exactly when it is needed.
+
+    Qt does tell us, though: it delivers ``WindowBlocked`` to every top-level
+    window a modal blocks, and ``WindowUnblocked`` when it clears — one pair per
+    modal, and no ``WindowUnblocked`` while an outer modal is still up, so the
+    splash can never pop back on top of a dialog that is still open.
+
+    Two guards carry real weight:
+
+    * ``_finished`` — ``finish()`` only ``close()``s the widget; the object
+      lives as long as ``main()``, which does not return until the app quits.
+      Without this flag the splash would re-appear over *every* modal in the
+      session, hours after startup.
+    * ``isVisible()`` — ``WindowBlocked`` is delivered to hidden windows too.
+
+    The RE-SHOW must not activate: a plain ``show()`` there takes focus off the
+    main window (measured: ``activeWindow`` went from the main window to none),
+    so it sets ``WA_ShowWithoutActivating`` first. That attribute is deliberately
+    NOT set in the constructor — doing so also stops the app taking the
+    foreground on the *initial* show (measured: ``activeWindow`` None instead of
+    the splash), which is a launch-feel regression on the branch that exists to
+    improve launch feel. ``main.py`` raises the splash on that initial show; the
+    re-show never does.
+    """
+
+    def _init_modal_yield(self) -> None:
+        self._hidden_by_modal = False
+        self._finished = False
+
+    def event(self, e):  # noqa: D102 — Qt's name
+        kind = e.type()
+        if kind == QEvent.Type.WindowBlocked:
+            if self.isVisible():
+                self._hidden_by_modal = True
+                self.hide()
+        elif kind == QEvent.Type.WindowUnblocked:
+            # Every condition is tested BEFORE the flag is cleared. Clearing it
+            # first would leave a refused re-show hidden *and* disarmed — the
+            # next WindowUnblocked would see False and do nothing, stranding the
+            # splash for the rest of startup. That trades a possible flicker for
+            # a possible permanent disappearance, which is the wrong way round.
+            if (self._hidden_by_modal and not self._finished
+                    and QApplication.activeModalWidget() is None):
+                self._hidden_by_modal = False
+                self.setAttribute(
+                    Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
+                self.show()
+        return super().event(e)
+
+
+class PlainSplash(_YieldsToModals, QWidget):
     """The splash as an ordinary frameless window.
 
     Qt's ``QSplashScreen.show()`` costs **~1030 ms** on this platform: its event
@@ -110,6 +173,7 @@ class PlainSplash(QWidget):
                          | Qt.WindowType.FramelessWindowHint
                          | Qt.WindowType.WindowStaysOnTopHint)
         self._pm = pixmap
+        self._init_modal_yield()
         # LOGICAL size, not the pixmap's device size. make_splash_pixmap renders
         # at devicePixelRatio 2 on a Retina screen, so pixmap.size() is 1280x800
         # DEVICE pixels for a 640x400 window — sized from that, the window came
@@ -130,10 +194,15 @@ class PlainSplash(QWidget):
     def mousePressEvent(self, event) -> None:  # noqa: N802 — Qt's name
         """Click to dismiss, as QSplashScreen does.
 
-        Not cosmetic: `MainWindow.__init__` can open the ArgyllCMS-not-found
-        dialog with `exec()` while this window is still up and always-on-top, so
-        on a first launch without ArgyllCMS a modal dialog would sit under a
-        splash the user could not get rid of.
+        THIS IS NOT A BACKSTOP FOR A MODAL DIALOG, whatever it used to claim.
+        Qt discards mouse events to windows a modal has blocked, so on the one
+        launch that needs it — no ArgyllCMS, dialog under the splash — this
+        handler is never reached. It was measured doing nothing on Windows:
+        clicking the splash moved the foreground to no window at all.
+
+        :class:`_YieldsToModals` is what actually keeps a modal reachable. This
+        stays because a user who wants the branding gone should be able to
+        click it away.
         """
         self.hide()
 
@@ -159,20 +228,44 @@ class PlainSplash(QWidget):
             _time.sleep(0.002)
         return False
 
-    def finish(self, _window=None) -> None:
-        """Same call shape as ``QSplashScreen.finish`` so callers do not care."""
+    def finish(self, window=None) -> None:
+        """Same call shape as ``QSplashScreen.finish`` so callers do not care.
+
+        The parameter is named to match :class:`ClassicSplash` (and Qt), so a
+        caller writing ``finish(window=…)`` works against either splash.
+        """
+        self._finished = True          # load-bearing: see _YieldsToModals
         self.close()
+
+
+class ClassicSplash(_YieldsToModals, QSplashScreen):
+    """Qt's own splash, with the same yield-to-modals rule as :class:`PlainSplash`.
+
+    Qt's ``QSplashScreen`` ignores ``WindowBlocked`` (verified: it stays visible
+    for the whole modal), so without this the "Classic splash screen" setting
+    reproduced the trapped-dialog bug exactly. That matters more than it looks:
+    the escape hatch a user reaches for when the splash misbehaves must not be
+    the one place the misbehaviour survives.
+    """
+
+    def __init__(self, pixmap: QPixmap) -> None:
+        super().__init__(pixmap)
+        self._init_modal_yield()
+        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
+
+    def finish(self, window=None) -> None:  # noqa: D102 — Qt's name
+        self._finished = True              # load-bearing: see _YieldsToModals
+        super().finish(window)
 
 
 def make_splash(mode: str, version: str = "", plain: bool = True):
     """A ready-to-show splash for *mode*.
 
-    *plain* uses :class:`PlainSplash` (default); False returns Qt's
-    ``QSplashScreen``, kept as the escape hatch behind the "Classic splash
-    screen" setting. Either way the caller shows it and calls ``finish(window)``.
+    *plain* uses :class:`PlainSplash` (default); False returns
+    :class:`ClassicSplash` — Qt's ``QSplashScreen`` — kept as the escape hatch
+    behind the "Classic splash screen" setting. Either way the caller shows it
+    and calls ``finish(window)``, and either way it steps aside for a modal.
     """
     if plain:
         return PlainSplash(make_splash_pixmap(mode, version))
-    splash = QSplashScreen(make_splash_pixmap(mode, version))
-    splash.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
-    return splash
+    return ClassicSplash(make_splash_pixmap(mode, version))

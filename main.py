@@ -291,6 +291,17 @@ def main() -> int:
         threading.Thread(target=_run, daemon=True).start()
     QTimer.singleShot(1500, _warm_font_map)
 
+    # The first-launch "ArgyllCMS not found" dialog is MODAL, and used to be
+    # opened from inside MainWindow.__init__ — i.e. before win.show() and before
+    # splash.finish(), so it came up UNDER the always-on-top splash and could not
+    # be clicked at all (Windows; only Alt+Tab reached it). It now waits until
+    # here: the window is up, the splash is gone. Queued at 0 rather than called
+    # inline so the maximize/fullscreen restore above is not held behind a modal,
+    # and before the welcome dialog's 100 ms so "you need ArgyllCMS" still comes
+    # first. (A singleShot(0) inside __init__ would NOT have been late enough —
+    # _pump() runs processEvents() and dispatches zero-timers.)
+    QTimer.singleShot(0, win.show_startup_warnings)
+
     if settings.get("show_welcome_dialog", True):
         # Welcome dialog is non-modal (see MainWindow.open_welcome_dialog),
         # so it no longer blocks the event loop or preempts the maximize /
