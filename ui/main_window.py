@@ -110,6 +110,16 @@ class MainWindow(QMainWindow):
 
         # Tabs
         self._tabs = QTabWidget(central)
+        # THE PANE STYLESHEET BEFORE THE PAGES, NOT AFTER.
+        #
+        # Setting it once the five tabs are in re-polishes the whole pane and
+        # everything under it — 395 ms. Set on the empty widget it costs 9 ms and
+        # reaches the same place, because a stylesheet cascades to children added
+        # later. `_on_tab_changed` then finds its string already applied and its
+        # cache skips the work. Index 0 is the tab the app opens on, so the
+        # colours are the ones that would have been used anyway.
+        self._pane_qss = self._compose_pane_qss(0)
+        self._tabs.setStyleSheet(self._pane_qss)
         self._tabs.setDocumentMode(True)
         self._tabs.setTabBar(SpectrumTabBar(self._tabs))
         # Focusable tab strip so ⌘1–5 (and Tab) can land on it and ← / → then move
@@ -423,13 +433,7 @@ class MainWindow(QMainWindow):
         # 390 ms of pure repetition. The key is the string itself rather than the
         # tab index, because the colour follows the current tab's accent AND the
         # theme — so it cannot go stale the way an index key would.
-        pane_qss = (
-            "\n            QTabWidget::pane {\n"
-            "                border: none;\n"
-            f"                border-top: 1px solid {color_glow};\n"
-            f"                background: {pane_bg};\n"
-            "            }\n        "
-        )
+        pane_qss = self._compose_pane_qss(index, color_glow, pane_bg)
         if pane_qss != getattr(self, "_pane_qss", None):
             self._pane_qss = pane_qss
             self._tabs.setStyleSheet(pane_qss)
@@ -440,6 +444,37 @@ class MainWindow(QMainWindow):
         # off any button the tab auto-focused (Knut).
         from ui.widgets import defer_clear_button_focus
         defer_clear_button_focus(self)
+
+    def _compose_pane_qss(self, index: int, color_glow: str | None = None,
+                          pane_bg: str | None = None) -> str:
+        """The QTabWidget pane stylesheet for a tab index.
+
+        One composer for the constructor and for `_on_tab_changed`, so the string
+        the cache compares cannot drift from the string that gets set. The colours
+        are passed in when the caller has already worked them out.
+        """
+        if color_glow is None or pane_bg is None:
+            from ui.styles import TAB_COLORS
+            _c = TAB_COLORS[index] if index < len(TAB_COLORS) else TAB_COLORS[-1]
+            # The SAME rgba() the handler composes, not the raw hex. Passing the
+            # colour straight through produced a different string, so the cache
+            # compared unequal, the handler re-styled anyway and the saving was
+            # lost — silently, because the result looked right.
+            _r, _g, _b = int(_c[1:3], 16), int(_c[3:5], 16), int(_c[5:7], 16)
+            color_glow = color_glow or f"rgba({_r},{_g},{_b},0.33)"
+            # Same rule as _on_tab_changed, from the seeded theme — a wrong
+            # default here would paint the pane the other theme's colour until
+            # the first tab change.
+            pane_bg = pane_bg or (
+                "#ffffff" if getattr(self, "_title_bar_mode", "dark") == "light"
+                else "#181818")
+        return (
+            "\n            QTabWidget::pane {\n"
+            "                border: none;\n"
+            f"                border-top: 1px solid {color_glow};\n"
+            f"                background: {pane_bg};\n"
+            "            }\n        "
+        )
 
     def _apply_tab_widget_styling(self, index: int) -> None:
         """Inject a tab's per-tab accent stylesheet into its own widget tree.

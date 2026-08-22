@@ -29,7 +29,42 @@ def test_splash_pixmap_renders(qapp, mode):
 
 
 def test_make_splash_returns_ready_splashscreen(qapp):
-    from ui.splash import make_splash
+    """The default is now a plain frameless window, not Qt's QSplashScreen —
+    whose show() burns ~1 s on a bounded wait for a condition that never becomes
+    true (measured 1043 ms against 13.6 ms). The classic one stays available."""
+    from ui.splash import PlainSplash, make_splash
     splash = make_splash("dark", "v9.9.9")
-    assert isinstance(splash, QSplashScreen)
-    assert not splash.pixmap().isNull()
+    assert isinstance(splash, PlainSplash)
+    assert not splash._pm.isNull()
+    assert splash.size() == splash._pm.size()
+    # The escape hatch behind the "Classic splash screen" setting.
+    classic = make_splash("dark", "v9.9.9", plain=False)
+    assert isinstance(classic, QSplashScreen)
+    assert not classic.pixmap().isNull()
+
+
+def test_the_plain_splash_waits_for_the_screen_not_for_a_timeout(qapp):
+    """The splash exists so the user can see the app has started, so it must be
+    PAINTED before the build blocks the thread — the first implementation showed
+    nothing and then flashed just before the main window.
+
+    It waits on isExposed(), which means "on screen", rather than isVisible(),
+    which is true 1.8 ms in while nothing is drawn. And the wait is BOUNDED: a
+    session that never exposes the window must cost a fraction of a second, not
+    the launch.
+    """
+    import inspect
+    import time
+    from ui.splash import PlainSplash, make_splash
+    src = inspect.getsource(PlainSplash.wait_until_visible)
+    assert "isExposed" in src and "isVisible" not in src
+    assert "timeout_s" in inspect.signature(
+        PlainSplash.wait_until_visible).parameters
+
+    s = make_splash("dark", "v9.9.9")
+    t0 = time.perf_counter()
+    s.wait_until_visible(timeout_s=0.15)          # offscreen: never exposed
+    assert time.perf_counter() - t0 < 1.0, (
+        "the wait is not bounded — a session that cannot expose the splash "
+        "would stall the launch")
+    s.finish(None)

@@ -112,7 +112,7 @@ try:
     # main() AFTER the splash is on screen, so the splash covers that cost too.
     from ui.styles import WinButtonLayoutStyle
     from ui.theme import apply_appearance
-    from ui.widgets import (ButtonFontFilter, DialogFocusFilter,
+    from ui.widgets import (ButtonFontFilter, CompositeAppFilter, DialogFocusFilter,
                             GroupBoxSurfaceFilter, TooltipWrapFilter)
 except BaseException:
     log.exception("Fatal error importing application modules")
@@ -146,19 +146,32 @@ def main() -> int:
 
     app.setStyle(WinButtonLayoutStyle("Fusion"))
 
-    _btn_font_filter = ButtonFontFilter(app)
-    app.installEventFilter(_btn_font_filter)
-
-    _gb_surface_filter = GroupBoxSurfaceFilter(app)
-    app.installEventFilter(_gb_surface_filter)
-
-    # Word-wrap every native tooltip so long ones never run off-screen (#70).
-    _tooltip_wrap_filter = TooltipWrapFilter(app)
-    app.installEventFilter(_tooltip_wrap_filter)
-
-    # Stop the space bar activating a dialog's auto-focused button (Knut).
-    _dialog_focus_filter = DialogFocusFilter(app)
-    app.installEventFilter(_dialog_focus_filter)
+    # FOUR APP-WIDE FILTERS, ONE INSTALLED OBJECT.
+    #
+    # Qt dispatches an application filter to every installed filter for every
+    # event; with four of them that is ~993,000 crossings into Python per launch,
+    # ~1074 ms of which is the crossing rather than the work. CompositeAppFilter
+    # runs the same four, in the same order Qt would have used (reverse install
+    # order), and returns early on the three event types any of them acts on.
+    #
+    # The four are: button-font fitting, group-box surfaces, tooltip word-wrap
+    # (#70 — long tooltips must not run off-screen; it exists because of
+    # Windows), and the space bar not activating a dialog's auto-focused button
+    # (Knut). CHROMIQ_SEPARATE_FILTERS=1 installs them separately again, for a
+    # build that is already out and cannot be patched.
+    if os.environ.get("CHROMIQ_SEPARATE_FILTERS") == "1":
+        _btn_font_filter = ButtonFontFilter(app)
+        app.installEventFilter(_btn_font_filter)
+        _gb_surface_filter = GroupBoxSurfaceFilter(app)
+        app.installEventFilter(_gb_surface_filter)
+        _tooltip_wrap_filter = TooltipWrapFilter(app)
+        app.installEventFilter(_tooltip_wrap_filter)
+        _dialog_focus_filter = DialogFocusFilter(app)
+        app.installEventFilter(_dialog_focus_filter)
+        log.info("Event filters installed separately (CHROMIQ_SEPARATE_FILTERS=1)")
+    else:
+        _app_filter = CompositeAppFilter(app)
+        app.installEventFilter(_app_filter)
 
     settings = AppSettings()
     settings.migrate()   # drop persisted values that only echo a superseded default
@@ -200,12 +213,24 @@ def main() -> int:
     # The startup splash is optional (Settings → General). When off we skip
     # straight to the build with no branding screen and no minimum-time hold.
     show_splash = settings.get("show_splash", True)
-    splash = make_splash(mode, f"v{APP_VERSION}") if show_splash else None
+    # "Classic splash screen" (Preferences -> Beta) restores Qt's QSplashScreen,
+    # which costs ~1 s of the launch inside its own show(). Default is the plain
+    # window: same pixmap, painted before the build, in 9-66 ms.
+    _classic = bool(settings.get("splash_classic", False))
+    splash = (make_splash(mode, f"v{APP_VERSION}", plain=not _classic)
+              if show_splash else None)
     _splash_shown = _time.monotonic()
     if splash is not None:
         splash.show()
         splash.raise_()
         splash.repaint()
+        # THE SPLASH MUST BE ON SCREEN BEFORE THE BUILD BLOCKS THE THREAD.
+        # This is the whole reason it exists (users could not tell the app had
+        # started), and the first implementation got it wrong — nothing, then a
+        # flash just before the main window. Bounded, so a session that never
+        # exposes it costs 0.3 s rather than the launch.
+        if hasattr(splash, "wait_until_visible"):
+            splash.wait_until_visible()
         _pump(0.18)             # get it on screen before the blocking build
 
     # Heavy UI import + construction, now visibly covered by the splash.

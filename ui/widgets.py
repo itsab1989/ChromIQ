@@ -1527,6 +1527,46 @@ class TooltipWrapFilter(QObject):
         obj.move(x, y)
 
 
+class CompositeAppFilter(QObject):
+    """The four app-wide filters as one installed object.
+
+    Qt dispatches an application event filter to EVERY installed filter for
+    EVERY event, in reverse install order, and the dispatch itself is the cost:
+    ~993,000 calls per launch, of which ~1074 ms is the crossing into Python
+    rather than any work the filters do. One object doing the same four things
+    in the same order removes that, measured at ~1 s of a 5 s launch.
+
+    Safe to compose because each of the four returns False unconditionally and
+    none consumes an event — verified individually, and pinned by the tests.
+    **Order is reverse install order** (DialogFocus, TooltipWrap, GroupBoxSurface,
+    ButtonFont): Qt calls the most recently installed filter first, and three of
+    the four fire on a tooltip's Show, so getting this backwards is observable.
+
+    `CHROMIQ_SEPARATE_FILTERS=1` restores the four separate installs — the escape
+    hatch for a build already in someone's hands, because the failure mode this
+    could have (a control that stops being restyled) may only show up on a
+    platform none of the measurements covered.
+    """
+
+    #: The only event types any of the four acts on. Everything else returns
+    #: immediately, which is most of the million dispatches.
+    _INTERESTING = frozenset({QEvent.Type.Polish, QEvent.Type.Show,
+                              QEvent.Type.StyleChange})
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        # Built in reverse install order, so index 0 runs first.
+        self._filters = (DialogFocusFilter(self), TooltipWrapFilter(self),
+                         GroupBoxSurfaceFilter(self), ButtonFontFilter(self))
+
+    def eventFilter(self, obj, event):  # noqa: N802 — Qt's name
+        if event.type() not in self._INTERESTING:
+            return False
+        for f in self._filters:
+            f.eventFilter(obj, event)
+        return False
+
+
 class DialogFocusFilter(QObject):
     """Installs on QApplication. When any top-level window (a dialog) is shown,
     Qt hands the initial focus to its first focusable child — often a button, or

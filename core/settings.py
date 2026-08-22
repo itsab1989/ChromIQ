@@ -200,6 +200,10 @@ DEFAULTS: dict[str, Any] = {
     #: above a Sample area of ~64 % the sampling box escapes the hexagon and
     #: reads its neighbours. Until both are solved this stays opt-in.
     "scanner_hex_charts":        False,
+    # Qt's QSplashScreen burns ~1 s inside its own show() waiting on a
+    # condition that never becomes true; the plain window paints the same
+    # pixmap in 9-66 ms. This restores the old one if it ever matters.
+    "splash_classic":            False,
     # Faster instrument connection: skip Argyll's slow phantom-serial-port probe
     # (macOS Bluetooth/debug ports, Linux rfcomm) so a USB spectro connects
     # nearly instantly. Default on; real USB-serial adapters are never excluded.

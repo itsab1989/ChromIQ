@@ -10,7 +10,11 @@ from __future__ import annotations
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QFont, QFontMetricsF, QPainter, QPixmap
-from PyQt6.QtWidgets import QApplication, QSplashScreen
+import time as _time
+
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPainter
+from PyQt6.QtWidgets import QApplication, QSplashScreen, QWidget
 
 # Reuse the masthead's single source of truth for colours + wordmark styling.
 from ui.masthead_header import _ACCENT, _PALETTE_DARK, _PALETTE_LIGHT, _STOPS
@@ -82,9 +86,83 @@ def make_splash_pixmap(mode: str, version: str = "") -> QPixmap:
     return pm
 
 
-def make_splash(mode: str, version: str = "") -> QSplashScreen:
-    """A ready-to-show ``QSplashScreen`` for *mode*. Caller shows it, then calls
-    ``splash.finish(main_window)`` once the window is up."""
+class PlainSplash(QWidget):
+    """The splash as an ordinary frameless window.
+
+    Qt's ``QSplashScreen.show()`` costs **~1030 ms** on this platform: its event
+    handler runs a bounded 1000 ms wait loop for ``windowHandle()->isVisible()``,
+    a condition that is never true during ``show_helper``, so it always burns the
+    whole timeout. Measured against a plain frameless widget carrying the same
+    pixmap: 1043 ms against 13.6 ms.
+
+    The splash exists because users could not tell the app had started at all, so
+    it must still be PAINTED before the blocking build begins — the first version
+    of it showed nothing and then flashed just before the main window, and that
+    must not come back. ``wait_until_visible`` waits on ``isExposed()``, which is
+    what "actually on screen" means, rather than the ``isVisible()`` that Qt's own
+    loop waits on and that is already true 1.8 ms in, while nothing is drawn.
+    Measured: exposed after 9-66 ms.
+    """
+
+    def __init__(self, pixmap: QPixmap) -> None:
+        super().__init__(None,
+                         Qt.WindowType.SplashScreen
+                         | Qt.WindowType.FramelessWindowHint
+                         | Qt.WindowType.WindowStaysOnTopHint)
+        self._pm = pixmap
+        # LOGICAL size, not the pixmap's device size. make_splash_pixmap renders
+        # at devicePixelRatio 2 on a Retina screen, so pixmap.size() is 1280x800
+        # DEVICE pixels for a 640x400 window — sized from that, the window came
+        # up twice as large with the artwork in its top-left quarter (Basti, on
+        # the first real launch). QSplashScreen did this conversion for us.
+        size = pixmap.deviceIndependentSize().toSize()
+        self.setFixedSize(size)
+        scr = QApplication.primaryScreen()
+        if scr is not None:
+            c = scr.geometry().center()
+            self.move(c.x() - size.width() // 2, c.y() - size.height() // 2)
+
+    def paintEvent(self, event) -> None:  # noqa: N802 — Qt's name
+        # Into the widget's rect, so the pixmap's own ratio is honoured whatever
+        # screen it lands on.
+        QPainter(self).drawPixmap(self.rect(), self._pm)
+
+    def wait_until_visible(self, timeout_s: float = 0.3) -> bool:
+        """Pump until the window is really on screen, or *timeout_s* passes.
+
+        BOUNDED on purpose. A compositor that never exposes the window (remote
+        desktop, an odd session) must cost a fraction of a second, not the launch
+        — trading Qt's fixed 1 s delay for an unbounded one would be worse than
+        the fault being fixed. Returns whether it was actually exposed.
+        """
+        app = QApplication.instance()
+        end = _time.monotonic() + timeout_s
+        while _time.monotonic() < end:
+            if app is not None:
+                app.processEvents()
+            h = self.windowHandle()
+            if h is not None and h.isExposed():
+                self.repaint()
+                if app is not None:
+                    app.processEvents()
+                return True
+            _time.sleep(0.002)
+        return False
+
+    def finish(self, _window=None) -> None:
+        """Same call shape as ``QSplashScreen.finish`` so callers do not care."""
+        self.close()
+
+
+def make_splash(mode: str, version: str = "", plain: bool = True):
+    """A ready-to-show splash for *mode*.
+
+    *plain* uses :class:`PlainSplash` (default); False returns Qt's
+    ``QSplashScreen``, kept as the escape hatch behind the "Classic splash
+    screen" setting. Either way the caller shows it and calls ``finish(window)``.
+    """
+    if plain:
+        return PlainSplash(make_splash_pixmap(mode, version))
     splash = QSplashScreen(make_splash_pixmap(mode, version))
     splash.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
     return splash

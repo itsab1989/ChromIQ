@@ -111,8 +111,19 @@ def test_the_filter_is_installed_for_the_whole_application():
     filter — so this pins the wiring in main.py, not just the helper."""
     source = (__import__("pathlib").Path(__file__).resolve().parents[1]
               / "main.py").read_text()
-    assert "ButtonFontFilter(app)" in source
-    assert "app.installEventFilter(_btn_font_filter)" in source
+    # The four app-wide filters are installed as ONE object now (~1 s of a 5 s
+    # launch was Qt dispatching each event to four separate Python filters), so
+    # the wiring to pin is the composite — plus the escape hatch that puts the
+    # four back for a build already in someone's hands.
+    assert "CompositeAppFilter(app)" in source
+    assert "app.installEventFilter(_app_filter)" in source
+    assert "CHROMIQ_SEPARATE_FILTERS" in source
+    assert "ButtonFontFilter(app)" in source          # still there, in the hatch
+
+    from ui.widgets import ButtonFontFilter, CompositeAppFilter
+    comp = CompositeAppFilter()
+    assert any(isinstance(f, ButtonFontFilter) for f in comp._filters), (
+        "the composite must still run the button-font filter")
 
 
 def test_both_completion_dialogs_offer_close_and_the_renamed_button():
