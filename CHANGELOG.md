@@ -1,5 +1,16 @@
 # Changelog
 
+## v4.1.2-beta.10
+
+### Fixed
+
+- **Dialogs opened from a tab no longer borrow that tab's colour.** The
+  measurement report, and Preferences when opened through Create Chart's "Edit
+  layout defaults", inherited the main window's tab styling — so the report's
+  trend charts showed a pink line when opened from Create Chart and a green one
+  from Measure, and in light mode those dialogs were missing the frame they have
+  everywhere else. They now look the same wherever you open them from.
+
 ## v4.1.2-beta.9
 
 ### Changed

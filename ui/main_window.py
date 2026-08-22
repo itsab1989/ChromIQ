@@ -117,6 +117,18 @@ class MainWindow(QMainWindow):
         # reaches the same place, because a stylesheet cascades to children added
         # later. `_on_tab_changed` then finds its string already applied and its
         # cache skips the work.
+        # SCOPED TO THIS TAB WIDGET, not every QTabWidget in the app.
+        #
+        # An unscoped `QTabWidget::pane` cascades into any dialog parented to a
+        # tab, and three of them are: MeasurementReportDialog (Measure), and
+        # SettingsDialog from "Edit layout defaults" (Create Chart). On master
+        # they inherited the pane rule and painted the CURRENT TAB'S accent —
+        # Preferences opened from Create Chart showed a pink hairline. Worse,
+        # our `border: none` also stripped the left/right/bottom frame light
+        # mode gives every pane, so the same dialog looked different depending
+        # on where it was opened from: 60,759 px apart for the report, 69,009
+        # for Preferences. Scoping the selector leaves those dialogs alone.
+        self._tabs.setObjectName("chromiq_main_tabs")
         self._pane_qss = self._compose_pane_qss()
         self._tabs.setStyleSheet(self._pane_qss)
         self._tabs.setDocumentMode(True)
@@ -478,7 +490,7 @@ class MainWindow(QMainWindow):
         # entry points 2,400 px apart at dRGB 42; these give (0,0,0) from both.
         glow = "#d0ccc6" if is_light else "#000000"
         return (
-            "\n            QTabWidget::pane {\n"
+            "\n            QTabWidget#chromiq_main_tabs::pane {\n"
             "                border: none;\n"
             f"                border-top: 1px solid {glow};\n"
             f"                background: {pane_bg};\n"

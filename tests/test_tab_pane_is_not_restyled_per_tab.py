@@ -106,3 +106,22 @@ def test_the_pane_border_is_the_colour_the_report_dialog_needs(win):
     # …and the constructor really applies it, so the report dialog inherits
     # something rather than falling back to the app-wide rule.
     assert win._tabs.styleSheet() == win._pane_qss != ""
+
+
+def test_the_pane_rule_is_scoped_to_the_main_tab_widget(win):
+    """An unscoped `QTabWidget::pane` cascades into every dialog parented to a
+    tab — and three are: the measurement report dialog, and Preferences opened
+    from Create Chart's "Edit layout defaults". They inherited the rule and
+    painted the current tab's accent, and our `border: none` stripped the frame
+    light mode gives every pane, so the same dialog looked different depending
+    on where it was opened from (60,759 px for the report, 69,009 for
+    Preferences).
+
+    BOTH halves are asserted. The selector alone passes while matching nothing
+    at all, which is the silent failure: light mode then loses 259k-381k px of
+    pane frame and no test notices.
+    """
+    assert "QTabWidget#chromiq_main_tabs::pane" in win._compose_pane_qss()
+    assert win._tabs.objectName() == "chromiq_main_tabs", (
+        "the rule is scoped to an object name the widget does not have, so it "
+        "matches nothing")
