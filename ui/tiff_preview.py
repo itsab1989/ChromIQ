@@ -10,7 +10,8 @@ from typing import Optional
 from PIL import Image
 from PyQt6 import sip
 from PyQt6.QtCore import QPoint, QPointF, QRect, QRectF, QSize, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QColor, QFont, QPainter, QPainterPath, QPixmap
+from PyQt6.QtGui import (QColor, QFont, QImage, QPainter, QPainterPath,
+                         QPixmap, qGray)
 from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -606,6 +607,19 @@ class TiffPreview(QWidget):
         self._hex_zigzag: bool = False
         self._pixmap: QPixmap | None = None
         self._frame_color = QColor(Qt.GlobalColor.white)   # the margin around the image
+        # How much blank paper THIS image already carries, as a fraction of its
+        # own smaller side — see _own_margin_fraction. The display frame adds
+        # only what is missing, so a chart that brings its own border is not
+        # shown with two.
+        self._own_margin_frac: float = 0.0
+        #: The border the last paint actually used — the zoom anchor maths must
+        #: agree with it, or the point under the cursor drifts while scaling.
+        self._paint_border: int = _BORDER
+        #: True when a caller has set the frame to a simulated PAPER white
+        #: (the soft-proof tool). Then the frame is content, not padding, and
+        #: keeps its full width — a colour test could not tell, because that
+        #: paper white can round to pure white and did.
+        self._frame_is_paper: bool = False
         # Opt-in zoom/pan (soft-proof tool). Off elsewhere so the measure-tab
         # stripe overlay is untouched. _zoom 1.0 = fit-to-window; _pan is the
         # image-centre offset in logical px.
@@ -781,6 +795,12 @@ class TiffPreview(QWidget):
         """Tint the margin drawn around the image (e.g. to the simulated paper
         white). ``None`` restores plain white. Repaints if an image is shown."""
         self._frame_color = QColor(color) if color is not None else QColor(Qt.GlobalColor.white)
+        # A tint set on purpose IS the frame's reason to exist — the soft-proof
+        # tool draws the paper white around the proof. Recorded as a flag rather
+        # than inferred from the colour: that paper white is computed from Lab
+        # and clips to pure white on a bright stock (softproof_runner), which a
+        # colour test reads as "no tint" and silently drops the frame.
+        self._frame_is_paper = color is not None
         if self._pixmap:
             self._repaint_label()
 
@@ -942,6 +962,82 @@ class TiffPreview(QWidget):
         self._pan = QPointF(0.0, 0.0)
         self._repaint_label()
 
+
+    def _measure_own_margin(self, pm: "QPixmap | None") -> None:
+        """Record how much blank paper *pm* already has around its content.
+
+        The display frame exists for **printtarg**: its TIFFs put ink hard
+        against the sheet edge (measured: 0 px on the left, 9 px on top), which
+        looks wrong against the dark UI. A ChromIQ layout-engine chart carries
+        its own paper border — 56 px, 7 mm, on the same measurement — so adding
+        the frame to that draws the margin twice, and the preview then shows a
+        wider white edge than the sheet really has (Basti, 2026-08-22).
+
+        Measured from a small copy: a chart is a few megapixels, this runs on
+        every page render, and the answer only has to be good to a pixel or two
+        of screen. Stored as a FRACTION of the smaller side, so it converts to
+        display pixels at any zoom.
+
+        **Only near-white paper earns a margin.** Reading the corner and
+        trusting it credited a page with a black band running to the edge with
+        0.027 of blank margin and dropped the frame — ink hard against the edge,
+        which is the one case the frame exists for. A dark or full-bleed page
+        keeps the frame; that is also where a white frame helps most.
+        """
+        self._own_margin_frac = 0.0
+        if pm is None or pm.isNull():
+            return
+        try:
+            import numpy as np
+            small = pm.scaled(160, 160, Qt.AspectRatioMode.KeepAspectRatio,
+                              Qt.TransformationMode.FastTransformation)
+            img = small.toImage().convertToFormat(QImage.Format.Format_Grayscale8)
+            w, h = img.width(), img.height()
+            if w < 8 or h < 8:
+                return
+            ptr = img.constBits()
+            ptr.setsize(img.sizeInBytes())
+            a = np.frombuffer(ptr, np.uint8).reshape(img.height(),
+                                                     img.bytesPerLine())[:, :w]
+            paper = int(a[0, 0])
+            if paper < 235:
+                return          # not paper: keep the frame
+            # Tight, because a near-white PATCH is not a margin: at a tolerance
+            # of 12 a field of 248 grey inside a 5 px rim measured as a quarter
+            # of the page blank, and the frame vanished from a chart that needed
+            # it.
+            blank = np.abs(a.astype(np.int16) - paper) <= 6
+            rows, cols = blank.all(axis=1), blank.all(axis=0)
+            ink_r, ink_c = ~rows, ~cols
+            if not ink_r.any() or not ink_c.any():
+                # A uniform page — blank, or one flat colour edge to edge. There
+                # is no content to measure a margin against, and calling the
+                # whole page "margin" would drop the frame on the emptiest thing
+                # the preview can show. Keep it.
+                return
+            top, bottom = int(np.argmax(ink_r)), int(np.argmax(ink_r[::-1]))
+            left, right = int(np.argmax(ink_c)), int(np.argmax(ink_c[::-1]))
+            # The SMALLEST of the four: one flush edge is enough to need the
+            # frame, which is exactly printtarg's case (flush left, 1.5 mm top).
+            self._own_margin_frac = max(0.0, min(top, bottom, left, right)
+                                        / float(min(w, h)))
+        except Exception:      # noqa: BLE001 — a frame is not worth an exception
+            self._own_margin_frac = 0.0
+
+    def _border_px(self, disp_min_side: float) -> int:
+        """The display frame to add, given how big the image is drawn.
+
+        Only the shortfall: an image that already shows at least ``_BORDER`` of
+        its own paper gets none. The soft-proof tool's tinted frame is exempt —
+        there the frame is not padding but the simulated paper white around the
+        proof, and it must stay visible (Basti: "for the softproof it can
+        stay").
+        """
+        if self._frame_is_paper:
+            return _BORDER
+        own = self._own_margin_frac * max(0.0, disp_min_side)
+        return int(max(0.0, _BORDER - own))
+
     def _apply_zoom(self, factor: float, focus: QPoint | None = None) -> None:
         """Multiply the zoom by ``factor``, keeping the image point under
         ``focus`` (label-viewport coords) fixed; clamp to [1, 8]."""
@@ -949,8 +1045,9 @@ class TiffPreview(QWidget):
         if new_zoom == self._zoom:
             return
         if focus is not None:
-            # Keep the point under the cursor stationary while scaling.
-            B = _BORDER
+            # Keep the point under the cursor stationary while scaling — with
+            # the SAME border the paint used, or the anchor drifts.
+            B = self._paint_border
             cx = (self._img_label.width() - 2 * B) / 2
             cy = (self._img_label.height() - 2 * B) / 2
             rel = QPointF(focus.x() - B - cx, focus.y() - B - cy)
@@ -1970,6 +2067,9 @@ class TiffPreview(QWidget):
             img = self._load_frame(path, frame, self._ink_channels,
                                    muted=frozenset(self._muted_inks))
             self._pixmap = self._pil_to_pixmap(img)
+            # Per page: a chart's pages can differ (a last page half full), and
+            # the frame follows the page actually on screen.
+            self._measure_own_margin(self._pixmap)
         except Exception as exc:
             log.warning("Preview render error: %s", exc)
             self._img_label.setText(tr("Preview error:\n{exc}").format(exc=exc))
@@ -2050,9 +2150,19 @@ class TiffPreview(QWidget):
         if self._interactive:
             self._repaint_interactive()
             return
-        B = _BORDER
         dpr = self._img_label.devicePixelRatioF()
         label_size = self._img_label.size()  # logical pixels
+
+        # ONLY THE WHITE THE IMAGE DOES NOT ALREADY HAVE.
+        #
+        # Sized against how big the image will actually be drawn, so it is
+        # measured in the same units as the frame. The estimate uses the full
+        # border first and then re-asks — the two answers differ by at most
+        # _BORDER in several hundred pixels, and one pass settles it.
+        _fit = min(max(1, label_size.width() - 2 * _BORDER) / max(1, self._pixmap.width()),
+                   max(1, label_size.height() - 2 * _BORDER) / max(1, self._pixmap.height()))
+        B = self._border_px(_fit * min(self._pixmap.width(), self._pixmap.height()))
+        self._paint_border = B
 
         # Scale to device pixels so the preview is sharp on HiDPI/Retina displays
         avail = QSize(
@@ -2617,7 +2727,15 @@ class TiffPreview(QWidget):
         edge = QPen(QColor(120, 120, 120))
         edge.setWidthF(1.0)
         painter.setPen(edge)
-        painter.drawRect(int(border), int(border), int(disp_w), int(disp_h))
+        # HALF A PEN INSIDE THE IMAGE, not on its boundary. drawRect at
+        # (border, border, disp_w, disp_h) puts the right and bottom edges one
+        # pixel PAST the canvas, which was invisible only because the white
+        # frame was always there to absorb it. With the frame gone on a chart
+        # that carries its own border, those two sides vanished — and this
+        # rectangle is #83's whole remedy: it is what stops the display frame
+        # being mistaken for page margin.
+        painter.drawRect(QRectF(border + 0.5, border + 0.5,
+                                disp_w - 1.0, disp_h - 1.0))
 
         for axis, frac, violated in self._margin_guides:
             frac = max(0.0, min(1.0, frac))
@@ -2692,11 +2810,13 @@ class TiffPreview(QWidget):
         canvas fills the whole viewport (so the margin shows around a zoomed
         image), painting the image scaled and offset, clamped so it can't be
         dragged fully out of view."""
-        B = _BORDER
         dpr = self._img_label.devicePixelRatioF()
         ls = self._img_label.size()
         W, H = max(1, ls.width()), max(1, ls.height())
         pw, ph = self._pixmap.width(), self._pixmap.height()
+        _fit0 = min(max(1, W - 2 * _BORDER) / pw, max(1, H - 2 * _BORDER) / ph)
+        B = self._border_px(_fit0 * self._zoom * min(pw, ph))
+        self._paint_border = B
         # Fit inside a B-wide inset at zoom 1 so the tinted frame + a dark
         # surround show on all sides (the canvas is the whole viewport so the
         # image can pan).
