@@ -230,7 +230,6 @@ def win(qapp, tmp_path_factory):
     (the ArgyllCMS-missing modal and the native title-bar tint); never closed,
     because closeEvent tears down WebEngine and segfaults under offscreen Qt."""
     from ui.main_window import MainWindow
-    MainWindow._show_argyll_not_found_dialog = lambda self: None
     MainWindow._apply_title_bar = lambda self, mode: None
     tmp = tmp_path_factory.mktemp("delproj")
     s = AppSettings()

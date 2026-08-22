@@ -30,7 +30,6 @@ def win(qapp, tmp_path_factory):
     # Stub the offscreen-incompatible edges only: the ArgyllCMS-missing modal and
     # the native Cocoa title-bar tint (does Objective-C messaging on a window with
     # no native handle under offscreen Qt → segfault). Neither is under test.
-    MainWindow._show_argyll_not_found_dialog = lambda self: None
     MainWindow._apply_title_bar = lambda self, mode: None
     tmp = tmp_path_factory.mktemp("kbd")
     s = AppSettings()

@@ -22,7 +22,6 @@ def win(qapp, tmp_path_factory):
     from core.settings import AppSettings
     from ui.main_window import MainWindow
 
-    MainWindow._show_argyll_not_found_dialog = lambda self: None
     MainWindow._apply_title_bar = lambda self, mode: None
     tmp = tmp_path_factory.mktemp("style")
     s = AppSettings()
