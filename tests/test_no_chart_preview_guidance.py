@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import QApplication                        # noqa: E402
 
 from core.argyll_runner import ArgyllRunner                     # noqa: E402
 from core.file_manager import FileManager, Project              # noqa: E402
+from tests._fontcheck import skip_without_fonts                 # noqa: E402
 from core.measurement_target import (RUN_TYPE_PROFILING,        # noqa: E402
                                      RUN_TYPE_VERIFICATION)
 from core.settings import AppSettings                           # noqa: E402
@@ -79,6 +80,13 @@ def test_showing_a_real_chart_clears_the_notice(qapp, tmp_path):
 
 
 def test_profile_run_combo_is_readable_width(qapp, tmp_path):
+    # THE WIDTH COMES FROM GLYPH ADVANCES, so it needs real glyphs. Under
+    # offscreen Qt on Windows the font database is EMPTY: every family resolves
+    # to a null font, the combo sizes itself from nothing, and this measured 117
+    # against a threshold of 120 — failing on an un-measurable number rather
+    # than on anything wrong. It passes with real fonts. Same guard as the
+    # eleven other advance-measuring files (2026-08-22, Windows gate).
+    skip_without_fonts()
     tab, ctl = _tab_with_project(tmp_path)
     bar = MeasurementTargetBar(ctl)
     # Comfortably fits "Run N (overwrite)" plus the dropdown chrome.

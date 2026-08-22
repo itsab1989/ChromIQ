@@ -135,4 +135,14 @@ def test_trend_chart_paints_at_pdf_width(qapp):
                            "Maximum ΔE, lowest 95%"]]
     chart.set_data(pts, metrics, dark=False, thresholds=(2.0, 3.0))
     img = chart.grab().toImage()
-    assert not img.isNull() and img.width() == 640
+    # LOGICAL width, not the image's own. QWidget.grab() renders at the screen's
+    # devicePixelRatio, so on a 200%-scale display (and on any Retina Mac) this
+    # is a 1280 px image describing the same 640 px chart — asserting the raw
+    # width read "1280 == 640" and failed on a correct render. The widget was
+    # resized in logical pixels, so that is what has to be checked back
+    # (2026-08-22, Windows 200% display; same confusion as _brightest() in
+    # test_disabled_controls_look_disabled.py).
+    assert not img.isNull()
+    assert img.width() / (img.devicePixelRatio() or 1.0) == 640, (
+        f"chart grabbed {img.width()} px at ratio {img.devicePixelRatio()} — "
+        f"that is not a 640 px wide chart")

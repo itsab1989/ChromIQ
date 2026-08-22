@@ -22,6 +22,7 @@ import pytest
 from PyQt6.QtGui import QFontMetrics
 from PyQt6.QtWidgets import QLabel
 
+from _fontcheck import skip_without_fonts
 from ui.tooltip_button import _InfoDialog
 
 
@@ -71,7 +72,22 @@ def test_a_hand_wrapped_body_is_not_re_wrapped(qapp):
 
 def test_a_hand_wrapped_body_leaves_no_strip_of_empty_frame(qapp):
     """The reported fault. The text must reach across the card, not three
-    quarters of it."""
+    quarters of it.
+
+    GUARDED, like its siblings, and it should always have been: the ratio below
+    is a ratio of two glyph-advance measurements. Under offscreen Qt on Windows
+    both collapse to a null font and the assertion passed on numbers that meant
+    nothing — green by luck, not by rule.
+
+    The ratio is calibrated on macOS metrics and is deliberately NOT loosened
+    for Windows. Both platforms size this card at the caller's 420 px floor;
+    Windows simply renders the same hand-wrapped text about 7% narrower, so it
+    fills 86% where macOS fills 92%. That is a font difference, not the sizing
+    fault Knut reported (a card at three quarters), and dropping the threshold
+    to accommodate it would blunt the guard on the platform that can still
+    regress. Recorded instead in docs/windows_verification_4.1.2_results.md.
+    """
+    skip_without_fonts()
     dlg = _InfoDialog("Title", HAND_WRAPPED, None, 420)
     dlg.show()
     qapp.processEvents()

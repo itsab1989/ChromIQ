@@ -35,11 +35,27 @@ MIN_LIGHTNESS_DROP = 60
 
 
 def _brightest(img, widget):
-    """The label's text colour: the brightest pixel right of the indicator."""
+    """The label's text colour: the brightest pixel right of the indicator.
+
+    THE SCALING IS NOT OPTIONAL. ``widget.geometry()`` is in LOGICAL pixels,
+    while ``QWidget.grab()`` returns an image in DEVICE pixels — 2x on a Retina
+    Mac or a 200%-scale Windows display. Indexing the device image with logical
+    coordinates reads a rectangle at half the intended position, i.e. a
+    different control's row, and the test then compares two controls that are
+    not the ones it named. On a 200% display that reported "a disabled radio
+    renders #4a4a4a against #4a4a4a enabled — a difference of 0" while the app
+    was rendering correctly all along; with the ratio applied the same run gives
+    a drop of 124, the 230-vs-106 this file's own docstring describes.
+
+    Invisible until now because the fixture is font-guarded, so the whole file
+    skips under offscreen Qt — where the ratio is 1 and the bug cannot show
+    (2026-08-22, Windows 200% display).
+    """
+    dpr = img.devicePixelRatio() or 1.0
     r = widget.geometry()
     best = None
-    for y in range(r.top() + 2, r.bottom() - 2):
-        for x in range(r.left() + 22, r.right() - 2):
+    for y in range(int((r.top() + 2) * dpr), int((r.bottom() - 2) * dpr)):
+        for x in range(int((r.left() + 22) * dpr), int((r.right() - 2) * dpr)):
             c = img.pixelColor(x, y)
             if best is None or c.lightness() > best.lightness():
                 best = c
