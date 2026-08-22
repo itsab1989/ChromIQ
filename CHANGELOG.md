@@ -1,5 +1,22 @@
 # Changelog
 
+## v4.1.2-beta.8
+
+### Changed
+
+- **The app opens in about half the time.** Roughly 5.7 seconds to a painted
+  window before, about 3.0 now, measured on the same machine. Four things were
+  costing that: the splash screen spent a full second inside Qt waiting for
+  something that never happened, the app installed four separate event filters
+  that each had to look at every event, the tab styling was thrown away and
+  redone because the window was built assuming dark mode before the real theme
+  was known, and the tab pane was restyled two or three times over with the same
+  values. Nothing about how the app behaves has changed.
+
+  If anything looks wrong, two switches put the old behaviour back without
+  waiting for a new build: **Classic splash screen** in Preferences, and the
+  environment variable `CHROMIQ_SEPARATE_FILTERS=1` for the event filters.
+
 ## v4.1.2-beta.7
 
 ### Fixed
