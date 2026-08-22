@@ -1,0 +1,590 @@
+ChromIQ 4.1.2 — Windows verification (kick-off prompt)
+
+
+WHY YOU ARE DOING THIS
+======================
+ChromIQ 4.1.2 has been through ten betas. Every line of it was written, measured
+and reviewed on macOS. Not one line has ever run on Windows. Sebastian wants to
+take 4.1.2 out of beta and ship it stable, and he will not do that on a platform
+nobody has looked at.
+
+FINDING A REAL WINDOWS PROBLEM IS THE SUCCESS CASE. This is not a formality to
+be signed off. A clean run means "ship it"; a problem found means "we did not
+ship a broken build to every Windows user" — both are wins, and only one of them
+is available by hurrying. Report what you actually saw, including the things you
+could not settle.
+
+You will be told, below, exactly which failures and skips are EXPECTED on
+Windows for reasons that are not bugs. Read that section before you run anything.
+The point of it is that when something outside that list goes wrong, it stands
+out instead of drowning.
+
+
+WHAT "4.1.2" MEANS HERE
+=======================
+  * master is v4.1.2-beta.7 (commit 95f3a2ac) and holds betas 1-7.
+  * Branch perf/startup-snappiness adds betas 8, 9, 10 on top (tag
+    v4.1.2-beta.10, commit 75764688).
+  * The branch contains master, so checking out the branch gives you all ten.
+
+The startup/appearance work in betas 8-10 is where nearly all the Windows risk
+is, and most of this prompt is about it. Betas 1-7 get three short checks at the
+end (step 9) — they are unverified on Windows too, just less dangerous.
+
+
+================================================================================
+STEP 0 — TELL ME WHERE YOU ARE (do this first, it changes every later command)
+================================================================================
+Report, as a short block at the top of your final report:
+
+  * Which shell your Bash tool is really running. Run these; one will work:
+        uname -s                  -> "MINGW64_NT-..." = Git Bash, "Linux" = WSL
+        $PSVersionTable.PSVersion -> PowerShell
+        ver                       -> cmd
+    (Claude Code on native Windows normally uses Git Bash. Confirm rather than
+    assume — and if you turn out to be in WSL, say so and switch to a native
+    Windows shell before doing anything else. WSL is Linux; a green run there
+    proves nothing about Windows and would be worse than no run at all.)
+  * Windows edition and build, and whether this is a local console or a Remote
+    Desktop / VNC session. This matters later (step 4).
+  * Processor architecture: x64 or ARM64.  echo %PROCESSOR_ARCHITECTURE%  /
+    $env:PROCESSOR_ARCHITECTURE  /  uname -m
+  * Display resolution and the Windows display scale (100% / 125% / 150% / …).
+  * Number of CPU cores, and RAM.
+  * Python version available (aim for 3.13 — that is what the Windows release is
+    built with; the macOS baseline below was taken on 3.14, so a small test-count
+    difference is not automatically a Windows fact).
+
+SHELL SYNTAX — the only table you need. Pick your column once and stick to it.
+
+  purpose                | Git Bash                  | PowerShell            | cmd
+  -----------------------|---------------------------|-----------------------|---------------------
+  set a variable         | export X=y                | $env:X="y"            | set X=y
+  set it for one command | X=y cmd...                | $env:X="y"; cmd...    | set X=y && cmd...
+  path separator         | / ; "C:\like\this" quoted | \                     | \
+  run the venv's python  | .venv/Scripts/python.exe  | .venv\Scripts\python.exe | .venv\Scripts\python.exe
+
+DO NOT ACTIVATE THE VENV. "activate", "Activate.ps1" and "source .../activate"
+are three different commands with three different failure modes, and
+PowerShell's ExecutionPolicy blocks one of them out of the box. Call
+.venv\Scripts\python.exe directly, every time. It works in all three shells and
+cannot half-succeed.
+
+Git Bash note: it rewrites arguments that look like Unix paths. When you pass a
+Windows path to a program, write it Windows-style ("C:\Program Files\...") and
+quote it.
+
+
+================================================================================
+STEP 1 — GET THE CODE
+================================================================================
+    git config core.autocrlf
+        If this prints "true", note it in your report. Git for Windows sets it
+        by default. It is very likely harmless, but if you later see failures
+        about whitespace or line endings in files the tests read as text, this
+        is the first thing to suspect.
+
+    git fetch --all --tags
+    git checkout perf/startup-snappiness
+    git pull
+    git log --oneline -3
+    git describe --tags
+
+Confirm you are at or after 75764688 / v4.1.2-beta.10. If HEAD is ahead of that
+tag, say so and list what is extra — the analysis below was done at 75764688.
+
+
+================================================================================
+STEP 2 — PYTHON ENVIRONMENT  (there is one Windows trap here)
+================================================================================
+    py -3.13 -m venv .venv          (or python -m venv .venv)
+    .venv\Scripts\python.exe -m pip install --upgrade pip
+
+THE TRAP: requirements.txt pins pycups, which only builds on macOS and Linux.
+`pip install -r requirements.txt` WILL FAIL ON WINDOWS AND THAT IS NOT A BUG.
+Filter it out, exactly as .github/workflows/build-windows.yml does:
+
+    Git Bash:   grep -v 'pycups' requirements.txt > requirements-win.txt
+    PowerShell: Select-String -NotMatch 'pycups' requirements.txt | %{$_.Line} | Set-Content requirements-win.txt
+
+    .venv\Scripts\python.exe -m pip install -r requirements-win.txt
+    .venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+
+(pyobjc is already correctly marked macOS-only and will skip itself. Do not
+delete requirements-win.txt afterwards, and do not commit it.)
+
+Sanity check before going further:
+
+    .venv\Scripts\python.exe -c "import PyQt6, PyQt6.QtWebEngineWidgets, PIL, numpy, tifffile, freetype; print('imports ok')"
+
+On ARM64 specifically, note whether every wheel installed or anything was built
+from source — core/freetype_bootstrap.py exists solely because Windows/ARM64
+needs a vendored FreeType, so ARM64 is the arch where this step can bite.
+
+BACK UP THE SETTINGS STORE NOW, BEFORE ANYTHING WRITES TO IT:
+
+    reg export HKCU\Software\ChromIQ %USERPROFILE%\chromiq-settings-backup.reg
+
+On Windows, ChromIQ's preferences live in the registry at
+HKCU\Software\ChromIQ\ChromIQ. It may not exist yet — that is fine and means you
+already have the fresh profile step 4 wants. It matters because the TEST SUITE
+WRITES INTO THE SAME STORE (101 test files construct the real settings object),
+so once you have run the gate, the "first launch, clean machine" state is gone.
+That is why step 4 comes before step 6. To get back to a clean profile later:
+
+    reg delete HKCU\Software\ChromIQ /f
+
+
+================================================================================
+STEP 3 — DO NOT INSTALL ARGYLLCMS YET
+================================================================================
+Deliberate. Step 4 wants the app's true out-of-the-box first-run behaviour, and
+that includes "ArgyllCMS is not installed". You will install it in step 5.
+
+
+================================================================================
+STEP 4 — FIRST LAUNCH: no ArgyllCMS, clean profile  (highest-value single test)
+================================================================================
+    .venv\Scripts\python.exe main.py
+
+Watch the screen from the moment you press enter, and screenshot it. LOOK at the
+screenshots — you can read PNGs, so most of the visual judgement here is yours,
+not Sebastian's.
+
+HOW TO SCREENSHOT (Pillow is already installed, and ImageGrab works on Windows):
+
+    .venv\Scripts\python.exe -c "from PIL import ImageGrab; ImageGrab.grab().save(r'C:\Users\<you>\shot.png')"
+
+To catch the splash you must shoot WHILE it is up, so start the app in the
+background and shoot on a short delay — e.g. a tiny script that launches
+main.py with subprocess.Popen, then grabs at 0.2 s, 0.5 s, 1 s, 2 s and 4 s.
+Five shots of one launch tell you far more than five launches watched by eye,
+and they timestamp themselves.
+
+What is supposed to happen: a small ChromIQ splash picture appears almost
+immediately (fractions of a second, not seconds), stays while the app builds,
+and disappears when the main window opens.
+
+Three specific things to answer:
+
+ 4a. DID THE SPLASH APPEAR AT ALL, AND WHEN?
+     Wrong: nothing on screen for two or three seconds and then a brief flash
+     just before the main window. That is the exact fault this branch was written
+     to fix, coming back.
+     The splash waits up to 0.3 s for Windows to confirm it is on screen and then
+     gives up and carries on. On a virtual machine with software rendering, or
+     over Remote Desktop, that confirmation can be slow. So if it does not
+     appear: say whether you are on a local console or a remote session, and
+     re-test after switching "Classic splash screen" on (step 8b). "Windows is
+     broken" and "this VM is slow to composite" are different findings and the
+     difference matters.
+
+ 4b. IS THE SPLASH THE RIGHT SIZE AND IN THE RIGHT PLACE?
+     Right: about 640 x 400 logical pixels, centred on the screen, the artwork
+     filling it edge to edge.
+     Wrong: twice as large with the picture crammed into the top-left quarter.
+     That happened once already on macOS (it was sized in device pixels instead
+     of logical ones) and Windows display scaling is exactly where it would come
+     back. Record the pixel size you measure and the display scale you are at.
+
+ 4c. THE "ARGYLLCMS NOT FOUND" DIALOG.
+     With no Argyll installed, the app opens this dialog DURING startup, while
+     the splash is still up — and the splash is set to stay on top of other
+     windows. On macOS you can click the splash away to reach the dialog. On
+     Windows, a modal dialog normally blocks clicks to the app's other windows,
+     so that escape may not work.
+     Wrong: a dialog you cannot see or cannot reach, or an app that looks frozen.
+     This is the first thing every Windows user with a fresh machine will meet,
+     so spend time here. Report exactly what you saw: was the dialog on top, or
+     behind the splash? Did clicking the splash dismiss it? Did Alt+Tab help?
+     Could you dismiss the dialog and reach the main window?
+
+Then let the app finish opening and note whether the Welcome dialog appears
+(expected on a fresh profile, about a tenth of a second after the window) and
+whether anything is visibly wrong with the main window. Screenshot it. Quit.
+
+
+================================================================================
+STEP 5 — INSTALL ARGYLLCMS AND PUT IT ON PATH
+================================================================================
+Download ArgyllCMS 3.5.0 for Windows from https://www.argyllcms.com/downloadwin.html
+and unzip it. Anything the app already looks in is fine:
+    C:\Program Files\ArgyllCMS\bin
+    C:\Program Files (x86)\ArgyllCMS\bin
+    %LOCALAPPDATA%\ArgyllCMS\bin      (versioned Argyll_V*\bin folders too)
+    %USERPROFILE%\ArgyllCMS\bin
+
+Then, for the test run, do all three of these — they buy real coverage that is
+otherwise skipped:
+
+    add the bin folder to PATH for your shell session
+    set CHROMIQ_ARGYLL_BIN to that bin folder
+    set CHROMIQ_ARGYLL_REF to the sibling  ref  folder
+
+Check it took:
+
+    .venv\Scripts\python.exe -c "from core.argyll_detect import find_argyll_bin_path; print(find_argyll_bin_path())"
+
+ArgyllCMS is a HARD PREREQUISITE for the release gate, not an optional extra.
+The --runslow tier builds four demo projects by shelling out to real targen and
+colprof; without them the fixture raises SystemExit and the run comes apart
+rather than skipping tidily.
+
+Launch the app once more and confirm it now detects Argyll (no warning in the
+status bar, no not-found dialog).
+
+
+================================================================================
+STEP 6 — THE RELEASE GATE
+================================================================================
+    Git Bash:
+        QT_QPA_PLATFORM=offscreen .venv/Scripts/python.exe -m pytest --runslow -n 4
+    PowerShell:
+        $env:QT_QPA_PLATFORM="offscreen"; .venv\Scripts\python.exe -m pytest --runslow -n 4
+    cmd:
+        set QT_QPA_PLATFORM=offscreen && .venv\Scripts\python.exe -m pytest --runslow -n 4
+
+Add  -rs  to that command line if you want the skip reasons listed (you do — see
+below). --dist loadfile is already in pytest.ini; you do not need to pass it.
+
+USE -n 4. DO NOT RAISE IT. CLAUDE.md documents 30-45 phantom failures at 8, 12
+and auto, caused by shared state between tests, with the failing set changing
+run to run. A gate that cries wolf is worse than useless here, because the whole
+job is telling a real Windows regression from noise. (Note: pytest.ini's own
+comment suggests -n auto and contradicts CLAUDE.md. Follow CLAUDE.md. Do not
+"fix" either file.)
+
+DO NOT EDIT ANY SOURCE FILE WHILE THE GATE RUNS. Many tests assert on source
+read from disk; an edit mid-run shifts line offsets and manufactures dozens of
+fake failures.
+
+Do not use scripts/run_tests.sh — it is bash, pkill and macOS assumptions.
+
+First run also builds the demo projects (roughly four minutes on a fast Mac,
+likely longer here); later runs reuse %TEMP%\chromiq-demo-projects-cache. If you
+hit "path too long" / [WinError 3], set CHROMIQ_DEMO_CACHE=C:\cq and rerun.
+
+THE macOS BASELINE, measured on this exact branch and commit, Python 3.14, -n 4:
+
+    6758 passed, 101 skipped, 2 xfailed, 1 warning in 257.72s
+
+Report your own line verbatim. (CLAUDE.md still says "~4400 tests" — that is
+stale, ignore it.)
+
+--- EXPECTED ON WINDOWS, NOT BUGS -----------------------------------------------
+
+E1. MANY MORE SKIPS THAN 101. Under QT_QPA_PLATFORM=offscreen, Windows exposes an
+    EMPTY font database — every font family resolves to a null font. The suite
+    knows this (tests/_fontcheck.py) and skips anything measuring text widths.
+    Eleven files, 179 tests between them, hold those guards:
+      test_button_text_fits, test_choice_dialog_button_width,
+      test_disabled_controls_look_disabled, test_file_guide_structure,
+      test_help_card_width, test_knut_beta77_batch, test_masthead_center_fits,
+      test_report_pdf_layout, test_target_bar_stability,
+      test_target_bar_alignment, test_translation_integrity
+    Expect tens of extra skips here. IMPORTANT CONSEQUENCE: the offscreen gate on
+    Windows is structurally blind to button-label fitting — which is one of the
+    four filters this branch merged together. That is why step 7 exists. Do not
+    treat a green gate as covering it.
+
+E2. "chromiq-chartread helper not built" (six files) and the gamut helper: those
+    .exe files are produced by the CI build, not by a source checkout. Expected.
+
+E3. macOS-only tests skip: /dev/cu.* serial exclusion, the Homebrew symlink farm,
+    "needs macOS sips to rasterise", "Generic CMYK profile not installed",
+    "probe result TIFFs not present".
+
+E4. test_target_instrument_gate has one test hard-wired to
+    /Applications/Argyll/bin/chartread with no fallback — it skips on Windows
+    however Argyll is installed. A test limitation, not a bug.
+    (Five other files hard-code that path but fall back to a PATH lookup first,
+    which is why step 5 put Argyll on PATH — with PATH set they RUN.)
+
+E5. faulthandler_timeout is 90 s. On a slow VM a heavy test can pass that and dump
+    every thread's stack to stderr. Alarming; not a failure. Judge by the final
+    pass/fail line.
+
+E6. tests/test_settings_dialog_opens_full_size.py is NEW on this branch and asserts
+    absolute pixel sizes (height >= 700, width >= 1040) with NO font guard. With
+    the empty offscreen font DB it may well fail. DO NOT report that as a
+    regression from the offscreen run — re-run it in step 7 with real fonts and
+    judge it there.
+
+E7. Printing: pycups and the CUPS path are macOS/Linux only. test_cups_printer only
+    builds command strings, so it still passes.
+
+WHAT IS NOT EXPECTED, i.e. report it loudly: any failure in a file not listed
+above; any ERROR (as opposed to failure) — errors usually mean a fixture blew up,
+often Argyll or a path; any test that HANGS (if the run appears stuck, rerun with
+--timeout=300 --timeout-method=thread if pytest-timeout is available, so the stack
+names the test).
+
+Give me: the final counts, the full list of failures/errors with their assertion
+text, and the skip list from -rs grouped by reason, compared against the macOS
+skip catalogue in the appendix.
+
+
+================================================================================
+STEP 7 — THE RUN THE GATE CANNOT DO  (real fonts, real platform)
+================================================================================
+Because of E1, run these files again on the REAL Windows platform plugin, where
+the font database is real. Actual windows will flash up on screen for a moment;
+that is fine and expected.
+
+YOU MUST SET QT_QPA_PLATFORM=windows EXPLICITLY. Simply not setting it does NOT
+work: seven of these nine files call os.environ.setdefault("QT_QPA_PLATFORM",
+"offscreen") when they are imported, so an unset variable still gets you the
+empty-font-database run you are trying to escape. Setting it to "windows" beats
+the setdefault, and this is the whole point of the step.
+
+One line, all on one line (Git Bash shown; use the step-0 table for your shell):
+
+    QT_QPA_PLATFORM=windows .venv/Scripts/python.exe -m pytest tests/test_button_text_fits.py tests/test_choice_dialog_button_width.py tests/test_help_card_width.py tests/test_masthead_center_fits.py tests/test_target_bar_alignment.py tests/test_target_bar_stability.py tests/test_disabled_controls_look_disabled.py tests/test_settings_dialog_opens_full_size.py tests/test_dialog_buttons_all_languages.py
+
+No -n here; keep it serial and simple. Confirm in the output that these tests
+RAN rather than skipped — if they still say "this Qt/QPA exposes no font
+families", the platform variable did not take and the run proves nothing.
+
+THIS is the run that can see button labels clipping on Windows, and clipping is
+what ButtonFontFilter exists to prevent — the filter that just got folded into
+CompositeAppFilter. A failure here is a genuine, high-value finding. If a test
+opens a modal dialog and blocks, note which one and move on rather than fighting
+it.
+
+
+================================================================================
+STEP 8 — TARGETED CHECKS ON THE FOUR THINGS THAT CHANGED
+================================================================================
+Do these with the app running for real. Screenshot each and look at the
+screenshots yourself.
+
+ 8a. LIGHT AND DARK — and please read this before you start.
+     Windows almost certainly starts this app in LIGHT mode (the app follows the
+     system colour scheme, and Windows 11's default app mode is light). Nearly
+     all the macOS work was done in dark. Light is also where this branch put its
+     newest code. So light is not the afterthought here, it is the main event.
+     First confirm which mode you are actually in:
+        .venv\Scripts\python.exe -c "from PyQt6.QtWidgets import QApplication; a=QApplication([]); print(a.styleHints().colorScheme())"
+     Then, in the app, do everything below in BOTH modes (Preferences → Appearance).
+
+ 8b. THE SPLASH, THREE WAYS.
+     - normal (already done in step 4)
+     - Preferences → Beta → "Classic splash screen" ON, restart. The old Qt splash
+       comes back. It should look the same and take about a second longer. Confirm
+       the switch is visible in the dialog, is worded sensibly, and survives a
+       restart.
+     - display scaling: relaunch with QT_SCALE_FACTOR=1.5, then 2. The splash must
+       stay proportionate and centred, not double-size with the art in a corner.
+       (This is a proxy for Windows display scaling that costs no sign-out. If you
+       can also set the real Windows scale to 150% once and relaunch, do — but
+       report which method produced which result.)
+
+ 8c. THE COMPOSITE EVENT FILTER — the highest Windows risk on the branch.
+     Four app-wide filters became one object. One of them (tooltip word-wrapping)
+     exists BECAUSE of Windows, issue #70. Compare the app with and without the
+     change, in the same session, on the same screens:
+        normal:            (nothing to set)
+        old behaviour:     CHROMIQ_SEPARATE_FILTERS=1
+     Check in both: hover several long tooltips, including one near the right edge
+     and one near the bottom edge of the screen (wrong = runs off the screen, or
+     one long unwrapped line); open Preferences and a couple of dialogs and look
+     for clipped or overlapping button labels; check group-box panels have their
+     usual background; press the space bar right after a dialog opens (wrong = it
+     activates whatever button had focus).
+     If anything differs between the two, that is the finding of the whole
+     exercise — say so clearly and screenshot both.
+
+ 8d. THE TAB PANE RULE.
+     Click through all five tabs a few times, both themes.
+     - Watch the thin line directly under the tab strip. It is now one fixed
+       colour for every tab. On macOS it is completely hidden behind the tab bar.
+       ON WINDOWS IT MAY NOT BE. If you can see a line there that used to take the
+       tab's colour, that is a visible change on Windows and a genuine finding.
+       Screenshot each tab and compare the strip area.
+     - Open the SAME dialog from two places and check they look identical:
+       the measurement report from the Measure tab vs from the Tools menu; and
+       Preferences from Create Chart's "Edit layout defaults" vs from the gear.
+       Wrong = a coloured hairline inside the dialog, or a missing frame in light
+       mode, depending on where you opened it from.
+     - Launch the app and go straight to Create Chart WITHOUT visiting other tabs.
+       It must already look like the rest of the app. Wrong = panels a different
+       shade that only come right after you switch away and back.
+
+ 8e. THE LOG FONT.
+     Switch light → dark → light in Preferences and watch the log panel at the
+     bottom of a tab, especially its greyed-out placeholder text when empty.
+     Wrong = the text stays noticeably bold after switching to dark.
+     This one needs a FRESH profile to reproduce reliably (reg delete
+     HKCU\Software\ChromIQ /f first), because hiding the log panes hides it.
+
+ 8f. TIMINGS. The app logs to %LOCALAPPDATA%\ChromIQ\Logs\chromiq.log. Each launch
+     writes a "=== ChromIQ session started" banner, then a "ChromIQ <version>
+     starting; python=..." line, then "MainWindow initialised", then "Event loop
+     starting". Take the gap between the "ChromIQ ... starting" line and "Event
+     loop starting" — that is a like-for-like number. Do 3 launches and give the
+     range, in both themes, and note that timings on a VM are indicative only.
+     macOS reference on the same commit: about 3.0 s from click to painted window,
+     tab switch about 9 ms. If Windows is dramatically worse (say 8 s+), that is
+     worth reporting even though it is not a correctness bug.
+
+
+================================================================================
+STEP 9 — THREE SHORT CHECKS ON BETAS 1-7 (also never run on Windows)
+================================================================================
+ 9a. Create Chart: build a small chart, and check the settings you used are still
+     on screen afterwards and are restored when the chart is loaded again
+     (beta.7 "a build's own settings survive the load that follows it").
+ 9b. Clip-border branding: the layout engine renders your own text into the chart
+     using the system font map, which reads C:\Windows\Fonts on Windows and has
+     never been exercised there. Put text in the clip border, render, and confirm
+     the text and the logo both appear and are legible.
+ 9c. Scanner charts: the scanner tools shell out to scanin.exe. Confirm scanin is
+     found and runs at all (a chart-recognition run is enough; you do not need a
+     scanner).
+Keep these short. If time is tight, 9b is the most Windows-specific of the three.
+
+
+================================================================================
+STEP 10 — WHAT TO REPORT
+================================================================================
+One report, in this order, no preamble:
+
+ 1. VERDICT, first line: SHIP / DO NOT SHIP / SHIP WITH CAVEATS, and one sentence
+    of why.
+ 2. Environment block from step 0.
+ 3. Gate result: your exact counts line, next to the macOS baseline. Every failure
+    and error in full. Your skip list vs the macOS catalogue in the appendix, with
+    anything unexplained called out.
+ 4. Step 7 (real fonts) result.
+ 5. The four changed areas, one short paragraph each: splash, composite filter,
+    tab pane, log font. Say what you did, what you saw, and whether it matches
+    macOS. Attach the screenshots.
+ 6. Timings.
+ 7. FINDINGS, numbered, worst first. For each: what you did, what you expected,
+    what happened, a screenshot or the exact error, and whether you could
+    reproduce it. Mark each as "Windows bug", "this VM only", or "not sure".
+ 8. What you could NOT test, and why. This section is required and must not be
+    empty — an honest gap is worth more than a guess.
+ 9. For Sebastian: the short list from step 11, with your own answer already
+    filled in where you have one.
+
+Do not soften anything. Do not report a pass you did not observe. "I could not
+get the splash to appear on this VM and I do not know whether that is Windows or
+the VM" is a good sentence and exactly the kind of thing that should reach him.
+
+
+================================================================================
+STEP 11 — WHAT ONLY SEBASTIAN CAN JUDGE
+================================================================================
+Everything visual above, you can do yourself with screenshots. Leave him only the
+things that need a human at the keyboard. Prepare the app and the profile so each
+of these takes him under a minute, and tell him exactly what to click.
+
+ 1. Open the app and watch it start, three or four times.
+    Does it feel quick, and does the picture appear straight away rather than at
+    the end? Wrong: a blank pause and then a flash of the picture just before the
+    window.
+ 2. Click through the five tabs at the top, quickly, in both light and dark.
+    Does each tab appear the instant you click, with no lag? Wrong: a visible
+    pause between the click and the tab appearing.
+ 3. Hover the mouse over a few of the little info buttons, including one near the
+    right-hand edge of the screen.
+    Does the yellow help box stay on screen and wrap onto several lines? Wrong: it
+    runs off the edge, or is one very long line.
+ 4. Switch the language to German (Preferences → General) and restart, then open
+    Preferences and a couple of dialogs.
+    Is every button label fully readable? Wrong: text cut off, or two buttons
+    overlapping. German is the language most likely to show it.
+ 5. The judgement call: with everything above in front of him, is this good enough
+    for Windows users to have as a stable release?
+
+
+================================================================================
+A SUBAGENT — ONE, READ-ONLY, WHILE THE GATE IS RUNNING
+================================================================================
+Start it when you start step 6 and not before; it costs no wall time then. It
+MUST NOT launch the app, take over the desktop, change display settings, or
+touch the registry — you and it share one desktop, one settings store and one
+Argyll process guard, and two agents driving Qt at once manufactures failures
+that nobody can reproduce. Everything requiring the running app stays with you,
+in order.
+
+Its brief: a paper audit of the branch for Windows assumptions.
+    git diff 95f3a2ac 75764688
+  - Every sys.platform / os.name branch the changed code can reach, and what the
+    Windows arm does.
+  - CompositeAppFilter in ui/widgets.py: its _INTERESTING set is {Polish, Show,
+    StyleChange}. Confirm from the source that all four sub-filters really act on
+    no other event type, and that none of them consumes an event by returning
+    True. (I believe this holds; get it confirmed independently.)
+  - ui/splash.py PlainSplash: device-pixel-ratio arithmetic, window flags, and
+    what happens on a fractional Windows scale factor.
+  - resolve_mode() in ui/theme.py: what QStyleHints.colorScheme() reports on
+    Windows and whether the seeded _title_bar_mode can ever disagree with the
+    stylesheet actually applied.
+  - A list of what the offscreen gate on Windows structurally cannot see.
+It reports findings with file and line, and marks each as "certain from the
+source" or "needs checking on the machine". It does not change any file.
+
+
+================================================================================
+APPENDIX A — WHAT BETAS 8-10 ACTUALLY CHANGED
+================================================================================
+Only these files changed: main.py, ui/splash.py, ui/main_window.py,
+ui/widgets.py, ui/dialogs/settings_dialog.py, core/settings.py, the i18n JSONs,
+CHANGELOG, version, and six test files. 798 lines added, 50 removed. Nothing in
+the printing, measuring or profiling paths was touched.
+
+ 1. THE SPLASH. Qt's own QSplashScreen spends about a second inside show()
+    waiting for something that never becomes true. It is now a plain frameless
+    always-on-top window painting the same picture, which waits (up to 0.3 s) for
+    the window to actually be exposed and then carries on. It was sized from the
+    wrong pixel units once already and came up double-size with the artwork in a
+    quarter. "Classic splash screen" in Preferences → Beta restores the old one.
+ 2. THE EVENT FILTERS. Four application-wide filters became one CompositeAppFilter
+    that calls the same four in the same order Qt would have (reverse install
+    order) and returns immediately for event types none of them care about. About
+    a second of a five-second launch. CHROMIQ_SEPARATE_FILTERS=1 restores the four
+    separate installs. One of the four, the tooltip word-wrapper, exists because
+    of Windows (issue #70) — THIS IS THE HIGHEST WINDOWS RISK ON THE BRANCH.
+ 3. THE TAB PANE STYLESHEET. It used to carry the current tab's accent colour, so
+    every tab switch re-applied a stylesheet and re-drew all five tab trees — a
+    quarter of a second per switch, now under a hundredth. It is now one string
+    for every tab, scoped to this one tab widget (unscoped, it leaked into dialogs
+    parented to a tab and painted them the tab's colour). On macOS the hairline is
+    hidden behind the tab bar; ON WINDOWS IT MAY NOT BE, and if it is visible this
+    became a visible change. That is the single most likely Windows-only
+    regression on the branch.
+ 4. THE THEME SEED AND THE LOG FONT. The window used to assume dark before the
+    real theme was known, which cached every tab's styling under the wrong theme
+    and left Create Chart wrongly styled on launch until you switched tabs. It now
+    seeds from the resolved appearance, and clears the per-tab style cache when a
+    LIGHT theme is applied. Separately, apply_theme now sets the log's viewport
+    font as well as the widget's, which was leaving the log bold after a switch to
+    dark.
+
+Note what item 4 means for you: WINDOWS WILL PROBABLY RUN THE LIGHT BRANCH BY
+DEFAULT, and the light branch is the newest code here.
+
+
+================================================================================
+APPENDIX B — THE macOS SKIP CATALOGUE (same commit, same command, -n 4)
+================================================================================
+6758 passed, 101 skipped, 2 xfailed in 257.72s. Skips by reason:
+
+  84  test_knut_spyderprint_presets.py:134   engine-built preset — printtarg not used
+   8  test_every_window_sounds.py:83        this one does not open the dialog itself
+   4  test_scanner_pipeline_e2e.py:83       ArgyllCMS binaries or rectarg example targets not present
+   2  test_both_readers_raise_the_same_windows.py:110  no pinned helper source line for this one
+   1  test_overlay_failure_reason.py:147    opt-in, set CHROMIQ_REPRO_OVERLAY
+   1  test_live_preview_does_not_replace_a_preset.py:208  no target controller on this tab
+   1  test_gammap_helper.py:231             needs a compiled chromiq-gammap and iccgamut
+  ---
+ 101  total
+
+Note what is NOT in that list, because this Mac has them: ArgyllCMS is installed,
+and the native chromiq-chartread / chromiq-gammap helpers are built. On your
+machine those produce skips that simply do not exist here.
+
+Your Windows skip list should be this list PLUS the font-database skips (E1) PLUS
+the native-helper skips (E2). Anything else that skips is worth a sentence.
