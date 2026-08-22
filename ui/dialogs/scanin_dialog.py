@@ -1669,6 +1669,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         and the status log — Knut picked a chart, missed the small note, and
         only hit a generic dead-Browse message much later (#101)."""
         self._layout = None
+        self._chart_settings: dict = {}
         self._pages = []
         self._chart_reject_reason = reason
         self._chart_note.setText(reason)
@@ -1697,6 +1698,9 @@ class ScannerProfileDialog(_ToolDialogBase):
         # .ti3, then the .ti2 (aim values) — a chart you only PRINTED still
         # works for a printer profile; both carry loc + RGB + XYZ.
         base = _chart_base(picked)
+        # Forget the previous chart's record first: it decides the sample-area
+        # cap, and a honeycomb's answer must not survive into the next chart.
+        self._chart_settings = {}
         # A hexagonal chart is turned away unless the user opted in under
         # Preferences → Beta. It profiles correctly — that was measured end to
         # end — but scanin's chart finder can abort on a honeycomb, so the
@@ -1749,7 +1753,12 @@ class ScannerProfileDialog(_ToolDialogBase):
                 "⚠ This chart has no .ti3 or .ti2 next to it, so ChromIQ can't read "
                 "its patch values."))
             return
-        self._layout = json.loads(channels.read_text())["layout"]
+        _doc = json.loads(channels.read_text())
+        self._layout = _doc["layout"]
+        # The Create Chart registry travels beside the layout, and it is the
+        # only place a printtarg-drawn honeycomb says so (there is no engine
+        # recipe on that path) — see `hex_support.settings_are_hexagonal`.
+        self._chart_settings = _doc.get("create_chart_settings") or {}
         # A stored printtarg capture whose page count differs from the printed
         # chart is wrong by construction (printtarg -s re-lays some chart
         # types out, e.g. ColorMunki double density) — reject it honestly
@@ -1930,8 +1939,15 @@ class ScannerProfileDialog(_ToolDialogBase):
             # recipe is already in the layout this method holds — reaching for
             # the chart path here raised NameError on EVERY engine chart,
             # rectangular ones included, because `base` belongs to the loader.
-            from workflow.hex_support import recipe_is_hexagonal
-            hexagonal = recipe_is_hexagonal(self._layout.get("recipe"))
+            from workflow.hex_support import (recipe_is_hexagonal,
+                                              settings_are_hexagonal)
+            # Two records, because two chart paths. The engine writes a recipe;
+            # a printtarg honeycomb has none — its geometry is derived from the
+            # rendered sheet (printtarg will not emit a .cht for hexagons at
+            # all) — and only the Create Chart registry remembers the shape.
+            hexagonal = (recipe_is_hexagonal(self._layout.get("recipe"))
+                         or settings_are_hexagonal(
+                             getattr(self, "_chart_settings", None)))
             self._marquee.set_grid(GridSpec.from_patches(patches,
                                                          hexagonal=hexagonal))
             self._clamp_sample_area(patches, hexagonal)
@@ -1940,6 +1956,11 @@ class ScannerProfileDialog(_ToolDialogBase):
             self._marquee.set_grid(
                 GridSpec.from_cht(cht_pages[pg]) if 0 <= pg < len(cht_pages)
                 else GridSpec([]))
+            # A captured .cht is never hexagonal: printtarg refuses to make
+            # one ("Can only select hexagonal patches if no scan recognition is
+            # needed - ignored!"), so the capture describes a re-laid-out square
+            # chart, its locs disagree with the .ti2 and ChromIQ's guard drops
+            # it. Full 80 % here is the right answer, not an oversight.
             self._clamp_sample_area([], False)
         self._sync_shot_view()
 

@@ -1,5 +1,45 @@
 # Changelog
 
+## v4.1.2-beta.6
+
+### Fixed
+
+- **Reading a chart with a scanner no longer gives up on a honeycomb.** When you
+  place the four corners yourself, ChromIQ no longer asks ScanIn to work the
+  perspective out as well. It never used that answer — the corners you placed
+  already describe it — but the search runs first, and on a chart of hexagons it
+  collapses and takes the whole scan down with it. Nearly one scan in four
+  failed or hung; now none do, and every colour that came back before comes back
+  identical.
+
+### Changed
+
+- **Patch sample area is now limited to what your patches can actually give.**
+  On a chart of hexagons the square ChromIQ reads runs out of room far sooner
+  than it does inside a square patch, and the next hexagon is flush against it —
+  so a square a little too big reads the *neighbouring* colour, on every patch at
+  once. ChromIQ now works the ceiling out from the shape of your own patches and
+  sets it for you (64 % on a typical chart), instead of leaving you to guess.
+  Charts with square patches are untouched and keep the full 80 %.
+
+- **The hexagonal-chart notice says what is actually still unknown.** It used to
+  ask you to keep the sample area below 60 % — advice that only appeared in the
+  message shown to people who had the feature switched off, and so could never
+  reach the control it talked about. Both problems it described are now fixed in
+  the app itself; what remains unproven is finding a honeycomb chart in a scan
+  without your corners, and that is what it now says.
+
+### New
+
+- **A sample pack for hexagonal charts**, attached to this release
+  (`ChromIQ-hex-scanner-sample.zip`). It holds a real 12 mm honeycomb ready to
+  print, the same 150 colours as square patches to compare against, and a
+  simulated 300 dpi scan of each — so you can walk the whole scanner path with
+  no printer and no scanner, see the mesh sit on the hexagons, and watch the
+  sample area cap itself. The simulated scans contain no ink, no paper and no
+  scanner: they are there to show the tool working, not to judge a profile.
+
+
 ## v4.1.2-beta.5
 
 ### Fixed

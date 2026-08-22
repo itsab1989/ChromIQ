@@ -156,3 +156,56 @@ def test_a_chart_with_no_patch_geometry_is_not_capped(qapp, tmp_path):
     d._load_page_grid()
     assert d._sample_area.maximum() == 80
     d.deleteLater()
+
+
+def test_a_printtarg_honeycomb_is_capped_although_it_has_no_recipe(qapp, tmp_path):
+    """The layout engine is the default and writes a recipe, but Manual mode can
+    still lay a SpectroScan chart out with printtarg, and `printtarg -h` draws
+    hexagons there too. Such a chart reaches the tool with per-patch geometry and
+    NO recipe: printtarg will not emit a .cht for hexagons at all ("Can only
+    select hexagonal patches if no scan recognition is needed - ignored!"), so
+    the capture is re-run without them, its locs disagree with the chart's .ti2,
+    ChromIQ's guard drops it, and the geometry is derived from the rendered sheet
+    instead. A shape test that reads only the recipe sees a rectangular chart and
+    lifts the cap on a honeycomb."""
+    d = _dialog(qapp)
+    d._page = 0
+    d._layout = _hex_chart(tmp_path, hflag=True)
+    d._layout.pop("recipe")                      # as the render-derived path leaves it
+    d._chart_settings = {"printtarg-i": {"enabled": True, "value": "SS"},
+                         "printtarg-h": {"enabled": True, "value": True}}
+    d._sample_area.setValue(80)
+    d._load_page_grid()
+    assert d._sample_area.maximum() < 80, (
+        "a printtarg honeycomb was left at 80 % — it would read the "
+        "neighbouring hexagon on every patch")
+    d.deleteLater()
+
+
+def test_the_same_flag_on_a_colormunki_is_not_a_honeycomb(qapp, tmp_path):
+    """`-h` means double density on the ColorMunki: squares, twice as many.
+    Reading the flag without the instrument would cap a chart that has no
+    hexagons anywhere near it."""
+    from workflow.hex_support import settings_are_hexagonal
+    cm = {"printtarg-i": {"enabled": True, "value": "CM"},
+          "printtarg-h": {"enabled": True, "value": True}}
+    assert settings_are_hexagonal(cm) is False
+    assert settings_are_hexagonal({"printtarg-i": {"value": "SS"},
+                                   "printtarg-h": {"value": True}}) is True
+    assert settings_are_hexagonal({"printtarg-i": {"value": "SS"}}) is False
+    for junk in (None, {}, {"printtarg-i": "SS"}, "nonsense", 7):
+        assert settings_are_hexagonal(junk) in (True, False)
+
+
+def test_a_chart_record_cannot_leak_into_the_next_chart(qapp, tmp_path):
+    """`_set_chart` clears the record before it reads the new one. Without that,
+    opening a honeycomb and then a square chart with no sidecar would keep
+    capping the square one — a limit the user cannot explain or clear."""
+    import inspect
+    from ui.dialogs.scanin_dialog import ScannerProfileDialog
+    src = inspect.getsource(ScannerProfileDialog._set_chart)
+    body = src.split("base = _chart_base(picked)", 1)[1]
+    assert "self._chart_settings = {}" in body.split("chart_is_hexagonal")[0], (
+        "the previous chart's shape record must be cleared before the new "
+        "chart is examined, not after"
+    )

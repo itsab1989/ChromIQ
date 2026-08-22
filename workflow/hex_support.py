@@ -91,6 +91,34 @@ def recipe_is_hexagonal(recipe) -> bool:
     return bool(hflag) and inst == "SS"
 
 
+def settings_are_hexagonal(create_chart_settings) -> bool:
+    """True when a chart's recorded Create Chart settings say **printtarg** drew
+    hexagons: instrument SpectroScan with ``-h``.
+
+    Needed because such a chart has no engine recipe, and can still arrive with
+    per-patch geometry: printtarg refuses to emit a .cht for it ("Can only
+    select hexagonal patches if no scan recognition is needed - ignored!"), so
+    the capture is re-run WITHOUT hexagons, its patch locs disagree with the
+    chart's own .ti2, ChromIQ's guard drops it — and the geometry is derived
+    from the rendered sheet instead. That derivation gives rects but no recipe,
+    so a shape test that only reads the recipe would see a rectangular chart and
+    lift the sample-area cap on a honeycomb.
+
+    ``-h`` alone is not enough: on the ColorMunki the same flag means double
+    density, which is squares."""
+    try:
+        cs = create_chart_settings or {}
+
+        def value(key):
+            rec = cs.get(key)
+            return rec.get("value") if isinstance(rec, dict) else rec
+
+        return (str(value("printtarg-i") or "").upper() == "SS"
+                and bool(value("printtarg-h")))
+    except Exception:      # noqa: BLE001 — an unreadable record is not a claim
+        return False
+
+
 def chart_is_hexagonal(chart_path: "str | Path | None") -> bool:
     """True when the chart at *chart_path* was made with SpectroScan hexagonal
     patches, read from its ``channels.json`` sidecar. Accepts a .ti1/.ti2/
