@@ -96,6 +96,17 @@ class SettingsDialog(QDialog):
         outer.setSpacing(12)
         outer.setContentsMargins(20, 16, 20, 16)
 
+        # THE NEUTRAL QSS GOES ON FIRST, NOT LAST.
+        #
+        # Set on the finished nine-tab dialog it re-polishes every widget in it —
+        # 120 ms of the ~390 ms this constructor used to cost. Set here it costs
+        # nothing and reaches the same widgets, because a stylesheet cascades to
+        # children created afterwards. Only the ⓘ re-tint has to wait for the
+        # buttons to exist; that half runs at the end of this method.
+        from ui.theme import resolve_mode as _resolve_mode
+        self.setStyleSheet(self._indicator_qss(
+            _resolve_mode(self._settings.get("appearance", "auto"))))
+
         # The preferences are split across tabs; the per-combo Margin Thresholds
         # editor lives on its own tab (Knut's request). The credits + button row
         # stay below the tabs so they're shared. All existing group boxes are
@@ -1469,7 +1480,10 @@ class SettingsDialog(QDialog):
         outer.addLayout(bottom_row)
 
         from ui.theme import resolve_mode
-        self._apply_indicator_theme(resolve_mode(self._settings.get("appearance", "auto")))
+        # The QSS half already ran at the top of _build_ui; only the ⓘ icons are
+        # left, and they exist now.
+        self._retint_indicator_buttons(self._indicator_colour(
+            resolve_mode(self._settings.get("appearance", "auto"))))
 
     # ------------------------------------------------------------------
 
@@ -3023,7 +3037,17 @@ class SettingsDialog(QDialog):
         without reopening the dialog.
           Light: masthead "Chrom" wordmark.  Dark: neutral grey (Restore border).
         """
-        indicator = "#1c1b18" if mode == "light" else "#d0d0d0"
+        self.setStyleSheet(self._indicator_qss(mode))
+        self._retint_indicator_buttons(self._indicator_colour(mode))
+
+    def _indicator_qss(self, mode: str) -> str:
+        """The neutral-control stylesheet for a resolved mode.
+
+        Composed here so the constructor can apply it BEFORE the tabs exist and
+        the live theme preview can re-apply it afterwards — one string, two
+        callers, no chance of the two drifting apart.
+        """
+        indicator = self._indicator_colour(mode)
         # Shared with the Tools dialogs so every dialog highlights controls the
         # same neutral way (checkboxes, radios and the focus ring on text/number/
         # combo inputs).
@@ -3039,7 +3063,21 @@ class SettingsDialog(QDialog):
             f"QCheckBox::indicator:checked:disabled {{"
             f" background: {dis_bg}; border-color: {dis_border}; }}"
         )
-        self.setStyleSheet(neutral_controls_qss(indicator) + disabled_qss)
+        return neutral_controls_qss(indicator) + disabled_qss
+
+    def _indicator_colour(self, mode: str) -> str:
+        """The neutral indicator colour for a resolved mode."""
+        return "#1c1b18" if mode == "light" else "#d0d0d0"
+
+    def _retint_indicator_buttons(self, indicator: str) -> None:
+        """The ⓘ icons, which only exist once the tabs are built.
+
+        Split out from :meth:`_apply_indicator_theme` because the STYLESHEET half
+        costs ~120 ms when it runs on the finished nine-tab dialog (it re-polishes
+        every widget) and nothing when it runs first — QSS cascades to children
+        created later. This half cannot move: run early it finds zero buttons and
+        every ⓘ keeps the tab accent instead of the neutral indicator.
+        """
         for btn in self.findChildren(TooltipButton):
             btn._color_override = indicator
             btn._set_icon()
