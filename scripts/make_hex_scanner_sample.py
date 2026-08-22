@@ -41,12 +41,22 @@ SCAN_DPI = 300
 
 def _ti1(path: Path, n: int) -> Path:
     """A spread over the RGB cube, deterministic so the pack rebuilds byte-alike."""
-    rows, step = [], max(1, round(n ** (1 / 3)))
-    for i in range(n):
-        r = (i % step) * 100.0 / (step - 1)
-        g = ((i // step) % step) * 100.0 / (step - 1)
-        b = ((i // (step * step)) % step) * 100.0 / (step - 1)
-        rows.append((r, g, b))
+    # A cube big enough to HOLD n, not merely close to it: round(150**(1/3))
+    # is 5, which is 125 combinations, so the last 25 patches repeated the
+    # first 25 — a sixth of the chart measuring the same colours twice.
+    step = 2
+    while step ** 3 < n:
+        step += 1
+    grid = [((i % step), ((i // step) % step), (i // (step * step)))
+            for i in range(step ** 3)]
+    # Take a spread across the cube rather than its first face: strided, then
+    # the remainder, so any n lands on colours from the whole gamut.
+    stride = max(1, len(grid) // n)
+    picked = grid[::stride][:n]
+    picked += [g for g in grid if g not in picked][:n - len(picked)]
+    rows = [(r * 100.0 / (step - 1), g * 100.0 / (step - 1),
+             b * 100.0 / (step - 1)) for r, g, b in picked]
+    assert len(rows) == n and len(set(rows)) == n, "duplicate patches"
     lines = ["CTI1", "", 'DESCRIPTOR "ChromIQ hexagonal scanner sample"',
              'ORIGINATOR "ChromIQ"', 'KEYWORD "SAMPLE_LOC"',
              "NUMBER_OF_FIELDS 7", "BEGIN_DATA_FORMAT",
