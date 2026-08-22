@@ -1271,6 +1271,12 @@ class ScannerProfileDialog(_ToolDialogBase):
             "each colour for a touch less noise. 80% is the maximum — beyond that "
             "the square would always take in the patches' soft borders, and the "
             "reading would no longer be the pure colour.\n\n"
+            "On a chart with hexagonal patches the ceiling is lower, and ChromIQ "
+            "works it out from the shape of your patches and sets it for you. A "
+            "square is a comfortable fit inside a rectangle and a tight one "
+            "inside a hexagon, whose sides slant away above and below; past that "
+            "point the square would reach through them into the patch next door "
+            "— on every patch at once, not just here and there.\n\n"
             "The misalignment checks look after themselves whatever you pick "
             "here: the placement agreement always judges the very area you "
             "chose, and the edge detector watches a thin ring just outside "
@@ -1925,15 +1931,45 @@ class ScannerProfileDialog(_ToolDialogBase):
             # the chart path here raised NameError on EVERY engine chart,
             # rectangular ones included, because `base` belongs to the loader.
             from workflow.hex_support import recipe_is_hexagonal
-            self._marquee.set_grid(GridSpec.from_patches(
-                patches,
-                hexagonal=recipe_is_hexagonal(self._layout.get("recipe"))))
+            hexagonal = recipe_is_hexagonal(self._layout.get("recipe"))
+            self._marquee.set_grid(GridSpec.from_patches(patches,
+                                                         hexagonal=hexagonal))
+            self._clamp_sample_area(patches, hexagonal)
         else:
             cht_pages = self._layout.get("cht_pages") or []
             self._marquee.set_grid(
                 GridSpec.from_cht(cht_pages[pg]) if 0 <= pg < len(cht_pages)
                 else GridSpec([]))
+            self._clamp_sample_area([], False)
         self._sync_shot_view()
+
+    def _clamp_sample_area(self, patches: list[dict], hexagonal: bool) -> None:
+        """Cap Sample area at what THIS chart's patches can actually give.
+
+        A hexagon's slanted top and bottom cut the corners off the rectangle the
+        patch is stored as, so the sampled square escapes it much sooner than on
+        a square patch — and because the neighbour is flush against it, that is a
+        switch, not a rate: every patch reads its neighbour at once. The ceiling
+        depends on the patch proportions (64 % on a regular hexagon, 61 % at
+        h/w = 2, and 60 % is already unsafe from h/w ≈ 2.58), so it is computed
+        here rather than written down as a number. Rectangular charts keep 80 %."""
+        from workflow.scanin_runner import hex_max_sample_fraction
+        cap = 80
+        if hexagonal and patches:
+            ws = sorted(float(p["w"]) for p in patches if float(p.get("w", 0)) > 0)
+            hs = sorted(float(p["h"]) for p in patches if float(p.get("h", 0)) > 0)
+            if ws and hs:
+                frac = hex_max_sample_fraction(ws[len(ws) // 2], hs[len(hs) // 2])
+                cap = max(20, min(80, int(frac * 100.0)))   # floor: never round UP
+        if cap != self._sample_area.maximum():
+            # setMaximum pulls a too-large value down and emits valueChanged, so
+            # the marquee and every read follow without extra wiring.
+            self._sample_area.setMaximum(cap)
+        self._sample_area.setToolTip(
+            tr("Hexagonal patches: {cap} % is the most this chart can be read "
+               "at. Above it the sampled square reaches past the hexagon's "
+               "slanted sides into the neighbouring patches.").format(cap=cap)
+            if cap < 80 else "")
 
     def _on_page_changed(self, idx: int) -> None:
         self._capture_current_corners()

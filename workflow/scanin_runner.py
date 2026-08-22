@@ -135,6 +135,36 @@ def sample_margin(w: float, h: float, frac: float) -> float:
     return (span - sqrt(disc)) / 4.0
 
 
+def hex_max_sample_fraction(w: float, h: float) -> float:
+    """The largest Sample area a HEXAGONAL chart can be read at before the
+    sample box escapes the hexagon — from the chart's own patch proportions.
+
+    A hexagonal patch is stored as the rectangle *w* × *h* (flat-to-flat width,
+    row pitch), but the ink is a pointy-top hexagon whose corners sit at
+    ``(0, ±2h/3)`` and ``(±w/2, ±h/3)``: the rectangle's own top and bottom
+    corners are already OUTSIDE it. :func:`sample_margin` insets the read box by
+    the same *m* on all four sides, so its corner is at ``(w/2-m, h/2-m)``, and
+    the slanted side it must stay behind is ``x = (w/2)(2 - 3y/h)``. That gives
+    a hard minimum inset
+
+        m ≥ w·h / (2·(2h + 3w))
+
+    and the fraction below is the area that leaves. It is not a rate but a
+    switch: the neighbouring hexagon is flush against this one, so a box one
+    percent too big samples the neighbour on EVERY patch, not on a few (measured:
+    0 of 150 patches at 60 %, 150 of 150 at 70 %).
+
+    The limit depends on the shape, which is why it is computed and not a
+    constant: 64.4 % on a regular hexagon (h/w = 0.866), 64.0 % at h/w = 1,
+    61.2 % at h/w = 2 — and 60 % itself is unsafe from h/w ≈ 2.58 upwards.
+    Returns 1.0 for a degenerate patch (nothing to clamp)."""
+    w, h = float(w), float(h)
+    if w <= 0.0 or h <= 0.0:
+        return 1.0
+    m = w * h / (2.0 * (2.0 * h + 3.0 * w))
+    return max(0.05, (w - 2.0 * m) * (h - 2.0 * m) / (w * h))
+
+
 def sample_margin_inverse(a: float, b: float, frac: float) -> float:
     """Recover the margin from an already-shrunk box: the *m* with
     ``a·b = frac·(a+2m)(b+2m)`` — the exact inverse of
@@ -321,7 +351,26 @@ def scanin_args(scan_tif: Path, cht: Path, cie: Path,
         args.append("-m")
     if corners is not None:
         args += ["-F", _fmt_corners(corners)]
-    if perspective:
+    # NOT with the corners. `-p` is scanin's perspective search, and on the
+    # manual path it is dead work that can only kill the run: `-F` does not skip
+    # recognition — do_scanrd runs calc_lines -> calc_perspective ->
+    # calc_rotation before it ever looks at the corners — and the rotation it
+    # computes is never read (compute_man_ptrans uses the four corners alone).
+    # `calc_perspective` optimises to MINIMISE the variance of detected line
+    # angles; on a honeycomb, whose angles are multimodal (0 and +/-30 degrees),
+    # it crushes them together, the acceptance window 1.5*sd collapses to
+    # +/-0.08 degrees, and calc_rotation aborts with "N consistent lines is not
+    # enough". Measured over randomised realistic scans: 23.3% of hexagonal
+    # reads failed with -p, 0% without. The values do not change — 42 conditions
+    # including genuine keystone, barrel/pincushion lens distortion and Argyll's
+    # own ColorChecker and QPcard targets, all bit-identical, diagnostic TIFF
+    # included — because s->ptrans, the homography fitted to the four corners,
+    # IS the perspective correction. The randomised sweep says the same about
+    # accuracy, not just about equality: over the reads that DID succeed, the
+    # error against ground truth is 0.385 dE with -p and 0.380 without at the
+    # median, with an identical 0.741 worst case. Dropping the flag removes the
+    # aborts and the 90 s stalls and costs nothing.
+    if perspective and corners is None:
         args.append("-p")
     if diag is not None:
         args.append("-dipn")
@@ -351,7 +400,8 @@ def scanin_printer_args(scan_tif: Path, cht: Path, scan_profile: Path, pbase: Pa
     args.append("-ca" if accumulate else "-c")   # -ca adds a page to an existing .ti3
     if corners is not None:
         args += ["-F", _fmt_corners(corners)]
-    if perspective:
+    # Same rule as the scanner path above — see the note there.
+    if perspective and corners is None:
         args.append("-p")
     if diag is not None:
         args.append("-dipn")

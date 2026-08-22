@@ -16,6 +16,37 @@ def test_auto_args_no_fiducials(tmp_path):
     assert "-p" in args and "-v" in args
 
 
+def test_the_corners_replace_the_perspective_search(tmp_path):
+    """`-p` is dropped once the four corners are given, and only then.
+
+    `-F` does not skip recognition: scanin still runs calc_lines ->
+    calc_perspective -> calc_rotation before it looks at the corners, and the
+    rotation it computes is never read on that path. `calc_perspective`
+    optimises to minimise the variance of the detected line angles, which on a
+    honeycomb — angles at 0 and +/-30 degrees — collapses the acceptance window
+    and makes calc_rotation abort with "N consistent lines is not enough".
+    Measured: 23.3 % of hexagonal reads failed with `-p`, 0 % without, and the
+    values are bit-identical across 42 conditions including genuine keystone,
+    lens distortion and Argyll's own standard targets — because the homography
+    fitted to the four corners IS the perspective correction.
+    """
+    corners = [(10.0, 20.0), (200.0, 22.0), (198.0, 300.0), (12.0, 298.0)]
+    with_corners = scanin_args(tmp_path / "s.tif", tmp_path / "c.cht",
+                               tmp_path / "c.cie", corners=corners)
+    assert "-p" not in with_corners, "the corners already carry the perspective"
+    assert "-F" in with_corners
+    # …and the auto path, which has no corners, still needs it
+    auto = scanin_args(tmp_path / "s.tif", tmp_path / "c.cht",
+                       tmp_path / "c.cie", corners=None)
+    assert "-p" in auto
+
+    from workflow.scanin_runner import scanin_printer_args
+    pr = scanin_printer_args(tmp_path / "s.tif", tmp_path / "c.cht",
+                             tmp_path / "p.icc", tmp_path / "base",
+                             corners=corners)
+    assert "-p" not in pr, "the printer path takes the same rule"
+
+
 def test_manual_fiducial_formatting(tmp_path):
     corners = [(10.0, 20.0), (200.0, 22.0), (198.0, 300.0), (12.0, 298.0)]
     args = scanin_args(tmp_path / "s.tif", tmp_path / "c.cht", tmp_path / "c.cie",

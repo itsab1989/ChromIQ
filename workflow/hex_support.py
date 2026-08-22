@@ -4,15 +4,34 @@ Used to decide where a chart's HEXAGON SHAPE matters: the measure overlay draws
 the patch's true outline, the strip highlight follows the column's zigzag, and
 the scanner tools draw their alignment cells to match.
 
-It no longer gates anything. The scanner and camera features refused a
-hexagonal chart on the premise that "the CHT format cannot describe a hexagon" —
-true, and beside the point, because a CHT describes the sampling RECTANGLE
-inside each patch and takes it from the chart's recorded per-patch geometry.
-Measured end to end on a 150-hexagon chart: real ``scanin`` returned 0 with a
-standard deviation of 0.106, and real ``colprof`` built a profile from the
-result (peak error 0.59, average 0.20). What genuinely fails is scanin's
-AUTO-recognition — a hexagon has no horizontal edges for its YLIST — and
-ChromIQ places the four corners by hand instead.
+It also decides whether the scanner and camera tools accept such a chart, which
+they do only when the user has opted in under Preferences → Beta
+(:func:`hex_scanner_allowed`).
+
+The old refusal said "the CHT format cannot describe a hexagon" — true of the
+printed shape and beside the point, because a CHT describes the rectangle
+SAMPLED inside each patch and takes it from the chart's recorded geometry. A
+hexagonal chart has been read and profiled end to end.
+
+Both faults behind the refusal have since been found and fixed, which is why
+the text below no longer asks the user to work around them:
+
+* the aborts came from scanin's ``-p`` perspective SEARCH, which is dead work
+  when the four corners are placed by hand and collapses on a honeycomb;
+  ChromIQ no longer sends it with ``-F`` (23.3 % of reads failed, now 0 %, with
+  the values bit-identical — :func:`workflow.scanin_runner.scanin_args`);
+* the sampling square escaping the hexagon is now a computed cap on Sample
+  area, taken from the chart's own patch proportions
+  (:func:`workflow.scanin_runner.hex_max_sample_fraction`), not advice in a
+  message that only the people who never see the chart could read.
+
+What is still unproven is scanin's chart finder with NO corners given, so the
+opt-in stays until Basti says otherwise.
+
+(Two figures quoted here previously — a "standard deviation of 0.106" and a
+"peak error of 0.59" — were removed: the first is scanin's rotation-angle spread
+from a recogniser it then discards, and the second cannot see a chart sampling
+its own neighbours.)
 """
 from __future__ import annotations
 
@@ -24,30 +43,27 @@ from core.i18n import tr
 
 def hex_scanner_message() -> str:
     """Why the scanner and camera tools turn a hexagonal chart away, and how to
-    try it anyway. Replaces the old text, which said the CHT format made this
-    impossible — it does not: a CHT describes the rectangle SAMPLED inside each
-    patch, and a hexagonal chart profiles correctly end to end. What is not yet
-    solved is scanin's chart finder, which can abort on a honeycomb."""
+    try it anyway. It no longer asks the user to work around the two faults —
+    the ``-p`` aborts and the sampling square — because both are fixed in code
+    (see the module docstring). What it still declines to promise is finding a
+    honeycomb chart with no corners given, which is why the opt-in remains."""
     return tr(
         "This chart uses hexagonal patches, and the scanner and camera tools "
         "are set to turn those away.\n\n"
         "Not because they cannot work — they can. A hexagonal chart has been "
-        "read and profiled successfully. The trouble is that ScanIn, the "
-        "Argyll program that finds the chart in your scan, looks for long "
-        "straight edges to work out how the sheet is rotated. A honeycomb has "
-        "none running across it, only the slanted sides of the hexagons, so "
-        "ScanIn sometimes measures the rotation badly — and occasionally gives "
-        "up on the whole scan, even when you have placed the four corners "
-        "yourself.\n\n"
-        "There is a second catch: the square that gets sampled inside each "
-        "patch is a comfortable fit in a rectangle and a tight one in a "
-        "hexagon. Above a Sample area of about 64 % it reaches past the "
-        "hexagon's slanted sides into the patches next door, and the colours "
-        "come back mixed.\n\n"
-        "If you would like to try it anyway, turn on \u201cAllow hexagonal "
-        "charts in the scanner and camera tools\u201d in Preferences \u2192 "
-        "Beta. Keep the Sample area at or below 60 %, and check the result "
-        "before you trust the profile.\n\n"
+        "read and profiled successfully, and the two things that used to go "
+        "wrong have both been dealt with: ScanIn, the Argyll program that finds "
+        "the chart in your scan, is no longer asked to work out the perspective "
+        "for itself once you have placed the four corners, which is what used "
+        "to make it give up on a honeycomb; and the area read inside each patch "
+        "is now limited automatically to what fits within the hexagon, so it "
+        "cannot reach into the patches next door.\n\n"
+        "What has not been proven is finding a honeycomb chart in a scan "
+        "without your help — so the tools ask for the four corners, and the "
+        "whole thing is still switched off until you say otherwise.\n\n"
+        "To try it, turn on \u201cAllow hexagonal charts in the scanner and "
+        "camera tools\u201d in Preferences \u2192 Beta, place the four corners "
+        "yourself, and check the result before you trust the profile.\n\n"
         "Otherwise, make the chart with square patches: in Create Chart, with "
         "the SpectroScan selected, set the layout to \u201cRectangular\u201d.")
 

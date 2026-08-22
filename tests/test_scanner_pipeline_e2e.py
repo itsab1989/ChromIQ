@@ -9,7 +9,8 @@ For each target we compute the four fiducial pixels the marquee would produce,
 by parsing the ``.cht`` with ChromIQ's own :func:`workflow.cht_parser.parse_cht`
 and solving rectarg's render affine from the image's own dimensions
 (``W = 2·margin + rangeₓ·S``, ``H = 2·margin + rangeᵧ·S + footer``), feed them to
-``scanin -F -p`` exactly as the dialog does, then profile and assert a healthy
+``scanin`` through ChromIQ's own :func:`workflow.scanin_runner.scanin_args`, so
+this cannot drift from what the dialog runs, then profile and assert a healthy
 ΔE. A gross misregistration blows ΔE into the tens, so the thresholds catch it.
 
 Skipped unless ArgyllCMS binaries and the example targets are both present
@@ -31,6 +32,7 @@ from pathlib import Path
 import pytest
 
 from workflow.cht_parser import parse_cht
+from workflow.scanin_runner import scanin_args
 
 from tests.argyll_env import argyll_tool  # noqa: E402
 _SCANIN = argyll_tool("scanin")
@@ -103,15 +105,15 @@ def test_target_marquee_scanin_colprof_e2e(folder_name, max_avg_de, tmp_path):
     dpi = int(dm.group(1)) if dm else 100
     corners = _fiducial_corners(cht.read_text(errors="ignore"),
                                 qi.width(), qi.height(), dpi)
-    fstr = ",".join(f"{v:.1f}" for xy in corners for v in xy)
 
     shutil.copy(img, tmp_path / "s.tif")
     shutil.copy(cht, tmp_path / "r.cht")
     shutil.copy(ref, tmp_path / ref.name)
-    r = subprocess.run(
-        [_SCANIN, "-v", "-p", "-F", fstr, "-dipn",
-         "s.tif", "r.cht", ref.name, "d.tif"],
-        cwd=tmp_path, capture_output=True, text=True)
+    argv = scanin_args(Path("s.tif"), Path("r.cht"), Path(ref.name),
+                       corners=corners, diag=Path("d.tif"))
+    assert "-F" in argv and "-p" not in argv   # corners replace the search
+    r = subprocess.run([_SCANIN, *argv],
+                       cwd=tmp_path, capture_output=True, text=True)
     assert (tmp_path / "s.ti3").is_file(), \
         f"{folder_name}: scanin -F produced no .ti3:\n{r.stderr[-400:]}"
 

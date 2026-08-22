@@ -707,6 +707,52 @@ class SettingsDialog(QDialog):
         _beta.addLayout(_eng_row)
         _beta.addWidget(self._gammap_mode_cell)
 
+        # Hexagonal charts in the scanner / camera tools (opt-in).
+        self._scanner_hex_check = QCheckBox(
+            tr("Allow hexagonal charts in the scanner and camera tools (beta)"),
+            self)
+        scanner_hex_tip = TooltipButton(
+            tr("Hexagonal charts for scanner and camera (beta)"),
+            tr("A chart can be printed with six-sided patches instead of "
+            "squares — pick the SpectroScan in Create Chart and set the layout "
+            "to Hexagonal. They pack together like a honeycomb, so more patches "
+            "fit on a sheet, and each patch is ringed by six neighbours, which "
+            "helps when you are placing a hand-held instrument on it.\n\n"
+            "Until now the scanner and camera tools refused such a chart "
+            "outright, on the grounds that the recognition file could not "
+            "describe a hexagon. That reasoning was wrong: the recognition file "
+            "describes the little square that gets SAMPLED inside each patch, "
+            "not the shape you printed — and a hexagonal chart has been read "
+            "and turned into a working profile.\n\n"
+            "Two things are still rough, which is why this is a beta "
+            "switch.\n\n"
+            "ScanIn, the Argyll program that finds your chart in the scan, "
+            "works out how the sheet is rotated by looking for long straight "
+            "edges. A honeycomb has none running across it — only the slanted "
+            "sides of the hexagons — so it sometimes measures the rotation "
+            "badly, and occasionally gives up on the scan altogether, even "
+            "when you have placed the four corners yourself.\n\n"
+            "And the square that gets sampled is a comfortable fit inside a "
+            "rectangle but a tight one inside a hexagon. Above a Sample area of "
+            "roughly 64 % it reaches past the slanted sides into the patches "
+            "next door and the colours come back mixed. Keep Sample area at or "
+            "below 60 %.\n\n"
+            "With this off — the default — nothing changes: hexagonal charts "
+            "are turned away with an explanation, exactly as before. With it "
+            "on, they are accepted, and the alignment mesh draws each cell as "
+            "the six-sided patch it really is so you can see it sitting on the "
+            "chart. Check the profile before you trust it; if a scan is "
+            "refused, switch this back off and print the chart with square "
+            "patches instead.\n\nDefault: off"),
+            self,
+            min_width=680,
+        )
+        _hexrow = QHBoxLayout()
+        _hexrow.addWidget(self._scanner_hex_check)
+        _hexrow.addStretch()
+        _hexrow.addWidget(scanner_hex_tip)
+        _beta.addLayout(_hexrow)
+
         # Everything that used to follow here on the Beta tab moved to
         # Preferences -> Measurement (Knut + Sebastian, 2026-08-13: the
         # chart-reading engine and its companions have outgrown Beta; only
@@ -833,51 +879,6 @@ class SettingsDialog(QDialog):
         _xy_row.addWidget(engine_all_modes_tip)
         _meas.addLayout(_xy_row)
 
-        # Hexagonal charts in the scanner / camera tools (opt-in).
-        self._scanner_hex_check = QCheckBox(
-            tr("Allow hexagonal charts in the scanner and camera tools (beta)"),
-            self)
-        scanner_hex_tip = TooltipButton(
-            tr("Hexagonal charts for scanner and camera (beta)"),
-            tr("A chart can be printed with six-sided patches instead of "
-            "squares — pick the SpectroScan in Create Chart and set the layout "
-            "to Hexagonal. They pack together like a honeycomb, so more patches "
-            "fit on a sheet, and each patch is ringed by six neighbours, which "
-            "helps when you are placing a hand-held instrument on it.\n\n"
-            "Until now the scanner and camera tools refused such a chart "
-            "outright, on the grounds that the recognition file could not "
-            "describe a hexagon. That reasoning was wrong: the recognition file "
-            "describes the little square that gets SAMPLED inside each patch, "
-            "not the shape you printed — and a hexagonal chart has been read "
-            "and turned into a working profile.\n\n"
-            "Two things are still rough, which is why this is a beta "
-            "switch.\n\n"
-            "ScanIn, the Argyll program that finds your chart in the scan, "
-            "works out how the sheet is rotated by looking for long straight "
-            "edges. A honeycomb has none running across it — only the slanted "
-            "sides of the hexagons — so it sometimes measures the rotation "
-            "badly, and occasionally gives up on the scan altogether, even "
-            "when you have placed the four corners yourself.\n\n"
-            "And the square that gets sampled is a comfortable fit inside a "
-            "rectangle but a tight one inside a hexagon. Above a Sample area of "
-            "roughly 64 % it reaches past the slanted sides into the patches "
-            "next door and the colours come back mixed. Keep Sample area at or "
-            "below 60 %.\n\n"
-            "With this off — the default — nothing changes: hexagonal charts "
-            "are turned away with an explanation, exactly as before. With it "
-            "on, they are accepted, and the alignment mesh draws each cell as "
-            "the six-sided patch it really is so you can see it sitting on the "
-            "chart. Check the profile before you trust it; if a scan is "
-            "refused, switch this back off and print the chart with square "
-            "patches instead.\n\nDefault: off"),
-            self,
-            min_width=680,
-        )
-        _hexrow = QHBoxLayout()
-        _hexrow.addWidget(self._scanner_hex_check)
-        _hexrow.addStretch()
-        _hexrow.addWidget(scanner_hex_tip)
-        _meas.addLayout(_hexrow)
 
         # Patch-reading error limit (#126, Knut): the ΔE at which a just-measured
         # patch gets the red warning outline in the live split-patch preview.

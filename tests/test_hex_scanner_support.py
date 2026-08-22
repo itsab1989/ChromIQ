@@ -130,14 +130,28 @@ def test_anything_that_cannot_read_the_setting_gets_the_proven_path():
 
 def test_the_refusal_no_longer_claims_it_is_impossible(tmp_path):
     """The old text said every CHT feature was unavailable for these charts.
-    That was wrong, and it told users to rebuild the chart for no reason. The
-    new text says what is actually unsolved and where to switch it on."""
+    That was wrong, and it told users to rebuild the chart for no reason.
+
+    It then went one worse: it asked the user to "keep the Sample area at or
+    below 60 %" — advice that only appears in the message the people who are
+    NOT using the feature get, and that is now a computed cap the app applies
+    itself. A refusal may state what is unproven; it may not hand out a manual
+    workaround for something the code already handles."""
     from workflow.hex_support import hex_scanner_message
     msg = hex_scanner_message()
     low = msg.lower()
-    assert "cannot" not in low.replace("cannot work", "")
-    assert "beta" in low and "sample area" in low
-    assert "rotat" in low, "the real reason — scanin's rotation search — is missing"
+    assert "impossible" not in low and "cht format" not in low
+    assert "cannot" not in low.replace("cannot work", "").replace(
+        "cannot reach", ""), "no capability claim beyond the two known ones"
+    # The user is told where the switch is, and nothing else is asked of them.
+    assert "beta" in low and "preferences" in low
+    for workaround in ("60 %", "60%", "at or below", "keep the sample area"):
+        assert workaround not in low, (
+            f"{workaround!r}: the sample-area cap is computed and applied "
+            "(scanin_runner.hex_max_sample_fraction) — it must not be advice, "
+            "least of all advice shown only to users who cannot get here")
+    # And it says what genuinely is not proven: finding the chart unaided.
+    assert "corners" in low
     assert len(msg) > 400, "a refusal this surprising needs explaining properly"
 
 

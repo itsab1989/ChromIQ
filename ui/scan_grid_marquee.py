@@ -215,7 +215,9 @@ class GridSpec:
     # ^ True for a SpectroScan hexagonal chart: the CELLS are drawn as the
     # patch's true shape so the user can see the mesh sitting on the hexagons.
     # The SAMPLED area stays rectangular — that is what a CHT carries and what
-    # scanin reads, and it sits inside the hexagon at every patch size.
+    # scanin reads. It does NOT fit inside the hexagon at every size: the
+    # slanted sides cut the rectangle's corners off, so the dialog caps Sample
+    # area from these proportions (scanin_runner.hex_max_sample_fraction).
     exact_rects: bool = False
     # ^ True when the rects ARE the render's pixel truth (engine charts):
     #   the rectarg integer-edge rebuild must not touch them — rectarg
