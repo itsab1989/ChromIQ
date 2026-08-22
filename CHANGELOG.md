@@ -1,5 +1,26 @@
 # Changelog
 
+## v4.1.2-beta.9
+
+### Changed
+
+- **Switching tabs is no longer sluggish.** Clicking a tab used to take about a
+  quarter of a second before the tab appeared; it is now under a hundredth. The
+  cause was the thin line under the tab bar: it was drawn in the current tab's
+  colour, so every switch re-applied a stylesheet to the whole window and
+  re-drew every control in all five tabs — around 26,000 of them. That line is
+  covered by the tab bar and has never actually been visible, so it now uses one
+  colour for every tab and nothing on screen changes. The coloured accent under
+  the active tab is a different thing and is untouched.
+
+### Fixed
+
+- **The log text no longer stays bold after switching to dark mode.** It is
+  meant to be heavier in light mode and normal in dark, and the change was
+  reaching the log itself but not the surface it paints on, so switching to dark
+  left it looking bold. It was invisible until now because the next tab you
+  clicked happened to repair it.
+
 ## v4.1.2-beta.8
 
 ### Changed

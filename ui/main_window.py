@@ -410,11 +410,6 @@ class MainWindow(QMainWindow):
             self._target_bar.set_accent(color)
             self._masthead.reposition_center()
 
-        # Compute variants without broken hex-alpha (Qt reads #AARRGGBB, not #RRGGBBAA)
-        r, g, b = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
-        color_glow = f"rgba({r},{g},{b},0.33)"
-        is_light = getattr(self, "_title_bar_mode", "dark") == "light"
-        pane_bg = "#ffffff" if is_light else "#181818"
 
         self._accent_line.setStyleSheet(f"background: {color}; border: none;")
         self._refit_accent_line()
@@ -432,7 +427,7 @@ class MainWindow(QMainWindow):
         # 390 ms of pure repetition. The key is the string itself rather than the
         # tab index, because the colour follows the current tab's accent AND the
         # theme — so it cannot go stale the way an index key would.
-        pane_qss = self._compose_pane_qss(pane_bg)
+        pane_qss = self._compose_pane_qss()
         if pane_qss != getattr(self, "_pane_qss", None):
             self._pane_qss = pane_qss
             self._tabs.setStyleSheet(pane_qss)
@@ -444,7 +439,7 @@ class MainWindow(QMainWindow):
         from ui.widgets import defer_clear_button_focus
         defer_clear_button_focus(self)
 
-    def _compose_pane_qss(self, pane_bg: str | None = None) -> str:
+    def _compose_pane_qss(self) -> str:
         """The QTabWidget pane stylesheet — the SAME for every tab.
 
         It used to carry the current tab's accent in ``border-top``, which made
@@ -469,15 +464,19 @@ class MainWindow(QMainWindow):
         The rule is not simply deleted: light mode's app-wide sheet borders all
         four sides, so removing ours would put side and bottom borders back.
 
-        *pane_bg* is passed when the caller has already resolved it; otherwise it
-        follows the seeded theme. There is deliberately no *index* parameter any
-        more — a leftover positional argument would bind silently to the wrong
-        one and produce invalid QSS that nothing would notice.
+        Takes NO arguments: both colours come from the theme here, so a caller
+        cannot pass a background that disagrees with the border, and a leftover
+        positional argument cannot bind silently to the wrong parameter.
         """
         is_light = getattr(self, "_title_bar_mode", "dark") == "light"
-        if pane_bg is None:
-            pane_bg = "#ffffff" if is_light else "#181818"
-        glow = "rgba(0,0,0,0.10)" if is_light else "rgba(255,255,255,0.08)"
+        pane_bg = "#ffffff" if is_light else "#181818"
+        # MEASURED, not chosen. These are the colours that make
+        # MeasurementReportDialog agree with itself: its trend tabs inherit this
+        # sheet when the dialog is opened from the Measure tab and do not when it
+        # is opened from Tools, so any other value shows a different hairline
+        # depending on where the user came from. rgba(0,0,0,0.10) left the two
+        # entry points 2,400 px apart at dRGB 42; these give (0,0,0) from both.
+        glow = "#d0ccc6" if is_light else "#000000"
         return (
             "\n            QTabWidget::pane {\n"
             "                border: none;\n"

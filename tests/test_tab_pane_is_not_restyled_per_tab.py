@@ -79,3 +79,30 @@ def test_switching_tabs_does_not_set_the_stylesheet_again(win):
 
     win.apply_theme("light" if win._title_bar_mode == "dark" else "dark")
     assert calls, "a theme change must still re-apply the pane sheet"
+
+
+def test_the_pane_border_is_the_colour_the_report_dialog_needs(win):
+    """The one property nobody pinned, which is the one I got wrong.
+
+    `MeasurementReportDialog` is parented to the Measure tab, so its trend tabs
+    INHERIT this sheet when the dialog is opened from there — and do not when it
+    is opened from Tools. Any border colour other than these leaves the same
+    dialog showing a different hairline depending on where the user came from:
+    `rgba(0,0,0,0.10)` measured 2,400 px apart at ΔRGB 42 between the two entry
+    points. These give (0,0,0) from both.
+
+    Also pins that the rule still EXISTS and is still applied — deleting
+    `border-top`, or never applying the sheet in the constructor, was caught by
+    nothing before.
+    """
+    for mode, border, bg in (("light", "#d0ccc6", "#ffffff"),
+                             ("dark", "#000000", "#181818")):
+        win._title_bar_mode = mode
+        qss = win._compose_pane_qss()
+        assert f"border-top: 1px solid {border}" in qss, (
+            f"{mode}: the pane border must be {border}, or the measurement "
+            "report dialog disagrees with itself")
+        assert f"background: {bg}" in qss
+    # …and the constructor really applies it, so the report dialog inherits
+    # something rather than falling back to the app-wide rule.
+    assert win._tabs.styleSheet() == win._pane_qss != ""
