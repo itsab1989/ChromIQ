@@ -50,48 +50,86 @@ def tab(qapp, tmp_path):
     return TabChart(ArgyllRunner(s), FileManager(s), s)
 
 
-#: Everything a stored record can put back on screen. The first fix covered one
-#: of these; the second covered two; the review found four more.
+#: A stored record that differs from the screen in EVERY key §9a names. Each
+#: value is deliberately unequal to what the test puts on screen first — an
+#: earlier version stored `stamp: True` against a box that is already checked,
+#: so that assertion could never fail and "both mutations proven" was untrue
+#: of it.
 STORED = {
     "mode": "manual",
     "guided": {"instrument": "CM", "paper": "A4", "pages": 3},
     "engine_on": False,
-    "stamp": True,
+    "stamp": False,
     "gamut": {"count": 99},
     "engine_cal": {"path": "/somewhere/else.cal", "mode": "include"},
+    "engine_recipe": {"instrument": "CM", "paper": "A3", "area_cols": 17,
+                      "margin_left": 14.0},
 }
 
 
-def test_everything_the_build_used_survives_the_load_that_follows(tab):
-    """The user's own sequence: Guided, a different instrument and paper, build."""
+def _screen_state(tab):
+    """What §9a lists, read off the tab: module, instrument, paper, layout,
+    engine switch, its calibration, gamut count, stamp flag."""
+    panel = tab._manual_layout_panel
+    rec = panel.get_recipe()
+    cal = panel.get_cal() if hasattr(panel, "get_cal") else ("", "off")
+    return {
+        "mode": tab._mode_name(),
+        "instrument": tab._instr_combo.currentData(),
+        "paper": tab._paper_combo.currentData(),
+        "layout_cols": getattr(rec, "area_cols", None),
+        "layout_margin": getattr(rec, "margin_left", None),
+        "engine_on": bool(tab._settings.get("use_chromiq_layout_engine", True)),
+        "cal": tuple(cal) if isinstance(cal, (list, tuple)) else cal,
+        "gamut_count": tab._gamut_count_spin.value(),
+        "stamp": tab._manual_stamp_cmd_check.isChecked(),
+    }
+
+
+def _set_up_a_build(tab):
+    """Guided, SpectroScan, 4x6, with a layout and options unlike STORED."""
     tab._switch_mode("guided")
     tab._instr_combo.setCurrentIndex(tab._instr_combo.findData("SS"))
     for k in range(tab._paper_combo.count()):
         if "4x6" in str(tab._paper_combo.itemData(k) or ""):
             tab._paper_combo.setCurrentIndex(k)
             break
-    assert tab._paper_combo.currentData() == "4x6"
-    stamp_before = tab._manual_stamp_cmd_check.isChecked()
+    tab._settings.set("use_chromiq_layout_engine", True)
+    tab._manual_stamp_cmd_check.setChecked(True)
+    tab._gamut_count_spin.setValue(1234)
+    return _screen_state(tab)
+
+
+def test_everything_the_build_used_survives_the_load_that_follows(tab):
+    """§9a in full: all eight keys, each differing from what is stored."""
+    before = _set_up_a_build(tab)
+    assert before["paper"] == "4x6" and before["instrument"] == "SS"
 
     tab._layout_owned_by_build = True          # what a build in flight leaves
     tab._apply_ui_state(STORED)
+    after = _screen_state(tab)
 
-    assert tab._mode_name() == "guided", "the module changed under the user"
-    assert tab._instr_combo.currentData() == "SS", "the instrument was replaced"
-    assert tab._paper_combo.currentData() == "4x6", "the paper size was replaced"
-    assert tab._manual_stamp_cmd_check.isChecked() == stamp_before, (
-        "the stamp-on-sheet flag was replaced — and it is printed on the chart")
+    differs = [k for k in before if before[k] != after[k]]
+    assert not differs, (
+        f"the load replaced what the chart was built with: {differs}\n"
+        f"  before {[(k, before[k]) for k in differs]}\n"
+        f"  after  {[(k, after[k]) for k in differs]}")
 
 
 def test_without_a_build_the_targets_own_settings_still_load(tab):
     """The shield must not become a switch that turns per-target settings off:
     selecting a target is exactly when its stored choices are meant to arrive
     (per_target_settings.md L1-L4, F3)."""
-    tab._switch_mode("guided")
-    tab._instr_combo.setCurrentIndex(tab._instr_combo.findData("SS"))
+    _set_up_a_build(tab)
     tab._layout_owned_by_build = False
     tab._apply_ui_state(STORED)
+    after = _screen_state(tab)
 
-    assert tab._mode_name() == "manual"
-    assert tab._instr_combo.currentData() == "CM"
-    assert tab._paper_combo.currentData() == "A4"
+    assert after["mode"] == "manual"
+    assert after["instrument"] == "CM"
+    assert after["paper"] == "A4"
+    assert after["gamut_count"] == 99
+    # Not the stamp flag here: the engine recipe carries its own stamp_command
+    # and is applied after it, so on this path the box has two writers and the
+    # assertion would not say which one won. The build case above still covers
+    # it — there NOTHING may change, whichever writer would have changed it.

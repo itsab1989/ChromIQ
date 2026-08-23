@@ -250,19 +250,22 @@ def test_main_actually_calls_show_startup_warnings():
     line and no dialog at all — a quieter version of the bug being fixed, and
     exactly what a future "tidy up main()" commit produces.
 
-    The ORDER is load-bearing too: queued at 0 it lands after the
-    maximize/fullscreen restore (also singleShot(0), registered earlier, so the
-    window state is not held behind a modal) and before the welcome dialog's
-    100 ms, so "you need ArgyllCMS" is what the user reads first.
+    Both start-up windows now come out of one function, ``_open_startup_windows``
+    — which is what makes them a SEQUENCE (welcome first, modal 150 ms behind it)
+    on whichever release the fullscreen gate does or does not take.  The order
+    inside it, and the gate itself, are pinned in
+    ``test_first_launch_dialog_order.py``.
     """
     from pathlib import Path
     src = (Path(__file__).resolve().parent.parent / "main.py").read_text(
         encoding="utf-8")
-    call = "QTimer.singleShot(0, win.show_startup_warnings)"
-    welcome = "QTimer.singleShot(100, win.open_welcome_dialog)"
+    call = "QTimer.singleShot(150, win.show_startup_warnings)"
+    welcome = "win.open_welcome_dialog()"
     assert call in src, (
         "main.py no longer calls show_startup_warnings — the first-launch "
         "ArgyllCMS dialog would never be shown at all")
     assert welcome in src, "the welcome-dialog wiring moved; re-check the order below"
-    assert src.index(call) < src.index(welcome), (
-        "the ArgyllCMS warning must be queued before the welcome dialog")
+    assert src.index(welcome) < src.index(call), (
+        "the welcome dialog must be opened BEFORE the ArgyllCMS modal is "
+        "queued, or its timer fires inside the modal's event loop and takes "
+        "the keyboard from it")

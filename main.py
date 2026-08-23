@@ -291,23 +291,46 @@ def main() -> int:
         threading.Thread(target=_run, daemon=True).start()
     QTimer.singleShot(1500, _warm_font_map)
 
-    # The first-launch "ArgyllCMS not found" dialog is MODAL, and used to be
-    # opened from inside MainWindow.__init__ — i.e. before win.show() and before
-    # splash.finish(), so it came up UNDER the always-on-top splash and could not
-    # be clicked at all (Windows; only Alt+Tab reached it). It now waits until
-    # here: the window is up, the splash is gone. Queued at 0 rather than called
-    # inline so the maximize/fullscreen restore above is not held behind a modal,
-    # and before the welcome dialog's 100 ms so "you need ArgyllCMS" still comes
-    # first. (A singleShot(0) inside __init__ would NOT have been late enough —
-    # _pump() runs processEvents() and dispatches zero-timers.)
-    QTimer.singleShot(0, win.show_startup_warnings)
+    # ------------------------------------------------------------------
+    # The two start-up windows: the welcome dialog, then the "ArgyllCMS not
+    # found" modal 150 ms behind it.
+    #
+    # ORDER. The modal used to be opened from inside MainWindow.__init__ — i.e.
+    # before win.show() and before splash.finish(), so it came up UNDER the
+    # always-on-top splash and could not be clicked at all (Windows; only
+    # Alt+Tab reached it). It waits until here: the window is up, the splash is
+    # gone. It stays BEHIND the welcome dialog, because a modal opened while the
+    # welcome dialog's own timer is still pending fires that timer inside the
+    # modal's nested event loop: activateWindow() then runs on a window Qt has
+    # already blocked, NSApp.keyWindow becomes "Welcome to ChromIQ" while the
+    # modal is frontmost, and Return, Escape and Space do nothing.
+    #
+    # TIMING, on macOS with a fullscreen state to restore: NOT a fixed delay.
+    # showFullScreen() there is NATIVE fullscreen — the window is moved to a
+    # Space of its own, animated, and it is only over ~1.7 s in. A window shown
+    # before that lands on whichever Space is active meanwhile, i.e. the old
+    # one: measured, the welcome dialog stayed behind on the main Space while
+    # the window went fullscreen on its own. And a MODAL shown before that makes
+    # macOS abort the transition outright (NSWindowDidFailToEnterFullScreen):
+    # the window drops to its plain geometry while isFullScreen() still returns
+    # True, and MainWindow.closeEvent then files that lie, so the next launch
+    # repeats it. Both faults predate this branch. See core/macos_fullscreen.py.
+    def _open_startup_windows() -> None:
+        if settings.get("show_welcome_dialog", True):
+            # Non-modal (see MainWindow.open_welcome_dialog), so it never
+            # blocks the event loop.
+            win.open_welcome_dialog()
+        QTimer.singleShot(150, win.show_startup_warnings)
 
-    if settings.get("show_welcome_dialog", True):
-        # Welcome dialog is non-modal (see MainWindow.open_welcome_dialog),
-        # so it no longer blocks the event loop or preempts the maximize /
-        # fullscreen animation. A small delay still lets the main window
-        # finish its initial paint before the dialog steals focus.
-        QTimer.singleShot(100, win.open_welcome_dialog)
+    gated = False
+    if settings.get("window_fullscreen", False):
+        from core.macos_fullscreen import run_after_fullscreen_transition
+        gated = run_after_fullscreen_transition(win, _open_startup_windows)
+    if not gated:
+        # No transition to wait for (every other platform, and any window state
+        # but fullscreen). The small delay still lets the main window finish its
+        # first paint before a dialog takes the focus.
+        QTimer.singleShot(100, _open_startup_windows)
 
     log.info("Event loop starting")
     return app.exec()
