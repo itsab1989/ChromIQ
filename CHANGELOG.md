@@ -1,261 +1,91 @@
 # Changelog
 
-## v4.1.2-beta.10
+## v4.1.2
 
-### Fixed
-
-- **Dialogs opened from a tab no longer borrow that tab's colour.** The
-  measurement report, and Preferences when opened through Create Chart's "Edit
-  layout defaults", inherited the main window's tab styling — so the report's
-  trend charts showed a pink line when opened from Create Chart and a green one
-  from Measure, and in light mode those dialogs were missing the frame they have
-  everywhere else. They now look the same wherever you open them from.
-
-## v4.1.2-beta.9
+A polish release. ChromIQ starts in about half the time, tabs switch the instant
+you click them, and a long list of small frictions in Create Chart, Measure and
+the in-gamut module are gone. Nothing about how charts are made, printed,
+measured or profiled has changed.
 
 ### Changed
 
-- **Switching tabs is no longer sluggish.** Clicking a tab used to take about a
-  quarter of a second before the tab appeared; it is now under a hundredth. The
-  cause was the thin line under the tab bar: it was drawn in the current tab's
-  colour, so every switch re-applied a stylesheet to the whole window and
-  re-drew every control in all five tabs — around 26,000 of them. That line is
-  covered by the tab bar and has never actually been visible, so it now uses one
-  colour for every tab and nothing on screen changes. The coloured accent under
-  the active tab is a different thing and is untouched.
+- **The app opens in about half the time.** Roughly 5.7 seconds to a usable
+  window before, about 3.0 now. Four separate things were costing that: the
+  splash screen spent a full second inside the toolkit waiting for something
+  that never happened, four separate filters each had to look at every event the
+  app produced, the tabs were styled twice because the window was built assuming
+  dark mode before the real theme was known, and the tab strip was restyled two
+  or three times over with identical values.
+
+- **Switching tabs is no longer sluggish.** Clicking a tab took about a quarter
+  of a second before the tab appeared; it is now under a hundredth. The thin
+  line under the tab bar was drawn in the current tab's colour, so every switch
+  re-drew every control in all five tabs — around 26,000 of them.
+
+- **Patch sample area is limited to what your patches can actually give.** On a
+  chart with six-sided patches the area ChromIQ reads runs out of room sooner
+  than it does inside a square one, and the neighbouring patch is flush against
+  it — so a reading area a little too large picks up the colour next door on
+  every patch at once. ChromIQ now works the limit out from the shape of your
+  own patches instead of leaving you to guess. Square patches are unaffected.
+
+- **Guided mode says what it keeps fixed**, and no longer applies settings you
+  cannot see. Options Guided does not offer can no longer be stored by "Save as
+  Defaults", and "Patch-by-patch mode" is now available there.
+
+- **The ruler helper markers moved into Create Chart**, next to the chart they
+  belong to, with a "markers per patch" control.
 
 ### Fixed
 
-- **The log text no longer stays bold after switching to dark mode.** It is
-  meant to be heavier in light mode and normal in dark, and the change was
-  reaching the log itself but not the surface it paints on, so switching to dark
-  left it looking bold. It was invisible until now because the next tab you
-  clicked happened to repair it.
+- **Create Chart no longer loses what you built with.** Pressing Generate could
+  put the tab back into Manual with a different instrument, paper size and
+  layout — whatever that run had stored from an earlier session — moments after
+  your chart appeared. What the chart was built with now stays on screen.
 
-## v4.1.2-beta.8
+- **Reading a chart with a scanner no longer gives up on six-sided patches.**
+  When you place the four corners yourself, ChromIQ no longer asks the scanning
+  step to work the perspective out as well; it never used that answer, and on a
+  honeycomb it collapsed and took the whole scan with it. Nearly one scan in
+  four failed or hung; now none do, and every colour comes back identical.
 
-### Changed
+- **The in-gamut chart no longer offers colours your profile cannot print**, and
+  a profile that can print nothing no longer gets the largest chart. It also
+  starts from the chart you set up in Manual, and opening a run is quicker.
 
-- **The app opens in about half the time.** Roughly 5.7 seconds to a painted
-  window before, about 3.0 now, measured on the same machine. Four things were
-  costing that: the splash screen spent a full second inside Qt waiting for
-  something that never happened, the app installed four separate event filters
-  that each had to look at every event, the tab styling was thrown away and
-  redone because the window was built assuming dark mode before the real theme
-  was known, and the tab pane was restyled two or three times over with the same
-  values. Nothing about how the app behaves has changed.
-
-  If the splash misbehaves — does not appear, appears in the wrong place, or
-  will not go away — **Classic splash screen** in Preferences → Beta puts the
-  old one back, and takes effect next time you start ChromIQ. Please report it
-  as well: that is a fault worth fixing rather than living with.
-
-## v4.1.2-beta.7
-
-### Fixed
-
-- **Create Chart no longer jumps to Manual when you press Generate.** If the
-  target you were building into had different settings stored from an earlier
-  session, they were loaded back over the top the moment the chart appeared —
-  so a sheet made in Guided with your instrument and paper could leave you in
-  Manual looking at somebody else's ColorMunki on A4. What the chart was built
-  with now stays on screen, and that includes the module, the instrument, the
-  paper size, the layout, the engine switch, its calibration, the gamut count
-  and whether the command is stamped on the sheet.
+- **Your Measure settings stop changing when you switch runs.** "Don't save
+  spectral data" no longer goes missing between Guided and Manual, and settings
+  saved before this release still work.
 
 - **The chart preview no longer draws a white border twice.** Charts from the
-  layout engine carry their own paper margin, and the preview was adding its
-  own on top, so the sheet on screen looked as if it had a wider white edge
-  than it really has. The preview now measures what the image already brings
-  and adds only what is missing — charts that run right to the edge still get
-  the full border, and the soft-proof tool keeps its simulated paper white.
+  layout engine carry their own paper margin and the preview was adding another,
+  so the sheet looked as if it had a wider white edge than it has.
 
-## v4.1.2-beta.6
+- **Dialogs opened from a tab no longer borrow that tab's colour.** The
+  measurement report showed a pink trend line opened from one tab and a green one
+  from another, and in light mode those dialogs were missing the frame they have
+  everywhere else.
 
-### Fixed
+- **The log text no longer stays bold after switching to dark mode.**
 
-- **Reading a chart with a scanner no longer gives up on a honeycomb.** When you
-  place the four corners yourself, ChromIQ no longer asks ScanIn to work the
-  perspective out as well. It never used that answer — the corners you placed
-  already describe it — but the search runs first, and on a chart of hexagons it
-  collapses and takes the whole scan down with it. Nearly one scan in four
-  failed or hung; now none do, and every colour that came back before comes back
-  identical.
+- **"Show overlay from existing measurement" explains itself** when there is no
+  measurement to show.
 
-### Changed
+- **The clip border prints its ChromIQ logo and your own lines together**, and
+  its preview shows the size it will actually print.
 
-- **Patch sample area is now limited to what your patches can actually give.**
-  On a chart of hexagons the square ChromIQ reads runs out of room far sooner
-  than it does inside a square patch, and the next hexagon is flush against it —
-  so a square a little too big reads the *neighbouring* colour, on every patch at
-  once. ChromIQ now works the ceiling out from the shape of your own patches and
-  sets it for you (64 % on a typical chart), instead of leaving you to guess.
-  Charts with square patches are untouched and keep the full 80 %.
+- **On a machine without ArgyllCMS, the "not found" message is reachable and
+  correct.** It could open behind the start-up picture with no way to reach it,
+  and it gave every user macOS instructions regardless of their system.
 
-- **The hexagonal-chart notice says what is actually still unknown.** It used to
-  ask you to keep the sample area below 60 % — advice that only appeared in the
-  message shown to people who had the feature switched off, and so could never
-  reach the control it talked about. Both problems it described are now fixed in
-  the app itself; what remains unproven is finding a honeycomb chart in a scan
-  without your corners, and that is what it now says.
+### Notes
 
-### New
-
-- **A sample pack for hexagonal charts**, attached to this release
-  (`ChromIQ-hex-scanner-sample.zip`). It holds a real 12 mm honeycomb ready to
-  print, the same 150 colours as square patches to compare against, and a
-  simulated 300 dpi scan of each — so you can walk the whole scanner path with
-  no printer and no scanner, see the mesh sit on the hexagons, and watch the
-  sample area cap itself. The simulated scans contain no ink, no paper and no
-  scanner: they are there to show the tool working, not to judge a profile.
-
-
-## v4.1.2-beta.5
-
-### Fixed
-
-- **The in-gamut chart no longer offers colours your profile cannot print.**
-  The count could sit above the number of reference colours your profile
-  actually reaches — a 3000-patch chart asked for 2992 while the line
-  underneath said only 2896 could be tested. The starting number now stops at
-  what the profile can print, so the box and the line agree, and it rises again
-  by itself when you widen the margin or change the intent. A number *you* type
-  is still yours: ask for more and the line tells you what you will get.
-
-  This also covers "Auto — fill the pages", which greys the box — so it was the
-  one number you could not correct, and the one that still promised colours
-  that were not there.
-
-- **A profile that can print nothing no longer gets the largest chart.** Zero
-  printable colours was mistaken for "not worked out yet", which produced the
-  biggest suggestion of all.
-
-- **Opening a run is quicker in the in-gamut module.** It asked the colour
-  engine three times, once about a margin-and-intent combination nobody had
-  chosen, and a failed query was never remembered so every refresh asked again.
-
-## v4.1.2-beta.4
-
-### Changed
-
-- **The in-gamut chart starts from the chart you set up in Manual.** "Colours to
-  test" used to open on a stored number that had nothing to do with your
-  settings. Load a 484-patch preset and the box now reads 476, so the sheet
-  totals 484 — the eight cube corners are always added on top. It follows the
-  Manual chart as you change it, including when you pick a preset while the
-  module is open, and each run gets its own starting point instead of the one
-  from the run you just left.
-
-  It is only a starting point: a number you type is yours and is remembered as
-  *chosen*, not merely stored. One thing to expect once, though — a verification
-  run where you set the count by hand before this version carries nothing to say
-  so, so it will be re-defaulted the first time you open it. After that your
-  number stays.
-
-  "Auto — fill the pages" is unchanged and still fills the sheet, which is a
-  different number from matching your chart.
-
-## v4.1.2-beta.3
-
-### Fixed
-
-- **The clip border's ChromIQ branding prints the logo *and* your lines.** With
-  a clip-text size set, the wordmark was squeezed smaller for every millimetre
-  your text took, until it was about a millimetre tall — which looked as though
-  the branding option printed the text and nothing else. Worse, once the lines
-  were larger than the band would hold, nothing shrank them either: they were
-  printed off the edge of the band. Both are fixed. The wordmark now keeps a
-  guaranteed share of the band, your lines shrink with it only when they must,
-  and a size the band cannot hold is reduced to fit instead of running off the
-  sheet. A size that already fits is used exactly as you set it, and automatic
-  sizing is unchanged.
-
-- **The clip-border preview shows the size it will print.** The Size box had no
-  effect on the panel's preview at all, so it appeared to do nothing and its
-  effect only showed up on paper. This is why the shrunken branding above went
-  unnoticed for so long.
-
-- **Your Measure settings stop changing when you switch runs.** The Measure
-  tab's Guided and Manual modules keep some settings in step, and loading a
-  run's stored settings let one module's value overwrite the other's — so a
-  setting you had saved came back different, and the next save recorded the
-  wrong value permanently. Each module now gets its own stored value back, and a
-  run whose file only mentions one of them still settles both, instead of
-  leaving the setting from the run you just left on screen. Scan tolerance,
-  patch-by-patch, resume, bidirectional reading and warning suppression were all
-  affected.
-
-- **"Show overlay from existing measurement" now explains itself.** On a chart
-  that had never been measured, ticking it simply sprang back off without a
-  word. The window that should have appeared could never open.
-
-## v4.1.2-beta.2
-
-### Fixed
-
-- **Guided measurements no longer use settings you cannot see.** The Measure
-  tab's Guided module was applying options that had no control on screen: it
-  could switch itself to patch-by-patch reading, and it could add high-resolution
-  mode, a spectral filter, L\*a\*b\* output and XRGA correction — all picked up
-  from Manual or from a setting saved long ago. Guided now uses **only** the
-  options it shows you, and it shows what it uses.
-
-- **"Save as Defaults" can no longer store an option Guided doesn't offer.** One
-  visit to Manual followed by *Save as Defaults* in Guided used to write those
-  hidden options into your defaults, where they applied to every new project on
-  the computer.
-
-- **"Don't save spectral data" no longer goes missing between the modes.** The
-  two modules were built from two separate lists, and that option existed in only
-  one of them. They are built from one list now, so the two can never drift apart
-  again.
-
-- **Your saved measurement settings survive this change.** Runs saved by older
-  versions stored these options under their old names; those are carried over to
-  the Manual panel instead of being ignored — and, as before, nothing you saved
-  is deleted.
-
-### Changed
-
-- **"Patch-by-patch mode" is now available in Guided**, not just Manual. It is
-  the remedy ChromIQ itself suggests when strips keep failing or when a few
-  patches are left unread, so hiding it made that advice impossible to follow.
-  Tick it in either module and the other follows.
-
-- **Guided says what it keeps fixed.** A new information box at the bottom of the
-  Guided panel names the settings it leaves at their standard values and points
-  you to Manual if you need one of them — the same idea as the box in Create
-  Chart, in the Measure tab's green.
-
-## v4.1.2-beta.1
-
-### Changed
-
-- **The ruler helper markers moved into Create Chart.** The tick box and the two
-  distances now live under **Create Chart → Manual → Expert Options → "Ruler
-  helper markers"**, beside the rest of the layout, instead of under the chart
-  preview. That is where the decision belongs: the dashes are printed on the
-  sheet, and **Generate Chart** is what puts them there. The live preview still
-  draws them as you nudge the values, so you can still judge the distances while
-  looking at the chart.
-
-  Two things get better as a result. The **Measured from Preview** panel can be
-  narrow again — that row was holding it, and the whole window, to a fixed
-  minimum width. And because the markers are now ordinary layout settings, they
-  travel with a preset and a saved chart automatically, so what you see on
-  screen always matches the chart you loaded.
-
-### New
-
-- **"Markers per patch"**, in the same section. Until now every patch got three
-  dashes — one where two patches meet, one in the middle, one where the next
-  begins. You can now choose between 2 and 12. Raise it for finer steps to line
-  a ruler up against; lower it for a cleaner sheet. Every gap stays exactly the
-  same size whichever number you pick, and the dashes still follow your patch
-  spacing automatically. Existing charts and presets keep the three they had.
-
-- The three distances **grey out while the markers are switched off**, so it is
-  clear they do nothing until you tick the box.
+- Two switches are available if the new start-up behaviour ever misbehaves:
+  **Classic splash screen** in Preferences → Beta, and the environment variable
+  `CHROMIQ_SEPARATE_FILTERS=1`.
+- Hexagonal charts in the scanner and camera tools remain opt-in under
+  Preferences → Beta. A sample pack is attached to the beta releases for anyone
+  who wants to try them.
 
 ## v4.1.1
 
