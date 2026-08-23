@@ -340,15 +340,24 @@ def apply_furniture_reserves(geom, kw: dict):
 
 
 def clip_text_lines(text: "str | None") -> list[str]:
-    """Custom clip-border text split into rendered lines. INTERIOR blank lines are
-    kept — they become writing space between the lines (a hand fills in the
-    underscored fields); only leading/trailing blanks are trimmed (Knut)."""
+    """Custom clip-border text split into rendered lines — EVERY line kept.
+
+    Blank lines are writing space: a hand fills in the underscored fields, and
+    the gaps are where it writes. Interior blanks were always kept; leading and
+    trailing ones were trimmed, which Knut asked for in beta.28 and then asked
+    to have back on 2026-08-23, having found the limit in use:
+
+        *"The text field no longer allows empty line to be shown, either on
+        first line, last line or between lines. This limits how user wants to
+        present the text lines with spaces between lines. This should be allowed
+        for all Content options where text field can be used."*
+
+    So the text is now rendered as it was typed. Text that is ONLY whitespace is
+    still nothing at all — a band of blank lines is an empty band, not a tall
+    one.
+    """
     lines = (text or "").splitlines()
-    while lines and not lines[0].strip():
-        lines.pop(0)
-    while lines and not lines[-1].strip():
-        lines.pop()
-    return lines
+    return lines if any(ln.strip() for ln in lines) else []
 
 
 def render_clip_strip(mode: str, *, width_px: int, height_px: int, dpi: int,
@@ -391,13 +400,25 @@ def render_clip_strip(mode: str, *, width_px: int, height_px: int, dpi: int,
             strip.paste(logo, (cx, cy), logo)
         except Exception:  # pragma: no cover - bad/missing image falls back blank
             pass
+        # AN IMPORTED IMAGE MAY CARRY TEXT TOO (#164, Knut: *"Content option
+        # 'imported image' has text field disabled, but should allow adding
+        # text"*). Drawn over the image, the same way the branding draws its
+        # lines, so a logo can be captioned without leaving the app.
+        lines = clip_text_lines(text)
+        if lines:
+            overlay = _vtext("\n".join(lines), font_family, width_px, height_px,
+                             size_px=(text_size_mm * mm2px) if text_size_mm else 0.0)
+            strip.paste(overlay, (0, 0), overlay)
         return strip
 
     if mode == "notes":
         return _render_notes_strip(width_px, height_px, dpi, ctx, font_family)
 
     if mode == "branding":
-        extra = [ln for ln in (text or "").splitlines() if ln.strip()]
+        # …and the branding's lines are kept the same way. This one dropped
+        # blank lines ANYWHERE, interior ones included, so the wordmark's own
+        # caption could not be spaced at all (#164).
+        extra = clip_text_lines(text)
         try:
             overlay = _vwordmark(extra, width_px, height_px, font_family,
                                  extra_size_px=(text_size_mm * mm2px) if text_size_mm else 0.0,
@@ -413,9 +434,10 @@ def render_clip_strip(mode: str, *, width_px: int, height_px: int, dpi: int,
         strip.paste(overlay, (0, 0), overlay)
         return strip
 
-    # plain text → rotated text up the strip. Keep INTERIOR blank lines — they add
-    # writing space between the lines (for a hand to fill in the underscored
-    # fields); only leading/trailing blanks are trimmed (Knut).
+    # plain text → rotated text up the strip. Blank lines are writing space — for
+    # a hand to fill in the underscored fields — so every line the user typed is
+    # kept, wherever it is: first, last or between (#164; the earlier rule
+    # trimmed the leading and trailing ones, and Knut asked for them back).
     lines = clip_text_lines(text)
     if not lines:
         return strip
@@ -1364,17 +1386,38 @@ def render_pages(
 
 
 def export_clip_template(out_base: str | Path, *, width_px: int, height_px: int,
-                         width_mm: float, height_mm: float, dpi: int) -> list[Path]:
-    """Write blank clip-strip design templates at the exact clip size.
+                         width_mm: float, height_mm: float, dpi: int,
+                         content: "Image.Image | None" = None) -> list[Path]:
+    """Write the clip strip at its exact size, as ``.png`` and ``.pdf``.
 
-    Produces ``<out_base>.png`` (pixels at *dpi*) and ``<out_base>.pdf`` (sized
-    in mm) so a user can design a graphic in another tool and import it back at a
-    perfect fit.  A faint border + corner ticks + a dimension caption mark the
-    bounds and orientation; they sit on a separate guide layer so the user can
-    delete them.  Returns the written paths.
+    With *content* — the strip as the preview draws it — this is a proof of what
+    will be printed, at the real size, for any content option. Knut, #164:
+    *"The resulting files had ONLY the text for the Clip area field, and not the
+    actual text/image shown in preview … The export Template should work on any
+    of the Content options."*
+
+    Without it (the band is switched off) the file is what it has always been: a
+    BLANK canvas at the exact clip size, with a faint border, corner ticks and a
+    dimension caption, to design a graphic in another tool and import back at a
+    perfect fit. The guide marks and the caption are only drawn on that blank
+    canvas — printed over real artwork they would have to be erased again.
+
+    Returns the written paths.
     """
     base = Path(out_base).with_suffix("")
     mm2px = dpi / 25.4
+    if content is not None:
+        img = content.convert("RGB")
+        if img.size != (max(1, width_px), max(1, height_px)):
+            img = img.resize((max(1, width_px), max(1, height_px)))
+        out: list[Path] = []
+        png = base.with_suffix(".png")
+        img.save(str(png), dpi=(dpi, dpi))
+        out.append(png)
+        pdf = base.with_suffix(".pdf")
+        img.save(str(pdf), "PDF", resolution=float(dpi))
+        out.append(pdf)
+        return out
     img = Image.new("RGB", (max(1, width_px), max(1, height_px)), (255, 255, 255))
     d = ImageDraw.Draw(img)
     guide = (200, 200, 200)

@@ -186,7 +186,6 @@ def _image_draws(pdf_bytes: bytes) -> int:
 @pytest.mark.parametrize("page,orientation,margin_mm", [
     ("A4", "portrait", 15),
     ("Letter", "portrait", 15),
-    ("A4", "landscape", 15),
     ("A5", "portrait", 15),
     ("A6", "portrait", 15),
     ("A4", "portrait", 45),
@@ -231,6 +230,45 @@ def test_the_diagram_is_whole_on_any_page(qapp, tmp_path, page, orientation,
         f"times — it is being split across pages again")
 
 
+def test_landscape_fits_the_width_and_may_run_on(qapp, tmp_path):
+    """Knut's own ruling for the one case that cannot have both.
+
+    *"If the page printed or saved as pdf is landscape, then image width must
+    still be adapted, but it should be ok to let the drawing image overflow to
+    the next page, as the image is tall and would become too small if whole
+    image height would be adapted to landscape page height."*
+    """
+    from PyQt6.QtCore import QMarginsF
+    from PyQt6.QtGui import QPageLayout, QPageSize
+    from PyQt6.QtPrintSupport import QPrinter
+
+    from ui.help_card_print import printable_size_mm, render_card
+
+    wf = next(w for w in _cards() if w.get("kind") == "getting_started")
+    out = tmp_path / "landscape.pdf"
+    printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+    printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
+    printer.setOutputFileName(str(out))
+    printer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
+    printer.setPageOrientation(QPageLayout.Orientation.Landscape)
+    printer.setPageMargins(QMarginsF(15, 15, 15, 15), QPageLayout.Unit.Millimeter)
+    render_card(wf, printer)
+
+    w_mm, _h_mm = printable_size_mm(printer)
+    from PyQt6.QtGui import QTextDocument
+
+    from ui.help_card_print import card_html
+    doc = QTextDocument()
+    markup = card_html(wf, doc, width_mm=w_mm, height_mm=120.0)
+    m = re.search(r'<img[^>]*width="(\d+)"', markup)
+    assert m, "no diagram in the landscape card"
+    shown_mm = int(m.group(1)) * 25.4 / 96.0
+    assert shown_mm > w_mm * 0.95, (
+        f"landscape shrank the drawing to {shown_mm:.0f} mm on a "
+        f"{w_mm:.0f} mm page instead of fitting the width")
+    assert _image_draws(out.read_bytes()) >= 1
+
+
 def test_the_page_size_comes_from_the_printer(qapp):
     """`print_card` must ASK the printer, not assume A4 — that assumption is
     what made this an A4-only fix the first time round."""
@@ -242,8 +280,8 @@ def test_the_page_size_comes_from_the_printer(qapp):
 
     from ui import help_card_print
 
-    src = inspect.getsource(help_card_print.print_card)
-    assert "printable_size_mm" in src, "print_card never asks the printer"
+    src = inspect.getsource(help_card_print.render_card)
+    assert "device.width()" in src, "the card is not measured against the device"
 
     printer = QPrinter(QPrinter.PrinterMode.HighResolution)
     printer.setPageSize(QPageSize(QPageSize.PageSizeId.A5))

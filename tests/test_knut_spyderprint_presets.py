@@ -91,9 +91,13 @@ def test_registry_shape():
     # six engine-built Scanner charts (#100, #108, #118), and the six Red River
     # Paper vendor variants (one shared 2052-patch .ti1: i1Pro A4/Letter, and
     # ColorMunki A4/Letter in both a compact 8-page and a ruler-size 10-page cut).
-    assert len(KNUT_PRESETS) == 86
-    assert len(KNUT_PRESET_KEYS) == 86  # all keys unique
-    assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("fls_")) == 5
+    assert len(KNUT_PRESETS) == 92
+    assert len(KNUT_PRESET_KEYS) == 92  # all keys unique
+    # Four Full-layout-setup charts: the A4 495p landscape one was withdrawn at
+    # Knut's request (#164, 2026-08-23).
+    assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("fls_")) == 4
+    # …and his seven 8 mm i1Pro charts arrived in the same message.
+    assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("i1_w8_")) == 7
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("cm_")) == 45
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("p3_")) == 24
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("scanner_")) == 6
@@ -109,7 +113,7 @@ def test_fulllayout_ti1_assets_present():
     # Every Full-layout-setup chart (#63) ships its own .ti1 + recipe.json —
     # guard the bundled files.
     fls = [p for p in KNUT_PRESETS if p.slug.startswith("fls_")]
-    assert len(fls) == 5
+    assert len(fls) == 4
     for p in fls:
         assert resource_path(p.ti1_asset).is_file(), f"missing {p.ti1_asset}"
         recipe = resource_path(p.ti1_asset).parent / "recipe.json"

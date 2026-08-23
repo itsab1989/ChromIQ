@@ -223,11 +223,12 @@ def test_dropdown_lists_only_presets_with_recipe(qapp, monkeypatch):
 def test_builtin_fulllayout_recipes_appear_starred(qapp):
     d = _NewChartDialog(Path("/x"), _FakeSettings())
     starred = [n for n in d._preset_recipes if n.startswith("★")]
-    # Every built-in that ships a sidecar recipe.json: the five remaining
-    # Full-layout-setup charts (#63), the six Scanner charts (#107, #108, #118),
-    # Knut's 45 ColorMunki charts (2026-08-16) and his 24 i1Pro 3 Plus charts
-    # (2026-08-18).
-    assert len(starred) == 5 + 6 + 45 + 24
+    # Every built-in that ships a sidecar recipe.json: the four remaining
+    # Full-layout-setup charts (#63 — the 495p landscape one was withdrawn in
+    # #164), the six Scanner charts (#107, #108, #118), Knut's 45 ColorMunki
+    # charts (2026-08-16), his 24 i1Pro 3 Plus charts (2026-08-18) and his seven
+    # 8 mm i1Pro charts (#164, 2026-08-23).
+    assert len(starred) == 4 + 6 + 45 + 24 + 7
     assert sum(1 for n in starred if n.startswith("★ ColorMunki")) == 45
     assert sum(1 for n in starred if n.startswith("★ i1Pro 3 Plus")) == 24
     assert sum(1 for n in starred if "Scanner" in n) == 6

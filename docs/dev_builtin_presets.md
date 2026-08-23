@@ -59,10 +59,11 @@ colour-verified patch by patch against the bundle's own `.ti2`
 chart's exact geometry). Regenerate it with
 `python scripts/derive_prebuilt_geometry.py` after adding or replacing a bundle;
 `_create_prebuilt_target` already copies the sidecar into the run.
-A bundle whose render disagrees with its own `.ti2` (e.g. the i1Pro/A4 `tc924`
-set, whose patch V16 renders white where the `.ti2` says grey) fails
-derivation and ships **without** geometry — correct-or-absent, never guessed —
-and the underlying bundle should be regenerated.
+A bundle whose render disagrees with its own `.ti2` fails derivation and ships
+**without** geometry — correct-or-absent, never guessed — and the underlying
+bundle should be regenerated. That happened once: the i1Pro/A4 `tc924` set,
+whose patch V16 rendered white where the `.ti2` said grey. It was parked, and
+then removed outright in #164 rather than regenerated.
 
 The ten shipped presets (all RGB). Labels follow the same
 `Instrument · Paper-NNNNp-Mpages Name by Pharmacist` convention as the
@@ -71,7 +72,6 @@ these pre-rendered charts):
 
 | Label (in the dropdown)                                       | Instrument | Asset leaf |
 |---------------------------------------------------------------|------------|------------|
-| ★ i1Pro · A4-924p-2pages TC9.24 by Pharmacist                 | i1Pro      | `i1pro/a4/tc924` |
 | ★ i1Pro · A4-1110p-2pages ABW-optimized by Pharmacist         | i1Pro      | `i1pro/a4/abw1110` |
 | ★ i1Pro · A4-1160p-2pages TC9.18 extended greys by Pharmacist | i1Pro      | `i1pro/a4/tc918eg` |
 | ★ i1Pro · Letter-1160p-2pages TC9.18 extended greys by Pharmacist | i1Pro  | `i1pro/letter/tc918eg` |
@@ -114,8 +114,10 @@ overlay.
 - `_populate_preset_combo` — adds "none", then the user presets, then the
   built-ins grouped by instrument with separators (built from
   `BUILTIN_PRESET_GROUPS`, sorted by instrument name, curated order preserved
-  within a group via stable sort). Guided mode shows only the recommended
-  starter (i1Pro TC9.24).
+  within a group via stable sort). There is no Guided-mode filter — every
+  built-in is listed in both modes. (This paragraph used to claim Guided showed
+  only "the recommended starter (i1Pro TC9.24)". It never did, and that preset
+  no longer exists.)
 - `_add_builtin_preset_item` — appends a bold, tooltipped, pinned entry;
   `disabled=True` greys it out and blocks selection.
 - `_prebuilt_tooltip(paper)` — the tooltip body for a prebuilt preset.
@@ -190,8 +192,8 @@ assets/charts/<creator>/<colorspace>/<instrument>/<paper>/<target>/
     <stem>_02.tif      # only multi-page charts
 ```
 
-e.g. `assets/charts/pharmacist/rgb/i1pro/a4/tc924/tc924.{ti1,ti2}` +
-`tc924_01.tif` / `tc924_02.tif`. The stem inside the leaf folder is the
+e.g. `assets/charts/pharmacist/rgb/i1pro/a4/abw1110/abw1110.{ti1,ti2}` +
+`abw1110_01.tif` / `abw1110_02.tif`. The stem inside the leaf folder is the
 `asset_stem`'s last path component; `PREBUILT_PRESETS` stores the stem path
 without extension, so `_create_prebuilt_target` can find every file by globbing
 `<stem>_*.tif` next to `<stem>.ti1`.
@@ -435,6 +437,17 @@ name.
   `PREBUILT_PRESETS`. Nothing else references the path.
 - **Park temporarily:** add the key to `DISABLED_BUILTIN_PRESET_KEYS` — it stays
   visible but greyed-out and unselectable; remove it to re-enable.
+- **Remove for good:** nothing on disk points at a built-in — no setting, no
+  `meta.json`, no `channels.json`, no run file (a prebuilt preset COPIES its
+  bundle into the run; an engine preset writes the realised recipe). So a
+  project built from a preset survives the preset's removal, and "Restore Used
+  Chart" and a per-target restore both keep working. Delete the `*_PRESET_KEY`
+  / `*_PRESET_LABEL`, its `PREBUILT_PRESETS` (or `KNUT_PRESETS`) row, its entry
+  in `BUILTIN_PRESET_LABELS` and `BUILTIN_PRESET_GROUPS`, any
+  `DISABLED_BUILTIN_PRESET_KEYS` membership, and `git rm` the asset leaf — then
+  fix the counts in `tests/test_knut_spyderprint_presets.py` and
+  `tests/test_editor_recipe_persistence.py`, which are deliberately exact so a
+  removal cannot pass unnoticed.
 
 ### Gotchas
 
@@ -474,7 +487,10 @@ print("labels:", len(BUILTIN_PRESET_LABELS))
 # PY
 ```
 
-Run the full suite (`QT_QPA_PLATFORM=offscreen pytest`) after any change here —
-`tests/test_pharmacist_builtin_chart.py`, `tests/test_tc924_prebuilt.py` and
-`tests/test_chart_tab.py` cover the registry, the asset files, and the
-copy-into-run flow for both instruments.
+Run the full suite (`QT_QPA_PLATFORM=offscreen pytest`) after any change here.
+`tests/test_knut_spyderprint_presets.py` pins the registry's shape and every
+bundled asset; the per-family files
+(`tests/test_colormunki_builtin_presets.py`, `test_i1pro3_builtin_presets.py`,
+`test_i1pro_w8_builtin_presets.py`) check each family's shared recipe, its
+names against its patch sets, its Set B sidecars, and actually build every
+chart; `tests/test_chart_tab.py` covers the copy-into-run flow.

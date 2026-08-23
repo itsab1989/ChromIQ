@@ -163,23 +163,38 @@ def test_scanner_tooltip_mentions_scan_workflow(qapp, tmp_path):
     assert "printtarg" not in tip            # engine preset, no printtarg line
 
 
-def test_defective_i1pro_tc924_preset_is_parked(qapp, tmp_path):
-    """The i1Pro/A4 TC9.24 "by Pharmacist" chart is parked (its bundled image
-    disagrees with its reference): greyed out and unselectable, while its
-    ColorMunki A3 TC9.24 sibling stays available."""
-    from ui.tabs.tab_chart import (
-        DISABLED_BUILTIN_PRESET_KEYS, TC924_CM_A3_PRESET_KEY, TC924_PRESET_KEY)
-    assert TC924_PRESET_KEY in DISABLED_BUILTIN_PRESET_KEYS
-    assert TC924_CM_A3_PRESET_KEY not in DISABLED_BUILTIN_PRESET_KEYS
+def test_the_parking_mechanism_is_still_wired(qapp, tmp_path):
+    """Nothing is parked today, and the machinery to park something must survive
+    that.
+
+    The i1Pro/A4 "TC9.24 by Pharmacist" chart was the one entry here — its
+    bundled page image disagreed with its own .ti2 reference — and Knut asked
+    for it to be removed outright rather than parked any longer (#164,
+    2026-08-23). Deleting the LAST parked preset must not quietly take the
+    parking rule with it: a built-in whose bundle turns out to be broken is a
+    thing that happens, and the greying is how it is taken out of service
+    without unpicking its wiring.
+    """
+    import inspect
+
+    from ui.tabs.tab_chart import (DISABLED_BUILTIN_PRESET_KEYS, TabChart,
+                                   TC924_CM_A3_PRESET_KEY)
+    assert DISABLED_BUILTIN_PRESET_KEYS == frozenset()
+    src = inspect.getsource(TabChart._add_builtin_preset_item)
+    assert "temporarily unavailable" in src
+    assert "disabled" in src
+    assert "DISABLED_BUILTIN_PRESET_KEYS" in inspect.getsource(
+        TabChart._populate_preset_combo)
+
     tab, _s = _make_tab(qapp, tmp_path)
     try:
         combo = tab._preset_combo
-        i = combo.findData(TC924_PRESET_KEY)
-        assert i > 0
-        assert "temporarily unavailable" in combo.itemText(i).lower()
-        assert not combo.model().item(i).isEnabled()   # greyed out, unselectable
-        j = combo.findData(TC924_CM_A3_PRESET_KEY)      # sibling still usable
+        # …and the ColorMunki A3 TC9.24, a different chart entirely, is
+        # untouched by that removal.
+        j = combo.findData(TC924_CM_A3_PRESET_KEY)
         assert j > 0 and combo.model().item(j).isEnabled()
+        assert all("temporarily unavailable" not in combo.itemText(i).lower()
+                   for i in range(combo.count()))
     finally:
         tab.deleteLater()
 

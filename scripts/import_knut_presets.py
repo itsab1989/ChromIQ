@@ -35,7 +35,7 @@ Usage::
 
     python scripts/import_knut_presets.py <family> <export-folder> [--write]
 
-    family: cm  (ColorMunki)  |  p3  (i1Pro 3 Plus)
+    family: cm  (ColorMunki)  |  p3  (i1Pro 3 Plus)  |  i1  (i1Pro, 8 mm)
 
 Without ``--write`` it only validates and prints, so you can see what would
 change before anything is touched.
@@ -87,6 +87,15 @@ FAMILIES: dict[str, Family] = {
         instrument="p3", dest=ASSETS / "i1pro3",
         varying=frozenset({"paper", "area_cols", "area_rows"}),
         helper="_p3_preset",
+    ),
+    # The i1Pro line-up with 8 mm patches (2026-08-23). Same shape as the
+    # i1Pro 3 Plus family — one base, one grid per chart — but cut for the
+    # original i1Pro's own jig margins, and every chart on A4.
+    "i1": Family(
+        key="i1", label="i1Pro", prefix="i1Pro-", slug_prefix="i1_w8_",
+        instrument="i1", dest=ASSETS / "i1pro",
+        varying=frozenset({"paper", "area_cols", "area_rows"}),
+        helper="_i1_preset",
     ),
 }
 
@@ -206,8 +215,8 @@ def check(export: dict, ti1: Path, base: dict | None,
     return row, problems
 
 
-def normalise_recipe(editor: dict, layout: dict,
-                     fam: Family) -> tuple[dict, list[str]]:
+def normalise_recipe(editor: dict, layout: dict, fam: Family,
+                     patches: int | None = None) -> tuple[dict, list[str]]:
     """Bring the export's colour-set recipe (Set B) into line with the chart it
     actually produced (Set A), and say what had to move.
 
@@ -240,6 +249,17 @@ def normalise_recipe(editor: dict, layout: dict,
         out["paper"] = paper
     if out.get("paper_w") != round(w_mm) or out.get("paper_h") != round(h_mm):
         out["paper_w"], out["paper_h"] = round(w_mm), round(h_mm)
+
+    # …and how many patches the set is asked for. An export can carry the count
+    # of the design it was cloned FROM: one of the 8 mm i1Pro charts (#164)
+    # arrived with `fill_to: 1200` beside a 2288-patch chart, so "Load setup
+    # from preset" would have offered to regenerate it 1088 patches short. The
+    # bundled .ti1 is the authority on what this preset IS.
+    if patches is not None:
+        sp = out.setdefault("sp", {})
+        if sp.get("fill_to") != patches:
+            notes.append(f"fill_to {sp.get('fill_to')!r} → {patches!r}")
+            sp["fill_to"] = patches
 
     lo = out.setdefault("layout", {})
     lo["h"] = layout.get("cm_density") == 2          # ColorMunki double density
@@ -326,7 +346,7 @@ def main() -> int:
     corrected = 0
     for r in rows:
         r["recipe"], r["notes"] = normalise_recipe(r["editor_recipe"],
-                                                   r["layout_recipe"], fam)
+                                                   r["layout_recipe"], fam, r["patches"])
         if r["notes"]:
             corrected += 1
             print(f"  · {r['slug']}: {'; '.join(r['notes'])}")

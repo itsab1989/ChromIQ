@@ -392,8 +392,16 @@ def _rows():
     ]
 
 
-def file_guide_html() -> str:
-    """Rich-text (HTML) table for the Welcome/Help card (Knut)."""
+def file_guide_html(tree_text_width: int = 62) -> str:
+    """Rich-text (HTML) table for the Welcome/Help card (Knut).
+
+    *tree_text_width* is how many characters of explanation each row of the
+    folder diagram carries before it wraps. The default suits the Help card and
+    an A4 page alike; a page NARROWER than that (A5, A6) asks for fewer, because
+    the diagram is a ``<pre>`` and cannot reflow — past the page edge it is
+    simply cut off, which is what happened to the right-hand column of every row
+    before the printed document was paginated properly (#164, Knut).
+    """
     def esc(s: str) -> str:
         return html.escape(s)
 
@@ -416,7 +424,7 @@ def file_guide_html() -> str:
     parts.append(
         f"<pre style=\"font-family:{_MONO}; font-size:12px; margin:2px 0 0; "
         f"line-height:100%\">"
-        + esc("\n".join(tree_lines()))
+        + esc("\n".join(tree_lines(tree_text_width)))
         + "</pre>")
 
     # Section 2 — "Files Relating to Features": what each feature reads/writes.

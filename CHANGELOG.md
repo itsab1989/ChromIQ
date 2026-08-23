@@ -1,5 +1,139 @@
 # Changelog
 
+## v4.1.3-beta.2
+
+Knut's second batch, and it turned out to be one fault wearing several hats: the
+printed Help cards were never being paginated, so almost everything he reported
+about them had the same cause. Plus his seven new i1Pro charts, two withdrawals,
+and the full translation pass.
+
+### Fixed
+
+- **Printed Help cards were laid out for a page ChromIQ never asked for.** The
+  document was handed a text width instead of a PAGE, which sends Qt down a
+  different path: it re-lays the card at the PRINTER's resolution and adds a
+  2 cm margin of its own. Three of the reports follow from that single line.
+  Every card printed into a 140 mm column on a 180 mm page. The folder guide's
+  section headings and its whole directory tree came out as an unreadable
+  smudge, because the cards are written in pixels and a pixel meant something
+  different on a 720 dpi printer than on a 96 dpi screen — which is also why the
+  same bug looked different to different testers. And the workflow diagram was
+  clipped at the right edge and printed again on the next page.
+
+- **Bullets and numbered lists printed as one continuous block.** Two causes,
+  both now fixed. Qt's rich-text engine accepts a margin in pixels and silently
+  ignores one in points, so a stylesheet written in points has no spacing at
+  all — no blank line above a heading, no gap between list items, no indent
+  under a dictionary term. And a card whose body is plain text (the CMYK+N one)
+  was being pasted into HTML, where newlines simply vanish.
+
+- **The steps named the wrong tab.** "Print an existing test chart" told you to
+  go to Measure. The table of tab names was numbered from zero with four
+  entries; the steps are numbered from one across five.
+
+- **"Save as PDF" offered "Untitled.pdf".** ChromIQ now asks for the file name
+  itself, with the card's own title filled in.
+
+- **The Help window dropped behind the main window** after the print or save
+  panel closed, so you had to reopen Help to get back to the card.
+
+- **The ruler-marker warning was drawn on top of the strip labels and the
+  dashes.** It now sits below the sheet, outside the page, centred — in a band
+  reserved before the page is scaled, because the frame around a sheet that
+  carries its own white margin can be zero pixels wide. Its wording is Knut's.
+
+- **Keyboard shortcuts were spelled in macOS symbols everywhere.** ⌘1 is Ctrl+1
+  on Windows and Linux, and the card now says whichever is true where you are
+  reading it.
+
+- **Blank lines in the clip-border text were dropped** at the first and last
+  line. They are writing space, and they are all kept now, for every content
+  option that takes text.
+
+- **"Export template" wrote only the strip's measurements**, never the content
+  you could see in the preview. It now exports what the preview shows for any
+  content option; with the band switched off it still writes the blank,
+  exact-size design canvas that button was made for.
+
+### New
+
+- **Every printed page carries the ChromIQ wordmark and the five-segment
+  spectrum bar**, the card's name from page two on, and a page number centred on
+  the page rather than tucked into the corner.
+
+- **The printing rules Knut asked for**: a blank line above every heading, no
+  heading stranded at the foot of a page away from its text, no table row cut in
+  half by a page break, and a table that spans pages repeating its header row at
+  the top of each one. They live in a module the Measurement Report shares, so
+  it can adopt them next; today the report uses only the whole-table rule it
+  already had.
+
+- **Print… now shows a preview** before the system print dialog, which on macOS
+  shows none of its own.
+
+- **Seven new i1Pro charts** on A4 with 8 mm patches — 156, 312, 572, 1,144,
+  1,716, 2,288 and 2,860 patches, one 22 × 26 grid, 572 to a sheet. Knut's own
+  i1Pro charts are now listed in ascending order within their block, like the
+  ColorMunki and i1Pro 3 Plus ones.
+
+- **"Imported image" can carry text too.** Only the Notes box fills itself in,
+  so only the Notes box switches the Text field off.
+
+- **The strings this work added are translated in all twelve languages** — 40
+  of them, with no English placeholders among them. (The catalogues as a whole
+  are not finished: each language still carries roughly 25 long strings from
+  earlier work that read as English. Those are on the list for GA.)
+
+### Changed
+
+- **Two built-in charts were withdrawn** at Knut's request: the i1Pro
+  A4-495p-1page-Landscape, and the i1Pro A4 "TC9.24 by Pharmacist" that had been
+  parked since its bundled page disagreed with its own reference. Nothing on
+  disk points at a built-in preset, so **a project built from either one still
+  opens, still reloads and still restores its used chart** — only the dropdown
+  rows are gone. The ColorMunki A3 TC9.24 is a different chart and stays.
+
+- **The clip band's fit and move fields now apply to the ChromIQ branding as
+  well as to an imported image**, and they are the same stored fields — so a
+  preset that carried an image placement applies that placement to branding too.
+
+- The clip area reported in Preferences follows the paper of the recipe loaded
+  there instead of always reporting A4.
+
+- **Blank lines you typed into the clip-border text are now printed as you typed
+  them.** A saved preset or recipe whose text begins or ends with blank lines
+  will print a taller band than it did in beta.1. No bundled chart is affected —
+  every built-in's clip text is four lines with no blanks.
+- **"Imported image" now honours the clip Font and Size** as well as the Text.
+- **The chart preview shrinks a little** while the marker controls differ from
+  the sheet on screen, to make room for the caption underneath it.
+- **No built-in preset is parked any more.** The greying mechanism stays; it
+  simply has nothing in it.
+- **Print… opens a preview**, not the system print dialog, and saving a copy is
+  now its own button beside it.
+- **The i1Pro preset list is in a different order**, so entries you knew by
+  position have moved.
+
+### Known
+
+- The seven new i1Pro charts are laid out with a **6 mm right margin**, while
+  ChromIQ's own i1Pro seed asks for 9 mm — their other three margins match it
+  exactly. They ship exactly as Knut authored them, so the Measured-from-Preview
+  panel will flag the right edge on all seven until it is decided which of the
+  two numbers should move.
+
+### Internal
+
+- `paginate_tables` moved from the Measurement Report into a shared
+  `ui/pdf_layout.py`; the report keeps its behaviour and its tests.
+- One of the seven imported presets carried a colour-set sidecar claiming 1,200
+  patches beside a 2,288-patch chart — "Load setup from preset" would have
+  offered to regenerate it 1,088 patches short. The importer now re-points the
+  patch count as well as the instrument and paper, and a test pins it.
+- `docs/dev_builtin_presets.md` gained the missing procedure for removing a
+  built-in for good, and lost a false claim that Guided mode depends on one
+  particular preset plus two citations of test files that do not exist.
+
 ## v4.1.3-beta.1
 
 Knut's 2026-08-23 batch. The ruler helper markers turn out to have been right on

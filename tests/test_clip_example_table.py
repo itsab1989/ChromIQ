@@ -175,12 +175,20 @@ def test_clip_flip_180_persists_and_flips_render(app):
     assert np.array_equal(a1, a0[::-1, ::-1])         # …by exactly 180°
 
 
-def test_clip_text_keeps_interior_blank_lines():
-    """Blank lines between text lines survive (writing space for hand-filled
-    fields); leading/trailing blanks are trimmed (Knut beta.28)."""
+def test_clip_text_keeps_every_blank_line():
+    """Blank lines are writing space, wherever they are — first, last or
+    between.
+
+    They were writing space between the lines from beta.28, and leading and
+    trailing ones were trimmed. Knut asked for those back on 2026-08-23, having
+    hit the limit in use: *"The text field no longer allows empty line to be
+    shown, either on first line, last line or between lines. This limits how
+    user wants to present the text lines."* Text that is only whitespace is
+    still nothing — an empty band, not a tall one.
+    """
     from workflow.layout_engine.raster import clip_text_lines
     assert clip_text_lines("date: ___\n \nprinter: ___") == \
         ["date: ___", " ", "printer: ___"]
-    assert clip_text_lines("\n\nA\n\nB\n\n") == ["A", "", "B"]
+    assert clip_text_lines("\n\nA\n\nB\n\n") == ["", "", "A", "", "B", ""]
     assert clip_text_lines("   \n  ") == []
     assert clip_text_lines(None) == []

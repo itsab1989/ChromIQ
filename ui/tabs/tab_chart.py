@@ -216,8 +216,6 @@ MUNKI_TARGEN = {
 # orientation, which Knut's names carry, aren't stored for these pre-rendered
 # charts, so they're omitted here.) The *_KEY is the stable identity — labels can
 # change freely, keys must not.
-TC924_PRESET_KEY = "__chromiq_tc924_builtin__"
-TC924_PRESET_LABEL = "★  i1Pro · A4-924p-2pages TC9.24 by Pharmacist  ·  built-in"
 ABW1110_PRESET_KEY = "__chromiq_abw1110_builtin__"
 ABW1110_PRESET_LABEL = "★  i1Pro · A4-1110p-2pages ABW-optimized by Pharmacist  ·  built-in"
 # TC9.18 extended-greys 1160-patch target, in A4 and US-Letter layouts. Same
@@ -254,7 +252,6 @@ EXT1944_LETTER_PRESET_LABEL = "★  i1Pro · Letter-1944p-3pages extended target
 # the "additional text" tail). It's only the prompt's suggested default — the
 # user can edit it freely.
 PREBUILT_PRESETS = {
-    TC924_PRESET_KEY:          ("assets/charts/pharmacist/rgb/i1pro/a4/tc924/tc924",            "i1Pro-A4-924p-2pages-TC9.24 by Pharmacist"),
     ABW1110_PRESET_KEY:        ("assets/charts/pharmacist/rgb/i1pro/a4/abw1110/abw1110",        "i1Pro-A4-1110p-2pages-ABW-optimized by Pharmacist"),
     TC918EG_A4_PRESET_KEY:     ("assets/charts/pharmacist/rgb/i1pro/a4/tc918eg/tc918eg",        "i1Pro-A4-1160p-2pages-TC9.18 extended greys by Pharmacist"),
     TC918EG_LETTER_PRESET_KEY: ("assets/charts/pharmacist/rgb/i1pro/letter/tc918eg/tc918eg",    "i1Pro-Letter-1160p-2pages-TC9.18 extended greys by Pharmacist"),
@@ -300,6 +297,8 @@ _KNUT_I1, _KNUT_CM = "i1", "CM"
 # (printtarg -r off, no fixed -R seed).
 KNUT_FLS_SUFFIX = " · Full layout setup"
 _KNUT_FLS_DIR = "assets/charts/knut/rgb/fulllayout"
+#: Knut's 8 mm i1Pro family (#164) — its own leaf, like the other families.
+_I1_W8_DIR = "assets/charts/knut/rgb/i1pro"
 
 # Knut's Scanner family (#100): engine-built charts for flatbed-scanner printer
 # profiling. One shared LayoutRecipe (his exported preset, verbatim) — only the
@@ -722,6 +721,89 @@ def _cm_preset(slug: str, name: str, paper: str, cols: int, rows: int,
     )
 
 
+# ---------------------------------------------------------------------------
+# Knut's i1Pro family with 8 mm patches (#164, 2026-08-23)
+# ---------------------------------------------------------------------------
+# Imported with scripts/import_knut_presets.py, which checks every chart of the
+# family against this base and reports anything that differs outside the grid —
+# so a reviewer can see that these seven charts differ in the sheet and the
+# 22 x 26 grid alone. His own words: *"They are all 8.0mm wide patches. So a
+# tiny bit larger than some of the others, 572 patches per sheet as basis."*
+# (Measured on the built page: 8.13 mm.)
+#
+# NOTE — the right margin is 6.0 mm, and ChromIQ's own i1Pro seed asks for 9.0
+# (core/settings.py `_I1_PRIMARY`). These are Knut's charts and his number is
+# kept exactly as he made them; the Measured-from-Preview panel will therefore
+# flag the right edge on all seven until he says which of the two should move.
+_I1_BASE: dict = {
+    # device + patch grid
+    "instrument": "i1", "cm_density": 1, "cm_stagger": False, "hflag": False,
+    "dpi": 200, "bit16": False, "compression": "lzw", "export_pdf": False,
+    # layout — area first by grid, exactly as the other two families
+    "layout_mode": "area_first", "area_method": "by_grid", "area_ratio": 1.0,
+    "area_min_patch_mm": 0.0, "patch_w_mm": 0.0, "patch_h_mm": 0.0,
+    "patch_area_align": "center-left", "pscale": 1.0, "sscale": 0.8,
+    "border": 6.0, "nolimit": True,
+    # margins — the i1Pro jig set (see core/settings.py _I1_PRIMARY)
+    "use_instrument_margins": False, "margin_top": 38.0, "margin_right": 6.0,
+    "margin_bottom": 19.0, "margin_left": 26.0,
+    # spacers
+    "spacer_on": True, "spacer_mode": "colored", "spacer_palette": [],
+    "spacer_overrides": {}, "edge_spacers": True, "spacer_width_mm": 0.0,
+    "inter_patch_mm": 0.0, "strip_gap_mm": 0.0, "max_strip_mm": 0.0,
+    "strip_indicator_gap_mm": 0.0, "offset_x_mm": 0.0, "offset_y_mm": 0.0,
+    # patch order
+    "randomize": True, "seed": None, "strip_pattern": "A-Z, A-Z",
+    "patch_pattern": "0-9,@-9,@-9;1-999",
+    # strip indicators
+    "show_strip_indicators": True, "indicator_font": "JetBrains Mono",
+    "indicator_size_mm": 4.23, "indicator_bold": False,
+    "indicator_italic": False, "indicator_rotation": 0,
+    "indicator_align": "left", "strip_label_offset_mm": 0.0,
+    "underline_mode": "off", "underline_thickness_mm": 0.5,
+    "underline_gap_mm": 0.5,
+    # sheet text
+    "chart_text": "", "chart_text_font": "Inter", "chart_text_size_mm": 0.0,
+    "chart_text_bold": False, "chart_text_italic": False,
+    "stamp_command": False, "text_edge_mm": 4.0, "text_edge_top_mm": 8.0,
+    "text_edge_clip_mm": 4.0,
+    # ruler helper markers
+    "helper_markers": False, "helper_marker_edge_mm": 4.0,
+    "helper_marker_len_mm": 2.0, "helper_marker_per_patch": 3,
+    "helper_markers_top_bottom": True, "helper_markers_sides": False,
+    # clip border
+    "clip_border": True, "clip_border_width_mm": 26.0, "clip_side": "left",
+    "clip_content_mode": "notes", "clip_text": "", "clip_text_font": "Inter",
+    "clip_text_size_mm": 3.53, "clip_image_path": "",
+    "clip_image_rotation": 0, "clip_image_scale": 100.0,
+    "clip_image_offset_x_mm": 0.0, "clip_image_offset_y_mm": 0.0,
+    "clip_flip_180": False,
+}
+
+
+def _i1_preset(slug: str, name: str, paper: str, cols: int, rows: int,
+               patches: int, pages: int, white: int, black: int) -> "_Ti1Preset":
+    """One chart of Knut's 8 mm i1Pro family (see _I1_BASE above).
+
+    Built exactly like :func:`_p3_preset`: only the sheet and the grid are this
+    chart's own, everything else comes from the shared base. ``suffix=""`` and
+    the default group put the target name out as ``i1Pro-A4-572p-1page-Portrait
+    -w8.0mm`` — the name he gave the chart, unchanged — and file the rows under
+    the existing i1Pro heading.
+    """
+    return _Ti1Preset(
+        slug, name, _KNUT_I1, paper,
+        1.0,        # printtarg -a: unused, the engine lays this family out
+        6,          # printtarg -m: likewise unused (margins live in the recipe)
+        pages,
+        ti1_asset=f"{_I1_W8_DIR}/{slug}/chart.ti1",
+        patches=patches, white=white, black=black,
+        tiff_16bit=False, suffix="",
+        layout_recipe=dict(_I1_BASE, paper=paper, area_cols=cols,
+                           area_rows=rows),
+    )
+
+
 def _p3_preset(slug: str, name: str, paper: str, cols: int, rows: int,
                patches: int, pages: int, white: int, black: int) -> "_Ti1Preset":
     """One chart of Knut's i1Pro 3 Plus family (see _P3_BASE above).
@@ -984,21 +1066,39 @@ KNUT_PRESETS: list[_Ti1Preset] = [
     # i1Pro A4 portrait family — reworked by Knut (#88) to keep the i1Pro clip
     # border (no -L) and honour the strip-length limit (no -P), with patch
     # widths baked into the names. The 960p landscape preset was retired.
-    _Ti1Preset("fls_i1pro_a4_1200p_3pages_portrait", "A4-1200p-3pages-Portrait-w8.5mm" + KNUT_FLS_SUFFIX,
-               _KNUT_I1, "A4", 1.05, 10, 3,
-               ti1_asset=f"{_KNUT_FLS_DIR}/fls_i1pro_a4_1200p_3pages_portrait/chart.ti1", patches=1200, white=9, black=8, no_strip_limit=False, suppress_left_clip=False, tiff_16bit=False, suffix=KNUT_FLS_SUFFIX, engine=True),
+    _i1_preset("i1_w8_a4_156p_1page_portrait_w8_0mm",
+               "A4-156p-1page-Portrait-w8.0mm",
+               "A4", 22, 26, 156, 1, 1, 1),
+    _i1_preset("i1_w8_a4_312p_1page_portrait_w8_0mm",
+               "A4-312p-1page-Portrait-w8.0mm",
+               "A4", 22, 26, 312, 1, 1, 1),
     _Ti1Preset("fls_i1pro_a4_484p_1page_portrait", "A4-484p-1page-Portrait-w7.5mm" + KNUT_FLS_SUFFIX,
                _KNUT_I1, "A4", 0.96, 10, 1,
                ti1_asset=f"{_KNUT_FLS_DIR}/fls_i1pro_a4_484p_1page_portrait/chart.ti1", patches=484, white=9, black=8, no_strip_limit=False, suppress_left_clip=False, tiff_16bit=False, suffix=KNUT_FLS_SUFFIX, engine=True),
-    _Ti1Preset("fls_i1pro_a4_495p_1page_landscape", "A4-495p-1page-Landscape" + KNUT_FLS_SUFFIX,
-               _KNUT_I1, "A4R", 1.03, 10, 1,
-               ti1_asset=f"{_KNUT_FLS_DIR}/fls_i1pro_a4_495p_1page_landscape/chart.ti1", patches=495, no_strip_limit=True, suppress_left_clip=True, tiff_16bit=False, suffix=KNUT_FLS_SUFFIX, engine=True),
+    _i1_preset("i1_w8_a4_572p_1page_portrait_w8_0mm",
+               "A4-572p-1page-Portrait-w8.0mm",
+               "A4", 22, 26, 572, 1, 2, 2),
     _Ti1Preset("fls_i1pro_a4_924p_2pages_portrait", "A4-924p-2pages-Portrait-w7.5mm" + KNUT_FLS_SUFFIX,
                _KNUT_I1, "A4", 0.98, 10, 2,
                ti1_asset=f"{_KNUT_FLS_DIR}/fls_i1pro_a4_924p_2pages_portrait/chart.ti1", patches=924, white=9, black=8, no_strip_limit=False, suppress_left_clip=False, tiff_16bit=False, suffix=KNUT_FLS_SUFFIX),
     _Ti1Preset("fls_i1pro_a4_924p_2pages_portrait_nature_focus", "A4-924p-2pages-Portrait-w7.5mm-Nature Focus" + KNUT_FLS_SUFFIX,
                _KNUT_I1, "A4", 0.98, 10, 2,
                ti1_asset=f"{_KNUT_FLS_DIR}/fls_i1pro_a4_924p_2pages_portrait_nature_focus/chart.ti1", patches=924, white=9, black=8, no_strip_limit=False, suppress_left_clip=False, tiff_16bit=False, suffix=KNUT_FLS_SUFFIX),
+    _i1_preset("i1_w8_a4_1144p_2pages_portrait_w8_0mm",
+               "A4-1144p-2pages-Portrait-w8.0mm",
+               "A4", 22, 26, 1144, 2, 2, 2),
+    _Ti1Preset("fls_i1pro_a4_1200p_3pages_portrait", "A4-1200p-3pages-Portrait-w8.5mm" + KNUT_FLS_SUFFIX,
+               _KNUT_I1, "A4", 1.05, 10, 3,
+               ti1_asset=f"{_KNUT_FLS_DIR}/fls_i1pro_a4_1200p_3pages_portrait/chart.ti1", patches=1200, white=9, black=8, no_strip_limit=False, suppress_left_clip=False, tiff_16bit=False, suffix=KNUT_FLS_SUFFIX, engine=True),
+    _i1_preset("i1_w8_a4_1716p_3pages_portrait_w8_0mm",
+               "A4-1716p-3pages-Portrait-w8.0mm",
+               "A4", 22, 26, 1716, 3, 2, 2),
+    _i1_preset("i1_w8_a4_2288p_4pages_portrait_w8_0mm",
+               "A4-2288p-4pages-Portrait-w8.0mm",
+               "A4", 22, 26, 2288, 4, 2, 2),
+    _i1_preset("i1_w8_a4_2860p_5pages_portrait_w8_0mm",
+               "A4-2860p-5pages-Portrait-w8.0mm",
+               "A4", 22, 26, 2860, 5, 2, 2),
 
     # Scanner family (#100) — Knut's flatbed-scanner printer-profiling charts.
     # Engine-built (the layout_recipe drives the ChromIQ layout engine, not
@@ -1257,19 +1357,24 @@ def builtin_recipe_choices() -> dict[str, dict]:
 
 
 # Built-in presets can be parked here (shown greyed-out, non-selectable) pending
-# a fix from their author. The i1Pro/A4 TC9.24 chart is parked: its bundled page
-# image disagrees with its own .ti2 reference (one patch renders white where the
-# reference says grey), so both printing it and deriving scanner geometry from it
-# are unsafe — it returns once the bundle is regenerated. Its sibling ColorMunki
-# A3 TC9.24 (TC924_CM_A3_PRESET_KEY) is fine and stays available.
-DISABLED_BUILTIN_PRESET_KEYS = frozenset({TC924_PRESET_KEY})
+# a fix from their author.
+#
+# EMPTY, AND STAYING. Nothing is parked today — the one preset that was
+# (the i1Pro/A4 "TC9.24 by Pharmacist", parked because its bundled page image
+# disagreed with its own .ti2 reference) was removed outright at Knut's request
+# (#164, 2026-08-23) rather than waiting for a regenerated bundle. Its sibling
+# ColorMunki A3 TC9.24 is a different chart and stays available. The mechanism
+# itself is the documented way to take a built-in out of service without
+# deleting its wiring, so it keeps its constant, its `disabled=` plumbing and
+# its selection guard.
+DISABLED_BUILTIN_PRESET_KEYS: frozenset = frozenset()
 
 # Every built-in (non-deletable) preset key — all four are prebuilt-files. Used
 # to protect them from the delete button and to keep disk presets from shadowing
 # them.
 BUILTIN_PRESET_KEYS = frozenset(PREBUILT_PRESETS) | KNUT_PRESET_KEYS
 BUILTIN_PRESET_LABELS = frozenset({
-    TC924_PRESET_LABEL, ABW1110_PRESET_LABEL,
+    ABW1110_PRESET_LABEL,
     TC918EG_A4_PRESET_LABEL, TC918EG_LETTER_PRESET_LABEL,
     TC300_PRESET_LABEL, ABW702_PRESET_LABEL,
     TC924_CM_A3_PRESET_LABEL, TC918EG_CM_A3_PRESET_LABEL,
@@ -1309,7 +1414,6 @@ BUILTIN_PRESET_GROUPS: list[tuple[str, list[tuple[str, str, str]]]] = [
     ]),
     (_group_heading("i1Pro"), [
         # A4 first (ascending patch count), then US-Letter — keep paper grouped.
-        (TC924_PRESET_LABEL,   "A4-924p-2pages TC9.24 by Pharmacist",          TC924_PRESET_KEY),
         (ABW1110_PRESET_LABEL, "A4-1110p-2pages ABW-optimized by Pharmacist",  ABW1110_PRESET_KEY),
         (TC918EG_A4_PRESET_LABEL,     "A4-1160p-2pages TC9.18 extended greys by Pharmacist",     TC918EG_A4_PRESET_KEY),
         (EXT1944_A4_PRESET_LABEL,     "A4-1944p-3pages extended target by Pharmacist",     EXT1944_A4_PRESET_KEY),

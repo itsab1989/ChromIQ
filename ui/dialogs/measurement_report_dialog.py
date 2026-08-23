@@ -166,81 +166,11 @@ def _is_raw_drift(r: dict) -> bool:
                 and (r.get("printing") or {}).get("colour") == "raw")
 
 
-def _paginate_tables(doc, body_h: float) -> None:
-    """Keep whole tables on one page (Knut #PDF4), heading included.
-
-    Qt ignores CSS page-break-inside, but honours a frame's page-break policy,
-    so each table straddling a page boundary is nudged onto the next page
-    (topmost first, re-laying-out until none split). A pushed table must take
-    its heading along — breaking only the table left "Worst patches" alone at
-    the bottom of one page with its rows on the next (Sebastian, 2026-08-10) —
-    so the break goes on the single non-empty block sitting directly above the
-    table when that block would otherwise stay behind; if the straddle
-    survives the next pass, the table itself gets the break too. Tables taller
-    than a page can't be helped and are left to flow.
-    """
-    from PyQt6.QtGui import QTextCursor, QTextFormat, QTextTable
-
-    always = QTextFormat.PageBreakFlag.PageBreak_AlwaysBefore
-
-    def _straddling_tables():
-        lay = doc.documentLayout()
-        found = []
-        stack = [doc.rootFrame()]
-        while stack:
-            for ch in stack.pop().childFrames():
-                stack.append(ch)
-                if isinstance(ch, QTextTable):
-                    r = lay.frameBoundingRect(ch)
-                    if (r.height() < body_h - 1
-                            and int(r.top() // body_h)
-                            != int((r.bottom() - 1) // body_h)):
-                        found.append((r.top(), ch))
-        found.sort(key=lambda t: t[0])
-        return [t for _, t in found]
-
-    def _push_to_next_page(table) -> None:
-        lay = doc.documentLayout()
-        block = doc.findBlock(table.firstPosition() - 1)
-        # The spacer lines of the gap batch (2026-08-13) are whitespace-only
-        # blocks sitting between a heading and its table; without skipping
-        # them the "take the heading along" rule below would see only the
-        # spacer and leave the heading behind — the exact orphan this
-        # function exists to prevent. Walk up past pure-whitespace blocks;
-        # the same_page/close checks still decide whether what we find is
-        # really attached.
-        while (block.isValid() and not block.text().strip()
-               and doc.findBlock(block.position() - 1).isValid()):
-            prev = doc.findBlock(block.position() - 1)
-            if prev == block:
-                break
-            block = prev
-        # Never a block inside another table: two stacked tables are joined
-        # by an empty separator, and walking past it must not split the
-        # table above — fall through to breaking this table instead.
-        if block.isValid() and QTextCursor(block).currentTable() is not None:
-            block = doc.findBlock(-1)             # invalid → fallback below
-        if block.isValid() and block.text().strip():
-            t_top = lay.frameBoundingRect(table).top()
-            b_rect = lay.blockBoundingRect(block)
-            same_page = int(b_rect.top() // body_h) == int(t_top // body_h)
-            close = t_top - b_rect.bottom() < 24
-            if same_page and close \
-                    and not block.blockFormat().pageBreakPolicy() & always:
-                bf = block.blockFormat()
-                bf.setPageBreakPolicy(always)
-                cur = QTextCursor(block)
-                cur.setBlockFormat(bf)
-                return
-        fmt = table.frameFormat()
-        fmt.setPageBreakPolicy(always)
-        table.setFrameFormat(fmt)
-
-    for _ in range(400):
-        straddlers = _straddling_tables()
-        if not straddlers:
-            break
-        _push_to_next_page(straddlers[0])
+# The table/heading pagination moved to ui/pdf_layout.py in #164, so the printed
+# Help cards obey the same rules rather than growing a second copy of them. Kept
+# under its old name here: this module's own callers, and its tests, know it by
+# that name and the behaviour is unchanged.
+from ui.pdf_layout import paginate_tables as _paginate_tables  # noqa: E402
 
 
 class _TrendChart(QWidget):

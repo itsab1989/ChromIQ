@@ -23,26 +23,61 @@ def keyboard_card_title() -> str:
 
 
 def keyboard_card_subtitle() -> str:
-    return tr("Every keyboard shortcut in ChromIQ, listed alphabetically.")
+    # TRUTHFUL, not tidy. The card carries two tables: the application
+    # shortcuts, sorted alphabetically by what they do, and the measuring keys,
+    # which are in the order you use them. Knut read the old subtitle as a
+    # promise about both and found the second one unsorted (#164) — sorting it
+    # would scatter the reading sequence, so the sentence is what changes.
+    return tr("Every keyboard shortcut in ChromIQ: the general ones "
+              "alphabetically, then the measuring keys in the order you use "
+              "them.")
+
+
+def keys(spec: str) -> str:
+    """A shortcut written the way THIS platform writes it.
+
+    The card used to spell every shortcut with the macOS glyphs — ⌘1, ⌘⇧Z —
+    which is simply wrong on Windows and Linux, where the same binding is
+    Ctrl+1 and Ctrl+Shift+Z (#164, Knut: *"make sure symbols used for macOS is
+    shown correctly for Linux or Windows"*). The bindings themselves are
+    declared as ``Ctrl+…`` in ui/main_window.py; Qt already knows how to say
+    that in the local idiom, so it is asked rather than second-guessed.
+    """
+    from PyQt6.QtGui import QKeySequence
+    return QKeySequence(spec).toString(QKeySequence.SequenceFormat.NativeText)
 
 
 def _shortcuts() -> list[tuple[str, str]]:
     """(keys, what-it-does) — the second field is what the list is sorted by."""
     return [
-        ("⌘1 … ⌘5",
+        (f"{keys('Ctrl+1')} … {keys('Ctrl+5')}",
          tr("Go to a tab (1 Create Chart · 2 Print Chart · 3 Measure · "
             "4 Build Profile · 5 Check & Refine)")),
         ("← / →", tr("Move between tabs (when the tab strip has focus — e.g. "
-                     "right after ⌘1–5)")),
-        ("F1  ·  ⌘?", tr("Open Help (this window)")),
-        ("⌘,", tr("Open Preferences (Settings)")),
-        ("⌘T", tr("Open the Tools menu")),
-        ("⌘⇧Z  ·  ⌘Y", tr("Redo — in the chart layout editor")),
-        ("⌘⏎",
+                     "right after {first}–{last})").format(
+                         first=keys("Ctrl+1"), last=keys("Ctrl+5"))),
+        (f"F1  ·  {keys('Ctrl+?')}", tr("Open Help (this window)")),
+        (keys("Ctrl+,"), tr("Open Preferences (Settings)")),
+        (keys("Ctrl+T"), tr("Open the Tools menu")),
+        (f"{keys('Ctrl+Shift+Z')}  ·  {keys('Ctrl+Y')}",
+         tr("Redo — in the chart layout editor")),
+        (keys("Ctrl+Return"),
          tr("Run the current tab's main action (Generate · Print · "
             "Measure · Build · Check)")),
-        ("⌘Z", tr("Undo — in the chart layout editor")),
+        (keys("Ctrl+Z"), tr("Undo — in the chart layout editor")),
     ]
+
+
+def _modifier_note() -> str:
+    """Name the modifier key in the platform's own words, or say nothing.
+
+    macOS spells it with a symbol that wants explaining; Windows and Linux
+    spell it "Ctrl", which does not.
+    """
+    import sys
+    if sys.platform == "darwin":
+        return tr("On macOS ⌘ is the Command key.")
+    return ""
 
 
 def _measurement_note() -> str:
@@ -130,7 +165,7 @@ def keyboard_shortcuts_html() -> str:
 
     parts = [
         f"<p>{esc(tr('Shortcuts for getting around ChromIQ with the keyboard. '))}"
-        f"{esc(tr('On macOS ⌘ is the Command key.'))}</p>",
+        f"{esc(_modifier_note())}</p>",
         "<p style='font-size:5px; margin:0'>&nbsp;</p>",
         "<table cellspacing='0' cellpadding='4' width='100%' "
         "style='border-collapse:collapse'>",

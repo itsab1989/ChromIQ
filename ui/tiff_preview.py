@@ -10,8 +10,8 @@ from typing import Optional
 from PIL import Image
 from PyQt6 import sip
 from PyQt6.QtCore import QPoint, QPointF, QRect, QRectF, QSize, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import (QColor, QFont, QImage, QPainter, QPainterPath,
-                         QPixmap, qGray)
+from PyQt6.QtGui import (QColor, QFont, QFontMetricsF, QImage, QPainter,
+                         QPainterPath, QPixmap, qGray)
 from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -2186,10 +2186,19 @@ class TiffPreview(QWidget):
         B = self._border_px(_fit * min(self._pixmap.width(), self._pixmap.height()))
         self._paint_border = B
 
+        # RESERVE THE CAPTION BAND BEFORE SCALING, don't hope for one.
+        #
+        # The proposal caption used to be drawn ON the sheet, over the strip
+        # labels and the dashes themselves — *"the preview is disrupted for
+        # user"* (Knut, #164). It belongs outside the page, and the only way to
+        # be sure there is room is to take the room first: the frame around the
+        # page can legitimately be 0 px wide (`_border_px` gives back nothing
+        # when the sheet already carries its own white margin).
+        cap_h = self._pending_caption_band() if self._helper_markers_pending else 0
         # Scale to device pixels so the preview is sharp on HiDPI/Retina displays
         avail = QSize(
             max(1, int((label_size.width()  - 2 * B) * dpr)),
-            max(1, int((label_size.height() - 2 * B) * dpr)),
+            max(1, int((label_size.height() - 2 * B - cap_h) * dpr)),
         )
         scaled = self._pixmap.scaled(
             avail,
@@ -2198,9 +2207,15 @@ class TiffPreview(QWidget):
         )
         scaled.setDevicePixelRatio(dpr)
 
-        # Canvas at device pixel dimensions; DPR tells Qt the logical display size
+        # Canvas at device pixel dimensions; DPR tells Qt the logical display size.
+        # The caption band is ADDED here as well as taken out of the scaling
+        # budget above: reserving it in one place only made the sheet smaller
+        # without making the canvas taller, so the caption was drawn past the
+        # bottom edge and sliced — descenders first, and the whole thing once
+        # the frame `B` is 0, which it is for a sheet that carries its own white
+        # margin (#164).
         canvas = QPixmap(scaled.width() + int(2 * B * dpr),
-                         scaled.height() + int(2 * B * dpr))
+                         scaled.height() + int((2 * B + cap_h) * dpr))
         canvas.setDevicePixelRatio(dpr)
         canvas.fill(self._frame_color)
 
@@ -2266,6 +2281,10 @@ class TiffPreview(QWidget):
         if self._helper_markers or self._helper_markers_pending:
             self._draw_helper_markers(
                 painter, B, scaled.width() / dpr, scaled.height() / dpr)
+        if self._helper_markers_pending and cap_h:
+            self._draw_pending_marker_caption(
+                painter, B, scaled.width() / dpr,
+                B + scaled.height() / dpr, cap_h)
 
         # #126 engine overlays (split patches, hover outline, legend)
         self._draw_cq_overlay(painter,
@@ -2854,36 +2873,43 @@ class TiffPreview(QWidget):
             painter.setPen(line)
             painter.drawLine(seg)
 
-        if pending:
-            self._draw_pending_marker_caption(painter, border, disp_w)
 
-    def _draw_pending_marker_caption(self, painter: QPainter, border: float,
-                                     disp_w: float) -> None:
-        """Name the accent-coloured dashes, so nobody has to guess (#164).
+    def _pending_caption_band(self) -> float:
+        """Height to keep free UNDER the sheet for the proposal caption."""
+        fm = QFontMetricsF(self._caption_font())
+        return fm.height() + 10.0
 
-        Two things it has to get right. It must say which case this is — dashes
-        that are not on the sheet yet, or NO dashes on the next sheet, which is
-        what unticking both edges means and is the one the printed comb on
-        screen contradicts most flatly. And it must fit the pane it is drawn in:
-        a caption clipped mid-word (*"t on this sheet yet — press Gene"*) is
-        worse than none, so it shortens, then elides, rather than overflowing.
+    def _caption_font(self) -> QFont:
+        f = QFont(self.font())
+        f.setPointSizeF(max(9.0, f.pointSizeF()))
+        f.setBold(True)
+        return f
+
+    def _draw_pending_marker_caption(self, painter: QPainter, left: float,
+                                     page_w: float, top: float,
+                                     band_h: float) -> None:
+        """Say what the accent-coloured dashes are — BELOW the sheet (#164).
+
+        It used to be drawn inside the page, where it covered the strip labels
+        and the dashes it was describing: *"the preview is disrupted for
+        user"*. Outside the page it can never hide anything, and centred on the
+        page width it reads as a caption of the sheet rather than a sticker on
+        it. The band it sits in is reserved before the page is scaled, so it is
+        always there to draw into.
         """
-        font = QFont(painter.font())
-        font.setPointSizeF(max(9.0, font.pointSizeF()))
-        font.setBold(True)
-        painter.setFont(font)
+        painter.save()
+        painter.setFont(self._caption_font())
         fm = painter.fontMetrics()
-        avail = max(24.0, disp_w - 16.0)
-        text = self._pending_caption_text(fm, avail)
-        w = min(fm.horizontalAdvance(text) + 16, avail)
-        h = fm.height() + 8
-        box = QRectF(border + 8, border + 8, w, h)
+        text = self._pending_caption_text(fm, max(24.0, page_w - 8.0))
+        w = min(fm.horizontalAdvance(text) + 16, max(24.0, page_w))
+        box = QRectF(left + (page_w - w) / 2.0, top + 3.0, w, band_h - 6.0)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QColor(255, 255, 255, 235))
         painter.drawRoundedRect(box, 4.0, 4.0)
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.setPen(QColor(SPEC_MAGENTA))
         painter.drawText(box, int(Qt.AlignmentFlag.AlignCenter), text)
+        painter.restore()
 
     def _pending_caption_text(self, fm, avail: float) -> str:
         """The caption to draw in *avail* pixels: the full sentence, a short
@@ -2897,9 +2923,10 @@ class TiffPreview(QWidget):
         """
         long_text = (tr("Markers not on this sheet yet — press Generate Chart")
                      if self._helper_markers else
-                     tr("No markers on the next sheet — press Generate Chart"))
+                     tr("No markers will be shown — select at least one edge "
+                        "to show"))
         short_text = (tr("Not on this sheet yet") if self._helper_markers
-                      else tr("No markers next time"))
+                      else tr("Select at least one edge"))
         if fm.horizontalAdvance(long_text) + 16 <= avail:
             return long_text
         if fm.horizontalAdvance(short_text) + 16 <= avail:

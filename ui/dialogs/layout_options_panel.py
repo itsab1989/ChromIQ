@@ -1866,8 +1866,11 @@ class LayoutOptionsPanel(QWidget):
         mode = self.clip_content_mode.currentData()
         # The "notes" design is fixed (auto-filled from the chart) so it ignores
         # the free Text field, but still honours the Font choice for its body.
-        custom_text = mode in ("text", "branding")
-        font_modes = mode in ("text", "branding", "notes")
+        # Every mode that can carry words has the Text field live. Only the
+        # Notes box fills itself in, so only the Notes box switches it off
+        # (#164, Knut: *"Only Notes box shall have the text field disabled"*).
+        custom_text = mode in ("text", "branding", "image")
+        font_modes = mode in ("text", "branding", "notes", "image")
         self.clip_text.setEnabled(custom_text)
         self.clip_insert_btn.setEnabled(custom_text)
         # …and grey its LABEL with it. A live-looking "Text:" over a dead box is
@@ -2478,9 +2481,29 @@ class LayoutOptionsPanel(QWidget):
             start_path=str(_P.home() / "clip-template"))
         if not base:
             return
+        w_px, h_px = round(w_mm * dpi / 25.4), round(h_mm * dpi / 25.4)
+        # EXPORT WHAT THE PREVIEW SHOWS. The export used to write a blank design
+        # canvas whatever the content was, so Knut's branding-plus-text came out
+        # as a bare strip carrying only its own measurements (#164). Rendered
+        # here through the same call the preview uses, at the real print size —
+        # with the band switched off it still writes the blank canvas, which is
+        # the case that canvas was made for.
+        content = None
+        if self.clip_content_mode.currentData() != "off":
+            content = raster.render_clip_strip(
+                self.clip_content_mode.currentData(),
+                width_px=w_px, height_px=h_px, dpi=dpi,
+                text=self._resolve_sample(self.clip_text.toPlainText()),
+                font_family=self.clip_text_font.currentData() or "Inter",
+                image_path=self.clip_image_path.text().strip(),
+                image_rotation=self.clip_image_rotation.value(),
+                image_scale=self.clip_image_scale.value(),
+                image_offset_x_mm=self.clip_image_offx.value(),
+                image_offset_y_mm=self.clip_image_offy.value(),
+                text_size_mm=pt_to_mm(self.clip_text_size.value()))
         paths = raster.export_clip_template(
-            base, width_px=round(w_mm * dpi / 25.4), height_px=round(h_mm * dpi / 25.4),
-            width_mm=w_mm, height_mm=h_mm, dpi=dpi)
+            base, width_px=w_px, height_px=h_px,
+            width_mm=w_mm, height_mm=h_mm, dpi=dpi, content=content)
         QMessageBox.information(
             self, tr("Clip template exported"),
             tr("Wrote:\n{files}").format(files="\n".join(str(p) for p in paths)))

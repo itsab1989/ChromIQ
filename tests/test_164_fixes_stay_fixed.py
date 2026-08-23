@@ -111,37 +111,87 @@ def test_the_overlay_matches_what_the_renderer_actually_drew(qapp, tmp_path):
 
 # --- an empty proposal is still a proposal ----------------------------------
 
-def _painted_pixels(prev, lines, pending):
-    """Non-white pixels the overlay puts on a white canvas."""
+def _grab(prev):
+    """The widget's pixels, as a copy."""
     import numpy as np
-    from PyQt6.QtGui import QImage, QPainter
-
-    img = QImage(420, 300, QImage.Format.Format_RGB32)
-    img.fill(0xFFFFFFFF)
-    prev.set_helper_markers(lines, pending=pending)
-    p = QPainter(img)
-    prev._draw_helper_markers(p, 0.0, 420.0, 300.0)
-    p.end()
+    img = prev.grab().toImage()
+    w, h = img.width(), img.height()
     buf = img.constBits()
     buf.setsize(img.sizeInBytes())
-    arr = np.array(np.frombuffer(buf, np.uint8).reshape(
-        300, img.bytesPerLine() // 4, 4)[:, :420, :3], dtype=int)
-    return int((arr.min(axis=2) < 240).sum())
+    return np.array(np.frombuffer(buf, np.uint8).reshape(
+        h, img.bytesPerLine() // 4, 4)[:, :w, :3], dtype=int)
 
 
-def test_no_dashes_at_all_is_the_loudest_proposal(qapp):
-    """Untick both edges and the proposal IS "nothing" — the case the sheet's
-    own printed dashes contradict most flatly, because they are still on screen.
-    The flag was being gated on there being lines to draw, which threw it away
-    exactly then."""
+def _accent_rows(arr):
+    """Which rows carry accent-coloured ink (B, G, R byte order)."""
+    import numpy as np
+    b, g, r = arr[..., 0], arr[..., 1], arr[..., 2]
+    return np.where((((r - g) > 60) & (r > 150) & (b > g)).any(axis=1))[0]
+
+
+def _page_rows(arr, tone=160):
+    """Which rows carry the SHEET.
+
+    The test page is printed in a flat mid-grey rather than white so it can be
+    told apart from the preview's own surround — in an offscreen grab both are
+    otherwise pale, and a white-vs-white test cannot see the difference between
+    "on the page" and "beside it", which is the whole question here.
+    """
+    import numpy as np
+    near = (np.abs(arr - tone).max(axis=2) < 24)
+    return np.where(near.sum(axis=1) > arr.shape[1] * 0.3)[0]
+
+
+def test_the_caption_is_drawn_outside_the_sheet(qapp, tmp_path):
+    """Knut: *"The red text … is written on top of strip labels and the marker
+    dash-lines, thus the preview is disrupted for user. Move the warning text to
+    be shown above or below whole page, outside page edges."*
+
+    Below the page, centred on its width — and the band it needs is reserved
+    before the page is scaled, because the frame around a sheet that already
+    carries its own white margin can be zero pixels wide.
+    """
+    from PIL import Image
+
     from ui.tiff_preview import TiffPreview
 
+    page = tmp_path / "page.tif"
+    Image.new("RGB", (600, 850), (160, 160, 160)).save(page, dpi=(150, 150))
     prev = TiffPreview()
-    assert _painted_pixels(prev, [], pending=True) > 0, (
-        "an empty proposal drew nothing — the user is not told the next chart "
-        "will have no markers")
-    assert _painted_pixels(prev, [], pending=False) == 0, (
-        "something was drawn when there was nothing to say")
+    prev.resize(500, 700)
+    prev.load_tiff([page])
+    prev.show()
+    qapp.processEvents()
+
+    prev.set_helper_markers([(0.05, 0.5, 0.12, 0.5)], pending=True)
+    qapp.processEvents()
+    arr = _grab(prev)
+    rows = _accent_rows(arr)
+    assert len(rows), "no proposal caption was drawn at all"
+
+    sheet = _page_rows(arr)
+    assert len(sheet), "the sheet was not found in the preview"
+    # The caption's own ink is the LOWEST accent ink, and it must sit below the
+    # bottom of the sheet — not over the patches or the strip labels.
+    assert rows.max() > sheet.max(), (
+        f"the caption ends at row {rows.max()} but the sheet ends at "
+        f"{sheet.max()} — it is being drawn on the page")
+    # …AND IT IS WHOLE. The band was reserved out of the SCALING budget but never
+    # added to the canvas, so the caption was drawn past the canvas edge and
+    # sliced — descenders first, and all of it once the frame around the sheet
+    # is 0 px, which it is for a sheet carrying its own white margin. Asserting
+    # only "below the sheet" stayed true the whole time it was being cut off,
+    # because the canvas is centred and the surviving ink still sat well above
+    # the widget's own bottom. Measure the caption's own HEIGHT instead —
+    # measured both ways: 12 rows of accent ink when the caption is whole, 8
+    # when the band is missing from the canvas and the bottom third is sliced.
+    band = prev._pending_caption_band()
+    caption_rows = [r for r in rows if r > sheet.max()]
+    assert len(caption_rows) >= 2
+    height = caption_rows[-1] - caption_rows[0] + 1
+    assert height >= 11, (
+        f"the caption is only {height} rows tall in a {band:.0f} px band — it "
+        f"is being clipped at the bottom of the canvas")
 
 
 def test_the_repaint_reaches_the_caption_with_no_lines(qapp, tmp_path):
@@ -166,25 +216,15 @@ def test_the_repaint_reaches_the_caption_with_no_lines(qapp, tmp_path):
     prev.show()
     qapp.processEvents()          # …or the widget has nothing painted to grab
 
-    def accent_pixels() -> int:
-        img = prev.grab().toImage()
-        w, h = img.width(), img.height()
-        buf = img.constBits()
-        buf.setsize(img.sizeInBytes())
-        a = np.array(np.frombuffer(buf, np.uint8).reshape(
-            h, img.bytesPerLine() // 4, 4)[:, :w, :3], dtype=int)
-        b, g, r = a[..., 0], a[..., 1], a[..., 2]
-        return int((((r - g) > 60) & (r > 150) & (b > g)).sum())
-
     prev.set_helper_markers([], pending=False)
     qapp.processEvents()
-    quiet = accent_pixels()
+    quiet = int(len(_accent_rows(_grab(prev))))
     prev.set_helper_markers([], pending=True)
     qapp.processEvents()
-    loud = accent_pixels()
-    assert loud > quiet + 50, (
+    loud = int(len(_accent_rows(_grab(prev))))
+    assert loud > quiet, (
         f"an empty proposal painted nothing on a real page ({quiet} → {loud} "
-        f"accent pixels)")
+        f"rows of accent ink)")
 
 
 def test_the_caption_says_which_kind_of_proposal_it_is(qapp):

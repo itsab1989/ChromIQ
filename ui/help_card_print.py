@@ -31,44 +31,70 @@ on paper, and the dark theme's own palette would print as a solid black sheet.
 from __future__ import annotations
 
 import html
+import re
 from typing import Any
+
+from PyQt6.QtCore import QSizeF
 
 from core.i18n import tr
 from core.logger import get_logger
+from ui.pdf_layout import (draw_colour_line, draw_wordmark,
+                           render_paged)
 from core.version import APP_VERSION
 
 log = get_logger(__name__)
 
 #: Print styling. Set on the QTextDocument, so it applies to every card kind.
 _PRINT_CSS = """
+/* SIZES IN pt, SPACING IN px.
+   Qt's rich-text engine parses a font size in points and IGNORES a margin in
+   points — `margin-top: 14pt` is silently zero, as are cm and pt paddings
+   (measured). Every space in this sheet was therefore doing nothing: no blank
+   line above a heading, no gap between list items, no indent on a definition —
+   which is most of what Knut reported as bullets printing "as one continuous
+   block of messy text". Pixels are what the layout engine accepts, and the
+   document is laid out at 96 dpi, so 1 px is 1/96 inch on paper whatever the
+   printer's resolution. */
 body { font-family: -apple-system, "Segoe UI", "Helvetica Neue", sans-serif;
        color: #000000; font-size: 10.5pt; }
-h1   { font-size: 19pt; margin: 0 0 2pt 0; }
-p.sub{ font-size: 10pt; color: #444444; margin: 0 0 14pt 0; }
-h2, h3 { font-size: 12pt; margin: 14pt 0 4pt 0; }
+h1   { font-size: 19pt; margin: 0 0 3px 0; }
+p.sub{ font-size: 10pt; color: #444444; margin: 0 0 18px 0; }
+h2, h3 { font-size: 12pt; margin: 18px 0 6px 0; }
 table{ border-collapse: collapse; width: 100%; }
-td, th { border: 1px solid #999999; padding: 3pt 5pt;
-         vertical-align: top; font-size: 10pt; }
+td, th { border: 1px solid #999999; vertical-align: top; font-size: 10pt; }
 th   { background: #eeeeee; }
-dt   { font-weight: bold; margin-top: 7pt; }
-dd   { margin: 0 0 0 14pt; }
-ol   { margin-left: 14pt; }
-li   { margin-bottom: 5pt; }
-p.foot { color: #666666; font-size: 8.5pt; margin-top: 16pt; }
+dt   { font-weight: bold; margin: 14px 0 2px 0; }
+dd   { margin: 0 0 4px 18px; }
+ol, ul { margin-left: 18px; }
+li   { margin-bottom: 10px; }
+p.foot { color: #666666; font-size: 8.5pt; margin-top: 20px; }
 """
-
 #: The tab a step belongs to, for the printed step list. The dialog shows this
 #: as a coloured badge; on paper it is the tab's name in front of the step.
-_TAB_NAMES = ("Create Chart", "Measure", "Build Profile", "Check & Refine")
+#:
+#: KEYED BY THE NUMBER THE STEP CARRIES, WHICH IS THE NUMBER ON THE TAB.
+#: The step tuples hold 1-5, matching the tab strip's own "1. Create Chart" …
+#: "5. Check & Refine" (ui/main_window.py). The first version of this table was
+#: a 0-based tuple of four names with Print Chart missing, so every printed step
+#: named a different tab from the one it means — "Print an existing test chart"
+#: told the reader to go to Measure to print (#164, Basti).
+_TAB_NAMES = {
+    1: "Create Chart",
+    2: "Print Chart",
+    3: "Measure",
+    4: "Build Profile",
+    5: "Check & Refine",
+}
 
 
 def _tab_name(idx: Any) -> str:
     """The tab's name, translated — a printed card is read in the user's own
     language, and these were the one thing on the page that stayed English."""
     try:
-        return tr(_TAB_NAMES[int(idx)])
-    except (TypeError, ValueError, IndexError):
+        name = _TAB_NAMES.get(int(idx))
+    except (TypeError, ValueError):
         return ""
+    return tr(name) if name else ""
 
 
 #: Fallback page size, in millimetres — A4 less a 15 mm margin each side. Used
@@ -80,8 +106,17 @@ _PAGE_HEIGHT_MM = 225.0
 _PX_PER_MM = 96.0 / 25.4
 _PAGE_WIDTH_PX = int(_PAGE_WIDTH_MM * _PX_PER_MM)
 _PAGE_HEIGHT_PX = int(_PAGE_HEIGHT_MM * _PX_PER_MM)
-#: Share of the printable height a single picture may take. See _diagram_html.
-_DIAGRAM_HEIGHT_HEADROOM = 0.80
+#: Height of the printed header band (wordmark + spectrum bar) and of the
+#: footer band (the centred page number), in 96-dpi pixels: 34 px is 9 mm.
+_HEADER_H = 34.0
+_FOOTER_H = 22.0
+#: Room left for a figure's own paragraph spacing, in 96-dpi pixels.
+_FIGURE_ALLOWANCE_PX = 28.0
+#: Width of one character of the folder diagram on paper, in mm. The <pre> is
+#: 12 px (ui/file_guide.py) and a 96-dpi pixel is 25.4/96 mm, so a character of
+#: Menlo — whose advance is 0.6 em — is 12 x 0.6 x 25.4/96 = 1.905 mm. Only used
+#: to keep the diagram inside a NARROW page; on A4 it never binds.
+_TREE_CHAR_MM = 1.905
 
 
 def _diagram_html(doc, width_px: int = _PAGE_WIDTH_PX, lang: str = "en",
@@ -123,15 +158,21 @@ def _diagram_html(doc, width_px: int = _PAGE_WIDTH_PX, lang: str = "en",
         # workflow diagram lost its whole right-hand column and printed twice.
         # So the placement is solved against the page, and only the BITMAP is
         # oversampled — 3x — so it still prints crisply.
-        # HEADROOM, MEASURED. A picture the exact height of the printable area
-        # is still split across two pages — it is placed in the text flow, so it
-        # has to fit what is LEFT of a page, and the paragraph's own spacing eats
-        # into that. Printing this card to A4, Letter, A4-landscape, A5, A6 and
-        # A4-with-45 mm-margins: at 1.00 and 0.92 of the height every size split
-        # it; at 0.85 only A6 still did; at 0.80 none of them do.
+        # PORTRAIT fits both directions, so the whole drawing lands on one
+        # page. LANDSCAPE fits the width only and is allowed to run on, which is
+        # Knut's own ruling: *"it should be ok to let the drawing image overflow
+        # to the next page, as the image is tall and would become too small if
+        # whole image height would be adapted to landscape page height."*
         ratio = size.height() / size.width()
-        usable_h = height_px * _DIAGRAM_HEIGHT_HEADROOM
-        shown_w = max(1, min(width_px, int(usable_h / ratio)))
+        portrait = height_px >= width_px
+        # A little off the height: the picture sits in a paragraph of its own,
+        # and that paragraph's spacing counts against the page as much as the
+        # picture does. Sized to the FULL body height it overflows by those few
+        # pixels and is split after all — measured, with its tail landing on the
+        # next page over the header.
+        usable_h = height_px - _FIGURE_ALLOWANCE_PX
+        shown_w = max(1, min(width_px, int(usable_h / ratio)) if portrait
+                      else width_px)
         shown_h = max(1, round(shown_w * ratio))
         draw_px = shown_w * 3
         img = QImage(draw_px, max(1, round(draw_px * ratio)),
@@ -153,6 +194,39 @@ def _diagram_html(doc, width_px: int = _PAGE_WIDTH_PX, lang: str = "en",
     except Exception:      # noqa: BLE001 — the rest of the card still prints
         log.debug("could not embed the workflow diagram", exc_info=True)
         return ""
+
+
+#: A tag opener is enough to tell markup from prose — the same question Qt's own
+#: `mightBeRichText` answers, which PyQt6 does not expose. Anchored on a real tag
+#: name followed by a delimiter, so prose like "a < b and c > d" is not mistaken
+#: for markup.
+_TAG_RE = re.compile(r"<(p|div|table|tr|td|th|ul|ol|li|br|b|i|h[1-6]|span|pre)"
+                     r"(\s|>|/>)", re.I)
+
+
+def _as_html(text: str) -> str:
+    """Prose → HTML that keeps the shape the author gave it.
+
+    A card body that is plain text (the CMYK+N card is written that way, and
+    every step's text can be) was being pasted straight into the page, where
+    HTML throws newlines away: numbered items and bullets ran together into one
+    grey block, and the blank lines between them vanished (#164, Knut). Blank
+    lines become paragraph breaks and single newlines become line breaks, so
+    print matches what the card shows on screen.
+
+    Markup is passed through untouched — there the newlines really are just
+    formatting whitespace.
+    """
+    if _TAG_RE.search(text):
+        return text
+    paras = [p for p in re.split(r"\n\s*\n", text)]
+    out = []
+    for para in paras:
+        if not para.strip():
+            continue
+        out.append("<p>" + "<br>".join(html.escape(ln) for ln in
+                                       para.split("\n")) + "</p>")
+    return "".join(out)
 
 
 def card_html(wf: dict, doc=None, lang: str = "en",
@@ -178,8 +252,14 @@ def card_html(wf: dict, doc=None, lang: str = "en",
                          f"<dd>{html.escape(definition)}</dd>")
         parts.append("</dl>")
     elif kind == "files":
-        from ui.file_guide import file_guide_html
-        parts.append(file_guide_html())
+        from ui.file_guide import file_guide_html, tree_lines, tree_text_column
+        # The folder diagram is a <pre>: it cannot reflow, so on a page narrower
+        # than the Help card it would simply be cut off at the edge. Ask the
+        # guide for a text column that fits. On A4 and anything wider this comes
+        # out at the card's own 62 characters and nothing changes.
+        chars = max(24, min(62, int(width_mm / _TREE_CHAR_MM)
+                            - tree_text_column()))
+        parts.append(file_guide_html(chars))
     elif kind == "shortcuts":
         from ui.keyboard_help import keyboard_shortcuts_html
         parts.append(keyboard_shortcuts_html())
@@ -195,7 +275,7 @@ def card_html(wf: dict, doc=None, lang: str = "en",
                     doc, width_px=max(1, int(width_mm * _PX_PER_MM)), lang=lang,
                     height_px=max(1, int(height_mm * _PX_PER_MM))))
     elif kind == "richtext":
-        parts.append(str(wf.get("body") or ""))
+        parts.append(_as_html(str(wf.get("body") or "")))
     else:
         # Numbered steps. The badge is a tab number on screen; on paper the tab
         # is named, because a printed sheet has no coloured tabs to point at.
@@ -206,7 +286,10 @@ def card_html(wf: dict, doc=None, lang: str = "en",
             name = _tab_name(tab)
             lead = f"<b>{html.escape(name)}</b> — " if name else ""
             tail = f" <i>({tr('optional')})</i>" if optional else ""
-            parts.append(f"<li>{lead}{html.escape(str(text))}{tail}</li>")
+            # …and the step's own text may carry its own paragraphs and lists.
+            body_html = _as_html(str(text))
+            body_html = re.sub(r"^<p>|</p>$", "", body_html)   # first para inline
+            parts.append(f"<li>{lead}{body_html}{tail}</li>")
         parts.append("</ol>")
 
     parts.append('<p class="foot">'
@@ -233,8 +316,43 @@ def build_document(wf: dict, width_mm: float = _PAGE_WIDTH_MM, lang: str = "en",
     doc.setDefaultStyleSheet(_PRINT_CSS)
     doc.setHtml(card_html(wf, doc, lang=lang, width_mm=width_mm,
                           height_mm=height_mm))
-    doc.setTextWidth(width_mm * _PX_PER_MM)
+    # setPageSize, NOT setTextWidth.
+    #
+    # A document with only a text width is UNPAGINATED, and `QTextDocument.print`
+    # then takes a different path: it clones the document, lays it out again at
+    # the PRINTER's resolution, and adds a 2 cm margin of its own to the root
+    # frame. Two faults follow, and they are the ones Knut and Basti reported.
+    # Every card printed into a 140 mm column inside the 180 mm page we had
+    # asked for. And `px` font sizes — which the cards are written in — were
+    # resolved against the printer's dots instead of the screen's, so the folder
+    # guide's headings and its whole directory tree came out as an unreadable
+    # smudge, by a factor that changes with the printer's resolution (worse on
+    # this 720 dpi Mac than on a 300 dpi Windows driver, which is why it looked
+    # like a different bug to different people).
+    #
+    # Giving the document a PAGE makes it paginate itself, at 96 dpi, in the
+    # space we actually have — and `print` then just paints the pages.
+    doc.setPageSize(QSizeF(width_mm * _PX_PER_MM, height_mm * _PX_PER_MM))
     return doc
+
+
+#: Characters a file name cannot carry on the platforms ChromIQ runs on. The
+#: print job's name becomes the suggested file name in "Save as PDF", and one of
+#: these in it is enough for the system to give up and offer "Untitled.pdf" —
+#: which is what the folder guide, "Where are my files?", did (#164, Knut).
+_NAME_ILLEGAL = '/\\:*?"<>|'
+
+
+def document_name(wf: dict) -> str:
+    """The print job's name — and so the file name "Save as PDF" suggests.
+
+    Knut: *"the default name of the pdf is 'Untitled.pdf'. It should by default
+    have the name of the help card being printed … (remember to remove any
+    starting or trailing spaces in the file name)."*
+    """
+    name = " ".join(str(wf.get("title") or "").split())      # collapse + trim
+    name = "".join(c for c in name if c not in _NAME_ILLEGAL).strip(" .")
+    return name or "ChromIQ Help"
 
 
 def printable_size_mm(printer) -> "tuple[float, float]":
@@ -254,6 +372,41 @@ def printable_size_mm(printer) -> "tuple[float, float]":
     return _PAGE_WIDTH_MM, _PAGE_HEIGHT_MM
 
 
+def save_card_pdf(wf: dict, parent=None, lang: str = "en") -> "Path | None":
+    """Write the card straight to a PDF the user names. Returns the path.
+
+    THE SYSTEM'S OWN "Save as PDF" WOULD NOT TAKE OUR NAME. `setDocName` is set,
+    and macOS still offered "Untitled.pdf" (#164, Knut). Rather than keep
+    guessing at another program's dialog, ChromIQ asks for the file name itself
+    — with the card's title already filled in — and writes the PDF with the same
+    painter the printer uses, so the page is identical either way.
+    """
+    from pathlib import Path
+
+    from PyQt6.QtCore import QMarginsF
+    from PyQt6.QtGui import QPageLayout, QPageSize, QPdfWriter
+
+    from ui.widgets import save_file_dialog
+
+    # The third argument is Qt's file FILTER, not a label — passing "File name"
+    # made the dialog filter on the globs "File" and "name", so it listed no
+    # existing PDF at all (#164 review).
+    chosen = save_file_dialog(
+        parent, tr("Save this help card as a PDF"), tr("PDF documents (*.pdf)"),
+        start_path=str(Path.home() / f"{document_name(wf)}.pdf"))
+    if not chosen:
+        return None
+    path = Path(chosen)
+    if path.suffix.lower() != ".pdf":
+        path = path.with_suffix(".pdf")
+    writer = QPdfWriter(str(path))
+    writer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
+    writer.setPageMargins(QMarginsF(15, 15, 15, 15), QPageLayout.Unit.Millimeter)
+    writer.setTitle(document_name(wf))
+    render_card(wf, writer, lang=lang)
+    return path
+
+
 def print_card(wf: dict, parent=None, lang: str = "en") -> bool:
     """Show the system print dialog for the card *wf*.
 
@@ -262,7 +415,9 @@ def print_card(wf: dict, parent=None, lang: str = "en") -> bool:
     Windows and Linux offers "Print to File (PDF)".
     """
     try:
-        from PyQt6.QtPrintSupport import QPrinter, QPrintDialog
+        from PyQt6.QtCore import QMarginsF
+        from PyQt6.QtGui import QPageLayout, QPageSize
+        from PyQt6.QtPrintSupport import QPrinter, QPrintPreviewDialog
     except ImportError as exc:  # pragma: no cover — QtPrintSupport is bundled
         # RAISE, don't return False. The caller reads False as "the user
         # cancelled" and says nothing, so a missing print module would look
@@ -272,15 +427,61 @@ def print_card(wf: dict, parent=None, lang: str = "en") -> bool:
         raise RuntimeError("QtPrintSupport is unavailable") from exc
 
     printer = QPrinter(QPrinter.PrinterMode.HighResolution)
-    printer.setDocName(str(wf.get("title") or "ChromIQ Help"))
-    dlg = QPrintDialog(printer, parent)
+    printer.setDocName(document_name(wf))
+    printer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
+    printer.setPageMargins(QMarginsF(15, 15, 15, 15), QPageLayout.Unit.Millimeter)
+    # A PREVIEW FIRST. The system print dialog shows no picture of what is about
+    # to come out (Basti, #164) — on macOS it cannot, because Qt hands it a
+    # printer rather than a print operation. Qt's own preview does, and its
+    # toolbar opens the real print dialog from there, so nothing is lost.
+    dlg = QPrintPreviewDialog(printer, parent)
     dlg.setWindowTitle(tr("Print this help card"))
-    if not _exec_print_dialog(dlg):
-        return False
-    # The size is read AFTER the dialog: that is where the user picks the paper.
-    w_mm, h_mm = printable_size_mm(printer)
-    build_document(wf, width_mm=w_mm, height_mm=h_mm, lang=lang).print(printer)
+    dlg.paintRequested.connect(lambda pr: render_card(wf, pr, lang=lang))
+    _exec_print_dialog(dlg)
     return True
+
+
+def render_card(wf: dict, device, *, lang: str = "en") -> int:
+    """Paint the card onto a QPrinter or QPdfWriter. Returns the page count.
+
+    The document is laid out in 96-dpi pixels — that is the space its `px`
+    sizes and image widths are written in — so the device is asked to work in
+    the same units. Text stays vector-crisp either way: the resolution decides
+    the coordinate system, not the quality.
+    """
+    device.setResolution(96)
+    page_w, page_h = float(device.width()), float(device.height())
+    header_h, footer_h = _HEADER_H, _FOOTER_H
+    doc = build_document(
+        wf, width_mm=page_w * 25.4 / 96.0,
+        height_mm=(page_h - header_h - footer_h) * 25.4 / 96.0, lang=lang)
+    return render_paged(doc, device, page_w=page_w, page_h=page_h,
+                        header_h=header_h, footer_h=footer_h,
+                        draw_header=_draw_card_header(wf))
+
+
+def _draw_card_header(wf: dict):
+    """The printed header: the ChromIQ wordmark and the five-segment spectrum
+    bar (Basti, #164), with the card's own name beside it from page two on so a
+    loose sheet still says what it belongs to."""
+    def header(painter, pg, width, band_h):
+        used = draw_wordmark(painter, width)
+        if pg:
+            from PyQt6.QtCore import QPointF, Qt
+            from PyQt6.QtGui import QColor, QFont
+            f = QFont()
+            f.setPixelSize(9)
+            painter.save()
+            painter.setFont(f)
+            painter.setPen(QColor(110, 110, 110))
+            fm = painter.fontMetrics()
+            painter.drawText(QPointF(0.0, 8.0 + fm.ascent()),
+                             fm.elidedText(str(wf.get("title") or ""),
+                                           Qt.TextElideMode.ElideRight,
+                                           int(width - used - 14.0)))
+            painter.restore()
+        draw_colour_line(painter, width, band_h - 4.0)
+    return header
 
 
 def _exec_print_dialog(dlg) -> bool:

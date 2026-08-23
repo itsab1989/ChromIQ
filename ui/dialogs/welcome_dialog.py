@@ -1961,12 +1961,21 @@ class WelcomeDialog(QDialog):
         # would allow saving as pdf) … for example printing the keyboard
         # shortcuts."*). On the detail page only — there is nothing to print
         # while the menu of cards is showing.
+        self._pdf_btn = QPushButton(tr("Save as PDF…"), _right)
+        self._pdf_btn.setToolTip(tr(
+            "Writes the help card you are reading to a PDF file you name — the "
+            "card's own title is filled in for you. Handy for keeping the "
+            "keyboard shortcuts on a tablet, or mailing a workflow to someone."))
+        self._pdf_btn.clicked.connect(self._save_current_card_pdf)
+        self._pdf_btn.setVisible(False)
+        _right_l.addWidget(self._pdf_btn)
         self._print_btn = QPushButton(tr("Print…"), _right)
         self._print_btn.setToolTip(tr(
-            "Prints the help card you are reading. Your printer dialog opens, "
-            "so you can send it to a printer or save it as a PDF to keep — "
-            "handy for the keyboard shortcuts, or a workflow to follow at the "
-            "printer."))
+            "Prints the help card you are reading. A preview opens first, so "
+            "you can see the finished pages before anything is sent to your "
+            "printer — handy for the keyboard shortcuts, or a workflow to "
+            "follow at the printer. To keep a copy instead, use “Save as "
+            "PDF…” beside this button."))
         self._print_btn.clicked.connect(self._print_current_card)
         self._print_btn.setVisible(False)
         _right_l.addWidget(self._print_btn)
@@ -1984,6 +1993,32 @@ class WelcomeDialog(QDialog):
     def _on_page_changed(self, index: int) -> None:
         self._back_btn.setVisible(index == 1)
         self._print_btn.setVisible(index == 1)
+        self._pdf_btn.setVisible(index == 1)
+
+    def _save_current_card_pdf(self) -> None:
+        """Write the card on screen to a PDF the user names (#164)."""
+        wf = next((w for w in WORKFLOWS if w["key"] == self._current_card_key),
+                  None)
+        if wf is None:
+            return
+        try:
+            from ui.help_card_print import save_card_pdf
+            path = save_card_pdf(
+                wf, self, lang=str(self._settings.get("language", "en") or "en"))
+        except Exception:      # noqa: BLE001 — a failed save never kills Help
+            log.warning("could not save the help card as a PDF", exc_info=True)
+            from PyQt6.QtWidgets import QMessageBox
+            self.raise_()
+            QMessageBox.warning(
+                self, tr("Couldn't save this card"),
+                tr("Something went wrong while writing the PDF, so no file was "
+                   "saved. You can still read the card here on screen."))
+            return
+        # The save panel takes focus with it when it closes; come back to front.
+        self.raise_()
+        self.activateWindow()
+        if path is not None:
+            log.info("help card saved as %s", path)
 
     def _print_current_card(self) -> None:
         """Send the card on screen to the print dialog (#164).
@@ -1998,10 +2033,15 @@ class WelcomeDialog(QDialog):
             return
         try:
             from ui.help_card_print import print_card
-            if not print_card(wf, self,
-                              lang=str(self._settings.get("language", "en")
-                                       or "en")):
-                return                      # the user cancelled the dialog
+            print_card(wf, self,
+                       lang=str(self._settings.get("language", "en") or "en"))
+            # BRING THE HELP WINDOW BACK. Closing the print or save panel hands
+            # focus to the main window, not to us, so the card the user was
+            # reading disappears behind it and they have to reopen Help to get
+            # back to it (#164, Knut). True whether they printed or cancelled —
+            # the preview dialog does not tell us which, and it does not matter.
+            self.raise_()
+            self.activateWindow()
         except Exception:      # noqa: BLE001 — a failed print never kills Help
             # …but it must not be SILENT either. Clicking Print… and getting
             # absolutely nothing back, not even a message, is the worst of the

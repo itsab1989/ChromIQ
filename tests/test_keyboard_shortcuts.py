@@ -146,9 +146,15 @@ def test_keyboard_help_html_is_alphabetical_and_complete(qapp):
     first_table = h.split("</table>")[0]
     actions = re.findall(r"<td valign='top'>([^<]+)</td>", first_table)
     assert actions == sorted(actions, key=str.lower)
-    # Every documented shortcut family is present.
-    for token in ("⌘1", "⌘,", "⌘T", "F1", "⌘Z"):
-        assert token in h, f"missing shortcut {token} in card"
+    # Every documented shortcut family is present — asked for in THIS
+    # platform's own words. The card used to spell every shortcut in the macOS
+    # glyphs, and this loop pinned them; since #164 it renders them natively
+    # (⌘1 here, Ctrl+1 on Windows and Linux), so pinning the glyphs would fail
+    # the suite on every machine that is not a Mac.
+    from ui.keyboard_help import keys
+    for spec in ("Ctrl+1", "Ctrl+,", "Ctrl+T", "Ctrl+Z"):
+        assert keys(spec) in h, f"missing shortcut {spec} in card"
+    assert "F1" in h
 
 
 def test_the_card_documents_the_measurement_keys(qapp):
