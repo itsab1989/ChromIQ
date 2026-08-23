@@ -23,7 +23,7 @@ from PyQt6.QtWidgets import (
 
 from core.i18n import tr
 from core.logger import get_logger
-from ui.styles import SPEC_GREEN
+from ui.styles import SPEC_GREEN, SPEC_MAGENTA
 from core.i18n import tr
 
 log = get_logger(__name__)
@@ -639,6 +639,10 @@ class TiffPreview(QWidget):
         # Ruler helper markers (#152): (x0, y0, x1, y1) as fractions of the page,
         # shown where the printed dashes will land. Empty = none.
         self._helper_markers: list[tuple[float, float, float, float]] = []
+        # True while those dashes describe settings the SHEET does not carry —
+        # then they are drawn in the accent colour with a caption, so they can
+        # never be counted as ink that is already there (#164).
+        self._helper_markers_pending: bool = False
         # Coordinate readout on the pointer (#29, Knut): a cross-hair + the
         # cursor position in paper mm/inch, measured from the paper top-left.
         self._coord_readout: bool = False
@@ -827,7 +831,8 @@ class TiffPreview(QWidget):
             self._repaint_label()
 
     def set_helper_markers(
-        self, lines: "list[tuple[float, float, float, float]] | None"
+        self, lines: "list[tuple[float, float, float, float]] | None",
+        *, pending: bool = False,
     ) -> None:
         """Show where the printed ruler dashes will land (#152).
 
@@ -844,9 +849,26 @@ class TiffPreview(QWidget):
         chart is generated the two coincide to the pixel, which is what makes
         the overlay safe to leave on.
 
+        **When the sheet does not have them yet, they must not look like ink.**
+        *pending* says the dashes describe settings the page on screen was NOT
+        generated with, and they are then drawn in the accent colour, labelled.
+        Without that the two combs — the one printed into the TIFF and the one
+        being nudged — simply add up on screen, and the user counts the union:
+        a sheet made at 3 markers per patch, with the spin box on 4, shows 5
+        dashes per patch, unevenly spaced. That is precisely what Knut reported
+        (#164), and it is not a fault in the geometry, which draws exactly the
+        number asked for.
+
         Pass ``None`` or an empty list to clear.
         """
         self._helper_markers = list(lines or [])
+        # THE FLAG SURVIVES AN EMPTY PROPOSAL. Untick both edges and the
+        # proposal IS "no dashes at all" — the case most worth saying out loud,
+        # because the sheet's own printed comb is still on screen and nothing
+        # else would tell you the next Generate Chart produces a bare sheet.
+        # Gating the flag on there being lines to draw threw it away exactly
+        # then (#164).
+        self._helper_markers_pending = bool(pending)
         if self._pixmap:
             self._repaint_label()
 
@@ -2241,7 +2263,7 @@ class TiffPreview(QWidget):
             self._draw_margin_guides(
                 painter, B, scaled.width() / dpr, scaled.height() / dpr)
 
-        if self._helper_markers:
+        if self._helper_markers or self._helper_markers_pending:
             self._draw_helper_markers(
                 painter, B, scaled.width() / dpr, scaled.height() / dpr)
 
@@ -2790,20 +2812,114 @@ class TiffPreview(QWidget):
         halo is the only concession to the screen: without it a dash lying on a
         dark patch, or on the black clip border, would be invisible in the very
         preview that exists to let you judge its position.
+
+        **Dashes the sheet does not have yet are drawn in the accent colour and
+        labelled** (#164): see :meth:`set_helper_markers` for why counting a
+        black overlay on top of black ink is what sent Knut looking for a bug in
+        the geometry.
+
+        **Positions are ROUNDED, not truncated.** ``int()`` biases every endpoint
+        the same way — down, by up to a whole pixel. The gaps survive that (both
+        roundings vary by at most one pixel; measured), but the ALIGNMENT does
+        not: these dashes are drawn over a sheet that already has its own printed
+        at the same positions, and a systematically low overlay sits beside that
+        ink instead of on it, thickening every dash. Rounding centres the error
+        at zero, so the two coincide — which is what makes the overlay safe to
+        leave on at all.
         """
+        from PyQt6.QtCore import QLineF
         from PyQt6.QtGui import QPen
 
+        pending = self._helper_markers_pending
+        ink = QColor(SPEC_MAGENTA) if pending else QColor(0, 0, 0)
+        # The halo is what keeps a dash visible on a black patch, but it is
+        # three times the width of the dash — once the dashes are within a few
+        # pixels of each other (a high count, or a page zoomed out to fit) the
+        # halos overlap and the comb reads as one grey band instead of dashes
+        # that can be counted. Narrow it, then give it up, rather than let it
+        # blur the very spacing the overlay exists to show.
+        gap = self._closest_helper_marker_gap(disp_w, disp_h)
+        halo_w = 3.0 if gap >= 6.0 else (2.0 if gap >= 4.0 else 0.0)
+
         for x0, y0, x1, y1 in self._helper_markers:
-            p1 = (border + x0 * disp_w, border + y0 * disp_h)
-            p2 = (border + x1 * disp_w, border + y1 * disp_h)
-            halo = QPen(QColor(255, 255, 255, 210))
-            halo.setWidthF(3.0)
-            painter.setPen(halo)
-            painter.drawLine(int(p1[0]), int(p1[1]), int(p2[0]), int(p2[1]))
-            line = QPen(QColor(0, 0, 0))
+            seg = QLineF(round(border + x0 * disp_w), round(border + y0 * disp_h),
+                         round(border + x1 * disp_w), round(border + y1 * disp_h))
+            if halo_w:
+                halo = QPen(QColor(255, 255, 255, 210))
+                halo.setWidthF(halo_w)
+                painter.setPen(halo)
+                painter.drawLine(seg)
+            line = QPen(ink)
             line.setWidthF(1.4)
             painter.setPen(line)
-            painter.drawLine(int(p1[0]), int(p1[1]), int(p2[0]), int(p2[1]))
+            painter.drawLine(seg)
+
+        if pending:
+            self._draw_pending_marker_caption(painter, border, disp_w)
+
+    def _draw_pending_marker_caption(self, painter: QPainter, border: float,
+                                     disp_w: float) -> None:
+        """Name the accent-coloured dashes, so nobody has to guess (#164).
+
+        Two things it has to get right. It must say which case this is — dashes
+        that are not on the sheet yet, or NO dashes on the next sheet, which is
+        what unticking both edges means and is the one the printed comb on
+        screen contradicts most flatly. And it must fit the pane it is drawn in:
+        a caption clipped mid-word (*"t on this sheet yet — press Gene"*) is
+        worse than none, so it shortens, then elides, rather than overflowing.
+        """
+        font = QFont(painter.font())
+        font.setPointSizeF(max(9.0, font.pointSizeF()))
+        font.setBold(True)
+        painter.setFont(font)
+        fm = painter.fontMetrics()
+        avail = max(24.0, disp_w - 16.0)
+        text = self._pending_caption_text(fm, avail)
+        w = min(fm.horizontalAdvance(text) + 16, avail)
+        h = fm.height() + 8
+        box = QRectF(border + 8, border + 8, w, h)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(255, 255, 255, 235))
+        painter.drawRoundedRect(box, 4.0, 4.0)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(QColor(SPEC_MAGENTA))
+        painter.drawText(box, int(Qt.AlignmentFlag.AlignCenter), text)
+
+    def _pending_caption_text(self, fm, avail: float) -> str:
+        """The caption to draw in *avail* pixels: the full sentence, a short
+        form, or an elided short form.
+
+        Split out of the drawing so the CHOICE can be tested — measuring ink
+        cannot tell a deliberate short caption from a long one that happens to
+        have been trimmed, and the two read very differently: "No markers next
+        time" is a sentence, "No markers on the next sheet — press Gene…" is a
+        failure.
+        """
+        long_text = (tr("Markers not on this sheet yet — press Generate Chart")
+                     if self._helper_markers else
+                     tr("No markers on the next sheet — press Generate Chart"))
+        short_text = (tr("Not on this sheet yet") if self._helper_markers
+                      else tr("No markers next time"))
+        if fm.horizontalAdvance(long_text) + 16 <= avail:
+            return long_text
+        if fm.horizontalAdvance(short_text) + 16 <= avail:
+            return short_text
+        from PyQt6.QtCore import Qt as _Qt
+        return fm.elidedText(short_text, _Qt.TextElideMode.ElideRight,
+                             max(1, int(avail - 16)))
+
+    def _closest_helper_marker_gap(self, disp_w: float, disp_h: float) -> float:
+        """The smallest on-screen gap between neighbouring dashes, in pixels.
+
+        Measured along each edge separately, because the two combs have their
+        own spacing. Returns a large number when there is nothing to compare.
+        """
+        xs = sorted({round(x0 * disp_w, 2) for x0, y0, x1, y1 in
+                     self._helper_markers if abs(x0 - x1) < 1e-9})
+        ys = sorted({round(y0 * disp_h, 2) for x0, y0, x1, y1 in
+                     self._helper_markers if abs(y0 - y1) < 1e-9})
+        gaps = [b - a for seq in (xs, ys) for a, b in zip(seq, seq[1:])]
+        return min(gaps) if gaps else 999.0
 
     def _repaint_interactive(self) -> None:
         """Fit-to-window at zoom 1, then scale + pan within the viewport. The

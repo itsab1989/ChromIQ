@@ -1222,6 +1222,72 @@ class LayoutOptionsPanel(QWidget):
                        "centre of the patch — the middle one is replaced by two "
                        "sitting either side of it.\n\n"
                        "Default: 3."), self)))
+        # WHICH EDGES CARRY THE DASHES (#164, Knut): *"for some layouts, it
+        # might be an idea to have checkbox choice … Then a user can choose to
+        # turn off the ones not needed, especially as the strip markers are the
+        # most useful for measuring."* Named after the EDGE the dashes sit on,
+        # with his own axis wording in brackets, because the top/bottom dashes
+        # are drawn as vertical strokes and the side ones as horizontal — the
+        # opposite of what the axis word suggests.
+        # STACKED, NOT SIDE BY SIDE. Two checkboxes on one line made this the
+        # widest group in Expert Options — 547 px against 472 for the next one —
+        # and that pushes the whole right-hand column into horizontal scrolling
+        # and clips the second label to "Sides (vertica". The panel has been
+        # here before: the marker tick box's own label was shortened for exactly
+        # this reason. One under the other costs a line and keeps Knut's wording.
+        # ONE GRID ROW EACH, not a nested layout.
+        #
+        # Two tick boxes side by side in the control column made this group
+        # 537 px wide — the widest in Expert Options, which pushes the whole
+        # right-hand column into horizontal scrolling and clips the second
+        # label. Stacking them in a nested QVBoxLayout fixed the width and
+        # broke the look instead: inside the real window that layout came out
+        # 43 px tall for two 22 px boxes, so the second overlapped the first and
+        # the two tick indicators merged into one tall block. The grid this
+        # group already uses spaces its own rows correctly, so the boxes go
+        # straight into it — a row each, indented under their label.
+        self.helper_markers_top_bottom = QCheckBox(
+            tr("Top/bottom (horizontal)"), self)
+        self.helper_markers_sides = QCheckBox(tr("Sides (vertical)"), self)
+        for _cb in (self.helper_markers_top_bottom, self.helper_markers_sides):
+            _cb.setChecked(True)
+            # A QSS-sized tick indicator (16 px) is not in a QCheckBox's own
+            # sizeHint, so the layout budgeted 14 px for a box that draws 18 and
+            # the second one overlapped the first by a pixel — two indicators
+            # merged into one tall block on screen. Ask for the height the box
+            # actually needs. (Same class of trap as the padding note in
+            # ui/styles.py: QSS geometry lands after the hint is taken.)
+            _cb.setObjectName("param_label")
+            _cb.setStyleSheet("margin-left: 16px;")
+            _cb.toggled.connect(self._emit)
+            _cb.toggled.connect(self._update_helper_marker_edge_warning)
+        # UNDER THE LABEL, NOT BESIDE IT: a grid shares its column widths across
+        # every row, so a tick box in the CONTROL column widens that column for
+        # the three spin-box rows above as well. Spanning both columns on lines
+        # of their own, the boxes use width the label column already has.
+        self._hm_rows.append(add_row(hmg, 4, tr("Show markers for:"), QWidget(self),
+                align_left=True, tip=TooltipButton(
+                    tr("Show markers for"),
+                    tr("Which edges of the sheet get the dashes.\n\n"
+                       "Tick “Sides” for the dashes down the left and right "
+                       "edges — these are the ones that line up with the rows "
+                       "of patches, so they are what you want when you read a "
+                       "strip with a hand-held instrument. Tick “Top/bottom” "
+                       "for the dashes along the top and bottom edges, which "
+                       "line up with the strips across the page.\n\n"
+                       "Untick the set you don't need and it simply isn't "
+                       "printed — less ink on the sheet, and nothing in the way "
+                       "of your margins or the clip-border text. The set you "
+                       "keep then reaches into the corners as well, because "
+                       "there is no longer another set there to bump into.\n\n"
+                       "With both unticked no dashes are printed at all — the "
+                       "same as turning the markers off. ChromIQ says so under "
+                       "the boxes if you leave it that way.\n\n"
+                       "Default: both ticked."), self)))
+        hmg.addWidget(self.helper_markers_top_bottom, 5, 0, 1, 2)
+        hmg.addWidget(self.helper_markers_sides, 6, 0, 1, 2)
+        self._hm_rows[-1] = tuple(self._hm_rows[-1]) + (
+            self.helper_markers_top_bottom, self.helper_markers_sides)
         # The three distances only mean something once the markers are on, so
         # they grey with the tick box (Basti). The labels take the app's
         # dimmed-caption object name: this theme's Disabled palette paints a
@@ -1233,8 +1299,17 @@ class LayoutOptionsPanel(QWidget):
             for _w in _row:
                 if isinstance(_w, QLabel):
                     _w.setObjectName("param_label")
+        # Says so on the panel when the two tick boxes cancel the markers out.
+        self.helper_markers_edge_warning = QLabel("", self)
+        self.helper_markers_edge_warning.setWordWrap(True)
+        self.helper_markers_edge_warning.setObjectName("param_label")
+        self.helper_markers_edge_warning.setVisible(False)
+        hmg.addWidget(self.helper_markers_edge_warning, 7, 0, 1, 2)
         self.helper_markers_cb.toggled.connect(self._update_helper_marker_rows)
+        self.helper_markers_cb.toggled.connect(
+            self._update_helper_marker_edge_warning)
         self._update_helper_marker_rows()
+        self._update_helper_marker_edge_warning()
         _expert_v.addWidget(hm)
 
         # ---- Sheet text ----
@@ -1431,7 +1506,8 @@ class LayoutOptionsPanel(QWidget):
                        "Right margin. On that edge the wider of the two (margin "
                        "or clip-border width) is what gets reserved; the smaller "
                        "one is outlined in red to show it's overridden."), self))
-        add_row(ccg, 2, tr("Text:"), cell_fill(self.clip_text, self.clip_insert_btn),
+        self._clip_text_row = add_row(
+                ccg, 2, tr("Text:"), cell_fill(self.clip_text, self.clip_insert_btn),
                 tip=TooltipButton(
                     tr("Clip-border text"),
                     tr("The text printed up the clip-border strip (the tall band "
@@ -1488,6 +1564,11 @@ class LayoutOptionsPanel(QWidget):
         self.clip_image_offy = NoScrollDoubleSpinBox(self)
         for _o in (self.clip_image_offx, self.clip_image_offy):
             _o.setRange(-300.0, 300.0); _o.setDecimals(1); _o.setSingleStep(0.5)
+            # The unit lives on the field, so the row label can stay short: this
+            # group sets the width of the whole Expert Options column, and
+            # "Content move (mm):" is 11 px wider than the "Image move (mm):" it
+            # replaced (#164).
+            _o.setSuffix(" mm")
         def _xform_row(*pairs):
             row = QHBoxLayout(); row.setContentsMargins(0, 0, 0, 0); row.setSpacing(6)
             for _l, _w in pairs:
@@ -1503,14 +1584,35 @@ class LayoutOptionsPanel(QWidget):
         self._clip_image_move_w = _xform_row((tr("X"), self.clip_image_offx),
                                              (tr("Y"), self.clip_image_offy))
         self._clip_image_fit_row = add_row(
-                ccg, 5, tr("Image fit:"), self._clip_image_xform_w,
+                ccg, 5, tr("Content fit:"), self._clip_image_xform_w,
                 tip=TooltipButton(
-                    tr("Image fit"),
-                    tr("Adjust the imported clip image: rotate (°), scale (% of the "
-                       "fit-to-band size), and move it across (X) and along (Y) the "
-                       "clip band, in mm."), self))
+                    tr("Content fit"),
+                    tr("Places whatever the clip band is carrying — an imported "
+                       "image, or the ChromIQ branding with your own lines under "
+                       "it.\n\n"
+                       "  • Rotate turns an imported image by whole degrees. The "
+                       "branding always reads up the strip, so rotation does not "
+                       "apply to it — use “Flip 180°” above to turn it the other "
+                       "way round.\n"
+                       "  • Scale is a percentage of the size that fits the band: "
+                       "100 % is the automatic fit, less makes it smaller, more "
+                       "makes it bigger.\n\n"
+                       "Anything you push past the edge of the band is cut off, "
+                       "and the Preview below shows that before it reaches "
+                       "paper.\n\n"
+                       "Default: 0°, 100 %."), self))
         self._clip_image_move_row = add_row(
-                ccg, 6, tr("Image move (mm):"), self._clip_image_move_w)
+                ccg, 6, tr("Content move:"), self._clip_image_move_w,
+                tip=TooltipButton(
+                    tr("Content move"),
+                    tr("Shifts the image or the branding inside the clip band, in "
+                       "millimetres.\n\n"
+                       "  • X moves it ACROSS the band — towards the paper edge, "
+                       "or towards the patches.\n"
+                       "  • Y moves it ALONG the band — up or down the sheet.\n\n"
+                       "Both start at 0, which centres the content in the band. "
+                       "Watch the Preview: what leaves the band is not printed."),
+                    self))
         add_row(ccg, 7, tr("Clip area:"), self.clip_dims_label,
                 tip=TooltipButton(
                     tr("Clip area measurements"),
@@ -1768,20 +1870,40 @@ class LayoutOptionsPanel(QWidget):
         font_modes = mode in ("text", "branding", "notes")
         self.clip_text.setEnabled(custom_text)
         self.clip_insert_btn.setEnabled(custom_text)
+        # …and grey its LABEL with it. A live-looking "Text:" over a dead box is
+        # the other half of what made Knut read the Notes-box field as editable
+        # (#164); the app's dimmed-caption object name is what this theme styles
+        # for disabled, exactly as the ruler-marker rows do.
+        for _w in getattr(self, "_clip_text_row", []) or []:
+            if isinstance(_w, QLabel):
+                _w.setObjectName("param_label")
+                _w.setEnabled(custom_text)
         self.clip_text_font.setEnabled(font_modes)
         # Manual size applies to the free-text clip content; the notes design
         # lays itself out, so the size box is inert there (#125).
         if hasattr(self, "clip_text_size"):
             self.clip_text_size.setEnabled(custom_text)
-        # The image path / rotate / scale / move rows only make sense for an
-        # imported image, so HIDE them entirely unless "Imported image" is the
-        # content type (Knut), rather than just greying them out.
+        # The image PATH row only makes sense for an imported image, so it is
+        # hidden entirely unless "Imported image" is the content type (Knut),
+        # rather than just greyed out.
         show_image = (mode == "image")
-        for row in (getattr(self, "_clip_image_row", None),
-                    getattr(self, "_clip_image_fit_row", None),
+        for w in (getattr(self, "_clip_image_row", None) or []):
+            w.setVisible(show_image)
+        # The fit / move rows serve the BRANDING too (#164, Knut: *"For Imported
+        # image option, then there are fields to position the image. Why are
+        # those options not available for ChromIQ branding? Currently the image
+        # is always centred on page vertically and text on next line."*). They
+        # are the same recipe fields either way, so a preset carries the
+        # placement whichever content it uses.
+        show_place = mode in ("image", "branding")
+        for row in (getattr(self, "_clip_image_fit_row", None),
                     getattr(self, "_clip_image_move_row", None)):
             for w in (row or []):
-                w.setVisible(show_image)
+                w.setVisible(show_place)
+        # Rotation is an image-only transform: the branding is composed to read
+        # up the strip, and "Flip 180°" is how it is turned the other way.
+        if hasattr(self, "clip_image_rotation"):
+            self.clip_image_rotation.setEnabled(mode == "image")
 
     def _on_clip_content_changed(self, *_a) -> None:
         # "Example custom table" isn't a persistent mode — it loads a ready-made
@@ -2192,24 +2314,60 @@ class LayoutOptionsPanel(QWidget):
             self.clip_image_path.setText(path)
 
     def _clip_geom_and_height(self):
-        """Build the current i1/p3 Geom + paper height for the clip preview."""
+        """The Geom + paper size behind the clip preview, for ANY instrument
+        whose band is on — or None when there is no band to show.
+
+        Returns ``(geom, paper_h_mm, paper_w_mm)``.
+
+        **The ColorMunki and the SpectroScan have a band too.** They have no
+        native clip border, but they carry an optional notes band the moment
+        clip content is switched on — the renderer reserves it in
+        ``instruments.geom_from_build_kwargs`` (#93). This method used to answer
+        None for anything that was not an i1/p3, so on one of Knut's ColorMunki
+        presets the panel printed the band onto the sheet while showing
+        *"Clip area: —"* and an empty Preview box, in every content mode
+        (#164, 2026-08-23: *"the Preview does not know anything … the 'Clip
+        area' shows only '-' … Choose any of my presets for colormunki to
+        see."*). :meth:`_clip_band_active` already encodes exactly which
+        selections have a band, so ask it rather than hard-coding two
+        instruments here.
+
+        **The band width comes from the recipe's own border, not from the
+        margins.** ``border=min(margins)`` was this method's invention, and it
+        collapses ``lbord`` to zero — i.e. "no clip area" — whenever the margins
+        reach the clip width, on an i1 as readily as anywhere else. The engine
+        builds the geometry from the recipe; so does this now, through the same
+        call the renderer makes, which also means the CM/SS band width is
+        derived in one place instead of two.
+        """
         from workflow.layout_engine import instruments, papers
+        if not self._clip_band_active():
+            return None
         if self.instr is not None:
-            inst, paper, mode = self.selection()
+            inst, paper, _mode = self.selection()
         else:
-            inst, paper, mode = self._inst, "A4", ("clip" if self._clip else "noclip")
-        if inst not in ("i1", "p3"):
-            return None
+            inst, paper = self._inst, self._preview_paper()
         try:
-            geom = instruments.build(
-                inst, border=min(self.margins[k].value() for k in ("t", "r", "b", "l")),
-                margins=tuple(self.margins[k].value() for k in ("t", "r", "b", "l")),
-                clip_border_width=self.clip_width.value(),
-                nolpcbord=(mode != "clip"))
-            _w, h_mm = papers.dimensions_mm(paper)
-        except Exception:
+            r = self.apply_to_recipe(LayoutRecipe(instrument=inst, paper=paper))
+            geom = instruments.geom_from_build_kwargs(r.build_kwargs())
+            w_mm, h_mm = papers.dimensions_mm(paper)
+        except Exception:      # noqa: BLE001 — a preview is never fatal
             return None
-        return geom, h_mm
+        if w_mm <= 0 or h_mm <= 0:
+            return None
+        return geom, h_mm, w_mm
+
+    def _preview_paper(self) -> str:
+        """The paper the clip preview measures against when this panel has no
+        paper selector of its own (the Preferences copy, and the relayout
+        dialog's).
+
+        Those panels have no paper row, so the size comes from the last recipe
+        loaded into them — which is the paper that recipe was written for. A4
+        only when no recipe has ever been loaded. It used to be A4 always, so
+        Preferences reported an A4 clip band to somebody working on A3.
+        """
+        return getattr(self, "_paper_hint", None) or "A4"
 
     @staticmethod
     def _pil_to_pixmap(img):
@@ -2254,7 +2412,10 @@ class LayoutOptionsPanel(QWidget):
         from PyQt6.QtCore import Qt
         from workflow.layout_engine import geometry, raster
         gh = self._clip_geom_and_height()
-        area = geometry.clip_area_mm(gh[0], gh[1]) if gh else None
+        # The paper WIDTH matters: a right-side band is mirrored to the far edge
+        # and `clip_area_mm` cannot place it without knowing how wide the sheet
+        # is — and the ColorMunki family's own default puts the clip on the right.
+        area = geometry.clip_area_mm(gh[0], gh[1], gh[2]) if gh else None
         if area is None:
             self.clip_dims_label.setText(tr("—"))
             self.clip_preview.clear()
@@ -2305,7 +2466,7 @@ class LayoutOptionsPanel(QWidget):
         from PyQt6.QtWidgets import QMessageBox
         from workflow.layout_engine import geometry, raster
         gh = self._clip_geom_and_height()
-        area = geometry.clip_area_mm(gh[0], gh[1]) if gh else None
+        area = geometry.clip_area_mm(gh[0], gh[1], gh[2]) if gh else None
         if area is None:
             return
         _x, _y, w_mm, h_mm = area
@@ -2644,6 +2805,29 @@ class LayoutOptionsPanel(QWidget):
                     continue
                 w.setEnabled(on)
 
+    def _update_helper_marker_edge_warning(self, *_a) -> None:
+        """Say it on the panel when the markers are on but no edge is ticked.
+
+        "Print helper markers" ticked with both edges unticked prints nothing,
+        and every distance box stays live and looks armed — a contradiction the
+        user can only resolve by reading a tooltip. The preview says it too
+        (the overlay goes into its "no markers next time" state), but the
+        contradiction is made HERE, so the answer belongs here.
+        """
+        w = getattr(self, "helper_markers_edge_warning", None)
+        if w is None:
+            return
+        on = bool(self.helper_markers_cb.isChecked())
+        none_ticked = not (self.helper_markers_top_bottom.isChecked()
+                           or self.helper_markers_sides.isChecked())
+        if on and none_ticked:
+            w.setText(tr("No dashes will be printed — tick at least one edge "
+                         "above, or turn the markers off."))
+            w.setVisible(True)
+        else:
+            w.setText("")
+            w.setVisible(False)
+
     def set_helper_markers_supported(self, supported: bool,
                                      reason: str = "") -> None:
         """Grey the ruler-marker controls out when the chart cannot carry them.
@@ -2662,7 +2846,8 @@ class LayoutOptionsPanel(QWidget):
             "This chart's patches are hexagons, which have no rows to lay a "
             "ruler against — so helper markers cannot be printed on it."))
         for w in (grp, self.helper_markers_cb, self.helper_marker_edge,
-                  self.helper_marker_len, self.helper_marker_per_patch):
+                  self.helper_marker_len, self.helper_marker_per_patch,
+                  self.helper_markers_top_bottom, self.helper_markers_sides):
             w.setToolTip(tip)
         if supported:
             self._update_helper_marker_rows()
@@ -2695,6 +2880,10 @@ class LayoutOptionsPanel(QWidget):
             float(getattr(r, "helper_marker_len_mm", 2.0)))
         self.helper_marker_per_patch.setValue(
             int(getattr(r, "helper_marker_per_patch", 3) or 3))
+        self.helper_markers_top_bottom.setChecked(
+            bool(getattr(r, "helper_markers_top_bottom", True)))
+        self.helper_markers_sides.setChecked(
+            bool(getattr(r, "helper_markers_sides", True)))
         self._update_helper_marker_rows()
         self._loading = True
         if self.instr is not None:
@@ -2826,6 +3015,9 @@ class LayoutOptionsPanel(QWidget):
             self.seed_spin.setValue(int(r.seed))
         self._sync_seed_enabled()
         self._inst, self._clip = r.instrument, r.clip_border
+        # …and the paper it was written for, so a panel with no paper selector
+        # measures its clip band against the right sheet (see _preview_paper).
+        self._paper_hint = getattr(r, "paper", None) or None
         self._update_clip_visibility()
         # Gate the instrument-specific controls (cm_stagger / clip_enable) for the
         # loaded instrument. This is the ONLY place it happens for the embedded
@@ -2864,6 +3056,9 @@ class LayoutOptionsPanel(QWidget):
         r.helper_marker_edge_mm = float(self.helper_marker_edge.value())
         r.helper_marker_len_mm = float(self.helper_marker_len.value())
         r.helper_marker_per_patch = int(self.helper_marker_per_patch.value())
+        r.helper_markers_top_bottom = bool(
+            self.helper_markers_top_bottom.isChecked())
+        r.helper_markers_sides = bool(self.helper_markers_sides.isChecked())
         r.pscale = self.pscale.value()
         r.sscale = self.sscale.value()
         r.spacer_mode = self.spacer_mode.currentData() or "colored"

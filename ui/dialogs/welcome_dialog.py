@@ -33,6 +33,9 @@ from PyQt6.QtWidgets import (
 from ui.fade_scroll import FadeScrollArea
 from ui.styles import SPEC_MAGENTA, TAB_COLORS
 from core.i18n import tr
+from core.logger import get_logger
+
+log = get_logger(__name__)
 
 if TYPE_CHECKING:
     from core.settings import AppSettings
@@ -1882,6 +1885,7 @@ class WelcomeDialog(QDialog):
         )
         self.setMinimumSize(870, 660)
         self._cards: list[WorkflowCard] = []
+        self._current_card_key: str = ""      # which card the Print button prints
         self._build_ui()
         self.set_appearance(self._mode)
 
@@ -1952,6 +1956,20 @@ class WelcomeDialog(QDialog):
         _right_l = QHBoxLayout(_right)
         _right_l.setContentsMargins(0, 0, 0, 0)
         _right_l.addStretch(1)
+        # Print the card you are reading (#164, Knut: *"it would be possible to
+        # print a currently viewed help card via normal print dialog (which also
+        # would allow saving as pdf) … for example printing the keyboard
+        # shortcuts."*). On the detail page only — there is nothing to print
+        # while the menu of cards is showing.
+        self._print_btn = QPushButton(tr("Print…"), _right)
+        self._print_btn.setToolTip(tr(
+            "Prints the help card you are reading. Your printer dialog opens, "
+            "so you can send it to a printer or save it as a PDF to keep — "
+            "handy for the keyboard shortcuts, or a workflow to follow at the "
+            "printer."))
+        self._print_btn.clicked.connect(self._print_current_card)
+        self._print_btn.setVisible(False)
+        _right_l.addWidget(self._print_btn)
         self._back_btn = QPushButton(tr("← Back"), _right)
         self._back_btn.clicked.connect(lambda: self._stack.setCurrentIndex(0))
         self._back_btn.setVisible(False)
@@ -1965,6 +1983,38 @@ class WelcomeDialog(QDialog):
 
     def _on_page_changed(self, index: int) -> None:
         self._back_btn.setVisible(index == 1)
+        self._print_btn.setVisible(index == 1)
+
+    def _print_current_card(self) -> None:
+        """Send the card on screen to the print dialog (#164).
+
+        Every card kind is handled — see :mod:`ui.help_card_print`, which builds
+        the printable HTML for the glossary rows, the step lists and the
+        Getting-Started diagram as well as for the cards that are already HTML.
+        """
+        wf = next((w for w in WORKFLOWS if w["key"] == self._current_card_key),
+                  None)
+        if wf is None:
+            return
+        try:
+            from ui.help_card_print import print_card
+            if not print_card(wf, self,
+                              lang=str(self._settings.get("language", "en")
+                                       or "en")):
+                return                      # the user cancelled the dialog
+        except Exception:      # noqa: BLE001 — a failed print never kills Help
+            # …but it must not be SILENT either. Clicking Print… and getting
+            # absolutely nothing back, not even a message, is the worst of the
+            # three possible outcomes.
+            log.warning("could not print the help card", exc_info=True)
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(
+                self, tr("Couldn't print this card"),
+                tr("Something went wrong while preparing this help card for "
+                   "printing, so nothing was sent to your printer.\n\n"
+                   "You can still reach the same information here on screen. "
+                   "If it keeps happening, the log (Help → Show log file) has "
+                   "the details."))
 
     def _open_support_page(self) -> None:
         from PyQt6.QtCore import QUrl
@@ -2131,6 +2181,7 @@ class WelcomeDialog(QDialog):
         wf = next((w for w in WORKFLOWS if w["key"] == key), None)
         if wf is None:
             return
+        self._current_card_key = key
         self._detail_title.setText(wf["title"])
         self._detail_subtitle.setText(wf["subtitle"])
         # Clear previous step rows

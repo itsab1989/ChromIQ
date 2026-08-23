@@ -125,6 +125,11 @@ class LayoutRecipe:
     # Knut). 3 = start, middle, end — the spacing shipped in 4.0.0. Higher counts
     # subdivide the same comb evenly; see geometry.helper_marker_lines_mm.
     helper_marker_per_patch: int = 3
+    # Which page edges carry the dashes (#164, Knut). Named after the EDGE, not
+    # the segment: the top/bottom dashes are drawn as vertical strokes, so a
+    # field called "vertical" would mean the opposite of what he asked for.
+    helper_markers_top_bottom: bool = True
+    helper_markers_sides: bool = True
     text_edge_mm: float = 4.0            # min distance, page edge → BOTTOM sheet
     #                                      text (printer-safe inset)
     text_edge_top_mm: float = 4.0        # min distance, page edge → strip labels
@@ -240,6 +245,9 @@ class LayoutRecipe:
             helper_marker_edge_mm=float(d.get("helper_marker_edge") or 2.0),
             helper_marker_len_mm=float(d.get("helper_marker_len") or 2.0),
             helper_marker_per_patch=int(d.get("helper_marker_per_patch") or 3),
+            helper_markers_top_bottom=bool(
+                d.get("helper_markers_top_bottom", True)),
+            helper_markers_sides=bool(d.get("helper_markers_sides", True)),
             text_edge_mm=float(d.get("text_edge") or 4.0),
             text_edge_top_mm=float(d.get("text_edge_top") or 4.0),
             text_edge_clip_mm=float(d.get("text_edge_clip") or 4.0),
@@ -356,6 +364,8 @@ class LayoutRecipe:
             "helper_marker_edge": self.helper_marker_edge_mm or 2.0,
             "helper_marker_len": self.helper_marker_len_mm or 2.0,
             "helper_marker_per_patch": self.helper_marker_per_patch or 3,
+            "helper_markers_top_bottom": bool(self.helper_markers_top_bottom),
+            "helper_markers_sides": bool(self.helper_markers_sides),
             "text_edge": self.text_edge_mm or 4.0,
             "text_edge_top": self.text_edge_top_mm or 4.0,
             "text_edge_clip": self.text_edge_clip_mm or 4.0,

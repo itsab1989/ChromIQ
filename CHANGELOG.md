@@ -1,5 +1,118 @@
 # Changelog
 
+## v4.1.3-beta.1
+
+Knut's 2026-08-23 batch. The ruler helper markers turn out to have been right on
+paper all along — it was the preview that was lying — and the clip-border panel
+was dead on a ColorMunki. Help cards can now be printed.
+
+### Fixed
+
+- **The preview was counting two combs of ruler dashes at once.** Knut reported
+  that "Markers per patch" drew five dashes when set to 4 and seven when set to
+  6, unevenly spaced. The printed sheet was never wrong: the geometry draws
+  exactly the number asked for, every gap identical, with the outer dashes
+  centred on the spacers — the design he specified. What was wrong is what the
+  screen showed. A sheet keeps the dashes it was *generated* with, and the live
+  overlay drew the *current* spin-box value over the top, so the preview showed
+  the union of the two combs: 3 printed + 4 proposed = 5 dashes per patch,
+  unevenly spaced; 3 + 6 = 7. Every number he counted falls out of that. The
+  overlay now says so — while the controls differ from the sheet in front of
+  you, the dashes are drawn in the accent colour under the caption "Markers not
+  on this sheet yet — press Generate Chart", and go back to plain black once the
+  two agree. Dash positions are rounded rather than truncated, so the overlay
+  lands on the printed ink instead of half a pixel below it, and the white halo
+  narrows and then gives way when dashes are close instead of flooding the gaps
+  between them.
+
+- **The clip-border Preview and "Clip area" work on a ColorMunki.** They were
+  dead for every content mode on a ColorMunki or SpectroScan preset — an empty
+  box and a long dash — while the band was printed onto the sheet all the same.
+  The panel built its geometry for an i1 or i1Pro 3+ and answered "no band" for
+  anything else; it now asks the same question the renderer asks. A second cause
+  went with it, and that one was never instrument-specific: the preview worked
+  the band width out from the page margins rather than from the recipe, so wide
+  margins erased the clip area on an i1 too. "Export template (PNG + PDF)" was
+  behind the same guard and did nothing on those instruments.
+
+- **A disabled text box now looks disabled.** The clip-border Text field is
+  switched off in Notes-box mode — the notes design fills itself in — but it was
+  pixel for pixel identical to a live one, so it read as editable and its
+  contents looked ignored. Both themes were missing a rule for text boxes; the
+  field's label greys with it now. The same box in ChromIQ-branding mode is
+  live, and now visibly so.
+
+- **"Also export a PDF" was exporting charts without their helper markers.** The
+  TIFF had them, the PDF silently did not, and both come out of the same tick of
+  Generate Chart.
+
+### New
+
+- **"Show markers for: Top/bottom · Sides".** Two tick boxes in Ruler helper
+  markers, so the set you do not need is simply not printed — Knut: *"especially
+  as the strip markers are the most useful for measuring."* The set you keep
+  reaches into the corners as well: the corner trim only ever existed to stop
+  the two sets colliding, and with one of them off there is nothing to collide
+  with. Carried in the recipe, so it saves and loads with a preset, and if you
+  leave both unticked the panel says plainly that nothing will be printed.
+
+- **Help cards can be printed.** A Print… button on any open Help card opens
+  your normal print dialog, which is also where "Save as PDF" lives — handy for
+  the keyboard shortcuts, or a workflow to follow at the printer. Every card
+  kind prints, the glossary and the step lists included, and the Getting-Started
+  card keeps its workflow diagram.
+
+- **ChromIQ branding can be placed.** *"For Imported image option, then there
+  are fields to position the image. Why are those options not available for
+  ChromIQ branding?"* — they are now, and they are the same fields. "Content
+  fit" and "Content move" scale the wordmark and move it across and along the
+  band, and your own lines under the wordmark move with it. Rotation stays an
+  image-only transform, because the branding always reads up the strip and
+  "Flip 180°" is how that is turned round.
+
+### Changed
+
+- **Every tick box in "Measured from Preview" has its own ⓘ.** There was one
+  icon against the first of three, carrying a single explanation of the panel
+  and of all three boxes at once. Each box now answers for itself, and the
+  overview of the numbers sits on the numbers.
+
+- **Worth knowing if you have your own presets.** The clip band's fit and move
+  fields now apply to the ChromIQ branding as well as to an imported image, and
+  they are the same stored fields — so a preset that carried an image placement
+  will apply that placement to branding too. The "Clip area" figure for an i1 or
+  i1Pro 3+ can also read slightly differently from before, because it is now
+  worked out the way the renderer works it out; a clip template exported earlier
+  was sized to the old number and is worth exporting again.
+
+### Internal
+
+- The printed Getting-Started card was clipping its workflow diagram at the page
+  edge and repeating it on the next page, because the picture was placed at a
+  fixed size instead of the page's. The size now comes from the printer the user
+  chose, so it is whole on A4, Letter, Legal, A5, A6 and landscape alike — the
+  first version of this fix worked on A4 only and left A5 exactly as it was.
+- Scaling the clip branding to an extreme value crashed the panel outright
+  (Pillow refuses a glyph that large). It is capped now, and a branding that
+  cannot be drawn leaves the band blank instead of taking the window with it —
+  which needed a second fix, because the handler that promises that called a
+  logger the module did not have and raised `NameError` instead. The same
+  missing logger sat behind the helper-marker handler, unnoticed since 4.0.0.
+- The marker overlay rebuilds its geometry with the chart's own patch count, so
+  a matching overlay really does mean "these are the dashes on the sheet".
+  Without it an area-first chart could be described by a comb nothing like the
+  printed one.
+- The two "Show markers for" boxes are stacked rather than side by side: on one
+  line they made the Ruler-helper-markers group the widest thing in Expert
+  Options and drove the whole column into horizontal scrolling.
+- A help card that cannot be printed now says so instead of doing nothing. (A
+  cancelled print dialog still says nothing, which is the point of cancelling.)
+- The clip area shown in Preferences follows the paper of the recipe loaded
+  there, instead of always reporting A4.
+- The preset round-trip test was comparing several fields against their own
+  defaults, so a dropped one would have passed unnoticed. It now sets every
+  field, and a new test keeps it that way.
+
 ## v4.1.2
 
 A polish release. ChromIQ starts in about half the time, tabs switch the instant

@@ -340,6 +340,9 @@ DEFAULTS: dict[str, Any] = {
     "helper_markers_show":        False,
     "helper_marker_edge_mm":      2.0,
     "helper_marker_len_mm":       2.0,
+    "helper_marker_per_patch":    3,       # dashes along one patch, both ends counted
+    "helper_markers_top_bottom":  True,    # dashes along the top and bottom edges (#164)
+    "helper_markers_sides":       True,    # dashes down the left and right edges (#164)
     "declutter_on_load":          True,    # tidy legacy flat folders into v2 subfolders on file load (#36)
     "export_shuffled_pxf":        False,   # also write a patch-order-shuffled i1Profiler .pxf copy (Nelson)
     "margin_thresholds":         "",      # JSON blob; "" → default_margin_thresholds()

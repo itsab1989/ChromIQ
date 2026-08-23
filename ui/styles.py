@@ -204,10 +204,19 @@ QListWidget::item:selected {{
     background: {ACCENT};
     color: #ffffff;
 }}
-/* Disabled inputs — dim text, subtly darker chrome to signal "off". */
+/* Disabled inputs — dim text, subtly darker chrome to signal "off".
+   QPlainTextEdit / QTextEdit are in this list because they are text inputs like
+   any other, and leaving them out made a dead box look alive: the clip-border
+   Text field is disabled in Notes-box mode (the notes design fills itself in),
+   and a screenshot of it was PIXEL FOR PIXEL the same as the live field in
+   Custom-text mode — full-brightness text, same frame — so Knut read the box as
+   editable and reported that its contents were being ignored (#164). The dark
+   palette does set Disabled/Text, but a style sheet beats the palette; that is
+   the same trap already written up for the radio buttons below. */
 QLineEdit:disabled,
 QSpinBox:disabled, QDoubleSpinBox:disabled,
-QComboBox:disabled {{
+QComboBox:disabled,
+QPlainTextEdit:disabled, QTextEdit:disabled {{
     color: #505050;
     background: #1a1a1a;
     border-color: #2a2a2a;

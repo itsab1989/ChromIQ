@@ -171,10 +171,20 @@ def panel(app):
 
 def test_the_info_icons_line_up(panel):
     """*"The info icons on the right side … are not aligned to each other."*
-    They were 28 px apart; they now share one grid column."""
+    They were 28 px apart; they now share one grid column.
+
+    Only the icons the user can SEE. This panel starts on its placeholder — "
+    Generate a preview to measure its margins" — with the numbers table hidden,
+    and the table's own ⓘ hidden with it, unplaced. Measuring an unplaced widget
+    reports the layout's origin, not a misalignment, and Knut's complaint was
+    about icons visibly out of line with each other.
+    ``tests/test_margin_inspector_help_icons.py`` makes the same check with the
+    table shown, which is the state that has four of them.
+    """
     from ui.tooltip_button import TooltipButton
     rights = {t.mapTo(panel, t.rect().topLeft()).x() + t.width()
-              for t in panel.findChildren(TooltipButton)}
+              for t in panel.findChildren(TooltipButton)
+              if t.isVisibleTo(panel)}
     assert len(rights) == 1, f"the ⓘ icons end at different x positions: {rights}"
 
 
@@ -342,7 +352,11 @@ def test_every_row_has_its_own_help_icon(layout_panel):
     from ui.tooltip_button import TooltipButton
     grp = layout_panel._helper_markers_grp
     tips = grp.findChildren(TooltipButton)
-    assert len(tips) == 4, f"expected one ⓘ per row, got {len(tips)}"
+    # One per labelled row, plus the group's own on the tick box. Derived rather
+    # than hard-coded so adding a row (#164 added "Show markers for") keeps the
+    # RULE — an ⓘ on every line — instead of just moving a number.
+    expected = len(layout_panel._hm_rows) + 1
+    assert len(tips) == expected, f"expected one ⓘ per row, got {len(tips)}"
     rights = {t.mapTo(grp, t.rect().topLeft()).x() + t.width() for t in tips}
     assert len(rights) == 1, f"the ⓘ icons end at different x positions: {rights}"
 
@@ -356,7 +370,7 @@ def test_the_distances_grey_out_when_the_markers_are_off(layout_panel):
     from ui.tooltip_button import TooltipButton
     layout_panel.helper_markers_cb.setChecked(False)
     rows = layout_panel._hm_rows
-    assert len(rows) == 3
+    assert len(rows) >= 3, "the distances and the edge choice all live here"
     for row in rows:
         for w in row:
             if isinstance(w, TooltipButton):
@@ -378,7 +392,7 @@ def test_the_greyed_labels_actually_look_greyed(layout_panel):
     from PyQt6.QtWidgets import QLabel
     labels = [w for row in layout_panel._hm_rows for w in row
               if isinstance(w, QLabel)]
-    assert len(labels) == 3
+    assert len(labels) == len(layout_panel._hm_rows)
     assert {l.objectName() for l in labels} == {"param_label"}
 
 

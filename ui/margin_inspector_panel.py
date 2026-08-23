@@ -120,6 +120,42 @@ class MarginInspectorPanel(QGroupBox):
         grid.addWidget(self._striplen_mm, row, 1)
         grid.addWidget(self._striplen_in, row, 2)
         grid.setColumnStretch(0, 1)
+        # THE PANEL'S OWN ⓘ, ON THE NUMBERS IT EXPLAINS. It used to sit against
+        # the first tick box at the bottom, where it read as that box's help
+        # while actually explaining the whole panel. Now that each tick box
+        # answers for itself (#164), this one belongs with the table — top
+        # right, on the header row.
+        grid.addWidget(TooltipButton(
+            tr("About the margin inspector"),
+            tr("This little panel checks that the chart you just made will be "
+               "easy to measure.\n\n"
+               "Many spectrophotometers (like the i1Pro or ColorMunki) are slid "
+               "along the printed chart by hand, often in a ruler or holder "
+               "(sometimes called a jig or rig). For that to work, the coloured "
+               "patches need a bit of blank white paper around them — if a "
+               "patch sits too close to the edge of the page, the instrument "
+               "can run off the paper or bump the ruler, and the reading fails. "
+               "This panel helps you catch that before you print.\n\n"
+               "What the numbers mean:\n"
+               "• Left, Right, Top, Bottom — how much white space there is "
+               "between each edge of the paper and the patches, shown in both "
+               "millimetres and inches.\n"
+               "• Patch width — how wide one patch is across a strip.\n"
+               "• Strip length — how long each strip of patches is (handy "
+               "because some jigs have a maximum, e.g. 240 mm for the "
+               "i1Pro).\n\n"
+               "The 'min' column is the smallest each margin should be for your "
+               "ruler or jig. If a margin is below its minimum, that row turns "
+               "red and a short warning appears; when everything is fine you'll "
+               "see a friendly green 'Margins: OK'.\n\n"
+               "You decide those minimums yourself: open Preferences → "
+               "Instrument Margins and set them for each instrument and paper "
+               "size (the starting values are sensible defaults you can adjust "
+               "to your own ruler). They're only a helpful warning — you can "
+               "always go ahead and print anyway.\n\n"
+               "The three tick boxes below draw these numbers onto the preview "
+               "in different ways; each has its own ⓘ."), self),
+            0, 4, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         v.addWidget(self._table)
 
         # Large pass/fail status, one or more lines.
@@ -131,7 +167,6 @@ class MarginInspectorPanel(QGroupBox):
         # Bottom row: the guide-lines checkbox, with the ⓘ help button tucked in
         # the corner so it doesn't take space at the top (#86).
         from PyQt6.QtWidgets import QHBoxLayout
-        from ui.tooltip_button import TooltipButton
         # A GRID, so every ⓘ in this panel shares one right-hand column.
         #
         # It used to be an HBox holding a column of checkboxes, a stretch and the
@@ -159,6 +194,58 @@ class MarginInspectorPanel(QGroupBox):
         self._coord_check.toggled.connect(self.coords_toggled.emit)
         bottom.addWidget(self._coord_check, 2, 0)
 
+        # ONE ⓘ PER TICK BOX (#164, Basti). There used to be a single icon
+        # against the first of the three, carrying one explanation of the panel
+        # AND of all three boxes — so it looked like it belonged to that box, and
+        # a reader after the third one had to work through the other two first.
+        # Knut's own rule for this panel settles it: *"the help icon is not
+        # vertically centered with the other objects on the line"* — an icon
+        # belongs to the line it explains. Each box now answers for itself, in
+        # its own words, and the overview of the NUMBERS above stays on the
+        # panel's own icon.
+        _align = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        bottom.addWidget(TooltipButton(
+            tr("Instrument-margin guide lines"),
+            tr("Draws the minimum margins your instrument needs straight onto "
+               "the preview, as short dotted lines — one for each edge of the "
+               "paper.\n\n"
+               "Use it to see at a glance whether the patches keep far enough "
+               "from the edges: a patch area that stays inside all four dotted "
+               "lines is good to go. A line is black where that margin is fine "
+               "and red where it is too tight, so a problem edge finds you "
+               "rather than the other way round.\n\n"
+               "You also get a thin solid rectangle marking the true edge of "
+               "the sheet, because the page is drawn slightly inside the "
+               "preview's white border — a 0 mm margin would sit right on that "
+               "line.\n\n"
+               "The minimums are yours to set: Preferences → Instrument "
+               "Margins, per instrument and paper size.\n\n"
+               "Default: off."), self), 0, 1, _align)
+        bottom.addWidget(TooltipButton(
+            tr("Margin guide lines"),
+            tr("Draws a long dotted line at each of the four margins ChromIQ "
+               "has just MEASURED — right where the patch area meets the white "
+               "paper.\n\n"
+               "This is the double-check for the numbers above: if the Left "
+               "figure says 8.0 mm, this line shows you where those 8 mm end. "
+               "It is a different thing from the instrument-margin lines above, "
+               "which show what your ruler NEEDS rather than what the chart "
+               "HAS — and you can have both sets on at once to compare them.\n\n"
+               "Default: off."), self), 1, 1, _align)
+        bottom.addWidget(TooltipButton(
+            tr("Measurement coordinates on pointer"),
+            tr("Turns your mouse into a ruler.\n\n"
+               "Tick it and wherever you move the pointer over the chart, a "
+               "thin cross-hair marks the exact spot and its position is shown "
+               "next to it — measured from the top-left corner of the PAPER "
+               "itself, not the preview's outer edge. The top line is "
+               "millimetres to one decimal, the line below it inches to "
+               "three.\n\n"
+               "It is the easiest way to check a real distance on screen: "
+               "hover over the edge of a patch, or over a margin, and read off "
+               "exactly where it sits.\n\n"
+               "Default: off."), self), 2, 1, _align)
+
         # (The ruler helper markers moved to Create Chart -> Manual -> Expert
         # Options -> "Ruler helper markers" in #158. They are printed on the
         # sheet and Generate Chart is what puts them there, so they belong with
@@ -173,62 +260,6 @@ class MarginInspectorPanel(QGroupBox):
         # top and bottom of the whole block, and the bottom of that block is not
         # the middle of its last line. With real rows, AlignVCenter means what it
         # says, and column 1 still keeps both icons on the same right edge.
-        bottom.addWidget(TooltipButton(
-            tr("About the margin inspector"),
-            tr("This little panel checks that the chart you just made will be "
-               "easy to measure.\n\n"
-               "Many spectrophotometers (like the i1Pro or ColorMunki) are slid "
-               "along the printed chart by hand, often in a ruler or holder "
-               "(sometimes called a jig or rig). For that to work, the coloured "
-               "patches need a bit of blank white paper around them — if a patch "
-               "sits too close to the edge of the page, the instrument can run "
-               "off the paper or bump the ruler, and the reading fails. This "
-               "panel helps you catch that before you print.\n\n"
-               "What the numbers mean:\n"
-               "• Left, Right, Top, Bottom — how much white space there is "
-               "between each edge of the paper and the patches, shown in both "
-               "millimetres and inches.\n"
-               "• Patch width — how wide one patch is across a strip.\n"
-               "• Strip length — how long each strip of patches is (handy because "
-               "some jigs have a maximum, e.g. 240 mm for the i1Pro).\n\n"
-               "The 'min' column is the smallest each margin should be for your "
-               "ruler or jig. If a margin is below its minimum, that row turns "
-               "red and a short warning appears; when everything is fine you'll "
-               "see a friendly green 'Margins: OK'.\n\n"
-               "You decide those minimums yourself: open Preferences → Instrument "
-               "Margins and set them for each instrument and paper size (the "
-               "starting values are sensible defaults you can adjust to your own "
-               "ruler). They’re only a helpful warning — you can always go ahead "
-               "and print anyway.\n\n"
-               "Seeing it on the preview: tick 'Show instrument-margin guide "
-               "lines on preview' to draw each minimum as a dotted line right on "
-               "the chart — black where the margin is fine, red on any edge "
-               "that's too tight. A patch area that stays inside all four dotted "
-               "lines is good to go.\n\n"
-               "You'll also see a thin solid rectangle marking the actual edge "
-               "of the paper (the page is drawn slightly inside the preview's "
-               "white border, so this line shows exactly where the sheet ends — "
-               "a 0 mm margin would sit right on it).\n\n"
-               "The second checkbox, 'Show margin guide lines on preview (long "
-               "dotted lines)', is a different helper: instead of the thresholds, "
-               "it draws a long purple/blue dotted line at each of the four "
-               "measured margins — right where the patch area meets the white "
-               "paper. It's an easy way to double-check that the numbers above "
-               "really sit where the patches end. You can turn both sets of "
-               "lines on together if you like.\n\n"
-               "The third checkbox, 'Show measurement coordinates on pointer', "
-               "turns your mouse into a ruler. Tick it and, wherever you move "
-               "the pointer over the chart, a thin cross-hair marks the exact "
-               "spot and its position is shown right next to it — measured from "
-               "the top-left corner of the paper itself (not the preview's "
-               "outer edge). The top line is in millimetres (one decimal), the "
-               "line below it in inches (three decimals). It's the easiest way "
-               "to check a real distance on screen: hover over the edge of a "
-               "patch, or a margin, and read off exactly where it sits."),
-            self),
-            # Column 1 like the helper-marker ⓘ, centred on its own row — the
-            # first line here, as that is the one it introduces.
-            0, 1, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         v.addLayout(bottom)
 
     # ------------------------------------------------------------------

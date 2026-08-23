@@ -608,7 +608,8 @@ def _comb(anchor: float, step: float, lo: float, hi: float) -> list[float]:
 
 def helper_marker_lines_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
                            layout: Layout, *, edge_mm: float = 2.0,
-                           length_mm: float = 2.0, per_patch: int = 3
+                           length_mm: float = 2.0, per_patch: int = 3,
+                           top_bottom: bool = True, sides: bool = True
                            ) -> "list[tuple[float, float, float, float]]":
     """Short dashes along all four page edges, to align a ruler against (#152).
 
@@ -631,11 +632,24 @@ def helper_marker_lines_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
     to dynamically include the spacers as part of the calculation, as the
     spacers can change in the create chart settings."*
 
+    **Which edges carry dashes** is *top_bottom* / *sides* (#164, Knut: *"for
+    some layouts, it might be an idea to have checkbox choice … Then a user can
+    choose to turn off the ones not needed, especially as the strip markers are
+    the most useful for measuring."*). The names are the EDGE, never the axis:
+    the top/bottom dashes are drawn as VERTICAL segments and the side ones as
+    horizontal, so anyone naming these after the segment gets them backwards.
+    With both off there are no dashes at all.
+
     **Corners are kept clear.** A dash along the top edge is dropped where it
     would reach into the band the left or right dashes occupy, and vice versa —
     otherwise raising *edge_mm* makes the two sets cross in each corner. His
     rule, stated for all eight cases and holding in both directions: a dash is
     not drawn if it lands within, or beyond, the perpendicular edge's band.
+
+    That trim exists **only** because the two sets would collide with each
+    other. Turn one set off and the reason is gone, so the survivor keeps its
+    corner dashes and runs the full length of its edge — trimming it then would
+    open a gap in the rhythm for no one's benefit.
 
     **The ColorMunki's staggered strips take the first strip as their
     reference**, which is his ruling: *"the offset strip is always half a patch
@@ -656,6 +670,8 @@ def helper_marker_lines_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
         return []
     if paper_w_mm <= 0 or paper_h_mm <= 0 or length_mm <= 0:
         return []
+    if not top_bottom and not sides:
+        return []                      # every edge switched off (#164)
     edge = max(0.0, float(edge_mm))
     ln = float(length_mm)
     if edge + ln > min(paper_w_mm, paper_h_mm) / 2:
@@ -709,16 +725,26 @@ def helper_marker_lines_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
 
     # The band each edge's dashes reach into. A dash on the perpendicular edge
     # that lands inside it — or past it, off the sheet's usable area — is
-    # dropped, so the four sets never meet in a corner.
+    # dropped, so the four sets never meet in a corner. Only the set that has
+    # something to collide WITH is trimmed: with the other set switched off
+    # there is no corner to keep clear, and the survivor stays whole (#164).
     band = edge + ln
-    xs = [x for x in xs if band < x < paper_w_mm - band]
-    ys = [y for y in ys if band < y < paper_h_mm - band]
+    if sides:
+        xs = [x for x in xs if band < x < paper_w_mm - band]
+    else:
+        xs = [x for x in xs if 0.0 < x < paper_w_mm]
+    if top_bottom:
+        ys = [y for y in ys if band < y < paper_h_mm - band]
+    else:
+        ys = [y for y in ys if 0.0 < y < paper_h_mm]
 
     lines: list[tuple[float, float, float, float]] = []
-    for x in xs:                        # top and bottom: vertical dashes
-        lines.append((x, edge, x, edge + ln))
-        lines.append((x, paper_h_mm - edge - ln, x, paper_h_mm - edge))
-    for y in ys:                        # left and right: horizontal dashes
-        lines.append((edge, y, edge + ln, y))
-        lines.append((paper_w_mm - edge - ln, y, paper_w_mm - edge, y))
+    if top_bottom:
+        for x in xs:                    # top and bottom: vertical dashes
+            lines.append((x, edge, x, edge + ln))
+            lines.append((x, paper_h_mm - edge - ln, x, paper_h_mm - edge))
+    if sides:
+        for y in ys:                    # left and right: horizontal dashes
+            lines.append((edge, y, edge + ln, y))
+            lines.append((paper_w_mm - edge - ln, y, paper_w_mm - edge, y))
     return lines

@@ -15,6 +15,7 @@ import numpy as np
 import tifffile
 from PIL import Image, ImageDraw, ImageFont
 
+from core.logger import get_logger
 from core.resource_path import resource_path
 
 from . import contrast, geometry, permutation
@@ -26,6 +27,15 @@ from .geometry import Layout
 _HELPER_MARKER_W_MM = 0.2
 from .instruments import Geom
 from .ti1_reader import ColorTarget
+
+# THIS MODULE HAD NO LOGGER AND TWO HANDLERS THAT USED ONE.
+#
+# `log.warning(...)` in the helper-marker handler (shipped) and in the clip
+# branding one (#164) both raised `NameError: name 'log' is not defined` — so
+# the rescue that was supposed to keep a chart alive through a failed marker or
+# a monstrous branding scale was itself the thing that killed it, and did so on
+# the exact path that was already going wrong.
+log = get_logger(__name__)
 
 # Bundled free fonts available for on-chart text (OFL).
 FONTS = {
@@ -388,8 +398,18 @@ def render_clip_strip(mode: str, *, width_px: int, height_px: int, dpi: int,
 
     if mode == "branding":
         extra = [ln for ln in (text or "").splitlines() if ln.strip()]
-        overlay = _vwordmark(extra, width_px, height_px, font_family,
-                             extra_size_px=(text_size_mm * mm2px) if text_size_mm else 0.0)
+        try:
+            overlay = _vwordmark(extra, width_px, height_px, font_family,
+                                 extra_size_px=(text_size_mm * mm2px) if text_size_mm else 0.0,
+                                 scale=image_scale,
+                                 offset_x_px=image_offset_x_mm * mm2px,
+                                 offset_y_px=image_offset_y_mm * mm2px)
+        except Exception:  # noqa: BLE001 — a blank band, never a crashed slot
+            # The imported-image branch above has always swallowed its failures;
+            # the branding one could not fail until it gained a scale, and then
+            # an extreme one took the whole repaint down with it (#164).
+            log.warning("could not render the clip branding", exc_info=True)
+            return strip
         strip.paste(overlay, (0, 0), overlay)
         return strip
 
@@ -441,6 +461,19 @@ _CLIP_ACROSS, _CLIP_ALONG = 0.92, 0.99
 #: big clip-text size with one or two lines keeps the size they asked for (#163).
 _WORDMARK_FLOOR_FRAC = 0.40
 _BRANDING_MIN_PX = 8
+#: How far past the band's own width the branding may be scaled (#164). The
+#: wordmark is laid ACROSS the band, so a few times its width is already one
+#: giant letter; beyond that a glyph tile is large enough for Pillow to refuse
+#: it outright, and the refusal used to surface as a crash out of a Qt slot.
+_MAX_BRANDING_SIZE_FACTOR = 4.0
+#: …and an absolute ceiling on top of that, because a share of the band is not
+#: a bound at all on a wide one: a 100 mm clip band (the spin box's maximum) at
+#: 1200 dpi is 4535 px, four times which asks Pillow for a 257-megapixel glyph —
+#: over its 179 Mpx limit, so the mark vanished instead of merely being huge.
+#: 4000 px is ~85 mm of single letter at 1200 dpi; nothing legitimate is near it,
+#: and the glyph tile it implies (~46 Mpx) stays under Pillow's WARNING threshold
+#: as well as its hard limit — an alarming message on stderr is not a fix either.
+_MAX_BRANDING_SIZE_PX = 4000.0
 
 
 def _fit_branding_sizes(extra_lines: list[str], width_px: int, height_px: int,
@@ -515,7 +548,9 @@ def _fit_branding_sizes(extra_lines: list[str], width_px: int, height_px: int,
 
 
 def _vwordmark(extra_lines: list[str], width_px: int, height_px: int,
-               font_family: str = "Inter", extra_size_px: float = 0.0) -> Image.Image:
+               font_family: str = "Inter", extra_size_px: float = 0.0,
+               scale: float = 100.0, offset_x_px: float = 0.0,
+               offset_y_px: float = 0.0) -> Image.Image:
     """The masthead "ChromIQ" wordmark — Instrument Serif, "Chrom" near-black,
     "IQ" bold-italic in magenta — plus optional lines, read up the strip. The
     optional lines use *font_family* (the user's chosen clip font), not the
@@ -523,13 +558,37 @@ def _vwordmark(extra_lines: list[str], width_px: int, height_px: int,
 
     *extra_size_px* > 0 sets the point size of the optional lines (the user's
     clip-text Size, which now applies to branding too — Knut); 0 keeps the
-    legacy behaviour of matching the wordmark's auto-fit size."""
+    legacy behaviour of matching the wordmark's auto-fit size.
+
+    *scale* (percent) and the two offsets place the block, the same way the
+    imported image is placed (#164, Knut: *"For Imported image option, then
+    there are fields to position the image. Why are those options not available
+    for ChromIQ branding? Currently the image is always centred on page
+    vertically and text on next line."*). The scale multiplies the size the
+    fitter SOLVED, so :func:`_fit_branding_sizes` — and the #163 rules it
+    encodes — are untouched at 100 %, and a bigger number is the user asking
+    for a bigger mark rather than a bug in the fit.
+    """
     canvas = Image.new("RGBA", (max(1, height_px), max(1, width_px)), (0, 0, 0, 0))
     d = ImageDraw.Draw(canvas)
     chrom_fill = WORDMARK_RGB + (255,)
     iq_fill = WORDMARK_IQ_RGB + (255,)
     size, _esize = _fit_branding_sizes(extra_lines, width_px, height_px,
                                        font_family, extra_size_px)
+    sc = max(0.05, float(scale or 100.0) / 100.0)
+    if sc != 1.0:
+        # CEILING, NOT JUST A FLOOR. The Scale box runs to 50 000 % because it
+        # was built for blowing a small logo up, and multiplying a SOLVED font
+        # size by that allocates a glyph tile of ~194 million pixels — Pillow
+        # refuses it as a decompression bomb, and the exception came out of a Qt
+        # slot while the user was typing in a spin box. Past a few times the
+        # band's width the mark is one letter anyway, so the extra is refused
+        # here rather than paid for.
+        ceiling = max(_BRANDING_MIN_PX * 2.0,
+                      min(_MAX_BRANDING_SIZE_FACTOR * width_px,
+                          _MAX_BRANDING_SIZE_PX))
+        size = min(ceiling, max(_BRANDING_MIN_PX, size * sc))
+        _esize = min(ceiling, max(_BRANDING_MIN_PX, _esize * sc))
     esize = _esize if extra_size_px else None
     f = _font(size, WORDMARK_FONT)
     asc, desc = f.getmetrics()
@@ -563,7 +622,16 @@ def _vwordmark(extra_lines: list[str], width_px: int, height_px: int,
                    fill=chrom_fill, anchor="mm")
     except Exception:  # pragma: no cover - default font without anchor
         d.text((x, baseline), "ChromIQ", font=f, fill=chrom_fill)
-    return canvas.rotate(90, expand=True)
+    out = canvas.rotate(90, expand=True)
+    if not (offset_x_px or offset_y_px):
+        return out
+    # Move it exactly the way the imported image is moved: X across the band,
+    # Y along the strip, applied to the finished overlay so nothing about the
+    # fit changes. Content pushed past the band is cropped, as it is for an
+    # image — the preview shows that happening before it reaches paper.
+    moved = Image.new("RGBA", out.size, (0, 0, 0, 0))
+    moved.paste(out, (round(offset_x_px), round(offset_y_px)), out)
+    return moved
 
 
 def _vtext(text: str, font_family: str, width_px: int, height_px: int,
@@ -885,6 +953,8 @@ def render_pages(
     helper_marker_edge_mm: float = 2.0,
     helper_marker_len_mm: float = 2.0,
     helper_marker_per_patch: int = 3,
+    helper_markers_top_bottom: bool = True,
+    helper_markers_sides: bool = True,
     collect_device_geom: bool = False,
 ) -> RenderResult:
     """Render one :class:`PIL.Image` per page for *target*.
@@ -1253,9 +1323,35 @@ def render_pages(
                         geom, paper_w_mm, paper_h_mm, layout,
                         edge_mm=helper_marker_edge_mm,
                         length_mm=helper_marker_len_mm,
-                        per_patch=helper_marker_per_patch):
+                        per_patch=helper_marker_per_patch,
+                        top_bottom=helper_markers_top_bottom,
+                        sides=helper_markers_sides):
+                    _w = max(1, px(_HELPER_MARKER_W_MM))
                     draw.line((px(mx0), px(my0), px(mx1), px(my1)),
-                              fill=(0, 0, 0), width=max(1, px(_HELPER_MARKER_W_MM)))
+                              fill=(0, 0, 0), width=_w)
+                    if collect_device_geom:
+                        # THE VECTOR PDF GETS THEM TOO. Every other element on
+                        # the sheet appends to the display list; the markers did
+                        # not, so "Also export a PDF" silently produced a chart
+                        # with no dashes on it while the TIFF had them. A dash is
+                        # a thin filled rule, which is exactly what the `vrect`
+                        # element already is.
+                        #
+                        # The rectangle is the one PIL actually inks, measured
+                        # rather than assumed: a width-w line covers rows
+                        # ``y - (w-1)//2`` through ``y + w//2`` INCLUSIVE — so it
+                        # is not centred on y for an even width — and runs from
+                        # x0 to x1 inclusive. Taking it as centred put the PDF
+                        # rule half a pixel above the TIFF dash and made it one
+                        # pixel short.
+                        _lo, _hi = (_w - 1) // 2, _w // 2 + 1
+                        _x0, _x1 = sorted((px(mx0), px(mx1)))
+                        _y0, _y1 = sorted((px(my0), px(my1)))
+                        if my0 == my1:                     # horizontal dash
+                            _rect = (_x0, _y0 - _lo, _x1 + 1, _y1 + _hi)
+                        else:                              # vertical dash
+                            _rect = (_x0 - _lo, _y0, _x1 + _hi, _y1 + 1)
+                        _geom_rows.append(("vrect", _rect, (0, 0, 0)))
             except Exception:      # noqa: BLE001 — never lose a chart to a marker
                 log.warning("could not draw the helper markers", exc_info=True)
         images.append(img)

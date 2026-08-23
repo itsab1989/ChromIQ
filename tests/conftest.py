@@ -150,9 +150,20 @@ def _no_native_print_dialog(monkeypatch):
     try:
         from ui.tabs.tab_print import TabPrint
     except Exception:
+        pass
+    else:
+        monkeypatch.setattr(TabPrint, "_print_native_qt",
+                            lambda self, *a, **k: None, raising=False)
+    # The Help cards gained their own Print button (#164), and it opens the same
+    # un-clickable modal. `_exec_print_dialog` is one line on its own precisely
+    # so it can be replaced here; declining is the safe answer, so nothing is
+    # ever actually sent to a printer from a test run.
+    try:
+        from ui import help_card_print
+    except Exception:
         return
-    monkeypatch.setattr(TabPrint, "_print_native_qt",
-                        lambda self, *a, **k: None, raising=False)
+    monkeypatch.setattr(help_card_print, "_exec_print_dialog",
+                        lambda dlg: False, raising=False)
 
 
 # ---------------------------------------------------------------------------

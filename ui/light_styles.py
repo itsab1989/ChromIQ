@@ -218,10 +218,13 @@ QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {{
 QLineEdit:focus, QComboBox:focus {{
     border-color: {ACCENT_BLUE};
 }}
-/* Disabled inputs — dim text + slightly warmer chrome to signal "off". */
+/* Disabled inputs — dim text + slightly warmer chrome to signal "off".
+   QPlainTextEdit / QTextEdit belong here too — see the note in ui/styles.py:
+   without them a disabled text box is indistinguishable from a live one. */
 QLineEdit:disabled,
 QSpinBox:disabled, QDoubleSpinBox:disabled,
-QComboBox:disabled {{
+QComboBox:disabled,
+QPlainTextEdit:disabled, QTextEdit:disabled {{
     color: {LM_TEXT_FAINT};
     background: {LM_BG_SURFACE};
     border-color: {LM_BORDER};

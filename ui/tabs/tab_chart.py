@@ -13426,6 +13426,10 @@ class TabChart(QWidget):
                                float(panel.helper_marker_len.value()))
             self._settings.set("helper_marker_per_patch",
                                int(panel.helper_marker_per_patch.value()))
+            self._settings.set("helper_markers_top_bottom",
+                               bool(panel.helper_markers_top_bottom.isChecked()))
+            self._settings.set("helper_markers_sides",
+                               bool(panel.helper_markers_sides.isChecked()))
             self._refresh_helper_marker_overlay()
         except Exception:      # noqa: BLE001 — never break the tab on a toggle
             log.warning("could not remember the helper-marker choice",
@@ -13446,6 +13450,10 @@ class TabChart(QWidget):
                  float(self._settings.get("helper_marker_len_mm", 2.0) or 2.0)),
                 (panel.helper_marker_per_patch,
                  int(self._settings.get("helper_marker_per_patch", 3) or 3)),
+                (panel.helper_markers_top_bottom,
+                 bool(self._settings.get("helper_markers_top_bottom", True))),
+                (panel.helper_markers_sides,
+                 bool(self._settings.get("helper_markers_sides", True))),
             ):
                 w.blockSignals(True)
                 if hasattr(w, "setChecked"):
@@ -13508,7 +13516,8 @@ class TabChart(QWidget):
         if prev is None:
             return
         try:
-            lines = self._helper_marker_lines_frac()
+            got = self._helper_marker_lines_frac()
+            lines, pending = got if got is not None else (None, False)
         except Exception:      # noqa: BLE001 — an overlay is never fatal
             # WARNING, not DEBUG: this handler once hid a real fault (the #158
             # move left this reading a control that no longer existed, and the
@@ -13516,13 +13525,38 @@ class TabChart(QWidget):
             # reported for #152). A swallowed error that changes what is on
             # screen has to leave a trace somebody will actually see.
             log.warning("helper-marker overlay skipped", exc_info=True)
-            lines = None
-        prev.set_helper_markers(lines)
+            lines, pending = None, False
+        prev.set_helper_markers(lines, pending=pending)
+
+    #: The marker settings that decide whether the overlay matches the sheet.
+    _HM_KEYS = ("helper_markers", "helper_marker_edge_mm", "helper_marker_len_mm",
+                "helper_marker_per_patch", "helper_markers_top_bottom",
+                "helper_markers_sides")
 
     def _helper_marker_lines_frac(
         self,
-    ) -> "list[tuple[float, float, float, float]] | None":
-        """The marker segments for the page on screen, as page fractions."""
+    ) -> "tuple[list[tuple[float, float, float, float]], bool] | None":
+        """The marker segments for the page on screen, as page fractions, plus
+        whether they are still only a PROPOSAL.
+
+        THE SHEET ALREADY HAS DASHES ON IT, AND THEY DO NOT MOVE WHEN A SPIN BOX
+        DOES. That is what made Knut count dashes that the geometry cannot
+        produce (#164, 2026-08-23): *"When 4, then there are actually 5, and the
+        three within the patch area are not distributed evenly … When 6, then
+        there are 7."* A sheet generated at 3 markers per patch carries the
+        3-comb in its ink for ever; raising the spin box to 4 drew the 4-comb
+        over the top of it, and the sheet on screen then showed the UNION of the
+        two — 5 dashes per patch for 4, 7 for 6, unevenly spaced, and exactly
+        even at 5 because the 3-comb is a subset of the 5-comb. Every number he
+        reported falls out of that arithmetic.
+
+        So the overlay still follows the controls — that is the whole point of
+        it, and this docstring's predecessor was right that a rebuild after
+        every nudge is no way to judge a distance. What was missing is that it
+        must SAY when it is showing something the sheet does not have yet. The
+        second return value is True exactly then, and the preview draws those
+        dashes in the accent colour with a caption instead of in printed black.
+        """
         # The controls moved into the Manual layout panel in #158, so the values
         # come from there. They are read off the CONTROLS rather than the chart's
         # recorded layout on purpose: the overlay is what lets the two distances
@@ -13534,6 +13568,8 @@ class TabChart(QWidget):
         edge_mm = float(panel.helper_marker_edge.value())
         len_mm = float(panel.helper_marker_len.value())
         per_patch = int(panel.helper_marker_per_patch.value())
+        top_bottom = bool(panel.helper_markers_top_bottom.isChecked())
+        sides = bool(panel.helper_markers_sides.isChecked())
         if not on:
             return None
         if not getattr(self, "_margin_tiffs", None) or self._margin_ti2 is None:
@@ -13550,16 +13586,40 @@ class TabChart(QWidget):
                       Path(self._margin_ti2).read_text(errors="replace"))
         if not m:
             return None
-        geom = instruments.geom_from_build_kwargs(rec.build_kwargs())
+        # THE SAME KWARGS THE RENDERER USED, INCLUDING THE PATCH COUNT.
+        #
+        # `build_kwargs()` does not carry `area_target_count` — `chart.build_chart`
+        # injects it from the .ti1 it is building (chart.py:230), and area-first
+        # sizes the patches to FILL the page with exactly that many. Every
+        # default recipe is area-first, so without it this rebuilt a geometry
+        # that could be nothing like the one on paper: measured on a 480-patch
+        # ColorMunki sheet, 19 dashes at a 15.8 mm pitch here against 285 at
+        # 1.0 mm there. That was survivable while the overlay only ever offered
+        # itself as a guide; it is not survivable now that a matching overlay
+        # positively claims to BE the ink on the sheet. The count is the one the
+        # .ti2 in front of us declares.
+        kwargs = rec.build_kwargs()
+        kwargs["area_target_count"] = int(m.group(1))
+        geom = instruments.geom_from_build_kwargs(kwargs)
         w_mm, h_mm = papers.dimensions_mm(rec.paper)
         if w_mm <= 0 or h_mm <= 0:
             return None
         lay = geometry.compute(geom, w_mm, h_mm, int(m.group(1)))
         lines = geometry.helper_marker_lines_mm(
             geom, w_mm, h_mm, lay, edge_mm=edge_mm, length_mm=len_mm,
-            per_patch=per_patch)
-        return [(x0 / w_mm, y0 / h_mm, x1 / w_mm, y1 / h_mm)
-                for x0, y0, x1, y1 in lines]
+            per_patch=per_patch, top_bottom=top_bottom, sides=sides)
+        wanted = (True, edge_mm, len_mm, per_patch, top_bottom, sides)
+        printed = tuple(getattr(rec, k) for k in self._HM_KEYS)
+        # Floats come from spin boxes on both sides, so compare them as the user
+        # sees them (0.1 mm) rather than bit for bit.
+        pending = not (bool(printed[0]) == wanted[0]
+                       and abs(float(printed[1]) - edge_mm) < 0.05
+                       and abs(float(printed[2]) - len_mm) < 0.05
+                       and int(printed[3]) == per_patch
+                       and bool(printed[4]) == top_bottom
+                       and bool(printed[5]) == sides)
+        return ([(x0 / w_mm, y0 / h_mm, x1 / w_mm, y1 / h_mm)
+                 for x0, y0, x1, y1 in lines], pending)
 
     def _on_margin_coords_toggled(self, on: bool) -> None:
         self._settings.set("margin_coords_show", bool(on))

@@ -75,7 +75,7 @@ def test_ticking_the_box_produces_overlay_lines(tab_with_chart):
     assert tab._helper_marker_lines_frac() is None
 
     lp.helper_markers_cb.setChecked(True)
-    lines = tab._helper_marker_lines_frac()
+    lines, _pending = tab._helper_marker_lines_frac()
     assert lines, "ticking the box drew no dashes over the chart"
     # page fractions, so every coordinate is inside the sheet
     for x0, y0, x1, y1 in lines:
@@ -89,9 +89,9 @@ def test_the_overlay_honours_markers_per_patch(tab_with_chart):
     lp = tab._manual_layout_panel
     lp.helper_markers_cb.setChecked(True)
     lp.helper_marker_per_patch.setValue(3)
-    three = len(tab._helper_marker_lines_frac() or [])
+    three = len((tab._helper_marker_lines_frac() or ([], False))[0])
     lp.helper_marker_per_patch.setValue(5)
-    five = len(tab._helper_marker_lines_frac() or [])
+    five = len((tab._helper_marker_lines_frac() or ([], False))[0])
     assert five > three, (
         f"raising the count added no dashes to the overlay ({three} -> {five})")
 
@@ -104,6 +104,7 @@ def test_the_overlay_follows_the_distances(tab_with_chart):
     near = tab._helper_marker_lines_frac()
     lp.helper_marker_edge.setValue(8.0)
     far = tab._helper_marker_lines_frac()
+    near, far = (near or ([], False))[0], (far or ([], False))[0]
     assert near and far and near != far, "moving the dashes did not move the overlay"
 
 

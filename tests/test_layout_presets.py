@@ -64,7 +64,25 @@ def test_all_fields_persist_through_named_dict():
         chart_text_italic=True, stamp_command=True, clip_border_width_mm=30.0,
         clip_content_mode="text", clip_text="ID", clip_text_font="Inter",
         clip_image_path="/tmp/logo.png", nolimit=True, strip_pattern="A-Z",
-        patch_pattern="1-99")
+        patch_pattern="1-99",
+        # EVERY field has to be set to a NON-DEFAULT value, or the loop below
+        # compares a default against a default and passes whether the field
+        # travelled or not. The ruler-marker fields were all left at their
+        # defaults here, so this test would not have noticed one being dropped —
+        # found while adding the two edge switches (#164).
+        helper_markers=True, helper_marker_edge_mm=3.5,
+        helper_marker_len_mm=5.5, helper_marker_per_patch=6,
+        helper_markers_top_bottom=False, helper_markers_sides=False,
+        clip_image_rotation=90, clip_image_scale=140.0,
+        clip_image_offset_x_mm=2.5, clip_image_offset_y_mm=-3.5,
+        clip_flip_180=True, clip_side="right", clip_text_size_mm=4.5,
+        text_edge_mm=5.0, text_edge_top_mm=6.0, text_edge_clip_mm=7.0,
+        strip_label_offset_mm=-1.5, indicator_rotation=90,
+        indicator_align="center", edge_spacers=True,
+        patch_area_align="center-right", cm_stagger=True, export_pdf=True,
+        hflag=True, use_instrument_margins=False, layout_mode="patch_first",
+        area_method="by_grid", area_cols=12, area_rows=18, area_ratio=1.25,
+        area_min_patch_mm=6.0, strip_gap_mm=2.5)
     store = PresetStore()
     store.set(full)
     reloaded = PresetStore.from_named_dict(store.as_named_dict())
@@ -75,6 +93,33 @@ def test_all_fields_persist_through_named_dict():
             assert got.seed is None
             continue
         assert getattr(got, f.name) == getattr(full, f.name), f.name
+
+
+def test_the_full_recipe_really_is_full():
+    """The round-trip test above is only as good as its sample: a field left at
+    its default compares equal whether it survived the trip or not. So the
+    sample must differ from a fresh recipe in EVERY field it can.
+
+    Kept honest by naming the exceptions out loud rather than by trusting that
+    somebody remembered to extend the literal.
+    """
+    from dataclasses import fields
+    import inspect
+
+    src = inspect.getsource(test_all_fields_persist_through_named_dict)
+    default = LayoutRecipe()
+    # Fields that legitimately cannot be varied here.
+    skip = {
+        "seed",                 # deliberately dropped by a preset
+        "instrument", "paper",  # the preset KEY — varying them changes the slot
+        "clip_border",          # ditto: part of the mode in the key
+        "spacer_overrides",     # per-chart click state, not a preset value
+    }
+    missing = [f.name for f in fields(LayoutRecipe)
+               if f.name not in skip and f"{f.name}=" not in src]
+    assert not missing, (
+        "these recipe fields are never set in the round-trip sample, so a "
+        f"dropped one would pass unnoticed: {missing}")
 
 
 def test_from_channels_json(tmp_path):
