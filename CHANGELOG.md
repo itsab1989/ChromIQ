@@ -53,9 +53,13 @@ measured or profiled has changed.
   a profile that can print nothing no longer gets the largest chart. It also
   starts from the chart you set up in Manual, and opening a run is quicker.
 
-- **Your Measure settings stop changing when you switch runs.** "Don't save
-  spectral data" no longer goes missing between Guided and Manual, and settings
+- **Your Measure settings stop changing when you switch runs**, and settings
   saved before this release still work.
+
+- **Guided says which measurement options belong to Manual.** "Don't save
+  spectral data" is one of them: Guided never applied it, but it looked as
+  though it might. Guided still saves spectral data — it now says so instead of
+  leaving you to wonder.
 
 - **The chart preview no longer draws a white border twice.** Charts from the
   layout engine carry their own paper margin and the preview was adding another,
