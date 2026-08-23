@@ -510,6 +510,49 @@ def _build_demo_projects(into: Path) -> None:
         build(into)
 
 
+def _publish_demo_cache(staging: Path, cached: Path, ready: Path) -> bool:
+    """Move a finished build onto the key path. True if the cache is usable after.
+
+    ``os.replace`` **cannot replace an existing directory on Windows** — it
+    raises ``PermissionError`` (WinError 5), where POSIX simply swaps the two.
+    Reading that as "another worker got there first" is right only when what
+    already sits there is COMPLETE. When it is not, the old code deleted its own
+    good build and left the marker-less tree in place, so the next run repeated
+    the entire four-minute build — and so did the run after that.
+
+    Measured on the Windows gate before this fix: *every* cache entry ever
+    written on that machine was marker-less, the demo projects were rebuilt on
+    two xdist workers on every single run, and the gate cost 22 minutes instead
+    of four. macOS never saw it, because there the replace succeeds and the
+    cache repairs itself on the next run.
+
+    So the two cases are separated. A complete tree already there wins — ours is
+    thrown away. A marker-less one is moved aside under a **unique** name and
+    the replace retried; unique because two workers can be doing this at the
+    same moment, and rmtree-then-replace leaves a window in which a third finds
+    no tree at all.
+    """
+    for attempt in range(3):
+        try:
+            os.replace(staging, cached)
+            return True
+        except OSError:
+            if ready.is_file():
+                # A complete tree beat us to it — theirs is as good as ours.
+                shutil.rmtree(staging, ignore_errors=True)
+                return True
+            # A marker-less tree is squatting on the key path.
+            aside = cached.with_name(f"{cached.name}.stale-{os.getpid()}-{attempt}")
+            try:
+                os.replace(cached, aside)
+            except OSError:
+                pass          # another worker is clearing it; look again
+            else:
+                shutil.rmtree(aside, ignore_errors=True)
+    shutil.rmtree(staging, ignore_errors=True)
+    return ready.is_file()
+
+
 @pytest.fixture(scope="session")
 def demo_projects_root(tmp_path_factory):
     """Every demo project, built once and then reused.
@@ -551,11 +594,7 @@ def demo_projects_root(tmp_path_factory):
     try:
         _build_demo_projects(staging)
         (staging / ".complete").write_text(_demo_cache_key())
-        try:
-            os.replace(staging, cached)
-        except OSError:
-            # Another worker got there first — theirs is as good as ours.
-            shutil.rmtree(staging, ignore_errors=True)
+        _publish_demo_cache(staging, cached, ready)
     except Exception:
         shutil.rmtree(staging, ignore_errors=True)
         raise

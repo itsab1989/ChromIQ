@@ -182,8 +182,8 @@ def _build_icc(run_dir: Path, stem: str) -> bool:
         # No -a: an OUTPUT profile can only use the cLUT algorithm, and
         # colprof refuses -aG outright ("Output profile can only be a cLUT
         # algorithm"). -qm keeps it quick enough for a demo.
-        subprocess.run([colprof, "-v0", "-qm", f"-D{stem} (demo)", stem],
-                       cwd=run_dir, check=True, capture_output=True, timeout=300)
+        _run_tool([colprof, "-v0", "-qm", f"-D{stem} (demo)", stem],
+                  cwd=run_dir, timeout=300)
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
         print(f"    (colprof failed for {stem}: {exc}) — no profile written")
         return False
@@ -229,6 +229,44 @@ def _report(stem: str, when: datetime, de: float) -> str:
         "patches": 240,
         "worst_patches": [{"id": 118, "de00": round(de * 3.1, 3)}],
     }, indent=2)
+
+
+# ---------------------------------------------------------------------------
+def _run_tool(cmd: list[str], *, cwd: Path | None = None, timeout: int) -> None:
+    """Run an Argyll tool, output to a FILE rather than a pipe.
+
+    ``capture_output=True`` is a deadlock on Windows, and the ``timeout=`` next
+    to it does not save you. ``subprocess.run``'s timeout path there is::
+
+        except TimeoutExpired:
+            process.kill()
+            exc.stdout, exc.stderr = process.communicate()   # <-- unbounded
+
+    that second ``communicate()`` joins the pipe-reader threads, and a
+    grandchild which inherited the write end of the pipe keeps them alive for
+    ever. The kill lands on the direct child; the *call* never returns. Measured
+    on the Windows gate: a ``--runslow`` run wedged at 99 % with two xdist
+    workers parked in ``_wait_for_tstate_lock``, both inside :func:`_build_icc`,
+    and ``--timeout`` could not break them out because the thread is not
+    interruptible.
+
+    A real file has no reader threads, so ``communicate()`` reduces to
+    ``wait()`` and the timeout is the bound it claims to be. The output is still
+    captured, and still attached to the exception for the caller to report.
+    """
+    import tempfile
+
+    with tempfile.TemporaryFile() as sink:
+        try:
+            subprocess.run(cmd, cwd=cwd, check=True, timeout=timeout,
+                           stdin=subprocess.DEVNULL, stdout=sink, stderr=sink)
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+            try:
+                sink.seek(0)
+                exc.output = sink.read()[-2000:]
+            except OSError:                      # pragma: no cover - defensive
+                pass
+            raise
 
 
 # ---------------------------------------------------------------------------
@@ -284,8 +322,8 @@ def _chart_files(into: Path, stem: str, *, patches: int, rows: int,
     # with no output, since subprocess.run without one waits for ever. A cap
     # turns a silent hang into a named failure. colprof below has had one all
     # along; this call was simply missed.
-    subprocess.run([_argyll("targen"), "-v0", "-d2", "-G", f"-f{patches}", stem],
-                   cwd=into, check=True, capture_output=True, timeout=300)
+    _run_tool([_argyll("targen"), "-v0", "-d2", "-G", f"-f{patches}", stem],
+              cwd=into, timeout=300)
     kwargs = dict(instrument=instrument, paper="A4", randomize=False)
     result = build_chart(base.with_suffix(".ti1"), base, **kwargs)
 
@@ -359,9 +397,8 @@ def build_full(root: Path) -> None:
     # must let a user exercise the Apply/Include Calibration File rows
     # (Sebastian's beta.5 check 3 found the folder had no .cal to pick).
     try:
-        subprocess.run([_argyll("printcal"), "-i",
-                        str(p / "cal" / f"{stem}-cal")],
-                       capture_output=True, timeout=120, check=True)
+        _run_tool([_argyll("printcal"), "-i",
+                   str(p / "cal" / f"{stem}-cal")], timeout=120)
     except Exception as exc:      # noqa: BLE001 — the rest of the demo stands
         print(f"  (printcal skipped: {exc})")
     (p / "exports").mkdir(exist_ok=True)
