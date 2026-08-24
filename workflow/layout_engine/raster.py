@@ -355,8 +355,22 @@ def clip_text_lines(text: "str | None") -> list[str]:
     So the text is now rendered as it was typed. Text that is ONLY whitespace is
     still nothing at all — a band of blank lines is an empty band, not a tall
     one.
+
+    `splitlines()` IS NOT "AS IT WAS TYPED" — it treats a final newline as a
+    terminator rather than a separator, so `"A\n"` comes back as `['A']` and
+    the one thing beta.3 did not restore was the blank line at the END:
+
+        "A"       -> ['A']
+        "A\n"     -> ['A']        <- one trailing Enter, the blank line lost
+        "A\n\n"   -> ['A', '']
+
+    Knut found the gap and a workaround for it — a space on the last line does
+    come through (#164). It is not a good one: the space is invisible, nobody
+    would discover it, and any editor that strips trailing whitespace throws it
+    away. `split("\n")` keeps what was typed, and the whitespace-only guard
+    below still turns a band of nothing into nothing.
     """
-    lines = (text or "").splitlines()
+    lines = (text or "").split("\n")
     return lines if any(ln.strip() for ln in lines) else []
 
 

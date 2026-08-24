@@ -46,28 +46,46 @@ log = get_logger(__name__)
 
 #: Print styling. Set on the QTextDocument, so it applies to every card kind.
 _PRINT_CSS = """
-/* SIZES IN pt, SPACING IN px.
-   Qt's rich-text engine parses a font size in points and IGNORES a margin in
-   points — `margin-top: 14pt` is silently zero, as are cm and pt paddings
-   (measured). Every space in this sheet was therefore doing nothing: no blank
-   line above a heading, no gap between list items, no indent on a definition —
-   which is most of what Knut reported as bullets printing "as one continuous
-   block of messy text". Pixels are what the layout engine accepts, and the
-   document is laid out at 96 dpi, so 1 px is 1/96 inch on paper whatever the
-   printer's resolution. */
+/* EVERYTHING IN px — SIZES AND SPACING ALIKE.
+
+   Spacing first: Qt IGNORES a margin in points. `margin-top: 14pt` is silently
+   zero, as are cm and pt paddings (measured). Every space in this sheet was
+   once doing nothing — no blank line above a heading, no gap between list
+   items, no indent on a definition — which was most of what Knut reported as
+   bullets printing "as one continuous block of messy text".
+
+   SIZES ARE px FOR A DIFFERENT AND WORSE REASON. A font size in `pt` IS
+   honoured, but Qt resolves it against the PRIMARY SCREEN's logical DPI — and
+   that is 72 on macOS against 96 under `QT_QPA_PLATFORM=offscreen`. So the
+   same card printed 25 % smaller on Knut's Mac than in every test we ran:
+   10.5pt body text was 14 px on CI and 11 px on his sheet, while the folder
+   guide's <pre> stayed at its absolute 12 px and towered over it (#164, his
+   report A2). 37 pages against CI's 42, for the same 18 cards. Pixels are
+   absolute, so the printed page is now the same on macOS, Windows, Linux and
+   CI, and what the tests measure is what he gets.
+
+   The document is laid out at 96 dpi, so 1 px is 1/96 inch on paper whatever
+   the printer's resolution. The values below are the px each old pt size
+   resolved to under the 96-dpi tests, so the printed card is unchanged there
+   and it is macOS that stops shrinking.
+
+   DO NOT WRITE A SIZE IN pt HERE AGAIN — tests/test_help_card_printing.py
+   fails on it. Two related traps, both measured: a `font-size` in pt inside an
+   inline style= attribute is ignored outright, and <h1> ignores its font size
+   from any source at all, which is why card titles are a styled <p>. */
 body { font-family: -apple-system, "Segoe UI", "Helvetica Neue", sans-serif;
-       color: #000000; font-size: 10.5pt; }
-h1   { font-size: 19pt; margin: 0 0 3px 0; }
-p.sub{ font-size: 10pt; color: #444444; margin: 0 0 18px 0; }
-h2, h3 { font-size: 12pt; margin: 18px 0 6px 0; }
+       color: #000000; font-size: 14px; }
+p.title { font-size: 22px; font-weight: bold; margin: 0 0 3px 0; }
+p.sub{ font-size: 13px; color: #444444; margin: 0 0 18px 0; }
+h2, h3 { font-size: 16px; margin: 18px 0 6px 0; }
 table{ border-collapse: collapse; width: 100%; }
-td, th { border: 1px solid #999999; vertical-align: top; font-size: 10pt; }
+td, th { border: 1px solid #999999; vertical-align: top; font-size: 13px; }
 th   { background: #eeeeee; }
 dt   { font-weight: bold; margin: 14px 0 2px 0; }
 dd   { margin: 0 0 4px 18px; }
 ol, ul { margin-left: 18px; }
 li   { margin-bottom: 10px; }
-p.foot { color: #666666; font-size: 8.5pt; margin-top: 20px; }
+p.foot { color: #666666; font-size: 11px; margin-top: 20px; }
 """
 #: The tab a step belongs to, for the printed step list. The dialog shows this
 #: as a coloured badge; on paper it is the tab's name in front of the step.
@@ -248,7 +266,13 @@ def card_html(wf: dict, doc=None, lang: str = "en",
     kind = wf.get("kind")
     title = html.escape(str(wf.get("title") or ""))
     subtitle = html.escape(str(wf.get("subtitle") or ""))
-    parts: list[str] = [f"<h1>{title}</h1>"]
+    # A STYLED <p>, NOT AN <h1>. Qt fixes an <h1>'s size from its own default
+    # and ignores every font-size it is given — sheet rule, inline style, pt,
+    # px, em, %: all measured, all identical. So the 19pt in _PRINT_CSS was
+    # dead, the title rendered at 26 px on macOS, and "Calibrate my printer
+    # (and how that differs from a profile)" wrapped to two lines and pushed
+    # the tail of the card onto a second page (#164, Knut A3).
+    parts: list[str] = [f'<p class="title">{title}</p>']
     if subtitle:
         parts.append(f'<p class="sub">{subtitle}</p>')
 

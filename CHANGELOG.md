@@ -1,5 +1,64 @@
 # Changelog
 
+## v4.1.3-beta.4
+
+Knut's help-card batch. Chasing a heading that printed on its own turned up the
+reason: the rules that lay out a printed card were measuring a document they had
+already destroyed, and pages of it were never reaching the paper.
+
+### Fixed
+
+- **Printed help cards were losing whole pages of text — silently, and on
+  paper.** A `QTextDocument` lays itself out lazily, and changing a block in one
+  that is only half laid out does not make the geometry stale, it DESTROYS it:
+  every element below the change collapses to nothing. Each of the four
+  pagination rules measures the document and then edits it, so each could trip
+  it. The dictionary card printed **29 of its 79 entries**; the other 50 existed,
+  paginated, and were simply not on any sheet. The card looked finished — it
+  ended with a heading and a page number.
+
+  This has been shipping. On US Letter the glossary has been losing its last
+  entries since the rules were introduced; 4.1.3-beta.3 widened it to A4. Every
+  rule now takes its layout from one place that finishes the layout first, and
+  every card on A4, Letter and A5 has been read back out of the PDF word by
+  word: nothing is missing.
+
+- **Help cards printed a quarter smaller on macOS than anywhere else.** Font
+  sizes were in `pt`, and Qt resolves those against the primary screen's logical
+  DPI — 72 on macOS, 96 elsewhere. So 10.5 pt body text was 11 px on a Mac and
+  14 px on Windows, Linux and in every test we ran, while the folder guide's
+  directory tree kept its absolute 12 px and towered over the text around it
+  (Knut, A2). Every size is now in `px`, so the printed page is the same
+  everywhere and what the tests measure is what comes out.
+
+- **A card title no longer wraps.** "Calibrate my printer (and how that differs
+  from a profile)" ran to two lines. The `h1 { font-size: 19pt }` meant to
+  control it was dead — Qt fixes an `<h1>`'s size from its own default and
+  ignores the style sheet, inline styles, and every unit (measured). Titles are
+  a styled paragraph now, and the longest one fits with room to spare (A3).
+
+- **A section heading could print alone at the foot of a page**, its text
+  overleaf — Knut's "Instrument" in the dictionary card (A5). The rule that
+  exists to prevent this judged which page a block was on by the top of its box,
+  and a block can start in the last pixels of a page while its first line falls
+  on the next. It judges the line now. A second fault in the same rule abandoned
+  every later heading in a card once it met one it could not move.
+
+- **A blank line at the END of clip-border text now prints.** Leading and
+  interior blank lines came back in beta.3; the last one was still swallowed,
+  because `splitlines()` treats a final newline as a terminator rather than a
+  separator (Knut). Putting a space on the line worked, but an invisible space is
+  no answer — any editor that trims trailing whitespace throws it away.
+
+### Known
+
+- On US Letter, three cards still end with a page holding only the closing line.
+  Their content is 2–4 % taller than a Letter page; no typographic rule fixes
+  that, only shorter cards.
+- A table row that meets a page break still stretches to the page bottom instead
+  of ending under its last line (Knut, A1). Qt grows the last row on a page, and
+  the honest fix is to split the table at each break — its own piece of work.
+
 ## v4.1.3-beta.3
 
 The preview window beta.2 put in front of the print dialog is gone — and taking

@@ -21,6 +21,7 @@ of this, and each has a test here:
 from __future__ import annotations
 
 import os
+import re
 
 import pytest
 
@@ -328,6 +329,193 @@ def test_no_card_prints_an_almost_empty_page(qapp, tmp_path):
         assert min(inks) > 2.0, (
             f"{key} prints an almost empty page: "
             f"{[round(v, 2) for v in inks]}")
+
+
+# --- the whole card has to reach the paper ---------------------------------
+
+#: Every page size a printed card is expected to survive.
+_PAGE_SIZES = ("A4", "Letter")
+
+
+def _render_to_pdf(wf, path, size: str):
+    """Print one card exactly as the app does, and return its page count."""
+    from PyQt6.QtCore import QMarginsF
+    from PyQt6.QtGui import QPageLayout, QPageSize
+    from PyQt6.QtPrintSupport import QPrinter
+
+    from ui.help_card_print import render_card
+
+    pr = QPrinter(QPrinter.PrinterMode.HighResolution)
+    pr.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
+    pr.setOutputFileName(str(path))
+    pr.setPageSize(QPageSize(getattr(QPageSize.PageSizeId, size)))
+    pr.setPageMargins(QMarginsF(15, 15, 15, 15), QPageLayout.Unit.Millimeter)
+    return render_card(wf, pr), pr
+
+
+def _flatten(text: str) -> str:
+    """Letters and digits only — so a line break, a hyphen, or the space a PDF
+    text layer puts between two runs cannot make the same words look
+    different."""
+    return re.sub(r"[^0-9a-z]+", "", text.lower())
+
+
+def test_every_word_of_a_card_reaches_the_paper(qapp, tmp_path):
+    """THE ONE THAT MATTERS: nothing the card says may be missing from the PDF.
+
+    A QTextDocument lays itself out lazily, and a document that is only half
+    laid out when a page break is set on it does not get a bad break — the
+    geometry of everything below the break is destroyed, every <dd> collapses to
+    zero height, and `pageCount()` agrees with the wreck. `render_paged` then
+    paints the handful of pages it is told to and writes a PDF that simply stops
+    early, with no error anywhere. Measured on the dictionary card, A4:
+    4 pages instead of 7, and **50 of its 79 entries were not on the paper at
+    all**. The same card on US Letter lost its last three entries even before
+    this week's work, which is how long the fault had been shipping
+    (2026-08-24).
+
+    Checked through the REAL paint path and read back out of the finished PDF,
+    on every card and both page sizes: running the rules by hand does not
+    reproduce it — the fault needs a document that was measured before it was
+    changed — and it surfaced on one card at one page size at a time.
+
+    WORD BY WORD, NOT PHRASE BY PHRASE. Qt paints each page as a clipped slice,
+    and a line that lands on the boundary is painted on both pages: invisible on
+    paper, but its glyphs are in both pages' text layers, so the text of one
+    paragraph is not contiguous. Duplication is harmless to a word list;
+    deletion is not.
+    """
+    from PyQt6.QtPdf import QPdfDocument
+
+    from ui.dialogs.welcome_dialog import WORKFLOWS
+    from ui.help_card_print import (_FOOTER_H, _HEADER_H, build_document,
+                                    printable_size_mm)
+
+    missing = []
+    for size in _PAGE_SIZES:
+        for wf in WORKFLOWS:
+            out = tmp_path / f"{wf['key']}-{size}.pdf"
+            _, printer = _render_to_pdf(wf, out, size)
+            pdf = QPdfDocument(None)
+            pdf.load(str(out))
+            printed = _flatten(" ".join(pdf.getAllText(i).text()
+                                        for i in range(pdf.pageCount())))
+            w_mm, h_mm = printable_size_mm(printer)
+            body_mm = (h_mm * 96.0 / 25.4 - _HEADER_H - _FOOTER_H) * 25.4 / 96.0
+            doc = build_document(wf, width_mm=w_mm, height_mm=body_mm)
+            for word in re.findall(r"[0-9A-Za-z]{6,}", doc.toPlainText()):
+                if word.lower() not in printed:
+                    missing.append(f"{size}/{wf['key']}: {word}")
+    assert not missing, (
+        f"{len(missing)} word(s) of the cards never reached the printed page, "
+        f"e.g. {missing[:8]}")
+
+
+def test_no_dictionary_term_is_printed_without_its_definition(qapp, tmp_path):
+    """Knut's own words: *"The header and the description of these terms and
+    words should not be separated between two pages."*
+
+    Read off the PRINTED PAGES, not off our own arithmetic. The orphan rule and
+    the check for orphans share `_line_page`, so a check written in terms of it
+    passes whenever the two are wrong together — and they were: judged by the
+    top of its BOX a heading and its definition looked like they shared a page
+    while the sheet showed the bold term alone at the foot with its text
+    overleaf (Knut, #164 A5). Here a term is stranded when it is the last thing
+    printed on a page, which no arithmetic of ours can talk its way out of.
+
+    Three page sizes, because the fault moves with the geometry: judging by the
+    box strands "Chart recipe" and "Preset" on A4, two other terms on US Letter
+    and three more on A5.
+    """
+    from PyQt6.QtPdf import QPdfDocument
+
+    from ui.dialogs.welcome_dialog import GLOSSARY, WORKFLOWS
+
+    terms = {term.strip() for term, _ in GLOSSARY}
+    wf = next(w for w in WORKFLOWS if w.get("kind") == "glossary")
+    stranded = []
+    for size in ("A4", "Letter", "A5"):
+        out = tmp_path / f"dict-{size}.pdf"
+        _render_to_pdf(wf, out, size)
+        pdf = QPdfDocument(None)
+        pdf.load(str(out))
+        for page in range(pdf.pageCount()):
+            lines = [ln.strip() for ln in pdf.getAllText(page).text().splitlines()
+                     if ln.strip()]
+            # lines[0] is our own header band, lines[-1] the centred page number
+            body = lines[1:-1]
+            if body and body[-1] in terms:
+                stranded.append(f"{size} page {page + 1}: {body[-1]!r}")
+    assert not stranded, (
+        "a dictionary term is printed with its definition overleaf:\n  "
+        + "\n  ".join(stranded))
+
+
+def test_no_heading_is_stranded_on_any_printed_card(qapp, tmp_path):
+    """Knut's rule, held on every card and both page sizes — and held on the
+    document that was actually PAINTED, not on one the test laid out itself.
+
+    The card is printed for real and the document `render_card` used is caught
+    on its way through `render_paged`, after every rule has run. Two orphans
+    were living behind the narrower check: the folder guide stranded
+    "Verification runs — checking a finished profile over time" above its table
+    on US Letter, because the break that moved the table sat on the empty spacer
+    line between the two and nothing was looking there.
+    """
+    import ui.help_card_print as hc
+    from ui.dialogs.welcome_dialog import WORKFLOWS
+    from ui.pdf_layout import _first_orphan_heading, render_paged
+
+    caught = {}
+
+    def spy(doc, device, **kw):
+        pages = render_paged(doc, device, **kw)
+        caught["doc"] = doc
+        caught["body_h"] = kw["page_h"] - kw["header_h"] - kw["footer_h"]
+        return pages
+
+    stranded = []
+    hc.render_paged = spy
+    try:
+        for size in _PAGE_SIZES:
+            for wf in WORKFLOWS:
+                _render_to_pdf(wf, tmp_path / f"o-{wf['key']}-{size}.pdf", size)
+                orphan = _first_orphan_heading(caught["doc"], caught["body_h"])
+                if orphan is not None:
+                    stranded.append(f"{size}/{wf['key']}: {orphan[0].text()[:50]!r}")
+    finally:
+        hc.render_paged = render_paged
+    assert not stranded, (
+        "a heading is printed without the text it belongs to:\n  "
+        + "\n  ".join(stranded))
+
+
+def test_the_rules_never_measure_a_half_laid_out_document(qapp):
+    """The mechanism itself, at unit size, so the cause is named when it breaks.
+
+    Walking a fresh document with `blockBoundingRect` lays it out only as far as
+    the walk goes, and changing a document in that state ruins the geometry
+    below the change. `ui.pdf_layout.settled_layout` asks for the whole layout
+    first; page breaks can only ever make a document TALLER, so a run of the
+    rules that leaves it shorter than it started is that fault and nothing else.
+    """
+    from ui.pdf_layout import (avoid_orphan_headings, avoid_split_rows,
+                               paginate_tables, repeat_table_headers)
+
+    healthy, body_h = _card_doc("glossary")
+    tall = healthy.documentLayout().documentSize().height()
+    assert tall > 6000, f"the fixture is not the card it used to be ({tall:.0f} px)"
+
+    doc, _ = _card_doc("glossary")           # untouched: nothing laid out yet
+    repeat_table_headers(doc)
+    paginate_tables(doc, body_h)
+    avoid_split_rows(doc, body_h)
+    avoid_orphan_headings(doc, body_h)
+    after = doc.documentLayout().documentSize().height()
+    assert after >= tall, (
+        f"the rules left the document {tall - after:.0f} px SHORTER "
+        f"({tall:.0f} -> {after:.0f}) — they measured a layout that was still "
+        f"being built, and the tail of the card has collapsed")
 
 
 def test_a_split_first_row_moves_the_table_not_the_repeated_header(qapp,

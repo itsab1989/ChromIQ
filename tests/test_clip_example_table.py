@@ -189,6 +189,10 @@ def test_clip_text_keeps_every_blank_line():
     from workflow.layout_engine.raster import clip_text_lines
     assert clip_text_lines("date: ___\n \nprinter: ___") == \
         ["date: ___", " ", "printer: ___"]
-    assert clip_text_lines("\n\nA\n\nB\n\n") == ["", "", "A", "", "B", ""]
+    # A TRAILING NEWLINE IS A SEPARATOR, NOT A TERMINATOR. `splitlines()`
+    # swallowed the last one, so the one blank line a user could not get was
+    # the one at the END (#164, Knut). `split("\n")` keeps what was typed.
+    assert clip_text_lines("\n\nA\n\nB\n\n") == ["", "", "A", "", "B", "", ""]
+    assert clip_text_lines("A\n") == ["A", ""], "one trailing Enter, one blank line"
     assert clip_text_lines("   \n  ") == []
     assert clip_text_lines(None) == []

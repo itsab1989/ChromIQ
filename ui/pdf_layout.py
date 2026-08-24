@@ -45,6 +45,58 @@ WORDMARK_ACCENT = "#ff4573"
 
 
 # ---------------------------------------------------------------------------
+# The layout every rule below measures
+# ---------------------------------------------------------------------------
+def settled_layout(doc):
+    """The document's layout, with the layout FINISHED — ask for it here.
+
+    **A ``QTextDocument`` lays itself out lazily, and CHANGING one that is only
+    half laid out destroys the geometry of everything below the change.** Not
+    "makes it stale": destroys it. Every rule in this module measures the
+    layout and then edits a block format, so every one of them can trip it, and
+    the result is not a bad page break — it is content that never reaches the
+    paper at all.
+
+    Measured on the dictionary card, A4 with 15 mm margins (2026-08-24):
+
+    ==================================================  ================
+    what was done to the document                       document height
+    ==================================================  ================
+    laid out, untouched                                 6543 px (7 pages)
+    ``blockBoundingRect`` walk, then ONE page break      2939 px (4 pages)
+    ``documentSize()`` first, then the same page break   6560 px (7 pages)
+    ==================================================  ================
+
+    In the 2939 px case every ``<dd>`` below the change had collapsed to zero
+    height, ``pageCount()`` agreed with the wreck, and :func:`render_paged`
+    painted the four pages it was told to: **50 of the card's 79 dictionary
+    entries were missing from the PDF**, and the last sheet carried the words
+    "White point" and nothing else.
+
+    Why: walking blocks with ``blockBoundingRect`` lays the document out only
+    as far as the block asked for, so the walk finishes with a layout still in
+    progress. Editing then re-lays out from the edit downwards, over a tail
+    that was never finished. ``documentSize()`` completes a layout that is
+    merely unfinished — which is why asking for it BEFORE the edit is a fix —
+    but it does not repair one that has already been ruined, so asking for it
+    afterwards is not. Only ``markContentsDirty`` over the whole document does
+    that, at the price of a full re-layout.
+
+    So: **settle first, then measure, then change.** Every function here takes
+    its layout from this one call, and none takes it from
+    ``doc.documentLayout()`` directly.
+
+    NOT THE PAINT DEVICE. That was the first suspicion, and it is wrong: the
+    layout's ``paintDevice()`` is ``None`` before, during and after painting,
+    and the document's height is identical either side of ``QPainter(device)``
+    (measured on the same card, 1200 dpi ``QPdfWriter``).
+    """
+    lay = doc.documentLayout()
+    lay.documentSize()          # finishes a layout that is still in progress
+    return lay
+
+
+# ---------------------------------------------------------------------------
 # Pagination rules
 # ---------------------------------------------------------------------------
 def paginate_tables(doc, body_h: float) -> None:
@@ -63,7 +115,7 @@ def paginate_tables(doc, body_h: float) -> None:
     always = QTextFormat.PageBreakFlag.PageBreak_AlwaysBefore
 
     def _straddling_tables():
-        lay = doc.documentLayout()
+        lay = settled_layout(doc)
         found = []
         stack = [doc.rootFrame()]
         while stack:
@@ -79,7 +131,7 @@ def paginate_tables(doc, body_h: float) -> None:
         return [t for _, t in found]
 
     def _push_to_next_page(table) -> None:
-        lay = doc.documentLayout()
+        lay = settled_layout(doc)
         block = doc.findBlock(table.firstPosition() - 1)
         # The spacer lines of the gap batch (2026-08-13) are whitespace-only
         # blocks sitting between a heading and its table; without skipping
@@ -132,6 +184,7 @@ def repeat_table_headers(doc) -> int:
     every table arrived with a header-row count of zero. Returns how many
     tables were given one, so a caller can assert it did something.
     """
+    settled_layout(doc)          # never edit a half-laid-out document
     changed = 0
     stack = [doc.rootFrame()]
     while stack:
@@ -224,7 +277,7 @@ def _first_split_row(doc, body_h: float, skip: "set | None" = None):
     a header row Qt repeats, or one that still will not fit — does not stop the
     rest of the table from being tidied.
     """
-    lay = doc.documentLayout()
+    lay = settled_layout(doc)
     best = None
     stack = [doc.rootFrame()]
     while stack:
@@ -272,13 +325,23 @@ def avoid_orphan_headings(doc, body_h: float, limit: int = 200) -> int:
     """
     always = QTextFormat.PageBreakFlag.PageBreak_AlwaysBefore
     moved = 0
+    tried: set = set()
     for _ in range(limit):
-        found = _first_orphan_heading(doc, body_h)
+        found = _first_orphan_heading(doc, body_h, skip=tried)
         if found is None:
             return moved
         block, nxt = found
+        tried.add(block.position())
         if block.blockFormat().pageBreakPolicy() & always:
-            return moved            # already pushed and still orphaned: give up
+            # SKIP IT AND CARRY ON — this used to `return`, which abandoned
+            # every LATER orphan in the document because of one heading that
+            # would not move. `avoid_split_rows` has always done it this way.
+            # A BACKSTOP, NOT A PATH ANYTHING TAKES: `tried` means each heading
+            # is looked at once, so nothing reaches this line on any of the 18
+            # cards at A4, US Letter or A5 (counted, 2026-08-24). It is here so
+            # that a document which does reach it loses one heading rather than
+            # all of them.
+            continue
         # MOVE THE BREAK, DO NOT ADD ONE.
         #
         # `paginate_tables` pushes a table by breaking at the block ABOVE it,
@@ -289,10 +352,24 @@ def avoid_orphan_headings(doc, body_h: float, limit: int = 200) -> int:
         # the sheet, and a card that printed WORSE than it did before the rule
         # existed. Taking the break off the text and putting it on the heading
         # keeps them together on one page, which is the whole point.
-        if nxt.blockFormat().pageBreakPolicy() & always:
-            nfmt = nxt.blockFormat()
-            nfmt.setPageBreakPolicy(QTextFormat.PageBreakFlag.PageBreak_Auto)
-            QTextCursor(nxt).setBlockFormat(nfmt)
+        # …AND ANY BREAK BETWEEN THE TWO, NOT ONLY ONE ON THE FOLLOWER ITSELF.
+        # `avoid_split_rows` moves a table by breaking at "the block in front of
+        # it", and the block in front of a table is the EMPTY spacer line the
+        # HTML leaves there — never the follower this rule is looking at. So the
+        # break was invisible here, the heading stayed where it was, and the
+        # folder guide printed "Verification runs — checking a finished profile
+        # over time" at the foot of a US Letter page with its table overleaf.
+        # Walk the whitespace blocks the orphan search stepped over and take the
+        # break off those too.
+        walk = block.next()
+        while walk.isValid():
+            if walk.blockFormat().pageBreakPolicy() & always:
+                wfmt = walk.blockFormat()
+                wfmt.setPageBreakPolicy(QTextFormat.PageBreakFlag.PageBreak_Auto)
+                QTextCursor(walk).setBlockFormat(wfmt)
+            if walk == nxt:
+                break
+            walk = walk.next()
         cur = QTextCursor(block)
         bf = block.blockFormat()
         bf.setPageBreakPolicy(always)
@@ -315,20 +392,45 @@ def _is_heading(block) -> bool:
     return True
 
 
-def _first_orphan_heading(doc, body_h: float):
-    """``(heading, following_block)`` for the topmost orphan, or None."""
-    lay = doc.documentLayout()
-    always = QTextFormat.PageBreakFlag.PageBreak_AlwaysBefore
+def _line_page(lay, block, body_h: float) -> int:
+    """The page the block's FIRST LINE of text lands on.
+
+    NOT the page its box starts on, which is what this used to ask. When a
+    block begins in the last few pixels of a page, Qt puts the top of its box
+    there and pushes the first line over to the next page. Judged by the box,
+    a heading and its definition looked like they were on the same page and the
+    rule did nothing — while the sheet showed the bold term alone at the foot
+    with its text overleaf. That is exactly Knut's "Instrument" (#164, A5).
+
+    Read off the printed sheets rather than off this arithmetic, judging by the
+    box strands "Chart recipe" and "Preset" on A4, "Fiducial marks" and "Patch
+    set" on US Letter and three more terms on A5; judging by the first line
+    strands none of them at any of the three sizes (2026-08-24). Only the
+    dictionary card is affected, because its <dt>/<dd> pairs have no margin
+    between them to absorb the difference.
+    """
+    rect = lay.blockBoundingRect(block)
+    layout = block.layout()
+    first = layout.lineAt(0).y() if layout and layout.lineCount() else 0.0
+    return int((rect.top() + first) // body_h)
+
+
+def _first_orphan_heading(doc, body_h: float, skip: "set | None" = None):
+    """``(heading, following_block)`` for the topmost orphan, or None.
+
+    *skip* holds headings a caller has already pushed, so one that will not
+    move does not hide every later orphan in the document.
+    """
+    lay = settled_layout(doc)
     block = doc.begin()
     while block.isValid():
         nxt = block.next()
         while nxt.isValid() and not nxt.text().strip():
             nxt = nxt.next()
         if (_is_heading(block) and nxt.isValid()
+                and (not skip or block.position() not in skip)
                 and QTextCursor(block).currentTable() is None):
-            page = int(lay.blockBoundingRect(block).top() // body_h)
-            nxt_page = int(lay.blockBoundingRect(nxt).top() // body_h)
-            if nxt_page > page:
+            if _line_page(lay, nxt, body_h) > _line_page(lay, block, body_h):
                 return block, nxt
         block = block.next()
     return None
@@ -417,7 +519,14 @@ def render_paged(doc, device, *, page_w: float, page_h: float,
     try:
         if scale != 1.0:
             painter.scale(scale, scale)
-        layout = doc.documentLayout()
+        layout = settled_layout(doc)
+        # `pageCount()` IS ONLY EVER RIGHT ABOUT A FINISHED LAYOUT — hence the
+        # `settled_layout` above rather than a bare `documentLayout()`. It is
+        # derived from the document's height, so it can never be too small for
+        # the content it knows about; it can only be perfectly right about a
+        # document that has been ruined, which is how a card once printed on
+        # four sheets with three sheets' worth of it missing. See
+        # :func:`settled_layout`.
         total = max(1, doc.pageCount())
         foot_font = QFont()
         foot_font.setPixelSize(10)
