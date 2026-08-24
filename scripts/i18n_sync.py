@@ -67,7 +67,7 @@ def main() -> int:
         for k in missing:
             data[k] = german.get(k, k) if code == "de" else k
         data = collections.OrderedDict(sorted(data.items(), key=lambda kv: kv[0]))
-        path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=1) + "\n",
                         encoding="utf-8")
 
     if args.apply and missing_any and not german:

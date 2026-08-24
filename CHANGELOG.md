@@ -1,5 +1,56 @@
 # Changelog
 
+## v4.1.3-beta.3
+
+The preview window beta.2 put in front of the print dialog is gone — and taking
+it out uncovered the fault it had been showing all along.
+
+### Fixed
+
+- **Help cards printed at a third of their size on macOS.** ChromIQ asked the
+  printer to work in the 96-dpi units the cards are written in. A PDF writer
+  agrees to that; a printer does not — macOS snaps the request to a resolution
+  the queue actually has (96 became 300 on both printers here) while still
+  reporting its pixels at that resolution. Dividing those by 96 read a 180 mm
+  page as 562 mm, so every card was laid out for a sheet three times too wide
+  and then squeezed onto the real one: microscopic text crammed into the top
+  third, and 3 times too much of it on each page. Every card, both common paper
+  sizes. It reached only the printer — "Save as PDF…" came out the right size
+  throughout, which is why nothing looked wrong until a preview drew the
+  printer's page on screen. Cards now print at the printer's own resolution,
+  and all 18 cards on A4, Letter, A5, A6, Legal, landscape and wide margins
+  come out page-for-page identical to the PDF.
+
+  Linux was not affected — its print engine takes the resolution it is given.
+  Windows should not be either, for the same reason, but that has not been run.
+
+  The saved PDFs shift very slightly with this: the printable width used to be
+  rounded down to a whole device pixel and is now not, so the text column is
+  0.35 mm wider. Page counts are unchanged on every card.
+
+- **A help card could run to half again as many pages on US Letter.** Keeping
+  table rows off page breaks put the break directly after a repeating header
+  row, and Qt then had to reprint that header on the new page: one such break
+  cost three pages. The folder guide finished at 14 pages on Letter where the
+  same card on A4 took 9. It now moves the whole table down instead: 11 pages,
+  with no row cut in half on any card at either size. A4 is unchanged at 9.
+
+  Five other cards lost pages too, one of them eight. Letter still has one
+  near-empty page in the folder guide, where a heading sits alone above its
+  table — beta.2 had four.
+
+- **Printing no longer changes the print job's settings.** Painting a card left
+  the printer at 300 dpi even if the user had chosen 600.
+
+### Changed
+
+- **Print… opens your system's print window again, with no preview window in
+  front of it.** ChromIQ cannot put a preview inside that window: on macOS the
+  pane Apple draws there belongs to a kind of print job Qt does not use, the
+  Windows print dialog has no preview at all, and Qt hides the one in its own
+  Linux dialog. To see the pages before they are printed, use "Save as PDF…"
+  beside the button.
+
 ## v4.1.3-beta.2
 
 Knut's second batch, and it turned out to be one fault wearing several hats: the
@@ -69,7 +120,7 @@ and the full translation pass.
   already had.
 
 - **Print… now shows a preview** before the system print dialog, which on macOS
-  shows none of its own.
+  shows none of its own. *(Withdrawn in beta.3 — see above.)*
 
 - **Seven new i1Pro charts** on A4 with 8 mm patches — 156, 312, 572, 1,144,
   1,716, 2,288 and 2,860 patches, one 22 × 26 grid, 572 to a sheet. Knut's own
@@ -110,7 +161,8 @@ and the full translation pass.
 - **No built-in preset is parked any more.** The greying mechanism stays; it
   simply has nothing in it.
 - **Print… opens a preview**, not the system print dialog, and saving a copy is
-  now its own button beside it.
+  now its own button beside it. *(The preview was withdrawn in beta.3; the
+  separate button stayed.)*
 - **The i1Pro preset list is in a different order**, so entries you knew by
   position have moved.
 

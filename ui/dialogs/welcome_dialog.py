@@ -1971,11 +1971,11 @@ class WelcomeDialog(QDialog):
         _right_l.addWidget(self._pdf_btn)
         self._print_btn = QPushButton(tr("Print…"), _right)
         self._print_btn.setToolTip(tr(
-            "Prints the help card you are reading. A preview opens first, so "
-            "you can see the finished pages before anything is sent to your "
-            "printer — handy for the keyboard shortcuts, or a workflow to "
-            "follow at the printer. To keep a copy instead, use “Save as "
-            "PDF…” beside this button."))
+            "Prints the help card you are reading — handy for the keyboard "
+            "shortcuts, or a workflow to follow at the printer. Your usual "
+            "print window opens, so you can choose the printer, the paper and "
+            "how many copies. To see the pages first, or to keep them, use "
+            "“Save as PDF…” beside this button."))
         self._print_btn.clicked.connect(self._print_current_card)
         self._print_btn.setVisible(False)
         _right_l.addWidget(self._print_btn)
@@ -2035,11 +2035,12 @@ class WelcomeDialog(QDialog):
             from ui.help_card_print import print_card
             print_card(wf, self,
                        lang=str(self._settings.get("language", "en") or "en"))
-            # BRING THE HELP WINDOW BACK. Closing the print or save panel hands
-            # focus to the main window, not to us, so the card the user was
-            # reading disappears behind it and they have to reopen Help to get
-            # back to it (#164, Knut). True whether they printed or cancelled —
-            # the preview dialog does not tell us which, and it does not matter.
+            # BRING THE HELP WINDOW BACK. Closing the print panel hands focus to
+            # the main window, not to us, so the card the user was reading
+            # disappears behind it and they have to reopen Help to get back to
+            # it (#164, Knut). Both ways out of the panel — printed and
+            # cancelled — leave it hidden, so this runs either way and the
+            # return value is deliberately not read here.
             self.raise_()
             self.activateWindow()
         except Exception:      # noqa: BLE001 — a failed print never kills Help

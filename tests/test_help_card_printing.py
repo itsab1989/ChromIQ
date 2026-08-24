@@ -281,7 +281,7 @@ def test_the_page_size_comes_from_the_printer(qapp):
     from ui import help_card_print
 
     src = inspect.getsource(help_card_print.render_card)
-    assert "device.width()" in src, "the card is not measured against the device"
+    assert "printable_size_mm" in src, "the card is not measured against the device"
 
     printer = QPrinter(QPrinter.PrinterMode.HighResolution)
     printer.setPageSize(QPageSize(QPageSize.PageSizeId.A5))
@@ -306,3 +306,263 @@ def test_a_missing_print_module_is_not_mistaken_for_a_cancel(qapp, tmp_path,
     assert len(body) == 2, "the ImportError branch is gone"
     assert "raise" in body[1].split("printer =")[0], (
         "a missing QtPrintSupport still returns False, which reads as a cancel")
+
+
+# ---------------------------------------------------------------------------
+# A REAL PRINTER, NOT A PDF WRITER
+# ---------------------------------------------------------------------------
+# Everything above prints through `setOutputFormat(PdfFormat)`, and that engine
+# does whatever `setResolution` asks. A printer does not: `QMacPrintEngine`
+# snaps the request to the queue's own `supportedResolutions()`. beta.2 asked
+# for 96 dpi, silently got 300, went on dividing `width()` by 96, and laid every
+# card out for a 562 mm page — printing it at 32 % of its size into the top
+# third of the sheet. A green suite and a full visual proof sheet both missed
+# it, because both were PDF. `QPrintPreviewWidget` drives the native engine
+# without a printer attached, and reports the same metrics a print job sees.
+
+
+def _native_printer(page_size, margin_mm=15.0):
+    """A printer on the real print engine — or a skip.
+
+    WITH NO PRINT QUEUE INSTALLED A `QPrinter` QUIETLY BECOMES A PDF WRITER,
+    and a PDF writer accepts `setResolution(96)`. Both sides of the comparison
+    below then collapse onto the same engine and the test passes against the
+    very bug it was written for — measured: the two page-count tests pass
+    unmodified against beta.2 on a machine with no printers. So say "not
+    proven here" rather than "green" (#164 review).
+    """
+    from PyQt6.QtCore import QMarginsF
+    from PyQt6.QtGui import QPageLayout, QPageSize
+    from PyQt6.QtPrintSupport import QPrinter
+
+    printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+    if printer.outputFormat() != QPrinter.OutputFormat.NativeFormat:
+        pytest.skip("no print queue on this machine: QPrinter fell back to PDF")
+    printer.setPageSize(QPageSize(page_size))
+    printer.setPageMargins(QMarginsF(margin_mm, margin_mm, margin_mm, margin_mm),
+                           QPageLayout.Unit.Millimeter)
+    return printer
+
+
+def _native_render(qapp, wf, printer):
+    """Paint *wf* through the native engine; return (pages, geometry).
+
+    *geometry* is what the card was laid out to and what the painter was scaled
+    by — the two numbers the whole fix turns on.
+    """
+    from PyQt6.QtPrintSupport import QPrintPreviewWidget
+
+    from ui import help_card_print
+
+    seen = {}
+    real = help_card_print.render_paged
+
+    def spy(doc, device, **kw):
+        seen["page_w"] = kw["page_w"]
+        seen["page_h"] = kw["page_h"]
+        seen["scale"] = kw.get("scale", 1.0)
+        seen["dev_w"], seen["dev_h"] = device.width(), device.height()
+        return real(doc, device, **kw)
+
+    help_card_print.render_paged = spy
+    try:
+        widget = QPrintPreviewWidget(printer)
+        widget.paintRequested.connect(
+            lambda dev: seen.__setitem__("pages", render_card_via(wf, dev)))
+        widget.updatePreview()
+        qapp.processEvents()
+    finally:
+        help_card_print.render_paged = real
+    return seen
+
+
+def render_card_via(wf, dev):
+    from ui.help_card_print import render_card
+    return render_card(wf, dev)
+
+
+def _native_page_count(qapp, wf, page_size, margin_mm=15.0):
+    """Page count for *wf* through the NATIVE print engine."""
+    printer = _native_printer(page_size, margin_mm)
+    seen = _native_render(qapp, wf, printer)
+    return seen.get("pages"), printer
+
+
+def _pdf_page_count(wf, page_size, tmp_path, margin_mm=15.0):
+    from PyQt6.QtCore import QMarginsF
+    from PyQt6.QtGui import QPageLayout, QPageSize
+    from PyQt6.QtPrintSupport import QPrinter
+
+    from ui.help_card_print import render_card
+
+    printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+    printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
+    printer.setOutputFileName(str(tmp_path / "card.pdf"))
+    printer.setPageSize(QPageSize(page_size))
+    printer.setPageMargins(QMarginsF(margin_mm, margin_mm, margin_mm, margin_mm),
+                           QPageLayout.Unit.Millimeter)
+    return render_card(wf, printer)
+
+
+@pytest.mark.parametrize("page,name", [("A4", "A4"), ("Letter", "Letter")])
+def test_a_real_printer_gets_the_same_pages_as_the_pdf(qapp, tmp_path, page, name):
+    """Every card, on both common paper sizes, through both engines.
+
+    If these ever disagree the card is being laid out for one page size and
+    painted onto another — which is exactly what beta.2 shipped.
+    """
+    from PyQt6.QtGui import QPageSize
+
+    from ui.dialogs.welcome_dialog import WORKFLOWS
+
+    size = getattr(QPageSize.PageSizeId, page)
+    wrong = []
+    for wf in WORKFLOWS:
+        native, _ = _native_page_count(qapp, wf, size)
+        pdf = _pdf_page_count(wf, size, tmp_path)
+        if native != pdf:
+            wrong.append(f"{wf['key']}: printer {native} pages, PDF {pdf}")
+    assert not wrong, f"{name}: " + "; ".join(wrong)
+
+
+def test_the_card_is_laid_out_to_exactly_the_page_it_is_painted_on(qapp):
+    """THE ONE NUMBER THE WHOLE FIX TURNS ON.
+
+    The document is laid out in 96-dpi pixels and the painter is scaled to the
+    device. Those two have to agree: ``page_w * scale`` must be the device's
+    own width, or the card is drawn for one page and painted onto another.
+    beta.2 got this wrong in the small direction — 96/300, a third of the size.
+    Nothing in the suite could see it, because page COUNT does not change when
+    a painter is scaled; this watches the geometry instead.
+    """
+    from PyQt6.QtGui import QPageSize
+
+    from ui.dialogs.welcome_dialog import WORKFLOWS
+
+    for page in ("A4", "Letter", "A5"):
+        printer = _native_printer(getattr(QPageSize.PageSizeId, page))
+        seen = _native_render(qapp, WORKFLOWS[0], printer)
+        assert seen, f"{page}: the card was never painted"
+        for axis in ("w", "h"):
+            want = seen[f"dev_{axis}"]
+            got = seen[f"page_{axis}"] * seen["scale"]
+            # A page is thousands of device pixels; a millimetre is the bar.
+            tol = max(4.0, want / 254.0)
+            assert abs(got - want) <= tol, (
+                f"{page} {axis}: laid out for {got:.0f} device px, painted onto "
+                f"{want} (page_{axis}={seen[f'page_{axis}']:.1f} @ 96 dpi, "
+                f"scale={seen['scale']:.3f})")
+
+
+def test_a4_is_measured_as_a4_and_not_as_something_three_times_wider(qapp):
+    """The number that gave the fault away: A4 less 15 mm margins is 180 mm of
+    printable width. beta.2 read it as 562."""
+    from PyQt6.QtGui import QPageSize
+
+    from ui.dialogs.welcome_dialog import WORKFLOWS
+
+    printer = _native_printer(QPageSize.PageSizeId.A4)
+    seen = _native_render(qapp, WORKFLOWS[0], printer)
+    w_mm = seen["page_w"] * 25.4 / 96.0
+    h_mm = seen["page_h"] * 25.4 / 96.0
+    assert abs(w_mm - 180.0) < 1.0, f"A4 laid out to {w_mm:.1f} mm wide"
+    assert abs(h_mm - 267.0) < 1.0, f"A4 laid out to {h_mm:.1f} mm tall"
+
+
+def test_printing_does_not_downgrade_the_printer(qapp):
+    """`render_card` must not write to the device it is handed.
+
+    beta.2's `setResolution(96)` left the caller's printer at 300 dpi — a
+    printer the user had told the system to run at 600. Painting a document is
+    not the moment to change the job's settings.
+    """
+    from PyQt6.QtCore import QMarginsF
+    from PyQt6.QtGui import QPageLayout, QPageSize
+    from PyQt6.QtPrintSupport import QPrinter, QPrintPreviewWidget
+
+    from ui.dialogs.welcome_dialog import WORKFLOWS
+    from ui.help_card_print import render_card
+
+    printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+    printer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
+    printer.setPageMargins(QMarginsF(15, 15, 15, 15), QPageLayout.Unit.Millimeter)
+    seen = {}
+
+    def paint(dev):
+        seen["before"] = dev.resolution()
+        render_card(WORKFLOWS[0], dev)
+        seen["after"] = dev.resolution()
+
+    widget = QPrintPreviewWidget(printer)
+    widget.paintRequested.connect(paint)
+    widget.updatePreview()
+    qapp.processEvents()
+    assert seen["after"] == seen["before"], (
+        f"painting moved the job from {seen['before']} dpi to {seen['after']}")
+
+
+def test_the_print_button_opens_the_system_dialog_and_no_window_of_ours(qapp):
+    """Basti, #164: "the preview you introduced completely messes up the page
+    layout and i want to have it gone". The system's own print window is what
+    opens — Qt's `QPrintPreviewDialog` is not to come back.
+
+    macOS cannot show a preview pane inside that window through Qt at all: the
+    pane is drawn by an `NSPrintOperation` asking a real `NSView` for its pages,
+    and Qt presents a bare `NSPrintPanel`. Windows' common print dialog has no
+    preview, and Qt hides the one in its own Linux dialog. "Save as PDF…" is
+    the route to seeing the pages first, on every platform.
+    """
+    import inspect
+
+    from ui import help_card_print
+
+    src = inspect.getsource(help_card_print.print_card)
+    assert "QPrintPreviewDialog" not in src, (
+        "the Qt preview window is back; Basti asked for it to be gone")
+    assert "QPrintDialog" in src, "the system print dialog is not being opened"
+
+
+def test_a_device_that_will_not_say_its_size_still_gets_a_whole_page(qapp,
+                                                                     tmp_path):
+    """The fallback in `printable_size_mm` decides the printed geometry now
+    that the function is on the live path, and it used to return the BODY
+    height (225 mm) where a PAGE height (267 mm) was wanted — 60 mm blank at
+    the foot of every sheet, with the page number floating above the paper
+    edge (#164 review)."""
+    from ui.help_card_print import _FALLBACK_PAGE_MM, _FOOTER_H, _HEADER_H
+    from ui.help_card_print import printable_size_mm
+
+    class WontSay:
+        def pageLayout(self):
+            raise RuntimeError("no page layout")
+
+    w_mm, h_mm = printable_size_mm(WontSay())
+    assert (w_mm, h_mm) == _FALLBACK_PAGE_MM
+    # A4 less the 15 mm margins ChromIQ asks for, which is the page it sets up.
+    assert abs(w_mm - 180.0) < 0.5 and abs(h_mm - 267.0) < 0.5, (
+        f"the fallback page is {w_mm:.0f} x {h_mm:.0f} mm")
+    # …and it is a PAGE, not the body band inside it.
+    assert h_mm * 96.0 / 25.4 > _HEADER_H + _FOOTER_H + 700, (
+        "the fallback is the body height again, not the page height")
+
+
+def test_accepting_the_dialog_actually_prints(qapp, monkeypatch):
+    """The line the revert put back — `render_card(wf, printer)` — was reached
+    by no test at all, because `tests/conftest.py` stubs every print dialog to
+    Cancel for the whole suite. So Print… could have quietly printed nothing
+    and the gate would still have been green (#164 review)."""
+    from ui import help_card_print
+    from ui.dialogs.welcome_dialog import WORKFLOWS
+
+    printed = []
+    monkeypatch.setattr(help_card_print, "_exec_print_dialog", lambda d: True)
+    monkeypatch.setattr(help_card_print, "render_card",
+                        lambda wf, dev, **kw: printed.append((wf["key"], dev)))
+    assert help_card_print.print_card(WORKFLOWS[0]) is True
+    assert len(printed) == 1, "the dialog was accepted and nothing was printed"
+    assert printed[0][0] == WORKFLOWS[0]["key"]
+
+    printed.clear()
+    monkeypatch.setattr(help_card_print, "_exec_print_dialog", lambda d: False)
+    assert help_card_print.print_card(WORKFLOWS[0]) is False
+    assert not printed, "Cancel printed anyway"

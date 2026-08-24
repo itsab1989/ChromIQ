@@ -160,9 +160,19 @@ def avoid_split_rows(doc, body_h: float, limit: int = 200) -> int:
     * **"break after" on the row above** works and costs nothing: 3 → 3 and
       8 → 9, with every split row fixed either way.
 
-    Rows taller than a page cannot be helped, and neither can a first row with
-    nothing above it to break after — those fall back to breaking the row
-    itself. Returns the number of rows moved.
+    WITH ONE EXCEPTION, AND IT IS AN EXPENSIVE ONE. Never break after a row
+    :func:`repeat_table_headers` has made a repeating header: Qt then has to
+    put the header on the new page too, and the arithmetic runs away. Measured
+    on the folder guide on US Letter, one such break cost THREE pages — this
+    rule alone took the card from 10 pages to 13, and printed it finished at 14
+    where A4 took 9. When the only thing above the straddling row is that
+    header, the whole table moves to the next page instead: 11 printed pages on
+    Letter, A4 unchanged at 9, and no row left split on any card at either
+    size.
+
+    Rows taller than a page cannot be helped, and neither can a table with
+    nothing at all in front of it — those fall back to breaking the row itself.
+    Returns the number of rows moved.
     """
     after = QTextFormat.PageBreakFlag.PageBreak_AlwaysAfter
     before = QTextFormat.PageBreakFlag.PageBreak_AlwaysBefore
@@ -173,18 +183,30 @@ def avoid_split_rows(doc, body_h: float, limit: int = 200) -> int:
         if row is None:
             return moved
         table, index = row
-        tried.add((id(table), index))
-        if index > 0:
+        # KEYED ON THE TABLE'S POSITION, NOT `id(table)`. PyQt6 does not keep
+        # the wrapper alive between walks, so ids get recycled: a row could be
+        # retried, or a different table's row silently skipped.
+        tried.add((table.firstPosition(), index))
+        if index > table.format().headerRowCount() and index > 0:
             block = table.cellAt(index - 1, 0).lastCursorPosition().block()
             policy = after
-        else:                                  # nothing above it to break after
-            block = table.cellAt(index, 0).firstCursorPosition().block()
+        else:                      # only the repeated header sits above it
+            block = doc.findBlock(table.firstPosition() - 1)
             policy = before
-            for col in range(1, table.columns()):
-                other = table.cellAt(index, col).firstCursorPosition().block()
-                fmt = other.blockFormat()
-                fmt.setPageBreakPolicy(before)
-                QTextCursor(other).setBlockFormat(fmt)
+            # THE BLOCK IN FRONT OF A TABLE CAN BE INSIDE ANOTHER ONE.
+            # `paginate_tables` guards the same lookup; this branch was written
+            # without it, and on a table nested in a cell the break landed
+            # inside the OUTER table and did nothing useful. ChromIQ's own
+            # cards never nest, but this module is shared.
+            if block.isValid() and QTextCursor(block).currentTable() is not None:
+                block = doc.findBlock(-1)                # invalid → fall through
+            if not block.isValid():            # the table opens the document
+                block = table.cellAt(index, 0).firstCursorPosition().block()
+                for col in range(1, table.columns()):
+                    other = table.cellAt(index, col).firstCursorPosition().block()
+                    fmt = other.blockFormat()
+                    fmt.setPageBreakPolicy(before)
+                    QTextCursor(other).setBlockFormat(fmt)
         if not block.isValid() or block.blockFormat().pageBreakPolicy() & policy:
             continue          # already pushed and still split — leave it, move on
         cur = QTextCursor(block)
@@ -211,7 +233,7 @@ def _first_split_row(doc, body_h: float, skip: "set | None" = None):
             if not isinstance(ch, QTextTable):
                 continue
             for r in range(ch.rows()):
-                if skip and (id(ch), r) in skip:
+                if skip and (ch.firstPosition(), r) in skip:
                     continue
                 top, bottom = _row_extent(lay, ch, r)
                 if bottom - top >= body_h - 1:
@@ -355,7 +377,7 @@ def draw_colour_line(painter: QPainter, width: float, y: float,
 def render_paged(doc, device, *, page_w: float, page_h: float,
                  header_h: float = 34.0, footer_h: float = 22.0,
                  draw_header=None, footer_text=None,
-                 apply_rules: bool = True) -> int:
+                 apply_rules: bool = True, scale: float = 1.0) -> int:
     """Paint *doc* onto *device* page by page, with our own header and footer.
 
     The document is given a page the size of the BODY, so it paginates itself
@@ -367,6 +389,12 @@ def render_paged(doc, device, *, page_w: float, page_h: float,
     *footer_text* is called as ``footer_text(page_index, total)`` and its result
     is drawn CENTRED — Qt's own page number is right-aligned, which is what
     Knut asked to change.
+
+    *page_w* / *page_h* are in the document's own units — 96-dpi pixels, the
+    space its ``px`` sizes are written in. *scale* converts those to the
+    device's: pass ``device.resolution() / 96`` for a device that prints at
+    some other resolution and cannot be talked out of it. A printer is exactly
+    that — see :func:`ui.help_card_print.render_card`.
     """
     body_h = page_h - header_h - footer_h
     doc.setPageSize(QSizeF(page_w, body_h))
@@ -387,6 +415,8 @@ def render_paged(doc, device, *, page_w: float, page_h: float,
 
     painter = QPainter(device)
     try:
+        if scale != 1.0:
+            painter.scale(scale, scale)
         layout = doc.documentLayout()
         total = max(1, doc.pageCount())
         foot_font = QFont()

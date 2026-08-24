@@ -101,6 +101,14 @@ def _tab_name(idx: Any) -> str:
 #: only when nobody has told us the real one (a preview, a test).
 _PAGE_WIDTH_MM = 180.0
 _PAGE_HEIGHT_MM = 225.0
+
+#: The PAGE to fall back on when a device will not say how big its own is —
+#: A4 less the 15 mm margins ChromIQ asks for. Not to be confused with
+#: `_PAGE_HEIGHT_MM` above, which bounds the BODY (the page less our header and
+#: footer bands) and is 42 mm shorter. `printable_size_mm` returned that one by
+#: mistake, which left 60 mm blank at the foot of every sheet and floated the
+#: page number above the paper edge (#164 review).
+_FALLBACK_PAGE_MM = (180.0, 267.0)
 #: A QTextDocument lays HTML out in 96-dpi pixels, so anything that has to FIT
 #: the page is measured in those.
 _PX_PER_MM = 96.0 / 25.4
@@ -369,7 +377,7 @@ def printable_size_mm(printer) -> "tuple[float, float]":
             return w, h
     except Exception:      # noqa: BLE001 — fall back rather than fail to print
         log.debug("could not read the printer page layout", exc_info=True)
-    return _PAGE_WIDTH_MM, _PAGE_HEIGHT_MM
+    return _FALLBACK_PAGE_MM
 
 
 def save_card_pdf(wf: dict, parent=None, lang: str = "en") -> "Path | None":
@@ -410,14 +418,26 @@ def save_card_pdf(wf: dict, parent=None, lang: str = "en") -> "Path | None":
 def print_card(wf: dict, parent=None, lang: str = "en") -> bool:
     """Show the system print dialog for the card *wf*.
 
-    Returns True when the user went ahead. On macOS the print dialog's own PDF
-    menu covers "save as PDF", which is what Knut asked for; the same dialog on
-    Windows and Linux offers "Print to File (PDF)".
+    Returns True when the user went ahead, False when they cancelled. Help
+    itself treats the two the same — it comes back to the front either way —
+    but a caller that could not tell them apart would read a BROKEN print as a
+    deliberate Cancel, which is why the ImportError below raises.
+
+    THE SYSTEM DIALOG, NOT ONE OF OURS. Qt can put its own preview window in
+    front of it, and beta.2 did; it was thrown out because a second window is
+    not what anyone asked for. The system panel on macOS cannot show its own
+    preview pane through Qt at all — Apple draws that pane from an
+    `NSPrintOperation` asking a real `NSView` for its pages, and Qt presents a
+    bare `NSPrintPanel` instead (`qprintdialog_mac.mm`). The Windows common
+    print dialog has no preview either, and Qt hides the one in its own Linux
+    dialog. So the honest routes to seeing the pages first are the panel's own
+    PDF ▸ Open in Preview on macOS, and "Save as PDF…" beside this button
+    everywhere.
     """
     try:
         from PyQt6.QtCore import QMarginsF
         from PyQt6.QtGui import QPageLayout, QPageSize
-        from PyQt6.QtPrintSupport import QPrinter, QPrintPreviewDialog
+        from PyQt6.QtPrintSupport import QPrintDialog, QPrinter
     except ImportError as exc:  # pragma: no cover — QtPrintSupport is bundled
         # RAISE, don't return False. The caller reads False as "the user
         # cancelled" and says nothing, so a missing print module would look
@@ -430,14 +450,11 @@ def print_card(wf: dict, parent=None, lang: str = "en") -> bool:
     printer.setDocName(document_name(wf))
     printer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
     printer.setPageMargins(QMarginsF(15, 15, 15, 15), QPageLayout.Unit.Millimeter)
-    # A PREVIEW FIRST. The system print dialog shows no picture of what is about
-    # to come out (Basti, #164) — on macOS it cannot, because Qt hands it a
-    # printer rather than a print operation. Qt's own preview does, and its
-    # toolbar opens the real print dialog from there, so nothing is lost.
-    dlg = QPrintPreviewDialog(printer, parent)
+    dlg = QPrintDialog(printer, parent)
     dlg.setWindowTitle(tr("Print this help card"))
-    dlg.paintRequested.connect(lambda pr: render_card(wf, pr, lang=lang))
-    _exec_print_dialog(dlg)
+    if not _exec_print_dialog(dlg):
+        return False
+    render_card(wf, printer, lang=lang)
     return True
 
 
@@ -445,19 +462,39 @@ def render_card(wf: dict, device, *, lang: str = "en") -> int:
     """Paint the card onto a QPrinter or QPdfWriter. Returns the page count.
 
     The document is laid out in 96-dpi pixels — that is the space its `px`
-    sizes and image widths are written in — so the device is asked to work in
-    the same units. Text stays vector-crisp either way: the resolution decides
-    the coordinate system, not the quality.
+    sizes and image widths are written in. The DEVICE is not asked to work in
+    those units, because a real printer will not:
+
+        ASK A PRINTER FOR 96 dpi AND IT GIVES YOU THE NEAREST IT HAS.
+        `QMacPrintEngine::setProperty` snaps the request to the queue's own
+        `supportedResolutions()` — 96 became 300 on both printers here — while
+        `width()` goes on reporting device pixels at that resolution. Dividing
+        those by 96 read a 180 mm page as 562 mm, and the card printed at 32 %
+        of its size, crushed into the top third of the sheet. A `QPdfWriter`
+        accepts any resolution, so every proof we had was blind to it (#164).
+
+    So: measure the page in millimetres, lay the document out in 96-dpi pixels,
+    and scale the painter to whatever the device actually runs at. Text stays
+    vector-crisp — and now prints at the printer's full resolution rather than
+    at 96 dpi.
     """
-    device.setResolution(96)
-    page_w, page_h = float(device.width()), float(device.height())
+    w_mm, h_mm = printable_size_mm(device)
+    page_w, page_h = w_mm * 96.0 / 25.4, h_mm * 96.0 / 25.4
     header_h, footer_h = _HEADER_H, _FOOTER_H
     doc = build_document(
-        wf, width_mm=page_w * 25.4 / 96.0,
+        wf, width_mm=w_mm,
         height_mm=(page_h - header_h - footer_h) * 25.4 / 96.0, lang=lang)
+    res = float(device.resolution() or 0.0)
+    if res <= 0.0:
+        # Never seen from a real device, and the alternative is worse than a
+        # warning: an unscaled painter against a page measured in millimetres
+        # prints the card at some fraction of its size, silently.
+        log.warning("the print device reports no resolution; assuming 96 dpi")
+        res = 96.0
     return render_paged(doc, device, page_w=page_w, page_h=page_h,
                         header_h=header_h, footer_h=footer_h,
-                        draw_header=_draw_card_header(wf))
+                        draw_header=_draw_card_header(wf),
+                        scale=res / 96.0)
 
 
 def _draw_card_header(wf: dict):

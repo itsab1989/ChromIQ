@@ -328,3 +328,68 @@ def test_no_card_prints_an_almost_empty_page(qapp, tmp_path):
         assert min(inks) > 2.0, (
             f"{key} prints an almost empty page: "
             f"{[round(v, 2) for v in inks]}")
+
+
+def test_a_split_first_row_moves_the_table_not_the_repeated_header(qapp,
+                                                                   tmp_path):
+    """A break placed AFTER a repeating header row is ruinously expensive.
+
+    `repeat_table_headers` makes row 0 repeat on every page the table reaches.
+    Break after it and Qt has to reprint that header on the new page too, and
+    the arithmetic runs away. When the only thing above a straddling row is
+    that header, the whole table moves instead.
+
+    MEASURED THROUGH THE REAL PAINT PATH, not by running the rules by hand: the
+    two do not agree (hand-running gave 9 → 10 where `render_card` gives
+    14 → 11), and taking the hand-run number was how a wrong figure reached the
+    release notes in the first place (#164 review).
+    """
+    from PyQt6.QtCore import QMarginsF
+    from PyQt6.QtGui import QPageLayout, QPageSize
+    from PyQt6.QtPrintSupport import QPrinter
+
+    from ui.dialogs.welcome_dialog import WORKFLOWS
+    from ui.help_card_print import render_card
+
+    wf = next(w for w in WORKFLOWS if w["key"] == "file_guide")
+    pages = {}
+    for name in ("A4", "Letter"):
+        printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+        printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
+        printer.setOutputFileName(str(tmp_path / f"{name}.pdf"))
+        printer.setPageSize(QPageSize(getattr(QPageSize.PageSizeId, name)))
+        printer.setPageMargins(QMarginsF(15, 15, 15, 15),
+                               QPageLayout.Unit.Millimeter)
+        pages[name] = render_card(wf, printer)
+
+    # US Letter is 7% SHORTER than A4, so a couple of extra pages is expected.
+    # Half again as many is the fault: beta.2 printed this card on 14 sheets of
+    # Letter against 9 of A4, because of breaks landing after header rows.
+    assert pages["Letter"] <= pages["A4"] + 2, (
+        f"the folder guide takes {pages['Letter']} pages on US Letter against "
+        f"{pages['A4']} on A4 — header-row page breaks are back")
+
+
+def test_no_table_row_is_ever_cut_in_half(qapp):
+    """The guarantee the rule exists for, held on both page sizes. Cheap to
+    lose while making the rule less eager."""
+    from PyQt6.QtCore import QSizeF
+
+    from ui.dialogs.welcome_dialog import WORKFLOWS
+    from ui.help_card_print import _FOOTER_H, _HEADER_H, build_document
+    from ui.pdf_layout import (avoid_split_rows, paginate_tables,
+                               repeat_table_headers, _first_split_row)
+
+    split = []
+    for name, w_mm, h_mm in (("A4", 180.0, 267.0), ("Letter", 185.9, 249.4)):
+        body_h = h_mm * 96.0 / 25.4 - _HEADER_H - _FOOTER_H
+        for wf in WORKFLOWS:
+            doc = build_document(wf, width_mm=w_mm,
+                                 height_mm=body_h * 25.4 / 96.0)
+            doc.setPageSize(QSizeF(w_mm * 96.0 / 25.4, body_h))
+            repeat_table_headers(doc)
+            paginate_tables(doc, body_h)
+            avoid_split_rows(doc, body_h)
+            if _first_split_row(doc, body_h) is not None:
+                split.append(f"{name}/{wf['key']}")
+    assert not split, "a table row is cut in half on: " + ", ".join(split)
