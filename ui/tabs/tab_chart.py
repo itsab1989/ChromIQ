@@ -731,10 +731,13 @@ def _cm_preset(slug: str, name: str, paper: str, cols: int, rows: int,
 # tiny bit larger than some of the others, 572 patches per sheet as basis."*
 # (Measured on the built page: 8.13 mm.)
 #
-# NOTE — the right margin is 6.0 mm, and ChromIQ's own i1Pro seed asks for 9.0
-# (core/settings.py `_I1_PRIMARY`). These are Knut's charts and his number is
-# kept exactly as he made them; the Measured-from-Preview panel will therefore
-# flag the right edge on all seven until he says which of the two should move.
+# NOTE — the right margin is 6.0 mm on A4 and 9.0 on US Letter, and ChromIQ's
+# own i1Pro seed asks for 9.0 (core/settings.py `_I1_PRIMARY`). Both are Knut's
+# numbers and both are deliberate (#164): *"It is correct that the right margin
+# for the i1Pro is 6mm, it is intentional. It is intentional that the letter
+# variants are 9mm."* The Measured-from-Preview panel judges a chart against its
+# OWN thresholds, so it reads "Margins: OK" on every one of them — an earlier
+# note here predicted it would flag the right edge, and that was wrong.
 _I1_BASE: dict = {
     # device + patch grid
     "instrument": "i1", "cm_density": 1, "cm_stagger": False, "hflag": False,

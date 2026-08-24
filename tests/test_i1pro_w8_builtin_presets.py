@@ -266,6 +266,49 @@ def test_chart_builds_with_the_pages_and_patches_its_name_promises(preset):
 # one, and this test guards it there.
 
 
+@pytest.mark.slow
+@pytest.mark.parametrize("slug", ["i1_w8_a4_156p_1page_portrait_w8_0mm",
+                                  "i1_w8_letter_156p_1page_portrait_w8_0mm"])
+def test_the_ruler_marks_reach_the_paper(slug, tmp_path):
+    """Ink, not a dictionary entry.
+
+    The test below asserts the recipe asks for marks. It cannot tell whether a
+    dash ever lands on a sheet — and the fault it guards was precisely that the
+    per-chart value never reached the built chart. So this one builds a real
+    chart and looks for ink in the band along the edge, where only the comb can
+    be. Modelled on the ColorMunki family's own test, but sampling TOP and
+    BOTTOM: this family sets `helper_markers_sides` False, so the side edges
+    are legitimately bare.
+    """
+    import numpy as np
+    from PIL import Image
+
+    from workflow.layout_engine.chart import build_from_recipe
+    from workflow.layout_engine.presets import LayoutRecipe
+
+    preset = next(p for p in W8 if p.slug == slug)
+    rec = LayoutRecipe.from_dict(preset.layout_recipe)
+    res, _ = build_from_recipe(resource_path(preset.ti1_asset),
+                               tmp_path / "chart", rec)
+    dpi = preset.layout_recipe["dpi"]
+    page = np.asarray(Image.open(res.tiff_paths[0]).convert("L"))
+    # SAMPLE ONLY WHERE A DASH CAN BE, AND NOTHING ELSE CAN.
+    # The comb sits `edge_mm` from the paper edge and runs `len_mm` inwards, so
+    # it lives entirely within the first (edge + len) mm. A wider band reaches
+    # the strip labels: with the marks OFF the nearest ink is 6.22 mm from the
+    # top, so a band of 7 mm found ink either way and the test passed against
+    # its own mutation. Measured, not guessed.
+    # Measured at 200 dpi on the 156p chart: with the marks ON the first inked
+    # row is 3.94 mm from the top; with them OFF it is 6.10 mm. The comb's own
+    # extent is edge + len = 6.0 mm, which leaves only 0.1 mm of headroom, so
+    # the band is pulled in half a millimetre.
+    band = int(round((preset.layout_recipe["helper_marker_edge_mm"]
+                      + preset.layout_recipe["helper_marker_len_mm"] - 0.5)
+                     / 25.4 * dpi))
+    assert (page[:band, :] < 128).any(), f"{slug}: no ruler marks along the top"
+    assert (page[-band:, :] < 128).any(), f"{slug}: no ruler marks along the bottom"
+
+
 def test_every_chart_in_the_family_prints_its_ruler_marks():
     assert _I1_BASE["helper_markers"] is True, (
         "the 8 mm i1Pro charts print without ruler marks")
@@ -276,6 +319,28 @@ def test_every_chart_in_the_family_prints_its_ruler_marks():
         rec = preset.layout_recipe
         assert rec["helper_markers"] is True, f"{preset.slug} has no marks"
         assert rec["helper_marker_per_patch"] == 5, f"{preset.slug} marks differ"
+
+
+@pytest.mark.parametrize("preset", W8, ids=lambda p: p.slug)
+def test_the_recipe_matches_the_export_field_for_field(preset):
+    """Every field of the shipped layout, against Knut's own export.
+
+    Stronger than picking two fields by hand — which is what the marker test
+    below does, and it would miss any of the other sixty-odd. The exports are
+    the source of truth for this family; if a field drifts from them, the chart
+    ChromIQ builds is not the chart he designed.
+    """
+    from ui.tabs.tab_chart import _I1_BASE
+
+    rec = preset.layout_recipe
+    # The three fields a chart of this family owns, plus the two margins the
+    # paper forces, may differ from the base; nothing else may.
+    for key, value in _I1_BASE.items():
+        if key in OWN_FIELDS:
+            continue
+        assert rec[key] == value, (
+            f"{preset.slug}.{key} is {rec[key]!r}, the family base says "
+            f"{value!r}")
 
 
 def test_the_2288_chart_can_be_rebuilt_from_its_own_recipe(qapp):
@@ -297,3 +362,11 @@ def test_the_2288_chart_can_be_rebuilt_from_its_own_recipe(qapp):
         f"{preset.patches}")
     assert rec.get("cb", {}).get("fill") is False, (
         "the design relies on gap-filling, so its patch count is not its own")
+    # THE FAULT WAS THE CUBE, NOT THE COUNT. `fill_to` was ALREADY 2288 before
+    # the fix — the importer had re-pointed it — so a test resting on it was
+    # green throughout the bug. What was wrong was the colour cube: 9 levels
+    # recorded against a chart built with 12, which regenerated 2287 different
+    # patches out of 2288.
+    assert rec["sp"]["cube_n"] == 12, (
+        f"the recipe builds a {rec['sp']['cube_n']}-level colour cube; this "
+        "chart was built with 12, so the design cannot reproduce it")
