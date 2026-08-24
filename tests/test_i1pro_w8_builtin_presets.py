@@ -211,3 +211,47 @@ def test_chart_builds_with_the_pages_and_patches_its_name_promises(preset):
         got = res.strip_rects[0]["w"] * 25.4 / rec.dpi
         assert abs(got - said) <= 0.5, (
             f"name says {said} mm patches, the sheet has {got:.2f} mm")
+
+
+# ---------------------------------------------------------------------------
+# THE RULER MARKS ARE ON (#164, Knut)
+# ---------------------------------------------------------------------------
+# On the A4-2288p chart: *"the markers should be active so this is a bug. It
+# was not intended."* All nineteen of his 8 mm exports ask for markers on and
+# five to a patch; `_I1_BASE` said off and three. Because `_i1_preset` builds
+# every chart in the family from the base, ALL SEVEN shipped charts lost the
+# marks whatever their own export said — so it is a base fact, not a per-chart
+# one, and this test guards it there.
+
+
+def test_every_chart_in_the_family_prints_its_ruler_marks():
+    assert _I1_BASE["helper_markers"] is True, (
+        "the 8 mm i1Pro charts print without ruler marks")
+    assert _I1_BASE["helper_marker_per_patch"] == 5, (
+        f"{_I1_BASE['helper_marker_per_patch']} marks per patch, not the 5 "
+        "Knut's exports ask for")
+    for preset in W8:
+        rec = preset.layout_recipe
+        assert rec["helper_markers"] is True, f"{preset.slug} has no marks"
+        assert rec["helper_marker_per_patch"] == 5, f"{preset.slug} marks differ"
+
+
+def test_the_2288_chart_can_be_rebuilt_from_its_own_recipe(qapp):
+    """Its sidecar used to describe a DIFFERENT design — `cube_n` 9 against a
+    chart built with 11 — so "Load setup from preset" offered a setup that
+    regenerated other colours. Knut re-exported it; this pins the pairing.
+
+    Checked cheaply: the recipe's own patch count must match the chart's. The
+    full colour-for-colour regeneration lives in the import checker, which is
+    too slow for the gate.
+    """
+    import json
+
+    preset = next(p for p in W8 if p.patches == 2288)
+    sidecar = resource_path(preset.ti1_asset).parent / "recipe.json"
+    rec = json.loads(sidecar.read_text())
+    assert rec["sp"]["fill_to"] == preset.patches, (
+        f"the recipe rebuilds {rec['sp']['fill_to']} patches, the chart has "
+        f"{preset.patches}")
+    assert rec.get("cb", {}).get("fill") is False, (
+        "the design relies on gap-filling, so its patch count is not its own")

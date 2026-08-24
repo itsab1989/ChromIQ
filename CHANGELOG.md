@@ -1,5 +1,22 @@
 # Changelog
 
+## v4.1.3-beta.10
+
+### Fixed
+
+- **The 8 mm i1Pro charts printed without their ruler marks.** Knut, on the
+  A4-2288p chart: *"the markers should be active so this is a bug. It was not
+  intended."* All nineteen of his exports ask for marks on and five to a patch;
+  the family's shared recipe said off and three, and because every chart in the
+  family is built from that shared recipe, **all seven of them** lost the marks
+  whatever their own export said.
+
+- **The A4-2288p chart's stored setup rebuilt a different chart.** Its recipe
+  described a nine-step colour cube where the chart was built with eleven, so
+  "Load setup from preset" offered a design that regenerated other colours from
+  the second row on. Knut re-exported it; the chart and its setup now match, and
+  all 80 bundled charts regenerate their patch sets colour-for-colour.
+
 ## v4.1.3-beta.9
 
 ### Fixed

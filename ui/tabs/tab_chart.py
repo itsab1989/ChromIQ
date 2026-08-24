@@ -768,8 +768,14 @@ _I1_BASE: dict = {
     "stamp_command": False, "text_edge_mm": 4.0, "text_edge_top_mm": 8.0,
     "text_edge_clip_mm": 4.0,
     # ruler helper markers
-    "helper_markers": False, "helper_marker_edge_mm": 4.0,
-    "helper_marker_len_mm": 2.0, "helper_marker_per_patch": 3,
+    # THE RULER MARKS ARE ON, AND FIVE TO A PATCH.
+    # Knut, #164, on the A4-2288p chart: *"the markers should be active so this
+    # is a bug. It was not intended."* All nineteen of his 8 mm exports ask for
+    # True and 5; the base said False and 3, and because `_i1_preset` builds
+    # every chart from the base, all seven shipped charts lost the marks
+    # regardless of what the export said. So it belongs here, not per chart.
+    "helper_markers": True, "helper_marker_edge_mm": 4.0,
+    "helper_marker_len_mm": 2.0, "helper_marker_per_patch": 5,
     "helper_markers_top_bottom": True, "helper_markers_sides": False,
     # clip border
     "clip_border": True, "clip_border_width_mm": 26.0, "clip_side": "left",
