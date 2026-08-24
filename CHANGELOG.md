@@ -1,5 +1,36 @@
 # Changelog
 
+## v4.1.3-beta.9
+
+### Fixed
+
+- **The folder guide's vertical lines now reach the folders they point at.**
+  A folder whose explanation ran to more than one line had a gap between its
+  own connector and its first child's, so the diagram read as dashed — below
+  `run1/` and `verifications/` especially (Knut). Every continuation line now
+  carries the level the row opens, and the top-level folder gets its own
+  vertical for the first time. On screen, on paper, and in
+  "Where are my files.txt".
+
+- **The CMYK+N card's steps are a real numbered list.** They were literal
+  characters — `1)` with no indent and sub-points at the same margin as the
+  text around them. They now read `1.` `2.` `3.` with the text indented under
+  the number and item 5's three sub-points as a proper bulleted list, on screen
+  and in print alike, matching every other card (Knut). Still one printed page.
+
+- **Opening the Tools menu with no project open could invent a project.**
+  Asking where the working folder is was enough to make ChromIQ name one and
+  keep the name, so the next action created a folder nobody asked for. It now
+  asks whether a project is open, which creates nothing.
+
+### Known
+
+- The first-run sentence on the Profile-run bar is clipped at some window
+  widths — three of its four lines at 1200 px, and at 900–1000 px its second
+  line is drawn over the icons beside it. It has always been too tall for the
+  space; it only became visible when the text stopped being invisible in
+  beta.8.
+
 ## v4.1.3-beta.8
 
 beta.7 fixed the loud half of a fault and made the quiet half worse. Both are

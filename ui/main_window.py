@@ -1293,8 +1293,16 @@ class MainWindow(QMainWindow):
         # window opens on the loaded project's reports — it needs the project
         # for that just like verify_profile does (Sebastian, 2026-08-10: the
         # Tools entry still opened empty while the Measure-tab button worked).
+        # ASK has_project(), NOT working_dir(). `working_dir()` goes through
+        # `get_target_name()`, which INVENTS AND STORES a name when there is
+        # none — so merely opening the Tools menu after closing a project armed
+        # a phantom: the next `project()` call created
+        # ~/ChromIQ/Printer_Paper_Type_Instr_<date>/ that nobody asked for
+        # (#164; the same shape as Knut's #130 *"It must not create another
+        # project that I did not ask for"*). `has_project()` short-circuits on
+        # an empty name and never creates anything.
         if key in ("verify_profile", "measurement_report") \
-                and (self._file_mgr.working_dir() / "project.json").exists():
+                and self._file_mgr.has_project():
             try:
                 project = self._file_mgr.project()
             except Exception:  # noqa: BLE001

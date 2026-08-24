@@ -85,6 +85,11 @@ dt   { font-weight: bold; margin: 14px 0 2px 0; }
 dd   { margin: 0 0 4px 18px; }
 ol, ul { margin-left: 18px; }
 li   { margin-bottom: 10px; }
+/* A prose card converted to a real list (CMYK+N) needs tighter items than a
+   steps card: at 10 px it spilled one line onto a second sheet, which is the
+   waste Knut objected to in the first place. Scoped to that list so the steps
+   cards keep the 10 px they were given in #164. */
+ol.tight li { margin-bottom: 4px; }
 p.foot { color: #666666; font-size: 11px; margin-top: 20px; }
 """
 #: The tab a step belongs to, for the printed step list. The dialog shows this
@@ -307,7 +312,10 @@ def card_html(wf: dict, doc=None, lang: str = "en",
                     doc, width_px=max(1, int(width_mm * _PX_PER_MM)), lang=lang,
                     height_px=max(1, int(height_mm * _PX_PER_MM))))
     elif kind == "richtext":
-        parts.append(_as_html(str(wf.get("body") or "")))
+        # Same converter the on-screen card uses, so the two cannot drift.
+        from ui.dialogs.welcome_dialog import numbered_prose_html
+        raw = str(wf.get("body") or "")
+        parts.append(numbered_prose_html(raw) or _as_html(raw))
     else:
         # Numbered steps. The badge is a tab number on screen; on paper the tab
         # is named, because a printed sheet has no coloured tabs to point at.

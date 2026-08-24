@@ -1113,6 +1113,81 @@ WORKFLOWS.insert(2, FILE_GUIDE_CARD)
 # Profiling a printer with extra inks (CMYK+N / 6-ink, 7-ink …) — its own
 # card, because the workflow has a few extra decisions a normal RGB inkjet
 # doesn't (Knut). Rendered as one flowing text page.
+def numbered_prose_html(body: str) -> "str | None":
+    """Turn a plain-text "1) … 2) …" body into a real ``<ol>``, or return None.
+
+    The CMYK+N help card is the only card written as one prose string rather
+    than as `steps` tuples, so its list was literal characters: `1)` not `1.`,
+    no indent, and its sub-points at the same margin as the text around them.
+    Knut: *"These numbered lists shall look on the print and pdf like the other
+    numbered items: 1. 2. 3. etc, with indentation in front, and text belonging
+    to each numbered item also indented till after the dot of the number."*
+
+    Converted HERE, at render time, rather than by re-cutting the card into
+    `steps`: the string is one translated key, and all twelve catalogues keep
+    the `1)`…`6)` markers and the `  • ` bullets byte-identically. Re-cutting
+    would turn one key into eight and invalidate ~96 translation units;
+    converting costs nothing.
+
+    IT REFUSES RATHER THAN GUESSES. A translator is free to renumber, to use
+    full-width digits, or to drop a marker, and a converter that half-recognised
+    that would mangle the card. So the shape is accepted only when the markers
+    are 1..N, consecutive, and start consecutive blocks; anything else returns
+    None and the caller renders the prose exactly as it does today.
+    """
+    import html
+    import re
+
+    blocks = [b for b in (body or "").split("\n\n")]
+    marked = [(i, b) for i, b in enumerate(blocks)
+              if re.match(r"^\s*\d+\)\s", b)]
+    if len(marked) < 2:
+        return None
+    nums = [int(re.match(r"^\s*(\d+)\)", b).group(1)) for _i, b in marked]
+    if nums != list(range(1, len(nums) + 1)):
+        return None                       # renumbered, or a marker is missing
+    idx = [i for i, _b in marked]
+    if idx != list(range(idx[0], idx[0] + len(idx))):
+        return None                       # the items are not contiguous blocks
+
+    def _esc(t: str) -> str:
+        return html.escape(t).replace("\n", " ")
+
+    out: list[str] = []
+    for b in blocks[:idx[0]]:
+        if b.strip():
+            out.append(f"<p>{_esc(b.strip())}</p>")
+    out.append('<ol class="tight">')
+    for _i, b in marked:
+        lines = b.strip().split("\n")
+        head = re.sub(r"^\s*\d+\)\s*", "", lines[0])
+        prose: list[str] = []
+        bullets: list[str] = []
+        after: list[str] = []
+        for ln in lines[1:]:
+            if ln.strip().startswith("•"):
+                bullets.append(ln.strip().lstrip("•").strip())
+            elif bullets:
+                after.append(ln.strip())
+            else:
+                prose.append(ln.strip())
+        item = f"<b>{_esc(head)}</b>"
+        if prose:
+            item += "<br>" + _esc(" ".join(prose))
+        if bullets:
+            item += "<ul>" + "".join(f"<li>{_esc(x)}</li>" for x in bullets) + "</ul>"
+        if after:
+            # Inside the item, or it escapes the list's indent and sits back at
+            # the left margin under the bullets.
+            item += f"<p>{_esc(' '.join(after))}</p>"
+        out.append(f"<li>{item}</li>")
+    out.append("</ol>")
+    for b in blocks[idx[-1] + 1:]:
+        if b.strip():
+            out.append(f"<p>{_esc(b.strip())}</p>")
+    return "".join(out)
+
+
 def _cmyk_n_body() -> str:
     return tr(
         "Most desktop inkjets are driven as RGB devices — you send red, green "
@@ -2288,7 +2363,16 @@ class WelcomeDialog(QDialog):
                 body = QLabel(keyboard_shortcuts_html(), self._steps_host)
                 body.setTextFormat(Qt.TextFormat.RichText)
             else:
-                body = QLabel(wf["body"], self._steps_host)
+                # A prose card whose list can be made a real <ol> gets one on
+                # screen too — the printed card and this one must not differ
+                # (#164). `numbered_prose_html` returns None when the shape is
+                # not there, and then this is the plain QLabel it always was.
+                rich = numbered_prose_html(str(wf.get("body") or ""))
+                if rich:
+                    body = QLabel(rich, self._steps_host)
+                    body.setTextFormat(Qt.TextFormat.RichText)
+                else:
+                    body = QLabel(wf["body"], self._steps_host)
             bf = QFont()
             bf.setPixelSize(13)
             body.setFont(bf)

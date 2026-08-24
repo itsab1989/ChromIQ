@@ -228,3 +228,70 @@ def test_the_card_renders_the_diagram_pre_formatted():
     import html as _html
     for line in fg.tree_lines()[:6]:
         assert _html.escape(line) in pre, f"missing from the block: {line[:40]!r}"
+
+
+# ---------------------------------------------------------------------------
+# A VERTICAL MUST REACH THE CHILD IT POINTS AT (#164, Knut)
+# ---------------------------------------------------------------------------
+# *"the vertical lines going down from some folder names, for their
+# sub-folders, has an empty gap from the parent folder name and down to its
+# child folder name. Example is below run1/ and below verifications/."*
+#
+# The continuation lines carried every level open ABOVE a row but not the one
+# opening AT it, so a folder with a two-line explanation had a gap before its
+# first child and the diagram read as dashed.
+#
+# The test above this one — "a wrapped explanation keeps the vertical lines
+# unbroken" — did NOT catch it: it asserts a continuation carries no BRANCH
+# mark, never that the vertical actually reaches the child. Proven blind by
+# running it against the fixed renderer, where it passed either way. This one
+# is positional.
+
+
+def _rows_with_children():
+    from ui.file_guide import tree_rows
+
+    rows = tree_rows()
+    for i, (prefix, name, _m) in enumerate(rows):
+        nxt = rows[i + 1][0] if i + 1 < len(rows) else ""
+        if len(nxt) > len(prefix):
+            yield i, prefix, name
+
+
+def test_a_folder_with_children_carries_its_vertical_down_to_them():
+    """For every row that opens a level, each of its continuation lines must
+    have the connector at the column its children start in."""
+    from ui.file_guide import _TREE_PASS, tree_lines, tree_rows, tree_text_column
+
+    rows = tree_rows()
+    lines = tree_lines(62)
+    col = tree_text_column()
+    # Walk the rendered lines alongside the rows that produced them.
+    li = 0
+    broken = []
+    import textwrap
+    for i, (prefix, name, meaning) in enumerate(rows):
+        wrapped = textwrap.wrap(meaning, 62) or [""]
+        head, conts = lines[li], lines[li + 1:li + len(wrapped)]
+        li += len(wrapped)
+        nxt = rows[i + 1][0] if i + 1 < len(rows) else ""
+        if len(nxt) <= len(prefix):
+            continue                            # no children: nothing to carry
+        want = len(prefix)                      # the column the children sit at
+        for c in conts:
+            if c[want:want + len(_TREE_PASS)].rstrip() != _TREE_PASS.rstrip():
+                broken.append(f"{(prefix + name).strip()!r}: {c[:col].rstrip()!r}")
+    assert not broken, (
+        "a folder's vertical does not reach its children:\n  "
+        + "\n  ".join(broken))
+
+
+def test_the_root_row_puts_its_vertical_at_column_zero():
+    """The root has no prefix, so it opens no level ABOVE itself — appending a
+    gap (as this used to) put its continuation three columns right of where its
+    children actually sit."""
+    from ui.file_guide import _TREE_PASS, tree_lines
+
+    lines = tree_lines(62)
+    assert lines[1].startswith(_TREE_PASS.rstrip()), (
+        f"the root's continuation does not carry its vertical: {lines[1][:20]!r}")

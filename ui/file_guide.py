@@ -245,9 +245,33 @@ def tree_lines(text_width: int = 62) -> list:
     # row's own branch mark — the text belongs to the row above it, not to a new
     # entry.
     out = []
-    for prefix, name, meaning in rows:
-        cont = prefix[:-len(_TREE_BRANCH)] if prefix else ""
-        cont += _TREE_PASS if prefix.endswith(_TREE_BRANCH) else _TREE_GAP
+    for i, (prefix, name, meaning) in enumerate(rows):
+        # THE LEVEL THIS ROW OPENS FOR ITS OWN CHILDREN COUNTS TOO.
+        # The line above carried the levels already open ABOVE this row, but
+        # not the one starting AT it — so a folder whose explanation ran to two
+        # lines had a gap between its own connector and its first child's, and
+        # the diagram read as dashed. Knut: *"the vertical lines going down
+        # from some folder names… has an empty gap from the parent folder name
+        # and down to its child folder name"* (#164), below `run1/` and
+        # `verifications/`.
+        #
+        # Done for EVERY row that has children rather than only for long
+        # explanations: a one-line explanation has no continuation line to draw
+        # on, so the rule "every continuation carries every open level,
+        # including the one this row opens" is total and needs no threshold.
+        # A length threshold would make the lines appear and disappear with the
+        # length of a TRANSLATION.
+        if prefix:
+            cont = prefix[:-len(_TREE_BRANCH)]
+            cont += _TREE_PASS if prefix.endswith(_TREE_BRANCH) else _TREE_GAP
+        else:
+            # The root opens no level of its own above it. Appending a gap here
+            # (as this used to) put the root's continuation three columns right
+            # of where its children sit.
+            cont = ""
+        nxt = rows[i + 1][0] if i + 1 < len(rows) else ""
+        if len(nxt) > len(prefix):          # the next row is this row's child
+            cont += _TREE_PASS
         wrapped = textwrap.wrap(meaning, text_width) or [""]
         out.append((prefix + name).ljust(width) + wrapped[0])
         for extra in wrapped[1:]:
