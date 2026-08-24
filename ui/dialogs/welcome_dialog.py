@@ -494,9 +494,9 @@ WORKFLOWS: list[dict] = [
                 "calibration options”. Until you do, none of this appears — "
                 "which is deliberate, because most people never need it. "
                 "Switching it on adds “Calibration” to the “Run type” list in "
-                "the bar above the tabs, and adds two modules to the "
+                "the Profile-run bar above the tabs, and adds two modules to the "
                 "Calibration & Profiling tab.")),
-            (1, tr("In the bar above the tabs, set “Run type” to “Calibration”. "
+            (1, tr("In the Profile-run bar above the tabs, set “Run type” to “Calibration”. "
                 "“Profile run” changes to “Project calibration” and greys out — "
                 "that is expected. A calibration describes your printer, your "
                 "paper and your inks rather than one particular profile, so a "
@@ -564,7 +564,7 @@ WORKFLOWS: list[dict] = [
         "steps": [
             (1, tr("First make sure the profile you want to check already "
                 "exists — a verification always checks a finished profile. In "
-                "the bar at the top of the window set “Profile run” to that "
+                "the Profile-run bar at the top of the window set “Profile run” to that "
                 "profile's run, then set “Run type” to “Verification”. If the "
                 "run has no profile yet, ChromIQ tells you to build one first "
                 "and switches the type back to Profiling — do that, then come "
@@ -725,7 +725,7 @@ GLOSSARY: list[tuple[str, str]] = [
     (tr("Calibration"),
      tr("Bringing a device to a fixed, repeatable state (e.g. printer ink limits or a monitor's brightness). Done BEFORE profiling — a profile describes a device, calibration sets it.")),
     (tr("Calibration run"),
-     tr("The round trip that produces your printer's calibration file: make the calibration chart, print it, measure it, then create the .cal from those readings. It is not a profile run — nothing is built from it — but every profile run in the project can use its result. Choose it under “Run type” in the bar above the tabs; a project keeps exactly one calibration, in its “cal” folder.")),
+     tr("The round trip that produces your printer's calibration file: make the calibration chart, print it, measure it, then create the .cal from those readings. It is not a profile run — nothing is built from it — but every profile run in the project can use its result. Choose it under “Run type” in the Profile-run bar above the tabs; a project keeps exactly one calibration, in its “cal” folder.")),
     (tr("Chart / test chart"),
      tr("A printed page of colour patches with known device values. Measuring what the printer actually made of them is the raw material of a profile. Also called a target.")),
     (tr("chartread"),
@@ -1027,7 +1027,7 @@ GLOSSARY += [
         "when a measurement is not spectral those options stay switched "
         "off.")),
     (tr("Run type (Calibration / Profiling / Verification)"),
-     tr("What you are working on right now, chosen in the bar above the tabs. "
+     tr("What you are working on right now, chosen in the Profile-run bar above the tabs. "
         "The list reads in the order of the work. Calibration prepares the "
         "printer itself, before any profile is built; there is one per "
         "project, and it needs no run. Profiling builds the profile — "
@@ -1572,7 +1572,7 @@ class WorkflowIcon(QWidget):
             p.setBrush(accent)
             p.drawRoundedRect(inner, top + 12, s - 2 * inner, 6, 2, 2)
             if self._key == "printer_from_scan":
-                # 4x2 patch grid under the bar
+                # 4x2 patch grid under the Profile-run bar
                 p.setPen(QPen(fg, 1.6))
                 p.setBrush(QColor(0, 0, 0, 0))
                 gw = (s - 2 * inner - 6) / 4
@@ -1964,7 +1964,7 @@ class WelcomeDialog(QDialog):
         self._pdf_btn = QPushButton(tr("Save as PDF…"), _right)
         self._pdf_btn.setToolTip(tr(
             "Writes the help card you are reading to a PDF file you name — the "
-            "card's own title is filled in for you. Handy for keeping the "
+            "help card's own title is filled in for you. Handy for keeping the "
             "keyboard shortcuts on a tablet, or mailing a workflow to someone."))
         self._pdf_btn.clicked.connect(self._save_current_card_pdf)
         self._pdf_btn.setVisible(False)
@@ -2010,9 +2010,9 @@ class WelcomeDialog(QDialog):
             from PyQt6.QtWidgets import QMessageBox
             self.raise_()
             QMessageBox.warning(
-                self, tr("Couldn't save this card"),
+                self, tr("Couldn't save this help card"),
                 tr("Something went wrong while writing the PDF, so no file was "
-                   "saved. You can still read the card here on screen."))
+                   "saved. You can still read the help card here on screen."))
             return
         # The save panel takes focus with it when it closes; come back to front.
         self.raise_()
@@ -2050,7 +2050,7 @@ class WelcomeDialog(QDialog):
             log.warning("could not print the help card", exc_info=True)
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.warning(
-                self, tr("Couldn't print this card"),
+                self, tr("Couldn't print this help card"),
                 tr("Something went wrong while preparing this help card for "
                    "printing, so nothing was sent to your printer.\n\n"
                    "You can still reach the same information here on screen. "

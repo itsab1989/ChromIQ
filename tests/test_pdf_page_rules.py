@@ -581,3 +581,31 @@ def test_no_table_row_is_ever_cut_in_half(qapp):
             if _first_split_row(doc, body_h) is not None:
                 split.append(f"{name}/{wf['key']}")
     assert not split, "a table row is cut in half on: " + ", ".join(split)
+
+
+def test_the_print_sheet_sizes_every_font_in_pixels(qapp):
+    """A font size in `pt` is resolved against the SCREEN's logical DPI.
+
+    That is 72 on macOS and 96 under `QT_QPA_PLATFORM=offscreen`, so a card
+    sized in points printed a quarter smaller on a Mac than in any test we ran
+    — measured: 10.5 pt body text was 11 px on Knut's sheet and 14 px on ours,
+    while the folder guide's absolute-12 px directory tree towered over the
+    prose around it (#164, his report A2). Every size moved to `px` in
+    4.1.3-beta.4, and nothing guarded it: the comment in `_PRINT_CSS` claimed
+    this test existed when it did not, and the rule next door matches only
+    margins and paddings — reverting every font-size to `pt` was proven to slip
+    through it.
+
+    Spacing has its own, older trap (Qt silently ignores a margin in pt/cm/mm),
+    which `test_the_print_sheet_uses_units_qt_honours` covers.
+    """
+    import re
+
+    from ui.help_card_print import _PRINT_CSS
+
+    offenders = re.findall(r"font-size\s*:\s*[\d.]+\s*(pt|cm|mm|em|%)", _PRINT_CSS)
+    assert not offenders, (
+        "a font size in _PRINT_CSS is not in px, so the printed card changes "
+        f"size with the screen's DPI: found {sorted(set(offenders))}")
+    assert re.search(r"font-size\s*:\s*[\d.]+px", _PRINT_CSS), (
+        "no px font size found at all — has the sheet been rewritten?")

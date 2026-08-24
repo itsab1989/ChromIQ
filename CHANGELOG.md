@@ -1,5 +1,47 @@
 # Changelog
 
+## v4.1.3-beta.6
+
+Knut's wording batch for the help cards, and the guard that should have been
+there when the print sizes were fixed.
+
+### Changed
+
+- **Every help card names the thing it is telling you to click.** "the bar" is
+  now "the Profile-run bar" — the name its own table gives it — in all nine
+  places that said otherwise, and "card" is "help card" throughout, so a printed
+  page still says what it belongs to when it is read away from the app (Knut).
+
+- **Getting started ▸ "1. Create Chart"** now also points at the ready-made
+  charts behind the "Built-in presets" button and at Tools ▸ Charts & patch sets
+  ▸ "Edit / create chart patch set" for designing the colours yourself.
+
+- **Getting started ▸ "3. Measure"** explains the overlay: "Each patch shows:"
+  and its three choices, "Show only measured patches", and the progress bar
+  above the preview.
+
+- **"Open a project" is now the first entry** under "More than one way to do
+  most things", and it names the file to look for — "project.json", inside the
+  profile's own folder — or the folder itself.
+
+All twelve translations updated with it, using each language's own names for
+the controls it quotes.
+
+### Fixed
+
+- **Nothing was stopping the printed help cards going back to point sizes.** The
+  comment in the print style sheet claimed a test guarded it; there was none,
+  and the rule next door matches only margins. A font size in `pt` is resolved
+  against the screen's DPI, which is what made the cards print a quarter smaller
+  on macOS than anywhere else (fixed in beta.4). Reverting every size to `pt` was
+  proven to slip through unnoticed; it now fails.
+
+### Known
+
+- The help-card body text is **14 px**, which measures as Times New Roman 11–12
+  (x-height 1.914 mm against TNR 11's 1.774 mm). The Measurement Report's body
+  is 12 px, below TNR 10 — that is the document that is genuinely small.
+
 ## v4.1.3-beta.5
 
 ### Fixed

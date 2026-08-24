@@ -173,7 +173,7 @@ ACTION_ROWS: "list[tuple[str, list[str]]]" = [
         tr("The “Location being edited” line under the Profile-run bar."),
         tr("The reveal-folder button."),
         tr("The log, which names every file written."),
-        tr("The “Where are my files?” card in this window."),
+        tr("The “Where are my files?” help card in this window."),
     ]),
 ]
 

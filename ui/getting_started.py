@@ -47,7 +47,7 @@ def _areas() -> "list[tuple[str, str, str]]":
          tr("The most important control in ChromIQ: it decides what every tab "
             "acts on. “Profile run”, “Run type”, “Verification”, an ⓘ, and the "
             "“Restore Used Chart”, “Duplicate” and “Delete” buttons.")),
-        (tr("Location being edited"), tr("just under the bar"),
+        (tr("Location being edited"), tr("just under the Profile-run bar"),
          tr("The exact folder the next action will write to. When you are not "
             "sure where something will land, read this line.")),
         (tr("The five tabs"), tr("under the masthead"),
@@ -84,8 +84,11 @@ def _steps() -> "list[tuple[str, str]]":
         (tr("1. Create Chart"),
          tr("Make the sheet of colour patches you are going to print. Type a "
             "name for the profile project, choose your instrument and paper, "
-            "and press “Generate Chart”. That first build also creates the "
-            "project folder.")),
+            "and press “Generate Chart” — or take a ready-made chart from the "
+            "“Built-in presets” button beside the GUIDED / MANUAL switch. To "
+            "design the colours yourself, use Tools ▸ Charts & patch sets ▸ "
+            "“Edit / create chart patch set”. That first build also creates "
+            "the project folder.")),
         (tr("2. Print Chart"),
          tr("Print every page. Colour management must be OFF — ChromIQ prints "
             "the patches exactly as they are, and any colour correction on the "
@@ -94,7 +97,11 @@ def _steps() -> "list[tuple[str, str]]":
         (tr("3. Measure"),
          tr("Let the print dry, connect your instrument, and press “Start "
             "Measurement”. ChromIQ shows you which strip to read and marks "
-            "each one off as it arrives.")),
+            "each one off as it arrives. “Each patch shows:” chooses between "
+            "“Expected & measured (split)”, “Expected colour only” and "
+            "“Measured colour only”, and “Show only measured patches” hides "
+            "the rest; the progress bar above the preview follows the chart "
+            "to completion.")),
         (tr("4. Build Profile"),
          tr("Turn the measurements into an ICC profile with “Build Profile”, "
             "then install it if you want to use it straight away.")),
@@ -110,18 +117,20 @@ def _steps() -> "list[tuple[str, str]]":
 
 def _alternatives() -> "list[tuple[str, str]]":
     return [
+        (tr("Open a project"),
+         tr("“Open Project” at the top left of the window, and choose the "
+            "“project.json” file inside the profile's own folder under your "
+            "ChromIQ folder — or just pick the folder itself. Or open a chart "
+            "that lives inside a project folder, which adopts that project. "
+            "Or start ChromIQ, which reopens the last project you used, "
+            "provided “Restore last session on launch” is enabled in "
+            "Preferences ▸ General.")),
         (tr("Open an existing chart"),
          tr("“Open Chart File (.ti2)” at the top left of the window — it opens "
             "the chart for the whole app, so Create Chart, Print Chart and "
             "Measure all show it. Or Create Chart ▸ “Load patch set” for an "
             "Argyll .ti1 or an i1Profiler set. Choosing a Profile run that "
             "already has a chart opens that one.")),
-        (tr("Open a project"),
-         tr("“Open Project” at the top left of the window. Or open a chart "
-            "that lives inside a project folder, which adopts that project. "
-            "Or start ChromIQ, which reopens the last project you used, "
-            "provided “Restore last session on launch” is enabled in "
-            "Preferences ▸ General.")),
         (tr("Put a chart into a particular run"),
          tr("Set “Profile run” first, then generate. If you load a chart file "
             "instead, ChromIQ asks where it should go: a new run, replacing "
@@ -143,7 +152,7 @@ def _alternatives() -> "list[tuple[str, str]]":
         (tr("Find your files"),
          tr("The “Location being edited” line, the reveal-folder button, the "
             "log — which names every file written — or the “Where are my "
-            "files?” card in this window.")),
+            "files?” help card in this window.")),
     ]
 
 
@@ -206,7 +215,7 @@ def _verifying() -> "list[tuple[str, str]]":
         (tr("The short version"),
          tr("A verification always checks a finished profile — you need the "
             "one you built in step 4 first. "
-            "Set “Run type” in the bar to “Verification”. Create Chart opens "
+            "Set “Run type” in the Profile-run bar to “Verification”. Create Chart opens "
             "on the “From profile gamut” module — generate that chart, print "
             "it from the Print Chart tab (ChromIQ chooses the right way by "
             "itself), let it dry, and measure it on the Measure tab. The "
@@ -214,7 +223,7 @@ def _verifying() -> "list[tuple[str, str]]":
             "close every colour landed — and, as checks accumulate, how the "
             "profile holds up over time.")),
         (tr("Where to read more"),
-         tr("The card “Check a finished profile (verification run)” in this "
+         tr("The help card “Check a finished profile (verification run)” in this "
             "window walks it step by step; the Dictionary entry “Which "
             "verification should I use? (the three ways)” compares the three "
             "kinds of check and when each one is the right tool.")),
@@ -229,8 +238,8 @@ def _files_overview() -> str:
         "own chart, measurement, profile and reports, and dated verification "
         "checks in their own folders. Whatever you replace moves into a "
         "dated “old” folder rather than being deleted. The “Location being "
-        "edited” line under the bar always shows the exact folder the next "
-        "action writes to — and the card “Where are my files?” in this "
+        "edited” line under the Profile-run bar always shows the exact folder the next "
+        "action writes to — and the help card “Where are my files?” in this "
         "window walks the whole folder tree in plain language.")
 
 
@@ -289,7 +298,7 @@ def getting_started_sections() -> "list[tuple[str | None, str]]":
                      'good it really is, and keep checking over time.'))}</p>",
         f"<p><b>{esc(tr('What is in this guide'))}</b></p>"
         f"<p>{index_lines}</p>",
-        "<p>" + esc(tr('Every topic here has a deeper card in this window — '
+        "<p>" + esc(tr('Every topic here has a deeper help card in this window — '
                        'this guide names the right one as it goes — and every '
                        'term of art has a plain-language entry under '
                        '“Dictionary and terminology”.')) + "</p>"])))
@@ -336,7 +345,7 @@ def getting_started_sections() -> "list[tuple[str | None, str]]":
             "picture also shows you where its results go.")) + "</p>",
         "<p>" + esc(tr(
             "The next two sections walk through the picture's left and "
-            "right columns step by step, and the card “Where are my "
+            "right columns step by step, and the help card “Where are my "
             "files?” lists which files each step writes. Only the folder "
             "names and dates in the picture stay in English — they are "
             "the real names on your disk.")) + "</p>"])))
