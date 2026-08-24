@@ -164,3 +164,82 @@ def test_l3_l4_the_visible_tab_reloads_on_a_target_change():
     assert "changed.connect(self._load_settings_of_visible_tab)" in src
     loader = inspect.getsource(mw.MainWindow._load_settings_of_visible_tab)
     assert "load_target_settings" in loader
+
+
+# ---------------------------------------------------------------------------
+# A BUILD'S OWN ROWS SURVIVE THE RUN-CHANGE THAT THE BUILD ITSELF CAUSED
+# ---------------------------------------------------------------------------
+# Shipped in 4.1.2 GA and found by Knut in 4.1.3-beta.5 (#164):
+#
+#   *"Loading preset from icon button 'built-in presets' in Create Chart tab …
+#   When Clicking Generate Chart the following message comes in log window,
+#   while preview is empty: [ERROR] Nothing for targen to generate. … This
+#   should not happen, as targen was never used to generate patches for the
+#   preset."*
+#
+# Loading a built-in preset builds its own .ti1 and then puts the bar on the
+# new run. On a FRESH project that is a change of run, so §4 S4's "a target
+# with nothing stored opens on its defaults" fired and reset targen's rows —
+# and the factory default for "Total Patch Count (-f)" is ZERO. The preset's
+# signature no longer matched, the next Generate abandoned the preset's patch
+# set and fell through to targen, and the pre-flight guard refused.
+#
+# On the prebuilt-file presets it was worse: Auto is on there, so no error
+# appeared and a DIFFERENT chart was built in silence.
+
+
+def _chart_tab_with_an_empty_target(qapp):
+    """A TabChart whose selected target has nothing stored — the branch §4 S4
+    describes, and the one that used to wipe the build."""
+    from core.argyll_runner import ArgyllRunner
+    from core.file_manager import FileManager
+    from core.settings import AppSettings
+    from ui.tabs.tab_chart import TabChart
+
+    st = AppSettings()
+    tab = TabChart(ArgyllRunner(st), FileManager(st), st)
+
+    class _Meta:
+        create_chart_settings = None
+
+    class _Store:
+        def load_meta(self):
+            return _Meta()
+
+        def save_meta(self, meta):
+            pass
+
+    tab._target_settings_store = lambda: _Store()
+    tab._target_settings_key = lambda: "test-target"
+    return tab
+
+
+def _targen_f(tab):
+    from workflow.per_target_settings import params_for
+
+    for prm in params_for(tab):
+        if (prm.tool, prm.flag) == ("targen", "-f"):
+            return prm.widgets[0]
+    raise AssertionError("targen -f is not among the per-target rows")
+
+
+def test_a_preset_build_is_not_reset_by_the_run_it_created(qapp):
+    """The row the preset's binding depends on must survive."""
+    tab = _chart_tab_with_an_empty_target(qapp)
+    _targen_f(tab).set_value(84)
+    tab._layout_owned_by_build = True          # the chart on screen is the build's
+    tab.load_target_settings()
+    assert _targen_f(tab).get_value() == "84", (
+        "the build's own patch count was reset by the run change it caused — "
+        "the next Generate abandons the preset and falls through to targen")
+
+
+def test_a_plain_target_switch_still_opens_on_the_defaults(qapp):
+    """§4 S4 is not weakened: with no build owning the rows, a target that has
+    nothing stored still opens on its defaults."""
+    tab = _chart_tab_with_an_empty_target(qapp)
+    _targen_f(tab).set_value(84)
+    tab._layout_owned_by_build = False
+    tab.load_target_settings()
+    assert _targen_f(tab).get_value() == "0", (
+        "a target with nothing stored no longer opens on its defaults")

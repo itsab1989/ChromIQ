@@ -1939,6 +1939,10 @@ _GAMUT_INTENT_HELP_BODY = (
 )
 
 
+class _SkipReset(Exception):
+    """The rows on screen belong to the build, not to the target."""
+
+
 class TabChart(QWidget):
     """Step 1: create targen/printtarg test chart."""
 
@@ -10688,11 +10692,31 @@ class TabChart(QWidget):
             self._loading_target_settings = True
             try:
                 from workflow.per_target_settings import params_for
+                # NOT WHEN THE BUILD ON SCREEN OWNS THESE ROWS.
+                #
+                # Loading a built-in preset builds its own .ti1 and then lands
+                # the bar on the new run — and on a FRESH project that is a
+                # change of run, so this fires. It reset targen's rows to their
+                # factory values, which for “Total Patch Count (-f)” is ZERO;
+                # the preset's own signature no longer matched, so the next
+                # Generate abandoned the preset's patch set, fell through to
+                # targen and hit the pre-flight guard: "Nothing for targen to
+                # generate" against an untouched “Edit patch recipe” checkbox
+                # (Knut, #164). Worse on the prebuilt-file presets, where Auto
+                # is on and it silently built a DIFFERENT chart — TC3.00's 300
+                # patches came out as 504, with no warning at all.
+                #
+                # `_apply_ui_state` already refuses to overwrite build-owned
+                # rows for the same reason (see `built_here` below).
+                if getattr(self, "_layout_owned_by_build", False):
+                    raise _SkipReset
                 for prm in params_for(self):
                     if (prm.tool, prm.flag) in owned_by_calibration:
                         continue
                     for w in prm.widgets:
                         w.reset_to_default()
+            except _SkipReset:
+                pass
             except Exception:      # noqa: BLE001
                 log.warning("Could not reset the rows to their defaults",
                             exc_info=True)

@@ -1,5 +1,30 @@
 # Changelog
 
+## v4.1.3-beta.7
+
+### Fixed
+
+- **The first "Generate Chart" after loading a built-in preset failed, or built
+  the wrong chart.** On a fresh project, loading a preset and pressing Generate
+  reported *"Nothing for targen to generate"* over an empty preview — with
+  "Edit patch recipe (override preset)" untouched, and targen never involved in
+  the preset at all (Knut).
+
+  Loading a preset builds its own patch set and then moves the Profile-run bar
+  onto the new run. On a fresh project that is a change of run, so the rule that
+  opens an unvisited target on its defaults fired and reset the chart rows —
+  and the factory default for "Total Patch Count" is zero. The preset's own
+  binding no longer matched, so Generate abandoned the preset's patch set and
+  fell through to targen. Rows that belong to the build on screen are now left
+  alone; a genuine switch to another target still opens on its defaults.
+
+  **On the "by Pharmacist" presets it was worse and silent**: automatic patch
+  count is on there, so no error appeared and a different chart was built —
+  TC3.00's 300 patches came out as 504, with no warning.
+
+  This shipped in **4.1.2** and is not a beta regression; every 4.1.3 beta has
+  it too.
+
 ## v4.1.3-beta.6
 
 Knut's wording batch for the help cards, and the guard that should have been
