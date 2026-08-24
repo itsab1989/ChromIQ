@@ -91,13 +91,14 @@ def test_registry_shape():
     # six engine-built Scanner charts (#100, #108, #118), and the six Red River
     # Paper vendor variants (one shared 2052-patch .ti1: i1Pro A4/Letter, and
     # ColorMunki A4/Letter in both a compact 8-page and a ruler-size 10-page cut).
-    assert len(KNUT_PRESETS) == 92
-    assert len(KNUT_PRESET_KEYS) == 92  # all keys unique
+    assert len(KNUT_PRESETS) == 104
+    assert len(KNUT_PRESET_KEYS) == 104  # all keys unique
     # Four Full-layout-setup charts: the A4 495p landscape one was withdrawn at
     # Knut's request (#164, 2026-08-23).
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("fls_")) == 4
     # …and his seven 8 mm i1Pro charts arrived in the same message.
-    assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("i1_w8_")) == 7
+    # 19 since #164: eight on A4, eight on US Letter, three on A3 landscape.
+    assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("i1_w8_")) == 19
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("cm_")) == 45
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("p3_")) == 24
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("scanner_")) == 6

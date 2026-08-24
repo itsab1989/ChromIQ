@@ -36,21 +36,30 @@ from ui.tabs.tab_chart import (  # noqa: E402
 W8 = [p for p in KNUT_PRESETS if p.slug.startswith("i1_w8_")]
 
 #: Exactly the fields one chart of this family may set for itself.
-OWN_FIELDS = {"paper", "area_cols", "area_rows"}
+#:
+#: The two margins are here because the PAPER forces them, and Knut confirmed
+#: both (#164): US Letter is 18 mm shorter than A4, so it does not need A4's
+#: 19 mm bottom to keep a strip inside the i1Pro ruler's 240 mm travel, and its
+#: right margin is 9 mm — ChromIQ's own i1Pro seed — against A4's 6.
+OWN_FIELDS = {"paper", "area_cols", "area_rows", "margin_right", "margin_bottom"}
 
 _NAME_RE = re.compile(
-    r"^(?P<sheet>A4)-(?P<patches>\d+)p-(?P<pages>\d+)pages?-"
+    r"^(?P<sheet>A4|Letter|A3)-(?P<patches>\d+)p-(?P<pages>\d+)pages?-"
     r"(?P<orientation>Portrait|Landscape)-w(?P<width>[\d.]+)mm$")
+
+#: The recipe's `paper` for each sheet the names use. A3 landscape is a custom
+#: size in the engine's terms, not the "A3" enum.
+PAPER_OF_SHEET = {"A4": "A4", "Letter": "Letter", "A3": "420x297"}
 
 
 # ---------------------------------------------------------------------------
 # Registered, and filed with the other i1Pro charts
 # ---------------------------------------------------------------------------
 
-def test_seven_charts_registered():
-    assert len(W8) == 7
-    assert len({p.slug for p in W8}) == 7            # slugs are the identity
-    assert len({p.name for p in W8}) == 7
+def test_all_nineteen_charts_registered():
+    assert len(W8) == 19
+    assert len({p.slug for p in W8}) == 19           # slugs are the identity
+    assert len({p.name for p in W8}) == 19
     assert all(p.key in BUILTIN_PRESET_KEYS for p in W8)
     assert all(p.combo_label in BUILTIN_PRESET_LABELS for p in W8)
     grouped = {k for _i, entries in BUILTIN_PRESET_GROUPS for (_c, _o, k) in entries}
@@ -74,13 +83,19 @@ def test_the_target_name_is_the_name_he_gave_it():
     assert p.default_target_name == "i1Pro-A4-572p-1page-Portrait-w8.0mm"
 
 
-def test_the_i1pro_group_reads_in_order():
-    """Ascending by patch count, like the ColorMunki and i1Pro 3 Plus groups.
-    The heading mixes these seven with the older Full-layout-setup charts, and a
-    dropdown that jumps 1200 → 156 → 484 is a dropdown nobody can scan."""
-    i1 = [p for p in KNUT_PRESETS if p.file_group == "i1Pro"]
-    counts = [int(re.search(r"A4-(\d+)p", p.name).group(1)) for p in i1]
-    assert counts == sorted(counts), f"the i1Pro group is out of order: {counts}"
+def test_each_paper_reads_in_order():
+    """Ascending by patch count WITHIN each sheet size, not across all three.
+
+    One ascending run over three papers reads A4-156, Letter-156, A4-312,
+    Letter-312 … and cannot be scanned for the sheet you actually have. A user
+    picks the paper in their printer first, so the papers stay in blocks and
+    the counts climb inside each.
+    """
+    for sheet in ("A4", "Letter", "A3"):
+        counts = [p.patches for p in W8
+                  if _NAME_RE.match(p.name).group("sheet") == sheet]
+        assert counts == sorted(counts), f"{sheet} is out of order: {counts}"
+        assert len(set(counts)) == len(counts), f"{sheet} repeats a patch count"
 
 
 # ---------------------------------------------------------------------------
@@ -97,12 +112,18 @@ def test_recipe_differs_from_the_base_only_where_allowed(preset):
             f"{preset.slug} changes {field}, which the whole family shares")
 
 
-def test_every_chart_shares_one_grid():
-    """The 22 × 26 grid is what makes them one family — 572 patches a sheet, and
-    a bigger chart is more sheets rather than a different layout."""
-    assert {(p.layout_recipe["area_cols"], p.layout_recipe["area_rows"])
-            for p in W8} == {(22, 26)}
-    assert {p.layout_recipe["paper"] for p in W8} == {"A4"}
+def test_the_grid_follows_the_sheet():
+    """One grid per sheet width, and a bigger chart is more sheets rather than
+    a different layout. A4 and Letter are the same 22 columns; A3 landscape is
+    twice as wide, so it takes 44."""
+    for p in W8:
+        sheet = _NAME_RE.match(p.name).group("sheet")
+        cols = 44 if sheet == "A3" else 22
+        assert (p.layout_recipe["area_cols"], p.layout_recipe["area_rows"]) \
+            == (cols, 26), f"{p.slug} does not use the {cols} × 26 grid"
+        assert p.layout_recipe["paper"] == PAPER_OF_SHEET[sheet], (
+            f"{p.slug} is laid out on {p.layout_recipe['paper']}, "
+            f"not the {sheet} its name promises")
 
 
 def test_the_measured_shape_of_the_family():
@@ -114,7 +135,7 @@ def test_the_measured_shape_of_the_family():
     # the instrument body, and the 19 mm bottom that keeps a full-height A4
     # strip inside the ruler's own 240 mm limit (see core/settings.py).
     assert r["margin_top"] == 38.0
-    assert r["margin_bottom"] == 19.0
+    assert r["margin_bottom"] == 19.0        # A4; Letter carries its own 15.0
     assert r["margin_left"] == 26.0
     assert r["use_instrument_margins"] is False
     # The clip band: 26 mm down the LEFT, upright, carrying the notes box.
@@ -125,6 +146,27 @@ def test_the_measured_shape_of_the_family():
     assert r["layout_mode"] == "area_first" and r["area_method"] == "by_grid"
     assert r["randomize"] is True and r["seed"] is None
     assert r["dpi"] == 200 and r["bit16"] is False
+
+
+def test_letter_uses_the_margins_its_shorter_sheet_needs():
+    """Knut, #164: *"It is correct that the right margin for the i1Pro is 6mm,
+    it is intentional. It is intentional that the letter variants are 9mm."*
+
+    A4 is 297 mm: 38 at the top and 19 at the bottom leave exactly the 240 mm
+    the ruler can travel. Letter is 279.4 mm, so the same top margin and 15 at
+    the bottom leave 226 — inside the limit, and 19 would only waste paper.
+    """
+    for p in W8:
+        sheet = _NAME_RE.match(p.name).group("sheet")
+        want = (9.0, 15.0) if sheet == "Letter" else (6.0, 19.0)
+        got = (p.layout_recipe["margin_right"], p.layout_recipe["margin_bottom"])
+        assert got == want, f"{p.slug} has margins {got}, expected {want}"
+        top = p.layout_recipe["margin_top"]
+        height = 279.4 if sheet == "Letter" else 297.0
+        if sheet != "A3":
+            assert height - top - got[1] <= 240.0, (
+                f"{p.slug} leaves {height - top - got[1]:.1f} mm of strip, "
+                "past the i1Pro ruler's 240 mm travel")
 
 
 def test_the_right_margin_is_narrower_than_the_apps_own_seed():
@@ -157,7 +199,7 @@ def test_name_matches_the_bundled_patch_set_and_the_grid(preset):
     assert m, f"name does not follow the convention: {preset.name}"
     assert int(m.group("patches")) == preset.patches
     assert int(m.group("pages")) == preset.pages
-    assert m.group("sheet") == preset.layout_recipe["paper"]
+    assert PAPER_OF_SHEET[m.group("sheet")] == preset.layout_recipe["paper"]
 
     ti1 = resource_path(preset.ti1_asset)
     assert ti1.is_file(), f"missing {preset.ti1_asset}"

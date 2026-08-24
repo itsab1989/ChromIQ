@@ -1,5 +1,21 @@
 # Changelog
 
+## v4.1.3-beta.11
+
+### New
+
+- **Twelve more i1Pro charts.** Knut's 8 mm line-up is complete: the same eight
+  patch counts on **US Letter** as on A4 (156 up to 3,432), an **A4-3432p** to
+  finish the A4 run, and three on **A3 landscape** (1,144 / 2,288 / 3,432) laid
+  out on a 44-column grid. Nineteen charts in all, grouped by paper in the
+  preset list and climbing by patch count inside each group — you pick the
+  sheet in your printer first.
+
+  The Letter charts keep their own right and bottom margins (9 mm and 15 mm
+  against A4's 6 and 19). That is deliberate: Letter is 18 mm shorter than A4,
+  so it does not need A4's deeper bottom margin to keep a strip inside the
+  i1Pro ruler's 240 mm travel.
+
 ## v4.1.3-beta.10
 
 ### Fixed

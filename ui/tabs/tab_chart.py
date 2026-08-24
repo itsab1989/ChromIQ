@@ -788,11 +788,23 @@ _I1_BASE: dict = {
 
 
 def _i1_preset(slug: str, name: str, paper: str, cols: int, rows: int,
-               patches: int, pages: int, white: int, black: int) -> "_Ti1Preset":
+               patches: int, pages: int, white: int, black: int,
+               margin_right: float | None = None,
+               margin_bottom: float | None = None) -> "_Ti1Preset":
     """One chart of Knut's 8 mm i1Pro family (see _I1_BASE above).
 
-    Built exactly like :func:`_p3_preset`: only the sheet and the grid are this
-    chart's own, everything else comes from the shared base. ``suffix=""`` and
+    Built like :func:`_p3_preset`, with two exceptions the paper forces.
+
+    THE LETTER CHARTS CARRY THEIR OWN RIGHT AND BOTTOM MARGINS, deliberately.
+    A4 is 297 mm, so 38 mm at the top and 19 at the bottom leave exactly the
+    240 mm the i1Pro's ruler can travel. US Letter is 279.4 mm: the same top
+    margin and 15 at the bottom leave 226 mm, comfortably inside the limit, so
+    19 would only waste paper. The right margin goes the other way — 9 mm on
+    Letter, matching ChromIQ's own i1Pro seed, against 6 on A4. Knut, #164:
+    *"It is correct that the right margin for the i1Pro is 6mm, it is
+    intentional. It is intentional that the letter variants are 9mm."*
+
+    Everything else comes from the shared base. ``suffix=""`` and
     the default group put the target name out as ``i1Pro-A4-572p-1page-Portrait
     -w8.0mm`` — the name he gave the chart, unchanged — and file the rows under
     the existing i1Pro heading.
@@ -806,6 +818,10 @@ def _i1_preset(slug: str, name: str, paper: str, cols: int, rows: int,
         patches=patches, white=white, black=black,
         tiff_16bit=False, suffix="",
         layout_recipe=dict(_I1_BASE, paper=paper, area_cols=cols,
+                           **({"margin_right": margin_right}
+                              if margin_right is not None else {}),
+                           **({"margin_bottom": margin_bottom}
+                              if margin_bottom is not None else {}),
                            area_rows=rows),
     )
 
@@ -1105,6 +1121,51 @@ KNUT_PRESETS: list[_Ti1Preset] = [
     _i1_preset("i1_w8_a4_2860p_5pages_portrait_w8_0mm",
                "A4-2860p-5pages-Portrait-w8.0mm",
                "A4", 22, 26, 2860, 5, 2, 2),
+    _i1_preset("i1_w8_a4_3432p_6pages_portrait_w8_0mm",
+               "A4-3432p-6pages-Portrait-w8.0mm",
+               "A4", 22, 26, 3432, 6, 2, 2),
+
+    # The same eight charts on US LETTER, and three on A3 landscape (#164).
+    # GROUPED BY PAPER, ascending inside each group, rather than one ascending
+    # run across all three: a user picks the paper in their printer first, and
+    # a list reading A4-156, Letter-156, A4-312, Letter-312 … cannot be scanned
+    # for the sheet you actually have.
+    #
+    # The Letter charts own their right and bottom margins — see _i1_preset.
+    _i1_preset("i1_w8_letter_156p_1page_portrait_w8_0mm",
+               "Letter-156p-1page-Portrait-w8.0mm",
+               "Letter", 22, 26, 156, 1, 1, 1, margin_right=9.0, margin_bottom=15.0),
+    _i1_preset("i1_w8_letter_312p_1page_portrait_w8_0mm",
+               "Letter-312p-1page-Portrait-w8.0mm",
+               "Letter", 22, 26, 312, 1, 1, 1, margin_right=9.0, margin_bottom=15.0),
+    _i1_preset("i1_w8_letter_572p_1page_portrait_w8_0mm",
+               "Letter-572p-1page-Portrait-w8.0mm",
+               "Letter", 22, 26, 572, 1, 2, 2, margin_right=9.0, margin_bottom=15.0),
+    _i1_preset("i1_w8_letter_1144p_2pages_portrait_w8_0mm",
+               "Letter-1144p-2pages-Portrait-w8.0mm",
+               "Letter", 22, 26, 1144, 2, 2, 2, margin_right=9.0, margin_bottom=15.0),
+    _i1_preset("i1_w8_letter_1716p_3pages_portrait_w8_0mm",
+               "Letter-1716p-3pages-Portrait-w8.0mm",
+               "Letter", 22, 26, 1716, 3, 2, 2, margin_right=9.0, margin_bottom=15.0),
+    _i1_preset("i1_w8_letter_2288p_4pages_portrait_w8_0mm",
+               "Letter-2288p-4pages-Portrait-w8.0mm",
+               "Letter", 22, 26, 2288, 4, 2, 2, margin_right=9.0, margin_bottom=15.0),
+    _i1_preset("i1_w8_letter_2860p_5pages_portrait_w8_0mm",
+               "Letter-2860p-5pages-Portrait-w8.0mm",
+               "Letter", 22, 26, 2860, 5, 2, 2, margin_right=9.0, margin_bottom=15.0),
+    _i1_preset("i1_w8_letter_3432p_6pages_portrait_w8_0mm",
+               "Letter-3432p-6pages-Portrait-w8.0mm",
+               "Letter", 22, 26, 3432, 6, 2, 2, margin_right=9.0, margin_bottom=15.0),
+
+    _i1_preset("i1_w8_a3_1144p_1page_landscape_w9_0mm",
+               "A3-1144p-1page-Landscape-w9.0mm",
+               "420x297", 44, 26, 1144, 1, 2, 2),
+    _i1_preset("i1_w8_a3_2288p_2pages_landscape_w9_0mm",
+               "A3-2288p-2pages-Landscape-w9.0mm",
+               "420x297", 44, 26, 2288, 2, 2, 2),
+    _i1_preset("i1_w8_a3_3432p_3pages_landscape_w9_0mm",
+               "A3-3432p-3pages-Landscape-w9.0mm",
+               "420x297", 44, 26, 3432, 3, 2, 2),
 
     # Scanner family (#100) — Knut's flatbed-scanner printer-profiling charts.
     # Engine-built (the layout_recipe drives the ChromIQ layout engine, not

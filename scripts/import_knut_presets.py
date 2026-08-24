@@ -91,10 +91,16 @@ FAMILIES: dict[str, Family] = {
     # The i1Pro line-up with 8 mm patches (2026-08-23). Same shape as the
     # i1Pro 3 Plus family — one base, one grid per chart — but cut for the
     # original i1Pro's own jig margins, and every chart on A4.
+    # The i1Pro line-up with 8 mm patches (2026-08-23). One base, one grid per
+    # chart — plus two margins the PAPER forces: US Letter is 18 mm shorter
+    # than A4, so it does not need A4's 19 mm bottom to keep a strip inside the
+    # ruler's 240 mm travel, and its right margin is the 9 mm of ChromIQ's own
+    # i1Pro seed against A4's 6. Both confirmed intentional by Knut (#164).
     "i1": Family(
         key="i1", label="i1Pro", prefix="i1Pro-", slug_prefix="i1_w8_",
         instrument="i1", dest=ASSETS / "i1pro",
-        varying=frozenset({"paper", "area_cols", "area_rows"}),
+        varying=frozenset({"paper", "area_cols", "area_rows",
+                           "margin_right", "margin_bottom"}),
         helper="_i1_preset",
     ),
 }
@@ -207,6 +213,9 @@ def check(export: dict, ti1: Path, base: dict | None,
         "white": facts["white"],
         "black": facts["black"],
         "margin_left": recipe.get("margin_left"),
+        # Per-paper on the i1Pro family; see the note beside FAMILIES["i1"].
+        "margin_right": recipe.get("margin_right"),
+        "margin_bottom": recipe.get("margin_bottom"),
         "clip_text": recipe.get("clip_text"),
         "editor_recipe": data.get("editor_recipe"),
         "layout_recipe": recipe,
@@ -284,6 +293,9 @@ def emit_rows(rows: list[dict], fam: Family, base: dict) -> str:
         extra = ""
         if "margin_left" in fam.varying and r["margin_left"] != base.get("margin_left"):
             extra += f", margin_left={r['margin_left']}"
+        for field in ("margin_right", "margin_bottom"):
+            if field in fam.varying and r.get(field) != base.get(field):
+                extra += f", {field}={r[field]}"
         if "clip_text" in fam.varying and r["clip_text"] != base.get("clip_text"):
             # Only the ColorMunki family authors a second note (its Hand Held
             # charts); the constant sits beside the base in tab_chart.py.
