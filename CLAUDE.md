@@ -20,8 +20,8 @@ python main.py
 
 ```bash
 source .venv/bin/activate
-QT_QPA_PLATFORM=offscreen pytest -n 4            # everyday tier, ~4370 tests, ~1.5 min
-QT_QPA_PLATFORM=offscreen pytest --runslow -n 4  # THE RELEASE GATE, ~4400 tests, ~3.7 min
+QT_QPA_PLATFORM=offscreen pytest -n auto            # everyday tier, ~6860 tests, ~2:10
+QT_QPA_PLATFORM=offscreen pytest --runslow -n auto  # THE RELEASE GATE, ~7060 tests, ~3 min
 ```
 
 The suite is two-tiered: ~20 heavy end-to-end profile-build tests carry
@@ -40,31 +40,66 @@ above means something is wrong (a test opening a modal dialog `.exec()`, or
 fixtures need. Parallel was avoided because a run once hung for 2.5 h; that was
 `targen` without a `timeout=`, now fixed.
 
-**Use `-n 4`, and do not raise it.** More is faster and NOT reliable — measured on a 16-core
-machine, same tree, same day:
+**Use `-n auto`.** `pytest.ini` caps it at 12 workers (`--maxprocesses=12`),
+which is a CEILING and not a pin — on a smaller VM `auto` still wins, so the
+same command is right on every host. Measured on the full gate, 2026-08-24,
+6953 tests:
 
 | workers | result | wall |
 |---|---|---|
-| **4** | **4406 passed** | **3:42** |
-| 8 | 30 failed + 11 errors | 2:39 |
-| 12 | 45 failed (and green on the next run) | 2:30 |
-| auto (16) | 17 failed | 2:35 |
+| 4 | 6953 passed | 7:44 |
+| 8 | 6953 passed | 4:00 |
+| **12** | **6953 passed ×6** | **2:57** |
+| 14 | 6953 passed | 2:56 |
+| auto (16) | 6953 passed ×2 | 2:59 |
+| 20 | 6953 passed | 3:00 |
 
-Every affected test passes on its own and the failing set changes run to run,
-so this is shared state between tests, not one bad test. **Do not raise the
-worker count to make the gate faster** — a release decision rests on this
-number, and a gate that reports "45 failed" when nothing is wrong is worse
-than a slow one. Fixing it means finding that shared state (101 test files
-construct `AppSettings()`, which is the real `QSettings` store — so a test run
-also writes to the developer's own preferences) — worth doing, but as its own
-piece of work. Capping `-n auto` from a conftest hook does **not** work:
-pytest-xdist has already read the option by then, and the run goes ahead at
-full parallelism anyway.
+**Eleven gate runs, nine of them at 12 or more workers, not one spurious
+failure.** Twelve is the cheapest point on a plateau: `--dist loadfile` cannot
+finish faster than its slowest single file (`tests/test_engine_v2_options.py`,
+157 s on one worker), and this host has 12 performance cores plus 4 efficiency
+ones, so past 12 the extra workers land on slow cores.
 
-**The real saving was the demo-project cache**, and it is independent of the
-worker count: 6:25 → 3:42 at the same `-n 4`.
+**THIS FILE USED TO SAY THE OPPOSITE, AND IT COST FIVE MINUTES A RUN FOR
+SIXTEEN DAYS.** It said "use `-n 4`, and do not raise it — more is faster and
+NOT reliable", with a table showing 30 failures at 8, 45 at 12, 17 at auto.
+That was true when it was written (2026-08-05) and was fixed three days later
+by the two commits it was itself asking for:
 
-**Measured on a 16-core M-series (12 performance cores), 4367 tests:**
+- `322c3d20` — `tests/conftest.py::pytest_configure` replaces
+  `core.settings.QSettings` with a per-process sandboxed `.ini`. That is the
+  shared state the old note blamed by name ("101 test files construct
+  `AppSettings()`, which is the real `QSettings` store").
+- `b30b0ad8` — the leaked `QMessageBox.exec` patch, the other cross-test leak.
+
+Nobody came back to update the numbers. **If you change how the suite is run,
+re-measure and rewrite this section in the same commit.**
+
+A cap CAN be applied from configuration, which this file also used to deny.
+`--maxprocesses` works from `addopts` and `PYTEST_ADDOPTS` (xdist applies
+`min(numprocesses, maxprocesses)` in `pytest_cmdline_main`, after addopts are
+parsed), as does `PYTEST_XDIST_AUTO_NUM_WORKERS`. Only the
+`pytest_xdist_auto_num_workers` **conftest hook** is too late to help.
+
+`--dist loadfile` keeps each file on one worker, which the module-scoped
+fixtures need. Parallel was once avoided because a run hung for 2.5 h; that was
+`targen` without a `timeout=`, now fixed.
+
+**Where the time actually goes** (instrumented, 2026-08-24): the gate is purely
+CPU-bound — at `-n 4` all four workers finish within 6 s of each other, so there
+is no straggler to chase, just four cores of sixteen doing 1,829 s of work.
+Argyll subprocesses are **5.6 %** of it (103 s across 376 processes) and
+`inspect.getsource` **0.2 %**. The expensive part is **Qt widget construction in
+function-scoped fixtures** — `tab` (a real `TabChart`) alone is 221 s over 101
+constructions, ~2.15 s each. Module-scoping those would save ~20 s at `-n 12`
+and risks exactly the cross-test leakage the two commits above were needed to
+fix; not worth it.
+
+**The demo-project cache is worth ~2:00** (measured at `-n 12`: cold 4:54, warm
+2:54). Worker count is worth 4:47. Both matter; the cache is not the bigger one.
+
+**Measured on a 16-core M-series (12 performance cores), 4367 tests — HISTORIC,
+from when the suite was 40% smaller:**
 
 | | wall time |
 |---|---|
@@ -104,7 +139,8 @@ suite once sat on that single call for two and a half hours with no output.
 When a run does appear stuck, `pytest --timeout=300 --timeout-method=thread`
 (pytest-timeout) makes the stack name the test instead of guessing.
 
-**Real Argyll builds are the expensive part.** The demo projects in
+**Real Argyll builds are expensive individually** (though only 5.6% of a
+whole gate — see above). The demo projects in
 `scripts/make_demo_projects.py` cost 30-70 s each. There is ONE session-scoped
 build for the whole suite — the `demo_projects_root` / `demo_project` fixtures
 in `tests/conftest.py`. Use those; a second fixture of your own means the same

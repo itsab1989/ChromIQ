@@ -22,6 +22,11 @@
 set -u
 cd "$(dirname "$0")/.."
 
+# 240 s suits the targeted runs this script is for (`-k something`). IT IS NOT
+# ENOUGH FOR THE GATE: `--runslow` takes ~3 min at -n auto and ~19 min serial,
+# and this script passes no -n of its own, so a gate run through it would be
+# `kill -9`'d partway and reported as a HANG rather than a timeout. Run the
+# gate directly (see CLAUDE.md), or set HARD_TIMEOUT and -n yourself.
 HARD_TIMEOUT="${HARD_TIMEOUT:-240}"
 LOCK="${TMPDIR:-/tmp}/chromiq_pytest.lock"
 
