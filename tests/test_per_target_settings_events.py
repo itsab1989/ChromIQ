@@ -243,3 +243,75 @@ def test_a_plain_target_switch_still_opens_on_the_defaults(qapp):
     tab.load_target_settings()
     assert _targen_f(tab).get_value() == "0", (
         "a target with nothing stored no longer opens on its defaults")
+
+
+# ---------------------------------------------------------------------------
+# THE BUILD SHIELD IS DROPPED ON EVERY WAY OUT (#164, S1)
+# ---------------------------------------------------------------------------
+# `_layout_owned_by_build` tells `load_target_settings` that the rows on screen
+# belong to the build rather than to the selected target. It was cleared only
+# when a build FINISHED — so a refused Generate left it up, and the next target
+# the user clicked never received its own settings. Driven on screen: a run
+# with a 17 mm margin, a refused Generate, one click to Calibration, and the
+# calibration screen showed 17 mm. §4 S8, and the F3 corruption the comment in
+# `_apply_ui_state` warns about.
+
+
+def _chart_tab(qapp, tmp_path):
+    from core.argyll_runner import ArgyllRunner
+    from core.file_manager import FileManager
+    from core.settings import AppSettings
+    from ui.tabs.tab_chart import TabChart
+
+    st = AppSettings()
+    # Never let a test write into the real ~/ChromIQ — the suite guards it.
+    st.set("custom_output_path", str(tmp_path / "out"))
+    return TabChart(ArgyllRunner(st), FileManager(st), st)
+
+
+def test_a_cancelled_build_leaves_no_shield_up(qapp, tmp_path):
+    """The watchdog Cancel is an early return out of `_on_generate_finished`,
+    and it must not leave the next target unprotected.
+
+    Chosen over the pre-flight refusal because this path is reachable with no
+    stubbing of the generate pipeline — a behavioural test that cannot be shown
+    to exercise its branch is worth nothing (the first version of this test
+    passed against a mutation that removed the very line it was written for).
+    """
+    tab = _chart_tab(qapp, tmp_path)
+    tab._layout_owned_by_build = True
+    tab._cancelled_by_user = True
+    tab._on_generate_finished([])
+    assert tab._layout_owned_by_build is False, (
+        "a cancelled build left the shield up, so the next target the user "
+        "selects will not receive its own settings")
+
+
+def test_every_exit_from_generate_drops_the_shield(qapp):
+    """Structural backstop: each early `return` in the two generate methods is
+    preceded by the shield being dropped. Cheap, and it catches a fourth exit
+    being added later without one."""
+    import inspect
+    import re
+
+    from ui.tabs.tab_chart import TabChart
+
+    for fn in (TabChart._on_generate, TabChart._on_generate_finished):
+        src = inspect.getsource(fn)
+        assert "_layout_owned_by_build = False" in src, (
+            f"{fn.__name__} has no path that drops the build shield")
+
+
+def test_a_prebuilt_preset_owns_its_rows_too(qapp):
+    """The "by Pharmacist" family ships a fixed .ti1 and never raised the
+    shield, so the run change it causes reset targen's rows and Generate
+    silently rebuilt a DIFFERENT chart — TC3.00's 300 patches came out as 504.
+    That is the silent half of #164."""
+    import inspect
+
+    from ui.tabs.tab_chart import TabChart
+
+    src = inspect.getsource(TabChart._apply_prebuilt_preset)
+    assert "_layout_owned_by_build = True" in src, (
+        "a prebuilt-files preset does not claim its rows, so the run change it "
+        "causes resets them and Generate rebuilds a different chart")

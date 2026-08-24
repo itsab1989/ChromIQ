@@ -1,5 +1,39 @@
 # Changelog
 
+## v4.1.3-beta.8
+
+beta.7 fixed the loud half of a fault and made the quiet half worse. Both are
+closed here.
+
+### Fixed
+
+- **Settings could follow you from one run to another.** ChromIQ marks the
+  chart rows as "belonging to the build" while a chart is being made, so the
+  run change the build itself causes cannot reset them. That mark was only ever
+  taken down when a build FINISHED — so a Generate that was refused, that
+  failed to estimate its patch count, or that you cancelled left it up, and the
+  next run or calibration you clicked never received its own settings. On
+  screen: a run with a 17 mm margin, a refused Generate, one click to
+  Calibration, and the calibration showed 17 mm.
+
+  beta.7 widened this without meaning to: before it, a stale mark suppressed
+  only part of the panel; after it, all of it.
+
+- **The "by Pharmacist" charts still rebuilt themselves as a different chart.**
+  beta.7 said this was fixed and it was not — that family never claimed its
+  rows at all. Pressing Generate once, changing nothing, turned TC3.00's 300
+  bundled patches into 504, with no error to show for it.
+
+- **Choosing "Default" left the previous preset's design on the run.** One
+  click was enough to reproduce *"a previously created patch set setting is
+  there instead"*: "Default" builds a fresh chart through targen and has no
+  design of its own, but it said "leave the record alone" rather than "this
+  chart has no design".
+
+- **The first-run guidance was invisible** — black text on the black masthead
+  (1.11:1 for the two labels, 1.55:1 for the sentence, where readable text
+  wants 4.5:1). Both style hooks existed and nothing used them.
+
 ## v4.1.3-beta.7
 
 ### Fixed

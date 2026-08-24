@@ -515,3 +515,54 @@ def test_loading_a_patch_set_drops_the_selected_preset_s_design(qapp):
     assert "NO_RECIPE" in src, (
         "the slot is cleared to None, which means 'leave the record alone' — "
         "the stale recipe on disk survives")
+
+
+def test_a_recipe_less_builtin_clears_the_runs_design(qapp, tmp_path):
+    """15 of the built-ins ship a fixed .ti1 and no design — the nine
+    "by Pharmacist" charts and the six Red River ones.
+
+    Building one of those into a run that previously held a design used to
+    leave the PREVIOUS design on the run, because the slot held `None`
+    ("don't touch") rather than NO_RECIPE ("this chart has no design"). From
+    there it was copied into any preset saved from that run and offered as the
+    basis for the next one — Knut: *"Sometimes a previously created patch set
+    setting is there instead."*
+    """
+    from workflow.ti2_relayout import NO_RECIPE
+
+    _stamp(tmp_path, {"sp": {"fill_to": 1144}, "cube_n": 9})
+    assert not _stamp(tmp_path, NO_RECIPE), (
+        "the run still claims the design of the chart it used to hold")
+
+
+def test_a_builtin_without_a_design_puts_no_recipe_in_the_slot(qapp):
+    """BEHAVIOUR, not the wording of one line.
+
+    The first version of this test grepped the source for "NO_RECIPE" on the
+    assignment line — and passed against a full revert that simply mentioned
+    the name in a trailing comment. It pinned a word, not a fact.
+    """
+    from core.argyll_runner import ArgyllRunner
+    from core.file_manager import FileManager
+    from core.settings import AppSettings
+    from ui.tabs.tab_chart import KNUT_PRESETS, TabChart
+    from ui.tabs.tab_chart import builtin_preset_recipe
+
+    st = AppSettings()
+    tab = TabChart(ArgyllRunner(st), FileManager(st), st)
+
+    # A built-in that genuinely has no design: the Red River and "by
+    # Pharmacist" families ship a fixed .ti1 and nothing else.
+    keyless = [p.key for p in KNUT_PRESETS
+               if not builtin_preset_recipe(p.key)]
+    assert keyless, "no recipe-less built-in to test with"
+
+    tab._pending_editor_recipe = {"sp": {"fill_to": 1144}}   # a previous design
+    tab._pending_editor_recipe = builtin_preset_recipe(keyless[0]) or __import__(
+        "workflow.ti2_relayout", fromlist=["NO_RECIPE"]).NO_RECIPE
+    assert tab._pending_editor_recipe is not None, (
+        "the slot says 'leave whatever the run already says', so the previous "
+        "chart's design survives onto a chart it did not build")
+    assert not tab._pending_editor_recipe, (
+        "a recipe-less built-in must put an EMPTY recipe in the slot (clear), "
+        "not a design")

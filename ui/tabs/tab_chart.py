@@ -6581,8 +6581,19 @@ class TabChart(QWidget):
             # A built-in that ships a creation recipe (Set B) seeds the New-chart
             # window just like a user preset — so loading it carries its colour
             # sets / layout into New chart, not the app-wide last-used state
-            # (Knut). None for built-ins that are fixed .ti1 charts with no recipe.
-            self._pending_editor_recipe = builtin_preset_recipe(data)
+            # (Knut).
+            #
+            # A BUILT-IN WITH NO DESIGN CLEARS THE RECORD, IT DOES NOT LEAVE IT.
+            # 15 of the built-ins are fixed .ti1 charts with no recipe — the
+            # nine "by Pharmacist" ones and the six Red River ones. `None` here
+            # means "don't touch", so building one of those into a run that had
+            # previously held a preset left the PREVIOUS preset's design on the
+            # run, describing a chart it did not build. From there it was copied
+            # into any preset saved from that run, and offered as the basis for
+            # the next design in "Load setup from preset" (#164, Knut: *"a
+            # previously created patch set setting is there instead"*).
+            from workflow.ti2_relayout import NO_RECIPE
+            self._pending_editor_recipe = builtin_preset_recipe(data) or NO_RECIPE
             # …but a built-in's own bundled .ti1 still feeds Suggest-name (#62).
             asset = self._builtin_ti1_asset(data)
             self._builtin_ti1_path = resource_path(asset) if asset else None
@@ -6670,7 +6681,14 @@ class TabChart(QWidget):
                 pw.set_user_enabled(bool(s.get(f"manual_targen_-D_{idx}_enabled", False)))
             self._rebuild_d_cascade_visibility()
             self._builtin_ti1_path = None     # Default builds via targen
-            self._pending_editor_recipe = None  # Default builds via targen, no recipe
+            # "Default" BUILDS A FRESH targen CHART, SO IT HAS NO DESIGN —
+            # and `None` here meant "leave whatever the run already says",
+            # which left the previously selected preset's design standing as a
+            # description of a chart it did not build. One click on Default was
+            # enough to reproduce Knut's *"a previously created patch set
+            # setting is there instead"* (#164).
+            from workflow.ti2_relayout import NO_RECIPE
+            self._pending_editor_recipe = NO_RECIPE
             if self._bit8_radio is not None and self._bit16_radio is not None:
                 is_16bit = bool(s.get("manual_printtarg_tiff_16bit", False))
                 self._bit16_radio.setChecked(is_16bit)
@@ -8778,6 +8796,16 @@ class TabChart(QWidget):
         "did the layout change?" check has a sensible baseline."""
         self._prebuilt_active = True
         self._prebuilt_key = key
+        # THESE ROWS BELONG TO THE BUNDLE NOW, NOT TO THE TARGET.
+        # Copying the bundle lands the Profile-run bar on the new run, and on a
+        # fresh project that is a change of run — which resets every per-target
+        # row to its factory value. targen's `-e`/`-B` go 0 → 4, the bundle's
+        # signature stops matching, and Generate quietly rebuilds the chart
+        # through targen instead of using the bundle: TC3.00's 300 patches came
+        # out as 504, with no error to show for it (#164). The .ti1-backed
+        # built-ins raise the same shield at `_apply_knut_preset`; this family
+        # was missed, which is the silent half of that report.
+        self._layout_owned_by_build = True
         self._reset_override_checks()
         # Seed the device + page the bundle was made for. printtarg is re-run from
         # the bundled .ti1 only if the user unlocks the layout and edits it.
@@ -9790,6 +9818,17 @@ class TabChart(QWidget):
                 log.error("Auto patch estimation failed: %s", exc)
                 self._log.appendPlainText(f"Auto patch estimation failed: {exc}")
                 self._generate_btn.setEnabled(True)
+                # DROP THE SHIELD ON THE WAY OUT.
+                # `_layout_owned_by_build` tells the per-target loader that the rows
+                # on screen belong to the build, not to the target — and it is
+                # cleared only when a build FINISHES. Leaving it up on an early
+                # return means the next target the user selects never receives its
+                # own settings, and the next write files the previous run's values
+                # onto it (§4 S8; the F3 corruption the comment in
+                # `_apply_ui_state` warns about). Reproduced on screen: a refused
+                # Generate in a run with a 17 mm margin, one click to Calibration,
+                # and the calibration screen showed 17 mm.
+                self._layout_owned_by_build = False
                 return
             self._log.appendPlainText(f"Auto patch count: {params.patches}")
             # Now that the real patch count is known, recompute any Auto
@@ -9812,6 +9851,17 @@ class TabChart(QWidget):
             )
             self._log.ensureCursorVisible()
             self._generate_btn.setEnabled(True)
+            # DROP THE SHIELD ON THE WAY OUT.
+            # `_layout_owned_by_build` tells the per-target loader that the rows
+            # on screen belong to the build, not to the target — and it is
+            # cleared only when a build FINISHES. Leaving it up on an early
+            # return means the next target the user selects never receives its
+            # own settings, and the next write files the previous run's values
+            # onto it (§4 S8; the F3 corruption the comment in
+            # `_apply_ui_state` warns about). Reproduced on screen: a refused
+            # Generate in a run with a 17 mm margin, one click to Calibration,
+            # and the calibration screen showed 17 mm.
+            self._layout_owned_by_build = False
             return
 
         # Arm the slow-chart watchdog: only this path runs targen (the tool
@@ -12930,6 +12980,8 @@ class TabChart(QWidget):
             self._cancelled_by_user = False
             self._log.appendPlainText(tr("Chart generation cancelled."))
             self._log.ensureCursorVisible()
+            # A cancelled build owns nothing — see the note in `_on_generate`.
+            self._layout_owned_by_build = False
             return
         is_isis = self._is_isis_selected()
         # File stem is fixed by the folder layout ("chart" / "calibration").
@@ -14374,9 +14426,17 @@ class TabChart(QWidget):
                                  recipe=self._pending_editor_recipe,
                                  sync_layout=not is_engine)
             else:
+                # NO PARAMS MEANS NO TARGEN RUN — a bundled .ti1 went straight
+                # onto the sheet. That is still a chart this run did not design,
+                # so its record must be cleared rather than left describing
+                # whatever was there before (#164). This branch used never to
+                # touch `editor_recipe` at all, which is how the nine
+                # prebuilt-file presets inherited the previous chart's design.
                 meta = run.load_meta()
                 meta.instrument = spec.instrument_flag
                 meta.paper = spec.paper_flag
+                if not self._pending_editor_recipe:
+                    meta.editor_recipe = None
                 run.save_meta(meta)
         except Exception:  # noqa: BLE001 — metadata is non-essential
             log.exception("could not stamp chart meta.json")
