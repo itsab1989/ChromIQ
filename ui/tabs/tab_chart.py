@@ -2055,6 +2055,11 @@ class TabChart(QWidget):
         # rather than the app-wide last-used state — restoring the rule "show
         # last-used only when the loaded layout has no saved settings" (#70, Knut
         # follow-up). None for Default / built-ins / plain targen charts.
+        #: The design the NEXT build was made from — see
+        #: :data:`workflow.ti2_relayout.NO_RECIPE` for the three states. It must
+        #: be cleared, not merely left alone, whenever the patch set changes
+        #: underneath it, or a chart is recorded as having been built from a
+        #: design that did not build it.
         self._pending_editor_recipe: dict | None = None
         # Bundled .ti1 of the currently-selected built-in preset (TC9.18 /
         # Knut / prebuilt). Built-ins don't use _preset_ti1_path (that's for
@@ -9994,6 +9999,12 @@ class TabChart(QWidget):
             return
         src = Path(path)
         self._log.clear()
+        from workflow.ti2_relayout import NO_RECIPE
+        # THE SLOT DESCRIBES A DESIGN, AND THIS IS A DIFFERENT PATCH SET.
+        # Whatever preset was selected before, its recipe does not describe the
+        # file just loaded — and leaving it here stamps that preset's design
+        # onto this chart as though it had built it (#164, Knut).
+        self._pending_editor_recipe = NO_RECIPE
 
         # A native Argyll .ti1 already carries real colorimetry, so it's used
         # as-is. Anything else is treated as an i1Profiler RGB patch set

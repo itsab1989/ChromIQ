@@ -1,5 +1,27 @@
 # Changelog
 
+## v4.1.3-beta.5
+
+### Fixed
+
+- **A chart could carry a record of a design that never built it.** Knut spotted
+  it from the outside — he took a 1,144-patch preset as a basis, built a
+  different chart over it, and the stored setup data went on describing the old
+  one; charts made from that chart inherited the same wrong record. He was
+  right, and it reaches further than the exports he sent: these records live in
+  your own saved Create Chart presets, so an affected entry offers the wrong
+  design as the starting point for the next one in "Load setup from preset".
+
+  Saving a chart's layout has always been allowed to leave its creation recipe
+  alone, which is correct for a layout-only save. A REBUILD from a different
+  patch set was doing the same thing, so nothing ever cleared the old design.
+  There is now a third state — *this chart was not built from a stored design* —
+  and loading a patch set uses it, so the previously selected preset's design
+  is no longer stamped onto a chart it does not describe.
+
+  Existing records are not rewritten: a chart already carrying the wrong design
+  keeps it until it is rebuilt.
+
 ## v4.1.3-beta.4
 
 Knut's help-card batch. Chasing a heading that printed on its own turned up the

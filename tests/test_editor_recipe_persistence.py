@@ -452,3 +452,66 @@ def test_rename_refreshes_inmemory_chart_paths(qapp, tmp_path):
     tiffs, ti2 = got[0]
     assert all("NewName" in str(p) for p in tiffs)
     assert tab._last_target_name == "NewName"
+
+
+# ---------------------------------------------------------------------------
+# A CHART MUST NOT CARRY A DESIGN THAT DID NOT BUILD IT (#164, Knut)
+# ---------------------------------------------------------------------------
+# He noticed it from the outside: *"why did not the setup data update when I
+# used the 1144 patch preset as basis… This should have been saved, but was
+# not. Then the error was further propagated when I used the chart to create
+# another variant."* `recipe=None` means "layout-only save, leave the record
+# alone", and a rebuild from a DIFFERENT patch set was passing None too — so
+# the run went on describing the chart it used to hold. The false record then
+# travelled into the preset saved from that run, and into "Load setup from
+# preset" as the basis for the next design.
+
+def _stamp(run_dir, recipe):
+    from core.file_manager import Run
+    from workflow.ti2_relayout import ChartSpec, LayoutOptions, save_editor_meta
+
+    ti2 = run_dir / "chart.ti2"
+    ti2.write_text("x")
+    spec = ChartSpec(instrument_flag="i1", paper_flag="A4", patches=100,
+                     dev_fields=("RGB_R",), has_xyz=False, color_rep="RGB",
+                     white_point=None, paper_mm=(210.0, 297.0))
+    save_editor_meta(ti2, spec, LayoutOptions(), "chart", recipe=recipe)
+    return Run.for_dir(run_dir).load_meta().editor_recipe
+
+
+def test_a_layout_only_save_keeps_the_chart_s_design(qapp, tmp_path):
+    """The reason `None` exists, and it must go on working."""
+    design = {"sp": {"fill_to": 1144}, "cube_n": 9}
+    assert _stamp(tmp_path, design)["sp"]["fill_to"] == 1144
+    assert _stamp(tmp_path, None)["sp"]["fill_to"] == 1144, (
+        "a layout-only save wiped the chart's creation recipe")
+
+
+def test_a_rebuild_from_another_patch_set_clears_the_design(qapp, tmp_path):
+    """…and the third state, which is the fault Knut found.
+
+    Not "leave it alone" and not "store this" — *this chart was not built from
+    a stored design*. Anything else leaves the previous chart's design standing
+    as a description of this one.
+    """
+    from workflow.ti2_relayout import NO_RECIPE
+
+    _stamp(tmp_path, {"sp": {"fill_to": 1144}, "cube_n": 9})
+    assert not _stamp(tmp_path, NO_RECIPE), (
+        "the chart still claims it was built from the previous design")
+
+
+def test_loading_a_patch_set_drops_the_selected_preset_s_design(qapp):
+    """The path that produced it: a preset is chosen, then a different patch
+    set is loaded. The preset's design must not survive to be stamped on the
+    chart that file builds."""
+    import inspect
+
+    from ui.tabs import tab_chart
+
+    src = inspect.getsource(tab_chart.TabChart._on_load_ti1)
+    assert "_pending_editor_recipe" in src, (
+        "loading a patch set leaves the previous design in the slot")
+    assert "NO_RECIPE" in src, (
+        "the slot is cleared to None, which means 'leave the record alone' — "
+        "the stale recipe on disk survives")

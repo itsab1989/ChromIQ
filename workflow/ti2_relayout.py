@@ -428,6 +428,22 @@ def recipe_layout_from_options(options: "LayoutOptions") -> dict:
     }
 
 
+#: "This chart has no design", as distinct from "leave the record alone".
+#:
+#: `recipe=None` means a layout-only save, which must not wipe a chart's
+#: creation recipe. But a REBUILD from a different patch set was passing None
+#: too, so the run went on describing the chart it used to hold — and the false
+#: record then travelled: into meta.json, into the preset saved from it, and
+#: into "Load setup from preset" as the basis for the next design. Knut hit it
+#: and knew it was wrong before we did: *"why did not the setup data update…
+#: This should have been saved, but was not. Then the error was further
+#: propagated when I used the chart to create another variant."* (#164)
+#:
+#: Pass this when the chart on disk was NOT built from a stored design, and the
+#: record is cleared instead of inherited.
+NO_RECIPE: dict = {}
+
+
 def save_editor_meta(ti2_path: Path, spec: "ChartSpec",
                      options: "LayoutOptions", basename: str,
                      recipe: dict | None = None,
@@ -439,8 +455,15 @@ def save_editor_meta(ti2_path: Path, spec: "ChartSpec",
 
     ``recipe`` is the New chart / Add window's creation recipe
     (``_collect_gen_state``); when given it's stored as ``editor_recipe`` so the
-    design can be reloaded for tweaking/recreation. ``None`` leaves any existing
-    recipe untouched (a layout-only save mustn't wipe it).
+    design can be reloaded for tweaking/recreation. It has THREE states, and the
+    third one exists because conflating it with the second corrupted real user
+    data:
+
+    * a dict — this is the design the chart was built from; store it;
+    * ``None`` — don't touch the record (a layout-only save mustn't wipe it);
+    * :data:`NO_RECIPE` — this chart was NOT built from a stored design, so
+      clear the record rather than let the previous chart's design stand as a
+      description of this one.
 
     ``sync_layout=False`` stores the recipe exactly as given. Used for charts
     the ChromIQ layout engine built: their real layout lives in the recipe in
@@ -458,7 +481,9 @@ def save_editor_meta(ti2_path: Path, spec: "ChartSpec",
             meta.created_at = datetime.now().isoformat(timespec="seconds")
         meta.editor_layout = asdict(options)
         meta.editor_basename = basename
-        if recipe is not None:
+        if recipe is not None and not recipe:
+            meta.editor_recipe = None          # NO_RECIPE — see the docstring
+        elif recipe is not None:
             # Keep the creation recipe's layout (Set B) in step with the layout
             # the chart was actually built with (Set A = options), so a chart's
             # two records never disagree (#92). Generators / colour-set params /
