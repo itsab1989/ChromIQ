@@ -35,6 +35,10 @@ _PALETTE_DARK = {
     "ver_bg":         "#070707",
     "ver_fg":         "#6a6a6a",
     "tag_fg":         "#4a4a4a",
+    #: The first-run sentence on the rail. Brighter than `tag_fg` on purpose:
+    #: it is instruction, not decoration, and it is the only thing telling a
+    #: new user what to do. 4.56:1 against this rail (WCAG AA wants 4.5:1).
+    "rail_hint_fg":   "#787878",
     "wordmark":       "#ffffff",   # "Chrom"
     "ver_separator":  "#000000",
     "icon_track":     "#555555",   # programmatic fallback icon
@@ -45,6 +49,7 @@ _PALETTE_LIGHT = {
     "ver_bg":         "#eeebe5",
     "ver_fg":         "#7a7570",
     "tag_fg":         "#b8b4ae",
+    "rail_hint_fg":   "#404040",      # 8.71:1 against the light rail
     "wordmark":       "#1c1b18",
     "ver_separator":  "#d8d4ce",
     "icon_track":     "#c8c4be",
@@ -162,7 +167,33 @@ class MastheadHeader(QWidget):
         self._load_settings_icon()
         self._load_tools_icon()
         self._load_masthead_left_icons()
+        self._paint_center_widget_text()
         self.update()
+
+    # ------------------------------------------------------------------
+    def _paint_center_widget_text(self) -> None:
+        """Give the hosted widget's plain labels the rail's own text colour.
+
+        THE VERSION RAIL PAINTS ITSELF; A WIDGET SITTING ON IT DOES NOT. The
+        Profile-run bar's labels are ordinary `QLabel`s with no background of
+        their own, so on the dark rail (#070707) they were drawn in the default
+        near-black and measured **1.11:1** against it — "Profile run:",
+        "Run type:" and the first-run hint were all invisible, and the hint is
+        the one sentence that tells a brand-new user what to do. Grabbing a
+        label on its own hides this completely: `QLabel.grab()` paints the
+        label's own background, so it looks perfectly legible in isolation.
+
+        `ver_fg`/`tag_fg` are the colours the rail already uses for its own
+        text in each theme, so the labels now follow the rail rather than the
+        application palette.
+        """
+        w = self._center_widget
+        if w is None:
+            return
+        pal = self._palette
+        w.setStyleSheet(
+            f"QLabel#target_bar_label {{ color: {pal['ver_fg']}; }}"
+            f"QLabel#target_bar_hint  {{ color: {pal['rail_hint_fg']}; }}")
 
     # ------------------------------------------------------------------
     def setVersion(self, v: str) -> None:
@@ -200,6 +231,10 @@ class MastheadHeader(QWidget):
         of being centred out of the band."""
         w.setParent(self)
         self._center_widget = w
+        # Colour its labels for the rail right away — `set_appearance` returns
+        # early when the mode has not changed, so without this the very first
+        # widget hosted here keeps the application palette and disappears.
+        self._paint_center_widget_text()
         # The rail is laid out by hand, so nothing re-lays the centre widget
         # when *its own* content changes — and it changes often: turning Run
         # type to Verification adds boxes. Left as it was, the widget kept its
