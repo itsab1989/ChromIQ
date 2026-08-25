@@ -208,10 +208,15 @@ def avoid_split_rows(doc, body_h: float, limit: int = 200) -> int:
     than assumed:
 
     * "break before" on the row's first cell alone does nothing;
-    * "break before" on EVERY cell of the row works, but wastes pages — the
-      Main Actions card went from 3 pages to 5, the folder guide from 8 to 12;
-    * **"break after" on the row above** works and costs nothing: 3 → 3 and
-      8 → 9, with every split row fixed either way.
+    * **"break before" on EVERY cell of the row** is what ships. It moves the
+      row whole, so nothing of it is left on the previous page;
+    * "break after" on the row above looks cheaper and is not. It ends the page
+      INSIDE the row above, which leaves that row's padding and bottom border
+      to be painted overleaf — a thin empty line under the repeated header
+      (Knut, #164). Measured in pixels across all 18 cards at A4 and US Letter:
+      break-after leaves 6 such bands, break-before leaves none, and the price
+      is 42 → 47 pages on A4 and 46 → 49 on Letter, all of it on the two cards
+      with very tall rows.
 
     WITH ONE EXCEPTION, AND IT IS AN EXPENSIVE ONE. Never break after a row
     :func:`repeat_table_headers` has made a repeating header: Qt then has to
@@ -241,8 +246,36 @@ def avoid_split_rows(doc, body_h: float, limit: int = 200) -> int:
         # retried, or a different table's row silently skipped.
         tried.add((table.firstPosition(), index))
         if index > table.format().headerRowCount() and index > 0:
-            block = table.cellAt(index - 1, 0).lastCursorPosition().block()
-            policy = after
+            # BREAK BEFORE THE ROW, NOT AFTER THE ONE ABOVE IT.
+            #
+            # Ending a page at the last block INSIDE the row above satisfies
+            # every geometry check — each cell's text lands on the right page —
+            # but the row's remaining box, its padding and its bottom border,
+            # is painted on the NEXT page. That is the thin empty line Knut
+            # reported under the repeated header, and it was introduced by this
+            # very rule in 4.1.3-beta.2. It is invisible to `_row_extent`,
+            # which measures the text blocks in the cells rather than the row,
+            # so the audit that missed it was honest and blind: it has to be
+            # done in pixels.
+            #
+            # Breaking before the straddling row moves the row whole, so no box
+            # is left behind. It must be set on EVERY cell — on the first alone
+            # it does not land. Measured across all 18 cards, both page sizes:
+            # 6 empty bands become 0, no row's content is split, and only the
+            # two cards with very tall rows pay for it (Main Actions 3 → 5 on
+            # A4, the folder guide 9 → 12), because a tall row that will not
+            # fit now moves whole and leaves the foot of the sheet blank.
+            for col in range(table.columns()):
+                cell_block = table.cellAt(index, col).firstCursorPosition().block()
+                if not cell_block.isValid():
+                    continue
+                fmt = cell_block.blockFormat()
+                if fmt.pageBreakPolicy() & before:
+                    continue
+                fmt.setPageBreakPolicy(before)
+                QTextCursor(cell_block).setBlockFormat(fmt)
+            moved += 1
+            continue
         else:                      # only the repeated header sits above it
             block = doc.findBlock(table.firstPosition() - 1)
             policy = before

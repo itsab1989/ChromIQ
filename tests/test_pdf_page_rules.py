@@ -323,12 +323,29 @@ def test_a_heading_is_moved_not_given_a_page_of_its_own(qapp, tmp_path):
 
 
 def test_no_card_prints_an_almost_empty_page(qapp, tmp_path):
-    """…and the same for the cards that exercise the rules hardest."""
-    for key in ("glossary", "main_actions"):
+    """…and the same for the cards that exercise the rules hardest.
+
+    TWO RULES COLLIDE HERE, AND KNUT CHOSE WHICH WINS. "Never cut a table row
+    across a page" and "never print a nearly empty page" cannot both hold for a
+    card whose rows are taller than the space left on a sheet: moving such a
+    row whole is exactly what leaves the foot of the previous sheet blank.
+
+    He reported the alternative — a row's bottom border stranded under the
+    repeated header on the next page — as the defect to fix (#164), so whole
+    rows win and Main Actions pays for it with two sparse sheets. That is why
+    it is exempt here rather than the bar being lowered for every card: the
+    glossary still has to clear 2 %.
+    """
+    for key in ("glossary",):
         inks = _card_pages_ink(qapp, key, tmp_path)
         assert min(inks) > 2.0, (
             f"{key} prints an almost empty page: "
             f"{[round(v, 2) for v in inks]}")
+    # Main Actions is allowed sparse sheets, but not blank ones — if a page
+    # ever holds nothing at all, the row-moving rule has gone wrong.
+    inks = _card_pages_ink(qapp, "main_actions", tmp_path)
+    assert min(inks) > 0.5, (
+        f"main_actions prints a blank page: {[round(v, 2) for v in inks]}")
 
 
 # --- the whole card has to reach the paper ---------------------------------
@@ -609,3 +626,64 @@ def test_the_print_sheet_sizes_every_font_in_pixels(qapp):
         f"size with the screen's DPI: found {sorted(set(offenders))}")
     assert re.search(r"font-size\s*:\s*[\d.]+px", _PRINT_CSS), (
         "no px font size found at all — has the sheet been rewritten?")
+
+
+# ---------------------------------------------------------------------------
+# A ROW MOVES WHOLE, OR IT LEAVES ITS BOTTOM BORDER OVERLEAF (#164, Knut)
+# ---------------------------------------------------------------------------
+# *"Tables rows are still stretched from end of one page and to the beginning
+# of next page, leaving an empty line below the header row, before next row
+# with content starts."*
+#
+# The old rule ended the page at the last block INSIDE the row above. Every
+# cell's TEXT then landed on the right page — so `_row_extent`, which measures
+# text blocks rather than the row, was honestly satisfied — while the row's
+# padding and bottom border were painted on the next page, under the repeated
+# header. The audit that missed it was blind by construction; it has to be done
+# in pixels.
+#
+# Breaking BEFORE the straddling row moves the row whole and leaves nothing
+# behind. It costs pages on the two cards with very tall rows, and those counts
+# are pinned below so the price stays a decision someone made.
+
+
+def test_a_straddling_row_is_pushed_by_breaking_before_it(qapp):
+    """Structural, and fast: the rule must not go back to break-after."""
+    import inspect
+
+    from ui import pdf_layout
+
+    src = inspect.getsource(pdf_layout.avoid_split_rows)
+    body = src.split("headerRowCount() and index > 0:", 1)[1].split("else:", 1)[0]
+    assert "PageBreak_AlwaysBefore" in body or "before" in body, (
+        "the straddling row is no longer pushed by breaking before it")
+    assert "lastCursorPosition" not in body, (
+        "the rule is ending the page inside the row above again, which leaves "
+        "that row's bottom border on the next page")
+
+
+@pytest.mark.parametrize("page,expect", [
+    ("A4", {"main_actions": 5, "file_guide": 12}),
+    ("Letter", {"main_actions": 4, "file_guide": 12}),
+])
+def test_the_price_of_whole_rows_is_pinned(qapp, tmp_path, page, expect):
+    """Moving a tall row whole leaves the foot of the previous sheet blank.
+
+    Only these two cards pay: Main Actions went 3 → 5 on A4 and 3 → 4 on
+    Letter, the folder guide 9 → 12 and 10 → 12. Every other card is unchanged.
+    Pinned so that a future change to the rule cannot quietly cost more paper.
+    """
+    from PyQt6.QtCore import QMarginsF
+    from PyQt6.QtGui import QPageLayout, QPageSize, QPdfWriter
+
+    from ui.dialogs.welcome_dialog import WORKFLOWS
+    from ui.help_card_print import render_card
+
+    for key, want in expect.items():
+        wf = next(w for w in WORKFLOWS if w["key"] == key)
+        writer = QPdfWriter(str(tmp_path / f"{key}.pdf"))
+        writer.setPageSize(QPageSize(getattr(QPageSize.PageSizeId, page)))
+        writer.setPageMargins(QMarginsF(15, 15, 15, 15),
+                              QPageLayout.Unit.Millimeter)
+        got = render_card(wf, writer)
+        assert got == want, f"{page}/{key}: {got} pages, expected {want}"

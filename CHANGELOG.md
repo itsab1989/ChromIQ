@@ -1,5 +1,23 @@
 # Changelog
 
+## v4.1.3-beta.12
+
+### Fixed
+
+- **A table row no longer leaves its bottom edge on the next page.** Knut
+  reported "an empty line below the header row, before next row with content
+  starts" on the "Overview of Main Actions" and "Where are my files?" cards.
+  The rule that keeps a row off a page break was ending the page *inside* the
+  row above it — so every cell's text landed on the right page while the row's
+  own padding and closing border were painted overleaf, under the repeated
+  header. A straddling row is now moved whole.
+
+  **This costs paper**, and the two cards with very tall rows pay for it:
+  "Overview of Main Actions" goes from 3 pages to 5 on A4 and 3 to 4 on Letter,
+  "Where are my files?" from 9 to 12 and 10 to 12. A row that will not fit is
+  moved down whole, which leaves the foot of the sheet before it blank. Every
+  other card is unchanged.
+
 ## v4.1.3-beta.11
 
 ### New
