@@ -685,13 +685,18 @@ def test_a_straddling_row_is_pushed_by_breaking_after_the_row_above(qapp):
 
 @pytest.mark.parametrize("page,expect", [
     ("A4", {"main_actions": 3, "file_guide": 9}),
-    ("Letter", {"main_actions": 3, "file_guide": 10}),
+    ("Letter", {"main_actions": 3, "file_guide": 9}),
 ])
 def test_the_price_of_whole_rows_is_pinned(qapp, tmp_path, page, expect):
     """Keeping a row whole costs very little once the page skip is gone.
 
     These numbers replace 5/12 and 4/12, which were the cost of the Qt
     double-break, not of the guarantee.
+
+    The folder guide's tenth sheet on US Letter went with
+    :func:`ui.pdf_layout.drop_orphan_tail`: it was never the price of a whole
+    row either, but the card's colophon overflowing the shorter US Letter body
+    by 1.7 px. A4 and US Letter now agree at 9.
     """
     from PyQt6.QtCore import QMarginsF
     from PyQt6.QtGui import QPageLayout, QPageSize, QPdfWriter

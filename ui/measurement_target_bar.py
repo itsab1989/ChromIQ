@@ -1289,14 +1289,109 @@ class MeasurementTargetBar(QWidget):
         if px <= 0 or px == getattr(self, "_avail", 0):
             return
         self._avail = px
-        self._fit_widths(getattr(self, "_last_labels", ()))
-        self._place_hint()
+        # ORDER MATTERS. The boxes are sized for the layout they will be in,
+        # not the one they were in: placing after fitting meant the squeeze was
+        # computed against the PREVIOUS placement, which is half of the
+        # beside/below flip-flop (a 6-rung oscillation, measured 1200-1140 px).
+        self._place_labels()     # rung 1 — a label is the cheapest thing to lose
+        self._place_hint()       # rung 2 — decide where the sentence lives …
+        self._fit_widths(getattr(self, "_last_labels", ()))   # … then size the boxes
+        self._place_hint()       # … and confirm, now the widths are known
+        self.layout().activate()
+        self._pin_row_when_alone()
 
     #: The narrowest the hint sentence may be beside the boxes. Below this it
     #: wraps into a column one or two words wide and the bar grows absurdly tall
     #: (measured: 47 px → 21 lines), so it moves under the row instead. Chosen so
     #: that Knut's rule still holds at 1200 px, a common window width.
     _HINT_FLOOR = 200
+
+    #: The tallest the hint sentence may be while it sits BESIDE the marks —
+    #: one row band, i.e. at most two lines. Beyond this it is a narrow column
+    #: whose first and last lines are clipped (Basti: "a narrow column of 3
+    #: lines with the top and bottom lines cut off"), so it takes a full-width
+    #: line under the row instead, where it is read in one go.
+    _HINT_BAND = 34
+
+    #: Hysteresis on every ladder rung: a rung is given up at its own
+    #: threshold and taken back only this much wider, so dragging the window
+    #: edge across the boundary cannot make the bar chatter between layouts.
+    _RUNG_HYSTERESIS = 24
+
+    def _label_pairs(self):
+        """Each label with the box it names.
+
+        A label is WANTED only when its box is on screen. ``_verify_label`` is
+        in the row at all times and merely hidden in Profiling, so counting it
+        unconditionally overstated the row by ~90 px and dropped the other two
+        a whole breakpoint early.
+        """
+        return ((self._run_label, self._run_combo),
+                (self._type_label, self._type_combo),
+                (self._verify_label, self._verify_combo))
+
+    def _wanted_labels(self):
+        return [lbl for lbl, box in self._label_pairs()
+                if lbl is not None and box is not None and box.isVisibleTo(self)]
+
+    def _fixed_row_width(self, with_labels: bool) -> int:
+        """The width the row needs, WITHOUT the hint sentence.
+
+        Summed from size hints rather than read off the live layout, because
+        every caller uses it to decide something that would CHANGE the live
+        layout. ``row.minimumSize().width()`` moves 141 px the moment the hint
+        leaves the row, so a predicate reading it is bistable — which is what
+        made the placement oscillate. A hidden widget's size hint does not
+        move, so this number is stable whatever the decision turns out to be.
+        """
+        row = self.layout().itemAt(0).layout()
+        wanted = self._wanted_labels()
+        total = count = 0
+        for i in range(row.count()):
+            w = row.itemAt(i).widget()
+            if w is None or w is self._hint:
+                continue
+            if w in wanted:
+                if not with_labels:
+                    continue
+            elif not w.isVisibleTo(self):
+                continue
+            total += max(w.sizeHint().width(), w.minimumWidth())
+            count += 1
+        return total + row.spacing() * max(0, count - 1)
+
+    def _free_for_hint(self) -> int:
+        """The room the sentence would really be given beside the boxes."""
+        avail = getattr(self, "_avail", 0)
+        if not avail:
+            return 0
+        return (avail - self._fixed_row_width(getattr(self, "_labels_on", True))
+                - self.layout().itemAt(0).layout().spacing())
+
+    def _place_labels(self) -> None:
+        """Drop "Profile run:" / "Run type:" / "Verification:" when the row
+        cannot hold them, and bring them back when it can.
+
+        The labels go before the boxes do, because a box's contents are the
+        user's data and a label is a name the box's own tooltip already gives.
+        In Verification at the minimum window width the three labels cost
+        219 px in English and 331 px in Spanish — which is the whole of the
+        overrun that put the Delete icon on top of the version number.
+
+        Decided on ``_fixed_row_width``, which does not move when the decision
+        fires, and with hysteresis so a drag cannot chatter.
+        """
+        avail = getattr(self, "_avail", 0)
+        if not avail:
+            return
+        need = self._fixed_row_width(True)
+        was = getattr(self, "_labels_on", True)
+        on = (avail >= need - self._RUNG_HYSTERESIS) if was else (avail >= need)
+        if on == was:
+            return
+        self._labels_on = on
+        for lbl in self._wanted_labels():
+            lbl.setVisible(on)
 
     def _place_hint(self) -> None:
         """Keep the hint sentence beside the boxes for as long as it fits there.
@@ -1312,10 +1407,26 @@ class MeasurementTargetBar(QWidget):
         if self._hint is None:
             return
         avail = getattr(self, "_avail", 0)
+        if not avail:
+            return
         row = self.layout().itemAt(0).layout()
-        boxes = row.minimumSize().width()
-        beside = bool(avail) and (avail - boxes) >= self._HINT_FLOOR
-        if beside == getattr(self, "_hint_beside", True):
+        # The honest criterion, replacing a flat 200 px: the sentence may stay
+        # beside the marks only while it costs the row nothing — i.e. while it
+        # still wraps within the row's own band. Measured against the room it
+        # would REALLY get (`_free_for_hint`), not against a row minimum that
+        # changes as soon as this decision moves the label. That self-reference
+        # is what latched the old predicate into a flip-flop.
+        free = self._free_for_hint()
+        was = getattr(self, "_hint_beside", True)
+        band = self._HINT_BAND
+        beside = free > 0 and self._hint.heightForWidth(free) <= band
+        # …plus hysteresis, so the boundary is not a chattering edge.
+        if beside != was:
+            probe = free + (self._RUNG_HYSTERESIS if was
+                            else -self._RUNG_HYSTERESIS)
+            beside = (probe > 0
+                      and self._hint.heightForWidth(max(1, probe)) <= band)
+        if beside == was:
             return
         self._hint_beside = beside
         col = self.layout()
@@ -1339,7 +1450,11 @@ class MeasurementTargetBar(QWidget):
         # The sentence is part of the row when it is shown, and it must keep a
         # readable width — so the boxes are squeezed for it, not the other way
         # round (Knut, #131 2026-07-27).
-        if self._hint.isVisible():
+        # …but only while the sentence IS in the row. Charging the row 200 px
+        # for a label that has moved below it crushed both boxes to their hard
+        # floor at every narrow width — "New r" and "Profill" — while the row
+        # itself had room to spare.
+        if self._hint.isVisible() and getattr(self, "_hint_beside", True):
             natural += self._HINT_FLOOR
         excess = natural - avail
         if excess <= 0:
@@ -1354,12 +1469,20 @@ class MeasurementTargetBar(QWidget):
         # The second floor became necessary when the Delete button joined the
         # row (#130, 2026-07-28): it and its ⓘ cost about 110 px, which is
         # exactly what a tight window did not have spare.
-        for floor in (self._SQUEEZE_FLOOR, self._SQUEEZE_HARD_FLOOR):
+        # The comfortable floor is now PER BOX and is the box's own longest
+        # entry: give up width, but never below what you must show. One number
+        # for three boxes with three different contents in thirteen languages
+        # could not do that job — at 150 px the Verification run box already
+        # clipped, so the pass that is meant never to lose information lost it
+        # on its first step.
+        for readable in (True, False):
             for box in (self._verify_combo, self._run_combo, self._type_combo):
                 if excess <= 0:
                     return
                 if not box.isVisible():
                     continue
+                floor = (self._readable_width(box) if readable
+                         else self._SQUEEZE_HARD_FLOOR)
                 # minimumWidth, not width(): setFixedWidth pins both bounds,
                 # while the live geometry is whatever the last (too narrow)
                 # layout left.
@@ -1368,6 +1491,13 @@ class MeasurementTargetBar(QWidget):
                 if give > 0:
                     box.setFixedWidth(have - give)
                     excess -= give
+
+    def _readable_width(self, box) -> int:
+        """The narrowest *box* may be while every entry it can show still fits."""
+        fm = box.fontMetrics()
+        widest = max((fm.horizontalAdvance(box.itemText(i))
+                      for i in range(box.count())), default=0)
+        return widest + (self._combo_chrome(box) or self._COMBO_CHROME) + 4
 
     def _fit_widths(self, verify_labels=()) -> None:
         """Give every box and the Restore button a width that stays put."""
@@ -1860,8 +1990,16 @@ class MeasurementTargetBar(QWidget):
         # it puts the controls back in the middle of slack, which is the
         # complaint this method exists to answer (Basti, beta.142, twice). So
         # the row is made as tall as the hint REALLY needs and no taller.
-        if getattr(self, "_hint_wanted", False) and self._hint.width() > 0:
-            tallest = max(tallest, self._hint.heightForWidth(self._hint.width()))
+        hint_below = (getattr(self, "_hint_wanted", False)
+                      and self._hint.isVisible()
+                      and not getattr(self, "_hint_beside", True))
+        if getattr(self, "_hint_wanted", False) and not hint_below:
+            # Measured at the width the sentence is ABOUT to get, not at the
+            # width the previous layout left on it — a stale narrow width
+            # reports three lines where two are needed and inflates the row.
+            free = self._free_for_hint()
+            if free > 0:
+                tallest = max(tallest, self._hint.heightForWidth(free))
         for control in band:
             if control is None or not control.isVisibleTo(self):
                 continue
@@ -1869,7 +2007,18 @@ class MeasurementTargetBar(QWidget):
             # marks by setFixedSize, the boxes by #compact_input's max-height —
             # and a QToolButton's hint is ten pixels above what it is drawn at.
             tallest = max(tallest, control.height() or control.sizeHint().height())
-        return tallest + self.ROW_BREATHING if tallest else 0
+        if not tallest:
+            return 0
+        if hint_below:
+            # BELOW the row its height ADDS to the row's; it does not compete
+            # with it. Taking the max instead left the row 16 px tall with
+            # 34 px children, so the sentence was laid out INSIDE the band and
+            # painted straight through the Restore, Duplicate and Delete
+            # icons — at 30 of 53 window widths, measured.
+            width = getattr(self, "_avail", 0) or self.width() or self._hint.width()
+            return (tallest + self.ROW_BREATHING + self.layout().spacing()
+                    + self._hint.heightForWidth(max(1, width)))
+        return tallest + self.ROW_BREATHING
 
     def showEvent(self, event) -> None:        # noqa: N802
         """Re-measure the boxes the first time the bar is shown.

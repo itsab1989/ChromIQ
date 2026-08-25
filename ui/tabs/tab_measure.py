@@ -10,6 +10,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from core.stem_paths import without_ext
+
 from PyQt6.QtCore import QEvent, QObject, QRect, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont, QIcon
 from PyQt6.QtWidgets import (
@@ -4118,7 +4120,10 @@ class TabMeasure(QWidget):
                         cb.setChecked(True)
 
     def _try_load_tiffs(self, base_path: Path) -> None:
-        stem   = base_path.with_suffix("").stem
+        # ONE strip, by name: `with_suffix("").stem` stripped twice, turning
+        # "X-w10.0mm.ti2" into "X-w10" and widening the glob below to any
+        # chart sharing that prefix (core/stem_paths.py).
+        stem   = without_ext(without_ext(base_path, ".ti2"), ".ti1").name
         folder = base_path.parent
         tiffs  = sorted(folder.glob(f"{stem}*.tif"))
         if tiffs:

@@ -31,6 +31,8 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from core.stem_paths import artefact
+
 from workflow.layout_engine import cht_writer, cie_writer
 from workflow.ti3_analysis import Ti3Data, parse_ti3
 
@@ -225,11 +227,13 @@ def build_scanin_target_from_paths(channels_json: str | Path, ti3_path: str | Pa
     for pg in pages:
         boxes = cht_writer.boxes_from_patch_rects(patches, paper_h_mm, dpi, page=pg)
         expected = [(b["loc"], *measured[b["loc"]]) for b in boxes]
-        cht = (out_base.with_suffix(".cht") if single
+        # `out_base` is a project-name STEM and may contain a dot
+        # ("…-w10.0mm"), which with_suffix() would eat — see core/stem_paths.py.
+        cht = (artefact(out_base, ".cht") if single
                else out_base.parent / f"{out_base.name}_{pg + 1:02d}.cht")
         cht_paths.append(cht_writer.write_cht(cht, boxes, expected))
 
-    cie_path = cie_writer.write_cie(out_base.with_suffix(".cie"), data,
+    cie_path = cie_writer.write_cie(artefact(out_base, ".cie"), data,
                                     descriptor=out_base.name)
     return ScaninTargetResult(cht_paths=cht_paths, cie_path=cie_path,
                               n_patches=len(geom_locs), n_pages=len(pages))
@@ -250,11 +254,11 @@ def _build_from_printtarg(layout: dict, data: Ti3Data,
     single = len(cht_pages) == 1
     cht_paths: list[Path] = []
     for i, text in enumerate(cht_pages):
-        cht = (out_base.with_suffix(".cht") if single
+        cht = (artefact(out_base, ".cht") if single
                else out_base.parent / f"{out_base.name}_{i + 1:02d}.cht")
         cht.write_text(text, encoding="utf-8")
         cht_paths.append(cht)
-    cie_path = cie_writer.write_cie(out_base.with_suffix(".cie"), data,
+    cie_path = cie_writer.write_cie(artefact(out_base, ".cie"), data,
                                     descriptor=out_base.name)
     return ScaninTargetResult(cht_paths=cht_paths, cie_path=cie_path,
                               n_patches=len(set(geom_locs)), n_pages=len(cht_pages))
@@ -332,7 +336,7 @@ def build_scanin_target_from_render(patch_set_path: str | Path, tiff_paths: list
         raise ScaninTargetError(str(exc)) from exc
 
     out_base = Path(out_base)
-    channels = out_base.with_name(out_base.name + ".channels.json")
+    channels = artefact(out_base, ".channels.json")
     channels.write_text(json.dumps({"layout": layout}, indent=2), encoding="utf-8")
     return build_scanin_target_from_paths(channels, ti3_path, out_base)
 

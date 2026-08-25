@@ -19,6 +19,8 @@ import tempfile
 from dataclasses import astuple, dataclass, field
 from pathlib import Path
 
+from core.stem_paths import artefact, without_ext
+
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize, QPoint, QRect, QTimer
 from PyQt6.QtGui import (
     QColor, QFont, QFontMetrics, QIcon, QKeySequence, QPainter, QPen, QPixmap,
@@ -943,7 +945,11 @@ class _NewChartDialog(QDialog):
                "reuse or tweak an existing design instead of setting "
                "everything by hand.\n\nOnly presets saved with such a setup "
                "show up here, so the list stays empty (just \"None\") until "
-               "you save one.")))
+               "you save one.\n\nThe ready-made \u201cby Pharmacist\u201d "
+               "charts are not in this list. Each of those is a finished chart "
+               "that is already laid out and ready to print, so there is no "
+               "setup behind it to load \u2014 pick one straight from the "
+               "\u201cPresets\u201d list in Create Chart instead.")))
         lay.addLayout(pr_row)
 
         # --- Chart identity --------------------------------------------------
@@ -6121,8 +6127,11 @@ class Ti2RelayoutDialog(QDialog):
         if not path:
             return
         out_path = Path(path)
-        if not out_path.suffix:
-            out_path = out_path.with_suffix(".txt")
+        # NOT `if not out_path.suffix` — a typed name like "chart-w10.0mm" has
+        # a truthy "suffix" of ".0mm", so the guard never fired and the file
+        # was saved with no .txt at all (core/stem_paths.py).
+        if not out_path.name.lower().endswith(".txt"):
+            out_path = artefact(out_path, ".txt")
         lines: list[str] = []
         for r100, g100, b100 in self._program_from_grid():
             r = max(0, min(255, round(r100 / 100 * 255)))
@@ -6166,7 +6175,11 @@ class Ti2RelayoutDialog(QDialog):
         if not path:
             return
         out_path = Path(path)
-        base = out_path.stem or "i1profiler"
+        # By name, not by `.stem`: the default is "<chart>-i1profiler" with no
+        # extension, and `.stem` of "X-w10.0mm-i1profiler" is "X-w10" — the
+        # pair was exported as "X-w10.txt"/"X-w10.pxf", losing both the
+        # patch width and the "-i1profiler" marker (core/stem_paths.py).
+        base = without_ext(without_ext(out_path, ".pxf"), ".txt").name or "i1profiler"
         out_dir = out_path.parent
         try:
             with tempfile.TemporaryDirectory() as td:

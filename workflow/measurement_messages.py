@@ -480,6 +480,43 @@ M_GAMUT_NO_PROFILE = _m(
     "the profile either way.",
     approved=False)
 
+# --- PROPOSED: the two Create Chart patch-set endings ----------------------
+# Both existed as SILENCE. When the loaded patch set had gone from disk the app
+# wrote one line to the log and built a different chart; when the user edited
+# the recipe under "Edit patch recipe (override preset)" it said nothing at all
+# — three assignments and a fall-through. Knut reported the resulting surprise
+# against 4.1.3-beta.13; Basti approved adding both, 2026-08-25.
+M_PATCHSET_MISSING = _m(
+    "M-PATCHSET-MISSING",
+    "The patch set you loaded is no longer there",
+    "ChromIQ was going to lay out the patch set you opened earlier, but that "
+    "file cannot be found any more — it may have been moved, renamed or "
+    "deleted since you loaded it:\n\n"
+    "{path}\n\n"
+    "Nothing has been changed. The chart already in this run is untouched, "
+    "and no new chart has been made.\n\n"
+    "To carry on, choose one of these:\n"
+    "  \u2022  Open the patch set again with the patch-grid icon at the top "
+    "right of this tab, and pick the file from wherever it is now.\n"
+    "  \u2022  Choose a ready-made patch set from the \u201cPresets\u201d list.\n"
+    "  \u2022  Or let ChromIQ work out a fresh set of colour patches for you: "
+    "tick \u201cEdit patch recipe (override preset)\u201d and click "
+    "\u201cGenerate Chart\u201d.",
+    approved=False)
+
+M_PATCHSET_DROPPED = _m(
+    "M-PATCHSET-DROPPED",
+    "This will replace your loaded patch set with a new one",
+    "You opened a patch set of your own, and then changed a setting under "
+    "\u201cEdit patch recipe (override preset)\u201d. ChromIQ cannot use your "
+    "patches and your new recipe at the same time, so clicking \u201cGenerate "
+    "Chart\u201d now would throw the loaded patches away and work out a "
+    "completely new set of colours.\n\n"
+    "The new chart would be a perfectly good chart — it just would not be the "
+    "patch set you loaded, and it would most likely have a different number of "
+    "patches.",
+    approved=False)
+
 # --- PROPOSED: the how-was-this-sheet-printed question ---------------------
 # Asked once, at measure time, ONLY for a verification sheet that has no
 # print record — i.e. a sheet ChromIQ did not print itself. The answer decides
@@ -772,6 +809,7 @@ CATALOGUE = {m.id: m for m in (
     M_NO_INSTRUMENT, M_NO_INSTRUMENT_FAST,
     M_OVERLAY_NO_MEASUREMENT, M_ALL_STRIPS_PATCHES_LEFT,
     M_ENGINE_FELL_BACK,
+    M_PATCHSET_MISSING, M_PATCHSET_DROPPED,
 )}
 
 #: Paragraphs appended to another message rather than shown on their own.

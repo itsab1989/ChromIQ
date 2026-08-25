@@ -16,6 +16,10 @@ non-native pickers, readable helper text in both themes.
 """
 from __future__ import annotations
 
+import sys as _sys
+
+from core.stem_paths import artefact
+
 import re
 from pathlib import Path
 
@@ -1224,11 +1228,16 @@ class ScannerProfileDialog(_ToolDialogBase):
             "printed above the first and below the last row stay OUTSIDE the "
             "grid — the dotted line shows where the printed block ends, so "
             "the corners belong on the patches just inside it.")))
+        # ONE modifier, the one this user's keyboard actually has. It used to
+        # read "⌘/Ctrl" everywhere, which shows a Windows user a key they do
+        # not have and a Mac user one they do not need (Knut, 4.1.3-beta.15).
+        _mod = "⌘" if _sys.platform == "darwin" else tr("Ctrl")
         form.addWidget(self._hint_label(tr(
             "Drag inside the grid to move it · drag a corner to reshape it · drag "
-            "the background to pan · scroll (or ⌘/Ctrl + scroll) to zoom, also "
-            "⌘/Ctrl +/− and ⌘/Ctrl + 0 to reset · double-click resets the view. "
-            "Rotate handles a sideways scan; Pop out gives a bigger view.")))
+            "the background to pan · scroll (or {mod} + scroll) to zoom, also "
+            "{mod} +/− and {mod} + 0 to reset · double-click resets the view. "
+            "Rotate handles a sideways scan; Pop out gives a bigger view."
+        ).format(mod=_mod)))
 
         # Inline label + control, sharing one label column with "Profile
         # type:" / "Profile name:" below (Basti: the control belongs NEXT to
@@ -1734,7 +1743,9 @@ class ScannerProfileDialog(_ToolDialogBase):
             QMessageBox.warning(self, tr("Hexagonal chart"),
                                 hex_scanner_message())
             return
-        ti3, ti2 = base.with_suffix(".ti3"), base.with_suffix(".ti2")
+        # `base` is a chart STEM (`_chart_base`), which for a dotted project
+        # name has a "suffix" pathlib would replace — core/stem_paths.py.
+        ti3, ti2 = artefact(base, ".ti3"), artefact(base, ".ti2")
         if (picked.suffix.lower() in (".ti2", ".ti3") and picked.is_file()
                 and picked.stem == base.name):     # not a "-verify" alias pick
             ref = picked
@@ -1787,7 +1798,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         if self._layout.get("engine") == "printtarg":
             stored = len(self._layout.get("cht_pages") or [])
             tifs = sorted(base.parent.glob(f"{base.name}_*.tif"))
-            printed = len(tifs) or (1 if base.with_suffix(".tif").is_file() else 0)
+            printed = len(tifs) or (1 if artefact(base, ".tif").is_file() else 0)
             if stored and printed and stored != printed:
                 self._layout = None
                 # Two independent counts in one sentence, so each is phrased on
@@ -2621,9 +2632,9 @@ class ScannerProfileDialog(_ToolDialogBase):
                    else self._std_cht)
             return cht, self._std_ref
         single = len(self._pages) == 1
-        cht = (base.with_suffix(".cht") if single
+        cht = (artefact(base, ".cht") if single
                else base.parent / f"{base.name}_{pg + 1:02d}.cht")
-        return cht, base.with_suffix(".cie")
+        return cht, artefact(base, ".cie")
 
     def _prepare_scanin_cht(self, orig_cht: Path, corners, frac: float,
                             base: Path, tag: str) -> Path:
@@ -2910,7 +2921,7 @@ class ScannerProfileDialog(_ToolDialogBase):
         ``<pbase>.ti3``; then colprof builds a printer profile from it. The flat-bed
         scanner is the measuring instrument."""
         import shutil
-        chart_ti2 = base.with_suffix(".ti2")
+        chart_ti2 = artefact(base, ".ti2")
         if not chart_ti2.is_file():
             self._log.appendPlainText(tr(
                 "[ERROR] This chart has no .ti2 (the printer values it was printed "
@@ -2924,7 +2935,9 @@ class ScannerProfileDialog(_ToolDialogBase):
             return
         pbase = first.parent / f"{base.name}-printer"
         try:
-            shutil.copy2(chart_ti2, pbase.with_suffix(".ti2"))
+            # scanin -c reads `<pbase>.ti2` by STRCAT, so the copy must carry
+            # the whole dotted stem (core/stem_paths.py).
+            shutil.copy2(chart_ti2, artefact(pbase, ".ti2"))
         except OSError as exc:
             self._log.appendPlainText(f"[ERROR] {exc}")
             self._finish(False)
@@ -2987,7 +3000,7 @@ class ScannerProfileDialog(_ToolDialogBase):
             p = job["params"]
             if p.is_printer:
                 _read, exp = self._read_expected_dicts(
-                    p.out_ti3, p.pbase.with_suffix(".ti2"),
+                    p.out_ti3, artefact(p.pbase, ".ti2"),
                     ids=page_ids_from_cht(p.cht))
             else:
                 _read, exp = self._read_expected_dicts(p.out_ti3)
@@ -3019,7 +3032,7 @@ class ScannerProfileDialog(_ToolDialogBase):
                 self._align_warnings.append(msg)
             elif p.is_printer:
                 self._check_local_groups(job, p.out_ti3,
-                                         p.pbase.with_suffix(".ti2"),
+                                         artefact(p.pbase, ".ti2"),
                                          ids=page_ids_from_cht(p.cht))
             elif (scan_reference_correlation(p.out_ti3) or 1.0) >= 0.8:
                 self._check_local_groups(job, p.out_ti3)
@@ -3113,8 +3126,8 @@ class ScannerProfileDialog(_ToolDialogBase):
                        and self._printer_scan_profile is not None)
             if printer:
                 pbase = tmp / "printer"
-                shutil.copy2(_chart_base(self._ti3).with_suffix(".ti2"),
-                             pbase.with_suffix(".ti2"))
+                shutil.copy2(artefact(_chart_base(self._ti3), ".ti2"),
+                             artefact(pbase, ".ti2"))
                 params = ScaninParams(
                     scan, cht,
                     corners=self._scanin_corners(corners, orig_cht),
@@ -3178,10 +3191,10 @@ class ScannerProfileDialog(_ToolDialogBase):
                        "far off the patches.")]
         if printer:
             read, exp = self._read_expected_dicts(
-                ti3, params.pbase.with_suffix(".ti2"),
+                ti3, artefact(params.pbase, ".ti2"),
                 ids=page_ids_from_cht(params.cht))
             rho = page_reference_agreement(
-                ti3, params.pbase.with_suffix(".ti2"),
+                ti3, artefact(params.pbase, ".ti2"),
                 ids=page_ids_from_cht(params.cht))
         else:
             read, exp = self._read_expected_dicts(ti3)
@@ -3480,7 +3493,7 @@ class ScannerProfileDialog(_ToolDialogBase):
                 p=round(peak, 1), a=round(avg, 1), al=round(avg_lim)))
 
     def _build_printer_profile(self, pbase: Path, base: Path) -> None:
-        ti3 = pbase.with_suffix(".ti3")
+        ti3 = artefact(pbase, ".ti3")
         self._sanitize_scanner_ti3(ti3)              # once, on the accumulated .ti3
         if self._align_warnings and not self._confirm_despite_misalignment():
             return

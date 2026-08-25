@@ -29,6 +29,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
+from core.stem_paths import artefact
+
 if TYPE_CHECKING:
     from core.argyll_runner import ArgyllRunner
 
@@ -525,7 +527,11 @@ class ScaninParams:
         """The ``.ti3`` scanin writes: in printer mode ``<pbase>.ti3``; otherwise
         the scanner ``<scan>-scanner.ti3`` (never the chart's own ``<stem>.ti3``)."""
         if self.is_printer:
-            return self.pbase.with_suffix(".ti3")
+            # scanin -c builds its own names by STRCAT (scanin.c:386-388:
+            # `strcpy(datout_name,argv[fa]); strcat(datout_name,".ti3")`), so
+            # a dotted project stem must be concatenated here too — see
+            # core/stem_paths.py.
+            return artefact(self.pbase, ".ti3")
         return self.scan_tif.parent / self._out_name
 
 

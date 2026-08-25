@@ -544,7 +544,11 @@ def _rewrite_metas(project, plan: DeletePlan) -> None:
         except Exception:      # noqa: BLE001
             continue
         meta.run_id = new_id
-        for attr in ("parent_run", "preconditioning_source_run"):
+        # `duplicated_from` belongs here too: it names a run by id, and after a
+        # delete the ids are renumbered, so an un-fixed value points at whatever
+        # run now holds that number — or at the run itself.
+        for attr in ("parent_run", "preconditioning_source_run",
+                     "duplicated_from"):
             ref = getattr(meta, attr, None)
             if ref == plan.run_id:
                 setattr(meta, attr, None)      # the run it named is gone

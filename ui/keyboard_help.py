@@ -6,12 +6,20 @@ kept in sync with the bindings installed in ``ui.main_window._install_shortcuts`
 and the chart layout editor. Rows are listed alphabetically by what they do, as
 Knut asked.
 
-Symbols use the macOS convention (⌘ = Command, ⇧ = Shift, ⏎ = Return). Every
-shortcut carries a modifier or is an F-key on purpose: during a measurement the
+EVERY key name here must be built for the platform the user is on. The bindings
+below render through ``QKeySequence(...).toString(NativeText)``, which gives ⌘⇧O
+on macOS and Ctrl+Shift+O on Windows and Linux — so never hard-code a ⌘ or a ⇧
+into a string. The hand-written rows use ``_shift()`` / ``_enter()`` for the
+same reason (Knut, 4.1.3-beta.15: *"make sure tool tip text is specific to the
+platform used, so that correct symbol or key is shown"*).
+
+Every shortcut carries a modifier or is an F-key on purpose: during a measurement the
 Measure tab claims the bare keys (Space, ← / →, Enter, Esc) to drive the
 instrument, so nothing here can be stolen out from under chartread.
 """
 from __future__ import annotations
+
+import sys as _sys
 
 import html
 
@@ -90,12 +98,37 @@ def with_shortcut(tooltip: str, action: str) -> str:
     return f"{head} ({k}){sep}{rest}"
 
 
+_IS_MAC = _sys.platform == "darwin"
+
+
+def _shift() -> str:
+    """"⇧" on macOS, the localized "Shift" everywhere else.
+
+    Follows the ruling already made for the layout editor's selection hints
+    (`ui/dialogs/ti2_relayout_dialog.py:455-464`), so the two agree.
+    """
+    return "⇧" if _IS_MAC else tr("Shift")
+
+
+def _enter() -> str:
+    """"⏎" on macOS, the localized "Enter" everywhere else."""
+    return "⏎" if _IS_MAC else tr("Enter")
+
+
 def attach_shortcut_hint(widget, action: str) -> None:
     """Give a button its shortcut hint, inventing a tooltip from its own label
     when it has none. ``widget.text()`` is already translated, so this adds no
-    new key to any catalogue."""
+    new key to any catalogue.
+
+    Calling it twice on the same widget is a no-op, not "Generate Chart (⌘↵)
+    (⌘↵)": it reads back `widget.toolTip()`, so without the check a second call
+    — a re-styled tab, a rebuilt row — would append the hint again.
+    """
     try:
+        k = keys_for(action)
         tip = widget.toolTip() or widget.text().replace("\n", " ").replace("&", "")
+        if k and f"({k})" in tip:
+            return                      # already carries it — do not append twice
         widget.setToolTip(with_shortcut(tip, action))
     except Exception:      # noqa: BLE001 — a tooltip is never worth a crash
         pass
@@ -163,10 +196,10 @@ def _reader_label(which: str) -> str:
 def _measurement_keys() -> list[tuple[str, str, str]]:
     """(keys, what-it-does, which reader) for the keys that drive a read."""
     return [
-        (tr("Instrument button  ·  ⏎  ·  any key"),
+        (tr("Instrument button  ·  {enter}  ·  any key").format(enter=_enter()),
          tr("Start reading the strip or patch you have been asked for."),
          BOTH),
-        ("⏎",
+        (_enter(),
          tr("At a warning — “this looks like the wrong strip”, “unexpected "
             "colour response” — keep the reading anyway."),
          BOTH),
@@ -177,7 +210,7 @@ def _measurement_keys() -> list[tuple[str, str, str]]:
         ("F  ·  B",
          tr("Move one strip forward or back."),
          BOTH),
-        (tr("⇧F  ·  ⇧B"),
+        ("{s}F  ·  {s}B".format(s=_shift()),
          tr("Move ten strips at a time. ArgyllCMS chartread does this itself; "
             "the ChromIQ engine is sent ten single steps instead, which comes "
             "to the same move."),

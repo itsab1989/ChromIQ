@@ -11,6 +11,8 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+from core.stem_paths import artefact
+
 import numpy as np
 import tifffile
 from PIL import Image, ImageDraw, ImageFont
@@ -1418,17 +1420,20 @@ def export_clip_template(out_base: str | Path, *, width_px: int, height_px: int,
 
     Returns the written paths.
     """
-    base = Path(out_base).with_suffix("")
+    # `out_base` is a base NAME the user typed in a save dialog, not a
+    # filename — "clip-w10.0mm" has no extension to strip, and with_suffix("")
+    # would eat ".0mm". See core/stem_paths.py.
+    base = Path(out_base)
     mm2px = dpi / 25.4
     if content is not None:
         img = content.convert("RGB")
         if img.size != (max(1, width_px), max(1, height_px)):
             img = img.resize((max(1, width_px), max(1, height_px)))
         out: list[Path] = []
-        png = base.with_suffix(".png")
+        png = artefact(base, ".png")
         img.save(str(png), dpi=(dpi, dpi))
         out.append(png)
-        pdf = base.with_suffix(".pdf")
+        pdf = artefact(base, ".pdf")
         img.save(str(pdf), "PDF", resolution=float(dpi))
         out.append(pdf)
         return out

@@ -38,6 +38,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from core.stem_paths import artefact, without_ext
+
 from core.i18n import tr
 
 
@@ -131,9 +133,15 @@ def chart_is_hexagonal(chart_path: "str | Path | None") -> bool:
     if p.name.endswith(".channels.json"):
         candidates.append(p)
     else:
-        candidates.append(p.with_suffix(".channels.json"))
-        # <stem>.channels.json when the path carries a compound suffix.
-        candidates.append(p.parent / (p.name.split(".")[0] + ".channels.json"))
+        # `p` may be a bare chart STEM whose project name contains a dot, or a
+        # real `.ti2`/`.ti3`. Cover both by NAME, never by pathlib's idea of an
+        # extension — `split(".")[0]` was the worst of the two, truncating at
+        # the FIRST dot ("…-TC9.18-extended-greys" -> "…-TC9"). This guard
+        # fails open, so a miss silently stopped the hex chart rejection from
+        # ever firing on the names ChromIQ itself suggests.
+        candidates.append(artefact(p, ".channels.json"))
+        for _ext in (".ti1", ".ti2", ".ti3"):
+            candidates.append(artefact(without_ext(p, _ext), ".channels.json"))
     for cj in candidates:
         try:
             if cj.is_file():

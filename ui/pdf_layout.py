@@ -485,6 +485,67 @@ def _first_orphan_heading(doc, body_h: float, skip: "set | None" = None):
     return None
 
 
+def drop_orphan_tail(doc, body_h: float, footer_h: float) -> "str | None":
+    """Take a lone trailing line off its own sheet, and hand it to the footer.
+
+    Three help cards printed a sheet carrying nothing but the card's colophon —
+    ``ChromIQ <version> — <title>``, the ``<p class="foot">`` at the end of every
+    card — and, on US Letter only, by as little as **1.4 px** of 887 (#164,
+    Knut). US Letter's body is 66.5 px shorter than A4's, so a card that just
+    fits on A4 spills its last line and pays a whole sheet for it.
+
+    NOTHING IN THE FLOW CAN FIX IT — MEASURED, NOT ARGUED. The three cards
+    overflow by 1.4, 8.4 and 1.7 px **with the colophon's 20 px top margin set
+    to zero**; its 14 px line box alone does not fit. Shrinking the margin
+    (20 → 12 → 6 → 0 px) leaves all three at 2, 2 and 10 pages.
+
+    So the line comes out of the document and :func:`render_paged` paints it in
+    the footer band of what is now the last page, beside the page number. The
+    text returned is what to paint; ``None`` means nothing was moved and every
+    card that is not in this bind is untouched, byte for byte.
+
+    Deliberately narrow — it fires only when ALL of this holds:
+
+    * the document runs to more than one page;
+    * the last page carries exactly ONE block with text on it;
+    * that block is the document's last, is not inside a table, and is no
+      taller than the footer band it has to fit into;
+    * removing it really does save the sheet — checked against the remaining
+      content plus :meth:`documentMargin`, before anything is removed, because
+      a removal cannot be undone.
+    """
+    lay = settled_layout(doc)
+    pages = doc.pageCount()
+    if pages < 2 or body_h <= 0.0:
+        return None
+    last_top = (pages - 1) * body_h
+    on_last, before_bottom = [], 0.0
+    block = doc.begin()
+    while block.isValid():
+        rect = lay.blockBoundingRect(block)
+        if block.text().strip():
+            if rect.bottom() > last_top + 0.5:
+                on_last.append(block)
+            else:
+                before_bottom = max(before_bottom, rect.bottom())
+        block = block.next()
+    if len(on_last) != 1:
+        return None
+    tail = on_last[0]
+    if (tail.next().isValid()
+            or QTextCursor(tail).currentTable() is not None
+            or lay.blockBoundingRect(tail).height() > footer_h):
+        return None
+    if before_bottom + doc.documentMargin() > last_top:
+        return None                       # the sheet would stay, now empty
+    text = tail.text().strip()
+    cursor = QTextCursor(tail)
+    cursor.select(QTextCursor.SelectionType.BlockUnderCursor)
+    cursor.removeSelectedText()
+    settled_layout(doc)
+    return text or None
+
+
 # ---------------------------------------------------------------------------
 # Painting
 # ---------------------------------------------------------------------------
@@ -549,11 +610,13 @@ def render_paged(doc, device, *, page_w: float, page_h: float,
     """
     body_h = page_h - header_h - footer_h
     doc.setPageSize(QSizeF(page_w, body_h))
+    tail = None
     if apply_rules:
         repeat_table_headers(doc)
         paginate_tables(doc, body_h)
         avoid_split_rows(doc, body_h)
         avoid_orphan_headings(doc, body_h)
+        tail = drop_orphan_tail(doc, body_h, footer_h)
 
     if draw_header is None:
         def draw_header(painter, _pg, width, band_h):        # noqa: ARG001
@@ -603,6 +666,33 @@ def render_paged(doc, device, *, page_w: float, page_h: float,
                     QRectF(0, page_h - footer_h + 2, page_w, footer_h - 2),
                     Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
                     text)
+                painter.restore()
+            if tail and pg == total - 1:
+                # The colophon `drop_orphan_tail` took off its own sheet, on
+                # the same line as the page number: LEFT of it, inside the room
+                # a CENTRED page number leaves (Knut's rule — the number stays
+                # centred). At the footer's own 10 px "Profiling a CMYK+N
+                # printer (extra inks)" is 328 px of the 314 there are, so the
+                # size steps down before anything is cut, and the elide is only
+                # ever a backstop for a title longer than any card has today.
+                painter.save()
+                painter.setPen(QColor(120, 120, 120))
+                room = (page_w
+                        - QFontMetricsF(foot_font).horizontalAdvance(text or "")
+                        ) / 2.0 - 10.0
+                fit = QFont(foot_font)
+                for size in (10, 9, 8):
+                    fit.setPixelSize(size)
+                    if QFontMetricsF(fit).horizontalAdvance(tail) <= room:
+                        break
+                painter.setFont(fit)
+                if room > 20.0:
+                    painter.drawText(
+                        QRectF(0, page_h - footer_h + 2, room, footer_h - 2),
+                        Qt.AlignmentFlag.AlignLeft
+                        | Qt.AlignmentFlag.AlignTop,
+                        QFontMetricsF(fit).elidedText(
+                            tail, Qt.TextElideMode.ElideRight, int(room)))
                 painter.restore()
     finally:
         painter.end()

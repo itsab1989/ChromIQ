@@ -24,6 +24,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Callable
 
+from core.stem_paths import artefact
+
 
 class ReferenceKind(Enum):
     DIRECT = "direct"          # already has XYZ/Lab — use as-is
@@ -86,9 +88,14 @@ def convert_i1profiler_measurement(path: str | Path, argyll_bin: str | Path,
     # instrument + date are stamped as part of the write (Basti).
     if is_cxf(p):
         return cxf_measurement_to_ti3(p, out_dir / f"{p.stem}.ti3")
+    # `base` is a STEM built from the imported file's name, which routinely
+    # carries a version dot ("Epson P900 v1.2.txt"). txt2ti3 APPENDS ".ti3" to
+    # the outbase it is given, so the path we look for must be built the same
+    # way — with_suffix() here looked for "Epson P900 v1.ti3" and reported the
+    # user's own file as unconvertible. See core/stem_paths.py.
     base = out_dir / p.stem
     _run(Path(argyll_bin), "txt2ti3", [str(p), str(base)], runner)
-    out = base.with_suffix(".ti3")
+    out = artefact(base, ".ti3")
     if not out.is_file():
         raise ReferenceConvertError(
             "txt2ti3 ran but produced no .ti3 — is this an i1Profiler "
@@ -327,8 +334,10 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path) -> Path:
         lines.append(f'{i} "{i}" {r:.4f} {g:.4f} {b:.4f} {x:.4f} {y:.4f} {z:.4f}')
     lines += ["END_DATA", ""]
     out_ti3 = Path(out_ti3)
-    if out_ti3.suffix.lower() != ".ti3":
-        out_ti3 = out_ti3.with_suffix(".ti3")
+    if not out_ti3.name.lower().endswith(".ti3"):
+        # By name, not by suffix: a stem like "Epson P900 v1.2" has a "suffix"
+        # of ".2", and with_suffix() would REPLACE it (core/stem_paths.py).
+        out_ti3 = artefact(out_ti3, ".ti3")
     out_ti3.write_text("\n".join(lines), encoding="utf-8")
     return out_ti3
 
@@ -412,14 +421,14 @@ def convert_reference(
     if kind is ReferenceKind.CXF:
         # cxf2ti3 <in.cxf> <outbase>  ->  <outbase>.ti3
         _run(argyll_bin, "cxf2ti3", [str(p), str(base)], runner)
-        out = base.with_suffix(".ti3")
+        out = artefact(base, ".ti3")
     else:
         # txt2ti3 <in.txt> <tmpbase>  ->  <tmpbase>.ti3   (raw/spectral)
         # spec2cie <tmpbase>.ti3 <out>.cie  ->  adds the XYZ scanin needs
         tmp = out_dir / (p.stem + "_spec")
         _run(argyll_bin, "txt2ti3", [str(p), str(tmp)], runner)
-        out = base.with_suffix(".cie")
-        _run(argyll_bin, "spec2cie", [str(tmp.with_suffix(".ti3")), str(out)], runner)
+        out = artefact(base, ".cie")
+        _run(argyll_bin, "spec2cie", [str(artefact(tmp, ".ti3")), str(out)], runner)
 
     if not out.is_file():
         raise ReferenceConvertError(

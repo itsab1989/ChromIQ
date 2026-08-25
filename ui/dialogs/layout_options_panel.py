@@ -10,6 +10,8 @@ It is Qt-only UI glue — no engine logic beyond reading/writing the recipe.
 """
 from __future__ import annotations
 
+from contextlib import contextmanager
+
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
     QButtonGroup, QCheckBox, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QMenu,
@@ -135,8 +137,16 @@ class LayoutOptionsPanel(QWidget):
         return [("default", tr("Default"))]
 
     def __init__(self, parent: QWidget | None = None, *,
-                 with_calibration: bool = False, with_selectors: bool = False) -> None:
+                 with_calibration: bool = False, with_selectors: bool = False,
+                 defer_clip_preview: bool = False) -> None:
         super().__init__(parent)
+        # Set BEFORE any widget exists: constructing the panel already renders
+        # the clip preview a handful of times. A caller that is going to load a
+        # recipe straight afterwards (Preferences -> Chart Layout) passes True
+        # here and calls `resume_clip_preview()` when it has finished, so the
+        # whole build costs one render instead of a dozen. See
+        # `_refresh_clip_preview` for why that is safe.
+        self._suspend_clip_preview = bool(defer_clip_preview)
         self._loading = False
         self._with_calibration = with_calibration
         self._with_selectors = with_selectors
@@ -2418,8 +2428,68 @@ class LayoutOptionsPanel(QWidget):
             self._clip_img_cache_key, self._clip_img_cache = key, None
             return None
 
+    # Undoing setFixedHeight() needs the real ceiling back, not a guess.
+    _PREVIEW_MAX_H = 16777215        # Qt's QWIDGETSIZE_MAX
+
+    def _clear_clip_preview(self) -> None:
+        """Empty the preview AND give it back its designed empty height.
+
+        `setFixedHeight` (in `_refresh_clip_preview`) pins minimum == maximum
+        for good, and `clear()` only drops the pixmap — so an emptied preview
+        kept the height of whichever band was last drawn in it. The box was
+        therefore 25 px after one recipe and 18 px after another, with nothing
+        in it either time: its size was a record of what you had looked at
+        before rather than of what it is showing. Restore the 90 px minimum the
+        box is built with (line ~1456) so the empty state is always the same.
+        """
+        self.clip_preview.clear()
+        self.clip_preview.setMinimumHeight(90)
+        self.clip_preview.setMaximumHeight(self._PREVIEW_MAX_H)
+
+    def resume_clip_preview(self) -> None:
+        """End a `defer_clip_preview` window and draw the preview exactly once.
+
+        Always call this from a `finally:` — a panel left suspended would show a
+        stale preview for the rest of its life, which is a far worse bug than
+        the slow build this exists to avoid.
+        """
+        if getattr(self, "_clip_batch_depth", 0) > 0:
+            # Inside a batching window the redraw belongs to that window's exit,
+            # which restores the flag this would clobber. Nothing does this
+            # today; the guard is here so that adding a caller cannot quietly
+            # break the one-redraw-per-load contract.
+            return
+        self._suspend_clip_preview = False
+        self._refresh_clip_preview()
+
     def _refresh_clip_preview(self) -> None:
         if not hasattr(self, "clip_preview"):
+            return
+        # ONE RENDER PER LOAD, NOT THIRTY. Rebuilding this preview runs the
+        # layout-engine geometry solver and a full raster of the strip — ~65 ms
+        # a call. Loading a recipe sets every field in turn, and each one used to
+        # re-render: `set_recipe()` alone cost 1.9 s and threw 29 of its 30
+        # renders away. That is what made opening Preferences (which loads a
+        # recipe into its Chart Layout panel) take ~1.9 s, and it cost the same
+        # again on every preset load in Create Chart Manual and in the layout
+        # editor, which share this panel.
+        #
+        # Skipping while `_loading` is safe because EVERY loading window is
+        # closed by an unguarded `_emit()` with `_loading` back to False — the
+        # consolidated refresh the tail of `set_recipe` already documents:
+        #   * `_sync_extrahigh_defaults` : `_loading = False` then `_emit()`
+        #   * `_on_instr_changed`        : `_loading = False` then
+        #                                  `_on_paper_changed()` -> `_emit()`
+        #   * `set_recipe`               : `_loading = False` then `_emit()`
+        #     (no early return and no raise between, checked)
+        # so the preview always ends up showing the recipe that was just loaded.
+        # If you add a fourth window, it MUST end the same way.
+        if getattr(self, "_loading", False):
+            return
+        # Explicit, caller-scoped suspension for a build that is about to load a
+        # recipe anyway (see `resume_clip_preview`, which always ends the window
+        # with exactly one render).
+        if getattr(self, "_suspend_clip_preview", False):
             return
         from PyQt6.QtCore import Qt
         from workflow.layout_engine import geometry, raster
@@ -2430,7 +2500,7 @@ class LayoutOptionsPanel(QWidget):
         area = geometry.clip_area_mm(gh[0], gh[1], gh[2]) if gh else None
         if area is None:
             self.clip_dims_label.setText(tr("—"))
-            self.clip_preview.clear()
+            self._clear_clip_preview()
             return
         _x, _y, w_mm, h_mm = area
         dpi = int(self.dpi.value())
@@ -2440,7 +2510,7 @@ class LayoutOptionsPanel(QWidget):
                 w=w_mm, h=h_mm, wp=wp, hp=hp, dpi=dpi))
         mode = self.clip_content_mode.currentData()
         if mode == "off":
-            self.clip_preview.clear()
+            self._clear_clip_preview()
             return
         pdpi = 220                  # render crisp, then scale down for display
         pw = max(1, round(w_mm * pdpi / 25.4))
@@ -2884,7 +2954,51 @@ class LayoutOptionsPanel(QWidget):
         if supported:
             self._update_helper_marker_rows()
 
+    @contextmanager
+    def _clip_preview_batched(self):
+        """Draw the clip preview at most ONCE for everything done inside.
+
+        Nests safely: an inner window leaves the redraw to the outer one, and an
+        outer window that is itself a caller's `defer_clip_preview` leaves it to
+        `resume_clip_preview`. The redraw is in a `finally:` so an exception
+        cannot strand the panel suspended.
+        """
+        prev = getattr(self, "_suspend_clip_preview", False)
+        self._suspend_clip_preview = True
+        self._clip_batch_depth = getattr(self, "_clip_batch_depth", 0) + 1
+        try:
+            yield
+        finally:
+            self._clip_batch_depth -= 1
+            self._suspend_clip_preview = prev
+            if not prev:
+                self._refresh_clip_preview()
+
     def set_recipe(self, r: LayoutRecipe) -> None:
+        """Load *r* into every control, redrawing the clip preview once.
+
+        Loading touches ~60 controls, and each change used to redraw the strip —
+        three surviving redraws even after the `_loading` guard, because
+        `_on_instr_changed` closes its own loading window part way through. One
+        batching window around the whole load makes it one.
+        """
+        with self._clip_preview_batched():
+            try:
+                self._set_recipe_impl(r)
+            finally:
+                # A HALF-DONE LOAD MUST NOT KILL THE PANEL. `_set_recipe_impl`
+                # clears `_loading` on its last line only, so a raise part way
+                # through left it True for ever — and both the clip preview and
+                # the `changed` signal are gated on it, so the preview froze on
+                # the PREVIOUS recipe and the panel went silent. A preset file
+                # with a null `dpi` is enough (`QSpinBox.setValue(None)` raises
+                # TypeError), and the layout editor catches that exception and
+                # carries on (`ti2_relayout_dialog.py:5372`, `:5419`) — so the
+                # user would be left designing against a picture of the chart
+                # they had open before.
+                self._loading = False
+
+    def _set_recipe_impl(self, r: LayoutRecipe) -> None:
         # WHO OVERWROTE THE PANEL? Sebastian watched his spacer and gap
         # settings revert a second after Generate Chart (2026-08-13), and
         # neither a headless harness nor the app driven on screen reproduced
@@ -2894,8 +3008,11 @@ class LayoutOptionsPanel(QWidget):
         # the rest of the diagnosis already looks.
         try:
             import traceback
+            # -5:-2, not -4:-1: `set_recipe` now wraps this method, so the
+            # innermost frame is always `set_recipe` itself and would eat one of
+            # the three caller slots this line exists to record.
             caller = "  ←  ".join(
-                f"{f.name}:{f.lineno}" for f in traceback.extract_stack()[-4:-1])
+                f"{f.name}:{f.lineno}" for f in traceback.extract_stack()[-5:-2])
             log.debug("layout panel set_recipe: spacer=%s/%s gaps=%s/%s  [%s]",
                       r.spacer_mode, r.spacer_on, r.inter_patch_mm,
                       r.strip_gap_mm, caller)

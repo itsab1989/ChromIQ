@@ -1693,6 +1693,30 @@ def chromiq_root_dir() -> Path:
     return Path(custom) if custom else Path.home() / "ChromIQ"
 
 
+def _is_dir_safe(path: Path) -> bool:
+    """`is_dir()` that cannot raise on an unmounted or unreadable path."""
+    try:
+        return path.is_dir()
+    except OSError:
+        return False
+
+
+def _documents_dir() -> str:
+    """The OS's own place for documents, for files that are NOT project data.
+
+    A help-card PDF or a translation spreadsheet describes the app rather than
+    a project, so it does not belong among `runs/` and `cal/` in the ChromIQ
+    folder — but a bare home folder is nobody's filing cabinet either. The
+    codebase already had this idiom for images (`softproof_dialog` uses
+    `PicturesLocation`); this is the same thing for documents.
+    """
+    from PyQt6.QtCore import QStandardPaths
+
+    loc = QStandardPaths.writableLocation(
+        QStandardPaths.StandardLocation.DocumentsLocation)
+    return loc if loc and _is_dir_safe(Path(loc)) else str(Path.home())
+
+
 def _default_start_dir(extra_path: str = "") -> str:
     """Where a ChromIQ browse starts when the caller does not say.
 
@@ -1989,13 +2013,20 @@ def save_file_dialog(
     there, otherwise it pre-selects the file inside its parent dir.
     Returns the chosen path, or an empty string if cancelled.
     """
+    # A START FOLDER THAT DOES NOT EXIST IS NOT A START FOLDER. Callers hand in
+    # a suggested full path; `p.parent` was passed straight to QFileDialog with
+    # no existence check, so a caller naming a folder nothing ever creates —
+    # the spot-read dialog's `~/spot-readings/` is the one in the tree — landed
+    # the user somewhere the platform chose. Fall back deliberately instead.
     p = Path(start_path) if start_path else None
     if p is not None and p.is_dir():
         start_dir, default_name = str(p), ""
     elif p is not None:
-        start_dir, default_name = str(p.parent), p.name
+        parent = p.parent
+        start_dir = str(parent) if _is_dir_safe(parent) else _documents_dir()
+        default_name = p.name
     else:
-        start_dir, default_name = str(Path.home()), ""
+        start_dir, default_name = _documents_dir(), ""
     native = _prefer_native_dialogs()
     dlg = QFileDialog(parent, title, start_dir)
     if not native:

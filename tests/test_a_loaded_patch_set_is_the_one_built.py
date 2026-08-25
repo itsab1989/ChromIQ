@@ -62,6 +62,11 @@ def _arm(tc, tmp_path, *, sig_drifted, opted_in):
 
 def _which_branch(tc, w, monkeypatch):
     took = []
+    # Since M-PATCHSET-DROPPED, discarding a loaded patch set ASKS first. The
+    # tests below are about which chart gets built, not about the question, so
+    # answer it the way a user who wants the fresh chart would.
+    monkeypatch.setattr(type(tc), "_confirm_dropping_the_loaded_patch_set",
+                        lambda self: True)
     monkeypatch.setattr(type(tc), "_generate_from_ti1",
                         lambda self, *a, **k: took.append("patch_set"))
     monkeypatch.setattr(tc._creator, "generate",

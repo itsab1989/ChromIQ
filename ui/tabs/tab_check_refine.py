@@ -445,6 +445,15 @@ class TabCheckRefine(QWidget):
         )
         splitter.addWidget(self._gamut_panel)
 
+        # The left pane is pinned by setFixedWidth(580) above, so the RIGHT one
+        # is the only pane that can absorb a narrow window. Without this the
+        # gamut panel's 389 px minimum (448 in fr/es/nl/ru) plus the pinned 580
+        # exceeds the 900 px MainWindow minimum and QSplitter OVERLAPS the two
+        # panes — measured at 128 px in 12 of the 13 languages, with the
+        # results box painted across the left pane's file rows. 200 matches the
+        # effective right minimum on Print and Measure.
+        self._gamut_panel.setMinimumWidth(200)
+
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
 

@@ -22,14 +22,23 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 
 # Raise DELIBERATELY when adding beta text, lower it when translating before a
 # final. Never edit it to make a red run green without looking at what grew.
-# Measured 2026-08-25 after Knut's beta.13 batch: German 35, the rest 56-58. Of those,
+# Measured 2026-08-25, end of the answered-questions batch: German 35, the rest
+# 60-62. German stays low because Basti and Knut read it, so it is kept current;
+# everything else accumulates English placeholders under the beta rule and is
+# translated in one pass before a final.
+#
+# RAISE THIS DELIBERATELY, never to make a red run green. It has been raised
+# three times in one day — twice for the two new §M patch-set messages and once
+# for the "Load setup from preset" tooltip — and each rise was a real decision
+# to defer translation, not an accident. If a rise ever cannot be explained in
+# one sentence, something was added that nobody meant to add. Of those,
 # 23 per language are the three new Tools help cards, added as English
 # placeholders under the project's beta rule; the remainder pre-date them.
 # German is lower because Basti and Knut read it, so it is kept current.
 _BUDGET = {
     "de": 35,
-    "es": 58, "fr": 58, "it": 58, "ja": 58, "nl": 58,
-    "no": 58, "pl": 58, "pt": 58, "ru": 58, "sv": 58, "zh_CN": 58,
+    "es": 62, "fr": 62, "it": 62, "ja": 62, "nl": 62,
+    "no": 62, "pl": 62, "pt": 62, "ru": 62, "sv": 62, "zh_CN": 62,
 }
 
 

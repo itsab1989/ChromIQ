@@ -14,6 +14,8 @@ from __future__ import annotations
 from pathlib import Path
 from urllib.parse import quote
 
+from core.stem_paths import artefact
+
 from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtWidgets import (
@@ -228,8 +230,10 @@ class TranslationDialog(QDialog):
         if not chosen:
             return
         path = Path(chosen)
-        if path.suffix.lower() != ext:
-            path = path.with_suffix(ext)
+        # By name: a typed "catalogue v1.2" has a "suffix" of ".2", and
+        # with_suffix() would REPLACE it (core/stem_paths.py).
+        if not path.name.lower().endswith(ext):
+            path = artefact(path, ext)
         try:
             rows = rt.build_rows(code, language_name=name)
             if is_xlsx:

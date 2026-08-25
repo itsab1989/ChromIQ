@@ -1,5 +1,83 @@
 # Changelog
 
+## v4.1.3-beta.16
+
+Knut's beta.15 review, plus four faults nobody reported — three of which were
+losing or hiding data, and one of which has been shipping since 4.0.0.
+
+### Fixed — data, and the ones that were never reported
+
+- **A project name containing a dot split its files in half.** ChromIQ builds
+  every file of a run from the project name, and in several places it worked
+  that name out by asking Python to remove the extension — from something that
+  has no extension. Python then reads “.0mm” in
+  `…-Portrait-w10.0mm` as the extension and removes it, so the `.ti2`, the
+  printable pages and the strip data were written under a shortened name while
+  the `.ti1` kept the full one. **The project could not be measured**: chartread
+  was handed a name whose `.ti2` did not exist. Duplicate Run was greyed out,
+  and reopening the project showed no chart pages. **120 of ChromIQ's 130
+  built-in charts suggest a name with a dot in it**, so this was the normal
+  case, not an exotic one. Fixed in the chart builder, the scanner-target
+  writer, the reference-file importer and the image writer — the last two of
+  which also broke the scanner→profile flow outright, because ArgyllCMS's
+  `scanin` builds those filenames by joining strings while ChromIQ predicted
+  them by stripping extensions. There is now one rule, in `core/stem_paths.py`:
+  artefact names are built by joining, never by guessing what part of a name is
+  an extension.
+- **Duplicating a run dropped 17 of the 27 things it records**, including all
+  five settings groups and the patch-set editor's own state, which its own
+  documentation says cannot be recovered from the chart file. A duplicate now
+  carries everything that describes the files it copied. `per_target_settings.md`
+  §6.3 had required this all along.
+- **A duplicate lost the “this chart does not match this measurement” warning**
+  while copying both the chart and the measurement — so it handed back a chart
+  that did not describe the measurement beside it, silently.
+- **The “Your duplicated run is ready” window had never once opened.** It raised
+  on the way up because one placeholder in its text was never given a value.
+  Present since 2026-08-01 and shipped in 4.0.0.
+- After deleting a run, a duplicate's record of where it came from pointed at
+  whichever run had since taken that number.
+
+### Fixed — from Knut's beta.15 review
+
+- **Keyboard shortcuts in tooltips now show the keys your own keyboard has.**
+  ⌘ and ⇧ were written into the text on every platform; a Windows user was
+  shown a key they do not have. All thirteen translations re-synced.
+- **The Dictionary card sits beside the Keyboard shortcuts card again.** Adding
+  three cards in beta.15 pushed it onto the row above.
+- **The three cards that had no icon now have one.** They were not the wrong
+  icons — nothing was drawn at all.
+- **The help sentence on the profile-run bar is no longer cut in half** when it
+  wraps to three lines, or laid over the buttons when it wraps below them. The
+  cause was an ordering one: the bar's height was worked out before it was told
+  how wide it would be, so it was always sized for the previous window width.
+- **Choosing a built-in chart with no project open no longer creates a project
+  you did not ask for.** The guard added in beta.15 was defeated one line
+  earlier: choosing a preset fills the name box with the preset's own name, and
+  the guard then read its own suggestion as the user's answer.
+- **The i1Pro preset list is in order.** Its A4 block interleaved the 7.5 mm and
+  8.0 mm charts; the Letter and A3 blocks already read paper → patch width →
+  patch count, and A4 now matches them. No other family's order changed.
+
+### Changed
+
+- **Preferences opens in about 0.7 seconds instead of 2.3.** The cost was one
+  preview being redrawn up to thirty times while a recipe loaded, and discarded
+  twenty-nine times. It is shared with Create Chart → Manual and the layout
+  editor, so every preset load anywhere in the app got the same time back.
+- The clip-strip preview no longer keeps the height of whichever band you looked
+  at last when it is empty.
+
+### Note on the Red River charts
+
+An earlier note in development claimed the ColorMunki charts printed a blank
+stripe where the logo belongs, and that a flag had been changed to fix it. That
+was wrong: the flag is not read for that instrument, the logo band was already
+printing, and the change altered nothing. It was never released. Knut's updated
+Red River presets have arrived and are not in this build — they are waiting on
+two questions about his own files.
+
+
 ## v4.1.3-beta.15
 
 Knut's review of beta.13, in full. Every one of the faults he reported turned

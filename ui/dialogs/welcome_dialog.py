@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 from PyQt6.QtCore import QPointF, QRect, QRectF, QSize, Qt, pyqtSignal
 from PyQt6.QtGui import (
     QColor, QFont, QFontMetrics, QFontMetricsF, QPainter, QPainterPath,
-    QPaintEvent, QPen,
+    QPaintEvent, QPen, QPolygonF,
 )
 from PyQt6.QtWidgets import (
     QCheckBox,
@@ -1290,8 +1290,19 @@ CMYK_N_CARD: dict = {
     "kind": "richtext",
     "body": _cmyk_n_body(),
 }
-WORKFLOWS.append(CMYK_N_CARD)
-WORKFLOWS.append(GLOSSARY_CARD)
+# CMYK+N and the Dictionary are appended AFTER the three tool cards below, so
+# that the Dictionary and Keyboard-shortcuts cards stay side by side in the
+# grid — Knut, 4.1.3-beta.15: *"Dictionary and terminology help card shall stay
+# next to the keyboard shortcuts help card as before."* With 21 cards in three
+# columns the last row is what decides it: appending the three new tool cards
+# at the end pushed the Dictionary onto the row above and left Keyboard alone
+# at the end of the next. Adding them here instead gives the three tool cards a
+# clean row of their own and restores the beta.14 final row
+# (CMYK+N | Dictionary | Keyboard shortcuts). #130's ruling that CMYK+N comes
+# immediately before the Dictionary still holds.
+#
+# See the two appends further down — this is one ordering, written in two
+# places, so keep them together in your head when adding a card.
 
 
 # ---------------------------------------------------------------------------
@@ -1443,6 +1454,9 @@ PATCH_CUBE_CARD: dict = {
 WORKFLOWS.append(PATCH_SET_EDITOR_CARD)
 WORKFLOWS.append(SPOT_READ_CARD)
 WORKFLOWS.append(PATCH_CUBE_CARD)
+# …and only now the two that must end up in the final row (see the note above).
+WORKFLOWS.append(CMYK_N_CARD)
+WORKFLOWS.append(GLOSSARY_CARD)
 
 
 # Keyboard shortcuts — its own card (Knut/Sebastian keyboard-accessibility pass),
@@ -1939,6 +1953,83 @@ class WorkflowIcon(QWidget):
                     p.setBrush(accent if (row == rows - 1 and col == 0)
                                else Qt.BrushStyle.NoBrush)
                     p.drawRoundedRect(QRectF(kx, ky, k, k), 2, 2)
+
+        elif self._key == "patch_set_editor":
+            # A pencil over a row of patches — the only "authoring" icon in the
+            # set, which is right: this is the one card about MAKING a patch
+            # set rather than measuring or inspecting one. Chosen by Sebastian
+            # from six mock-ups, 2026-08-25.
+            p.setPen(QPen(fg, stroke)); p.setBrush(QColor(0, 0, 0, 0))
+            for i in range(3):
+                p.drawRoundedRect(QRectF(16 + i * 22, 60, 18, 18), 2, 2)
+            p.setBrush(accent); p.setPen(QPen(accent, stroke))
+            p.drawPolygon(QPolygonF([QPointF(38, 40), QPointF(74, 14),
+                                     QPointF(82, 25), QPointF(46, 51)]))
+            p.setBrush(QColor(0, 0, 0, 0)); p.setPen(QPen(fg, stroke))
+            p.drawPolygon(QPolygonF([QPointF(38, 40), QPointF(46, 51),
+                                     QPointF(30, 54)]))
+
+        elif self._key == "spot_read":
+            # A crosshair centred on ONE patch — the difference from
+            # "measure_existing" (a strip) said in one shape. Chosen by
+            # Sebastian from six mock-ups, 2026-08-25.
+            p.setPen(QPen(fg, stroke)); p.setBrush(QColor(0, 0, 0, 0))
+            p.drawRoundedRect(QRectF(20, 20, 56, 56), 3, 3)
+            p.setPen(QPen(fg, 1.6))
+            p.drawLine(48, 26, 48, 42); p.drawLine(48, 54, 48, 70)
+            p.drawLine(26, 48, 42, 48); p.drawLine(54, 48, 70, 48)
+            p.setBrush(accent); p.setPen(Qt.PenStyle.NoPen)
+            p.drawEllipse(QPointF(48, 48), 6, 6)
+
+        elif self._key == "patch_cube":
+            # A wireframe cube holding a CLOUD OF SEPARATE POINTS. It must not
+            # be confusable with "check_visualise" (12), which draws a SOLID
+            # hexagon: that card shows a gamut hull, this one shows individual
+            # patches.
+            #
+            # PAINTED BACK TO FRONT, AND THAT ORDER IS THE POINT. Drawn with
+            # all twelve edges at one weight this is a Necker cube — the eye
+            # cannot fix which corner is nearest and the shape flips while you
+            # look at it (Sebastian: *"the shape looks confusing"*). Two things
+            # settle it, and both are depth cues:
+            #   1. the three edges meeting at the BACK-BOTTOM-LEFT corner are
+            #      hidden behind the solid, so they are faded to a third;
+            #   2. the points sit INSIDE the box, so the near edges are drawn
+            #      last, over them. Painting the cloud last instead makes a
+            #      patch cover the front upright and read as stuck to the
+            #      outside of the glass.
+            # y0 = 20, not 30: the drawn shape runs from the top of the BACK
+            # square to the bottom of the FRONT one, i.e. 56 px of the 96, so
+            # centring it means (96-56)/2 = 20. At 30 it sat 10 px low and read
+            # as sagging in the card (Sebastian, 2026-08-25). Horizontally it
+            # already spans 20..76, centred.
+            x0, y0, w0, dep = 20, 20, 40, 16
+            f = [(x0, y0 + dep), (x0 + w0, y0 + dep),
+                 (x0 + w0, y0 + dep + w0), (x0, y0 + dep + w0)]
+            b = [(x0 + dep, y0), (x0 + dep + w0, y0),
+                 (x0 + dep + w0, y0 + w0), (x0 + dep, y0 + w0)]
+            visible = [(f[0], f[1]), (f[1], f[2]), (f[2], f[3]), (f[3], f[0]),
+                       (b[0], b[1]), (b[1], b[2]),
+                       (f[0], b[0]), (f[1], b[1]), (f[2], b[2])]
+            hidden = [(b[3], b[0]), (b[3], b[2]), (b[3], f[3])]
+
+            def _edges(pen, edges):
+                p.setPen(pen); p.setBrush(QColor(0, 0, 0, 0))
+                for (ea, eb) in edges:
+                    p.drawLine(int(ea[0]), int(ea[1]), int(eb[0]), int(eb[1]))
+
+            faded = QColor(fg); faded.setAlphaF(0.32)
+            _edges(QPen(faded, 2.0), hidden)              # furthest away
+            # The cloud is positioned RELATIVE to the box, not in absolute
+            # canvas coordinates — moving the cube and leaving these behind
+            # left the points sitting in its lower third.
+            for dx, dy, cr in ((18, 28, 3.0), (34, 20, 3.2),
+                               (24, 40, 2.8), (44, 34, 3.0)):
+                p.setBrush(QColor(0, 0, 0, 0)); p.setPen(QPen(fg, 1.8))
+                p.drawEllipse(QPointF(x0 + dx, y0 + dy), cr, cr)
+            p.setBrush(accent); p.setPen(Qt.PenStyle.NoPen)
+            p.drawEllipse(QPointF(x0 + 36, y0 + 32), 5.0, 5.0)   # in the volume
+            _edges(QPen(fg, 2.3), visible)                # nearest the viewer
 
         p.end()
 

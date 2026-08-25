@@ -3258,7 +3258,12 @@ class SettingsDialog(QDialog):
         # ---- layout options (the SAME shared panel as Create Chart Manual,
         # so Settings defaults and per-chart edits can't drift) ----
         from ui.dialogs.layout_options_panel import LayoutOptionsPanel
-        self._layout_panel = LayoutOptionsPanel(self)
+        # The clip-strip preview is the single most expensive thing in opening
+        # Preferences: it runs the layout-engine geometry solver and rasterises
+        # the strip, ~65 ms a go, and building this tab used to do it 28 times
+        # and throw 27 away. Suspended for the whole build below and drawn once
+        # at the end, in a finally.
+        self._layout_panel = LayoutOptionsPanel(self, defer_clip_preview=True)
         self._layout_panel.changed.connect(self._on_layout_field_changed)
         v.addWidget(self._layout_panel)
 
@@ -3319,10 +3324,17 @@ class SettingsDialog(QDialog):
         # — several times, all but the last discarded. Skip those redundant loads
         # during the build and do a single load for the final selection.
         self._building_layout_tab = True
-        self._on_layout_instr_changed()      # populate paper+mode for the default
-        self._preselect_layout_combo()       # then jump to the active combo (#93)
-        self._building_layout_tab = False
-        self._load_layout_combo()            # load the final selection once
+        try:
+            self._on_layout_instr_changed()  # populate paper+mode for the default
+            self._preselect_layout_combo()   # then jump to the active combo (#93)
+            self._building_layout_tab = False
+            self._load_layout_combo()        # load the final selection once
+        finally:
+            # ONE clip-preview render, for the selection we actually landed on.
+            # In a finally so a failure while populating cannot leave the panel
+            # suspended and showing a preview that never updates again.
+            self._building_layout_tab = False
+            self._layout_panel.resume_clip_preview()
         # Leave the estimate suspended: it's the expensive part (font-measured
         # layout math) and the Chart Layout tab isn't the tab Preferences opens
         # on, so there's nothing to show yet. It runs the first time the user

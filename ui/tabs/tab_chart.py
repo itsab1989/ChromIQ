@@ -362,6 +362,22 @@ _REDRIVER_BASE: dict = {
     "area_method": "by_width",
     "area_ratio": 1.0,                  # patch height ≈ width (square-ish)
     "border": 6.0,
+    # RULER MARKS ON EVERY RED RIVER CHART (Knut 4.1.3-beta.13: his own source
+    # files ask for them; Basti confirmed all six, 2026-08-25). They are drawn
+    # into margin space the layout already reserves, so switching them on moves
+    # NO patch — measured, 525 patches per page on the i1Pro charts and 260 on
+    # the ColorMunki ones either way. A sheet printed before this change and one
+    # printed after are the same chart, so a measurement taken from an older
+    # sheet stays valid.
+    #
+    # Only the top and bottom combs: the sides would run down the 26 mm clip
+    # band that carries the logo.
+    "helper_markers": True,
+    "helper_marker_edge_mm": 4.0,
+    "helper_marker_len_mm": 2.0,
+    "helper_marker_per_patch": 3,
+    "helper_markers_top_bottom": True,
+    "helper_markers_sides": False,
 }
 # i1Pro: area-first BY GRID (columns × rows). i1Pro strips must stay under the
 # 240 mm jig ruler, and area-first "by width" fills the whole page height (~280 mm
@@ -391,6 +407,13 @@ _REDRIVER_RECIPE_CM: dict = {
     "area_method": "by_grid", "area_cols": 13, "area_rows": 20,
     "use_instrument_margins": False,
     "margin_top": 28.0, "margin_right": 9.0, "margin_bottom": 10.0, "margin_left": 26.0,
+    # `clip_border` IS INERT FOR THE COLORMUNKI — DO NOT "FIX" IT AGAIN.
+    # It is only read for i1/p3 (`presets.py:378` hard-codes `nolpcbord=False`
+    # for every other instrument); the band is reserved and painted off
+    # `clip_content_mode`, which is "image" below. Rendered both ways: the two
+    # page-1 rasters are byte-identical, and the band — logo, "Red River Paper
+    # Standard Patch Set v25", "made with ChromIQ" — prints either way. The
+    # flag was False here for the whole of 4.1.3, and the band still printed.
     "clip_border": False, "clip_side": "left", "clip_border_width_mm": 26.0,
     "clip_content_mode": "image",
     "clip_image_path": str(resource_path(f"{_REDRIVER_DIR}/clip_logo.png")),
@@ -650,6 +673,24 @@ class _Ti1Preset:
     # only match in size keep the printtarg path.)
     engine: bool = False
     group: str = ""                     # dropdown/overlay group ("" → by instrument)
+
+    @property
+    def patch_width_mm(self) -> float:
+        """The patch width the chart was laid out for, in mm.
+
+        It lives in the name's ``-w7.5mm`` token and nowhere else — there is no
+        field for it — so this reads it back rather than every call site
+        re-implementing the regex. Presets with no token (the Red River and
+        Pharmacist charts) return ``0.0``, which sorts them ahead of the
+        width-bearing ones inside their own paper block.
+
+        The names are Knut's chart names and are NOT translated
+        (``combo_label`` interpolates ``self.name`` verbatim), so reading a
+        value out of one is safe here in a way it would not be for UI text.
+        ``tests/test_i1pro_preset_order.py`` pins that agreement.
+        """
+        m = _WIDTH_TOKEN_RE.search(self.name)
+        return float(m.group(0)[2:-2]) if m else 0.0
 
     @property
     def key(self) -> str:
@@ -1573,10 +1614,41 @@ BUILTIN_PRESET_LABELS = frozenset({
 # Knut's presets merged into their instrument group, below the Pharmacist ones,
 # ordered by paper size (smallest sheet first). sorted() is stable, so presets on
 # the same paper keep their registry order (e.g. 2-page before 3-page).
+#: Paper first, then patch count, then page count — and for the i1Pro group ONLY,
+#: patch width between paper and patch count.
+#:
+#: Knut, 4.1.3-beta.15, about the i1Pro list: *"grouped according to patch width
+#: first, then patch count. This is good, but is not done properly for all the
+#: i1Pro preset items"*, then *"sort those groups individually according to page
+#: size, then patch count and then page number."*
+#:
+#: THE WIDTH TERM IS SCOPED TO i1Pro ON PURPOSE, AND IT COST A TEST TO LEARN.
+#: Applied to every group it moved **41 of the 45 ColorMunki rows**, pushing the
+#: 84/144/180-patch quick charts from the top of each paper block to the bottom,
+#: and broke `tests/test_colormunki_builtin_presets.py::
+#: test_shown_smallest_sheet_first_then_by_patch_count`, which pins ColorMunki
+#: to paper → patch count with no width term at all. An earlier version of this
+#: comment claimed "only the A4 block changed"; that was measured to be false.
+#:
+#: i1Pro is the only group whose widths were interleaved (its A4 block ran
+#: 8.0/156, 8.0/312, 7.5/484, 8.0/572, 7.5/162 …). Its Letter and A3 blocks
+#: already read paper → width → patch count, so this restores one rule to the
+#: block that broke it rather than imposing a new rule on four other families.
+#:
+#: Sorting here fixes the Presets dropdown, the ★ overlay and the #66 "Compare
+#: with profile" list together, because all three read this one mapping.
+_WIDTH_SORTED_GROUPS = ("i1Pro",)
+
+
+def _preset_sort_key(q: "_Ti1Preset", group: str = "") -> tuple:
+    width = q.patch_width_mm if group in _WIDTH_SORTED_GROUPS else 0.0
+    return (_paper_sort_key(q.paper), width, q.patches, q.pages)
+
+
 _KNUT_GROUP_ENTRIES = {
     grp: [(p.combo_label, p.overlay_label, p.key)
           for p in sorted((q for q in KNUT_PRESETS if q.file_group == grp),
-                          key=lambda q: _paper_sort_key(q.paper))]
+                          key=lambda q, _g=grp: _preset_sort_key(q, _g))]
     for grp in ("ColorMunki", "i1Pro", _P3_GROUP, "Scanner", "Red River Paper")
 }
 
@@ -2633,11 +2705,25 @@ class TabChart(QWidget):
         splitter.addWidget(right)
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 1)
-        # The preset combo IGNORES its width (long built-in names must not
-        # stretch the row), which also removes it from the pane's minimum-size
-        # calculation — so a narrow window let the divider slide OVER the
-        # left pane's fields (Knut, beta.124). Give the pane a hard floor.
-        left.setMinimumWidth(400)
+        # The left pane is LOCKED at 580, exactly like Print, Measure and
+        # Check & Refine: `left.setFixedWidth(580)` above pins minimum and
+        # maximum together, and that — not anything on the splitter — is what
+        # stops the handle moving.
+        #
+        # It is the RIGHT pane that has to give. Its minimumSizeHint is 774 px
+        # (preview 200 + margin inspector 440 + layout info 326 + spacing), so
+        # 580 + 774 does not fit in any window under ~1362 while MainWindow's
+        # minimum is 900 — and QSplitter answers that by OVERLAPPING the two
+        # panes, which is the divider drawn across the left pane's own fields
+        # that Knut reported in beta.124. beta.126 treated it by lowering the
+        # LEFT pane's floor to 400, which cured the overlap by unlocking the
+        # handle: Create Chart became the one tab whose divider could be
+        # dragged, and at 400 it CLIPS its own controls (the scroll areas pin
+        # the horizontal bar off). Cap the right pane instead. 200 is
+        # TiffPreview's own minimum, i.e. the effective right minimum Print and
+        # Measure already run with, so Create Chart lands on the same 580/316
+        # they do in a 900 px window.
+        right.setMinimumWidth(200)
         splitter.setCollapsible(0, False)
 
         root.addWidget(splitter)
@@ -8701,7 +8787,8 @@ class TabChart(QWidget):
                "•  Give this run a different verification chart: set “Run "
                "type” to “Verification” first, then create the chart — the "
                "copy deliberately starts with none, which is why duplicating "
-               "is the way to change one.").format(name=ti2_path.name), dlg)
+               "is the way to change one.").format(name=ti2_path.name,
+                                                  source=source_label), dlg)
         body.setWordWrap(True)
         lay.addWidget(body)
         hide_cb = QCheckBox(tr("Don't show this again"), dlg)
@@ -9776,6 +9863,54 @@ class TabChart(QWidget):
         except Exception:  # noqa: BLE001 — refresh must never block the rename
             log.warning("post-rename path refresh failed", exc_info=True)
 
+    def _patchset_missing_message(self, path) -> None:
+        """M-PATCHSET-MISSING — the loaded patch set is no longer on disk.
+
+        The text comes from the catalogue, never from here: a window that
+        writes its own prose is how new wording reached users unreviewed in
+        #155.
+        """
+        from workflow import measurement_messages as M
+
+        m = M.M_PATCHSET_MISSING
+        InfoDialog(tr(m.title), tr(m.body).format(path=path),
+                   self, min_width=560).exec()
+
+    def _confirm_dropping_the_loaded_patch_set(self) -> bool:
+        """M-PATCHSET-DROPPED — the loaded patches and an edited recipe cannot
+        both apply. Returns True to go ahead with a fresh chart.
+
+        "Keep my patch set" UNTICKS the override box itself rather than telling
+        the user to: that, and only that, restores the working state.
+        """
+        from PyQt6.QtWidgets import QMessageBox
+
+        from workflow import measurement_messages as M
+
+        m = M.M_PATCHSET_DROPPED
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(tr(m.title))
+        box.setText(tr(m.title))
+        box.setInformativeText(tr(m.body))
+        keep = box.addButton(tr("Keep my patch set"),
+                             QMessageBox.ButtonRole.RejectRole)
+        box.addButton(tr("Build a new patch set"),
+                      QMessageBox.ButtonRole.AcceptRole)
+        box.setDefaultButton(keep)
+        try:
+            from ui.widgets import fit_message_box_buttons
+            fit_message_box_buttons(box)
+        except Exception:      # noqa: BLE001 — a narrow button is not fatal
+            pass
+        box.exec()
+        if box.clickedButton() is keep:
+            # Do it for them. Telling the user to untick a box is not help.
+            if self._override_targen_check is not None:
+                self._override_targen_check.setChecked(False)
+            return False
+        return True
+
     def _ask_for_a_project_name(self, retry: "str | None" = None) -> None:
         """Say that the name is needed, name the exact box, and put the cursor
         in it (Basti, #164 Q15)."""
@@ -9926,9 +10061,17 @@ class TabChart(QWidget):
                 if self._preset_ti1_path.is_file():
                     self._generate_from_ti1(self._preset_ti1_path, ask=False)
                     return
+                # SAY SO. This wrote one line to the log and then built a
+                # completely different chart (§M M-PATCHSET-MISSING).
                 log.warning("attached preset .ti1 vanished: %s", self._preset_ti1_path)
-                self._preset_ti1_path = None
+                self._patchset_missing_message(self._preset_ti1_path)
+                return
             else:
+                # …and this said NOTHING AT ALL, not even a log line: three
+                # assignments and a fall-through into a fresh targen run
+                # (§M M-PATCHSET-DROPPED). Asked before anything is cleared.
+                if not self._confirm_dropping_the_loaded_patch_set():
+                    return
                 self._preset_ti1_path = None
                 self._preset_ti1_targen_sig = None
         # TC9.18 built-in preset: while it's active and the user hasn't touched

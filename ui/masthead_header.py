@@ -338,13 +338,28 @@ class MastheadHeader(QWidget):
             self._repositioning = False
 
     def _do_reposition(self, w) -> None:
-        self._fit_rail_to_center()          # the widget may have grown/shrunk
-        # Tell it how much room there is first, so a widget that can give way
-        # (the Profile-run bar can) has already done so before it is measured.
+        # WIDTH BEFORE HEIGHT, AND IN THAT ORDER ONLY.
+        #
+        # `_fit_rail_to_center` sizes the rail from the centre widget's
+        # maximumHeight, and the Profile-run bar only works that number out
+        # inside `set_available_width` (it depends on how the hint sentence
+        # wraps, which depends on the width). Asking for the height first meant
+        # the rail was always sized for the PREVIOUS width: at every window
+        # width where the sentence gains a line, the bar was given a rectangle
+        # taller than the rail and the masthead's fixed height cut the last
+        # line in half. Measured on 581 widths in 2 px steps: two of them, and
+        # they did not repair themselves — only the next resize did (Knut,
+        # 4.1.3-beta.15: *"the bar area height does not follow the increased
+        # need for height, thus the text is cut"*).
+        #
+        # `room0` is purely horizontal — the masthead's own width and the two
+        # rail texts — so it can be computed and handed over before the rail
+        # has a height at all.
         tag_w0, ver_w0 = self._rail_text_widths()
         room0 = int(self.width() - 18 - ver_w0 - 12) - int(18 + tag_w0 + 16)
         if hasattr(w, "set_available_width") and room0 > 0:
             w.set_available_width(room0)
+        self._fit_rail_to_center()          # …now the widget knows its height
         cw = w.sizeHint().width()
         ch = self._center_height(w)     # provisional: refined once width is known
         ver_y = self.height() - self._rail_h
@@ -378,6 +393,19 @@ class MastheadHeader(QWidget):
             # label re-inflates a widget that has just capped itself.
             if w.maximumHeight() > 0:
                 ch = min(ch, w.maximumHeight())
+        # THE RAIL MUST FIT THE HEIGHT THE WIDGET IS ACTUALLY GIVEN, and `ch` is
+        # the first place that height is finally known — `_fit_rail_to_center`
+        # above works from sizeHint/maximumHeight and never consults
+        # heightForWidth, so a wrapped label that needs one more line than its
+        # hint admits would still hang out of the bottom of the masthead. This
+        # is the invariant, stated once, where the number exists.
+        if ch + 2 * self.RAIL_PAD > self._rail_h:
+            self._rail_h = ch + 2 * self.RAIL_PAD
+            self.setFixedHeight(self.BODY_H + self._rail_h)
+            self.updateGeometry()
+            self.update()
+            ver_y = self.height() - self._rail_h
+            y = ver_y + (self._rail_h - ch) // 2
         w.setGeometry(x, y, width, ch)
         # …and re-lay its children at that size, so the label inside is measured
         # against the width it actually has.

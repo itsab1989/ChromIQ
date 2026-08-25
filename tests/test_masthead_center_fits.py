@@ -258,9 +258,22 @@ def test_the_comfortable_width_comes_back_when_there_is_room(qapp, tmp_path):
     # reposition_center() is called explicitly here because the offscreen
     # platform does not reliably deliver a resize to a top-level window; the
     # real window reaches the same code from MastheadHeader.resizeEvent.
-    mast.resize(1180, mast.sizeHint().height())
+    # 1000, not 1180. The narrow half of this test needs the box to ACTUALLY be
+    # squeezed, and it never asserted that it was — it only asserted the recovery
+    # afterwards. Since the row stopped being charged 200 px for a sentence that
+    # is not in it (#164), 1180 px is comfortable and nothing is squeezed there,
+    # so "wider is bigger" had nothing to compare against. Moving the narrow
+    # width down restores the precondition; weakening the comparison to `>=`
+    # would have hidden the fact that the test had stopped testing anything.
+    mast.resize(1000, mast.sizeHint().height())
     mast.reposition_center(); QApplication.processEvents()
     squeezed = bar._verify_combo.width()
+    natural = max(bar._verify_combo.fontMetrics().horizontalAdvance(
+        bar._verify_combo.itemText(i))
+        for i in range(bar._verify_combo.count()))
+    assert squeezed < natural, (
+        "nothing was squeezed at this width, so the recovery below proves "
+        "nothing — pick a narrower window")
     mast.resize(1800, mast.sizeHint().height())
     mast.reposition_center(); QApplication.processEvents()
     bar.layout().activate()

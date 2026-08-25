@@ -1290,6 +1290,56 @@ def _move_aside_conflict(path: Path) -> "Path | None":
     return candidate
 
 
+#: What a duplicated run inherits from its source, and what it must not.
+#:
+#: These two sets partition `RunMeta` EXHAUSTIVELY — `tests/
+#: test_a_duplicate_carries_its_settings.py` asserts they are disjoint and
+#: together name every field. That is deliberate: a deny-list alone would make a
+#: newly added field carried by accident, and an allow-list alone would make it
+#: dropped by accident. With a partition, adding a field to `RunMeta` fails a
+#: test until somebody decides which side it belongs on.
+DUPLICATE_META_FRESH: frozenset = frozenset({
+    # Identity — the copy is its own run, made now.
+    "run_id", "created_at",
+    # Set explicitly to the source; inherited, a chain of copies would all
+    # point at the first run instead of at the one they came from.
+    "duplicated_from",
+    # Rewritten as "(copy) <source>" below, so two runs cannot read as the
+    # same work.
+    "description",
+    # `verifications/` is deliberately NOT copied, so notes about a
+    # verification sheet would describe a sheet the copy does not have.
+    "verify_chart_notes",
+    # Becomes the ICC's Description tag: copied verbatim, two different
+    # profiles would ship under one name. Empty means "automatic", which
+    # regenerates from the project name and the copy's own "(copy) …".
+    "profile_description",
+    # Lifecycle, and nothing in the app reads or writes it — leave it at the
+    # fresh default rather than propagate a state nothing maintains.
+    "status",
+})
+
+DUPLICATE_META_CARRY: frozenset = frozenset({
+    # The five settings groups — the whole point. `create_chart_ui` carries
+    # Guided's instrument/paper/pages, the engine toggle and the layout recipe;
+    # without it "the same settings" would still build a different sheet.
+    "create_chart_settings", "create_chart_ui", "measure_settings",
+    "profile_settings", "print_settings",
+    # Describes the copied measurement (`reads/**/*` come across).
+    "averaging_enabled", "averaging_method", "averaging_read_count",
+    # Describes the copied chart.
+    "instrument", "paper", "chart_notes", "scanner_target_enabled",
+    "chart_snapshot_stale",
+    # Describes the copied profile.
+    "profile_built_from", "calibration_used",
+    # Describes the copied preconditioning (`preconditioning.ti3`/`.icc`).
+    # `run_delete._rewrite_metas` renumbers both, so the reference stays live.
+    "parent_run", "preconditioning_source_run",
+    # TI2-editor state, which cannot be recovered from the .ti2 alone.
+    "editor_layout", "editor_basename", "editor_recipe",
+})
+
+
 class Project:
     """A working-folder project. Owns ``project.json`` and all runs."""
 
@@ -1753,10 +1803,20 @@ class Project:
         meta = new_run.load_meta()
         src_meta = source.load_meta()
         meta.duplicated_from = source.id
-        # The chart and its measurement come across together, so whatever the
-        # source recorded about how it was measured still describes these files.
-        meta.instrument = src_meta.instrument
-        meta.paper = src_meta.paper
+        # EVERYTHING THE COPIED FILES ARE DESCRIBED BY COMES ACROSS WITH THEM.
+        # `per_target_settings.md` §6.3: *"Duplicate run — the copy takes the
+        # source's settings, since it takes the source's chart."* Carried by
+        # exhaustive partition rather than an allow-list, so a NEW RunMeta field
+        # cannot be silently forgotten: `DUPLICATE_META_CARRY | _FRESH` must
+        # equal every field, and a test fails the day it does not.
+        #
+        # Safe in this direction because every carried value already describes a
+        # file the copy has: a duplicate can only reach a state its source was
+        # already in, never invent one. Each of the seven exceptions in _FRESH
+        # names either an identity the copy must not claim or a file it does not
+        # have.
+        for _field in DUPLICATE_META_CARRY:
+            setattr(meta, _field, getattr(src_meta, _field))
         # …and so does what the user wrote about it. The description is marked
         # as a copy so two runs cannot read as the same work, and the marker
         # goes at the START where it can be seen without scrolling the field —
@@ -1766,10 +1826,6 @@ class Project:
         # new run 4 created gets the 'Run 4 Description' cleared."*
         meta.description = (f"(copy) {src_meta.description}"
                             if src_meta.description else "")
-        # The notes belong to the CHART, and the chart is copied verbatim, so
-        # they cross unchanged — marking them would make the copy's sheet
-        # describe itself differently from the sheet it was copied from.
-        meta.chart_notes = src_meta.chart_notes
         new_run.save_meta(meta)
         log.info("Duplicated %s into %s (%d files)", source.id, new_run.id,
                  sum(len(f) for _g, f, _s in plan))

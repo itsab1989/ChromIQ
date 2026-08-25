@@ -15,6 +15,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from core.stem_paths import artefact, without_ext
+
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
@@ -438,19 +440,47 @@ class SpotReadDialog(QDialog):
         self._clear_btn.setEnabled(False)
         self._avg_btn.setEnabled(False)
 
+    def _suggested_save_path(self) -> "Path":
+        """Where a set of spot readings belongs: the current run's exports."""
+        from ui.widgets import chromiq_root_dir
+
+        name = "spot-readings.csv"
+        try:
+            from core.file_manager import FileManager
+
+            fm = getattr(self, "_file_mgr", None)
+            if fm is not None and getattr(fm, "has_project", lambda: False)():
+                run = fm.project().current_run()
+                exports = getattr(run, "exports", None)
+                if exports is not None:
+                    return Path(exports) / name
+                return Path(run.dir) / name
+        except Exception:      # noqa: BLE001 — a suggestion is never worth a crash
+            pass
+        return chromiq_root_dir() / name
+
     def _on_save(self) -> None:
         if not self._readings:
             return
         from ui.widgets import save_file_dialog
+        # SAVE IT BESIDE THE THING IT DESCRIBES. This pointed at
+        # `~/spot-readings/`, a folder nothing in ChromIQ ever creates — the
+        # string appeared exactly once in the whole tree, at this line — so the
+        # dialog was handed a directory that was not there. A spot reading
+        # belongs to the run being worked on, so its `exports/` is the honest
+        # default, and the ChromIQ folder is the fallback when nothing is open.
+        start = self._suggested_save_path()
         chosen = save_file_dialog(
             self, tr("Save spot readings"), tr("Spot readings (*.csv)"),
-            start_path=str(Path.home() / "spot-readings" / "spot-readings.csv"))
+            start_path=str(start))
         if not chosen:
             return
-        base = Path(chosen).with_suffix("")
+        # A typed save name is a NAME: "readings.v2" has no extension to strip
+        # (core/stem_paths.py). Remove only a .csv/.ti3 the user actually typed.
+        base = without_ext(without_ext(chosen, ".csv"), ".ti3")
         try:
-            csv_path = write_csv(base.with_suffix(".csv"), self._readings)
-            ti3_path = write_ti3(base.with_suffix(".ti3"), self._readings)
+            csv_path = write_csv(artefact(base, ".csv"), self._readings)
+            ti3_path = write_ti3(artefact(base, ".ti3"), self._readings)
         except OSError as exc:
             QMessageBox.warning(self, tr("Save failed"), str(exc))
             return

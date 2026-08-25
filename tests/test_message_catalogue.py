@@ -102,6 +102,11 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 #: so the print step now names the Print Chart tab's "Colour" row instead —
 #: and the two new failure windows of the print-time conversion (§6 S9/S10).
 AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
+                                 # Create Chart's two patch-set endings, both
+                                 # of which used to happen in silence. Basti
+                                 # approved adding them 2026-08-25; the WORDING
+                                 # still goes through §M-PROPOSED.
+                                 "M-PATCHSET-MISSING", "M-PATCHSET-DROPPED",
                                  "M-CM-NO-CCTIFF", "M-CM-CONVERT-FAILED",
                                  "M-CM-PROFCHECK-CONVERTED",
                                  # Feature B — wording agreed verbatim with
@@ -238,6 +243,8 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_measure", "TabMeasure", "_show_import_done"),
     ("ui.tabs.tab_measure", "TabMeasure", "_show_verification_saved"),
     ("ui.tabs.tab_measure", "TabMeasure", "_ask_how_printed"),
+    ("ui.tabs.tab_chart", "TabChart", "_patchset_missing_message"),
+    ("ui.tabs.tab_chart", "TabChart", "_confirm_dropping_the_loaded_patch_set"),
 ]
 
 #: Measurement windows that are NOT yet in §M, listed so the gap is visible.

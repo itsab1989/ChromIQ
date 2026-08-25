@@ -34,6 +34,8 @@ import html
 import re
 from typing import Any
 
+from core.stem_paths import artefact
+
 from PyQt6.QtCore import QSizeF
 
 from core.i18n import tr
@@ -438,7 +440,7 @@ def save_card_pdf(wf: dict, parent=None, lang: str = "en") -> "Path | None":
         return None
     path = Path(chosen)
     if path.suffix.lower() != ".pdf":
-        path = path.with_suffix(".pdf")
+        path = artefact(path, ".pdf")
     writer = QPdfWriter(str(path))
     writer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
     writer.setPageMargins(QMarginsF(15, 15, 15, 15), QPageLayout.Unit.Millimeter)

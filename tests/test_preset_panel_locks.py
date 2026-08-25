@@ -302,6 +302,11 @@ def _route_applied(qapp, settings, monkeypatch, tmp_path, edit=None):
     # the real generate path; stub the runner call so it scores "fresh" without
     # shelling out.
     monkeypatch.setattr(tab, "_handle_target_rename", lambda *a, **k: True)
+    # Since M-PATCHSET-DROPPED, discarding a loaded patch set asks first. These
+    # tests are about WHICH branch runs, not about the question — answer it the
+    # way a user choosing the fresh chart would.
+    monkeypatch.setattr(type(tab), "_confirm_dropping_the_loaded_patch_set",
+                        lambda self: True)
     monkeypatch.setattr(tab._creator, "generate",
                         lambda *a, **k: calls.append("fresh"))
     staging, name = _stage_chart(tmp_path)

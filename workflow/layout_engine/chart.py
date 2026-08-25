@@ -11,6 +11,8 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from core.stem_paths import artefact, without_ext
+
 from . import geometry, instruments, papers, permutation, raster
 from . import ti1_reader, ti2_writer
 
@@ -82,6 +84,7 @@ def build_ti2_from_ti1(
         ti2_path=Path(ti2_path), seed=seed, randomize=randomize,
         color_rep=target.color_rep, layout=layout,
     )
+
 
 
 def build_chart(
@@ -242,12 +245,19 @@ def build_chart(
     if seed is None:
         seed = permutation.pick_seed()
 
-    base = Path(out_base)
-    stem = base.with_suffix("")
+    # `out_base` IS a stem. A project name may contain a dot ("…-w10.0mm",
+    # "…-TC9.18-…"), so it must never go through with_suffix() or .stem — see
+    # core/stem_paths.py for what that costs. The ONE extension a caller may
+    # legitimately hand us is the .ti1 it just built, and that is removed BY
+    # NAME rather than by guessing which tail is an extension: an allow-list of
+    # "extensions" is wrong for every project name that ends in one of them
+    # (".ps", ".pdf", ".cht", ".json" are all legal names — `_WORKFILE_EXTS` in
+    # core/file_manager.py does not block them). Everything below concatenates.
+    stem = without_ext(out_base, ".ti1")
 
     media = target.media_patch()
     white_point = media[1] if any(media[1]) else ti2_writer.DEFAULT_WHITE_POINT
-    ti2_path = stem.with_suffix(".ti2")
+    ti2_path = artefact(stem, ".ti2")
     ti2_writer.write_ti2(
         ti2_path, target.patches, target.device_fields, layout, geom,
         color_rep=target.color_rep, seed=seed, randomize=randomize,
@@ -329,23 +339,23 @@ def build_chart(
     if target.n_channels >= 4:
         device_pages = raster.build_device_pages(render, target, bit16=bit16)
         tiff_paths = raster.save_separated_tiffs(
-            device_pages, stem.with_suffix(".tif"), dpi=dpi,
+            device_pages, artefact(stem, ".tif"), dpi=dpi,
             ink_names=raster.ink_names_from_fields(target.device_fields),
             compression=compression)
     else:
-        tiff_paths = raster.save_tiffs(render.images, stem.with_suffix(".tif"),
+        tiff_paths = raster.save_tiffs(render.images, artefact(stem, ".tif"),
                                        dpi=dpi, bit16=bit16, compression=compression)
     pdf_path: Path | None = None
     if export_pdf:
         from . import vector_pdf
         pdf_path = vector_pdf.save_vector_pdf(
-            render, target, stem.with_suffix(".pdf"),
+            render, target, artefact(stem, ".pdf"),
             paper_w_mm=w_mm, paper_h_mm=h_mm, dpi=dpi)
 
     rects = geometry.strip_rects_px(geom, w_mm, h_mm, layout, dpi)
     patch_rects = geometry.patch_rects_px(geom, w_mm, h_mm, layout, dpi,
                                           strip_pattern, patch_pattern)
-    strips_path = stem.with_suffix(".strips.json")
+    strips_path = artefact(stem, ".strips.json")
     strips_path.write_text(json.dumps({
         "dpi": dpi, "paper_mm": [w_mm, h_mm],
         "steps_in_pass": layout.steps_in_pass, "strip_pattern": strip_pattern,
@@ -373,7 +383,7 @@ def build_chart(
                     continue
                 x, y, z = xyz_by_slot.get(r["slot"], (0.0, 0.0, 0.0))
                 expected.append((r["loc"], x, y, z))
-            cht = (stem.with_suffix(".cht") if npages == 1
+            cht = (artefact(stem, ".cht") if npages == 1
                    else stem.parent / f"{stem.name}_{pg + 1:02d}.cht")
             cht_paths.append(cht_writer.write_cht(cht, boxes, expected))
 
