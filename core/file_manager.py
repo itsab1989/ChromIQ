@@ -1898,6 +1898,18 @@ class FileManager:
         self._project = None
         log.info("Project closed — back to the state a fresh start has")
 
+    def is_named(self) -> bool:
+        """Whether a project has a NAME yet — without inventing one.
+
+        Weaker than :meth:`has_project`, which also wants the manifest on disk.
+        Use this where the question is "may I write into the project folder?"
+        during the moments when a project is being created and its
+        ``project.json`` does not exist yet. Like `has_project`, asking never
+        creates anything — which is the whole point, since `get_target_name()`
+        does (#164).
+        """
+        return bool(self._target_name) or self._project_root_override is not None
+
     def has_project(self) -> bool:
         """Whether a project is open at all — i.e. something is named AND its
         folder holds a manifest. Asking this never creates anything, which is

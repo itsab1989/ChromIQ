@@ -121,7 +121,15 @@ class MeasurementTargetController(QObject):
                 override = getattr(self._fm, "project_root_override", None)
                 if override is None or override() is None:
                     return None
-            if (self._fm.working_dir() / "project.json").exists():
+            # Asked through getattr for the reason the comment above gives:
+            # a duck-typed file manager may not have it, and four test doubles
+            # do not. Calling it directly raised AttributeError, which this
+            # `except` swallowed — and the bar then reported "no project" for a
+            # project that was open, which sent the .ti2 loader down its
+            # "outside any project" branch and into a modal dialog that never
+            # closes without a user (#164).
+            has_project = getattr(self._fm, "has_project", None)
+            if has_project is None or has_project():
                 return self._fm.project()
         except Exception as exc:   # noqa: BLE001 — the bar must never crash a tab
             # SAY SO ONCE, INSTEAD OF NOTHING AT ALL.

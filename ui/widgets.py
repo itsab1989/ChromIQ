@@ -493,6 +493,14 @@ def log_visible_lines() -> int:
         n = int(_LOG_SETTINGS.get("log_visible_lines", LOG_VISIBLE_LINES))
     except (TypeError, ValueError):
         return LOG_VISIBLE_LINES
+    except RuntimeError:
+        # "wrapped C/C++ object of type QSettings has been deleted". Reading a
+        # preference must never take the window down, whatever happened to the
+        # store underneath it — and a log line's height is the least important
+        # thing in the app to be right about.
+        log.debug("the settings store went away while reading log_visible_lines",
+                  exc_info=True)
+        return LOG_VISIBLE_LINES
     return max(LOG_MIN_LINES, min(LOG_MAX_LINES, n))
 
 

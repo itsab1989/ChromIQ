@@ -1,5 +1,26 @@
 # Changelog
 
+## v4.1.3-beta.13
+
+### Fixed
+
+- **Closing a window could crash ChromIQ.** Three buttons and labels were put
+  back by a timer that outlived them — the scanner window's "Saved ✓" flash for
+  1.4 seconds, the Measure tab's status message for **8**. Close the window
+  inside that time and the timer reached for something that no longer existed.
+
+- **Two paths created a project you never asked for.** Opening the Tools menu
+  with nothing loaded was enough to make ChromIQ name a project, and the next
+  thing you did created the folder. Worse, the patch-set editor's "Save & apply"
+  wrote its chart into that invented folder — leaving a folder with no project
+  in it that ChromIQ could never find again — and then made a second, real
+  project beside it. Applying a chart with no project open now says so and
+  changes nothing.
+
+- **The Build Profile tab stayed clickable during a measurement.** It was
+  disabled when the measurement started and re-enabled three lines later by
+  another part of the same code, so you could walk into a build mid-read.
+
 ## v4.1.3-beta.12
 
 ### Fixed

@@ -7430,7 +7430,7 @@ class TabChart(QWidget):
         Read from the run's ``meta.json`` (``editor_recipe``) — present for charts
         applied from the layout editor; absent for plain targen charts."""
         try:
-            if not (self._file_mgr.working_dir() / "project.json").exists():
+            if not self._file_mgr.has_project():
                 return None
             meta = self._file_mgr.project().current_run().load_meta()
         except Exception:  # noqa: BLE001 — recipe capture is best-effort
@@ -8705,6 +8705,11 @@ class TabChart(QWidget):
             log.warning("Applied patch set has no .ti1: %s", ti1)
             return False
         import shutil
+        # NO PROJECT MEANS NOWHERE TO STAGE IT.
+        # `working_dir()` invents and stores a name when there is none, so this
+        # wrote `edited_patch_set.ti1` into a folder that had no project.json —
+        # an orphan ChromIQ can never see again — and the NEXT action then made
+        # a second, real project beside it. Two folders from one click (#164).
         try:
             dest = self._file_mgr.working_dir() / "edited_patch_set.ti1"
             dest.parent.mkdir(parents=True, exist_ok=True)

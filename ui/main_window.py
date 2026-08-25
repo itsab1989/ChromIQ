@@ -814,6 +814,12 @@ class MainWindow(QMainWindow):
             )
 
     def _on_measurement_active(self, active: bool) -> None:
+        # Recorded BEFORE anything downstream reacts: `_apply_profile_tab_gate`
+        # runs from the signals below and re-enables the Build Profile tab three
+        # lines after this method disables it, so it has to be able to see that
+        # a measurement is running. Measured before the fix: idle → enabled,
+        # measuring → still enabled.
+        self._measuring = bool(active)
         measure_idx = self._tabs.indexOf(self._tab_measure)
         for i in range(self._tabs.count()):
             if i != measure_idx:
@@ -1147,6 +1153,11 @@ class MainWindow(QMainWindow):
         # everything else and must win while it is on.
         if getattr(self, "_profile_building", False):
             return
+        if getattr(self, "_measuring", False):
+            # A measurement owns the tabs for its duration — re-enabling Build
+            # Profile here would undo `_on_measurement_active` and let the user
+            # walk into a build mid-read.
+            return
         self._tabs.setTabEnabled(idx, not is_verification)
         self._tabs.setTabToolTip(idx, "" if not is_verification else tr(
             "Not for a verification run.\n\n"
@@ -1337,7 +1348,7 @@ class MainWindow(QMainWindow):
         either, and one definition of "the selected target's chart" is the
         whole point.
         """
-        if not (self._file_mgr.working_dir() / "project.json").exists():
+        if not self._file_mgr.has_project():
             return None
         try:
             resolved = self._tab_chart._resolve_target_chart()
@@ -1354,6 +1365,33 @@ class MainWindow(QMainWindow):
         Returns False when the user cancelled a name-collision prompt, so the
         editor stays open instead of closing on a no-op.
         """
+        # NO PROJECT MEANS NOWHERE TO PUT IT.
+        # Adopting a chart stages it INTO the project folder, and asking where
+        # that is used to INVENT one: `working_dir()` goes through
+        # `get_target_name()`, which makes up a name and stores it. The editor's
+        # "Save & apply" then wrote `edited_patch_set.ti1` into a folder with no
+        # project.json — an orphan ChromIQ can never find again — and the next
+        # action created a second, real project beside it. Two folders from one
+        # click (#164).
+        #
+        # Guarded HERE rather than inside `apply_external_chart`, because this
+        # is the door a user comes through with no project open; the method
+        # itself is also driven programmatically, where a project is already
+        # established.
+        if not self._file_mgr.is_named():
+            log.warning("No project is open; the edited chart was not adopted")
+            from ui.tooltip_button import InfoDialog
+            InfoDialog(
+                tr("No project to put this chart in"),
+                tr("This chart has nowhere to go yet, so nothing was changed.\n\n"
+                   "Charts live inside a profile project. Type a name in "
+                   "“Printer profile project name” on the Create Chart tab and "
+                   "press “Generate Chart” to start one — or open an existing "
+                   "project with “Open Project” at the top left — and then use "
+                   "“Save & apply” again."),
+                self,
+            ).exec()
+            return False
         applied = self._tab_chart.apply_external_chart(src_dir, name)
         if applied:
             self._tabs.setCurrentWidget(self._tab_chart)
@@ -1377,7 +1415,7 @@ class MainWindow(QMainWindow):
         )
         # project() materialises a project.json as a side effect, so guard on the
         # manifest existing first — exactly as session restore does.
-        if not (self._file_mgr.working_dir() / "project.json").exists():
+        if not self._file_mgr.has_project():
             QMessageBox.information(self, tr("Show patch distribution (3D)"), no_chart)
             return
 
@@ -1864,7 +1902,7 @@ class MainWindow(QMainWindow):
         # Only the target name is persisted now; every artefact path is derived
         # from the project's current run. Bail if there's no project on disk for
         # this target (deleted folder, or a pre-redesign session).
-        if not (self._file_mgr.working_dir() / "project.json").exists():
+        if not self._file_mgr.has_project():
             log.info("Session restore skipped: no project for target=%s", target)
             return
 

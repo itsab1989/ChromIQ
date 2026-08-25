@@ -1583,9 +1583,30 @@ class ScannerProfileDialog(_ToolDialogBase):
         btn = self._save_defaults_btn
         btn.setText(tr("Saved ✓"))
         btn.setEnabled(False)
+        # A BOUND METHOD, NOT A LAMBDA HOLDING THE BUTTON.
+        # `QTimer.singleShot` keeps no owner, so a lambda capturing `btn` stays
+        # armed after this dialog is gone — and 1.4 s later it calls setText on
+        # a QPushButton whose C++ side has been deleted. Close the scanner
+        # window within 1.4 s of pressing "Save as Defaults" and that is a
+        # crash. It also fired inside whatever ELSE was running: it was the
+        # single intermittent failure in the test gate, landing on a different
+        # test each run because it depends on who happens to be pumping events
+        # when the timer goes off.
+        #
+        # A bound method of a QObject is cleaned up with the object, so a dead
+        # dialog simply never gets the call. `QTimer.singleShot(msec, context,
+        # slot)` — the Qt 5.12 overload that takes an owner — does not exist in
+        # PyQt6 (measured: TypeError), so this is the shape to use.
         from PyQt6.QtCore import QTimer
-        QTimer.singleShot(1400, lambda: (btn.setText(tr("Save as Defaults")),
-                                         btn.setEnabled(True)))
+        QTimer.singleShot(1400, self._restore_save_defaults_button)
+
+    def _restore_save_defaults_button(self) -> None:
+        """Put the Save-as-Defaults button back after its "Saved ✓" flash."""
+        btn = getattr(self, "_save_defaults_btn", None)
+        if btn is None:
+            return
+        btn.setText(tr("Save as Defaults"))
+        btn.setEnabled(True)
 
     def _on_colprof_changed(self) -> None:
         is_clut = self._ptype.currentData() in scanner_colprof.CLUT_ALGOS
@@ -2378,15 +2399,32 @@ class ScannerProfileDialog(_ToolDialogBase):
                               px1 - px0, py1 - py0, to_fiducial)
 
     def _blink_widget(self, w) -> None:
-        """Flash a widget red twice to say "can't enable that" (Knut)."""
+        """Flash a widget red twice to say "can't enable that" (Knut).
+
+        THE TIMER IS PARENTED TO THE WIDGET IT FLASHES. `QTimer.singleShot`
+        keeps no owner, so a chain of them kept this dialog blinking a widget
+        for 800 ms after it could have been closed — and `setStyleSheet` on a
+        deleted C++ object raises. A child QTimer is destroyed with its parent,
+        so closing the window simply stops the flash.
+        """
         from PyQt6.QtCore import QTimer
         orig = w.styleSheet()
         seq = ["QCheckBox{color:#d9534f;}", orig] * 2
-        def step(i: int = 0) -> None:
-            if i < len(seq):
-                w.setStyleSheet(seq[i])
-                QTimer.singleShot(200, lambda: step(i + 1))
+        timer = QTimer(w)                    # dies with the widget
+        timer.setInterval(200)
+        state = {"i": 0}
+
+        def step() -> None:
+            i = state["i"]
+            if i >= len(seq):
+                timer.stop()
+                return
+            w.setStyleSheet(seq[i])
+            state["i"] = i + 1
+
+        timer.timeout.connect(step)
         step()
+        timer.start()
 
     def _update_std_note(self) -> None:
         if not self._std_chts or self._std_cht is None:

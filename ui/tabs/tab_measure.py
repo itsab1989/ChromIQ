@@ -5851,7 +5851,18 @@ class TabMeasure(QWidget):
     def _flash_status(self, text: str, duration_ms: int = 8000) -> None:
         self._status_bar_lbl.setText(text)
         self._status_bar_lbl.setVisible(True)
-        QTimer.singleShot(duration_ms, lambda: self._status_bar_lbl.setVisible(False))
+        # A BOUND METHOD, NOT A LAMBDA HOLDING THE LABEL — `singleShot` keeps no
+        # owner, so this stays armed for eight seconds after the tab is gone and
+        # then calls setVisible on a deleted C++ widget. The same shape in the
+        # scanner dialog was the intermittent failure in the test gate; eight
+        # seconds is a far wider window than its 1.4.
+        QTimer.singleShot(duration_ms, self._hide_status_flash)
+
+    def _hide_status_flash(self) -> None:
+        """Take the flashed status line down again (see `_flash_status`)."""
+        lbl = getattr(self, "_status_bar_lbl", None)
+        if lbl is not None:
+            lbl.setVisible(False)
 
     #: How long after "no instrument" is detected the window arrives. Knut,
     #: beta.150: *"move the time the 'No Instrument Found' window comes to
