@@ -47,15 +47,19 @@ same command is right on every host. Measured on the full gate, 2026-08-24,
 
 | workers | result | wall |
 |---|---|---|
-| 4 | 6953 passed | 7:44 |
-| 8 | 6953 passed | 4:00 |
-| **12** | **6953 passed ×6** | **2:57** |
-| 14 | 6953 passed | 2:56 |
-| auto (16) | 6953 passed ×2 | 2:59 |
-| 20 | 6953 passed | 3:00 |
+| 4 | 7085 passed | 7:48 |
+| **auto** | **7085 passed ×3** | **~2:58** |
 
-**Eleven gate runs, nine of them at 12 or more workers, not one spurious
-failure.** Twelve is the cheapest point on a plateau: `--dist loadfile` cannot
+Measured 2026-08-25 on 7,085 tests, three consecutive runs, zero failures.
+
+
+**THE INTERMITTENT FAILURES ARE FIXED, AND IT WAS NOT THE WORKER COUNT.**
+179 test files created their own `QApplication` in a MODULE-scoped fixture and
+dropped it at teardown — and destroying a `QApplication` sip-deletes every
+remaining QObject in the process, while `ui/widgets.py` held the app's settings
+in a module global across that boundary. A different victim each run, every one
+passing alone. `tests/conftest.py` now pins one `QApplication` per worker; no
+test file needed changing, because they all ask `QApplication.instance()` first. Twelve is the cheapest point on a plateau: `--dist loadfile` cannot
 finish faster than its slowest single file (`tests/test_engine_v2_options.py`,
 157 s on one worker), and this host has 12 performance cores plus 4 efficiency
 ones, so past 12 the extra workers land on slow cores.

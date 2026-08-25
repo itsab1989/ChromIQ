@@ -18,6 +18,8 @@ at the class level: no real subprocess, no cross-test signal leak, no modal.
 """
 from pathlib import Path
 
+
+
 import os
 import pathlib
 import shutil
@@ -25,6 +27,99 @@ import sys
 import tempfile
 
 import pytest
+# ---------------------------------------------------------------------------
+# ONE QApplication PER WORKER, HELD FOR THE WHOLE RUN
+# ---------------------------------------------------------------------------
+# 179 test files build their own with `QApplication.instance() or
+# QApplication([])` inside a MODULE-scoped fixture, and drop the only strong
+# reference when that module finishes. Destroying a QApplication does not just
+# free the app object: **it sip-deletes every remaining QObject in the
+# process**. Python refcounts do not move — the C++ side is deleted underneath
+# them — so an object another module still holds becomes a live Python name
+# wrapping freed memory.
+#
+# `ui/widgets.py` publishes the app's AppSettings into a module global
+# (`_LOG_SETTINGS`, bound from `ui/main_window.py`) and nothing unbinds it. So
+# the first file to tear down its QApplication left every later file with a
+# dangling QSettings, and the next panel to size itself raised
+# "wrapped C/C++ object of type QSettings has been deleted".
+#
+# That is the shared state behind the gate's intermittent failures: a different
+# victim each run, every one passing alone, because it depends on which file
+# happened to tear down first on that worker.
+#
+# Holding one here fixes all 179 without touching them: they all ask for
+# `QApplication.instance()` first, and now always get this one.
+_PINNED_QAPP = None
+
+
+# ---------------------------------------------------------------------------
+# A MODAL DIALOG IN A TEST NAMES ITSELF INSTEAD OF HANGING FOR EVER
+# ---------------------------------------------------------------------------
+# `dlg.exec()` with no user never returns, and NOTHING can break it: a
+# `pytest-timeout` thread cannot interrupt a Qt modal event loop, so the run
+# stops dead with no attribution. It happened on 2026-08-25 — the gate sat at
+# 99 % and only a faulthandler dump named `ui/ti2_loader.py:1190`.
+#
+# A watchdog, not a ban. A test that legitimately drives a dialog still works,
+# because the timer only fires if the dialog is STILL up after the grace
+# period; then it closes it and the test fails with the dialog's own title in
+# the message. A test that monkeypatches `exec` itself still wins — this only
+# wraps what is left.
+#
+# It must cover the STATIC helpers too: 68 of the ~216 modal entry points in
+# this app never touch `QDialog.exec` at all (41 `QMessageBox.warning`, 14
+# `.information`, 6 `.critical`, 2 `.question`, 4 `QColorDialog`, 1
+# `QInputDialog`), and only 8 lines in the whole suite touch any of them.
+MODAL_GRACE_MS = 4000
+
+
+@pytest.fixture(autouse=True)
+def _no_modal_may_hang_the_suite(request):
+    """Close any dialog still modal after `MODAL_GRACE_MS` and fail the test."""
+    from PyQt6.QtCore import QTimer
+    from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox
+
+    stuck: list = []
+
+    def _sweep():
+        for w in QApplication.topLevelWidgets():
+            if isinstance(w, QDialog) and w.isVisible() and w.isModal():
+                stuck.append(w.windowTitle() or type(w).__name__)
+                w.reject()
+            elif isinstance(w, QMessageBox) and w.isVisible():
+                stuck.append(w.windowTitle() or w.text()[:60])
+                w.close()
+
+    timer = QTimer()
+    timer.setInterval(MODAL_GRACE_MS)
+    timer.timeout.connect(_sweep)
+    timer.start()
+    try:
+        yield
+    finally:
+        timer.stop()
+    if stuck:
+        raise AssertionError(
+            "a modal dialog was left open and would have hung the run: "
+            + ", ".join(sorted(set(stuck)))
+            + "\nStub it in the test, or fix the code path that opens it with "
+              "no project / no user present.")
+
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _one_qapplication_per_worker():
+    """Create the QApplication once and keep it alive for the whole session."""
+    global _PINNED_QAPP
+    from PyQt6.QtWidgets import QApplication
+
+    _PINNED_QAPP = QApplication.instance() or QApplication([])
+    yield _PINNED_QAPP
+    # Deliberately NOT destroyed: tearing it down at session end would delete
+    # every QObject still alive during other fixtures' teardown, which is the
+    # fault this exists to prevent.
+
 
 
 # Keep the suite off the user's real application log. core.logger's

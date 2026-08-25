@@ -10,6 +10,7 @@ from PyQt6.QtCore import QEvent, QModelIndex, QObject, QPointF, QRect, QRectF, Q
 from PyQt6.QtGui import QColor, QFont, QIcon, QPainter, QPainterPath, QPalette, QPen, QPixmap, QTextCursor
 
 from core.i18n import tr
+from core.logger import get_logger
 import weakref
 
 from PyQt6.QtWidgets import (
@@ -454,6 +455,11 @@ _LIVE_LOGS: "weakref.WeakSet" = weakref.WeakSet()
 
 #: Set once, by the main window, so the helpers can read and write the user's
 #: chosen size without every call site having to pass it down.
+#: Named `_log`, not `log`: several functions here take a QPlainTextEdit
+#: called `log` (`fit_log_height(log, …)`, `_max_lines_for(log)`), so a
+#: module global of that name would be shadowed by a WIDGET inside them.
+_log = get_logger(__name__)
+
 _LOG_SETTINGS = None
 
 #: The size currently ON SCREEN, which is not always the saved one: during a
@@ -498,8 +504,8 @@ def log_visible_lines() -> int:
         # preference must never take the window down, whatever happened to the
         # store underneath it — and a log line's height is the least important
         # thing in the app to be right about.
-        log.debug("the settings store went away while reading log_visible_lines",
-                  exc_info=True)
+        _log.debug("the settings store went away while reading "
+                   "log_visible_lines", exc_info=True)
         return LOG_VISIBLE_LINES
     return max(LOG_MIN_LINES, min(LOG_MAX_LINES, n))
 
@@ -707,8 +713,14 @@ def fit_log_height(log, lines: "int | None" = None) -> None:
     the app follows one setting and dragging any of them moves them all. The
     log also registers itself here, which is why no call site had to change.
     """
-    if lines is None:
-        lines = log_visible_lines()
+    try:
+        if lines is None:
+            # Inside the try: it reads the settings store, which can be gone
+            # (see `log_visible_lines`), and this function promises never to
+            # raise into a caller that is only sizing a panel.
+            lines = log_visible_lines()
+    except Exception:      # noqa: BLE001
+        lines = LOG_VISIBLE_LINES
     try:
         _LIVE_LOGS.add(log)
         LogResizeGrip.install(log)
