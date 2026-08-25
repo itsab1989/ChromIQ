@@ -451,6 +451,7 @@ _STRIP_INSTRUMENTS = frozenset({"i1", "3p"})
 # Paper sizes the new-chart dropdown offers — matches the Create Chart tab.
 from data.patch_db import PAPER_LABELS, PAPER_PRINTTARG_ARG, paper_name_token
 from core.i18n import count_phrase, tr
+from ui.keyboard_help import with_shortcut
 
 
 def _mod_keys() -> dict[str, str]:
@@ -4320,10 +4321,10 @@ class Ti2RelayoutDialog(QDialog):
         src.addStretch(1)
         # Undo / redo, centred between the source buttons and the info readout.
         self._undo_btn = QPushButton(tr("↶ Undo"), self)
-        self._undo_btn.setToolTip(tr("Undo the last edit (Ctrl+Z)."))
+        self._undo_btn.setToolTip(with_shortcut(tr("Undo the last edit."), "undo"))
         self._undo_btn.clicked.connect(self._undo)
         self._redo_btn = QPushButton(tr("Redo ↷"), self)
-        self._redo_btn.setToolTip(tr("Redo the last undone edit (Ctrl+Shift+Z)."))
+        self._redo_btn.setToolTip(with_shortcut(tr("Redo the last undone edit."), "redo"))
         self._redo_btn.clicked.connect(self._redo)
         src.addWidget(self._undo_btn)
         src.addWidget(self._redo_btn)

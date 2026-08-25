@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import QToolButton, QWidget
 from core.resource_path import resource_path
 from ui.welcome_button import WelcomeButton
 from core.i18n import tr
+from ui.keyboard_help import with_shortcut
 
 _STOPS = (
     "#ff4573",  # Create Chart
@@ -97,7 +98,7 @@ class MastheadHeader(QWidget):
         # ---- Embedded settings button (absolute child) ----
         self._btn = QToolButton(self)
         self._btn.setObjectName("tooltip_btn")
-        self._btn.setToolTip(tr("Preferences"))
+        self._btn.setToolTip(with_shortcut(tr("Preferences"), "preferences"))
         self._btn.setFixedSize(QSize(44, 44))
         self._btn.clicked.connect(self.settings_clicked)
         self._load_settings_icon()
@@ -105,7 +106,7 @@ class MastheadHeader(QWidget):
         # ---- Embedded tools button (absolute child, left of settings) ----
         self._tools_btn = QToolButton(self)
         self._tools_btn.setObjectName("tooltip_btn")
-        self._tools_btn.setToolTip(tr("Tools"))
+        self._tools_btn.setToolTip(with_shortcut(tr("Tools"), "tools"))
         self._tools_btn.setFixedSize(QSize(44, 44))
         self._tools_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._tools_btn.clicked.connect(self.tools_clicked)
@@ -129,25 +130,25 @@ class MastheadHeader(QWidget):
         # light/dark artwork.
         self._load_project_btn = QToolButton(self)
         self._load_project_btn.setObjectName("tooltip_btn")
-        self._load_project_btn.setToolTip(tr(
+        self._load_project_btn.setToolTip(with_shortcut(tr(
             "Open Project\n\n"
             "Opens a printer profile project you have already made.\n\n"
             "Brings back its runs, its charts and its measurements, and picks "
             "up where you left off. Unavailable while a measurement is "
-            "running."))
+            "running."), "open_project"))
         self._load_project_btn.setFixedSize(QSize(44, 44))
         self._load_project_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._load_project_btn.clicked.connect(self.load_project_clicked)
 
         self._load_ti2_btn = QToolButton(self)
         self._load_ti2_btn.setObjectName("tooltip_btn")
-        self._load_ti2_btn.setToolTip(tr(
+        self._load_ti2_btn.setToolTip(with_shortcut(tr(
             "Open Chart File (.ti2)\n\n"
             "Opens a laid-out chart to print or measure.\n\n"
             "This is the laid-out chart ChromIQ made for you — the same one you "
             "printed. Loading it here shows its pages in Create Chart, Print "
             "Chart and Measure, so all three are working on the same chart. "
-            "Unavailable while a measurement is running."))
+            "Unavailable while a measurement is running."), "open_chart_file"))
         self._load_ti2_btn.setFixedSize(QSize(44, 44))
         self._load_ti2_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._load_ti2_btn.clicked.connect(self.load_ti2_clicked)

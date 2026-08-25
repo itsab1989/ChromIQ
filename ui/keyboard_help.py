@@ -47,26 +47,80 @@ def keys(spec: str) -> str:
     return QKeySequence(spec).toString(QKeySequence.SequenceFormat.NativeText)
 
 
+#: action id → QKeySequence spec. THE ONLY PLACE A BINDING IS WRITTEN DOWN.
+#: `ui.main_window` installs from here, the Help card lists from here, and a
+#: tooltip asks for its key from here — so the three cannot disagree. Before
+#: this, the bindings were typed as literals in `_install_shortcuts` AND again
+#: in `_shortcuts()`, and a third copy for tooltips would have made three.
+BINDINGS: dict[str, str] = {
+    "open_project":       "Ctrl+O",
+    "open_chart_file":    "Ctrl+Shift+O",
+    "preferences":        "Ctrl+,",
+    "tools":              "Ctrl+T",
+    "help":               "F1",
+    "help_alt":           "Ctrl+?",
+    "primary_action":     "Ctrl+Return",
+    "primary_action_alt": "Ctrl+Enter",
+    "undo":               "Ctrl+Z",
+    "redo":               "Ctrl+Shift+Z",
+    "redo_alt":           "Ctrl+Y",
+    **{f"tab_{i}": f"Ctrl+{i}" for i in range(1, 6)},
+}
+
+
+def keys_for(action: str) -> str:
+    """The platform's spelling of one binding, or "" when it has none."""
+    spec = BINDINGS.get(action)
+    return keys(spec) if spec else ""
+
+
+def with_shortcut(tooltip: str, action: str) -> str:
+    """*tooltip* with its shortcut in parentheses on the FIRST line (Knut).
+
+    The parentheses and the glyph are added AFTER ``tr()``, never inside a
+    translatable string — so no catalogue can carry a stale "⌘O" the way
+    `welcome_dialog` did, and Windows and Linux get "Ctrl+O" from the same one
+    key. A tooltip whose first line is the button's name reads
+    "Open Project (⌘O)"; the explanation below it is untouched.
+    """
+    k = keys_for(action)
+    if not k:
+        return tooltip
+    head, sep, rest = (tooltip or "").partition("\n")
+    return f"{head} ({k}){sep}{rest}"
+
+
+def attach_shortcut_hint(widget, action: str) -> None:
+    """Give a button its shortcut hint, inventing a tooltip from its own label
+    when it has none. ``widget.text()`` is already translated, so this adds no
+    new key to any catalogue."""
+    try:
+        tip = widget.toolTip() or widget.text().replace("\n", " ").replace("&", "")
+        widget.setToolTip(with_shortcut(tip, action))
+    except Exception:      # noqa: BLE001 — a tooltip is never worth a crash
+        pass
+
+
 def _shortcuts() -> list[tuple[str, str]]:
     """(keys, what-it-does) — the second field is what the list is sorted by."""
     return [
-        (keys("Ctrl+O"), tr("Open a profile project")),
-        (keys("Ctrl+Shift+O"), tr("Open a chart file (.ti2)")),
-        (f"{keys('Ctrl+1')} … {keys('Ctrl+5')}",
+        (keys_for("open_project"), tr("Open a profile project")),
+        (keys_for("open_chart_file"), tr("Open a chart file (.ti2)")),
+        (f"{keys_for("tab_1")} … {keys_for("tab_5")}",
          tr("Go to a tab (1 Create Chart · 2 Print Chart · 3 Measure · "
             "4 Build Profile · 5 Check & Refine)")),
         ("← / →", tr("Move between tabs (when the tab strip has focus — e.g. "
                      "right after {first}–{last})").format(
-                         first=keys("Ctrl+1"), last=keys("Ctrl+5"))),
-        (f"F1  ·  {keys('Ctrl+?')}", tr("Open Help (this window)")),
-        (keys("Ctrl+,"), tr("Open Preferences (Settings)")),
-        (keys("Ctrl+T"), tr("Open the Tools menu")),
-        (f"{keys('Ctrl+Shift+Z')}  ·  {keys('Ctrl+Y')}",
+                         first=keys_for("tab_1"), last=keys_for("tab_5"))),
+        (f"F1  ·  {keys_for("help_alt")}", tr("Open Help (this window)")),
+        (keys_for("preferences"), tr("Open Preferences (Settings)")),
+        (keys_for("tools"), tr("Open the Tools menu")),
+        (f"{keys_for("redo")}  ·  {keys_for("redo_alt")}",
          tr("Redo — in the chart layout editor")),
-        (keys("Ctrl+Return"),
+        (keys_for("primary_action"),
          tr("Run the current tab's main action (Generate · Print · "
             "Measure · Build · Check)")),
-        (keys("Ctrl+Z"), tr("Undo — in the chart layout editor")),
+        (keys_for("undo"), tr("Undo — in the chart layout editor")),
     ]
 
 

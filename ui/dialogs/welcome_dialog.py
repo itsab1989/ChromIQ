@@ -33,6 +33,7 @@ from PyQt6.QtWidgets import (
 from ui.fade_scroll import FadeScrollArea
 from ui.styles import SPEC_MAGENTA, TAB_COLORS
 from core.i18n import tr
+from ui.keyboard_help import keys_for
 from core.logger import get_logger
 
 log = get_logger(__name__)
@@ -814,12 +815,12 @@ GLOSSARY: list[tuple[str, str]] = [
 GLOSSARY += [
     (tr("Open a project"),
      tr("Load a printer profile project you made earlier, so every tab acts "
-        "on it again. Press “Open Project” at the top left (⌘O / Ctrl+O) and "
+        "on it again. Press “Open Project” at the top left ({keys}) and "
         "choose the “project.json” file inside the profile's own folder under "
         "your ChromIQ folder — or just pick the folder itself. Opening a "
         "project changes nothing inside it; it only tells ChromIQ which one "
         "you are working on. The project you had open before is left exactly "
-        "as it was.")),
+        "as it was.").format(keys=keys_for("open_project"))),
     (tr("Close a project"),
      tr("Put ChromIQ back to how it looks on a fresh install, with no project "
         "open. Press “Close Project” at the top left — the third button, "
@@ -1291,6 +1292,157 @@ CMYK_N_CARD: dict = {
 }
 WORKFLOWS.append(CMYK_N_CARD)
 WORKFLOWS.append(GLOSSARY_CARD)
+
+
+# ---------------------------------------------------------------------------
+# Tool cards (Knut, 4.1.3-beta.13): the three Tools-menu windows that had no
+# card of their own. Same shape as the workflow cards above so they print and
+# save to PDF identically.
+# ---------------------------------------------------------------------------
+
+PATCH_SET_EDITOR_CARD: dict = {
+    "key": "patch_set_editor",
+    "title": tr("Design a custom patch set for a chart"),
+    "subtitle": tr("Using Tools ▸ “Edit / create chart patch set” — build a "
+                   "colour set from scratch, or change the one a chart "
+                   "already has."),
+    "steps": [
+        (1, tr("Open it from “Tools” at the top right, under “Charts & patch "
+            "sets” — the entry is “Edit / create chart patch set”.\n\n"
+            "A patch set is the LIST OF COLOURS a chart prints, and nothing "
+            "else. Where those colours sit on the paper — patch size, "
+            "margins, how many pages — is the Create Chart tab's job, not "
+            "this window's. That split matters when you apply your work: see "
+            "step 6.")),
+        (2, tr("If a chart is already loaded, the window opens on ITS patch "
+            "set, and the title bar names it. Every colour is listed, and the "
+            "grid beside the list shows them as swatches so you can see the "
+            "shape of the set at a glance.\n\n"
+            "If no chart is loaded, the window opens empty and waits for you "
+            "to build one — start at step 3.\n\n"
+            "When the chart carries its setup information (ChromIQ charts "
+            "do), the settings it was built with are shown alongside, so you "
+            "can see what the set was designed for instead of guessing.")),
+        (3, tr("“New patch set” starts a set from scratch and REPLACES what "
+            "is in the window. It offers the generators that build a "
+            "well-spread set for you — a regular grid through the whole "
+            "colour space, extra patches on the gamut corners, detail just "
+            "inside the most saturated colours, pure paper white and solid "
+            "black, and near-neutral greys. You choose how many of each; "
+            "ChromIQ shows the running total as you go.")),
+        (4, tr("“Add” EXTENDS the set already in the window instead of "
+            "replacing it. Two ways: type or pick a single colour, or bring "
+            "in the colours from an existing file so you can fuse two sets "
+            "together. Nothing already in the set is lost.\n\n"
+            "So: “New patch set” to start again, “Add” to build on what you "
+            "have. That is the whole difference.")),
+        (5, tr("Edit individual colours directly in the list — change a "
+            "value, or remove a colour you do not want. The 3D view (Tools ▸ "
+            "“Show patch distribution (3D)”) is the quickest way to see "
+            "whether your set covers the colour space evenly or leaves a "
+            "hole.")),
+        (6, tr("When you are happy, press “Apply / Save…”. You get three "
+            "choices:\n\n"
+            "• “Overwrite” sends the PATCH SET to the Create Chart tab and "
+            "lays it out there. The page layout comes from that tab, not from "
+            "this window — your instrument, paper, margins and patch size are "
+            "used exactly as they are set there, so the arrangement you see "
+            "here is not carried across. The patch recipe is then locked so "
+            "it cannot be rebuilt by accident, while the page layout stays "
+            "editable.\n\n"
+            "• “Save As…” writes the COMPLETE chart — the patch list, this "
+            "layout and the printable pages, plus the i1Profiler files and a "
+            "colour list — into a folder you choose, without leaving the "
+            "editor. This is the one that keeps the layout you see here.\n\n"
+            "• “Cancel” goes back to the editor and changes nothing.")),
+        (7, tr("A project must be open before “Overwrite” has anywhere to "
+            "put the chart. If none is, ChromIQ says so and changes nothing — "
+            "start one on the Create Chart tab, or use “Save As…” instead and "
+            "open the folder afterwards.")),
+    ],
+}
+
+SPOT_READ_CARD: dict = {
+    "key": "spot_read",
+    "title": tr("Spot-read the colour of a surface"),
+    "subtitle": tr("Using Tools ▸ “Read single patches” — measure one colour "
+                   "at a time, with no chart involved."),
+    "steps": [
+        (1, tr("Open it from “Tools” at the top right, under “Measurements” — "
+            "the entry is “Read single patches”.\n\n"
+            "This is for measuring ONE colour at a time: a paper you want the "
+            "white point of, an ink patch, a wall, a light source. It is not "
+            "part of profiling and it writes nothing into your project unless "
+            "you save it yourself.")),
+        (2, tr("Pick what you are measuring in the mode box at the top:\n\n"
+            "• “Reflective (material)” — anything lit by room light: paper, "
+            "print, fabric, paint. This is the usual choice.\n"
+            "• “Emissive (display)” — something that makes its own light, "
+            "such as a monitor.\n"
+            "• “Ambient (light)” — the light falling on a scene, measured "
+            "with the instrument's diffuser in place.\n\n"
+            "Pick this BEFORE starting the session: it decides how the "
+            "instrument calibrates.")),
+        (3, tr("Click “Start session”. The instrument calibrates first — for "
+            "most instruments that means putting it on its white tile and "
+            "following the prompt. If your instrument has just calibrated and "
+            "you know it is still valid, “Skip initial calibration” saves the "
+            "step, but leave it unticked when in doubt: an uncalibrated "
+            "reading is confidently wrong rather than obviously wrong.\n\n"
+            "The button becomes “Stop session” while a session is open.")),
+        (4, tr("Place the instrument on the colour and click “Take reading” — "
+            "or press the button on the instrument itself, which is easier "
+            "when it is face-down on a sheet. Each reading is added to the "
+            "list with its Lab values and a swatch of the colour measured.")),
+        (5, tr("To average several readings of the SAME colour — which is "
+            "what you want on textured or uneven material — take a few "
+            "readings, select them in the list, and click “Average selected”. "
+            "The average is added as a new entry; the readings it came from "
+            "stay in the list, so nothing is lost and you can see the spread "
+            "you averaged over.")),
+        (6, tr("“Clear” empties the list and starts over. “Save…” writes the "
+            "readings to a file you choose so you can keep or share them. "
+            "“Close” ends the session and closes the window — anything not "
+            "saved is let go, so save first if the readings matter.")),
+    ],
+}
+
+PATCH_CUBE_CARD: dict = {
+    "key": "patch_cube",
+    "title": tr("Show or compare a chart's patch set in 3D"),
+    "subtitle": tr("Using Tools ▸ “Show patch distribution (3D)” — see how "
+                   "your colours are spread, and where the gaps are."),
+    "steps": [
+        (1, tr("Open it from “Tools” at the top right, under “Charts & patch "
+            "sets” — the entry is “Show patch distribution (3D)”. It shows "
+            "the patch set of the chart currently loaded, so open a project "
+            "or a chart first.\n\n"
+            "Every patch in the chart is drawn as a dot, placed where its "
+            "colour sits in the colour space and painted in that colour. A "
+            "well-designed set fills the space evenly; a set with a hole in "
+            "it will profile that part of the colour space badly, and the "
+            "hole is far easier to see here than in a list of numbers.")),
+        (2, tr("Drag with the mouse to turn the cube and look at it from "
+            "another side. Scroll to zoom in and out. Drag with the right "
+            "mouse button to slide the view sideways. Double-click anywhere "
+            "in the view to go back to the starting viewpoint if you lose "
+            "your bearings.")),
+        (3, tr("“Compare with profile” beside the chart name puts a SECOND "
+            "cube next to the first, showing a built-in preset's patch set. "
+            "The presets are grouped by the instrument they were designed "
+            "for. This is the quickest way to answer “is my set as well "
+            "spread as a known-good one?” — the two cubes turn together, so "
+            "you are always comparing the same viewpoint.\n\n"
+            "Choose “None” to close the comparison and go back to one cube.")),
+        (4, tr("“Close” closes the window. Nothing here changes your chart — "
+            "this window only looks. To CHANGE the patch set, use Tools ▸ "
+            "“Edit / create chart patch set”, which has its own card.")),
+    ],
+}
+
+WORKFLOWS.append(PATCH_SET_EDITOR_CARD)
+WORKFLOWS.append(SPOT_READ_CARD)
+WORKFLOWS.append(PATCH_CUBE_CARD)
 
 
 # Keyboard shortcuts — its own card (Knut/Sebastian keyboard-accessibility pass),

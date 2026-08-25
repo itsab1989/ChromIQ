@@ -103,6 +103,24 @@ FAMILIES: dict[str, Family] = {
                            "margin_right", "margin_bottom"}),
         helper="_i1_preset",
     ),
+    # A SECOND i1Pro FAMILY, AND IT HAD TO BE ONE (Knut, 4.1.3-beta.13).
+    # These charts share the i1Pro instrument and the "i1Pro-" name prefix with
+    # the family above, but they are NOT the same design: measured against the
+    # shipped `_I1_BASE`, they carry `sscale` 0.75 where it is 0.8. `sscale` is
+    # not in any `varying` set, so folding them into "i1" would have changed
+    # every chart in that family — and it would have gone unnoticed, because
+    # the validator below compares each batch against ITS OWN first file rather
+    # than against the shipped base. The names promise 7.5 mm; through the 8 mm
+    # family's base they would have taken its 6.0 mm right margin and printed
+    # 7.41 mm against the 7.49 they actually do — inside the ±0.5 mm check that
+    # is supposed to catch exactly this.
+    "i175": Family(
+        key="i175", label="i1Pro (7.5 mm)", prefix="i1Pro-",
+        slug_prefix="i1_w75_", instrument="i1", dest=ASSETS / "i1pro75",
+        varying=frozenset({"paper", "area_cols", "area_rows",
+                           "margin_right", "margin_bottom"}),
+        helper="_i1_75_preset",
+    ),
 }
 
 # The names carry the layout: "<paper>-<patches>p-<pages>page(s)-<orientation>…".
@@ -112,6 +130,26 @@ _NAME_TAIL = (r"(?P<paper>A4|A3Plus|A3|Letter)-(?P<patches>\d+)p-"
 # Display order: smallest sheet first (matching _paper_sort_key), then ascending
 # patch count. Portrait and landscape share a sheet, so they interleave by count.
 _SHEET_ORDER = {"A4": 0, "Letter": 1, "A3": 2, "A3Plus": 3}
+
+
+def _shipped_base(fam: Family) -> dict:
+    """The base recipe this family already ships in ``ui/tabs/tab_chart.py``.
+
+    Empty for a family that has none yet — a brand-new one has nothing to
+    disagree with.
+    """
+    import importlib
+
+    try:
+        tc = importlib.import_module("ui.tabs.tab_chart")
+    except Exception:      # noqa: BLE001 — the script must run without Qt too
+        return {}
+    return dict(getattr(tc, {"cm": "_CM_BASE", "p3": "_P3_BASE",
+                             "i1": "_I1_BASE",
+                             # i175 was MISSING, so the guard was a no-op for
+                             # the very family it was written for: a drifting
+                             # 7.5 mm batch validated rc=0.
+                             "i175": "_I1_75_BASE"}.get(fam.key, ""), None) or {})
 
 
 def slugify(name: str, fam: Family) -> str:
@@ -329,7 +367,26 @@ def main() -> int:
 
     # The family base is whatever the majority of the exports agree on — taken
     # from the first chart, then every other chart is checked against it.
+    #
+    # THAT ALONE IS NOT ENOUGH, and it shipped a real trap. A batch validated
+    # only against its own first file agrees with itself by construction, so a
+    # SYSTEMATIC difference from the family already in `tab_chart.py` — every
+    # chart carrying `sscale` 0.75 where the shipped base says 0.8 — passes
+    # nineteen out of nineteen and prints "✓ validated". Compare against the
+    # shipped base too, and refuse rather than fold it in silently.
     base = (pairs[0][2].get("data") or {}).get("layout_recipe") or {}
+    shipped = _shipped_base(fam)
+    if shipped:
+        drift = sorted(k for k in set(shipped) & set(base)
+                       if k not in fam.varying and shipped[k] != base[k])
+        if drift:
+            print(f"✗ this batch does not belong to the {fam.label} family.")
+            for k in drift:
+                print(f"    {k}: shipped {shipped[k]!r}, batch {base[k]!r}")
+            print("\n  These differ in a field no chart of the family may set "
+                  "for itself.\n  Give the batch its own family entry rather "
+                  "than folding it in.")
+            return 1
 
     rows, failed = [], 0
     for ti1, _js, export in pairs:

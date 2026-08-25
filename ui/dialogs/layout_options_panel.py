@@ -108,9 +108,11 @@ class LayoutOptionsPanel(QWidget):
                        "sheet. “Extra-high density” packs even more (a ChromIQ "
                        "extension) — only use it if your patches stay large enough "
                        "to read reliably (watch the warning).\n\n"
-                       "Only available with “Prioritise patch size”: in "
-                       "“Prioritise chart area” the patch size comes from the "
-                       "columns/rows you set, so Density is hidden."))
+                       "Density applies to both Create-layout choices. With "
+                       "“Prioritise chart area” it sets the smallest patch the "
+                       "layout may use, so it still decides how many patches "
+                       "fit — unless you pin both columns and rows, which fixes "
+                       "the grid outright."))
         if inst == "SS":
             return (tr("Patch shape"),
                     tr("Rectangular or hexagonal patches. Hexagons tessellate "
@@ -2291,18 +2293,25 @@ class LayoutOptionsPanel(QWidget):
             w.setVisible(area and by_width)
         for w in self._area_row_cols + self._area_row_rows:
             w.setVisible(area and not by_width)
-        # ColorMunki "Density" doesn't define an area-first grid (the area fields
-        # do), so HIDE the whole Density row there rather than greying it — same as
-        # the Calculation-method rows hidden in patch-first (Knut). i1 clip and SS
-        # shape still affect the area, so their Mode row stays.
+        # THE COLORMUNKI DENSITY ROW USED TO BE HIDDEN IN AREA-FIRST. IT MUST NOT
+        # BE. The belief was that in area-first "the patch size comes from the
+        # columns/rows you set", so Density does nothing — true only when the
+        # grid is FULLY pinned. With columns and rows on auto, which is what a
+        # new preset has (area_cols = area_rows = 0), Density is the entire
+        # input that decides the layout. Measured on A3, patches per sheet,
+        # only cm_density varied (hand-held / rig / extra-high):
+        #     area_first, by_width, min width auto : 130 /  520 / 918
+        #     area_first, by_grid,  cols/rows auto : 270 /  540 / 756
+        #     area_first, by_grid,  pinned 20x30   : 600 /  600 / 600
+        # A 7x spread is not "moot". Density also states which ColorMunki
+        # accessory the sheet is for (hand-held vs the measuring rig), so hiding
+        # it stranded the user with whatever was last set and no way to see it.
+        # The row stays for every layout mode, in every host of this panel.
         if self.mode is not None:
-            inst = (self.instr.currentData() if self.instr is not None
-                    else self._inst) or "i1"
-            density_moot = (inst == "CM" and area)
             for w in (self.mode, getattr(self, "_mode_lbl", None),
                       getattr(self, "_mode_tip", None)):
                 if w is not None:
-                    w.setVisible(not density_moot)
+                    w.setVisible(True)
 
     def _browse_clip_image(self) -> None:
         from pathlib import Path

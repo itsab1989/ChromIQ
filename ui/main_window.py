@@ -308,6 +308,7 @@ class MainWindow(QMainWindow):
             _target = getattr(_tab_w, "_left_panel", _tab_w)
             GradientOverlay(TAB_COLORS[_i], parent=_target)
 
+        self._hint_primary_action_shortcuts()
         self._tab_chart.chart_finished.connect(self._on_chart_generated)
         # Any Argyll tool starting or stopping can change what the masthead may
         # offer — see _refresh_masthead_availability.
@@ -424,20 +425,29 @@ class MainWindow(QMainWindow):
         measuring, the Measure tab's application-level key filter owns the
         keyboard and these simply stand down. Kept in sync with the Welcome
         window's "Keyboard shortcuts" Help card."""
-        def sc(seq, slot) -> None:
-            QShortcut(QKeySequence(seq), self, activated=slot)
+        from ui.keyboard_help import BINDINGS
+
+        def sc(action, slot) -> None:
+            """Install one binding BY NAME, from the single registry.
+
+            The specs used to be typed here as literals and typed AGAIN in the
+            Help card's `_shortcuts()`, so the two agreed only by hand — and a
+            tooltip carrying the same key would have made a third copy. Naming
+            the action means all three read one dictionary.
+            """
+            QShortcut(QKeySequence(BINDINGS[action]), self, activated=slot)
 
         # ⌘1…⌘5 — jump straight to a tab (Qt maps Ctrl→⌘ on macOS).
         for _i in range(self._tabs.count()):
-            sc(f"Ctrl+{_i + 1}", lambda i=_i: self._go_to_tab(i))
+            sc(f"tab_{_i + 1}", lambda i=_i: self._go_to_tab(i))
         # Settings / Help / Tools. Explicit sequences (not StandardKey) so the
         # binding is deterministic — the platform "Preferences"/"HelpContents"
         # standard keys resolve to bare media keys under some Qt platforms. Qt
         # still renders "Ctrl" as ⌘ on macOS.
-        sc("Ctrl+,", self._open_settings)                            # ⌘,
-        sc("F1", self.open_welcome_dialog)                           # F1
-        sc("Ctrl+?", self.open_welcome_dialog)                       # ⌘? (mac Help)
-        sc("Ctrl+T", self._open_tools_menu)                          # Tools popup
+        sc("preferences", self._open_settings)                            # ⌘,
+        sc("help", self.open_welcome_dialog)                           # F1
+        sc("help_alt", self.open_welcome_dialog)                       # ⌘? (mac Help)
+        sc("tools", self._open_tools_menu)                          # Tools popup
         # The two masthead buttons that bring something in (#164). ⌘O reads off
         # "Open Project"; ⇧⌘O off "Open Chart File", keeping the pair on one
         # key. NOT ⌘L — the button says nothing with an L in it, and ⌘L is the
@@ -445,11 +455,11 @@ class MainWindow(QMainWindow):
         # pressed by muscle memory meaning something else. Close Project gets
         # NO shortcut: ⌘W would close the window on macOS, and a project is not
         # something to let go of by reflex.
-        sc("Ctrl+O", self._on_masthead_load_project)                 # ⌘O
-        sc("Ctrl+Shift+O", self._on_masthead_load_ti2)               # ⇧⌘O
+        sc("open_project", self._on_masthead_load_project)                 # ⌘O
+        sc("open_chart_file", self._on_masthead_load_ti2)               # ⇧⌘O
         # ⌘Return / ⌘Enter — run the current tab's main action.
-        sc("Ctrl+Return", self._trigger_primary_action)
-        sc("Ctrl+Enter", self._trigger_primary_action)
+        sc("primary_action", self._trigger_primary_action)
+        sc("primary_action_alt", self._trigger_primary_action)
 
     # Each tab's main action button, for the ⌘Return shortcut. (The many other
     # objectName="primary" buttons live inside per-tab sub-dialogs.)
@@ -458,6 +468,25 @@ class MainWindow(QMainWindow):
         "TabMeasure": "_start_btn", "TabProfile": "_build_btn",
         "TabCheckRefine": "_run_btn",
     }
+
+    def _hint_primary_action_shortcuts(self) -> None:
+        """Give each tab's main button its ⌘↵ hint (Knut, #164).
+
+        Five of the buttons a user presses most had NO tooltip at all, so the
+        shortcut existed, was listed on the Help card, and was invisible where
+        it would actually be discovered. The label supplies the text — it is
+        already translated, so this adds no key to any catalogue — and the
+        binding comes from `keyboard_help.BINDINGS`, so it can never drift from
+        what `_install_shortcuts` installs.
+        """
+        from ui.keyboard_help import attach_shortcut_hint
+
+        for i in range(self._tabs.count()):
+            tab = self._tabs.widget(i)
+            attr = self._PRIMARY_ACTION_ATTR.get(type(tab).__name__)
+            btn = getattr(tab, attr, None) if attr else None
+            if btn is not None:
+                attach_shortcut_hint(btn, "primary_action")
 
     def _primary_action_button(self):
         """The current tab's primary button, or None."""

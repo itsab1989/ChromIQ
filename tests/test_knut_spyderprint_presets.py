@@ -91,11 +91,11 @@ def test_registry_shape():
     # six engine-built Scanner charts (#100, #108, #118), and the six Red River
     # Paper vendor variants (one shared 2052-patch .ti1: i1Pro A4/Letter, and
     # ColorMunki A4/Letter in both a compact 8-page and a ruler-size 10-page cut).
-    assert len(KNUT_PRESETS) == 104
-    assert len(KNUT_PRESET_KEYS) == 104  # all keys unique
+    assert len(KNUT_PRESETS) == 121      # 104 - 2 withdrawn + 19 new 7.5 mm
+    assert len(KNUT_PRESET_KEYS) == 121  # all keys unique
     # Four Full-layout-setup charts: the A4 495p landscape one was withdrawn at
     # Knut's request (#164, 2026-08-23).
-    assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("fls_")) == 4
+    assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("fls_")) == 2
     # …and his seven 8 mm i1Pro charts arrived in the same message.
     # 19 since #164: eight on A4, eight on US Letter, three on A3 landscape.
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("i1_w8_")) == 19
@@ -114,7 +114,7 @@ def test_fulllayout_ti1_assets_present():
     # Every Full-layout-setup chart (#63) ships its own .ti1 + recipe.json —
     # guard the bundled files.
     fls = [p for p in KNUT_PRESETS if p.slug.startswith("fls_")]
-    assert len(fls) == 4
+    assert len(fls) == 2
     for p in fls:
         assert resource_path(p.ti1_asset).is_file(), f"missing {p.ti1_asset}"
         recipe = resource_path(p.ti1_asset).parent / "recipe.json"
@@ -197,8 +197,48 @@ def test_fulllayout_preset_uses_its_own_ti1_and_count(qapp, settings):
     assert "Full layout setup" in tab._knut_tooltip(key)
 
 
-# A surviving Full-layout-setup preset used across the generic tests below.
-_FLS_KEY = "__chromiq_knut_fls_i1pro_a4_924p_2pages_portrait__"
+# A SYNTHETIC printtarg-path preset, registered only for these tests.
+#
+# Knut withdrew the two A4-924p "Full layout setup" charts in 4.1.3-beta.13,
+# and they were the last printtarg-path rows in KNUT_PRESETS — so
+# `_seed_knut_preset`'s printtarg branch and `_reset_knut_overrides` lost their
+# only subject. TC9.18 by Pharmacist is printtarg-path too, but through a
+# different door (`_on_preset_selected` reads `KNUT_PRESETS_BY_KEY.get()` and
+# gets None), so it is NOT in that table and cannot stand in here.
+#
+# The branch is kept rather than deleted, because Knut authors these families
+# and may ship a printtarg one again. Keeping it means keeping it TESTED — the
+# alternative is untested dead code, which is the worst of the three options.
+# So the tests below bring their own subject.
+#
+# WHAT THIS DOES AND DOES NOT COVER. It exercises `_seed_knut_preset`'s
+# printtarg branch and `_reset_knut_overrides`, which is what these tests are
+# about. It does NOT restore the "selecting a built-in switches the layout
+# engine off" coverage — this preset is never in the dropdown, and that path
+# goes through `_on_preset_selected`, a different method. That behaviour has
+# its own test against a real subject: see
+# `test_scanner_builtin_presets.py::test_selecting_a_printtarg_builtin_turns_the_engine_off`.
+from ui.tabs.tab_chart import (KNUT_PRESETS, KNUT_PRESETS_BY_KEY,  # noqa: E402
+                               _KNUT_I1, _Ti1Preset)
+
+_SYNTHETIC = _Ti1Preset(
+    "test_printtarg_path_probe", "A4-924p-2pages-Portrait-w7.5mm (test only)",
+    _KNUT_I1, "A4", 0.93, 10, 2,
+    ti1_asset="assets/charts/knut/rgb/fulllayout/"
+              "fls_i1pro_a4_484p_1page_portrait/chart.ti1",
+    patches=484, white=9, black=8, no_strip_limit=False,
+    suppress_left_clip=False, tiff_16bit=False, suffix=" (test only)")
+KNUT_PRESETS_BY_KEY.setdefault(_SYNTHETIC.key, _SYNTHETIC)
+_FLS_KEY = _SYNTHETIC.key
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _remove_the_synthetic_preset_afterwards():
+    """Put the registry back. Registering at import time and never cleaning up
+    leaks a fake preset into every test that runs after this module in the same
+    worker."""
+    yield
+    KNUT_PRESETS_BY_KEY.pop(_SYNTHETIC.key, None)
 
 
 def test_targen_signature_ignores_printtarg_changes(qapp, settings):
@@ -222,7 +262,9 @@ def test_info_box_announces_ti1_reuse(qapp, settings):
     tab._knut_targen_sig = tab._targen_signature()
     tab._refresh_manual_command_preview()
     txt = tab._manual_info_lbl.text()
-    assert "targen skipped" in txt and "924" in txt   # this preset's own count
+    # The subject's OWN patch count, not a literal — the synthetic preset
+    # above can be re-pointed at any bundled .ti1 without breaking this.
+    assert "targen skipped" in txt and str(_SYNTHETIC.patches) in txt
     # A targen change flips the note back to the normal targen+printtarg view.
     tab._set_manual_value("targen", "-f", 500)
     tab._refresh_manual_command_preview()

@@ -232,3 +232,290 @@ def test_restore_layout_defaults_resets_indicator_style(_app, tmp_path):
             dlg.deleteLater()
     assert st.get("strip_indicator_font") == DEFAULTS["strip_indicator_font"]
     assert st.get("strip_indicator_size_mm") == DEFAULTS["strip_indicator_size_mm"]
+
+
+# ---------------------------------------------------------------------------
+# Knut's four Chart Layout faults, 4.1.3-beta.13 — driven through the real
+# Preferences dialog. See .agent-reports/chartlayout-prefs-challenge.md.
+# ---------------------------------------------------------------------------
+
+
+import json
+from pathlib import Path
+from unittest import mock
+
+import pytest
+
+
+# ---------------------------------------------------------------------------
+# F1 — switching instrument and back must not lose the saved layout
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("combo,other", [
+    (("CM", "A3", "high"), "i1"),          # Knut's own case
+    (("CM", "A3", "extrahigh"), "i1"),     # the third density
+    (("i1", "A4", "noclip"), "CM"),        # clip border OFF — same fault
+    (("SS", "A4", "hex"), "CM"),           # hexagonal — same fault
+])
+def test_switching_instrument_and_back_keeps_the_saved_layout(
+        _app, tmp_path, combo, other):
+    """Knut, 4.1.3-beta.13: *"If I now change back to Colormunki, then my
+    previously saved settings are gone (old defaults pop up)."*
+
+    The store was never wrong — the Mode combo was. Rebuilding it on an
+    instrument change dropped the selection onto index 0, so the read key was
+    a combination the user had never saved.
+    """
+    import core.preset_store as ps
+    from ui.dialogs.settings_dialog import SettingsDialog
+    with mock.patch.object(ps, "presets_dir", lambda: Path(tmp_path)):
+        dlg = SettingsDialog(_FakeSettings(), None, layout_combo=combo)
+        try:
+            assert dlg._layout_selection() == combo
+            dlg._layout_panel.margins["t"].setValue(12.5)
+            assert dlg._layout_store.keys() == ["|".join(combo)]
+
+            dlg._layout_instr.setCurrentIndex(dlg._layout_instr.findData(other))
+            dlg._layout_instr.setCurrentIndex(
+                dlg._layout_instr.findData(combo[0]))
+
+            assert dlg._layout_selection() == combo, (
+                "the tab came back on a different combination, so it read a "
+                "key that was never saved and showed shipped defaults")
+            assert dlg._layout_panel.margins["t"].value() == 12.5
+        finally:
+            dlg.deleteLater()
+
+
+def test_the_store_is_never_the_thing_that_loses_it(_app, tmp_path):
+    """The strongest clue in Knut's report: *"If I cancel the preferences
+    window and open the preferences Chart Layout tab again, then the settings
+    reappear."* Whatever the fix, the store must stay intact throughout —
+    a fix that repaired the display by rewriting the store would be worse."""
+    import core.preset_store as ps
+    from ui.dialogs.settings_dialog import SettingsDialog
+    with mock.patch.object(ps, "presets_dir", lambda: Path(tmp_path)):
+        dlg = SettingsDialog(_FakeSettings(), None,
+                             layout_combo=("CM", "A3", "high"))
+        try:
+            dlg._layout_panel.margins["t"].setValue(12.5)
+            for inst in ("i1", "p3", "SS", "CM", "i1", "CM"):
+                dlg._layout_instr.setCurrentIndex(
+                    dlg._layout_instr.findData(inst))
+            assert "CM|A3|high" in dlg._layout_store.keys()
+            assert dlg._layout_store.get("CM", "A3", "high").margin_top == 12.5
+        finally:
+            dlg.deleteLater()
+
+
+def test_a_paper_the_next_instrument_cannot_offer_comes_back(_app, tmp_path):
+    """The SpectroScan has no 594x420. Passing through it must not silently
+    downgrade a ColorMunki user from 594x420 to A4 for good."""
+    import core.preset_store as ps
+    from ui.dialogs.settings_dialog import SettingsDialog
+    with mock.patch.object(ps, "presets_dir", lambda: Path(tmp_path)):
+        dlg = SettingsDialog(_FakeSettings(), None,
+                             layout_combo=("CM", "594x420", "freehand"))
+        try:
+            assert dlg._layout_paper.currentData() == "594x420"
+            dlg._layout_instr.setCurrentIndex(dlg._layout_instr.findData("SS"))
+            assert dlg._layout_paper.currentData() != "594x420"   # not offered
+            dlg._layout_instr.setCurrentIndex(dlg._layout_instr.findData("CM"))
+            assert dlg._layout_paper.currentData() == "594x420"
+        finally:
+            dlg.deleteLater()
+
+
+def test_a_paper_the_next_instrument_does_offer_is_carried_across(
+        _app, tmp_path):
+    """The other half: an A3 user who switches instrument stays on A3 the
+    first time (there is nothing remembered for the new instrument yet)."""
+    import core.preset_store as ps
+    from ui.dialogs.settings_dialog import SettingsDialog
+    with mock.patch.object(ps, "presets_dir", lambda: Path(tmp_path)):
+        dlg = SettingsDialog(_FakeSettings(), None,
+                             layout_combo=("CM", "A3", "high"))
+        try:
+            dlg._layout_instr.setCurrentIndex(dlg._layout_instr.findData("i1"))
+            assert dlg._layout_paper.currentData() == "A3"
+        finally:
+            dlg.deleteLater()
+
+
+# ---------------------------------------------------------------------------
+# F1b — the user must be able to tell "saved" from "ChromIQ's default"
+# ---------------------------------------------------------------------------
+
+def test_the_tab_says_whether_this_combination_is_saved(_app, tmp_path):
+    """A combination that was never saved has to read as "nothing saved yet",
+    not as "my settings vanished"."""
+    import core.preset_store as ps
+    from ui.dialogs.settings_dialog import SettingsDialog
+    with mock.patch.object(ps, "presets_dir", lambda: Path(tmp_path)):
+        dlg = SettingsDialog(_FakeSettings(), None,
+                             layout_combo=("CM", "A3", "high"))
+        try:
+            hint = dlg._layout_saved_hint
+            assert "Nothing saved" in hint.text()
+            dlg._layout_panel.margins["t"].setValue(12.5)
+            assert "saved" in hint.text() and "Nothing saved" not in hint.text()
+            dlg._layout_mode.setCurrentIndex(
+                dlg._layout_mode.findData("extrahigh"))
+            assert "Nothing saved" in hint.text()
+        finally:
+            dlg.deleteLater()
+
+
+# ---------------------------------------------------------------------------
+# F2 — the tab must say it opens on the current chart's combination
+# ---------------------------------------------------------------------------
+
+def test_the_tab_explains_that_it_opens_on_the_current_charts_combination(
+        _app, tmp_path):
+    """Knut: *"the preferences ==> Chart Layout tab does not specify that the
+    currently loaded chart's settings for the instrument and paper combination
+    is automatically loaded in the tab."*"""
+    from PyQt6.QtWidgets import QLabel
+    import core.preset_store as ps
+    from ui.dialogs.settings_dialog import SettingsDialog
+    with mock.patch.object(ps, "presets_dir", lambda: Path(tmp_path)):
+        dlg = SettingsDialog(_FakeSettings(), None,
+                             layout_combo=("CM", "A3", "high"))
+        try:
+            text = " ".join(w.text() for w in dlg.findChildren(QLabel))
+            assert "opens on" in text
+            for word in ("Instrument", "Paper", "Mode", "current chart"):
+                assert word in text, word
+        finally:
+            dlg.deleteLater()
+
+
+# ---------------------------------------------------------------------------
+# F3 — Density is shown wherever it changes the layout (both hosts)
+# ---------------------------------------------------------------------------
+# → tests/test_layout_options_panel.py
+# REPLACES test_colormunki_density_hidden_in_area_first, which asserts the
+# behaviour this change removes. That test is green today and guards the bug.
+
+def test_density_really_does_change_an_area_first_layout():
+    """The measurement the two tests above rest on — so a future refactor
+    that makes Density genuinely moot fails HERE first, not in the UI."""
+    from workflow.layout_engine import geometry, instruments, papers
+    from workflow.layout_engine.presets import default_recipe
+    w, h = papers.dimensions_mm("A3")
+
+    def cap(mode, **kw):
+        r = default_recipe("CM", "A3", mode=mode)
+        r.margin_top = r.margin_right = r.margin_bottom = r.margin_left = 6.0
+        r.border, r.patch_area_align = 6.0, "top-left"
+        r.layout_mode = "area_first"
+        for k, v in kw.items():
+            setattr(r, k, v)
+        g = instruments.geom_from_build_kwargs(r.build_kwargs())
+        return geometry.patches_per_sheet(g, w, h)
+
+    auto = [cap(m, area_method="by_grid", area_cols=0, area_rows=0)
+            for m in ("freehand", "high", "extrahigh")]
+    assert len(set(auto)) == 3, f"density is moot in area-first? {auto}"
+
+    pinned = [cap(m, area_method="by_grid", area_cols=20, area_rows=30)
+              for m in ("freehand", "high", "extrahigh")]
+    assert len(set(pinned)) == 1, f"a pinned grid should ignore it: {pinned}"
+
+
+# ---------------------------------------------------------------------------
+# F4 — the export/import contract
+# ---------------------------------------------------------------------------
+
+def test_the_exported_key_matches_the_recipe_body(_app, tmp_path):
+    """Knut suspects the exported key. It is not wrong — but it must be
+    provably consistent with the body, because import re-derives it."""
+    import core.preset_store as ps
+    from workflow.layout_engine.presets import LayoutRecipe
+    from ui.dialogs.settings_dialog import SettingsDialog
+    with mock.patch.object(ps, "presets_dir", lambda: Path(tmp_path)):
+        dlg = SettingsDialog(_FakeSettings(), None,
+                             layout_combo=("CM", "A3", "high"))
+        try:
+            dlg._layout_panel.margins["t"].setValue(12.5)
+            for inst, mode in (("i1", "noclip"), ("SS", "hex")):
+                dlg._layout_instr.setCurrentIndex(
+                    dlg._layout_instr.findData(inst))
+                dlg._layout_mode.setCurrentIndex(
+                    dlg._layout_mode.findData(mode))
+                dlg._layout_panel.margins["t"].setValue(7.5)
+            blob = dlg._layout_store.as_named_dict()
+            assert blob
+            for key, rec in blob.items():
+                assert LayoutRecipe.from_dict(rec).preset_key() == key
+        finally:
+            dlg.deleteLater()
+
+
+def test_importing_an_unrelated_json_does_not_overwrite_real_presets(
+        _app, tmp_path):
+    """LayoutRecipe.from_dict drops every field it does not know, so any
+    ``{str: dict}`` JSON used to import as a pile of DEFAULT recipes and
+    silently replace the user's own under their default keys."""
+    import core.preset_store as ps
+    import ui.widgets as W
+    from ui.dialogs.settings_dialog import SettingsDialog
+    with mock.patch.object(ps, "presets_dir", lambda: Path(tmp_path)):
+        dlg = SettingsDialog(_FakeSettings(), None,
+                             layout_combo=("i1", "A4", "clip"))
+        try:
+            dlg._layout_panel.margins["t"].setValue(13.0)
+            junk = tmp_path / "not-a-preset.json"
+            junk.write_text(json.dumps({"a": {"hello": "world"}, "b": {"x": 1}}))
+            with mock.patch.object(W, "open_file_dialog",
+                                   lambda *a, **k: str(junk)):
+                dlg._import_layout_presets()
+            assert dlg._layout_store.get("i1", "A4", "clip").margin_top == 13.0
+        finally:
+            dlg.deleteLater()
+
+
+def test_import_still_accepts_a_real_export(_app, tmp_path):
+    """The guard above must not break the round-trip it protects."""
+    import core.preset_store as ps
+    import ui.widgets as W
+    from ui.dialogs.settings_dialog import SettingsDialog
+    from workflow.layout_engine.presets import default_recipe
+    with mock.patch.object(ps, "presets_dir", lambda: Path(tmp_path)):
+        r = default_recipe("CM", "A3", mode="extrahigh")
+        r.margin_top = 9.25
+        blob = tmp_path / "export.json"
+        blob.write_text(json.dumps({r.preset_key(): r.to_dict()}))
+        dlg = SettingsDialog(_FakeSettings(), None,
+                             layout_combo=("CM", "A3", "extrahigh"))
+        try:
+            with mock.patch.object(W, "open_file_dialog",
+                                   lambda *a, **k: str(blob)):
+                dlg._import_layout_presets()
+            assert dlg._layout_store.get(
+                "CM", "A3", "extrahigh").margin_top == 9.25
+        finally:
+            dlg.deleteLater()
+
+
+def test_a_preset_for_a_dropped_instrument_survives_a_save(_app, tmp_path):
+    """DTP41/DTP51 are gone from the picker but may still sit in a user's
+    presets folder. An unrelated edit + OK must not delete them."""
+    import core.preset_store as ps
+    from ui.dialogs.settings_dialog import SettingsDialog
+    from workflow.layout_engine.presets import default_recipe
+    with mock.patch.object(ps, "presets_dir", lambda: Path(tmp_path)):
+        d = Path(tmp_path) / "Chart Layout"
+        d.mkdir(parents=True, exist_ok=True)
+        r = default_recipe("41", "A4", mode="default")
+        r.margin_top = 7.7
+        (d / "41_A4_default.json").write_text(json.dumps({
+            "chromiq_preset_version": 1, "tab": "chart_layout",
+            "name": "41|A4|default", "data": r.to_dict()}))
+        dlg = SettingsDialog(_FakeSettings(), None,
+                             layout_combo=("i1", "A4", "clip"))
+        dlg._layout_panel.margins["t"].setValue(5.5)
+        dlg._save_and_close()
+        names = sorted(json.loads(p.read_text())["name"]
+                       for p in d.glob("*.json"))
+        assert "41|A4|default" in names

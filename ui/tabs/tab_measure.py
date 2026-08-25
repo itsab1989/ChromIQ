@@ -5084,7 +5084,15 @@ class TabMeasure(QWidget):
         """Say why Start is unavailable, rather than leaving it greyed in
         silence — the rule the rest of the app follows."""
         if self._start_btn.isEnabled():
-            self._start_btn.setToolTip("")
+            # An ENABLED Start still carries its shortcut hint. Clearing the
+            # tooltip outright threw away the "(⌘↵)" the main window attaches
+            # to each tab's primary button, so this was the one of the five
+            # that never showed it (#164, Knut).
+            from ui.keyboard_help import with_shortcut
+
+            self._start_btn.setToolTip(
+                with_shortcut(self._start_btn.text().replace("&", ""),
+                              "primary_action"))
             return
         # A VERIFICATION HAS ITS OWN REASONS, AND THEY ARE IN §M.
         #

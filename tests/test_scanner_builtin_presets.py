@@ -146,13 +146,31 @@ def test_selecting_scanner_preset_turns_engine_on(qapp, tmp_path, monkeypatch):
     assert bool(s.get("use_chromiq_layout_engine", False)) is True
     assert tab._manual_layout_panel.get_recipe().instrument == "SS"
     assert built and built[-1].name == "chart.ti1"     # the bundled patch set
-    # A printtarg-path built-in (one of the double-density "near" fls presets,
-    # which stayed on printtarg) switches the engine back off.
-    fls = tab._preset_combo.findData(
-        "__chromiq_knut_fls_i1pro_a4_924p_2pages_portrait__")
-    assert fls > 0
-    tab._preset_combo.setCurrentIndex(fls)
-    assert bool(s.get("use_chromiq_layout_engine", False)) is False
+
+
+def test_selecting_a_printtarg_builtin_turns_the_engine_off(qapp, tmp_path,
+                                                            monkeypatch):
+    """The other half of the pair, SPLIT OUT so neither can hide the other.
+
+    It used to live at the end of the "turns engine on" test, whose subject was
+    a Full-layout-setup preset. Knut withdrew the two printtarg ones in
+    4.1.3-beta.13, and asking `KNUT_PRESETS` for a replacement found none — so
+    the test skipped, taking the engine-ON half's visible result with it.
+
+    TC9.18 by Pharmacist is the real subject: it IS in the preset dropdown and
+    is NOT in `KNUT_PRESETS_BY_KEY`, and that `None` lookup is precisely what
+    switches the engine off.
+    """
+    tab, s = _make_tab(qapp, tmp_path)
+    monkeypatch.setattr(tab, "_generate_from_ti1", lambda p: None)
+    s.set("use_chromiq_layout_engine", True)
+
+    idx = tab._preset_combo.findData("__chromiq_tc918eg_a4_builtin__")
+    assert idx > 0, "the TC9.18 built-in is not in the dropdown"
+    tab._preset_combo.setCurrentIndex(idx)
+
+    assert bool(s.get("use_chromiq_layout_engine", False)) is False, (
+        "a printtarg-path built-in left the ChromIQ layout engine switched on")
 
 
 def test_scanner_tooltip_mentions_scan_workflow(qapp, tmp_path):

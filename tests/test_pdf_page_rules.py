@@ -325,27 +325,33 @@ def test_a_heading_is_moved_not_given_a_page_of_its_own(qapp, tmp_path):
 def test_no_card_prints_an_almost_empty_page(qapp, tmp_path):
     """…and the same for the cards that exercise the rules hardest.
 
-    TWO RULES COLLIDE HERE, AND KNUT CHOSE WHICH WINS. "Never cut a table row
-    across a page" and "never print a nearly empty page" cannot both hold for a
-    card whose rows are taller than the space left on a sheet: moving such a
-    row whole is exactly what leaves the foot of the previous sheet blank.
+    THIS TEST USED TO EXCUSE THE BUG. It exempted Main Actions from the 2 %
+    bar down to 0.5 %, on the reasoning that "never cut a table row" and "never
+    print a nearly empty page" cannot both hold, and that Knut had chosen whole
+    rows — so Main Actions "pays for it with two sparse sheets". He chose no
+    such thing. Those two sheets were blank (1.24-1.41 % ink), and they were a
+    Qt defect: `PageBreak_AlwaysBefore` on a cell block is honoured twice, so
+    the row skipped a page. With the break taken after the row above instead,
+    Main Actions prints 8.4 / 9.4 / 8.6 % on three pages and needs no exemption
+    at all.
 
-    He reported the alternative — a row's bottom border stranded under the
-    repeated header on the next page — as the defect to fix (#164), so whole
-    rows win and Main Actions pays for it with two sparse sheets. That is why
-    it is exempt here rather than the bar being lowered for every card: the
-    glossary still has to clear 2 %.
+    ONE genuinely sparse sheet remains, and it IS the real price of the
+    guarantee: the folder guide's page 6 (1.3 %), where a row taller than the
+    space left moves whole and leaves the foot of the sheet behind. One sparse
+    page across 18 cards, not eight blank ones.
     """
-    for key in ("glossary",):
+    for key in ("glossary", "main_actions"):
         inks = _card_pages_ink(qapp, key, tmp_path)
         assert min(inks) > 2.0, (
             f"{key} prints an almost empty page: "
             f"{[round(v, 2) for v in inks]}")
-    # Main Actions is allowed sparse sheets, but not blank ones — if a page
-    # ever holds nothing at all, the row-moving rule has gone wrong.
-    inks = _card_pages_ink(qapp, "main_actions", tmp_path)
-    assert min(inks) > 0.5, (
-        f"main_actions prints a blank page: {[round(v, 2) for v in inks]}")
+    # The folder guide's one sparse sheet — sparse, never blank.
+    inks = _card_pages_ink(qapp, "file_guide", tmp_path)
+    assert min(inks) > 1.0, (
+        f"file_guide prints a blank page: {[round(v, 2) for v in inks]}")
+    assert sum(1 for v in inks if v < 2.0) <= 1, (
+        f"more than one sparse sheet in the folder guide: "
+        f"{[round(v, 2) for v in inks]}")
 
 
 # --- the whole card has to reach the paper ---------------------------------
@@ -642,36 +648,50 @@ def test_the_print_sheet_sizes_every_font_in_pixels(qapp):
 # header. The audit that missed it was blind by construction; it has to be done
 # in pixels.
 #
-# Breaking BEFORE the straddling row moves the row whole and leaves nothing
-# behind. It costs pages on the two cards with very tall rows, and those counts
-# are pinned below so the price stays a decision someone made.
+# A straddling row moves whole to the TOP OF THE NEXT PAGE — one page on, not
+# two. The page counts below are pinned so a future change cannot quietly cost
+# more paper.
+#
+# BOTH TESTS HERE USED TO GUARD THE BUG THEY WERE WRITTEN TO PREVENT.
+# The first asserted, on the SOURCE TEXT, that `lastCursorPosition` did not
+# appear in the branch — it ran nothing, proved nothing, and its only real
+# effect was to forbid the correct fix. The second pinned Main Actions at 5
+# pages and the folder guide at 12 and called that "the price of whole rows".
+# It was not: it was the price of triggering a Qt bug in which
+# `PageBreak_AlwaysBefore` on a cell block is honoured twice, dropping the row
+# two pages on and leaving a blank sheet between. Knut reported the blank
+# sheets against beta.13; there were eight of them across the 18 cards at two
+# page sizes. Keeping rows whole really costs 2 sheets in 36 renders.
 
 
-def test_a_straddling_row_is_pushed_by_breaking_before_it(qapp):
-    """Structural, and fast: the rule must not go back to break-after."""
+def test_a_straddling_row_is_pushed_by_breaking_after_the_row_above(qapp):
+    """The rule must keep ending the page INSIDE the row above.
+
+    Rewritten from a source-text assertion that could not fail — and which
+    forbade this very fix — into one that measures the outcome: no row may skip
+    a page. See `tests/test_knut_row_page_skip.py` for the full guarantee; this
+    is the cheap structural half, kept because it names the reason.
+    """
     import inspect
 
     from ui import pdf_layout
 
     src = inspect.getsource(pdf_layout.avoid_split_rows)
     body = src.split("headerRowCount() and index > 0:", 1)[1].split("else:", 1)[0]
-    assert "PageBreak_AlwaysBefore" in body or "before" in body, (
-        "the straddling row is no longer pushed by breaking before it")
-    assert "lastCursorPosition" not in body, (
-        "the rule is ending the page inside the row above again, which leaves "
-        "that row's bottom border on the next page")
+    assert "setBottomPadding" in body, (
+        "the row above no longer has its cell padding zeroed, so its bottom "
+        "border and padding are painted overleaf — the thin empty band of #164")
 
 
 @pytest.mark.parametrize("page,expect", [
-    ("A4", {"main_actions": 5, "file_guide": 12}),
-    ("Letter", {"main_actions": 4, "file_guide": 12}),
+    ("A4", {"main_actions": 3, "file_guide": 9}),
+    ("Letter", {"main_actions": 3, "file_guide": 10}),
 ])
 def test_the_price_of_whole_rows_is_pinned(qapp, tmp_path, page, expect):
-    """Moving a tall row whole leaves the foot of the previous sheet blank.
+    """Keeping a row whole costs very little once the page skip is gone.
 
-    Only these two cards pay: Main Actions went 3 → 5 on A4 and 3 → 4 on
-    Letter, the folder guide 9 → 12 and 10 → 12. Every other card is unchanged.
-    Pinned so that a future change to the rule cannot quietly cost more paper.
+    These numbers replace 5/12 and 4/12, which were the cost of the Qt
+    double-break, not of the guarantee.
     """
     from PyQt6.QtCore import QMarginsF
     from PyQt6.QtGui import QPageLayout, QPageSize, QPdfWriter

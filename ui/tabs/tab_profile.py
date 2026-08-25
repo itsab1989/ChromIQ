@@ -4966,7 +4966,7 @@ class TabProfile(QWidget):
                 "looking for it.\n\n"
                 "This almost always means the ArgyllCMS folder is set to the "
                 "wrong place, or ArgyllCMS has been moved or removed. Open "
-                "Preferences (the gear at the top left) and check the "
+                "Preferences (the gear at the top right) and check the "
                 "ArgyllCMS folder — it should be the “bin” folder inside your "
                 "ArgyllCMS installation, for example "
                 "“/Applications/Argyll/bin”.\n\n"

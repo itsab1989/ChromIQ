@@ -829,6 +829,54 @@ def _i1_preset(slug: str, name: str, paper: str, cols: int, rows: int,
     )
 
 
+_I1_W75_DIR = "assets/charts/knut/rgb/i1pro75"
+
+#: Knut's SECOND i1Pro family, 7.5 mm patches (4.1.3-beta.13).
+#: Identical to `_I1_BASE` except for `sscale`, and that one field is the whole
+#: reason it is a separate family: 0.75 against 0.8 is the difference between a
+#: `sscale` is the SPACER scale, and it is in no family's `varying` set, so it
+#: cannot be a per-chart override — a difference in it has to be a base of its
+#: own, or every chart in the other family would move.
+#:
+#: (An earlier version of this note claimed the 8 mm base would print these at
+#: 7.37 mm. That was wrong: `sscale` does not touch patch width at all. The
+#: width difference comes from `margin_right` below — measured, 7.49 mm on
+#: A4/A3 against 7.41 with the 8 mm family's 6.0 mm margin.)
+#:
+#: `margin_right` is 4.0 here against the 8 mm family's 6.0, and that must live
+#: in the BASE rather than on each chart: the importer only emits a varying
+#: field when it differs from the batch, so every A4 and A3 chart of this
+#: family stays silent about it and would otherwise inherit 6.0. Measured
+#: across all nineteen exports: 4.0 on A4 and A3, 9.0 on US Letter.
+_I1_75_BASE: dict = dict(_I1_BASE, sscale=0.75, margin_right=4.0)
+
+
+def _i1_75_preset(slug: str, name: str, paper: str, cols: int, rows: int,
+                  patches: int, pages: int, white: int, black: int,
+                  margin_right: float | None = None,
+                  margin_bottom: float | None = None) -> "_Ti1Preset":
+    """One chart of Knut's 7.5 mm i1Pro family (see :data:`_I1_75_BASE`).
+
+    The same shape as :func:`_i1_preset`; only the base recipe and the asset
+    folder differ.
+    """
+    return _Ti1Preset(
+        slug, name, _KNUT_I1, paper,
+        1.0,        # printtarg -a: unused, the engine lays this family out
+        6,          # printtarg -m: likewise unused (margins live in the recipe)
+        pages,
+        ti1_asset=f"{_I1_W75_DIR}/{slug}/chart.ti1",
+        patches=patches, white=white, black=black,
+        tiff_16bit=False, suffix="",
+        layout_recipe=dict(_I1_75_BASE, paper=paper, area_cols=cols,
+                           **({"margin_right": margin_right}
+                              if margin_right is not None else {}),
+                           **({"margin_bottom": margin_bottom}
+                              if margin_bottom is not None else {}),
+                           area_rows=rows),
+    )
+
+
 def _p3_preset(slug: str, name: str, paper: str, cols: int, rows: int,
                patches: int, pages: int, white: int, black: int) -> "_Ti1Preset":
     """One chart of Knut's i1Pro 3 Plus family (see _P3_BASE above).
@@ -1103,12 +1151,75 @@ KNUT_PRESETS: list[_Ti1Preset] = [
     _i1_preset("i1_w8_a4_572p_1page_portrait_w8_0mm",
                "A4-572p-1page-Portrait-w8.0mm",
                "A4", 22, 26, 572, 1, 2, 2),
-    _Ti1Preset("fls_i1pro_a4_924p_2pages_portrait", "A4-924p-2pages-Portrait-w7.5mm" + KNUT_FLS_SUFFIX,
-               _KNUT_I1, "A4", 0.98, 10, 2,
-               ti1_asset=f"{_KNUT_FLS_DIR}/fls_i1pro_a4_924p_2pages_portrait/chart.ti1", patches=924, white=9, black=8, no_strip_limit=False, suppress_left_clip=False, tiff_16bit=False, suffix=KNUT_FLS_SUFFIX),
-    _Ti1Preset("fls_i1pro_a4_924p_2pages_portrait_nature_focus", "A4-924p-2pages-Portrait-w7.5mm-Nature Focus" + KNUT_FLS_SUFFIX,
-               _KNUT_I1, "A4", 0.98, 10, 2,
-               ti1_asset=f"{_KNUT_FLS_DIR}/fls_i1pro_a4_924p_2pages_portrait_nature_focus/chart.ti1", patches=924, white=9, black=8, no_strip_limit=False, suppress_left_clip=False, tiff_16bit=False, suffix=KNUT_FLS_SUFFIX),
+    # ---- Knut's 7.5 mm i1Pro family (4.1.3-beta.13) --------------------
+    # A SECOND i1Pro family, and it had to be one: these carry `sscale` 0.75
+    # where `_I1_BASE` says 0.8, and `sscale` is in no `varying` set, so they
+    # cannot be per-chart overrides of the 8 mm family. Through that family's
+    # base, `margin_right` would be 6.0 instead of 4.0 and the patch would come
+    # out 7.41 mm against the 7.49 these actually print — inside the ±0.5 mm
+    # check meant to catch exactly this. See `_I1_75_BASE`.
+
+    _i1_75_preset("i1_w75_a4_162p_1page_portrait_w7_5mm",
+                  "A4-162p-1page-Portrait-w7.5mm",
+                  "A4", 24, 27, 162, 1, 1, 1),
+    _i1_75_preset("i1_w75_a4_324p_1page_portrait_w7_5mm",
+                  "A4-324p-1page-Portrait-w7.5mm",
+                  "A4", 24, 27, 324, 1, 1, 1),
+    _i1_75_preset("i1_w75_a4_648p_1page_portrait_w7_5mm",
+                  "A4-648p-1page-Portrait-w7.5mm",
+                  "A4", 24, 27, 648, 1, 1, 1),
+    _i1_75_preset("i1_w75_a4_1296p_2pages_portrait_w7_5mm",
+                  "A4-1296p-2pages-Portrait-w7.5mm",
+                  "A4", 24, 27, 1296, 2, 1, 1),
+    _i1_75_preset("i1_w75_a4_1944p_3pages_portrait_w7_5mm",
+                  "A4-1944p-3pages-Portrait-w7.5mm",
+                  "A4", 24, 27, 1944, 3, 1, 1),
+    _i1_75_preset("i1_w75_a4_2592p_4pages_portrait_w7_5mm",
+                  "A4-2592p-4pages-Portrait-w7.5mm",
+                  "A4", 24, 27, 2592, 4, 2, 2),
+    _i1_75_preset("i1_w75_a4_3240p_5pages_portrait_w7_5mm",
+                  "A4-3240p-5pages-Portrait-w7.5mm",
+                  "A4", 24, 27, 3240, 5, 2, 2),
+    _i1_75_preset("i1_w75_a4_3888p_6pages_portrait_w7_5mm",
+                  "A4-3888p-6pages-Portrait-w7.5mm",
+                  "A4", 24, 27, 3888, 6, 2, 2),
+    _i1_75_preset("i1_w75_letter_162p_1page_portrait_w7_5mm",
+                  "Letter-162p-1page-Portrait-w7.5mm",
+                  "Letter", 24, 27, 162, 1, 1, 1, margin_right=9.0, margin_bottom=15.0),
+    _i1_75_preset("i1_w75_letter_324p_1page_portrait_w7_5mm",
+                  "Letter-324p-1page-Portrait-w7.5mm",
+                  "Letter", 24, 27, 324, 1, 1, 1, margin_right=9.0, margin_bottom=15.0),
+    _i1_75_preset("i1_w75_letter_648p_1page_portrait_w7_5mm",
+                  "Letter-648p-1page-Portrait-w7.5mm",
+                  "Letter", 24, 27, 648, 1, 1, 1, margin_right=9.0, margin_bottom=15.0),
+    _i1_75_preset("i1_w75_letter_1296p_2pages_portrait_w7_5mm",
+                  "Letter-1296p-2pages-Portrait-w7.5mm",
+                  "Letter", 24, 27, 1296, 2, 1, 1, margin_right=9.0, margin_bottom=15.0),
+    _i1_75_preset("i1_w75_letter_1944p_3pages_portrait_w7_5mm",
+                  "Letter-1944p-3pages-Portrait-w7.5mm",
+                  "Letter", 24, 27, 1944, 3, 1, 1, margin_right=9.0, margin_bottom=15.0),
+    _i1_75_preset("i1_w75_letter_2592p_4pages_portrait_w7_5mm",
+                  "Letter-2592p-4pages-Portrait-w7.5mm",
+                  "Letter", 24, 27, 2592, 4, 2, 2, margin_right=9.0, margin_bottom=15.0),
+    _i1_75_preset("i1_w75_letter_3240p_5pages_portrait_w7_5mm",
+                  "Letter-3240p-5pages-Portrait-w7.5mm",
+                  "Letter", 24, 27, 3240, 5, 2, 2, margin_right=9.0, margin_bottom=15.0),
+    _i1_75_preset("i1_w75_letter_3888p_6pages_portrait_w7_5mm",
+                  "Letter-3888p-6pages-Portrait-w7.5mm",
+                  "Letter", 24, 27, 3888, 6, 2, 2, margin_right=9.0, margin_bottom=15.0),
+    _i1_75_preset("i1_w75_a3_1404p_1page_landscape_w7_5mm",
+                  "A3-1404p-1page-Landscape-w7.5mm",
+                  "420x297", 52, 27, 1404, 1, 3, 3),
+    _i1_75_preset("i1_w75_a3_2808p_2pages_landscape_w7_5mm",
+                  "A3-2808p-2pages-Landscape-w7.5mm",
+                  "420x297", 52, 27, 2808, 2, 1, 1),
+    _i1_75_preset("i1_w75_a3_4212p_3pages_landscape_w7_5mm",
+                  "A3-4212p-3pages-Landscape-w7.5mm",
+                  "420x297", 52, 27, 4212, 3, 1, 1),
+    # The two A4-924p "Full layout setup" charts were WITHDRAWN by Knut
+    # (4.1.3-beta.13) and replaced by the fuller w7.5mm series. They were
+    # the last printtarg-path rows in this table; the branch itself stays
+    # live because TC9.18 by Pharmacist still uses it.
     _i1_preset("i1_w8_a4_1144p_2pages_portrait_w8_0mm",
                "A4-1144p-2pages-Portrait-w8.0mm",
                "A4", 22, 26, 1144, 2, 2, 2),
@@ -2013,6 +2124,35 @@ class _SkipReset(Exception):
     """The rows on screen belong to the build, not to the target."""
 
 
+def _is_named(file_mgr, *, unknown: bool = False) -> bool:
+    """Whether a project has a NAME yet, tolerantly.
+
+    A MODULE FUNCTION, not a method. Several tests borrow single methods of
+    `TabChart` onto small stand-in classes, so anything reached through `self.`
+    is simply not there — a helper method here took out six of them. It is also
+    asked through `getattr` because ~100 tests stand a double in for the real
+    FileManager, and one that implements `working_dir()` but not `is_named`
+    would raise: that is exactly how an earlier guard in this file broke four
+    doubles. A double that cannot answer is read as "not named", which is the
+    safe reading for every caller — they all use it to decide whether writing
+    is allowed, and refusing to write is never the destructive answer.
+
+    *unknown* is what a double that cannot answer should be READ as, and each
+    caller must say which, because the safe direction is not the same: for the
+    "is anything at risk?" question, assuming a project exists keeps the
+    protection on; for "may I invent a name?", assuming one does not keeps the
+    guard on. A single default silently disarmed one of them.
+    """
+    fn = getattr(file_mgr, "is_named", None)
+    if not callable(fn):
+        name = getattr(file_mgr, "_target_name", None)
+        return bool(name) if name is not None else unknown
+    try:
+        return bool(fn())
+    except Exception:      # noqa: BLE001 — never let a guard crash the UI
+        return unknown
+
+
 class TabChart(QWidget):
     """Step 1: create targen/printtarg test chart."""
 
@@ -2237,8 +2377,9 @@ class TabChart(QWidget):
                 "a new name instead). Your work is saved automatically; there's no "
                 "Save button to remember.\n\n"
                 "Coming back to a profile later?\n"
-                "Click the magenta folder button in the header (top right) "
-                "to reopen a profile you started before — its chart, measurements "
+                "Click “Open Project” at the top left of the window — the "
+                "first of the three small buttons beside the ChromIQ logo — to "
+                "reopen a profile you started before. Its chart, measurements "
                 "and any finished profile are all exactly where you left them. It "
                 "asks for the profile's \"project.json\" file inside your ChromIQ "
                 "folder.\n\n"
@@ -9087,6 +9228,24 @@ class TabChart(QWidget):
                 self, min_width=520,
             ).exec()
             return
+        # A NAME IS REQUIRED — never invent one (Basti, #164 Q15).
+        #
+        # THE GUARD BELONGS HERE, NOT ONLY IN `_on_generate`. Seven of that
+        # method's paths reach this one through an early return ABOVE its own
+        # check — a user preset with an attached .ti1 (the route Knut hit), an
+        # applied editor chart, a prebuilt re-layout, TC9.18, a Spyderprint
+        # preset — and the ▶ "generate on select" branch walks straight in.
+        # Down at `base_name` the mutating `get_target_name()` then makes up
+        # `Printer_Paper_Type_Instr_<timestamp>`, CREATES that project and
+        # builds the whole chart into a folder nobody asked for and nobody
+        # would find again. Driven: selecting a saved user preset from a fresh
+        # start produced exactly that, with no dialog of any kind. Placed
+        # BEFORE the button is disabled below, so an early return needs no undo.
+        _field = self._active_name_field()
+        _typed = _field.text().strip() if _field is not None else ""
+        if not _typed and not _is_named(self._file_mgr):
+            self._ask_for_a_project_name(retry=tr("pick the preset again"))
+            return
         # THE BUILD STARTS HERE, not at the call to the creator further down.
         # Everything below — naming the target, re-aligning the run, arming the
         # verification snapshot — can fire the target-switch handler, which loads
@@ -9115,7 +9274,10 @@ class TabChart(QWidget):
         # Run type = Verification builds through the run root too — keep the
         # run's profiling chart (#130, Knut K3).
         self._arm_verification_snapshot()
-        base_name = self._file_mgr.get_target_name() or TC918_TARGET_NAME
+        # The guard above means a name is always set by now, so this getter
+        # can no longer invent one. The old `or TC918_TARGET_NAME` fallback
+        # only ever hid the fault.
+        base_name = self._file_mgr.get_target_name()
         params = self._collect_params()
         self._last_params = params  # for _stamp_chart_meta (see _on_generate)
         params.target_name = base_name
@@ -9614,7 +9776,7 @@ class TabChart(QWidget):
         except Exception:  # noqa: BLE001 — refresh must never block the rename
             log.warning("post-rename path refresh failed", exc_info=True)
 
-    def _ask_for_a_project_name(self) -> None:
+    def _ask_for_a_project_name(self, retry: "str | None" = None) -> None:
         """Say that the name is needed, name the exact box, and put the cursor
         in it (Basti, #164 Q15)."""
         guided = self._current_mode() == "guided"
@@ -9628,12 +9790,12 @@ class TabChart(QWidget):
                 "it all lives in, the name printed on the chart itself, and "
                 "the finished ICC profile.\n\n"
                 "Type a name into that box — the one just above the "
-                "“Generate Chart” button — and click “Generate Chart” again. "
+                "“Generate Chart” button — and {retry}. "
                 "Something that tells you which printer and paper it is for "
                 "works well, for example “Canon PRO-300 Baryta Gloss”.\n\n"
                 "You can rename it later; ChromIQ will offer to move the "
                 "folder with it."
-            ),
+            ).format(retry=retry or tr("click “Generate Chart” again")),
             self, min_width=540,
         ).exec()
         if field is not None:
@@ -9807,7 +9969,7 @@ class TabChart(QWidget):
         # would find again. Only ask when no project is open — once one is,
         # emptying the field is a rename question, and `_handle_target_rename`
         # owns that.
-        if not name and not self._file_mgr.is_named():
+        if not name and not _is_named(self._file_mgr):
             self._ask_for_a_project_name()
             return
         # If a target was already created this session and the user has now typed
@@ -10601,8 +10763,8 @@ class TabChart(QWidget):
         self._log.appendPlainText(tr(
             "The project was deleted, so ChromIQ is back where it starts: no "
             "project is open. Type a name into “Printer profile project name” "
-            "and create a chart to begin a new one, or use the folder icon to "
-            "open a project you already have."))
+            "and create a chart to begin a new one, or press “Open Project” at "
+            "the top left of the window to open one you already have."))
         # Tell Print and Measure to let go of the chart as well.
         self.chart_finished.emit([], None, False)
 
@@ -11659,6 +11821,14 @@ class TabChart(QWidget):
         there is something to move. A run with no results yet — the ordinary case
         while you are still settling on chart options — never sees it.
         """
+        # ASKING MUST NOT CREATE ANYTHING. The run lookup below goes through
+        # `FileManager.project()`, which resolves the working folder with the
+        # mutating `get_target_name()` — so with nothing open, merely asking
+        # "is anything at risk?" invented a project and wrote its manifest.
+        # Nothing can be displaced when no project is open, so the honest
+        # answer is "yes, go ahead".
+        if not _is_named(self._file_mgr, unknown=True):
+            return True
         ctl = getattr(self, "_target_ctl", None)
         # Duck-typed: several tests (and any other host) supply a target double
         # that predates the calibration run type. Asking for the attribute
@@ -13535,7 +13705,12 @@ class TabChart(QWidget):
             layout = doc.get("layout") or {}
             rects = layout.get("patches") or []
             recipe = layout.get("recipe") or {}
-            dpi = float(recipe.get("dpi") or 300)
+            # The rects are in the pixel space `layout["dpi"]` describes, so
+            # that is the only dpi that converts them. `recipe["dpi"]` is the
+            # requested render dpi and a derived layout has no recipe at all;
+            # NEVER guess 300 — an unknown dpi means an unknown size, and the
+            # panel already renders that honestly as "—".
+            dpi = float(layout.get("dpi") or recipe.get("dpi") or 0)
             if not rects or dpi <= 0:
                 return (0.0, 0.0)
             r0 = rects[0]
@@ -14359,6 +14534,12 @@ class TabChart(QWidget):
             return
         ti1 = getattr(self, "_current_ti1_path", None)
         if not (ti1 is not None and ti1.is_file()):
+            return
+        # A LIVE PREVIEW MUST NOT CREATE A PROJECT either. `_current_ti1_path`
+        # can point at a chart opened with "Open Chart File (.ti2)" that lives
+        # outside any project, so this is reachable with nothing named, and
+        # `_target_run()` below is the mutating getter's road again.
+        if not _is_named(self._file_mgr):
             return
         # Record the signature we're about to render so the post-render refresh
         # (same layout) doesn't immediately re-schedule another render.

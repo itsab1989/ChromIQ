@@ -548,6 +548,14 @@ def pytest_configure(config):
     sandbox = pathlib.Path(tempfile.mkdtemp(prefix="chromiq-settings-"))
     ini = sandbox / "ChromIQ.ini"
 
+    # …AND THE FILE-BACKED PRESET STORE, which the QSettings sandbox below does
+    # NOT cover. `core.platform_paths.presets_dir()` resolves to the real
+    # ~/Library/Preferences/ChromIQ/presets, so any test reaching
+    # `save_presets(...)` wrote into the developer's own preferences. Only one
+    # test does today and it patches correctly, but nothing enforced that.
+    os.environ.setdefault(
+        "CHROMIQ_PRESETS_DIR", str(sandbox / "presets"))
+
     def _sandboxed(*_args, **_kwargs):
         return QSettings(str(ini), QSettings.Format.IniFormat)
 

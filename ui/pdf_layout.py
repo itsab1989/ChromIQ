@@ -34,7 +34,7 @@ from __future__ import annotations
 from PyQt6.QtCore import QPointF, QRectF, QSizeF, Qt
 from PyQt6.QtGui import (QAbstractTextDocumentLayout, QColor, QFont,
                          QFontMetricsF, QPainter, QTextCursor, QTextFormat,
-                         QTextTable)
+                         QTextTable, QTextTableCellFormat)
 
 from core.i18n import tr
 from ui.styles import TAB_COLORS
@@ -246,34 +246,50 @@ def avoid_split_rows(doc, body_h: float, limit: int = 200) -> int:
         # retried, or a different table's row silently skipped.
         tried.add((table.firstPosition(), index))
         if index > table.format().headerRowCount() and index > 0:
-            # BREAK BEFORE THE ROW, NOT AFTER THE ONE ABOVE IT.
+            # BREAK AFTER THE ROW ABOVE, WITH ITS CELL PADDING ZEROED.
             #
-            # Ending a page at the last block INSIDE the row above satisfies
-            # every geometry check — each cell's text lands on the right page —
-            # but the row's remaining box, its padding and its bottom border,
-            # is painted on the NEXT page. That is the thin empty line Knut
-            # reported under the repeated header, and it was introduced by this
-            # very rule in 4.1.3-beta.2. It is invisible to `_row_extent`,
-            # which measures the text blocks in the cells rather than the row,
-            # so the audit that missed it was honest and blind: it has to be
-            # done in pixels.
+            # QT HONOURS `PageBreak_AlwaysBefore` ON A CELL BLOCK TWICE, so a
+            # row marked that way lands TWO pages on, always — which is the
+            # blank sheet Knut reported. In qtbase 6.8 `layoutTable` reads
+            # `flowPosition(cell.begin())`, already pushed a page down, and
+            # drops the row a page; on the relayout the same flag fires again
+            # inside the cell, through a `newPage()` that never checks whether
+            # the row is already at the top of a page. The row above is then
+            # stretched to the page bottom, which is the artefact you SEE, but
+            # it is a consequence and not the cause: a sweep with that row
+            # ending anywhere from 79 to 409 px of a 400 px page produces the
+            # blank sheet identically every time.
             #
-            # Breaking before the straddling row moves the row whole, so no box
-            # is left behind. It must be set on EVERY cell — on the first alone
-            # it does not land. Measured across all 18 cards, both page sizes:
-            # 6 empty bands become 0, no row's content is split, and only the
-            # two cards with very tall rows pay for it (Main Actions 3 → 5 on
-            # A4, the folder guide 9 → 12), because a tall row that will not
-            # fit now moves whole and leaves the foot of the sheet blank.
+            # Breaking AFTER the row above ends the page at the last block
+            # inside it, which is honoured once. On its own that leaves the
+            # row's padding and bottom border to be painted overleaf — the thin
+            # empty band of #164, which is why break-after was abandoned the
+            # first time. Zeroing that row's top and bottom cell padding is
+            # what removes it: the overshoot past the page boundary is exactly
+            # `pageTopMargin + bottomPadding`, and both terms read the cell's
+            # own padding property. Measured in pixels at 4x across all 18
+            # cards at A4 and US Letter: zero bands, where the naive
+            # break-after leaves bands of 12, 12, 7 and 8 px.
+            #
+            # The whole cost of Knut's "never cut a row" guarantee is 2 sheets
+            # across 36 renders (89 pages against 87 with the rules off), not
+            # the 10 the previous note claimed. That figure was the price of
+            # triggering this Qt bug, not the price of keeping rows whole —
+            # and it had been written into three tests as a fact.
             for col in range(table.columns()):
-                cell_block = table.cellAt(index, col).firstCursorPosition().block()
-                if not cell_block.isValid():
+                cell = table.cellAt(index - 1, col)
+                blk = cell.lastCursorPosition().block()
+                if not blk.isValid():
                     continue
-                fmt = cell_block.blockFormat()
-                if fmt.pageBreakPolicy() & before:
+                cf = QTextTableCellFormat(cell.format().toTableCellFormat())
+                cf.setTopPadding(0.0)
+                cf.setBottomPadding(0.0)
+                cell.setFormat(cf)
+                fmt = blk.blockFormat()
+                if fmt.pageBreakPolicy() & after:
                     continue
-                fmt.setPageBreakPolicy(before)
-                QTextCursor(cell_block).setBlockFormat(fmt)
+                fmt.setPageBreakPolicy(after)
+                QTextCursor(blk).setBlockFormat(fmt)
             moved += 1
             continue
         else:                      # only the repeated header sits above it

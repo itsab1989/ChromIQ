@@ -18,6 +18,7 @@ from __future__ import annotations
 import html
 
 from core.i18n import tr
+from ui.keyboard_help import keys_for
 
 
 def getting_started_card_title() -> str:
@@ -68,7 +69,7 @@ def _areas() -> "list[tuple[str, str, str]]":
          tr("What ChromIQ and ArgyllCMS are doing, and the full path of every "
             "file written. The first place to look when something surprises "
             "you.")),
-        (tr("Tools"), tr("the masthead, or Ctrl+T"),
+        (tr("Tools"), tr("the masthead, or {keys}").format(keys=keys_for("tools")),
          tr("Stand-alone tools in six groups — measurements, charts and patch "
             "sets, scanner and camera, i1Profiler interchange, profiles, and "
             "language.")),

@@ -3171,10 +3171,12 @@ class SettingsDialog(QDialog):
 
         intro_row = QHBoxLayout()
         intro = QLabel(tr(
-            "Default chart layout per instrument and paper. Pick a combination "
-            "above; its values below are the starting point Create Chart uses, "
-            "which you can still tweak per chart. Presets are saved as files you "
-            "can back up or share."), self)
+            "Default chart layout per instrument and paper. This tab opens on "
+            "the Instrument, Paper and Mode your current chart uses and shows "
+            "the layout saved for that combination — change any of the three "
+            "boxes below to work on a different one. These values are the "
+            "starting point Create Chart uses, which you can still tweak per "
+            "chart. Presets are saved as files you can back up or share."), self)
         intro.setWordWrap(True)
         intro.setStyleSheet("color: #909090; font-size: 11px;")
         intro_row.addWidget(intro, stretch=1)
@@ -3208,6 +3210,20 @@ class SettingsDialog(QDialog):
         self._layout_store = PresetStore.from_named_dict(
             load_presets("chart_layout", self._settings))
         self._loading_layout = False
+        # WHAT EACH INSTRUMENT WAS LAST SET TO, {inst: (paper, mode)}.
+        # Switching instrument rebuilds the Mode combo from scratch, and a
+        # rebuilt combo lands on its FIRST entry — so a ColorMunki preset saved
+        # under "High density (rig)" was read back under "Hand-held", missed,
+        # and the shipped defaults appeared in its place (Knut, 4.1.3-beta.13:
+        # *"If I now change back to Colormunki, then my previously saved
+        # settings are gone"*). Nothing was ever lost from the store, which is
+        # why cancelling and reopening brought them back. The paper is
+        # remembered here too, because not every instrument offers every paper
+        # (the SpectroScan has no 594x420): the paper the user is looking at is
+        # carried across when the new instrument offers it, and this is what
+        # brings it back when it does not.
+        self._layout_last_sel: dict[str, tuple[str, str]] = {}
+        self._layout_prev_instr: str | None = None
 
         # ---- selectors ----
         sel = QGridLayout()
@@ -3245,6 +3261,12 @@ class SettingsDialog(QDialog):
         self._layout_panel = LayoutOptionsPanel(self)
         self._layout_panel.changed.connect(self._on_layout_field_changed)
         v.addWidget(self._layout_panel)
+
+        # Saved-or-default. A combination that has never been saved has to read
+        # as "not saved yet", not as "my settings vanished" (Knut, beta.13).
+        self._layout_saved_hint = QLabel("", self)
+        self._layout_saved_hint.setWordWrap(True)
+        v.addWidget(self._layout_saved_hint)
 
         self._layout_calc = QLabel("", self)
         self._layout_calc.setWordWrap(True)
@@ -3536,19 +3558,47 @@ class SettingsDialog(QDialog):
 
     def _on_layout_instr_changed(self) -> None:
         from workflow.layout_engine import papers
+        was_loading = self._loading_layout
         self._loading_layout = True
         inst = self._layout_instr.currentData() or "i1"
-        prev_paper = self._layout_paper.currentData()
+        # File what the instrument we are LEAVING was set to, then take back
+        # whatever this one was last set to (see _layout_last_sel).
+        prev_inst = self._layout_prev_instr
+        if (prev_inst and prev_inst != inst and self._layout_mode.count()
+                and not getattr(self, "_building_layout_tab", False)):
+            # …but not while the tab is still being built: the combos are then
+            # showing i1/A4/clip only because that is index 0, and filing that
+            # as "what i1 was set to" would overwrite a real choice later.
+            self._layout_last_sel[prev_inst] = (
+                self._layout_paper.currentData() or "A4",
+                self._layout_mode.currentData() or "default")
+        self._layout_prev_instr = inst
+        was_paper, was_mode = self._layout_last_sel.get(inst, (None, None))
+        if was_mode is None and self._initial_layout_combo and \
+                self._initial_layout_combo[0] == inst:
+            _, was_paper, was_mode = self._initial_layout_combo
+        carried = self._layout_paper.currentData()
         self._layout_paper.clear()
         for code, label, _ in papers.list_papers(inst, for_engine=True):
             self._layout_paper.addItem(label, code)
-        i = self._layout_paper.findData(prev_paper)
+        # Paper: this instrument's own last choice wins (it may be a size the
+        # instrument we came from cannot even offer — the SpectroScan has no
+        # 594x420, so carrying its fallback A4 back would lose it); otherwise
+        # carry the paper on screen across, so an A3 user stays on A3.
+        i = self._layout_paper.findData(was_paper) if was_paper else -1
+        if i < 0:
+            i = self._layout_paper.findData(carried)
         if i < 0:
             i = self._layout_paper.findData("A4")   # sane default, not A2 (index 0)
         self._layout_paper.setCurrentIndex(i if i >= 0 else 0)
         self._layout_mode.clear()
         for key, label in self._layout_modes(inst):
             self._layout_mode.addItem(label, key)
+        # Mode: the mode sets are disjoint between instruments, so there is
+        # nothing to carry — only this instrument's own last choice. Without
+        # this line the combo silently lands on index 0. THIS IS THE F1 FIX.
+        k = self._layout_mode.findData(was_mode) if was_mode else -1
+        self._layout_mode.setCurrentIndex(k if k >= 0 else 0)
         from ui.dialogs.layout_options_panel import LayoutOptionsPanel
         self._layout_mode_lbl.setText(LayoutOptionsPanel.mode_label_for(inst))
         self._layout_mode_tip.set_content(*LayoutOptionsPanel.mode_tooltip_for(inst))
@@ -3556,7 +3606,11 @@ class SettingsDialog(QDialog):
         is_band = inst in ("CM", "SS")
         self._layout_clip_enable.setVisible(is_band)
         self._layout_clip_enable_lbl.setVisible(is_band)
-        self._loading_layout = False
+        # RESTORE, don't clear: the combo rebuilds above fire _load_layout_combo,
+        # which used to end by setting this flag False while this handler still
+        # had work to do — so the guard it exists for was off for the rest of
+        # the rebuild.
+        self._loading_layout = was_loading
         self._load_layout_combo()
 
     def _layout_selection(self) -> tuple[str, str, str]:
@@ -3568,15 +3622,36 @@ class SettingsDialog(QDialog):
         if getattr(self, "_building_layout_tab", False):
             return                           # one load at the end of the build
         inst, paper, mode = self._layout_selection()
+        was_loading = self._loading_layout
+        if not was_loading:
+            # A settled selection — remember it, so leaving this instrument and
+            # coming back lands on the same combination (F1).
+            self._layout_prev_instr = inst
+            self._layout_last_sel[inst] = (paper, mode)
         recipe = self._layout_store.get(inst, paper, mode)
+        self._update_layout_saved_hint(inst, paper, mode)
         self._loading_layout = True
         self._layout_panel.set_recipe(recipe)
         # Mirror the loaded clip state into the CM/SS On/Off selector.
         i = self._layout_clip_enable.findData(
             "on" if self._layout_panel.clip_enabled() else "off")
         self._layout_clip_enable.setCurrentIndex(i if i >= 0 else 0)
-        self._loading_layout = False
+        self._loading_layout = was_loading
         self._update_layout_calc()
+
+    def _update_layout_saved_hint(self, inst: str, paper: str, mode: str) -> None:
+        """Say whether the values on screen are the user's own or ChromIQ's."""
+        w = getattr(self, "_layout_saved_hint", None)
+        if w is None:
+            return
+        if self._layout_store.has(inst, paper, mode):
+            w.setText(tr("Showing the layout you saved for this combination."))
+            w.setStyleSheet("color: #1a8f3c; font-size: 11px;")
+        else:
+            w.setText(tr("Nothing saved for this combination yet — these are "
+                         "ChromIQ's own defaults. Change any value below to "
+                         "save a layout for it."))
+            w.setStyleSheet("color: #c47f17; font-size: 11px;")
 
     def _on_layout_clip_enable_changed(self) -> None:
         if self._loading_layout:
@@ -3596,6 +3671,8 @@ class SettingsDialog(QDialog):
         if self._loading_layout:
             return
         self._layout_store.set(self._recipe_from_fields())
+        # The combination has a saved layout from this moment on — say so.
+        self._update_layout_saved_hint(*self._layout_selection())
         self._update_layout_calc()
 
     def _update_layout_calc(self) -> None:
@@ -3679,6 +3756,7 @@ class SettingsDialog(QDialog):
             encoding="utf-8")
 
     def _import_layout_presets(self) -> None:
+        import dataclasses
         import json
         from ui.widgets import open_file_dialog
         path = open_file_dialog(
@@ -3694,8 +3772,14 @@ class SettingsDialog(QDialog):
             return
         if isinstance(data, dict):
             from workflow.layout_engine.presets import LayoutRecipe
+            # A LAYOUT RECIPE, NOT JUST ANY OBJECT. LayoutRecipe.from_dict drops
+            # every key it does not know, so importing an unrelated JSON file
+            # produced a pile of DEFAULT recipes and silently overwrote the
+            # user's real presets under their default keys. Require at least one
+            # recognised field before believing an entry.
+            known = {f.name for f in dataclasses.fields(LayoutRecipe)}
             for k, vdict in data.items():
-                if isinstance(vdict, dict):
+                if isinstance(vdict, dict) and (set(vdict) & known):
                     self._layout_store.set(LayoutRecipe.from_dict(vdict))
             self._load_layout_combo()
 

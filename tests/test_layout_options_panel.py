@@ -204,18 +204,30 @@ def test_engine_info_line_from_recipe_reflects_recipe():
     assert "9×9 mm" not in s
 
 
-def test_colormunki_density_hidden_in_area_first(app):
-    """The Density selector is HIDDEN for ColorMunki in area-first (it doesn't
-    define the grid there — hidden, not greyed, like the Calculation-method rows
-    in patch-first), but stays shown for i1 clip / patch-first (#93, Knut)."""
+def test_colormunki_density_is_never_hidden(app):
+    """Density stays visible in EVERY layout mode — this reverses #93.
+
+    The original rule hid the Density selector for ColorMunki in area-first, on
+    the reasoning that it "doesn't define the grid there". Measured against
+    `geometry.patches_per_sheet`, that reasoning is wrong: in area-first with
+    columns and rows on auto — the SHIPPED default — density moves an A3 sheet
+    through **130 / 520 / 918 patches** across hand-held, rig and extra-high.
+    It is not moot; it is the entire input deciding the layout. It is moot only
+    when the grid is fully pinned, which is not the default.
+
+    Knut reported the symptom the other way round against beta.13 — that the
+    field was showing when the help said it would hide — so the fix is to the
+    PROMISE, not the panel. The old test asserted the hiding and was therefore
+    guarding the defect. **This reversal is flagged for Knut's sign-off.**
+    """
     from ui.dialogs.layout_options_panel import LayoutOptionsPanel
     p = LayoutOptionsPanel(with_selectors=True)
     p.show()
     p.instr.setCurrentIndex(p.instr.findData("CM"))
-    p.layout_mode.setCurrentIndex(p.layout_mode.findData("patch_first"))
-    assert p.mode.isVisibleTo(p)                    # density matters patch-first
-    p.layout_mode.setCurrentIndex(p.layout_mode.findData("area_first"))
-    assert not p.mode.isVisibleTo(p)               # moot in area-first → hidden
+    for mode in ("patch_first", "area_first"):
+        p.layout_mode.setCurrentIndex(p.layout_mode.findData(mode))
+        assert p.mode.isVisibleTo(p), (
+            f"Density is hidden in {mode}, but it changes how many patches fit")
     p.instr.setCurrentIndex(p.instr.findData("i1"))
     assert p.mode.isVisibleTo(p)                    # i1 clip still matters
 
@@ -686,3 +698,39 @@ def test_set_recipe_emits_changed_for_preview_refresh(app):
     out = panel.apply_to_recipe(LayoutRecipe(instrument="i1", paper="A4"))
     assert out.area_cols == 6 and out.area_rows == 9
     assert out.clip_content_mode == "notes"
+
+
+# --- Knut F3, 4.1.3-beta.13: the Density field and what the help promises
+# See .agent-reports/chartlayout-prefs-challenge.md
+
+def test_colormunki_density_is_shown_in_every_layout_mode(app):
+    """Density is NOT moot in "Prioritise chart area". Measured, patches per
+    A3 sheet, only cm_density varied (hand-held / rig / extra-high):
+
+        area_first, by_width, min width auto : 130 / 520 / 918
+        area_first, by_grid,  cols/rows auto : 270 / 540 / 756
+        area_first, by_grid,  pinned 20x30   : 600 / 600 / 600
+
+    It is moot only when the grid is fully pinned, which a new preset is not
+    (area_cols = area_rows = 0). It also states which ColorMunki accessory the
+    sheet is for, so hiding it stranded the user with whatever was last set.
+    """
+    from ui.dialogs.layout_options_panel import LayoutOptionsPanel
+    p = LayoutOptionsPanel(with_selectors=True)
+    p.show()
+    p.instr.setCurrentIndex(p.instr.findData("CM"))
+    for lm in ("patch_first", "area_first"):
+        p.layout_mode.setCurrentIndex(p.layout_mode.findData(lm))
+        assert p.mode.isVisibleTo(p), lm
+        assert p._mode_lbl.isVisibleTo(p), lm
+
+
+
+def test_the_density_help_does_not_promise_it_is_hidden(app):
+    """The help text and the code must agree. The promise was the wrong half."""
+    from ui.dialogs.layout_options_panel import LayoutOptionsPanel
+    _title, body = LayoutOptionsPanel.mode_tooltip_for("CM")
+    assert "hidden" not in body.lower()
+    assert "Only available with" not in body
+
+

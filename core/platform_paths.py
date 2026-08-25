@@ -137,7 +137,17 @@ def presets_dir() -> Path:
 
     One subfolder per tab lives under this root. Users can browse, copy
     and share preset files with a normal file manager.
+
+    ``CHROMIQ_PRESETS_DIR`` overrides it, which is what the test suite sets.
+    The per-worker QSettings sandbox in ``tests/conftest.py`` protects
+    `AppSettings`, but NOT this file-backed store — so any test that reached
+    `save_presets(...)` wrote into the developer's real preferences folder.
+    Only one test does today, and it patches correctly, but nothing enforced
+    that. Mirrors ``CHROMIQ_DEMO_CACHE``.
     """
+    override = os.environ.get("CHROMIQ_PRESETS_DIR")
+    if override:
+        return Path(override)
     if is_windows():
         base = Path(os.environ.get("APPDATA", str(Path.home()))) / "ChromIQ"
     elif is_macos():

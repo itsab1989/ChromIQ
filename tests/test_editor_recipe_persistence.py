@@ -223,23 +223,26 @@ def test_dropdown_lists_only_presets_with_recipe(qapp, monkeypatch):
 def test_builtin_fulllayout_recipes_appear_starred(qapp):
     d = _NewChartDialog(Path("/x"), _FakeSettings())
     starred = [n for n in d._preset_recipes if n.startswith("★")]
-    # Every built-in that ships a sidecar recipe.json: the four remaining
+    # Every built-in that ships a sidecar recipe.json: the TWO remaining
     # Full-layout-setup charts (#63 — the 495p landscape one was withdrawn in
-    # #164), the six Scanner charts (#107, #108, #118), Knut's 45 ColorMunki
-    # charts (2026-08-16), his 24 i1Pro 3 Plus charts (2026-08-18) and his seven
-    # 8 mm i1Pro charts (#164, 2026-08-23).
-    assert len(starred) == 4 + 6 + 45 + 24 + 19
+    # #164, and the two A4-924p ones by Knut in 4.1.3-beta.13), the six Scanner
+    # charts (#107, #108, #118), Knut's 45 ColorMunki charts (2026-08-16), his
+    # 24 i1Pro 3 Plus charts (2026-08-18) and his 19 8 mm i1Pro charts
+    # (#164, 2026-08-23).
+    assert len(starred) == 2 + 6 + 45 + 24 + 19 + 19   # +19: the 7.5 mm i1Pro family
     assert sum(1 for n in starred if n.startswith("★ ColorMunki")) == 45
     assert sum(1 for n in starred if n.startswith("★ i1Pro 3 Plus")) == 24
     assert sum(1 for n in starred if "Scanner" in n) == 6
-    assert any("A4-924p" in n for n in starred)
 
 
 def test_custom_identical_to_builtin_is_skipped(qapp, monkeypatch):
     import core.preset_store as ps
     from ui.tabs.tab_chart import builtin_recipe_choices
-    name = "i1Pro A4-924p-2pages-Portrait-w7.5mm"
-    rec = builtin_recipe_choices()[name]   # the preset's bundled sidecar recipe
+    # A surviving built-in, asked for rather than named: the A4-924p pair this
+    # used to name was withdrawn by Knut in 4.1.3-beta.13.
+    choices = builtin_recipe_choices()
+    name = sorted(choices)[0]              # any built-in with a bundled recipe
+    rec = choices[name]                    # the preset's bundled sidecar recipe
     monkeypatch.setattr(ps, "load_presets", lambda tab, settings=None:
                         {name: {"editor_recipe": rec}})
     d = _NewChartDialog(Path("/x"), _FakeSettings())
@@ -249,7 +252,8 @@ def test_custom_identical_to_builtin_is_skipped(qapp, monkeypatch):
 
 def test_custom_differing_from_builtin_is_kept(qapp, monkeypatch):
     import core.preset_store as ps
-    name = "i1Pro A4-924p-2pages-Portrait-w7.5mm"
+    from ui.tabs.tab_chart import builtin_recipe_choices
+    name = sorted(builtin_recipe_choices())[0]   # any built-in
     monkeypatch.setattr(ps, "load_presets", lambda tab, settings=None:
                         {name: {"editor_recipe": {"mode": "generate",
                                                   "sp": {"cube_n": 3}}}})

@@ -1676,6 +1676,43 @@ def icc_profile_paths() -> list[str]:
     ]
 
 
+def chromiq_root_dir() -> Path:
+    """The ChromIQ working folder — the custom one when the user set one.
+
+    ONE definition. `_sidebar_urls` below hard-coded ``Path.home() / "ChromIQ"``
+    while `FileManager.root_dir` computed the same thing a second way, so the
+    two disagreed the moment "custom output path" was set: the sidebar offered
+    ~/ChromIQ while every file the app wrote went somewhere else.
+    """
+    from core.settings import AppSettings
+
+    try:
+        custom = AppSettings().get("custom_output_path", "")
+    except Exception:      # noqa: BLE001 — a file dialog is never worth a crash
+        custom = ""
+    return Path(custom) if custom else Path.home() / "ChromIQ"
+
+
+def _default_start_dir(extra_path: str = "") -> str:
+    """Where a ChromIQ browse starts when the caller does not say.
+
+    NOT the home folder. Everything ChromIQ makes — charts, .ti2, .ti3, the
+    finished ICC — lives under the working folder, so that is where a browse
+    begins. Knut reported it against "Open Chart File (.ti2)"; driven, EIGHT of
+    the nine file dialogs opened in $HOME and only Open Project was right.
+    Home remains the last resort, for a first launch where the working folder
+    does not exist yet.
+    """
+    for cand in (Path(extra_path) if extra_path else None, chromiq_root_dir()):
+        if cand is not None:
+            try:
+                if cand.is_dir():
+                    return str(cand)
+            except OSError:                     # unreadable / unmounted path
+                continue
+    return str(Path.home())
+
+
 def _sidebar_urls(extra_path: str = "", extra_paths: tuple | list = ()) -> list[QUrl]:
     # OS-correct, localized standard folders (Windows known-folders, localized
     # names on macOS/Linux) — Desktop, Images, Downloads, Documents — rather than
@@ -1688,7 +1725,7 @@ def _sidebar_urls(extra_path: str = "", extra_paths: tuple | list = ()) -> list[
         p = QStandardPaths.writableLocation(loc)
         if p:
             candidates.append(Path(p))
-    candidates.append(Path.home() / "ChromIQ")    # the app's working folder
+    candidates.append(chromiq_root_dir())        # the app's working folder
     if extra_path:
         candidates.append(Path(extra_path))
     for p in extra_paths:
@@ -1798,7 +1835,7 @@ def open_file_dialog(
     Returns the selected file path, or an empty string if cancelled.
     """
     native = _prefer_native_dialogs()
-    dlg = QFileDialog(parent, title, start_dir or str(Path.home()))
+    dlg = QFileDialog(parent, title, start_dir or _default_start_dir(extra_path))
     if not native:
         dlg.setOption(QFileDialog.Option.DontUseNativeDialog)
         _style_file_dialog_toolbar(dlg)
@@ -1912,7 +1949,7 @@ def open_files_dialog(
     an empty list if cancelled.
     """
     native = _prefer_native_dialogs()
-    dlg = QFileDialog(parent, title, start_dir or str(Path.home()))
+    dlg = QFileDialog(parent, title, start_dir or _default_start_dir(extra_path))
     if not native:
         dlg.setOption(QFileDialog.Option.DontUseNativeDialog)
         _style_file_dialog_toolbar(dlg)
@@ -1990,7 +2027,7 @@ def open_dir_dialog(
     Returns the selected directory path, or an empty string if cancelled.
     """
     native = _prefer_native_dialogs()
-    dlg = QFileDialog(parent, title, start_dir or str(Path.home()))
+    dlg = QFileDialog(parent, title, start_dir or _default_start_dir(extra_path))
     dlg.setOption(QFileDialog.Option.ShowDirsOnly, True)
     dlg.setFileMode(QFileDialog.FileMode.Directory)
     if not native:

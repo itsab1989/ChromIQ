@@ -353,25 +353,72 @@ def _dense_run(fill: np.ndarray) -> Optional[tuple[int, int]]:
     """First/last index of the patch block along one axis, given its fill
     profile (fraction inked per row/column).
 
-    Anchor on the densely-inked core (a full patch row/column is ≥
-    ``_PATCH_ROW_FILL`` inked) then extend outward through adjacent **half**
-    rows/columns (≥ ``_PATCH_EDGE_FILL``), stopping at the first near-white
-    cell. The half-cell tolerance catches the zig-zag edge of a double-density
-    (-h) chart, where the outermost strip row carries only ~half its patches
-    (#91); the white-gap stop keeps the sparse, rotated strip-label / title
-    band — always separated from the patches by bare paper — out of the box
+    THE STRIP LABELS USED TO BE ABLE TO ANCHOR THE BOX. This took the globally
+    outermost row over ``_PATCH_ROW_FILL`` and extended outward from there, so
+    the white-gap stop guarded only the EXTENSION and never the ANCHOR itself.
+    One-letter strip labels peak at 0.295 fill and are ignored; two-letter ones
+    ("AW AX AY…") peak at 0.575 and became the anchor — so on any chart with
+    roughly more than 21 strips per page the top of the box jumped up onto the
+    labels. Knut reported it on pages 2-3 of the pharmacist bundle (21.4 mm
+    where 45.5 mm is right); a plain `targen -f900` + `printtarg -ii1 -pA4`
+    chart reads 38.95 mm on page 1 and 8.47 mm on page 2, which also fired a
+    FALSE "top margin below the 38 mm instrument minimum" warning and inflated
+    the strip length by 24 mm.
+
+    "Longest inked run" is the obvious cure and is wrong: printtarg omits the
+    black separator where two neighbouring patches differ enough, so a mostly
+    white spacer row splits the block and the answer regresses by 8-13 mm on
+    other bundled charts. What holds is to MERGE runs across a short white gap,
+    then take the longest merged group that still contains a fully-inked row.
+
+    THE MERGE IS CHAINED, and that is deliberate but worth knowing: the gap is
+    compared against the ACCUMULATED group so far, not against the immediately
+    preceding run, so the threshold grows as merging proceeds and the rule is
+    more permissive than "shorter of its two neighbours" would be. Constructed
+    profiles can be made to exploit it — `A(100) gap5 B(10) gap30 C(80)`
+    swallows C, while `B(10) gap30 C(80)` alone refuses the same 30-px gap.
+    Nothing real is close: measured at the boundary that matters (the
+    strip-label band against the patch block) across 103 pages — 53 built, 40
+    adversarial, 17 bundled and the demo projects — the smallest safety ratio
+    is 1.44x on `SS -h -a0.5`, an unsupported extreme, and every i1Pro,
+    i1Pro 3 Plus and ColorMunki page is at least 3.11x.
+
+    The half-cell tolerance (``_PATCH_EDGE_FILL``) catches the zig-zag edge of
+    a double-density (-h) chart, where the outermost strip row carries only
+    ~half its patches (#91); requiring a fully-inked row in the winning group
+    keeps the sparse, rotated strip-label / title band out of the box
     (#91 right-margin follow-up).
     """
-    idx = np.where(fill > _PATCH_ROW_FILL)[0]
-    if idx.size == 0:
+    anchors = np.where(fill > _PATCH_ROW_FILL)[0]
+    if anchors.size == 0:
         return None
-    a, b = int(idx[0]), int(idx[-1])
+    inked = fill > _PATCH_EDGE_FILL
     n = fill.shape[0]
-    while a > 0 and fill[a - 1] > _PATCH_EDGE_FILL:
-        a -= 1
-    while b < n - 1 and fill[b + 1] > _PATCH_EDGE_FILL:
-        b += 1
-    return a, b
+    runs: list[list[int]] = []
+    i = 0
+    while i < n:
+        if not inked[i]:
+            i += 1
+            continue
+        j = i
+        while j + 1 < n and inked[j + 1]:
+            j += 1
+        runs.append([i, j])
+        i = j + 1
+    merged = [list(runs[0])]
+    for a, b in runs[1:]:
+        pa, pb = merged[-1]
+        gap = a - pb - 1
+        if gap < min(pb - pa + 1, b - a + 1):
+            merged[-1][1] = b
+        else:
+            merged.append([a, b])
+    best = None
+    for a, b in merged:
+        if fill[a:b + 1].max() > _PATCH_ROW_FILL and (
+                best is None or (b - a) > (best[1] - best[0])):
+            best = (a, b)
+    return best
 
 
 def _patch_area_bbox(arr: np.ndarray) -> Optional[tuple[int, int, int, int]]:

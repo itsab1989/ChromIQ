@@ -76,11 +76,25 @@ def test_a_greyed_button_says_why(qapp, tmp_path):
 
 
 def test_the_tooltip_is_cleared_once_it_can_be_pressed(qapp, tmp_path):
+    """The REASON it was greyed must go once it can be pressed.
+
+    It used to assert the tooltip was empty. Since 4.1.3-beta.15 an enabled
+    primary button carries its keyboard shortcut — "Start Measurement (⌘↵)" —
+    so emptiness is no longer the right test, and asserting it would have
+    forced that hint back off the one button of the five that shows it. What
+    matters is unchanged: no explanation of a block that no longer applies.
+    """
     tab = _tab(qapp)
     ti2 = tmp_path / "chart.ti2"
     ti2.write_text("CGATS.17\n")
     tab.set_ti1_path(ti2)
-    assert tab._start_btn.toolTip() == ""
+
+    tip = tab._start_btn.toolTip()
+    assert "chart" not in tip.lower(), (
+        f"the greyed-reason survived into an enabled button: {tip!r}")
+    assert "\n" not in tip, f"an explanation is still attached: {tip!r}"
+    assert tip == "" or "Start" in tip, (
+        f"expected either nothing or the button's own name + shortcut, got {tip!r}")
 
 
 def test_start_is_guarded_as_well_as_greyed():

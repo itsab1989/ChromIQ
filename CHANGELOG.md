@@ -1,5 +1,90 @@
 # Changelog
 
+## v4.1.3-beta.15
+
+Knut's review of beta.13, in full. Every one of the faults he reported turned
+out to be larger than it looked from the outside.
+
+### Added
+
+- **Three new help cards**, one for each of the tools that had none: “Design a
+  custom patch set for a chart”, “Spot-read the colour of a surface”, and
+  “Show or compare a chart's patch set in 3D”. Each explains what every button
+  in the window does, and the patch-set card answers the question Knut asked
+  directly — “New patch set” replaces what is in the window, “Add” extends it.
+
+- **Keyboard shortcuts now appear in tooltips.** Hovering a button that has a
+  shortcut shows it in brackets after the name — “Open Project (⌘O)”. The five
+  main buttons, one per tab, had no tooltip at all before; they now carry both
+  a name and their ⌘↵ shortcut.
+
+- **Nineteen new i1Pro charts** with 7.5 mm patches, in A4, US Letter and A3,
+  from 162 to 4212 patches. Two older A4-924p charts were withdrawn.
+
+### Fixed
+
+- **Help cards printed blank pages.** A table row that would not fit was moved
+  two pages on instead of one, leaving a whole sheet carrying nothing but the
+  repeated table header. Eight such sheets across the eighteen cards. “Overview
+  of Main Actions” goes from 5 sheets to 3, and the folder guide from 12 to 9.
+
+- **The patch size shown for a chart was wrong by a fifth.** All nine of the
+  “by Pharmacist” charts reported patches 20 % larger than they are — 8.99 mm
+  where the true size is 7.48 — because ChromIQ read the wrong figure for the
+  chart's resolution and fell back to assuming 300 dpi. The two panels beside
+  the preview now agree with each other and with the printed sheet.
+
+- **The margin guide lines sat in the wrong place on later pages.** On any
+  chart with roughly more than twenty-one strips a page, the top margin was
+  measured to the strip labels instead of the first row of patches — 8 mm where
+  38 is right. It also raised a false warning that the top margin was below the
+  instrument's minimum, and overstated the strip length by 24 mm.
+
+- **Settings in Preferences ▸ Chart Layout vanished when you switched
+  instrument.** Changing the instrument reset the density box to its first
+  entry, so ChromIQ looked for settings that had never been saved under that
+  combination and showed its own defaults instead. Nothing was ever lost from
+  disk — cancelling and reopening brought it all back — but there was no way to
+  tell that from the screen. The tab now says which you are looking at, and
+  explains that it opens on the combination your current chart uses.
+
+- **Choosing a preset with no project name created one you did not ask for.**
+  It made up a folder named after the date and built the whole chart into it,
+  with no message at all. ChromIQ now asks for a name. Two further routes that
+  could invent a project have been closed as well — including one where merely
+  asking “is anything at risk here?” created the folder.
+
+- **File dialogs opened in your home folder.** Eight of the nine started there
+  rather than in your ChromIQ folder, including “Open Chart File (.ti2)”.
+
+- **Help text sent you to a button that had moved** — and, worse, to a button
+  that still exists in that spot and does something else. Preferences was
+  described as being at the top left when it is at the top right.
+
+- **Three tooltips told Mac users to press “Ctrl”.** The chart editor's Undo and
+  Redo said Ctrl+Z while the Help card, two clicks away, said ⌘Z for the same
+  key. Fifteen more hard-typed shortcuts were sitting in the translations, each
+  wrong in its own language's spelling.
+
+- **Importing a set of charts could quietly change every chart in a family.**
+  The check that is meant to catch a chart that does not belong compared each
+  batch against its own first file, so a difference shared by the whole batch
+  passed unnoticed. It now compares against the family ChromIQ ships, and
+  refuses rather than folding the difference in.
+
+- **Importing chart-layout settings could overwrite the ones you had.** The
+  import accepted any JSON file and replaced real settings with defaults.
+
+- **The Start Measurement button lost its keyboard hint.** It was the only one
+  of the five main buttons that did not show its shortcut.
+
+### Behind the scenes
+
+- The test suite could write into your real ChromIQ preferences folder. Only
+  one test reached that far and it happened to guard against it, but nothing
+  enforced it; the suite now redirects the preset store to a scratch folder the
+  way it already does for the demo projects.
+
 ## v4.1.3-beta.14
 
 ### Added
