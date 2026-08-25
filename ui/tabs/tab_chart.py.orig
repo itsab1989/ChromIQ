@@ -1173,52 +1173,12 @@ class _Ti1Preset:
         return INSTRUMENT_GROUP_LABELS.get(self.file_group, self.file_group)
 
     @property
-    def has_full_layout_setup(self) -> bool:
-        """True when the row carries the "Full layout setup" marker.
-
-        Knut, 4.1.3-beta.16: *"it did not add the 'Full layout setup' text that
-        was on all presets before, except for the by pharmacist ones."* So the
-        rule is EVERY built-in except the nine "by Pharmacist" charts — and
-        those nine are not ``_Ti1Preset`` objects at all (they are
-        ``PREBUILT_PRESETS`` rows in ``BUILTIN_PRESET_GROUPS``), so they cannot
-        reach this property. Measured: 130 rows, 121 in ``KNUT_PRESETS``, and
-        every one of the other nine says "by Pharmacist". The existing rule
-        ``tests/test_prebuilt_presets_offer_no_setup.py`` pins the same split.
-
-        THE OTHER CANDIDATE PREDICATE, and why it is not this one:
-        ``builtin_preset_recipe(self.key) is not None`` — "does the patch-set
-        editor actually get the design?" — gives 115, excluding the six Red
-        River charts, which carry a ``layout_recipe`` (geometry) but no
-        ``recipe.json`` (the colour-set design the editor loads). If those six
-        are ever given a sidecar the two rules agree; until then this one marks
-        six rows the editor cannot load. Swap this ``True`` for that call to
-        change the rule — nothing else moves.
-        """
-        return True
-
-    @property
-    def marked_name(self) -> str:
-        """``name`` plus the "Full layout setup" marker, for DISPLAY only.
-
-        NEVER put this in ``name``. ``name`` feeds two identities:
-        ``default_target_name`` (the suggested PROJECT FOLDER) via
-        ``_sortable_builtin_name``, and ``_recipe_display_key`` (the key a user
-        preset is de-duplicated against, whose own docstring warns that
-        widening it "would orphan every custom preset already saved under the
-        old name"). Marking ``name`` would rename 121 suggested folders AND
-        orphan every custom preset saved under the old recipe keys.
-        """
-        if not self.has_full_layout_setup or KNUT_FLS_SUFFIX in self.name:
-            return self.name          # the #63 family already carries it
-        return self.name + KNUT_FLS_SUFFIX
-
-    @property
     def combo_label(self) -> str:
         """The dropdown row. It keeps the SHORT device token, because the group
         heading above it already spells the instrument out in the Instrument
         field's words — repeating "ColorMunki / i1Studio / ColorChecker Studio"
         on all 49 rows would push the chart's own name off the edge."""
-        return f"★  {self.file_group} · {self.marked_name}  ·  built-in"
+        return f"★  {self.file_group} · {self.name}  ·  built-in"
 
     @property
     def overlay_label(self) -> str:
@@ -2175,15 +2135,6 @@ BUILTIN_PRESET_GROUPS: list[tuple[str, list[tuple[str, str, str]]]] = [
         *_KNUT_GROUP_ENTRIES["Red River Paper"],
     ]),
 ]
-
-
-def _marked_overlay_label(key: str, label: str) -> str:
-    """The ★-overlay row for a built-in: its overlay label plus the "Full layout
-    setup" marker when the preset carries one. The nine prebuilt ("by
-    Pharmacist") rows are not _Ti1Presets, so they are returned unchanged —
-    which is exactly Knut's rule."""
-    p = KNUT_PRESETS_BY_KEY.get(key)
-    return p.marked_name if p is not None else label
 
 
 def comparable_presets(settings) -> list[tuple[str, list[tuple[str, "Path"]]]]:
@@ -7288,14 +7239,8 @@ class TabChart(QWidget):
     def _open_builtin_preset_overlay(self) -> None:
         """Show the speech-bubble overlay of built-in presets under the star button."""
         from ui.theme import resolve_mode
-        # The marker rides on the overlay ROW, but NOT on `overlay_label`
-        # itself: `comparable_presets` (#66 "Compare with profile") reads the
-        # same tuple slot, and that dialog is about a PATCH SET, where "Full
-        # layout setup" would be 121 rows of noise about something it does not
-        # show.
         groups = [
-            (instr, [(_marked_overlay_label(key, overlay_label), key)
-                     for (_combo, overlay_label, key) in entries])
+            (instr, [(overlay_label, key) for (_combo, overlay_label, key) in entries])
             for instr, entries in BUILTIN_PRESET_GROUPS
         ]
         popup = BuiltinPresetPopup(groups, self)

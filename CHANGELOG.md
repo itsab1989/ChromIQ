@@ -1,5 +1,52 @@
 # Changelog
 
+## v4.1.3-beta.17
+
+Knut's Red River presets, exactly as he sent them, and the repair for projects
+whose files were split by the dotted-name bug.
+
+### Fixed
+
+- **The Red River presets are Knut's own again.** All six were replaced with the
+  files he supplied, field for field: the markers-per-patch values he chose (5
+  on the i1Pro charts, 7 on the ColorMunki A4 8-page, 3 on the rest), his
+  ColorMunki margins, the clip band on the right with flip 180° for ColorMunki
+  and on the left for i1Pro, and his 9-page ColorMunki charts in place of the
+  10-page ones. The old six were removed entirely rather than edited.
+  A test now reads his files from a fixture and checks every field, so a value
+  cannot be changed by accident again — which is how the previous set drifted:
+  a ruler-marks change wrote one markers-per-patch value across all six and
+  overwrote the per-chart values he had measured.
+- **“Full layout setup” is back on the preset list** — on every built-in except
+  the nine “by Pharmacist” charts, which is the rule Knut asked for. It is added
+  to the displayed row only, never to the preset's stored name: that name feeds
+  both the suggested project-folder name and the key custom presets are matched
+  against, so marking it there would have renamed 121 suggested folders and
+  orphaned every custom preset already saved.
+
+### Added
+
+- **Projects broken by the dotted-name bug are repaired when you open them.**
+  Charts built before beta.16 under a name containing a dot had their files
+  written under two different names, which left the project unmeasurable.
+  ChromIQ now puts those files back under one name on open, so sheets you have
+  already printed stay readable and nothing has to be rebuilt or reprinted.
+  It renames only files it can prove came from that bug — a truncated name, no
+  file already holding the correct one, the run's own `.ti1` confirming the full
+  name, and the strip file that only ChromIQ's own layout engine writes. Every
+  rename is recorded in `name-repair.json` inside the project, so it can be read
+  back or undone by hand, and the record is written before anything moves, so an
+  interrupted repair finishes rather than restarting. Set
+  `CHROMIQ_NAME_REPAIR=dry` to see what it would do without doing it, or `off`
+  to switch it off entirely.
+- **Preferences ▸ Chart Layout jumps to the density your layout is saved under**
+  when you switch instrument, and says so underneath, instead of landing on the
+  first density and showing factory defaults — which read as “my settings are
+  gone” when they were one box away. The paper you are working on never moves.
+
+Gate: 7426 passed.
+
+
 ## v4.1.3-beta.16
 
 Knut's beta.15 review, plus four faults nobody reported — three of which were

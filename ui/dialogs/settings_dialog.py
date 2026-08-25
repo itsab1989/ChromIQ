@@ -3610,6 +3610,32 @@ class SettingsDialog(QDialog):
         # nothing to carry — only this instrument's own last choice. Without
         # this line the combo silently lands on index 0. THIS IS THE F1 FIX.
         k = self._layout_mode.findData(was_mode) if was_mode else -1
+        # NOTHING IS REMEMBERED FOR THIS INSTRUMENT, so we are about to land on
+        # index 0 — Hand-held for a ColorMunki — and fill the screen with our
+        # own defaults while the user's saved layout sits one box away. That is
+        # Knut's report, and it is why the density combo now lands on a
+        # combination this instrument+paper actually HAS. Density stays part of
+        # the storage key (measured: 126/252/361 patches per A4 sheet), so this
+        # moves the selection, never the key.
+        #
+        # Order is the density combo's OWN order — the order on screen. There
+        # is deliberately no "most recently used": PresetStore.keys() is
+        # `sorted()` with no timestamp, and the per-key file mtimes are
+        # "last written", which a folder copy, a restore or a sync silently
+        # rewrites. A guess the user cannot explain is worse than the first one
+        # they can see.
+        self._layout_jumped_to = ""
+        if k < 0 and not getattr(self, "_building_layout_tab", False):
+            paper_now = self._layout_paper.currentData() or "A4"
+            saved = [self._layout_mode.itemData(n)
+                     for n in range(self._layout_mode.count())
+                     if self._layout_store.has(
+                         inst, paper_now, self._layout_mode.itemData(n) or "")]
+            if saved:
+                j = self._layout_mode.findData(saved[0])
+                if j >= 0:
+                    k = j
+                    self._layout_jumped_to = self._layout_mode.itemText(j)
         self._layout_mode.setCurrentIndex(k if k >= 0 else 0)
         from ui.dialogs.layout_options_panel import LayoutOptionsPanel
         self._layout_mode_lbl.setText(LayoutOptionsPanel.mode_label_for(inst))
@@ -3624,6 +3650,10 @@ class SettingsDialog(QDialog):
         # the rebuild.
         self._loading_layout = was_loading
         self._load_layout_combo()
+        # Announce the jump ONCE. The flag has to survive until here: the
+        # setCurrentIndex above already fired _load_layout_combo through the
+        # signal, and the final call is the one whose hint the user reads.
+        self._layout_jumped_to = ""
 
     def _layout_selection(self) -> tuple[str, str, str]:
         return (self._layout_instr.currentData() or "i1",
@@ -3656,14 +3686,66 @@ class SettingsDialog(QDialog):
         w = getattr(self, "_layout_saved_hint", None)
         if w is None:
             return
+        # Every OTHER combination this instrument has a layout saved for, named
+        # in the words the two combo boxes use. Listing them (rather than
+        # counting them) keeps one sentence true whether there is one or five —
+        # no "(s)", no singular/plural variants to keep in step across
+        # thirteen translations.
+        others, more_papers = self._other_saved_layouts(inst, paper, mode)
+        also = ""
+        if others:
+            also = (tr("You also have a layout saved for: {combinations}.")
+                    .format(combinations=", ".join(others)))
+        if more_papers:
+            # Deliberately NOT enumerated. Listing every combination was
+            # measured at 2,021 characters and 168 px of label for a user who
+            # has saved one layout per paper and density (13 papers x 3) — it
+            # pushed the patches-per-sheet line and the buttons off the page.
+            # The question the user has is about the paper in the box, so the
+            # sentence answers that and mentions the rest without reciting it.
+            also = " ".join(x for x in (also, tr(
+                "Other paper sizes have layouts saved too.")) if x)
         if self._layout_store.has(inst, paper, mode):
-            w.setText(tr("Showing the layout you saved for this combination."))
+            jumped = getattr(self, "_layout_jumped_to", "")
+            head = (tr("Density moved to \u201c{mode}\u201d — that is where the "
+                       "layout you saved for this instrument and paper is.")
+                    .format(mode=jumped) if jumped
+                    else tr("Showing the layout you saved for this combination."))
+            w.setText(" ".join(x for x in (head, also) if x))
             w.setStyleSheet("color: #1a8f3c; font-size: 11px;")
         else:
-            w.setText(tr("Nothing saved for this combination yet — these are "
-                         "ChromIQ's own defaults. Change any value below to "
-                         "save a layout for it."))
+            w.setText(" ".join(x for x in (
+                tr("Nothing saved for this combination yet — these are "
+                   "ChromIQ's own defaults. Change any value below to "
+                   "save a layout for it."), also) if x))
             w.setStyleSheet("color: #c47f17; font-size: 11px;")
+
+    def _other_saved_layouts(self, inst: str, paper: str,
+                             mode: str) -> tuple[list[str], bool]:
+        """``(labels for THIS paper, are there any on other papers?)``.
+
+        Only the current paper is enumerated — at most two entries — because
+        that is the question the user actually has ("where is my layout for
+        this instrument and this paper?"), and because the full cross-product
+        is 13 papers x 3 densities. In the combo boxes' own order and own
+        words, so the sentence names something the user can go and click
+        rather than a storage key.
+        """
+        out: list[str] = []
+        for mi in range(self._layout_mode.count()):
+            mcode = self._layout_mode.itemData(mi)
+            if not mcode or mcode == mode:
+                continue
+            if self._layout_store.has(inst, paper, mcode):
+                out.append(self._layout_mode.itemText(mi))
+        more = any(
+            self._layout_store.has(inst, pcode, mcode)
+            for pi in range(self._layout_paper.count())
+            for mi in range(self._layout_mode.count())
+            if (pcode := self._layout_paper.itemData(pi)) and pcode != paper
+            and (mcode := self._layout_mode.itemData(mi))
+        )
+        return out, more
 
     def _on_layout_clip_enable_changed(self) -> None:
         if self._loading_layout:

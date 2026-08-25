@@ -1353,6 +1353,10 @@ class Project:
         #: The project still opens (no format ever moves the valuable files),
         #: but the UI should tell the user to update ChromIQ (#127).
         self.schema_too_new: bool = manifest.schema_version > SCHEMA_VERSION
+        #: How many files the truncated-stem repair renamed on THIS load (0 for
+        #: every project that was never affected). The window uses it for one
+        #: statusbar line; nothing else depends on it.
+        self.repaired_names: int = 0
 
     # ---- identity
     @property
@@ -1419,6 +1423,20 @@ class Project:
         rp = proj.readme_path
         if not rp.exists() or rp.stat().st_size == 0:
             proj.write_readme()
+        # Repair file stems truncated by the pre-4.1.3-beta.16 layout-engine
+        # bug. Deliberately NOT gated on schema_version: being affected depends
+        # on the project's NAME and on which build made its chart, not on the
+        # manifest format, and a schema bump would run once and then never
+        # again on a project an older ChromIQ had re-broken. It is free for an
+        # undotted project (one string operation) and one stat() for a project
+        # already repaired. See core/name_repair.py for why it cannot touch the
+        # wrong file, and CHROMIQ_NAME_REPAIR=dry to see what it would do.
+        try:
+            from core.name_repair import repair_project
+            from core.version import APP_VERSION
+            proj.repaired_names = repair_project(proj, app_version=APP_VERSION)
+        except Exception as exc:      # noqa: BLE001 — opening must never fail
+            log.warning("name repair skipped for %s: %s", root, exc)
         return proj
 
     @classmethod
