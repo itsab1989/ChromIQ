@@ -287,6 +287,7 @@ _ANSI_RE = re.compile(r"\x1b(?:\[[0-9;]*[A-Za-z]|\][^\x07]*\x07|[()][AB012]|[=>]
 
 class ArgyllRunner(QObject):
     line_received   = pyqtSignal(str)
+    started         = pyqtSignal()      # a tool actually began running
     finished        = pyqtSignal(int)   # exit code
     keypress_failed = pyqtSignal(str, str)  # (key_label, reason) — Windows injection failed
     _pty_done       = pyqtSignal(int, int)   # internal: PTY reader → main thread (exit code, run generation)
@@ -357,6 +358,11 @@ class ArgyllRunner(QObject):
         use_pty: bool = False,
     ) -> None:
         if self.is_running:
+            # Not a failed START — a refused one. Leaving the flag set made the
+            # Build Profile tab say "the program was not found, check
+            # Preferences" for a run whose real cause was "something else is
+            # running".
+            self.last_failed_to_start = None
             log.warning("ArgyllRunner: already running, ignoring run(%s)", tool)
             # Never leave the caller waiting for a finish that can't come —
             # a silently dropped run() deadlocked the scanner tool's Check
@@ -390,14 +396,39 @@ class ArgyllRunner(QObject):
 
         self._run_on_finish = on_finish
         self._run_on_line   = on_line
+        self._run_tool      = tool      # for the failed-to-start message
 
         self._process.readyReadStandardOutput.connect(self._on_ready_read)
         self._process.finished.connect(self._on_finished)
+        # A PROCESS THAT NEVER STARTS MUST STILL REPORT BACK.
+        # `finished` is emitted only by a process that actually ran. When the
+        # binary is missing or not executable, QProcess emits `errorOccurred`
+        # (FailedToStart) and NOTHING else — so every caller's `on_finish` was
+        # simply never called. Driven with argyll_bin_path pointing at nothing
+        # and an empty PATH: `on_finish called with: []`, `is_running: False`.
+        # The Build Profile tab greys the tabs and (since #164) the masthead
+        # before starting, and unlocks only from `on_finish` — so a mistyped
+        # Argyll path locked the user out of their own Preferences, which is
+        # the one place they could have fixed it, until they restarted.
+        self._process.errorOccurred.connect(self._on_failed_to_start)
 
         if on_line:
             self.line_received.connect(on_line)
 
+        # QProcess's OWN `started` — it fires only when the program really
+        # began. Emitting ours straight after `start()` was a lie on the one
+        # path that matters: `start()` returns immediately, and a missing
+        # binary reports through `errorOccurred` afterwards, so `started` was
+        # emitted for a tool that never ran.
+        self._process.started.connect(self._on_process_started)
         self._process.start(str(bin_path), args)
+        # THE MOMENT A TOOL IS ACTUALLY RUNNING. There was no such signal, so
+        # anything wanting to react to "a tool started" had only
+        # `target_started`, which the Create Chart tab emits BEFORE the process
+        # exists — `is_running` is still False there. A masthead lock hung off
+        # that combination never engaged: driven through a real targen build,
+        # sampled every 80 ms, the buttons stayed live for the whole 3 s.
+
 
     def write_stdin(self, text: str) -> None:
         label = self._label_key(text)
@@ -851,6 +882,32 @@ class ArgyllRunner(QObject):
             # "argyll_runner.py, line 817 in _on_ready_read").
             if not self._process:
                 return
+
+    def _on_process_started(self) -> None:
+        """The program really began — not merely that `start()` was called."""
+        self.last_failed_to_start = None
+        self.started.emit()
+
+    def _on_failed_to_start(self, error: object) -> None:
+        """QProcess could not launch the tool — report it as a failed run.
+
+        Only FailedToStart is handled here: every other QProcess error still
+        ends in `finished`, which already does the full teardown. Routing this
+        through `_on_finished(-1, ...)` reuses that teardown verbatim, so the
+        caller sees the same "it ended, badly" it sees for a non-zero exit.
+        """
+        from PyQt6.QtCore import QProcess
+
+        if error != QProcess.ProcessError.FailedToStart:
+            return                      # `finished` will follow for the rest
+        tool = getattr(self, "_run_tool", None) or "the tool"
+        log.error("ArgyllRunner: %s could not be started at all — check the "
+                  "ArgyllCMS path in Preferences", tool)
+        # Remembered so the tab that asked for the run can TELL the user, which
+        # a bare exit code cannot: colprof exiting -1 with no output produced no
+        # dialog at all, and the only trace was one line in the log.
+        self.last_failed_to_start = tool
+        self._on_finished(-1, None)
 
     def _on_finished(self, exit_code: int, _exit_status: object) -> None:
         log.info("ArgyllRunner: finished with code %d", exit_code)

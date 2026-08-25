@@ -713,7 +713,7 @@ def thresholds_for_combo(
 # Bump when a shipped default changes in a way that must reach users who have
 # the OLD default persisted. Settings → Save writes every key, so a stored
 # value otherwise pins a user to the old behaviour for good.
-SETTINGS_SCHEMA = 21
+SETTINGS_SCHEMA = 22
 
 # key → the old default(s) it must no longer be stuck on. Only a stored value
 # EQUAL to one of the old defaults is dropped (so it falls through to the new
@@ -828,11 +828,36 @@ class AppSettings:
                            "now the Manual default)")
         if self._migrate_restore_last_tab_default():
             dropped.append("restore_last_tab (now off by default)")
+        if self._migrate_factory_project_name():
+            dropped.append("chart_target_name (no invented project name on a "
+                           "fresh start)")
         self._qs.setValue("settings_schema", SETTINGS_SCHEMA)
         if dropped:
             log.info("Settings migrated to schema %d; dropped stale defaults: %s",
                      SETTINGS_SCHEMA, ", ".join(dropped))
         return dropped
+
+    def _migrate_factory_project_name(self) -> bool:
+        """schema 22: "Printer profile project name" starts EMPTY.
+
+        Basti, #164 Q15: on a fresh install the field was pre-filled with the
+        factory name "ChromIQ Test Chart", so the line below it read
+        *"Location being edited: …/ChromIQ-Test-Chart/runs/run1/"* — a path
+        into a project that does not exist, directly under the sentence telling
+        you to open one. The location line itself is right (it answers as soon
+        as a name is known, which is exactly when it is most useful); the
+        pre-filled name was the fault.
+
+        Existing installs carry that string in QSettings, so drop it — but ONLY
+        when it is the factory value. A user who deliberately named a project
+        "ChromIQ Test Chart" never had it persisted in the first place (the
+        name is not saved by design), so nothing a user chose is lost here.
+        """
+        raw = self._qs.value("chart_target_name", None)
+        if raw is None or str(raw).strip() != "ChromIQ Test Chart":
+            return False
+        self._qs.remove("chart_target_name")
+        return True
 
     def _migrate_save_report_default(self) -> bool:
         """schema 10: saving a measurement report after each measurement is now on

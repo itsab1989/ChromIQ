@@ -5192,9 +5192,10 @@ class Ti2RelayoutDialog(QDialog):
             f"QPushButton:disabled {{ background: #4a4a4a; color: #9a9a9a; }}"
         )
         self._apply_btn.setToolTip(
-            tr("Overwrite the chart currently loaded in the Create Chart tab with "
-            "this layout — or Save As to export the full chart to a folder you "
-            "pick, without leaving the editor."))
+            tr("Overwrite sends this patch set to the Create Chart tab, which "
+            "lays it out with the page layout set there (not the one shown "
+            "here) — or Save As exports the full chart, this layout included, "
+            "to a folder you pick without leaving the editor."))
         self._apply_btn.clicked.connect(self._save_and_apply)
         self._close_btn = QPushButton(tr("Close"), bar)
         self._close_btn.setToolTip(
@@ -7664,29 +7665,42 @@ class Ti2RelayoutDialog(QDialog):
         # stem; the host imports it into the *current* Create Chart profile under
         # that profile's name, leaving the profile name untouched.
         name = self._default_apply_name()
+        import shutil
         import tempfile
+        # STAGING IS TEMPORARY AND MUST BE REMOVED ON EVERY PATH.
+        # `_write_chart_into` lays out the whole deliverable here — .ti1, .ti2
+        # and every page TIFF — and the host takes only the .ti1 out of it
+        # (tab_chart.py::apply_external_chart), copying it into the project. So
+        # nothing needs this folder once `_on_apply` has returned, and the async
+        # build that follows reads the project's copy, not this one. It used to
+        # be left behind on all five exits, leaking a full multi-page chart's
+        # TIFFs into $TMPDIR every time Apply was pressed.
         staging = Path(tempfile.mkdtemp(prefix="chromiq_apply_"))
         try:
-            self._write_chart_into(staging, name)
-        except Exception as exc:  # noqa: BLE001
-            QMessageBox.warning(self, tr("Could not prepare chart"), str(exc))
-            return
-        self._status.setText(
-            tr("Applying this chart to the Create Chart tab…"))
-        try:
-            applied = self._on_apply(staging, name)
-        except Exception as exc:  # noqa: BLE001
-            log.exception("apply callback failed")
-            QMessageBox.warning(self, tr("Could not apply chart"), str(exc))
-            return
-        # The host returns False when the user backed out of a prompt — keep the
-        # editor open so they can try again.
-        if applied is False:
-            self._status.setText(tr("Apply cancelled — the editor is still open."))
-            return
-        self._mark_saved()   # applied + saved — closing must not warn (#49)
-        self._clear_undo_history()
-        self.accept()
+            try:
+                self._write_chart_into(staging, name)
+            except Exception as exc:  # noqa: BLE001
+                QMessageBox.warning(self, tr("Could not prepare chart"), str(exc))
+                return
+            self._status.setText(
+                tr("Applying this chart to the Create Chart tab…"))
+            try:
+                applied = self._on_apply(staging, name)
+            except Exception as exc:  # noqa: BLE001
+                log.exception("apply callback failed")
+                QMessageBox.warning(self, tr("Could not apply chart"), str(exc))
+                return
+            # The host returns False when the user backed out of a prompt — keep
+            # the editor open so they can try again.
+            if applied is False:
+                self._status.setText(
+                    tr("Apply cancelled — the editor is still open."))
+                return
+            self._mark_saved()   # applied + saved — closing must not warn (#49)
+            self._clear_undo_history()
+            self.accept()
+        finally:
+            shutil.rmtree(staging, ignore_errors=True)
 
     def _suggest_chart_name(self) -> str:
         """A descriptive default name from the chart's printtarg settings, e.g.
@@ -7756,10 +7770,16 @@ class Ti2RelayoutDialog(QDialog):
         lay.addWidget(heading)
 
         body = QLabel(
-            tr("  •  Overwrite — replace the chart currently loaded in the "
-               "Create Chart tab with this layout. The patch recipe and page "
-               "layout there are updated and locked; your printer profile name "
-               "and any measurements you've already taken are kept.\n"
+            tr("  •  Overwrite — send this patch set to the Create Chart tab "
+               "and lay it out there. The page layout comes from that tab, not "
+               "from here: your instrument, paper, margins and patch size are "
+               "used exactly as they are set there, so the arrangement you see "
+               "in this editor is not carried across. The patch recipe is then "
+               "locked so it can't be rebuilt by accident, while the page "
+               "layout stays editable. Your printer profile project name is "
+               "not changed. If the run it builds into already holds a "
+               "measurement or a profile, ChromIQ asks you first and moves "
+               "them into that run's “old” folder — nothing is deleted.\n"
                "  •  Save As — export the full chart (the patch list, the "
                "layout and the printable pages, plus the i1Profiler files and a "
                "colour list) to a folder you pick, without leaving the editor.\n"

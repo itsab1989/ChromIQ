@@ -227,6 +227,88 @@ def tree_text_column() -> int:
     return max(len(prefix + name) for prefix, name, _m in tree_rows()) + 2
 
 
+
+def _display_width(text: str) -> int:
+    """How many COLUMNS *text* occupies in a monospace font.
+
+    A CJK ideograph is one character and two columns wide. `textwrap` counts
+    characters, so the Japanese and Chinese folder guide was wrapped at 94
+    characters and rendered 156 columns — 43 % of every long line outside the
+    paper, and on the printed card 156 × 1.905 mm is the full width of an A4
+    sheet (#164).
+    """
+    import unicodedata
+
+    return sum(2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in text)
+
+
+#: Never START a line with these — a closing bracket or a full stop stranded at
+#: the left margin reads as a typo. Never END a line with the openers. This is
+#: "kinsoku shori" reduced to the two rules that matter for a folder diagram.
+_NO_LINE_START = (
+    "。、，．：；！？）」』】〉》〕｝］"      # CJK fullwidth — ，is the comma
+    "—…～"                                 # dashes and ellipsis
+    "!%),.:;?]}｡､･ﾞﾟ"                      # ASCII / halfwidth
+)
+_NO_LINE_END = "（「『【〈《〔｛([{"
+
+
+def _wrap_display(text: str, width: int) -> list:
+    """Wrap *text* to *width* COLUMNS, not characters.
+
+    Falls straight through to `textwrap` when every character is narrow, so the
+    eleven languages that use no wide characters are byte-identical **by
+    construction** rather than by luck — the branch below is never entered for
+    them.
+    """
+    import textwrap
+
+    if _display_width(text) == len(text):
+        return textwrap.wrap(text, width) or [""]
+
+    lines: list = []
+    line = ""
+    for ch in text:
+        if ch == " " and not line:
+            continue                       # no leading space on a fresh line
+        nxt = line + ch
+        if _display_width(nxt) <= width:
+            line = nxt
+            continue
+        # The character does not fit. Keep punctuation off the wrong edge:
+        # pull the preceding character down with it rather than let this one
+        # hang past the budget.
+        if ch in _NO_LINE_START and line.strip():
+            # Walk back past spaces to a REAL character. Pulling the space
+            # down achieved nothing — `carry.lstrip(" ")` below throws it away
+            # again and the punctuation still opens the line. Measured on the
+            # Japanese guide: "…測定レポートです — どの reports…" wrapped so the
+            # line began with the em dash.
+            stripped = line.rstrip(" ")
+            line, carry = stripped[:-1], stripped[-1] + ch
+        elif line and line[-1] in _NO_LINE_END:
+            line, carry = line[:-1], line[-1] + ch
+        else:
+            carry = ch
+        if line:
+            lines.append(line)
+        line = carry.lstrip(" ")
+    if line:
+        lines.append(line)
+
+    # FINAL PASS: no line may OPEN with punctuation that must not start one.
+    # The single-pass rules above cannot always see it coming — when the space
+    # before an em dash is the character that overflows, the line is closed on
+    # the space and the dash then lands on a fresh, empty line with nothing to
+    # pull back. Measured in the Chinese guide: "…就被保存下来" / "—「恢复已用
+    # 色卡」…". Repairing afterwards catches every route, however it arose.
+    for i in range(1, len(lines)):
+        while lines[i] and lines[i][0] in _NO_LINE_START and len(lines[i - 1]) > 1:
+            lines[i] = lines[i - 1][-1] + lines[i]
+            lines[i - 1] = lines[i - 1][:-1].rstrip(" ")
+    return lines or [""]
+
+
 def tree_lines(text_width: int = 62) -> list:
     """The diagram as finished text lines: connectors, folder, explanation.
 
@@ -272,7 +354,7 @@ def tree_lines(text_width: int = 62) -> list:
         nxt = rows[i + 1][0] if i + 1 < len(rows) else ""
         if len(nxt) > len(prefix):          # the next row is this row's child
             cont += _TREE_PASS
-        wrapped = textwrap.wrap(meaning, text_width) or [""]
+        wrapped = _wrap_display(meaning, text_width)
         out.append((prefix + name).ljust(width) + wrapped[0])
         for extra in wrapped[1:]:
             out.append(cont.ljust(width) + extra)

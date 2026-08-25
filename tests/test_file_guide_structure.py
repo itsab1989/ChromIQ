@@ -17,6 +17,7 @@ connector must continue only while that level still has entries to come.
 from __future__ import annotations
 
 import os
+import pathlib
 import re
 
 import pytest
@@ -295,3 +296,116 @@ def test_the_root_row_puts_its_vertical_at_column_zero():
     lines = tree_lines(62)
     assert lines[1].startswith(_TREE_PASS.rstrip()), (
         f"the root's continuation does not carry its vertical: {lines[1][:20]!r}")
+
+
+# ---------------------------------------------------------------------------
+# THE DIAGRAM FITS THE PAPER IN EVERY LANGUAGE (#164)
+# ---------------------------------------------------------------------------
+# A CJK ideograph is one character and TWO columns wide. `textwrap` counts
+# characters, so the Japanese and Chinese folder guide was wrapped at 94
+# characters and rendered 156 columns — 43 % of every long line outside the
+# paper, and on the printed card 156 × 1.905 mm is the full width of an A4
+# sheet, so the right-hand column simply ran off it.
+
+
+def _budget():
+    from ui.file_guide import tree_text_column
+    return tree_text_column() + 62
+
+
+@pytest.mark.parametrize("code", [p.stem for p in
+                                  sorted((pathlib.Path(__file__).resolve().parent.parent
+                                          / "data" / "i18n").glob("*.json"))]
+                                 + ["en"])
+def test_no_line_runs_past_the_paper_in_any_language(code):
+    from core.i18n import set_language
+    from ui.file_guide import _display_width, tree_lines
+
+    try:
+        set_language(code)
+        widest = max(_display_width(line) for line in tree_lines(62))
+        assert widest <= _budget(), (
+            f"{code}: the widest line is {widest} display columns against a "
+            f"{_budget()}-column page — it runs off the paper")
+    finally:
+        set_language("en")
+
+
+def test_a_narrow_language_is_wrapped_exactly_as_before():
+    """The eleven languages with no wide characters must be untouched — and by
+    CONSTRUCTION, not by luck: `_wrap_display` falls straight through to
+    `textwrap` when every character is one column, so the new branch is never
+    entered for them."""
+    import textwrap
+
+    from core.i18n import set_language
+    from ui.file_guide import _wrap_display, tree_rows
+
+    try:
+        for code in ("en", "de", "fr", "ru", "pl"):
+            set_language(code)
+            for _prefix, _name, meaning in tree_rows():
+                assert _wrap_display(meaning, 62) == (
+                    textwrap.wrap(meaning, 62) or [""]), (
+                    f"{code}: wrapping changed for a language with no wide "
+                    "characters")
+    finally:
+        set_language("en")
+
+
+def test_punctuation_does_not_open_a_line():
+    """A closing bracket, comma or dash stranded at the left margin reads as a
+    typo — "kinsoku shori" reduced to the rule that matters here.
+
+    THE PREVIOUS VERSION OF THIS TEST COULD NOT FAIL. It sliced with
+    ``line[len(line) - len(line.lstrip()):]``, which is just ``lstrip()``, so
+    the character it checked was always the tree-art glyph (``|``, ``+``) and
+    never a text character. Real violations shipped green under it, including
+    Chinese lines opening with the comma Chinese actually uses. It also checked
+    against the implementation's own list, so a gap in that list was invisible
+    twice over.
+
+    This slices at the real text column and checks an INDEPENDENT set. Only the
+    wide languages are asserted, because they are the only ones this code
+    wraps — the narrow ones fall through to ``textwrap`` by design, and that
+    byte-identical fall-through is a guarantee of its own.
+    """
+    from core.i18n import set_language
+    from ui.file_guide import tree_lines, tree_text_column
+
+    forbidden = "\u3002\u3001\uff0c\uff0e\uff1a\uff1b\uff01\uff1f" \
+                "\uff09\u300d\u300f\u3011\u3009\u300b\u3015\uff5d\uff3d" \
+                "\u2014\u2026\uff5e" "!%),.:;?]}"
+    col = tree_text_column()
+    try:
+        for code in ("ja", "zh_CN"):
+            set_language(code)
+            for line in tree_lines(62):
+                if len(line) <= col:
+                    continue
+                text = line[col:].strip()
+                assert not (text and text[0] in forbidden), (
+                    f"{code}: a line opens with {text[0]!r} - {text[:30]!r}")
+    finally:
+        set_language("en")
+
+
+def test_the_kinsoku_check_can_actually_fail():
+    """Guard the guard: prove the slice reaches text, not tree art.
+
+    The previous test passed because it never looked at a text character.
+    """
+    from core.i18n import set_language
+    from ui.file_guide import tree_lines, tree_text_column
+
+    col = tree_text_column()
+    try:
+        set_language("zh_CN")
+        texts = [line[col:].strip() for line in tree_lines(62) if len(line) > col]
+        real = [t for t in texts if t and t[0] not in "\u2502\u251c\u2514\u2500 "]
+        assert len(real) > 20, (
+            f"the text column ({col}) does not reach the explanations - only "
+            f"{len(real)} real lines, so any kinsoku check here is vacuous")
+    finally:
+        set_language("en")
+

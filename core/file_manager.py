@@ -1815,6 +1815,15 @@ class FileManager:
         self._settings = settings
         self._target_name: str = ""
         self._project: Project | None = None
+        # Told whenever a project starts or stops being NAMED. The UI's
+        # "is a project open?" state used to be refreshed off the Profile-run
+        # bar's `changed` signal — a signal about the BAR, while the state it
+        # reads lives here. Every route that named a project without moving the
+        # bar therefore left the masthead stale, which is how Close Project
+        # stayed greyed after Generate and after Open Chart File (#164).
+        # A plain callback list, not a Qt signal: FileManager is not a QObject
+        # and the test doubles that stand in for it are not either.
+        self._named_state_listeners: list = []
         # #130 (Knut): projects may be organised in SUB-folders of the ChromIQ
         # folder. When a nested project is opened, this holds its actual root so
         # working_dir() resolves there instead of <ChromIQ>/<name>. Dropped by
@@ -1847,6 +1856,7 @@ class FileManager:
         return s or "session"
 
     def set_target_name(self, name: str) -> None:
+        _was = self.is_named()
         cleaned = self.strip_workfile_ext(name)
         new_name = self._auto_name() if not cleaned.strip() else self._sanitise(cleaned)
         # #130 (Knut): a nested project keeps its real location as long as the
@@ -1867,6 +1877,7 @@ class FileManager:
         self._project = None
         log.debug("Target name set to: %s (root %s)", self._target_name,
                   self.working_dir())
+        self._notify_named_state(_was)
 
     def start_new_project(self, name: str) -> None:
         """Point at a BRAND-NEW project called *name*, directly under the ChromIQ
@@ -1893,10 +1904,33 @@ class FileManager:
         Clearing the name is what makes that impossible: with no name there is
         nothing for :meth:`project` to be called about, exactly as at launch.
         """
+        _was = self.is_named()
         self._target_name = ""
         self._project_root_override = None
         self._project = None
         log.info("Project closed — back to the state a fresh start has")
+        self._notify_named_state(_was)
+
+    def add_named_state_listener(self, callback) -> None:
+        """Call *callback* whenever a project starts or stops being named."""
+        if callback not in self._named_state_listeners:
+            self._named_state_listeners.append(callback)
+
+    def _notify_named_state(self, was_named: bool) -> None:
+        """Fire the listeners, but only on an actual transition.
+
+        `set_target_name` runs on every keystroke path, every preset and every
+        Generate; re-notifying on each would be churn. Only a change from
+        "nothing open" to "something open" (or back) can change what the
+        masthead offers.
+        """
+        if bool(was_named) == self.is_named():
+            return
+        for cb in list(self._named_state_listeners):
+            try:
+                cb()
+            except Exception:      # noqa: BLE001 — a listener must never
+                log.exception("named-state listener failed")   # break a rename
 
     def is_named(self) -> bool:
         """Whether a project has a NAME yet — without inventing one.
@@ -1925,11 +1959,13 @@ class FileManager:
         """Open a project at its ACTUAL folder *root*, which may be nested in a
         sub-folder of the ChromIQ folder (#130, Knut). working_dir() then
         resolves there rather than <ChromIQ>/<name>."""
+        _was = self.is_named()
         root = Path(root)
         self._target_name = self._sanitise(root.name)
         self._project_root_override = root
         self._project = None
         log.debug("Opened nested project at: %s", root)
+        self._notify_named_state(_was)
 
     def project_root_override(self) -> "Path | None":
         return self._project_root_override

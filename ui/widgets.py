@@ -851,6 +851,43 @@ class LogResizeGrip(QObject):
         return False
 
 
+def accent_message_box_button(btn) -> None:
+    """Style one message-box button as the app's PRIMARY action button.
+
+    Basti, #164: *"i want the close button to be styled like the generate
+    chart button in create chart module (that punchy magenta and white text
+    on it)"*.
+
+    It reproduces `QPushButton#primary` as the Create Chart tab paints it
+    (``ui/main_window.py`` — the per-tab QSS injector): the tab's own accent
+    from ``TAB_COLORS[0]`` (magenta), the same 0.82x hover, and the same
+    per-theme label colour — WHITE on light, near-black on dark. The label
+    flips because the app flips it; magenta is dark enough for white in light
+    mode's surroundings and light enough for near-black in dark mode's.
+
+    A message-box button cannot simply be given ``objectName("primary")``:
+    that QSS is injected into the tab pane, and this button lives in a
+    top-level dialog that never sees it.
+    """
+    from core.settings import AppSettings
+    from ui.styles import TAB_COLORS
+    from ui.theme import APPEARANCE_LIGHT, resolve_mode
+
+    accent = TAB_COLORS[0]                      # Create Chart's magenta
+    r, g, b = (int(accent[i:i + 2], 16) for i in (1, 3, 5))
+    hover = "#{:02x}{:02x}{:02x}".format(int(r * 0.82), int(g * 0.82),
+                                         int(b * 0.82))
+    light = resolve_mode(AppSettings().get("appearance", "auto")) == APPEARANCE_LIGHT
+    label = "#ffffff" if light else "#0a0a0a"
+    btn.setStyleSheet(
+        f"QPushButton {{ background: {accent}; color: {label};"
+        f" border: 1px solid {accent}; border-radius: 4px;"
+        f" padding: 6px 14px; font-weight: 700; }}"
+        f"QPushButton:hover {{ background: {hover}; border-color: {hover}; }}"
+        f"QPushButton:pressed {{ background: {hover}; }}"
+    )
+
+
 def fit_message_box_buttons(box) -> None:
     """Fit **every** button of a QMessageBox to the label it will paint.
 

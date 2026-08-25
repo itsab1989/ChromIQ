@@ -64,9 +64,11 @@ class MastheadHeader(QWidget):
     settings_clicked = pyqtSignal()
     help_clicked     = pyqtSignal()
     tools_clicked    = pyqtSignal()
-    #: The two left-hand buttons moved out of the tabs (#130).
+    #: The three left-hand buttons: two bring a project or chart IN (#130),
+    #: the third lets the open one go (#164).
     load_project_clicked = pyqtSignal()
     load_ti2_clicked     = pyqtSignal()
+    close_project_clicked = pyqtSignal()
 
     STRIPE_H  = 6
     VERSION_H = 28      # tall enough to seat the compact target bar with margin
@@ -149,6 +151,23 @@ class MastheadHeader(QWidget):
         self._load_ti2_btn.setFixedSize(QSize(44, 44))
         self._load_ti2_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._load_ti2_btn.clicked.connect(self.load_ti2_clicked)
+
+        # ---- Close Project (#164) ----
+        # Third in the group, at x=116. The two on its left bring something IN;
+        # this one lets it go. It is the only one of the three that can run out
+        # of work, because the thing it acts on is already on screen.
+        self._close_project_btn = QToolButton(self)
+        self._close_project_btn.setObjectName("tooltip_btn")
+        self._close_project_btn.setToolTip(tr(
+            "Close Project\n\n"
+            "Puts ChromIQ back where it starts, with no project open.\n\n"
+            "Nothing is deleted and nothing on disk changes — every run, "
+            "chart, measurement and profile stays where it is, and you can "
+            "open the project again at any time with “Open Project”. Only "
+            "what you have typed and not yet used is let go."))
+        self._close_project_btn.setFixedSize(QSize(44, 44))
+        self._close_project_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._close_project_btn.clicked.connect(self.close_project_clicked)
         self._load_masthead_left_icons()
 
         # ---- Optional centred widget on the version rail (the shared
@@ -219,6 +238,8 @@ class MastheadHeader(QWidget):
         # margin equal to the Help icon's right margin (12 px).
         self._load_project_btn.move(12, btn_y)
         self._load_ti2_btn.move(12 + self._load_project_btn.width() + 8, btn_y)
+        self._close_project_btn.move(
+            self._load_ti2_btn.x() + self._load_ti2_btn.width() + 8, btn_y)
         self.reposition_center()
 
     # ------------------------------------------------------------------
@@ -505,7 +526,8 @@ class MastheadHeader(QWidget):
         """
         suffix = "_light" if self._mode == "light" else ""
         for btn, name in ((self._load_project_btn, "load_project"),
-                          (self._load_ti2_btn, "load_ti2")):
+                          (self._load_ti2_btn, "load_ti2"),
+                          (self._close_project_btn, "close_project")):
             path = resource_path(f"assets/{name}{suffix}.svg")
             if not path.exists():
                 continue
@@ -524,46 +546,102 @@ class MastheadHeader(QWidget):
             btn.setIcon(QIcon(pm))
             btn.setIconSize(QSize(size, size))
 
-    def set_load_buttons_enabled(self, enabled: bool) -> None:
-        """Grey both left-hand buttons while a measurement is running.
+    #: Why the masthead is unavailable, or None when it is not.
+    BUSY_MEASURING = "measuring"
+    BUSY_BUILDING = "building"
+    BUSY_CHART = "chart"
 
-        Knut, #130 2026-07-31: *"Remember that also the Load Project icon should
-        be Disabled while a measurement runs."* Load .ti2 already had that guard
-        on the Measure tab; Load Project never did.
+    def set_availability(self, busy: "str | None", has_project: bool) -> None:
+        """The ONE place that decides what the masthead offers.
+
+        THE GROUP'S STORY, in one sentence: the two left buttons bring
+        something IN, the third lets the open one GO, and everything stops
+        while ChromIQ is busy.
+
+        Two independent reasons a button can be unavailable:
+
+        * **busy** — a measurement or a profile build is running. Both open
+          windows that change what the app is working on, and neither is safe
+          to reach for mid-read (Knut, #130 beta.120). Applies to all five.
+        * **no project** — there is nothing to close. Applies only to Close
+          Project, because it is the only one whose object is already on
+          screen. "Nothing to open" is deliberately NOT a state: the file
+          dialog explains an empty folder better than a dead icon can.
+
+        **When both apply, busy wins.** "Nothing to close" is only the more
+        useful message if it is actionable, and it is not — the fix is to open
+        a project, and Open Project is greyed at the same moment. Two different
+        explanations across three adjacent grey buttons is the incoherence this
+        method exists to remove.
+
+        Replaces `set_measuring` / `set_load_buttons_enabled`, which set the
+        same widgets from two places. Three buttons with three enable paths is
+        how the Build Profile tab came to be disabled by one method and
+        re-enabled three lines later by another (#164).
         """
-        for btn in (self._load_project_btn, self._load_ti2_btn):
-            btn.setEnabled(enabled)
-            btn.setCursor(Qt.CursorShape.PointingHandCursor if enabled
-                          else Qt.CursorShape.ArrowCursor)
+        # Recorded so a later reader can ask WHY the row is greyed without
+        # re-deriving it; `_has_project` also keeps the close-button branch
+        # below readable. Neither is state the caller has to maintain — this
+        # method is the only writer.
+        self._busy = busy
+        self._has_project = bool(has_project)
+        busy_tip = self._busy_tooltip(busy)
+        for btn in (self._load_project_btn, self._load_ti2_btn,
+                    self._tools_btn, self._btn):
+            self._apply_state(btn, enabled=busy is None, tip=busy_tip)
+        self._apply_state(
+            self._close_project_btn,
+            enabled=busy is None and self._has_project,
+            tip=busy_tip if busy is not None else (
+                None if self._has_project else tr(
+                    "No project is open, so there is nothing to close.\n\n"
+                    "This button puts ChromIQ back to its starting state. It "
+                    "becomes available as soon as a project is open — type a "
+                    "name in “Printer profile project name” on the Create "
+                    "Chart tab and press “Generate Chart”, or use “Open "
+                    "Project” to the left.")))
 
-    #: The right-hand icons that must also go quiet mid-measurement. Help is
-    #: deliberately not among them — Knut, beta.120: *"Help button can be
-    #: active still."*
-    def set_measuring(self, running: bool) -> None:
-        """Grey the Tools and Preferences icons while a measurement runs.
+    @staticmethod
+    def _busy_tooltip(busy: "str | None") -> "str | None":
+        """Why everything is greyed — naming the actual reason.
 
-        Both open windows that change what the app is working on — Preferences
-        can switch the chart-reading engine, Tools can rewrite files under the
-        run — and neither is safe to reach for with an instrument mid-read
-        (Knut, #130 beta.120). Help stays available, because reading is always
-        safe.
+        A single "unavailable" message would be a lie half the time: these
+        buttons used to say "Not while a measurement is running" and a profile
+        build now greys them too (#164).
         """
-        self.set_load_buttons_enabled(not running)
-        for btn in (self._tools_btn, self._btn):
-            if btn is None:
-                continue
-            btn.setEnabled(not running)
-            btn.setCursor(Qt.CursorShape.ArrowCursor if running
-                          else Qt.CursorShape.PointingHandCursor)
-            if not hasattr(btn, "_cq_tip"):
-                btn._cq_tip = btn.toolTip()
-            btn.setToolTip(tr(
+        if busy == MastheadHeader.BUSY_MEASURING:
+            return tr(
                 "Not while a measurement is running. It will be available "
                 "again as soon as the current measurement finishes or is "
                 "stopped.\n\n"
                 "This opens a window that can change what ChromIQ is working "
                 "on, and the instrument is reading a chart right now.")
-                if running else btn._cq_tip)
+        if busy == MastheadHeader.BUSY_CHART:
+            return tr(
+                "Not while a chart is being built. It will be available "
+                "again as soon as the chart is finished.\n\n"
+                "This opens a window that can change what ChromIQ is working "
+                "on, and the chart being written belongs to the run that is "
+                "loaded right now.")
+        if busy == MastheadHeader.BUSY_BUILDING:
+            return tr(
+                "Not while a profile is being built. It will be available "
+                "again as soon as the build finishes or is stopped.\n\n"
+                "This opens a window that can change what ChromIQ is working "
+                "on, and the profile being written belongs to the run that is "
+                "loaded right now.")
+        return None
+
+    def _apply_state(self, btn, *, enabled: bool, tip: "str | None") -> None:
+        """Enable or grey one button and give it the right reason."""
+        if btn is None:
+            return
+        btn.setEnabled(enabled)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor if enabled
+                      else Qt.CursorShape.ArrowCursor)
+        if not hasattr(btn, "_cq_tip"):
+            btn._cq_tip = btn.toolTip()
+        btn.setToolTip(btn._cq_tip if tip is None else tip)
 
     def _load_tools_icon(self) -> None:
         """Render the tools toolbox SVG to fill the button.

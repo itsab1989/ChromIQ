@@ -1,5 +1,119 @@
 # Changelog
 
+## v4.1.3-beta.14
+
+### Added
+
+- **A "Close Project" button.** Third along the top left, beside "Open Chart
+  File". It puts ChromIQ back to the way it looks on a fresh install, with no
+  project open. Nothing is deleted and nothing on disk changes — every run,
+  chart, measurement and profile stays exactly where it is, and "Open Project"
+  brings it all back. Only what you have typed and not yet used is let go: the
+  name in "Printer profile project name" and the run description beside it. A
+  confirmation window explains all of that before anything happens, and the
+  button is greyed with a reason when there is no project to close.
+
+- **A greyed tab now tells you why.** During a measurement or a profile build
+  the other tabs are locked; hovering one used to say nothing at all, which
+  read as a fault rather than a lock. Each greyed tab now explains what is
+  running and when it will come back — and its own explanation is put back
+  afterwards, so a verification run's "not for a verification" note survives a
+  measurement.
+
+- **A keyboard shortcut for the top-left buttons.** ⌘O / Ctrl+O opens a
+  project, ⇧⌘O / Ctrl+Shift+O opens a chart file. Both obey the same locks as
+  the buttons themselves.
+
+### Fixed
+
+- **ChromIQ could create a project you never asked for — a third way.** Simply
+  opening a loose chart file with nothing loaded was enough: the question "is
+  this chart inside my project?" created one to compare against, leaving a
+  folder named after the date beside your real work. The app then thought it
+  was working in that phantom, and the next chart you built went into it.
+
+- **Closing the Soft-proof window could stop ChromIQ noticing that anything
+  had finished.** Opening Soft-proofing and closing it again quietly detached
+  the part of ChromIQ that listens for a tool completing. The next measurement
+  would read the whole chart and then appear to hang for ever: the tabs and the
+  buttons along the top stayed greyed, because nothing was left to hear that it
+  had ended. Only quitting and reopening cleared it.
+
+- **Soft-proofing removed the picture you were looking at.** Changing the ΔE
+  threshold, the rendering intent or the highlight colour started a new proof
+  and deleted the previous one's files immediately — so the preview went blank
+  and "Save proof" quietly did nothing while still looking available. The old
+  files are now kept until the new proof is ready.
+
+- **A patch set you loaded was not the one ChromIQ built.** After loading an
+  i1Profiler patch set or a .ti1 and pressing "Generate Chart", ChromIQ could
+  quietly build a completely different chart from a fresh patch calculation —
+  measured, two patches in and 525 out, with no message beyond a line in the
+  log. It happened for two separate reasons: in Guided mode the loaded set was
+  ignored outright, and in Manual mode the act of binding the set to a run
+  reset the patch-recipe settings, which ChromIQ then read as you having asked
+  for a different chart. Unlocking "Edit patch recipe (override preset)" and
+  changing a setting still gives you a fresh chart, as it always did.
+
+- **Loading a second patch set discarded the first.** After loading a patch set
+  and then loading another — or having a second load fail — the first one was
+  deleted from disk while ChromIQ still believed it was in use. Pressing
+  "Generate Chart" then silently built a completely different chart from a
+  fresh patch calculation, with only a line in the log to say so.
+
+- **A wrong ArgyllCMS path could lock you out of the app.** If a tool could not
+  start at all — a mistyped path in Preferences, a moved installation — nothing
+  ever reported that it had failed. The window stayed greyed as though the
+  build were still going, including Preferences itself, which is the one place
+  the path could have been corrected. The only way out was to quit and restart.
+  ChromIQ now says which program it could not start and points at the setting
+  that fixes it.
+
+- **The "Close Project" button stayed greyed after generating a chart or
+  opening a project.** It was watching the wrong thing.
+
+- **Building a chart left the rest of the window live.** You could switch to a
+  different project, open another chart, or open the Tools menu while targen
+  and printtarg were still writing into the current run. A measurement and a
+  profile build had always locked those buttons; a chart build now does too.
+
+- **Print Chart's settings were lost when you closed the project.** A change to
+  Rendering intent made on the Print Chart tab was not written down if you
+  closed the project from that tab — the same change made on any other tab was
+  kept.
+
+- **A measurement and a profile build running together unlocked the tabs too
+  early.** Whichever finished first re-enabled everything, leaving the window
+  open for editing while the other was still running.
+
+- **ChromIQ left large temporary files behind.** Soft-proofing wrote a fresh
+  set of full-size TIFFs for every proof — around 60 MB — and never removed the
+  previous ones, so nudging the ΔE threshold a few times could leave hundreds
+  of megabytes on disk until the next reboot. The patch-set editor's "Apply"
+  left a complete chart behind every time it ran. Six more places did the same
+  on a smaller scale. All are now cleaned up.
+
+- **The patch-set editor described what it does incorrectly.** Its "Overwrite"
+  window said the page layout was carried across and locked. Neither was true:
+  only the patch set moves, the layout comes from the Create Chart tab, and the
+  page-layout panel stays editable. It also said measurements were "kept" when
+  they are moved into the run's "old" folder. The window now says what actually
+  happens.
+
+- **A project deleted outside ChromIQ came back.** If "restore last session"
+  was on and you had removed the folder in Finder, ChromIQ still believed the
+  project was open and would recreate it.
+
+- **A new project no longer starts with a name you did not choose.** The
+  "Printer profile project name" box was pre-filled with "ChromIQ Test Chart",
+  so a brand-new install showed a location line pointing into a project that
+  did not exist. The box now starts empty, and pressing "Generate Chart"
+  without a name asks for one instead of inventing "Printer_Paper_Type_Instr"
+  plus the date.
+
+- **Japanese and Chinese folder guides read correctly.** Lines no longer begin
+  with a comma, a full stop or a dash left stranded at the margin.
+
 ## v4.1.3-beta.13
 
 ### Fixed

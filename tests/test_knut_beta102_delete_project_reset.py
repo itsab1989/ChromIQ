@@ -167,7 +167,10 @@ def test_the_window_reacts_to_the_deletion_at_all():
 
 def test_the_window_empties_every_tab_and_forgets_the_session():
     from ui.main_window import MainWindow
-    src = inspect.getsource(MainWindow._on_project_deleted)
+    # The body moved into `_reset_after_project_gone` in #164, so that
+    # deleting and CLOSING a project land in the same state — an app with
+    # two different "no project" states is one nobody can predict.
+    src = inspect.getsource(MainWindow._reset_after_project_gone)
     for step in ("self._file_mgr.close_project()",
                  "self._target_ctl.reset_to_empty()",
                  "self._tab_chart.clear_loaded_project()",
@@ -184,7 +187,10 @@ def test_the_name_is_forgotten_before_anything_else_runs():
     """Order matters. Every step after this one can ask about the project, and
     each such question is a chance to create the folder again."""
     from ui.main_window import MainWindow
-    src = inspect.getsource(MainWindow._on_project_deleted)
+    # The body moved into `_reset_after_project_gone` in #164, so that
+    # deleting and CLOSING a project land in the same state — an app with
+    # two different "no project" states is one nobody can predict.
+    src = inspect.getsource(MainWindow._reset_after_project_gone)
     first = src.index("close_project()")
     for later in ("reset_to_empty()", "clear_loaded_project()",
                   "load_tiffs([])", "refresh()"):
@@ -193,7 +199,10 @@ def test_the_name_is_forgotten_before_anything_else_runs():
 
 def test_the_remembered_session_no_longer_points_at_the_deleted_project():
     from ui.main_window import MainWindow
-    src = inspect.getsource(MainWindow._on_project_deleted)
+    # The body moved into `_reset_after_project_gone` in #164, so that
+    # deleting and CLOSING a project land in the same state — an app with
+    # two different "no project" states is one nobody can predict.
+    src = inspect.getsource(MainWindow._reset_after_project_gone)
     for key in ("session_target_name", "session_project_root",
                 "session_ti1_path", "session_ti3_path", "session_icc_path",
                 "session_cal_ti3_path"):
@@ -204,7 +213,10 @@ def test_the_delete_never_ends_in_a_crash():
     """A tab that fails to clear must not leave the app half-reset with a
     traceback on top of a destructive action."""
     from ui.main_window import MainWindow
-    src = inspect.getsource(MainWindow._on_project_deleted)
+    # The body moved into `_reset_after_project_gone` in #164, so that
+    # deleting and CLOSING a project land in the same state — an app with
+    # two different "no project" states is one nobody can predict.
+    src = inspect.getsource(MainWindow._reset_after_project_gone)
     assert src.count("except Exception") >= 2
 
 

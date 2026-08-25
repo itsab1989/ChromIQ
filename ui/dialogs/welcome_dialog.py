@@ -812,6 +812,25 @@ GLOSSARY: list[tuple[str, str]] = [
 # App-workflow terms (Knut: "patch set, chart layout, layout engine, etc. —
 # it should make a bit longer list").
 GLOSSARY += [
+    (tr("Open a project"),
+     tr("Load a printer profile project you made earlier, so every tab acts "
+        "on it again. Press “Open Project” at the top left (⌘O / Ctrl+O) and "
+        "choose the “project.json” file inside the profile's own folder under "
+        "your ChromIQ folder — or just pick the folder itself. Opening a "
+        "project changes nothing inside it; it only tells ChromIQ which one "
+        "you are working on. The project you had open before is left exactly "
+        "as it was.")),
+    (tr("Close a project"),
+     tr("Put ChromIQ back to how it looks on a fresh install, with no project "
+        "open. Press “Close Project” at the top left — the third button, "
+        "beside “Open Chart File”. Nothing is deleted: every run, chart, "
+        "measurement and profile stays where it is on disk, and “Open "
+        "Project” brings it all back. Only what you have typed and not yet "
+        "used is let go — the name in “Printer profile project name”, and the "
+        "run description beside it — and the Create Chart settings return to "
+        "your saved defaults. Useful when you have finished a job, when you "
+        "are handing the computer to someone else, or before moving a project "
+        "folder somewhere else on disk.")),
     (tr("Patch set"),
      tr("The list of colours a chart will contain — designed by targen or by "
         "the generators in the chart editor — before anything is laid out on "

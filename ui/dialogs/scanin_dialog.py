@@ -2248,7 +2248,11 @@ class ScannerProfileDialog(_ToolDialogBase):
     def _convert_dir(self) -> Path:
         if self._convert_tmp is None:
             import tempfile
-            self._convert_tmp = Path(tempfile.mkdtemp(prefix="chromiq-ref-"))
+            # Owned, so it goes when the dialog does — it accumulated every
+            # converted reference for the dialog's life and was never removed.
+            self._convert_tmp_holder = tempfile.TemporaryDirectory(
+                prefix="chromiq-ref-")
+            self._convert_tmp = Path(self._convert_tmp_holder.name)
         return self._convert_tmp
 
     def _pick_ref(self) -> None:

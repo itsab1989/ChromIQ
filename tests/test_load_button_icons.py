@@ -103,12 +103,21 @@ def test_the_masthead_load_buttons_grey_while_measuring(_app):
     Disabled while a measurement runs." """
     from ui.masthead_header import MastheadHeader
     m = MastheadHeader()
-    m.set_load_buttons_enabled(False)
+    # `set_availability` replaced `set_load_buttons_enabled` in #164: the three
+    # left-hand buttons are one group with one source of truth, because three
+    # separate enable paths is how two of them ended up disagreeing.
+    m.set_availability(MastheadHeader.BUSY_MEASURING, has_project=True)
     assert not m._load_project_btn.isEnabled()
     assert not m._load_ti2_btn.isEnabled()
-    m.set_load_buttons_enabled(True)
+    assert not m._close_project_btn.isEnabled()
+    m.set_availability(None, has_project=True)
     assert m._load_project_btn.isEnabled()
     assert m._load_ti2_btn.isEnabled()
+    assert m._close_project_btn.isEnabled()
+    # …and the third one also greys when there is simply nothing to close.
+    m.set_availability(None, has_project=False)
+    assert m._load_project_btn.isEnabled(), "Open Project must stay offered"
+    assert not m._close_project_btn.isEnabled()
 
 
 def test_stacked_pages_button_paints(_app):

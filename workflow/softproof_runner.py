@@ -238,11 +238,67 @@ class SoftproofRunner(QObject):
         self._runner = runner
         self._settings = settings
 
+    def _drop_retired_work(self) -> None:
+        """Delete the folder the previous proof used, if any."""
+        import shutil
+
+        retired = getattr(self, "_retired_work", None) or []
+        if not isinstance(retired, list):
+            retired = [retired]
+        for folder in retired:
+            shutil.rmtree(folder, ignore_errors=True)
+        self._retired_work = []
+
+    def cleanup(self) -> None:
+        """Remove this runner's working folder, if it still has one.
+
+        Called before each new run and from the dialog's teardown, so the last
+        proof's files go when the dialog closes rather than at reboot.
+        """
+        import shutil
+
+        self._drop_retired_work()          # a proof that never completed
+        work = getattr(self, "_work", None)
+        if work is None:
+            return
+        shutil.rmtree(work, ignore_errors=True)
+        self._work = None
+
     def run(self, params: SoftproofParams) -> None:
         if self._runner.is_running:
             self.error.emit(tr("Another process is already running."))
             return
         self._params = params
+        # DROP THE PREVIOUS PROOF'S WORK DIR BEFORE MAKING A NEW ONE.
+        # This reassigned `self._work` on every run and orphaned the old folder
+        # with nothing holding or deleting it — and a proof re-runs on a 350 ms
+        # debounce from the intent combo, the ΔE spinbox, the highlight combo,
+        # the paper-white box and both file pickers. Measured: ~56-70 MB per
+        # proof of a 6 MP image (proof_preview 16.4 MB, proof_oog_lab 14.2 MB,
+        # proof_highlight 13.2 MB, ref_lab 11.9 MB), two proofs left 143 MB.
+        # Nothing reclaims it: main.py exits via os._exit(), so not even
+        # TemporaryDirectory finalizers run. Safe here because `_run_softproof`
+        # has already cleared the dialog's `_result` and `_combined_html`.
+        # RETIRE the previous proof's folder, do not delete it yet. Deleting it
+        # here pulled the TIFFs out from under the dialog: `_run_softproof`
+        # clears `_combined_html` and the two .gam paths but NOT `self._result`,
+        # so the preview kept showing `proof_preview.tif` after it had been
+        # removed ("Cannot open TIFF"), and Save proof stayed enabled while
+        # `_on_save_proof` silently returned on a missing file. The old folder
+        # now goes only once the replacement has actually landed.
+        # A LIST. Seven `error.emit(...); return` paths lie between here and
+        # the success at the bottom, and a single slot meant a FAILED proof
+        # between two good ones overwrote its predecessor's path — orphaning
+        # ~56-70 MB for ever, since nothing sweeps $TMPDIR and main.py exits
+        # via os._exit(). Dropping them up front instead would be wrong: after
+        # a failure the dialog's `_result` still points into the retired
+        # folder, so the preview and Save proof would follow a deleted file.
+        retired = getattr(self, "_retired_work", None)
+        if not isinstance(retired, list):
+            retired = self._retired_work = []
+        previous = getattr(self, "_work", None)
+        if previous is not None:
+            retired.append(previous)
         self._work = Path(tempfile.mkdtemp(prefix="chromiq_softproof_"))
 
         try:
@@ -385,6 +441,9 @@ class SoftproofRunner(QObject):
         except (OSError, ValueError) as exc:
             self.error.emit(tr("Could not compute the soft-proof: {exc}").format(exc=exc))
             return
+        # The new proof is complete and its files are on disk — only now is the
+        # previous one safe to drop.
+        self._drop_retired_work()
         self.finished.emit(result)
 
     # ------------------------------------------------------------------

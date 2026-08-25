@@ -50,6 +50,8 @@ def keys(spec: str) -> str:
 def _shortcuts() -> list[tuple[str, str]]:
     """(keys, what-it-does) — the second field is what the list is sorted by."""
     return [
+        (keys("Ctrl+O"), tr("Open a profile project")),
+        (keys("Ctrl+Shift+O"), tr("Open a chart file (.ti2)")),
         (f"{keys('Ctrl+1')} … {keys('Ctrl+5')}",
          tr("Go to a tab (1 Create Chart · 2 Print Chart · 3 Measure · "
             "4 Build Profile · 5 Check & Refine)")),

@@ -125,6 +125,12 @@ def _darken_for_light_log(hex_color: str) -> str:
 
 
 class MainWindow(QMainWindow):
+    # How long the chart-build lock waits for a follow-on tool before letting
+    # go on its own. A Manual build runs targen then printtarg back to back
+    # (measured: the gap is under 10 ms), so this only ever fires when a build
+    # ended without emitting `chart_finished`.
+    _CHART_LOCK_GRACE_MS = 1500
+
     def __init__(self, settings: AppSettings) -> None:
         super().__init__()
         self._settings  = settings
@@ -173,6 +179,10 @@ class MainWindow(QMainWindow):
         self._masthead.tools_clicked.connect(self._open_tools_menu)
         self._masthead.load_project_clicked.connect(self._on_masthead_load_project)
         self._masthead.load_ti2_clicked.connect(self._on_masthead_load_ti2)
+        self._masthead.close_project_clicked.connect(self._on_masthead_close_project)
+        # Compute the masthead's starting state now, or Close Project looks
+        # available on a fresh launch with nothing open.
+        QTimer.singleShot(0, self._refresh_masthead_availability)
         main_layout.addWidget(self._masthead)
 
         # Tabs
@@ -196,6 +206,14 @@ class MainWindow(QMainWindow):
         # on where it was opened from: 60,759 px apart for the report, 69,009
         # for Preferences. Scoping the selector leaves those dialogs alone.
         self._tabs.setObjectName("chromiq_main_tabs")
+        # The three "something is running" flags, declared up front. Every
+        # reader used getattr(..., False) because a fresh window did not have
+        # them — harmless, but it meant `w._measuring` raised AttributeError on
+        # a window nobody had measured with yet.
+        self._measuring = False
+        self._profile_building = False
+        self._chart_building = False
+        self._chart_locked = False
         self._pane_qss = self._compose_pane_qss()
         self._tabs.setStyleSheet(self._pane_qss)
         self._tabs.setDocumentMode(True)
@@ -224,6 +242,18 @@ class MainWindow(QMainWindow):
         self._target_ctl.changed.connect(self._masthead.reposition_center)
         # Tab 4 is not available for a verification — see _apply_profile_tab_gate.
         self._target_ctl.changed.connect(self._apply_profile_tab_gate)
+        # …and the masthead: Close Project has something to close the moment a
+        # project exists. Without this the button stayed greyed after
+        # generating a chart or opening a project, because nothing told it
+        # (Basti, #164).
+        self._target_ctl.changed.connect(self._refresh_masthead_availability)
+        # …and the FileManager itself, which is where "is a project open?"
+        # actually lives. The bar signal above only catches routes that also
+        # move the bar; this catches every route that names or unnames a
+        # project, however it got there (#164).
+        add_listener = getattr(self._file_mgr, "add_named_state_listener", None)
+        if callable(add_listener):
+            add_listener(self._refresh_masthead_availability)
         # A restored verification chart must reach every tab, so nothing is left
         # showing or printing the pages it replaced (#130, Knut).
         self._target_ctl.chart_restored.connect(self._on_verify_chart_restored)
@@ -279,6 +309,18 @@ class MainWindow(QMainWindow):
             GradientOverlay(TAB_COLORS[_i], parent=_target)
 
         self._tab_chart.chart_finished.connect(self._on_chart_generated)
+        # Any Argyll tool starting or stopping can change what the masthead may
+        # offer — see _refresh_masthead_availability.
+        self._tab_chart.target_started.connect(self._on_chart_build_started)
+        self._tab_chart.chart_finished.connect(
+            lambda *_a: self._on_chart_build_finished())
+        # …and the runner itself, so a build that ends without its own signal
+        # still releases the masthead.
+        self._runner.finished.connect(lambda *_a: self._on_a_tool_finished())
+        # …and the moment a tool actually starts. `target_started` fires before
+        # the process exists, so it alone can never satisfy the "a chart build
+        # is running" test — this is the edge that engages the lock.
+        self._runner.started.connect(self._on_a_tool_started)
         # "Last page not full" hint → open the patch-set editor on the current chart.
         self._tab_chart.edit_patch_set_requested.connect(
             lambda: self._launch_tool("ti2_relayout"))
@@ -396,6 +438,15 @@ class MainWindow(QMainWindow):
         sc("F1", self.open_welcome_dialog)                           # F1
         sc("Ctrl+?", self.open_welcome_dialog)                       # ⌘? (mac Help)
         sc("Ctrl+T", self._open_tools_menu)                          # Tools popup
+        # The two masthead buttons that bring something in (#164). ⌘O reads off
+        # "Open Project"; ⇧⌘O off "Open Chart File", keeping the pair on one
+        # key. NOT ⌘L — the button says nothing with an L in it, and ⌘L is the
+        # address bar in every browser, so it is the key most likely to be
+        # pressed by muscle memory meaning something else. Close Project gets
+        # NO shortcut: ⌘W would close the window on macOS, and a project is not
+        # something to let go of by reflex.
+        sc("Ctrl+O", self._on_masthead_load_project)                 # ⌘O
+        sc("Ctrl+Shift+O", self._on_masthead_load_ti2)               # ⇧⌘O
         # ⌘Return / ⌘Enter — run the current tab's main action.
         sc("Ctrl+Return", self._trigger_primary_action)
         sc("Ctrl+Enter", self._trigger_primary_action)
@@ -813,6 +864,88 @@ class MainWindow(QMainWindow):
                 self._tab_measure.preconditioning_choice()
             )
 
+    def _lock_other_tabs(self, active: bool, keep_idx: int, why: str, *,
+                         reason: str) -> None:
+        """Grey every tab but ``keep_idx`` — and say WHY on each greyed one.
+
+        Basti, #164 Q6: the Build Profile tab was already greyed for the
+        duration of a measurement, but silently: hovering a dead tab told you
+        nothing, so it read as a bug rather than a lock. Option (b) — *"greyed
+        with a note saying why"* — is what this adds, and a build gets the same
+        courtesy (Q7: *"should be locked the same way"*).
+
+        LOCKS ARE COUNTED, NOT BOOLEAN. Two things can hold the tabs at once —
+        the ChromIQ profile engine builds in a QThread of its own
+        (`workflow/engine_builder.py`), outside the single ArgyllRunner that
+        otherwise serialises everything, so a measurement and a build are not
+        mutually exclusive by construction. With a plain on/off flag, whichever
+        finished FIRST unlocked everything: driven, ending a build while a
+        measurement was still running left every tab live and the profile tab
+        wearing the stale measurement tooltip. `_apply_profile_tab_gate` cannot
+        repair that — it early-returns on both flags. So each holder is named,
+        and the tabs come back only when the last one lets go.
+
+        Each tab's own tooltip is put back then, so the verification gate's
+        explanation on tab 4 survives a measurement.
+        """
+        held = getattr(self, "_tab_lock_reasons", None)
+        if held is None:
+            held = self._tab_lock_reasons = {}
+
+        if active:
+            # Save the real tooltips once, before the FIRST holder overwrites
+            # them — otherwise the second holder would save our own "why" text
+            # as if it were the tab's own, and the note would stick for good.
+            if not held:
+                self._tab_tips_before_lock = {
+                    i: self._tabs.tabToolTip(i) for i in range(self._tabs.count())
+                }
+            held[reason] = (keep_idx, why)
+        else:
+            held.pop(reason, None)
+
+        if held:
+            # Still locked by someone. The tab a holder is working IN stays
+            # live only while it is the sole holder — two holders means no tab
+            # is safe to walk into.
+            keeps = {k for k, _w in held.values()}
+            # With two holders there is no single "working" tab, so keep the
+            # one the user is STANDING IN. Disabling every tab also disabled
+            # the Measure page — and Stop lives on it, so the only control that
+            # could end a running measurement became unreachable while the
+            # tooltip said "wait for them to finish", which a measurement does
+            # not do on its own.
+            # EVERY holder's tab stays usable, not just one. Picking a single
+            # tab made the result depend on which lock arrived FIRST:
+            # build-then-measurement left the Measure page disabled, and Stop
+            # lives on it, so the only control that could end the measurement
+            # was unreachable while the tooltip said "wait for them to finish".
+            keeps.discard(None)
+            why_now = next(iter(held.values()))[1] if len(held) == 1 else tr(
+                "Not while a measurement and a profile build are both "
+                "running.\n\nWait for them to finish — this tab comes back as "
+                "soon as the last one is done.")
+            for i in range(self._tabs.count()):
+                if i not in keeps:
+                    self._tabs.setTabEnabled(i, False)
+                    self._tabs.setTabToolTip(i, why_now)
+                else:
+                    self._tabs.setTabEnabled(i, True)
+            return
+
+        saved = getattr(self, "_tab_tips_before_lock", None)
+        if saved is None:
+            # An unlock with no matching lock — nothing was ever saved, so
+            # there is nothing to restore. Writing "" over every tab here would
+            # silently wipe tooltips this method never set.
+            for i in range(self._tabs.count()):
+                self._tabs.setTabEnabled(i, True)
+            return
+        for i in range(self._tabs.count()):
+            self._tabs.setTabEnabled(i, True)
+            self._tabs.setTabToolTip(i, saved.get(i, ""))
+        self._tab_tips_before_lock = None
+
     def _on_measurement_active(self, active: bool) -> None:
         # Recorded BEFORE anything downstream reacts: `_apply_profile_tab_gate`
         # runs from the signals below and re-enables the Build Profile tab three
@@ -821,9 +954,13 @@ class MainWindow(QMainWindow):
         # measuring → still enabled.
         self._measuring = bool(active)
         measure_idx = self._tabs.indexOf(self._tab_measure)
-        for i in range(self._tabs.count()):
-            if i != measure_idx:
-                self._tabs.setTabEnabled(i, not active)
+        self._lock_other_tabs(active, measure_idx, reason="measuring", why=tr(
+            "Not while a measurement is running.\n\n"
+            "The instrument is reading patches into this run right now, and "
+            "every one of these tabs can change what it is reading into — the "
+            "chart, the settings, or the profile it will build.\n\n"
+            "This tab comes back the moment the measurement finishes, whether "
+            "you let it run to the end or stop it early."))
         # Chart-changing controls on the shared bar go quiet for the duration
         # (#130, Knut): Restore Used Chart must not swap the chart out from
         # under a running measurement.
@@ -837,10 +974,114 @@ class MainWindow(QMainWindow):
         # Tools and Preferences go with them: both open windows that can change
         # what the app is working on. Help stays live — Knut, beta.120: *"Help
         # button can be active still."*
-        if hasattr(self._masthead, "set_measuring"):
-            self._masthead.set_measuring(active)
-        else:
-            self._masthead.set_load_buttons_enabled(not active)
+        self._refresh_masthead_availability()
+        if not active:
+            # …and the verification gate has its say again. It DOES already get
+            # one via `ctl.set_measuring` above, but only by signal ordering —
+            # say it outright so tab 4 cannot come back live on a verification
+            # run if that ordering ever changes.
+            self._apply_profile_tab_gate()
+
+    def _on_chart_build_started(self) -> None:
+        """Create Chart says a build is in flight. Not a lock yet — no process
+        exists at this point, and some paths emit this and run no tool at all
+        (a preset copy, an editor apply)."""
+        self._chart_building = True
+
+    def _on_a_tool_started(self) -> None:
+        """A tool actually began. Lock if a chart build is in flight.
+
+        The intent is NOT consumed here. A Manual chart is TWO runs — targen
+        then printtarg (`workflow/chart_creator.py`) — and consuming it on the
+        first meant printtarg never re-locked: measured at 50 ms intervals
+        through a real build, the masthead was greyed for all 19 samples of
+        targen and 0 of the 8 samples of printtarg. printtarg is the phase that
+        writes the .ti2 and the printable pages into the run folder, which is
+        exactly what the lock is for, and Close Project was a live dead click
+        again for its whole duration.
+        """
+        if getattr(self, "_chart_building", False):
+            self._chart_locked = True
+            self._stop_chart_lock_watchdog()
+            self._refresh_masthead_availability()
+
+    def _on_a_tool_finished(self) -> None:
+        """A tool ended. Hold the lock if the chart build has more to run.
+
+        Between targen finishing and printtarg starting the runner is briefly
+        idle; releasing there is the hole above. `chart_finished` is what really
+        ends a build, so the lock waits for it — with a watchdog underneath, so
+        a build that ends without that signal cannot leave the window greyed.
+        """
+        if getattr(self, "_chart_building", False):
+            self._start_chart_lock_watchdog()
+            return
+        self._chart_locked = False
+        self._refresh_masthead_availability()
+
+    def _start_chart_lock_watchdog(self) -> None:
+        """Release the lock if no further tool starts within a grace period."""
+        from PyQt6.QtCore import QTimer
+
+        wd = getattr(self, "_chart_lock_watchdog", None)
+        if wd is None:
+            wd = self._chart_lock_watchdog = QTimer(self)
+            wd.setSingleShot(True)
+            wd.timeout.connect(self._on_chart_lock_watchdog)
+        wd.start(self._CHART_LOCK_GRACE_MS)
+
+    def _stop_chart_lock_watchdog(self) -> None:
+        wd = getattr(self, "_chart_lock_watchdog", None)
+        if wd is not None and wd.isActive():
+            wd.stop()
+
+    def _on_chart_lock_watchdog(self) -> None:
+        """No follow-on tool arrived and nothing is running — let go."""
+        try:
+            still_running = bool(self._runner.is_running)
+        except Exception:      # noqa: BLE001
+            still_running = False
+        if still_running:
+            self._start_chart_lock_watchdog()
+            return
+        if not getattr(self, "_chart_locked", False):
+            # Announced, but no tool ever started — just drop the intent.
+            self._chart_building = False
+            return
+        log.info("Chart-build lock released by watchdog — no chart_finished "
+                 "arrived after the last tool ended")
+        self._on_chart_build_finished()
+
+    def _on_chart_build_finished(self) -> None:
+        self._stop_chart_lock_watchdog()
+        self._chart_building = False
+        self._chart_locked = False
+        self._refresh_masthead_availability()
+
+    def _refresh_masthead_availability(self) -> None:
+        """Recompute what the masthead offers — from ONE place.
+
+        Called from every transition that can change it: a measurement
+        starting or ending, a profile build starting or ending, and a project
+        opening or closing. Nothing else may enable or disable those buttons,
+        or they drift apart the way the Build Profile tab did (#164).
+        """
+        busy = None
+        if getattr(self, "_measuring", False):
+            busy = self._masthead.BUSY_MEASURING
+        elif getattr(self, "_profile_building", False):
+            busy = self._masthead.BUSY_BUILDING
+        elif getattr(self, "_chart_locked", False):
+            # A CHART BUILD LOCKS TOO. Only colprof and chartread had their own
+            # flags, so during targen/printtarg the user could switch project,
+            # open another chart or open Tools mid-build — the "build in flight
+            # vs the run's stored Create Chart state" shape that has been
+            # clobbered twice — and Close Project LOOKED live while doing
+            # nothing (its own guard returned silently). The flag is latched
+            # by `ArgyllRunner.started` and released by `chart_finished`, with
+            # a watchdog underneath so it cannot be left stuck on.
+            busy = self._masthead.BUSY_CHART
+        self._masthead.set_availability(busy, self._file_mgr.is_named())
 
     def _on_verify_chart_restored(self) -> None:
         """React to Restore Used Chart having put an older verification chart
@@ -915,8 +1156,16 @@ class MainWindow(QMainWindow):
                         exc_info=True)
 
     def _on_project_deleted(self) -> None:
-        """Return the whole app to its starting state after the user deleted the
-        project they were working in (#130, Knut 2026-07-29).
+        """The project was deleted — return the app to its starting state."""
+        self._reset_after_project_gone(deleted=True)
+
+    def _reset_after_project_gone(self, *, deleted: bool) -> None:
+        """Return the whole app to its starting state (#130, Knut 2026-07-29).
+
+        Shared by DELETING a project and CLOSING one (#164). The two must land
+        in the same place — an app with two different "no project" states is
+        one the user cannot predict — so they differ only in what they say
+        afterwards, and in the settings flush the caller does first.
 
         *"After deletion of the whole project I was working in, the user
         interface must return to the starting state of the app, empty and no
@@ -953,9 +1202,11 @@ class MainWindow(QMainWindow):
         try:
             self._target_bar.refresh()
         except Exception:      # noqa: BLE001
-            log.warning("Could not refresh the bar after the project was deleted",
-                        exc_info=True)
-        # 5. Nothing about the deleted project is remembered for next launch.
+            log.warning("Could not refresh the bar after the project was %s",
+                        "deleted" if deleted else "closed", exc_info=True)
+        # 4b. The masthead now has nothing to close.
+        self._refresh_masthead_availability()
+        # 5. Nothing about the project is remembered for next launch.
         for key in ("session_target_name", "session_project_root",
                     "session_ti1_path", "session_ti3_path", "session_icc_path",
                     "session_cal_ti3_path"):
@@ -965,12 +1216,103 @@ class MainWindow(QMainWindow):
         #    must not be pushed aside by a message about something else. The
         #    Create Chart log and both empty previews say what happened.)
         self._tabs.setCurrentWidget(self._tab_chart)
-        log.info("Project deleted: the app is back in its starting state")
+        # Say which it was. Telling a user who merely CLOSED their project
+        # that it was deleted is the worst thing this feature could do (#164).
+        log.info("Project %s: the app is back in its starting state",
+                 "deleted" if deleted else "closed")
 
     def _on_masthead_load_project(self) -> None:
         """Open an existing project — the button moved out of Create Chart."""
+        btn = getattr(self._masthead, "_load_project_btn", None)
+        if btn is not None and not btn.isEnabled():
+            return          # the shortcut obeys the button's lock
         self._tabs.setCurrentWidget(self._tab_chart)
         self._tab_chart._load_existing_profile()
+        # Whether or not the bar happened to change, a project may now be open.
+        self._refresh_masthead_availability()
+
+    def _on_masthead_close_project(self) -> None:
+        """Put ChromIQ back to its starting state, without touching a file.
+
+        Basti, #164: *"add that button … when one is opened ask for
+        confirmation in a pop up window"*. Nothing on disk changes — every run,
+        chart, measurement and profile stays exactly where it is — so the
+        confirmation's job is to say what IS lost (what you typed but have not
+        used yet), not to warn about a deletion that is not happening.
+        """
+        from PyQt6.QtWidgets import QMessageBox
+
+        if not self._file_mgr.is_named():
+            return                                # the button is greyed anyway
+        if self._runner.is_running:
+            return                                # so is this, but belt and braces
+
+        box = QMessageBox(self)
+        # No question-mark glyph (Basti, #164) — the heading already asks the
+        # question, and the icon only pushed the text into a narrow column.
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(tr("Close this project?"))
+        box.setText(tr("Close this project?"))
+        box.setInformativeText(tr(
+            "Nothing is deleted. Every run, chart, measurement and profile "
+            "stays exactly where it is on disk, and “Open Project” brings it "
+            "all back whenever you want it.\n\n"
+            "What you have typed but not yet used is not kept: the name in "
+            "“Printer profile project name” and the run description beside "
+            "it. The Create Chart settings go back to your saved defaults, or "
+            "to ChromIQ's own if you have not saved any.\n\n"
+            "ChromIQ then looks the way it does on a fresh install, with no "
+            "project open."))
+        close_btn = box.addButton(tr("Close project"),
+                                  QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(box.buttons()[-1])   # Cancel is the safe default
+        try:
+            from ui.widgets import (accent_message_box_button,
+                                    fit_message_box_buttons)
+            # ACCENT FIRST, THEN FIT. The accent stylesheet adds
+            # `padding: 6px 14px`; applying it after the width was fitted left
+            # the button too narrow for its own label. Measured offscreen in
+            # German: fitted to 139 px, needed 160 px for "PROJEKT SCHLIESSEN".
+            accent_message_box_button(close_btn)
+            fit_message_box_buttons(box)
+        except Exception:      # noqa: BLE001 — a narrow button is not fatal
+            pass
+        box.exec()
+        if box.clickedButton() is not close_btn:
+            return
+        self.close_current_project()
+
+    def close_current_project(self) -> None:
+        """The close itself — the same reset a delete does, minus the delete.
+
+        Shares `_reset_after_project_gone` with `_on_project_deleted` so the
+        two cannot drift: an app with two different "no project" states is one
+        the user cannot predict.
+        """
+        # WRITE THE OUTGOING TARGET'S SETTINGS FIRST. Moving the selection to
+        # nothing is still moving it, and per-target settings are recorded when
+        # a target is left (per_target_settings.md §2.1/N1). A delete does not
+        # need this — the target is going away — but a close must, or the last
+        # edit before closing is silently lost.
+        # EVERY tab, not a hand-written list. The list said chart/measure/
+        # profile and silently omitted Print, so a Rendering-intent change made
+        # on the Print Chart tab was lost by Close Project — driven: close from
+        # the Print tab stored {}, switching tab first stored the real value.
+        # The tab switch at the end of `_reset_after_project_gone` cannot save
+        # it either, because `close_project()` has run by then and
+        # `store_for_target` returns None. Walking the widgets means a fifth tab
+        # is covered the day it is added.
+        for i in range(self._tabs.count()):
+            tab = self._tabs.widget(i)
+            saver = getattr(tab, "save_target_settings", None)
+            if callable(saver):
+                try:
+                    saver()
+                except Exception:      # noqa: BLE001
+                    log.warning("could not record settings before closing",
+                                exc_info=True)
+        self._reset_after_project_gone(deleted=False)
 
     def _on_masthead_load_ti2(self) -> None:
         """Open a chart file — ONE button where Print and Measure each had one.
@@ -983,6 +1325,9 @@ class MainWindow(QMainWindow):
         Print's own contribution is kept: it is the tab that tells you when a
         .ti2 has no page images beside it, and that message is worth having.
         """
+        btn = getattr(self._masthead, "_load_ti2_btn", None)
+        if btn is not None and not btn.isEnabled():
+            return          # the shortcut obeys the button's lock
         before = getattr(self._tab_measure, "_ti1_path", None)
         self._tab_measure._on_load_ti2()
         loaded = getattr(self._tab_measure, "_ti1_path", None)
@@ -1174,9 +1519,17 @@ class MainWindow(QMainWindow):
     def _on_profile_active(self, active: bool) -> None:
         profile_idx = self._tabs.indexOf(self._tab_profile)
         self._profile_building = bool(active)
-        for i in range(self._tabs.count()):
-            if i != profile_idx:
-                self._tabs.setTabEnabled(i, not active)
+        self._lock_other_tabs(active, profile_idx, reason="building", why=tr(
+            "Not while a profile is being built.\n\n"
+            "colprof is writing the ICC profile into this run right now. "
+            "These tabs all feed that build — changing one mid-way would "
+            "leave the finished profile disagreeing with what is on screen.\n\n"
+            "This tab comes back as soon as the build finishes."))
+        # A BUILD LOCKS THE MASTHEAD THE SAME WAY A MEASUREMENT DOES.
+        # Basti, #164: *"should be locked the same way"*. Open Project, Open
+        # Chart File and Tools all open windows that change what the app is
+        # working on, and colprof is writing into the loaded run.
+        self._refresh_masthead_availability()
         if not active:
             # …and the verification gate has its say again.
             self._apply_profile_tab_gate()
@@ -1274,8 +1627,20 @@ class MainWindow(QMainWindow):
         dlg.activateWindow()
 
     def _open_tools_menu(self) -> None:
-        """Show the speech-bubble Tools popup under the masthead's Tools button."""
+        """Show the speech-bubble Tools popup under the masthead's Tools button.
+
+        THE SHORTCUT MUST OBEY THE SAME LOCK AS THE BUTTON. ⌘T reached this
+        directly, so during a measurement the Tools button was greyed and ⌘T
+        opened the menu anyway — every tool one keystroke away from a running
+        read (#164). A shortcut that bypasses the guard its own button honours
+        is worse than no guard at all, because the greyed button says the app
+        is protected.
+        """
         from ui.tools_popup import ToolsPopup
+
+        btn = self._masthead.tools_button()
+        if btn is not None and not btn.isEnabled():
+            return
 
         popup = ToolsPopup(self)
         popup.set_appearance(self._title_bar_mode)
@@ -1903,9 +2268,23 @@ class MainWindow(QMainWindow):
         # from the project's current run. Bail if there's no project on disk for
         # this target (deleted folder, or a pre-redesign session).
         if not self._file_mgr.has_project():
+            # CLEAR THE NAME, don't just bail. `set_target_name` above already
+            # took, so bailing left `is_named()` True with `has_project()`
+            # False — and everything that asks "may I write into the project
+            # folder?" trusts `is_named()`. The next thing to ask would have
+            # recreated the folder the user deleted outside ChromIQ, which is
+            # precisely the #130 fault `close_project` was written to make
+            # impossible (see its docstring). Reproduced with
+            # restore_last_session on and the folder removed in Finder.
             log.info("Session restore skipped: no project for target=%s", target)
+            self._file_mgr.close_project()
+            self._refresh_masthead_availability()
             return
 
+        # The failure path above refreshes explicitly; do the same here rather
+        # than rely on `set_profile_run` happening to emit `changed` because
+        # `profile_run` was "" at startup.
+        self._refresh_masthead_availability()
         proj = self._file_mgr.project()
         run = proj.current_run()
         # #130: default the shared Profile-run bar to the restored project's

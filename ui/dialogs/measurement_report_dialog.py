@@ -1202,7 +1202,14 @@ class MeasurementReportDialog(QDialog):
         if is_ti3(src):
             return src
         import tempfile
-        out_dir = Path(tempfile.mkdtemp(prefix="chromiq_report_"))
+        # Owned by the dialog, so the converted copy goes when the dialog does.
+        # It used to be a bare mkdtemp with no owner and no cleanup — the
+        # dialog has no closeEvent/reject at all — leaving ~350 KB per import.
+        if not hasattr(self, "_converted_tmpdirs"):
+            self._converted_tmpdirs = []
+        holder = tempfile.TemporaryDirectory(prefix="chromiq_report_")
+        self._converted_tmpdirs.append(holder)
+        out_dir = Path(holder.name)
         argyll = self._settings.get("argyll_bin_path", "/Applications/Argyll/bin")
         return convert_i1profiler_measurement(src, argyll, out_dir)
 

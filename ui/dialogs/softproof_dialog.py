@@ -1055,6 +1055,49 @@ class SoftproofDialog(QDialog):
             self._rerun_timer.stop()
         drain_web_view(self._web_view)
         self._web_view = None
+        # …and the files. AFTER the web view is drained: the 3D gamut pages
+        # live in sibling temp folders and the page resolves x3dom.js out of
+        # its own directory, so deleting before the drain would pull the scene
+        # out from under a still-live view.
+        self._drop_temp_work()
+
+    def _drop_temp_work(self) -> None:
+        """Delete every temp folder this dialog is still holding.
+
+        None of these was ever removed. main.py exits via ``os._exit()`` and
+        says so — *"There are no atexit hooks of our own to lose"* — so nothing
+        reclaims them at quit either, and there is no production sweeper.
+        """
+        import shutil
+        from pathlib import Path
+
+        # `self._softproof`, NEVER `self._runner`. `_runner` is the APP-WIDE
+        # ArgyllRunner singleton, and it happens to have a `cleanup()` of its
+        # own that disconnects `line_received`, `finished` and `_pty_done` for
+        # the whole process and kills any running tool. Calling it from here
+        # meant that closing this dialog silently deafened the entire app: the
+        # next measurement's chartread (a PTY run) would finish and nobody
+        # would hear it, so the tabs and the masthead stayed greyed until
+        # restart. A duck-typed `getattr(..., "cleanup")` is what made the
+        # wrong object look right — so this names the object outright.
+        sp = getattr(self, "_softproof", None)
+        if sp is not None:
+            try:
+                sp.cleanup()
+            except Exception:      # noqa: BLE001 — teardown must not raise
+                log.debug("softproof work dir could not be removed", exc_info=True)
+
+        # The gamut HTML folders: deliberate while the dialog lives (the
+        # wireframe toggle re-reads them), garbage once it does not.
+        for attr in ("_printer_html", "_image_html", "_combined_html"):
+            path = getattr(self, attr, None)
+            if not path:
+                continue
+            try:
+                shutil.rmtree(Path(path).parent, ignore_errors=True)
+            except Exception:      # noqa: BLE001
+                log.debug("gamut temp dir could not be removed", exc_info=True)
+            setattr(self, attr, None)
 
     def reject(self) -> None:  # noqa: D102
         self._teardown_webengine()

@@ -134,7 +134,9 @@ def test_the_tooltip_is_restored_not_overwritten(bar, qapp):
 def test_tools_and_preferences_are_locked_but_help_is_not(qapp):
     from ui.masthead_header import MastheadHeader
     m = MastheadHeader()
-    m.set_measuring(True)
+    # `set_availability` replaced `set_measuring` in #164 — one source of truth
+    # for the whole masthead, and a profile build now locks it the same way.
+    m.set_availability(MastheadHeader.BUSY_MEASURING, has_project=True)
     assert not m._tools_btn.isEnabled(), "Tools can rewrite files under the run"
     assert not m._btn.isEnabled(), "Preferences can switch the reading engine"
     assert not m._load_project_btn.isEnabled()
@@ -142,8 +144,25 @@ def test_tools_and_preferences_are_locked_but_help_is_not(qapp):
     help_btn = getattr(m, "_help_btn", None)
     if help_btn is not None:
         assert help_btn.isEnabled(), 'Knut: "Help button can be active still"'
-    m.set_measuring(False)
+    m.set_availability(None, has_project=True)
     assert m._tools_btn.isEnabled() and m._btn.isEnabled()
+
+
+def test_a_profile_build_locks_the_masthead_the_same_way(qapp):
+    """Basti, #164: *"should be locked the same way"*. colprof writes into the
+    loaded run, so opening another project mid-build is no safer than doing it
+    mid-measurement."""
+    from ui.masthead_header import MastheadHeader
+    m = MastheadHeader()
+    m.set_availability(MastheadHeader.BUSY_BUILDING, has_project=True)
+    for name in ("_tools_btn", "_btn", "_load_project_btn", "_load_ti2_btn",
+                 "_close_project_btn"):
+        assert not getattr(m, name).isEnabled(), f"{name} stayed live in a build"
+    help_btn = getattr(m, "_help_btn", None)
+    if help_btn is not None:
+        assert help_btn.isEnabled(), 'Knut: "Help button can be active still"'
+    # …and the reason on screen must name the build, not a measurement.
+    assert "profile is being built" in m._tools_btn.toolTip().lower()
 
 
 def test_the_main_window_actually_calls_it(qapp):
@@ -151,5 +170,6 @@ def test_the_main_window_actually_calls_it(qapp):
     import inspect
     from ui.main_window import MainWindow
     src = inspect.getsource(MainWindow._on_measurement_active)
-    assert "set_measuring" in src
-    assert "_masthead" in src
+    assert "_refresh_masthead_availability" in src
+    refresh = inspect.getsource(MainWindow._refresh_masthead_availability)
+    assert "set_availability" in refresh and "_masthead" in refresh

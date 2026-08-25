@@ -4197,9 +4197,14 @@ class TabProfile(QWidget):
         self._log.clear()
         self._log.appendPlainText(
             f"Importing i1Profiler measurement: {cxf_path.name} …")
+        # Held on the tab so it is reclaimed with it. A bare mkdtemp here had
+        # no prefix at all, so it was invisible even to a prefix-based sweep,
+        # and nothing ever removed it (main.py exits via os._exit(), so no
+        # finalizer runs at quit either).
+        self._cxf_tmp = tempfile.TemporaryDirectory(prefix="chromiq_cxf_")
         try:
             out = cxf_measurement_to_ti3(
-                cxf_path, Path(tempfile.mkdtemp()) / f"{cxf_path.stem}.ti3")
+                cxf_path, Path(self._cxf_tmp.name) / f"{cxf_path.stem}.ti3")
         except ReferenceConvertError as exc:
             self._log.appendPlainText(f"[ERROR] {exc}")
             self._show_txt_import_error(str(exc))
@@ -4877,18 +4882,31 @@ class TabProfile(QWidget):
         self._progress_bar.start()
         self.profile_active.emit(True)
 
-        if engine == "engine":
-            self._engine_builder.build(
-                params,
-                on_line=self._on_log_line,
-                on_finish=self._on_engine_done,
-            )
-        else:
-            self._builder.build(
-                params,
-                on_line=self._on_log_line,
-                on_finish=self._on_build_done,
-            )
+        # THE LOCK MUST COME BACK OFF IF THE BUILD NEVER STARTS.
+        # `profile_active(True)` greys the other tabs and (since #164) the
+        # masthead's Open Project / Open Chart / Tools buttons. Both builders
+        # can raise before they ever run — a bad argument list, a missing
+        # binary — and nothing downstream would then emit False, leaving the
+        # user locked out of their own app with no way back but a restart.
+        # That is the stuck-shield shape that shipped once already in
+        # 4.1.3-beta.7.
+        try:
+            if engine == "engine":
+                self._engine_builder.build(
+                    params,
+                    on_line=self._on_log_line,
+                    on_finish=self._on_engine_done,
+                )
+            else:
+                self._builder.build(
+                    params,
+                    on_line=self._on_log_line,
+                    on_finish=self._on_build_done,
+                )
+        except Exception:      # noqa: BLE001 — re-raised after the unlock
+            log.exception("the profile build could not be started")
+            self._reset_build_ui()
+            raise
 
     def _on_log_line(self, line: str) -> None:
         self._log.appendPlainText(line)
@@ -4934,12 +4952,41 @@ class TabProfile(QWidget):
             self.profile_built.emit(self._ti3_path, self._icc_path)
         self._show_build_result_dialog(self._icc_path, [])
 
+    def _report_if_the_tool_could_not_start(self) -> bool:
+        """Tell the user when ChromIQ could not launch the tool at all."""
+        tool = getattr(self._runner, "last_failed_to_start", None)
+        if not tool:
+            return False
+        self._runner.last_failed_to_start = None
+        InfoDialog(
+            tr("ChromIQ could not start {tool}").format(tool=tool),
+            tr(
+                "The profile could not be built because ChromIQ could not run "
+                "“{tool}” at all — the program was not found where ChromIQ is "
+                "looking for it.\n\n"
+                "This almost always means the ArgyllCMS folder is set to the "
+                "wrong place, or ArgyllCMS has been moved or removed. Open "
+                "Preferences (the gear at the top left) and check the "
+                "ArgyllCMS folder — it should be the “bin” folder inside your "
+                "ArgyllCMS installation, for example "
+                "“/Applications/Argyll/bin”.\n\n"
+                "Nothing was changed in your project."
+            ).format(tool=tool),
+            self, min_width=540,
+        ).exec()
+        return True
+
     def _on_build_done(self, code: int) -> None:
         self._reset_build_ui()
 
         if code != 0:
             self._log.appendPlainText(f"\n[ERROR] colprof exited with code {code}.")
             self._log.ensureCursorVisible()
+            # THE TOOL NEVER RAN AT ALL. There is no output to diagnose, so
+            # every pattern below finds nothing and the user was shown nothing
+            # — one line in the log for a wrong ArgyllCMS path. Say it plainly.
+            if self._report_if_the_tool_could_not_start():
+                return
             failure = self._builder.primary_failure()
             if failure is not None and failure[0] == "fwa_no_uv":
                 self._show_fwa_instrument_error()

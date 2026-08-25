@@ -306,7 +306,13 @@ def test_save_as_defaults_leaves_the_project_name_out(qapp, tmp_path):
     name, so every future fresh start opened seeded with an old project's
     name — one Generate away from building into it. Every knob is a
     preference; the name is the project's identity, and the stored key is
-    reset so older saves stop leaking too."""
+    reset so older saves stop leaking too.
+
+    It resets to EMPTY, not to the factory seed "ChromIQ Test Chart" that this
+    test originally asserted (Basti, #164 Q15). The seed was itself the bug:
+    it put "Location being edited: …/ChromIQ-Test-Chart/runs/run1/" on screen
+    with no project open. The rule this test exists to defend — a project name
+    is never persisted — is unchanged and now stricter."""
     from core.argyll_runner import ArgyllRunner
     from core.file_manager import FileManager
     from core.settings import AppSettings
@@ -334,5 +340,5 @@ def test_save_as_defaults_leaves_the_project_name_out(qapp, tmp_path):
 
     widget._on_save_defaults()
 
-    assert st.written.get("chart_target_name") == "ChromIQ Test Chart", \
-        "the name must be reset to the factory seed, never saved"
+    assert not st.written.get("chart_target_name"), \
+        "the name must be cleared, never saved"

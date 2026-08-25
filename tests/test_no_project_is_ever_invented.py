@@ -160,3 +160,64 @@ def test_adopting_an_edited_chart_with_no_project_says_so_and_changes_nothing(
             "a folder was created for a project that does not exist")
     finally:
         win.close()
+
+
+def test_a_failed_session_restore_leaves_no_half_open_project(qapp, tmp_path):
+    """A project deleted outside ChromIQ must not linger as a NAME.
+
+    `_restore_last_session` called `set_target_name` and then bailed when the
+    folder turned out to be gone — leaving `is_named()` True while
+    `has_project()` was False. Everything that asks "may I write into the
+    project folder?" trusts `is_named()`, so the next such question would have
+    recreated the folder the user had just deleted in Finder. That is the exact
+    fault `FileManager.close_project` was written for (#130); the skip path had
+    simply never been given the cure.
+    """
+    from core.settings import AppSettings
+    from ui.main_window import MainWindow
+
+    s = AppSettings()
+    s.set("custom_output_path", str(tmp_path / "out"))
+    s.set("restore_last_session", True)
+    s.set("session_target_name", "Deleted-In-Finder")
+    s.set("session_project_root", "")
+
+    w = MainWindow(s)
+    try:
+        for _ in range(20):
+            qapp.processEvents()
+        assert w._file_mgr.has_project() is False
+        assert w._file_mgr.is_named() is False, (
+            "a project that no longer exists is still named, so the next "
+            "write would recreate it")
+        assert w._masthead._close_project_btn.isEnabled() is False
+    finally:
+        w.close()
+
+
+def test_a_good_session_restore_still_opens_the_project(qapp, tmp_path):
+    """…and the cure must not break the ordinary path: a project that IS on
+    disk still comes back, with Close Project live."""
+    from core.file_manager import FileManager
+    from core.settings import AppSettings
+    from ui.main_window import MainWindow
+
+    s = AppSettings()
+    s.set("custom_output_path", str(tmp_path / "out"))
+    s.set("restore_last_session", True)
+
+    fm = FileManager(s)
+    fm.set_target_name("Real-Project")
+    fm.project().current_run().ensure_dir()
+
+    s.set("session_target_name", "Real-Project")
+    s.set("session_project_root", "")
+
+    w = MainWindow(s)
+    try:
+        for _ in range(30):
+            qapp.processEvents()
+        assert w._file_mgr.has_project() is True, "a real project failed to restore"
+        assert w._masthead._close_project_btn.isEnabled() is True
+    finally:
+        w.close()

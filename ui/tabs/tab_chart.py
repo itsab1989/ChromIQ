@@ -8580,6 +8580,17 @@ class TabChart(QWidget):
         of the case where the user simply picked a file the project already
         owned.
         """
+        # A QUESTION MUST NOT CREATE A PROJECT.
+        # `project()` goes through `get_target_name()`, the mutating getter that
+        # invents `Printer_Paper_Type_Instr_<timestamp>` and writes the folder.
+        # So merely ASKING whether a loaded chart lived inside the current
+        # project conjured one up: driven with no project open, one call left
+        # `Printer_Paper_Type_Instr_2026-08-25_08-09/project.json` on disk and
+        # `is_named()` True — after which the app was "in" a project the user
+        # never made, and the next Generate built into it. Third site of this
+        # fault (#164); `has_project()` answers without creating anything.
+        if not self._file_mgr.has_project():
+            return False           # nothing open, so nothing can be inside it
         try:
             project = self._file_mgr.project()
             root = getattr(project, "root", None) or getattr(project, "dir", None)
@@ -9603,6 +9614,31 @@ class TabChart(QWidget):
         except Exception:  # noqa: BLE001 — refresh must never block the rename
             log.warning("post-rename path refresh failed", exc_info=True)
 
+    def _ask_for_a_project_name(self) -> None:
+        """Say that the name is needed, name the exact box, and put the cursor
+        in it (Basti, #164 Q15)."""
+        guided = self._current_mode() == "guided"
+        field = (self._target_name_edit if guided
+                 else self._manual_target_name_edit)
+        InfoDialog(
+            tr("Your project needs a name first"),
+            tr(
+                "“Printer profile project name” is still empty, and ChromIQ "
+                "uses that name for everything this project makes: the folder "
+                "it all lives in, the name printed on the chart itself, and "
+                "the finished ICC profile.\n\n"
+                "Type a name into that box — the one just above the "
+                "“Generate Chart” button — and click “Generate Chart” again. "
+                "Something that tells you which printer and paper it is for "
+                "works well, for example “Canon PRO-300 Baryta Gloss”.\n\n"
+                "You can rename it later; ChromIQ will offer to move the "
+                "folder with it."
+            ),
+            self, min_width=540,
+        ).exec()
+        if field is not None:
+            field.setFocus()
+
     def _on_generate(self) -> None:
         if self._runner.is_running:
             log.warning("A process is already running")
@@ -9705,8 +9741,24 @@ class TabChart(QWidget):
         # lay it out with printtarg) — same path as the TC9.18 built-in. If the
         # user unlocked the targen panel and changed it, fall through to a fresh
         # targen run instead (different patches, like the built-in ti1 presets).
-        if self._preset_ti1_path is not None and self._current_mode() == "manual":
-            targen_changed = (self._preset_ti1_targen_sig is not None
+        # NOT GATED ON MANUAL. "Load patch set" lives in the tab HEADER, above
+        # the Guided/Manual stack, so it is offered in Guided too — which is
+        # where a beginner is. With the mode clause here, loading a patch set in
+        # Guided and pressing Generate walked straight past this branch into a
+        # fresh targen run: the user's own patches were replaced, silently, and
+        # `_preset_ti1_path` was not even cleared. Driven: load in Manual →
+        # from_ti1; switch to Guided, same state → fresh targen.
+        if self._preset_ti1_path is not None:
+            # A LOCKED PANEL CANNOT HAVE BEEN EDITED. The signature comparison
+            # exists so a user who UNLOCKS the targen panel and changes a knob
+            # gets the fresh chart they asked for. Without the override box
+            # ticked there is no such consent, and any difference is something
+            # the app did to itself — which is exactly how this fault kept
+            # coming back.
+            opted_in = bool(self._override_targen_check is not None
+                            and self._override_targen_check.isChecked())
+            targen_changed = (opted_in
+                              and self._preset_ti1_targen_sig is not None
                               and self._targen_signature() != self._preset_ti1_targen_sig)
             if not targen_changed:
                 if self._preset_ti1_path.is_file():
@@ -9748,6 +9800,16 @@ class TabChart(QWidget):
             if self._current_mode() == "guided"
             else self._manual_target_name_edit.text().strip()
         )
+        # A NAME IS REQUIRED — never invent one (Basti, #164 Q15).
+        # `get_target_name()` below is a MUTATING getter: with nothing set it
+        # makes up `Printer_Paper_Type_Instr_<timestamp>` and builds the whole
+        # chart into a folder of that name, which nobody asked for and nobody
+        # would find again. Only ask when no project is open — once one is,
+        # emptying the field is a rename question, and `_handle_target_rename`
+        # owns that.
+        if not name and not self._file_mgr.is_named():
+            self._ask_for_a_project_name()
+            return
         # If a target was already created this session and the user has now typed
         # a different name, switching folders would orphan the old one. Ask first
         # (rename / keep both / delete old); Cancel aborts before anything clears.
@@ -10144,7 +10206,36 @@ class TabChart(QWidget):
             ti1 = src
         else:
             try:
-                tmp_dir = Path(tempfile.mkdtemp(prefix="chromiq_import_"))
+                # A LIST, not a single attribute. Each converted patch set
+                # stays reachable through `_preset_ti1_path` until the user
+                # loads something else or builds, so the folder must outlive
+                # the NEXT load. Holding one holder meant the second load
+                # dropped the first, its finalizer deleted the folder, and
+                # `_preset_ti1_path` was left pointing at a file that no longer
+                # existed — after which Generate logged one line and silently
+                # built a fresh targen chart instead of the patch set the user
+                # had loaded.
+                #
+                # THAT SYMPTOM HAS A SECOND, INDEPENDENT CAUSE, STILL OPEN.
+                # `_preset_ti1_targen_sig` is snapshotted BEFORE
+                # `_reset_override_checks()` / `_update_preset_locks()` change
+                # what the targen widgets report (-e/-B go 0 -> 4), so
+                # `_on_generate` sees `targen_changed` and drops the patch set
+                # anyway — measured at HEAD and here alike: 2 patches in, 525
+                # out, no dialog. Keeping the folder alive is necessary and not
+                # sufficient; do not read this comment as saying the user-facing
+                # fault is gone.
+                if not hasattr(self, "_import_tmps"):
+                    self._import_tmps = []
+                holder = tempfile.TemporaryDirectory(prefix="chromiq_import_")
+                self._import_tmps.append(holder)
+                # BOUNDED. Append-only kept every converted patch set for the
+                # life of the app, and main.py exits via os._exit() so the
+                # finalizers never run at quit either. Two are enough: the one
+                # `_preset_ti1_path` points into, and the one before it, which
+                # a load that fails part-way may still be referencing.
+                del self._import_tmps[:-2]
+                tmp_dir = Path(holder.name)
                 ti1, n = import_to_ti1(src, tmp_dir / f"{src.stem}.ti1")
             except ValueError as exc:
                 InfoDialog(
@@ -10175,6 +10266,16 @@ class TabChart(QWidget):
         if self._reflected_active:
             self._leave_reflected()
         self._preset_ti1_path = ti1
+        # THE SAME SHIELD THE OTHER TWO PRESET FAMILIES RAISE (#164).
+        # Binding the patch set lands the Profile-run bar on a run, and on
+        # "New run" that is a change of run — which resets every per-target row
+        # to its factory value. targen's `-e`/`-B` go 0 → 4, this signature
+        # stops matching, and Generate quietly rebuilds through targen instead
+        # of laying out the patches the user loaded: measured, 2 patches in and
+        # 525 out, with no dialog. `_apply_prebuilt_preset` and
+        # `_apply_knut_preset` already raise this flag and say why; the load
+        # path was the third family, and was missed.
+        self._layout_owned_by_build = True
         self._preset_ti1_targen_sig = self._targen_signature()
         # Grey the targen panel (printtarg stays editable) so the loaded patch
         # set can't be silently overwritten by a stray targen run, and so
@@ -14524,8 +14625,9 @@ class TabChart(QWidget):
         # identity — a saved name would seed every future fresh start with an
         # old project's name, one Generate away from building into it. The
         # stored key is reset so a name saved by an older version stops
-        # leaking into new sessions too.
-        s.set("chart_target_name",         "ChromIQ Test Chart")
+        # leaking into new sessions too. It resets to EMPTY, not to a factory
+        # name (Basti, #164 Q15) — see _restore_defaults.
+        s.set("chart_target_name",         "")
         s.set("chart_stamp_commands",      bool(params.stamp_commands))
         s.set("chart_left_clip_info",      bool(params.left_clip_info))
         s.set("chart_instrument",          params.instrument)
@@ -14876,8 +14978,14 @@ class TabChart(QWidget):
 
         # Strip any stray extension a pre-fix session may have persisted, so a
         # contaminated default (e.g. "…_target.icm") doesn't reappear on launch.
+        # EMPTY on a fresh start (Basti, #164 Q15). It used to default to
+        # "ChromIQ Test Chart", which put "Location being edited:
+        # …/ChromIQ-Test-Chart/runs/run1/" on screen with no project open —
+        # a path into a project that does not exist, right under the sentence
+        # telling you to open one. An older install's copy of that string is
+        # dropped by AppSettings._migrate_factory_project_name.
         default_name = self._file_mgr.strip_workfile_ext(
-            s.get("chart_target_name", "ChromIQ Test Chart")
+            s.get("chart_target_name", "")
         )
         self._target_name_edit.setText(default_name)
         self._manual_target_name_edit.setText(default_name)

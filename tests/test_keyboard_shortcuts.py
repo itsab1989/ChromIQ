@@ -51,14 +51,30 @@ def test_every_tab_resolves_a_primary_button(win):
         assert isinstance(btn, QPushButton), f"tab {i} has no primary button"
 
 
-def test_cmd_return_clicks_the_current_tab_primary(win):
+def test_cmd_return_clicks_the_current_tab_primary(win, monkeypatch):
+    """Only the delivery of the click is under test here.
+
+    The tab's real Generate handler is stubbed out: this used to fire it for
+    real, which started an actual targen build as a side effect of a keyboard
+    test, and — once Generate learned to ask for a missing project name
+    (#164 Q15) — opened a modal dialog that would have hung the run.
+    """
     win._tabs.setCurrentIndex(0)                      # Create Chart
+    # `_on_generate` itself cannot be stubbed here — the button bound it at
+    # construction, so patching the class leaves the live connection alone.
+    # The dialog it opens IS looked up at call time, so stub that; Generate
+    # then takes its "no project name" branch and returns without building.
+    asked = []
+    monkeypatch.setattr(type(win._tab_chart), "_ask_for_a_project_name",
+                        lambda self: asked.append(True))
     btn = win._primary_action_button()
     btn.setEnabled(True)
     fired = []
     btn.clicked.connect(lambda: fired.append(True))
     win._trigger_primary_action()
     assert fired == [True]
+    assert asked == [True], (
+        "the click did not reach the real Generate handler")
 
 
 def test_cmd_return_noop_when_primary_disabled(win):

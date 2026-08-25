@@ -1031,6 +1031,25 @@ class GamutPanel(QWidget):
         # core.webengine_shutdown).
         drain_web_view(self._web_view)
         self._web_view = None
+        # …and the pages themselves. AFTER the drain: the X3D page resolves
+        # x3dom.js relatively out of its own folder, so removing it while a
+        # view still lived would blank the scene. Nothing removed these before
+        # and there is no production sweeper — main.py exits via os._exit().
+        self._drop_html_temp_dirs()
+
+    def _drop_html_temp_dirs(self) -> None:
+        import shutil
+        from pathlib import Path as _P
+
+        for attr in ("_primary_html", "_compare_html", "_combined_html"):
+            path = getattr(self, attr, None)
+            if not path:
+                continue
+            try:
+                shutil.rmtree(_P(path).parent, ignore_errors=True)
+            except Exception:      # noqa: BLE001 — shutdown must not raise
+                pass
+            setattr(self, attr, None)
 
     def _on_reset_view(self) -> None:
         if self._web_view is not None:
