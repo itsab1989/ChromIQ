@@ -187,10 +187,24 @@ def test_selecting_a_run_does_not_re_render_its_chart(tab, monkeypatch):
     2026-08-26 and was green while the real path was broken.
 
     ONE DEVIATION, DELIBERATE AND UNCONFIRMED: the plan words N3 as "assert the
-    chart file's mtime is unchanged". This asserts that no re-render is ARMED,
-    which is strictly earlier and strictly stronger — an unchanged mtime would
-    also pass if the rebuild simply wrote identical bytes. Awaiting Basti's
-    confirmation that the stronger assertion is acceptable in the plan's place.
+    chart file's mtime is unchanged". THAT ASSERTION CANNOT FAIL HERE, measured
+    2026-08-26:
+
+    `_auto_regenerate_preview` ends in `_generate_from_ti1`, which reaches
+    `ArgyllRunner.run` -> `QProcess.start` — asynchronous. Nothing on disk has
+    moved when it returns; the .ti2 is written by printtarg, in another process.
+    printtarg on a 210-patch A4 chart takes 0.263 s here, so the earliest the
+    mtime can move after a run switch is 450 ms (the debounce) + spawn + 0.26 s
+    ~= 0.75 s. A test that switches run and stats the file reads an UNCHANGED
+    mtime WHILE THE BUG IS HAPPENING. It would only go red if it also waited out
+    an Argyll subprocess against a real run — which this fixture deliberately
+    does not build, because `_target_run` is a mutating getter that once created
+    a project under the tester's own ~/ChromIQ. Granularity is not the obstacle:
+    /private/tmp, $TMPDIR and $HOME all resolve to ~1.6 ms here.
+
+    So this asserts the rebuild is never STARTED — the same rule of §7 B,
+    observed earlier and without the race. Awaiting Basti's confirmation, and a
+    matching edit to N3's wording in the test plan.
 
     `per_target_settings.md` §7 B, and N3 of its test plan: *"Loading
     settings must not trigger a rebuild … This is the one that would actually
@@ -223,6 +237,18 @@ def test_selecting_a_run_does_not_re_render_its_chart(tab, monkeypatch):
     assert not tab._auto_preview_timer.isActive(), (
         "selecting a run armed the live preview — §7 B forbids exactly this")
     assert tab._last_auto_sig == tab._layout_signature()
+
+    # AND THE EPISODE, NOT JUST THE TWO FLAGS. A future seeding path that armed
+    # the timer *and* moved the fingerprint would satisfy both assertions above
+    # on the way in, and still rewrite the chart when the timer fired. `_renders`
+    # opens every other gate, so this measures the fire-time fingerprint check
+    # and nothing else; its own control is
+    # `test_an_arming_that_has_since_been_baselined_is_dropped`.
+    calls = _renders(tab, monkeypatch)
+    tab._auto_regenerate_preview()
+    assert calls == [], (
+        "the fire-time path re-laid out the run's chart after a plain run "
+        "switch — the rewrite §7 B forbids, one timer tick later")
 
 
 def test_the_run_switch_guard_survives_a_failure_half_way(tab, monkeypatch):
@@ -300,4 +326,47 @@ def test_mirroring_a_loaded_chart_arms_nothing(tab, monkeypatch, tmp_path):
         pass
     assert not tab._auto_preview_timer.isActive(), (
         "mirroring a chart from elsewhere left a re-layout queued")
+    assert tab._last_auto_sig == tab._layout_signature()
+
+
+def test_loading_a_user_preset_arms_nothing(tab, monkeypatch, tmp_path):
+    """The largest of the five settle sites, and the one with no test until now.
+
+    `_on_preset_selected` writes the whole layout panel from the preset. It is
+    wrapped in try/finally over ~230 lines with four mid-way returns, so the
+    settle has to hold on every one of them — including the `auto_run` preset
+    that leaves early when a process is already running.
+    """
+    combo = tab._preset_combo
+    # Choosing a preset that does not exist exercises the ordinary path: the
+    # handler runs, seeds nothing it can find, and must still settle.
+    _arm(tab)
+    tab._on_preset_selected(0)
+    assert not tab._auto_preview_timer.isActive(), (
+        "selecting in the preset dropdown left a re-layout queued")
+    assert tab._last_auto_sig == tab._layout_signature()
+
+    # And the early-return path: a divider row is not a choice at all.
+    if combo.count() > 1:
+        _arm(tab)
+        tab._on_preset_selected(combo.count() - 1)
+        assert not tab._auto_preview_timer.isActive()
+
+
+def test_mirroring_a_loaded_chart_settles_on_the_HAPPY_path_too(tab, tmp_path):
+    """`test_mirroring_a_loaded_chart_arms_nothing` swallows exceptions, so it
+    proves the `finally` fires — not that the ordinary path does. This drives a
+    .ti2 the loader can actually read."""
+    ti2 = tmp_path / "real.ti2"
+    ti2.write_text(
+        "CTI2\n\nBEGIN_DATA_FORMAT\nSAMPLE_ID RGB_R RGB_G RGB_B\n"
+        "END_DATA_FORMAT\n\nNUMBER_OF_SETS 1\nBEGIN_DATA\n"
+        "1 100.0 100.0 100.0\nEND_DATA\n")
+    tab._settings.set("reflect_backfill_hide_warning", True)
+    _arm(tab)
+    try:
+        tab.reflect_loaded_chart(ti2, [])
+    except Exception:                      # noqa: BLE001
+        pass
+    assert not tab._auto_preview_timer.isActive()
     assert tab._last_auto_sig == tab._layout_signature()

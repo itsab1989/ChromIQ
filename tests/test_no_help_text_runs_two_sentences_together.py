@@ -38,22 +38,23 @@ def _english_keys() -> list[str]:
 #: letters before the stop and a lower-case letter directly before it.
 _RUN_ON = re.compile(r"[a-z]{2}\.[A-Z][a-z]")
 
-#: Things that legitimately look like a run-on.
-_ALLOWED = (
-    ".ti1", ".ti2", ".ti3", ".icc", ".icm", ".cal", ".cht", ".cie", ".txt",
-    ".json", ".yaml", ".tif", ".tiff", ".pdf", ".ps", ".mxf", ".pxf", ".gam",
-    ".py", ".app", ".exe", ".dmg", ".zip", "e.g.", "i.e.", "etc.",
-)
+#: NO ALLOW-LIST. There used to be one — file extensions and `e.g.` / `i.e.` —
+#: matched as a substring of a ±6-character window round the hit, so it could
+#: only ever WEAKEN the check: "the map.Apply the profile" was waved through
+#: because the window contains `.app`, and "the quality.Tiff export" because it
+#: contains `.tif`. Both are the exact defect this test exists to find.
+#:
+#: It is not needed either. `_RUN_ON` requires an UPPER-case letter immediately
+#: after the dot, and an extension is written lower-case, so no real `.ti3` /
+#: `.icc` / `.app` can match it. Measured over the whole catalogue,
+#: 2026-08-26: 0 hits with no allow-list at all.
 
 
 def test_no_english_string_runs_a_sentence_into_the_next():
     offenders = []
     for key in _english_keys():
         for m in _RUN_ON.finditer(key):
-            frag = key[max(0, m.start() - 6):m.end() + 6]
-            if any(a in frag.lower() for a in _ALLOWED):
-                continue
-            offenders.append(f"…{frag}…")
+            offenders.append(f"…{key[max(0, m.start() - 6):m.end() + 6]}…")
     assert not offenders, (
         "these strings run two sentences together with no space:\n  "
         + "\n  ".join(sorted(set(offenders))))
@@ -66,6 +67,9 @@ def test_this_check_can_see_a_run_on():
     good = "the classic cause of mis-recognised strips and bad data. Click here"
     assert not _RUN_ON.search(good)
     assert not _RUN_ON.search("Load the .ti3 measurement"), "false positive on a file extension"
+    # …and the two the old allow-list let through, which is why it is gone.
+    assert _RUN_ON.search("open the map.Apply the profile"), "the .app window hid a real run-on"
+    assert _RUN_ON.search("check the quality.Tiff export follows"), "the .tif window hid a real run-on"
 
 
 # --------------------------------------------------------------------------

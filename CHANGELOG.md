@@ -29,6 +29,10 @@ to disk. And the help cards named eleven buttons that do not exist.
   latch onto the wrong strip and quietly build a profile with colour casts —
   which is why ChromIQ shows a warning when you do it. The cards now say to leave
   "Auto" ticked and let ChromIQ choose.
+- **A help card said "Auto" picks the strip-recognition mode from your chart
+  and your instrument.** It reads the instrument alone — so on an i1Pro with a
+  fixed-order chart it chooses bidirectional reading, which is the case ChromIQ
+  separately warns you about. The card now says what Auto really does.
 - **"Check && Refine" appeared with two ampersands** in three help texts.
 - **A US Letter help card printed a sheet with nothing on it** — the
   "Your first profile" card, after its text grew.

@@ -25,11 +25,21 @@ pytest.importorskip("PyQt6")
 
 _SIZES = ("A4", "Letter")
 
-#: The lowest body-band ink of any legitimate sheet, measured across all 21
-#: cards at both sizes: `file_guide` A4 page 6, at **0.96 %** — the genuinely
-#: sparse sheet a row taller than the space left leaves behind. The three
-#: wasted sheets measure 0.088 %, 0.106 % and 0.116 %. Half a percent sits a
-#: factor of five clear of both.
+#: RETIRED AS A GATE (2026-08-26). An ink threshold cannot survive a change of
+#: script. Measured over all 13 languages x 21 cards x {A4, Letter} = 1350
+#: sheets, rendered through the real `render_card`:
+#:
+#:   zh_CN/cmyk_n/Letter p2   43 characters of content   0.599 %  — would PASS
+#:   nl/cmyk_n/A4        p2   50 characters, same text   0.316 %  — would FAIL
+#:
+#: The two sheets are visually identical — one line of type plus the colophon.
+#: Han glyphs simply carry about twice the ink of Latin ones. The 1350 sheets
+#: run 0.18 %…1.1 % with no gap for a threshold to sit in, and the English
+#: figure this was calibrated on — `file_guide` A4 p6, called "the sparsest
+#: legitimate sheet" — is itself a sheet carrying ONE TABLE ROW.
+#:
+#: The gate is now structural (below): does a sheet carry the colophon and
+#: nothing else? That is the question `drop_orphan_tail` actually answers.
 _MIN_BODY_INK = 0.5
 
 
@@ -99,20 +109,85 @@ def _body_band_ink(pdf, printer, tmp_path):
     return out
 
 
-def test_no_help_card_prints_a_sheet_with_nothing_on_it(qapp, tmp_path):
-    """Every card, both papers. FAILS on beta.15 with three named sheets."""
+
+def _body_band_text(pdf, printer):
+    """The same band as :func:`_body_band_ink`, read as TEXT instead of as ink.
+
+    `y` comes from the FULL matrix. `tm[5]` on its own is meaningless in a
+    Qt-written PDF — it runs 0…932 on a 792 pt page, because the CTM carries the
+    flip — and reading it raw puts the page number up in the header.
+    """
+    from pypdf import PdfReader
+    from PyQt6.QtGui import QPageLayout
+
+    from ui.help_card_print import _FOOTER_H, _HEADER_H
+
+    mm = QPageLayout.Unit.Millimeter
+    paint = printer.pageLayout().paintRect(mm)
+    top = paint.y() + _HEADER_H * 25.4 / 96.0
+    bot = paint.y() + paint.height() - _FOOTER_H * 25.4 / 96.0
+    out = []
+    for page in PdfReader(str(pdf)).pages:
+        h = float(page.mediabox.height)
+        got: list[str] = []
+
+        def visit(t, cm, tm, _fd, _fs, _got=got, _h=h):
+            if t and t.strip():
+                y = (_h - (cm[1] * tm[4] + cm[3] * tm[5] + cm[5])) * 25.4 / 72.0
+                if top - 0.5 <= y <= bot + 0.5:
+                    _got.append(t.strip())
+
+        page.extract_text(visitor_text=visit)
+        out.append(" ".join(got))
+    return out
+
+def test_no_help_card_prints_a_sheet_that_carries_only_the_colophon(qapp, tmp_path):
+    """Every card, both papers — the contract `drop_orphan_tail` really holds.
+
+    This is the structural form of the beta.15 defect: a sheet whose body band
+    carries the card's colophon and NOTHING else. It replaces an ink threshold
+    that flagged a Dutch sheet and passed a visually identical Chinese one (see
+    `_MIN_BODY_INK` above).
+    """
+    from core.version import APP_VERSION
     from ui.dialogs.welcome_dialog import WORKFLOWS
 
     faults = []
     for wf in WORKFLOWS:
         for size in _SIZES:
             pdf, pages, pr = _print_card(wf["key"], size, tmp_path)
-            for i, ink in enumerate(_body_band_ink(pdf, pr, tmp_path)):
-                if ink < _MIN_BODY_INK:
+            for i, body in enumerate(_body_band_text(pdf, pr)):
+                flat = " ".join(body.split())
+                if flat and flat.startswith(f"ChromIQ {APP_VERSION}"):
                     faults.append(
-                        f"{wf['key']}/{size} sheet {i + 1} of {pages}: "
-                        f"{ink:.3f} % ink below the running header")
+                        f"{wf['key']}/{size} sheet {i + 1} of {pages} carries "
+                        f"only the colophon: {flat!r}")
     assert not faults, "\n".join(faults)
+
+
+def test_the_orphan_rule_is_what_is_saving_those_sheets(qapp, tmp_path,
+                                                        monkeypatch):
+    """THE CONTROL, and the reason the test above is worth having.
+
+    Without it that assertion holds whether `drop_orphan_tail` works or not —
+    which is exactly how a sibling test in this project stayed green for weeks
+    while the behaviour it named was broken. Switch the rule off and the wasted
+    sheets must come back.
+    """
+    import ui.pdf_layout as pdf_layout
+
+    from core.version import APP_VERSION
+
+    monkeypatch.setattr(pdf_layout, "drop_orphan_tail", lambda *a, **k: None)
+    found = []
+    for key in ("first_profile", "cmyk_n", "file_guide"):
+        pdf, _pages, pr = _print_card(key, "Letter", tmp_path)
+        for body in _body_band_text(pdf, pr):
+            if " ".join(body.split()).startswith(f"ChromIQ {APP_VERSION}"):
+                found.append(key)
+    assert sorted(found) == ["cmyk_n", "file_guide", "first_profile"], (
+        "disabling drop_orphan_tail did not bring the three beta.15 sheets "
+        f"back, so the test above is measuring nothing: {found}")
 
 
 @pytest.mark.parametrize("key,pages", [

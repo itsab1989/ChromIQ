@@ -117,3 +117,39 @@ def test_an_awaiting_section_does_not_claim_to_be_confirmed():
         "a section awaiting confirmation must say so in its body, in as many "
         "words ('**Confirmed by:** *nobody yet.*'), so it cannot be skimmed as "
         "settled:\n  " + "\n  ".join(offenders))
+
+
+#: The two shapes the project uses for a SECTION-level "not yet confirmed"
+#: claim: a heading, or a bold marker opening a blockquote. An inline
+#: "⏳ awaiting confirmation" inside a table cell annotates one row and is not
+#: a claim about a block of behaviour, so it is left alone.
+_AWAITING_MARKER = re.compile(
+    r"^\s*(?:>\s*)?(?:#{2,4}\s*)?[^\w\s]*\s*\*{0,2}Awaiting confirmation\*{0,2}",
+    re.I)
+
+
+def test_an_awaiting_marker_carries_the_nobody_yet_line_wherever_it_sits():
+    """The marker is not always a heading, and the heading-scoped test above
+    cannot see the other shape.
+
+    `per_target_settings.md` §7 B carries its ⏳ marker in a BLOCKQUOTE inside a
+    paragraph, because the paragraph it corrects is not a section of its own.
+    `_sections()` splits on headings, so deleting the "Confirmed by: nobody
+    yet." line out of that block left the whole file green — measured by
+    mutation, 2026-08-26. This reads the raw lines instead.
+    """
+    offenders = []
+    for name in BINDING:
+        lines = (DESIGN / name).read_text().splitlines()
+        for i, line in enumerate(lines):
+            if not _AWAITING_MARKER.match(line):
+                continue
+            window = "\n".join(lines[i:i + 12])
+            if ("**Confirmed by:** *nobody yet.*" not in window
+                    and not re.search(r"\*\*Confirmed by:\*\*\s*(" +
+                                      "|".join(CONFIRMERS) + r")", window)):
+                offenders.append(f"{name}:{i + 1}  {line.strip()[:70]}")
+    assert not offenders, (
+        "an 'Awaiting confirmation' marker must say who has confirmed it, "
+        "within the block it opens — '**Confirmed by:** *nobody yet.*' until "
+        "someone has:\n  " + "\n  ".join(offenders))
