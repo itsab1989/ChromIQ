@@ -84,8 +84,8 @@ physical minima — rulers vary.
 
 ## Known gap — a Guided chart continued in Manual is barely checked
 
-**Status: known, deliberately not fixed (Basti, 2026-08-26). Do not "fix" it
-without asking; it was decided, not overlooked.**
+**Status: known, deliberately not fixed (Basti, 2026-08-26) — issue #171.
+Do not "fix" it without asking; it was decided, not overlooked.**
 
 Build a chart in Guided, click MANUAL, press Generate. The sheet is unchanged —
 the same measured margins to the tenth of a millimetre — but the verdict flips:

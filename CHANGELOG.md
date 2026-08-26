@@ -46,20 +46,6 @@ to disk. And the help cards named eleven buttons that do not exist.
   about 0 in total)". Both numbers came from re-deriving a page the recipe cannot
   describe, so the hint is now left out for those charts rather than guessed at.
 
-### Known issues
-
-- **A Guided chart continued in Manual is barely checked against your
-  instrument.** Build in Guided, click MANUAL, press Generate: the same sheet
-  that was flagged red for a margin the i1Pro jig cannot read reports
-  "Margins: OK" in green, because Manual judges it against layout defaults of
-  6 mm rather than the instrument's minimums. Nothing re-checks at print or
-  measure time, so a chart the instrument cannot read can reach the jig. Charts
-  made before beta.19 are affected the same way. Deliberately not changed in this
-  release; the full analysis is in `docs/dev_margin_inspector.md`.
-- **Help cards can print a near-blank sheet in languages other than English.**
-  Eleven such sheets across nine languages, carrying only the header, the page
-  number and the colophon. The page budget has only ever been checked in English.
-
 ### Under the hood
 
 - One design specification, `per_target_settings.md` §7 B, prescribed a guard
