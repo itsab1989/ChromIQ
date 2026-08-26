@@ -119,3 +119,22 @@ def test_manual_still_proposes(qapp, tmp_path):
     assert pending is True, (
         "Manual no longer says the overlay is a proposal — that is the whole "
         "point of it (#164)")
+
+
+def test_the_gamut_module_still_proposes(qapp, tmp_path):
+    """THE SECOND CONTROL. The FROM PROFILE GAMUT module is the Manual page with
+    the targen group swapped out: its layout panel — helper-marker checkbox and
+    all five distances — is on screen and enabled, and `_on_generate_gamut`
+    hands the build to `_generate_from_ti1` with Manual's layout settings. A
+    proposal made there is obeyable, so it must still be made and still be
+    flagged. Keying the overlay on `_manual_btn.isChecked()` froze it on the
+    sheet's own markers and made the controls dead (2026-08-26)."""
+    tab = _tab_with_chart(qapp, tmp_path, markers_on_sheet=True)
+    tab._switch_mode("gamut")
+    got = tab._helper_marker_lines_frac()
+    assert got is not None, "the gamut module stopped drawing the overlay"
+    lines, pending = got
+    assert lines
+    assert pending is True, (
+        "the gamut module no longer says the overlay is a proposal — its marker "
+        "controls are on screen, enabled, and its Generate honours them")

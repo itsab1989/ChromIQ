@@ -14778,7 +14778,18 @@ class TabChart(QWidget):
         # and never claim a proposal. Keyed on the MODE, not on
         # `panel.isVisible()` — that is False whenever Create Chart is not the
         # current tab, which would flip the data source with the visible tab.
-        manual = self._manual_btn is not None and self._manual_btn.isChecked()
+        # `_current_mode()`, NOT `_manual_btn.isChecked()`. The FROM PROFILE
+        # GAMUT module is the Manual PAGE with the targen group swapped out
+        # (`_switch_mode`), so its layout panel — marker controls included — is
+        # on screen and enabled, and `_on_generate_gamut` hands the build to
+        # `_generate_from_ti1` with Manual's layout settings. A proposal made
+        # there IS obeyable. But that module leaves the mode BUTTON unchecked,
+        # so keying on the button froze the overlay on the previous sheet's
+        # markers: unticking "Print helper markers" or raising markers-per-patch
+        # changed nothing on screen. `_current_mode()` asks which PAGE is
+        # showing, which is the real question; `_mode_name()` is the one that
+        # distinguishes the module and is deliberately not used here.
+        manual = self._current_mode() == "manual"
         if manual:
             on = bool(panel.helper_markers_cb.isChecked())
             edge_mm = float(panel.helper_marker_edge.value())
