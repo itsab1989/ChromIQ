@@ -112,7 +112,7 @@ _TT_BODY_PRINT_MACOS_BYPASS = (
     "best accuracy with pigment inks) before measuring. Wet ink reads "
     "wrong.\n\n"
     "If you'd rather use the macOS print dialog (e.g. to pick a specific "
-    "paper feed), enable \"Use the native print dialog\" in Preferences."
+    "paper feed), enable \"Use default macOS printer dialog\" in Preferences."
 )
 
 _TT_BODY_PRINT_MACOS_NATIVE = (
@@ -135,7 +135,7 @@ _TT_BODY_PRINT_MACOS_NATIVE = (
     "• Never click Cancel/Abort in any pane or sub-window — always close them "
     "with OK. Cancel reverts the colour-off setting; OK keeps it.\n\n"
     "Prefer ChromIQ to print straight to the queue with no dialog? Untick "
-    "\"Use the native print dialog\" in Preferences to use the lp path instead "
+    "\"Use default macOS printer dialog\" in Preferences to use the lp path instead "
     "— it also forces colour management off.\n\n"
     "Let the print dry fully (1 h minimum, 24 h for pigment inks) before "
     "measuring."
@@ -1906,7 +1906,7 @@ class TabPrint(QWidget):
                     "or sub-windows — always close them with OK. Cancel reverts the "
                     "colour-off setting ChromIQ applied; OK keeps it. When in doubt, OK is "
                     "always the safe button.\n\n"
-                    "Prefer no dialog at all? Untick \"Use the native print dialog\" in "
+                    "Prefer no dialog at all? Untick \"Use default macOS printer dialog\" in "
                     "Preferences to send the chart straight to the queue via lp (colour "
                     "management is forced off there too).\n\n"
                     "Allow pigment inks to dry fully before measuring "

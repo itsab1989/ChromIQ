@@ -14870,9 +14870,21 @@ class TabChart(QWidget):
             ch = Path(self._margin_ti2).with_suffix(".channels.json")
             if not ch.is_file():
                 return None
-            recipe = (json.loads(ch.read_text()).get("layout") or {}).get("recipe")
+            layout = json.loads(ch.read_text()).get("layout") or {}
+            recipe = layout.get("recipe")
             if not isinstance(recipe, dict):
                 return None
+            # NOBODY CHOSE A GUIDED CHART'S MARGINS. They are correct — 6 mm
+            # all round is what printtarg produces and what the engine matches
+            # — but `use_instrument_margins: false` beside them is a dataclass
+            # default, not a user declining the guideline, because Guided has
+            # no such control. Reading it as a decision silenced the jig check
+            # on 112 of 384 Guided combinations.
+            # `is False`, not falsy: only a chart that positively declares the
+            # provenance is re-judged, so charts written by earlier versions
+            # keep the behaviour they were built with.
+            if layout.get("margins_chosen_by_user") is False:
+                return None            # judged against the instrument instead
             if recipe.get("use_instrument_margins", True):
                 return None            # judged against the instrument instead
             return {
@@ -14903,6 +14915,9 @@ class TabChart(QWidget):
             layout = doc.get("layout") or {}
             recipe = layout.get("recipe")
             if not isinstance(recipe, dict) or "use_instrument_margins" not in recipe:
+                return True
+            # See `_chart_own_margins`: correct margins, but nobody chose them.
+            if layout.get("margins_chosen_by_user") is False:
                 return True
             return bool(recipe["use_instrument_margins"])
         except Exception:      # noqa: BLE001 — the inspector must never crash
@@ -15023,8 +15038,23 @@ class TabChart(QWidget):
         try:
             from workflow.layout_engine.presets import LayoutRecipe
             from workflow.layout_engine import instruments, geometry, papers
-            rec = LayoutRecipe.from_channels_json(
-                Path(ti2).with_suffix(".channels.json"))
+            import json as _json
+            ch = Path(ti2).with_suffix(".channels.json")
+            # A GUIDED CHART'S RECIPE CANNOT BE REBUILT INTO ITS OWN SHEET.
+            # Its margins are dataclass defaults (6/6/6/6), not the ones the
+            # sheet was laid out with, so re-deriving the geometry from it
+            # produces a ROOMIER page than the one in front of the user:
+            # measured, 506 patches for a real 484-patch i1Pro A4 sheet. The
+            # capacity hint then told the owner of a completely full sheet that
+            # it had room for 22 more. 0 means "not known", which suppresses
+            # the hint — no hint beats a wrong one.
+            try:
+                _layout = (_json.loads(ch.read_text()).get("layout") or {})
+                if _layout.get("margins_chosen_by_user") is False:
+                    return 0
+            except Exception:      # noqa: BLE001 — fall through to the recipe
+                pass
+            rec = LayoutRecipe.from_channels_json(ch)
             if rec is None:
                 return 0
             geom = instruments.geom_from_build_kwargs(rec.build_kwargs())

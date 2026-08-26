@@ -1269,6 +1269,37 @@ class ChartCreator:
                 from workflow.layout_engine.presets import LayoutRecipe
                 layout["recipe"] = LayoutRecipe.from_build_kwargs(
                     self._engine_build_kwargs(params)).to_dict()
+                # THE MARGINS ARE CORRECT. NOBODY CHOSE THEM.
+                #
+                # 6/6/6/6 is the real, intended Guided geometry — it is what
+                # printtarg produces, and the engine was built to match it
+                # exactly (161/161 parity, #93). The recipe is telling the
+                # truth, and this flag does not dispute it.
+                #
+                # What the recipe CANNOT say is that `use_instrument_margins:
+                # false` was never a decision. Guided has no margin boxes and no
+                # instrument-margins toggle, so that field is a dataclass
+                # default — yet on disk it is indistinguishable from a MANUAL
+                # user who looked at the guideline and declined it.
+                # `_chart_own_margins` read it the second way and judged the
+                # sheet against its own 6 mm instead of the jig's minimums, so
+                # the warning that a chart will not fit the instrument stopped
+                # appearing. Measured: 112 of 384 Guided combinations sit below
+                # their instrument's minimum and reported "Margins: OK" in
+                # green — an i1Pro/LetterR sheet with a 27.2 mm top margin
+                # against a 38 mm ruler requirement said nothing at all. Before
+                # #170 those charts went through printtarg, recorded no recipe,
+                # and were judged against the jig, which is the behaviour this
+                # restores.
+                #
+                # Record the PROVENANCE and let the reader decide. Do NOT write
+                # different numbers into the recipe: both attempts were measured
+                # and both are worse — writing the margins explicitly is still
+                # silent AND breaks the rebuild round-trip (20 -> 62
+                # combinations rebuild a different sheet), and setting
+                # `use_instrument_margins` true changes the geometry itself
+                # (20 -> 74).
+                layout["margins_chosen_by_user"] = False
             doc["layout"] = layout
             sidecar.write_text(json.dumps(doc))
             if strips.exists():

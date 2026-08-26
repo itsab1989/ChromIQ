@@ -107,7 +107,7 @@ WORKFLOWS: list[dict] = [
                 "system-wide from there, or jump to Check & Refine to "
                 "verify its accuracy and start guided refinement (the steps "
                 "below) for a noticeably more accurate profile.")),
-            (5, tr("Optional — On the Check & Refine tab click “Analyse”. "
+            (5, tr("Optional — On the Check & Refine tab click “Analyse Profile Quality”. "
                 "ChromIQ runs profcheck and flags any patches whose ΔE is "
                 "above your refinement threshold (2.0 is a sensible starting "
                 "point). If outliers are found, ChromIQ offers to send you "
@@ -197,7 +197,7 @@ WORKFLOWS: list[dict] = [
                 "noticeably more accurate than the first-pass profile "
                 "because targen could place patches where they actually "
                 "mattered. This is the profile to install.")),
-            (5, tr("Optional — On the Check & Refine tab click “Analyse”. "
+            (5, tr("Optional — On the Check & Refine tab click “Analyse Profile Quality”. "
                 "ChromIQ runs profcheck and flags any patches whose ΔE is "
                 "above your refinement threshold. After a clean 2-pass build "
                 "the result is often already good enough; the steps below "
@@ -261,7 +261,7 @@ WORKFLOWS: list[dict] = [
                 "the seed profile because ChromIQ placed patches where they "
                 "mattered. Install it from the popup, or jump to Check & "
                 "Refine to verify it before installing.")),
-            (5, tr("Optional — On the Check & Refine tab click “Analyse”. "
+            (5, tr("Optional — On the Check & Refine tab click “Analyse Profile Quality”. "
                 "ChromIQ runs profcheck and flags any patches whose ΔE is "
                 "above your refinement threshold (2.0 is a sensible starting "
                 "point). If outliers are found, ChromIQ offers to send you "
@@ -317,7 +317,7 @@ WORKFLOWS: list[dict] = [
                 "wide from there, or jump to Check & Refine to verify its "
                 "accuracy and start guided refinement (the steps below) for "
                 "a noticeably more accurate profile.")),
-            (5, tr("Optional — On the Check & Refine tab click “Analyse”. "
+            (5, tr("Optional — On the Check & Refine tab click “Analyse Profile Quality”. "
                 "ChromIQ runs profcheck and flags any patches whose ΔE is "
                 "above your refinement threshold (2.0 is a sensible starting "
                 "point). If outliers are found, ChromIQ offers to send you "
@@ -375,7 +375,7 @@ WORKFLOWS: list[dict] = [
                 "wide from there, or jump to Check & Refine to verify its "
                 "accuracy and start guided refinement (the steps below) for "
                 "a noticeably more accurate profile.")),
-            (5, tr("Optional — On the Check & Refine tab click “Analyse”. "
+            (5, tr("Optional — On the Check & Refine tab click “Analyse Profile Quality”. "
                 "ChromIQ runs profcheck and flags any patches whose ΔE is "
                 "above your refinement threshold (2.0 is a sensible starting "
                 "point). If outliers are found, ChromIQ offers to send you "
@@ -415,7 +415,7 @@ WORKFLOWS: list[dict] = [
                 "Refine to inspect its accuracy, or feed it back as a "
                 "pre-conditioning profile (workflow 2). You can dismiss "
                 "the popup and come back to any of these later.")),
-            (5, tr("Optional — On the Check & Refine tab click “Analyse”. "
+            (5, tr("Optional — On the Check & Refine tab click “Analyse Profile Quality”. "
                 "ChromIQ runs profcheck and flags any patches whose ΔE is "
                 "above your refinement threshold (2.0 is a sensible starting "
                 "point). If outliers are found, ChromIQ offers to send you "

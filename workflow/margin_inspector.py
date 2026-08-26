@@ -170,7 +170,18 @@ def _tolerance_mm(report: MarginReport) -> float:
     tol = 0.05
     dpi = float(getattr(report, "dpi", 0.0) or 0.0)
     if dpi > 0:
-        tol = max(tol, _MM_PER_INCH / dpi)
+        # CEILING AT ONE PIXEL OF THE COARSEST CHART CHROMIQ SHIPS (200 dpi,
+        # 0.127 mm). Without it an unrelated setting silently widens a SAFETY
+        # check: `printtarg_dpi` is written from one place only — Create Chart
+        # Manual's "Save as defaults" — and read by Guided, which has no control
+        # for it. One "Resolution: 72 dpi" saved there re-rasters every future
+        # Guided chart at 72 dpi AND loosens this tolerance 4.2x, taking a
+        # margin 0.30 mm short from FLAGGED to MISSED.
+        #
+        # 200 dpi is the floor because it is the coarsest the built-in charts
+        # use (the rest are 300); a chart coarser than that has worse problems
+        # than its margins, and should not buy itself a bigger allowance.
+        tol = max(tol, min(_MM_PER_INCH / dpi, _MM_PER_INCH / 200.0))
     return tol
 
 

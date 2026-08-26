@@ -169,3 +169,31 @@ def test_the_85_display_allowance_survives_an_unknown_dpi():
     assert check_violations(MarginReport(left_mm=5.997, **base), {"L": 6.0}) == []
     assert [v.edge for v in check_violations(
         MarginReport(left_mm=5.90, **base), {"L": 6.0})] == ["Left"]
+
+
+def test_a_coarse_chart_does_not_buy_a_bigger_allowance():
+    """The tolerance is capped at one pixel of the coarsest chart we ship.
+
+    `printtarg_dpi` is written from one place only — Create Chart Manual's
+    "Save as defaults" — and read by Guided, which has no control for it. One
+    "Resolution: 72 dpi" saved there re-rasters every future Guided chart at
+    72 dpi and, without this cap, widened this SAFETY check 4.2x: a margin
+    0.30 mm short went from flagged to missed.
+
+    200 dpi is the floor because it is the coarsest the built-in charts use.
+    """
+    from workflow.margin_inspector import MarginReport, _tolerance_mm
+
+    def rep(dpi):
+        return MarginReport(6.0, 6.0, 6.0, 6.0, None, 210.0, 297.0, dpi=dpi)
+
+    one_px_at_200 = 25.4 / 200.0
+    assert _tolerance_mm(rep(200)) == pytest.approx(one_px_at_200)
+    for coarse in (150, 100, 72, 36):
+        assert _tolerance_mm(rep(coarse)) == pytest.approx(one_px_at_200), (
+            f"a {coarse} dpi chart bought a bigger margin allowance than the "
+            "coarsest chart ChromIQ ships")
+    # …and a finer chart still gets its own, smaller, pixel.
+    assert _tolerance_mm(rep(300)) < one_px_at_200
+    assert _tolerance_mm(rep(600)) == pytest.approx(0.05)   # the display floor
+

@@ -41,7 +41,7 @@ def _areas() -> "list[tuple[str, str, str]]":
          tr("ChromIQ's name in the middle. On the LEFT two buttons that act on "
             "the whole app: “Open a project” and “Open a chart file (.ti2)” — "
             "open a chart there and Create Chart, Print Chart and Measure all "
-            "show it. On the RIGHT “Tools”, “Settings” and “?”, which opens "
+            "show it. On the RIGHT “Tools”, “Preferences” and “?”, which opens "
             "this window. The two on the left are unavailable while a "
             "measurement is running.")),
         (tr("Profile-run bar"), tr("in the middle of the masthead"),
