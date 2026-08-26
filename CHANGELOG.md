@@ -1,967 +1,131 @@
 # Changelog
 
-## v4.1.3-beta.18
+## v4.1.3
 
-Fixes found by reviewing what beta.17 actually shipped, plus Knut's beta.17
-notes. **Two of these were security or data faults in the repair added one
-release earlier.**
+The release that went looking for the faults nobody had reported. Two testers
+worked through eighteen betas, and the pattern that kept repeating was a chart
+or a measurement that looked completely normal and was not — files written under
+a name nothing read, a duplicate that quietly forgot what it was, a window that
+had never once opened. Most of what follows was found by trying to break
+something that appeared to work.
 
-### Fixed
+Alongside that: thirty-one new i1Pro charts, three new help cards, the ruler
+marks and logo band on the Red River charts, and Preferences that opens in a
+third of the time.
 
-- **The project repair could rename files outside the project.** The repair
-  added in beta.17 executed its record of planned moves without checking that
-  the paths stayed inside the project folder, so a project folder containing a
-  crafted or merely corrupted `name-repair.json` — the kind of folder people zip
-  and send each other — could rename files anywhere the recipient can write, the
-  moment they opened it. The repair now refuses any entry that points outside
-  the project, and says so in the log. Proven both ways: the shipped beta.17
-  moves the file, this build does not, and a legitimate rename inside the
-  project still runs.
-- **The repair's undo record could be lost exactly when it was needed.** It was
-  written by truncating the file first, so running out of disk part way through
-  left an empty record *after* the renames had happened. It is now written to a
-  temporary file and swapped in atomically — a move ChromIQ cannot record is a
-  move it does not make.
-- **One malformed entry no longer disables the repair for that project for
-  ever.** A path containing a NUL byte raised an error the repair did not catch.
-- **The Red River charts no longer show the “Full layout setup” label** (Knut,
-  beta.17). The label means the patch-set editor has the chart's complete
-  design; those six ship the page layout but not the colour-set design, so it
-  overpromised. 115 of the 130 built-in charts carry it — the six Red River and
-  the nine “by Pharmacist” charts do not.
-- **The second patch-set warning is gone.** Ticking “Edit patch recipe (override
-  preset)” already opens a window saying the loaded patches will be replaced,
-  and that box is shown for a patch set you loaded yourself, not only for a
-  built-in preset — so a second window at Generate time interrupted a decision
-  you had already made (Knut).
-- The landing page now says ChromIQ ships **130 ready-made chart presets**, and
-  its embedded version metadata no longer claims 4.0.0.
+### New
 
-### Also
+- **Thirty-one new i1Pro charts.** Nineteen with 7.5 mm patches in A4, US Letter
+  and A3, following the measurements Pharmacist proved for his 1944-patch set,
+  so the whole series packs as many patches as those measurements allow; and
+  twelve completing the 8 mm line-up.
+- **The Red River charts are the ones Red River designed** — margins, grids,
+  clip band and marker combs exactly as supplied, including two new nine-page
+  ColorMunki charts in place of the old ten-page ones.
+- **130 ready-made chart presets in total**, for every common instrument, paper
+  size and patch count.
+- **Three new help cards**, one for each tool that had none: designing a custom
+  patch set, spot-reading the colour of a surface, and showing a chart's patch
+  set in 3D. Each explains what every button does.
+- **Keyboard shortcuts appear in tooltips**, and show the keys your own keyboard
+  has — ⌘ on a Mac, Ctrl on Windows and Linux.
+- **A “Close Project” button**, third along the top left, so you can put ChromIQ
+  back to its starting state without quitting it.
+- **A greyed-out tab now tells you why.** During a measurement or a profile
+  build, hovering a locked tab says what is holding it.
+- **The preset list says which charts you can take apart.** “Full layout setup”
+  marks the 115 charts whose complete design the patch-set editor can load.
+- **Projects damaged by the file-naming fault below are repaired when you open
+  them.** The files are put back under one name, so sheets you have already
+  printed stay readable and nothing has to be rebuilt or reprinted. ChromIQ only
+  touches files it can prove came from that fault, records every change inside
+  the project so it can be read back or undone, and writes that record before it
+  moves anything, so an interrupted repair finishes rather than starting over.
 
-- Three comments in the source described behaviour the code does not have,
-  including one claiming the app tells you when it has repaired a project. It
-  does not — for now that is a log line only, and the comment says so.
-- An 842 KB stray backup file that a blanket `git add` had committed is removed,
-  and that class of file is ignored from now on.
+### Changed
 
-### Known, and deliberately not changed in this build
-
-- A built-in ColorMunki preset warns that its own right margin is 0.055 mm below
-  its declared minimum, and only when chosen through the ★ overlay. The printed
-  chart is correct and the warning is accurate; the discrepancy is in the layout
-  engine, not the check, so widening the check would hide it. Tracked as #167.
-
-Gate: 7431 passed, 140 skipped, 2 xfailed.
-
-
-## v4.1.3-beta.17
-
-Knut's Red River presets, exactly as he sent them, and the repair for projects
-whose files were split by the dotted-name bug.
+- **Preferences opens in about 0.7 seconds instead of 2.3.** One preview was
+  being redrawn up to thirty times while settings loaded, and thrown away
+  twenty-nine of those times. It is shared with Create Chart and the layout
+  editor, so every preset load in the app got the same time back.
 
 ### Fixed
 
-- **The Red River presets are Knut's own again.** All six were replaced with the
-  files he supplied, field for field: the markers-per-patch values he chose (5
-  on the i1Pro charts, 7 on the ColorMunki A4 8-page, 3 on the rest), his
-  ColorMunki margins, the clip band on the right with flip 180° for ColorMunki
-  and on the left for i1Pro, and his 9-page ColorMunki charts in place of the
-  10-page ones. The old six were removed entirely rather than edited.
-  A test now reads his files from a fixture and checks every field, so a value
-  cannot be changed by accident again — which is how the previous set drifted:
-  a ruler-marks change wrote one markers-per-patch value across all six and
-  overwrote the per-chart values he had measured.
-- **“Full layout setup” is back on the preset list** — on every built-in except
-  the nine “by Pharmacist” charts, which is the rule Knut asked for. It is added
-  to the displayed row only, never to the preset's stored name: that name feeds
-  both the suggested project-folder name and the key custom presets are matched
-  against, so marking it there would have renamed 121 suggested folders and
-  orphaned every custom preset already saved.
+**Your files**
 
-### Added
-
-- **Projects broken by the dotted-name bug are repaired when you open them.**
-  Charts built before beta.16 under a name containing a dot had their files
-  written under two different names, which left the project unmeasurable.
-  ChromIQ now puts those files back under one name on open, so sheets you have
-  already printed stay readable and nothing has to be rebuilt or reprinted.
-  It renames only files it can prove came from that bug — a truncated name, no
-  file already holding the correct one, the run's own `.ti1` confirming the full
-  name, and the strip file that only ChromIQ's own layout engine writes. Every
-  rename is recorded in `name-repair.json` inside the project, so it can be read
-  back or undone by hand, and the record is written before anything moves, so an
-  interrupted repair finishes rather than restarting. Set
-  `CHROMIQ_NAME_REPAIR=dry` to see what it would do without doing it, or `off`
-  to switch it off entirely.
-- **Preferences ▸ Chart Layout jumps to the density your layout is saved under**
-  when you switch instrument, and says so underneath, instead of landing on the
-  first density and showing factory defaults — which read as “my settings are
-  gone” when they were one box away. The paper you are working on never moves.
-
-Gate: 7426 passed.
-
-
-## v4.1.3-beta.16
-
-Knut's beta.15 review, plus four faults nobody reported — three of which were
-losing or hiding data, and one of which has been shipping since 4.0.0.
-
-### Fixed — data, and the ones that were never reported
-
-- **A project name containing a dot split its files in half.** ChromIQ builds
-  every file of a run from the project name, and in several places it worked
-  that name out by asking Python to remove the extension — from something that
-  has no extension. Python then reads “.0mm” in
-  `…-Portrait-w10.0mm` as the extension and removes it, so the `.ti2`, the
-  printable pages and the strip data were written under a shortened name while
-  the `.ti1` kept the full one. **The project could not be measured**: chartread
-  was handed a name whose `.ti2` did not exist. Duplicate Run was greyed out,
-  and reopening the project showed no chart pages. **120 of ChromIQ's 130
-  built-in charts suggest a name with a dot in it**, so this was the normal
-  case, not an exotic one. Fixed in the chart builder, the scanner-target
-  writer, the reference-file importer and the image writer — the last two of
-  which also broke the scanner→profile flow outright, because ArgyllCMS's
-  `scanin` builds those filenames by joining strings while ChromIQ predicted
-  them by stripping extensions. There is now one rule, in `core/stem_paths.py`:
-  artefact names are built by joining, never by guessing what part of a name is
-  an extension.
-- **Duplicating a run dropped 17 of the 27 things it records**, including all
-  five settings groups and the patch-set editor's own state, which its own
-  documentation says cannot be recovered from the chart file. A duplicate now
-  carries everything that describes the files it copied. `per_target_settings.md`
-  §6.3 had required this all along.
+- **A project whose name contained a dot could not be measured.** ChromIQ builds
+  every file of a run from the project name, and in several places it worked out
+  that name by asking the system to remove the extension — from something that
+  has no extension. A name like `…-Portrait-w10.0mm` then lost its “.0mm”, so
+  the chart data, the printable pages and the strip file were written under a
+  shortened name while the patch set kept the full one. Measure could not find
+  the chart, Duplicate Run was greyed out, and reopening the project showed no
+  pages. **120 of ChromIQ's 130 built-in charts suggest a name with a dot in
+  it**, so this was the ordinary case rather than an exotic one. Fixed in the
+  chart builder, the scanner-target writer, the reference importer and the image
+  writer.
+- **Duplicating a run dropped 17 of the 27 things it remembers**, including all
+  five groups of settings and the patch-set editor's own state, which cannot be
+  recovered from the chart file. A copy now carries everything that describes
+  the files it copied.
 - **A duplicate lost the “this chart does not match this measurement” warning**
-  while copying both the chart and the measurement — so it handed back a chart
-  that did not describe the measurement beside it, silently.
-- **The “Your duplicated run is ready” window had never once opened.** It raised
-  on the way up because one placeholder in its text was never given a value.
-  Present since 2026-08-01 and shipped in 4.0.0.
-- After deleting a run, a duplicate's record of where it came from pointed at
-  whichever run had since taken that number.
-
-### Fixed — from Knut's beta.15 review
-
-- **Keyboard shortcuts in tooltips now show the keys your own keyboard has.**
-  ⌘ and ⇧ were written into the text on every platform; a Windows user was
-  shown a key they do not have. All thirteen translations re-synced.
-- **The Dictionary card sits beside the Keyboard shortcuts card again.** Adding
-  three cards in beta.15 pushed it onto the row above.
-- **The three cards that had no icon now have one.** They were not the wrong
-  icons — nothing was drawn at all.
-- **The help sentence on the profile-run bar is no longer cut in half** when it
-  wraps to three lines, or laid over the buttons when it wraps below them. The
-  cause was an ordering one: the bar's height was worked out before it was told
-  how wide it would be, so it was always sized for the previous window width.
-- **Choosing a built-in chart with no project open no longer creates a project
-  you did not ask for.** The guard added in beta.15 was defeated one line
-  earlier: choosing a preset fills the name box with the preset's own name, and
-  the guard then read its own suggestion as the user's answer.
-- **The i1Pro preset list is in order.** Its A4 block interleaved the 7.5 mm and
-  8.0 mm charts; the Letter and A3 blocks already read paper → patch width →
-  patch count, and A4 now matches them. No other family's order changed.
-
-### Changed
-
-- **Preferences opens in about 0.7 seconds instead of 2.3.** The cost was one
-  preview being redrawn up to thirty times while a recipe loaded, and discarded
-  twenty-nine times. It is shared with Create Chart → Manual and the layout
-  editor, so every preset load anywhere in the app got the same time back.
-- The clip-strip preview no longer keeps the height of whichever band you looked
-  at last when it is empty.
-
-### Note on the Red River charts
-
-An earlier note in development claimed the ColorMunki charts printed a blank
-stripe where the logo belongs, and that a flag had been changed to fix it. That
-was wrong: the flag is not read for that instrument, the logo band was already
-printing, and the change altered nothing. It was never released. Knut's updated
-Red River presets have arrived and are not in this build — they are waiting on
-two questions about his own files.
-
-
-## v4.1.3-beta.15
-
-Knut's review of beta.13, in full. Every one of the faults he reported turned
-out to be larger than it looked from the outside.
-
-### Added
-
-- **Three new help cards**, one for each of the tools that had none: “Design a
-  custom patch set for a chart”, “Spot-read the colour of a surface”, and
-  “Show or compare a chart's patch set in 3D”. Each explains what every button
-  in the window does, and the patch-set card answers the question Knut asked
-  directly — “New patch set” replaces what is in the window, “Add” extends it.
-
-- **Keyboard shortcuts now appear in tooltips.** Hovering a button that has a
-  shortcut shows it in brackets after the name — “Open Project (⌘O)”. The five
-  main buttons, one per tab, had no tooltip at all before; they now carry both
-  a name and their ⌘↵ shortcut.
-
-- **Nineteen new i1Pro charts** with 7.5 mm patches, in A4, US Letter and A3,
-  from 162 to 4212 patches. Two older A4-924p charts were withdrawn.
-
-### Fixed
-
-- **Help cards printed blank pages.** A table row that would not fit was moved
-  two pages on instead of one, leaving a whole sheet carrying nothing but the
-  repeated table header. Eight such sheets across the eighteen cards. “Overview
-  of Main Actions” goes from 5 sheets to 3, and the folder guide from 12 to 9.
-
-- **The patch size shown for a chart was wrong by a fifth.** All nine of the
-  “by Pharmacist” charts reported patches 20 % larger than they are — 8.99 mm
-  where the true size is 7.48 — because ChromIQ read the wrong figure for the
-  chart's resolution and fell back to assuming 300 dpi. The two panels beside
-  the preview now agree with each other and with the printed sheet.
-
-- **The margin guide lines sat in the wrong place on later pages.** On any
-  chart with roughly more than twenty-one strips a page, the top margin was
-  measured to the strip labels instead of the first row of patches — 8 mm where
-  38 is right. It also raised a false warning that the top margin was below the
-  instrument's minimum, and overstated the strip length by 24 mm.
-
-- **Settings in Preferences ▸ Chart Layout vanished when you switched
-  instrument.** Changing the instrument reset the density box to its first
-  entry, so ChromIQ looked for settings that had never been saved under that
-  combination and showed its own defaults instead. Nothing was ever lost from
-  disk — cancelling and reopening brought it all back — but there was no way to
-  tell that from the screen. The tab now says which you are looking at, and
-  explains that it opens on the combination your current chart uses.
-
-- **Choosing a preset with no project name created one you did not ask for.**
-  It made up a folder named after the date and built the whole chart into it,
-  with no message at all. ChromIQ now asks for a name. Two further routes that
-  could invent a project have been closed as well — including one where merely
-  asking “is anything at risk here?” created the folder.
-
-- **File dialogs opened in your home folder.** Eight of the nine started there
-  rather than in your ChromIQ folder, including “Open Chart File (.ti2)”.
-
-- **Help text sent you to a button that had moved** — and, worse, to a button
-  that still exists in that spot and does something else. Preferences was
-  described as being at the top left when it is at the top right.
-
-- **Three tooltips told Mac users to press “Ctrl”.** The chart editor's Undo and
-  Redo said Ctrl+Z while the Help card, two clicks away, said ⌘Z for the same
-  key. Fifteen more hard-typed shortcuts were sitting in the translations, each
-  wrong in its own language's spelling.
-
-- **Importing a set of charts could quietly change every chart in a family.**
-  The check that is meant to catch a chart that does not belong compared each
-  batch against its own first file, so a difference shared by the whole batch
-  passed unnoticed. It now compares against the family ChromIQ ships, and
-  refuses rather than folding the difference in.
-
-- **Importing chart-layout settings could overwrite the ones you had.** The
-  import accepted any JSON file and replaced real settings with defaults.
-
-- **The Start Measurement button lost its keyboard hint.** It was the only one
-  of the five main buttons that did not show its shortcut.
-
-### Behind the scenes
-
-- The test suite could write into your real ChromIQ preferences folder. Only
-  one test reached that far and it happened to guard against it, but nothing
-  enforced it; the suite now redirects the preset store to a scratch folder the
-  way it already does for the demo projects.
-
-## v4.1.3-beta.14
-
-### Added
-
-- **A "Close Project" button.** Third along the top left, beside "Open Chart
-  File". It puts ChromIQ back to the way it looks on a fresh install, with no
-  project open. Nothing is deleted and nothing on disk changes — every run,
-  chart, measurement and profile stays exactly where it is, and "Open Project"
-  brings it all back. Only what you have typed and not yet used is let go: the
-  name in "Printer profile project name" and the run description beside it. A
-  confirmation window explains all of that before anything happens, and the
-  button is greyed with a reason when there is no project to close.
-
-- **A greyed tab now tells you why.** During a measurement or a profile build
-  the other tabs are locked; hovering one used to say nothing at all, which
-  read as a fault rather than a lock. Each greyed tab now explains what is
-  running and when it will come back — and its own explanation is put back
-  afterwards, so a verification run's "not for a verification" note survives a
-  measurement.
-
-- **A keyboard shortcut for the top-left buttons.** ⌘O / Ctrl+O opens a
-  project, ⇧⌘O / Ctrl+Shift+O opens a chart file. Both obey the same locks as
-  the buttons themselves.
-
-### Fixed
-
-- **ChromIQ could create a project you never asked for — a third way.** Simply
-  opening a loose chart file with nothing loaded was enough: the question "is
-  this chart inside my project?" created one to compare against, leaving a
-  folder named after the date beside your real work. The app then thought it
-  was working in that phantom, and the next chart you built went into it.
-
-- **Closing the Soft-proof window could stop ChromIQ noticing that anything
-  had finished.** Opening Soft-proofing and closing it again quietly detached
-  the part of ChromIQ that listens for a tool completing. The next measurement
-  would read the whole chart and then appear to hang for ever: the tabs and the
-  buttons along the top stayed greyed, because nothing was left to hear that it
-  had ended. Only quitting and reopening cleared it.
-
-- **Soft-proofing removed the picture you were looking at.** Changing the ΔE
-  threshold, the rendering intent or the highlight colour started a new proof
-  and deleted the previous one's files immediately — so the preview went blank
-  and "Save proof" quietly did nothing while still looking available. The old
-  files are now kept until the new proof is ready.
-
-- **A patch set you loaded was not the one ChromIQ built.** After loading an
-  i1Profiler patch set or a .ti1 and pressing "Generate Chart", ChromIQ could
-  quietly build a completely different chart from a fresh patch calculation —
-  measured, two patches in and 525 out, with no message beyond a line in the
-  log. It happened for two separate reasons: in Guided mode the loaded set was
-  ignored outright, and in Manual mode the act of binding the set to a run
-  reset the patch-recipe settings, which ChromIQ then read as you having asked
-  for a different chart. Unlocking "Edit patch recipe (override preset)" and
-  changing a setting still gives you a fresh chart, as it always did.
-
-- **Loading a second patch set discarded the first.** After loading a patch set
-  and then loading another — or having a second load fail — the first one was
-  deleted from disk while ChromIQ still believed it was in use. Pressing
-  "Generate Chart" then silently built a completely different chart from a
-  fresh patch calculation, with only a line in the log to say so.
-
-- **A wrong ArgyllCMS path could lock you out of the app.** If a tool could not
-  start at all — a mistyped path in Preferences, a moved installation — nothing
-  ever reported that it had failed. The window stayed greyed as though the
-  build were still going, including Preferences itself, which is the one place
-  the path could have been corrected. The only way out was to quit and restart.
-  ChromIQ now says which program it could not start and points at the setting
-  that fixes it.
-
-- **The "Close Project" button stayed greyed after generating a chart or
-  opening a project.** It was watching the wrong thing.
-
-- **Building a chart left the rest of the window live.** You could switch to a
-  different project, open another chart, or open the Tools menu while targen
-  and printtarg were still writing into the current run. A measurement and a
-  profile build had always locked those buttons; a chart build now does too.
-
-- **Print Chart's settings were lost when you closed the project.** A change to
-  Rendering intent made on the Print Chart tab was not written down if you
-  closed the project from that tab — the same change made on any other tab was
-  kept.
-
-- **A measurement and a profile build running together unlocked the tabs too
-  early.** Whichever finished first re-enabled everything, leaving the window
-  open for editing while the other was still running.
-
+  while copying both the chart and the measurement — so it handed you back a
+  chart that did not describe the measurement beside it, and said nothing.
+- **A project deleted outside ChromIQ came back** if “restore last session” was
+  on: the folder was recreated on the next launch.
+- **ChromIQ created projects you never asked for, by four separate routes** —
+  opening the Tools menu, choosing a preset with the name box empty, and two
+  others. A name is now always asked for, and never invented.
 - **ChromIQ left large temporary files behind.** Soft-proofing wrote a fresh
-  set of full-size TIFFs for every proof — around 60 MB — and never removed the
-  previous ones, so nudging the ΔE threshold a few times could leave hundreds
-  of megabytes on disk until the next reboot. The patch-set editor's "Apply"
-  left a complete chart behind every time it ran. Six more places did the same
-  on a smaller scale. All are now cleaned up.
-
-- **The patch-set editor described what it does incorrectly.** Its "Overwrite"
-  window said the page layout was carried across and locked. Neither was true:
-  only the patch set moves, the layout comes from the Create Chart tab, and the
-  page-layout panel stays editable. It also said measurements were "kept" when
-  they are moved into the run's "old" folder. The window now says what actually
-  happens.
-
-- **A project deleted outside ChromIQ came back.** If "restore last session"
-  was on and you had removed the folder in Finder, ChromIQ still believed the
-  project was open and would recreate it.
-
-- **A new project no longer starts with a name you did not choose.** The
-  "Printer profile project name" box was pre-filled with "ChromIQ Test Chart",
-  so a brand-new install showed a location line pointing into a project that
-  did not exist. The box now starts empty, and pressing "Generate Chart"
-  without a name asks for one instead of inventing "Printer_Paper_Type_Instr"
-  plus the date.
-
-- **Japanese and Chinese folder guides read correctly.** Lines no longer begin
-  with a comma, a full stop or a dash left stranded at the margin.
-
-## v4.1.3-beta.13
-
-### Fixed
-
-- **Closing a window could crash ChromIQ.** Three buttons and labels were put
-  back by a timer that outlived them — the scanner window's "Saved ✓" flash for
-  1.4 seconds, the Measure tab's status message for **8**. Close the window
-  inside that time and the timer reached for something that no longer existed.
-
-- **Two paths created a project you never asked for.** Opening the Tools menu
-  with nothing loaded was enough to make ChromIQ name a project, and the next
-  thing you did created the folder. Worse, the patch-set editor's "Save & apply"
-  wrote its chart into that invented folder — leaving a folder with no project
-  in it that ChromIQ could never find again — and then made a second, real
-  project beside it. Applying a chart with no project open now says so and
-  changes nothing.
-
-- **The Build Profile tab stayed clickable during a measurement.** It was
-  disabled when the measurement started and re-enabled three lines later by
-  another part of the same code, so you could walk into a build mid-read.
-
-## v4.1.3-beta.12
-
-### Fixed
-
-- **A table row no longer leaves its bottom edge on the next page.** Knut
-  reported "an empty line below the header row, before next row with content
-  starts" on the "Overview of Main Actions" and "Where are my files?" cards.
-  The rule that keeps a row off a page break was ending the page *inside* the
-  row above it — so every cell's text landed on the right page while the row's
-  own padding and closing border were painted overleaf, under the repeated
-  header. A straddling row is now moved whole.
-
-  **This costs paper**, and the two cards with very tall rows pay for it:
-  "Overview of Main Actions" goes from 3 pages to 5 on A4 and 3 to 4 on Letter,
-  "Where are my files?" from 9 to 12 and 10 to 12. A row that will not fit is
-  moved down whole, which leaves the foot of the sheet before it blank. Every
-  other card is unchanged.
-
-## v4.1.3-beta.11
-
-### New
-
-- **Twelve more i1Pro charts.** Knut's 8 mm line-up is complete: the same eight
-  patch counts on **US Letter** as on A4 (156 up to 3,432), an **A4-3432p** to
-  finish the A4 run, and three on **A3 landscape** (1,144 / 2,288 / 3,432) laid
-  out on a 44-column grid. Nineteen charts in all, grouped by paper in the
-  preset list and climbing by patch count inside each group — you pick the
-  sheet in your printer first.
-
-  The Letter charts keep their own right and bottom margins (9 mm and 15 mm
-  against A4's 6 and 19). That is deliberate: Letter is 18 mm shorter than A4,
-  so it does not need A4's deeper bottom margin to keep a strip inside the
-  i1Pro ruler's 240 mm travel.
-
-## v4.1.3-beta.10
-
-### Fixed
-
-- **The 8 mm i1Pro charts printed without their ruler marks.** Knut, on the
-  A4-2288p chart: *"the markers should be active so this is a bug. It was not
-  intended."* All nineteen of his exports ask for marks on and five to a patch;
-  the family's shared recipe said off and three, and because every chart in the
-  family is built from that shared recipe, **all seven of them** lost the marks
-  whatever their own export said.
-
-- **The A4-2288p chart's stored setup rebuilt a different chart.** Its recipe
-  described a nine-step colour cube where the chart was built with eleven, so
-  "Load setup from preset" offered a design that regenerated other colours from
-  the second row on. Knut re-exported it; the chart and its setup now match, and
-  all 80 bundled charts regenerate their patch sets colour-for-colour.
-
-## v4.1.3-beta.9
-
-### Fixed
-
-- **The folder guide's vertical lines now reach the folders they point at.**
-  A folder whose explanation ran to more than one line had a gap between its
-  own connector and its first child's, so the diagram read as dashed — below
-  `run1/` and `verifications/` especially (Knut). Every continuation line now
-  carries the level the row opens, and the top-level folder gets its own
-  vertical for the first time. On screen, on paper, and in
-  "Where are my files.txt".
-
-- **The CMYK+N card's steps are a real numbered list.** They were literal
-  characters — `1)` with no indent and sub-points at the same margin as the
-  text around them. They now read `1.` `2.` `3.` with the text indented under
-  the number and item 5's three sub-points as a proper bulleted list, on screen
-  and in print alike, matching every other card (Knut). Still one printed page.
-
-- **Opening the Tools menu with no project open could invent a project.**
-  Asking where the working folder is was enough to make ChromIQ name one and
-  keep the name, so the next action created a folder nobody asked for. It now
-  asks whether a project is open, which creates nothing.
-
-### Known
-
-- The first-run sentence on the Profile-run bar is clipped at some window
-  widths — three of its four lines at 1200 px, and at 900–1000 px its second
-  line is drawn over the icons beside it. It has always been too tall for the
-  space; it only became visible when the text stopped being invisible in
-  beta.8.
-
-## v4.1.3-beta.8
-
-beta.7 fixed the loud half of a fault and made the quiet half worse. Both are
-closed here.
-
-### Fixed
-
-- **Settings could follow you from one run to another.** ChromIQ marks the
-  chart rows as "belonging to the build" while a chart is being made, so the
-  run change the build itself causes cannot reset them. That mark was only ever
-  taken down when a build FINISHED — so a Generate that was refused, that
-  failed to estimate its patch count, or that you cancelled left it up, and the
-  next run or calibration you clicked never received its own settings. On
-  screen: a run with a 17 mm margin, a refused Generate, one click to
-  Calibration, and the calibration showed 17 mm.
-
-  beta.7 widened this without meaning to: before it, a stale mark suppressed
-  only part of the panel; after it, all of it.
-
-- **The "by Pharmacist" charts still rebuilt themselves as a different chart.**
-  beta.7 said this was fixed and it was not — that family never claimed its
-  rows at all. Pressing Generate once, changing nothing, turned TC3.00's 300
-  bundled patches into 504, with no error to show for it.
-
-- **Choosing "Default" left the previous preset's design on the run.** One
-  click was enough to reproduce *"a previously created patch set setting is
-  there instead"*: "Default" builds a fresh chart through targen and has no
-  design of its own, but it said "leave the record alone" rather than "this
-  chart has no design".
-
-- **The first-run guidance was invisible** — black text on the black masthead
-  (1.11:1 for the two labels, 1.55:1 for the sentence, where readable text
-  wants 4.5:1). Both style hooks existed and nothing used them.
-
-## v4.1.3-beta.7
-
-### Fixed
-
-- **The first "Generate Chart" after loading a built-in preset failed, or built
-  the wrong chart.** On a fresh project, loading a preset and pressing Generate
-  reported *"Nothing for targen to generate"* over an empty preview — with
-  "Edit patch recipe (override preset)" untouched, and targen never involved in
-  the preset at all (Knut).
-
-  Loading a preset builds its own patch set and then moves the Profile-run bar
-  onto the new run. On a fresh project that is a change of run, so the rule that
-  opens an unvisited target on its defaults fired and reset the chart rows —
-  and the factory default for "Total Patch Count" is zero. The preset's own
-  binding no longer matched, so Generate abandoned the preset's patch set and
-  fell through to targen. Rows that belong to the build on screen are now left
-  alone; a genuine switch to another target still opens on its defaults.
-
-  **On the "by Pharmacist" presets it was worse and silent**: automatic patch
-  count is on there, so no error appeared and a different chart was built —
-  TC3.00's 300 patches came out as 504, with no warning.
-
-  This shipped in **4.1.2** and is not a beta regression; every 4.1.3 beta has
-  it too.
-
-## v4.1.3-beta.6
-
-Knut's wording batch for the help cards, and the guard that should have been
-there when the print sizes were fixed.
-
-### Changed
-
-- **Every help card names the thing it is telling you to click.** "the bar" is
-  now "the Profile-run bar" — the name its own table gives it — in all nine
-  places that said otherwise, and "card" is "help card" throughout, so a printed
-  page still says what it belongs to when it is read away from the app (Knut).
-
-- **Getting started ▸ "1. Create Chart"** now also points at the ready-made
-  charts behind the "Built-in presets" button and at Tools ▸ Charts & patch sets
-  ▸ "Edit / create chart patch set" for designing the colours yourself.
-
-- **Getting started ▸ "3. Measure"** explains the overlay: "Each patch shows:"
-  and its three choices, "Show only measured patches", and the progress bar
-  above the preview.
-
-- **"Open a project" is now the first entry** under "More than one way to do
-  most things", and it names the file to look for — "project.json", inside the
-  profile's own folder — or the folder itself.
-
-All twelve translations updated with it, using each language's own names for
-the controls it quotes.
-
-### Fixed
-
-- **Nothing was stopping the printed help cards going back to point sizes.** The
-  comment in the print style sheet claimed a test guarded it; there was none,
-  and the rule next door matches only margins. A font size in `pt` is resolved
-  against the screen's DPI, which is what made the cards print a quarter smaller
-  on macOS than anywhere else (fixed in beta.4). Reverting every size to `pt` was
-  proven to slip through unnoticed; it now fails.
-
-### Known
-
-- The help-card body text is **14 px**, which measures as Times New Roman 11–12
-  (x-height 1.914 mm against TNR 11's 1.774 mm). The Measurement Report's body
-  is 12 px, below TNR 10 — that is the document that is genuinely small.
-
-## v4.1.3-beta.5
-
-### Fixed
-
-- **A chart could carry a record of a design that never built it.** Knut spotted
-  it from the outside — he took a 1,144-patch preset as a basis, built a
-  different chart over it, and the stored setup data went on describing the old
-  one; charts made from that chart inherited the same wrong record. He was
-  right, and it reaches further than the exports he sent: these records live in
-  your own saved Create Chart presets, so an affected entry offers the wrong
-  design as the starting point for the next one in "Load setup from preset".
-
-  Saving a chart's layout has always been allowed to leave its creation recipe
-  alone, which is correct for a layout-only save. A REBUILD from a different
-  patch set was doing the same thing, so nothing ever cleared the old design.
-  There is now a third state — *this chart was not built from a stored design* —
-  and loading a patch set uses it, so the previously selected preset's design
-  is no longer stamped onto a chart it does not describe.
-
-  Existing records are not rewritten: a chart already carrying the wrong design
-  keeps it until it is rebuilt.
-
-## v4.1.3-beta.4
-
-Knut's help-card batch. Chasing a heading that printed on its own turned up the
-reason: the rules that lay out a printed card were measuring a document they had
-already destroyed, and pages of it were never reaching the paper.
-
-### Fixed
-
-- **Printed help cards were losing whole pages of text — silently, and on
-  paper.** A `QTextDocument` lays itself out lazily, and changing a block in one
-  that is only half laid out does not make the geometry stale, it DESTROYS it:
-  every element below the change collapses to nothing. Each of the four
-  pagination rules measures the document and then edits it, so each could trip
-  it. The dictionary card printed **29 of its 79 entries**; the other 50 existed,
-  paginated, and were simply not on any sheet. The card looked finished — it
-  ended with a heading and a page number.
-
-  This has been shipping. On US Letter the glossary has been losing its last
-  entries since the rules were introduced; 4.1.3-beta.3 widened it to A4. Every
-  rule now takes its layout from one place that finishes the layout first, and
-  every card on A4, Letter and A5 has been read back out of the PDF word by
-  word: nothing is missing.
-
-- **Help cards printed a quarter smaller on macOS than anywhere else.** Font
-  sizes were in `pt`, and Qt resolves those against the primary screen's logical
-  DPI — 72 on macOS, 96 elsewhere. So 10.5 pt body text was 11 px on a Mac and
-  14 px on Windows, Linux and in every test we ran, while the folder guide's
-  directory tree kept its absolute 12 px and towered over the text around it
-  (Knut, A2). Every size is now in `px`, so the printed page is the same
-  everywhere and what the tests measure is what comes out.
-
-- **A card title no longer wraps.** "Calibrate my printer (and how that differs
-  from a profile)" ran to two lines. The `h1 { font-size: 19pt }` meant to
-  control it was dead — Qt fixes an `<h1>`'s size from its own default and
-  ignores the style sheet, inline styles, and every unit (measured). Titles are
-  a styled paragraph now, and the longest one fits with room to spare (A3).
-
-- **A section heading could print alone at the foot of a page**, its text
-  overleaf — Knut's "Instrument" in the dictionary card (A5). The rule that
-  exists to prevent this judged which page a block was on by the top of its box,
-  and a block can start in the last pixels of a page while its first line falls
-  on the next. It judges the line now. A second fault in the same rule abandoned
-  every later heading in a card once it met one it could not move.
-
-- **A blank line at the END of clip-border text now prints.** Leading and
-  interior blank lines came back in beta.3; the last one was still swallowed,
-  because `splitlines()` treats a final newline as a terminator rather than a
-  separator (Knut). Putting a space on the line worked, but an invisible space is
-  no answer — any editor that trims trailing whitespace throws it away.
-
-### Known
-
-- On US Letter, three cards still end with a page holding only the closing line.
-  Their content is 2–4 % taller than a Letter page; no typographic rule fixes
-  that, only shorter cards.
-- A table row that meets a page break still stretches to the page bottom instead
-  of ending under its last line (Knut, A1). Qt grows the last row on a page, and
-  the honest fix is to split the table at each break — its own piece of work.
-
-## v4.1.3-beta.3
-
-The preview window beta.2 put in front of the print dialog is gone — and taking
-it out uncovered the fault it had been showing all along.
-
-### Fixed
-
-- **Help cards printed at a third of their size on macOS.** ChromIQ asked the
-  printer to work in the 96-dpi units the cards are written in. A PDF writer
-  agrees to that; a printer does not — macOS snaps the request to a resolution
-  the queue actually has (96 became 300 on both printers here) while still
-  reporting its pixels at that resolution. Dividing those by 96 read a 180 mm
-  page as 562 mm, so every card was laid out for a sheet three times too wide
-  and then squeezed onto the real one: microscopic text crammed into the top
-  third, and 3 times too much of it on each page. Every card, both common paper
-  sizes. It reached only the printer — "Save as PDF…" came out the right size
-  throughout, which is why nothing looked wrong until a preview drew the
-  printer's page on screen. Cards now print at the printer's own resolution,
-  and all 18 cards on A4, Letter, A5, A6, Legal, landscape and wide margins
-  come out page-for-page identical to the PDF.
-
-  Linux was not affected — its print engine takes the resolution it is given.
-  Windows should not be either, for the same reason, but that has not been run.
-
-  The saved PDFs shift very slightly with this: the printable width used to be
-  rounded down to a whole device pixel and is now not, so the text column is
-  0.35 mm wider. Page counts are unchanged on every card.
-
-- **A help card could run to half again as many pages on US Letter.** Keeping
-  table rows off page breaks put the break directly after a repeating header
-  row, and Qt then had to reprint that header on the new page: one such break
-  cost three pages. The folder guide finished at 14 pages on Letter where the
-  same card on A4 took 9. It now moves the whole table down instead: 11 pages,
-  with no row cut in half on any card at either size. A4 is unchanged at 9.
-
-  Five other cards lost pages too, one of them eight. Letter still has one
-  near-empty page in the folder guide, where a heading sits alone above its
-  table — beta.2 had four.
-
-- **Printing no longer changes the print job's settings.** Painting a card left
-  the printer at 300 dpi even if the user had chosen 600.
-
-### Changed
-
-- **Print… opens your system's print window again, with no preview window in
-  front of it.** ChromIQ cannot put a preview inside that window: on macOS the
-  pane Apple draws there belongs to a kind of print job Qt does not use, the
-  Windows print dialog has no preview at all, and Qt hides the one in its own
-  Linux dialog. To see the pages before they are printed, use "Save as PDF…"
-  beside the button.
-
-## v4.1.3-beta.2
-
-Knut's second batch, and it turned out to be one fault wearing several hats: the
-printed Help cards were never being paginated, so almost everything he reported
-about them had the same cause. Plus his seven new i1Pro charts, two withdrawals,
-and the full translation pass.
-
-### Fixed
-
-- **Printed Help cards were laid out for a page ChromIQ never asked for.** The
-  document was handed a text width instead of a PAGE, which sends Qt down a
-  different path: it re-lays the card at the PRINTER's resolution and adds a
-  2 cm margin of its own. Three of the reports follow from that single line.
-  Every card printed into a 140 mm column on a 180 mm page. The folder guide's
-  section headings and its whole directory tree came out as an unreadable
-  smudge, because the cards are written in pixels and a pixel meant something
-  different on a 720 dpi printer than on a 96 dpi screen — which is also why the
-  same bug looked different to different testers. And the workflow diagram was
-  clipped at the right edge and printed again on the next page.
-
-- **Bullets and numbered lists printed as one continuous block.** Two causes,
-  both now fixed. Qt's rich-text engine accepts a margin in pixels and silently
-  ignores one in points, so a stylesheet written in points has no spacing at
-  all — no blank line above a heading, no gap between list items, no indent
-  under a dictionary term. And a card whose body is plain text (the CMYK+N one)
-  was being pasted into HTML, where newlines simply vanish.
-
-- **The steps named the wrong tab.** "Print an existing test chart" told you to
-  go to Measure. The table of tab names was numbered from zero with four
-  entries; the steps are numbered from one across five.
-
-- **"Save as PDF" offered "Untitled.pdf".** ChromIQ now asks for the file name
-  itself, with the card's own title filled in.
-
-- **The Help window dropped behind the main window** after the print or save
-  panel closed, so you had to reopen Help to get back to the card.
-
-- **The ruler-marker warning was drawn on top of the strip labels and the
-  dashes.** It now sits below the sheet, outside the page, centred — in a band
-  reserved before the page is scaled, because the frame around a sheet that
-  carries its own white margin can be zero pixels wide. Its wording is Knut's.
-
-- **Keyboard shortcuts were spelled in macOS symbols everywhere.** ⌘1 is Ctrl+1
-  on Windows and Linux, and the card now says whichever is true where you are
-  reading it.
-
-- **Blank lines in the clip-border text were dropped** at the first and last
-  line. They are writing space, and they are all kept now, for every content
-  option that takes text.
-
-- **"Export template" wrote only the strip's measurements**, never the content
-  you could see in the preview. It now exports what the preview shows for any
-  content option; with the band switched off it still writes the blank,
-  exact-size design canvas that button was made for.
-
-### New
-
-- **Every printed page carries the ChromIQ wordmark and the five-segment
-  spectrum bar**, the card's name from page two on, and a page number centred on
-  the page rather than tucked into the corner.
-
-- **The printing rules Knut asked for**: a blank line above every heading, no
-  heading stranded at the foot of a page away from its text, no table row cut in
-  half by a page break, and a table that spans pages repeating its header row at
-  the top of each one. They live in a module the Measurement Report shares, so
-  it can adopt them next; today the report uses only the whole-table rule it
-  already had.
-
-- **Print… now shows a preview** before the system print dialog, which on macOS
-  shows none of its own. *(Withdrawn in beta.3 — see above.)*
-
-- **Seven new i1Pro charts** on A4 with 8 mm patches — 156, 312, 572, 1,144,
-  1,716, 2,288 and 2,860 patches, one 22 × 26 grid, 572 to a sheet. Knut's own
-  i1Pro charts are now listed in ascending order within their block, like the
-  ColorMunki and i1Pro 3 Plus ones.
-
-- **"Imported image" can carry text too.** Only the Notes box fills itself in,
-  so only the Notes box switches the Text field off.
-
-- **The strings this work added are translated in all twelve languages** — 40
-  of them, with no English placeholders among them. (The catalogues as a whole
-  are not finished: each language still carries roughly 25 long strings from
-  earlier work that read as English. Those are on the list for GA.)
-
-### Changed
-
-- **Two built-in charts were withdrawn** at Knut's request: the i1Pro
-  A4-495p-1page-Landscape, and the i1Pro A4 "TC9.24 by Pharmacist" that had been
-  parked since its bundled page disagreed with its own reference. Nothing on
-  disk points at a built-in preset, so **a project built from either one still
-  opens, still reloads and still restores its used chart** — only the dropdown
-  rows are gone. The ColorMunki A3 TC9.24 is a different chart and stays.
-
-- **The clip band's fit and move fields now apply to the ChromIQ branding as
-  well as to an imported image**, and they are the same stored fields — so a
-  preset that carried an image placement applies that placement to branding too.
-
-- The clip area reported in Preferences follows the paper of the recipe loaded
-  there instead of always reporting A4.
-
-- **Blank lines you typed into the clip-border text are now printed as you typed
-  them.** A saved preset or recipe whose text begins or ends with blank lines
-  will print a taller band than it did in beta.1. No bundled chart is affected —
-  every built-in's clip text is four lines with no blanks.
-- **"Imported image" now honours the clip Font and Size** as well as the Text.
-- **The chart preview shrinks a little** while the marker controls differ from
-  the sheet on screen, to make room for the caption underneath it.
-- **No built-in preset is parked any more.** The greying mechanism stays; it
-  simply has nothing in it.
-- **Print… opens a preview**, not the system print dialog, and saving a copy is
-  now its own button beside it. *(The preview was withdrawn in beta.3; the
-  separate button stayed.)*
-- **The i1Pro preset list is in a different order**, so entries you knew by
-  position have moved.
-
-### Known
-
-- The seven new i1Pro charts are laid out with a **6 mm right margin**, while
-  ChromIQ's own i1Pro seed asks for 9 mm — their other three margins match it
-  exactly. They ship exactly as Knut authored them, so the Measured-from-Preview
-  panel will flag the right edge on all seven until it is decided which of the
-  two numbers should move.
+  copy of your image every time and never removed it.
+
+**Charts, and the windows you work in**
+
+- **Printed help cards left blank pages and split their tables.** The document
+  was being laid out for a page ChromIQ never asked for; almost everything
+  reported about printed cards had that one cause.
+- **The patch size shown for a chart was wrong by a fifth** on all nine of the
+  charts concerned.
+- **The margin guide lines sat in the wrong place on later pages.**
+- **Chart Layout settings looked lost when you switched instrument.** They were
+  never lost — ChromIQ was showing a different density's layout. It now goes to
+  the one you saved and says so.
+- **The help sentence on the profile-run bar was cut in half** when it wrapped
+  to three lines, and laid over the buttons when it wrapped below them.
+- **The i1Pro preset list is in order** — its A4 charts interleaved two patch
+  widths, where the Letter and A3 lists had always read correctly.
+- **File dialogs opened in your home folder.** Eight of the nine did.
+- **Help text sent you to a button that had moved.**
+- **Three tooltips told Mac users to press “Ctrl”.**
+- **Importing charts could quietly change every chart in a family**, and
+  importing chart-layout settings could overwrite the ones you had.
+- **A patch set you loaded was not always the one ChromIQ built**, and loading a
+  second one discarded the first without saying so.
+- **A wrong ArgyllCMS path could lock you out of the app.**
+- **Closing the Soft-proof window could stop ChromIQ noticing anything else**,
+  and changing the ΔE setting removed the picture you were looking at.
+- **Closing a window could crash ChromIQ.**
+- **The “Your duplicated run is ready” window had never once opened.** It failed
+  on the way up, in every version since 4.0.0.
+- **Japanese and Chinese folder guides read correctly.**
+
+### Known issues
+
+- **A built-in ColorMunki preset reports its own right margin as 0.055 mm too
+  small**, and only when chosen through the ★ built-in overlay. The printed
+  chart is correct and the warning is accurate — the layout engine realises
+  23.945 mm where the preset asks for 24 — so the check has been left alone
+  rather than widened to hide it. Tracked as
+  [#167](https://github.com/itsab1989/ChromIQ/issues/167).
 
 ### Internal
 
-- `paginate_tables` moved from the Measurement Report into a shared
-  `ui/pdf_layout.py`; the report keeps its behaviour and its tests.
-- One of the seven imported presets carried a colour-set sidecar claiming 1,200
-  patches beside a 2,288-patch chart — "Load setup from preset" would have
-  offered to regenerate it 1,088 patches short. The importer now re-points the
-  patch count as well as the instrument and paper, and a test pins it.
-- `docs/dev_builtin_presets.md` gained the missing procedure for removing a
-  built-in for good, and lost a false claim that Guided mode depends on one
-  particular preset plus two citations of test files that do not exist.
-
-## v4.1.3-beta.1
-
-Knut's 2026-08-23 batch. The ruler helper markers turn out to have been right on
-paper all along — it was the preview that was lying — and the clip-border panel
-was dead on a ColorMunki. Help cards can now be printed.
-
-### Fixed
-
-- **The preview was counting two combs of ruler dashes at once.** Knut reported
-  that "Markers per patch" drew five dashes when set to 4 and seven when set to
-  6, unevenly spaced. The printed sheet was never wrong: the geometry draws
-  exactly the number asked for, every gap identical, with the outer dashes
-  centred on the spacers — the design he specified. What was wrong is what the
-  screen showed. A sheet keeps the dashes it was *generated* with, and the live
-  overlay drew the *current* spin-box value over the top, so the preview showed
-  the union of the two combs: 3 printed + 4 proposed = 5 dashes per patch,
-  unevenly spaced; 3 + 6 = 7. Every number he counted falls out of that. The
-  overlay now says so — while the controls differ from the sheet in front of
-  you, the dashes are drawn in the accent colour under the caption "Markers not
-  on this sheet yet — press Generate Chart", and go back to plain black once the
-  two agree. Dash positions are rounded rather than truncated, so the overlay
-  lands on the printed ink instead of half a pixel below it, and the white halo
-  narrows and then gives way when dashes are close instead of flooding the gaps
-  between them.
-
-- **The clip-border Preview and "Clip area" work on a ColorMunki.** They were
-  dead for every content mode on a ColorMunki or SpectroScan preset — an empty
-  box and a long dash — while the band was printed onto the sheet all the same.
-  The panel built its geometry for an i1 or i1Pro 3+ and answered "no band" for
-  anything else; it now asks the same question the renderer asks. A second cause
-  went with it, and that one was never instrument-specific: the preview worked
-  the band width out from the page margins rather than from the recipe, so wide
-  margins erased the clip area on an i1 too. "Export template (PNG + PDF)" was
-  behind the same guard and did nothing on those instruments.
-
-- **A disabled text box now looks disabled.** The clip-border Text field is
-  switched off in Notes-box mode — the notes design fills itself in — but it was
-  pixel for pixel identical to a live one, so it read as editable and its
-  contents looked ignored. Both themes were missing a rule for text boxes; the
-  field's label greys with it now. The same box in ChromIQ-branding mode is
-  live, and now visibly so.
-
-- **"Also export a PDF" was exporting charts without their helper markers.** The
-  TIFF had them, the PDF silently did not, and both come out of the same tick of
-  Generate Chart.
-
-### New
-
-- **"Show markers for: Top/bottom · Sides".** Two tick boxes in Ruler helper
-  markers, so the set you do not need is simply not printed — Knut: *"especially
-  as the strip markers are the most useful for measuring."* The set you keep
-  reaches into the corners as well: the corner trim only ever existed to stop
-  the two sets colliding, and with one of them off there is nothing to collide
-  with. Carried in the recipe, so it saves and loads with a preset, and if you
-  leave both unticked the panel says plainly that nothing will be printed.
-
-- **Help cards can be printed.** A Print… button on any open Help card opens
-  your normal print dialog, which is also where "Save as PDF" lives — handy for
-  the keyboard shortcuts, or a workflow to follow at the printer. Every card
-  kind prints, the glossary and the step lists included, and the Getting-Started
-  card keeps its workflow diagram.
-
-- **ChromIQ branding can be placed.** *"For Imported image option, then there
-  are fields to position the image. Why are those options not available for
-  ChromIQ branding?"* — they are now, and they are the same fields. "Content
-  fit" and "Content move" scale the wordmark and move it across and along the
-  band, and your own lines under the wordmark move with it. Rotation stays an
-  image-only transform, because the branding always reads up the strip and
-  "Flip 180°" is how that is turned round.
-
-### Changed
-
-- **Every tick box in "Measured from Preview" has its own ⓘ.** There was one
-  icon against the first of three, carrying a single explanation of the panel
-  and of all three boxes at once. Each box now answers for itself, and the
-  overview of the numbers sits on the numbers.
-
-- **Worth knowing if you have your own presets.** The clip band's fit and move
-  fields now apply to the ChromIQ branding as well as to an imported image, and
-  they are the same stored fields — so a preset that carried an image placement
-  will apply that placement to branding too. The "Clip area" figure for an i1 or
-  i1Pro 3+ can also read slightly differently from before, because it is now
-  worked out the way the renderer works it out; a clip template exported earlier
-  was sized to the old number and is worth exporting again.
-
-### Internal
-
-- The printed Getting-Started card was clipping its workflow diagram at the page
-  edge and repeating it on the next page, because the picture was placed at a
-  fixed size instead of the page's. The size now comes from the printer the user
-  chose, so it is whole on A4, Letter, Legal, A5, A6 and landscape alike — the
-  first version of this fix worked on A4 only and left A5 exactly as it was.
-- Scaling the clip branding to an extreme value crashed the panel outright
-  (Pillow refuses a glyph that large). It is capped now, and a branding that
-  cannot be drawn leaves the band blank instead of taking the window with it —
-  which needed a second fix, because the handler that promises that called a
-  logger the module did not have and raised `NameError` instead. The same
-  missing logger sat behind the helper-marker handler, unnoticed since 4.0.0.
-- The marker overlay rebuilds its geometry with the chart's own patch count, so
-  a matching overlay really does mean "these are the dashes on the sheet".
-  Without it an area-first chart could be described by a comb nothing like the
-  printed one.
-- The two "Show markers for" boxes are stacked rather than side by side: on one
-  line they made the Ruler-helper-markers group the widest thing in Expert
-  Options and drove the whole column into horizontal scrolling.
-- A help card that cannot be printed now says so instead of doing nothing. (A
-  cancelled print dialog still says nothing, which is the point of cancelling.)
-- The clip area shown in Preferences follows the paper of the recipe loaded
-  there, instead of always reporting A4.
-- The preset round-trip test was comparing several fields against their own
-  defaults, so a dropped one would have passed unnoticed. It now sets every
-  field, and a new test keeps it that way.
+- A repair added late in the beta cycle could, in one build, rename files
+  outside the project if a project folder carried a damaged record of its own
+  repair — the kind of folder people zip and send each other. It was found by
+  review before any stable release and never reached one. Three source comments
+  that described behaviour the code did not have were corrected in the same
+  pass.
 
 ## v4.1.2
 

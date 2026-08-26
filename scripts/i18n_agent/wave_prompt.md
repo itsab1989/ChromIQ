@@ -88,10 +88,17 @@ translate from the ENGLISH key, using German only to judge register and length.
 
 ## File format
 
-`json.dumps(j, ensure_ascii=False, indent=2) + "\n"`, `"@language_name"` first.
-**indent=2 is the repo standard** — writing indent=1 once turned 154 real
-changes into an 8,186-line diff. Work in batches of ~60–80 keys, merging as you
-go, so progress survives an interruption.
+`json.dumps(j, ensure_ascii=False, indent=2)` — **no trailing newline**, and
+`"@language_name"` stays at its SORTED position, not hoisted to the top. Both of
+those are what all twelve catalogues on disk actually are; earlier versions of
+this brief said otherwise and each difference re-writes a line in every file for
+nothing. **indent=2 is the repo standard** — writing indent=1 once turned 154
+real changes into an 8,186-line diff. Work in batches of ~60–80 keys, merging as
+you go, so progress survives an interruption.
+
+`scripts/i18n_merge_batch.py` is safe to use again: it wrote indent=1 and hoisted
+`@language_name` until 2026-08-26, which is why a wave was told to hand-roll a
+merger. Both are fixed.
 
 ## Validate — but DO NOT RUN pytest
 

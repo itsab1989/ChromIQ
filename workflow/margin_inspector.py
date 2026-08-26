@@ -63,6 +63,13 @@ class MarginReport:
     page_w_mm: float
     page_h_mm: float
     strip_length_mm: Optional[float] = None
+    #: Resolution (px/inch) of the raster these margins were read off, when it
+    #: is known. A chart is drawn on a pixel grid and every edge of it is
+    #: rounded to a whole pixel, so no margin can be realised — or measured —
+    #: more finely than 25.4/dpi mm; :func:`check_violations` needs that number
+    #: to know how small a shortfall is meaningless (#167). ``None`` = unknown,
+    #: which keeps the old fixed allowance.
+    dpi: Optional[float] = None
 
     def as_dict(self) -> dict[str, float | None]:
         return {
@@ -103,6 +110,7 @@ def check_violations(
     """
     if not thresholds:
         return []
+    tol = _tolerance_mm(report)
     out: list[Violation] = []
     for label, attr, key in _EDGES:
         raw = thresholds.get(key)
@@ -113,12 +121,44 @@ def check_violations(
         except (TypeError, ValueError):
             continue
         measured = float(getattr(report, attr))
-        # Compare the value as DISPLAYED (1 decimal): a margin shown as "6.0 mm"
-        # must not be flagged below a 6 mm threshold just because the raw float
-        # is 5.997 (#85).
-        if round(measured, 1) < round(thr, 1) - 1e-9:
+        if measured < thr - tol:
             out.append(Violation(label, measured, thr))
     return out
+
+
+def _tolerance_mm(report: MarginReport) -> float:
+    """How far below its minimum a measured margin may sit and not be a fault.
+
+    Two floors; the larger wins.
+
+    * **0.05 mm** — the panel prints one decimal, so a margin *shown* as
+      "6.0 mm" must not be flagged against a 6 mm minimum merely because the
+      float behind it is 5.997 (#85).
+    * **One device pixel** — a chart is drawn on a raster and every edge of it
+      is rounded to a whole pixel (``geometry.patch_rects_px`` rounds both the
+      near and the far edge), so no margin can be *realised*, or read back,
+      more finely than ``25.4 / dpi`` mm.
+
+    The second floor is why this function exists. At 300 dpi one pixel is
+    0.085 mm and #85's fixed 0.05 mm hides most of the quantisation; at 200 dpi
+    it is 0.127 mm and 0.05 does not. **45 of the 119 built-in charts** — every
+    one of Knut's ColorMunki charts on the right edge and every i1Pro 3 Plus one
+    on the left — declare ``dpi: 200``, land their patch block EXACTLY on the
+    declared margin analytically (``geometry.realized_margins_mm``: 0 of 119
+    short), and were then reported 0.050–0.060 mm inside it because their block
+    edge rounded to the next pixel. All 45 report clean at 300 dpi. That is a
+    property of the raster, not of the layout (#167).
+
+    One pixel is the tight bound, not a fudge: the block edge rounds by at most
+    half a pixel and the page edge by at most another half. A margin short by a
+    whole pixel or more is still flagged — that is the smallest error a printer
+    can actually make.
+    """
+    tol = 0.05
+    dpi = float(getattr(report, "dpi", 0.0) or 0.0)
+    if dpi > 0:
+        tol = max(tol, _MM_PER_INCH / dpi)
+    return tol
 
 
 def measure_from_engine(
@@ -214,6 +254,7 @@ def measure_from_engine(
         strip_width_mm=rects[0]["w"] * px2mm,        # exact patch width (pwid)
         page_w_mm=paper_w_mm, page_h_mm=paper_h_mm,
         strip_length_mm=(y1 - y0) * px2mm,
+        dpi=dpi,
     )
     ruler_mm: Optional[float] = None
     try:
@@ -346,6 +387,7 @@ def measure_margins(
         strip_width_mm=strip_width_mm,
         page_w_mm=page_w_mm, page_h_mm=page_h_mm,
         strip_length_mm=strip_length_mm,
+        dpi=res,
     )
 
 

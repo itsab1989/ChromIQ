@@ -43,9 +43,17 @@ def main() -> int:
         for prefix, value in pairs.items():
             cat[resolve(prefix, keys)] = value
             done += 1
-        head = {"@language_name": cat.pop("@language_name")} if "@language_name" in cat else {}
-        ordered = {**head, **{k: cat[k] for k in sorted(cat)}}
-        path.write_text(json.dumps(ordered, ensure_ascii=False, indent=1) + "\n",
+        # PLAIN sorted, with no special case for "@language_name". All twelve
+        # catalogues on disk have it at its sorted position (index 160), not
+        # hoisted — hoisting it here would move one line in every file on every
+        # merge, for no reason.
+        ordered = {k: cat[k] for k in sorted(cat)}
+        # indent=2 IS THE REPO STANDARD, and this line used to say 1. Every
+        # catalogue on disk is indent=2, so merging with 1 re-indents the whole
+        # file: one wave turned 154 real changes into an 8,186-line diff, and
+        # the next translator could not see what had actually been touched.
+        # No trailing newline either — every catalogue ends on "}".
+        path.write_text(json.dumps(ordered, ensure_ascii=False, indent=2),
                         encoding="utf-8")
         print(f"  {lang}: {done} translated")
     return 0

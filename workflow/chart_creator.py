@@ -1010,7 +1010,19 @@ class ChartCreator:
             return False
         # Clip-border *content* (ChromIQ clip style / left-clip info) is a later
         # engine phase — fall back to the printtarg path for those charts.
-        if params.chromiq_clip_style or params.left_clip_info:
+        #
+        # NOT WHEN THE PARAMS CARRY AN ENGINE RECIPE. `_collect_manual` attaches
+        # a `layout_recipe` only when the engine is on, so a recipe IS the user's
+        # explicit ask, and one of these two legacy printtarg flags left standing
+        # must not silently overrule it. `_on_manual_engine_toggled` clears them
+        # when the toggle MOVES — but "Presets → Default" re-checks
+        # "Print info in left clip area" from `chart_left_clip_info` with the
+        # engine already on, so the toggle never moves and nothing clears it.
+        # Picking a built-in engine preset from there then built a printtarg
+        # chart under the preset's name: 6 strips instead of 7, no clip band, no
+        # helper markers, none of the preset's margins (#167 follow-up).
+        if (params.chromiq_clip_style or params.left_clip_info) \
+                and params.layout_recipe is None:
             return False
         # Guided mode always uses the engine: it reproduces printtarg's Guided
         # geometry for every instrument/paper/option (verified 161/161, #93). The
