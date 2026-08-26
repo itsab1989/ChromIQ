@@ -1008,8 +1008,22 @@ class ChartCreator:
     def _should_use_engine(self, params: "ChartParams") -> bool:
         if params.instrument not in ENGINE_INSTRUMENTS:
             return False
+        # Guided mode always uses the engine: it reproduces printtarg's Guided
+        # geometry for every instrument/paper/option (verified 161/161, #93).
+        #
+        # THIS TEST COMES FIRST, and the two legacy printtarg clip flags below
+        # can never overrule it — Sebastian, #170: *"guided ... at least should
+        # never use printtarg"*. Guided has no control for either flag: it reads
+        # them from global settings only the MANUAL tab writes, so ticking
+        # "Print info in left clip area" once in Manual and pressing "Save as
+        # defaults" routed every future Guided chart through printtarg,
+        # invisibly — while the Guided screen still said "ChromIQ layout engine"
+        # and predicted the engine's patch count. Shipped that way since
+        # be85d7e5 (2026-06-30), whose own message promised the opposite.
+        if not params.is_manual:
+            return True
         # Clip-border *content* (ChromIQ clip style / left-clip info) is a later
-        # engine phase — fall back to the printtarg path for those charts.
+        # engine phase — fall back to the printtarg path for those MANUAL charts.
         #
         # NOT WHEN THE PARAMS CARRY AN ENGINE RECIPE. `_collect_manual` attaches
         # a `layout_recipe` only when the engine is on, so a recipe IS the user's
@@ -1024,12 +1038,6 @@ class ChartCreator:
         if (params.chromiq_clip_style or params.left_clip_info) \
                 and params.layout_recipe is None:
             return False
-        # Guided mode always uses the engine: it reproduces printtarg's Guided
-        # geometry for every instrument/paper/option (verified 161/161, #93). The
-        # `use_chromiq_layout_engine` toggle now governs the MANUAL tab only, so
-        # the printtarg-based built-in presets keep their exact printtarg layout.
-        if not params.is_manual:
-            return True
         return bool(self._settings.get("use_chromiq_layout_engine", False))
 
     def _engine_build_kwargs(self, params: "ChartParams") -> dict:
@@ -1057,7 +1065,13 @@ class ChartCreator:
         if params.instrument in ("i1", "p3", "CM"):
             kw["edge_spacers"] = True
         if params.instrument in ("i1", "p3"):
-            suppress = _effective_suppress_lb(params)
+            # NOT `_effective_suppress_lb`: that folds in the printtarg-era
+            # ChromIQ clip style, which forces -L so the post-render stamper can
+            # shift the patches and paint its own strip. The engine draws the
+            # clip band natively (`clip_content_mode` below) and the stamper is
+            # now inert on an engine chart, so honouring that flag here would
+            # leave the band suppressed and nothing drawn in its place (#170).
+            suppress = bool(params.disable_left_border)
             kw["nolpcbord"] = suppress
             # Guided/basic path (no layout recipe): when the i1/p3 clip border is
             # kept, fill it with the ChromIQ notes record instead of leaving it
@@ -1340,7 +1354,19 @@ class ChartCreator:
             tiffs[0].parent / f"{self._file_mgr.chart_stem(cal_target=params.cal_target)}.ti1"
         ) or params.patches or 0
 
-        chromiq_clip = _chromiq_clip_active(params)
+        # IS THIS AN ENGINE CHART? Everything below is printtarg-era
+        # post-processing: it was written for printtarg's blank 26 mm clip
+        # strip. The engine draws its own clip-border content there
+        # (`clip_content_mode`), so stamping over it destroys the band.
+        #
+        # ASK ABOUT THE ENGINE, NOT ABOUT A RECIPE. The earlier guard here was
+        # `params.layout_recipe is None`, which a GUIDED chart also satisfies —
+        # it carries no recipe — so once Guided became engine-only (#170) that
+        # guard protected nothing. Measured on one Guided sheet before this
+        # changed: 5,942,676 px rewritten, 5,529,055 inked px destroyed, and
+        # `strips.json` 7.1 mm out against the raster.
+        engine_chart = self._should_use_engine(params)
+        chromiq_clip = _chromiq_clip_active(params) and not engine_chart
 
         # Build the command/notes lines once. They go to the right margin in
         # normal mode, or into a clip-border column under ChromIQ-style.
@@ -1389,6 +1415,7 @@ class ChartCreator:
         paper_ok = params.paper in ALLOWED_LEFT_CLIP_PAPERS
         plain_left_clip = (
             params.left_clip_info
+            and not engine_chart          # see `engine_chart` above
             and instrument_ok
             and not params.disable_left_border
             and paper_ok

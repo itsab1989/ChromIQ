@@ -149,10 +149,23 @@ def _tolerance_mm(report: MarginReport) -> float:
     edge rounded to the next pixel. All 45 report clean at 300 dpi. That is a
     property of the raster, not of the layout (#167).
 
-    One pixel is the tight bound, not a fudge: the block edge rounds by at most
-    half a pixel and the page edge by at most another half. A margin short by a
-    whole pixel or more is still flagged — that is the smallest error a printer
-    can actually make.
+    One pixel is the bound the measured error actually needs, but NOT for the
+    reason it is tempting to give. On the engine path the page edge does not
+    round at all — paper_mm is an exact float and only the patch rectangles
+    are integers — so Left and Right carry at most HALF a pixel (measured worst
+    case over all 119 built-ins: 0.496 px). Top and Bottom reach 0.890 px for a
+    different reason: measure_from_engine adds a separately rounded
+    edge-spacer overhang, and on hex charts a rounded apex, so two roundings
+    compound. Do not "tighten" this to half a pixel on the strength of the
+    left/right numbers.
+
+    A shortfall of one pixel is not the smallest one that is still flagged. The
+    inspector can also over-report by up to 0.890 px, and that adds to the
+    tolerance: measured on the worst built-in
+    (cm_letter_1615p_5pages_portrait_w10_0mm_slow_reading_speed, Top edge,
+    200 dpi) the smallest GENUINE shortfall this check reports is 0.24 mm
+    (1.89 px). The old fixed-0.05 rule missed 0.20 mm on the same chart, so the
+    blind spot grew by 0.04 mm and 45 false alarms went away.
     """
     tol = 0.05
     dpi = float(getattr(report, "dpi", 0.0) or 0.0)

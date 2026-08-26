@@ -4825,10 +4825,18 @@ class TabChart(QWidget):
         # When the ChromIQ layout engine is active it replaces printtarg for the
         # generate path, so the preview shows what the engine will build.
         from workflow.chart_creator import ENGINE_INSTRUMENTS
+        # The recipe outranks a stale legacy clip flag here for the SAME reason
+        # it does in ChartCreator._should_use_engine (#168): "Presets → Default"
+        # re-checks "Print info in left clip area" with the engine already on, so
+        # nothing clears it. Without this escape the build takes the engine and
+        # the FRAME does not — the layout panel hides, the printtarg group shows,
+        # the "Layout preset:" bar disappears and the command stamp switches on,
+        # all describing a printtarg run that never happens.
         use_engine = (
             bool(self._settings.get("use_chromiq_layout_engine", False))
             and p.instrument in ENGINE_INSTRUMENTS
-            and not (p.chromiq_clip_style or p.left_clip_info))
+            and (p.layout_recipe is not None
+                 or not (p.chromiq_clip_style or p.left_clip_info)))
 
         def _layout_cmd() -> str:
             if use_engine:
@@ -10042,7 +10050,15 @@ class TabChart(QWidget):
         # ChromIQ-style forces -L, so capacity must be computed at -L-enabled
         # values even when the user left the checkbox unchecked. Triple
         # density also forces -L (and the suppress widget is hidden).
-        chromiq_force_l = self._chromiq_force_l(instr, paper)
+        # The ChromIQ clip style is a printtarg-era flag; on an engine chart the
+        # engine draws its own clip band and the flag is ignored, so it must not
+        # move the predicted capacity either (#170). `engine_on` is computed the
+        # same way a dozen lines below; Guided is always the engine.
+        from workflow.chart_creator import ENGINE_INSTRUMENTS as _EI
+        _engine_here = (instr in _EI) and (
+            not (self._manual_btn is not None and self._manual_btn.isChecked())
+            or bool(self._settings.get("use_chromiq_layout_engine", False)))
+        chromiq_force_l = self._chromiq_force_l(instr, paper) and not _engine_here
         eff_lb = has_lb or chromiq_force_l or td
         # Triple density forces -P; reflect that in the lookup so the
         # patch counter agrees with what printtarg will actually do.
@@ -14722,20 +14738,13 @@ class TabChart(QWidget):
         second return value is True exactly then, and the preview draws those
         dashes in the accent colour with a caption instead of in printed black.
         """
-        # The controls moved into the Manual layout panel in #158, so the values
-        # come from there. They are read off the CONTROLS rather than the chart's
-        # recorded layout on purpose: the overlay is what lets the two distances
-        # be judged while they are being nudged, before anything is rebuilt.
+        # The controls moved into the Manual layout panel in #158, so in MANUAL
+        # the values come from there. They are read off the CONTROLS rather than
+        # the chart's recorded layout on purpose: the overlay is what lets the
+        # two distances be judged while they are being nudged, before anything
+        # is rebuilt.
         panel = getattr(self, "_manual_layout_panel", None)
         if panel is None or not hasattr(panel, "helper_markers_cb"):
-            return None
-        on = bool(panel.helper_markers_cb.isChecked())
-        edge_mm = float(panel.helper_marker_edge.value())
-        len_mm = float(panel.helper_marker_len.value())
-        per_patch = int(panel.helper_marker_per_patch.value())
-        top_bottom = bool(panel.helper_markers_top_bottom.isChecked())
-        sides = bool(panel.helper_markers_sides.isChecked())
-        if not on:
             return None
         if not getattr(self, "_margin_tiffs", None) or self._margin_ti2 is None:
             return None
@@ -14747,6 +14756,45 @@ class TabChart(QWidget):
         rec = LayoutRecipe.from_channels_json(ch)
         if rec is None:
             return None                      # printtarg chart — no engine layout
+
+        # GUIDED HAS NO MARKER CONTROLS, SO IT HAS NOTHING TO PROPOSE.
+        #
+        # The six values below live only in the Manual layout panel, but the
+        # SETTING behind them (`helper_markers_show`) is global and is written
+        # from exactly one place — that same panel. Guided read it anyway and
+        # compared it against the sheet, so a Guided chart drew the accent-colour
+        # overlay with the caption "Markers not on this sheet yet — press
+        # Generate Chart", naming a control the user cannot reach in that mode.
+        #
+        # Worse, the caption could not be obeyed: `_engine_build_kwargs` never
+        # asks for markers, so every Guided recipe records `helper_markers:
+        # false` and pressing Generate Chart rebuilt the same markerless sheet.
+        # The pending state was therefore permanent (Sebastian, 2026-08-26;
+        # present since be85d7e5, 2026-06-30 — it was merely invisible while
+        # `chart_left_clip_info` dropped Guided onto printtarg, which records no
+        # layout and so drew no overlay at all).
+        #
+        # In Guided the sheet is the only truth: show what it actually carries,
+        # and never claim a proposal. Keyed on the MODE, not on
+        # `panel.isVisible()` — that is False whenever Create Chart is not the
+        # current tab, which would flip the data source with the visible tab.
+        manual = self._manual_btn is not None and self._manual_btn.isChecked()
+        if manual:
+            on = bool(panel.helper_markers_cb.isChecked())
+            edge_mm = float(panel.helper_marker_edge.value())
+            len_mm = float(panel.helper_marker_len.value())
+            per_patch = int(panel.helper_marker_per_patch.value())
+            top_bottom = bool(panel.helper_markers_top_bottom.isChecked())
+            sides = bool(panel.helper_markers_sides.isChecked())
+        else:
+            on = bool(getattr(rec, "helper_markers", False))
+            edge_mm = float(getattr(rec, "helper_marker_edge_mm", 0.0) or 0.0)
+            len_mm = float(getattr(rec, "helper_marker_len_mm", 0.0) or 0.0)
+            per_patch = int(getattr(rec, "helper_marker_per_patch", 0) or 0)
+            top_bottom = bool(getattr(rec, "helper_markers_top_bottom", False))
+            sides = bool(getattr(rec, "helper_markers_sides", False))
+        if not on:
+            return None
         m = re.search(r"NUMBER_OF_SETS\s+(\d+)",
                       Path(self._margin_ti2).read_text(errors="replace"))
         if not m:
@@ -14777,12 +14825,17 @@ class TabChart(QWidget):
         printed = tuple(getattr(rec, k) for k in self._HM_KEYS)
         # Floats come from spin boxes on both sides, so compare them as the user
         # sees them (0.1 mm) rather than bit for bit.
-        pending = not (bool(printed[0]) == wanted[0]
-                       and abs(float(printed[1]) - edge_mm) < 0.05
-                       and abs(float(printed[2]) - len_mm) < 0.05
-                       and int(printed[3]) == per_patch
-                       and bool(printed[4]) == top_bottom
-                       and bool(printed[5]) == sides)
+        pending = manual and not (bool(printed[0]) == wanted[0]
+                                  and abs(float(printed[1]) - edge_mm) < 0.05
+                                  and abs(float(printed[2]) - len_mm) < 0.05
+                                  and int(printed[3]) == per_patch
+                                  and bool(printed[4]) == top_bottom
+                                  and bool(printed[5]) == sides)
+        # `manual and …` is belt AND braces. In Guided the six values above were
+        # read straight off `rec`, so this comparison already collapses to False
+        # — but it compares floats, and a caption that tells the user to press a
+        # button which cannot change anything must not be one rounding away from
+        # coming back. Guided has no proposal to make, so it never has one.
         return ([(x0 / w_mm, y0 / h_mm, x1 / w_mm, y1 / h_mm)
                  for x0, y0, x1, y1 in lines], pending)
 
@@ -15562,7 +15615,9 @@ class TabChart(QWidget):
         # ChromIQ-style and triple-density both force -L; mirror the chart's
         # effective suppress_lb state so guided_neutrals sees what targen/
         # printtarg will actually run.
-        eff_lb = has_lb or self._chromiq_force_l(instr, paper) or td
+        # Guided is always the ChromIQ engine, and the engine ignores the
+        # printtarg-era ChromIQ clip style, so it must not force -L here (#170).
+        eff_lb = has_lb or td
         grey_steps, white_patches, black_patches = guided_neutrals(
             instr, paper, pages, GUIDED_NEUTRAL_BASE, GUIDED_NEUTRAL_BASE, eff_lb,
             double_density=dd, triple_density=td,
