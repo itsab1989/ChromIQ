@@ -33,6 +33,11 @@ to disk. And the help cards named eleven buttons that do not exist.
   and your instrument.** It reads the instrument alone — so on an i1Pro with a
   fixed-order chart it chooses bidirectional reading, which is the case ChromIQ
   separately warns you about. The card now says what Auto really does.
+- **The margin warning named the wrong minimum in every language but English.**
+  When a margin came out short, the panel had to say whether it missed your
+  instrument's minimum or the one the chart itself was laid out to. It decided
+  by inspecting a translated sentence, so outside English it always said
+  "instrument" — quoting a figure no instrument setting carries.
 - **"Check && Refine" appeared with two ampersands** in three help texts.
 - **A US Letter help card printed a sheet with nothing on it** — the
   "Your first profile" card, after its text grew.

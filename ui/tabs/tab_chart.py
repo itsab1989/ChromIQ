@@ -14965,6 +14965,16 @@ class TabChart(QWidget):
                 "T": float(recipe.get("margin_top", 0.0)),
                 "B": float(recipe.get("margin_bottom", 0.0)),
                 "desc": tr("the margins this chart was laid out to"),
+                # STRUCTURAL, NEVER TRANSLATED. The panel used to work out which
+                # of its two messages to show by testing whether `desc` ends with
+                # "laid out to" — and `desc` is `tr()`ed, so the test could only
+                # ever match in English. Confirmed on screen 2026-08-26: the same
+                # chart, own margin 20 mm, reads "below the 20 mm minimum set for
+                # this chart" in English and "liegt unter dem Messgeräte-Minimum
+                # von 20 mm" in German, where no instrument row says 20. That is
+                # Knut's own #130 complaint, still live in eleven languages, and
+                # CI could not see it because CI runs in English.
+                "source": "chart",
             }
         except Exception:      # noqa: BLE001 — the inspector must never crash
             return None

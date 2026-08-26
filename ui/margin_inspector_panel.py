@@ -332,8 +332,11 @@ class MarginInspectorPanel(QGroupBox):
                     f"font-family: Menlo; font-size: 11px; color: {colour}; font-weight: {weight};")
             # Threshold (minimum) for this edge — the "Margin Thresholds Set"
             # readout, shown beside the measured value for easy comparison (#86).
-            self._thresholds_are_the_charts_own = bool(
-                (thresholds or {}).get("desc", "").endswith("laid out to"))
+            # `source` is a structural marker, never translated. Sniffing the
+            # translated `desc` for "laid out to" matched only in English, so
+            # every other language was told the wrong minimum had been missed.
+            self._thresholds_are_the_charts_own = (
+                (thresholds or {}).get("source") == "chart")
             raw = (thresholds or {}).get(key)
             try:
                 self._thr_labels[key].setText("—" if raw in (None, "") else f"{float(raw):.1f}")
