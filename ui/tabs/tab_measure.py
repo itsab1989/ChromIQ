@@ -760,7 +760,7 @@ _PRECOND_TIP_BODY = (
     "accurate profile.\n\n"
     "Your freshly measured file is not changed: the combining happens on a\n"
     "separate copy only at build time. You can still re-measure individual\n"
-    "strips in Check && Refine exactly as usual.\n\n"
+    "strips in Check & Refine exactly as usual.\n\n"
     "This option only appears when ChromIQ-style refinement is enabled in\n"
     "Settings and saved pre-conditioning data is present."
 )
@@ -1972,7 +1972,7 @@ class TabMeasure(QWidget):
             tr("Refinement Strips File"),
             tr("Available when a Refine_Strips_<name>.txt file exists in\n"
             "the reports folder next to your chart.\n\n"
-            "That file is created automatically by the Check && Refine\n"
+            "That file is created automatically by the Check & Refine\n"
             "tab after a quality check. It lists the strips with the\n"
             "highest colour errors, sorted worst-first.\n\n"
             "When active, the app navigates chartread to each of those\n"
@@ -2443,7 +2443,7 @@ class TabMeasure(QWidget):
             tr("Refinement Strips File"),
             tr("Available when a Refine_Strips_<name>.txt file exists in\n"
             "the reports folder next to your chart.\n\n"
-            "That file is created automatically by the Check && Refine\n"
+            "That file is created automatically by the Check & Refine\n"
             "tab after a quality check. It lists the strips with the\n"
             "highest colour errors, sorted worst-first.\n\n"
             "When active, the app navigates chartread to each of those\n"
@@ -2568,7 +2568,7 @@ class TabMeasure(QWidget):
             "mouse shows a hand cursor. Clicking takes you straight there.\n\n"
             "Strips you have already read are marked with a check mark; "
             "clicking one lets you measure it again — handy after a smudge, "
-            "a misread, or when Check && Refine has flagged strips worth a "
+            "a misread, or when Check & Refine has flagged strips worth a "
             "second pass. Guided refinement uses the very same jump "
             "automatically.\n\n"
             "This tip appears because the ChromIQ chart-reading engine is "

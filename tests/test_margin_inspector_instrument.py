@@ -93,36 +93,13 @@ def _engine_chart_with(tmp_path, **recipe):
     return ti2
 
 
-def test_a_chart_built_without_instrument_margins_is_not_judged_by_them(
-        tab, tmp_path):
-    """Knut set his own margins with the switch off and was still told they
-    were below the instrument's minimums."""
-    tab._margin_ti2 = _engine_chart_with(tmp_path, instrument="CM",
-                                         use_instrument_margins=False)
-    assert tab._chart_uses_instrument_margins() is False
-
-
-def test_a_chart_built_with_them_still_is(tab, tmp_path):
-    tab._margin_ti2 = _engine_chart_with(tmp_path, instrument="CM",
-                                         use_instrument_margins=True)
-    assert tab._chart_uses_instrument_margins() is True
-
-
-def test_charts_that_do_not_record_the_choice_are_judged_as_before(tab,
-                                                                   tmp_path):
-    """A printtarg chart, an older engine chart, or no chart at all — none of
-    them said otherwise, so nothing changes for them."""
-    tab._margin_ti2 = None
-    assert tab._chart_uses_instrument_margins() is True
-
-    tab._margin_ti2 = _engine_chart_with(tmp_path, instrument="CM")
-    assert tab._chart_uses_instrument_margins() is True
-
-    ti2 = tmp_path / "Q.ti2"; ti2.write_text("chart")
-    (tmp_path / "Q.channels.json").write_text(json.dumps({"channels": []}))
-    tab._margin_ti2 = ti2
-    assert tab._chart_uses_instrument_margins() is True
-
+# The three tests that lived here exercised `_chart_uses_instrument_margins`,
+# which nothing in the application ever called — only these assertions did. They
+# were green while proving nothing about what a user sees, so the function and
+# they went together (Basti, 2026-08-26). Every scenario they described is still
+# covered, by the `_chart_own_margins` tests below and by
+# `test_a_guided_chart_is_judged_against_its_jig.py`; that is the panel's real
+# decision path.
 
 # ---- which minimums a chart is judged against (Knut, #130 2026-07-27) -----
 def test_a_chart_that_declined_the_instrument_is_judged_by_its_own_margins(

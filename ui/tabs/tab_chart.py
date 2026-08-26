@@ -5208,6 +5208,9 @@ class TabChart(QWidget):
             return
         self._set_engine_recipe(preset)
         self._refresh_manual_command_preview()
+        # Manual's "Reset" puts the layout back to the stored preset. That is
+        # the app writing the widgets, not the user, so it must not re-render.
+        self._settle_live_preview()
 
     def _update_manual_preset(self) -> None:
         from core.preset_store import save_presets
@@ -6064,8 +6067,7 @@ class TabChart(QWidget):
                     # e.g. a paper switched by hand in Guided — and re-baselining
                     # there swallows a real edit. Measured: the broad fix drops
                     # the A4 -> A4R the user made himself.
-                    self._cancel_pending_auto_preview()
-                    self._last_auto_sig = self._layout_signature()
+                    self._settle_live_preview()
                 else:
                     self._carry_shared_settings(prev, mode)
             finally:
@@ -7365,234 +7367,245 @@ class TabChart(QWidget):
             return
         data = self._preset_combo.itemData(index)
 
-        # Temporarily-disabled built-ins are greyed out and unselectable in the
-        # UI, but guard anyway so a programmatic selection can never apply one.
-        if data in DISABLED_BUILTIN_PRESET_KEYS:
-            self._revert_preset_combo()
-            return
+        # Applying a preset writes the whole layout panel. That is the app
+        # filling the widgets, not the user turning knobs, so the live preview
+        # must be left where it was found — on EVERY exit, including the
+        # mid-way returns below (a preset with `auto_run` while a process is
+        # already running leaves through one of them). Measured on current
+        # master: selecting a user preset re-laid out the chart and rewrote it
+        # to disk, 450 ms after the click, with nothing else touched.
+        try:
 
-        # Built-in presets generate immediately under the current Printer-profile
-        # name — selecting a preset is a *chart-layout* choice and never changes
-        # the profile name the user typed (#70, Knut's model). The preset's own
-        # default name is only a fallback used when the name field is still empty.
-        if data in BUILTIN_PRESET_KEYS:
-            if self._runner.is_running:
-                log.warning("Built-in preset: a process is already running")
+            # Temporarily-disabled built-ins are greyed out and unselectable in the
+            # UI, but guard anyway so a programmatic selection can never apply one.
+            if data in DISABLED_BUILTIN_PRESET_KEYS:
                 self._revert_preset_combo()
                 return
-            name = None
-            # Switching from the TC9.18 chart to another built-in clears the
-            # expert printtarg overrides it forced on (margins, spacers, etc.).
-            if self._tc918_active and data != TC918_PRESET_KEY:
+
+            # Built-in presets generate immediately under the current Printer-profile
+            # name — selecting a preset is a *chart-layout* choice and never changes
+            # the profile name the user typed (#70, Knut's model). The preset's own
+            # default name is only a fallback used when the name field is still empty.
+            if data in BUILTIN_PRESET_KEYS:
+                if self._runner.is_running:
+                    log.warning("Built-in preset: a process is already running")
+                    self._revert_preset_combo()
+                    return
+                name = None
+                # Switching from the TC9.18 chart to another built-in clears the
+                # expert printtarg overrides it forced on (margins, spacers, etc.).
+                if self._tc918_active and data != TC918_PRESET_KEY:
+                    self._reset_tc918_overrides()
+                    self._tc918_active = False
+                    self._tc918_targen_sig = None
+                # Switching away from a TC9.18+Spyderprint preset clears its printtarg
+                # overrides; picking another one of them re-seeds cleanly, so only
+                # reset when the new pick isn't itself one of them.
+                if self._knut_active and data not in KNUT_PRESET_KEYS:
+                    self._reset_knut_overrides()
+                    self._knut_active = False
+                    self._knut_targen_sig = None
+                # Leaving a prebuilt-files preset for a params-based built-in
+                # (TC9.18 / ColorMunki) must re-enable the greyed param panels.
+                if self._prebuilt_active and data not in PREBUILT_PRESETS:
+                    self._leave_prebuilt()
+                # Picking any preset drops an applied editor chart's binding.
+                if self._applied_active:
+                    self._leave_applied()
+                if self._reflected_active:
+                    self._leave_reflected()
+                self._preset_ti1_path = None  # built-ins are not ti1-user-presets
+                self._preset_ti1_targen_sig = None
+                # A built-in that ships a creation recipe (Set B) seeds the New-chart
+                # window just like a user preset — so loading it carries its colour
+                # sets / layout into New chart, not the app-wide last-used state
+                # (Knut).
+                #
+                # A BUILT-IN WITH NO DESIGN CLEARS THE RECORD, IT DOES NOT LEAVE IT.
+                # 15 of the built-ins are fixed .ti1 charts with no recipe — the
+                # nine "by Pharmacist" ones and the six Red River ones. `None` here
+                # means "don't touch", so building one of those into a run that had
+                # previously held a preset left the PREVIOUS preset's design on the
+                # run, describing a chart it did not build. From there it was copied
+                # into any preset saved from that run, and offered as the basis for
+                # the next design in "Load setup from preset" (#164, Knut: *"a
+                # previously created patch set setting is there instead"*).
+                from workflow.ti2_relayout import NO_RECIPE
+                self._pending_editor_recipe = builtin_preset_recipe(data) or NO_RECIPE
+                # …but a built-in's own bundled .ti1 still feeds Suggest-name (#62).
+                asset = self._builtin_ti1_asset(data)
+                self._builtin_ti1_path = resource_path(asset) if asset else None
+                # Start the freshly-picked built-in with its panels locked again.
+                self._reset_override_checks()
+                self._preset_del_btn.setEnabled(False)
+                self._last_preset_index = index
+                # Load each built-in with the engine it was made with: most are
+                # printtarg-based (they predate the engine), but the Scanner family
+                # carries a layout_recipe and needs the ChromIQ engine ON so the
+                # recipe drives the layout (#100). Set BEFORE the dispatch so the
+                # engine↔printtarg conversion runs first and the preset's values
+                # then win — otherwise the layout panel would show leftovers
+                # instead of the preset's real instrument/paper (Knut).
+                _kp = KNUT_PRESETS_BY_KEY.get(data)
+                engine_builtin = _kp is not None and (
+                    _kp.layout_recipe is not None or _kp.engine)
+                if getattr(self, "_manual_engine_check", None) is not None \
+                        and self._manual_engine_check.isChecked() != engine_builtin:
+                    self._manual_engine_check.setChecked(engine_builtin)
+                if data == TC918_PRESET_KEY:
+                    self._apply_tc918_preset(name)
+                elif data in KNUT_PRESET_KEYS:
+                    self._apply_knut_preset(data, name)
+                elif data in PREBUILT_PRESETS:
+                    self._apply_prebuilt_preset(data, name)
+                else:
+                    self._apply_colormunki_td_preset(*MUNKI_TARGEN[data], target_name=name)
+                # Final lock pass: covers the params-based ColorMunki presets (which
+                # set no ti1/prebuilt flag, so their panels stay fully editable) and
+                # re-asserts state after leaving a previous tc918/knut preset.
+                self._update_preset_locks()
+                return
+
+            # Leaving the TC9.18 built-in chart for Default or a user preset clears
+            # the expert printtarg overrides it forced on (margins -m/-M, black &
+            # white spacers -b, …). The restores below only *set* flags the target
+            # preset stores, so without this they would bleed through.
+            if self._tc918_active:
                 self._reset_tc918_overrides()
                 self._tc918_active = False
                 self._tc918_targen_sig = None
-            # Switching away from a TC9.18+Spyderprint preset clears its printtarg
-            # overrides; picking another one of them re-seeds cleanly, so only
-            # reset when the new pick isn't itself one of them.
-            if self._knut_active and data not in KNUT_PRESET_KEYS:
+            # Same for a TC9.18+Spyderprint preset → Default / a user preset.
+            if self._knut_active:
                 self._reset_knut_overrides()
                 self._knut_active = False
                 self._knut_targen_sig = None
-            # Leaving a prebuilt-files preset for a params-based built-in
-            # (TC9.18 / ColorMunki) must re-enable the greyed param panels.
-            if self._prebuilt_active and data not in PREBUILT_PRESETS:
+            # Leaving a prebuilt-files preset re-enables the greyed param panels.
+            if self._prebuilt_active:
                 self._leave_prebuilt()
-            # Picking any preset drops an applied editor chart's binding.
+            # Likewise an applied editor chart is dropped for Default / a user preset.
             if self._applied_active:
                 self._leave_applied()
             if self._reflected_active:
                 self._leave_reflected()
-            self._preset_ti1_path = None  # built-ins are not ti1-user-presets
-            self._preset_ti1_targen_sig = None
-            # A built-in that ships a creation recipe (Set B) seeds the New-chart
-            # window just like a user preset — so loading it carries its colour
-            # sets / layout into New chart, not the app-wide last-used state
-            # (Knut).
-            #
-            # A BUILT-IN WITH NO DESIGN CLEARS THE RECORD, IT DOES NOT LEAVE IT.
-            # 15 of the built-ins are fixed .ti1 charts with no recipe — the
-            # nine "by Pharmacist" ones and the six Red River ones. `None` here
-            # means "don't touch", so building one of those into a run that had
-            # previously held a preset left the PREVIOUS preset's design on the
-            # run, describing a chart it did not build. From there it was copied
-            # into any preset saved from that run, and offered as the basis for
-            # the next design in "Load setup from preset" (#164, Knut: *"a
-            # previously created patch set setting is there instead"*).
-            from workflow.ti2_relayout import NO_RECIPE
-            self._pending_editor_recipe = builtin_preset_recipe(data) or NO_RECIPE
-            # …but a built-in's own bundled .ti1 still feeds Suggest-name (#62).
-            asset = self._builtin_ti1_asset(data)
-            self._builtin_ti1_path = resource_path(asset) if asset else None
-            # Start the freshly-picked built-in with its panels locked again.
-            self._reset_override_checks()
-            self._preset_del_btn.setEnabled(False)
+
             self._last_preset_index = index
-            # Load each built-in with the engine it was made with: most are
-            # printtarg-based (they predate the engine), but the Scanner family
-            # carries a layout_recipe and needs the ChromIQ engine ON so the
-            # recipe drives the layout (#100). Set BEFORE the dispatch so the
-            # engine↔printtarg conversion runs first and the preset's values
-            # then win — otherwise the layout panel would show leftovers
-            # instead of the preset's real instrument/paper (Knut).
-            _kp = KNUT_PRESETS_BY_KEY.get(data)
-            engine_builtin = _kp is not None and (
-                _kp.layout_recipe is not None or _kp.engine)
-            if getattr(self, "_manual_engine_check", None) is not None \
-                    and self._manual_engine_check.isChecked() != engine_builtin:
-                self._manual_engine_check.setChecked(engine_builtin)
-            if data == TC918_PRESET_KEY:
-                self._apply_tc918_preset(name)
-            elif data in KNUT_PRESET_KEYS:
-                self._apply_knut_preset(data, name)
-            elif data in PREBUILT_PRESETS:
-                self._apply_prebuilt_preset(data, name)
-            else:
-                self._apply_colormunki_td_preset(*MUNKI_TARGEN[data], target_name=name)
-            # Final lock pass: covers the params-based ColorMunki presets (which
-            # set no ti1/prebuilt flag, so their panels stay fully editable) and
-            # re-asserts state after leaving a previous tc918/knut preset.
-            self._update_preset_locks()
-            return
-
-        # Leaving the TC9.18 built-in chart for Default or a user preset clears
-        # the expert printtarg overrides it forced on (margins -m/-M, black &
-        # white spacers -b, …). The restores below only *set* flags the target
-        # preset stores, so without this they would bleed through.
-        if self._tc918_active:
-            self._reset_tc918_overrides()
-            self._tc918_active = False
-            self._tc918_targen_sig = None
-        # Same for a TC9.18+Spyderprint preset → Default / a user preset.
-        if self._knut_active:
-            self._reset_knut_overrides()
-            self._knut_active = False
-            self._knut_targen_sig = None
-        # Leaving a prebuilt-files preset re-enables the greyed param panels.
-        if self._prebuilt_active:
-            self._leave_prebuilt()
-        # Likewise an applied editor chart is dropped for Default / a user preset.
-        if self._applied_active:
-            self._leave_applied()
-        if self._reflected_active:
-            self._leave_reflected()
-
-        self._last_preset_index = index
-        self._preset_del_btn.setEnabled(self._is_deletable_preset(index))
-        s = self._settings
-        if index == 0:
-            # Returning to Default builds a fresh chart via targen. The
-            # Printer-profile name is the user's own and is left untouched (#70).
-            for tool, widgets in self._manual_widgets.items():
-                for pw in widgets:
-                    if pw in self._d_cascade_widgets:
-                        continue
-                    # Use the same case-disambiguated key that _on_save_defaults
-                    # writes, so single-char flags (-l, -g, …) round-trip here too.
-                    key = _pw_settings_key(tool, pw.flag)
-                    v = s.get(key)
-                    if v is None:
-                        # No saved default for this row → revert to its factory
-                        # default (and clear any expert enable-checkbox). Without
-                        # this, picking "Default" would leave a row the user
-                        # changed but never saved untouched — the reported bug.
-                        pw.reset_to_default()
-                        continue
-                    pw.set_value(v)
-                    if pw.has_separate_enable:
-                        pw.set_user_enabled(bool(s.get(f"{key}_enabled", False)))
-            for idx, pw in enumerate(self._d_cascade_widgets):
-                v = s.get(f"manual_targen_-D_{idx}")
-                if v is not None:
-                    pw.set_value(v)
-                pw.set_user_enabled(bool(s.get(f"manual_targen_-D_{idx}_enabled", False)))
-            self._rebuild_d_cascade_visibility()
-            self._builtin_ti1_path = None     # Default builds via targen
-            # "Default" BUILDS A FRESH targen CHART, SO IT HAS NO DESIGN —
-            # and `None` here meant "leave whatever the run already says",
-            # which left the previously selected preset's design standing as a
-            # description of a chart it did not build. One click on Default was
-            # enough to reproduce Knut's *"a previously created patch set
-            # setting is there instead"* (#164).
-            from workflow.ti2_relayout import NO_RECIPE
-            self._pending_editor_recipe = NO_RECIPE
-            if self._bit8_radio is not None and self._bit16_radio is not None:
-                is_16bit = bool(s.get("manual_printtarg_tiff_16bit", False))
-                self._bit16_radio.setChecked(is_16bit)
-                self._bit8_radio.setChecked(not is_16bit)
-            if self._manual_pages_spin is not None:
-                self._manual_pages_spin.setValue(int(s.get("manual_pages", 1)))
-            if self._manual_auto_patches_check is not None:
-                auto_on = bool(s.get("manual_auto_patches", True))
-                self._manual_auto_patches_check.setChecked(auto_on)
-                self._on_auto_patches_toggled(auto_on)
-            self._load_auto_neutral_states(
-                grey  = bool(s.get("manual_auto_grey",  True)),
-                white = bool(s.get("manual_auto_white", True)),
-                black = bool(s.get("manual_auto_black", True)),
-            )
-            self._manual_left_clip_check.setChecked(
-                bool(s.get("chart_left_clip_info", False))
-            )
-            if self._manual_td_check is not None:
-                self._manual_td_check.setChecked(
-                    bool(s.get("manual_printtarg__triple_density", False))
+            self._preset_del_btn.setEnabled(self._is_deletable_preset(index))
+            s = self._settings
+            if index == 0:
+                # Returning to Default builds a fresh chart via targen. The
+                # Printer-profile name is the user's own and is left untouched (#70).
+                for tool, widgets in self._manual_widgets.items():
+                    for pw in widgets:
+                        if pw in self._d_cascade_widgets:
+                            continue
+                        # Use the same case-disambiguated key that _on_save_defaults
+                        # writes, so single-char flags (-l, -g, …) round-trip here too.
+                        key = _pw_settings_key(tool, pw.flag)
+                        v = s.get(key)
+                        if v is None:
+                            # No saved default for this row → revert to its factory
+                            # default (and clear any expert enable-checkbox). Without
+                            # this, picking "Default" would leave a row the user
+                            # changed but never saved untouched — the reported bug.
+                            pw.reset_to_default()
+                            continue
+                        pw.set_value(v)
+                        if pw.has_separate_enable:
+                            pw.set_user_enabled(bool(s.get(f"{key}_enabled", False)))
+                for idx, pw in enumerate(self._d_cascade_widgets):
+                    v = s.get(f"manual_targen_-D_{idx}")
+                    if v is not None:
+                        pw.set_value(v)
+                    pw.set_user_enabled(bool(s.get(f"manual_targen_-D_{idx}_enabled", False)))
+                self._rebuild_d_cascade_visibility()
+                self._builtin_ti1_path = None     # Default builds via targen
+                # "Default" BUILDS A FRESH targen CHART, SO IT HAS NO DESIGN —
+                # and `None` here meant "leave whatever the run already says",
+                # which left the previously selected preset's design standing as a
+                # description of a chart it did not build. One click on Default was
+                # enough to reproduce Knut's *"a previously created patch set
+                # setting is there instead"* (#164).
+                from workflow.ti2_relayout import NO_RECIPE
+                self._pending_editor_recipe = NO_RECIPE
+                if self._bit8_radio is not None and self._bit16_radio is not None:
+                    is_16bit = bool(s.get("manual_printtarg_tiff_16bit", False))
+                    self._bit16_radio.setChecked(is_16bit)
+                    self._bit8_radio.setChecked(not is_16bit)
+                if self._manual_pages_spin is not None:
+                    self._manual_pages_spin.setValue(int(s.get("manual_pages", 1)))
+                if self._manual_auto_patches_check is not None:
+                    auto_on = bool(s.get("manual_auto_patches", True))
+                    self._manual_auto_patches_check.setChecked(auto_on)
+                    self._on_auto_patches_toggled(auto_on)
+                self._load_auto_neutral_states(
+                    grey  = bool(s.get("manual_auto_grey",  True)),
+                    white = bool(s.get("manual_auto_white", True)),
+                    black = bool(s.get("manual_auto_black", True)),
                 )
-            self._preset_ti1_path = None      # Default builds via targen
-        else:
-            name = self._preset_combo.currentData()
-            presets = self._load_presets_from_settings()
-            pdata = presets.get(name, {})
-            self._restore_user_preset(pdata)
-            # Load the preset with the engine it was made with (Knut #93): a
-            # Manual preset stores printtarg widget values (no layout_recipe), so
-            # select the printtarg engine — otherwise the ChromIQ engine would try
-            # to render it and the preview is wrong. The restored -i/-p widgets
-            # then drive the (correct) instrument & paper. An engine preset (future
-            # layout_recipe) would instead switch the engine on.
-            if getattr(self, "_manual_engine_check", None) is not None:
-                has_recipe = isinstance(pdata, dict) and bool(pdata.get("layout_recipe"))
-                self._manual_engine_check.setChecked(has_recipe)
-            # Carry the preset's stored New-chart recipe (Set B), if any, so a
-            # chart generated from it reopens in the editor with this design
-            # pre-loaded into New chart / Add (#70, Knut follow-up).
-            rec = pdata.get("editor_recipe") if isinstance(pdata, dict) else None
-            self._pending_editor_recipe = rec if isinstance(rec, dict) and rec else None
-            self._builtin_ti1_path = None     # a user preset, not a built-in
-            # A user preset that bundled a .ti1 builds from it (skip targen). Point
-            # Generate at the sidecar file if it's present; otherwise fall back to
-            # the normal targen path.
-            self._preset_ti1_path = None
-            self._preset_ti1_targen_sig = None
-            if isinstance(pdata, dict) and pdata.get("attached_ti1"):
-                p = _preset_sidecar_path("create_chart", str(name), ".ti1")
-                if p.is_file():
-                    self._preset_ti1_path = p
-                    # Snapshot targen so the override box can opt into a fresh
-                    # targen run (changed → different patches), like the built-ins.
-                    self._preset_ti1_targen_sig = self._targen_signature()
-                else:
-                    log.warning("preset '%s' marked attached_ti1 but %s is missing",
-                                name, p)
-        # Every Default / user-preset selection re-establishes the lock state:
-        # untick any leftover override and grey the panels a ti1 preset needs.
-        self._reset_override_checks()
-        self._update_preset_locks()
-        self._update_manual_lb_visibility()
-        # Re-establish the descriptive prefix: cleared while a preset name is
-        # loaded, re-applied to the editable tail back on Default (#68).
-        self._refresh_name_prefix()
+                self._manual_left_clip_check.setChecked(
+                    bool(s.get("chart_left_clip_info", False))
+                )
+                if self._manual_td_check is not None:
+                    self._manual_td_check.setChecked(
+                        bool(s.get("manual_printtarg__triple_density", False))
+                    )
+                self._preset_ti1_path = None      # Default builds via targen
+            else:
+                name = self._preset_combo.currentData()
+                presets = self._load_presets_from_settings()
+                pdata = presets.get(name, {})
+                self._restore_user_preset(pdata)
+                # Load the preset with the engine it was made with (Knut #93): a
+                # Manual preset stores printtarg widget values (no layout_recipe), so
+                # select the printtarg engine — otherwise the ChromIQ engine would try
+                # to render it and the preview is wrong. The restored -i/-p widgets
+                # then drive the (correct) instrument & paper. An engine preset (future
+                # layout_recipe) would instead switch the engine on.
+                if getattr(self, "_manual_engine_check", None) is not None:
+                    has_recipe = isinstance(pdata, dict) and bool(pdata.get("layout_recipe"))
+                    self._manual_engine_check.setChecked(has_recipe)
+                # Carry the preset's stored New-chart recipe (Set B), if any, so a
+                # chart generated from it reopens in the editor with this design
+                # pre-loaded into New chart / Add (#70, Knut follow-up).
+                rec = pdata.get("editor_recipe") if isinstance(pdata, dict) else None
+                self._pending_editor_recipe = rec if isinstance(rec, dict) and rec else None
+                self._builtin_ti1_path = None     # a user preset, not a built-in
+                # A user preset that bundled a .ti1 builds from it (skip targen). Point
+                # Generate at the sidecar file if it's present; otherwise fall back to
+                # the normal targen path.
+                self._preset_ti1_path = None
+                self._preset_ti1_targen_sig = None
+                if isinstance(pdata, dict) and pdata.get("attached_ti1"):
+                    p = _preset_sidecar_path("create_chart", str(name), ".ti1")
+                    if p.is_file():
+                        self._preset_ti1_path = p
+                        # Snapshot targen so the override box can opt into a fresh
+                        # targen run (changed → different patches), like the built-ins.
+                        self._preset_ti1_targen_sig = self._targen_signature()
+                    else:
+                        log.warning("preset '%s' marked attached_ti1 but %s is missing",
+                                    name, p)
+            # Every Default / user-preset selection re-establishes the lock state:
+            # untick any leftover override and grey the panels a ti1 preset needs.
+            self._reset_override_checks()
+            self._update_preset_locks()
+            self._update_manual_lb_visibility()
+            # Re-establish the descriptive prefix: cleared while a preset name is
+            # loaded, re-applied to the editable tail back on Default (#68).
+            self._refresh_name_prefix()
 
-        # A user preset flagged "generate on select" (▶) generates straight away
-        # under the current Printer-profile name (#70) — the values are already
-        # loaded above. The preset name is never written into the profile field.
-        if data is not None and data not in BUILTIN_PRESET_KEYS:
-            presets = self._load_presets_from_settings()
-            pdata = presets.get(data, {})
-            if isinstance(pdata, dict) and pdata.get("auto_run"):
-                if self._runner.is_running:
-                    return
-                self._on_generate()
+            # A user preset flagged "generate on select" (▶) generates straight away
+            # under the current Printer-profile name (#70) — the values are already
+            # loaded above. The preset name is never written into the profile field.
+            if data is not None and data not in BUILTIN_PRESET_KEYS:
+                presets = self._load_presets_from_settings()
+                pdata = presets.get(data, {})
+                if isinstance(pdata, dict) and pdata.get("auto_run"):
+                    if self._runner.is_running:
+                        return
+                    self._on_generate()
+        finally:
+            self._settle_live_preview()
 
     def _restore_user_preset(self, data: dict) -> None:
         """Apply a saved user preset's stored values to the manual widgets."""
@@ -9185,90 +9198,97 @@ class TabChart(QWidget):
         creating a project — the chart already lives in its own folder. A
         one-time note explains that the previously-shown layout is preserved.
         """
-        ti2_path = Path(ti2_path)
-        # A CHART THE SELECTION ALREADY OWNS IS NOT "FROM ELSEWHERE".
-        #
-        # This state exists to say "the chart on screen lives in someone else's
-        # folder, so there is nothing here to generate". When the file IS the
-        # selected target's own chart, that sentence is false — and it does not
-        # merely mislead, it BLOCKS: `_on_generate` stops on it. Knut, beta.147,
-        # after using Duplicate (which shows the copy through this method):
-        # *"Now I get a window 'This chart is loaded from elsewhere' … This is
-        # obviously wrong … I am not allowed to finish the Generate Chart."*
-        # He met the same wall on a run's own verification chart in beta.132.
-        if self._chart_is_in_this_project(ti2_path):
-            log.info("Create Chart: %s belongs to the open project — showing "
-                     "it as this tab's own chart, not as a loaded one",
-                     ti2_path.name)
-            self._leave_reflected()
-            self._shown_chart_ti2 = ti2_path
-            self._shown_chart_stamp = self._chart_stamp(ti2_path)
-            self._display_run_chart(ti2_path, list(tiffs),
-                                    ti2_path.with_suffix(".ti1"))
-            return
-        self._switch_mode("manual")
-        # Drop any other fixed-layout binding for a consistent lock state.
-        self._tc918_active = False
-        self._tc918_targen_sig = None
-        self._knut_active = False
-        self._knut_targen_sig = None
-        self._preset_ti1_path = None
-        self._preset_ti1_targen_sig = None
-        # A reflected chart replaces whatever was loaded; drop the built-in's
-        # bundled .ti1 too, or its patch count would shadow the live chart in
-        # the Save-Preset name suggestion (_loaded_ti1_patch_count, Knut).
-        self._builtin_ti1_path = None
-        self._pending_editor_recipe = None   # reflected chart carries its own meta
-        if self._prebuilt_active:
-            self._leave_prebuilt()
-        if self._applied_active:
-            self._leave_applied()
-        self._reflected_active = True
-        log.info("Create Chart: showing a chart loaded from elsewhere: %s",
-                 ti2_path)
-        self._reflected_ti2 = ti2_path
-        self._reset_override_checks()
-        # Seed the instrument + page the chart was laid out for, so an
-        # unlock-and-edit starts from the right device/paper.
+        # Mirroring someone else's chart fills this tab's widgets from that
+        # chart's recipe. The user asked to LOOK at a chart, not to re-lay it
+        # out — and a live re-render would rewrite a file that lives in a
+        # folder this tab does not own. Settle on both exits.
         try:
-            from workflow.ti2_relayout import ChartSpec
-            spec = ChartSpec.from_ti2(ti2_path)
-            self._set_manual_value("printtarg", "-i", spec.instrument_flag)
-            self._set_manual_value("printtarg", "-p", spec.paper_flag)
-        except Exception as exc:  # noqa: BLE001 — seeding is best-effort
-            log.warning("Could not seed instrument/paper from reflected chart: %s", exc)
-        # Bring the option panels to the chart's own creation settings BEFORE
-        # locking, so the greyed panels show the truth about this chart —
-        # and an unlock-and-edit really does start "from these settings", as
-        # the loaded-chart dialog promises (mavtop, forum).
-        self._restore_chart_settings(ti2_path)
-        # A reflected chart is shown for reference only and never overwrites the
-        # user's Printer-profile name (#70); seed it only if the field is empty.
-        self._ensure_profile_name(ti2_path.stem)
-        self._update_preset_locks()      # grey both panels
-        self._log.clear()
-        self._log.appendPlainText(
-            f"Reflecting loaded chart “{ti2_path.name}” "
-            f"({count_phrase(len(tiffs), tr('1 page'), tr('{n} pages'))}). "
-            + tr("Loaded for reference only — not generated.")
-        )
-        if Path(ti2_path).with_suffix(".channels.json").is_file():
-            self._log.appendPlainText(tr(
-                "The locked panels show the settings this chart was made "
-                "with — tick “Edit patch recipe (override preset)” or “Edit "
-                "page layout (override preset)” to build a new chart starting "
-                "from them."))
-        if tiffs:
-            self._preview.load_tiff(list(tiffs))
-            self._set_margin_chart(list(tiffs), ti2_path)
-        else:
-            self._preview.clear()
-            self._set_margin_chart([], None)
-        # Estimate column follows the restored settings (set_recipe applies
-        # silently, and the margin chart — the estimate's patch-count anchor
-        # — only landed just above).
-        self._refresh_manual_command_preview()
-        self._maybe_warn_reflected_backfill(ti2_path)
+            ti2_path = Path(ti2_path)
+            # A CHART THE SELECTION ALREADY OWNS IS NOT "FROM ELSEWHERE".
+            #
+            # This state exists to say "the chart on screen lives in someone else's
+            # folder, so there is nothing here to generate". When the file IS the
+            # selected target's own chart, that sentence is false — and it does not
+            # merely mislead, it BLOCKS: `_on_generate` stops on it. Knut, beta.147,
+            # after using Duplicate (which shows the copy through this method):
+            # *"Now I get a window 'This chart is loaded from elsewhere' … This is
+            # obviously wrong … I am not allowed to finish the Generate Chart."*
+            # He met the same wall on a run's own verification chart in beta.132.
+            if self._chart_is_in_this_project(ti2_path):
+                log.info("Create Chart: %s belongs to the open project — showing "
+                         "it as this tab's own chart, not as a loaded one",
+                         ti2_path.name)
+                self._leave_reflected()
+                self._shown_chart_ti2 = ti2_path
+                self._shown_chart_stamp = self._chart_stamp(ti2_path)
+                self._display_run_chart(ti2_path, list(tiffs),
+                                        ti2_path.with_suffix(".ti1"))
+                return
+            self._switch_mode("manual")
+            # Drop any other fixed-layout binding for a consistent lock state.
+            self._tc918_active = False
+            self._tc918_targen_sig = None
+            self._knut_active = False
+            self._knut_targen_sig = None
+            self._preset_ti1_path = None
+            self._preset_ti1_targen_sig = None
+            # A reflected chart replaces whatever was loaded; drop the built-in's
+            # bundled .ti1 too, or its patch count would shadow the live chart in
+            # the Save-Preset name suggestion (_loaded_ti1_patch_count, Knut).
+            self._builtin_ti1_path = None
+            self._pending_editor_recipe = None   # reflected chart carries its own meta
+            if self._prebuilt_active:
+                self._leave_prebuilt()
+            if self._applied_active:
+                self._leave_applied()
+            self._reflected_active = True
+            log.info("Create Chart: showing a chart loaded from elsewhere: %s",
+                     ti2_path)
+            self._reflected_ti2 = ti2_path
+            self._reset_override_checks()
+            # Seed the instrument + page the chart was laid out for, so an
+            # unlock-and-edit starts from the right device/paper.
+            try:
+                from workflow.ti2_relayout import ChartSpec
+                spec = ChartSpec.from_ti2(ti2_path)
+                self._set_manual_value("printtarg", "-i", spec.instrument_flag)
+                self._set_manual_value("printtarg", "-p", spec.paper_flag)
+            except Exception as exc:  # noqa: BLE001 — seeding is best-effort
+                log.warning("Could not seed instrument/paper from reflected chart: %s", exc)
+            # Bring the option panels to the chart's own creation settings BEFORE
+            # locking, so the greyed panels show the truth about this chart —
+            # and an unlock-and-edit really does start "from these settings", as
+            # the loaded-chart dialog promises (mavtop, forum).
+            self._restore_chart_settings(ti2_path)
+            # A reflected chart is shown for reference only and never overwrites the
+            # user's Printer-profile name (#70); seed it only if the field is empty.
+            self._ensure_profile_name(ti2_path.stem)
+            self._update_preset_locks()      # grey both panels
+            self._log.clear()
+            self._log.appendPlainText(
+                f"Reflecting loaded chart “{ti2_path.name}” "
+                f"({count_phrase(len(tiffs), tr('1 page'), tr('{n} pages'))}). "
+                + tr("Loaded for reference only — not generated.")
+            )
+            if Path(ti2_path).with_suffix(".channels.json").is_file():
+                self._log.appendPlainText(tr(
+                    "The locked panels show the settings this chart was made "
+                    "with — tick “Edit patch recipe (override preset)” or “Edit "
+                    "page layout (override preset)” to build a new chart starting "
+                    "from them."))
+            if tiffs:
+                self._preview.load_tiff(list(tiffs))
+                self._set_margin_chart(list(tiffs), ti2_path)
+            else:
+                self._preview.clear()
+                self._set_margin_chart([], None)
+            # Estimate column follows the restored settings (set_recipe applies
+            # silently, and the margin chart — the estimate's patch-count anchor
+            # — only landed just above).
+            self._refresh_manual_command_preview()
+            self._maybe_warn_reflected_backfill(ti2_path)
+        finally:
+            self._settle_live_preview()
 
     def announce_duplicated_run(self, ti2_path: Path, run_label: str,
                                 source_label: str) -> None:
@@ -13837,12 +13857,12 @@ class TabChart(QWidget):
         `docs/design/per_target_settings.md` §7 B forbids exactly this —
         *"Loading settings must not trigger a rebuild … This is the one that
         would actually hurt, so it gets its own test"* — and the test plan's N3
-        says nothing ships until it is green. The guard §7 B asked for
-        (`_loading_target_settings`) exists and is honoured in three places, but
-        declining while it is up is the wrong SHAPE and does not work: this
-        handler seeds the panel twice, once through `load_target_settings` and
-        again through `_display_run_chart` -> `_restore_chart_settings`, and the
-        second seeder runs after the flag is down. Guarding the first merely
+        says nothing ships until it is green. §7 B used to prescribe a flag
+        raised for the duration of the fill; that paragraph now carries the
+        correction, because the flag cannot work here: this handler seeds the
+        panel twice, once through `load_target_settings` and again through
+        `_display_run_chart` -> `_restore_chart_settings`, and the second seeder
+        runs after the flag is down. Guarding the first merely
         moved which line armed the timer.
 
         So the episode, not the flag, is the unit: whatever the load did to the
@@ -13948,11 +13968,7 @@ class TabChart(QWidget):
                 tr("Switched to this run's {kind}.").format(kind=kind))
             self._display_run_chart(ti2, tiffs, ti1)
         finally:
-            try:
-                self._cancel_pending_auto_preview()
-                self._last_auto_sig = self._layout_signature()
-            except Exception:      # noqa: BLE001 — never break a target switch
-                log.debug("could not re-baseline the live preview", exc_info=True)
+            self._settle_live_preview()
 
     @staticmethod
     def _chart_stamp(ti2) -> "tuple | None":
@@ -14953,39 +14969,6 @@ class TabChart(QWidget):
         except Exception:      # noqa: BLE001 — the inspector must never crash
             return None
 
-    def _chart_uses_instrument_margins(self) -> bool:
-        """Whether the chart in the preview was built with the instrument's
-        margin minimums enforced.
-
-        Only an engine chart records the choice; anything else (a printtarg
-        chart, or no chart at all) is judged as before.
-
-        NOTHING IN THE APPLICATION CALLS THIS. Only `tests/
-        test_margin_inspector_instrument.py` does, so those assertions prove
-        nothing about what a user sees — the panel's own judgement goes through
-        `_chart_own_margins`. Wire it up or delete it; do not read a green test
-        here as evidence the margin check behaves.
-        """
-        try:
-            import json
-            if self._margin_ti2 is None:
-                return True
-            ch = Path(self._margin_ti2).with_suffix(".channels.json")
-            if not ch.is_file():
-                return True
-            doc = json.loads(ch.read_text())
-            layout = doc.get("layout") or {}
-            recipe = layout.get("recipe")
-            if not isinstance(recipe, dict) or "use_instrument_margins" not in recipe:
-                return True
-            # See `_chart_own_margins`: nobody chose these margins, and the
-            # recipe's numbers are dataclass defaults rather than the sheet's.
-            if layout.get("margins_chosen_by_user") is False:
-                return True
-            return bool(recipe["use_instrument_margins"])
-        except Exception:      # noqa: BLE001 — the inspector must never crash
-            return True
-
     def _chart_instrument_flag(self) -> str:
         """The instrument recorded in the chart's own layout recipe, or "".
 
@@ -15267,12 +15250,40 @@ class TabChart(QWidget):
         try:
             rec = self._manual_layout_panel.get_recipe().to_dict() \
                 if getattr(self, "_manual_layout_panel", None) is not None else {}
-            log.info("chart build (%s): patch set %s, %s, %sx%s grid, "
-                     "margins T%s R%s B%s L%s",
-                     trigger, getattr(ti1_path, "name", ti1_path),
+            # SAY WHICH MODULE IS SPEAKING, AND LOG THE OTHER ONE TOO.
+            #
+            # This line reads the MANUAL panel whatever built the chart, so a
+            # Guided build was logged with Manual's numbers. Basti's log of
+            # 2026-08-26 says "A4" for a sheet Guided had just built as A4R —
+            # and I diagnosed the wrong field from it, because the line looked
+            # like a description of the chart and was a description of the
+            # other module's widgets.
+            #
+            # The mismatch is the interesting part, not noise to tidy away: it
+            # is exactly the "the panel disagrees with the sheet" condition that
+            # produced the bug. So log both, labelled, and let a reader see the
+            # gap.
+            mode = self._current_mode()
+            log.info("chart build (%s) in %s: patch set %s | manual panel: %s, "
+                     "%sx%s grid, margins T%s R%s B%s L%s",
+                     trigger, mode, getattr(ti1_path, "name", ti1_path),
                      rec.get("paper"), rec.get("area_cols"), rec.get("area_rows"),
                      rec.get("margin_top"), rec.get("margin_right"),
                      rec.get("margin_bottom"), rec.get("margin_left"))
+            if mode != "manual":
+                # What the module that is actually building will hand the
+                # engine — the numbers that describe the sheet.
+                try:
+                    kw = self._creator._engine_build_kwargs(
+                        self._collect_guided()) if mode == "guided" else {}
+                    log.info("chart build (%s) in %s: engine kwargs %s",
+                             trigger, mode,
+                             {k: kw.get(k) for k in
+                              ("instrument", "paper", "border", "patch_w_mm")
+                              if k in kw})
+                except Exception:      # noqa: BLE001
+                    log.debug("could not log the building module's geometry",
+                              exc_info=True)
         except Exception:      # noqa: BLE001 — a log line must never break a build
             pass
 
@@ -15291,6 +15302,37 @@ class TabChart(QWidget):
             return True
         btn = getattr(self, "_generate_btn", None)
         return btn is not None and not btn.isEnabled()
+
+    def _settle_live_preview(self) -> None:
+        """End an operation that filled the layout widgets on the user's behalf,
+        leaving the live preview exactly where it found it.
+
+        SEEDING A WIDGET IS NOT AN EDIT. Loading a preset, resetting to one,
+        opening a .ti2 or selecting another run fills the panel programmatically,
+        every field fires a `changed` signal, and `_maybe_schedule_auto_preview`
+        cannot tell that from a user's hand on a knob — so the debounce timer
+        arms and 450 ms later the chart is re-laid out and REWRITTEN TO DISK.
+        Basti, 2026-08-26, on the mode-switch case: the sheet he had just
+        generated was silently replaced.
+
+        Two lines, and both are needed. Cancelling alone leaves a stale
+        fingerprint that arms on the next unrelated signal; re-baselining alone
+        does not stop a timer that is already running.
+
+        THE EPISODE IS THE UNIT, NOT A FLAG. `_loading_target_settings` was
+        built to guard this and cannot: an operation that seeds the panel twice
+        runs its second seeder after the flag is down, so declining while the
+        flag is up only moves which line arms the timer. Call this at the END of
+        the whole operation, on every exit path, and it holds however many
+        seeders the operation grows.
+
+        A real edit made AFTER the operation still arms the timer normally.
+        """
+        try:
+            self._cancel_pending_auto_preview()
+            self._last_auto_sig = self._layout_signature()
+        except Exception:      # noqa: BLE001 — never break the caller
+            log.debug("could not settle the live preview", exc_info=True)
 
     def _cancel_pending_auto_preview(self) -> None:
         """Drop a queued live re-render because a real chart build is starting.

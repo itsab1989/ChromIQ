@@ -474,7 +474,7 @@ def _rows():
             ("*-diag.tif", "runs/runN/cache", tr("A diagnostic image showing where the tool found each patch — handy if recognition went wrong."), tr("Scanner/camera profiling")),
         ]),
         (tr("Measuring, refining and verification"), [
-            ("reads/read1.ti3, read2.ti3 …", "runs/runN/reads", tr("Individual readings when you use “Read again & average”; averaged back into {name}.ti3 when you finish."), tr("Measure tab")),
+            ("reads/read1.ti3, read2.ti3 …", "runs/runN/reads", tr("Individual readings when you use “Measure again to average”; averaged back into {name}.ti3 when you finish."), tr("Measure tab")),
             ("preconditioning.ti3 / .icc", "runs/runN", tr("Copies of a previous run's measurement + profile, used to aim the next chart better."), tr("Refine")),
             ("merged.ti3 / merged.icc", "runs/runN", tr("The build-time merge of your new measurement with the pre-conditioning one. The installed profile still gets the clean {name}.icc name."), tr("Build Profile (refinement)")),
             ("calibrated.icc", "runs/runN", tr("Your profile with calibration curves baked in (applycal), when the calibration workflow is on."), tr("Build Profile")),

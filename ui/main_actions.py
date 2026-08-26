@@ -158,7 +158,7 @@ ACTION_ROWS: "list[tuple[str, list[str]]]" = [
         tr("“Delete” on the last remaining run offers “Delete the whole project”."),
     ]),
     (tr("Empty a run without deleting it"), [
-        tr("Only through the last-run window's “Empty the run”."),
+        tr("Only through the last-run window's “Empty run” button."),
     ]),
     (tr("Rename"), [
         tr("The project can be renamed, and its files follow. A run or a "

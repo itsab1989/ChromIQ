@@ -81,3 +81,52 @@ measures them; the seed values are rounded just below the smallest known-good
 margin so those (practically-tested) presets read OK out of the box. i1Pro
 seeds use Knut's 11 mm scan run-up. These are *editable starting points*, not
 physical minima — rulers vary.
+
+## Known gap — a Guided chart continued in Manual is barely checked
+
+**Status: known, deliberately not fixed (Basti, 2026-08-26). Do not "fix" it
+without asking; it was decided, not overlooked.**
+
+Build a chart in Guided, click MANUAL, press Generate. The sheet is unchanged —
+the same measured margins to the tenth of a millimetre — but the verdict flips:
+
+```
+GUIDED  measured  L 26.0  R 10.2  T 27.2  B 10.2
+        minimum   L 26.0  R  9.0  T 38.0  B  9.0
+        status    RED   "Top margin 27.2 mm is below the 38 mm minimum"
+
+MANUAL  measured  L 26.0  R 10.2  T 27.2  B 10.2     <- the same sheet
+        minimum   L  6.0  R  6.0  T  6.0  B  6.0
+        status    GREEN "Margins: OK"
+```
+
+Three things combine, and each is worth knowing on its own:
+
+1. **The seeded "own margins" are dataclass defaults.** Guided writes no recipe,
+   so `LayoutRecipe` fills margin_top/right/bottom/left with 6/6/6/6. That is
+   neither the border the engine was handed (10 mm for the i1Pro, whose shipping
+   preset is `m10_a0.95`) nor the margins the sheet ended up with. So the Manual
+   check is not merely lenient — almost no real sheet can fail a 6 mm floor.
+2. **A Manual Generate erases the provenance.** `margins_chosen_by_user` is
+   written only in `ChartCreator._embed_layout_geometry`'s `params.layout_recipe
+   is None` branch. A Manual build supplies a recipe, takes the other branch, and
+   the run loses the stamp for good. Returning to Guided does not restore it;
+   only re-generating in Guided does.
+3. **Charts made before the stamp existed have none.** Counted on the author's
+   machine, 2026-08-26: 65 chart sidecars under `~/ChromIQ`, 60 carrying an
+   engine recipe, **0 stamped**. This is not a long tail — it is every chart
+   already made.
+
+**There is no second net.** The check lives only in the Create Chart inspector;
+nothing re-checks at print or measure time. So a chart the instrument cannot
+read can show a green "Margins: OK", be printed, and only fail at the jig.
+
+**The option that would remove all three** (considered, not taken): show both
+the chart's own minimum and the instrument's in the panel's `min` column and
+colour against whichever is stricter, naming which one failed. It changes no
+printed sheet, needs no provenance stamp — so it works on all 65 existing charts
+— and it never hides a Manual user's deliberate choice to go below the guideline.
+The two rejected alternatives both have real costs: tracking "has the user
+touched a margin control" is a UI-state heuristic that dies when a fourth seeder
+is added, and forcing `use_instrument_margins` on changes the geometry of charts
+that get printed.

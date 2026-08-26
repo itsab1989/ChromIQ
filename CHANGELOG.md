@@ -1,5 +1,75 @@
 # Changelog
 
+## v4.1.3-beta.20
+
+Changing tab, picking a run or loading a preset re-drew your chart and wrote it
+to disk. And the help cards named eleven buttons that do not exist.
+
+### Fixed
+
+- **Your chart was re-drawn and overwritten when you had not asked for it.**
+  With "Auto-update preview" on, generating a chart in Guided and then clicking
+  MANUAL replaced the sheet you had just made — 450 ms after the click, with
+  nothing touched. It happened again when you merely selected a different run in
+  the run bar, when you loaded one of your own presets, when you pressed Manual's
+  "Reset", and when you opened a chart file with Open Chart File (.ti2). Filling
+  the layout boxes on your behalf looked exactly like you turning a knob, so the
+  live preview believed the layout had changed. It now settles at the end of each
+  of those operations; a change **you** make still refreshes the preview at once.
+- **Eleven help-card steps named buttons that do not exist.** Six described a
+  "Disable bidirectional reading" tickbox that was removed from ChromIQ in 2025 —
+  the real control is the Measure tab's "Strip recognition" row with its "Auto"
+  box. Seven said "Analyse" where the button reads "Analyse Profile Quality", two
+  said "Load .ti3" where there is an icon and a folder button, and others named
+  "Use as Pre-conditioning Profile", "Read again & average" and "Empty the run".
+  All corrected in English and in all twelve languages.
+- **A help card advised something the app itself warns against.** The new
+  strip-recognition text told you to switch off "Auto" and force bidirectional
+  reading if you scan in one continuous motion. On a fixed-order chart that can
+  latch onto the wrong strip and quietly build a profile with colour casts —
+  which is why ChromIQ shows a warning when you do it. The cards now say to leave
+  "Auto" ticked and let ChromIQ choose.
+- **"Check && Refine" appeared with two ampersands** in three help texts.
+- **A US Letter help card printed a sheet with nothing on it** — the
+  "Your first profile" card, after its text grew.
+
+### Changed
+
+- **The margin check no longer tightens itself on a coarse chart.** beta.19
+  capped the allowance at one pixel of 200 dpi; that made correct charts accuse
+  themselves. A factory preset changed only from 200 to 180 dpi reported "Top
+  margin 33.9 mm is below the 34 mm minimum" against a layout that sits exactly
+  on its box. A chart cannot be measured more finely than the pixels it is drawn
+  on.
+- **The "room left on the last page" hint no longer contradicts itself.** On a
+  Guided chart it read "space for about 22 more patches on it (the page holds
+  about 0 in total)". Both numbers came from re-deriving a page the recipe cannot
+  describe, so the hint is now left out for those charts rather than guessed at.
+
+### Known issues
+
+- **A Guided chart continued in Manual is barely checked against your
+  instrument.** Build in Guided, click MANUAL, press Generate: the same sheet
+  that was flagged red for a margin the i1Pro jig cannot read reports
+  "Margins: OK" in green, because Manual judges it against layout defaults of
+  6 mm rather than the instrument's minimums. Nothing re-checks at print or
+  measure time, so a chart the instrument cannot read can reach the jig. Charts
+  made before beta.19 are affected the same way. Deliberately not changed in this
+  release; the full analysis is in `docs/dev_margin_inspector.md`.
+- **Help cards can print a near-blank sheet in languages other than English.**
+  Eleven such sheets across nine languages, carrying only the header, the page
+  number and the colophon. The page budget has only ever been checked in English.
+
+### Under the hood
+
+- One design specification, `per_target_settings.md` §7 B, prescribed a guard
+  that cannot work — the handler it governs fills the panel twice and the second
+  fill runs after the guard is down. Rewritten to describe the shape that holds,
+  marked as awaiting confirmation.
+- Three tests that could not fail were removed or repointed: a function nothing
+  called, and the run-switch test the specification says nothing ships without,
+  which had been passing against a stand-in class with no timer.
+
 ## v4.1.3-beta.19
 
 Guided mode has been quietly using the wrong layout engine since June, and the

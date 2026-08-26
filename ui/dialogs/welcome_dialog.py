@@ -88,16 +88,16 @@ WORKFLOWS: list[dict] = [
                 "Click “Print”.")),
             (3, tr("On the Measure tab, connect and switch on your "
                 "spectrophotometer, then place the printed chart on a white "
-                "surface (a plain sheet of paper underneath works perfectly) — "
-                "a coloured or dark backing can bleed through thin stock and "
-                "skew the reading. Before you scan, check the “Disable "
-                "bidirectional reading” option: it's ON by default, the safest "
-                "setting for any spectro. If you use an i1Pro and you're used "
-                "to scanning each strip in one continuous left-and-right "
-                "motion, turn this option OFF first — leaving it on while you "
-                "sweep bidirectionally is the classic cause of mis-recognised "
-                "strips and bad data. Click “Start Measurement” and follow the "
-                "strip-by-strip prompts.")),
+                "surface (a plain sheet of paper underneath works "
+                "perfectly) — a coloured or dark backing can bleed through "
+                "thin stock and skew the reading. Before you scan, look at "
+                "the “Strip recognition” row and leave its “Auto” box "
+                "ticked — ChromIQ then picks the right mode from your chart "
+                "and your instrument. Changing it by hand is an expert "
+                "setting — the wrong choice on a fixed-order chart can "
+                "latch onto the wrong strip and quietly build a profile "
+                "with colour casts. Click “Start Measurement” and follow "
+                "the strip-by-strip prompts.")),
             (4, tr("On the Build Profile tab the new .ti3 measurement is "
                 "already loaded. If you like, fill in the optional metadata "
                 "fields (Description, Manufacturer, Copyright) — they get "
@@ -120,7 +120,7 @@ WORKFLOWS: list[dict] = [
             (4, tr("Optional — Click “Build Profile” again. The refined .ti3 "
                 "produces a more accurate profile."),
                 True),
-            (5, tr("Optional — Run “Analyse” one more time to confirm the "
+            (5, tr("Optional — Run “Analyse Profile Quality” one more time to confirm the "
                 "worst outliers are now below threshold. Repeat the refine "
                 "loop as often as you like — each pass should reduce ΔE "
                 "further."),
@@ -157,21 +157,20 @@ WORKFLOWS: list[dict] = [
                 "Click “Print”.")),
             (3, tr("On the Measure tab, connect and switch on your "
                 "spectrophotometer, then place the printed chart on a white "
-                "surface (a plain sheet of paper underneath works perfectly) — "
-                "a coloured or dark backing can bleed through thin stock and "
-                "skew the reading. Before you scan, check the “Disable "
-                "bidirectional reading” option: it's ON by default, the safest "
-                "setting for any spectro. If you use an i1Pro and you're used "
-                "to scanning each strip in one continuous left-and-right "
-                "motion, turn this option OFF first — leaving it on while you "
-                "sweep bidirectionally is the classic cause of mis-recognised "
-                "strips and bad data. Click “Start Measurement” and follow the "
-                "strip-by-strip prompts.")),
+                "surface (a plain sheet of paper underneath works "
+                "perfectly) — a coloured or dark backing can bleed through "
+                "thin stock and skew the reading. Before you scan, look at "
+                "the “Strip recognition” row and leave its “Auto” box "
+                "ticked — ChromIQ then picks the right mode from your chart "
+                "and your instrument. Changing it by hand is an expert "
+                "setting — the wrong choice on a fixed-order chart can "
+                "latch onto the wrong strip and quietly build a profile "
+                "with colour casts. Click “Start Measurement” and follow "
+                "the strip-by-strip prompts.")),
             (4, tr("On the Build Profile tab click “Build Profile” to "
                 "produce the first .icc. Treat this profile as a colour-"
                 "space map rather than a finished result. In the result popup "
-                "(or in Check & Refine) click “Use as Pre-conditioning "
-                "Profile” — ChromIQ jumps back to the Create Chart tab with "
+                "(or in Check & Refine) click “← Use as Pre-conditioning” — ChromIQ jumps back to the Create Chart tab with "
                 "the new .icc loaded as the pre-conditioning profile.")),
             (1, tr("Optionally raise the patch count — a second-pass chart "
                 "benefits from more patches because they're placed where "
@@ -183,14 +182,13 @@ WORKFLOWS: list[dict] = [
                 "switched it back on. On Windows and other systems you need "
                 "to switch it off yourself in the driver dialog. "
                 "Click “Print”.")),
-            (3, tr("On the Measure tab, connect the spectrophotometer and place "
-                "the printed chart on a white surface. Check the “Disable "
-                "bidirectional reading” option: it's ON by default, the "
-                "safest setting for any spectro. If you use an i1Pro and "
-                "you're used to scanning each strip in one continuous "
-                "left-and-right motion, turn this option OFF first — "
-                "leaving it on while you sweep bidirectionally is the "
-                "classic cause of mis-recognised strips and bad data. "
+            (3, tr("On the Measure tab, connect the spectrophotometer and "
+                "place the printed chart on a white surface. Look at the "
+                "“Strip recognition” row: leave its “Auto” box ticked and "
+                "ChromIQ picks the right mode from your chart and your "
+                "instrument. Changing it by hand is an expert setting — the "
+                "wrong choice on a fixed-order chart can latch onto the "
+                "wrong strip and quietly build a profile with colour casts. "
                 "Click “Start Measurement” and follow the strip-by-strip "
                 "prompts.")),
             (4, tr("Click “Build Profile” one more time. The result is "
@@ -210,7 +208,7 @@ WORKFLOWS: list[dict] = [
             (4, tr("Optional — Click “Build Profile” again. The refined .ti3 "
                 "produces a more accurate profile."),
                 True),
-            (5, tr("Optional — Run “Analyse” one more time to confirm the "
+            (5, tr("Optional — Run “Analyse Profile Quality” one more time to confirm the "
                 "worst outliers are now below threshold. Repeat the refine "
                 "loop as often as you like — each pass should reduce ΔE "
                 "further."),
@@ -242,16 +240,16 @@ WORKFLOWS: list[dict] = [
                 "Click “Print”.")),
             (3, tr("On the Measure tab, connect and switch on your "
                 "spectrophotometer, then place the printed chart on a white "
-                "surface (a plain sheet of paper underneath works perfectly) — "
-                "a coloured or dark backing can bleed through thin stock and "
-                "skew the reading. Before you scan, check the “Disable "
-                "bidirectional reading” option: it's ON by default, the safest "
-                "setting for any spectro. If you use an i1Pro and you're used "
-                "to scanning each strip in one continuous left-and-right "
-                "motion, turn this option OFF first — leaving it on while you "
-                "sweep bidirectionally is the classic cause of mis-recognised "
-                "strips and bad data. Click “Start Measurement” and follow the "
-                "strip-by-strip prompts.")),
+                "surface (a plain sheet of paper underneath works "
+                "perfectly) — a coloured or dark backing can bleed through "
+                "thin stock and skew the reading. Before you scan, look at "
+                "the “Strip recognition” row and leave its “Auto” box "
+                "ticked — ChromIQ then picks the right mode from your chart "
+                "and your instrument. Changing it by hand is an expert "
+                "setting — the wrong choice on a fixed-order chart can "
+                "latch onto the wrong strip and quietly build a profile "
+                "with colour casts. Click “Start Measurement” and follow "
+                "the strip-by-strip prompts.")),
             (4, tr("On the Build Profile tab the new .ti3 is already loaded. "
                 "If you like, fill in the optional metadata fields "
                 "(Description, Manufacturer, Copyright) — they get embedded "
@@ -274,7 +272,7 @@ WORKFLOWS: list[dict] = [
             (4, tr("Optional — Click “Build Profile” again. The refined .ti3 "
                 "produces a more accurate profile."),
                 True),
-            (5, tr("Optional — Run “Analyse” one more time to confirm the "
+            (5, tr("Optional — Run “Analyse Profile Quality” one more time to confirm the "
                 "worst outliers are now below threshold. Repeat the refine "
                 "loop as often as you like — each pass should reduce ΔE "
                 "further."),
@@ -302,10 +300,10 @@ WORKFLOWS: list[dict] = [
             (3, tr("Once the print is dry, head to the Measure tab and connect "
                 "your spectrophotometer, then place the chart on a white "
                 "surface (a plain sheet of paper underneath works). Before "
-                "scanning, look at the “Disable Bidirectional Strip Recognition” option "
-                "— it is ticked by default, which is the safest setting. If "
-                "you use an i1Pro and you are used to scanning each strip in "
-                "one continuous left-and-right motion, untick it first. "
+                "scanning, look at the “Strip recognition” row and leave its “Auto” "
+                "box ticked — ChromIQ then picks the right mode from your "
+                "chart and your instrument, which is what you want unless "
+                "you have a reason not to. "
                 "Click “Start Measurement” and follow the strip-by-strip "
                 "prompts.")),
             (4, tr("On the Build Profile tab the new .ti3 is already loaded. "
@@ -330,7 +328,7 @@ WORKFLOWS: list[dict] = [
             (4, tr("Optional — Click “Build Profile” again. The refined .ti3 "
                 "produces a more accurate profile."),
                 True),
-            (5, tr("Optional — Run “Analyse” one more time to confirm the "
+            (5, tr("Optional — Run “Analyse Profile Quality” one more time to confirm the "
                 "worst outliers are now below threshold. Repeat the refine "
                 "loop as often as you like — each pass should reduce ΔE "
                 "further."),
@@ -349,12 +347,14 @@ WORKFLOWS: list[dict] = [
             (3, tr("Connect and switch on the spectrophotometer. ChromIQ "
                 "detects it automatically; a green status pill appears in "
                 "the toolbar when it's ready.")),
-            (3, tr("Look at the “Disable Bidirectional Strip Recognition” option before "
-                "you start. It is ticked by default — safe for any spectro "
-                "but slower. If you use an i1Pro and you are used to scanning "
-                "each strip in one continuous left-and-right sweep, untick it "
-                "first; leaving it ticked while you scan bidirectionally "
-                "causes mis-recognised strips and bad measurements.")),
+            (3, tr("Look at the “Strip recognition” row before you start. "
+                "Leave its “Auto” box ticked and ChromIQ chooses the mode "
+                "from your chart and your instrument, which is right for "
+                "almost everybody. Changing it by hand is an expert "
+                "setting: the wrong choice on a fixed-order chart can latch "
+                "onto the wrong strip and quietly build a profile with "
+                "colour casts, so ChromIQ warns you before it lets that "
+                "happen.")),
             (3, tr("Click “Start Measurement” and follow the strip-by-strip "
                 "prompts. Results save as a .ti3 next to the chart, "
                 "ready for the Build Profile tab.")),
@@ -388,7 +388,7 @@ WORKFLOWS: list[dict] = [
             (4, tr("Optional — Click “Build Profile” again. The refined .ti3 "
                 "produces a more accurate profile."),
                 True),
-            (5, tr("Optional — Run “Analyse” one more time to confirm the "
+            (5, tr("Optional — Run “Analyse Profile Quality” one more time to confirm the "
                 "worst outliers are now below threshold. Repeat the refine "
                 "loop as often as you like — each pass should reduce ΔE "
                 "further."),
@@ -400,9 +400,11 @@ WORKFLOWS: list[dict] = [
         "title": tr("Build a profile from an existing measurement"),
         "subtitle": tr("You have a .ti3 file — turn it into an ICC profile."),
         "steps": [
-            (4, tr("On the Build Profile tab, click “Load .ti3” and pick your "
-                "existing measurement file. The matching .ti1/.ti2 is "
-                "found and loaded automatically.")),
+            (4, tr("On the Build Profile tab, look in the top-right corner of "
+                "the tab for the small chart icon whose tooltip reads “Load "
+                "your measurement data” — click it and pick your existing "
+                "measurement file. The matching .ti1/.ti2 is found and "
+                "loaded automatically.")),
             (4, tr("If you like, fill in the optional metadata fields "
                 "(Description, Manufacturer, Copyright). These get embedded "
                 "in the .icc header so colour-management apps can identify "
@@ -428,7 +430,7 @@ WORKFLOWS: list[dict] = [
             (4, tr("Optional — Click “Build Profile” again. The refined .ti3 "
                 "produces a more accurate profile."),
                 True),
-            (5, tr("Optional — Run “Analyse” one more time to confirm the "
+            (5, tr("Optional — Run “Analyse Profile Quality” one more time to confirm the "
                 "worst outliers are now below threshold. Repeat the refine "
                 "loop as often as you like — each pass should reduce ΔE "
                 "further."),
@@ -440,10 +442,11 @@ WORKFLOWS: list[dict] = [
         "title": tr("Refine an existing profile"),
         "subtitle": tr("Re-measure only the strips where ΔE is worst."),
         "steps": [
-            (5, tr("On the Check & Refine tab, click “Load .ti3” and open the "
-                "measurement of the profile you want to improve. The "
-                "matching .icc loads automatically.")),
-            (5, tr("Click “Analyse”. ChromIQ runs profcheck and looks for "
+            (5, tr("On the Check & Refine tab, find the field labelled “.ti3 "
+                "test data file:” and click the folder button beside it, "
+                "then open the measurement of the profile you want to "
+                "improve. The matching .icc loads automatically.")),
+            (5, tr("Click “Analyse Profile Quality”. ChromIQ runs profcheck and looks for "
                 "patches whose ΔE is above your refinement threshold "
                 "(configurable in the panel — 2.0 is a sensible "
                 "starting point).")),

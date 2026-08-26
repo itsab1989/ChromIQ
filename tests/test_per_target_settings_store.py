@@ -123,8 +123,23 @@ def test_an_unchanged_save_does_not_rewrite_the_file(run):
     assert tab.save_target_settings() is False
 
 
-def test_n3_loading_cannot_re_enter_the_writer(run):
-    """The guard that stops a load from triggering a rebuild-and-save."""
+def test_loading_cannot_re_enter_the_writer(run):
+    """§7 C — a load must not re-enter the writer. Real, and it can still fail:
+    `_loading_target_settings` exists and is honoured in three places.
+
+    THIS IS NOT N3, AND IT USED TO CLAIM TO BE. The test plan specifies N3 as
+    *"loading a target's settings does not trigger an auto-update rebuild —
+    assert the chart file's mtime is unchanged"*, and this exercises a stand-in
+    `_Tab` with no timer, no layout fingerprint and no real `_apply_ui_state`.
+    It was green throughout the weeks when selecting a run in the bar really did
+    re-lay out that run's chart and rewrite it to disk — a green test guarding
+    the bug (Basti, 2026-08-26).
+
+    N3 now belongs to
+    `tests/test_the_live_preview_only_follows_the_user.py::
+    test_selecting_a_run_does_not_re_render_its_chart`, which drives the real
+    `TabChart` with a real timer and proves it can see its own failure.
+    """
     tab = _Tab(run, {"targen": [_Widget("-f", "5")]})
     tab.save_target_settings()
     tab._loading_target_settings = True

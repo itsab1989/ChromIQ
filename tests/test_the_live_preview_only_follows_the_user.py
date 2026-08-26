@@ -182,7 +182,17 @@ def test_a_setting_the_user_changed_in_guided_is_not_swallowed(tab):
 # -------------------------------------------------------------- run switch
 
 def test_selecting_a_run_does_not_re_render_its_chart(tab, monkeypatch):
-    """`per_target_settings.md` §7 B, and N3 of its test plan: *"Loading
+    """THIS IS N3 of `per_target_settings_test_plan.md` — the one the plan says
+    nothing ships without. It lived on a stand-in class with no timer until
+    2026-08-26 and was green while the real path was broken.
+
+    ONE DEVIATION, DELIBERATE AND UNCONFIRMED: the plan words N3 as "assert the
+    chart file's mtime is unchanged". This asserts that no re-render is ARMED,
+    which is strictly earlier and strictly stronger — an unchanged mtime would
+    also pass if the rebuild simply wrote identical bytes. Awaiting Basti's
+    confirmation that the stronger assertion is acceptable in the plan's place.
+
+    `per_target_settings.md` §7 B, and N3 of its test plan: *"Loading
     settings must not trigger a rebuild … This is the one that would actually
     hurt, so it gets its own test."*
 
@@ -230,3 +240,64 @@ def test_the_run_switch_guard_survives_a_failure_half_way(tab, monkeypatch):
     except RuntimeError:
         pass
     assert not tab._auto_preview_timer.isActive()
+
+
+# ------------------------------------------------- the other seeding paths
+
+def _arm(tab):
+    """Put the tab in the state a seeder leaves behind: a queued render for a
+    fingerprint that is no longer current."""
+    tab._last_auto_sig = "whatever the seeding left behind"
+    tab._auto_preview_timer.start(450)
+
+
+def test_the_settle_helper_disarms_and_rebaselines(tab):
+    """Both halves are needed. Cancelling alone leaves a stale fingerprint that
+    arms on the next unrelated signal; re-baselining alone does not stop a timer
+    that is already running."""
+    _arm(tab)
+    assert tab._auto_preview_timer.isActive()          # control: it IS armed
+    tab._settle_live_preview()
+    assert not tab._auto_preview_timer.isActive(), "the queued render survived"
+    assert tab._last_auto_sig == tab._layout_signature(), "the fingerprint is stale"
+
+
+def test_settling_never_raises_out_of_its_caller(tab, monkeypatch):
+    """It runs in a `finally` on paths the user is mid-way through. A failure
+    here must not take down a preset load or a target switch."""
+    monkeypatch.setattr(type(tab), "_layout_signature",
+                        lambda self: (_ for _ in ()).throw(RuntimeError("boom")))
+    tab._settle_live_preview()          # must not raise
+
+
+def test_resetting_manual_to_its_preset_arms_nothing(tab, monkeypatch):
+    """Manual's "Reset" writes the whole panel from the stored preset. That is
+    the app filling the widgets, not the user."""
+    monkeypatch.setattr(type(tab), "_current_layout_recipe",
+                        lambda self: (_ for _ in ()).throw(RuntimeError("no store")))
+    _arm(tab)
+    tab._reset_manual_to_preset()       # bails early — must NOT settle
+    assert tab._auto_preview_timer.isActive(), (
+        "a reset that failed before touching anything still cancelled a render "
+        "the user had legitimately queued")
+
+
+def test_mirroring_a_loaded_chart_arms_nothing(tab, monkeypatch, tmp_path):
+    """Open Chart File (.ti2) mirrors a chart this tab does not own. Looking at
+    it must never re-lay it out — that would rewrite a file in someone else's
+    folder."""
+    ti2 = tmp_path / "elsewhere.ti2"
+    ti2.write_text("CTI2\n")
+    # The one-time "loaded from elsewhere" note is a real modal; a test that
+    # leaves one open hangs the suite (tests/conftest.py catches it). Suppress
+    # it with the app's own switch rather than patching QMessageBox, which
+    # leaks across tests.
+    tab._settings.set("reflect_backfill_hide_warning", True)
+    _arm(tab)
+    try:
+        tab.reflect_loaded_chart(ti2, [])
+    except Exception:                   # noqa: BLE001 — the settle is in a finally
+        pass
+    assert not tab._auto_preview_timer.isActive(), (
+        "mirroring a chart from elsewhere left a re-layout queued")
+    assert tab._last_auto_sig == tab._layout_signature()

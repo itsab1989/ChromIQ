@@ -1,4 +1,4 @@
-"""Tab 5: Check && Refine — profcheck quality assessment and guided re-measurement."""
+"""Tab 5: Check & Refine — profcheck quality assessment and guided re-measurement."""
 from __future__ import annotations
 
 import json

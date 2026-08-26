@@ -398,12 +398,44 @@ other end, and gets the same answer: fall through to S4/S5/S8.
 
 **B. Loading settings must not trigger a rebuild.** Filling twenty widgets fires
 twenty `changed` signals, and with auto-update on that would redraw the chart —
-possibly over a measured one. The fill is guarded the way
-`_set_target_text_fields` already guards the two text fields. This is the one
-that would actually hurt, so it gets its own test.
+possibly over a measured one. This is the one that would actually hurt, so it
+gets its own test.
+
+> ⏳ **Awaiting confirmation** — the *mechanism* below, not the rule above.
+> The rule stands as written and is not in question.
+>
+> **Confirmed by:** *nobody yet.*
+>
+> This paragraph used to say the fill "is guarded the way
+> `_set_target_text_fields` already guards the two text fields" — a flag raised
+> for the duration of the fill. **That shape cannot do the job here, and the
+> code that implemented it shipped the very bug B forbids.** Driven on screen,
+> 2026-08-26: selecting a different run in the bar re-laid out that run's chart
+> and rewrote it to disk — no Generate, no knob, no mode switch.
+>
+> A flag fails because `_on_target_changed` fills the panel **twice** — once
+> through `load_target_settings`, and again through `_display_run_chart` →
+> `_restore_chart_settings` — and the second fill runs after the flag is down.
+> Guarding the first only moves which line arms the rebuild. Adding a third
+> filler later would defeat a flag again.
+>
+> **The episode is the unit, not the flag.** At the END of the whole operation,
+> on every exit path including the ones that raise, cancel any queued redraw and
+> re-baseline the layout fingerprint to what is now on screen — ChromIQ does
+> this in `TabChart._settle_live_preview`, called from `_on_target_changed`,
+> `_switch_mode`'s post-generate transfer, preset load, Manual's Reset and
+> `reflect_loaded_chart`. An edit the user makes AFTER the operation still
+> triggers a redraw normally.
+>
+> The flag (`_loading_target_settings`) still exists and still does its own job
+> — stopping a load from re-entering the writer (§7 C). It is simply not what
+> keeps B true.
 
 **C. (added by §2.1) A load that runs before its write.** Covered by making the
-target change one guarded write-then-load step.
+target change one guarded write-then-load step. This is the job the
+`_loading_target_settings` flag really does, and the one it can do: it is a
+re-entrancy guard over a single call, not a rebuild guard over a whole operation
+(see the note under B).
 
 ---
 
