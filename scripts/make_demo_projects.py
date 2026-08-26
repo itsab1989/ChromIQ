@@ -337,6 +337,15 @@ def _chart_files(into: Path, stem: str, *, patches: int, rows: int,
     layout["seed"] = getattr(result, "seed", 0)
     layout["color_rep"] = getattr(result, "color_rep", "RGB")
     layout["recipe"] = LayoutRecipe.from_build_kwargs(kwargs).to_dict()
+    # Nobody chose these margins — `kwargs` names only the instrument, the paper
+    # and the randomiser, so the recipe's margin fields are dataclass defaults
+    # and `use_instrument_margins: false` beside them is one too. That is the
+    # same provenance a Guided chart has, and it must be recorded the same way:
+    # without this flag every demo project (and the suite's demo fixture) is
+    # judged against its own 6 mm instead of the instrument's minimums, and the
+    # margin panel says "Margins: OK" on a sheet that will not fit the jig. See
+    # `ChartCreator._embed_layout_geometry`, which this mirrors.
+    layout["margins_chosen_by_user"] = False
     doc["layout"] = layout
     sidecar.write_text(json.dumps(doc))
     strips.unlink(missing_ok=True)      # geometry now lives in channels.json

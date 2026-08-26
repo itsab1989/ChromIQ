@@ -294,6 +294,13 @@ def test_auto_update_assesses_the_verify_chart_not_the_profiling_one(
     monkeypatch.setattr(tab, "_say_preview_is_paused",
                         lambda: paused.append(1))
 
+    # The debounce timer is only ever started by `_maybe_schedule_auto_preview`
+    # once the layout fingerprint has actually moved, and `_auto_regenerate_
+    # preview` re-checks that fingerprint at fire time — an arming that has
+    # since been baselined is dropped. Calling the method directly skips the
+    # arming, so the fingerprint has to be moved by hand or the render is
+    # (correctly) refused before §4 is ever consulted.
+    tab._last_auto_sig = "a layout that is not the one on screen"
     tab._auto_regenerate_preview()
     assert built and not paused, "nothing measured yet — experimenting is free"
 
@@ -303,6 +310,7 @@ def test_auto_update_assesses_the_verify_chart_not_the_profiling_one(
     v.ensure_dir()
     v.measurement_ti3.write_text("CTI3\n")
     built.clear()
+    tab._last_auto_sig = "a layout that is not the one on screen"
     tab._auto_regenerate_preview()
     assert paused and not built
 

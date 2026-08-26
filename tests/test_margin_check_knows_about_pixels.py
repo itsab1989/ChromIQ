@@ -171,29 +171,39 @@ def test_the_85_display_allowance_survives_an_unknown_dpi():
         MarginReport(left_mm=5.90, **base), {"L": 6.0})] == ["Left"]
 
 
-def test_a_coarse_chart_does_not_buy_a_bigger_allowance():
-    """The tolerance is capped at one pixel of the coarsest chart we ship.
+def test_a_coarse_chart_is_judged_by_its_own_pixel_not_a_capped_one():
+    """The tolerance follows the chart's OWN raster, and is not capped.
 
-    `printtarg_dpi` is written from one place only — Create Chart Manual's
-    "Save as defaults" — and read by Guided, which has no control for it. One
-    "Resolution: 72 dpi" saved there re-rasters every future Guided chart at
-    72 dpi and, without this cap, widened this SAFETY check 4.2x: a margin
-    0.30 mm short went from flagged to missed.
+    It was capped once, at one pixel of 200 dpi, on the argument that a coarse
+    chart should not buy itself a bigger allowance: `printtarg_dpi` is written
+    from one place only — Create Chart Manual's "Save as defaults" — and read by
+    Guided, which has no control for it, so a stray "Resolution: 72 dpi" saved
+    there widened this safety check 4.2x.
 
-    200 dpi is the floor because it is the coarsest the built-in charts use.
+    The cap was reverted the same day, because it accuses correct charts. With
+    it in place the factory preset "A3Plus-616p-1page-Landscape-w10.0mm" — with
+    nothing changed but Resolution 200 -> 180 — reported "Top margin 33.9 mm is
+    below the 34 mm minimum set for this chart" against a layout that lands
+    exactly on its box. Over the 119 built-ins: 2 false alarms at 180 dpi, 5 of
+    9 sampled at 120, 5 of 9 at 72; zero at any dpi without the cap. That is
+    #167's original symptom — the user's first act with a factory preset was a
+    red error about the factory preset.
+
+    A check cannot honestly claim more precision than the raster it reads. If a
+    72 dpi chart hides a 0.30 mm shortfall, the fix is to stop rastering charts
+    at 72 dpi, not to report a fault this measurement cannot see. See
+    tests/test_a_coarse_chart_is_not_accused.py.
     """
     from workflow.margin_inspector import MarginReport, _tolerance_mm
 
     def rep(dpi):
         return MarginReport(6.0, 6.0, 6.0, 6.0, None, 210.0, 297.0, dpi=dpi)
 
-    one_px_at_200 = 25.4 / 200.0
-    assert _tolerance_mm(rep(200)) == pytest.approx(one_px_at_200)
-    for coarse in (150, 100, 72, 36):
-        assert _tolerance_mm(rep(coarse)) == pytest.approx(one_px_at_200), (
-            f"a {coarse} dpi chart bought a bigger margin allowance than the "
-            "coarsest chart ChromIQ ships")
-    # …and a finer chart still gets its own, smaller, pixel.
-    assert _tolerance_mm(rep(300)) < one_px_at_200
-    assert _tolerance_mm(rep(600)) == pytest.approx(0.05)   # the display floor
-
+    for dpi in (200, 180, 150, 120, 100, 72, 36):
+        assert _tolerance_mm(rep(dpi)) == pytest.approx(25.4 / dpi), (
+            f"a {dpi} dpi chart was judged more finely than its own pixel, "
+            "which is how a correct chart comes to accuse itself")
+    # A finer chart gets its own, smaller, pixel...
+    assert _tolerance_mm(rep(300)) == pytest.approx(25.4 / 300.0)
+    # ...until the #85 display floor takes over.
+    assert _tolerance_mm(rep(600)) == pytest.approx(0.05)

@@ -170,18 +170,33 @@ def _tolerance_mm(report: MarginReport) -> float:
     tol = 0.05
     dpi = float(getattr(report, "dpi", 0.0) or 0.0)
     if dpi > 0:
-        # CEILING AT ONE PIXEL OF THE COARSEST CHART CHROMIQ SHIPS (200 dpi,
-        # 0.127 mm). Without it an unrelated setting silently widens a SAFETY
-        # check: `printtarg_dpi` is written from one place only — Create Chart
-        # Manual's "Save as defaults" — and read by Guided, which has no control
-        # for it. One "Resolution: 72 dpi" saved there re-rasters every future
-        # Guided chart at 72 dpi AND loosens this tolerance 4.2x, taking a
-        # margin 0.30 mm short from FLAGGED to MISSED.
+        # THE PIXEL IS THE CHART'S OWN, AND IT IS NOT CAPPED. This was capped
+        # once, at one pixel of 200 dpi, on the argument that a coarse chart
+        # should not buy itself a bigger allowance — `printtarg_dpi` is written
+        # from one place only (Create Chart Manual's "Save as defaults") and
+        # read by Guided, which has no control for it, so one "Resolution:
+        # 72 dpi" saved there loosens this check 4.2x.
         #
-        # 200 dpi is the floor because it is the coarsest the built-in charts
-        # use (the rest are 300); a chart coarser than that has worse problems
-        # than its margins, and should not buy itself a bigger allowance.
-        tol = max(tol, min(_MM_PER_INCH / dpi, _MM_PER_INCH / 200.0))
+        # THAT CAP WAS WRONG AND WAS REVERTED THE SAME DAY. Tightening the
+        # tolerance below the chart's own raster does not make the check
+        # sharper — it accuses charts that are exactly right. Measured over the
+        # 119 built-ins with the cap in place: 2 false alarms at 180 dpi, 5 of 9
+        # sampled at 120, 5 of 9 at 72; zero at any dpi without it. On screen,
+        # the factory preset "A3Plus-616p-1page-Landscape-w10.0mm" with nothing
+        # changed but Resolution 200 → 180 accused itself — "Top margin 33.9 mm
+        # is below the 34 mm minimum set for this chart" — against a layout
+        # `geometry.realized_margins_mm` puts exactly on its box. That is #167's
+        # original symptom verbatim: the user's first act with a factory preset
+        # was a red error about the factory preset. The Resolution spin box
+        # offers 72–1200 (ui/dialogs/layout_options_panel.py), so this is not a
+        # corner the user has to hunt for.
+        #
+        # A margin cannot be realised, or read back, more finely than one pixel
+        # of the raster it was drawn on. A check cannot honestly claim more
+        # precision than its own evidence. If a 72 dpi chart hides a 0.30 mm
+        # shortfall, the answer is to stop rastering charts at 72 dpi — not to
+        # report a fault this measurement cannot actually see.
+        tol = max(tol, _MM_PER_INCH / dpi)
     return tol
 
 

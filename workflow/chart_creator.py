@@ -1269,28 +1269,35 @@ class ChartCreator:
                 from workflow.layout_engine.presets import LayoutRecipe
                 layout["recipe"] = LayoutRecipe.from_build_kwargs(
                     self._engine_build_kwargs(params)).to_dict()
-                # THE MARGINS ARE CORRECT. NOBODY CHOSE THEM.
+                # NOBODY CHOSE A GUIDED CHART'S MARGINS, AND THE NUMBERS THE
+                # RECIPE CARRIES ARE NOT THE ONES THE SHEET WAS LAID OUT TO.
                 #
-                # 6/6/6/6 is the real, intended Guided geometry — it is what
-                # printtarg produces, and the engine was built to match it
-                # exactly (161/161 parity, #93). The recipe is telling the
-                # truth, and this flag does not dispute it.
+                # Guided has no margin boxes, so `LayoutRecipe.from_build_kwargs`
+                # fills margin_top/right/bottom/left from the dataclass
+                # defaults: 6/6/6/6. What the engine was actually handed is
+                # `INSTRUMENT_DEFAULT_MARGIN` — 10 mm for the i1Pro (whose
+                # shipping preset is `m10_a0.95`), 6 mm for the ColorMunki, i1Pro3
+                # and SpyderPrint (core/settings.py). And the margins the sheet
+                # ends up WITH are an output of the whole layout, not an input at
+                # all: i1Pro/A4 realises 10.0 / 10.0 / 41.58 / 24.57.
                 #
-                # What the recipe CANNOT say is that `use_instrument_margins:
-                # false` was never a decision. Guided has no margin boxes and no
-                # instrument-margins toggle, so that field is a dataclass
-                # default — yet on disk it is indistinguishable from a MANUAL
-                # user who looked at the guideline and declined it.
-                # `_chart_own_margins` read it the second way and judged the
-                # sheet against its own 6 mm instead of the jig's minimums, so
-                # the warning that a chart will not fit the instrument stopped
-                # appearing. Measured: 112 of 384 Guided combinations sit below
-                # their instrument's minimum and reported "Margins: OK" in
-                # green — an i1Pro/LetterR sheet with a 27.2 mm top margin
-                # against a 38 mm ruler requirement said nothing at all. Before
-                # #170 those charts went through printtarg, recorded no recipe,
-                # and were judged against the jig, which is the behaviour this
-                # restores.
+                # So "6" is right for three instruments by coincidence — it is
+                # both printtarg's `-m` default and the dataclass default — and
+                # simply wrong for the i1Pro. Do not read these four numbers as a
+                # description of the sheet.
+                #
+                # The field that does the damage is `use_instrument_margins:
+                # false` beside them. On disk it is indistinguishable from a
+                # MANUAL user who looked at the instrument guideline and declined
+                # it. `_chart_own_margins` read it the second way and judged the
+                # sheet against the recipe's 6 mm instead of the jig's minimums,
+                # so the warning that a chart will not fit the instrument stopped
+                # appearing: 112 of 384 Guided combinations sit below their
+                # instrument's minimum and reported "Margins: OK" in green — an
+                # i1Pro/LetterR sheet with a 27.2 mm top margin against a 38 mm
+                # requirement said nothing at all. Before #170 those charts went
+                # through printtarg, recorded no recipe, and were judged against
+                # the jig; that is the behaviour this restores.
                 #
                 # Record the PROVENANCE and let the reader decide. Do NOT write
                 # different numbers into the recipe: both attempts were measured

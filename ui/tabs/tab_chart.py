@@ -6045,6 +6045,27 @@ class TabChart(QWidget):
                     # the EXACT recipe that produced it (incl. scale/margin), once.
                     self._guided_transfer_pending = False
                     self._transfer_guided_to_manual()
+                    # CHANGING MODULE IS NOT A LAYOUT EDIT. This branch is by
+                    # definition "reproduce the chart that was just built", so
+                    # there is nothing here for the live preview to discover —
+                    # yet seeding Manual's widgets moves `_layout_signature()`
+                    # (measured: `paper` A4 -> A4R and `area_method` by_grid ->
+                    # by_width) and the debounce timer armed. 497 ms after the
+                    # user clicked MANUAL, having touched nothing, the chart he
+                    # had just generated was re-laid out and rewritten to disk
+                    # (Basti, 2026-08-26, with the log line to prove it).
+                    #
+                    # It looked like a once-per-session quirk because the second
+                    # transfer writes values that are already there, so the
+                    # signature does not move and the timer never arms.
+                    #
+                    # ONLY THIS BRANCH. The `_carry_shared_settings` branch below
+                    # is the opposite case — it carries what the user CHANGED,
+                    # e.g. a paper switched by hand in Guided — and re-baselining
+                    # there swallows a real edit. Measured: the broad fix drops
+                    # the A4 -> A4R the user made himself.
+                    self._cancel_pending_auto_preview()
+                    self._last_auto_sig = self._layout_signature()
                 else:
                     self._carry_shared_settings(prev, mode)
             finally:
@@ -13804,102 +13825,134 @@ class TabChart(QWidget):
             "or deleted — just create it again.)")
 
     def _on_target_changed(self) -> None:
-        """React to a Profile-run / Run-type change: show THAT target's chart —
-        its own Create-Chart settings + preview — and hand it to Print / Measure,
-        so the chart that prints and is measured always matches the selected
-        Profile run and Run type (#130, Knut beta-2 tests).
+        """Switch the tab to another run's chart, and leave the live preview
+        exactly where it found it.
 
-        When the selected target has no chart yet (a fresh run, or a verification
-        chart not made yet), the previous chart is CLEARED from the preview and
-        from Print / Measure so a stale chart can never linger there; the
-        Create-Chart editing settings are left as-is so the new chart can be made."""
-        ctl = getattr(self, "_target_ctl", None)
-        if ctl is None:
-            return
-        # #130: the two text fields belong to whatever the bar now points at.
-        # This IS the half of Knut's request that was a missing refresh rather
-        # than new storage — chart notes have always been stored per run, in
-        # the run's own .channels.json, and simply were not re-read when the
-        # Profile run changed, which is what made them look project-wide.
-        # §2.1 / N1: WRITE THE OUTGOING TARGET FIRST, then load the incoming
-        # one. The order is the whole point — see save_target_settings.
-        # Passed even when None: that means "the outgoing target has no file
-        # yet", which is a New run — the case that most needs its values kept,
-        # and exactly the one an `is not None` guard skips.
-        self.save_target_settings(
-            getattr(self, "_settings_store", _NO_STORE_GIVEN),
-            getattr(self, "_settings_key", _NO_STORE_GIVEN))
-        self._refresh_target_text()
-        # RUN TYPE = CALIBRATION SETS THE CHART UP (#137) — BEFORE the load,
-        # so the incoming target's own values always have the last word (F3,
-        # Knut/Sebastian 2026-08-11: a setting's owner is the SELECTED
-        # target). Entering Calibration this snapshots the outgoing screen
-        # and sets the calibration values; leaving it restores that snapshot
-        # — and then the load below lays the incoming run's own stored six
-        # rows over it. With the old order (knobs AFTER load) the restore
-        # clobbered the freshly loaded values, and the next write filed the
-        # calibration's rows into the first run visited. Idempotent (R1).
-        self._apply_calibration_knobs(
-            bool(getattr(ctl.target, "is_calibration", bool)()))
-        self.load_target_settings()
-        # ONE protected load, then back to normal. The flag is set when a build
-        # starts and shields the layout that build used from the run's older
-        # stored copy — see _apply_ui_state. It is cleared here rather than when
-        # the build ends, because the build's own run does not resolve until
-        # this handler has run once: the write that files the new layout can
-        # only succeed on the NEXT pass, and until then the screen is the only
-        # place the truth exists. Clearing unconditionally means it can never
-        # latch on and freeze a run's stored layout out.
-        self._layout_owned_by_build = False
-        self._settings_store = self._target_settings_store()
-        self._settings_key = self._target_settings_key()
-        # #130 Bug C (Knut): if the loaded PROJECT changed (e.g. a Print/Measure
-        # load copied a new project into the working folder), reflect its name in
-        # the "Printer profile project name" field so it's visibly loaded. Gated
-        # on the name actually changing, so run/type toggles within one project
-        # never overwrite a name the user is typing.
-        # Read the name WITHOUT get_target_name(): that invents and stores a
-        # "Printer_Paper_Type_Instr_<timestamp>" name whenever none is set, and
-        # the line below would then stamp that invented name straight over what
-        # the user had typed — on nothing more than a Run-type toggle. Only a
-        # name that genuinely belongs to a loaded project should be reflected.
-        cur_name = getattr(self._file_mgr, "_target_name", "")
-        # …and never while the Guided↔Manual name mirror is writing: the
-        # mirror's setText re-enters here via set_pending_project_name, and
-        # reflecting the stored project name mid-keystroke would overwrite
-        # the very text being typed (found by the mirror's own test,
-        # 2026-08-13). A mirror write is not a project change.
-        if (cur_name and not getattr(self, "_syncing_target_name", False)
-                and cur_name != getattr(self, "_last_shown_project_name", None)):
-            self._last_shown_project_name = cur_name
-            self._update_name_fields()
-        # #133: the FROM PROFILE GAMUT module exists only for a verification
-        # target, and its panel state follows the run's profile.
-        self._refresh_gamut_visibility()
-        resolved = self._resolve_target_chart()
-        if resolved is None:
-            if self._shown_chart_ti2 is not None:
-                self._shown_chart_ti2 = None
-                self._shown_chart_stamp = None
-                self._preview.clear()
-                self._current_ti1_path = None
-                # Empty payload → main window drops the chart from Print / Measure.
-                self.chart_finished.emit([], None, False)
-            # #130 (Knut beta-6): the empty preview must tell the user WHY it's
-            # empty and how to fill it — this run/type simply has no chart yet.
-            self._preview.set_notice(self._no_chart_guidance())
-            return
-        ti2, tiffs, ti1 = resolved
-        stamp = self._chart_stamp(ti2)
-        if stamp is not None and stamp == self._shown_chart_stamp:
-            return                               # already showing this exact chart
-        self._shown_chart_ti2 = ti2              # set first so the dedup is robust
-        self._shown_chart_stamp = stamp
-        kind = (tr("verification chart") if ctl.target.is_verification()
-                else tr("profiling chart"))
-        self._log.appendPlainText(
-            tr("Switched to this run's {kind}.").format(kind=kind))
-        self._display_run_chart(ti2, tiffs, ti1)
+        SELECTING A RUN IS NOT A LAYOUT EDIT. Loading a target's settings fills
+        twenty widgets, each of which fires a `changed` signal, and with
+        auto-update on the debounce timer armed and re-laid out that run's chart
+        — rewriting it to disk. No Generate, no knob, no mode switch: merely
+        picking a different run in the bar.
+
+        `docs/design/per_target_settings.md` §7 B forbids exactly this —
+        *"Loading settings must not trigger a rebuild … This is the one that
+        would actually hurt, so it gets its own test"* — and the test plan's N3
+        says nothing ships until it is green. The guard §7 B asked for
+        (`_loading_target_settings`) exists and is honoured in three places, but
+        declining while it is up is the wrong SHAPE and does not work: this
+        handler seeds the panel twice, once through `load_target_settings` and
+        again through `_display_run_chart` -> `_restore_chart_settings`, and the
+        second seeder runs after the flag is down. Guarding the first merely
+        moved which line armed the timer.
+
+        So the episode, not the flag, is the unit: whatever the load did to the
+        fingerprint, re-baseline it here and drop anything already queued. A real
+        edit made AFTER the switch still arms the timer normally.
+        """
+        self._cancel_pending_auto_preview()
+        try:
+            """React to a Profile-run / Run-type change: show THAT target's chart —
+            its own Create-Chart settings + preview — and hand it to Print / Measure,
+            so the chart that prints and is measured always matches the selected
+            Profile run and Run type (#130, Knut beta-2 tests).
+
+            When the selected target has no chart yet (a fresh run, or a verification
+            chart not made yet), the previous chart is CLEARED from the preview and
+            from Print / Measure so a stale chart can never linger there; the
+            Create-Chart editing settings are left as-is so the new chart can be made."""
+            ctl = getattr(self, "_target_ctl", None)
+            if ctl is None:
+                return
+            # #130: the two text fields belong to whatever the bar now points at.
+            # This IS the half of Knut's request that was a missing refresh rather
+            # than new storage — chart notes have always been stored per run, in
+            # the run's own .channels.json, and simply were not re-read when the
+            # Profile run changed, which is what made them look project-wide.
+            # §2.1 / N1: WRITE THE OUTGOING TARGET FIRST, then load the incoming
+            # one. The order is the whole point — see save_target_settings.
+            # Passed even when None: that means "the outgoing target has no file
+            # yet", which is a New run — the case that most needs its values kept,
+            # and exactly the one an `is not None` guard skips.
+            self.save_target_settings(
+                getattr(self, "_settings_store", _NO_STORE_GIVEN),
+                getattr(self, "_settings_key", _NO_STORE_GIVEN))
+            self._refresh_target_text()
+            # RUN TYPE = CALIBRATION SETS THE CHART UP (#137) — BEFORE the load,
+            # so the incoming target's own values always have the last word (F3,
+            # Knut/Sebastian 2026-08-11: a setting's owner is the SELECTED
+            # target). Entering Calibration this snapshots the outgoing screen
+            # and sets the calibration values; leaving it restores that snapshot
+            # — and then the load below lays the incoming run's own stored six
+            # rows over it. With the old order (knobs AFTER load) the restore
+            # clobbered the freshly loaded values, and the next write filed the
+            # calibration's rows into the first run visited. Idempotent (R1).
+            self._apply_calibration_knobs(
+                bool(getattr(ctl.target, "is_calibration", bool)()))
+            self.load_target_settings()
+            # ONE protected load, then back to normal. The flag is set when a build
+            # starts and shields the layout that build used from the run's older
+            # stored copy — see _apply_ui_state. It is cleared here rather than when
+            # the build ends, because the build's own run does not resolve until
+            # this handler has run once: the write that files the new layout can
+            # only succeed on the NEXT pass, and until then the screen is the only
+            # place the truth exists. Clearing unconditionally means it can never
+            # latch on and freeze a run's stored layout out.
+            self._layout_owned_by_build = False
+            self._settings_store = self._target_settings_store()
+            self._settings_key = self._target_settings_key()
+            # #130 Bug C (Knut): if the loaded PROJECT changed (e.g. a Print/Measure
+            # load copied a new project into the working folder), reflect its name in
+            # the "Printer profile project name" field so it's visibly loaded. Gated
+            # on the name actually changing, so run/type toggles within one project
+            # never overwrite a name the user is typing.
+            # Read the name WITHOUT get_target_name(): that invents and stores a
+            # "Printer_Paper_Type_Instr_<timestamp>" name whenever none is set, and
+            # the line below would then stamp that invented name straight over what
+            # the user had typed — on nothing more than a Run-type toggle. Only a
+            # name that genuinely belongs to a loaded project should be reflected.
+            cur_name = getattr(self._file_mgr, "_target_name", "")
+            # …and never while the Guided↔Manual name mirror is writing: the
+            # mirror's setText re-enters here via set_pending_project_name, and
+            # reflecting the stored project name mid-keystroke would overwrite
+            # the very text being typed (found by the mirror's own test,
+            # 2026-08-13). A mirror write is not a project change.
+            if (cur_name and not getattr(self, "_syncing_target_name", False)
+                    and cur_name != getattr(self, "_last_shown_project_name", None)):
+                self._last_shown_project_name = cur_name
+                self._update_name_fields()
+            # #133: the FROM PROFILE GAMUT module exists only for a verification
+            # target, and its panel state follows the run's profile.
+            self._refresh_gamut_visibility()
+            resolved = self._resolve_target_chart()
+            if resolved is None:
+                if self._shown_chart_ti2 is not None:
+                    self._shown_chart_ti2 = None
+                    self._shown_chart_stamp = None
+                    self._preview.clear()
+                    self._current_ti1_path = None
+                    # Empty payload → main window drops the chart from Print / Measure.
+                    self.chart_finished.emit([], None, False)
+                # #130 (Knut beta-6): the empty preview must tell the user WHY it's
+                # empty and how to fill it — this run/type simply has no chart yet.
+                self._preview.set_notice(self._no_chart_guidance())
+                return
+            ti2, tiffs, ti1 = resolved
+            stamp = self._chart_stamp(ti2)
+            if stamp is not None and stamp == self._shown_chart_stamp:
+                return                               # already showing this exact chart
+            self._shown_chart_ti2 = ti2              # set first so the dedup is robust
+            self._shown_chart_stamp = stamp
+            kind = (tr("verification chart") if ctl.target.is_verification()
+                    else tr("profiling chart"))
+            self._log.appendPlainText(
+                tr("Switched to this run's {kind}.").format(kind=kind))
+            self._display_run_chart(ti2, tiffs, ti1)
+        finally:
+            try:
+                self._cancel_pending_auto_preview()
+                self._last_auto_sig = self._layout_signature()
+            except Exception:      # noqa: BLE001 — never break a target switch
+                log.debug("could not re-baseline the live preview", exc_info=True)
 
     @staticmethod
     def _chart_stamp(ti2) -> "tuple | None":
@@ -14874,12 +14927,15 @@ class TabChart(QWidget):
             recipe = layout.get("recipe")
             if not isinstance(recipe, dict):
                 return None
-            # NOBODY CHOSE A GUIDED CHART'S MARGINS. They are correct — 6 mm
-            # all round is what printtarg produces and what the engine matches
-            # — but `use_instrument_margins: false` beside them is a dataclass
-            # default, not a user declining the guideline, because Guided has
-            # no such control. Reading it as a decision silenced the jig check
-            # on 112 of 384 Guided combinations.
+            # NOBODY CHOSE A GUIDED CHART'S MARGINS, and the 6/6/6/6 in its
+            # recipe is not what the sheet was laid out to — it is the
+            # LayoutRecipe dataclass default. The engine is handed the
+            # instrument's own border (10 mm for the i1Pro), and the realised
+            # margins are an output of the layout (i1Pro/A4: 10/10/41.58/24.57).
+            # `use_instrument_margins: false` beside those numbers is a default
+            # too, not a user declining the guideline — Guided has no such
+            # control. Reading it as a decision silenced the jig check on 112 of
+            # 384 Guided combinations. See `ChartCreator._embed_layout_geometry`.
             # `is False`, not falsy: only a chart that positively declares the
             # provenance is re-judged, so charts written by earlier versions
             # keep the behaviour they were built with.
@@ -14903,6 +14959,12 @@ class TabChart(QWidget):
 
         Only an engine chart records the choice; anything else (a printtarg
         chart, or no chart at all) is judged as before.
+
+        NOTHING IN THE APPLICATION CALLS THIS. Only `tests/
+        test_margin_inspector_instrument.py` does, so those assertions prove
+        nothing about what a user sees — the panel's own judgement goes through
+        `_chart_own_margins`. Wire it up or delete it; do not read a green test
+        here as evidence the margin check behaves.
         """
         try:
             import json
@@ -14916,7 +14978,8 @@ class TabChart(QWidget):
             recipe = layout.get("recipe")
             if not isinstance(recipe, dict) or "use_instrument_margins" not in recipe:
                 return True
-            # See `_chart_own_margins`: correct margins, but nobody chose them.
+            # See `_chart_own_margins`: nobody chose these margins, and the
+            # recipe's numbers are dataclass defaults rather than the sheet's.
             if layout.get("margins_chosen_by_user") is False:
                 return True
             return bool(recipe["use_instrument_margins"])
@@ -15029,6 +15092,43 @@ class TabChart(QWidget):
         self._update_margin_inspector()
         self._update_layout_info()
 
+    @staticmethod
+    def _recipe_rebuilds_its_own_sheet(ti2: Path) -> bool:
+        """True when re-deriving the page geometry from this chart's stored
+        recipe gives back the sheet the user is actually looking at.
+
+        FOR A GUIDED CHART IT DOES NOT. Guided writes no layout recipe of its
+        own, so the sidecar carries the LayoutRecipe dataclass defaults — 6 mm
+        on all four sides — while the sheet was laid out at the instrument's
+        default border (10 mm for the i1Pro, whose shipping preset is
+        `m10_a0.95`). Re-deriving from those defaults produces a ROOMIER page
+        than the real one: measured, 506 patches for a real 484-patch i1Pro A4
+        sheet.
+
+        Everything downstream of that mistake is confidently wrong. The
+        partial-last-page hint told the owner of a completely full sheet that
+        there was room for 22 more patches, and the capacity beside it — added
+        in #130 precisely so a wrong N could be told from a right one — was
+        computed the same wrong way, so it agreed. Suppressing only the
+        capacity made it worse, not better: the hint still fired and now read
+        "space for about 22 more patches (the page holds about 0 in total)",
+        which is a sentence that contradicts itself in the same breath.
+
+        So the whole hint goes, not one number in it. `margins_chosen_by_user`
+        is the honest marker — written False by
+        `ChartCreator._embed_layout_geometry` for a chart whose margins nobody
+        chose, absent on charts built before it existed and on charts the user
+        laid out by hand. Absent is read as "rebuildable", which is what every
+        Manual chart is.
+        """
+        try:
+            import json as _json
+            ch = Path(ti2).with_suffix(".channels.json")
+            layout = (_json.loads(ch.read_text()).get("layout") or {})
+            return layout.get("margins_chosen_by_user") is not False
+        except Exception:      # noqa: BLE001 — unreadable sidecar: assume the
+            return True        # recipe is honest, as it was before this existed
+
     def _last_page_capacity(self, ti2: Path) -> int:
         """How many patches a sheet of this chart's layout holds, or 0.
 
@@ -15038,22 +15138,9 @@ class TabChart(QWidget):
         try:
             from workflow.layout_engine.presets import LayoutRecipe
             from workflow.layout_engine import instruments, geometry, papers
-            import json as _json
             ch = Path(ti2).with_suffix(".channels.json")
-            # A GUIDED CHART'S RECIPE CANNOT BE REBUILT INTO ITS OWN SHEET.
-            # Its margins are dataclass defaults (6/6/6/6), not the ones the
-            # sheet was laid out with, so re-deriving the geometry from it
-            # produces a ROOMIER page than the one in front of the user:
-            # measured, 506 patches for a real 484-patch i1Pro A4 sheet. The
-            # capacity hint then told the owner of a completely full sheet that
-            # it had room for 22 more. 0 means "not known", which suppresses
-            # the hint — no hint beats a wrong one.
-            try:
-                _layout = (_json.loads(ch.read_text()).get("layout") or {})
-                if _layout.get("margins_chosen_by_user") is False:
-                    return 0
-            except Exception:      # noqa: BLE001 — fall through to the recipe
-                pass
+            if not self._recipe_rebuilds_its_own_sheet(ti2):
+                return 0               # not known — see the helper's docstring
             rec = LayoutRecipe.from_channels_json(ch)
             if rec is None:
                 return 0
@@ -15094,6 +15181,10 @@ class TabChart(QWidget):
             from workflow.layout_engine.presets import LayoutRecipe
             from workflow.layout_engine import instruments, geometry, papers
             ch = Path(ti2).with_suffix(".channels.json")
+            if not self._recipe_rebuilds_its_own_sheet(ti2):
+                return None    # the recipe describes a roomier page than the
+                               # real sheet, so every number below would be
+                               # wrong — say nothing at all
             rec = LayoutRecipe.from_channels_json(ch)
             if rec is None:
                 return None                  # printtarg chart — no engine layout
@@ -15248,6 +15339,19 @@ class TabChart(QWidget):
         if (self._chart_build_in_flight()
                 or self._current_mode() != "manual"
                 or not bool(self._settings.get("auto_update_preview", False))):
+            return
+        # THE TIMER IS ARMED FOR A LAYOUT, NOT FOR A MOMENT. Re-check the
+        # fingerprint it was armed for, because whoever re-baselined it in the
+        # meantime decided this render was not wanted.
+        #
+        # Without this, re-baselining `_last_auto_sig` does not stop anything:
+        # the timer is already running by then and this method used to check the
+        # mode, the build guard, the .ti1 and §4 — everything except the one
+        # question it was started to answer. Every caller that re-baselines then
+        # has to remember to stop the timer as well, and the next seeding path
+        # added to this file quietly defeats the fix by forgetting. Asking here
+        # makes a re-baseline sufficient on its own, wherever it happens.
+        if self._layout_signature() == self._last_auto_sig:
             return
         ti1 = getattr(self, "_current_ti1_path", None)
         if not (ti1 is not None and ti1.is_file()):
