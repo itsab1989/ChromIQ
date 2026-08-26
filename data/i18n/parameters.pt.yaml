@@ -120,7 +120,7 @@ parameters:
         algumas.
 
         Auto (caixa):
-        Ligue o \"Auto\" e o ChromIQ escolhe o número por si, conforme as
+        Ligue o \"Automático\" e o ChromIQ escolhe o número por si, conforme as
         amostras de toda a carta — uma carta pequena de uma página recebe
         poucas amostras brancas e uma grande de várias páginas mais, sem
         que tenha de pensar nisso.
@@ -144,7 +144,7 @@ parameters:
         perfil. 4 é uma boa predefinição para impressoras RGB.
 
         Auto (caixa):
-        Ligue o \"Auto\" e o ChromIQ escolhe o número por si, conforme as
+        Ligue o \"Automático\" e o ChromIQ escolhe o número por si, conforme as
         amostras de toda a carta — uma carta pequena recebe poucas
         amostras pretas, uma grande mais.
 
@@ -167,7 +167,7 @@ parameters:
         perfil rápido, 50–100 para um padrão, 128+ para alta qualidade.
 
         Auto (caixa):
-        Ligue o \"Auto\" e o ChromIQ escolhe o número por si, em proporção
+        Ligue o \"Automático\" e o ChromIQ escolhe o número por si, em proporção
         às amostras de toda a carta — uma carta maior recebe uma rampa de
         cinzentos mais longa e fina.
 
@@ -921,7 +921,7 @@ parameters:
           Recomendado.
         • XYZ cLUT (-ax): semelhante ao Lab mas no espaço XYZ.
           Por vezes produz gradações neutras mais suaves.
-        • Matriz/gama (-ag, -as): modelo mais simples — menos preciso
+        • Matriz/gamma (-ag, -as): modelo mais simples — menos preciso
           para o comportamento complexo das impressoras, mas mais rápido
           de calcular.
         Para os primeiros perfis de impressoras RGB use sempre Lab
@@ -930,10 +930,10 @@ parameters:
         - "l — Lab cLUT (recomendado para impressoras RGB)"
         - "x — XYZ cLUT"
         - "X — XYZ cLUT (absoluto)"
-        - "g — gama + matriz (rápido, menos preciso)"
-        - "G — gama + matriz (forçado)"
-        - "s — gama única + matriz"
-        - "S — gama única + matriz (forçado)"
+        - "g — gamma + matriz (rápido, menos preciso)"
+        - "G — gamma + matriz (forçado)"
+        - "s — gamma única + matriz"
+        - "S — gamma única + matriz (forçado)"
         - "m — só matriz"
         - "M — só matriz (forçado)"
     "-q":
