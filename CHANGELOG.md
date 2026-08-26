@@ -1,5 +1,60 @@
 # Changelog
 
+## v4.1.3-beta.18
+
+Fixes found by reviewing what beta.17 actually shipped, plus Knut's beta.17
+notes. **Two of these were security or data faults in the repair added one
+release earlier.**
+
+### Fixed
+
+- **The project repair could rename files outside the project.** The repair
+  added in beta.17 executed its record of planned moves without checking that
+  the paths stayed inside the project folder, so a project folder containing a
+  crafted or merely corrupted `name-repair.json` — the kind of folder people zip
+  and send each other — could rename files anywhere the recipient can write, the
+  moment they opened it. The repair now refuses any entry that points outside
+  the project, and says so in the log. Proven both ways: the shipped beta.17
+  moves the file, this build does not, and a legitimate rename inside the
+  project still runs.
+- **The repair's undo record could be lost exactly when it was needed.** It was
+  written by truncating the file first, so running out of disk part way through
+  left an empty record *after* the renames had happened. It is now written to a
+  temporary file and swapped in atomically — a move ChromIQ cannot record is a
+  move it does not make.
+- **One malformed entry no longer disables the repair for that project for
+  ever.** A path containing a NUL byte raised an error the repair did not catch.
+- **The Red River charts no longer show the “Full layout setup” label** (Knut,
+  beta.17). The label means the patch-set editor has the chart's complete
+  design; those six ship the page layout but not the colour-set design, so it
+  overpromised. 115 of the 130 built-in charts carry it — the six Red River and
+  the nine “by Pharmacist” charts do not.
+- **The second patch-set warning is gone.** Ticking “Edit patch recipe (override
+  preset)” already opens a window saying the loaded patches will be replaced,
+  and that box is shown for a patch set you loaded yourself, not only for a
+  built-in preset — so a second window at Generate time interrupted a decision
+  you had already made (Knut).
+- The landing page now says ChromIQ ships **130 ready-made chart presets**, and
+  its embedded version metadata no longer claims 4.0.0.
+
+### Also
+
+- Three comments in the source described behaviour the code does not have,
+  including one claiming the app tells you when it has repaired a project. It
+  does not — for now that is a log line only, and the comment says so.
+- An 842 KB stray backup file that a blanket `git add` had committed is removed,
+  and that class of file is ignored from now on.
+
+### Known, and deliberately not changed in this build
+
+- A built-in ColorMunki preset warns that its own right margin is 0.055 mm below
+  its declared minimum, and only when chosen through the ★ overlay. The printed
+  chart is correct and the warning is accurate; the discrepancy is in the layout
+  engine, not the check, so widening the check would hide it. Tracked as #167.
+
+Gate: 7431 passed, 140 skipped, 2 xfailed.
+
+
 ## v4.1.3-beta.17
 
 Knut's Red River presets, exactly as he sent them, and the repair for projects

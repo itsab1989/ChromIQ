@@ -106,7 +106,14 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # of which used to happen in silence. Basti
                                  # approved adding them 2026-08-25; the WORDING
                                  # still goes through §M-PROPOSED.
-                                 "M-PATCHSET-MISSING", "M-PATCHSET-DROPPED",
+                                 # M-PATCHSET-DROPPED was WITHDRAWN 2026-08-26
+                                 # without ever being approved: ticking "Edit
+                                 # patch recipe (override preset)" already warns
+                                 # that the loaded patches will be replaced, and
+                                 # that box is shown for a user-loaded patch set
+                                 # too — so a second window at Generate time
+                                 # interrupted a decision already made.
+                                 "M-PATCHSET-MISSING",
                                  "M-CM-NO-CCTIFF", "M-CM-CONVERT-FAILED",
                                  "M-CM-PROFCHECK-CONVERTED",
                                  # Feature B — wording agreed verbatim with
@@ -244,7 +251,6 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_measure", "TabMeasure", "_show_verification_saved"),
     ("ui.tabs.tab_measure", "TabMeasure", "_ask_how_printed"),
     ("ui.tabs.tab_chart", "TabChart", "_patchset_missing_message"),
-    ("ui.tabs.tab_chart", "TabChart", "_confirm_dropping_the_loaded_patch_set"),
 ]
 
 #: Measurement windows that are NOT yet in §M, listed so the gap is visible.

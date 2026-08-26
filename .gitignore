@@ -79,3 +79,11 @@ assets/app_icon.ico
 .claude/monitor_stop_blocks
 .claude/settings.local.json
 .agent-reports/
+
+# Editor / merge leftovers. `patch` writes a .orig beside the file it changes,
+# and a blanket `git add -A` will commit it: an 842 KB stale duplicate of
+# tab_chart.py reached master this way. `native/instlib/chartread.c.orig` is
+# deliberate (the Argyll baseline for our chartread fork) and is tracked, so it
+# is unaffected by this rule.
+*.orig
+*.rej

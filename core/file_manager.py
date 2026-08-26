@@ -1354,8 +1354,12 @@ class Project:
         #: but the UI should tell the user to update ChromIQ (#127).
         self.schema_too_new: bool = manifest.schema_version > SCHEMA_VERSION
         #: How many files the truncated-stem repair renamed on THIS load (0 for
-        #: every project that was never affected). The window uses it for one
-        #: statusbar line; nothing else depends on it.
+        #: every project that was never affected). NOTHING READS THIS YET. The
+        #: comment here used to claim "the window uses it for one statusbar
+        #: line", and no such line exists: a repair renames files in a user's
+        #: project and tells them nothing but a log line. Surfacing it needs new
+        #: user-facing text, which per CLAUDE.md goes to §M-PROPOSED first — so
+        #: until that lands, this is a hook, and it is labelled as one.
         self.repaired_names: int = 0
 
     # ---- identity

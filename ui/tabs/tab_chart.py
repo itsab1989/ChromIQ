@@ -1176,25 +1176,27 @@ class _Ti1Preset:
     def has_full_layout_setup(self) -> bool:
         """True when the row carries the "Full layout setup" marker.
 
-        Knut, 4.1.3-beta.16: *"it did not add the 'Full layout setup' text that
-        was on all presets before, except for the by pharmacist ones."* So the
-        rule is EVERY built-in except the nine "by Pharmacist" charts — and
-        those nine are not ``_Ti1Preset`` objects at all (they are
-        ``PREBUILT_PRESETS`` rows in ``BUILTIN_PRESET_GROUPS``), so they cannot
-        reach this property. Measured: 130 rows, 121 in ``KNUT_PRESETS``, and
-        every one of the other nine says "by Pharmacist". The existing rule
-        ``tests/test_prebuilt_presets_offer_no_setup.py`` pins the same split.
+        THE RULE: the marker follows what the patch-set editor can actually
+        load — ``builtin_preset_recipe(self.key) is not None``. Measured on the
+        shipped set: **130 rows, 115 marked.** The six Red River charts carry a
+        ``layout_recipe`` (geometry) but no ``recipe.json`` (the colour-set
+        design the editor loads), so they are unmarked; the nine "by Pharmacist"
+        charts are ``PREBUILT_PRESETS`` rows, not ``_Ti1Preset`` objects, so they
+        never reach this property at all. 115 + 6 + 9 = 130.
 
-        THE OTHER CANDIDATE PREDICATE, and why it is not this one:
-        ``builtin_preset_recipe(self.key) is not None`` — "does the patch-set
-        editor actually get the design?" — gives 115, excluding the six Red
-        River charts, which carry a ``layout_recipe`` (geometry) but no
-        ``recipe.json`` (the colour-set design the editor loads). If those six
-        are ever given a sidecar the two rules agree; until then this one marks
-        six rows the editor cannot load. Swap this ``True`` for that call to
-        change the rule — nothing else moves.
+        HOW IT GOT HERE. Knut, 4.1.3-beta.16: *"it did not add the 'Full layout
+        setup' text that was on all presets before, except for the by pharmacist
+        ones."* That reading marked all 121 ``KNUT_PRESETS``. He then narrowed
+        it, 4.1.3-beta.17: *"the red river chars shall not have the 'Full layout
+        setup' label in the preset list pulldown."* Which is the honest rule,
+        because the marker's whole job is to tell the user the editor has the
+        full design. If the Red River charts are ever given a colour-set design
+        file they gain the marker with no code change.
+        ``tests/test_prebuilt_presets_offer_no_setup.py`` pins the Pharmacist
+        half; ``tests/test_the_marker_follows_the_editable_design.py`` pins the
+        counts.
         """
-        return True
+        return builtin_preset_recipe(self.key) is not None
 
     @property
     def marked_name(self) -> str:
@@ -7291,7 +7293,7 @@ class TabChart(QWidget):
         # The marker rides on the overlay ROW, but NOT on `overlay_label`
         # itself: `comparable_presets` (#66 "Compare with profile") reads the
         # same tuple slot, and that dialog is about a PATCH SET, where "Full
-        # layout setup" would be 121 rows of noise about something it does not
+        # layout setup" would be 115 rows of noise about something it does not
         # show.
         groups = [
             (instr, [(_marked_overlay_label(key, overlay_label), key)
@@ -10375,41 +10377,6 @@ class TabChart(QWidget):
         InfoDialog(tr(m.title), tr(m.body).format(path=path),
                    self, min_width=560).exec()
 
-    def _confirm_dropping_the_loaded_patch_set(self) -> bool:
-        """M-PATCHSET-DROPPED — the loaded patches and an edited recipe cannot
-        both apply. Returns True to go ahead with a fresh chart.
-
-        "Keep my patch set" UNTICKS the override box itself rather than telling
-        the user to: that, and only that, restores the working state.
-        """
-        from PyQt6.QtWidgets import QMessageBox
-
-        from workflow import measurement_messages as M
-
-        m = M.M_PATCHSET_DROPPED
-        box = QMessageBox(self)
-        box.setIcon(QMessageBox.Icon.NoIcon)
-        box.setWindowTitle(tr(m.title))
-        box.setText(tr(m.title))
-        box.setInformativeText(tr(m.body))
-        keep = box.addButton(tr("Keep my patch set"),
-                             QMessageBox.ButtonRole.RejectRole)
-        box.addButton(tr("Build a new patch set"),
-                      QMessageBox.ButtonRole.AcceptRole)
-        box.setDefaultButton(keep)
-        try:
-            from ui.widgets import fit_message_box_buttons
-            fit_message_box_buttons(box)
-        except Exception:      # noqa: BLE001 — a narrow button is not fatal
-            pass
-        box.exec()
-        if box.clickedButton() is keep:
-            # Do it for them. Telling the user to untick a box is not help.
-            if self._override_targen_check is not None:
-                self._override_targen_check.setChecked(False)
-            return False
-        return True
-
     def _ask_for_a_project_name(self, retry: "str | None" = None) -> None:
         """Say that the name is needed, name the exact box, and put the cursor
         in it (Basti, #164 Q15)."""
@@ -10566,11 +10533,25 @@ class TabChart(QWidget):
                 self._patchset_missing_message(self._preset_ti1_path)
                 return
             else:
-                # …and this said NOTHING AT ALL, not even a log line: three
-                # assignments and a fall-through into a fresh targen run
-                # (§M M-PATCHSET-DROPPED). Asked before anything is cleared.
-                if not self._confirm_dropping_the_loaded_patch_set():
-                    return
+                # NO SECOND WINDOW HERE, DELIBERATELY. Ticking "Edit patch
+                # recipe (override preset)" already opens a window that says
+                # exactly this — *"The moment you change a targen value, ChromIQ
+                # can no longer reuse the preset's patches … it will create a
+                # completely new set of colours from scratch"*
+                # (`_OVERRIDE_TARGEN_POPUP_BODY`, shown from
+                # `_on_override_clicked` on every real click of that box). And
+                # the box is shown for a patch set the USER loaded, not only for
+                # a built-in preset (`_ti1_preset_active` counts
+                # `_preset_ti1_path`), so there is no gap it would cover.
+                #
+                # A window here would interrupt a decision the user has already
+                # made and acknowledged. Knut, 4.1.3-beta.17: *"there is already
+                # a message when clicking the 'Edit patch recipe' warning of
+                # consequences, so it is deliberate and obvious that the chart
+                # will change … that warning should be sufficient for a user."*
+                # Checked against the existing text before removing this.
+                log.info("loaded patch set dropped: the targen recipe was "
+                         "edited (the override warning was already shown)")
                 self._preset_ti1_path = None
                 self._preset_ti1_targen_sig = None
         # TC9.18 built-in preset: while it's active and the user hasn't touched

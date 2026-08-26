@@ -504,19 +504,6 @@ M_PATCHSET_MISSING = _m(
     "\u201cGenerate Chart\u201d.",
     approved=False)
 
-M_PATCHSET_DROPPED = _m(
-    "M-PATCHSET-DROPPED",
-    "This will replace your loaded patch set with a new one",
-    "You opened a patch set of your own, and then changed a setting under "
-    "\u201cEdit patch recipe (override preset)\u201d. ChromIQ cannot use your "
-    "patches and your new recipe at the same time, so clicking \u201cGenerate "
-    "Chart\u201d now would throw the loaded patches away and work out a "
-    "completely new set of colours.\n\n"
-    "The new chart would be a perfectly good chart — it just would not be the "
-    "patch set you loaded, and it would most likely have a different number of "
-    "patches.",
-    approved=False)
-
 # --- PROPOSED: the how-was-this-sheet-printed question ---------------------
 # Asked once, at measure time, ONLY for a verification sheet that has no
 # print record — i.e. a sheet ChromIQ did not print itself. The answer decides
@@ -809,7 +796,7 @@ CATALOGUE = {m.id: m for m in (
     M_NO_INSTRUMENT, M_NO_INSTRUMENT_FAST,
     M_OVERLAY_NO_MEASUREMENT, M_ALL_STRIPS_PATCHES_LEFT,
     M_ENGINE_FELL_BACK,
-    M_PATCHSET_MISSING, M_PATCHSET_DROPPED,
+    M_PATCHSET_MISSING,
 )}
 
 #: Paragraphs appended to another message rather than shown on their own.

@@ -302,11 +302,9 @@ def _route_applied(qapp, settings, monkeypatch, tmp_path, edit=None):
     # the real generate path; stub the runner call so it scores "fresh" without
     # shelling out.
     monkeypatch.setattr(tab, "_handle_target_rename", lambda *a, **k: True)
-    # Since M-PATCHSET-DROPPED, discarding a loaded patch set asks first. These
-    # tests are about WHICH branch runs, not about the question — answer it the
-    # way a user choosing the fresh chart would.
-    monkeypatch.setattr(type(tab), "_confirm_dropping_the_loaded_patch_set",
-                        lambda self: True)
+    # No question is asked here any more — see
+    # tests/test_a_loaded_patch_set_is_the_one_built.py. The override warning
+    # shown when the box is ticked is the only one.
     monkeypatch.setattr(tab._creator, "generate",
                         lambda *a, **k: calls.append("fresh"))
     staging, name = _stage_chart(tmp_path)

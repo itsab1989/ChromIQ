@@ -149,6 +149,12 @@ def plan_for_folder(folder: Path, full: str) -> list[tuple[Path, Path]]:
                         dst.name, src.name)
             continue
         moves.append((src, dst))
+    # THE FINGERPRINT GOES LAST. `<trunc>.strips.json` is the one gate-3 proof
+    # that lets detection re-find this work; `sorted(iterdir())` puts it FIRST,
+    # so a crash after the very first rename left the run permanently
+    # half-repaired and recoverable only from the journal. Renaming it last
+    # means an interruption anywhere leaves detection able to resume by itself.
+    moves.sort(key=lambda m: m[0].name.endswith(".strips.json"))
     return moves
 
 
@@ -178,25 +184,87 @@ def _journal_path(root: Path) -> Path:
 
 
 def _load_journal(path: Path) -> dict | None:
+    """The journal, or None. A journal we cannot read is moved ASIDE, never
+    overwritten: `_repair_project` starts from an empty session list when this
+    returns None and then writes the file, so without this the module's own
+    rule — "an undo record that a later repair can erase is not an undo
+    record" — is defeated by one bad byte."""
     try:
         if path.is_file():
             d = json.loads(path.read_text(encoding="utf-8"))
-            return d if isinstance(d, dict) else None
+            if isinstance(d, dict):
+                return d
+            raise ValueError("journal is not an object")
     except Exception as exc:            # noqa: BLE001 — never block a load
         log.warning("name repair: unreadable journal %s: %s", path, exc)
+        try:
+            stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            path.rename(path.with_name(f"{path.name}.corrupt-{stamp}"))
+            log.warning("name repair: kept the unreadable journal as %s",
+                        f"{path.name}.corrupt-{stamp}")
+        except OSError:
+            pass
     return None
 
 
 def _write_journal(path: Path, data: dict) -> bool:
-    """True if written. A move ChromIQ cannot record is a move it does not make."""
+    """True if written. A move ChromIQ cannot record is a move it does not make.
+
+    ATOMIC ON PURPOSE. This is called twice — once before any rename and once
+    AFTER every rename — and the second call is the record of what actually
+    moved. ``Path.write_text`` truncates before it writes, so a failure there
+    (a full disk is the obvious one) destroys the undo record for renames that
+    have already happened, which is precisely the guarantee this module claims.
+    Write a sibling temp file, fsync it, then ``os.replace``: the journal is
+    either the old content or the new one, never nothing.
+    """
+    tmp = path.with_name(path.name + ".tmp")
     try:
-        path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n",
-                        encoding="utf-8")
+        with open(tmp, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, path)
         return True
     except OSError as exc:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
         log.warning("name repair: cannot write %s (%s) — nothing will be "
                     "renamed in this project", path, exc)
         return False
+
+
+def _inside(root: Path, rel: str) -> Path | None:
+    """``root/rel`` if and only if it stays inside ``root``, else None.
+
+    THE JOURNAL IS DATA, NOT INSTRUCTIONS. ``name-repair.json`` is an ordinary
+    file inside a project folder, and project folders are copied, zipped and
+    mailed between people. Without this check a journal carrying ``../x`` or an
+    absolute path makes ChromIQ rename files anywhere the user can write, on
+    open, with no confirmation. Only ``runs/`` and ``cal/`` are ever written by
+    this module, so nothing else is accepted either.
+    """
+    if not isinstance(rel, str) or not rel:
+        return None
+    try:
+        p = (root / rel).resolve()
+        r = root.resolve()
+    except (OSError, ValueError):
+        # ValueError, not only OSError: os.path.realpath raises
+        # ValueError("embedded null character in path") for a NUL byte, which
+        # escaped _apply entirely and re-created the very fault this function's
+        # caller documents — one bad entry silently disabling the repair for
+        # that project for ever.
+        return None
+    if p == r or r not in p.parents:
+        return None
+    try:
+        head = p.relative_to(r).parts[0]
+    except ValueError:
+        return None
+    return p if head in ("runs", "cal") else None
 
 
 def _apply(entries: list[dict], root: Path) -> tuple[int, int]:
@@ -205,9 +273,19 @@ def _apply(entries: list[dict], root: Path) -> tuple[int, int]:
     each outcome, so a run interrupted anywhere is finished on the next open."""
     done = failed = 0
     for e in entries:
-        if e.get("state") == "done":
+        if not isinstance(e, dict) or e.get("state") == "done":
             continue
-        src, dst = root / e["from"], root / e["to"]
+        # An entry we cannot parse costs only itself. It used to raise KeyError
+        # out of the whole repair (caught by repair_project's blanket except),
+        # which silently disabled the repair for that project FOR EVER.
+        src = _inside(root, e.get("from"))
+        dst = _inside(root, e.get("to"))
+        if src is None or dst is None:
+            e["state"] = "skipped-outside-project"
+            log.warning("name repair: refusing a journal entry that points "
+                        "outside the project: %r -> %r",
+                        e.get("from"), e.get("to"))
+            continue
         if dst.exists():
             e["state"] = "skipped-destination-exists"
             log.warning("name repair: %s already exists, skipping", dst)
@@ -259,8 +337,9 @@ def _repair_project(project, app_version: str) -> int:
     root = Path(project.root)
     # THE COMMON CASE COSTS TWO STRING OPERATIONS AND NO SYSCALL.
     # `Project.load` runs on every target switch (FileManager.project() caches,
-    # but `set_target_name` invalidates the cache — measured: 3 loads for 4
-    # switches), so this must not stat anything for a project that cannot be
+    # but `set_target_name` invalidates the cache — re-measured 2026-08-25:
+    # 4 loads for 4 switches), so this must not stat anything for a project that
+    # cannot be
     # affected. A name with no dot cannot produce a truncation, and neither can
     # `<name>-cal` derived from it; both are checked because the calibration
     # stem is not the project name.
@@ -284,7 +363,8 @@ def _repair_project(project, app_version: str) -> int:
     #     "the journal says complete": a user who restores an old backup into a
     #     repaired project gets repaired again, and gets a second record.
     already = {e["from"] for s in sessions for e in s.get("moves", [])
-               if isinstance(e, dict) and e.get("state") == "planned"}
+               if isinstance(e, dict) and e.get("state") == "planned"
+               and isinstance(e.get("from"), str)}
     fresh = [e for e in _plan(project) if e["from"] not in already]
 
     if not pending and not fresh:

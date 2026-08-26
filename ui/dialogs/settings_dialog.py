@@ -3263,15 +3263,23 @@ class SettingsDialog(QDialog):
         # the strip, ~65 ms a go, and building this tab used to do it 28 times
         # and throw 27 away. Suspended for the whole build below and drawn once
         # at the end, in a finally.
-        self._layout_panel = LayoutOptionsPanel(self, defer_clip_preview=True)
-        self._layout_panel.changed.connect(self._on_layout_field_changed)
-        v.addWidget(self._layout_panel)
-
         # Saved-or-default. A combination that has never been saved has to read
         # as "not saved yet", not as "my settings vanished" (Knut, beta.13).
+        #
+        # IT GOES ABOVE THE OPTIONS PANEL, NOT BELOW IT. This label also carries
+        # the "Density moved to …" announcement, and the panel below is tall
+        # enough that the page scrolls: measured in the running dialog at
+        # 1100 x 904, the label sat at y = 948 — off the bottom. The user saw the
+        # Density box holding a value they did not choose and the sentence
+        # explaining it was below the fold, which is the one thing the
+        # announcement exists to prevent.
         self._layout_saved_hint = QLabel("", self)
         self._layout_saved_hint.setWordWrap(True)
         v.addWidget(self._layout_saved_hint)
+
+        self._layout_panel = LayoutOptionsPanel(self, defer_clip_preview=True)
+        self._layout_panel.changed.connect(self._on_layout_field_changed)
+        v.addWidget(self._layout_panel)
 
         self._layout_calc = QLabel("", self)
         self._layout_calc.setWordWrap(True)
