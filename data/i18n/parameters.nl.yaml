@@ -576,7 +576,7 @@ parameters:
       name: "Linkercliprand onderdrukken"
       tooltip_title: "Linkercliprand onderdrukken (-L)"
       tooltip_body: |-
-        Verwijdert de klemrandstrook aan de linkerkant en wint zo ~15 mm
+        Verwijdert de cliprandstrook aan de linkerkant en wint zo ~15 mm
         paginabreedte voor extra meetveldkolommen.
         Inschakelen, tenzij je een fysieke papierklem gebruikt.
         Alle waarden in de meetvelddatabase gaan ervan uit dat dit AAN staat.
