@@ -136,11 +136,46 @@ now shows the target's own value:
 |---|---|---|
 | **N1** | change target while standing on a tab | the outgoing target is **written first**, then the incoming one loaded. Assert by leaving the tab afterwards and checking the old edits did **not** land on the new target — the §2.1 hazard, stated as a test |
 | **N2** | typing in a field | writes nothing, at any point, until an event in §3 |
-| **N3** | loading a target's settings | does **not** trigger an auto-update rebuild (§7 B). Assert the chart file's mtime is unchanged |
+| **N3** | loading a target's settings | does **not** trigger an auto-update rebuild (§7 B). Assert that no rebuild is **started** — see the note below |
 | **N4** | opening a tab twice with no edit between | the second load writes nothing |
 
 **N3 is the one that would actually hurt** — a rebuild over a measured chart —
 so it is asserted on every tab, not once.
+
+> ⏳ **Awaiting confirmation** — two corrections to N3's wording, not to the rule.
+>
+> **Confirmed by:** *nobody yet.*
+>
+> **1. "Assert the chart file's mtime is unchanged" cannot fail.** Measured
+> 2026-08-26: the rebuild runs `_generate_from_ti1` → `ArgyllRunner.run` →
+> `QProcess.start`, which is asynchronous. Nothing on disk has moved when the
+> call returns — the `.ti2` is written by printtarg, in another process, and
+> printtarg takes 0.263 s on a 210-patch A4 chart. With the 450 ms debounce
+> ahead of it, the earliest the mtime can move is about 0.75 s after the switch.
+> A test that switches run and stats the file therefore reads an **unchanged
+> mtime while the bug is happening**. (Filesystem granularity is not the
+> obstacle: `/private/tmp`, `$TMPDIR` and `$HOME` all resolve to ~1.6 ms here.)
+>
+> N3 now asserts that no rebuild is **started**: no redraw is armed, the layout
+> fingerprint is re-baselined, and forcing the fire-time path renders nothing.
+> That is the same rule, observed earlier and without the race — and the third
+> clause closes the hole a two-flag check leaves, where a future seeding path
+> both arms the timer and moves the fingerprint.
+> `tests/test_the_live_preview_only_follows_the_user.py::
+> test_selecting_a_run_does_not_re_render_its_chart`.
+>
+> **2. "Asserted on every tab" needs a definition for the other three.** Only
+> Create Chart has an auto-update rebuild — `auto_update_preview` appears in
+> `ui/tabs/tab_chart.py` and nowhere else — so on Measure, Build Profile and
+> Check & Refine the sentence as written has nothing to assert, and a test
+> written to satisfy it literally would pass without measuring anything. That is
+> the failure this very rule was written to prevent: N3 itself sat green on a
+> stand-in class with no timer while the real path was broken.
+>
+> Either those tabs get their own named equivalent of "a rebuild" (re-running
+> profcheck? re-loading a `.ti3`? something else?), or the plan says plainly
+> that N3 is a Create Chart rule because only Create Chart can rebuild. **That
+> is a decision about the specification, not something to infer from the code.**
 
 ---
 
