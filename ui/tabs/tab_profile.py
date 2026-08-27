@@ -160,7 +160,7 @@ _TOOLTIP_BODY_NORMAL = (
     "• Profile description is the human-readable name you'll see in "
     "print dialogs later. Include the printer, paper, and date so "
     "you can tell profiles apart.\n"
-    "• Click \"Build\" and ChromIQ runs Argyll's colprof. When it's done "
+    "• Click “Build Profile” and ChromIQ runs Argyll's colprof. When it's done "
     "you'll have a .icc file you can install on macOS.\n\n"
     "What happens next: install the .icc into ~/Library/ColorSync/"
     "Profiles (ChromIQ can do this for you), then verify it on tab 5 "
@@ -175,14 +175,16 @@ _TOOLTIP_BODY_CAL = (
     "predictably. The profile is then built on top of that steadied "
     "behaviour. This helps most on inkjet printers that drift or print a "
     "little differently from one run to the next.\n\n"
-    "This tab has three buttons — Create Calibration File, Build Profile "
-    "and Apply Calibration — but they are NOT clicked one straight after "
+    "This tab has three buttons — “Create Calibration File”, “Build "
+    "Profile” and “Apply Calibration” — but they are NOT clicked one straight after "
     "another. Two of the steps below happen back on tabs 1–3. Here is the "
     "whole journey, in order:\n\n"
     "1. CREATE THE CALIBRATION FILE   (here · \"Create Calibration File\")\n"
-    "First print and measure a small calibration target using tabs 1–3, "
-    "with \"Calibration Target\" ticked on tab 1. Bring that measurement "
-    "here and click Create Calibration File. ChromIQ runs Argyll's "
+    "First print and measure a small calibration chart using tabs 1–3. "
+    "On the “1. Create Chart” tab, in the “Calibration Chart” box, tick "
+    "“Create chart for calibration” — the box only appears once you have "
+    "switched calibration on in Preferences. Bring that measurement "
+    "here and click “Create Calibration File”. ChromIQ runs Argyll's "
     "printcal and saves a .cal file that describes how to even out each "
     "ink channel.\n\n"
     "2. USE THE .cal FOR A NEW TARGET — OR LOAD IT INTO THE PRINTER   "
@@ -196,8 +198,9 @@ _TOOLTIP_BODY_CAL = (
     "   • If your printer has no calibration of its own, let ChromIQ bake "
     "the curves straight into the chart's patch values (the -K option), so "
     "the printed target already reflects the calibrated state.\n"
-    "ChromIQ auto-fills these fields when it finds a matching cal_ file, "
-    "so usually you don't have to choose anything by hand.\n\n"
+    "ChromIQ fills the calibration file in for you when it finds one in "
+    "the project's “cal” folder, so usually you don't have to go looking "
+    "for it by hand.\n\n"
     "3. PRINT THE PROFILING TARGET   (tab 2)\n"
     "Print the larger chart exactly as you printed the calibration target "
     "— same paper, same driver settings.\n\n"
@@ -1726,10 +1729,13 @@ class TabProfile(QWidget):
         layout.addWidget(path_lbl)
 
         next_lbl = QLabel(
-            tr("Next step: go to the <b>Create Chart</b> tab, make sure "
-            "<i>Create target for calibration</i> is unchecked, and generate a "
-            "profiling chart. The .cal path has been pre-filled in both the "
-            "<b>-K</b> and <b>-I</b> fields — use whichever applies to your workflow:"),
+            tr("Next step: go to the <b>1. Create Chart</b> tab, untick "
+            "<i>Create chart for calibration</i> in the <b>Calibration Chart</b> box, "
+            "and generate your full profiling chart. ChromIQ has already filled the "
+            ".cal path into both calibration fields for you — <b>Apply Calibration "
+            "File</b> and <b>Include Calibration File (no apply)</b>, under "
+            "<b>Expert</b> in Manual mode. Neither is switched on yet, because only "
+            "you know which one your printer needs:"),
             dlg,
         )
         next_lbl.setWordWrap(True)

@@ -288,6 +288,25 @@ class LayoutOptionsPanel(QWidget):
             """label | control (control fills the column → no clipping).
             Returns the placed widgets so a whole row can be shown/hidden."""
             lbl = QLabel(label, self)
+            # A LABEL THAT CAN WRAP CAN ALSO SHRINK.
+            #
+            # An unwrapped QLabel reports its whole text as a hard minimum, so
+            # the label column could never be narrower than the longest label in
+            # it — and this panel lives in a left pane locked at 580 px. In
+            # German the labels are ~88 px wider than the English they were
+            # sized against ("Layout erstellen:" 469 px against "Create
+            # layout:" 381), which pushed the panel's minimum to 519 and put a
+            # HORIZONTAL SCROLLBAR under the whole Expert section (Basti,
+            # 2026-08-27, twice — the second time to say I had reported it and
+            # not fixed it).
+            #
+            # Wrapping drops the panel's floor from 519 to 476 in German and
+            # 431 to 389 in English. It costs nothing when there is room: a
+            # label only takes a second line once it genuinely cannot fit, and
+            # nothing is elided, so no word is ever lost — which matters more
+            # here than tidiness, because these labels name the controls the
+            # help text quotes.
+            lbl.setWordWrap(True)
             # Labels are right-aligned against the control column everywhere
             # else. `align_left` puts them flush with the group's left edge
             # instead, so a group whose first line is a full-width checkbox

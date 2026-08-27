@@ -11,6 +11,14 @@ thing left that could give — and a tick box gives by clipping its label.
 
 Alignment is worth having when there is room and worth nothing when there is
 not. The spacer now has a MAXIMUM instead of a fixed width.
+    NO `importlib.reload` ANYWHERE IN THIS FILE. It is tempting, because some
+    modules build their strings at import time — but this panel and TabChart
+    both call `tr()` in `__init__`, so setting the language and then
+    CONSTRUCTING is enough. Reloading a module mid-suite replaces the class
+    object while other tests still hold the old one, and that broke
+    `test_clip_preview_renders_once` two runs in a row. Verified: with the
+    module imported once, the box reads 'auto' / 'Auto' / 'авто' as the
+    language changes.
 """
 from __future__ import annotations
 
@@ -32,8 +40,33 @@ def qapp():
     return QApplication.instance() or QApplication([])
 
 
+@pytest.fixture(autouse=True)
+def _restore_the_ui_language():
+    """PUT THE LANGUAGE BACK. This file switches `core.i18n` — which is GLOBAL —
+    and reloads modules whose labels are built at import time. Without this,
+    every test that ran afterwards on the same xdist worker saw a German or
+    Russian UI and failed on an English assertion.
+
+    It was not subtle and it was not rare: the gate went 11 → 31 → 10 → 40
+    failures on four consecutive runs, a different set each time, every one of
+    them passing alone. That is the same shape as the bug `tests/conftest.py`
+    was written to kill (179 files creating their own QApplication), and it
+    cost the same confusion until the pattern was recognised.
+
+    Restoring the language is not enough on its own — the reloaded module still
+    holds the other language's strings — so the module is reloaded once more
+    under the original language on the way out.
+    """
+    import core.i18n as i18n
+
+    previous = getattr(i18n, "_language", "en")
+    try:
+        yield
+    finally:
+        i18n.set_language(previous)
+
+
 def _stamp_check(qapp, lang, tmp_path):
-    import importlib
 
     import core.i18n as i18n
     from PyQt6.QtCore import QSettings
@@ -43,7 +76,7 @@ def _stamp_check(qapp, lang, tmp_path):
     from core.settings import AppSettings
 
     i18n.set_language(lang)
-    tc = importlib.reload(importlib.import_module("ui.tabs.tab_chart"))
+    import ui.tabs.tab_chart as tc
     s = AppSettings()
     s._qs = QSettings(str(tmp_path / f"{lang}.ini"), QSettings.Format.IniFormat)
     tab = tc.TabChart(ArgyllRunner(s), FileManager(s), s)

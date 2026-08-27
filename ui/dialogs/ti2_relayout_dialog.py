@@ -5619,7 +5619,7 @@ class Ti2RelayoutDialog(QDialog):
         box.setText(tr("This chart has unsaved changes."))
         box.setInformativeText(
             tr("If you close now they'll be lost. Use “Save As…” or "
-               "“Save & apply…” first to keep them."))
+               "“Apply / Save…” first to keep them."))
         discard = box.addButton(tr("Discard changes"),
                                 QMessageBox.ButtonRole.DestructiveRole)
         keep = box.addButton(tr("Keep editing"),

@@ -281,10 +281,10 @@ class _TrendChart(QWidget):
             p.drawText(
                 QRectF(L + 10, T, w - 20, h),
                 Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap,
-                tr("Chart rendering require minimum two measurement runs. Add "
-                   "more measurements, or if the currently loaded profile "
-                   "contains multiple runs, enable the checkbox “Show all "
-                   "measurement runs”."))
+                tr("A trend graph needs at least two measurement runs. Add "
+                   "another measurement — or, if the profile you have loaded "
+                   "already holds more than one run, tick “Show all "
+                   "measurement runs” above."))
             p.end()
             return
         vals = [v for pt in pts for _, _, acc in self._metrics
@@ -487,17 +487,18 @@ class MeasurementReportDialog(QDialog):
             "any of its .ti3 files and ChromIQ gathers all its runs), and "
             "“Remove Profile's Measurements…” / “Clear List” to take profiles out. "
             "“Show all measurement runs” switches between the single loaded "
-            "measurement and every run of every listed profile. The trend charts "
-            "need at least two runs — with a single run they show an empty chart "
-            "and say so. Only combine profiles from the SAME printer (see "
+            "measurement and every run of every listed profile. The trend graphs "
+            "need at least two runs — with a single run each graph is drawn empty "
+            "and says so. Only combine profiles from the SAME printer (see "
             "below).\n\n"
             "The sections\n"
             "  • Report Scope — which profiles and instruments are in the report, "
             "the run count and date range. IMPORTANT: the report cannot tell which "
             "printer a measurement came from. It is up to YOU to only include runs "
-            "from the same printer. A good habit is a clear Printer Profile Name "
-            "(set on the Create Chart tab) — e.g. include the printer and paper — "
-            "so profiles from one printer are easy to pick out. As a safety net "
+            "from the same printer. A good habit is a clear name in “Printer "
+            "profile project name” on the “1. Create Chart” tab — include the "
+            "printer and the paper, for example — so profiles from one printer "
+            "are easy to pick out. As a safety net "
             "the report still warns you if the runs you loaded use different "
             "instruments, or if a chart is missing any of the eight cube corners "
             "(which would make its cube-corner figures unreliable).\n"
@@ -640,8 +641,9 @@ class MeasurementReportDialog(QDialog):
                "remove it (its runs leave the report). Clear List empties the "
                "whole report.\n\n"
                "Important: the report cannot tell which printer a measurement "
-               "came from — only add profiles from the SAME printer. A clear "
-               "Printer Profile Name (set on the Create Chart tab) makes them easy "
+               "came from — only add profiles from the SAME printer. A clear name "
+               "in “Printer profile project name” on the “1. Create Chart” tab "
+               "makes them easy "
                "to recognise; the report also warns you if the runs use different "
                "instruments or a chart is missing cube corners."),
             self, color=SPEC_GREEN))
@@ -684,8 +686,8 @@ class MeasurementReportDialog(QDialog):
             tr("Saving and finding the report"),
             tr("Save report as PDF… — writes the whole report (this window's "
                "contents, laid out for print with the ChromIQ heading and page "
-               "numbers) to a PDF and opens it. The charts are included only when "
-               "the report has two or more runs.\n\n"
+               "numbers) to a PDF and opens it. The trend graphs are included only "
+               "when the report has two or more runs.\n\n"
                "Where it is saved: when “Show all measurement runs” is on, the PDF "
                "belongs to the whole printer profile and goes in a reports folder "
                "next to the profile's runs; when it is off, it goes in the loaded "
@@ -717,7 +719,7 @@ class MeasurementReportDialog(QDialog):
             tr("The report can look at one measurement, or at your whole "
                "history.\n\n"
                "With this ticked, every dated run in the list above is part "
-               "of the report: the trend charts, Report Scope, Report Results "
+               "of the report: the trend graphs, Report Scope, Report Results "
                "and the tables compare them side by side — and any run you "
                "have unticked in the list stays out.\n\n"
                "With it off, the report shows only the measurement it was "

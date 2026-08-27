@@ -448,7 +448,7 @@ def _rows():
             ("{name}.ti2", "runs/runN", tr("The laid-out chart: which colour sits where. Measuring needs it."), tr("Create Chart")),
             ("{name}.channels.json", "runs/runN", tr("Records the ink channels and (for engine charts) the exact layout + recipe, so reopening restores everything."), tr("Create Chart")),
             ("{name}.strips.json", "runs/runN", tr("Exact per-strip and per-patch pixel positions, used by the Measure preview (arrow, click-to-jump, split patches)."), tr("Create Chart (engine)")),
-            ("{name}.pdf", "runs/runN", tr("The chart as a vector PDF — only when “Also export PDF” is ticked."), tr("Create Chart")),
+            ("{name}.pdf", "runs/runN", tr("The chart as a vector PDF — only when “Also export a PDF” is ticked."), tr("Create Chart")),
             ("{name}.ps", "runs/runN", tr("A PostScript copy for printing (bypasses colour management)."), tr("Print Chart")),
             ("{name}.cht / .cie", "runs/runN", tr("The recognition template + reference values for reading a scanned or photographed chart. They stay next to the chart so the scanner tool finds them."), tr("Create scanner/camera target")),
         ]),

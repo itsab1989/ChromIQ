@@ -13,10 +13,17 @@ offscreen run and clipped on a real display. Spanish and Portuguese
 
 The width now comes from the font and the string, so it is right in a language
 nobody has added yet.
+    NO `importlib.reload` ANYWHERE IN THIS FILE. It is tempting, because some
+    modules build their strings at import time — but this panel and TabChart
+    both call `tr()` in `__init__`, so setting the language and then
+    CONSTRUCTING is enough. Reloading a module mid-suite replaces the class
+    object while other tests still hold the old one, and that broke
+    `test_clip_preview_renders_once` two runs in a row. Verified: with the
+    module imported once, the box reads 'auto' / 'Auto' / 'авто' as the
+    language changes.
 """
 from __future__ import annotations
 
-import importlib
 import os
 
 import pytest
@@ -31,6 +38,32 @@ _LANGS = ["de", "es", "pt", "en", "nl", "fr", "it", "sv", "no", "pl", "ru",
 def qapp():
     from PyQt6.QtWidgets import QApplication
     return QApplication.instance() or QApplication([])
+
+
+@pytest.fixture(autouse=True)
+def _restore_the_ui_language():
+    """PUT THE LANGUAGE BACK. This file switches `core.i18n` — which is GLOBAL —
+    and reloads modules whose labels are built at import time. Without this,
+    every test that ran afterwards on the same xdist worker saw a German or
+    Russian UI and failed on an English assertion.
+
+    It was not subtle and it was not rare: the gate went 11 → 31 → 10 → 40
+    failures on four consecutive runs, a different set each time, every one of
+    them passing alone. That is the same shape as the bug `tests/conftest.py`
+    was written to kill (179 files creating their own QApplication), and it
+    cost the same confusion until the pattern was recognised.
+
+    Restoring the language is not enough on its own — the reloaded module still
+    holds the other language's strings — so the module is reloaded once more
+    under the original language on the way out.
+    """
+    import core.i18n as i18n
+
+    previous = getattr(i18n, "_language", "en")
+    try:
+        yield
+    finally:
+        i18n.set_language(previous)
 
 
 def _field_width(sb):
@@ -51,7 +84,7 @@ def test_the_patch_size_boxes_show_their_whole_special_value(qapp, lang):
     from PyQt6.QtGui import QFontMetrics
 
     i18n.set_language(lang)
-    lop = importlib.reload(importlib.import_module("ui.dialogs.layout_options_panel"))
+    import ui.dialogs.layout_options_panel as lop
     panel = lop.LayoutOptionsPanel()
     panel.resize(560, 900)
     panel.show()
@@ -85,8 +118,7 @@ def test_this_file_can_see_the_bug_it_guards(qapp):
     """
     import core.i18n as i18n
     from PyQt6.QtGui import QFontMetrics
-
-    lop = importlib.reload(importlib.import_module("ui.dialogs.layout_options_panel"))
+    import ui.dialogs.layout_options_panel as lop
     panel = lop.LayoutOptionsPanel()
     panel.resize(560, 900)
     panel.show()

@@ -39,7 +39,7 @@ def _areas() -> "list[tuple[str, str, str]]":
     return [
         (tr("Masthead"), tr("across the top"),
          tr("ChromIQ's name in the middle. On the LEFT two buttons that act on "
-            "the whole app: “Open a project” and “Open a chart file (.ti2)” — "
+            "the whole app: “Open Project” and “Open Chart File (.ti2)” — "
             "open a chart there and Create Chart, Print Chart and Measure all "
             "show it. On the RIGHT “Tools”, “Preferences” and “?”, which opens "
             "this window. The two on the left are unavailable while a "

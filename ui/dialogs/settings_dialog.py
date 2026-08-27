@@ -416,8 +416,8 @@ class SettingsDialog(QDialog):
         hide_log_tip = TooltipButton(
             tr("Hide the Log Panel"),
             tr("Removes the box at the bottom of each tab that fills with "
-               "text while ChromIQ works — the one headed “Output will appear "
-               "here…” before anything has run.\n\n"
+               "text while ChromIQ works — the one that waits with a line like "
+               "“colprof output will appear here…” before anything has run.\n\n"
                "It is one switch for the whole app, not one per tab, so the "
                "layout stays consistent wherever you are. Turning it back on "
                "brings every panel back exactly as it was; nothing is lost "

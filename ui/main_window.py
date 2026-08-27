@@ -1782,7 +1782,7 @@ class MainWindow(QMainWindow):
                    "“Printer profile project name” on the Create Chart tab and "
                    "press “Generate Chart” to start one — or open an existing "
                    "project with “Open Project” at the top left — and then use "
-                   "“Save & apply” again."),
+                   "“Apply / Save…” again."),
                 self,
             ).exec()
             return False
