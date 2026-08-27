@@ -1,5 +1,88 @@
 # Changelog
 
+## v4.1.3
+
+ChromIQ now speaks thirteen languages properly, not just completely — every
+catalogue was read end to end and the words on one screen were made to agree.
+Thirty-eight new i1Pro charts, printable help cards, and a long list of things
+that quietly did the wrong thing.
+
+### New
+
+- **Thirty-eight new i1Pro charts.** Nineteen with 7.5 mm patches in A4, US
+  Letter and A3, and nineteen with 8 mm patches, from 156 up to 4,212 patches.
+- **Help cards can be printed.** A Print… button on any open card, laid out for
+  the paper rather than the screen, with the ChromIQ wordmark and the spectrum
+  band on every page.
+- **Three more help cards** — one each for the tools that had none: designing a
+  patch set, reading single patches, and the patch cube.
+- **A Close Project button**, third along the top left, beside Open Chart File.
+- **Keyboard shortcuts appear in tooltips**, spelled the way your own keyboard
+  spells them — ⌘1 on a Mac, Ctrl+1 everywhere else.
+
+### Changed
+
+- **All thirteen languages were swept for consistency, one at a time.** The same
+  control was often named several different ways in one language — and the
+  second name usually already meant something else. Italian used one word for
+  both *chart* and *paper*, so the scanner help said "clean the glass and the
+  paper" when it meant the chart. Polish used its word for *tab* to mean
+  *chart*. Portuguese used one word for *gamut*, *gamma* and *range*. Russian,
+  Norwegian and Chinese each carried five names for one thing. Around 2,900
+  entries were corrected.
+- **French now addresses you informally**, matching German, Dutch, Italian and
+  Spanish — it had been split down the middle, saying "vous" in a help text and
+  "tu" in the tooltip beside it. **Portuguese is consistently European
+  Portuguese**, including the update notice everybody sees.
+- **Preferences opens in about 0.7 seconds instead of 2.3.**
+- **The Red River presets are Knut's own again**, and the i1Pro preset list is
+  ordered by paper, then patch count, then page number.
+
+### Fixed
+
+- **A project name containing a dot split its files in half**, and the project
+  could not be measured. 120 of the 130 built-in presets suggest such a name.
+  Projects already broken this way are repaired when you open them, and nothing
+  is deleted — the old files are kept.
+- **Guided mode used ArgyllCMS printtarg instead of ChromIQ's own layout
+  engine** whenever "Print info in left clip area" was ticked — a setting
+  written only by the Manual tab, which Guided has no control for. So a box
+  ticked in one tab changed what another tab produced, invisibly, while the
+  screen still said "ChromIQ layout engine".
+- **Your chart was re-drawn and overwritten when you had not asked for it.**
+  With auto-update preview on, changing module, picking a different run, loading
+  a preset, pressing Reset or opening a chart file each silently re-laid out the
+  chart and rewrote it to disk.
+- **The Create Chart ▸ Manual panel was cut off on the right in nine of the
+  thirteen languages** — controls under the scrollbar, the ⓘ buttons sliced in
+  half. Several controls had been sized against the English word they show, so
+  German's "automatisch" arrived as "natisch".
+- **The margin check no longer accuses a chart of breaking its own margins.** 45
+  of the built-in charts are drawn at 200 dpi and land exactly on their declared
+  margin, but were reported inside it because a chart's edges can only fall on
+  whole pixels.
+- **Duplicating a run dropped 17 of the 27 things it records**, including every
+  Create Chart setting.
+- **ChromIQ could create a project you never asked for** — three separate ways,
+  including simply opening the Tools menu.
+- **Closing a window could crash ChromIQ.**
+- **A wrong ArgyllCMS path could lock you out of the app.**
+- **Help text named buttons that do not exist** — twenty of them, including a
+  tick box removed in 2025 and advice the app itself warns against. Corrected in
+  English and in every language.
+- **Printed help cards came out at a third of their size on macOS**, lost whole
+  pages of text silently, and printed sheets with nothing on them.
+- **ChromIQ left large temporary files behind** after soft-proofing.
+- **Print Chart's settings were lost when you closed the project**, and settings
+  could follow you from one run into another.
+
+### Known issues
+
+- A chart built in Guided and then continued in Manual is judged against layout
+  defaults rather than your instrument's minimums, so it can show a green
+  "Margins: OK" on a sheet the instrument cannot read. Judge margins from the
+  Guided panel. See issue #171.
+
 ## v4.1.3-beta.21
 
 Every language got read end to end, and the panel that had been quietly cut off
