@@ -15,6 +15,7 @@ import weakref
 
 from PyQt6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QComboBox,
     QDoubleSpinBox,
     QFileDialog,
@@ -1020,6 +1021,138 @@ class NoScrollComboBox(QComboBox):
             event.ignore()
 
 
+class ElidingComboBox(NoScrollComboBox):
+    """A combo whose MINIMUM width is a few characters, not its longest item.
+
+    ``QComboBox`` computes both ``sizeHint()`` **and** ``minimumSizeHint()``
+    over every row in its model (``QComboBoxPrivate::recomputeSizeHint``, for
+    every size-adjust policy except ``AdjustToMinimumContentsLengthWithIcon``).
+    So a combo that offers a sentence — "Prioritise chart area, then fit
+    patches to it" — turns that sentence into a hard floor for the grid column
+    it sits in, and through it for the whole panel. The Create Chart pane is
+    locked at 580 px to line up with Print, Measure and Check & Refine, so the
+    floor has nowhere to go: the panel scrolls sideways instead.
+
+    Measured on screen, 2026-08-27, Create Chart > Manual with every section
+    open: English needs 494 px into a 540 px viewport and is fine, which is why
+    the owner saw nothing wrong in English — and nine of the thirteen languages
+    need more than 540 (Italian 611, Portuguese 609, Russian 600).
+
+    This class keeps ``sizeHint()`` untouched, so the combo still takes its
+    natural width wherever there is room and nothing moves in a layout that
+    already fits. Only the MINIMUM changes: it drops to :attr:`MIN_CHARS`
+    characters' worth, and the painted text is elided with an ellipsis when the
+    combo is squeezed below its natural width. The model is never touched, so
+    ``currentText()``, ``itemText()``, the popup and every caller that reads the
+    combo still see the full string; while text is actually elided the full
+    string is offered as the tooltip.
+
+    Use it for any combo whose entries are phrases rather than short values.
+    A combo of short values loses nothing by being one of these either — it
+    simply never elides.
+    """
+
+    #: Characters the combo is always wide enough for. Twelve keeps a value
+    #: recognisable ("Prioritise c…") without letting one sentence dictate the
+    #: width of the pane it sits in.
+    MIN_CHARS = 10
+
+    def __init__(self, *args, **kwargs):
+        self._explicit_tooltip = ""
+        super().__init__(*args, **kwargs)
+
+    # -- geometry ------------------------------------------------------
+    def _widest_item(self) -> int:
+        fm = self.fontMetrics()
+        return max((fm.horizontalAdvance(self.itemText(i))
+                    for i in range(self.count())), default=0)
+
+    def _style_chrome(self) -> int:
+        """Frame + arrow + padding, asked of the style. Zero before the first
+        layout pass, in which case callers fall back on Qt's own figure."""
+        from PyQt6.QtWidgets import QStyleOptionComboBox
+        if self.width() <= 0:
+            return 0
+        opt = QStyleOptionComboBox()
+        self.initStyleOption(opt)
+        return max(0, self.width() - self._edit_rect(opt).width())
+
+    def sizeHint(self) -> QSize:  # noqa: N802 (Qt override)
+        """Qt's own hint, floored at what the text actually needs.
+
+        `QComboBox.sizeHint()` is computed and cached the first time it is
+        asked, which is BEFORE the per-widget stylesheet is polished in — so it
+        misses the QSS padding, and the widget is handed a few pixels less than
+        its text needs. Harmless in a plain combo, which simply clips a little;
+        here it made the box elide text that would have fitted (the Measure
+        tab's Spanish "Predeterminado de Argyll" lost its last four characters
+        in a box that had room for them). Same trap as the QSS-padding note in
+        ui/styles.py.
+        """
+        base = super().sizeHint()
+        chrome = self._style_chrome()
+        if chrome <= 0:
+            return base
+        return QSize(max(base.width(), self._widest_item() + chrome + 2),
+                     base.height())
+
+    def minimumSizeHint(self) -> QSize:  # noqa: N802 (Qt override)
+        base = super().minimumSizeHint()
+        fm = self.fontMetrics()
+        # The chrome (frame, arrow, padding) is whatever the style says it is:
+        # take it from the difference between the full hint and the widest
+        # item's text, rather than guessing a constant that a stylesheet change
+        # would quietly invalidate.
+        chrome = self._style_chrome() or max(0, base.width() - self._widest_item())
+        want = chrome + fm.horizontalAdvance("x") * self.MIN_CHARS
+        return QSize(min(base.width(), want), base.height())
+
+    # -- elided painting ----------------------------------------------
+    def _edit_rect(self, opt) -> QRect:
+        return self.style().subControlRect(
+            QStyle.ComplexControl.CC_ComboBox, opt,
+            QStyle.SubControl.SC_ComboBoxEditField, self)
+
+    def paintEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        from PyQt6.QtWidgets import QStyleOptionComboBox, QStylePainter
+        painter = QStylePainter(self)
+        painter.setPen(self.palette().color(QPalette.ColorRole.Text))
+        opt = QStyleOptionComboBox()
+        self.initStyleOption(opt)
+        avail = self._edit_rect(opt).width()
+        if avail > 0:
+            opt.currentText = self.fontMetrics().elidedText(
+                opt.currentText, Qt.TextElideMode.ElideRight, avail)
+        painter.drawComplexControl(QStyle.ComplexControl.CC_ComboBox, opt)
+        painter.drawControl(QStyle.ControlElement.CE_ComboBoxLabel, opt)
+
+    # -- tooltip -------------------------------------------------------
+    def setToolTip(self, text: str) -> None:  # noqa: N802 (Qt override)
+        """Remember the caller's tooltip so the elision tooltip can be taken
+        away again without erasing it."""
+        self._explicit_tooltip = text or ""
+        super().setToolTip(self._explicit_tooltip)
+
+    def _refresh_elide_tooltip(self) -> None:
+        from PyQt6.QtWidgets import QStyleOptionComboBox
+        opt = QStyleOptionComboBox()
+        self.initStyleOption(opt)
+        full = opt.currentText
+        avail = self._edit_rect(opt).width()
+        clipped = (avail > 0
+                   and self.fontMetrics().horizontalAdvance(full) > avail)
+        super().setToolTip(full if clipped and not self._explicit_tooltip
+                           else self._explicit_tooltip)
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        super().resizeEvent(event)
+        self._refresh_elide_tooltip()
+
+    def showEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        super().showEvent(event)
+        self._refresh_elide_tooltip()
+
+
 class NoScrollSpinBox(QSpinBox):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1044,6 +1177,170 @@ class NoScrollDoubleSpinBox(QDoubleSpinBox):
             super().wheelEvent(event)
         else:
             event.ignore()
+
+
+class WrappingCheckBox(QCheckBox):
+    """A check box whose label wraps instead of setting a floor for the panel.
+
+    ``QCheckBox`` has no word-wrap: its ``minimumSizeHint()`` is the indicator
+    plus the whole label on one line, and it CLIPS rather than eliding when it
+    is given less. So one long option — Russian's
+    "Краевые разделители (обрамляют каждую полосу)", 354 px — becomes a hard
+    floor for the grid column it sits in, and through it for the Create Chart
+    pane, which is locked at 580 px. That is the same fault
+    :class:`ElidingComboBox` fixes for combos, in the one widget class where
+    eliding would be wrong: dropping words from an option label leaves the user
+    guessing what the option does.
+
+    So the label wraps. The minimum becomes the indicator plus the longest
+    single WORD, the preferred size is unchanged (one line — nothing moves in a
+    layout that already fits), and the height grows by a line only when the
+    text genuinely cannot fit on one.
+
+    Both the indicator and each line of text are drawn through the style
+    (``PE_IndicatorCheckBox`` / ``CE_CheckBoxLabel``), so the stylesheet's
+    ``QCheckBox::indicator`` rules — which is where the accent colour, the
+    hover border and the disabled greys live — keep applying. ``text()`` still
+    returns the whole label, so every caller and every test that looks a box up
+    by its text is unaffected.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        sp = self.sizePolicy()
+        sp.setHeightForWidth(True)
+        # A QCheckBox ships with QSizePolicy.Minimum horizontally, and
+        # `qSmartMinSize` only consults `minimumSizeHint()` for a policy that
+        # carries the SHRINK flag — for Minimum it takes `max(sizeHint,
+        # minimumSizeHint)`, i.e. the whole label on one line, and the override
+        # below would never be looked at. (QComboBox is Expanding, which is why
+        # ElidingComboBox needs no equivalent.) Preferred keeps the same
+        # preferred width and adds permission to go under it.
+        sp.setHorizontalPolicy(QSizePolicy.Policy.Preferred)
+        self.setSizePolicy(sp)
+
+    # -- geometry ------------------------------------------------------
+    def _label_rect(self) -> QRect:
+        from PyQt6.QtWidgets import QStyleOptionButton
+        opt = QStyleOptionButton()
+        self.initStyleOption(opt)
+        return self.style().subElementRect(
+            QStyle.SubElement.SE_CheckBoxContents, opt, self)
+
+    def _chrome_width(self) -> int:
+        """Everything the label does NOT get: indicator, spacing, margins."""
+        return max(0, self.width() - self._label_rect().width())
+
+    @staticmethod
+    def _shown(text: str) -> str:
+        """The text as it is PAINTED: `&&` is an escaped ampersand and `&x` a
+        mnemonic, so neither is a character wide on screen. Wrapping works on
+        the raw string — the lines are handed back to the style, which does the
+        un-escaping itself — but every measurement uses this."""
+        return text.replace("&&", "&")
+
+    def _lines(self, width: int) -> list:
+        """Greedy word wrap of the label into *width* pixels. Lines are RAW
+        (still escaped), because they are drawn through the style."""
+        fm = self.fontMetrics()
+        words = self.text().split()
+        if not words:
+            return [""]
+        lines, cur = [], words[0]
+        for word in words[1:]:
+            trial = f"{cur} {word}"
+            if fm.horizontalAdvance(self._shown(trial)) <= width:
+                cur = trial
+            else:
+                lines.append(cur)
+                cur = word
+        lines.append(cur)
+        return lines
+
+    def minimumSizeHint(self) -> QSize:  # noqa: N802 (Qt override)
+        base = super().minimumSizeHint()
+        fm = self.fontMetrics()
+        words = self.text().split()
+        if not words:
+            return base
+        widest_word = max(fm.horizontalAdvance(self._shown(w)) for w in words)
+        # The chrome cannot be read off self.width() before the first layout
+        # pass, so take it from the un-wrapped hint and the whole label.
+        chrome = max(0, base.width() - fm.horizontalAdvance(
+            self._shown(self.text())))
+        return QSize(min(base.width(), chrome + widest_word), base.height())
+
+    def hasHeightForWidth(self) -> bool:  # noqa: N802 (Qt override)
+        return True
+
+    def heightForWidth(self, width: int) -> int:  # noqa: N802 (Qt override)
+        one_line = super().sizeHint().height()
+        fm = self.fontMetrics()
+        chrome = max(0, super().sizeHint().width() - fm.horizontalAdvance(
+            self._shown(self.text())))
+        avail = max(1, width - chrome)
+        n = len(self._lines(avail))
+        if n <= 1:
+            return one_line
+        return max(one_line, n * fm.lineSpacing() + (one_line - fm.height()))
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        """Claim the height the wrapped label needs.
+
+        `heightForWidth` alone is not enough here. A QGridLayout will ask an
+        item for it, but only if every layout and widget BETWEEN this box and
+        the window passes the flag up — and QGroupBox, which every group in this
+        panel is, does not. The Russian option
+        "Краевые разделители (обрамляют каждую полосу)" duly wrapped and then
+        painted one line into a one-line row, so it read
+        "Краевые разделители (обрамляют" and the rest was gone: a worse fault
+        than the one being fixed.
+
+        Asking for the height directly works whatever the parents do. It
+        settles after one extra pass, because the second resize computes the
+        same number and changes nothing.
+        """
+        super().resizeEvent(event)
+        need = self.heightForWidth(self.width())
+        if need > 0 and self.minimumHeight() != need:
+            self.setMinimumHeight(need)
+
+    # -- painting ------------------------------------------------------
+    def paintEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        from PyQt6.QtWidgets import QStyleOptionButton, QStylePainter
+        opt = QStyleOptionButton()
+        self.initStyleOption(opt)
+        painter = QStylePainter(self)
+        style = self.style()
+        text_rect = style.subElementRect(
+            QStyle.SubElement.SE_CheckBoxContents, opt, self)
+        lines = self._lines(text_rect.width())
+        fm = self.fontMetrics()
+
+        ind = QStyleOptionButton(opt)
+        ind.rect = style.subElementRect(
+            QStyle.SubElement.SE_CheckBoxIndicator, opt, self)
+        if len(lines) > 1:
+            # Sit the indicator on the FIRST line rather than in the middle of
+            # a two-line block, which is where a centred one would land.
+            ind.rect.moveTop(text_rect.top()
+                             + max(0, (fm.lineSpacing() - ind.rect.height()) // 2))
+        painter.drawPrimitive(QStyle.PrimitiveElement.PE_IndicatorCheckBox, ind)
+
+        if len(lines) <= 1:
+            line_opt = QStyleOptionButton(opt)
+            line_opt.rect = text_rect
+            painter.drawControl(QStyle.ControlElement.CE_CheckBoxLabel, line_opt)
+            return
+        total = len(lines) * fm.lineSpacing()
+        y = text_rect.top() + max(0, (text_rect.height() - total) // 2)
+        for line in lines:
+            line_opt = QStyleOptionButton(opt)
+            line_opt.text = line
+            line_opt.rect = QRect(text_rect.left(), y,
+                                  text_rect.width(), fm.lineSpacing())
+            painter.drawControl(QStyle.ControlElement.CE_CheckBoxLabel, line_opt)
+            y += fm.lineSpacing()
 
 
 class SuffixLockedLineEdit(QLineEdit):

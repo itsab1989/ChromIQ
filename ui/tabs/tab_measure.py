@@ -51,7 +51,7 @@ from core.strip_utils import letter_to_idx, parse_passes_per_page
 from ui.fade_scroll import FadeScrollArea
 from ui.tab_header import TabHeader
 from ui.tooltip_button import TooltipButton
-from ui.widgets import ElidingLabel, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, make_browse_button, open_file_dialog, set_folder_icon, set_preset_icon, tint_dialog_primary
+from ui.widgets import ElidingComboBox, ElidingLabel, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, make_browse_button, open_file_dialog, set_folder_icon, set_preset_icon, tint_dialog_primary
 
 _TAB_COLOR = "#56d6a5"  # Measure tab accent
 from ui.styles import SPEC_GREEN, TAB_COLORS
@@ -3684,14 +3684,23 @@ class TabMeasure(QWidget):
         """
         row = QHBoxLayout()
         row.addWidget(QLabel(tr("Strip recognition:"), parent))
-        combo = NoScrollComboBox(parent)
+        combo = ElidingComboBox(parent)
         # Guided mode shows a full-size (non-compact) combo; Manual keeps the
         # compact styling that matches its other dense option rows.
+        #
+        # NO PINNED WIDTH. It used to be `setMinimumWidth(240)` here and 210 for
+        # Manual — English measurements, and a hard FLOOR for the whole row.
+        # With the label on one side and the Auto toggle and two ⓘ on the other,
+        # that row could not go below 540 px in Spanish, 536 in Portuguese and
+        # 529 in French, against the 540 the Measure pane has; so this tab
+        # scrolled sideways in exactly those three languages, which is what
+        # `scripts/i18n_onscreen_audit.py` had been reporting as
+        # "es 590, pt 586, fr 579 into a 572 px viewport" and nobody had traced.
+        # An ElidingComboBox still takes the width of its longest entry wherever
+        # there is room — the same width the pinned number was approximating —
+        # and gives it back when there is not.
         if mode == "manual":
             combo.setObjectName("compact_input")
-            combo.setMinimumWidth(210)
-        else:
-            combo.setMinimumWidth(240)
         # tr() at build time, not import time — tabs are imported before
         # set_language() runs, so a class-level constant would stay English.
         for data, label in (

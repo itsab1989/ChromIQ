@@ -12,6 +12,7 @@ sys.path.insert(0, ".")
 from core.logger import configure_logging
 configure_logging()
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFontDatabase
 from PyQt6.QtWidgets import (
     QApplication, QPushButton, QToolButton, QCheckBox, QRadioButton, QLabel,
@@ -64,6 +65,15 @@ def audit(root, seen, out):
         text = w.text().replace("&", "")
         if not text:
             continue
+        # A BUTTON THAT DOES NOT PAINT ITS TEXT CANNOT CLIP IT. `BarIconButton`
+        # and friends keep the label on the widget for assistive technology and
+        # draw `ToolButtonIconOnly`, so Qt still charges the text to
+        # `minimumSizeHint` — three of them were reported as 3 px short in EVERY
+        # language, English included, which made this script's exit code
+        # useless: always 1, whether or not anything was really wrong.
+        if isinstance(w, QToolButton) and \
+                w.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonIconOnly:
+            continue
         hint = w.minimumSizeHint().width()
         actual = w.width()
         if w.isVisible() and actual > 0 and hint > actual + 1:
@@ -79,27 +89,34 @@ def audit_hscroll(root, out):
         content = sa.widget()
         if content is None:
             continue
-        # ASK THE SCROLLBAR, NOT THE SIZE HINT.
+        # COMPARE `minimumSizeHint` WITH THE VIEWPORT. Not `sizeHint`, and NOT
+        # the scrollbar.
         #
-        # This used to compare `content.sizeHint().width()` against the
-        # viewport. `sizeHint` is what a widget would LIKE; `minimumSizeHint`
-        # is what it cannot go below, and a layout that can compress simply
-        # does. So the check reported a horizontal scrollbar on the English
-        # Create Chart panel — 669 px of "preferred" into a 572 px viewport —
-        # where the real app has none, as the owner confirmed by looking
-        # (2026-08-27). A checker that cries wolf on the shipping language is
-        # worse than no checker.
+        # The first version of this check compared `content.sizeHint().width()`
+        # — what a widget would LIKE — and so cried wolf on English, where the
+        # layout simply compresses. It was then changed to ask
+        # `horizontalScrollBar().isVisible()`, on the theory that the bar is the
+        # ground truth, and it reported German CLEAN. It is not the ground
+        # truth: `TabChart._make_manual_panel` pins that bar OFF
+        # (`ScrollBarAlwaysOff`), so it can never be visible however far the
+        # content overflows — the content is CLIPPED instead, and a trackpad
+        # swipe scrolls it sideways. German was 19 px over at the time and this
+        # check said nothing, which is the second time it reported nothing at
+        # all (Basti, 2026-08-27).
         #
-        # The bar itself is the ground truth. `minimumSizeHint` is reported
-        # beside it so a real overflow says how much it is short by.
+        # `minimumSizeHint` is what the content CANNOT go below. Wider than the
+        # viewport means something is cut off, bar or no bar. `maximum()` is
+        # reported beside it because it is non-zero exactly when Qt has actually
+        # scrolled the content, which is the same fault seen from the other end.
         vw = sa.viewport().width()
         if vw <= 0:
             continue
+        floor = content.minimumSizeHint().width()
         bar = sa.horizontalScrollBar()
-        if not (bar and bar.isVisible() and bar.maximum() > 0):
+        scrolled = bar.maximum() if bar else 0
+        if floor <= vw and scrolled <= 0:
             continue
-        out.append((sa.objectName() or type(content).__name__,
-                    content.minimumSizeHint().width(), vw))
+        out.append((sa.objectName() or type(content).__name__, floor, vw))
 
 
 def main():
@@ -167,7 +184,7 @@ def main():
     dlg.close()
     win.close()
     app.processEvents()
-    return 1 if clipped else 0
+    return 1 if (clipped or hscroll) else 0
 
 
 if __name__ == "__main__":

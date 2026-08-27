@@ -14,7 +14,7 @@ from contextlib import contextmanager
 
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
-    QButtonGroup, QCheckBox, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QMenu,
+    QButtonGroup, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QMenu,
     QToolButton, QVBoxLayout, QWidget,
 )
 
@@ -23,9 +23,10 @@ from core.logger import get_logger
 from ui.tooltip_button import TooltipButton
 from ui.widgets import (
     CollapsibleGroupBox,
-    NoScrollComboBox,
+    ElidingComboBox,
     NoScrollDoubleSpinBox,
     NoScrollSpinBox,
+    WrappingCheckBox,
 )
 from workflow.layout_engine.presets import LayoutRecipe
 
@@ -148,6 +149,10 @@ class LayoutOptionsPanel(QWidget):
         # `_refresh_clip_preview` for why that is safe.
         self._suspend_clip_preview = bool(defer_clip_preview)
         self._loading = False
+        #: Millimetre spin boxes whose width is settled in `_fit_spin_widths()`
+        #: once the style has been polished — see `small_mm`.
+        self._fitted_spins: list = []
+        self._spin_widths_fitted = False
         self._with_calibration = with_calibration
         self._with_selectors = with_selectors
         # Per-spacer manual colour overrides {str(flat_idx): "#hex"} — set by
@@ -167,7 +172,7 @@ class LayoutOptionsPanel(QWidget):
         if with_selectors:
             sel = QGridLayout()
             # Instrument and Mode each get a full-width row.
-            self.instr = NoScrollComboBox(self)
+            self.instr = ElidingComboBox(self)
             for k, lbl in self.INSTRUMENTS:
                 self.instr.addItem(lbl, k)
             sel.addWidget(QLabel(tr("Instrument:"), self), 0, 0)
@@ -183,12 +188,12 @@ class LayoutOptionsPanel(QWidget):
             # the CM/SS Clip-border toggle are created here but ADDED TO THE LAYOUT
             # FRAME (below), grouped with the other layout choices for better order
             # (Knut #93). Labels/tips stay referenced for the conditional enabling.
-            self.mode = NoScrollComboBox(self)
+            self.mode = ElidingComboBox(self)
             self._mode_lbl = QLabel(tr("Mode:"), self)
             _mt, _mb = self.mode_tooltip_for("i1")
             self._mode_tip = TooltipButton(_mt, _mb, self)
             self._clip_enable_lbl = QLabel(tr("Clip border:"), self)
-            self.clip_enable = NoScrollComboBox(self)
+            self.clip_enable = ElidingComboBox(self)
             self.clip_enable.addItem(tr("Off — more patches"), "off")
             self.clip_enable.addItem(tr("On"), "on")
             self.clip_enable.currentIndexChanged.connect(self._on_clip_enable_changed)
@@ -207,7 +212,7 @@ class LayoutOptionsPanel(QWidget):
                    "or make it shorter."), self)
             # Paper + Pages share a row, directly under Instrument (Knut #93);
             # paper gets the stretch (wider).
-            self.paper = NoScrollComboBox(self)
+            self.paper = ElidingComboBox(self)
             sel.addWidget(QLabel(tr("Paper:"), self), 1, 0)
             sel.addWidget(self.paper, 1, 1)
             self._pages_lbl = QLabel(tr("Pages:"), self)
@@ -372,7 +377,7 @@ class LayoutOptionsPanel(QWidget):
         # right above Clip border (Knut #93); the indicator *styling* (font / size
         # / rotation / underline …) moved to Preferences → Chart Layout. Created
         # unconditionally so from_recipe/to_recipe work even without selectors.
-        self.show_indicators = QCheckBox(tr("Show strip indicators"), self)
+        self.show_indicators = WrappingCheckBox(tr("Show strip indicators"), self)
         self.show_indicators.setChecked(True)
         self.show_indicators.toggled.connect(self._on_show_indicators)
         self.show_indicators.toggled.connect(self._emit)
@@ -386,10 +391,11 @@ class LayoutOptionsPanel(QWidget):
 
         from PyQt6.QtWidgets import QLineEdit, QPushButton
 
-        def small_mm(top: float = 60.0) -> NoScrollDoubleSpinBox:
+        def small_mm(top: float = 60.0, *,
+                     special_auto: bool = False) -> NoScrollDoubleSpinBox:
             sb = NoScrollDoubleSpinBox(self)
             sb.setRange(0, top); sb.setDecimals(1); sb.setSingleStep(0.5)
-            # WIDE ENOUGH FOR THE WORD THIS LANGUAGE ACTUALLY SHOWS.
+            # WIDE ENOUGH FOR THE WORD THIS BOX ACTUALLY SHOWS — AND NO WIDER.
             #
             # These were 84/96 px, with a comment reading `room for "300,0" /
             # "auto" + buttons` — sized against the four-letter ENGLISH word.
@@ -400,12 +406,37 @@ class LayoutOptionsPanel(QWidget):
             #
             # A hard-coded width can only ever be right for the language it was
             # measured in. Ask the font instead, and leave a real margin.
+            #
+            # ONLY the two patch-size boxes ever set a special value text; the
+            # other eleven callers show nothing but a number. Sizing all of them
+            # for "automatisch" put 106 px into every one, and the three of them
+            # sitting side by side in "Sheet text" then needed 404 px in Spanish
+            # and 418 in Portuguese — which is what still pushed those two
+            # languages into horizontal scrolling after the combo below was
+            # fixed. Widen for the word only where the word can appear.
             _fm = sb.fontMetrics()
-            _widest = max(_fm.horizontalAdvance(tr("auto")),
-                          _fm.horizontalAdvance(f"{top:.1f}".replace(".", ",")))
-            _chrome = 34          # up/down buttons, frame and text padding
-            sb.setMinimumWidth(max(84, _widest + _chrome))
-            sb.setMaximumWidth(max(96, _widest + _chrome + 8))
+            _widest = _fm.horizontalAdvance(f"{top:.1f}".replace(".", ","))
+            if special_auto:
+                sb.setSpecialValueText(tr("auto"))
+                _widest = max(_widest, _fm.horizontalAdvance(tr("auto")))
+            #
+            # The floors used to be `max(84, …)` / `max(96, …)`, which is the
+            # ENGLISH width this helper was born with. 84 px happened to be
+            # right, but only because the `_chrome` constant beside it was
+            # wrong: the buttons, frame and text padding cost 55 px with this
+            # stylesheet, not 34, so `_widest + 34` was 21 px short and the 84
+            # was quietly covering for it. Neither number can be checked by
+            # reading the code, and both are invalidated by any QSS change.
+            #
+            # So the width is settled once for real in `_fit_spin_widths()`,
+            # which asks the STYLE what the chrome is — and can only do that
+            # after the widget is polished, because before that the same query
+            # answers 20 px. What is set here is a provisional value good
+            # enough for the first layout pass.
+            _chrome = 55
+            sb.setMinimumWidth(_widest + _chrome)
+            sb.setMaximumWidth(_widest + _chrome + 8)
+            self._fitted_spins.append(sb)
             sb.valueChanged.connect(self._emit)
             return sb
 
@@ -416,8 +447,13 @@ class LayoutOptionsPanel(QWidget):
             converted at the recipe boundary (see PT_PER_MM). 0 = "auto"."""
             sb = NoScrollDoubleSpinBox(self)
             sb.setRange(0, top_pt); sb.setDecimals(0); sb.setSingleStep(1)
+            # Provisional only — settled in `_fit_spin_widths()` once the style
+            # has been polished, for the same reason as `small_mm` above: 84/96
+            # is the English width this was measured at, and these boxes carry
+            # the translated "auto" as their special value.
             sb.setMinimumWidth(84)
             sb.setMaximumWidth(96)
+            self._fitted_spins.append(sb)
             sb.valueChanged.connect(self._emit)
             return sb
 
@@ -439,7 +475,7 @@ class LayoutOptionsPanel(QWidget):
         # ---- Layout strategy (patch-first vs area-first, #93 / Knut) ----
         lg = QGroupBox(tr("Layout"), self)
         lgg = QGridLayout(lg)
-        self.layout_mode = NoScrollComboBox(self)
+        self.layout_mode = ElidingComboBox(self)
         self.layout_mode.addItem(
             tr("Prioritise chart area, then fit patches to it"), "area_first")
         self.layout_mode.addItem(
@@ -487,7 +523,7 @@ class LayoutOptionsPanel(QWidget):
         self.area_min_patch.setSingleStep(0.5); self.area_min_patch.setMaximumWidth(96)
         self.area_min_patch.setSpecialValueText(tr("auto"))
         self.area_min_patch.valueChanged.connect(self._emit)
-        self.area_method = NoScrollComboBox(self)
+        self.area_method = ElidingComboBox(self)
         self.area_method.addItem(tr("By patch width"), "by_width")
         self.area_method.addItem(tr("By columns / rows"), "by_grid")
         self.area_method.currentIndexChanged.connect(self._emit)
@@ -568,7 +604,7 @@ class LayoutOptionsPanel(QWidget):
         # rig stagger), so it belongs with the layout choices, not in Patches &
         # spacers (Knut). CM-only — visibility is set per-instrument. Always placed
         # (like Show strip indicators) so it shows in Preferences too.
-        self.cm_stagger_cb = QCheckBox(tr("Offset every second strip"), self)
+        self.cm_stagger_cb = WrappingCheckBox(tr("Offset every second strip"), self)
         self.cm_stagger_cb.toggled.connect(self._emit)
         self._cm_stagger_tip = TooltipButton(
             tr("Offset every second strip"),
@@ -586,15 +622,15 @@ class LayoutOptionsPanel(QWidget):
         g = QGridLayout(ps)
         self.pscale = scale()
         self.sscale = scale()
-        self.spacer_mode = NoScrollComboBox(self)
+        self.spacer_mode = ElidingComboBox(self)
         for k, lbl in (("colored", tr("Coloured")), ("bw", tr("Black & white")),
                        ("none", tr("None"))):
             self.spacer_mode.addItem(lbl, k)
         self.spacer_mode.currentIndexChanged.connect(self._emit)
         self.spacer_mode.currentIndexChanged.connect(self._sync_spacer_swatches)
         self.spacer_width = mm(special_auto=True)
-        self.patch_x = small_mm(); self.patch_x.setSpecialValueText(tr("auto"))
-        self.patch_y = small_mm(); self.patch_y.setSpecialValueText(tr("auto"))
+        self.patch_x = small_mm(special_auto=True)
+        self.patch_y = small_mm(special_auto=True)
         self.inter_patch = mm()
         self.strip_gap = mm()
         self.sig = mm()
@@ -664,7 +700,7 @@ class LayoutOptionsPanel(QWidget):
                        "patch count drops."), self))
         # Custom spacer palette (colored mode): the engine draws each gap's
         # spacer from this set instead of the built-in accents.
-        self.custom_spacer_cb = QCheckBox(tr("Custom spacer colours"), self)
+        self.custom_spacer_cb = WrappingCheckBox(tr("Custom spacer colours"), self)
         self.custom_spacer_cb.toggled.connect(self._on_custom_spacer_toggled)
         self._spacer_swatches = []
         _swrow = QHBoxLayout(); _swrow.setContentsMargins(0, 0, 0, 0); _swrow.setSpacing(4)
@@ -698,7 +734,7 @@ class LayoutOptionsPanel(QWidget):
                "(and watch the low-contrast warning)."), self),
             8, 2)
         add_row(g, 9, tr("Spacer colours:"), _sww)
-        self.edge_spacers_cb = QCheckBox(tr("Edge spacers (bracket each strip)"), self)
+        self.edge_spacers_cb = WrappingCheckBox(tr("Edge spacers (bracket each strip)"), self)
         self.edge_spacers_cb.toggled.connect(self._emit)
         g.addWidget(self.edge_spacers_cb, 10, 1)
         g.addWidget(TooltipButton(
@@ -716,10 +752,10 @@ class LayoutOptionsPanel(QWidget):
         # ---- Randomisation ----
         rg = QGroupBox(tr("Randomisation"), self)
         rgg = QGridLayout(rg)
-        self.randomize_cb = QCheckBox(tr("Randomise patch order"), self)
+        self.randomize_cb = WrappingCheckBox(tr("Randomise patch order"), self)
         self.randomize_cb.setChecked(True)
         self.randomize_cb.toggled.connect(self._on_randomize_toggled)
-        self.fixed_seed_cb = QCheckBox(tr("Use a fixed seed (reproducible)"), self)
+        self.fixed_seed_cb = WrappingCheckBox(tr("Use a fixed seed (reproducible)"), self)
         self.fixed_seed_cb.toggled.connect(self._on_fixed_seed_toggled)
         self.seed_spin = NoScrollSpinBox(self)
         self.seed_spin.setRange(0, 2_147_483_647)
@@ -760,14 +796,14 @@ class LayoutOptionsPanel(QWidget):
         # group is never shown — it's a hidden carrier (see si.setVisible(False)).
         si = QGroupBox(tr("Strip indicators"), self)
         sig2 = QGridLayout(si)
-        self.indicator_font = NoScrollComboBox(self)
+        self.indicator_font = ElidingComboBox(self)
         self._populate_font_combo(self.indicator_font)
         self.indicator_font.currentIndexChanged.connect(self._emit)
         self.indicator_size = small_pt(top_pt=72.0)
         self.indicator_size.setSpecialValueText(tr("auto"))
-        self.ind_bold = QCheckBox(tr("Bold"), self)
+        self.ind_bold = WrappingCheckBox(tr("Bold"), self)
         self.ind_bold.toggled.connect(self._emit)
-        self.ind_italic = QCheckBox(tr("Italic"), self)
+        self.ind_italic = WrappingCheckBox(tr("Italic"), self)
         self.ind_italic.toggled.connect(self._emit)
         self._add_font_rows(sig2, 1, tr("Font:"), self.indicator_font,
                             self.indicator_size, self.ind_bold, self.ind_italic,
@@ -779,7 +815,7 @@ class LayoutOptionsPanel(QWidget):
                                    "“auto” fits the label to the strip width; Bold "
                                    "/ Italic grey out for fonts that don't offer "
                                    "them."), self))
-        self.underline_mode = NoScrollComboBox(self)
+        self.underline_mode = ElidingComboBox(self)
         for k, lbl in (("off", tr("Off")),
                        ("segments", tr("Coloured (5 segments)")),
                        ("cycle", tr("Coloured (per strip)")),
@@ -812,7 +848,7 @@ class LayoutOptionsPanel(QWidget):
                     tr("How far below the strip label the rule sits, in "
                        "millimetres. Increase it to give the label a little "
                        "breathing room above the line."), self))
-        self.indicator_rotation = NoScrollComboBox(self)
+        self.indicator_rotation = ElidingComboBox(self)
         for _deg in (0, 90, 180, 270):
             self.indicator_rotation.addItem(f"{_deg}°", _deg)
         # Compact, but wide enough for "270°" + the dropdown arrow; the freed
@@ -823,9 +859,9 @@ class LayoutOptionsPanel(QWidget):
         # Reading-axis alignment for side-rotated (90°/270°) multi-letter labels.
         # A mutually-exclusive checkbox set (Left / Centered / Right); only active
         # when the rotation lays the label on its side, greyed out otherwise.
-        self.ind_align_left = QCheckBox(tr("Left"), self)
-        self.ind_align_center = QCheckBox(tr("Centered"), self)
-        self.ind_align_right = QCheckBox(tr("Right"), self)
+        self.ind_align_left = WrappingCheckBox(tr("Left"), self)
+        self.ind_align_center = WrappingCheckBox(tr("Centered"), self)
+        self.ind_align_right = WrappingCheckBox(tr("Right"), self)
         self._align_group = QButtonGroup(self)
         self._align_group.setExclusive(True)
         for _cb in (self.ind_align_left, self.ind_align_center, self.ind_align_right):
@@ -885,7 +921,7 @@ class LayoutOptionsPanel(QWidget):
         # "Use instrument margins" — when ticked, the four margins come from
         # Preferences → Instrument Limits for this combo (read-only) (#93, Knut).
         # Shown only when a threshold lookup is wired (set_threshold_lookup).
-        self.use_instr_margins = QCheckBox(tr("Use instrument margins"), self)
+        self.use_instr_margins = WrappingCheckBox(tr("Use instrument margins"), self)
         self.use_instr_margins.setVisible(False)
         self.use_instr_margins.toggled.connect(self._sync_instr_margins)
         self.use_instr_margins.toggled.connect(self._emit)
@@ -908,7 +944,7 @@ class LayoutOptionsPanel(QWidget):
         _margins_w = QWidget(self); _margins_w.setLayout(_mgrid)
         self.dpi = NoScrollSpinBox(self); self.dpi.setRange(72, 1200)
         self.dpi.setSuffix(" dpi"); self.dpi.valueChanged.connect(self._emit)
-        self.nolimit = QCheckBox(tr("Don't cap strip length"), self)
+        self.nolimit = WrappingCheckBox(tr("Don't cap strip length"), self)
         self.nolimit.toggled.connect(self._emit)
         self.max_strip = mm(special_auto=True, top=2000.0)  # large paper / roll media
         self.offx = small_mm(top=300.0)
@@ -916,7 +952,7 @@ class LayoutOptionsPanel(QWidget):
         self.strip_pat = QLineEdit(self); self.strip_pat.textChanged.connect(self._emit)
         self.patch_pat = QLineEdit(self); self.patch_pat.textChanged.connect(self._emit)
         # Patch-area alignment — where the block sits within the usable area.
-        self.patch_align = NoScrollComboBox(self)
+        self.patch_align = ElidingComboBox(self)
         for _key, _lbl in (
             ("top-left", tr("Top-left")), ("top-center", tr("Top-centre")),
             ("top-right", tr("Top-right")),
@@ -1084,11 +1120,11 @@ class LayoutOptionsPanel(QWidget):
         # ---- Output ----
         og = QGroupBox(tr("Output"), self)
         ogg = QGridLayout(og)
-        self.bit_depth = NoScrollComboBox(self)
+        self.bit_depth = ElidingComboBox(self)
         self.bit_depth.addItem(tr("8-bit"), 8)
         self.bit_depth.addItem(tr("16-bit"), 16)
         self.bit_depth.currentIndexChanged.connect(self._emit)
-        self.compression = NoScrollComboBox(self)
+        self.compression = ElidingComboBox(self)
         for k, lbl in (("lzw", "LZW"), ("zlib", "Zlib"), ("none", tr("None"))):
             self.compression.addItem(lbl, k)
         self.compression.currentIndexChanged.connect(self._emit)
@@ -1107,7 +1143,7 @@ class LayoutOptionsPanel(QWidget):
                        "are lossless and shrink the file; “None” writes it "
                        "uncompressed (largest, most compatible). All keep the "
                        "exact colours."), self))
-        self.export_pdf = QCheckBox(tr("Also export a PDF"), self)
+        self.export_pdf = WrappingCheckBox(tr("Also export a PDF"), self)
         self.export_pdf.toggled.connect(self._emit)
         add_row(ogg, 2, "", self.export_pdf,
                 tip=TooltipButton(
@@ -1185,7 +1221,7 @@ class LayoutOptionsPanel(QWidget):
         # (535 px against 472 for the next one), which pushed the whole right
         # side into horizontal scrolling (Basti, on screen). The group title
         # already says these are ruler helper markers.
-        self.helper_markers_cb = QCheckBox(tr("Print helper markers"), self)
+        self.helper_markers_cb = WrappingCheckBox(tr("Print helper markers"), self)
         self.helper_markers_cb.toggled.connect(self._emit)
         self.helper_marker_edge = small_mm(top=60.0)
         self.helper_marker_len = small_mm(top=60.0)
@@ -1293,9 +1329,9 @@ class LayoutOptionsPanel(QWidget):
         # the two tick indicators merged into one tall block. The grid this
         # group already uses spaces its own rows correctly, so the boxes go
         # straight into it — a row each, indented under their label.
-        self.helper_markers_top_bottom = QCheckBox(
+        self.helper_markers_top_bottom = WrappingCheckBox(
             tr("Top/bottom (horizontal)"), self)
-        self.helper_markers_sides = QCheckBox(tr("Sides (vertical)"), self)
+        self.helper_markers_sides = WrappingCheckBox(tr("Sides (vertical)"), self)
         for _cb in (self.helper_markers_top_bottom, self.helper_markers_sides):
             _cb.setChecked(True)
             # A QSS-sized tick indicator (16 px) is not in a QCheckBox's own
@@ -1369,16 +1405,16 @@ class LayoutOptionsPanel(QWidget):
         self.text_preview = QLabel(self)
         self.text_preview.setWordWrap(True)
         self.text_preview.setStyleSheet("color: palette(mid);")
-        self.chart_text_font = NoScrollComboBox(self)
+        self.chart_text_font = ElidingComboBox(self)
         self._populate_font_combo(self.chart_text_font)
         self.chart_text_font.currentIndexChanged.connect(self._emit)
         self.chart_text_size = small_pt(top_pt=72.0)
         self.chart_text_size.setSpecialValueText(tr("auto"))
-        self.ct_bold = QCheckBox(tr("Bold"), self)
+        self.ct_bold = WrappingCheckBox(tr("Bold"), self)
         self.ct_bold.toggled.connect(self._emit)
-        self.ct_italic = QCheckBox(tr("Italic"), self)
+        self.ct_italic = WrappingCheckBox(tr("Italic"), self)
         self.ct_italic.toggled.connect(self._emit)
-        self.stamp_command = QCheckBox(tr("Stamp layout summary on the sheet"), self)
+        self.stamp_command = WrappingCheckBox(tr("Stamp layout summary on the sheet"), self)
         self.stamp_command.toggled.connect(self._emit)
         add_row(stg, 0, tr("Custom text:"),
                 cell_fill(self.chart_text, self.insert_token_btn),
@@ -1424,8 +1460,18 @@ class LayoutOptionsPanel(QWidget):
         # Label on its own row, the three compact spins below it, so the wide
         # spin row doesn't force the whole panel wider. The spin row is indented to
         # the field column (1) so it lines up with the boxes above it (Knut #93).
+        #
+        # SPANNING ALL THREE COLUMNS, WITH THE INDENT DRAWN INSIDE IT. Placed in
+        # columns 1-2 the row's whole width was charged to those two columns, on
+        # top of whatever column 0 needed — 361 px plus a 105 px label column
+        # made "Sheet text" the widest group in the panel in Norwegian, Swedish,
+        # Italian and Portuguese, and the thing still pushing them sideways once
+        # the combos and the spin widths were fixed. Spanning 0-2 lets Qt charge
+        # it to the whole grid instead, and the left margin below keeps Knut's
+        # indent on screen.
         stg.addWidget(QLabel(tr("Text distance from edge (mm):"), self), 5, 0, 1, 2)
-        stg.addWidget(_te_w, 6, 1, 1, 2)
+        _te.setContentsMargins(16, 0, 0, 0)
+        stg.addWidget(_te_w, 6, 0, 1, 3)
         stg.addWidget(TooltipButton(
             tr("Text distance from edge"),
             tr("The minimum distance from the paper edge to the text on each side "
@@ -1448,14 +1494,14 @@ class LayoutOptionsPanel(QWidget):
         # ---- Clip-border content (i1/p3 clip mode) ----
         self._clip_content_grp = QGroupBox(tr("Clip-border content"), self)
         ccg = QGridLayout(self._clip_content_grp)
-        self.clip_content_mode = NoScrollComboBox(self)
+        self.clip_content_mode = ElidingComboBox(self)
         for k, lbl in (("off", tr("Off")), ("text", tr("Custom text")),
                        ("example", tr("Custom text example")),
                        ("branding", tr("ChromIQ branding")),
                        ("notes", tr("Notes box")), ("image", tr("Imported image"))):
             self.clip_content_mode.addItem(lbl, k)
         self.clip_content_mode.currentIndexChanged.connect(self._on_clip_content_changed)
-        self.clip_side = NoScrollComboBox(self)
+        self.clip_side = ElidingComboBox(self)
         self.clip_side.addItem(tr("Left"), "left")
         self.clip_side.addItem(tr("Right"), "right")
         self.clip_side.currentIndexChanged.connect(self._update_clip_margin_conflict)
@@ -1463,7 +1509,7 @@ class LayoutOptionsPanel(QWidget):
         # Flip the clip content 180° from its per-side default reading direction
         # (a right-side clip is auto-turned upside-down to read from the far side
         # of the sheet; this lets the user turn any clip the other way). (Knut)
-        self.clip_flip_180 = QCheckBox(tr("Flip 180°"), self)
+        self.clip_flip_180 = WrappingCheckBox(tr("Flip 180°"), self)
         self.clip_flip_180.toggled.connect(self._emit)
         from PyQt6.QtWidgets import QPlainTextEdit
         # Multi-line so a record like the "Example custom table" template (many
@@ -1479,7 +1525,7 @@ class LayoutOptionsPanel(QWidget):
         self.clip_text.textChanged.connect(self._emit)
         self.clip_insert_btn = self._make_insert_button(self.clip_text,
                                                         multiline=True)
-        self.clip_text_font = NoScrollComboBox(self)
+        self.clip_text_font = ElidingComboBox(self)
         self._populate_font_combo(self.clip_text_font)
         self.clip_text_font.currentIndexChanged.connect(self._emit)
         # Manual text size for the clip strip (auto = fit to the strip width);
@@ -1584,7 +1630,13 @@ class LayoutOptionsPanel(QWidget):
         _cf = QHBoxLayout(_clip_font_w)
         _cf.setContentsMargins(0, 0, 0, 0); _cf.setSpacing(8)
         _cf.addWidget(self.clip_text_font, 1)
-        _cf.addWidget(QLabel(tr("Size (pt):"), self))
+        # A LABEL THAT CAN WRAP CAN ALSO SHRINK — same reason as `add_row`.
+        # Unwrapped, "Tamanho (pt):" is a 90 px floor in the middle of the
+        # widest row of the widest group in Portuguese. It only ever takes a
+        # second line if the row is genuinely too narrow for one.
+        _cf_size_lbl = QLabel(tr("Size (pt):"), self)
+        _cf_size_lbl.setWordWrap(True)
+        _cf.addWidget(_cf_size_lbl)
         _cf.addWidget(self.clip_text_size)
         add_row(ccg, 3, tr("Font:"), _clip_font_w,
                 tip=TooltipButton(
@@ -1690,7 +1742,7 @@ class LayoutOptionsPanel(QWidget):
             cg = QGroupBox(tr("Printer calibration"), self)
             cgg = QGridLayout(cg)
             cgg.addWidget(QLabel(tr("Mode:"), self), 0, 0)
-            self.cal_mode = NoScrollComboBox(self)
+            self.cal_mode = ElidingComboBox(self)
             for k, lbl in (("off", tr("None")),
                            ("apply", tr("Apply & embed (-K)")),
                            ("embed", tr("Embed only (-I)"))):
@@ -2066,6 +2118,71 @@ class LayoutOptionsPanel(QWidget):
         else:
             self._update_clip_visibility()
             self._emit()
+
+    # ------------------------------------------------------------------
+    # Spin-box widths
+    # ------------------------------------------------------------------
+    def showEvent(self, event) -> None:      # noqa: N802 (Qt override)
+        super().showEvent(event)
+        if not self._spin_widths_fitted:
+            self._spin_widths_fitted = True
+            self._fit_spin_widths()
+
+    def _fit_spin_widths(self) -> None:
+        """Size each millimetre box to the widest string IT can actually show.
+
+        The chrome — up/down buttons, frame, text padding — is ASKED OF THE
+        STYLE rather than guessed, and it can only be asked once the widget has
+        been polished: before that the per-widget stylesheet has not been
+        applied and the same query answers 20 px instead of 55. (Same trap as
+        the QSS-padding note in `ui/styles.py`: QSS geometry lands after the
+        hint is taken.) A hard-coded 34 shipped in its place, 21 px short, and
+        an 84 px floor beside it hid the error — until that floor became the
+        thing that made three boxes in a row 367 px wide in Norwegian and
+        pushed the panel into horizontal scrolling.
+        """
+        from PyQt6.QtWidgets import (QAbstractSpinBox, QStyle,
+                                     QStyleOptionSpinBox)
+
+        def _need(sb):
+            """Width the box must have to show its longest string, or None."""
+            fm = sb.fontMetrics()
+            longest = sb.prefix() + sb.textFromValue(sb.maximum()) + sb.suffix()
+            widest = max(fm.horizontalAdvance(longest),
+                         fm.horizontalAdvance(sb.specialValueText() or ""))
+            opt = QStyleOptionSpinBox()
+            sb.initStyleOption(opt)
+            field = sb.style().subControlRect(
+                QStyle.ComplexControl.CC_SpinBox, opt,
+                QStyle.SubControl.SC_SpinBoxEditField, sb).width()
+            chrome = max(0, sb.width() - field)
+            if chrome <= 0:
+                return None
+            return widest + chrome + 4   # 4 px so the caret is not on the frame
+
+        for sb in self._fitted_spins:
+            need = _need(sb)
+            if need is None:
+                continue
+            sb.setMinimumWidth(need)
+            sb.setMaximumWidth(need + 8)
+
+        # AND EVERY OTHER BOX THAT WOULD CLIP ITS OWN SPECIAL VALUE. The two
+        # helpers above are not the only places a spin box is built here, and
+        # the others carry hard 84/96 px widths measured against the English
+        # word "auto" — Portuguese writes "automático" and the panel showed
+        # "mático" in "Largura mínima da amostra" (on screen, 2026-08-27). This
+        # pass only ever WIDENS: a box that already fits, or that was
+        # deliberately made wide (the dpi and seed boxes), is left alone.
+        for sb in self.findChildren(QAbstractSpinBox):
+            if sb in self._fitted_spins:
+                continue
+            need = _need(sb)
+            if need is None or sb.maximumWidth() >= need:
+                continue
+            sb.setMaximumWidth(need)
+            if sb.minimumWidth() < need:
+                sb.setMinimumWidth(need)
 
     def set_threshold_lookup(self, fn) -> None:
         """Wire a callable ``fn(instrument, paper_code) -> {L,R,T,B}|None`` that

@@ -23,7 +23,7 @@ from PyQt6.QtWidgets import (
 
 from core.i18n import tr
 from ui.tooltip_button import TooltipButton
-from ui.widgets import NoScrollDoubleSpinBox
+from ui.widgets import NoScrollDoubleSpinBox, WrappingCheckBox
 from workflow.margin_inspector import MarginReport, Violation
 
 # Frame, text margin, the up/down buttons and the theme's padding around a spin
@@ -181,15 +181,20 @@ class MarginInspectorPanel(QGroupBox):
         bottom.setContentsMargins(0, 0, 0, 0)
         bottom.setHorizontalSpacing(8)
         bottom.setVerticalSpacing(2)
-        self._guide_check = QCheckBox(
+        # WRAPPING BOXES. These three sit in a column of a panel whose width is
+        # set by the tab, and a QCheckBox neither wraps nor elides — it clips.
+        # In German the first of them wanted 482 px in the 437 it gets and lost
+        # "(gepunktete Linien)" off the end (scripts/i18n_onscreen_audit.py,
+        # 2026-08-27, once that audit was repaired to report anything at all).
+        self._guide_check = WrappingCheckBox(
             tr("Show instrument-margin guide lines on preview (dotted lines)"), self)
         self._guide_check.toggled.connect(self.guides_toggled.emit)
         bottom.addWidget(self._guide_check, 0, 0)
-        self._measured_check = QCheckBox(
+        self._measured_check = WrappingCheckBox(
             tr("Show margin guide lines on preview (long dotted lines)"), self)
         self._measured_check.toggled.connect(self.measured_guides_toggled.emit)
         bottom.addWidget(self._measured_check, 1, 0)
-        self._coord_check = QCheckBox(
+        self._coord_check = WrappingCheckBox(
             tr("Show measurement coordinates on pointer"), self)
         self._coord_check.toggled.connect(self.coords_toggled.emit)
         bottom.addWidget(self._coord_check, 2, 0)
