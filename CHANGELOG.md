@@ -1,5 +1,49 @@
 # Changelog
 
+## v4.1.3-beta.21
+
+Every language got read end to end, and the panel that had been quietly cut off
+in nine of them now fits.
+
+### Fixed
+
+- **The Create Chart ▸ Manual panel was cut off on the right in nine of the
+  thirteen languages.** Controls ran under the scrollbar, the ⓘ buttons down the
+  right edge were sliced in half, and the panel could be swiped sideways. The
+  worst was the row of preset buttons — in German, "Auf Vorgabe zurücksetzen /
+  Vorgabe aktualisieren / Vorgaben bearbeiten" needed 60 px more than the panel
+  has, Swedish 155 px more. Those buttons now wrap onto a second line instead of
+  pushing everything sideways, so all three labels are readable in full.
+  English is unchanged.
+- **Several controls were sized against the English word they show.** The
+  patch-size boxes reserved room for "auto" and cut German's "automatisch" to
+  "natisch"; the "Stamp settings used on the chart" tick box lost its last
+  letters behind its ⓘ; three tick boxes in the margin panel and a Portuguese
+  label ("mático") were clipped the same way. Each now measures the word it
+  actually shows.
+- **The Measure tab scrolled sideways in Spanish, Portuguese and French** — a
+  dropdown pinned to an English width.
+
+### Changed
+
+- **All thirteen languages were swept for consistency, one at a time.** The
+  same control was often named several different ways in one language — and
+  sometimes the second name already meant something else. Italian used one word
+  for both *chart* and *paper*, so the scanner help said "clean the glass and
+  the paper" when it meant the chart. Polish used its word for *tab* to mean
+  *chart*, colliding with itself in a single sentence. Portuguese used one word
+  for *gamut*, *gamma* and *range*. Russian, Norwegian and Chinese each had
+  five names for one thing. Around 2,900 entries were corrected in total.
+- **French now addresses you informally**, matching German, Dutch, Italian,
+  Spanish and the others — it had been split down the middle, saying "vous" in
+  a help text and "tu" in the tooltip beside it.
+- **Portuguese is consistently European Portuguese**, including the update
+  notice everybody sees.
+- **Help text no longer names buttons that do not exist.** Twenty English
+  strings pointed at controls that had been renamed or removed — one described
+  a tick box deleted in 2025, and another gave advice the app itself warns
+  against. All corrected, in every language.
+
 ## v4.1.3-beta.20
 
 Changing tab, picking a run or loading a preset re-drew your chart and wrote it
