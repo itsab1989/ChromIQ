@@ -56,6 +56,22 @@ class FakeSettings:
     def remove(self, key):
         self._store.pop(key, None)
 
+    # WHAT THE REAL SETTINGS OBJECT CAN DO, THIS ONE MUST DO TOO.
+    # `TabChart._current_layout_recipe` calls `apply_indicator_style`, and
+    # without it `_collect_manual` raised — so the refresh that SHOWS the
+    # ChromIQ layout panel never finished, the panel stayed hidden, and Qt
+    # charges a hidden widget nothing. This script measured Create Chart ▸
+    # Manual at 402 px against a 540 px viewport and reported it clean, on the
+    # very build whose panel needed 577. Both implementations read nothing but
+    # `self.get`, so the real ones are borrowed rather than copied.
+    def indicator_style(self):
+        from core.settings import AppSettings
+        return AppSettings.indicator_style(self)
+
+    def apply_indicator_style(self, recipe):
+        from core.settings import AppSettings
+        return AppSettings.apply_indicator_style(self, recipe)
+
 
 def audit(root, seen, out):
     for w in root.findChildren((QPushButton, QToolButton, QCheckBox, QRadioButton)):
@@ -78,6 +94,104 @@ def audit(root, seen, out):
         actual = w.width()
         if w.isVisible() and actual > 0 and hint > actual + 1:
             out.append((type(w).__name__, text.replace("\n", "\\n"), hint, actual))
+
+
+def settle(app, rounds: int = 25):
+    """Pump until the layout stops moving.
+
+    Qt propagates an invalidated size hint ONE level of the widget tree per
+    event round, and the Create Chart ▸ Manual sections are six deep inside two
+    collapsible frames. Measured on the build that shipped the fault: the
+    layout panel's own minimum only moved on round 2, the scroll content's on
+    round 5. A single `processEvents()` after opening a section reads the OLD
+    floor and reports a panel that fits when it does not.
+    """
+    for _ in range(rounds):
+        app.processEvents()
+
+
+def open_every_section(root, app):
+    """Expand every collapsible section that is on screen.
+
+    EXPAND, do not "check". `CollapsibleGroupBox` opens via
+    `set_collapsed(False)`; it is not checkable, so `setChecked(True)` is
+    silently ignored — two earlier probes measured the owner's screenshot with
+    the very section he had photographed still folded, and reported it clean.
+    """
+    from ui.widgets import CollapsibleGroupBox
+    for _ in range(4):
+        opened = False
+        for grp in root.findChildren(CollapsibleGroupBox):
+            if grp.isVisible() and grp.is_collapsed():
+                grp.set_collapsed(False)
+                opened = True
+        settle(app)
+        if not opened:
+            break
+
+
+#: The Create Chart states a user actually sits in. The fault the owner
+#: reported four times lives in MANUAL mode with the ChromIQ layout engine on —
+#: a state this script never entered, because it audited whatever mode the tab
+#: happened to open in (Guided) and never opened a section. Both engines are
+#: walked: the engine panel and the printtarg controls are different widgets in
+#: the same pane.
+_CHART_STATES = (("guided", "guided", None),
+                 ("manual+engine", "manual", True),
+                 ("manual+printtarg", "manual", False))
+
+
+def tab_states(tab):
+    """The state names to audit this tab in — one entry, "", for a plain tab."""
+    import ui.tabs.tab_chart as tc
+    return [n for n, _, _ in _CHART_STATES] if isinstance(tab, tc.TabChart) \
+        else [""]
+
+
+def enter_state(tab, state, app):
+    """Put *tab* into one of `tab_states`' states and let the layout settle.
+
+    Applied ONE AT A TIME, immediately before the audit that measures it. An
+    earlier version built the whole list up front with `list(generator)`, which
+    left the tab in the LAST state and then measured that same state three
+    times under three different names.
+    """
+    if not state:
+        open_every_section(tab, app)
+        return
+    for name, mode, engine in _CHART_STATES:
+        if name != state:
+            continue
+        tab._switch_mode(mode)
+        box = getattr(tab, "_manual_engine_check", None)
+        if engine is not None and box is not None:
+            # TOGGLE, don't just set. `setChecked(True)` on a box that is
+            # already checked emits nothing, so `_on_manual_engine_toggled`
+            # never ran and the ChromIQ layout panel stayed HIDDEN — and Qt
+            # charges a hidden widget nothing, so this script measured a
+            # Manual pane with its widest section missing and called it clean
+            # (487 px against a 540 px viewport, on a build where the pane was
+            # really 577).
+            if box.isChecked() != engine:
+                box.setChecked(engine)
+            else:
+                tab._on_manual_engine_toggled(engine)
+        settle(app)
+        open_every_section(tab, app)
+        # PROVE THE STATE, then measure. A missing `apply_indicator_style` on
+        # `FakeSettings` made `_refresh_manual_command_preview` raise before it
+        # could show the engine panel, and this script then measured a Manual
+        # pane with its widest section missing and printed "no clipped buttons
+        # found". Refusing to measure beats measuring the wrong thing.
+        panel = getattr(tab, "_manual_layout_panel", None)
+        if engine is not None and panel is not None \
+                and panel.isVisible() != engine:
+            raise SystemExit(
+                f"AUDIT ABORTED: asked for Manual with the ChromIQ layout "
+                f"engine {'on' if engine else 'off'}, and the engine panel is "
+                f"{'not ' if engine else ''}on screen. Everything measured "
+                f"from here would describe a pane this app never shows.")
+        return
 
 
 def audit_hscroll(root, out):
@@ -114,6 +228,14 @@ def audit_hscroll(root, out):
         floor = content.minimumSizeHint().width()
         bar = sa.horizontalScrollBar()
         scrolled = bar.maximum() if bar else 0
+        # ALWAYS-ON EVIDENCE, not evidence only when something is wrong. This
+        # check has twice reported "clean" while the app was visibly cut off,
+        # and both times there was no way to tell a pane that fitted from a
+        # pane that was never measured. AUDIT_VERBOSE=1 prints every pane it
+        # looked at, so a missing pane shows up as missing.
+        if os.environ.get("AUDIT_VERBOSE"):
+            print(f"    seen {type(content).__name__:<24} "
+                  f"floor={floor:4d} viewport={vw:4d} scrolled={scrolled}")
         if floor <= vw and scrolled <= 0:
             continue
         out.append((sa.objectName() or type(content).__name__, floor, vw))
@@ -152,12 +274,25 @@ def main():
     print(f"tabs: {n}")
     for i in range(n):
         tabwidget.setCurrentIndex(i)
-        app.processEvents()
-        audit(win, seen, clipped)
-        before = len(hscroll)
-        audit_hscroll(win, hscroll)
-        for name, cw, vw in hscroll[before:]:
-            print(f"  tab {i}: HSCROLL {name} content={cw} viewport={vw}")
+        settle(app)
+        page = tabwidget.widget(i)
+        # Every state of this tab, not just the one it happens to open in.
+        for state in tab_states(page):
+            enter_state(page, state, app)
+            if os.environ.get("AUDIT_VERBOSE"):
+                pnl = getattr(page, "_manual_layout_panel", None)
+                extra = ""
+                if pnl is not None:
+                    extra = (f" engine-panel on-screen={pnl.isVisible()} "
+                             f"floor={pnl.minimumSizeHint().width()}")
+                print(f"  tab {i} {type(page).__name__}"
+                      + (f" [{state}]" if state else "") + extra)
+            audit(win, seen, clipped)
+            before = len(hscroll)
+            audit_hscroll(win, hscroll)
+            label = f"tab {i}" + (f" [{state}]" if state else "")
+            for name, cw, vw in hscroll[before:]:
+                print(f"  {label}: HSCROLL {name} content={cw} viewport={vw}")
 
     # Settings dialog too
     from ui.dialogs.settings_dialog import SettingsDialog
