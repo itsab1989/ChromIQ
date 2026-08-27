@@ -317,7 +317,15 @@ def case(**kw):
              "own empty state — “This run needs a finished profile first”, "
              "with the numbered steps to get one. This module asks the "
              "profile which colours it can print, and this run has no "
-             "profile to ask. [[M-GAMUT-NO-PROFILE]]"])
+             "profile to ask. [[M-GAMUT-NO-PROFILE]]",
+             "Set Run type back to **Profiling** and go to the Measure tab. "
+             "Ask for the **measured-colour overlay** on the chart preview "
+             "(the tick box under the preview). *Expected:* “This chart has "
+             "not been measured yet” — there is no measurement file beside "
+             "this chart, so there is nothing to draw on the patches. This "
+             "window exists because the app used to claim the measurement "
+             "*“was made for a different chart”*, which was a statement about "
+             "a file that does not exist (#155). [[M-OVERLAY-NO-MEASUREMENT]]"])
 def build_chart_only(root: Path) -> None:
     name = "Demo-01-Chart-Only"
     p = root / name
@@ -1376,6 +1384,37 @@ NEEDS_HARDWARE = {
     # either without also breaking every other step.
     "M-CM-NO-CCTIFF",
     "M-CM-CONVERT-FAILED",
+    # The fast-timeout twin of M-NO-INSTRUMENT — same window, same words, same
+    # trigger, reached sooner. If the slow one needs an instrument that does not
+    # answer, so does this one.
+    "M-NO-INSTRUMENT-FAST",
+    # "Every strip has been read, but N patches still have no reading." Only a
+    # LIVE read can leave that state: it is the difference between what the
+    # instrument returned and what the chart asked for, mid-session. A staged
+    # .ti3 either has the patches or does not — it cannot be half-way through.
+    "M-ALL-STRIPS-PATCHES-LEFT",
+    # "ChromIQ's own measuring engine could not use your instrument this time,
+    # so the measurement has been started again using chartread." Reaching it
+    # needs an instrument the engine cannot drive but ArgyllCMS can — hardware,
+    # and unhelpful hardware at that.
+    "M-ENGINE-FELL-BACK",
+}
+
+#: NOT hardware — states this package structurally cannot ship, with the reason.
+#:
+#: Kept apart from NEEDS_HARDWARE deliberately. "Needs an instrument" and "lives
+#: somewhere a project folder cannot reach" are different excuses, and lumping
+#: them together turns the second into a lie about the first. Anything added
+#: here must say WHY, in a sentence a reader can check.
+CANNOT_BE_STAGED = {
+    # Raised when a USER PRESET carries an attached .ti1 and that file has since
+    # been moved or deleted (`tab_chart.py::_patchset_missing_message`, reached
+    # from the preset-apply path). Presets live in the user's own preferences
+    # folder — `~/Library/Preferences/ChromIQ/presets` on macOS — not inside a
+    # project, so a package of PROJECTS has nowhere to put one. Staging it would
+    # mean writing into the tester's preferences, which a data package must not
+    # do.
+    "M-PATCHSET-MISSING",
 }
 
 
@@ -1637,7 +1676,7 @@ def verify(dest: Path) -> "list[str]":
         for step in c["steps"]:
             used |= set(re.findall(r"\[\[(M-[A-Z0-9-]+)\]\]", step))
     for mid in _catalogue():
-        if mid not in used and mid not in NEEDS_HARDWARE:
+        if mid not in used and mid not in NEEDS_HARDWARE and mid not in CANNOT_BE_STAGED:
             problems.append(
                 f"{mid} is in the model but no step in the package raises it")
     # …and every sequence the model defines is either driven or excused.
