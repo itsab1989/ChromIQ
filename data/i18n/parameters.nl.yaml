@@ -655,7 +655,7 @@ parameters:
         verwacht.  Voor gewone RGB- of CMYK-profilering heb je deze optie
         niet nodig.
     "-K":
-      name: "Kalibratie toepassen"
+      name: ".cal-bestand toepassen"
       tooltip_title: "Kalibratie op meetvelden toepassen (-K)"
       tooltip_body: |-
         Gebruik dit wanneer je printer geen ingebouwd kalibratiesysteem
@@ -694,7 +694,7 @@ parameters:
         Wasatch, ColorBurst) of printers met ingebouwde linearisatie die
         tijdens de profileer-afdrukrun actief is.
 
-        Sluit elkaar uit met "Kalibratie toepassen" (-K) — er kan maar één
+        Sluit elkaar uit met ".cal-bestand toepassen" (-K) — er kan maar één
         kalibratie-optie tegelijk actief zijn.
     "-C":
       name: "TIFF-compressie uitschakelen"

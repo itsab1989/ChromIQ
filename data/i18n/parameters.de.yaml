@@ -685,7 +685,7 @@ parameters:
         brauchst du diese Option nicht.
 
     "-K":
-      name: "Kalibrierung anwenden"
+      name: ".cal-Datei anwenden"
       tooltip_title: "Kalibrierung auf Messfelder anwenden (-K)"
       tooltip_body: |
         Verwende dies, wenn dein Drucker kein eingebautes
@@ -724,7 +724,7 @@ parameters:
         Wasatch, ColorBurst) oder Drucker mit eingebauter Linearisierung,
         die während des Profilierungs-Drucks aktiv ist.
 
-        Schließt sich mit „Kalibrierung anwenden“ (-K) gegenseitig aus —
+        Schließt sich mit „.cal-Datei anwenden“ (-K) gegenseitig aus —
         nur eine Kalibrierungsoption kann gleichzeitig aktiv sein.
 
     "-C":
