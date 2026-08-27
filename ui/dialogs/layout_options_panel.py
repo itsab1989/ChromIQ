@@ -370,8 +370,23 @@ class LayoutOptionsPanel(QWidget):
         def small_mm(top: float = 60.0) -> NoScrollDoubleSpinBox:
             sb = NoScrollDoubleSpinBox(self)
             sb.setRange(0, top); sb.setDecimals(1); sb.setSingleStep(0.5)
-            sb.setMinimumWidth(84)            # room for "300,0" / "auto" + buttons
-            sb.setMaximumWidth(96)            # (suffix lives in the row label)
+            # WIDE ENOUGH FOR THE WORD THIS LANGUAGE ACTUALLY SHOWS.
+            #
+            # These were 84/96 px, with a comment reading `room for "300,0" /
+            # "auto" + buttons` — sized against the four-letter ENGLISH word.
+            # German says "automatisch", which needs 72 px in a field that
+            # offers exactly 72, so it fitted by nothing at all offscreen and
+            # was clipped to "natisch" on a real display (Basti, 2026-08-27,
+            # with a screenshot). Spanish and Portuguese sit 7 px behind it.
+            #
+            # A hard-coded width can only ever be right for the language it was
+            # measured in. Ask the font instead, and leave a real margin.
+            _fm = sb.fontMetrics()
+            _widest = max(_fm.horizontalAdvance(tr("auto")),
+                          _fm.horizontalAdvance(f"{top:.1f}".replace(".", ",")))
+            _chrome = 34          # up/down buttons, frame and text padding
+            sb.setMinimumWidth(max(84, _widest + _chrome))
+            sb.setMaximumWidth(max(96, _widest + _chrome + 8))
             sb.valueChanged.connect(self._emit)
             return sb
 
@@ -904,7 +919,8 @@ class LayoutOptionsPanel(QWidget):
         self.clip_width_label = QLabel(tr("Clip border width:"), self)
         self.clip_width_tip = TooltipButton(
             tr("Clip border width"),
-            tr("Width of the blank zone reserved down the clip edge for the "
+            tr("Width of the clip border — the blank band reserved down one edge "
+               "of the page for the "
                "clip that holds the sheet against the scanner bed. Make it wider "
                "if your clip covers more of the page; the patches start just "
                "past it. Only applies to the i1Pro / i1Pro 3 in clip-border "
@@ -923,7 +939,7 @@ class LayoutOptionsPanel(QWidget):
                        "Right, Bottom, Left, in mm. Most printers can't print to "
                        "the very edge, so keep a few mm here; the smallest of the "
                        "four also sets the instrument's leader/clip base.\n\n"
-                       "When a clip border / notes band is on, the margin on the "
+                       "When the clip border is on, the margin on the "
                        "clip edge (Left or Right, set by “Side” under Clip-border "
                        "content) shares that edge with the clip-border width: the "
                        "larger of the two is what's reserved. If the clip-border "
@@ -1480,9 +1496,9 @@ class LayoutOptionsPanel(QWidget):
                     tr("Clip-border content"),
                     tr("Available only when Clip border is turned On (in the "
                        "Layout section above) — with it Off there is no clip "
-                       "strip to fill, so these options do nothing.\n\n"
-                       "Fills the blank strip down the left edge that the scanner "
-                       "clip reserves. Custom text accepts the same "
+                       "border to fill, so these options do nothing.\n\n"
+                       "Fills the blank band down the clip edge of the page that "
+                       "the scanner clip reserves. Custom text accepts the same "
                        "{project}/{date}/… tokens as the sheet text; Notes box "
                        "prints a ready-made record — chart facts filled in "
                        "automatically (patches, instrument, paper, page, profile "
@@ -1508,7 +1524,7 @@ class LayoutOptionsPanel(QWidget):
         add_row(ccg, 1, tr("Side:"), _clip_side_w,
                 tip=TooltipButton(
                     tr("Clip border side"),
-                    tr("Which edge of the page the clip border / notes band sits "
+                    tr("Which edge of the page the clip border sits "
                        "on — Left or Right. Choose whichever matches how you feed "
                        "the chart into your instrument's ruler. The patches fill "
                        "the rest of the page; the patch count is the same either "
@@ -1599,7 +1615,7 @@ class LayoutOptionsPanel(QWidget):
                 ccg, 5, tr("Content fit:"), self._clip_image_xform_w,
                 tip=TooltipButton(
                     tr("Content fit"),
-                    tr("Places whatever the clip band is carrying — an imported "
+                    tr("Places whatever the clip border is carrying — an imported "
                        "image, or the ChromIQ branding with your own lines under "
                        "it.\n\n"
                        "  • Rotate turns an imported image by whole degrees. The "
@@ -1617,13 +1633,15 @@ class LayoutOptionsPanel(QWidget):
                 ccg, 6, tr("Content move:"), self._clip_image_move_w,
                 tip=TooltipButton(
                     tr("Content move"),
-                    tr("Shifts the image or the branding inside the clip band, in "
-                       "millimetres.\n\n"
-                       "  • X moves it ACROSS the band — towards the paper edge, "
-                       "or towards the patches.\n"
-                       "  • Y moves it ALONG the band — up or down the sheet.\n\n"
-                       "Both start at 0, which centres the content in the band. "
-                       "Watch the Preview: what leaves the band is not printed."),
+                    tr("Shifts the image or the branding inside the clip border, "
+                       "in millimetres.\n\n"
+                       "  • X moves it ACROSS the clip border — towards the paper "
+                       "edge, or towards the patches.\n"
+                       "  • Y moves it ALONG the clip border — up or down the "
+                       "sheet.\n\n"
+                       "Both start at 0, which centres the content in the clip "
+                       "border. Watch the Preview: what leaves the clip border is "
+                       "not printed."),
                     self))
         add_row(ccg, 7, tr("Clip area:"), self.clip_dims_label,
                 tip=TooltipButton(

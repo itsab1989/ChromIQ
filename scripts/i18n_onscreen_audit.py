@@ -79,10 +79,27 @@ def audit_hscroll(root, out):
         content = sa.widget()
         if content is None:
             continue
-        cw = content.sizeHint().width()
+        # ASK THE SCROLLBAR, NOT THE SIZE HINT.
+        #
+        # This used to compare `content.sizeHint().width()` against the
+        # viewport. `sizeHint` is what a widget would LIKE; `minimumSizeHint`
+        # is what it cannot go below, and a layout that can compress simply
+        # does. So the check reported a horizontal scrollbar on the English
+        # Create Chart panel — 669 px of "preferred" into a 572 px viewport —
+        # where the real app has none, as the owner confirmed by looking
+        # (2026-08-27). A checker that cries wolf on the shipping language is
+        # worse than no checker.
+        #
+        # The bar itself is the ground truth. `minimumSizeHint` is reported
+        # beside it so a real overflow says how much it is short by.
         vw = sa.viewport().width()
-        if vw > 0 and cw > vw + 2:
-            out.append((sa.objectName() or type(content).__name__, cw, vw))
+        if vw <= 0:
+            continue
+        bar = sa.horizontalScrollBar()
+        if not (bar and bar.isVisible() and bar.maximum() > 0):
+            continue
+        out.append((sa.objectName() or type(content).__name__,
+                    content.minimumSizeHint().width(), vw))
 
 
 def main():
