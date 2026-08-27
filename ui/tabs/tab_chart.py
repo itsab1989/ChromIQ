@@ -3631,6 +3631,16 @@ class TabChart(QWidget):
         self._patch_count_lbl = QLabel("—", inner)
         self._patch_count_lbl.setObjectName("patch_count")
         self._patch_count_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # THE BIG NUMBER ENDS IN A MARK, LIKE EVERY OTHER TAB'S HEADLINE.
+        # Print says "Feed the beast!" in amber, Measure "Keep calm!" in green,
+        # Build Profile "Ready to build?" in cyan, Check & Refine "Are you
+        # nervous?" in violet — each tab's own spectrum colour, italic, on the
+        # punctuation alone. Create Chart is the first tab and its colour is
+        # magenta, and it was the only one whose headline just stopped (Basti,
+        # 2026-08-27). RichText is set explicitly rather than left to Qt's
+        # auto-detection, because the plain "—" placeholder carries no markup
+        # and would otherwise flip the label back to plain text.
+        self._patch_count_lbl.setTextFormat(Qt.TextFormat.RichText)
         self._patch_count_lbl.setStyleSheet(
             "background: transparent;"
             " font-family: Georgia; font-size: 56px;"
@@ -10165,14 +10175,14 @@ class TabChart(QWidget):
         if per_sheet is not None:
             total = per_sheet * pages
             self._predicted_patch_count = total   # for the Suggest-name button (#62)
-            self._patch_count_lbl.setText(str(total))
+            self._patch_count_lbl.setText(self._count_with_accent(str(total)))
             self._patch_detail_lbl.setText(
                 tr("PATCHES · {pages} PAGES · {paper}").format(
                     pages=pages, paper=paper.upper())
             )
         else:
             self._predicted_patch_count = None
-            self._patch_count_lbl.setText("?")
+            self._patch_count_lbl.setText(self._count_with_accent("", mark="?"))
             self._patch_detail_lbl.setText(tr("CUSTOM LAYOUT"))
 
         # Live layout-info estimate (Guided + engine). Runs even with a chart on
@@ -13849,6 +13859,26 @@ class TabChart(QWidget):
             # re-reads everything from the run.
             self._adopt_new_run_settings(new_run)
             ctl.set_profile_run(new_run.id)
+
+    @staticmethod
+    def _count_with_accent(number: str, mark: str = "!") -> str:
+        """The patch count with its closing mark in the tab's accent colour.
+
+        Not a translated string: the whole thing is a numeral and one piece of
+        punctuation, so there is nothing to translate and no twelve-catalogue
+        migration to pay for. The sibling headlines are `tr()`ed because they
+        contain WORDS — "Feed the beast!", "Keep calm!" — and each language
+        needs its own sentence around the mark.
+
+        `number` is escaped even though it is built from `int` today, because a
+        label that renders markup must never be handed unescaped text: the day
+        someone puts a user-supplied string in here, "<b>" would become bold
+        rather than visible.
+        """
+        import html as _html
+
+        return (f'{_html.escape(number)}<span style="color: {SPEC_MAGENTA}; '
+                f'font-style: italic;">{mark}</span>')
 
     def _no_chart_guidance(self) -> str:
         """Friendly text for the empty preview when the selected Profile-run /

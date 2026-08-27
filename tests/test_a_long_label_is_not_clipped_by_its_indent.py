@@ -66,6 +66,20 @@ def _restore_the_ui_language():
         i18n.set_language(previous)
 
 
+#: EVERY TAB EVER BUILT HERE, HELD FOR THE LIFE OF THE MODULE.
+#:
+#: `TabChart` owns timers, a QProcess-backed runner and child widgets that
+#: outlive a `deleteLater()` by one event-loop turn. Building eleven of them and
+#: dropping each before the next SEGFAULTED after the ninth — reliably in a full
+#: run, never when a single case ran alone, which is what made it look like
+#: flakiness rather than a leak in the test (2026-08-27).
+#:
+#: Holding a reference costs a few MB for the module's lifetime and removes the
+#: whole class of failure. This is the same lesson as
+#: "a QThread must stay referenced until it has finished".
+_KEEP_ALIVE: list = []
+
+
 def _stamp_check(qapp, lang, tmp_path):
 
     import core.i18n as i18n
@@ -84,6 +98,7 @@ def _stamp_check(qapp, lang, tmp_path):
     tab._switch_mode("manual")
     tab.show()
     qapp.processEvents()
+    _KEEP_ALIVE.append(tab)
     return tab, tab._manual_stamp_cmd_check
 
 
@@ -96,7 +111,7 @@ def test_the_stamp_tick_box_shows_its_whole_label(qapp, lang, tmp_path):
             f"{lang}: the tick box has {cb.width()} px and needs {need} — its "
             f"label is clipped: {cb.text()!r}")
     finally:
-        tab.deleteLater()
+        # Deliberately NOT deleted — see _KEEP_ALIVE.
         qapp.processEvents()
 
 
@@ -119,5 +134,5 @@ def test_this_file_can_see_the_bug_it_guards(qapp, tmp_path):
             "pinning the indent back did NOT clip the German label, so the "
             "assertions above are not measuring the indent")
     finally:
-        tab.deleteLater()
+        # Deliberately NOT deleted — see _KEEP_ALIVE.
         qapp.processEvents()
