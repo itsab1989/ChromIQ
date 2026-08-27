@@ -3816,7 +3816,18 @@ class TabChart(QWidget):
         stamp_row = QHBoxLayout(self._manual_stamp_cmd_row)
         stamp_row.setContentsMargins(0, 0, 0, 0)
         _stamp_lbl_spacer = QLabel("", self._manual_stamp_cmd_row)
-        _stamp_lbl_spacer.setFixedWidth(_OUTPUT_LBL_W)
+        # AN INDENT THAT YIELDS. This spacer exists only to line the tick box up
+        # with the input column above it, and it used to be a FIXED 196 px — so
+        # when the row ran short the tick box was the only thing that could give,
+        # and its label was clipped instead. In German, "Verwendete Einstellungen
+        # aufs Chart drucken" needs 297 px and was handed 294: the last word lost
+        # its ending and ran under the ⓘ (Basti, 2026-08-27, with a screenshot).
+        # Three pixels. A maximum instead of a fixed width keeps the alignment
+        # whenever there is room and surrenders it when there is not, which is
+        # the whole difference between cramped and broken.
+        _stamp_lbl_spacer.setMaximumWidth(_OUTPUT_LBL_W)
+        _stamp_lbl_spacer.setSizePolicy(QSizePolicy.Policy.Preferred,
+                                        QSizePolicy.Policy.Fixed)
         stamp_row.addWidget(_stamp_lbl_spacer)
         self._manual_stamp_cmd_check = QCheckBox(
             tr("Stamp settings used on the chart"), self._manual_stamp_cmd_row
@@ -6861,7 +6872,7 @@ class TabChart(QWidget):
         if checked:
             # QSpinBox shows specialValueText whenever value == minimum.
             # -f's min is 0 (see data/parameters.yaml), so set 0 here.
-            spin.setSpecialValueText("Auto")
+            spin.setSpecialValueText(tr("Auto"))
             spin.setValue(0)
         else:
             spin.setSpecialValueText("")
@@ -6892,7 +6903,7 @@ class TabChart(QWidget):
         if checked:
             # All three params have min 0 (see data/parameters.yaml), so
             # setting value to 0 lets specialValueText display "Auto".
-            spin.setSpecialValueText("Auto")
+            spin.setSpecialValueText(tr("Auto"))
             spin.setValue(0)
         else:
             spin.setSpecialValueText("")

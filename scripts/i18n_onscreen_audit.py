@@ -42,6 +42,19 @@ class FakeSettings:
         for k, v in values.items():
             self.set(f"{prefix}_{k}", v)
 
+    def sync(self):
+        """`MainWindow.closeEvent` calls this. Without it the close raised
+        AttributeError inside a Qt event handler, PyQt turned that into a
+        FATAL abort, and `abort()` kills the process WITHOUT FLUSHING STDOUT —
+        so this script printed its findings and then threw them away. It has
+        been reporting nothing at all, which is why German shipped with a
+        clipped checkbox and a horizontally scrolling section (Basti,
+        2026-08-27). A stub that goes stale against the real settings object is
+        the hazard; anything new `closeEvent` calls belongs here too."""
+
+    def remove(self, key):
+        self._store.pop(key, None)
+
 
 def audit(root, seen, out):
     for w in root.findChildren((QPushButton, QToolButton, QCheckBox, QRadioButton)):
@@ -130,10 +143,14 @@ def main():
     # sample German visibility check
     labels = [w.text() for w in win.findChildren(QLabel) if w.text()][:8]
     print("sample labels:", labels)
+    # FLUSH BEFORE CLOSING ANYTHING. A fatal error inside a Qt close handler
+    # aborts the process, and an aborted process does not flush stdout — the
+    # findings above would be lost exactly when something is wrong.
+    sys.stdout.flush()
     dlg.close()
     win.close()
     app.processEvents()
-    return 0
+    return 1 if clipped else 0
 
 
 if __name__ == "__main__":
