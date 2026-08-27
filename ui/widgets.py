@@ -1024,6 +1024,20 @@ class NoScrollComboBox(QComboBox):
 class ElidingComboBox(NoScrollComboBox):
     """A combo whose MINIMUM width is a few characters, not its longest item.
 
+    THE VISIBLE TRADE IS ACCEPTED — DO NOT "FIX" IT. Basti, 2026-08-27, having
+    been shown exactly what it costs: ONE option in ONE language is trimmed. The
+    Create-layout dropdown's longer Russian option needs 325 px in a 304 px box,
+    so it reads "…затем вписать в стр…". The full string is still in the open
+    dropdown and in the tooltip; only the collapsed box trims. Portuguese sits
+    4 px inside the limit and may trim on some displays — same sentence, same
+    ending. German has 25 px of room and English 113.
+
+    He was offered three ways out — accept it, shorten the two long strings, or
+    give that row the panel's full width the way the text-distance row has — and
+    chose to accept. So a later reader finding a "…" here is looking at a
+    decision, not a defect, and shortening those strings or widening that row
+    would be undoing it.
+
     ``QComboBox`` computes both ``sizeHint()`` **and** ``minimumSizeHint()``
     over every row in its model (``QComboBoxPrivate::recomputeSizeHint``, for
     every size-adjust policy except ``AdjustToMinimumContentsLengthWithIcon``).
