@@ -30,6 +30,7 @@ from PyQt6.QtWidgets import (
     QSpinBox,
     QStyle,
     QStyleOptionFrame,
+    QLayout,
     QToolBar,
     QToolButton,
     QVBoxLayout,
@@ -1355,6 +1356,178 @@ class WrappingCheckBox(QCheckBox):
                                   text_rect.width(), fm.lineSpacing())
             painter.drawControl(QStyle.ControlElement.CE_CheckBoxLabel, line_opt)
             y += fm.lineSpacing()
+
+
+class WrappingButtonRow(QLayout):
+    """A row of buttons that becomes two (or three) rows when the labels are
+    too long for the width it has been given.
+
+    WHY THIS EXISTS
+    ---------------
+    Create Chart ▸ Manual is inside a pane pinned at 580 px, and its layout-
+    engine preset bar holds three buttons whose labels are full sentences in
+    most languages ("Auf Vorgabe zurücksetzen", "Återställ till
+    förinställning"). A plain ``QHBoxLayout`` answers "I need the sum of them",
+    which for German is 592 px against a 540 px viewport and for Swedish 687 —
+    so the pane was clipped on the right, with the horizontal scroll bar pinned
+    off so nothing showed that it had happened. The owner reported it five
+    times.
+
+    Shortening the labels was the obvious treatment and it is not a fix: it
+    puts a character budget on every translator, for every language now and
+    every language later, and the budget is about 56 characters across the
+    three labels. Eliding them is worse — the button then reads "AUF VORGABE
+    ZURÜCK…", which is the very complaint. Wrapping is the only arrangement
+    that is correct by construction: **the widest SINGLE button is the floor,
+    not the sum**, and no button ever paints text it does not have room for.
+
+    HOW IT PACKS
+    ------------
+    Greedy, in order, by each item's *minimum* width — which for a button in
+    this app is the per-label ``min-width`` rule :func:`fit_button_width`
+    writes, i.e. exactly the width its text needs in Menlo capitals. A line
+    takes another button while the line still fits; otherwise it starts a new
+    one. Each finished line is then **justified**: the space left over is
+    shared out equally among that line's buttons, so a row that does fit on one
+    line looks precisely as it did before — three equal buttons filling the
+    panel — and a row that does not looks like the same block, wrapped.
+
+    The packing is done from actual widths and not from a uniform column, on
+    purpose: Italian needs 157 + 141 + 188 = 498 px and fits on one line, while
+    three columns of its widest button would need 576 and would have wrapped it
+    for no reason.
+    """
+
+    def __init__(self, parent=None, spacing: int = 6) -> None:
+        super().__init__(parent)
+        self._items: list = []
+        self.setSpacing(spacing)
+
+    # ---- QLayout plumbing -------------------------------------------------
+    def addItem(self, item) -> None:        # noqa: N802 (Qt override)
+        self._items.append(item)
+
+    def count(self) -> int:
+        return len(self._items)
+
+    def itemAt(self, index: int):           # noqa: N802 (Qt override)
+        if 0 <= index < len(self._items):
+            return self._items[index]
+        return None
+
+    def takeAt(self, index: int):           # noqa: N802 (Qt override)
+        if 0 <= index < len(self._items):
+            return self._items.pop(index)
+        return None
+
+    # ---- geometry ---------------------------------------------------------
+    def _visible(self) -> list:
+        out = []
+        for it in self._items:
+            w = it.widget()
+            if w is not None and w.isHidden():
+                continue
+            out.append(it)
+        return out
+
+    def _pack(self, width: int) -> list[list]:
+        """Greedy line breaking at *width* (the layout's own outer width)."""
+        m = self.contentsMargins()
+        avail = max(1, width - m.left() - m.right())
+        sp = self.spacing()
+        lines: list[list] = []
+        cur: list = []
+        cur_w = 0
+        for it in self._visible():
+            need = it.minimumSize().width()
+            grown = need if not cur else cur_w + sp + need
+            if cur and grown > avail:
+                lines.append(cur)
+                cur, cur_w = [it], need
+            else:
+                cur, cur_w = cur + [it], grown
+        if cur:
+            lines.append(cur)
+        return lines
+
+    def _line_height(self, line: list) -> int:
+        return max((it.sizeHint().height() for it in line), default=0)
+
+    def hasHeightForWidth(self) -> bool:    # noqa: N802 (Qt override)
+        return True
+
+    def heightForWidth(self, width: int) -> int:   # noqa: N802 (Qt override)
+        lines = self._pack(width)
+        if not lines:
+            return 0
+        m = self.contentsMargins()
+        sp = self.spacing()
+        return (m.top() + m.bottom()
+                + sum(self._line_height(ln) for ln in lines)
+                + sp * (len(lines) - 1))
+
+    def setGeometry(self, rect) -> None:    # noqa: N802 (Qt override)
+        super().setGeometry(rect)
+        lines = self._pack(rect.width())
+        if not lines:
+            return
+        m = self.contentsMargins()
+        sp = self.spacing()
+        avail = max(1, rect.width() - m.left() - m.right())
+        y = rect.y() + m.top()
+        for line in lines:
+            widths = [it.minimumSize().width() for it in line]
+            spare = avail - sum(widths) - sp * (len(line) - 1)
+            if spare > 0:
+                # Justify: share the slack out equally, remainder to the last
+                # button, so the line always ends flush with the panel edge.
+                share = spare // len(line)
+                widths = [w + share for w in widths]
+                widths[-1] += spare - share * len(line)
+            h = self._line_height(line)
+            x = rect.x() + m.left()
+            for it, w in zip(line, widths):
+                it.setGeometry(QRect(x, y, w, h))
+                x += w + sp
+            y += h + sp
+
+    def expandingDirections(self):          # noqa: N802 (Qt override)
+        # NOT the QLayout default (Horizontal | Vertical). The bar sits in a
+        # QVBoxLayout; claiming vertical expansion there would hand it every
+        # spare pixel in the column.
+        #
+        # And do NOT give the host widget a FIXED vertical size policy to the
+        # same end. ``QBoxLayout`` implements height-for-width by overwriting an
+        # item's sizeHint and minimumSize with the computed height — it never
+        # touches its MAXIMUM. Under a Fixed policy that maximum is still the
+        # one-line sizeHint, so a two-line row is clamped back to one line and
+        # the second line is clipped away by the parent. Measured: the bar came
+        # out 38 px tall with its third button sitting at y=37.
+        return Qt.Orientation.Horizontal
+
+    def minimumSize(self) -> QSize:         # noqa: N802 (Qt override)
+        """The widest SINGLE button — this is the whole point of the class.
+
+        Height is one line's worth: the real height comes from
+        :meth:`heightForWidth`, which both ``QBoxLayout`` and ``QScrollArea``
+        ask for, and a multi-line floor here would reserve the space
+        permanently.
+        """
+        m = self.contentsMargins()
+        items = self._visible()
+        w = max((it.minimumSize().width() for it in items), default=0)
+        h = max((it.minimumSize().height() for it in items), default=0)
+        return QSize(w + m.left() + m.right(), h + m.top() + m.bottom())
+
+    def sizeHint(self) -> QSize:            # noqa: N802 (Qt override)
+        m = self.contentsMargins()
+        items = self._visible()
+        if not items:
+            return QSize(m.left() + m.right(), m.top() + m.bottom())
+        w = (sum(it.sizeHint().width() for it in items)
+             + self.spacing() * (len(items) - 1))
+        h = max(it.sizeHint().height() for it in items)
+        return QSize(w + m.left() + m.right(), h + m.top() + m.bottom())
 
 
 class SuffixLockedLineEdit(QLineEdit):

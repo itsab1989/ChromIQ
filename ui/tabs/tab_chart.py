@@ -4484,7 +4484,14 @@ class TabChart(QWidget):
         # paper × mode), flags when the current settings differ from it, and
         # lets the user reset to / update that preset, or edit the defaults.
         self._manual_preset_bar = QWidget(inner)
-        _pbar = QHBoxLayout(self._manual_preset_bar)
+        # A WRAPPING row, not a QHBoxLayout. Three sentence-long labels do not
+        # fit 525 px in 7 of the 13 languages — German asked for 592 px and
+        # Swedish 687 — and a QHBoxLayout answers "I need the sum", which made
+        # the whole 580 px pane wider than its viewport and clipped its right
+        # edge with the horizontal bar pinned off. See WrappingButtonRow for
+        # why shortening or eliding the labels is not the fix.
+        from ui.widgets import WrappingButtonRow
+        _pbar = WrappingButtonRow(self._manual_preset_bar)
         # 7 px on top of inner_layout's own 4 px spacing = the 11 px used
         # everywhere else a button row meets its neighbours. The bar is the only
         # unframed row in this column, so it gets the raw spacing with no group
@@ -4501,14 +4508,20 @@ class TabChart(QWidget):
         self._manual_preset_edit_btn = QPushButton(
             tr("Edit defaults…"), self._manual_preset_bar)
         self._manual_preset_edit_btn.clicked.connect(self._edit_layout_defaults)
-        # Buttons fill the panel width equally (full labels fit) with reduced
-        # height. A stylesheet sets the height because a global QSS min-height
-        # overrides setFixedHeight/setMinimumHeight (see Qt-button-sizing note).
+        # Buttons fill the width of the line they land on, with reduced height.
+        # A stylesheet sets the height because a global QSS min-height overrides
+        # setFixedHeight/setMinimumHeight (see Qt-button-sizing note).
+        #
+        # NOTE the styleSheet is set here and `fit_button_width` APPENDS its
+        # per-label `min-width` rule to it — that rule is what WrappingButtonRow
+        # packs against, and it only exists once ButtonFontFilter has polished
+        # the button. Any measurement taken without that filter installed sees a
+        # flat 72 px minimum and reports a row that fits when it does not.
         for _b in (self._manual_preset_reset_btn, self._manual_preset_update_btn,
                    self._manual_preset_edit_btn):
             _b.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             _b.setStyleSheet("QPushButton { min-height: 16px; padding: 3px 10px; }")
-            _pbar.addWidget(_b, 1)
+            _pbar.addWidget(_b)
         inner_layout.addWidget(self._manual_preset_bar)
         self._manual_preset_bar.setVisible(False)
 
