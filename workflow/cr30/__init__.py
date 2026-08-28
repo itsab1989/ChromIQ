@@ -12,6 +12,15 @@ Import layering, which the tests enforce:
 `import cr30` never imports pyserial: `SerialTransport` and `discovery` import
 it lazily, so the whole decoder and every replay test run on a machine that has
 never seen a CR30.
+
+    measure_bridge           -- the ONE exception, and deliberately so.
+
+`measure_bridge` is the ChromIQ-side adapter that answers `chromiq-chartread`'s
+`-xx` spot prompts (#159). It needs Qt, which nothing else here does, so it is
+never imported from this file — importing `workflow.cr30` still pulls in no Qt
+and no pyserial, and the layering guarantee above is unchanged. It knows nothing
+about the device either: obtaining a reading is injected, which is what lets its
+whole protocol discipline be proved with no CR30 attached.
 """
 from .frame import (CHECKSUM, FRAME_SIZE, MARKER, ChecksumError, Frame, FrameError,
                     ShortFrameError, START_COMMAND, START_IDENTITY, checksum)

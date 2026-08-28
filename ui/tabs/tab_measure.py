@@ -5658,9 +5658,11 @@ class TabMeasure(QWidget):
             on_finish=self._on_measure_done,
         )
         if params.external_values:
-            # ChromIQ supplies the readings, so no instrument is opened and
-            # `calibration_done` — the only route to the "how to measure"
-            # window — can never arrive. Say it here instead (F9).
+            # ChromIQ supplies the readings itself: stand up the bridge that
+            # answers the helper's spot prompts (#159 B.3-B.7), then say how to
+            # measure — no instrument is opened, so `calibration_done`, the only
+            # route to that window, can never arrive (F9).
+            self._open_cr30_bridge()
             self._show_cr30_measuring_window()
         # SAY WHEN THE INSTRUMENT IS NOT BEING CALIBRATED.
         #
@@ -6791,6 +6793,93 @@ class TabMeasure(QWidget):
             tr("Your measured strips are safe — continuing on ArgyllCMS "
                "chartread from where you left off."),
             duration_ms=8000)
+
+    def _open_cr30_bridge(self) -> None:
+        """Stand up the thing that answers the helper's spot prompts (#159).
+
+        `workflow.cr30.measure_bridge` owns every protocol rule; this method
+        only decides *when* it exists. It is deliberately not fatal: if the
+        driver dependencies are missing the run still starts and the user is
+        told, rather than Start doing nothing.
+        """
+        self._close_cr30_bridge()
+        try:
+            from workflow.cr30.measure_bridge import (Cr30MeasureBridge,
+                                                      DeviceReader)
+            self._cr30_reader = DeviceReader()
+            self._cr30_bridge = Cr30MeasureBridge(
+                self._manager.send_command, self._cr30_reader, self)
+            self._cr30_bridge.reading_dropped.connect(self._on_cr30_dropped)
+            self._cr30_bridge.read_failed.connect(self._on_cr30_read_failed)
+            self._cr30_bridge.mispaired.connect(self._on_cr30_mispaired)
+        except Exception:      # noqa: BLE001 — say so, do not kill the run
+            log.warning("could not start the CR30 reading bridge", exc_info=True)
+            self._cr30_bridge = self._cr30_reader = None
+            self._log.appendPlainText(tr(
+                "ChromIQ could not start its CR30 reader, so this measurement "
+                "cannot collect readings. Check that the instrument is "
+                "connected and try again."))
+
+    def _close_cr30_bridge(self) -> None:
+        """Let go of the bridge and the instrument when the run ends."""
+        bridge = getattr(self, "_cr30_bridge", None)
+        if bridge is not None:
+            bridge.stop()
+        reader = getattr(self, "_cr30_reader", None)
+        if reader is not None:
+            try:
+                reader.close()
+            except Exception:      # noqa: BLE001 — teardown only
+                log.debug("CR30 reader close failed", exc_info=True)
+        self._cr30_bridge = self._cr30_reader = None
+
+    def _on_cr30_dropped(self, loc: str, why: str) -> None:
+        """A reading was refused rather than sent. Never silently.
+
+        Dropping costs the operator one button press; sending it would put a
+        colour on the wrong patch, which nothing downstream can detect.
+        """
+        from workflow.cr30.measure_bridge import DROPPED_NAVIGATING
+        if why == DROPPED_NAVIGATING:
+            text = tr("That reading arrived while ChromIQ was moving to another "
+                      "patch, so it was not used. Read patch {loc} again."
+                      ).format(loc=loc)
+        else:
+            text = tr("That reading arrived when ChromIQ was not waiting for "
+                      "one, so it was not used. Read the highlighted patch "
+                      "again.")
+        self._log.appendPlainText(text)
+        self._log.ensureCursorVisible()
+        self._flash_status(text, duration_ms=6000)
+
+    def _on_cr30_read_failed(self, loc: str, message: str) -> None:
+        text = tr("The CR30 could not be read for patch {loc}: {message}. "
+                  "Press the button on the instrument again."
+                  ).format(loc=loc, message=message)
+        self._log.appendPlainText(text)
+        self._log.ensureCursorVisible()
+        self._flash_status(text, duration_ms=8000)
+
+    def _on_cr30_mispaired(self, answered: str, reported: str) -> None:
+        """The helper recorded a value against a patch we did not answer.
+
+        This must stop the read, not warn about it: every reading after a
+        mis-pairing is suspect, and a wrong colour in the .ti3 is invisible to
+        everything downstream of it.
+        """
+        text = tr("ChromIQ stopped this measurement: a reading it took for "
+                  "patch {answered} was recorded against patch {reported}. "
+                  "Nothing already saved is affected. Please start the "
+                  "measurement again and report this."
+                  ).format(answered=answered, reported=reported)
+        log.error("CR30 mispairing: answered %s, recorded %s", answered, reported)
+        self._log.appendPlainText(text)
+        self._log.ensureCursorVisible()
+        self._flash_status(text, duration_ms=15000)
+        try:
+            self._on_stop()
+        except Exception:      # noqa: BLE001 — the message is what matters
+            log.debug("could not stop the run after a mispairing", exc_info=True)
 
     def _show_cr30_measuring_window(self) -> None:
         """The "how to measure" window for a reader ChromIQ drives itself (#159).
@@ -8973,6 +9062,7 @@ class TabMeasure(QWidget):
         # beta.139). First, before any of the tidying below, so a window that
         # is still spinning its own event loop cannot answer into a process
         # that has already gone.
+        self._close_cr30_bridge()
         self._close_measurement_windows()
         # #131: leave measurement mode. Any completion sound (played via
         # measure_finished, below) is exempt from the at-rest gate, so it still
@@ -10510,6 +10600,12 @@ class TabMeasure(QWidget):
         chart's patches."""
         loc = str(ev.get("loc", ""))
         self._spot_current_loc = loc
+        # ChromIQ supplies the readings for this chart (#159): the bridge owns
+        # the whole protocol discipline — one value per outstanding prompt,
+        # nothing while a jump is in flight, the read taken off this thread.
+        bridge = getattr(self, "_cr30_bridge", None)
+        if bridge is not None:
+            bridge.on_patch_ready(ev)
         if not self._spot_click_on and any(self._patch_boxes):
             self._spot_click_on = True
             self._preview.set_patch_click_enabled(True, self._patch_boxes)
@@ -10527,6 +10623,12 @@ class TabMeasure(QWidget):
     def _on_patch_measured(self, ev: dict) -> None:
         """Engine spot mode: add this patch's expected/measured split and its
         hover values (mirrors _on_strip_measured for a single patch)."""
+        bridge = getattr(self, "_cr30_bridge", None)
+        if bridge is not None:
+            # Verify the value we answered was recorded against the patch we
+            # answered it FOR. A mis-paired patch is a wrong colour in the .ti3
+            # that nothing downstream can detect (#159 B.6).
+            bridge.on_patch_measured(ev)
         loc = str(ev.get("loc", ""))
         page, box = self._locate_patch(loc)
         if page < 0 or box is None:
@@ -11352,6 +11454,12 @@ class TabMeasure(QWidget):
     def _on_preview_patch_clicked(self, page: int, loc: str) -> None:
         if not self._manager.engine_active or not loc:
             return
+        # BEFORE the command goes out, not after: a reading can arrive between
+        # the two, and while a jump is outstanding it belongs to the patch the
+        # user is leaving (#159 B.4 — measured landing B1's colour in A1).
+        bridge = getattr(self, "_cr30_bridge", None)
+        if bridge is not None:
+            bridge.note_goto(loc)
         self._manager.goto_patch(loc)
         self._log.appendPlainText(
             tr("[Engine] Jumping to patch {loc}…").format(loc=loc))
