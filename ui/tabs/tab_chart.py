@@ -11492,16 +11492,6 @@ class TabChart(QWidget):
         except Exception:
             return None
 
-    # Instruments whose density checkbox actually means "hexagonal patches".
-    #
-    # For the ColorMunki the same checkbox means DENSITY; for these it is the
-    # rectangular/hexagonal switch. Kept as one set because the decision was
-    # spelled out as `instr == "SS"` in four separate places, and when the CR30
-    # gained hexagons (#159) it was added to some of them and not others — so
-    # the patch-count ESTIMATE silently modelled a flat 12x12 patch while the
-    # chart it described was built from 12.02x10.33 hexagons (390 real patches
-    # reported as 315). A new hex-capable instrument now joins here, once.
-    HEX_TOGGLE_INSTRUMENTS = ("SS", "CR30")
 
     def _engine_geom(self, instr: str, paper: str, *, dd: bool, td: bool,
                      eff_lb: bool, nsl: bool, pscale: float, margin: float,
@@ -11549,7 +11539,14 @@ class TabChart(QWidget):
                 # the count used the raw 1.3 → oversized patches → undercount.
                 from workflow.chart_creator import CM_TRIPLE_PRINTTARG_SCALE
                 kw["pscale"] = float(pscale) / CM_TRIPLE_PRINTTARG_SCALE
-        elif instr in self.HEX_TOGGLE_INSTRUMENTS:
+        elif instruments.hex_capable(instr):
+            # For the ColorMunki the same checkbox means DENSITY; for a
+            # hex-capable instrument it is the rectangular/hexagonal switch.
+            # ASKED OF THE GEOMETRY (instruments.hex_capable probes whether the
+            # build branch honours hflag) rather than held in yet another list:
+            # this decision was already spelled out by name in eight places, and
+            # a ninth hard-coded tuple here would have been the tenth thing to
+            # forget when the next hex instrument arrives.
             kw["hflag"] = bool(dd)
         # A GUIDED CR30 is laid out with no spacers at all (Basti's ruling);
         # chart_creator._engine_build_kwargs does exactly this for the build, so
@@ -11595,7 +11592,8 @@ class TabChart(QWidget):
         if instr == "CM":
             bits.append({3: tr("extra-high density"), 2: tr("high density")}.get(
                 3 if td else (2 if dd else 1), tr("hand-held")))
-        if instr in TabChart.HEX_TOGGLE_INSTRUMENTS and dd:
+        from workflow.layout_engine import instruments as _inst
+        if dd and _inst.hex_capable(instr):
             bits.append(tr("hexagonal"))
         if nsl:
             bits.append(tr("no strip-length cap"))
@@ -11869,7 +11867,7 @@ class TabChart(QWidget):
             self._dd_check.setVisible(True)
             self._dd_tooltip.setVisible(True)
             self._dd_check.setText(
-                tr("Hexagon patches (suits the round CR30, about a tenth more per sheet)"))
+                tr("Hexagon patches (suits the round CR30, fits more per sheet)"))
             self._dd_tooltip._title = tr("Hexagon Patches (CR30)")
             self._dd_tooltip._body = tr(
                 "Switches the CR30 chart from rectangular to hexagonal "
