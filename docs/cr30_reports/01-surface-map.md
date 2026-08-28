@@ -23,7 +23,7 @@ FALSE / NOT VERIFIED against the actual source.
 | `chromiq_chartread.c:3628` (the fatal `error()`) | It is at **3630**; the `find_kword` is at 3627 | `native/chartread_helper/chromiq_chartread.c:3626-3633` |
 | `patch_db.py:180` | Correct — `INSTRUMENT_LABELS` at 180 | `data/patch_db.py:180` |
 | `settings_dialog.py:1435` (`_MARGIN_INSTRUMENTS`) | **See §6 below** — verified separately |
-| "Nine touch points, all one-liners bar the geometry block" | **FALSE — undercounts by roughly 3×.** See the table in §12. | this document |
+| "Nine touch points, all one-liners bar the geometry block" | **FALSE — undercounts by roughly 5×** (48 code touch points across 17 files, plus 24 i18n files). See §12. | this document |
 
 ---
 
@@ -504,3 +504,153 @@ Nothing about the CR30 is hardware-verified."*
 | **Spectral data is 380-730 nm / 36 bands** | `ui/ti2_loader.has_spectral_data:287`, `SPECTRAL_BANDS` regex `:27`; `chromiq_chartread.c:372-394` writes `SPECTRAL_BANDS`/`_START_NM`/`_END_NM` from the instrument | a 31-band 400-700 `.ti3` is legal CGATS, but every Tool that assumes a band count is a risk (#159 §10) — **NOT VERIFIED, needs its own sweep** | **unknown** |
 | **`colprof -f` (FWA) needs a non-UV-filtered instrument** | `ui/tabs/tab_check_refine.py:248`, `ui/tabs/tab_profile.py:4095` — gated on `is_colormunki` | a blue-pump white LED does not excite OBAs either; a CR30 must be gated the **same way as a ColorMunki** or FWA is offered when it cannot work | **must be handled** |
 
+
+---
+
+## 12. The verified touch-point count
+
+**48 code touch points across 17 files, plus 24 i18n files.** Only ONE is real
+work; the rest are table rows and branch arms.
+
+| File | Touch points | Lines |
+|---|---|---|
+| `workflow/layout_engine/instruments.py` | 5 | 26, 138, 159, 311, **354-509 (new `_build_base` branch — THE ONLY REAL WORK)** |
+| `workflow/layout_engine/presets.py` | 4 | 24, 167, 397, 496 |
+| `workflow/layout_engine/chart.py` | 1 | 277 |
+| `workflow/layout_engine/papers.py` | 1 (decision) | 19 |
+| `workflow/chart_creator.py` | 3 | 130, 1123-1160, 1786 |
+| `data/patch_db.py` | 4 | 180, 190, 1108, 1133 |
+| `ui/ti2_loader.py` | 6 | 35, new `is_cr30`, 110, 125, 202, 234/252 |
+| `native/chartread_helper/chromiq_chartread.c` | 1 | 3629 |
+| `data/parameters.yaml` | 1 | 623-632 |
+| `ui/dialogs/layout_options_panel.py` | 8 | 76, 81, 93, 128, 1857, 1946, 2289, 2898 |
+| `ui/dialogs/settings_dialog.py` | 3 | 1517, 1700, 3126 |
+| `core/settings.py` | 1 (+1 optional seed) | 668 (511) |
+| `core/measure_pace.py` | 3 | 320, 345, 376 |
+| `ui/tabs/tab_chart.py` | 3 | 1474, 3416, 8543 |
+| `ui/dialogs/ti2_relayout_dialog.py` | 1 | 7726 |
+| `ui/tabs/tab_profile.py` | 1 | 4095 |
+| `ui/tabs/tab_check_refine.py` | 1 | 248 |
+| `ui/tabs/tab_measure.py` | 1 | 4470 |
+| `data/i18n/parameters.*.yaml` | 12 files | one `labels` entry each |
+| `data/i18n/*.json` | 12 files | ~9-15 keys each |
+
+`ui/tabs/tab_chart.py:3406` (the Guided combobox), `workflow/layout_engine/ti2_writer.py:79`
+(the `TARGET_INSTRUMENT` write) and `ui/dialogs/ti2_relayout_dialog.py:5326`
+(relayout filter) are **free** — they derive from the tables above.
+
+---
+
+## 13. What ALREADY EXISTS and must be reused, not reinvented
+
+1. **The whole patch-by-patch (spot) measurement mode.** A user checkbox in
+   Guided and Manual (`tab_measure.py:11157`, `:11175`), stored per target
+   (`measure_settings.py:48`, `:71`), driving `-p` (`measure_manager.py:901`),
+   with `spot_ready`/`patch_read` events, per-patch highlight and page flip
+   (`tab_measure.py:10131`), a specified exit strategy
+   (`measurement_exit_strategy.md:132-140`), and its own completion window.
+2. **Per-patch autosave — VERIFIED, already built.**
+   `chromiq_chartread.c:3098` and `:3120` call `cq_write_ti3_atomic()` with the
+   comment *"autosave per patch"*. #159 §9's P4 asks for this "from day one";
+   it exists.
+3. **The JSON engine protocol** — `chartread_engine.py:70-126`,
+   `measure_manager.py:678-712`. A backend boundary that needs no C.
+4. **chartread's `-x` external-values mode** (`chromiq_chartread.c:2791-2810`,
+   `:3489-3497`, `:4097`) — a hardware-free path through the real reader that
+   still emits `spot_ready`. Not exposed in Python. **The single cheapest live
+   backend.**
+5. **The `--replay` fake instrument** (`c:3320-3333`, `tests/helpers/replay_tools.py`)
+   — hardware-free tests of the real code path.
+6. **`EXTERNAL_INSTRUMENTS`** (`patch_db.py:190`) — the i1iSis precedent for a
+   device Argyll cannot drive.
+7. **`Geom.extra_keywords`** (`instruments.py:73` → `ti2_writer.py:87-88`) — a
+   private `.ti2` keyword for one tuple.
+8. **`_patch_ti2_instrument`** (`chart_creator.py:1442-1462`) — post-hoc
+   `TARGET_INSTRUMENT` rewriting, already shipping for CM triple density.
+9. **The ColorMunki geometry branch** (`instruments.py:394-453`) — no ruler cap,
+   optional clip band, three density levels. The right template, as #159 says.
+10. **The SpectroScan's "no pace" pattern** (`measure_pace.py:330`, `:351`) —
+    the answer to #159 §8b, already written.
+11. **`tests/test_target_instrument_gate.py`** — the constraint is already pinned
+    against the real binaries. Its own docstring says *"When the CR30 … is
+    implemented, the first test here is the one that must change, deliberately."*
+12. **`data/patch_db.instrument_mismatch`** (`:1139-1155`) — the wrong-device
+    warning, needs only two table rows.
+13. **`workflow/margin_inspector`** — degrades safely for an unknown instrument.
+14. **The reverse-engineered driver** in
+    `/Users/Basti/develop/chromiq-cr30-research/src/cr30/device.py`.
+
+---
+
+## 14. The smallest viable beta slice
+
+**Goal: a user can create a CR30 chart in ChromIQ and read it patch by patch.**
+
+### REQUIRED
+| # | Work | Size |
+|---|---|---|
+| B1 | Decide `TARGET_INSTRUMENT` (§3.4). The zero-C-change answer is `"X-Rite ColorMunki"` + `CHROMIQ_INSTRUMENT "CR30"` via `extra_keywords`; the honest answer costs one `strcmp` at `chromiq_chartread.c:3629` **and breaks stock chartread** | a decision |
+| B2 | `instruments.py` CR30 `Geom` — the only real code | ~40 lines, copy of the CM branch |
+| B3 | The 47 remaining table/branch registrations (§12) | mechanical |
+| B4 | Route CR30 away from printtarg (§2 — `ENGINE_INSTRUMENTS` + the `estimate_patches` Manual-engine-off path) | small, but **must not be skipped** |
+| B5 | `is_cr30` + `instrument_family` + the patch-by-patch instruction text | small + §M-PROPOSED |
+| B6 | Bidirectional off (`ti2_loader.py:234-265`) and FWA gated like a ColorMunki (`tab_profile.py:4095`, `tab_check_refine.py:248`) | 4 lines |
+| B7 | 12 overlay labels + 12 catalogue stubs (English placeholders) | mechanical |
+| B8 | Getting the readings in. **Cheapest: `-x` external values.** Next cheapest: a Python backend speaking §4.2's subset | see risks |
+
+### CAN WAIT
+Spectral `.ti3` (31 bands) · BLE transport · CR30 margin-threshold seeds ·
+CR30 built-in chart presets · a CR30 pace/timing model · calibration-run type ·
+verification charts · the Tools sweep for 31-band spectral data · Windows/Linux
+enumeration · aperture-tuned geometry (needs the device on the bench).
+
+### The honest question the slice turns on
+**B8 is not a registration problem, and everything else is.** B1-B7 is one
+day's mechanical work with one 40-line geometry block. B8 is either
+(a) `-x` mode wired up — hours, but XYZ-only, no spectral, and the `.ti3`'s
+`TARGET_INSTRUMENT` behaviour in `-x` is NOT VERIFIED; or
+(b) a real backend process — days; or
+(c) a ColorQC2 CSV import (#159 §5 option C) — needs no device driver at all
+but is a separate feature with its own patch-identity guard.
+
+---
+
+## 15. Risks and blockers for a same-day beta
+
+| # | Risk | Severity |
+|---|---|---|
+| R1 | **`TARGET_INSTRUMENT` has no free answer.** An honest name is fatal in stock chartread, which is a **supported setting** (`core/settings.py`, `chartread_engine: "argyll"`) and the fallback when the helper is missing. A borrowed ColorMunki name makes every `is_colormunki` consumer lie | **BLOCKER — needs a ruling** |
+| R2 | **No aperture-derived geometry exists.** #159 §12 Q2/Q3 are answered from the manufacturer (4 mm, 45°/0°), but the minimum patch size a hand-placed 4 mm aperture needs is a *positioning-error* figure, and #159 §9c steps 4 and 6 (the measurements that set it) are still open. A guessed patch size ships charts that cannot be read | **HIGH — geometry is a guess** |
+| R3 | **Manual + engine-off routes a CR30 to printtarg** (`chart_creator.py:753-792`, `:1794`), which does not know the flag. Silent until someone unticks a checkbox | **HIGH — easy to miss** |
+| R4 | **`_MARGIN_INSTR_LABEL.get(flag, "i1Pro")`** (`tab_chart.py:16174`) judges an unregistered CR30 chart against the **i1Pro's 38 mm top margin** — a false "Margins: OK/violated" | **MEDIUM — silent wrongness** |
+| R5 | **The i18n stale-key trap.** One bullet added to `tab_chart.py:3416` fails `test_i18n.py` 24 times | **MEDIUM — gate-breaking, easily fixed** |
+| R6 | **New wording is spec-gated.** Every CR30 window/instruction sentence must go through §M-PROPOSED + `AWAITING_APPROVAL` in the same commit, or `tests/test_message_catalogue.py` fails | **MEDIUM — process, not code** |
+| R7 | **31 bands vs 36.** No sweep has been done of what ChromIQ Tools assume about `SPECTRAL_BANDS` / `SPECTRAL_START_NM`. NOT VERIFIED | **MEDIUM — unknown scope** |
+| R8 | **The magnet hazard** (research repo `STATUS.md`): a magnet near the aperture silently turns a measurement into a white calibration returning a stored constant, invisible to the host. Nothing in ChromIQ can see it | **HIGH for data integrity** |
+| R9 | **Nobody has confirmed any CR30 behaviour.** #159's own header. Nothing may enter a design spec | **process** |
+| R10 | `-x` mode's `.ti3` `TARGET_INSTRUMENT` and spectral behaviour is NOT VERIFIED — `chromiq_chartread.c:317-318` writes `inst_name(atype)` and `atype` is never set when no instrument opens | **MEDIUM — settle before choosing B8(a)** |
+
+**Verdict on a same-day beta:** the *registration* half (B1-B7) is achievable in
+a day. **B8 is not**, unless `-x` mode turns out to work as it reads — and that
+has not been run once. A beta that ships CR30 chart creation without a reading
+path would produce charts nobody can measure, which is worse than nothing.
+
+---
+
+## 16. Open questions — numbered, must be answered before code
+
+1. **`TARGET_INSTRUMENT`**: borrowed `"X-Rite ColorMunki"` + `CHROMIQ_INSTRUMENT "CR30"`, or an honest new name that stock chartread refuses? (§3.4) — *Basti's call.*
+2. If the borrowed name is chosen, does `ui/ti2_loader.read_target_instrument` grow a companion that reads `CHROMIQ_INSTRUMENT` **first**, so `is_colormunki` stops lying? (§3.4)
+3. **Reading path for the beta**: `-x` external values, a JSON-protocol backend, or ColorQC2 CSV import? (§4.3, §14 B8)
+4. **How is the printtarg path blocked?** Add `"CR30"` to `EXTERNAL_INSTRUMENTS`, or make `_should_use_engine` unconditional for CR30? (§2)
+5. **What patch size?** #159 §9c steps 4 and 6 (aperture + positioning spread) are the inputs and neither is measured. What is the interim figure, and is it flagged as provisional on screen? (§15 R2)
+6. **Clip band**: offerable-but-off (the CM shape), or not offered at all? Which of `layout_options_panel.py:1857/1946/2289` gain a CR30? (§5.7)
+7. **Does the CR30 get built-in presets** and a group heading (`tab_chart.py:2138`), or ship with none? (§5.18)
+8. **The magnet hazard** (§15 R8): is a plausibility guard in scope for the beta, and where — the backend, or a `.ti3` sanity check?
+9. **Spectral or XYZ-only `.ti3`?** #159 §6's open decision. It changes whether `colprof -f` and the spectral Tools are reachable, and `-x` mode forces XYZ-only. (§4.3, §15 R7)
+10. **Which `tr()` strings ship as English placeholders**, and is that recorded so the translation round is not lost? (§9)
+11. **Is a `Geom` with no strip lead-in/trailer wanted** (a true spot grid, denser than any printtarg layout), or does the CR30 keep the CM furniture so the chart still looks familiar? (§11)
+12. **Does the CR30 need margin-threshold seeds at all** for the beta, or does it ship like the SpectroScan — listed in the picker with no seeded rows? (§6)
+13. **Which spec, if any, gains a CR30 section**, and does anything reach `⏳ Awaiting confirmation` before hardware confirmation? (§10.2)
+
+STATUS: complete
