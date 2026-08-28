@@ -241,6 +241,16 @@ class Cr30MeasureBridge(QObject):
         """End the session: no further value is sent, whatever arrives."""
         self._stopped = True
         self._awaiting_loc = self._reading_loc = self._nav_target = None
+        # Wake the reader too. Ending the session while a wait is in progress
+        # is the NORMAL case -- the user presses Stop precisely because they do
+        # not want to read the armed patch -- and that wait runs for
+        # button_timeout_s. Cancelling here means every stop path gets it
+        # rather than only the one that remembers to ask. Measured on the
+        # user's hardware twice: 180.5 s and 180.0 s of frozen UI.
+        reader = getattr(self, "_reader", None)
+        cancel = getattr(reader, "cancel", None)
+        if callable(cancel):
+            cancel()
 
     # -- the device's side ---------------------------------------------
     def _start_read(self, loc: str) -> None:
@@ -267,6 +277,14 @@ class Cr30MeasureBridge(QObject):
     def _on_read_failed(self, loc: str, message: str) -> None:
         if self._reading_loc == loc:
             self._reading_loc = None
+        if self._stopped:
+            # Stop cancels the wait in progress, so the read this ends is the
+            # one the user just chose to abandon. Reporting it would put "press
+            # the instrument's button" on screen for a session that has already
+            # finished -- on EVERY stop, since cancelling is now what makes
+            # Stop responsive at all.
+            log.debug("CR30: read for %s ended by the stop (%s)", loc, message)
+            return
         self.read_failed.emit(loc, message)
 
     def _on_reading(self, loc: str, xyz) -> None:
@@ -331,6 +349,10 @@ class DeviceReader:
         #: purpose: finding the right patch on a 390-patch honeycomb and
         #: seating a 33 mm barrel on it is not a two-second job.
         self.button_timeout_s = 180.0
+        #: Set once, by stop()/close(), and never cleared: a cancelled reader
+        #: is a FINISHED one. Safe because the tab builds a fresh DeviceReader
+        #: for every session (ui/tabs/tab_measure.py, _open_cr30_bridge) -- if
+        #: one is ever reused, every read would cancel the instant it started.
         self._cancel = False
 
     def _open(self):
@@ -374,8 +396,28 @@ class DeviceReader:
         return self._cancel
 
     def close(self) -> None:
-        with self._lock:
+        # Cancel FIRST, then take the lock with a bound. The worker holds this
+        # lock for the whole of read_next_measurement, so an unconditional
+        # `with self._lock:` here put the GUI thread behind a wait for the
+        # operator's button -- the beachball the user hit twice.
+        #
+        # Closing the transport is NOT an alternative way out: a closed port
+        # makes the read raise, and the waiting loop treats "no frame yet" as
+        # normal and goes round again. Cancelling is what the loop actually
+        # checks.
+        self._cancel = True
+        got = self._lock.acquire(timeout=2.0)
+        try:
             dev, self._dev = self._dev, None
+        finally:
+            if got:
+                self._lock.release()
+        if not got:
+            # The worker is still in a read that did not honour the cancel in
+            # time. Close anyway: leaving the port open leaks the instrument
+            # and the next session cannot open it.
+            log.warning("CR30: reader did not stop within 2 s; "
+                        "closing the instrument anyway")
         if dev is not None:
             try:
                 dev.close()
