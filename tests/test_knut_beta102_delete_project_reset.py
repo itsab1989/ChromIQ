@@ -319,5 +319,12 @@ def test_his_exact_sequence_leaves_the_app_empty(qapp, win, monkeypatch):
 def test_the_bar_still_announces_the_deletion_after_removing_the_folder():
     from ui.measurement_target_bar import MeasurementTargetBar
     src = inspect.getsource(MeasurementTargetBar._delete_whole_project)
-    assert "shutil.rmtree(root)" in src
-    assert src.index("shutil.rmtree(root)") < src.index("project_deleted.emit()")
+    # `shutil.rmtree` until 2026-08-28: it removes what it can reach and raises
+    # only at the end, so one unwritable sub-folder left the project half gone
+    # behind a window saying nothing had changed. Basti ruled it moves to the
+    # Trash instead — a rename, which cannot half-happen.
+    assert "move_to_trash(root)" in src
+    # …and it no longer CALLS rmtree. (The comment above the fix names it, so
+    # look for the call, not the word.)
+    assert "shutil.rmtree(" not in src
+    assert src.index("move_to_trash(root)") < src.index("project_deleted.emit()")

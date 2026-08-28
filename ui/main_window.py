@@ -1118,6 +1118,18 @@ class MainWindow(QMainWindow):
             # a watchdog underneath so it cannot be left stuck on.
             busy = self._masthead.BUSY_CHART
         self._masthead.set_availability(busy, self._file_mgr.is_named())
+        # …AND THE TARGET BAR, from the same three flags and the same one place.
+        # It used to lock for a measurement only, so during a chart or profile
+        # build Delete, Duplicate, the run picker and Restore Used Chart all
+        # stayed live on the run being written to. Restore Used Chart is the
+        # sharpest of them: it replaces the very .ti2 that colprof is reading
+        # its measurement against.
+        bar = getattr(self, "_target_bar", None)
+        if bar is not None and hasattr(bar, "set_build_running"):
+            bar.set_build_running(bool(
+                getattr(self, "_profile_building", False)
+                or getattr(self, "_chart_locked", False)
+                or getattr(self, "_chart_building", False)))
 
     def _refresh_project_hint(self) -> None:
         """Re-ask the Create Chart tab whether its name still names another

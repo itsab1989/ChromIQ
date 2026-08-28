@@ -15,13 +15,24 @@ the actual window from what :func:`plan_for` returns.
   dated results exist — *"why would we leave other folders existing? Like the
   reports/ or old/ folders"* — and only the selected dated folder when several
   results exist and one of them is picked.
-* Nothing is moved to the Trash. Nothing is archived to ``old/``. What the user
-  confirms is removed for good, and the window says so.
+* Nothing is archived to ``old/``: what the user confirms leaves the project.
+* **It goes to the Trash** (Basti, 2026-08-28), which changed the wording of
+  every window here. Knut's original ruling was that a delete is permanent, and
+  that stood until `shutil.rmtree` was measured doing the opposite of what its
+  window promised: one unwritable sub-folder is enough for it to destroy most of
+  a project and then raise, so the app said *"Nothing was changed."* over ten
+  missing files. A Trash move is a rename — it cannot half-happen, and when
+  there is nowhere to put the files it really does change nothing.
+* So the windows no longer say "this cannot be undone". They say where the files
+  went, and that emptying the Trash is what finally frees the space — which
+  matters, because a full disk is half the reason people press Delete.
 """
 from __future__ import annotations
 
 import logging
 import shutil
+
+from core.trash import move_to_trash
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -290,9 +301,12 @@ def _run_message(plan: DeletePlan) -> str:
     if plan.seeded_runs:
         parts.append(_seeded_paragraph(plan))
     parts.append(tr(
-        "This cannot be undone. Nothing is moved to the Trash and nothing is "
-        "kept in an “old” folder — the whole run folder is removed:") +
-        f"\n\n{plan.path}")
+        "The whole folder for this profile run is moved to your Trash, so "
+        "nothing is destroyed. If you change your mind, open the Trash and drag "
+        "the folder back where it was. ChromIQ does not keep a second copy in "
+        "an “old” folder inside the project, and the space on your disk comes "
+        "back once you empty the Trash. This is the folder that goes:")
+        + f"\n\n{plan.path}")
     parts.append(_renumber_sentence(plan))
     parts.append(tr(
         "Afterwards ChromIQ selects the last run in the project, run {n}, so "
@@ -334,7 +348,11 @@ def _last_run_message(plan: DeletePlan) -> str:
            "everything in it, including the shared calibration and the "
            "project-wide exports. ChromIQ then returns to the state it has "
            "when you start it fresh, with no project open."),
-        tr("Both are permanent, and neither is moved to the Trash."),
+        tr("Both of these move the files to your Trash rather than destroying "
+           "them, so you can open the Trash and put them back if you change "
+           "your mind. Neither one leaves a copy behind in an “old” folder "
+           "inside the project, and the space on your disk comes back once you "
+           "empty the Trash."),
     ])
 
 
@@ -376,8 +394,10 @@ def _verify_all_message(plan: DeletePlan) -> str:
         "measurement, profile and reports all stay exactly as they are. Only "
         "this is removed:").format(n=n) + f"\n\n{plan.path}")
     parts.append(tr(
-        "This cannot be undone, and nothing is moved to the Trash. Run "
-        "numbering is unaffected — no run is being deleted."))
+        "The folder is moved to your Trash, so nothing is destroyed. If you "
+        "change your mind, open the Trash and drag it back where it was. Your "
+        "profile runs keep the numbers they have now, because no profile run "
+        "is being deleted here."))
     if len(plan.verification_ids) > 1:
         parts.append(tr(
             "If you only wanted to remove one date, cancel, choose that date "
@@ -399,9 +419,11 @@ def _verify_one_message(plan: DeletePlan) -> str:
         "Kept: the verification chart, and the other verification dates of "
         "this run. The profiling side of run {n} is not touched.").format(n=n))
     parts.append(tr(
-        "This cannot be undone, and nothing is moved to the Trash. Run "
-        "numbering is unaffected — verification dates are named after the "
-        "moment they were measured and are never renumbered."))
+        "The folder is moved to your Trash, so nothing is destroyed. If you "
+        "change your mind, open the Trash and drag it back where it was. Your "
+        "profile runs keep the numbers they have now, and so do the other "
+        "verification dates: each one is named after the moment it was "
+        "measured, so none of them is ever renumbered."))
     return "\n\n".join(parts)
 
 
@@ -447,9 +469,12 @@ class DeleteFailed(Exception):
     """Something could not be removed or renamed; nothing has been left half
     done — the caller shows the "Could not delete everything" window."""
 
-    def __init__(self, paths: list) -> None:
+    def __init__(self, paths: list, reason: str = "") -> None:
         super().__init__("could not delete: %s" % paths)
         self.paths = paths
+        #: A plain-language sentence for the window, when there is one to give.
+        #: Empty for the rename failures, which have their own wording.
+        self.reason = reason
 
 
 #: Marker for the two-phase rename. A folder is moved out of the way under this
@@ -462,12 +487,13 @@ def delete_verification(plan: DeletePlan) -> None:
     """Remove a whole ``verifications/`` folder or one dated folder."""
     if plan.path is None or not plan.path.exists():
         raise DeleteFailed([str(plan.path)])
-    try:
-        shutil.rmtree(plan.path)
-    except OSError as exc:
-        log.warning("Could not delete %s: %s", plan.path, exc)
-        raise DeleteFailed([str(plan.path)]) from exc
-    log.info("Deleted %s", plan.path)
+    # TO THE TRASH, NOT DESTROYED (Basti, 2026-08-28). `rmtree` removes what it
+    # can reach and raises only at the end, so one unwritable child leaves a
+    # half-destroyed folder behind a message saying nothing was changed.
+    res = move_to_trash(plan.path)
+    if not res.ok:
+        raise DeleteFailed([str(plan.path)], reason=res.reason)
+    log.info("Moved %s to the Trash", plan.path)
 
 
 def delete_run(project, plan: DeletePlan) -> str:
@@ -481,12 +507,13 @@ def delete_run(project, plan: DeletePlan) -> str:
     run_dir = plan.path
     if run_dir is None or not run_dir.exists():
         raise DeleteFailed([str(run_dir)])
-    try:
-        shutil.rmtree(run_dir)
-    except OSError as exc:
-        log.warning("Could not delete %s: %s", run_dir, exc)
-        raise DeleteFailed([str(run_dir)]) from exc
-    log.info("Deleted run folder %s", run_dir)
+    # TO THE TRASH — see `delete_verification`. This one matters most: the
+    # renumbering below assumes the run really is gone, and a half-deleted run
+    # folder would be renumbered around.
+    res = move_to_trash(run_dir)
+    if not res.ok:
+        raise DeleteFailed([str(run_dir)], reason=res.reason)
+    log.info("Moved run folder %s to the Trash", run_dir)
 
     root = project.runs_root
     done: list = []          # (path_now, path_before) for rollback
@@ -571,15 +598,13 @@ def empty_run(project, run_id: str) -> None:
     if not run.dir.exists():
         raise DeleteFailed([str(run.dir)])
     failed = []
+    reason = ""
     for child in list(run.dir.iterdir()):
-        try:
-            if child.is_dir():
-                shutil.rmtree(child)
-            else:
-                child.unlink()
-        except OSError:
+        res = move_to_trash(child)
+        if not res.ok:
             failed.append(str(child))
+            reason = reason or res.reason
     if failed:
-        raise DeleteFailed(failed)
+        raise DeleteFailed(failed, reason=reason)
     run.save_meta(RunMeta.fresh(run_id))
     log.info("Emptied run %s", run.dir)

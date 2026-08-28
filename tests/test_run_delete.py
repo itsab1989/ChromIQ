@@ -202,7 +202,7 @@ def test_p1_names_the_measurement_and_the_profile(tmp_path):
     body = rd.message_for(plan)
     assert ".ti3" in body and ".icc" in body
     assert "cannot be recreated" in body
-    assert "cannot be undone" in body and "Trash" in body
+    assert "Trash" in body and "cannot be undone" not in body
 
 
 def test_p2_says_plainly_that_nothing_measured_is_lost(tmp_path):
@@ -320,7 +320,8 @@ def test_v1_promises_the_profiling_side_is_untouched(tmp_path):
     _verification(run, "2026-07-28_131500")
     body = rd.message_for(rd.plan_for(p, _Target("run1", "verification")))
     assert "profiling side of run 1 is not touched" in body
-    assert "Run numbering is unaffected" in body
+    assert "keep the numbers they have now" in body, \
+        "the window no longer reassures the person that numbering is unaffected"
 
 
 def test_v2_lists_every_date_that_will_be_lost(tmp_path):
@@ -361,8 +362,18 @@ def test_v3_empty_date_says_no_readings_are_lost(tmp_path):
     assert rd.confirm_label(plan) == "Delete this empty verification"
 
 
-def test_every_window_promises_permanence(tmp_path):
-    """D3: "Let is be permanent." Every window has to say so."""
+def test_every_window_says_where_the_files_go(tmp_path):
+    """Every window has to say what really happens to the files.
+
+    IT USED TO ASSERT THE OPPOSITE, AND WAS RIGHT TO. Knut ruled "let it be
+    permanent" (D3) and every window said "this cannot be undone". That stood
+    until `shutil.rmtree` was measured doing the opposite of its own promise:
+    one unwritable sub-folder is enough for it to destroy most of a project and
+    only then raise, so the app said "Nothing was changed." over ten missing
+    files, `project.json` among them. Basti ruled on 2026-08-28 that a delete
+    moves to the Trash — a rename, which cannot half-happen — so the windows
+    now say where the files went and that they can be brought back.
+    """
     p = _project(tmp_path, runs=3)
     run = p.run("run1")
     _verify_chart(run)
@@ -373,7 +384,15 @@ def test_every_window_promises_permanence(tmp_path):
                    _Target("run1", "verification", "2026-07-14_090211")):
         body = rd.message_for(rd.plan_for(p, target))
         assert "Trash" in body, target.run_type
-        assert "cannot be undone" in body
+        assert "cannot be undone" not in body, (
+            f"{target.run_type}: the window still promises permanence, which "
+            f"is no longer what happens")
+        # The point is that the window says the files can be RECOVERED, not
+        # that it uses one particular phrase — assert the meaning, or the test
+        # breaks on every rewording and teaches nothing.
+        assert any(w in body for w in ("back where it was", "back to its place",
+                                       "put them back", "back on its place")), \
+            f"{target.run_type}: the window never says the files can be recovered"
 
 
 def test_no_window_ever_writes_s_in_brackets(tmp_path):

@@ -1133,6 +1133,37 @@ class MeasurementTargetBar(QWidget):
         self._locked = locked
         self._sync_from_controller()
 
+    def set_build_running(self, running: bool) -> None:
+        """Grey the selection while a chart or a profile is being built.
+
+        A THIRD REASON, not a rephrasing of the other two. The bar used to lock
+        only for a measurement, so during a chart build Delete, Duplicate and
+        the run picker all stayed live — on the very run targen was writing
+        into. Driven to the end: Delete removed that run under the running
+        subprocess, targen then failed with a message that gave no hint the
+        person had caused it, and the survivors were renumbered while a
+        subprocess still held a path inside the tree.
+
+        NOT DRIVEN BY `ArgyllRunner.is_running`, which is the obvious answer and
+        the wrong one: the runner is app-wide, so it is true for every Tools
+        subprocess that touches nothing here, and it is FALSE exactly when this
+        matters — between targen finishing and printtarg starting, and for the
+        whole in-process layout-engine phase, which is when the .ti2 and every
+        page image are written. `MainWindow` already keeps the three flags that
+        do mean it and already funnels them through one method; this is fed from
+        there, so the two cannot drift (#164's "from ONE place").
+        """
+        if running == getattr(self, "_build_running", False):
+            return
+        self._build_running = running
+        self._sync_from_controller()
+
+    def _building_note(self) -> str:
+        return tr("Not while ChromIQ is building. The profile run you are "
+                  "looking at is being written to at this very moment, and "
+                  "changing it now could damage the chart being made. This "
+                  "unlocks on its own as soon as the build finishes.")
+
     #: How far right the three action pairs sit as a group, in pixels. Grown a
     #: pixel at a time by eye (#130, Basti 2026-08-03). Kept apart from the
     #: per-mark NUDGE values in ui/bar_icons.py, which set the marks' positions
@@ -1926,16 +1957,29 @@ class MeasurementTargetBar(QWidget):
         root = getattr(proj, "root", None)
         if root is None:
             return
-        import shutil
-        try:
-            shutil.rmtree(root)
-        except OSError as exc:
+        # TO THE TRASH, NOT DESTROYED (Basti, 2026-08-28).
+        #
+        # `shutil.rmtree` removes everything it can reach and raises only at the
+        # end, so ONE unwritable sub-folder was enough to leave the project half
+        # gone behind a window saying nothing had happened. Measured on screen:
+        # 10 of 29 files destroyed, `project.json` among them — so the 19
+        # survivors could no longer be opened by ChromIQ at all — while the
+        # person read "Nothing was changed." and reasonably concluded their
+        # project was still there.
+        #
+        # A Trash move is a rename, so the unwritable child never gets the
+        # chance to defeat it, and when there is nowhere to put the files Qt
+        # changes nothing at all — which is what finally makes that sentence
+        # true.
+        from core.trash import move_to_trash
+        res = move_to_trash(root)
+        if not res.ok:
             QMessageBox.warning(
                 self, tr("Could not delete the project"),
-                tr("Nothing was changed.\n\nReason: {reason}").format(
-                    reason=str(exc)))
+                res.reason or tr("Nothing was changed. Every file is still "
+                                 "exactly where it was."))
             return
-        log.info("Deleted project folder %s", root)
+        log.info("Moved project folder %s to the Trash", root)
         self.project_deleted.emit()
 
     def _after_delete(self) -> None:
@@ -2189,12 +2233,21 @@ class MeasurementTargetBar(QWidget):
             # the tab-lock says "this selection isn't used here", measuring
             # says "not right now". Either disables; measuring explains.
             measuring = bool(self._ctl.is_measuring())
+            building = bool(getattr(self, "_build_running", False))
             tab_locked = getattr(self, "_locked", False)
-            locked = tab_locked or measuring
+            locked = tab_locked or measuring or building
             # Restore and Delete already explain the measurement lock through
             # their own state(); the boxes and Duplicate had nothing, so they
             # get the same words rather than a second phrasing of them.
-            note = self._measuring_note() if measuring else self._lock_note()
+            # Three reasons, three sentences. "Not while a measurement is
+            # running" is simply false during a chart build, and it is the
+            # sentence the person would have read.
+            if measuring:
+                note = self._measuring_note()
+            elif building:
+                note = self._building_note()
+            else:
+                note = self._lock_note()
             for w in (self._run_label, self._run_combo,
                       self._verify_label, self._verify_combo):
                 w.setEnabled(has_project and not locked)
