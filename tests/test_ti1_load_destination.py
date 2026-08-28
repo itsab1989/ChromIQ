@@ -172,7 +172,14 @@ def test_load_ti1_new_project_cancel_aborts(qapp, tmp_path, monkeypatch):
     ti1 = tmp_path / "P.ti1"; ti1.write_text("CTI1\n")
     monkeypatch.setattr(tc, "open_file_dialog", lambda *a, **k: str(ti1))
     monkeypatch.setattr(tab, "_ti1_load_destination", lambda src: "new")
-    monkeypatch.setattr(L, "_ask_project_name", lambda *a, **k: (None, False))
+    # CANCEL ANSWERS None, NOT (None, False). `_ask_project_name` only ever
+    # returns None or a (name, replace) pair with a non-empty name — `_accept`
+    # refuses an empty one (`ui/ti2_loader.py:783-784`). The old stub encoded a
+    # shape the dialog cannot produce, written to fit a caller that unpacked the
+    # answer before testing it; unpacking the REAL answer raised `TypeError` out
+    # of a Qt slot and aborted the app. Both shapes are now guarded, and this
+    # stubs the real one.
+    monkeypatch.setattr(L, "_ask_project_name", lambda *a, **k: None)
     called = {"gen": 0}
     monkeypatch.setattr(tab._creator, "load_ti1_and_generate_preview",
                         lambda *a, **k: called.__setitem__("gen", called["gen"] + 1))

@@ -629,3 +629,41 @@ def test_a_failing_row_restore_does_not_abandon_the_rest_of_the_undo(tab,
     assert tab._knut_active is False, \
         "the tab still says a Spyderprint chart is loaded"
     assert tab._pending_replace is None
+
+
+def test_a_refused_preset_leaves_the_sections_the_person_opened_open(tab,
+                                                                     monkeypatch):
+    """The "targen parameters" section is collapsed by default, so opening it is
+    a deliberate click — and a preset shut it again for good.
+
+    `_update_preset_locks` collapses that frame while a preset locks the patch
+    recipe, but on the way back the same method does nothing, because it only
+    touches the frame while a preset is active. So the section stayed shut with
+    every targen row the person had in view gone, and nothing said why. Worst
+    under Run type = Calibration, where ChromIQ opens that section on purpose so
+    "Single Channel Steps" — the row that decides the calibration — is in view.
+    """
+    tab._switch_mode("manual")
+    grp = tab._manual_targen_grp
+    grp.set_collapsed(False)                       # the deliberate click
+    assert grp.is_collapsed() is False
+
+    _refuse(tab, monkeypatch)
+    _pick(tab, _ENGINE_KEY)
+
+    assert grp.is_collapsed() is False, (
+        "the section the person opened was shut by a preset they refused")
+
+
+def test_a_preset_that_IS_applied_still_collapses_it(tab, monkeypatch):
+    """Negative control. A preset locks the patch recipe and collapses the
+    section on purpose (Knut), so the test above is about the undo and not about
+    the collapsing having stopped."""
+    tab._switch_mode("manual")
+    grp = tab._manual_targen_grp
+    grp.set_collapsed(False)
+    monkeypatch.setattr(tab, "_generate_from_ti1", lambda *a, **k: True,
+                        raising=False)
+    _pick(tab, _ENGINE_KEY)
+    assert grp.is_collapsed() is True, \
+        "an applied preset no longer collapses the recipe — the test above proves nothing"

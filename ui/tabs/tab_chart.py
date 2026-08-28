@@ -5875,9 +5875,14 @@ class TabChart(QWidget):
                      "untouched."), "copy")])
             if choice != "copy":
                 return
-            picked_name, replace = _ask_project_name(self, proj_root.name, working)
-            if picked_name is None:
+            # Assign, test, then unpack — see the note at the other call site.
+            # Cancelling here raised `TypeError` out of a slot and aborted the
+            # app, on the journey "open a profile that lives outside your
+            # working folder, agree to copy it in, then change your mind".
+            _picked = _ask_project_name(self, proj_root.name, working)
+            if _picked is None or not (_picked[0] or "").strip():
                 return
+            picked_name, replace = _picked
             try:
                 new_root = _chart_import.copy_whole_project(
                     proj_root, working, picked_name, replace=replace)
@@ -7617,8 +7622,12 @@ class TabChart(QWidget):
                     rows.append((pw.flag, pw.get_raw_value(),
                                  bool(pw.is_enabled_by_user)))
                 except Exception:      # noqa: BLE001 — one bad row, not the undo
-                    log.debug("preset undo: could not read %s %s", tool,
-                              getattr(pw, "flag", "?"), exc_info=True)
+                    # `getattr(pw, "flag", "?")` would RE-RAISE here: a default
+                    # only covers a missing attribute, and a deleted C++ object
+                    # raises `RuntimeError` from the property itself. Naming the
+                    # tool is enough, and cannot fail.
+                    log.debug("preset undo: could not read a %s row", tool,
+                              exc_info=True)
             snap["widgets"][tool] = rows
         for attr in self._PRESET_CHECKS:
             try:
@@ -7640,6 +7649,18 @@ class TabChart(QWidget):
                 snap["pages_spin"] = spin.value()
         except Exception:              # noqa: BLE001
             log.debug("preset undo: could not read the pages spin", exc_info=True)
+        # WHETHER THE SECTIONS WERE OPEN. A preset locks the patch recipe and
+        # `_update_preset_locks` collapses the targen frame while the lock is
+        # on — but on the way back that same method does nothing, because it
+        # only touches the frame while a preset is active. So a section the
+        # person had deliberately opened was shut and stayed shut.
+        for attr in ("_manual_targen_grp", "_manual_printtarg_grp"):
+            try:
+                grp = getattr(self, attr, None)
+                if grp is not None and hasattr(grp, "is_collapsed"):
+                    snap.setdefault("collapsed", {})[attr] = grp.is_collapsed()
+            except Exception:          # noqa: BLE001
+                log.debug("preset undo: could not read %s", attr, exc_info=True)
         # NOT GUARDED ON `_manual_panel_inited` — that is the bug this had.
         # Driven on screen: with the engine off, the panel exists but is not yet
         # seeded, so a guarded snapshot took no recipe; the refused A3 preset
@@ -7939,21 +7960,22 @@ class TabChart(QWidget):
             self._update_manual_lb_visibility()
         except Exception:              # noqa: BLE001
             log.debug("preset undo: row visibility refresh failed", exc_info=True)
-        # …and the one piece of greying a forced box owns that nothing above
-        # re-derives: Triple Density disables "Double density", because the two
-        # are mutually exclusive. The handler cannot simply be re-run — called
-        # again with True it would stash the TRIPLE-density values as the
-        # "pre-TD" ones, which is the #89 round-trip bug — so the box's own rule
-        # is applied directly instead. Measured on screen: without this, backing
-        # out of a preset left "Double density" clickable beside a ticked Triple
-        # Density.
-        try:
-            _td = getattr(self, "_manual_td_check", None)
-            if _td is not None and self._manual_dd_pw is not None:
-                self._manual_dd_pw.setEnabled(not _td.isChecked())
-        except Exception:              # noqa: BLE001
-            log.debug("preset undo: could not re-grey Double density",
-                      exc_info=True)
+        # …and the sections the person had open. This must come AFTER
+        # `_update_preset_locks` in step 11, because that is what shut them:
+        # it collapses the targen frame while a preset locks the recipe, and on
+        # the way back it leaves the frame exactly as the preset left it. Worst
+        # under Run type = Calibration, where ChromIQ opens that section on
+        # purpose so "Single Channel Steps" — the row that decides the
+        # calibration — is in view; a person who tried a preset and backed out
+        # was left with it shut and nothing saying why. Found on screen.
+        for attr, was_collapsed in (snap.get("collapsed") or {}).items():
+            try:
+                grp = getattr(self, attr, None)
+                if grp is not None and grp.is_collapsed() != was_collapsed:
+                    grp.set_collapsed(was_collapsed)
+            except Exception:          # noqa: BLE001
+                log.debug("preset undo: could not restore %s", attr,
+                          exc_info=True)
         # …and once more, which is INSURANCE AND NOT PROVEN LOAD-BEARING: the
         # visibility pass just above is the one thing left that can move a box
         # (it force-unticks Triple Density when the instrument is not a
@@ -7962,6 +7984,22 @@ class TabChart(QWidget):
         # before the greying does not. Kept because it costs six comparisons and
         # the fault it guards against was on screen twice this week.
         self._guarded("the tick boxes", self._assert_preset_checks, snap)
+        # LAST OF ALL, and deliberately after that final assert: the one piece
+        # of greying a forced box owns which nothing above re-derives. Triple
+        # Density disables "Double density", because the two are mutually
+        # exclusive. Its handler cannot simply be re-run — called again with
+        # True it would stash the TRIPLE-density values as the "pre-TD" ones,
+        # which is #89's round-trip bug — so the box's own rule is applied
+        # directly. It has to run after the last assert, not before: an assert
+        # that re-ticks Triple Density would otherwise leave "Double density"
+        # enabled beside it, which is the very fault this line exists to fix.
+        try:
+            _td = getattr(self, "_manual_td_check", None)
+            if _td is not None and self._manual_dd_pw is not None:
+                self._manual_dd_pw.setEnabled(not _td.isChecked())
+        except Exception:              # noqa: BLE001
+            log.debug("preset undo: could not re-grey Double density",
+                      exc_info=True)
         log.info("Create Chart: the preset was refused, the tab was put back")
 
     def _on_preset_activated(self, index: int) -> None:
@@ -12612,13 +12650,25 @@ class TabChart(QWidget):
             # creating any new profile project), then actually LOAD it — show the
             # new name in the "Printer profile project name" field.
             from ui.ti2_loader import _ask_project_name
-            name, _replace = _ask_project_name(
+            # ASSIGN, TEST, THEN UNPACK — in that order. `_ask_project_name`
+            # answers None when the person cancels, and unpacking that raises
+            # `TypeError` before the guard below is ever reached. This is a Qt
+            # slot, so the exception did not merely lose the load: PyQt hands it
+            # to `sys.excepthook` and calls `qFatal()`, and ChromIQ ABORTED.
+            # Measured through the real button, exit 134 (SIGABRT), on the
+            # plainest journey there is — no project open, Load patch set, pick
+            # a file, press Cancel. Shipped in every release since 2026-07-24.
+            _picked = _ask_project_name(
                 self, self._file_mgr.strip_workfile_ext(src.stem),
                 self._file_mgr.root_dir())
-            if name is None:                      # cancelled the name prompt
+            # Cancel answers None. The empty-name case cannot escape the
+            # dialog either (`_accept` refuses it), but both are checked, so
+            # neither shape can reach `start_new_project` with no name at all.
+            if _picked is None or not (_picked[0] or "").strip():
                 self._preset_ti1_path = None
                 self._abandon_ti1_load()
                 return
+            name, _replace = _picked
             self._file_mgr.start_new_project(name)
             self._update_name_fields()
         else:
