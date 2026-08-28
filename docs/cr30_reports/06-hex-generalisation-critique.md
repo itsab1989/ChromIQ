@@ -722,4 +722,82 @@ Each is actionable without re-deriving anything above.
     `_apply_hex_stagger` will now shift them onto ink that never moved.
     **Finding 11.**
 
+---
+
+## Addendum — re-verified against the moving tree (`6d42bd8c`)
+
+The implementer landed `6d42bd8c` ("cr30: the layout-info panel described a
+different chart than the one on screen") and the tooltip rewrites while this
+report was being written. Everything above was re-checked against the tree at
+that commit. Line numbers in `ui/tabs/tab_chart.py` have shifted by ~30–40;
+citations elsewhere are unchanged.
+
+### FIXED since the section was written
+
+* **Finding 1 (BLOCKER) is FIXED.** `_engine_geom` now takes a `guided` flag
+  (`tab_chart.py:11506-11508`), maps the hexagon checkbox through
+  `HEX_TOGGLE_INSTRUMENTS` (`:11552-11553`) and forces `spacer_on=False` /
+  `spacer_mode="none"` for a Guided CR30 (`:11557-11559`), and the caller passes
+  `guided=guided_active` (`:11709-11711`). **Re-measured, A4, Guided defaults:**
+
+  | | estimate | real build |
+  |---|---|---|
+  | hexagon box clear | **345** | **345** |
+  | hexagon box ticked | **390** | **390** |
+
+  Exact agreement, and the number now moves when the box is ticked.
+  (`layout_mode="patch_first"` is still not passed, but that is harmless:
+  `geom_from_build_kwargs` only diverts to `area_fit` on an explicit
+  `"area_first"`, so an absent key already means patch-first.)
+* **Finding 8 is HALF fixed.** The Guided info line now uses
+  `HEX_TOGGLE_INSTRUMENTS` (`:11598`). **`_engine_info_line_from_recipe` still
+  says `if r.instrument == "SS" and r.hflag` at `:11645`, so the MANUAL info
+  line still omits "hexagonal" for a CR30.** Still open.
+* **Finding 4 is mostly fixed.** Both CR30 hex tooltips now quote the measured
+  "345 patches rectangular, 405 hexagonal" and say the gain depends on the
+  paper, and the unmeasured aiming claim is now explicitly hedged
+  ("That has NOT been measured, so please do not plan around it"). Good, and
+  the "same 4 mm of clearance all round the window" is arithmetically exact at
+  the 12 mm cell (inradius 6 mm − 2 mm aperture radius = 4 mm, identical to the
+  square). What is left of finding 4 is listed below.
+
+### STILL OPEN, re-verified at `6d42bd8c`
+
+| finding | status |
+|---|---|
+| 2 — seven hard-coded flat/hex lists | **open, and now eight.** `6d42bd8c` introduced `HEX_TOGGLE_INSTRUMENTS = ("SS", "CR30")` at `tab_chart.py:11504` — a *ninth* place recording which instruments can be hexagonal, hard-coded, three lines above code that already imports `hex_capable` elsewhere in the same file (`:3288`, `:16217`). It should be `instruments.hex_capable_instruments()`. `presets.mode()`'s silent preset-key collision is untouched. |
+| 3 — row-number band overflows at 12 mm | open, unchanged |
+| 5 — the shared checkbox changes the shape | open, unchanged (`:11923-11929` still force-unchecks only when hidden) |
+| 6 — `test_layout_raster.py`'s five hex tests are SS-only | open, unchanged |
+| 7 — no test of the Guided/Manual → engine wiring | **open, and this is the point.** Finding 1 was a live blocker under a green suite and was fixed by hand; nothing now stops it coming back. Change 2 is the one that matters most in this report. |
+| 8 | half open — `tab_chart.py:11645` |
+| 9, 10, 11, 12, 13 | open, unchanged |
+
+### Residual pieces of finding 4, and one more
+
+* `tab_chart.py:11872` — the CR30 checkbox **label** says "about a tenth more
+  per sheet". Measured: **+17.4 % on A4 portrait** (the default paper), +7.6 %
+  on A4 landscape, +6.9 % on A3. "About a tenth" understates the default case by
+  most of its own size. A range reads better than a single figure here.
+* `tab_chart.py:11866-11868` — the code comment above it still says
+  "532 patches rectangular against 576 hexagonal".
+* `workflow/layout_engine/presets.py:176` — still "packs ~15 % more per sheet".
+* **New, measured while checking the above: the SpectroScan's own figures are
+  both wrong, and they disagree with each other.** `tab_chart.py:11908` (label)
+  says "~15%", its tooltip says "roughly 14%". Measured through
+  `default_recipe("SS", …)`: A4 portrait 1080 → 1196 = **+10.7 %**, A4 landscape
+  1092 → 1248 = +14.3 %, A3 2262 → 2574 = +13.8 %. Pre-existing, unrelated to
+  #159, and worth one line while the neighbouring strings are being corrected.
+
+### One new MINOR
+
+* `ui/tabs/tab_chart.py:14775-14778`, `_gamut_per_sheet` — the second caller of
+  `_engine_capacity` does **not** pass `guided=`, so it takes the new default
+  `guided=True`. A **Manual** CR30 chart on which the user has deliberately
+  turned spacers on is therefore estimated with them off (390 against a real
+  345 on A4). Narrow — it is the gamut-chart sheet estimate, and that path
+  already models Manual from the printtarg widgets rather than the recipe — but
+  it is a fresh instance of the same divergence finding 1 was, introduced by
+  finding 1's fix. **Change: pass `guided=False` there.**
+
 STATUS: complete
