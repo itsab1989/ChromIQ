@@ -333,3 +333,82 @@ the call site:
 Confirmed while there: **F12 has landed** — the file runs clean under
 `-W error::pytest.PytestUnhandledThreadExceptionWarning`.
 
+
+---
+
+## Whole-suite state
+
+`QT_QPA_PLATFORM=offscreen pytest -q -n auto --dist loadfile` (everyday tier):
+**7899 passed, 253 skipped, 3 xfailed, 84 s.** No existing test was weakened,
+and the one that had to change is described under Change C (a stand-in class
+gaining three real methods, the same way it already gained
+`_reassert_guided_refinement`). The release gate (`--runslow`) was not run —
+out of scope for this task by instruction.
+
+## Requests for the C side (`native/**` — not mine)
+
+**None outstanding.** Both C-side items in the change list turned out to be
+already done:
+
+* **A.4** — `{"event":"error","kind":"chart_refused","instrument","detail"}` is
+  emitted before the `error()` and pinned against the real binary. The gap was
+  on the Python side and is closed.
+* **B.3's C half** (guard the `value` write, emit `value_dropped`) — superseded
+  by the coordinator's real 16-deep FIFO, which preserves arrival order. The
+  Python latch is kept anyway, because ordering is not the same guarantee as
+  *pairing*: the queue makes two values arrive in order, it does not make either
+  of them belong to the patch the user is standing on.
+
+## Open, unfinished or risky — numbered
+
+1. **The `M-CR30-READ-ENDED` ending is a log line + status flash, not a
+   window.** It follows its two neighbours (`_on_engine_fell_back`,
+   `_on_engine_fell_back_resumed`), but those announce a run that *continues*
+   and this one announces a run that has **ended**. If Basti wants a modal, the
+   text is already a §M `Message` and `_on_engine_fallback_refused` is the one
+   place to change. *(Deviation, flagged in Change A.)*
+2. **`DeviceReader` has never met hardware.** Every protocol rule in the bridge
+   is proved, and the reader's shape follows `device.py`'s documented API — but
+   opening a CR30 over BLE/USB and getting a real spectrum through
+   `spectrum_to_xyz` has not been exercised on a device by me. **This is the one
+   part of Change B that needs a hardware session before a beta.** In
+   particular: whether one `DeviceReader` may be opened once and read from
+   successive worker threads (it is serialised by a lock and by the bridge's
+   own latch, so the access is a hand-off, not concurrency — but `bleak`'s
+   asyncio loop affinity is worth checking on a real unit).
+3. **The instrument-calibration flow of `02-design.md` §10.2 is NOT built.**
+   The design says ChromIQ raises `calibration_prompt` itself before the first
+   patch, checks the tile spectrum, then asks for the cap to come off. Nothing
+   in this change set does that; `M-CR30-HOW-TO-MEASURE` tells the user to take
+   the cap off but nothing *verifies* it. That is a separate piece of work and
+   it is the one that makes the magnet guard unit-independent (§10.3).
+4. **BLE reconnection (§10.1) is not built either.** A dropped connection today
+   surfaces as `read_failed` per patch, which tells the truth but does not
+   reconnect or pause.
+5. **Ordering deviation:** C was implemented before B, because §5.1 makes C a
+   correctness precondition for B (`-x` with `patch_by_patch` False puts the
+   helper in spot mode while the manager believes it is in strip mode). Landing
+   B first would have committed that defect.
+6. **F13 stands, untouched and forward-looking.** The no-instrument window
+   still offers "Turn off faster connection". It is unreachable under `-x`, so
+   nothing was changed — but if the CR30 backend's "the device did not answer"
+   path ever reuses that window, a BLE failure will be met with an offer to
+   change an ArgyllCMS serial-port preference.
+7. **F14 stands.** `_saw_instrument` is still set and never read. Dead state;
+   removing it was out of scope and is not worth a commit on its own.
+8. **⚠ A one-off write into the real `~/ChromIQ` was observed and NOT
+   explained.** During this session the session-scoped tripwire in
+   `tests/conftest.py:552` reported `CR30-Test/runs/run1/meta.json` and
+   `.../run1/chart/meta.json` rewritten, mtime **21:00:58**. It did not
+   reproduce in three later runs of the same selection, no test in the tree
+   references that project by name, and running my three new test files alone
+   writes nothing. The likeliest explanation is that Basti's own app touched his
+   own project during the run — but it is recorded here rather than dismissed.
+   **Both files were copied to `/tmp/chromiq-meta-backup/` before anything else
+   was done**, and nothing was deleted.
+9. **The `-p` flag is sent under `-x` even though the helper ignores it.**
+   Deliberate (§5.1: `xtern != 0` takes the spot branch unconditionally), and
+   `params.patch_by_patch` must be True regardless for `_spot_mode`. Recorded
+   so nobody "tidies" it later.
+
+STATUS: complete
