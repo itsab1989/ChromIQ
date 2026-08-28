@@ -112,29 +112,66 @@ class CR30:
         return ident
 
     def trigger_unsafe(self) -> None:
-        """Ask the device to measure NOW (USB only). NOT for a ChromIQ backend.
+        """Send the raw "measure now" command. Not for casual use.
 
-        ⚠ **Deliberately not called `trigger`, and deliberately not part of the
-        recommended integration surface.** The host CANNOT see whether a magnet
-        is near the aperture, so the rule "do not trigger with a magnet present"
-        is unenforceable in software. `EXP-MEAS-003` could not establish whether
-        the host trigger or the button press performed the write that corrupted
-        this unit's white reference, so a backend that never sends `BB 01 00`
-        cannot cause it either way.
+        ⚠ **Deliberately not called `trigger`.** With a magnet at the aperture
+        this command does not measure: the device performs a WHITE CALIBRATION
+        against whatever is under the cap and reports the nominal tile value.
+        The host cannot see whether a magnet is there, so nothing in software
+        can tell which of the two it is about to do.
 
-        The spot workflow does not need this: the operator presses the
-        instrument's own button and `read_measurement()` collects the result.
-
-        ⚠ Not to be used near a magnet -- see `usb_measure.trigger`. The spot
-        workflow does not need it: the operator presses the instrument's own
-        button and `read_measurement` collects the result.
+        For a deliberate, user-initiated calibration use
+        :meth:`calibrate_white`, which is the one supported entry point and
+        carries the reasoning. For an ordinary reading use
+        :meth:`read_next_measurement`, where the operator presses the
+        instrument's own button.
         """
-        if self.kind != "usb":
-            raise NotImplementedError(
-                "no host trigger is known on BLE; the operator presses the "
-                "instrument's own button (TRANSPORT_BLE.md)")
-        from . import usb_measure
-        usb_measure.trigger(self._t)
+        if self.kind == "usb":
+            from . import usb_measure
+            usb_measure.trigger(self._t)
+            return
+        # This branch used to raise NotImplementedError, saying "no host
+        # trigger is known on BLE". EXP-BLE-012 disproved that on 2026-08-28:
+        # sent over Bluetooth with no button press, the stored reading moved
+        # 11.2667 %R -> 3.9222 %R, and the operator's own button press on the
+        # same surface then read 3.9416 %R -- 0.0347 %R apart, against 11.1 %R
+        # of change. The old claim was honest about the vendor capture, which
+        # contains no trigger; it was simply never tested.
+        self._t.ask(ble.TRIGGER_UNSAFE, polls=4)
+
+    def calibrate_white(self) -> None:
+        """Ask the instrument to take its white calibration, now.
+
+        **This is a deliberate reversal of a documented safety rule, made by
+        the instrument's owner on 2026-08-28.** The rule was that a ChromIQ
+        backend never sends the trigger command, because the host cannot see a
+        magnet and so cannot guarantee it is asking for a measurement rather
+        than a calibration. Here that is the entire intention: the user has
+        been asked to seat the cap, and the calibration is what they pressed
+        for.
+
+        Evidence that it works, on both transports:
+          * USB -- EXP-MEAS-004: a host-only trigger moved paper 81.10 -> 149.10
+            %R against the cap's green face, and restoring returned it to 81.20,
+            ratio 1.0012.
+          * BLE -- EXP-BLE-012: host trigger 3.9222 %R against the operator's
+            own button press 3.9416 %R on the same surface, 0.0347 %R apart.
+
+        ⚠ **ChromIQ cannot check the result, and must never claim to.** When
+        the magnet gate engages the device reports the firmware's nominal tile
+        constant whatever is actually under the aperture: the white tile and
+        the cap's green face return spectra that are bit-identical, max
+        absolute difference across all 31 bands 0.0. So there is no reading to
+        judge and no threshold that could be defended.
+
+        The danger is therefore not the magnet -- the magnet is what makes this
+        a calibration at all -- but WHICH FACE is at the aperture. Calibrating
+        against the green face is what corrupted this unit during the research,
+        and the error is one-sided and invisible in every reading afterwards.
+        The only safeguard is the operator's eyes, so the window that offers
+        this must say so plainly.
+        """
+        self.trigger_unsafe()
 
     def read_next_measurement(self, *, timeout: float = 180.0,
                               cancelled=None, poll: float = 0.25) -> Measurement:

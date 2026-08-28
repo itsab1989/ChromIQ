@@ -5544,6 +5544,46 @@ class TabMeasure(QWidget):
             return
         if not self._confirm_replacing_measurement():
             return
+
+        # CALIBRATE THE INSTRUMENT FIRST — AND DO IT HERE, NOT LATER.
+        #
+        # This sits between "the user agreed to replace the measurement" and
+        # the archiving below ON PURPOSE. Everything after this point is
+        # irreversible or has to be undone by hand: the next call moves the
+        # run's existing .ti3 into old/, the session guard after it copies the
+        # file aside and records its state, and further down the settings panel
+        # is greyed out, Start is disabled, Stop enabled and an app-wide event
+        # filter installed. A user who opens the calibration window and then
+        # cancels because the white tile is in the other room must lose
+        # NOTHING — and one line later they would already have lost the
+        # measurement that run was holding.
+        #
+        # The one thing already done that a cancel must undo is the armed
+        # per-patch sound (#131: sounds must not be live outside a read).
+        # One window per measurement, and this run has not shown it yet (#159).
+        # Reset HERE, above anything that can show it: it used to be cleared
+        # just before the helper started, which is after the calibration flow —
+        # so the calibration's copy of the window would be forgotten and the
+        # user would be shown the same instructions twice in a row.
+        self._cr30_how_shown = False
+        if params.external_values and not params.disable_initial_cal:
+            # `params`, never the checkbox. `disable_initial_cal` is hard-coded
+            # False for Guided behind a comment headed "NEVER FROM A CONTROL
+            # THE USER CANNOT SEE" — the Skip box is hidden there, and reading
+            # the widget would let whatever Manual last set govern a Guided
+            # run. That is beta.148, where a stored tick ran every guided
+            # measurement uncalibrated and every patch was rejected.
+            #
+            # So the owner's ruling — mandatory in Guided, the existing Skip
+            # box in Manual — is already the value of this one field.
+            if not self._run_cr30_calibration():
+                self._sound.disarm()
+                self._log.appendPlainText("\n" + tr(
+                    "Measurement not started: the instrument was not "
+                    "calibrated. Nothing has been changed."))
+                self._log.ensureCursorVisible()
+                return
+
         # Keep the measurement this read is about to replace. chartread
         # truncates its output file the moment it starts, so without this the
         # old readings are simply gone — Knut, #130 2026-07-31: *"The previous
@@ -5665,8 +5705,6 @@ class TabMeasure(QWidget):
 
         self._manager.set_guided_strips(self._strip_list if guided else [])
 
-        # One window per measurement, and this run has not shown it yet (#159).
-        self._cr30_how_shown = False
         self._manager.start(
             params,
             on_line=self._on_log_line,
@@ -6822,6 +6860,112 @@ class TabMeasure(QWidget):
             tr("Your measured strips are safe — continuing on ArgyllCMS "
                "chartread from where you left off."),
             duration_ms=8000)
+
+    def _run_cr30_calibration(self) -> bool:
+        """The calibration window. True to go on measuring, False to stop.
+
+        M-CR30-CALIBRATE (§M-PROPOSED). The instrument's owner ruled on
+        2026-08-28 that ChromIQ triggers the calibration itself rather than
+        asking the user to press the instrument's button, on BOTH transports —
+        EXP-MEAS-004 proved the host trigger over USB and EXP-BLE-012 over
+        Bluetooth, the second only after he pushed back on a "not known to be
+        possible" that had never actually been tested.
+
+        The reading it takes is NOT a measurement of anything: the helper has
+        not started, so there is no prompt outstanding and nowhere for a value
+        to go. That is what makes his ruling "the calibration reading must not
+        be counted as a measurement" free rather than something to enforce.
+        """
+        from PyQt6.QtCore import QThread
+        from PyQt6.QtWidgets import QMessageBox
+        from workflow import measurement_messages as M
+        from ui.widgets import fit_message_box_buttons
+
+        # The bridge FIRST, and calibrate through its reader. A second device
+        # handle would mean opening the instrument twice — and over Bluetooth
+        # that is a disconnect and reconnect of a peripheral that accepts one
+        # connection at a time. Standing the bridge up arms nothing: it does
+        # nothing until the helper's first spot prompt reaches on_patch_ready,
+        # and the helper has not been started yet.
+        self._open_cr30_bridge()
+        reader = getattr(self, "_cr30_reader", None)
+        if reader is None:
+            return True      # no reader to calibrate with; the run says why
+
+        title, body = M.M_CR30_CALIBRATE.render()
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(tr("Calibrate the instrument"))
+        box.setText(title)
+        box.setInformativeText(body)
+        go = box.addButton(tr("Calibrate now"), QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(go)
+        fit_message_box_buttons(box)
+        box.exec()
+        if box.clickedButton() is not go:
+            return False
+
+        # Off the GUI thread: the reader holds its lock for the whole call, and
+        # a slot that waited on it would freeze the window it was opened from —
+        # the same primitive that froze the app for three minutes on Stop.
+        result: dict = {}
+
+        class _Worker(QObject):
+            done = pyqtSignal()
+
+            def run(self) -> None:
+                try:
+                    reader.calibrate()
+                except Exception as exc:      # noqa: BLE001 — reported below
+                    result["error"] = str(exc) or type(exc).__name__
+                self.done.emit()
+
+        thread, worker = QThread(self), _Worker()
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.done.connect(thread.quit)
+        thread.start()
+        # Both must stay referenced until the thread has finished, or Qt
+        # collects a running QThread and takes the process with it.
+        self._cal_thread, self._cal_worker = thread, worker
+        while not thread.isFinished():
+            QApplication.processEvents()
+            thread.wait(20)
+        self._cal_thread = self._cal_worker = None
+
+        if "error" in result:
+            self._log.appendPlainText("\n" + tr(
+                "The instrument could not be calibrated: {error}"
+                ).format(error=result["error"]))
+            self._log.ensureCursorVisible()
+            again = QMessageBox(self)
+            again.setIcon(QMessageBox.Icon.NoIcon)
+            again.setWindowTitle(tr("Calibrate the instrument"))
+            again.setText(tr("The calibration did not go through."))
+            again.setInformativeText(tr(
+                "ChromIQ asked your CR30 to calibrate and it did not answer.\n\n"
+                "Check that the instrument is switched on and still connected, "
+                "then start the measurement again.\n\n"
+                "Nothing has been changed, and any measurement this run "
+                "already had is untouched.\n\n"
+                "What went wrong: {error}").format(error=result["error"]))
+            again.setStandardButtons(QMessageBox.StandardButton.Ok)
+            fit_message_box_buttons(again)
+            again.exec()
+            return False
+
+        self._log.appendPlainText("\n" + tr(
+            "[NOTE] ChromIQ asked the CR30 to take its white calibration. It "
+            "cannot check the result — the instrument reports the same value "
+            "whatever is under the cap."))
+        self._log.ensureCursorVisible()
+        # The instructions window is the confirmation window his ruling asks
+        # for: it already says to take the magnetic cap off and how to
+        # navigate. Shown here rather than after the helper starts, so the two
+        # windows read as one sequence.
+        self._show_cr30_measuring_window()
+        return True
 
     def _open_cr30_bridge(self) -> None:
         """Stand up the thing that answers the helper's spot prompts (#159).

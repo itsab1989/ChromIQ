@@ -110,6 +110,39 @@ M_CR30_READ_ENDED = _m(
     approved=False)
 
 
+# --- PROPOSED: calibrate the instrument before the measurement -------------
+#: #159. Ruled by the instrument's owner on 2026-08-28: ChromIQ triggers the
+#: calibration itself rather than asking for a button press, on both USB and
+#: Bluetooth. The wording carries the one thing that actually protects the
+#: user, and it is NOT "keep magnets away" -- the magnet is what makes this a
+#: calibration rather than a measurement. The hazard is which FACE of the cap
+#: is at the aperture: calibrating against the cap's green side is what
+#: corrupted the research unit, and the error is one-sided and invisible in
+#: every reading afterwards.
+#:
+#: It must not claim the calibration worked. The device reports the firmware's
+#: nominal tile constant whenever the magnet gate engages -- white tile and
+#: green face come back bit-identical, max difference 0.0 across all 31 bands
+#: -- so there is nothing to check and no threshold that could be defended.
+M_CR30_CALIBRATE = _m(
+    "M-CR30-CALIBRATE",
+    "Calibrate your CR30 before measuring",
+    "Your instrument takes a white calibration before it measures a chart. It "
+    "takes a couple of seconds and ChromIQ does it for you — there is no "
+    "button to press on the instrument.\n\n"
+    "Put the magnetic cap on the measuring end, with the WHITE TILE facing "
+    "the opening. The cap is reversible and the other side is green, so it is "
+    "worth a glance: white towards the instrument.\n\n"
+    "Then press “Calibrate now”.\n\n"
+    "ChromIQ cannot check the result for you. The instrument reports the same "
+    "value whatever is under the cap, so a calibration against the green side "
+    "looks exactly like a good one and would quietly shift every reading that "
+    "follows. Your eyes are the only check there is.\n\n"
+    "If you would rather not calibrate now, press Cancel — nothing has been "
+    "changed and any measurement this run already has is untouched.",
+    approved=False)
+
+
 # --- PROPOSED: the instrument went away mid-measurement --------------------
 #: #159, and the fault the owner hit twice on 2026-08-28: he unplugged the
 #: CR30 mid-session and the app said nothing at all, then froze for three
@@ -1054,6 +1087,7 @@ CATALOGUE = {m.id: m for m in (
     M_PROJECT_REPLACE_FAILED,
     M_CR30_STOCK_READER,
     M_CR30_READ_ENDED, M_CR30_INSTRUMENT_GONE, M_CR30_PATCH_GAVE_UP,
+    M_CR30_CALIBRATE,
     M_CR30_HOW_TO_MEASURE,
 )}
 

@@ -150,6 +150,11 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # nothing, then froze for three minutes on
                                  # Stop. Both windows are new wording and wait
                                  # here.
+                                 # 2026-08-28, #159: Basti ruled that ChromIQ
+                                 # triggers the white calibration itself, on
+                                 # both transports, after EXP-BLE-012 disproved
+                                 # the belief that Bluetooth could not do it.
+                                 "M-CR30-CALIBRATE",
                                  "M-CR30-INSTRUMENT-GONE",
                                  "M-CR30-PATCH-GAVE-UP",
                                  "M-ALL-STRIPS-PATCHES-LEFT",

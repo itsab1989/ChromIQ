@@ -450,6 +450,40 @@ class DeviceReader:
         from .colour import spectrum_to_xyz
         return spectrum_to_xyz(m.values)
 
+    def calibrate(self, *, timeout: float = 30.0, cancelled=None) -> None:
+        """Ask the instrument to take its white calibration, now.
+
+        Uses THIS reader's device handle on purpose. Building a second one
+        would mean opening the instrument twice: seconds on USB, and on
+        Bluetooth a full disconnect and reconnect of a peripheral that accepts
+        one connection at a time — the CR30 stops being visible while anything
+        holds it. Sharing the handle also leaves the reading this takes as the
+        device's `_previous`, which is exactly the baseline the Bluetooth
+        change-detection needs, so the first patch no longer has to establish
+        one.
+
+        `cancelled` is this call's own predicate and must NOT be the reader's
+        `_cancel` latch: that latch means "this reader is finished", is never
+        cleared, and is checked by every wait in device.py — so cancelling a
+        calibration through it would make every patch read for the rest of the
+        session fail instantly, which is precisely the dead session this whole
+        round has been removing.
+        """
+        with self._lock:
+            if cancelled is not None and cancelled():
+                return
+            if self._dev is None:
+                self._dev = self._open()
+                log.info("CR30: opened over %s", self._dev.kind)
+            self._dev.calibrate_white()
+            # Take the reading the calibration produced, so the device's stored
+            # value is known to us rather than left as a surprise for patch A1.
+            try:
+                self._dev.read_measurement(enforce=False)
+            except Exception:            # noqa: BLE001 — informational only
+                log.debug("CR30: could not read back after calibrating",
+                          exc_info=True)
+
     def cancel(self) -> None:
         """Stop a wait in progress, so Stop does not block for the timeout."""
         self._cancel = True
