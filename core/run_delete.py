@@ -16,7 +16,8 @@ the actual window from what :func:`plan_for` returns.
   reports/ or old/ folders"* — and only the selected dated folder when several
   results exist and one of them is picked.
 * Nothing is archived to ``old/``: what the user confirms leaves the project.
-* **It goes to the Trash** (Basti, 2026-08-28), which changed the wording of
+* **It goes to the Trash — or the Recycle Bin, or the Wastebasket, whichever
+  this platform calls it** (Basti, 2026-08-28), which changed the wording of
   every window here. Knut's original ruling was that a delete is permanent, and
   that stood until `shutil.rmtree` was measured doing the opposite of what its
   window promised: one unwritable sub-folder is enough for it to destroy most of
@@ -32,7 +33,7 @@ from __future__ import annotations
 import logging
 import shutil
 
-from core.trash import move_to_trash
+from core.trash import move_to_trash, trash_name
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -425,11 +426,12 @@ def _run_message(plan: DeletePlan) -> str:
     if plan.seeded_runs:
         parts.append(_seeded_paragraph(plan))
     parts.append(tr(
-        "The whole folder for this profile run is moved to your Trash, so "
-        "nothing is destroyed. If you change your mind, open the Trash and drag "
-        "the folder back where it was. ChromIQ does not keep a second copy in "
-        "an “old” folder inside the project, and the space on your disk comes "
-        "back once you empty the Trash. This is the folder that goes:")
+        "The whole folder for this profile run is moved to your {trash}, so "
+        "nothing is destroyed. If you change your mind, open the {trash} and "
+        "drag the folder back where it was. ChromIQ does not keep a second copy "
+        "in an “old” folder inside the project, and the space on your disk "
+        "comes back once you empty the {trash}. This is the folder that goes:")
+        .format(trash=trash_name())
         + f"\n\n{plan.path}")
     parts.append(_renumber_sentence(plan))
     parts.append(tr(
@@ -476,11 +478,11 @@ def _last_run_message(plan: DeletePlan) -> str:
            "kept beside it, the project-wide exports, and every run with "
            "everything in its folders. ChromIQ then returns to the state it "
            "has when you start it fresh, with no project open."),
-        tr("Both of these move the files to your Trash rather than destroying "
-           "them, so you can open the Trash and put them back if you change "
-           "your mind. Neither one leaves a copy behind in an “old” folder "
-           "inside the project, and the space on your disk comes back once you "
-           "empty the Trash."),
+        tr("Both of these move the files to your {trash} rather than "
+           "destroying them, so you can open the {trash} and put them back if "
+           "you change your mind. Neither one leaves a copy behind in an “old” "
+           "folder inside the project, and the space on your disk comes back "
+           "once you empty the {trash}.").format(trash=trash_name()),
     ])
 
 
@@ -522,10 +524,10 @@ def _verify_all_message(plan: DeletePlan) -> str:
         "measurement, profile and reports all stay exactly as they are. Only "
         "this is removed:").format(n=n) + f"\n\n{plan.path}")
     parts.append(tr(
-        "The folder is moved to your Trash, so nothing is destroyed. If you "
-        "change your mind, open the Trash and drag it back where it was. Your "
-        "profile runs keep the numbers they have now, because no profile run "
-        "is being deleted here."))
+        "The folder is moved to your {trash}, so nothing is destroyed. If you "
+        "change your mind, open the {trash} and drag it back where it was. "
+        "Your profile runs keep the numbers they have now, because no profile "
+        "run is being deleted here.").format(trash=trash_name()))
     if len(plan.verification_ids) > 1:
         parts.append(tr(
             "If you only wanted to remove one date, cancel, choose that date "
@@ -547,18 +549,24 @@ def _verify_one_message(plan: DeletePlan) -> str:
         "Kept: the verification chart, and the other verification dates of "
         "this run. The profiling side of run {n} is not touched.").format(n=n))
     parts.append(tr(
-        "The folder is moved to your Trash, so nothing is destroyed. If you "
-        "change your mind, open the Trash and drag it back where it was. Your "
-        "profile runs keep the numbers they have now, and so do the other "
+        "The folder is moved to your {trash}, so nothing is destroyed. If you "
+        "change your mind, open the {trash} and drag it back where it was. "
+        "Your profile runs keep the numbers they have now, and so do the other "
         "verification dates: each one is named after the moment it was "
-        "measured, so none of them is ever renumbered."))
+        "measured, so none of them is ever renumbered.").format(
+            trash=trash_name()))
     return "\n\n".join(parts)
 
 
 def confirm_label(plan: DeletePlan) -> str:
     """The destructive button's text — it names what it will do."""
     if plan.kind == KIND_RUN:
-        return tr("Delete run {n} permanently").format(
+        # NOT "permanently" any more. The body of this very window says the
+        # folder is moved to the Trash and explains how to drag it back; the
+        # button underneath said "DELETE RUN 2 PERMANENTLY". The two halves of
+        # one window disagreed about whether the files survive, and the button
+        # is the half people read. Found on German Windows 11.
+        return tr("Delete run {n}").format(
             n=run_number(plan.run_id))
     if plan.kind == KIND_VERIFY_ALL:
         if len(plan.verification_ids) > 1:

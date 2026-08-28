@@ -33,6 +33,8 @@ disk was full — so a window that reports success should say where the files we
 from __future__ import annotations
 
 import logging
+import os
+import sys
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -92,14 +94,33 @@ def move_to_trash(path: "Path | str") -> TrashResult:
     return TrashResult(False, reason=_no_trash_reason())
 
 
+def trash_name() -> str:
+    """What the system's own recycle folder is CALLED, on this platform.
+
+    "Trash" is a macOS word. Windows has a **Recycle Bin** and most Linux
+    desktops a **Wastebasket**, so an instruction to "open the Trash and drag the
+    folder back" names something a Windows user cannot find — verified on German
+    Windows 11, where the app said "Trash" eight times in one window.
+
+    Translated, because the noun differs per language as well as per platform
+    (German says Papierkorb on both macOS and Windows; English does not).
+    """
+    from core.i18n import tr
+    if sys.platform == "darwin":
+        return tr("Trash")
+    if os.name == "nt":
+        return tr("Recycle Bin")
+    return tr("Wastebasket")
+
+
 def _no_trash_reason() -> str:
     from core.i18n import tr
     return tr(
-        "ChromIQ could not move these files to the Trash, so nothing has been "
-        "deleted and everything is still exactly where it was.\n\n"
+        "ChromIQ could not move these files to the {trash}, so nothing has "
+        "been deleted and everything is still exactly where it was.\n\n"
         "This usually happens for one of two reasons: the files are on a disk "
-        "or a network share that has no Trash of its own, or the folder they "
+        "or a network share that has no {trash} of its own, or the folder they "
         "are in is read-only. Moving the project to a folder on your own disk, "
         "or asking whoever looks after the share to give you permission to "
         "write there, will let you delete it."
-    )
+    ).format(trash=trash_name())

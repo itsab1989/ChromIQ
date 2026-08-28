@@ -21,6 +21,7 @@ from __future__ import annotations
 import html
 
 from core.i18n import tr
+from core.trash import trash_name
 from core.platform_paths import file_manager_name
 
 #: (action, [route, …]) — one entry per thing a user sets out to do.
@@ -167,7 +168,9 @@ ACTION_ROWS: "list[tuple[str, list[str]]]" = [
     ]),
     (tr("Recover something"), [
         tr("The run's “old” folder holds whatever a Replace or a re-generation "
-        "displaced. A Delete is permanent and cannot be undone."),
+           "displaced. A Delete puts the files in your {trash}, so they can be "
+           "brought back from there until you empty it.").format(
+               trash=trash_name()),
     ]),
     (tr("Find your files"), [
         tr("The “Location being edited” line under the Profile-run bar."),
@@ -194,8 +197,10 @@ CANNOT_ROWS: "list[tuple[str, str]]" = [
      tr("Generating a new chart replaces it, and your measurement is moved to the "
      "run's “old” folder rather than lost.")),
     (tr("Undo a deletion"),
-     tr("A Delete is permanent by design, and every Delete window says so before "
-     "you confirm. What a Replace displaced is still in “old”.")),
+     tr("Open your {trash} and put the folder back where it was. A Delete moves "
+        "the files there rather than destroying them, and every Delete window "
+        "says so before you confirm. What a Replace displaced is still in "
+        "“old”.").format(trash=trash_name())),
     (tr("Compare two runs or two profiles side by side"),
      tr("Build a measurement report for each, or use Tools ▸ “Verify against "
      "reference”. A possible future improvement.")),

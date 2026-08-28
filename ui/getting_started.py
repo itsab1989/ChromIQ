@@ -18,6 +18,7 @@ from __future__ import annotations
 import html
 
 from core.i18n import tr
+from core.trash import trash_name
 from ui.keyboard_help import keys_for
 
 
@@ -172,11 +173,13 @@ def _keeping() -> "list[tuple[str, str]]":
          tr("Replacing a chart, or generating a new one over an old one, moves "
             "what it displaces into an “old” folder inside the run. Nothing is "
             "lost, and ChromIQ tells you before it happens.")),
-        (tr("Deleting does not"),
-         tr("“Delete” is permanent: nothing goes to the Trash and no copy is "
-            "kept. Every Delete window says exactly what will go before you "
-            "confirm, and Cancel is always the button that is ready to "
-            "press.")),
+        (tr("Deleting can be undone"),
+         tr("A Delete moves the files to your {trash}, so you can open it and "
+            "put them back if you change your mind. ChromIQ does not keep a "
+            "second copy inside the project, and the space on your disk comes "
+            "back once you empty the {trash}. Every Delete window says exactly "
+            "what will go before you confirm, and Cancel is always the button "
+            "that is ready to press.").format(trash=trash_name())),
         (tr("Your measurements are the irreplaceable part"),
          tr("A chart can be generated again in seconds; a measurement is real "
             "ink on real paper and cannot be. ChromIQ warns you before "

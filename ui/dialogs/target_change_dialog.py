@@ -27,6 +27,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 from core.i18n import tr
+from core.trash import trash_name
 
 
 class TargetChangeAction(Enum):
@@ -144,11 +145,12 @@ class TargetChangeDialog(QDialog):
         outer.addWidget(
             self._option_button(
                 tr('Create "{new}" and delete "{old}"').format(new=new_name, old=old_name),
-                tr('ChromIQ creates the new "{new}" profile and permanently '
-                   'deletes the old "{old}" folder and everything inside it '
-                   '(charts, measurements, profiles). This cannot be undone — only '
-                   'choose it if you are sure the old profile is no longer '
-                   'needed.').format(new=new_name, old=old_name),
+                tr('ChromIQ creates the new "{new}" profile and moves the old '
+                   '"{old}" folder to your {trash} with everything inside it '
+                   '(charts, measurements, profiles). You can put it back from '
+                   'there until you empty it, and the space on your disk comes '
+                   'back once you do.').format(new=new_name, old=old_name,
+                                               trash=trash_name()),
                 TargetChangeAction.DELETE,
                 danger=True,
             )

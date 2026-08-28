@@ -890,6 +890,38 @@ def accent_message_box_button(btn) -> None:
     )
 
 
+def widen_message_box(box, px: int = 660) -> None:
+    """Give a QMessageBox a sensible measure to wrap its text at.
+
+    A QMessageBox sizes itself from its buttons, so a long body is wrapped into
+    a tall, narrow column. Basti saw it on the Delete window, 2026-08-28:
+    *"it was very high in relation to its width"* — that window had just grown
+    several paragraphs (what the run keeps in its "old" folder, the chart copy a
+    measurement was taken with, where the files go now) and nothing widened with
+    them.
+
+    A full-width spacer row under the text is the standard Qt answer and is
+    already used once in `ui/dialogs/settings_dialog.py`; this is that, lifted
+    so the delete windows and any future long one share it instead of copying
+    it. `px` is a MINIMUM, so a box whose buttons are wider than that is left
+    alone.
+
+    Line length matters for reading, not just for looks: much past ~90
+    characters the eye loses the start of the next line, and these windows are
+    the ones a person must actually read before answering.
+    """
+    try:
+        from PyQt6.QtWidgets import QSizePolicy, QSpacerItem
+        grid = box.layout()
+        if grid is None:
+            return
+        grid.addItem(QSpacerItem(int(px), 1, QSizePolicy.Policy.Minimum,
+                                 QSizePolicy.Policy.Minimum),
+                     grid.rowCount(), 0, 1, grid.columnCount())
+    except Exception:      # noqa: BLE001 — a window must still open
+        log.debug("could not widen the message box", exc_info=True)
+
+
 def fit_message_box_buttons(box) -> None:
     """Fit **every** button of a QMessageBox to the label it will paint.
 

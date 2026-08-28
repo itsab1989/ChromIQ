@@ -2401,8 +2401,17 @@ class FileManager:
             return False
         return any(r.built_profile_icc().exists() for r in proj.all_runs())
 
-    def delete_project_folder(self, name: "str | Path") -> None:
-        """Permanently delete a ChromIQ project folder.
+    def delete_project_folder(self, name: "str | Path") -> bool:
+        """Move a ChromIQ project folder to the system Trash.
+
+        NOT `shutil.rmtree`, which is what this used to be. It removes
+        everything it can reach and raises only at the end, so one unwritable
+        sub-folder left a project half destroyed — measured through the target
+        bar's own Delete, ten of twenty-nine files gone with `project.json`
+        among them. This path is reached from the rename chooser instead of the
+        bar, which is why it was missed when the others were fixed.
+
+        Returns whether the folder went. False means nothing was touched.
 
         Guarded so a stray/empty name can never remove something unexpected: the
         folder must be INSIDE :meth:`root_dir` and contain a ``project.json``.
@@ -2434,8 +2443,13 @@ class FileManager:
         if not (target / Project.MANIFEST).exists():
             log.warning("Refusing to delete non-project folder: %s", target)
             return
-        shutil.rmtree(target)
-        log.info("Deleted project folder %s", target)
+        from core.trash import move_to_trash
+        res = move_to_trash(target)
+        if not res.ok:
+            log.warning("Could not move project folder %s to the Trash", target)
+            return False
+        log.info("Moved project folder %s to the Trash", target)
+        return True
 
     def cwd_for_chart(self, *, cal_target: bool) -> Path:
         """Folder chart_creator must run targen/printtarg in.

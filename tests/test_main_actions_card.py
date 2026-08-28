@@ -144,13 +144,21 @@ def test_every_row_string_reaches_the_translation_catalogue():
     # (#130, Knut 2026-07-29: "Finder" is Mac-only and must follow the
     # platform). The KEY is still the tr() literal with its placeholder, which
     # is what a translator sees; only the rendered row carries the name.
+    # …and the SAME applies to the system's recycle folder, for the same reason
+    # and by the same precedent: "Trash" is a macOS word, Windows has a Recycle
+    # Bin and Linux a Wastebasket, so an instruction to "open the Trash" names
+    # something a Windows user cannot find. Measured on German Windows 11,
+    # 2026-08-28. The key keeps its placeholder; only the rendered row carries
+    # the platform's own noun.
     from core.platform_paths import file_manager_name
+    from core.trash import trash_name
     rendered = {}
     for k in keys:
-        if "{manager}" not in k:
+        if "{manager}" not in k and "{trash}" not in k:
             continue
         try:
-            rendered[k.format(manager=file_manager_name())] = k
+            rendered[k.format(manager=file_manager_name(),
+                              trash=trash_name())] = k
         except (KeyError, IndexError):
             pass          # other placeholders in the same key — not our row
 

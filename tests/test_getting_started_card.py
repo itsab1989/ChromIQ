@@ -110,11 +110,25 @@ def test_each_alternative_really_gives_more_than_one_route(qapp):
 
 
 # ---- what is kept, what is not ------------------------------------------
-def test_it_says_replacing_keeps_a_copy_and_deleting_does_not(qapp):
+def test_it_says_replacing_keeps_a_copy_and_deleting_can_be_undone(qapp):
+    """IT USED TO ASSERT THE OPPOSITE, AND WAS RIGHT TO. Knut ruled that a
+    delete is permanent, and this card said so. That stood until `shutil.rmtree`
+    was measured destroying most of a project and then reporting that nothing
+    had changed; Basti ruled on 2026-08-28 that a delete moves to the system's
+    recycle folder, which cannot half-happen. The card has to teach what the app
+    now does.
+
+    The platform's own noun, not "Trash": Windows has a Recycle Bin and Linux a
+    Wastebasket, and a card telling a Windows user to open the Trash names
+    something they cannot find.
+    """
+    from core.trash import trash_name
     html = getting_started_html()
     assert "“old” folder" in html
-    assert "permanent" in html
-    assert "nothing goes to the Trash" in html.replace("Trash", "Trash")
+    assert "permanent" not in html, \
+        "the card still promises a permanent delete, which is no longer true"
+    assert trash_name() in html
+    assert "put them back" in html
 
 
 def test_it_names_the_measurement_as_the_irreplaceable_part(qapp):

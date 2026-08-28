@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout,
 
 from core.file_manager import CHART_SNAPSHOT_DIRNAME
 from core.i18n import tr
+from core.trash import trash_name
 from core.platform_paths import file_manager_name
 from core.logger import get_logger
 from core.measurement_target import (
@@ -950,7 +951,8 @@ class MeasurementTargetBar(QWidget):
         row.addWidget(self._delete_btn)
         self._delete_tip = TooltipButton(
             tr("Delete"),
-            tr("Removes work you no longer want, permanently. What it removes "
+            tr("Removes work you no longer want. It goes to your {trash}, so "
+               "you can put it back until you empty that. What it removes "
                "depends on “Run type”, and you are always shown exactly what "
                "will go — and asked — before anything is deleted.\n\n"
                "RUN TYPE = PROFILING\n"
@@ -972,11 +974,12 @@ class MeasurementTargetBar(QWidget):
                "the last verification gone there is nothing left for those to "
                "belong to. The profiling side of the run is never touched.\n\n"
                "IN BOTH CASES\n"
-               "Nothing is moved to the Trash and nothing is kept in an “old” "
-               "folder: what you confirm is removed for good. The button is "
+               "What you confirm is moved to your {trash}, so you can put it "
+               "back from there until you empty it. Nothing is kept in an "
+               "“old” folder inside the project. The button is "
                "greyed whenever there is nothing specific to delete — during a "
                "measurement, or when the selection says “New run” or “New "
-               "verification”, which name nothing on disk yet."),
+               "verification”, which name nothing on disk yet.").format(trash=trash_name()),
             self)
         row.addWidget(self._delete_tip)
 
@@ -985,7 +988,7 @@ class MeasurementTargetBar(QWidget):
         # field, not from here, so there's nothing to select yet.
         self._hint = self._mk_label(tr(
             "Load a profile project, or specify a profile project name and "
-            "create your first chart, then you may choose a profile run."))
+            "create your first chart, then you may choose a profile run.").format(trash=trash_name()))
         self._hint.setObjectName("target_bar_hint")
         self._hint.setVisible(False)
         # It stays where it belongs — to the right of the ⓘ, beside the boxes it
@@ -1913,8 +1916,13 @@ class MeasurementTargetBar(QWidget):
         # "Delete run 4 permanently" is a long label, and a button sizes itself
         # before the font swap widens it — fit every one of them (Knut, #130
         # 2026-07-28).
-        from ui.widgets import fit_message_box_buttons
+        from ui.widgets import fit_message_box_buttons, widen_message_box
         fit_message_box_buttons(box)
+        # This window carries several paragraphs now — what the run keeps in its
+        # "old" folder, the chart copy a measurement was taken with, where the
+        # files go. Without a measure to wrap at, a QMessageBox sizes itself
+        # from its buttons and turns all of that into a tall narrow column.
+        widen_message_box(box)
         box.exec()
         clicked = box.clickedButton()
         if clicked is cancel or clicked is None:
