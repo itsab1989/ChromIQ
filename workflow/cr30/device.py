@@ -15,6 +15,21 @@ import struct
 
 from . import ble
 from .measurement import Measurement, MeasurementError
+from .transport import ShortFrameError, TransportTimeout
+
+
+class DeviceLost(MeasurementError):
+    """The instrument stopped answering mid-session: unplugged, switched off,
+    or the Bluetooth link dropped.
+
+    Distinct from a plain wait, and the distinction is the whole point. The
+    spot workflow spends most of its time with NOTHING arriving, because it is
+    waiting for a human to press a button — so "no frame yet" is the normal
+    state and cannot be an error. A transport that has GONE is a different
+    fact, and one the user must be told, or they carry on pressing the button
+    on an instrument that is no longer there. (Basti did, 2026-08-28: he
+    unplugged mid-measurement and the app said nothing for 71 seconds.)
+    """
 
 
 class CR30:
@@ -159,8 +174,18 @@ class CR30:
                 try:
                     hdr = usb_measure.wait_for_button_header(
                         self._t, timeout=min(left, 1.0))
-                except Exception:
-                    continue                      # nothing yet; keep waiting
+                except (TransportTimeout, ShortFrameError):
+                    continue          # nothing yet, or a partial frame: wait
+                except Exception as exc:
+                    # `except Exception: continue` used to stand here, and it
+                    # made an unplugged instrument indistinguishable from one
+                    # nobody has pressed yet: the read failed instantly, the
+                    # loop swallowed it and went round again, and the session
+                    # sat silent until the timeout expired. pyserial raises
+                    # from `in_waiting` on a port that has gone, so the two
+                    # states ARE separable -- they were simply never separated.
+                    raise DeviceLost(
+                        f"the instrument stopped answering ({exc})") from exc
                 return self.read_measurement(button_header=hdr)
 
         # The reading we will judge the next one against: the last one this
@@ -187,6 +212,14 @@ class CR30:
                 prev = self.read_measurement(enforce=False).values
             except MeasurementError:
                 time.sleep(poll)      # not answering yet; keep trying
+            except Exception as exc:
+                # A link that has GONE, as opposed to one that is merely quiet.
+                # This probe runs before the wait proper, so without the same
+                # distinction here a device switched off between arming the
+                # patch and the first poll escapes as a raw ConnectionError.
+                raise DeviceLost(
+                    f"the Bluetooth link to the instrument dropped ({exc})"
+                ) from exc
 
         while True:
             if cancelled is not None and cancelled():
@@ -197,7 +230,18 @@ class CR30:
                     f"no new reading within {timeout:.0f} s. Place the "
                     "instrument on the highlighted patch and press its own "
                     "button.")
-            m = self.read_measurement(enforce=False)
+            try:
+                m = self.read_measurement(enforce=False)
+            except MeasurementError:
+                raise
+            except Exception as exc:
+                # Same distinction as USB above. bleak raises once the
+                # peripheral is gone; his log caught the disconnect itself
+                # ("Peripheral Device disconnected!") while the app carried on
+                # as though the session were healthy.
+                raise DeviceLost(
+                    f"the Bluetooth link to the instrument dropped ({exc})"
+                ) from exc
             if m.values != prev:
                 # Judge it against the last ACCEPTED reading. Passing
                 # self._previous here compared the reading to ITSELF once
