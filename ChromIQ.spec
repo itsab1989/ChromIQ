@@ -47,6 +47,46 @@ _ft_datas, _ft_binaries, _ft_hiddenimports = collect_all('freetype')
 # lib (collect_all finds nothing to ship). Bundle our vendored ARM64 FreeType so
 # the vector-PDF export works in the frozen ARM app too; core.freetype_bootstrap
 # adds this dir to the DLL search path at startup (#72).
+# ---- CR30 Bluetooth (#159) ------------------------------------------------
+# bleak picks its backend AT RUNTIME by platform — bluezdbus on Linux, winrt on
+# Windows, corebluetooth on macOS — so a bare 'bleak' hidden import ships the
+# façade and none of the machinery. collect_all pulls the backend packages; the
+# per-platform requirements below are separate distributions bleak declares as
+# markers, which PyInstaller never sees at all.
+#
+# Each is optional: a missing one must not break the build for a platform that
+# does not need it, and ChromIQ still runs (and reads a CR30 over USB) with no
+# Bluetooth stack present at all.
+def _collect_optional(name):
+    try:
+        return collect_all(name)
+    except Exception:
+        return [], [], []
+
+_bl_datas, _bl_binaries, _bl_hiddenimports = _collect_optional('bleak')
+
+_btp_datas, _btp_binaries, _btp_hiddenimports = [], [], []
+if sys.platform == 'win32':
+    # WinRT: nine separate distributions, one per Windows namespace.
+    for _pkg in ('winrt.runtime',
+                 'winrt.windows.devices.bluetooth',
+                 'winrt.windows.devices.bluetooth.advertisement',
+                 'winrt.windows.devices.bluetooth.genericattributeprofile',
+                 'winrt.windows.devices.enumeration',
+                 'winrt.windows.devices.radios',
+                 'winrt.windows.foundation',
+                 'winrt.windows.foundation.collections',
+                 'winrt.windows.storage.streams'):
+        _d, _b, _h = _collect_optional(_pkg)
+        _btp_datas += _d; _btp_binaries += _b; _btp_hiddenimports += _h
+elif sys.platform.startswith('linux'):
+    # BlueZ is reached over D-Bus; dbus-fast is a compiled extension.
+    _btp_datas, _btp_binaries, _btp_hiddenimports = _collect_optional('dbus_fast')
+elif sys.platform == 'darwin':
+    for _pkg in ('CoreBluetooth', 'libdispatch'):
+        _d, _b, _h = _collect_optional(_pkg)
+        _btp_datas += _d; _btp_binaries += _b; _btp_hiddenimports += _h
+
 _ft_vendor_datas = []
 if sys.platform == 'win32' and platform.machine().upper() in ('ARM64', 'AARCH64'):
     _ft_vp = os.path.join('vendor', 'freetype', 'win-arm64', 'freetype.dll')
@@ -120,7 +160,11 @@ a = Analysis(
     ['main.py'],
     pathex=['.'],
     binaries=[*_ic_binaries, *_we_binaries, *_oc_binaries, *_ak_binaries,
-              *_np_binaries, *_ft_binaries],
+              *_np_binaries, *_ft_binaries,
+              # CR30 Bluetooth: dbus-fast (Linux) and the winrt packages
+              # (Windows) are compiled extensions, so they must travel as
+              # binaries, not just as importable names.
+              *_bl_binaries, *_btp_binaries],
     datas=[
         ('assets',           'assets'),
         ('data/parameters.yaml', 'data'),
@@ -131,6 +175,8 @@ a = Analysis(
         *_engine_datas,
         *_ft_vendor_datas,
         *_ic_datas,
+        *_bl_datas,
+        *_btp_datas,
         *_we_datas,
         *_oc_datas,
         *_ak_datas,
@@ -168,6 +214,8 @@ a = Analysis(
         'serial.tools.list_ports',
         'bleak',
         *_ic_hiddenimports,
+        *_bl_hiddenimports,
+        *_btp_hiddenimports,
         *_we_hiddenimports,
         *_oc_hiddenimports,
         *_ak_hiddenimports,

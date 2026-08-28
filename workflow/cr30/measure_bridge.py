@@ -60,6 +60,62 @@ DROPPED_NO_PROMPT = "no_prompt"
 DROPPED_STALE_LOC = "stale_loc"
 
 
+def _no_device_help(usb_err: object, ble_err: object) -> str:
+    """Why neither transport worked, in words the user can act on.
+
+    Both failures are reported: a single "no instrument" hides the fact that one
+    transport got much further than the other. The platform-specific hints are
+    the ones people actually hit, and none of them is guessable from the raw
+    exception:
+
+    * **Linux** — a serial port belongs to the ``dialout`` group, so a user who
+      is not in it gets a bare permission error from a device that is plugged in
+      and working.
+    * **Windows** — the CH34x bridge needs its driver; Windows chooses it from
+      Windows Update and a machine that has never seen one offline may not have
+      it.
+    * **macOS** — nothing to install for USB (Apple ships AppleUSBCHCOM), and
+      Bluetooth needs the system's permission, which a packaged app asks for the
+      first time it scans.
+
+    And on every platform: the CR30 stops advertising while a phone app holds
+    it, which looks exactly like a device that is not there.
+    """
+    import sys
+    lines = ["ChromIQ could not open your CR30.",
+             "",
+             f"  Over USB:       {usb_err}",
+             f"  Over Bluetooth: {ble_err}",
+             "",
+             "Things worth checking:",
+             "  \u2022 Is the instrument switched on and, for USB, plugged in?",
+             "  \u2022 Is the phone app connected to it? A CR30 stops being "
+             "visible over Bluetooth while another device holds it \u2014 "
+             "disconnect there and try again."]
+    if sys.platform.startswith("linux"):
+        lines += ["  \u2022 On Linux a serial port belongs to the "
+                  "\u201cdialout\u201d group. If the instrument is plugged in "
+                  "but ChromIQ is refused, add yourself with "
+                  "\u201csudo usermod -aG dialout $USER\u201d and log out and "
+                  "back in.",
+                  "  \u2022 Bluetooth needs BlueZ running (\u201csystemctl "
+                  "status bluetooth\u201d)."]
+    elif sys.platform == "win32":
+        lines += ["  \u2022 On Windows the CR30 needs its USB-serial driver. "
+                  "Windows usually fetches it automatically the first time the "
+                  "instrument is plugged in; on a machine with no internet you "
+                  "may have to install the CH34x driver yourself.",
+                  "  \u2022 Check Device Manager \u2192 Ports (COM & LPT) for "
+                  "the instrument."]
+    else:
+        lines += ["  \u2022 On macOS there is nothing to install for USB \u2014 "
+                  "the driver ships with the system.",
+                  "  \u2022 The first time ChromIQ uses Bluetooth, macOS asks "
+                  "for permission. If you declined it, turn it back on in "
+                  "System Settings \u2192 Privacy & Security \u2192 Bluetooth."]
+    return "\n".join(lines)
+
+
 class _ReadWorker(QObject):
     """One reading, taken off the main thread."""
 
@@ -276,7 +332,10 @@ class DeviceReader:
             return CR30.open_usb(self._port)
         except Exception as usb_err:      # noqa: BLE001 — try the other one
             log.info("CR30: no USB device (%s); trying Bluetooth", usb_err)
-            return CR30.open_ble(address=self._address)
+            try:
+                return CR30.open_ble(address=self._address)
+            except Exception as ble_err:  # noqa: BLE001 — report BOTH honestly
+                raise ConnectionError(_no_device_help(usb_err, ble_err)) from ble_err
 
     def __call__(self):
         with self._lock:
