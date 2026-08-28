@@ -230,5 +230,17 @@ app = BUNDLE(
         # Declaring the TRUE minimum makes older systems show Apple's clean
         # "requires macOS 13" dialog instead (forum report, Monterey).
         'LSMinimumSystemVersion':    '13.0',
+        # Bluetooth permission for the CR30 (#159). ChromIQ reads that
+        # instrument itself, over USB serial or Bluetooth LE, and bleak goes
+        # through CoreBluetooth. macOS REFUSES CoreBluetooth to any app that
+        # does not declare this, so without it the bundled app cannot see a
+        # CR30 over Bluetooth at all -- while `python main.py` works, because a
+        # dev run inherits Terminal's own permission and the .app is its own
+        # responsible process. The string is what the user reads in the system
+        # prompt, so it says what it is for in plain language.
+        'NSBluetoothAlwaysUsageDescription':
+            'ChromIQ uses Bluetooth to read measurements from a CR30 '
+            'colour-measuring instrument. It is only used while you are '
+            'measuring a chart, and never to connect to anything else.',
     },
 )
