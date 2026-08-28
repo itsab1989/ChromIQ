@@ -19,8 +19,15 @@ restore returned 81.20, ratio 1.0012.
 The data is present in every patch_read event:
   {"event":"patch_read","id":"384","loc":"A1","xyz":[45.2193,36.4965,44.9748],
    "exyz":[49.9972,39.5511,75.2743],"de":27.05}
-Three patches read: dE 27.05, 69.64, 22.23. (Large because the instrument was
-never calibrated - see F1. Do not chase the dE magnitude as a separate bug.)
+Three patches read: dE 27.05, 69.64, 22.23.
+
+CORRECTION (skeptic S15, and it was my error): "large because the instrument was
+never calibrated" is NOT supported. The ratios are 0.92 / 0.46 / 0.67 -- no
+uniform inflation, which is what an uncalibrated instrument would produce. The
+real reason the numbers are large is that the .ti2's expected XYZ are targen's
+NOMINAL values computed from RGB, with no profile in existence yet, so a real
+print differs from them by a lot on saturated patches. Do not chase the dE
+magnitude as a bug, and do not cite it as calibration evidence either.
 The patch highlighter DOES work. The overlay does not appear.
 
 ## F3 — beachball on quit mid-measurement  [ROOT CAUSE, arithmetic]
