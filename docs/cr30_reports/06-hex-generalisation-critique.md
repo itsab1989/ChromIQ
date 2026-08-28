@@ -533,3 +533,193 @@ Walked, and each is fine or already covered above:
   the stagger for any hexagonal geometry (§3.3). `margin_inspector` adds the
   apex and correctly does not re-add the stagger. **Survives.**
 
+---
+
+## Findings, ranked
+
+### BLOCKER
+
+1. **The Guided patch count ignores the CR30 entirely.**
+   `ui/tabs/tab_chart.py:11495-11531` (`_engine_geom`) has no `CR30` arm, so the
+   estimate is built without `hflag`, without `layout_mode="patch_first"` and
+   with spacers ON, while `workflow/chart_creator.py:1183-1206` builds the real
+   chart with all three. Measured, A4: the readout says **315** whether the
+   hexagon box is ticked or not; the sheet holds **345** rectangular and
+   **390–405** hexagonal. The headline number on the default screen is wrong,
+   and ticking the feature under review moves nothing. Breaks the
+   `GEOM_BUILD_KEYS` lockstep contract (`instruments.py:389-394`). §3.1
+
+### SERIOUS
+
+2. **"Which instruments can be hexagonal" is written down seven times and
+   derived nowhere.** `presets.py:171-177` (`mode()`), `:451`, `:523-525`
+   (`factory_defaults`); `layout_options_panel.py:90-95` (`mode_label_for`),
+   `:177-181` (`modes_for`), `:124-165` (`mode_tooltip_for` fallback);
+   `tab_chart.py:11803-11895` (`_update_dd_visibility`). `hex_capable()` exists
+   and answers all of them. The worst is `mode()`: a third hex-capable
+   instrument gets `"default"`, so its flat and hex recipes **collide on one
+   `preset_key()`** and silently overwrite each other. §2-C, §3.4
+3. **The row-number band overflows at the ruled 12 mm cell** — a two-digit row
+   number is 8.43 mm wide against `rlwi = 7.5` mm, so the numbers print ~2 mm
+   into the left margin, and 0.03 mm from the paper edge at a 2 mm margin.
+   Affects rectangular and hexagonal alike; the CR30 is the only instrument
+   whose patch is nearly twice the band's design size. §3.2
+4. **Three user-facing strings and one comment quote the 10 mm cell's numbers.**
+   "~8 % more per sheet" (`tab_chart.py:11836`), "532 rectangular / 576
+   hexagonal" (`tab_chart.py:11848`, `layout_options_panel.py:142`), "~15 %"
+   (`presets.py:175`). Truth at 12 mm: 345/405 on A4 portrait (+17.4 %), +7 % on
+   A4 landscape and A3. Two of them are translated strings. §6.1
+5. **The shared checkbox now silently changes the patch SHAPE.**
+   CM double-density → CR30 arrives with hexagons on; SS hexagons → CM arrives
+   at double density. Force-unchecked only when hidden
+   (`tab_chart.py:11888-11891`), persisted as `chart_double_density`. Was MINOR
+   while a CR30 honeycomb rendered as squares; it is not any more — and finding
+   1 means the patch count does not even move. §6.2
+6. **`tests/test_layout_raster.py`'s five hex tests are still SS-only**
+   (`:75-90`, `:510`, `:527-532`, `:647`, `:653-656`). The one at `:647` is the
+   row-number clearance — the exact code whose CR30 behaviour differs (finding
+   3). Report 05 asked for both hex test files; only
+   `test_hex_overlay_geometry.py` was parametrised. §4.1
+7. **Nothing tests the Guided/Manual → engine wiring**, which is why finding 1
+   is live under a green suite. No test compares `tab_chart._engine_geom` with
+   `chart_creator._engine_build_kwargs` for any instrument. §4.2
+8. **The Guided and Manual info lines never say "hexagonal" for a CR30** —
+   `tab_chart.py:11568`, `:11615`. The one line that summarises what the engine
+   will build omits the shape the user just chose. §2-C2, C3
+
+### MINOR
+
+9. Text written for a SpectroScan is now shown to CR30 users:
+   `hex_support.py:69-70` ("with the SpectroScan selected") and
+   `settings_dialog.py:3201-3203`. Both translated. §6.3
+10. Stale comments asserting the opposite of the feature —
+    `ui/tiff_preview.py:1496-1499`, `ui/tabs/tab_measure.py:4191-4193`
+    ("a CR30 chart's square patches"). §6.3
+11. A CR30 hexagonal chart built on this branch *before* the fix is now
+    actively mis-highlighted: `_apply_hex_stagger`'s legacy fingerprint matches
+    it and shifts the boxes ±¼ patch onto ink that was drawn unstaggered.
+    Rebuild rather than measure any such chart. §5.4
+12. A `.ti2` separated from its `.channels.json` loses its shape.
+    `chart_is_hexagonal` fails open and never consults the `.ti2`'s own
+    `HEXAGON_PATCHES` keyword, which is written on every hexagonal chart. §5.5
+13. `presets.py:413` / `:421` and `layout_options_panel.py:1960` / `:1964`
+    duplicate *code* for SS and CR30 where the *meanings* genuinely differ
+    (flatbed vs hand-placed). Correct as written; noted so a future tidy-up does
+    not merge them into one wrong rule. §2-B5, B6
+
+---
+
+## What I attacked and could not break
+
+* **`hxeh` could never have been the capability, and the code says so.**
+  `build("CM", cm_stagger=True)` gives `hexagonal=False` with `hxeh = 3.5`
+  (`instruments.py:304-305`). The explicit `Geom.hexagonal` flag is the right
+  call and `instruments.py:151-152` records the reason. `hxew` happens to track
+  `hexagonal` exactly across all seven instruments today, but it is a float
+  answering a shape question and the CM precedent shows how that ends. §1.1
+* **The flag survives every path a `Geom` takes.** `build()`'s `replace()`
+  (`:317`) carries it; the only other `replace()` on a `Geom` in the tree is
+  `raster.apply_furniture_reserves` (`:362`), which touches two furniture
+  fields. §1.1
+* **The renderer and the recorded rects cannot diverge.** They compute the same
+  `±¼·(px(x+pwid) − px(x))` from the same parity index, and now share one
+  predicate. Both blockers of report 05 were fixed in one change, as required.
+  §3.3
+* **The whole `recipe_is_hexagonal` chain generalised for free** — margin
+  inspector, scanin sample cap, scanner/camera refusal, measure zigzag, marquee
+  cells, legacy-sidecar compensation. `hex_max_sample_fraction` derives the cap
+  from `w`/`h` alone, and a CR30 hexagon's `h/w` is 0.866, identical to the
+  SpectroScan's, so both get the same 64.4 % ceiling. §2-A10
+* **`HEXAGON_PATCHES` is doubly unreachable on a CR30 read.** In
+  `chromiq_chartread.c`, `hex` is used only at `:1753` inside `rmode == 2`
+  (`:1541`) — motorised XY navigation vectors — and a CR30 both requires `-x`
+  (`:3711-3720`) and never enters the `check_mode` block that could set `rmode`
+  (`:918`), so `rmode` stays 0 (`:908`) and the read goes to spot mode
+  (`:2600`). §2-B7
+* **The printtarg-side gates were correctly left as instrument identity** —
+  `settings_are_hexagonal`, the `-h` argv, the command preview, the Manual `-h`
+  widget. A CR30 chart can only ever be an engine chart
+  (`ENGINE_ONLY_INSTRUMENTS`). §2-B
+* **Backward compatibility is exact.** A SpectroScan chart's TIFF and
+  `.strips.json` are byte-identical to `master`, flat and hex; 864 capacity /
+  geometry combinations and 240 resize combinations across the six pre-existing
+  instruments show zero differences. §5
+* **The tests are real.** Ten deliberate breakages, each verified to land; all
+  ten caught. The `collect_device_geom` shape record and
+  `HEX_INSTRUMENTS = hex_capable_instruments()` are the two decisions that make
+  that true. §4
+
+---
+
+## Concrete changes
+
+Each is actionable without re-deriving anything above.
+
+1. `ui/tabs/tab_chart.py:11530` — add a `CR30` arm to `_engine_geom` mirroring
+   `chart_creator._engine_build_kwargs:1183-1206`: `kw["hflag"] = bool(dd)`,
+   `kw["layout_mode"] = "patch_first"`, and (Guided only) `spacer_on=False` /
+   `spacer_mode="none"`. Verify against §3.1's table: the readout must read 345
+   with the box clear and 405 with it ticked. **Finding 1.**
+2. Add one parametrised test asserting `tab_chart._engine_geom(...)` and
+   `chart_creator._engine_build_kwargs(...)` produce the same
+   `patches_per_sheet` for every instrument in `chart_creator.ENGINE_INSTRUMENTS`
+   and every mode. This is the `GEOM_BUILD_KEYS` contract, currently unpinned.
+   **Findings 1, 7.**
+3. Route the seven flat/hex lists through `instruments.hex_capable()`:
+   `presets.LayoutRecipe.mode()` (`:171-177`), `default_recipe` (`:451`),
+   `factory_defaults` (`:523-525`), `layout_options_panel.mode_label_for`
+   (`:90-95`), `modes_for` (`:177-181`), and give `mode_tooltip_for` a hex
+   fallback. `_update_dd_visibility` (`tab_chart.py:11803-11895`) keeps its
+   per-instrument prose but should decide *visibility* from `hex_capable`.
+   **Finding 2.**
+4. `presets.LayoutRecipe.mode()` specifically — make the hex arm
+   `if hex_capable(self.instrument): return "hex" if self.hflag else "flat"`
+   **before** the `return "default"`, so a new hex instrument cannot collide its
+   two preset keys. **Finding 2.**
+5. Widen `rlwi` for the CR30 (or cap the row-number font to the band) so a
+   two-digit number fits inside 7.5 mm at a 12 mm cell — measured need is
+   ≥ 8.43 mm of text plus the 1 mm gap plus, on a honeycomb, the 3.0 mm
+   `_protrude`. Whichever way it is fixed, add the assertion "the row number
+   starts at or right of `margin_l`". **Finding 3.**
+6. Re-measure the four capacity claims and rewrite them as a range:
+   `tab_chart.py:11836` (checkbox label), `:11848` (Guided tooltip),
+   `layout_options_panel.py:142` (Manual tooltip), `presets.py:175` (comment).
+   Numbers to use: A4 portrait 345 → 405 (+17 %), A4 landscape 368 → 396,
+   A3 782 → 836 (+7 %). Do it **before** the German pass. **Finding 4.**
+7. Force-uncheck `_dd_check` on every instrument change whose *meaning* changes,
+   not only when it is hidden (`tab_chart.py:11888-11891`), or split the
+   persisted key so CM's `chart_double_density` and the SS/CR30 shape are two
+   settings. **Finding 5.**
+8. Parametrise the five hex tests in `tests/test_layout_raster.py`
+   (`:75-90`, `:510`, `:527-532`, `:647`, `:653-656`) over
+   `instruments.hex_capable_instruments()`, exactly as
+   `tests/test_hex_overlay_geometry.py:38` already does. `:647` first — it is
+   the one that finds finding 3. **Findings 6, 3.**
+9. `tab_chart.py:11568` and `:11615` — replace `instrument == "SS"` with
+   `hex_capable(instrument)` so the info line names the shape on any hexagonal
+   chart. **Finding 8.**
+10. `workflow/hex_support.py:69-70` — drop "with the SpectroScan selected" from
+    `hex_scanner_message()`; the sentence works without it. And
+    `ui/dialogs/settings_dialog.py:3201-3203` — say "for the SpectroScan and the
+    CR30", or better, "for instruments that offer it". Both are translated:
+    change them in the same pass as change 6. **Finding 9.**
+11. `ui/tiff_preview.py:1496-1499` and `ui/tabs/tab_measure.py:4191-4193` —
+    correct the "a CR30 chart's square patches" comments; a CR30 chart may now
+    be a honeycomb, and `set_no_swipe` is about swiping, not shape.
+    **Finding 10.**
+12. `workflow/hex_support.chart_is_hexagonal` — fall back to the `.ti2`'s
+    `HEXAGON_PATCHES` keyword when no `.channels.json` is found, so a chart
+    imported as a bare `.ti2` is not measured as if it were rectangular.
+    **Finding 12.**
+13. Adopt §5.2 and §5.3 as a test: build every
+    `{instrument} × {paper} × {hflag} × {density} × {pscale} × {cm_stagger}`
+    geometry and pin `patches_per_sheet`, `hxeh`, `hxew`, `plen`, `pwid` to a
+    stored table. 864 combinations run in under a second and would have made
+    this whole backward-compatibility section a one-line check. Probe scripts
+    are in the scratchpad and are directly reusable.
+14. Tell Basti and Knut to **rebuild, not measure**, any CR30 hexagonal chart
+    made on this branch before the fix — its sidecar rects are unstaggered and
+    `_apply_hex_stagger` will now shift them onto ink that never moved.
+    **Finding 11.**
+
+STATUS: complete
