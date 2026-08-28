@@ -518,3 +518,128 @@ Two related gaps:
    stored at `workflow/measure_settings.py:48, 71`). For a CR30 chart it will
    show unticked while the read is patch-by-patch regardless. Force it, hide it,
    or explain it.
+
+---
+
+## C. On §10.3 specifically — the claim I was asked to chase hardest
+
+**The claim:** capturing the connected unit's own tile constant at session start
+makes the magnet guard unit-independent, closing the §9.1 blocker.
+
+**Verdict: half right, and the sound half is not the half §10.2 rests on.**
+
+1. **Unit-independence: SOUND.** `CALIBRATION.md:340-354` establishes that the
+   gated value is *per-unit factory data held in firmware*, bit-identical across
+   a destroyed-and-restored calibration, and up to 4.69 %R different on a second
+   unit. Capturing it live therefore does exactly what §10.3 says. ✅
+
+2. **"Could it lock in a bad constant and validate corrupt data all session?"
+   — NO, and for a reason that is worse news than the question.** The constant
+   cannot be corrupted by a bad reference **because it is not derived from the
+   reference at all** (`CALIBRATION.md:346-347`, `MEASUREMENT.md:396-401`). So
+   the guard is safe. But the same fact means step 2 **cannot detect a bad
+   reference either** — see A6. The design has bought a working magnet guard and
+   is spending it as a calibration check it is not.
+
+3. **The fallback question.** §10.3 says the hard-coded `TILE_SIGNATURE` "drops
+   to a fallback used only when calibration was skipped". Given §9.1's own
+   measurement — a second unit differs by 94× the tolerance
+   (`workflow/cr30/measurement.py:144-166`) — that fallback is **inert on any
+   unit but ours**, and an inert guard that is still described in the UI as a
+   guard is worse than an absent one. **It should be disabled and said so:**
+   "the cap check is not available for this instrument because calibration was
+   skipped." The bit-identical check (B7) still runs and is unit-independent.
+
+4. **A hazard §10.3 creates that §10.2 does not name.** Because the flow is
+   mandatory and Guided cannot skip it, ChromIQ will ask for a magnet-present
+   button press **at the start of every single chart read**. `CALIBRATION.md:42-48`:
+   the experiment that destroyed the reference could not separate whether the
+   host trigger or the button press wrote it, and the standing rule is *"no host
+   trigger may be sent with a magnet present."* The design correctly asks the
+   **human** to press the button (not `trigger_unsafe`, which
+   `workflow/cr30/device.py:95-118` properly quarantines ✅) — but it must say so
+   explicitly, and it must ensure no reconnect/poll path issues a trigger during
+   the calibration step.
+
+---
+
+## D. MINOR
+
+| # | Finding | Where |
+|---|---|---|
+| D1 | §2's table cites `chromiq_chartread.c:4096` for the no-instrument guard; it is **`:4097`**. `:3098,3120` for autosave are correct — and `:3098` is specifically the `-x` one. | `chromiq_chartread.c:4097, 3098, 3120` |
+| D2 | §3 cites `instruments.py:455-469` as "the SpectroScan geometry"; the branch starts at **`:454`** (`if key == "SS":`) and the returned `Geom` spans `:461-469`. | `instruments.py:454-469` |
+| D3 | §4 cites "i1Pro uses 10 mm for a 5 mm aperture (`:370`)" — the i1 patch constants are at **`:371-372`** (`lcar, plen_b, pspa_b, tspa = 10.0, 10.0, 1.0, 10.0`). And note the i1's 10 mm patch carries a **1 mm spacer** (`pspa_b = 1.0`), reinforcing B1. | `instruments.py:371-372` |
+| D4 | §8's build order omits the `chromiq_chartread.c` change entirely (A4) **and** the `-x`/`--json` protocol work (A1). As written, B1–B7 is a day and B6 is a week. | `02-design.md:114-118` |
+| D5 | §7 promises English placeholders; the branch has already shipped them correctly (`data/i18n/de.json` holds the English text for both CR30 keys) and `tests/test_i18n.py` + `tests/test_message_catalogue.py` are **green on this branch** (114 passed). ✅ | verified by running |
+| D6 | The design never mentions **sounds**. `docs/design/measurement_window_sounds.md:54-55` already defines "A patch was read and looks right / looks off" for patch-by-patch, so a CR30 inherits them — but the CR30 also **beeps for itself**, and the memory note *"--json gags the helper's instrument beep"* does not apply when Argyll never opens the device. Two beeps per patch, 513 times, is a beta-tester complaint waiting to happen. Decide. | `measurement_window_sounds.md:54-55` |
+| D7 | `docs/design/tool_availability.md:93-97` (DRAFT) makes **Average** and **Merge measurements** available on a profiling run. Both consume `reads/readN.ti3`. Nothing in the design says whether a CR30 measurement can be averaged — it can, mechanically, but a 30-minute read × 3 is a different proposition from three swipes. Worth a note, not a blocker. | `tool_availability.md:93-97` |
+| D8 | §6's "Reflectance > 130 % → rejected" is the only live defence against a corrupted white reference, and `workflow/cr30/measurement.py:73-95` records its own limit: *"A corruption factor below 130/96.4 = 1.35 never breaches MAX on paper."* The observed corruption was 1.83×. Milder corruption is undetectable. §6 should say so where the rule is stated, not only in the driver. | `measurement.py:73-95` |
+| D9 | §6 has no row for **"the user closes the Measure tab"** or **"the app crashes"** — both raised in the brief. Autosave covers the data (verified), but nothing says what happens to the child process. `MeasureManager.abort()` kills it; an app crash orphans it, and an orphaned `-x` helper in the A1 hot loop would spin a core until reboot. | — |
+| D10 | §6 has no row for **the same patch read twice** or **reading out of order**. Both are safe — chartread names the patch in `spot_ready` and pairs by `pix`, not by arrival order (see E2) — but the design should say so, because the research's `beerjongen` note makes it look like an open risk when it is not. | — |
+
+---
+
+## E. What I attacked and it survived — verified, not assumed
+
+1. **Per-patch autosave on the `-x` path — TRUE.** `cq_write_ti3_atomic()` at
+   `chromiq_chartread.c:3098` is inside the external-value branch (`:3055-3101`),
+   armed whenever `cq_json || cq_autosave` (`:4106-4121`). Ran
+   `chromiq-chartread -xx --autosave` on a real engine `.ti2`: a valid `.ti3`
+   appeared after the first value and grew per patch. The design's claim is
+   correct and its citation is right.
+
+2. **Patch identity is NOT order-based — the mislabel-after-a-skip class does
+   not apply.** `cq_emit_spot_ready(scols[pix], …)` fires *before* the branch
+   (`:2789`) and names the patch (`id`, `loc`); the value is written to
+   `scols[pix]->XYZ` (`:3083`), i.e. to the patch chartread is *on*, not to the
+   next in a queue. Navigation (`f/b/n/g`) moves `pix` explicitly. Skipping,
+   re-reading and out-of-order reading are all safe by construction. Verified in
+   the live run: `spot_ready id=3 loc=A1` → `spot_ready id=10 loc=A2` →
+   `spot_ready id=12 loc=A3`, and the `.ti3` paired `3/A1`, `10/A2`, `12/A3`
+   correctly. **The design's step 5 is sound.** (The remaining ChromIQ-side rule
+   — *write at most one value per `spot_ready`, and drop device readings that
+   arrive with no `spot_ready` pending* — is not stated in the design and should
+   be.)
+
+3. **`-r` resume works on the `-x` path.** Read two patches, killed the helper,
+   re-ran `-xx --autosave -r`: it skipped `A1`/`A2`, prompted at `A3`, and
+   appended to the same `.ti3`. Not previously verified anywhere.
+
+4. **`DEVICE_CLASS` is correct.** `chromiq_chartread.c:3622-3624` writes
+   `"OUTPUT"` for a reflective chart regardless of `-x`. Confirmed in the output.
+
+5. **`colprof` does not read `TARGET_INSTRUMENT`.** The only Argyll consumer is
+   `native/argyll/xicc/mpp.c:418`, a different tool. So A3 breaks ChromIQ's
+   identity chain but **not** the profile build.
+
+6. **The XYZ scale is right.** `-xx` values land verbatim in `XYZ_X/Y/Z`
+   (`:3083`, `:420-424`); the `-xl` branch's `icmLab2XYZ(&icmD50, …)` + `×100`
+   (`:3088-3093`) pins the expected convention as **D50-relative, 0–100**, which
+   is what `colour.spectrum_to_xyz`'s `k = 100/Σ(illum·ȳ)` produces.
+
+7. **No spectral columns on the `-x` path.** `scols[pix]->sp` is never assigned
+   in the external branch, so `save_ti3`'s spectral block (`:369-393`) is skipped.
+   Confirmed: the `.ti3` has 8 fields and no `SPECTRAL_BANDS`. §5's conclusion
+   holds mechanically as well as scientifically.
+
+8. **`trigger_unsafe` is properly quarantined.** `workflow/cr30/device.py:95-118`
+   renames it, documents the ban, and `workflow/cr30/__init__.py` does not export
+   it. The research's requested action (`CALIBRATION.md:335-338`) was carried out.
+
+9. **`sensor_wrong_position` is advisory only** — nothing gates on it
+   (`measure_manager.py:220` → `tab_measure.py:1035` → `:6151`, a warning window).
+   A CR30 never emitting it costs nothing.
+
+10. **The no-response watchdog will not kill a paused run.**
+    `ui/tabs/tab_measure.py:5766-5803` — 12 s, single-shot, armed only after a
+    dialog keystroke, and it *warns* without aborting ("the Stop button stays in
+    their hands"). So §10.1's "pause, don't end" is implementable as "send
+    nothing"; there is no timer to defeat. (It will, however, emit a misleading
+    "chartread is not responding" line if a BLE drop happens within 12 s of a
+    dialog — worth suppressing while paused.)
+
+11. **`presets`/`layout_options_panel` fallbacks are benign.**
+    `LayoutRecipe.mode()` falls through to `"default"` (`presets.py:172`) and
+    `factory_defaults()` to `["default"]` (`:496-503`), so a CR30 added to
+    `SUPPORTED_INSTRUMENTS` gets exactly one factory preset with no extra code.
