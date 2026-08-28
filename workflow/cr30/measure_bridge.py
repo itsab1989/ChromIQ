@@ -504,7 +504,7 @@ class DeviceReader:
         from .colour import spectrum_to_xyz
         return spectrum_to_xyz(m.values)
 
-    def calibrate(self, *, timeout: float = 30.0, cancelled=None) -> None:
+    def calibrate(self) -> None:
         """Ask the instrument to take its white calibration, now.
 
         Uses THIS reader's device handle on purpose. Building a second one
@@ -516,16 +516,19 @@ class DeviceReader:
         change-detection needs, so the first patch no longer has to establish
         one.
 
-        `cancelled` is this call's own predicate and must NOT be the reader's
-        `_cancel` latch: that latch means "this reader is finished", is never
-        cleared, and is checked by every wait in device.py — so cancelling a
-        calibration through it would make every patch read for the rest of the
-        session fail instantly, which is precisely the dead session this whole
-        round has been removing.
+        It takes NO timeout and NO cancel, and neither is an oversight. This
+        sends one command and reads the answer — unlike a patch read it does
+        not wait for a human, so there is nothing to wait out and nothing to
+        give up on. An earlier signature offered both, used neither, and would
+        have been believed.
+
+        What it must never take is the reader's own `_cancel` latch: that means
+        "this reader is finished", is never cleared, and is checked by every
+        wait in device.py — so cancelling a calibration through it would make
+        every patch read for the rest of the session fail instantly, which is
+        precisely the dead session this work has been removing.
         """
         with self._lock:
-            if cancelled is not None and cancelled():
-                return
             if self._dev is None:
                 self._dev = self._open()
                 log.info("CR30: opened over %s", self._dev.kind)

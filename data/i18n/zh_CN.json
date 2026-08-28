@@ -4044,6 +4044,7 @@
   "Z": "Z",
   "[BUSY] Another operation is running — please wait.": "[BUSY] 另一个操作正在运行——请稍候。",
   "[ERROR] Could not analyse the image gamut — see messages above.": "[ERROR] 无法分析图像色域——请查看上面的消息。",
+  "[ERROR] Instrument disconnected — stopping measurement.": "[ERROR] Instrument disconnected — stopping measurement.",
   "[ERROR] This chart has no .ti2 (the printer values it was printed with) next to its .ti3, so a printer profile can't be built from it.": "[ERROR] 此色卡的 .ti3 旁没有 .ti2（打印时使用的打印机数值），因此无法据此构建打印机配置文件。",
   "[ERROR] cctiff failed — see messages above.": "[ERROR] cctiff 失败——请查看上面的消息。",
   "[ERROR] {msg}": "[ERROR] {msg}",

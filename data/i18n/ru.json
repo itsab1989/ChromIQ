@@ -4044,6 +4044,7 @@
   "Z": "Z",
   "[BUSY] Another operation is running — please wait.": "[BUSY] Уже выполняется другая операция — подождите.",
   "[ERROR] Could not analyse the image gamut — see messages above.": "[ERROR] Не удалось проанализировать охват изображения — см. сообщения выше.",
+  "[ERROR] Instrument disconnected — stopping measurement.": "[ERROR] Instrument disconnected — stopping measurement.",
   "[ERROR] This chart has no .ti2 (the printer values it was printed with) next to its .ti3, so a printer profile can't be built from it.": "[ERROR] У этой мишени рядом с .ti3 нет .ti2 (значений принтера, которыми она напечатана), поэтому построить из неё профиль принтера нельзя.",
   "[ERROR] cctiff failed — see messages above.": "[ERROR] cctiff завершился с ошибкой — см. сообщения выше.",
   "[ERROR] {msg}": "[ERROR] {msg}",

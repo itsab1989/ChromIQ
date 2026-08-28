@@ -4044,6 +4044,7 @@
   "Z": "Z",
   "[BUSY] Another operation is running — please wait.": "[BUSY] 別の処理が実行中です — お待ちください。",
   "[ERROR] Could not analyse the image gamut — see messages above.": "[ERROR] 画像の色域を分析できませんでした — 上のメッセージを参照してください。",
+  "[ERROR] Instrument disconnected — stopping measurement.": "[ERROR] Instrument disconnected — stopping measurement.",
   "[ERROR] This chart has no .ti2 (the printer values it was printed with) next to its .ti3, so a printer profile can't be built from it.": "[ERROR] このチャートには .ti3 の隣に .ti2（印刷時のプリンター値）がないため、プリンタープロファイルを作成できません。",
   "[ERROR] cctiff failed — see messages above.": "[ERROR] cctiff が失敗しました — 上のメッセージを参照してください。",
   "[ERROR] {msg}": "[ERROR] {msg}",

@@ -70,14 +70,28 @@ def test_the_two_second_design_is_gone():
         assert name not in src, f"{name} is still there"
 
 
-def test_the_disconnect_sounds_at_once_and_stops_the_reader():
+def test_the_disconnect_sounds_at_once_and_then_offers_the_one_ending():
+    """The sound comes before the ending window, because the window blocks.
+
+    This used to require `abort()` before the sound. `abort()` is a SECOND
+    exit, which §1 of measurement_exit_strategy.md forbids, and on every
+    instrument that is not a CR30 it destroys the session outright — stock
+    chartread writes its .ti3 only on a clean exit. So a disconnect was
+    survivable for one instrument and fatal for another on the very same line.
+    The reader is still ended, through the ending every route shares, and the
+    user is the one who chooses how.
+    """
     src = inspect.getsource(TabMeasure._on_instrument_disconnected)
     assert "_sound_instrument_fault_once()" in src
+    assert "self._manager.abort()" not in src, (
+        "the disconnect ends the session behind the user's back")
     lines = [l.strip() for l in src.splitlines()]
-    abort = next(i for i, l in enumerate(lines) if "abort()" in l)
     sound = next(i for i, l in enumerate(lines)
                  if "_sound_instrument_fault_once()" in l)
-    assert abort < sound, "stop the reader first"
+    ending = next(i for i, l in enumerate(lines)
+                  if "_confirm_end_of_session" in l)
+    assert sound < ending, (
+        "the ending window blocks, so the fault must sound before it opens")
 
 
 def test_a_save_in_progress_is_still_protected():

@@ -4044,6 +4044,7 @@
   "Z": "Z",
   "[BUSY] Another operation is running — please wait.": "[BUSY] Es läuft bereits ein anderer Vorgang — bitte warten.",
   "[ERROR] Could not analyse the image gamut — see messages above.": "[ERROR] Der Bild-Gamut konnte nicht analysiert werden — siehe Meldungen oben.",
+  "[ERROR] Instrument disconnected — stopping measurement.": "[ERROR] Messgerät getrennt — Messung wird beendet.",
   "[ERROR] This chart has no .ti2 (the printer values it was printed with) next to its .ti3, so a printer profile can't be built from it.": "[ERROR] Diese Testkarte hat keine .ti2 (die Druckerwerte, mit denen sie gedruckt wurde) neben der .ti3, daher kann daraus kein Druckerprofil erstellt werden.",
   "[ERROR] cctiff failed — see messages above.": "[ERROR] cctiff fehlgeschlagen — siehe Meldungen oben.",
   "[ERROR] {msg}": "[ERROR] {msg}",

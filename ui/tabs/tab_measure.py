@@ -7411,11 +7411,19 @@ class TabMeasure(QWidget):
             return
         self._instrument_disconnected = True
         self._log.appendPlainText(
-            "\n[ERROR] Instrument disconnected — stopping measurement."
-        )
+            "\n" + tr("[ERROR] Instrument disconnected — stopping measurement."))
         self._log.ensureCursorVisible()
-        self._manager.abort()
         self._sound_instrument_fault_once()
+        # THE ONE EXIT, not abort().
+        #
+        # abort() is a second exit, which §1 of measurement_exit_strategy.md
+        # forbids outright — and on every instrument that is not a CR30 it
+        # destroys the session, because stock chartread writes its .ti3 only on
+        # a clean exit. So a disconnect used to be survivable for a CR30 and
+        # fatal for an i1Pro on the very same line. The helper is still alive
+        # after a disconnect — the instrument went away, not the process — so
+        # the ordinary ending works from here, and the user chooses it.
+        self._end_session(self._confirm_end_of_session(self.END_FAILURE_WINDOW))
 
     def _sound_instrument_fault_once(self) -> None:
         """Sound the instrument error the moment the fault appears — once.
