@@ -567,3 +567,122 @@ explanation. But a Manual user who switches to area-first gets a cell size
 unrelated to the ruled 12 mm, and **nothing says so** — while the hexagon
 tooltip is still quoting figures measured at 12 mm. Worth one sentence in the
 layout-info panel when a CR30 chart is area-first.
+---
+
+## Section 6 — The measure path: what a CR30 measurement does today
+
+### 6.1 BLOCKER — the bundled helper binary is STALE, and a packaged beta
+### would refuse every CR30 chart
+
+`native/chromiq-chartread` is a **git-tracked binary** (`git ls-files` confirms
+it) and `ChromIQ.spec:110-113` bundles that exact path into `dist/ChromIQ.app`.
+**#159 edited `chromiq_chartread.c` and did not update it.**
+
+```
+native/chromiq-chartread                            Aug 15 02:44   *** STALE ***
+dist/ChromIQ/_internal/native/chromiq-chartread     Aug  6 22:37   *** STALE ***
+dist/ChromIQ.app/…/native/chromiq-chartread         Aug  6 22:37   *** STALE ***
+native/chartread_helper/build/chromiq-chartread     Aug 28 20:43   CR30-aware
+```
+
+(Test: `strings <binary> | grep "which ChromIQ reads itself"` — the new CR30
+message. Present only in the build tree.)
+
+**Run against a real CR30 chart, both binaries:**
+
+```
+STALE   native/chromiq-chartread Chart
+   chromiq-chartread: Error - Unrecognised chart target instrument 'CR30'
+
+FRESH   native/chartread_helper/build/chromiq-chartread Chart
+   chromiq-chartread: Error - The chart was made for 'CR30', which ChromIQ
+   reads itself. Measure it in ChromIQ, or use -x to supply values.
+```
+
+**Why this bites only when packaged.** `workflow/chartread_engine.py:41-49`
+searches `$CHROMIQ_CHARTREAD` → **the CMake build tree** → `native/`. In a
+source checkout the build tree wins, so every developer and every test sees the
+correct binary. **A frozen build has no build tree and falls through to the
+stale `native/` copy.** The feature therefore works perfectly for everyone
+testing it and is dead in the artefact handed to a tester.
+
+**Fix:** rebuild the helper and commit the result to `native/chromiq-chartread`
+(and the Windows/Linux equivalents) in the same commit as any
+`chromiq_chartread.c` change — or make the release step build it, as
+`ChromIQ.spec:99-101` already says the gammap helper's CI step does.
+**CR30-specific.**
+
+### 6.2 The C side itself is right — verified against the built binary
+
+| invocation | result |
+|---|---|
+| stock ArgyllCMS `chartread Chart` | `Error - Unrecognised chart target instrument 'CR30'` — **exactly the documented price of the honest name**, working as ruled |
+| fresh helper, no `-x` | the CR30-specific message above: names the device, names the cause, names the two ways out |
+| fresh helper `-xx` | `Ready to read patch '1' at 'A1' / Enter XYZ value…` — spot mode, patch by patch |
+| fresh helper `-xl` | same, `Enter L*a*b* value` |
+
+`chromiq_chartread.c:3740-3751` is the gate: the error is skipped once
+`cq_external_instrument_named` is set, and the chart's own `TARGET_INSTRUMENT`
+is carried into the `.ti3`. Sound.
+
+### 6.3 The guard in the Measure tab behaves exactly as designed
+
+Driven with a real CR30 `.ti2` loaded in the real Measure tab:
+
+```
+chartread_engine='argyll'    _engine_selected()=False  blocked_for_cr30 = True
+chartread_engine='chromiq'   _engine_selected()=True   blocked_for_cr30 = False
+```
+
+* `TARGET_INSTRUMENT "CR30"` is written honestly into the `.ti2` — confirmed by
+  reading the file.
+* `ui/ti2_loader.read_target_instrument` → `'CR30'`, `is_cr30` → `True`.
+* The preview gets `_no_swipe=True` and `_hex_zigzag=False` for a rectangular
+  CR30 chart — the two flags correctly kept separate
+  (`ui/tiff_preview.py:607-614`, `:1481-1500`).
+* `M-CR30-STOCK-READER` is in `workflow/measurement_messages.CATALOGUE` with
+  `approved=False`, exactly as the §7 rule in `02-design.md` requires.
+
+### 6.4 SERIOUS — nothing can actually take a reading, and Start is not blocked
+
+**`workflow/cr30/` is imported by nothing.** Exhaustive check:
+
+```
+grep -rn "from workflow.cr30\|workflow\.cr30" --include='*.py' .
+  tests/test_cr30_colour_tables.py:18   <- the ONLY consumer
+```
+
+Twelve modules and ~1,900 lines (`device.py`, `ble.py`, `session.py`,
+`measurement.py`, `transport.py`, `usb_measure.py`, `discovery.py`,
+`identity.py`, `frame.py`, `colour.py`) are vendored and unreferenced.
+`measure_manager.py` and `chartread_engine.py` contain **no occurrence of
+"CR30" at all**, and **nothing anywhere passes `-x`** (the only external-ish
+flag either builds is `--xychart`, `measure_manager.py:448`).
+
+This matches the implementer's own §U.12 in `04-impl-python.md` — *"Nothing in
+the reading path was implemented — that is the C work, by the brief"* — so it
+is a known gap, not a surprise. **I am reporting it because of what it means at
+the UI, which is not written down anywhere:**
+
+> With `chartread_engine = 'chromiq'`, the CR30 guard **deliberately stands
+> down** (§6.3), so **Start is enabled on a CR30 chart** — and there is no
+> `-x`, no device opened by ChromIQ, and no source of values.
+
+The helper is then launched without `-x` and hits the branch at
+`chromiq_chartread.c:3747`, so with the **fresh** binary the run dies
+immediately with the clear CR30 message (good), and with the **stale** one with
+the Argyll message (§6.1). Either way it fails fast rather than hanging — I
+could not reach a hang, a crash, or a silent no-op on any path I drove.
+
+**But the failure surfaces as a raw helper error after the user pressed Start,
+not as an honest "not yet" before it.** For a beta the Measure tab should say
+so up front. **CR30-specific.**
+
+### 6.5 What survived here
+
+* No path hangs. Every terminal state I could drive is a clean error with a
+  readable sentence.
+* No path records a wrong measurement, because no path records one at all.
+* Per-patch `.ti3` autosave, `-r` resume and the `TARGET_INSTRUMENT` identity
+  chain are all C-side and already tested (`tests/test_target_instrument_gate.py`,
+  `tests/test_cr30_external_values.py`).
