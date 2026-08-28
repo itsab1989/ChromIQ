@@ -185,3 +185,89 @@ far larger than reported, changes no rectangular layout in 5,040 checked
 recipes, and leaves ±0.01 mm of quantisation. Two SERIOUS items it exposes
 (1.5, 1.6) are both in `by_grid`, both pre-existing SpectroScan behaviour, and
 both are about *telling the user*, not about geometry.
+---
+
+## Section 2 — ADDITION 2: the three Measure-tab overlays, driven on screen
+
+**Verdict: all three overlays land on the ink, in all four CR30 cases and in
+`by_grid` too. 18/19 checks pass; the one failure is my own probe's integrity
+guard firing correctly (§2.3).**
+
+### 2.1 Method — pixels, not eyes
+
+Driver: `scratchpad/drive_cr30_overlays.py`, adapted from the project's own
+`scripts/drive_hex_overlay_matrix.py`. It builds a flat-grey chart with **one
+magenta patch**, opens it in the **real Measure tab of the real MainWindow**,
+asks the app to act on the patch *it* believes is the magenta one, then measures
+the result in screen pixels. Settings are copied into a sandbox `.ini`
+(`settings._qs = dst`) and the real plist was backed up first.
+
+Cases: CR30 × {rectangular, hexagonal} × {`patch_first`, `area_first`}, plus
+CR30 hex `area_first`+`by_grid`, plus SpectroScan hex `area_first` as a control.
+120 patches, A4, 6 mm border, spacers off, no randomisation.
+
+### 2.2 Results — every overlay, every case
+
+| case | chart built | 1 highlighter offset | 2 split uncovered | 3 only-measured kept |
+|---|---|---|---|---|
+| CR30 rect `patch_first` | 12.06 × 12.06 mm | dx −0.5 dy −1.5 px | 0.0 % | 98.4 % |
+| CR30 hex `patch_first` | 11.94 × 10.41 mm | dx +0.4 dy −0.3 px | 2.2 % | 96.7 % |
+| CR30 rect `area_first` | 19.05 × 23.75 mm | dx +1.0 dy +0.5 px | 0.0 % | 100.0 % |
+| CR30 hex `area_first` | 20.07 × 17.27 mm | dx −2.2 dy −1.2 px | 0.0 % | 99.5 % |
+| CR30 hex `area_first`+`by_grid` | 15.24 × 13.21 mm | dx −2.1 dy −1.3 px | 0.0 % | 99.3 % |
+| SS hex `area_first` (control) | 20.07 × 17.27 mm | dx −2.2 dy −1.2 px | 0.0 % | 99.5 % |
+
+* **1 — the patch highlighter.** Every ring centre is within **2.2 px** of the
+  magenta ink's centre at the on-screen scale. **No half-patch offset anywhere**
+  — which is the specific failure the earlier stagger blocker warned about, and
+  the reason this had to be driven rather than unit-tested.
+* **2 — expected-vs-measured.** The diagonal split covers the patch completely.
+  The 2.2 % residue on `CR30 hex patch_first` is the hexagon's **apex tips**,
+  which the split's clip leaves a few pixels of — cosmetic, present on the
+  SpectroScan too, not introduced by #159.
+* **3 — only show measured patches.** Unread patches are blanked to **true
+  hexagon outlines** (not rectangles) on hex charts and to rectangles on
+  rectangular ones; the one read patch keeps its split, in the right shape, in
+  the right place.
+
+**I read the screenshots, I did not only read the numbers.** The contact sheet
+shows square rings on square patches, hexagonal rings on hexagons, and the
+only-measured view drawing a real honeycomb of empty cells. On the first run
+the numbers said 15/15 PASS while the picture showed
+`CR30 rect area_first` drawing **page-wide horizontal bars** — see §3.4. The
+numbers alone would have shipped that.
+
+### 2.3 My own probe caught itself — SS and CR30 really do converge
+
+The integrity guard fingerprints each built chart and refuses to let two cases
+be silently identical. It fired:
+
+```
+[FAIL] SS hex area_first :: PROBE INTEGRITY
+       — identical chart to CR30 hex area_first
+```
+
+**This is a true property, not a broken probe.** In `area_first` the patch size
+is *derived from the page and the patch count*, so the instrument's own cell
+size never enters — a CR30 `area_first` chart is geometrically **identical** to
+a SpectroScan one. Confirmed independently: both give 20.07 × 17.27 mm at 120
+patches on A4, and both give the same grid across the whole `by_grid` sweep in
+§1. Consequence for #159 in §3.5.
+
+### 2.4 Proof saved to the Desktop
+
+| file | what it shows |
+|---|---|
+| `~/Desktop/cr30-overlay-proof-matrix.png` | the contact sheet: 3 overlays × 6 cases, cropped on the magenta patch, with the measured offset on each |
+| `~/Desktop/cr30-overlay-proof-1-highlighter-rectangular.png` | full Measure preview, CR30 square chart, ring on the patch |
+| `~/Desktop/cr30-overlay-proof-1-highlighter-hexagonal.png` | same, honeycomb — hexagonal ring |
+| `~/Desktop/cr30-overlay-proof-1-highlighter-hexagonal-area-first.png` | same, honeycomb sized by `area_first` |
+| `~/Desktop/cr30-overlay-proof-2-expected-vs-measured-rectangular.png` | the split overlay across a whole square CR30 sheet |
+| `~/Desktop/cr30-overlay-proof-2-expected-vs-measured-hexagonal.png` | the split drawn as hexagons, not squares |
+| `~/Desktop/cr30-overlay-proof-2-expected-vs-measured-hexagonal-area-first.png` | same, `area_first` sizing |
+| `~/Desktop/cr30-overlay-proof-3-only-measured-rectangular.png` | unread patches blanked, read patch kept |
+| `~/Desktop/cr30-overlay-proof-3-only-measured-hexagonal.png` | **the clearest one** — a full honeycomb of empty cells with the single read hexagon at C10, matching the drawn column/row labels |
+| `~/Desktop/cr30-overlay-proof-3-only-measured-hexagonal-area-first.png` | same, `area_first` sizing |
+
+**Nothing in the hex/stagger work or the `area_first` fix has broken any of the
+three overlays.** ADDITION 2 is clear.
