@@ -30,11 +30,89 @@ import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BIN = ROOT / "native" / "chartread_helper" / "build" / "chromiq-chartread"
-SRC_TI2 = pathlib.Path("/Users/Basti/ChromIQ/ttestitest/ttestitest.ti2")
-
 pytestmark = pytest.mark.skipif(
-    not BIN.is_file() or not SRC_TI2.is_file(),
-    reason="needs the built helper and a real .ti2")
+    not BIN.is_file(), reason="needs the built chromiq-chartread helper")
+
+#: The chart these tests read, GENERATED rather than borrowed.
+#:
+#: This used to be ``pathlib.Path("/Users/Basti/ChromIQ/ttestitest/…")`` with a
+#: ``skipif`` on its existence, so on CI, on a second developer's machine, on a
+#: fresh clone — or on Basti's own laptop the day he deletes that project —
+#: the whole file **skipped in silence**, and the four blockers below went
+#: unguarded. It is the only regression guard the ``-x`` path has (finding F7,
+#: `docs/cr30_reports/08-measure-wiring-critique.md` §6.4).
+#:
+#: Six strips of fifteen (A1…F15, 90 patches), which is what the full-read test
+#: needs, laid out the way ``printtarg`` writes one: the keywords the helper
+#: reads are ``TARGET_INSTRUMENT``, ``STEPS_IN_PASS``, ``PASSES_IN_STRIPS2`` and
+#: the ``SAMPLE_LOC`` column. The XYZ columns are the chart's *expectation*,
+#: which is what ``spot_ready`` hands back as ``exyz``.
+_STRIPS = "ABCDEF"
+_STEPS = 15
+
+
+def _rgb_for(i: int) -> "tuple[float, float, float]":
+    """A deterministic spread over the cube — no two patches alike, so a
+    mis-paired reading shows up as a wrong colour rather than a coincidence.
+
+    Patch 1 (A1) is a dark saturated blue-violet on purpose. It is the first
+    patch the helper offers, and `test_a_wrong_value_is_flagged_not_silently_
+    accepted` submits a white reading there and needs it REFUSED. The threshold
+    is `WERR_TH 95.0` (`chromiq_chartread.c:71`) on `xyzLabDE`, which is
+    chroma-heavy: near-BLACK against that white reading measures only dE 84.7
+    and sails through, while this expectation measures ~105 — the same shape as
+    the patch printtarg's randomiser happened to put first in the chart this
+    fixture replaced. Nothing here may be left to happen.
+    """
+    if i == 1:
+        return (45.0, 0.0, 50.0)
+    return (round((i * 37) % 101, 4),
+            round((i * 61) % 101, 4),
+            round((i * 89) % 101, 4))
+
+
+def _xyz_for(rgb: "tuple[float, float, float]") -> "tuple[float, float, float]":
+    """A crude but monotone RGB->XYZ, adequate for a chart's expected values."""
+    r, g, b = (c / 100.0 for c in rgb)
+    return (round(41.24 * r + 35.76 * g + 18.05 * b, 5) or 0.00001,
+            round(21.26 * r + 71.52 * g + 7.22 * b, 5) or 0.00001,
+            round(1.93 * r + 11.92 * g + 95.05 * b, 5) or 0.00001)
+
+
+def make_ti2(path: pathlib.Path, instrument: str = "CR30") -> pathlib.Path:
+    """Write a printtarg-shaped ``.ti2`` naming *instrument*."""
+    rows = []
+    n = 0
+    for step in range(1, _STEPS + 1):
+        for strip in _STRIPS:
+            n += 1
+            rgb = _rgb_for(n)
+            xyz = _xyz_for(rgb)
+            rows.append(f'{n} "{strip}{step}" '
+                        + " ".join(f"{v:.4f}" for v in rgb) + " "
+                        + " ".join(f"{v:.5f}" for v in xyz) + " ")
+    path.write_text(
+        "CTI2   \n\n"
+        'DESCRIPTOR "Argyll Calibration Target chart information 2"\n'
+        'ORIGINATOR "Argyll printtarg"\n'
+        'CREATED "Fri Aug 28 00:00:00 2026"\n'
+        f'TARGET_INSTRUMENT "{instrument}"\n'
+        'APPROX_WHITE_POINT "95.106486 100.000000 108.844025"\n'
+        'COLOR_REP "iRGB"\n'
+        'PAPER_SIZE "210.0x297.0"\n'
+        'RANDOM_START "54"\n'
+        f'STEPS_IN_PASS "{_STEPS}"\n'
+        f'PASSES_IN_STRIPS2 "{len(_STRIPS)}"\n'
+        'STRIP_INDEX_PATTERN "A-Z, A-Z"\n'
+        'PATCH_INDEX_PATTERN "0-9,@-9,@-9;1-999"\n'
+        'INDEX_ORDER "STRIP_THEN_PATCH"\n\n'
+        "NUMBER_OF_FIELDS 8\nBEGIN_DATA_FORMAT\n"
+        "SAMPLE_ID SAMPLE_LOC RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z \n"
+        "END_DATA_FORMAT\n\n"
+        f"NUMBER_OF_SETS {len(rows)}\nBEGIN_DATA\n"
+        + "\n".join(rows) + "\nEND_DATA\n",
+        encoding="utf-8")
+    return path
 
 
 class Reader:
@@ -42,10 +120,7 @@ class Reader:
     `spot_ready`, never ahead of it."""
 
     def __init__(self, tmp, instrument="CR30"):
-        ti2 = tmp / "n.ti2"
-        ti2.write_text(SRC_TI2.read_text().replace(
-            'TARGET_INSTRUMENT "X-Rite ColorMunki"',
-            f'TARGET_INSTRUMENT "{instrument}"'))
+        make_ti2(tmp / "n.ti2", instrument)
         self.tmp = tmp
         self.ev, self.raw, self._lock = [], [], threading.Lock()
         self.p = subprocess.Popen(
@@ -285,8 +360,17 @@ def test_a_goto_lands_the_value_on_the_clicked_patch(tmpchart, target):
     while not r.events("spot_ready") and time.time() < deadline:
         time.sleep(0.05)
     before = len(r.events("patch_read"))
-    _drive(r, [{"cmd": "goto", "patch": target},
-               {"cmd": "value", "xyz": "55 55 55"}])
+    r.send({"cmd": "goto", "patch": target})
+    time.sleep(0.35)
+    # Answer with the patch's OWN expected colour, taken from the spot_ready
+    # the goto produced. chartread refuses an implausible reading and re-offers
+    # the patch (see the test below), which would emit no `patch_read` at all
+    # and turn a wrong-patch failure into a timeout — so the value has to suit
+    # whichever patch we actually landed on. It still catches the bug: if the
+    # goto were lost we would be answering A1 with A1's colour and `loc` would
+    # come back "A1" instead of the patch the user clicked.
+    x, y, z = r.events("spot_ready")[-1]["exyz"]
+    r.send({"cmd": "value", "xyz": f"{x:.4f} {y:.4f} {z:.4f}"})
     deadline = time.time() + 8
     while len(r.events("patch_read")) <= before and time.time() < deadline:
         time.sleep(0.05)
@@ -315,3 +399,26 @@ def test_a_wrong_value_is_flagged_not_silently_accepted(tmpchart):
         "an implausible reading was accepted without comment"
     again = r.events("spot_ready")[-1]
     assert again["id"] == first["id"], "the patch should be re-offered"
+
+
+def test_the_fixture_needs_nothing_outside_this_repository(tmp_path):
+    """FINDING F7. These tests used to depend on a chart in one person's home
+    directory, with a `skipif` on its existence — so everywhere else they
+    skipped in silence and the four blockers above went unguarded. The chart is
+    now generated; the only thing this file may require is the built helper.
+    """
+    # The needle is assembled here so this line is not itself a hit.
+    home = "/" + "Users" + "/"
+    src = pathlib.Path(__file__).read_text(encoding="utf-8")
+    code = [ln for ln in src.splitlines()
+            if not ln.lstrip().startswith(("#", '"', "*", "home ="))]
+    assert not [ln for ln in code if home in ln], \
+        "no absolute path into anybody's home outside the comments"
+    assert "chromiq-chartread helper" in pytestmark.kwargs["reason"], \
+        "the only thing that may make this file skip is the built helper"
+    ti2 = make_ti2(tmp_path / "g.ti2", "CR30")
+    text = ti2.read_text(encoding="utf-8")
+    assert 'TARGET_INSTRUMENT "CR30"' in text
+    assert "NUMBER_OF_SETS 90" in text
+    for loc in ("A1", "B1", "C2", "D4", "F15"):
+        assert f'"{loc}"' in text, f"{loc} is used by a test above"
