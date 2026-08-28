@@ -11,3 +11,15 @@ numpy>=1.24.0
 imagecodecs>=2024.0.0
 freetype-py>=2.4.0
 pyobjc-framework-Cocoa>=10.0 ; sys_platform == "darwin"
+
+# CR30 instrument support (#159). The vendored driver in workflow/cr30 talks to
+# the instrument directly — ChromIQ reads a CR30 itself and feeds the values to
+# chartread with -x, so Argyll never opens it.
+#   pyserial — USB, the CH34x bridge at /dev/cu.usbserial-* (no driver needed on
+#              macOS: Apple ships AppleUSBCHCOM)
+#   bleak    — Bluetooth LE, cross-platform and driver-free
+# Both are optional at import time (workflow/cr30/__init__.py degrades), but
+# without them the Measure tab cannot open the instrument at all and the log
+# says only "no USB device (No module named 'serial')".
+pyserial>=3.5
+bleak>=0.21

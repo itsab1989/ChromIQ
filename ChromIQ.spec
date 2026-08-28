@@ -157,6 +157,16 @@ a = Analysis(
         'tifffile',
         'numpy',
         'freetype',
+        # CR30 instrument support (#159). ChromIQ reads a CR30 itself and feeds
+        # the values to chartread with -x, so these are the ONLY way the
+        # packaged app can reach the instrument. They are imported lazily
+        # (workflow/cr30 degrades without them), which is exactly why PyInstaller
+        # cannot find them on its own — and why their absence shows up as
+        # "no USB device (No module named 'serial')" rather than a build error.
+        'serial',
+        'serial.tools',
+        'serial.tools.list_ports',
+        'bleak',
         *_ic_hiddenimports,
         *_we_hiddenimports,
         *_oc_hiddenimports,
