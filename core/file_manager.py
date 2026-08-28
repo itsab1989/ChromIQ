@@ -1134,19 +1134,24 @@ class Run:
         return sorted(p for p in self.dir.iterdir()
                       if p.is_dir() and p.name.startswith(self.CHART_STASH_PREFIX))
 
-    def has_a_finished_chart(self) -> bool:
-        """Does this run hold a chart a build actually completed?
+    #: Written into a stash that has been SUPERSEDED by a chart that really was
+    #: built, on the rare path where the stash could not be removed afterwards.
+    #: Its presence is the only thing that stops :meth:`Project.load` putting the
+    #: old chart back over the new one.
+    STASH_SUPERSEDED = "SUPERSEDED-by-a-finished-build"
 
-        Both halves are required. A build that was stopped part-way can leave a
-        `.ti1` and a page image behind without ever writing the `.ti2` that a
-        printed sheet is read against, so "there are some files" is not the same
-        question — and it is the question :meth:`Project.load` has to answer
-        about a build whose process died before it could say how it ended.
+    def chart_artefact_names(self) -> list:
+        """Every chart file name this run can hold, page images aside.
+
+        Shared so the wipe and the restore agree about what a chart IS. They
+        did not: a build stopped after the page count had been raised left
+        `_02.tif` and `_03.tif` behind, because putting a chart back only walks
+        the STASH, and a page the old chart never had is not in it. The run then
+        showed three pages for a one-page `.ti2`.
         """
-        try:
-            return self.chart_ti2.exists() and bool(self.chart_tiffs())
-        except OSError:
-            return False
+        s = self.stem
+        return [f"{s}.ti1", f"{s}.ti2", f"{s}.cht", f"{s}.cie", f"{s}.ps",
+                f"{s}.pdf", f"{s}.channels.json", f"{s}.strips.json"]
 
     def settle_chart_stash(self, stash: "Path | None", *, built: bool) -> None:
         """Finish what :meth:`reset_chart_artefacts` started.
@@ -1175,6 +1180,24 @@ class Run:
             return
         stash = Path(stash)
         if not built:
+            # SWEEP WHAT THE FAILED BUILD LEFT, not just the names we are about
+            # to restore. Putting a chart back used to walk only the stash, so
+            # anything the dead build wrote under a name the OLD chart never had
+            # simply stayed — raise the page count, press Generate, press Stop,
+            # and the run kept two extra page images for a one-page chart.
+            for name in self.chart_artefact_names():
+                leftover = self.dir / name
+                if leftover.exists() and not (stash / name).exists():
+                    try:
+                        leftover.unlink()
+                    except OSError as exc:
+                        log.warning("Could not clear %s: %s", name, exc)
+            for tiff in self.chart_tiffs():
+                if not (stash / tiff.name).exists():
+                    try:
+                        tiff.unlink()
+                    except OSError as exc:
+                        log.warning("Could not clear %s: %s", tiff.name, exc)
             for p in sorted(stash.iterdir()):
                 dest = self.dir / p.name
                 try:
@@ -1196,6 +1219,14 @@ class Run:
             shutil.rmtree(stash)
         except OSError as exc:
             log.warning("Could not remove the chart stash %s: %s", stash, exc)
+            if built:
+                # The new chart is in place and this copy is stale. Say so
+                # inside it, or the next open would put it back over the chart
+                # that really was built.
+                try:
+                    (stash / self.STASH_SUPERSEDED).write_text("", encoding="utf-8")
+                except OSError:
+                    log.warning("…and could not mark it superseded either")
 
     def reset_chart_artefacts(self, *, keep_results: bool = False,
                               stash: bool = False) -> "Path | None":
@@ -1570,17 +1601,24 @@ class Project:
         try:
             for _run in proj.all_runs():
                 for _stash in _run.chart_stash_dirs():
-                    # ASK THE RUN HOW THE BUILD ENDED. Nothing recorded it — the
-                    # process died — so the evidence on disk decides: a complete
-                    # chart means the build finished and its own files stay;
-                    # anything less means it did not, and the set-aside chart
-                    # goes back over whatever it left.
-                    _built = _run.has_a_finished_chart()
-                    log.info("Found a chart set aside by an unfinished build in "
-                             "%s — the run %s a finished chart, so the copy is "
-                             "%s", _run.dir,
-                             "has" if _built else "does not have",
-                             "dropped" if _built else "put back")
+                    # A STASH THAT IS STILL HERE MEANS THE BUILD NEVER FINISHED.
+                    # That is exact, not a guess: every ending a build can have
+                    # goes through `_finish`, which settles the stash and removes
+                    # it, so one that survives belongs to a process that died.
+                    #
+                    # The guess this replaces asked whether the run held a
+                    # `.ti2` and a page image — and printtarg writes the page at
+                    # 0.28 s and the `.ti2` at 0.49 s of a 1.4 s build, so that
+                    # was true for most of every build. Measured on screen: the
+                    # complete original was dropped and the interrupted build's
+                    # half a chart kept.
+                    #
+                    # The one exception is marked inside the stash itself.
+                    _built = (_stash / Run.STASH_SUPERSEDED).exists()
+                    log.info("Found a chart set aside in %s by a build that "
+                             "never finished — %s", _run.dir,
+                             "it was superseded, so the copy is dropped"
+                             if _built else "putting it back")
                     _run.settle_chart_stash(_stash, built=_built)
         except Exception as exc:      # noqa: BLE001 — opening must never fail
             log.warning("Could not settle a leftover chart stash: %s", exc)

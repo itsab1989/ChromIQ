@@ -91,12 +91,31 @@ def test_a_stop_during_printtarg_is_not_reported_as_a_failure():
 
 
 def test_the_tooltip_admits_what_stop_cannot_interrupt(tab):
-    """ChromIQ's own layout engine runs in one go on the GUI thread, so a stop
-    pressed during it takes effect when that phase ends. Saying so is better
-    than a button that looks ignored."""
+    """It is worse than "late", and the tooltip used to say the softer thing.
+
+    `build_chart` is synchronous on the GUI thread, so during it the window does
+    not respond and the click is never DELIVERED to the handler — measured on
+    screen: a queued click never ran `_on_stop_clicked` and the chart was
+    replaced anyway. "Takes effect as soon as that finishes" was therefore
+    false; nothing takes effect.
+    """
     tip = tab._stop_btn.toolTip()
     assert "layout engine" in tip
     assert "nothing is lost" in tip
+    assert "does not reach this button" in tip, \
+        "the tooltip still implies a stop pressed then will be honoured"
+
+
+def test_the_log_says_when_the_uninterruptible_part_begins(tab):
+    """A person watching the log is told before the window freezes, rather than
+    left with a button that looks pressable and is not."""
+    import inspect
+
+    from workflow.chart_creator import ChartCreator
+    src = inspect.getsource(ChartCreator._run_engine)
+    i, j = src.find("cannot be stopped"), src.find("build_chart(")
+    assert i != -1, "the engine phase does not announce itself"
+    assert i < j, "it announces itself after the window has already frozen"
 
 
 def test_stop_is_safe_because_the_chart_is_set_aside_first(tab):

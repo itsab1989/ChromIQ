@@ -3120,9 +3120,10 @@ class TabChart(QWidget):
             "Whatever was here before is put back, so nothing is lost: the "
             "chart, its printed pages and the layout they were made from are "
             "all still there when this finishes.\n\n"
-            "One part cannot be interrupted. While ChromIQ's own layout engine "
-            "is drawing the pages it works in one go, so a stop pressed then "
-            "takes effect as soon as that finishes rather than immediately."))
+            "One part cannot be interrupted at all. While ChromIQ's own layout "
+            "engine is drawing the pages, the window stops responding until it "
+            "has finished, so a click during that time does not reach this "
+            "button. The log says when that part begins."))
         self._stop_btn.clicked.connect(self._on_stop_clicked)
         # SHOWN FROM ONE PLACE, and that place is the marker the app already
         # trusts. `_chart_build_in_flight()` reads the Generate button, which
@@ -15632,6 +15633,28 @@ class TabChart(QWidget):
         except Exception:      # noqa: BLE001 — never break a finished build
             log.warning("could not report the rebuild guard", exc_info=True)
 
+    def _show_restored_chart_after_a_stop(self) -> None:
+        """Put the run's own chart back on screen after a build was stopped.
+
+        Best-effort and silent: the files are what matter, and a preview that
+        cannot be redrawn is a cosmetic problem, not a reason to raise out of a
+        finish handler.
+        """
+        try:
+            run = self._file_mgr.project().current_run()
+            tiffs = sorted(run.chart_tiffs())
+            if tiffs:
+                self._preview.load_tiff(list(tiffs))
+                self._set_margin_chart(list(tiffs),
+                                       run.chart_ti2 if run.chart_ti2.exists()
+                                       else None)
+            else:
+                self._preview.clear()
+                self._set_margin_chart([], None)
+        except Exception:      # noqa: BLE001 — never break the finish handler
+            log.debug("could not put the chart back on screen after a stop",
+                      exc_info=True)
+
     def _on_generate_finished(self, tiffs: list[Path]) -> None:
         # Disarm the slow-chart watchdog and dismiss its dialog if it's still
         # open (targen finished/was swapped while the user was deciding).
@@ -15652,6 +15675,13 @@ class TabChart(QWidget):
             self._log.ensureCursorVisible()
             # A cancelled build owns nothing — see the note in `_on_generate`.
             self._layout_owned_by_build = False
+            # …AND THE PREVIEW HAS TO CATCH UP WITH THE FILES. The chart that
+            # was here has been put back on disk by now, but the preview was
+            # cleared when the build started, so the panel said "NO PREVIEW"
+            # over a run that has its chart — under a log line promising that
+            # nothing was lost. Measured on screen; a tab round trip did not
+            # fix it either.
+            self._show_restored_chart_after_a_stop()
             return
         is_isis = self._is_isis_selected()
         # File stem is fixed by the folder layout ("chart" / "calibration").

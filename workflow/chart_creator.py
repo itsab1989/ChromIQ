@@ -702,6 +702,14 @@ class ChartCreator:
         when printtarg wrote nothing, and the engine and targen paths report
         `[]` on every error and on a cancel.
         """
+        # A CANCEL IS NOT A SUCCESS, however many files the phase produced
+        # before it was told to stop. The engine cannot be interrupted mid-page,
+        # so it returns a complete-looking result even when the person pressed
+        # Stop; without this, that result would be taken as a finished build and
+        # the chart they were promised back would be dropped instead.
+        if self._cancelling:
+            self._cancelling = False
+            tiffs = []
         run, stash = self._chart_stash_run, self._chart_stash
         self._chart_stash_run = self._chart_stash = None
         if run is not None and stash is not None:
@@ -713,15 +721,28 @@ class ChartCreator:
             self._pending_on_finish(tiffs)
 
     def cancel(self) -> None:
-        """Kill a running targen/printtarg as a deliberate user cancel.
+        """Stop the build as a deliberate user cancel.
 
         Sets ``_cancelling`` so the finish handler reports an empty result
-        (re-enabling the UI) without logging a scary targen error line."""
-        if not self._runner.is_running:
-            return
-        log.info("Slow-chart: user cancelled chart generation")
+        (re-enabling the UI) without logging a scary targen error line.
+
+        THE FLAG IS SET WHETHER OR NOT A PROCESS IS RUNNING, and that is the
+        whole of this fix. It used to return early when the runner was idle —
+        which is exactly what the ChromIQ layout engine is: an in-process call
+        on the GUI thread, with no subprocess to kill. So Stop pressed during
+        the engine phase did nothing at all, while the log said "the chart that
+        was here before is being put back, so nothing is lost" and the chart was
+        replaced anyway. Measured on screen.
+
+        Setting the flag makes the promise true without pretending the drawing
+        can be interrupted: the engine finishes the page it is on, `_finish`
+        sees the cancel, reports an empty result and puts the previous chart
+        back — which is what the button's own tooltip says will happen.
+        """
+        log.info("User stopped the chart build")
         self._cancelling = True
-        self._runner.abort()
+        if self._runner.is_running:
+            self._runner.abort()
 
     def estimate_patches(
         self,
@@ -1239,6 +1260,18 @@ class ChartCreator:
             # measurement (workflow.scanin_target, #97) — an aim-value .cht here
             # would just be an orphaned half-target (its aim .cie was dropped in
             # beta.59). The engine keeps the capability (emit_cht) for that flow.
+            # SAY IT BEFORE IT HAPPENS, in the log the person is watching.
+            # `build_chart` is a synchronous call on the GUI thread: the window
+            # stops responding for its duration, so a Stop clicked during it is
+            # not merely late — the click is never delivered to the handler at
+            # all, and the button sits there looking pressable. Measured on
+            # screen. Until the engine runs off the GUI thread this is the
+            # honest thing to do, and it is better than a button that appears
+            # to be ignored.
+            from core.i18n import tr as _t
+            on_line(_t("[ChromIQ layout engine] Drawing the pages. This part "
+                       "runs in one go and cannot be stopped, so the window "
+                       "will not respond until it is finished."))
             result = le_chart.build_chart(
                 ti1, work_dir / stem, **engine_kwargs)
         except Exception as exc:  # noqa: BLE001 — surface any engine failure

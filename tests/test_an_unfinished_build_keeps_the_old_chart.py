@@ -93,18 +93,64 @@ def test_a_build_that_SUCCEEDS_does_not_resurrect_the_old_chart(run_with_a_chart
     assert not run.chart_stash_dirs()
 
 
-def test_a_finished_chart_survives_the_repair_on_reopen(run_with_a_chart):
-    """The repair cannot know how the build ended, so it asks the run: a chart
-    is finished when it has BOTH a .ti2 and at least one page image."""
+def test_a_surviving_stash_always_means_the_build_never_finished(run_with_a_chart):
+    """THE HEURISTIC THIS REPLACES WAS MEASURED WRONG ON SCREEN.
+
+    It asked whether the run held a `.ti2` and a page image. printtarg writes
+    the page at 0.28 s and the `.ti2` at 0.49 s of a 1.4 s build, so that was
+    true for most of every build: killing ChromIQ mid-printtarg produced a run
+    that "had a finished chart", the complete original was dropped, and the
+    interrupted build's half a chart was kept.
+
+    The exact signal costs nothing: every ending a build can have goes through
+    `_finish`, which settles the stash and removes it. A stash that is still
+    there belongs to a process that died, whatever the run happens to contain.
+    """
     proj, run = run_with_a_chart
+    before = {p.name: p.read_text() for p in run.dir.iterdir() if p.is_file()}
     run.reset_chart_artefacts(stash=True)
+    # what a half-done printtarg looks like: the page and the .ti2 are there…
+    (run.dir / f"{run.stem}.ti2").write_text("half of the new chart")
+    (run.dir / f"{run.stem}_01.tif").write_text("half of the new page")
+
+    again = Project.load(proj.root).all_runs()[0]
+    after = {p.name: p.read_text() for p in again.dir.iterdir() if p.is_file()}
+    assert after == before, "an interrupted build was mistaken for a finished one"
+    assert not again.chart_stash_dirs()
+
+
+def test_a_superseded_stash_is_dropped_not_restored(run_with_a_chart):
+    """The one exception, and it is marked inside the stash rather than guessed:
+    a build that really did finish but whose stash could not be removed."""
+    proj, run = run_with_a_chart
+    stash = run.reset_chart_artefacts(stash=True)
     (run.dir / f"{run.stem}.ti2").write_text("the NEW chart")
     (run.dir / f"{run.stem}_01.tif").write_text("the NEW page")
+    (stash / run.STASH_SUPERSEDED).write_text("")
 
     again = Project.load(proj.root).all_runs()[0]
     assert (again.dir / f"{run.stem}.ti2").read_text() == "the NEW chart"
-    assert (again.dir / f"{run.stem}_01.tif").read_text() == "the NEW page"
     assert not again.chart_stash_dirs()
+
+
+def test_a_stopped_build_leaves_no_orphan_pages(run_with_a_chart):
+    """Two clicks, one chart made of two builds. Measured on screen: build a
+    one-page chart, raise the page count to three, press Generate, press Stop —
+    and the run kept `_02.tif` and `_03.tif` for a one-page `.ti2`, because
+    putting a chart back walked only the stash and a page the OLD chart never
+    had is not in it."""
+    proj, run = run_with_a_chart
+    before = {p.name for p in run.dir.iterdir() if p.is_file()}
+    stash = run.reset_chart_artefacts(stash=True)
+    # the taller build gets further than the old one ever was
+    (run.dir / f"{run.stem}.ti2").write_text("three pages")
+    for n in ("_01", "_02", "_03"):
+        (run.dir / f"{run.stem}{n}.tif").write_text("a page of the new chart")
+
+    run.settle_chart_stash(stash, built=False)
+
+    after = {p.name for p in run.dir.iterdir() if p.is_file()}
+    assert after == before, f"orphans survived: {sorted(after - before)}"
 
 
 def test_the_leftovers_of_an_unfinished_build_never_beat_the_original(

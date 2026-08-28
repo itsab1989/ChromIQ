@@ -743,12 +743,23 @@ def empty_run(project, run_id: str) -> None:
     res = move_to_trash(run.dir)
     if not res.ok:
         raise DeleteFailed([str(run.dir)], reason=res.reason)
+    # THE GUARD HAS TO COVER THE WHOLE REPAIR, not just the mkdir. Writing the
+    # fresh meta.json was left outside it, so a folder that could not be
+    # recreated took the very next line down with a `PermissionError` — out of a
+    # button's slot, which aborts ChromIQ. Measured through the real button:
+    # exit 134, with the run already in the Trash. The contents are safe either
+    # way; what is left is an empty shell that `Run.ensure_dir` makes on the
+    # next use, and that is not worth losing the app over.
     try:
         run.dir.mkdir(parents=True, exist_ok=True)
+        run.save_meta(RunMeta.fresh(run_id))
     except OSError as exc:
-        # The contents are safely in the Trash; only the empty shell is missing,
-        # and `Run.ensure_dir` makes it on the next use.
-        log.warning("Emptied %s but could not recreate the folder: %s",
+        log.warning("Emptied %s but could not put an empty run back: %s",
                     run.dir, exc)
-    run.save_meta(RunMeta.fresh(run_id))
+        raise DeleteFailed([str(run.dir)], reason=tr(
+            "The contents of this run are in your {trash}, so nothing has been "
+            "lost. ChromIQ could not put an empty run folder back in their "
+            "place, though, which usually means the project folder is "
+            "read-only. The run will be remade the next time you use it."
+        ).format(trash=trash_name())) from exc
     log.info("Emptied run %s", run.dir)
