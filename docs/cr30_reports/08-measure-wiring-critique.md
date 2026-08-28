@@ -186,3 +186,172 @@ then use it at `:4196`, at `:4437`, and for everything A, B and C add. **Do
 not add a fourth open-coded `read_target_instrument(self._ti1_path)`** — there
 are already two and they are both wrong.
 
+---
+
+## 3. Item C — the mechanics of locking patch-by-patch
+
+The ruling is taken as given: **for a CR30 chart, patch-by-patch is ON and
+cannot be turned off, in both Guided and Manual.** Below is only *how*.
+
+### 3.1 The precedent — and it is in this very tab, on the row above
+
+Do not invent an idiom. **`TabMeasure`'s "Strip recognition → Auto" already
+does exactly this job, keyed on exactly this fact.** Its three parts:
+
+| Part | Where | What it does |
+|---|---|---|
+| detect | `_refresh_bidir_autodetect` `:3596-3641` — called from `set_ti1_path` `:3110` | re-reads the chart's `TARGET_INSTRUMENT`, stores `_detected_*` |
+| show | `_apply_bidir_auto_state` `:3828-3839` | puts the derived value in the widget and **disables** it — *"the combo is disabled and shows the detected value (so the locked menu reflects the effective setting)"* |
+| **decide** | `_resolve_bidir_value` `:3841-3847` | **the command is built from the resolver, never from the widget** — *"its own selection is ignored when the command is built"* |
+
+That third row is the whole answer to "where must the lock live". Copy this
+shape; do not copy the checkbox-only half of it.
+
+A second, complementary precedent for the *presentation* is
+`TabChart._apply_calibration_knobs` (`ui/tabs/tab_chart.py:5610-5700`): Run
+type = Calibration forces a set of controls, **snapshots the previous tick
+state *and the previous tooltip*, disables them, and swaps in a sentence that
+says why and how to get them back** — then restores both exactly on the way
+out. Its comment names the intent: *"so the row reads as 'not yours to set
+right now' rather than as an invitation"*.
+
+### 3.2 Q1 — ticked-and-disabled, not hidden. Three reasons, all from this file
+
+1. **This tab's own written rule forbids hiding it.** `:1243-1262`, in
+   `_collect_guided`, in capitals: **"NEVER FROM A CONTROL THE USER CANNOT
+   SEE."** A hidden `_nocal_cb` whose value was still sent ran every Guided
+   measurement uncalibrated for a whole beta. `-p` would be the same shape:
+   invisible control, live flag. The comment at `:1930-1938` records that
+   `_pbp_cb` was made visible in Guided (#160) for precisely this reason.
+2. **Hiding it is not even mechanically available in Manual.** `_bool_row`
+   returns `(cb, tip)` (`:1854-1863`) but `_bool_row_m` returns only `cb`
+   (`:2335-2343`) — the Manual tooltip button is never stored, and neither row
+   is kept as a widget. Hiding the Manual row cleanly means new plumbing;
+   disabling it is one line.
+3. **A ticked-and-disabled box is not a dead control.** The complaint the
+   coordinator cites is about controls that *do nothing*. This one does
+   something — it reports the mode the read is actually in. That is the same
+   thing the greyed Auto combo does one row above and nobody has complained
+   about that.
+
+**Wording** must go through §M (`workflow/measurement_messages.py`) if it is a
+window; a **tooltip is not a window**, and `_apply_calibration_knobs` puts its
+explanation in `tr()` at the call site with an explicit note as to why (the
+i18n extractor cannot see `tr(variable)` — `feedback_i18n_extractor_blind_spot`).
+Follow that: the literal goes inline in `tr()`, and it must say what to do to
+get the control back (in this case: nothing — load a chart made for a
+different instrument).
+
+### 3.3 Q2 — every reader of "patch by patch". There are **nine**, and the
+brief names one
+
+The brief names `measure_patch_by_patch` at `:11354`. That is the Guided
+global default only. The full set:
+
+| # | Reader | File:line | Kind |
+|---|---|---|---|
+| 1 | `_pbp_cb.isChecked()` → `MeasureParams.patch_by_patch` (Guided) | `tab_measure.py:11262` | **decides the read** |
+| 2 | `_m_pbp_cb.isChecked()` → same (Manual) | `:11280` | **decides the read** |
+| 3 | `_is_pbp_checked()` → `_spot_session` | `:1308-1311`, set at `:5383` | decides ~10 downstream UI behaviours (`:4786, 6870, 6903, 6925, 6989, 7210, 7213, 7622, 7703, 9616`) |
+| 4 | `MeasureParams.patch_by_patch` → `-p` | `measure_manager.py:906` | the actual flag |
+| 5 | `MeasureParams.patch_by_patch` → `_spot_mode` | `measure_manager.py:348`, used `:789` | key routing in spot mode |
+| 6 | global default `measure_patch_by_patch` | `:11354` (read), `:11305` (**written by Save as Defaults**) | preference |
+| 7 | global default `manual2_chartread_pbp` | `:11397`/`:2690` (read), `:11327` (**written by Save as Defaults**) | preference |
+| 8 | per-target `patch_by_patch` / `patch_by_patch_guided` | `workflow/measure_settings.py:48` and `:71` | per-run store |
+| 9 | Manual **preset** key `"pbp"` | `:2623` (**written**), `:2650` (read) | named preset |
+
+Plus `_LINKED_PAIRS` (`:10766`) mirrors `_pbp_cb` ↔ `_m_pbp_cb` in both
+directions, so **whichever box you lock, the other must be locked too** — an
+unlocked partner is a live back door that writes straight through the mirror.
+
+**So the lock must be a resolver, exactly like `_resolve_bidir_value`:**
+
+```python
+def _resolve_patch_by_patch(self, mode: str) -> bool:
+    if self._chart_is_cr30():
+        return True                     # a CR30 reads one patch at a time
+    return (self._pbp_cb if mode == "guided" else self._m_pbp_cb).isChecked()
+```
+
+…called from `_collect_guided` (#1), `_collect_manual` (#2) **and**
+`_is_pbp_checked` (#3). Readers 4 and 5 then follow for free, because they are
+downstream of `MeasureParams`. Locking only the checkbox leaves #3 correct by
+accident and every stale-state path (#6-#9) wrong.
+
+### 3.4 Q3 — the per-target store. It is a real hazard, but not where expected
+
+`patch_by_patch` **is** per-target: `workflow/measure_settings.py:48`
+(`_m_pbp_cb`) and `:71` (`_pbp_cb`), stored in the run's `meta.json` under
+`measure_settings`. `snapshot()` (`:107-113`) reads the widget's
+`isChecked()` with no notion of "forced", so a forced tick **will** be
+written.
+
+Three findings, in order of severity:
+
+* **Writing `true` into the CR30 run's own `meta.json` is harmless.** The store
+  is per **run** (`store_for_target`, `per_target_settings.py:210-240`:
+  profiling → `runs/runN/meta.json`, verification → `runs/runN/verifications/`,
+  calibration → `cal/`). A run's chart does not change instrument, so the value
+  it stores stays true of it. Specification §5 W8 (`per_target_settings.md:189`)
+  says Start Measurement writes the Measure tab's settings *by design*, and
+  `_on_start` does it at `:5429`.
+* **The New-run seed is NOT a hazard.** I checked, because §4a N-2 strips
+  calibration-owned rows from the seed for exactly this reason. `new_run.json`
+  is written and read only by `tab_chart.py` (`:13303, 13407, 13602-13609,
+  13619, 13651`); the Measure tab does not participate. Nothing to strip.
+* **⚠ THE REAL LEAK IS THE TWO *GLOBAL* WRITERS.** Both read the widget
+  directly and both are reachable with a CR30 chart loaded:
+  * **"Save as Defaults"** — `_on_save_defaults` writes `measure_patch_by_patch`
+    (`:11305`) and `manual2_chartread_pbp` (`:11327`). Those globals are what
+    `_restore_defaults` (`:11354`, `:11397`) puts on screen for **every target
+    that has nothing stored** (`load_target_settings`, `:1258-1278`). Press
+    Save as Defaults once on a CR30 chart and **every future non-CR30 run opens
+    in patch-by-patch**, which is a slow, wrong read the user never asked for.
+  * **The Manual preset** — `_m_collect_preset_data` stores `"pbp"` (`:2623`).
+    A preset saved on a CR30 chart carries patch-by-patch into whatever chart
+    it is later applied to (`:2650`).
+
+  This is the "a lock that silently rewrites saved user state" failure the
+  coordinator is worried about, and it lands on the *global* store, not the
+  per-target one — the opposite of the expectation.
+
+  **The fix follows the calibration-knobs precedent: snapshot the user's own
+  value, and write the snapshot, not the forced value.** Keep
+  `self._pbp_user_value: dict[str, bool]` (per mode) captured at the moment the
+  lock engages, restore it when the lock releases, and have `_on_save_defaults`
+  and `_m_collect_preset_data` write `self._pbp_user_value[...]` while locked.
+  The per-target `snapshot()` may keep writing the forced value (it is true of
+  that run) — but if you would rather it did not, the same field answers it.
+
+### 3.5 Q4 — key off the CHART, and only the chart. There is nothing else to key off
+
+There is **no "selected instrument" in the Measure tab**. The two Instrument
+spin boxes (`_instr_spin` / `_m_instr_spin`) are chartread's `-c` **comms port
+number**, not a device choice (`_build_args`, `measure_manager.py:891`). The
+instrument is chosen in the **Create Chart** tab and is recorded in the chart
+it produces (log line 5516: `engine kwargs {'instrument': 'CR30', …}`). The
+only app-wide preference, `chart_instrument`, is explicitly rejected as a
+source in this tab already — `_chart_instrument_code` (`:4603-4612`): *"the
+preference this used to consult says nothing about the sheet in the user's
+hand."*
+
+So Q4's mixed-project case resolves itself, **provided Change 0 is done**:
+
+* CR30 chart loaded, any other device connected → locked on. Correct: the
+  sheet in the hand is a CR30 sheet.
+* Non-CR30 chart loaded, CR30 connected → **not** locked; the user's own
+  value comes back. This is the case that makes the restore in §3.4
+  mandatory rather than cosmetic — without it the user's unticked box never
+  returns.
+* Chart changed while the tab is open (`set_ti1_path` fires on project open,
+  Profile-run change, Run-type change, and cross-tab loads — see `:3115-3118`)
+  → the lock must be re-evaluated **there**, in the same place
+  `_refresh_bidir_autodetect` is called (`:3110`).
+
+**And it must be re-asserted after every settings load**, or a stored `false`
+will land on screen after the lock has been applied. `load_target_settings`
+already has the hook for precisely this class of problem —
+`_reassert_guided_refinement()`, called on **both** branches (`:1278` and
+`:1287`). Add the pbp re-assert beside it, and in `_restore_defaults` and
+`_m_apply_preset_data` too.
+
