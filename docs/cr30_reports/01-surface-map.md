@@ -191,3 +191,205 @@ values) mode no instrument is opened at all (`:4097`), so what lands in the
 there once §2's entry is made. Not separately verified beyond the grep + read
 of those four lines.
 
+
+---
+
+## 4. Measure tab / chart-reading engine
+
+### 4.1 #159 §4's protocol claim — **VERIFIED**
+- **stdout, engine → app**: `workflow/chartread_engine.py:70-83` `parse_engine_line` — any line starting with `{` at column 0 is `json.loads`'d and must carry an `"event"` key.
+- **stdin, app → engine**: `workflow/measure_manager.py:709` — `self._runner.write_stdin(_json.dumps(cmd) + "\n")`, translated from keystrokes by `chartread_engine.KEY_TO_COMMAND` (`:88-113`) and `KEY_TO_REPEATED_COMMAND` (`:123-126`).
+
+So the boundary really is a **line-based JSON event/command protocol over
+stdout/stdin**, and a non-Argyll backend can sit behind it.
+
+### 4.2 The complete event vocabulary a backend must speak
+Emitted by `chromiq_chartread.c` (grep of every `"event\":\"` literal), consumed
+by `measure_manager._on_engine_event` (`:1052-1395`):
+
+`session_start` (`c:4125`) · `instrument` (`c:977`) · `strip_ready` (`c:2032`) ·
+`scan_started` (`c:780`) · `strip_read` (`c:568`) · **`spot_ready` (`c:600`,
+emitted `c:2789`)** · **`patch_read` (`c:622`)** · `saved` (`c:494`) ·
+`unread_confirm` (`c:2129`, `c:3040`) · `strip_warning` (`c:2432`, `c:2471`) ·
+`strip_misaligned` (`c:2563`) · `mode_fallback` (`c:1444`) · `xy_place_sheet`
+(`c:1598`) · `xy_locate` (`c:1670`) · `chart_reading` · `abort_confirm` ·
+`cal_required` / `cal_done` · `error` (with `kind` ∈ misread / coms /
+read_error / needs_cal / no_instrument / cal_failed / autosave_rename /
+patch_not_found) · `aborted` · `done`.
+
+**A spot-only backend needs a strict subset**: `session_start`, `instrument`,
+`spot_ready`, `patch_read`, `saved`, `error`, `done` — plus the commands
+`ok / forward / back / next_unread / retry / done / yes / skip / quit`.
+Everything strip-shaped can be omitted.
+
+`spot_ready` payload (`c:602-606`): `{event, id, loc, read, all_done, exyz[3]}`.
+`patch_read` payload (`c:622-625`): `{event, id, loc, xyz[3], exyz[3], de}` —
+XYZ scaled ×100, ΔE computed against the chart's expected value in D50 Lab.
+
+### 4.3 EXISTING SEAMS FOR A DEVICE ARGYLL CANNOT DRIVE — three, not one
+1. **`EXTERNAL_INSTRUMENTS`** (`data/patch_db.py:190`, used at
+   `chart_creator.py:1786` and `ui/tabs/tab_chart.py:3407`) — the i1iSis
+   pattern: ChromIQ lays out/prints, an external tool measures.
+2. **chartread's `-x` external-values mode** — `chromiq_chartread.c:3186`,
+   `:3250`, `:3489-3497`, and the spot loop's `if (xtern != 0)` branch at
+   `:2791-2810`. In this mode **no instrument is opened at all**
+   (`:4097` — `if (!xtern && !cq_replay_active())`), values are typed on stdin
+   as `L*a*b*` (`-xl`) or `XYZ` (`-xx`), and — critically —
+   **`cq_emit_spot_ready` at `:2789` fires *before* the branch**, so the JSON
+   event stream works in `-x` mode too.
+   **This is not exposed anywhere in ChromIQ's Python** (grep of `workflow/`,
+   `ui/`, `core/` for `-x`/`xtern`: no hits). It is the cheapest possible live
+   backend: a CR30 driver process writes `X Y Z\n` to the helper's stdin and the
+   entire Measure tab, per-patch autosave, `.ti3` writing and profile chain work
+   unchanged.
+   ⚠ **Cost, NOT VERIFIED in detail**: `-x` carries no spectral data, so the
+   `.ti3` would have XYZ only and `colprof -f` (FWA) plus every spectral Tool
+   would be unavailable. Whether `-x` also changes what `TARGET_INSTRUMENT` is
+   written into the `.ti3` (`c:317-318` uses `inst_name(atype)`, and `atype`
+   is never set without an instrument) **must be checked before relying on it**.
+3. **`--replay` / `cq_replay_*`** (`c:3320-3333`, `:2842-2843`,
+   `tests/helpers/replay_tools.py`) — a scripted fake instrument that drives the
+   real code path with no hardware. It is a **test** facility, but it proves the
+   spot loop can be fed from outside and is the right harness for CR30 tests
+   written before the device is on the bench.
+
+### 4.4 Patch-by-patch is ALREADY a first-class, specified mode
+- `MeasureParams.patch_by_patch` → `-p` (`measure_manager.py:169`, `:901-902`).
+- It is a **user checkbox**, in both Guided and Manual
+  (`ui/tabs/tab_measure.py:11157`, `:11175`), stored **per target** as
+  `patch_by_patch` / `patch_by_patch_guided` (`workflow/measure_settings.py:48`,
+  `:71`).
+- `spot_ready` → `patch_ready` → highlight + page flip
+  (`measure_manager.py:1141-1178`, `ui/tabs/tab_measure.py:10131`).
+- `patch_read` → `patch_measured` → progress + tile
+  (`measure_manager.py:1183-1187`, `tab_measure.py:4185`).
+- The exit/abort behaviour is **specified**:
+  `docs/design/measurement_exit_strategy.md:132-140` has a "Strip mode vs
+  patch-by-patch — where they genuinely differ" table.
+
+**Consequence: a CR30 beta does not have to build a spot workflow. It exists,
+is specified, and is shipping.**
+
+### 4.5 What a live CR30 backend must additionally provide
+Beyond the JSON vocabulary in §4.2: the reference implementation already in
+`/Users/Basti/develop/chromiq-cr30-research/src/cr30/device.py`
+(`CR30.open_usb()`, `open_ble()`, `identify()`, `read_measurement()`),
+plus — from that repo's own STATUS.md — **the magnet-near-the-aperture hazard**:
+a measurement silently becomes a white calibration returning a stored constant.
+Nothing in ChromIQ can detect that; a guard has to live in the backend or in a
+plausibility check on the reading. **Open question 8.**
+
+---
+
+## 5. UI menus and pickers — every place an instrument name appears
+
+| # | File:line | What it is | Work |
+|---|---|---|---|
+| 5.1 | `ui/tabs/tab_chart.py:3406-3409` | **Guided** "Measurement Instrument" combobox — built by iterating `INSTRUMENT_LABELS`, skipping `EXTERNAL_INSTRUMENTS` | free once `INSTRUMENT_LABELS` has a row |
+| 5.2 | `data/parameters.yaml:623-636` | **Manual** printtarg `-i` `ParameterWidget` — `choices` + `labels` + `tooltip_body` | one-liner in the YAML, **but see §9 — it breaks all 12 i18n overlays** |
+| 5.3 | `ui/dialogs/layout_options_panel.py:76-79` | `LayoutOptionsPanel.INSTRUMENTS` — the **engine panel's** instrument combobox | one line |
+| 5.4 | `ui/dialogs/layout_options_panel.py:81-91` | `mode_label_for` — "Clip border:" / "Density:" / "Patch shape:" | new branch or accept the `"Mode:"` fallback |
+| 5.5 | `ui/dialogs/layout_options_panel.py:93-126` | `mode_tooltip_for` | new branch or accept the generic fallback (`:124-126`) |
+| 5.6 | `ui/dialogs/layout_options_panel.py:128-138` | `modes_for` | new branch or accept `[("default", "Default")]` (`:138`) |
+| 5.7 | `ui/dialogs/layout_options_panel.py:1857`, `:1946`, `:2289` | three `("CM","SS")` tuples gating the optional notes/clip band UI | three one-liners, or the CR30 can never carry a notes band |
+| 5.8 | `ui/dialogs/layout_options_panel.py:1864-1865` | `cm_stagger_cb` visibility — `inst == "CM"` | no change (CR30 should not stagger) |
+| 5.9 | `ui/dialogs/layout_options_panel.py:2898` | `_instr_friendly` for the `{instrument}` sheet-text placeholder | one line |
+| 5.10 | `ui/dialogs/settings_dialog.py:3126-3131` | `_LAYOUT_INSTRUMENTS` — **Preferences → Chart Layout** picker (its comment at `:1855-1861` explains why DTP41/51 were dropped) | one line |
+| 5.11 | `ui/dialogs/settings_dialog.py:1517` | `_MARGIN_INSTRUMENTS` — **Preferences → Instrument Limits** picker | one line |
+| 5.12 | `ui/tabs/tab_chart.py:1474-1477` | `_MARGIN_INSTR_LABEL` | ⚠ **silent-wrongness trap**: `tab_chart.py:16174` does `.get(instr_flag, "i1Pro")` — an unregistered CR30 chart is judged against the **i1Pro's 38 mm top margin** |
+| 5.13 | `core/settings.py:668-671` | `THRESHOLD_INSTR_LABEL` | safer: an unknown flag returns `None` from `thresholds_for_combo` (`:698-710`) → no thresholds checked |
+| 5.14 | `ui/tabs/tab_chart.py:8543-8544` | `_suggest_target_name`'s instrument label map | one line, cosmetic |
+| 5.15 | `ui/dialogs/ti2_relayout_dialog.py:7726` | same map in the relayout dialog | one line, cosmetic |
+| 5.16 | `ui/dialogs/ti2_relayout_dialog.py:5326-5329` | relayout targets filtered by `ENGINE_INSTRUMENTS` | free once §2 is done |
+| 5.17 | `workflow/layout_engine/chart.py:277-278` | `_instr_friendly` for the engine stamp | one line |
+| 5.18 | `ui/tabs/tab_chart.py:1084-1086`, `:2138`, `:2154` | `INSTRUMENT_GROUP_LABELS` + the built-in-preset group order | only if CR30 presets ship |
+| 5.19 | `ui/ti2_loader.py:35-39` | `KNOWN_INSTRUMENTS` | one line — **and `tests/test_knut_beta106_target_instrument.py:73` asserts the app reads names from this constant** |
+| 5.20 | `ui/ti2_loader.py:60-66 / 69-76 / 78-93 / 96-107 / 110-122` | `is_colormunki`, `is_spectroscan`, `instrument_label`, `is_i1pro`, `instrument_family` | **needs a `is_cr30` / `"cr30"` family**, or every wording branch falls to the generic text |
+| 5.21 | `ui/ti2_loader.py:125-155`, `:157-175`, `:178-200`, `:202-232` | four per-family instruction texts (calibration / strip / spot-tool / **patch**) | `patch_measurement_instructions_html` (`:202`) is the one a CR30 user reads — a CR30 branch is **new user-facing text** → §M-PROPOSED (see §10) |
+| 5.22 | `ui/ti2_loader.py:234-265` | `disable_bidir_for_instrument` / `force_bidir_for_instrument` | must return "no bidirectional" for a spot device |
+| 5.23 | `data/patch_db.py:1108-1136` | `INSTRUMENT_MODEL_WORDS` **and** the hard-coded tuple at `:1133` | both, or the connected-device mismatch check is blind |
+| 5.24 | `ui/tabs/tab_measure.py:4470` | `if "colormunki" in low or "i1studio" in low or "ccstudio" in low` | verify what it gates before deciding |
+| 5.25 | `ui/tabs/tab_check_refine.py:248`, `ui/tabs/tab_profile.py:4095` | `is_colormunki(self._detected_instrument)` gates UV/FWA options | a CR30 is **also** UV-cut-equivalent (LED, no OBA excitation) — it must land on the same side, or `colprof -f` is offered when it must not be |
+| 5.26 | `ui/dialogs/welcome_dialog.py` (two hits) | prose listing supported instruments | translated strings |
+
+---
+
+## 6. Settings / Preferences
+
+| Symbol | Line | Need | Size |
+|---|---|---|---|
+| `_MARGIN_INSTRUMENTS` | `ui/dialogs/settings_dialog.py:1517` | add `"CR30"` — feeds the picker at `:2746` | one line |
+| `_MARGIN_SEED` | `core/settings.py:511-524` | **optional.** SpectroScan is in `_MARGIN_INSTRUMENTS` and `THRESHOLD_INSTR_LABEL` and has **no seed rows at all** — `margin_inspector.check_violations` returns `[]` for a combo with no thresholds (`workflow/margin_inspector.py:100-113`). So no seeds = no checking, which is honest until the aperture/positioning data exists | zero, deliberately |
+| `THRESHOLD_INSTR_LABEL` | `core/settings.py:668-671` | add `"CR30": "CR30"` | one line |
+| `MODEL_DEFAULTS` | `core/measure_pace.py:320-331` | add `"cr30": (0.0, None)` or `(1.0, None)` | one line |
+| `ESTIMATE_PATCHES` | `core/measure_pace.py:345-352` | add `"cr30": None` | one line |
+| `_ARGYLL_MODEL_KEYS` | `core/measure_pace.py:376-388` | add `("cr30", "cr30")` so a reported model resolves | one line |
+| pace `labels` dict | `ui/dialogs/settings_dialog.py:1700-1707` | add `"cr30"` — the rows themselves are **generated from `MODEL_DEFAULTS`** at `:1713-1714`, so the row appears automatically | one translated line |
+| `_pace_example` key tuple | `ui/dialogs/settings_dialog.py:3121` and name map `:1865-1867` | hard-coded `("colormunki","i1pro2","i1pro","i1pro3","i1pro3plus")` — a CR30 with no rate contributes nothing anyway | none |
+| `AppSettings` defaults `pace_sample_hz_*` | `core/settings.py:268-269` | only if a rate is wanted; **not wanted** for a spot device | none |
+| `SETTINGS_SCHEMA = 22` | `core/settings.py:718` | **not** a bump — adding a NEW key is not changing an existing default. Only bump if an existing default moves | none |
+
+### VERIFIED: #159 §8b's pace warning is right in principle and **moot in practice**
+Two independent findings:
+1. **The precedent already exists.** `MODEL_DEFAULTS["spectroscan"] = (250.0, None)`
+   (`core/measure_pace.py:330`) with `ESTIMATE_PATCHES["spectroscan"] = None`
+   (`:351`), and the file's own comment at `:317-319` says why: *"a motorised
+   table … there is no swipe to be too quick and no threshold worth setting."*
+   The UI renders that as **"Off"** and **"N/A"**
+   (`settings_dialog.py:1741-1743`, `:1767-1770`). A CR30 row is the same
+   shape. So this is **a one-line table entry, not "a small design job of its
+   own"** as #159 §8b claims.
+2. **The pace model never runs in spot mode at all.** `_report_strip_pace` is
+   connected only to `strip_measured` (`ui/tabs/tab_measure.py:1022`), and
+   `strip_measured` is emitted only from the `strip_read` event
+   (`workflow/measure_manager.py:1135`). Patch-by-patch emits `patch_measured`
+   instead, and the code says so outright at `tab_measure.py:1016-1019`:
+   *"reading pace is judged per STRIP, not per patch … nothing subscribes to
+   patch events for pace any more."*
+
+⚠ **The one real trap**: `_pace_config` (`tab_measure.py:4322-4370`) falls back
+to `defaults_for(None)` = the **i1Pro's `(100.0, 20)`** for an unrecognised
+instrument (`measure_pace.py:680-687`). Harmless in spot mode (nothing reads
+it), but it would bite immediately if a CR30 chart were ever read in strip mode.
+A `"cr30"` row closes it.
+
+---
+
+## 7. Per-target settings
+
+**`docs/design/per_target_settings.md` is BINDING and it already answers this.**
+
+- **The CHART instrument is per target.** `per_target_settings.md:495`, Q1:
+  *"Are page count and instrument/paper per target, or per project?"* → Knut:
+  *"yes, per target"*. It reaches the store as an ordinary `ParameterWidget`
+  row, discovered generically by `ui/tabs/tab_chart.py:13570-13583`
+  (`per_target_widgets`) — **so a new `-i` choice needs no per-target code at
+  all.** Guided's copy rides in `create_chart_ui["guided"]`
+  (`tab_chart.py:13598`).
+- **The MEASURING instrument is explicitly NOT per target.**
+  `workflow/measure_settings.py:31`:
+  `"instrument": "which instrument is plugged in, not a property of the run"`.
+  And it is not a device name — `measure_manager.py:891` passes it as
+  `-c <p.instrument>`, chartread's **communication port**. `spot_read_manager.py:51-55`
+  records the same correction for spotread. This confirms the research repo's
+  `INTEGRATION.md §1` finding that #159's framing of instrument selection is wrong.
+- `per_target_settings.md:293` (N-6) matters if a CR30 calibration run type is
+  ever added: a calibration must not seed the block.
+- **Drift guard**: `tests/test_measure_settings.py` fails if a `MeasureParams`
+  field is neither in `MEASURE_CONTROLS` nor in `NOT_A_SETTING`
+  (`measure_settings.py:14-18`). Any new CR30 measure field must be filed in one
+  of the two.
+
+---
+
+## 8. Margin inspector and other instrument-keyed code
+
+| Place | Line | Behaviour with an unregistered CR30 |
+|---|---|---|
+| `workflow/margin_inspector.check_violations` | `:100-126` | `thresholds is None` → `[]`. **Safe** |
+| `workflow/margin_inspector` ruler lookup | `:300-306` | `instruments.build(inst)` raises `ValueError` for an unknown key, swallowed by `except Exception` at `:305` → `ruler_mm = None`. **Safe, and correct for a rulerless device** |
+| `core/settings.thresholds_for_combo` | `:698-710` | `THRESHOLD_INSTR_LABEL.get(flag)` → `None` → no thresholds. **Safe** |
+| `ui/tabs/tab_chart.py:16174` | | `_MARGIN_INSTR_LABEL.get(flag, "i1Pro")` → **judged against the i1Pro's 38/26/9/9 mm. NOT SAFE.** |
+| `workflow/layout_engine/instruments.default_ruler_mm` | `:142-155` | `build()` raises → caught → `0.0`. **Safe and correct** |
+| `core/usb_driver_installer.py` | (WinUSB, Argyll's own devices) | does **not** cover a CH340/CP210x serial bridge. Per the research repo, macOS 15.7.9 needs **no** driver for VID `0x1A86` PID `0x7523` — so this file is out of scope for macOS; Windows is NOT VERIFIED |
+
