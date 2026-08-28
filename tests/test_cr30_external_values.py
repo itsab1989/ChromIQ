@@ -70,8 +70,13 @@ class Reader:
             return [e for e in self.ev if e.get("event") == name]
 
     def send(self, obj):
-        self.p.stdin.write(json.dumps(obj) + "\n")
-        self.p.stdin.flush()
+        """Tolerant of the helper having already exited — once the last patch
+        is read it can finish on its own, and a write then hits a closed pipe."""
+        try:
+            self.p.stdin.write(json.dumps(obj) + "\n")
+            self.p.stdin.flush()
+        except (BrokenPipeError, ValueError, OSError):
+            pass
 
     def kill(self):
         if self.p.poll() is None:
@@ -119,9 +124,13 @@ def test_full_read_writes_a_usable_ti3(tmpchart):
     """A1+A2+A3 together: read patches, finish cleanly, write a correct .ti3."""
     r = tmpchart()
     seen, sent = 0, 0
-    deadline = time.time() + 40
-    while sent < 8 and time.time() < deadline:
+    # Read the WHOLE chart. Finishing with patches still unread takes a
+    # different confirmation branch, which is not what this test is about.
+    deadline = time.time() + 120
+    while time.time() < deadline:
         spots = r.events("spot_ready")
+        if r.p.poll() is not None:      # finished by itself
+            break
         if len(spots) <= seen:
             time.sleep(0.03)
             continue
@@ -129,6 +138,9 @@ def test_full_read_writes_a_usable_ti3(tmpchart):
         seen = len(spots)
         if s.get("all_done"):
             break
+        if s.get("read"):            # already recorded -> move on, do not re-send
+            r.send({"cmd": "next_unread"})
+            continue
         x, y, z = s["exyz"]          # the chart's own expectation -> plausible
         r.send({"cmd": "value", "xyz": f"{x:.4f} {y:.4f} {z:.4f}"})
         sent += 1
@@ -149,6 +161,7 @@ def test_full_read_writes_a_usable_ti3(tmpchart):
         f"helper did not exit cleanly (A2 was a SIGSEGV); "
         f"last output: {' | '.join(r.raw[-4:])}")
     reads = r.events("patch_read")
+    assert sent >= 80, f"only {sent} patches read; the chart has 90"
     assert len(reads) == sent, f"sent {sent} values, {len(reads)} recorded"
 
     ti3 = r.tmp / "n.ti3"
