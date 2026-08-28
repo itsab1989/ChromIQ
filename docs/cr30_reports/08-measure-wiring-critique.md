@@ -117,3 +117,72 @@ Argyll would ever have enumerated. **Do not add a CR30 special case to this
 preference.** Doing so would be a change that provably cannot affect the bug,
 in a setting that exists for a different instrument class entirely.
 
+---
+
+## 2. BLOCKER — the CR30 guard is dead on the commonest path (the `.ti1`)
+
+**This is not part of the reported bug, and it is worse than the reported
+bug.** It also decides how A, B and C must be written, so it comes first.
+
+`_blocked_by_stock_chartread_for_cr30` (`ui/tabs/tab_measure.py:4435-4441`)
+and the no-swipe-arrow detection (`:4194-4199`) both do:
+
+```python
+name = read_target_instrument(self._ti1_path)
+```
+
+But `TARGET_INSTRUMENT` is written by the layout stage into the **`.ti2`**,
+and it is **not in the `.ti1` at all**. Measured on Basti's own chart:
+
+```
+$ grep -c TARGET_INSTRUMENT /Users/Basti/ChromIQ/CR30-Test/runs/run1/CR30-Test.ti1
+0
+$ grep TARGET_INSTRUMENT      /Users/Basti/ChromIQ/CR30-Test/runs/run1/CR30-Test.ti2
+TARGET_INSTRUMENT "CR30"
+```
+
+And `_ti1_path` **is** the `.ti1` whenever a project is opened:
+`ui/main_window.py:2368-2369`, unconditionally —
+
+```python
+if run.chart_ti1.exists():
+    self._tab_measure.set_ti1_path(run.chart_ti1)
+```
+
+`set_ti1_path` (`:3086-3128`) stores the path as given; it never resolves the
+sibling. The tab's own comment at `:4211-4213` says so out loud — *"a real
+.ti1 (reopening a saved run passes run.chart_ti1)"* — and that code path is
+the only one that then bothers to resolve the sibling.
+
+**Consequences today, before any of A/B/C is built:**
+
+* Close ChromIQ, reopen the CR30 project, leave Preferences on ArgyllCMS
+  chartread, press Start → the guard returns False, no window is shown, the
+  measurement launches into `Unrecognised chart target instrument 'CR30'`.
+  The guard was written specifically to prevent that.
+* The swipe arrow comes back on a CR30 chart after a project reopen
+  (`set_no_swipe(False)`), because `_spot` is computed from the same dead read.
+
+**There is already a resolver, and it is the right one:**
+`TabMeasure._chart_file_for` (`:5184-5195`) — *"Most paths hand this tab the
+`.ti2` already; opening a project can hand it the `.ti1` instead, so both are
+accepted and resolved to the one file chartread actually reads."* It is what
+`set_ti1_path` uses to decide whether Start is even enabled.
+
+**Change 0 (BLOCKER, CR30-specific in effect, pre-existing in shape):** add
+one tab method and route *every* CR30 question through it —
+
+```python
+def _chart_is_cr30(self) -> bool:
+    from ui.ti2_loader import is_cr30, read_target_instrument
+    try:
+        return is_cr30(read_target_instrument(
+            self._chart_file_for(getattr(self, "_ti1_path", None))))
+    except Exception:      # noqa: BLE001 — never block a read on this check
+        return False
+```
+
+then use it at `:4196`, at `:4437`, and for everything A, B and C add. **Do
+not add a fourth open-coded `read_target_instrument(self._ti1_path)`** — there
+are already two and they are both wrong.
+
