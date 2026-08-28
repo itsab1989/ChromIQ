@@ -11063,15 +11063,33 @@ class TabMeasure(QWidget):
                     self._ti1_path, len(self._tiff_pages) or 1)
             except Exception:      # noqa: BLE001
                 self._patch_boxes = []
+        # Resolve to the .ti2 FIRST. per_patch_overlay names each patch from
+        # the reference chart, and only the .ti2 knows where a patch sits: from
+        # a .ti1 it can only return SAMPLE_IDs ("103"), while _patch_boxes and
+        # _locate_patch are keyed by chart location ("A2"). Nothing then
+        # matches, every patch is dropped by the page<0 guard in
+        # _on_chart_measured, and the overlay comes up empty.
+        #
+        # Opening a project is exactly the route that hands this tab the .ti1
+        # (ui/main_window.py, _restore_last_session) — which is why this only
+        # ever failed on a REOPENED project and never on one measured in the
+        # same sitting. _chart_file_for exists for this and says so.
+        chart = self._chart_file_for(self._ti1_path)
         try:
             from workflow.measurement_report import per_patch_overlay
-            patches = per_patch_overlay(ti3, self._ti1_path)
+            patches = per_patch_overlay(ti3, chart)
         except Exception:          # noqa: BLE001 — never break on a bad file
             patches = []
         if not patches or not any(self._patch_boxes):
             return False
         self._on_chart_measured({"patches": patches})
-        return True
+        # Only claim success if something was actually painted. Returning True
+        # on an empty overlay is what made this silent: the caller believed the
+        # overlay was up and so never pointed the user at Tools > Inspect a
+        # measurement, and the user was left looking at an unchanged chart with
+        # no message of any kind.
+        return any(self._preview._patch_overlay.get(pg)
+                   for pg in range(max(1, len(self._patch_boxes))))
 
     def _clear_overlay(self) -> None:
         """Remove a statically-shown overlay (#134)."""
