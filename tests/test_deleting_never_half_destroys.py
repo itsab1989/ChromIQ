@@ -35,7 +35,19 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 pytest.importorskip("PyQt6")
 
-from core.trash import move_to_trash                            # noqa: E402
+import core.trash as _trash_mod                                 # noqa: E402
+
+
+def move_to_trash(path):
+    """The REAL implementation, not the suite's sandboxed stand-in.
+
+    `tests/conftest.py` redirects `core.trash.move_to_trash` into a temporary
+    folder, because a gate run otherwise drops about fifty items into the
+    developer's own Trash. This file is the one that has to test the real thing,
+    so it reaches past the redirect.
+    """
+    fn = getattr(_trash_mod, "real_move_to_trash", None) or _trash_mod.move_to_trash
+    return fn(path)
 
 
 def _project_with_a_read_only_folder(tmp_path) -> tuple[Path, Path]:
@@ -98,7 +110,7 @@ def test_a_missing_path_counts_as_already_gone(tmp_path):
 def test_a_failure_never_reports_success(tmp_path):
     """The whole module exists because an operation reported success for files
     it had not moved. If the folder is still there, the answer is False."""
-    import core.trash as trash
+    trash = _trash_mod
 
     root = tmp_path / "Proj"
     root.mkdir()
@@ -116,7 +128,7 @@ def test_a_failure_never_reports_success(tmp_path):
     real = sys.modules.get("PyQt6.QtCore")
     sys.modules["PyQt6.QtCore"] = fake
     try:
-        res = trash.move_to_trash(root)
+        res = move_to_trash(root)
     finally:
         if real is not None:
             sys.modules["PyQt6.QtCore"] = real

@@ -672,6 +672,36 @@ def pytest_configure(config):
     _cs.QSettings = _sandboxed
     config._chromiq_settings_sandbox = str(sandbox)
 
+    # …AND THE TRASH. Deleting moves files to the system recycle folder now, so
+    # a gate run dropped about fifty items into the developer's own Trash and
+    # left them there — which is not merely untidy: it buries whatever was
+    # genuinely in there under test litter with names like `run1` and
+    # `meta.json`, and someone emptying it by hand can lose their own work by
+    # mistake. Measured on 2026-08-28, and it had already happened once.
+    #
+    # The tests still exercise the real code path; only the destination moves.
+    import core.trash as _ct
+    _trash = sandbox / "trash"
+    _trash.mkdir(parents=True, exist_ok=True)
+    _real_move = _ct.move_to_trash
+
+    def _sandboxed_trash(path):
+        import shutil
+        src = pathlib.Path(path)
+        if not src.exists():
+            return _ct.TrashResult(True)
+        dest = _trash / f"{src.name}-{abs(hash(str(src))) % 10**8}"
+        try:
+            shutil.move(str(src), str(dest))
+        except OSError as exc:
+            return _ct.TrashResult(False, reason=str(exc))
+        return _ct.TrashResult(True, dest)
+
+    _ct.move_to_trash = _sandboxed_trash
+    # Kept reachable so a test ABOUT the Trash can still exercise the real one.
+    _ct.real_move_to_trash = _real_move
+    config._chromiq_real_move_to_trash = _real_move
+
 
 def pytest_addoption(parser):
     parser.addoption("--runslow", action="store_true", default=False,

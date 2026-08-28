@@ -733,14 +733,22 @@ def empty_run(project, run_id: str) -> None:
     run = project.run(run_id)
     if not run.dir.exists():
         raise DeleteFailed([str(run.dir)])
-    failed = []
-    reason = ""
-    for child in list(run.dir.iterdir()):
-        res = move_to_trash(child)
-        if not res.ok:
-            failed.append(str(child))
-            reason = reason or res.reason
-    if failed:
-        raise DeleteFailed(failed, reason=reason)
+    # ONE MOVE, NOT ONE PER CHILD. Trashing the children one at a time can stop
+    # half way — measured: 2 of 7 gone, the `.icc` and the `.ti1` among them,
+    # behind a message that read "nothing has been deleted and everything is
+    # still exactly where it was". So the whole folder goes in a single move and
+    # is then recreated empty, which is what "empty the run" means anyway. The
+    # run keeps its id and its place in the numbering because the folder is
+    # remade under the same name.
+    res = move_to_trash(run.dir)
+    if not res.ok:
+        raise DeleteFailed([str(run.dir)], reason=res.reason)
+    try:
+        run.dir.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        # The contents are safely in the Trash; only the empty shell is missing,
+        # and `Run.ensure_dir` makes it on the next use.
+        log.warning("Emptied %s but could not recreate the folder: %s",
+                    run.dir, exc)
     run.save_meta(RunMeta.fresh(run_id))
     log.info("Emptied run %s", run.dir)

@@ -1946,15 +1946,31 @@ class MeasurementTargetBar(QWidget):
             else:
                 rd.delete_verification(plan)
         except rd.DeleteFailed as exc:
-            QMessageBox.warning(
-                self, tr("Could not delete everything"),
-                tr("ChromIQ deleted what it could, but some files could not be "
-                   "removed:\n\n{paths}\n\nThis usually means a file is open in "
-                   "another program, or the folder is on a disk that is "
-                   "currently read-only. Close anything that might be using "
-                   "these files and try again.\n\nNothing else was changed — "
-                   "the run numbering has been left exactly as it was, so no "
-                   "run has moved.").format(paths="\n".join(exc.paths)))
+            # SAY WHY, WHEN THERE IS A WHY. `DeleteFailed` carries a plain
+            # explanation now — a disk with no recycle folder, a read-only
+            # parent — and this handler used to ignore it and print its own
+            # guess instead, which is how the person got "ChromIQ deleted what
+            # it could" for an operation that had deleted nothing at all.
+            box = QMessageBox(self)
+            box.setIcon(QMessageBox.Icon.NoIcon)
+            box.setWindowTitle(tr("Could not delete everything"))
+            if getattr(exc, "reason", ""):
+                box.setText(exc.reason + "\n\n"
+                            + tr("This is what ChromIQ tried to remove:")
+                            + "\n\n" + "\n".join(exc.paths))
+            else:
+                box.setText(tr(
+                    "ChromIQ deleted what it could, but some files could not be "
+                    "removed:\n\n{paths}\n\nThis usually means a file is open "
+                    "in another program, or the folder is on a disk that is "
+                    "currently read-only. Close anything that might be using "
+                    "these files and try again.\n\nNothing else was changed — "
+                    "the run numbering has been left exactly as it was, so no "
+                    "run has moved.").format(paths="\n".join(exc.paths)))
+            box.addButton(tr("OK"), QMessageBox.ButtonRole.AcceptRole)
+            from ui.widgets import widen_message_box
+            widen_message_box(box)
+            box.exec()
         self._after_delete()
 
     def _delete_whole_project(self, plan) -> None:

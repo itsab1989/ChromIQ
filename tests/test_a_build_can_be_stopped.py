@@ -107,3 +107,55 @@ def test_stop_is_safe_because_the_chart_is_set_aside_first(tab):
     assert hasattr(Run, "settle_chart_stash")
     src = inspect.getsource(Run.reset_chart_artefacts)
     assert "stash" in src
+
+
+# ---------------------------------------------------------------------------
+# Found on screen: Stop during the layout engine did nothing, and said otherwise
+# ---------------------------------------------------------------------------
+
+def test_stop_works_when_no_subprocess_is_running(tab):
+    """`cancel()` used to return early unless an ArgyllCMS process was running.
+
+    The ChromIQ layout engine is an in-process call on the GUI thread — there is
+    no subprocess to kill — so Stop pressed during it did nothing at all, while
+    the log said "the chart that was here before is being put back, so nothing
+    is lost" and the chart was replaced anyway. Measured on screen:
+    `runner_is_running: false, stop_visible: true`, chart replaced.
+    """
+    creator = tab._creator
+    assert creator._runner.is_running is False, \
+        "this test needs the idle case, which is what the engine phase looks like"
+    creator._cancelling = False
+    creator.cancel()
+    assert creator._cancelling is True, \
+        "Stop did nothing because no subprocess happened to be running"
+
+
+def test_a_cancelled_build_puts_the_chart_back_even_if_it_produced_pages(tab,
+                                                                         tmp_path):
+    """The engine cannot be interrupted mid-page, so it returns a
+    complete-looking result even when Stop was pressed. Taken at face value that
+    reads as a finished build, and the chart the person was promised back would
+    be dropped instead."""
+    from core.file_manager import Project
+
+    proj = Project.create(tmp_path / "P", "P")
+    run = proj.current_run()
+    (run.dir / f"{run.stem}.ti2").write_text("the chart that was here")
+    (run.dir / f"{run.stem}_01.tif").write_text("its page")
+    before = {p.name: p.read_text() for p in run.dir.iterdir() if p.is_file()}
+
+    creator = tab._creator
+    creator._chart_stash_run = run
+    creator._chart_stash = run.reset_chart_artefacts(stash=True)
+    (run.dir / f"{run.stem}.ti2").write_text("what the engine got to")
+    (run.dir / f"{run.stem}_01.tif").write_text("a page from the stopped build")
+    creator._cancelling = True
+    creator._pending_on_finish = lambda tiffs: None
+
+    creator._finish([run.dir / f"{run.stem}_01.tif"])   # a NON-empty result
+
+    after = {p.name: p.read_text() for p in run.dir.iterdir() if p.is_file()}
+    assert after == before, (
+        "a stopped build was treated as a finished one, so the chart it "
+        "replaced was dropped")

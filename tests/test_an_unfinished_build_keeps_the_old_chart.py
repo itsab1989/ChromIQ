@@ -93,16 +93,59 @@ def test_a_build_that_SUCCEEDS_does_not_resurrect_the_old_chart(run_with_a_chart
     assert not run.chart_stash_dirs()
 
 
-def test_a_stash_never_puts_a_file_back_over_a_newer_one(run_with_a_chart):
-    """The repair on reopen cannot know how the build ended, so it must be safe
-    either way: a file is only put back when the run does not already have one
-    of that name."""
+def test_a_finished_chart_survives_the_repair_on_reopen(run_with_a_chart):
+    """The repair cannot know how the build ended, so it asks the run: a chart
+    is finished when it has BOTH a .ti2 and at least one page image."""
     proj, run = run_with_a_chart
     run.reset_chart_artefacts(stash=True)
-    (run.dir / f"{run.stem}.ti2").write_text("the NEW chart")   # the build DID finish
+    (run.dir / f"{run.stem}.ti2").write_text("the NEW chart")
+    (run.dir / f"{run.stem}_01.tif").write_text("the NEW page")
 
     again = Project.load(proj.root).all_runs()[0]
     assert (again.dir / f"{run.stem}.ti2").read_text() == "the NEW chart"
+    assert (again.dir / f"{run.stem}_01.tif").read_text() == "the NEW page"
+    assert not again.chart_stash_dirs()
+
+
+def test_the_leftovers_of_an_unfinished_build_never_beat_the_original(
+        run_with_a_chart):
+    """THE FIX THAT WAS ITSELF THE BUG. The first version skipped a stashed file
+    whenever something of that name existed, on the reasoning that a new chart
+    should win. But a build that produced NO chart still leaves rubbish behind —
+    a `.ti1` with no `.ti2`, a half-written page image — and those leftovers
+    then won, so the original was destroyed with the stash.
+
+    Measured on screen twice: Stop pressed during printtarg, and the app killed
+    mid-build and reopened. Both times the `.ti2` came back and the page image
+    did not, which is the data loss the stash exists to prevent, reached through
+    the fix written to prevent it.
+    """
+    proj, run = run_with_a_chart
+    before = {p.name: p.read_text() for p in run.dir.iterdir() if p.is_file()}
+    stash = run.reset_chart_artefacts(stash=True)
+    # what a stopped build leaves: a patch set and one page, and no .ti2
+    (run.dir / f"{run.stem}.ti1").write_text("half-written by the dead build")
+    (run.dir / f"{run.stem}_01.tif").write_text("a page nobody asked for")
+
+    run.settle_chart_stash(stash, built=False)
+
+    after = {p.name: p.read_text() for p in run.dir.iterdir() if p.is_file()}
+    assert after == before, "the unfinished build's leftovers survived"
+
+
+def test_the_same_holds_when_the_app_was_killed_and_reopened(run_with_a_chart):
+    """The crash path, which is the one a person actually reaches: closing the
+    window is how you escape a build."""
+    proj, run = run_with_a_chart
+    before = {p.name: p.read_text() for p in run.dir.iterdir() if p.is_file()}
+    run.reset_chart_artefacts(stash=True)
+    (run.dir / f"{run.stem}.ti1").write_text("half-written by the dead build")
+    (run.dir / f"{run.stem}_01.tif").write_text("a page nobody asked for")
+    # …and then the process dies, so nothing settles the stash.
+
+    again = Project.load(proj.root).all_runs()[0]
+    after = {p.name: p.read_text() for p in again.dir.iterdir() if p.is_file()}
+    assert after == before, "the killed build's leftovers survived the reopen"
     assert not again.chart_stash_dirs()
 
 

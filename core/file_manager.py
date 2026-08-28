@@ -1134,13 +1134,38 @@ class Run:
         return sorted(p for p in self.dir.iterdir()
                       if p.is_dir() and p.name.startswith(self.CHART_STASH_PREFIX))
 
+    def has_a_finished_chart(self) -> bool:
+        """Does this run hold a chart a build actually completed?
+
+        Both halves are required. A build that was stopped part-way can leave a
+        `.ti1` and a page image behind without ever writing the `.ti2` that a
+        printed sheet is read against, so "there are some files" is not the same
+        question — and it is the question :meth:`Project.load` has to answer
+        about a build whose process died before it could say how it ended.
+        """
+        try:
+            return self.chart_ti2.exists() and bool(self.chart_tiffs())
+        except OSError:
+            return False
+
     def settle_chart_stash(self, stash: "Path | None", *, built: bool) -> None:
         """Finish what :meth:`reset_chart_artefacts` started.
 
         *built* True means a new chart was written, so the one that was set
         aside is no longer wanted and the stash goes. False means the build did
         not happen — it failed, it was stopped, or the app was closed while it
-        ran — and every file is moved back exactly where it was.
+        ran — and every file is put back exactly where it was.
+
+        WHAT "PUT BACK" HAS TO MEAN, and the first version got this wrong: a
+        build that produced no chart still leaves rubbish behind, half-written
+        page images and a `.ti1` with no `.ti2`. Skipping a stashed file because
+        something of that name exists let those leftovers WIN, and the original
+        was then destroyed with the stash. Measured on screen twice — Stop
+        pressed during printtarg, and the app killed mid-build then reopened:
+        the `.ti2` came back and the page image did not, which is round 11's
+        data loss reached through the very fix written to prevent it. So on a
+        build that did not finish, the leftovers go and every stashed file is
+        restored, with no exceptions.
 
         Never raises: a stash that cannot be settled is left on disk, where
         :meth:`Project.load` deals with it on the next launch, and that is far
@@ -1154,10 +1179,14 @@ class Run:
                 dest = self.dir / p.name
                 try:
                     if dest.exists():
-                        # The build wrote a file of this name after all, so the
-                        # new one wins — putting the old page back over it would
-                        # leave the run holding two charts' pages at once.
-                        continue
+                        # A leftover of a build that produced nothing. It has no
+                        # claim on this name; the file it replaced does.
+                        log.debug("preset undo: discarding %s left by the "
+                                  "unfinished build", dest.name)
+                        if dest.is_dir():
+                            shutil.rmtree(dest, ignore_errors=True)
+                        else:
+                            dest.unlink()
                     shutil.move(str(p), str(dest))
                 except OSError as exc:
                     log.warning("Could not put %s back: %s", p.name, exc)
@@ -1537,16 +1566,22 @@ class Project:
         # a build is taking too long, because there is no Stop button. So the
         # stash is settled here instead, on the next open.
         #
-        # `built=False` is right whichever way it ended: a file is only put back
-        # when the run does not already have one of that name, so a build that
-        # did finish before the app died keeps its new chart and the stash is
-        # simply dropped.
+        # Which way it ended is decided from what is on disk — see below.
         try:
             for _run in proj.all_runs():
                 for _stash in _run.chart_stash_dirs():
+                    # ASK THE RUN HOW THE BUILD ENDED. Nothing recorded it — the
+                    # process died — so the evidence on disk decides: a complete
+                    # chart means the build finished and its own files stay;
+                    # anything less means it did not, and the set-aside chart
+                    # goes back over whatever it left.
+                    _built = _run.has_a_finished_chart()
                     log.info("Found a chart set aside by an unfinished build in "
-                             "%s — putting it back", _run.dir)
-                    _run.settle_chart_stash(_stash, built=False)
+                             "%s — the run %s a finished chart, so the copy is "
+                             "%s", _run.dir,
+                             "has" if _built else "does not have",
+                             "dropped" if _built else "put back")
+                    _run.settle_chart_stash(_stash, built=_built)
         except Exception as exc:      # noqa: BLE001 — opening must never fail
             log.warning("Could not settle a leftover chart stash: %s", exc)
         # Repair file stems truncated by the pre-4.1.3-beta.16 layout-engine
