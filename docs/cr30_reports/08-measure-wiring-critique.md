@@ -436,3 +436,153 @@ suggested remedy cannot work.
 **Finally — A is not a substitute for B.** With A alone the user gets one clean
 failure instead of two confusing ones, and still cannot measure their chart.
 
+---
+
+## 5. Item B — passing `-x`, and the two silent-corruption traps in the protocol
+
+The **good news first, and it is substantial**: I drove the real helper with
+`-xx --json` against Basti's own CR30 `.ti2` and the whole spot-mode UI layer
+already works. The helper emits `session_start` (15 strips), `spot_ready`
+(`{"id":"384","loc":"A1","read":false,"all_done":false,"exyz":[…]}`), then
+`patch_read` and `saved` per value. Those are exactly the events
+`MeasureManager` already routes to `patch_ready` / `patch_measured`
+(`measure_manager.py:1141-1186`) and the tab already renders
+(`_on_patch_ready:10235`, `_on_patch_measured:10255`). **No new UI is needed.**
+
+### 5.1 Where the args are built, and what `-x` implies
+
+`MeasureManager._build_args` (`:882-912`) — the single site. `-x` takes its
+letter as the option argument (`chromiq_chartread.c:3559-3569`), so `-xx`
+(XYZ) or `-xl` (L\*a\*b\*). ChromIQ should send **`-xx`**: `workflow/cr30/`
+produces XYZ, and `-xl` would make the helper apply `icmLab2XYZ(&icmD50,…)`
+(`:3157-3161`), a conversion ChromIQ would be doing twice.
+
+**Three flags become inert and one becomes unnecessary — none is harmful:**
+
+* `-c <port>`, `-N`, `-B`/`-b`, `-T` — all instrument-side. `new_icompaths`
+  is skipped entirely (`:4194`), and calibration lives inside `if (xtern == 0)`
+  (`:2610-2628`).
+* **`-p` is not needed at all.** `xtern != 0` takes the spot branch
+  unconditionally (`:2600-2601`, *"Spot mode. This will be used if xtern != 0"*).
+  I verified it: `-xx --json` with **no `-p`** went straight to
+  `Ready to read patch '384' at 'A1'`. So B and C are independent — `-x` alone
+  guarantees the read mode.
+
+  **But `params.patch_by_patch` must still be True**, because
+  `MeasureManager.start:348` derives `self._spot_mode` from it, and
+  `skip_current_strip` (`:789`) branches on `_spot_mode` to decide whether
+  "skip" means `forward` or a strip key. With `-x` on and `patch_by_patch`
+  off, the helper is in spot mode and the manager thinks it is in strip mode.
+  **This is the concrete reason C is a correctness requirement for B, not a
+  convenience.**
+
+### 5.2 🔴 BLOCKER — a second `value` silently destroys the first
+
+`chromiq_json.c:172-184` writes `cq_pending_line` **unconditionally**. The key
+path directly below it (`:226-239`) is guarded by `if (!cq_line_ready)`. The
+`value` path is not. **Measured**, two values sent back to back with no wait:
+
+```
+send {"cmd":"value","xyz":"10 10 10"}
+send {"cmd":"value","xyz":"20 20 20"}
+→ patch_read A1 [20.0, 20.0, 20.0]      ← the 10s are gone. No event. No error.
+```
+
+The first reading is not rejected, not queued, not reported — it never
+happened. **A lost patch is invisible; a *mis-paired* patch is a wrong colour
+in the `.ti3` that nothing downstream can detect.** The brief's "wait for
+`spot_ready`" is therefore not a style note: it is the only thing standing
+between a user and quietly wrong profile data.
+
+**Change:** enforce it in Python, do not merely document it. One latch:
+
+```python
+self._awaiting_loc: str | None = None      # set on patch_ready, cleared on patch_measured
+```
+
+Refuse to send a value while `_awaiting_loc` is None, and **verify the pairing
+after the fact** — `patch_read` carries `loc`, so assert it equals the `loc`
+answered and abort the read loudly if not. (`project_patch_identity_check`
+found a real mispairing in Basti's own project once already.)
+
+**And ask the C side to add the same `if (!cq_line_ready)` guard**, returning a
+`{"event":"error","kind":"value_dropped"}` instead of overwriting. Defence
+belongs on both sides of a channel that can silently corrupt data.
+
+### 5.3 🔴 BLOCKER — click-to-jump silently swallows a `goto`
+
+Worse, because it needs no race the user can see. `_on_patch_ready` turns on
+click-to-jump for the whole chart and *advertises it*
+(`tab_measure.py:10240-10245`: *"Tip: click any patch in the preview to jump
+straight to it"*). A click sends `{"cmd":"goto","patch":…}`. **Measured**:
+
+```
+A) send goto B1, then value      → patch_read A1 [11,11,11]   (goto LOST)
+B) send value, then goto B1      → patch_read A1 [22,22,22]   (goto LOST)
+```
+
+In **both orders the jump is discarded** and the reading lands on the patch
+the user was trying to leave. In order A the key is dropped by the guard at
+`:226`; in order B it is dropped because the value is consumed first and the
+`goto` then finds nothing to attach to. Either way: **the user clicked B1 and
+B1's reading went into A1.**
+
+**Change:** the backend must hold values while a navigation command is
+outstanding, and must not consider `_awaiting_loc` settled until the
+`spot_ready` for the *new* loc has arrived. Simplest correct rule: **only ever
+send a value in response to the `spot_ready` that is currently outstanding, and
+drop (with a log line) any device reading that arrives while a navigation is
+in flight** — the operator can simply read the patch again.
+
+### 5.4 Inert commands re-emit `spot_ready` for the same patch
+
+Also measured: under `-x`, `{"cmd":"ok"}` (Return) and `{"cmd":"retry"}` are
+not recognised by the external-value parser and simply loop the prompt — each
+producing a **duplicate `spot_ready` for the same `loc`**:
+
+```
+start                    → spot_ready A1
+send {"cmd":"ok"}        → spot_ready A1     (again)
+send {"cmd":"retry"}     → spot_ready A1     (again)
+```
+
+A naive "one value per `spot_ready`" backend sends three values for A1 and
+loses two of them to §5.2. **The latch must be keyed on `loc` and on
+transitions, not on the event count.** Note also that `send_post_retry_key`
+(`measure_manager.py:748-750`) sends `{"cmd":"ok"}` on the engine path — so
+this is reached by the existing failure-recovery UI, not only by a hypothetical
+backend.
+
+### 5.5 What else assumes an instrument was opened
+
+Everything in the brief's list checks out as safe, and two things do not:
+
+| Assumption | Verdict under `-x` |
+|---|---|
+| calibration prompts | **safe** — `cq_handle_calibrate` is inside `if (xtern == 0)` (`:2610-2628`); `calibration_prompt`/`calibration_done`/`calibration_retrying` cannot fire |
+| `no_instrument` | **safe** — `cq_emit_error("no_instrument")` is at `:941`, inside the same block |
+| `sensor_wrong_position` | **safe** — parsed from an instrument-driven line that is never printed |
+| 12 s key watchdog (`_arm_key_watchdog`, `:5871`) | **safe** — armed only after a dialog sends a key, and any command still produces output |
+| `spot_ready` handling | **safe and already correct** — `:1141-1176` is mode-agnostic |
+| JSON command channel | **NOT safe** — §5.2, §5.3, §5.4 |
+| ⚠ **`instrument_detected`** | **never fires.** `{"event":"instrument"}` is emitted at `:998`, inside `if (xtern == 0)`. So `_detected_instrument` keeps whatever `_refresh_bidir_autodetect` put there — and that reads `self._ti1_path`, so after a project reopen it is `None` (Change 0 again) |
+| ⚠ **the "how to measure" window** | **never appears.** `_on_calibration_done` (`tab_measure.py:7170`) is the *only* route to `patch_measurement_instructions_html`, and it is wired to `calibration_done` (`:999`), which cannot fire under `-x`. A CR30 user gets a spot session with **no on-screen instruction at all** |
+| ⚠ `patch_measurement_instructions_html` | has **no `cr30` branch** (`ui/ti2_loader.py:288-317`) — it would fall through to the generic *"take a single reading as described in its manual"* even if it were reached. `instrument_family` **does** return `"cr30"` (`:170-171`), and `calibration_instructions_html` and `core/measure_pace.py:689-698` both have CR30 branches, so this one is simply missing |
+| `_saw_instrument` (`:1081`) | set at `:4403`, never read anywhere. Dead state — not a bug, but do not build on it |
+
+### 5.6 The Python side of B does not exist yet
+
+For the record: `grep` for a sender of `{"cmd":"value"}` across the whole tree
+returns **nothing**. `workflow/cr30/` is a complete device layer (frame,
+session, transport, BLE, USB measure, colour) with **no bridge to the measure
+flow** — no code opens a CR30, waits on `patch_ready`, or answers it. B is
+entirely unbuilt above the C line, and the two traps above are the first thing
+the bridge has to get right.
+
+One architectural note, because it is the kind of thing that gets found late:
+`patch_ready` is delivered on the Qt main thread from the process's stdout
+reader. Obtaining a CR30 reading is a BLE (`bleak`, asyncio) or serial round
+trip that waits on a human pressing the device's own button. **It must not run
+on the main thread**, and `feedback_qthread_reference_lifetime` applies — the
+worker must stay referenced until it finishes.
+
