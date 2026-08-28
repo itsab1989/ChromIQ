@@ -381,3 +381,129 @@ then Build Profile.
 **Pre-existing** — any instrument can produce a two-patch `.ti3` — but until #159
 no workflow encouraged stopping after five patches, and this one does.
 
+
+## Section 3 — the three things he asked for that are not built
+
+Reported as gaps with a plan, **not built**, as instructed.
+
+### 3.1 (a) The calibration-first flow — first window offers **Calibrate**
+
+**State: nothing exists.** `grep -rn 'calibration_prompt' ui workflow` shows the
+signal is raised only from Argyll's JSON protocol, and under `-xx`
+`cq_handle_calibrate` is inside `if (xtern == 0)` so it can never fire. The
+first — and only — window a CR30 user sees is
+`_show_cr30_measuring_window` (`tab_measure.py:6883`), whose button is
+**"Start measuring"**, and it is opened *after*
+`self._manager.start(...)` and `_open_cr30_bridge()` have already run
+(`:5657-5666`). Design `02-design.md` §10.2 specifies a four-step
+cap-on → verify → cap-off → verify flow before the first patch. None of it is
+written.
+
+**Worse than absent — the window that does exist makes a promise ChromIQ does
+not keep.** `patch_measurement_instructions_html("cr30")`
+(`ui/ti2_loader.py:305-314`) tells the user:
+
+> *"…press the button on the instrument. **ChromIQ collects the reading by
+> itself and moves on to the next patch** — there is nothing to press on
+> screen…"*
+
+Section 1.1 is precisely that nothing is listening for the press. The one
+sentence a tester will trust is the one that is false.
+
+#### The `EXP-MEAS-004` fork, and what the flow should be in each outcome
+
+`/Users/Basti/develop/chromiq-cr30-research/tools/probe_host_calibration.py`
+exists and is unrun. Its discriminator: present the cap's **green** face, send
+**only** a host trigger, then measure paper — a reading far above 100 %R means
+the host trigger performed the calibration write.
+
+**If EXP-MEAS-004 says YES (the host can calibrate):**
+
+1. Measure tab, CR30 chart, before Start: the primary button is **Calibrate**,
+   Start is disabled with the reason on its tooltip.
+2. Calibrate opens one window: *"Put the cap on with the white tile facing the
+   aperture and seat it until the magnet clicks."* + **Calibrate now**.
+3. ChromIQ sends `trigger_frame()` itself (`usb_measure.trigger`) — **USB only;
+   `CR30.trigger_unsafe` raises `NotImplementedError` on BLE**
+   (`device.py:113-116`), so over Bluetooth this branch does not exist and the
+   NO plan below is the only one.
+4. Read stored, `validate()` **without** `check_usable`, and require the
+   tile shape: flat, high, and — the real prize of §10.3 — **store it as this
+   unit's `TILE_SIGNATURE`** for the rest of the session, which is what makes
+   the magnet guard work on a unit that is not ours.
+5. *"Take the cap off."* Read again; require it is **not** the stored constant.
+6. Start becomes enabled. Record `calibrated: true` + the captured constant in
+   `meta.json`.
+
+**If EXP-MEAS-004 says NO (only the button calibrates):**
+
+Identical, except step 3 becomes *"…and press the button on the instrument"*,
+and ChromIQ **waits** for the new reading — over USB with
+`wait_for_button_header` (which is what §1.3 needs anyway); over BLE by polling
+until the stored reading changes. The window carries a **Cancel**, because a
+user who cannot make the device co-operate must be able to get out.
+
+**Either way the same three things must hold**, and they are the parts to get
+right first because they are outcome-independent:
+
+* the calibration reading is taken through a path that does **not** go through
+  the chart-read bridge (see 3.2);
+* the captured tile constant is kept for the session (§10.3's real gain);
+* **Skip is offered in Manual only, never Guided**, per §10.2, with the warning
+  that an uncalibrated instrument produces a profile that looks correct and is
+  not.
+
+### 3.2 (b) The calibration reading must not be counted as a measurement
+
+**State: not built, and the current architecture would count it.** There is
+exactly one reader (`DeviceReader`) and exactly one consumer
+(`Cr30MeasureBridge`), and every reading the bridge accepts is sent as
+`{"cmd":"value"}` for whatever `loc` is outstanding. A calibration reading taken
+while a chart session is running would be answered into the chart.
+
+Three consequences that must be designed for, not discovered:
+
+1. **`CR30._previous` is shared.** `check_usable(self._previous)`
+   (`device.py:142, 198`) compares against *the last reading this device object
+   took*, whoever asked for it. Calibrate immediately before the first patch and
+   the first patch's read is bit-identical to the tile reading → rejected → and
+   by §1.4 the session is then stuck before it starts. **The calibration flow
+   as specified will break the chart read unless `_previous` is handled.**
+2. `_awaiting_loc` must be `None` throughout calibration. `Cr30MeasureBridge.stop()`
+   is one-way (`:240-243`) — there is no `pause`. Cleanest: do calibration
+   **before** `MeasureManager.start`, so no session exists.
+3. Nothing must reach the `.ti3`: `cq_write_ti3_atomic` runs on `patch_read`
+   only, so as long as no `{"cmd":"value"}` goes out, nothing does.
+
+**Recommended shape:** calibration owns its own `DeviceReader` call path (or a
+`reader.calibrate()` that bypasses `check_usable` and does **not** update
+`_previous`), and it runs **before** the helper is launched. Then (b) is true by
+construction rather than by a flag.
+
+### 3.3 (c) BLE reconnection (§10.1)
+
+**State: not built.** A drop surfaces as one `read_failed(loc, message)` and,
+per §1.4, the session then stalls with no reconnect, no pause, no backoff and no
+message that names Bluetooth. §10.1's five points map to nothing in the tree.
+
+What the current code gives §10.1 for free, and what it does not:
+
+| §10.1 | today |
+|---|---|
+| 1. pause, do not end, and show the count | ✗ — no pause state exists |
+| 2. backoff 1/2/4/5 s, Stop always available, 60 s message change | ✗ — nothing retries at all |
+| 3. nothing read is at risk | ✅ **true and measured** (§2.1) |
+| 4. the stale-reading trap is caught by the bit-identical guard | ✅ the guard is live … |
+| | ⚠ … but it is *also* the thing that makes every second read fail today (§1.1), so a reconnection design must not be built on top of the current reader |
+| 5. say that USB is more robust for a long chart | ✗ — nothing mentions the transport anywhere in the UI |
+
+There is also **no way to choose or remember a unit**: `DeviceReader()` is
+constructed bare (`tab_measure.py:6809`), so `transport="auto"`, `port=None`,
+`address=None`. `CR30.discover_ble` (`device.py:46-51`) exists as a chooser API
+and has no caller. Reconnection wants a remembered address — otherwise every
+reconnect re-runs a 12 s scan with a connect-and-verify per candidate.
+
+**Prerequisite ordering.** (c) should not be attempted before §1.3 (a reader
+that waits and can be cancelled) and §1.4 (a retry path). Reconnection is a
+*retry policy*; there is nothing to hang it on yet.
+
