@@ -643,3 +643,111 @@ makes the magnet guard unit-independent, closing the §9.1 blocker.
     `LayoutRecipe.mode()` falls through to `"default"` (`presets.py:172`) and
     `factory_defaults()` to `["default"]` (`:496-503`), so a CR30 added to
     `SUPPORTED_INSTRUMENTS` gets exactly one factory preset with no extra code.
+
+---
+
+## F. What is missing entirely
+
+| # | Missing | Why a beta tester will ask |
+|---|---|---|
+| F1 | **A patch-size / aiming aid on the printed sheet.** §4 removes every spacer, so 513 same-size squares touch edge to edge. The design's own "aiming helper is nice-to-have" ruling was made before the SS-template decision that makes it necessary. At minimum keep SS's `rlwi` row numbers (B1) and consider a thin white gutter. |
+| F2 | **A CR30 row in `data/patch_db.INSTRUMENT_LABELS` / capacity data.** Guided's patch-count advice comes from there; a CR30 will offer none. Not fatal (the engine computes capacity), but the Guided flow's "how many patches fit" panel goes silent. |
+| F3 | **What happens when the connected instrument is not the chart's instrument.** `data/patch_db.instrument_mismatch` (`:1139-1155`) needs `INSTRUMENT_MODEL_WORDS` **and** the hard-coded tuple at `:1133`; the design never mentions either, so the wrong-device warning is blind for a CR30 — while §6's "Chart says CR30, no CR30 connected → blocked" implies it works. |
+| F4 | **Where the CR30 family comes from in `-x` mode** (A7.4). `_detected_instrument` is fed by the engine's `instrument` event, which never fires. Without a decision, every CR30 window shows the generic wording and the already-written CR30 text is dead code. |
+| F5 | **A verification-chart story.** `docs/design/verification_printing_and_target.md` (DRAFT) covers printing a verification chart through its profile. A CR30 verification chart is 100+ hand placements. Out of scope is a fine answer; *silence* is not, because the Tools will offer it. |
+| F6 | **Calibration state in the run record.** §10.2 says "The choice is recorded in the run so a later report can say whether calibration was confirmed." There is no such field. `Run`/`meta.json` (`core/file_manager.py`) would need one, and `docs/design/per_target_settings.md` governs what belongs to a target vs a run — a new run-level field is a spec question, not a free addition. **NOT VERIFIED** which document rules it; that must be settled before the field is added. |
+| F7 | **Two CR30s: "remembered by address".** §6 says the choice is remembered by address, but does not say *where* — a setting? per target? `workflow/measure_settings.py:31` already rules that the measuring instrument is **not** a property of the run. So this is an app-level setting, and `core/settings.py` needs a key (and, per `project_settings_default_migration`, no schema bump for a new key). Say so. |
+| F8 | **An orphaned helper.** D9. With A1 unfixed an orphan spins a core; even fixed, nothing reaps a `-x` helper if the app dies. Other instruments' helpers exit when the device closes; this one has no device. |
+
+---
+
+## G. The changes I would make before any code is written
+
+Numbered, actionable, in the order they unblock each other.
+
+1. **Extend the JSON protocol with an external-value command, and route the
+   `-x` prompt through the command queue.** Add `{"cmd":"value","xyz":[X,Y,Z]}`
+   (and/or `"lab"`) to `cq_handle_line` (`chromiq_json.c:130-179`) with a small
+   value queue beside `cq_pending_key`; replace `con_fgets` at
+   `chromiq_chartread.c:2805` with a `cq_json ? cq_wait_value_or_key() :
+   con_fgets(...)` split. **This is the single change that makes the design
+   buildable at all**, and it also fixes B4 (every exit key) and A7 (the
+   calibration acknowledgement) for free. Put it in §8 as its own build step,
+   before B6.
+2. **Guard the three `it->del(it)` calls** at `chromiq_chartread.c:2986, 3002,
+   3044` with `if (it != NULL)`, matching `:3152`. Three lines. Add a test that
+   `-xx --json` + abort exits 0/-1, not 139.
+3. **Copy the `.ti2`'s `TARGET_INSTRUMENT` into `ocg`** at
+   `chromiq_chartread.c:3636`, next to the other four carried keywords, so the
+   `.ti3` names the chart's instrument in every mode. Alternatively set `atype`
+   in `-x`. Without this the `.ti3` says `"Unknown Instrument"` (verified) and
+   FWA is offered on a spectral-free measurement.
+4. **Add the `"CR30"` case to the fork's `TARGET_INSTRUMENT` gate**
+   (`chromiq_chartread.c:3626-3633`) and name it in §8. Decide what `instType`
+   it maps to (§3.3 of the survey shows the choice is behaviourally inert bar one
+   `-v` line and one JSON field).
+5. **Rule on `chartread_engine = "argyll"` + a CR30 chart.** Either force the
+   ChromIQ engine for CR30 charts (symmetrical with forcing the layout engine),
+   or block with a specific message. Also exclude CR30 from
+   `_engine_should_fall_back` (`measure_manager.py:537+`) so a failed run is not
+   automatically relaunched into a fatal stock chartread. Add `"CR30"` to
+   `ui/ti2_loader.KNOWN_INSTRUMENTS` only *together* with this rule, or
+   `tab_measure.py:4397` refuses every CR30 measurement.
+6. **Write a CR30 geometry branch of its own, not an SS copy.** Keep from SS:
+   `rlwi = 7.5` (row numbers — the real reason to prefer SS), `padlrow = False`,
+   `lcar = 0.0`, `ruler_mm = 0.0`. Take from CM: a **non-zero `pspa`** (the
+   evidence base, `EXP-SPEC-001a`, used 1.3 mm). Extend the `("CM","SS")` clip /
+   notes-band tuple to CR30 in **all four** places —
+   `instruments.py:311-315` and `layout_options_panel.py:1857, 1946, 2289` — or
+   delete "offerable" from §4.
+7. **Choose `layout_mode` explicitly** in `presets.default_recipe`
+   (`presets.py:397-436`). If §4's "10.0 × 10.0 mm, labelled provisional" is to
+   mean anything, it must be `patch_first`; `area_first` (the default) resizes
+   the patch to fill the page.
+8. **Make the observer and illuminant explicit arguments.** Delete the reliance
+   on `colour.use_observer`'s process-wide global (`colour.py:93-99`) for
+   anything that feeds a `.ti3`; call `spectrum_to_xyz(refl, illum=D50)` with the
+   2° tables passed in. Correct §5's citation: the ΔE 0.054 / 0.02 figure
+   validates the **D65/10°** decode, not the D50/2° output.
+9. **Replace §10.2 step 2 with a check that can fail.** The proposed one cannot
+   (A6). Use the research's own free calibration test
+   (`CALIBRATION.md:354-358`): capture the firmware tile constant with the gate
+   engaged, then measure the tile with the gate **disengaged** and compare. Until
+   that is a hardware-verified procedure, **state plainly that ChromIQ cannot
+   confirm the white reference**, keep the mandatory press only as a *restore*
+   step, and lean on the plausibility bound — while saying, where §6 states it,
+   that it only catches corruption worse than ~1.35× (D8).
+10. **Disable the tile guard, loudly, when calibration is skipped** — do not fall
+    back to a hard-coded `TILE_SIGNATURE` that is inert on 94× tolerance for
+    another unit (C3).
+11. **State the guards per transport.** §6's magnet row is USB-button-frame only;
+    BLE has no protocol-level magnet detection at all
+    (`MEASUREMENT.md:662-666`). Either say so in §6, or make USB the only
+    supported transport for the beta and demote BLE with §10.1 alongside it.
+12. **State the new-reading rule once, plainly** (B7): ChromIQ polls the stored
+    measurement; a changed reading *is* the button press; therefore the
+    bit-identical rule is the trigger, not a defence. Then specify the poll
+    interval, the "still waiting" UI state, and what a user does if a legitimate
+    repeat ever stalls the run.
+13. **Add the pairing rule to §1 step 5**: at most one value per `spot_ready`,
+    and device readings arriving with no `spot_ready` pending are discarded.
+    Cheap, and it is what makes E2's safety real rather than accidental.
+14. **Add §6 rows for**: Measure tab closed mid-chart · app crash / orphaned
+    helper · same patch read twice · patches read out of order · a 30-minute
+    session and instrument drift (D9, D10, B3).
+15. **Decide where "calibration confirmed / skipped" is recorded** (F6) and get
+    the run-vs-target question ruled before adding a field —
+    `docs/design/per_target_settings.md` binds here.
+16. **Put the CR30 into `data/patch_db.INSTRUMENT_MODEL_WORDS` *and* the
+    hard-coded tuple at `:1133`**, or delete §6's "Chart says CR30, no CR30
+    connected → blocked" row, which today has nothing behind it (F3).
+17. **Say where the CR30 instrument *family* comes from in `-x` mode** (F4), or
+    the CR30 wording already written into `ui/ti2_loader.py` is unreachable.
+18. **Re-cost §8.** As written it reads as one day of registrations plus wiring.
+    With items 1–4 it is a C protocol change, a crash fix, a CGATS fix and a gate
+    change before a single Python line is useful. Say that in the build order so
+    nobody plans a same-day beta against it.
+
+---
+
+STATUS: complete
