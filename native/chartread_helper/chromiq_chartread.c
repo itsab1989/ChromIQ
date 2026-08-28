@@ -2836,6 +2836,16 @@ a1log *log			/* verb, debug & error log */
 						printf("Error - unrecognised input\n");
 						continue;
 					}
+					/* A 'g' line means a goto whose LABEL arrived on its own
+					 * channel. The instrument path stashes it in the
+					 * uicallback; -x never runs one, so it is stashed here --
+					 * without this the `incflag == 4` branch below reads an
+					 * empty target and the jump silently does nothing. */
+					if (buf[0] == 'g' || buf[0] == 'G') {
+						strncpy(cq_goto_target, cq_take_goto(),
+						        sizeof(cq_goto_target) - 1);
+						cq_goto_target[sizeof(cq_goto_target) - 1] = '\0';
+					}
 				} else if (con_fgets(buf, 200) == NULL) {
 					printf("Error - unrecognised input\n");
 					continue;

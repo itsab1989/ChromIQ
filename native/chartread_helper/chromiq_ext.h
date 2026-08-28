@@ -49,6 +49,7 @@ int cq_wait_char(void);
  * one-character line. Needed because in JSON mode stdin belongs to the command
  * reader, so -x's own con_fgets can never succeed. */
 int cq_wait_line(char *buf, int size);
+int cq_line_overflow_count(void);  /* lines refused: queue full (protocol abuse) */
 
 /* ---- replay instrument -------------------------------------------------
  * cq_replay_path != NULL enables replay mode: no USB, readings come from a

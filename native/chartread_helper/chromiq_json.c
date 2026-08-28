@@ -84,8 +84,31 @@ static char           cq_goto_label[16];
  * This gives -x its own line queue, fed by JSON commands, so the existing
  * parser in the read loop is reached unchanged -- it still sees a line and
  * still decides for itself whether it is a value or a command. */
-static char           cq_pending_line[128];
-static volatile int   cq_line_ready = 0;
+#define CQ_LINE_Q  16
+static char           cq_line_q[CQ_LINE_Q][128];
+static volatile int   cq_line_head = 0, cq_line_tail = 0;
+static volatile int   cq_line_dropped = 0;
+
+/* True when a line is waiting to be consumed. */
+static int cq_line_ready_locked(void) { return cq_line_head != cq_line_tail; }
+
+/* Append one line. A REAL QUEUE, not a single slot: the first version kept one
+ * buffer and overwrote it, so two commands arriving before the read loop woke
+ * up silently destroyed the first. Measured: {"cmd":"goto","patch":"B1"}
+ * followed by a value recorded that value against A1 -- the user clicks B1 and
+ * B1's colour lands in A1, with no event and no error. Wrong colour written
+ * into a .ti3 with no trace is the worst failure this file can produce, so
+ * ordering is preserved and an overflow is COUNTED rather than ignored. */
+static void cq_line_push(const char *line) {
+	int next = (cq_line_head + 1) % CQ_LINE_Q;
+	if (next == cq_line_tail) {      /* full: never silently overwrite */
+		cq_line_dropped++;
+		return;
+	}
+	strncpy(cq_line_q[cq_line_head], line, sizeof(cq_line_q[0]) - 1);
+	cq_line_q[cq_line_head][sizeof(cq_line_q[0]) - 1] = '\0';
+	cq_line_head = next;
+}
 #ifdef NT
 static CRITICAL_SECTION cq_lock;
 #else
@@ -170,15 +193,13 @@ static void cq_handle_line(const char *line) {
 	 * interpret the numbers here, so the units and count stay whatever that
 	 * parser already accepts (XYZ with -x, L*a*b* with -xl). */
 	if (strcmp(cmd, "value") == 0) {
-		char v[sizeof(cq_pending_line)] = "";
+		char v[sizeof(cq_line_q[0])] = "";
 		if (!cq_json_get(line, "xyz", v, sizeof(v))
 		 && !cq_json_get(line, "lab", v, sizeof(v))
 		 && !cq_json_get(line, "value", v, sizeof(v)))
 			return;                    /* no payload -> ignore, never queue */
 		cq_lock_take();
-		strncpy(cq_pending_line, v, sizeof(cq_pending_line) - 1);
-		cq_pending_line[sizeof(cq_pending_line) - 1] = '\0';
-		cq_line_ready = 1;
+		cq_line_push(v);
 		cq_lock_give();
 		return;
 	}
@@ -223,19 +244,28 @@ static void cq_handle_line(const char *line) {
 	 * the first non-space character, so a one-character line is exactly what
 	 * the console would have delivered. Without this, Stop/forward/back/done
 	 * would be inert on the external-values path. */
-	if (!cq_line_ready) {
+	{
+		char one[128];
 		if (key == CQ_KEY_GOTO) {
-			cq_pending_line[0] = 'g';
-			strncpy(cq_pending_line + 1, gl, sizeof(cq_pending_line) - 2);
-			cq_pending_line[sizeof(cq_pending_line) - 1] = '\0';
+			/* Just the key. The LABEL does not travel on this queue: the read
+			 * loop takes it from cq_goto_target (chromiq_chartread.c, the
+			 * `incflag == 4` branch), which cq_take_goto() feeds. Packing it
+			 * into the line as "gB1" discarded it silently -- the goto then did
+			 * nothing and the value that followed landed on whatever patch
+			 * happened to be current. */
+			one[0] = 'g';
+			one[1] = '\0';
 		} else if (key > 0 && key < 128) {
-			cq_pending_line[0] = (char)key;
-			cq_pending_line[1] = '\0';
+			one[0] = (char)key;
+			one[1] = '\0';
 		} else {
-			cq_pending_line[0] = '\0';
+			one[0] = '\0';
 		}
-		if (cq_pending_line[0] != '\0')
-			cq_line_ready = 1;
+		/* Queued unconditionally and IN ORDER with values. The old
+		 * `if (!cq_line_ready)` guard dropped a navigation command whenever a
+		 * value was already waiting, which is how a goto could vanish. */
+		if (one[0] != '\0')
+			cq_line_push(one);
 	}
 	cq_lock_give();
 }
@@ -314,11 +344,10 @@ int cq_wait_line(char *buf, int size) {
 	for (;;) {
 		int got = 0;
 		cq_lock_take();
-		if (cq_line_ready) {
-			strncpy(buf, cq_pending_line, (size_t)size - 1);
+		if (cq_line_ready_locked()) {
+			strncpy(buf, cq_line_q[cq_line_tail], (size_t)size - 1);
 			buf[size - 1] = '\0';
-			cq_pending_line[0] = '\0';
-			cq_line_ready = 0;
+			cq_line_tail = (cq_line_tail + 1) % CQ_LINE_Q;
 			cq_pending_key = CQ_KEY_NONE;   /* consumed as a line, not a key */
 			got = 1;
 		}
@@ -327,6 +356,18 @@ int cq_wait_line(char *buf, int size) {
 			return 1;
 		cq_sleep_ms(20);
 	}
+}
+
+/* How many lines were refused because the queue was full. Non-zero means the
+ * host sent faster than the read loop consumed, which the protocol forbids
+ * (wait for spot_ready before each value) -- surfaced so it can never be a
+ * silent loss. */
+int cq_line_overflow_count(void) {
+	int n;
+	cq_lock_take();
+	n = cq_line_dropped;
+	cq_lock_give();
+	return n;
 }
 
 const char *cq_take_goto(void) {

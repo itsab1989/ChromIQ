@@ -52,9 +52,16 @@ class Reader:
             [str(BIN), "-xx", "--json", "n"], cwd=tmp,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.PIPE, text=True, bufsize=1, start_new_session=True)
-        threading.Thread(target=self._pump, daemon=True).start()
+        self._pump_thread = threading.Thread(target=self._pump, daemon=True)
+        self._pump_thread.start()
 
     def _pump(self):
+        try:
+            self._pump_lines()
+        except (ValueError, OSError):      # pipe closed under us: teardown
+            pass
+
+    def _pump_lines(self):
         for line in self.p.stdout:
             line = line.strip()
             with self._lock:
@@ -87,21 +94,27 @@ class Reader:
         pytest as an ERROR on an otherwise passing test, which is exactly the
         noise that hides a real failure later.
         """
+        # ORDER MATTERS. Killing first ends the pump thread's iterator on its
+        # own; closing stdout while that thread is still inside it turns the
+        # BrokenPipeError into a ValueError and pytest still reports an
+        # unraisable warning. So: kill, reap, JOIN the reader, and only then
+        # close. An earlier attempt at this fix closed first and did nothing.
         if self.p.poll() is None:
             try:
                 os.killpg(os.getpgid(self.p.pid), signal.SIGKILL)
             except (ProcessLookupError, PermissionError):
                 pass
-        for pipe in (self.p.stdin, self.p.stdout, self.p.stderr):
-            try:
-                if pipe is not None:
-                    pipe.close()
-            except (BrokenPipeError, OSError, ValueError):
-                pass
         try:
             self.p.wait(timeout=5)
         except Exception:                       # noqa: BLE001 — teardown only
             pass
+        self._pump_thread.join(timeout=5)
+        for pipe in (self.p.stdin, self.p.stdout, self.p.stderr):
+            try:
+                if pipe is not None and not pipe.closed:
+                    pipe.close()
+            except (BrokenPipeError, OSError, ValueError):
+                pass
 
 
 @pytest.fixture
@@ -200,6 +213,63 @@ def test_full_read_writes_a_usable_ti3(tmpchart):
     assert not any("SPEC_" in l for l in lines), \
         "-x is colorimetric only; spectral columns would be a false claim"
     assert any('DEVICE_CLASS "OUTPUT"' in l for l in lines)
+
+
+def _drive(r, seq, settle=0.35):
+    """Send a sequence, waiting for the read to register between steps."""
+    for obj in seq:
+        r.send(obj)
+        time.sleep(settle)
+
+
+def test_two_values_in_a_row_are_both_recorded(tmpchart):
+    """The line channel is a QUEUE, not a single slot.
+
+    It was one buffer, overwritten unconditionally, so a second command
+    arriving before the read loop woke up destroyed the first. Measured then:
+    two values back to back produced ONE patch_read and the first value
+    vanished with no event and no error — wrong colour in the .ti3, no trace.
+    """
+    r = tmpchart()
+    deadline = time.time() + 8
+    while not r.events("spot_ready") and time.time() < deadline:
+        time.sleep(0.05)
+    before = len(r.events("patch_read"))
+    r.send({"cmd": "value", "xyz": "20 20 20"})
+    r.send({"cmd": "value", "xyz": "10 10 10"})     # no wait: that is the point
+    deadline = time.time() + 8
+    while len(r.events("patch_read")) < before + 2 and time.time() < deadline:
+        time.sleep(0.05)
+    got = r.events("patch_read")[before:]
+    assert len(got) == 2, f"{len(got)} of 2 values recorded — the queue lost one"
+    assert [round(v) for v in got[0]["xyz"]] == [20, 20, 20]
+    assert [round(v) for v in got[1]["xyz"]] == [10, 10, 10]
+
+
+@pytest.mark.parametrize("target", ["B1", "C2", "A1"])
+def test_a_goto_lands_the_value_on_the_clicked_patch(tmpchart, target):
+    """Click-to-jump must put the reading where the user clicked.
+
+    The Measure tab advertises "click any patch to jump straight to it". The
+    goto label does NOT travel on the line queue — the read loop takes it from
+    `cq_goto_target`, which only the instrument path's uicallback used to fill.
+    On the -x path it was never filled, so the jump silently did nothing and the
+    next value landed on whatever patch happened to be current: B1's colour
+    written into A3.
+    """
+    r = tmpchart()
+    deadline = time.time() + 8
+    while not r.events("spot_ready") and time.time() < deadline:
+        time.sleep(0.05)
+    before = len(r.events("patch_read"))
+    _drive(r, [{"cmd": "goto", "patch": target},
+               {"cmd": "value", "xyz": "55 55 55"}])
+    deadline = time.time() + 8
+    while len(r.events("patch_read")) <= before and time.time() < deadline:
+        time.sleep(0.05)
+    got = r.events("patch_read")[-1]
+    assert got["loc"] == target, (
+        f"value landed on {got['loc']!r}, the user clicked {target!r}")
 
 
 def test_a_wrong_value_is_flagged_not_silently_accepted(tmpchart):
