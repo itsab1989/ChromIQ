@@ -686,3 +686,205 @@ so up front. **CR30-specific.**
 * Per-patch `.ti3` autosave, `-r` resume and the `TARGET_INSTRUMENT` identity
   chain are all C-side and already tested (`tests/test_target_instrument_gate.py`,
   `tests/test_cr30_external_values.py`).
+---
+
+## Section 7 — UI consistency, wording and i18n
+
+Numbers below were re-measured against the live engine, not read off comments.
+
+### 7.1 SERIOUS — the Guided hexagon tooltip promises 405 patches and Guided builds 390
+
+There are **two** default "A4 CR30 chart" paths and they do not agree, because
+one sets `use_instrument_margins` and the other does not:
+
+| path | source | A4 rect | A4 hex |
+|---|---|---|---|
+| **Guided** | `tab_chart._engine_geom` / `chart_creator._engine_build_kwargs` → `margins_are_law=False` | 345 | **390** |
+| **Manual** | `presets.default_recipe("CR30","A4")` → `margins_are_law=True` | 345 | **405** |
+
+`ui/tabs/tab_chart.py:11881-11883` is the **Guided** panel's tooltip and says
+*"345 patches rectangular, 405 hexagonal"* — overstated by 15 patches. The
+identical sentence at `ui/dialogs/layout_options_panel.py:143-145` is in the
+**Manual** panel, where **405 is correct**. Same words, two different charts.
+**Fix:** the Guided copy takes 390, or both are qualified with which mode they
+describe. **CR30-specific.**
+
+(The tooltip's *"on A3 it is much smaller"* is **true**: +6.9 % on A3 against
++17.4 % on A4. Measured hex gain across every paper, Manual defaults: mean
+**+12.2 %**, range **+2.7 % … +18.8 %**.)
+
+### 7.2 SERIOUS — the code comment three lines above it still quotes the 10 mm cell
+
+`ui/tabs/tab_chart.py:11864-11866` — *"Measured on this branch: A4 patch-first,
+532 patches rectangular against 576 hexagonal."* Those are exactly the **10 mm**
+figures, superseded by the 12 mm ruling:
+
+```
+pscale 0.8333 (= 10/12)  ->  532 rect / 576 hex     <- the comment
+pscale 1.0    (= 12 mm)  ->  345 rect / 405 hex     <- the ruling
+```
+
+So the file contradicts its own tooltip three lines later. Report 06 flagged
+this and it is still open. **CR30-specific.**
+
+### 7.3 SERIOUS — with the layout-engine preference OFF, the CR30 preview shows a
+### command that can never run, loses the hexagon control, and blanks the count
+
+`engine_on` / `use_engine` are computed in the tab as
+`settings["use_chromiq_layout_engine"] and instrument in ENGINE_INSTRUMENTS`
+(`tab_chart.py:5001-5020`, `:11704`). That does **not** mirror
+`ChartCreator._should_use_engine` (`workflow/chart_creator.py:1082-1094`), where
+`ENGINE_ONLY_INSTRUMENTS = {"CR30"}` returns `True` **unconditionally, before
+every other test**. Three consequences, all with the preference off:
+
+1. **Guided** falls to the printtarg branch (`tab_chart.py:11806-11811`) and
+   displays — I read this off the live widget:
+   ```
+   Guided mode applies these fixed settings:
+   targen -d2 -G -e4 -B4 -g32 chart
+   printtarg -iCR30 -pA4 -t300 chart
+   ```
+   **Manual** shows the same `printtarg -iCR30` in its command preview
+   (`:4948-4978`).
+2. **The hexagon control vanishes.** `tab_chart.py:6801-6846` shows
+   `_manual_dd_pw` only for `CM` and `SS`; the `else` hides it *and*
+   `set_value(False)`. The engine-only "Patch shape" row lives in the engine
+   panel, which is not shown.
+3. **The patch count blanks.** `query_patches("CR30","A4",…)` returns `None`
+   (the CR30 is deliberately absent from the printtarg DB,
+   `data/patch_db.py:187`), so `_update_patch_count` shows `?` / "CUSTOM
+   LAYOUT" for a chart the engine can size exactly.
+
+**Mitigation, and why this is SERIOUS and not a BLOCKER: the chart that gets
+built is still correct.** `_should_use_engine` forces the engine, and
+`_build_printtarg_args` *raises* on `ENGINE_ONLY_INSTRUMENTS` rather than emit
+`-iCR30` — verified in the source. So the preview is a lie about a command the
+code refuses to construct, not a route to a broken chart.
+**Fix:** make `engine_on`/`use_engine` in the tab honour
+`ENGINE_ONLY_INSTRUMENTS`, the single source `_should_use_engine` already uses.
+**CR30-specific.**
+
+### 7.4 SERIOUS — "Minimum patch height (% of width)" is live and completely inert
+### on any honeycomb, and its tooltip describes the effect it no longer has
+
+The consequence of §1.7. Proved through `derive_area_patch_size` with the real
+default recipes, `area_first`/`by_width`:
+
+```
+CR30 hflag=True : ratio 0 / 50 / 100 / 150 / 200 / 300 %  ->  (12.29, 10.64) EVERY TIME, 390 patches
+SS   hflag=True : ratio 0 / 50 / 100 / 150 / 200 / 300 %  ->  ( 7.18,  6.22) EVERY TIME, 1170 patches
+CR30 hflag=False: 50% -> (12.69, 6.47)/660   100% -> (12.69,12.95)/330   300% -> (12.69,40.71)/105
+```
+
+The panel does nothing about it — `_sync_layout_mode`
+(`ui/dialogs/layout_options_panel.py:2490-2540`) branches only on
+`layout_mode` and `area_method`, never on `hflag`. Driven offscreen:
+
+```
+CR30 hex area_first -> ratio row visible=True enabled=True, spin value=100.0, spin enabled=True
+SS   hex area_first -> ratio row visible=True enabled=True, spin value=100.0, spin enabled=True
+```
+
+Worse, the tooltip at `:608-613` actively describes the dead effect: *"150%
+makes each patch half again as tall as it is wide … the engine grows the
+patches from here to fill the chart area."*
+
+**The engine behaviour is right and deliberate** (§1.2, and
+`tests/test_hex_aspect_is_regular.py:69` pins *"a user ratio cannot stretch a
+hexagon"*). **The fix belongs in the panel:** grey the row for a hexagonal
+chart with a reason in the tooltip — the exact treatment
+`set_helper_markers_supported` (`:3185-3205`) already gives the ruler markers,
+and what Knut's rule quoted at `:3151` asks for (*"greyed, but never
+unexplained"*).
+
+⚠ **Scope note the fix must carry:** on `master` the ratio *was* honoured for
+SpectroScan hex charts. This branch silently makes **every existing
+SpectroScan hexagonal `area_first` preset ignore its stored `area_ratio`.**
+Basti ruled the engine fix in on the grounds that nobody has made SpectroScan
+hex charts before; that ruling covers the geometry, and this is the same
+ruling's UI half.
+
+### 7.5 i18n — the gate is green, and the green is hollow (by design)
+
+* `tests/test_i18n.py` — **71 passed**. `scripts/i18n_extract.py --missing`
+  reports **0 missing of 4533** for all twelve languages. No placeholder
+  mismatch, no over-long short label, no stale key.
+* **But "0 missing" is achieved by copying the English into every catalogue.**
+  Each of the 12 gained exactly **16 keys**; 16/16 are verbatim English in
+  eleven languages and 14/16 in `de` (only the two `M-CR30-STOCK-READER`
+  strings are really translated). Baseline `value == key` rate on `master` is
+  ~2.5 %, so this is a deliberate departure, not drift — and it is **sanctioned**
+  by `02-design.md` §7 ("Beta ships English placeholders") and the standing
+  translate-once-before-GA rule.
+* **The actionable consequence, which is not written down anywhere:**
+  `--missing` **cannot be used as the pre-GA translation checklist for the
+  CR30.** Those 16 keys will never appear in it. They must be pulled by
+  diffing the catalogues against `master`, or GA ships English in twelve
+  languages. Same for the 12 `parameters.*.yaml` overlays, which all carry
+  `"CR30 (ChnSpec, patch by patch)"` untranslated beside a translated
+  "SpectroScan (Flachbett)" / "SpectroScan（平板）".
+* **No i18n regression:** 0 keys removed, 0 existing keys changed. The branch
+  correctly appends new `tr()` keys rather than editing the ~1,200-character
+  Guided instrument string (`tab_chart.py:3454-3457` documents why: 24
+  `test_i18n` failures).
+
+### 7.6 Message catalogue — clean, with one pre-existing structural gap
+
+* `tests/test_message_catalogue.py` — **45 passed**.
+* `M-CR30-STOCK-READER` is **fully compliant** and is the model: `approved=False`
+  (`workflow/measurement_messages.py:73-87`), in `CATALOGUE` (`:947`), in
+  `AWAITING_APPROVAL`, defined under `### M-CR30-STOCK-READER · PROPOSED ·` in
+  §M-PROPOSED (`docs/design/unified_measurement_management.md:984-1004`), and
+  its window added to `WINDOW_SOURCES`. Nothing to fix.
+* **SERIOUS (process) — two new CR30 instruction bodies bypass §M.**
+  `ui/ti2_loader.py:196-215` (`calibration_instructions_html("cr30")`, the
+  magnetic-cap / white-tile text, including *"If the cap is reversed, the CR30
+  will happily calibrate against the wrong surface, and every reading
+  afterwards will look perfectly normal while being wrong"*) and `:244-255`
+  (`measurement_instructions_html("cr30")`). ~1,400 characters of new
+  user-facing hardware instruction reaching measurement windows without passing
+  §M. **Mitigating:** the ColorMunki and i1Pro siblings in the same two
+  functions have always sat outside the catalogue, and
+  `test_message_catalogue.py:280-288` names its `WINDOW_SOURCES` allow-list as
+  its own known weakness. **Pattern pre-existing, instance CR30-specific.**
+  Either route these through §M or add the family-dispatch functions to
+  `UNCATALOGUED_MEASUREMENT_WINDOWS` so the debt is recorded.
+
+### 7.7 MINOR wording items
+
+| # | finding | file:line | truth |
+|---|---|---|---|
+| a | *"packs ~15 % more per sheet"* | `presets.py:176` | mean **+12.2 %**, range +2.7 … +18.8 %. There is no single figure. |
+| b | *"the ruled 10.00 mm patch into 10.27 × 10.39 mm"* | `presets.py:418` | A3 today gives **(12.06, 12.36)**; A4 (12.69, 12.95). Mechanism real, figures stale. |
+| c | *"the 'provisional 10 mm' the UI labels"* | `presets.py:420` | the UI says **12 mm** (`layout_options_panel.py:163`, `parameters.yaml:667`). |
+| d | *"the ruled 10 mm patch would silently become…"* | `chart_creator.py:1193` | same stale 10 mm. |
+| e | *"The chart is a plain grid of squares…"* | `tab_chart.py:3463` | the same Guided panel offers a **Hexagon patches** box. |
+| f | SpectroScan label *"~15%"* vs its own tooltip *"roughly 14%"* | `tab_chart.py:11906` / `:11911` / `:6831` | measured SS gain **+9.1 … +14.3 %**, mean +11.4 %. "~15 %" exceeds the maximum on **every** paper. **Pre-existing.** |
+| g | `INSTRUMENT_LABELS["CR30"] = "CR30 (ChnSpec)"` vs `parameters.yaml`'s `"CR30 (ChnSpec, patch by patch)"` | `data/patch_db.py:185` | deliberate per §U.5, but the two labels appear in the same Settings dialog. |
+| h | *"Edge spacers (bracket each strip)"* and *"Don't cap strip length"* are visible and **inert** on a CR30 | `layout_options_panel.py:789`, `:999` | measured: 315 patches with edge spacers on and off; 345 with the strip cap on and off. Strip vocabulary on a device with no strip. |
+
+### 7.8 Claims I tried to break and could not — do not "fix" these
+
+* **90.7 % / 78.5 %** packing figures (`tab_chart.py:11875`,
+  `instruments.py:632`): π/(2√3) = 0.9069, π/4 = 0.7854. Exact.
+* **"12 mm leaves 4.00 mm clearance"** round a 4 mm window: (12−4)/2 = 4.00. Exact.
+* **Equal-area hexagon → 4.45 mm clearance and "350 patches per A4 against the
+  square's 345"** (`instruments.py:648-650`): **measured 350 exactly.**
+* **"ruler helper markers are not drawn on a honeycomb"**:
+  `geometry.helper_marker_lines_mm` returns **0 segments** for CR30 hex and SS
+  hex, **164** for CR30 rect.
+* **"row numbers down the left and column letters along the top"** on either
+  shape: `raster.py:1213-1236` draws them whenever `rlwi > 0` and explicitly
+  compensates for the hex protrusion; CR30 has `rlwi=7.5` in both branches.
+  Visible in `~/Desktop/cr30-overlay-proof-3-only-measured-hexagonal.png`,
+  A–E across the top and 1–26 down the side, **no overflow at the 12 mm cell**
+  (report 06 §3.2 listed that as open; it does not reproduce here).
+* **The "Spacer size" box now correctly greys when Spacers = None**
+  (`layout_options_panel.py:2908-2941`) — and the same fix repairs the
+  SpectroScan, whose box never worked. A real improvement, worth crediting.
+* **No swipe/strip language survives on the Measure side**: `set_no_swipe`
+  suppresses the scan arrow independently of the hex zigzag, and
+  `measurement_instructions_html("cr30")` replaces swipe text with
+  place-and-press text.
+* **No aperture-ratio claim survives** — `instruments.py:568-574` explicitly
+  records *and retracts* the old wrong "2.5× the aperture" line.
