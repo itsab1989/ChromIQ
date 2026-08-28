@@ -82,37 +82,48 @@ def _no_device_help(usb_err: object, ble_err: object) -> str:
     it, which looks exactly like a device that is not there.
     """
     import sys
-    lines = ["ChromIQ could not open your CR30.",
+    from core.i18n import tr
+    lines = [tr("ChromIQ could not open your CR30."),
              "",
-             f"  Over USB:       {usb_err}",
-             f"  Over Bluetooth: {ble_err}",
+             tr("  Over USB:       {err}").format(err=usb_err),
+             tr("  Over Bluetooth: {err}").format(err=ble_err),
              "",
-             "Things worth checking:",
-             "  \u2022 Is the instrument switched on and, for USB, plugged in?",
-             "  \u2022 Is the phone app connected to it? A CR30 stops being "
-             "visible over Bluetooth while another device holds it \u2014 "
-             "disconnect there and try again."]
+             tr("Things worth checking:"),
+             # FIRST, because it is the one that has actually worked. The
+             # instrument went silent over USB while still advertising over
+             # Bluetooth, and no amount of replugging or reconnecting helped;
+             # switching it off and on again did (2026-08-28).
+             tr("  \u2022 Switch the instrument off and on again. A CR30 can "
+                "stop answering while still looking connected, and a power "
+                "cycle is the only thing that clears it."),
+             tr("  \u2022 Is the instrument switched on and, for USB, plugged "
+                "in?"),
+             tr("  \u2022 Is the phone app connected to it? A CR30 stops being "
+                "visible over Bluetooth while another device holds it \u2014 "
+                "disconnect there and try again.")]
     if sys.platform.startswith("linux"):
-        lines += ["  \u2022 On Linux a serial port belongs to the "
-                  "\u201cdialout\u201d group. If the instrument is plugged in "
-                  "but ChromIQ is refused, add yourself with "
-                  "\u201csudo usermod -aG dialout $USER\u201d and log out and "
-                  "back in.",
-                  "  \u2022 Bluetooth needs BlueZ running (\u201csystemctl "
-                  "status bluetooth\u201d)."]
+        lines += [tr("  \u2022 On Linux a serial port belongs to the "
+                     "\u201cdialout\u201d group. If the instrument is plugged "
+                     "in but ChromIQ is refused, add yourself with "
+                     "\u201csudo usermod -aG dialout $USER\u201d and log out "
+                     "and back in."),
+                  tr("  \u2022 Bluetooth needs BlueZ running "
+                     "(\u201csystemctl status bluetooth\u201d).")]
     elif sys.platform == "win32":
-        lines += ["  \u2022 On Windows the CR30 needs its USB-serial driver. "
-                  "Windows usually fetches it automatically the first time the "
-                  "instrument is plugged in; on a machine with no internet you "
-                  "may have to install the CH34x driver yourself.",
-                  "  \u2022 Check Device Manager \u2192 Ports (COM & LPT) for "
-                  "the instrument."]
+        lines += [tr("  \u2022 On Windows the CR30 needs its USB-serial "
+                     "driver. Windows usually fetches it automatically the "
+                     "first time the instrument is plugged in; on a machine "
+                     "with no internet you may have to install the CH34x "
+                     "driver yourself."),
+                  tr("  \u2022 Check Device Manager \u2192 Ports (COM & LPT) "
+                     "for the instrument.")]
     else:
-        lines += ["  \u2022 On macOS there is nothing to install for USB \u2014 "
-                  "the driver ships with the system.",
-                  "  \u2022 The first time ChromIQ uses Bluetooth, macOS asks "
-                  "for permission. If you declined it, turn it back on in "
-                  "System Settings \u2192 Privacy & Security \u2192 Bluetooth."]
+        lines += [tr("  \u2022 On macOS there is nothing to install for USB "
+                     "\u2014 the driver ships with the system."),
+                  tr("  \u2022 The first time ChromIQ uses Bluetooth, macOS "
+                     "asks for permission. If you declined it, turn it back on "
+                     "in System Settings \u2192 Privacy & Security \u2192 "
+                     "Bluetooth.")]
     return "\n".join(lines)
 
 
