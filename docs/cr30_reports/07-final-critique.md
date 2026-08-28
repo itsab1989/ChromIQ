@@ -271,3 +271,126 @@ patches on A4, and both give the same grid across the whole `by_grid` sweep in
 
 **Nothing in the hex/stagger work or the `area_first` fix has broken any of the
 three overlays.** ADDITION 2 is clear.
+---
+
+## Section 3 — Does the CR30 behave like every other instrument?
+
+### 3.1 BLOCKER — "the four failing tests are pre-existing" is FALSE. #159 broke them.
+
+The brief asked me to verify this claim independently. **It does not hold.**
+
+| tree | `tests/test_both_readers_raise_the_same_windows.py` |
+|---|---|
+| `feature/cr30-instrument-159` | **4 failed, 26 passed, 2 skipped** |
+| `master` (isolated `git worktree`) | **30 passed, 2 skipped** |
+
+The four are `test_the_helper_really_prints_that_line[capability / ccmx_read /
+ccmx_set / mode_set]`.
+
+**Cause, exactly.** The test pins the source line of four `printf`s in
+`native/chartread_helper/chromiq_chartread.c` and matches within an **11-line
+window** (`tests/…:114`, `text[src_line-6 : src_line+5]`). #159 inserted **21
+lines** earlier in that file (`7711b16c`, `b02936c5`), so every pin fell out of
+its window:
+
+| label | pinned at | master | branch | shift |
+|---|---|---|---|---|
+| `capability` | 1022 | 1022 | **1043** | +21 |
+| `ccmx_set` | 1081 | 1081 | **1102** | +21 |
+| `ccmx_read` | 1103 | 1103 | **1124** | +21 |
+| `mode_set` | 1427 | 1427 | **1448** | +21 |
+
+All four strings are still present, unmodified, and reachable — **no behaviour
+is broken.** The fix is to change four integers in
+`tests/test_both_readers_raise_the_same_windows.py:35-42` to
+**1043 / 1102 / 1124 / 1448**.
+
+**Ranked BLOCKER anyway, and the ranking is about the claim, not the code.**
+The branch cannot produce a green `--runslow` gate, and CLAUDE.md is explicit
+that a green gate is what a merge decision requires. More importantly, a
+regression labelled "pre-existing" without checking is exactly how a real one
+ships: this one was harmless, and nobody would have known that until it was
+looked at. **CR30-specific.**
+
+### 3.2 SERIOUS — the shared hexagon/density checkbox leaks in BOTH directions,
+### and it changes the printed sheet
+
+`ui/tabs/tab_chart.py:11838-11934` (`_update_dd_visibility`). One `QCheckBox`
+(`_dd_check`, created at `:3491`) serves three instruments with **two different
+meanings**:
+
+| instrument | what the box means | branch |
+|---|---|---|
+| ColorMunki | **Double density** — halves the patch width, *requires the physical rig accessory* | `:11842` |
+| CR30 | **Hexagon patches** | `:11862` |
+| SpectroScan | **Hexagon patches** | `:11904` |
+
+It is force-unchecked **only in the `else:` branch** (`:11922-11927`), i.e. only
+when it becomes *hidden* (i1 / i1Pro3 / DTP41 / DTP51). All three instruments
+above keep it visible, so the state carries across them unchanged.
+
+**Driven in the real app, Guided and Manual, and read off the built `Geom` —
+not from the code:**
+
+```
+GUIDED
+  CM  + "Double density" ticked  ->  switch to CR30
+      dd_box=True   geom.hexagonal=True   plen=10.392  pwid=12.000
+      -> the sheet is a HONEYCOMB the user never asked for
+
+  CR30 + "Hexagon patches" ticked ->  switch to CM
+      dd_box=True   pwid=13.700      (ColorMunki, double density)
+      dd unticked   pwid=28.000      (ColorMunki, normal)
+      -> a DOUBLE-DENSITY ColorMunki chart, which needs the rig accessory
+MANUAL — byte-identical results.
+```
+
+Both directions are real and both reach the geometry, so both reach paper.
+Direction B is arguably the worse one: the user ticked a box labelled *"Hexagon
+patches (suits the round CR30…)"* and is handed a ColorMunki chart that
+**cannot be read at all without hardware they may not own**.
+
+SS ↔ CR30 also carries, but there the box means the same thing on both sides,
+so it is defensible rather than wrong.
+
+**Escape hatch that exists today:** passing through any instrument that hides
+the box clears it —
+```
+CM(dd) -> SS   : still ticked
+       -> i1   : cleared
+       -> CR30 : clear
+```
+so the bug only bites on a *direct* CM↔CR30 or CM↔SS move.
+
+**Fix:** clear the box whenever the instrument change crosses the
+meaning boundary — cheapest correct form is to record which instrument the
+current tick belongs to and clear it on any change where
+`instruments.hex_capable(old) != instruments.hex_capable(new)`; simplest safe
+form is to clear it on **every** instrument change. Do not widen the existing
+`else:` — the box is visible in the failing cases, so visibility is the wrong
+test.
+**CR30-specific? Half.** CM↔SS is pre-existing; #159 added the CR30 as a third
+member and a second direction, and the earlier critique (report 06 §6.2)
+already ranked this SERIOUS and it is still open at `11c3e592`.
+
+### 3.3 What survived: the round trip leaks nothing else
+
+I snapshotted **every** `QCheckBox` / `QComboBox` / `QSpinBox` /
+`QDoubleSpinBox` / `QRadioButton` in the Create Chart tab (visibility, enabled
+state, value and label), walked
+`CR30 → i1 → CM → SS → CR30 → i1 → CR30` in **Guided and Manual**, and diffed
+the second visit against the first.
+
+**No control other than `_dd_check` carries a value across an instrument change
+that it should not.** Visibility and enablement track the instrument correctly:
+`_td_check` (triple density) is CM-only, `_for_rig_label` is CM-only
+(`:11934`), and the CR30 shows the hexagon box with its own label and its own
+tooltip.
+
+⚠ **One honest caveat, so nobody over-reads this.** Create Chart holds **one
+shared set of controls, not per-instrument state.** Paper, page count and the
+density/hexagon box are global: switching to another instrument and back does
+*not* restore what you had. That is the existing design of the tab, it applies
+equally to every instrument, and #159 does not change it — but it is why the
+"revisit" diff is only meaningful for the `_dd_check` case above, and it is
+worth confirming with Basti that it is intended for the CR30 too.
