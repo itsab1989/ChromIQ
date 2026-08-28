@@ -4016,7 +4016,40 @@ class TabProfile(QWidget):
         # the main window re-sets it afterwards on the measure handoff if opted in.
         self._preconditioning_source = None
         self._file_lbl.setText(str(path))
-        self._build_btn.setEnabled(True)
+        # HOW MUCH of the chart this measurement actually holds.
+        #
+        # Build Profile used to arm on the mere existence of a .ti3. In this
+        # session that meant it was offered on a measurement of 3 patches out
+        # of 390 — a profile built from that is not a bad profile, it is not a
+        # profile at all, and nothing on screen said so.
+        #
+        # A partial measurement is legitimate, though: the whole point of
+        # "Refine / resume" is that you stop and come back. So this does not
+        # forbid it — it says how partial it is, and leaves the choice with the
+        # user. Read from the FILE rather than from any live counter, because
+        # this runs for measurements the app never watched being made.
+        from workflow.measurement_state import Ti3State, classify
+        facts = classify(path, path.with_suffix(".ti2"))
+        self._ti3_facts = facts
+        usable = facts.state not in (Ti3State.ABSENT, Ti3State.EMPTY,
+                                     Ti3State.NO_DATA_BLOCK,
+                                     Ti3State.UNREADABLE)
+        self._build_btn.setEnabled(usable)
+        if not usable:
+            self._build_btn.setToolTip(tr(
+                "This measurement file holds no readings yet, so there is "
+                "nothing to build a profile from. Measure the chart first."))
+        elif (facts.state is Ti3State.PARTIAL and facts.held is not None
+                and facts.expected):
+            self._build_btn.setToolTip(tr(
+                "This measurement holds {held} of the chart's {expected} "
+                "patches. You can build a profile from it, but a profile made "
+                "from part of a chart describes your printer only where it was "
+                "measured. To fill in the rest, go back to Measure and tick "
+                "“Refine / resume existing measurement”."
+                ).format(held=facts.held, expected=facts.expected))
+        else:
+            self._build_btn.setToolTip("")
         # #130 §4: **only while the field is still a ChromIQ default.** These
         # two lines used to overwrite unconditionally, so a Profile Description
         # the user had typed was lost the moment a measurement was loaded or
