@@ -11504,12 +11504,21 @@ class TabChart(QWidget):
     HEX_TOGGLE_INSTRUMENTS = ("SS", "CR30")
 
     def _engine_geom(self, instr: str, paper: str, *, dd: bool, td: bool,
-                     eff_lb: bool, nsl: bool, pscale: float, margin: float):
+                     eff_lb: bool, nsl: bool, pscale: float, margin: float,
+                     spacers: bool = True):
         """Build a layout-engine Geom from the guided/manual effective values,
         with the user's margin thresholds enforced (so the count matches what
-        the engine will actually build, #93)."""
+        the engine will actually build, #93).
+
+        *spacers* must mirror what the BUILD will do, not a default. It was
+        hard-coded ``True`` here, which was invisible until the CR30 arrived as
+        the first instrument that lays out without spacers
+        (``chart_creator._engine_build_kwargs`` forces them off for a Guided
+        CR30): the estimate reserved 1.3 mm of gap the chart never used and
+        under-counted by ~10 %.
+        """
         from workflow.layout_engine import instruments
-        kw: dict = dict(instrument=instr, paper=paper, spacer_on=True,
+        kw: dict = dict(instrument=instr, paper=paper, spacer_on=bool(spacers),
                         pscale=float(pscale),
                         margins=(float(margin),) * 4, border=float(margin),
                         nolimit=bool(nsl))
@@ -11548,12 +11557,14 @@ class TabChart(QWidget):
         return instruments.geom_from_build_kwargs(kw, thresholds=None)
 
     def _engine_capacity(self, instr: str, paper: str, *, dd: bool, td: bool,
-                         eff_lb: bool, nsl: bool, pscale: float, margin: float):
+                         eff_lb: bool, nsl: bool, pscale: float, margin: float,
+                         spacers: bool = True):
         """Patches per sheet from the ChromIQ engine (None if it can't lay out)."""
         try:
             from workflow.layout_engine import geometry, papers
             geom = self._engine_geom(instr, paper, dd=dd, td=td, eff_lb=eff_lb,
-                                     nsl=nsl, pscale=pscale, margin=margin)
+                                     nsl=nsl, pscale=pscale, margin=margin,
+                                     spacers=spacers)
             w_mm, h_mm = papers.dimensions_mm(paper)
             return geometry.patches_per_sheet(geom, w_mm, h_mm)
         except Exception:
@@ -11687,9 +11698,13 @@ class TabChart(QWidget):
         engine_on = (instr in ENGINE_INSTRUMENTS) and (
             guided_active or bool(self._settings.get("use_chromiq_layout_engine", False)))
         if engine_on:
+            # Mirror chart_creator._engine_build_kwargs: a GUIDED CR30 is laid
+            # out with no spacers at all (Basti's ruling). Anything else keeps
+            # them. The estimate has to model the same chart the build makes.
             per_sheet = self._engine_capacity(
                 instr, paper, dd=dd, td=td, eff_lb=eff_lb, nsl=nsl_eff,
-                pscale=eff_scale, margin=eff_margin)
+                pscale=eff_scale, margin=eff_margin,
+                spacers=not (instr == "CR30" and guided_active))
         else:
             per_sheet = query_patches(instr, paper, dd, suppress_lb=eff_lb,
                                       margin_mm=eff_margin, patch_scale=eff_scale,

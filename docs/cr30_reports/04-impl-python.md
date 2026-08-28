@@ -226,3 +226,144 @@ that a CR30 chart can only be read by ChromIQ.
   clamping it to the bottom of `SAMPLE_HZ_RANGE`. **The row's real job** is
   closing `_pace_config`'s unknown-instrument fallback to the i1Pro's
   `(100.0, 20)` — proved by a test.
+
+## R1 / R2 / the chart critique — the rulings that arrived mid-task
+
+### R2 — spacers OFF by default, and still turnable on  ✅
+
+Basti, 2026-08-28, final. This **reverses the T1 decision above** (the critique's
+"keep a spacer"); the ruling wins and T1's table should be read with that in
+mind. What was implemented is the *pair* of requirements, because they pull
+against each other:
+
+- **Off by default** — `presets.default_recipe("CR30", …)` sets
+  `spacer_mode = "none"`, and `chart_creator._engine_build_kwargs` forces
+  `spacer_on=False` for **Guided only** (Manual keeps its own control).
+- **Still turnable on** — the geometry keeps a **real 1.3 mm base width**.
+  This is the trap: `build()` honours the Manual "Spacer size" box only while
+  `geom.pspa > 0` (`instruments.py:218-219`), so a hard `pspa=0.0` would have
+  made the spacer off *and un-turn-on-able*, which is exactly what the ruling
+  forbids. Proved end to end by a test: default 0.0 → Coloured 1.3 → width box
+  2.5 → None 0.0.
+
+**And the control is no longer dead.** `layout_options_panel._sync_spacer_swatches`
+now greys the whole "Spacer size" row whenever there is no spacer to size —
+either because Spacers is set to None, or because the instrument's geometry has
+none at all. The CR30 is the first instrument to ship with spacers off, so it is
+the first where a user meets that dead box out of the box. **The same fix covers
+the SpectroScan, whose "Spacer size" box has never worked in any mode** because
+its geometry hard-codes `pspa = 0.0` (found by the chart critic; fixed here
+because it is the same line of code).
+
+No warning or nag about honeycomb visibility was added, per the ruling.
+
+### R1 — hexagonal patches, and the three blockers  ✅
+
+Offered for the CR30 in **every** Create Chart module: the Manual/editor shape
+selector (`modes_for` → `flat`/`hex`, label "Patch shape:", its own help text),
+the Guided `-h` checkbox (relabelled and retooltipped, as the SpectroScan's is),
+`presets` (`mode()`, `default_recipe`, two factory presets `CR30|A4|flat` and
+`CR30|A4|hex`), `chart_creator._engine_build_kwargs`, and
+`hex_support.recipe_is_hexagonal`.
+
+**Default is RECTANGULAR**, by ruling.
+
+#### The three blockers, and the shape of the fix
+
+The chart critic found that a CR30 honeycomb was **laid out as hexagons and
+drawn as squares** — the sheet paid for the apex overhang and shortened rows,
+and got rectangles. Three gates each asked `key == "SS"` on their own:
+`raster.py:1056`, `geometry.py:475` (patch rects), `geometry.py:669` (helper
+markers), plus `tab_chart.py`'s UI gate.
+
+Per Basti — *"we own the layout engine, so you should be able to add the hex
+patches to any instrument we want"* — this was fixed as a **generalisation, not
+a second name in three tuples**:
+
+- **`Geom.hexagonal: bool`** — an explicit flag the building branch sets about
+  itself. **The single source of truth.**
+- **`instruments.is_hexagonal(geom)`** — the one predicate; all three gates now
+  call it.
+- **`instruments.hex_capable(key)` / `hex_capable_instruments()`** — capability
+  **probed from the geometry** (`build(key, hflag=True).hexagonal`), not held in
+  a list. An instrument offers hexagons exactly when its `_build_base` branch
+  honours `hflag`, so adding the shape to a new instrument needs **no second
+  registration anywhere** and cannot be half-done. Used by the UI gates in
+  `tab_chart.py` and by `hex_support.recipe_is_hexagonal`.
+
+**Why an explicit flag and not `hxew > 0`:** the ColorMunki's row stagger sets
+`hxeh` without being hexagonal, so the overhang floats answer a different
+question. An explicit flag also says what it means at the call site.
+
+All three fixed in **one change**, as required — fixing the raster alone would
+leave a live half-patch mis-registration between what is drawn and what the
+Measure highlight, the margin inspector and `scanin_target.py` believe was drawn.
+
+`build()`'s hex-overhang recompute (a resized hexagon keeping its unresized
+reservation) is now keyed on `geom.hexagonal` too, so it covers every honeycomb
+rather than only the SpectroScan's.
+
+Helper markers: #152's rule ("a honeycomb has no rows to line a ruler against")
+now follows the **shape**, not the instrument, in both `geometry.py` and
+`tab_chart.py`.
+
+#### Measured, on this branch, at the shipped 12 mm
+
+| Paper | rectangular | hexagonal | gain |
+|---|---|---|---|
+| A4 | 345 | 405 | **+17.4 %** |
+| A3 | 782 | 836 | +6.9 % |
+
+⚠ **These differ from the +8.8 % / +12.5 % in the chart critique**, which was
+measured before the 12 mm ruling landed. The gain is strongly paper-dependent,
+so the user-facing text quotes the A4 pair concretely and says the gain depends
+on the paper, rather than quoting a single percentage.
+
+#### The geometry claim, corrected before it reached the user
+
+The forwarded rationale quoted a hexagon's **+7.5 % inradius / +12 % clearance**
+at equal patch AREA. **That is not what this branch ships**, and the numbers
+would have been false in the help text. Computed, not quoted:
+
+| | flat-to-flat | area | inradius | clearance round the 4 mm window | A4 |
+|---|---|---|---|---|---|
+| square, 12 mm | — | 144.0 mm² | 6.000 | **4.00 mm** | 345 |
+| hexagon, equal **width** (**shipped**) | 12.000 | 124.7 mm² | 6.000 | **4.00 mm** | **405** |
+| hexagon, equal **area** | 12.895 | 144.0 mm² | 6.447 | 4.45 mm | 350 |
+
+So the shipped honeycomb buys **density at unchanged clearance** (the
+90.69 % vs 78.54 % circle-packing result), not extra clearance. The equal-area
+hexagon buys 0.45 mm of clearance and **loses** the density (350 against the
+square's 345 — no gain at all). The two cannot be had at once. Density at equal
+clearance is the better trade and is what ships; the swap is a one-line change
+(the `12.0` in the `hflag` branch) if hardware ever says otherwise. All of this
+is written into the geometry comment.
+
+### The 12 mm cell, and the justification that was wrong
+
+`plen = pwid = rrsp = pscale * 12.0`. **The old comment was factually wrong and
+has been removed, not merely edited**: it claimed 10 mm was "2.5× the aperture,
+the same patch:aperture ratio the i1Pro uses". The i1Pro's ratio is 10/5 = 2.00
+and this one is 12/4 = 3.00 — never a match — and the aperture ratio is not what
+governs the size anyway. The shipped reasoning is occlusion: the CR30's body is
+a **33 mm opaque disc**, so the patch is invisible the moment it is set down and
+the user aims from the cells around it; 12 mm gives 4.00 mm of clearance against
+3.00 mm at 10 mm, and sits **above** the only geometry a CR30 has been proven to
+read (`EXP-SPEC-001a`, 10.4 × 13.0 mm). Still labelled **provisional** in the UI.
+
+### The too-small-patch guard — built, then REMOVED
+
+Implemented (aperture constant, a 6 mm floor, a plain-language refusal at
+`_engine_kwargs`, a per-instrument preflight floor and nine tests), then removed
+in full on Basti's ruling: *"if no instrument has it now we leave it out and
+don't invent something new here."* Nothing of it remains; `preflight.MIN_PATCH_MM`
+is back to the one shared 6 mm **warning** that applies to every instrument. A
+comment in the geometry branch records the ruling so it is not re-invented.
+
+### The unmeasured ergonomic claim  ✅
+
+The Guided and panel help text said the honeycomb's six sides "funnel a round
+barrel towards the middle" and make it "harder to lose your place" as statements
+of fact. Both now say plainly that this is reasoning and **has not been
+measured**, next to the packing figures, which have. That dialog is scrupulous
+about the same distinction for patch size; it is now consistent.
