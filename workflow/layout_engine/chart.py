@@ -275,7 +275,13 @@ def build_chart(
     # chart text, clip text and the stamp. {page} is resolved per page inside
     # render_pages (it needs the page index), so it's not in this dict. (#93)
     _instr_friendly = {"i1": "i1Pro", "p3": "i1Pro3+", "CM": "ColorMunki",
-                       "SS": "SpectroScan", "41": "DTP41", "51": "DTP51"}
+                       "SS": "SpectroScan", "41": "DTP41", "51": "DTP51",
+                       # The CR30's device key IS its friendly name (#159), so
+                       # the .get() fallback below would already be right —
+                       # listed explicitly so the table is a complete answer to
+                       # "which instruments does the engine know", not a
+                       # coincidence that happens to work.
+                       "CR30": "CR30"}
     _ctx = {
         "project": project or Path(out_base).name,
         "rundescription": rundescription,

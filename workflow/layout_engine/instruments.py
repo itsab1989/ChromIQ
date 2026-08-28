@@ -30,6 +30,13 @@ TARGET_INSTRUMENT_NAME: dict[str, str] = {
     "41": "X-Rite DTP41",
     "51": "X-Rite DTP51",
     "SS": "GretagMacbeth SpectroScan",
+    # ChnSpec CR30 (#159). The HONEST name, by ruling: the device reports "CR30"
+    # for itself, so that is what the chart says it is. Consequence, stated here
+    # because it is load-bearing: stock ArgyllCMS `chartread` matches
+    # TARGET_INSTRUMENT against its own instrument table and will REFUSE a chart
+    # named "CR30". A CR30 chart is readable only by ChromIQ's own chartread
+    # fork. The UI must say so at chart creation and at measure time.
+    "CR30": "CR30",
 }
 
 # Instruments ChromIQ never lays out itself (delegated to i1Profiler).
@@ -136,7 +143,7 @@ class Geom:
 
 
 def supported() -> list[str]:
-    return ["i1", "p3", "CM", "41", "51", "SS"]
+    return ["i1", "p3", "CM", "41", "51", "SS", "CR30"]
 
 
 def default_ruler_mm(key: str) -> float:
@@ -158,6 +165,7 @@ def default_ruler_mm(key: str) -> float:
 # Friendly Settings labels → device keys.
 _MARGIN_LABEL_TO_KEY = {
     "i1Pro": "i1", "i1Pro 3+": "p3", "ColorMunki": "CM", "SpectroScan": "SS",
+    "CR30": "CR30",   # friendly label == device key (#159)
 }
 
 
@@ -294,9 +302,14 @@ def geom_from_build_kwargs(kw: dict, thresholds: dict | None = None) -> Geom:
     the page margins are first raised so the realised patch area meets those
     minimums — so both the capacity estimate and the render honour the user's
     margin thresholds from this one chokepoint (#93)."""
-    # CM/SS have no native clip border, but can still carry a notes/clip band
-    # when clip content is on — reserve that band so capacity reflects it (#93).
-    if (kw.get("instrument") in ("CM", "SS")
+    # CM/SS/CR30 have no native clip border, but can still carry a notes/clip
+    # band when clip content is on — reserve that band so capacity reflects it
+    # (#93). CR30 joined this tuple in #159: the design says its clip band is
+    # "off by default, OFFERABLE", and without an entry here the band was
+    # silently inert (lbord 0.0, has_clip_border False) while the UI offered it.
+    # A CR30 sheet is hand-read for up to half an hour, so a notes band naming
+    # the run is worth more here than on any strip chart, not less.
+    if (kw.get("instrument") in ("CM", "SS", "CR30")
             and kw.get("clip_content_mode", "off") not in ("off", None)
             and not kw.get("clip_band")):
         kw = {**kw, "clip_band": float(kw.get("clip_border_width") or 26.0)}
@@ -468,6 +481,76 @@ def _build_base(
             dorspace=False, dopglabel=False,   # page-label column reclaimed (#93)
             padlrow=False, target_name=name,
             has_clip_border=_band > 0, extra_keywords=extra,
+        )
+
+    # ---- ChnSpec CR30 (hand-placed spot colorimeter) --------------------
+    if key == "CR30":
+        # A CR30 is placed on ONE patch at a time by hand and triggered by its
+        # own button. It never traverses a strip, so every piece of strip
+        # furniture below is deliberately zero — but a spot grid is NOT the
+        # SpectroScan's grid, and the differences are the whole point of this
+        # branch existing instead of an `key in ("SS", "CR30")` alias.
+        #
+        # Every field, and why:
+        #
+        # plen / pwid / rrsp = 10 mm square, PROVISIONAL.
+        #   The aperture is 4 mm; 10 mm is 2.5x it, the same patch:aperture
+        #   ratio the i1Pro uses (10 mm patch, 5 mm aperture — see :371-372).
+        #   ⚠ This is NOT a measured minimum. EXP-MEAS-005 measured
+        #   REPEATABILITY (dE 0.215 mean) on a comfortably large patch, which
+        #   says nothing about the smallest patch a hand can hit. The UI labels
+        #   this size "provisional" for exactly that reason. rrsp == pwid, so
+        #   columns touch: that is the topology of the only chart a CR30 has
+        #   ever been proven to read (EXP-SPEC-001a, a ColorMunki extra-high
+        #   sheet, 40 patches, 0 misreads — and its columns touched too).
+        #
+        # pspa = 1.3 mm, KEPT — the design's "spacers: none" is wrong.
+        #   The successful EXP-SPEC-001a read used the CM extra-high geometry,
+        #   which sets pspa = pscale * 1.3 (:433). Removing the one geometric
+        #   feature present in the only proven layout would be inventing a
+        #   geometry, not deriving one. Routed through spacer() so `-n`
+        #   (spacer_on False) still turns it off, and so build()'s Manual
+        #   "spacer width" box stays live — that box is silently ignored when
+        #   pspa == 0 (:218-219), which is what an SS-shaped copy would have
+        #   produced.
+        #
+        # tspa = 0.0, lcar = 0.0 — no run-in, no run-out.
+        #   i1 reserves 10 mm and CM 25 mm of clear paper for the instrument to
+        #   accelerate onto and off the end of a strip. A hand lifts off. Taken
+        #   from SS for the right reason: SS's zeros come from it being a
+        #   MOTORISED FLATBED whose head is machine-positioned; ours come from
+        #   there being no swipe at all. Same value, different derivation.
+        #
+        # lspa = border + txhisl — the only thing above the first patch is the
+        #   column-label band. (SS uses border + 7.0 against a txhisl of 5.0,
+        #   i.e. a 2 mm fudge; we do not copy the fudge.)
+        #
+        # rlwi = 7.5 — THE reason to take anything from the SpectroScan.
+        #   raster.py:1215-1233 draws row NUMBERS down this reserved band, which
+        #   together with the column letters gives the sheet a 2-D A1/A2/B1
+        #   coordinate. Finding one patch among several hundred, by hand, is the
+        #   CR30's entire ergonomic problem; this is the single most useful
+        #   piece of furniture on the page and it exists only where rlwi > 0.
+        #
+        # padlrow = False — do not pad the last column with blank patches. That
+        #   exists so a strip reader always traverses a full-length strip; there
+        #   is no strip here, and blank patches are paper the user pays for.
+        #
+        # mxrowl = MAXROWLEN, ruler_mm = 0.0 (default) — no ruler, no jig; the
+        #   page is the only limit, as for CM and SS.
+        #
+        # hxeh/hxew/clwi = 0 — no hexagons, no stagger, no cut lines.
+        # rpstrip/nextrap/dorspace/dopglabel — as every non-DTP branch.
+        txhisl = 7.0
+        return Geom(
+            key=key, plen=pscale * 10.0, pspa=spacer(1.3), tspa=0.0,
+            pwid=pscale * 10.0, rrsp=pscale * 10.0,
+            lspa=border + txhisl, lcar=0.0, txhisl=txhisl, pglth=5.0,
+            border=border, lbord=_band, hxeh=0.0, hxew=0.0, clwi=0.0, rlwi=7.5,
+            mxpprow=MAXPPROW, mxrowl=MAXROWLEN, rpstrip=999, nextrap=0,
+            dorspace=False, dopglabel=False,
+            padlrow=False, target_name=name,
+            has_clip_border=_band > 0,
         )
 
     # ---- X-Rite DTP41 ---------------------------------------------------

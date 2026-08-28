@@ -2801,8 +2801,21 @@ a1log *log			/* verb, debug & error log */
 				printf("  'd' when done, 'q' to abort, then press <return>: %s",fl_end);
 				do_fflush();
 	
-				/* Read in the next line from stdin. */
-				if (con_fgets(buf, 200) == NULL) {
+				/* Read in the next line from stdin.
+				 *
+				 * CHROMIQ_EXT #159: in JSON mode stdin belongs to the command
+				 * reader thread, so con_fgets here can NEVER succeed -- it
+				 * returned immediately and this loop spun, emitting spot_ready
+				 * without bound. That made -x and --json mutually exclusive,
+				 * and a non-Argyll instrument backend impossible. The line now
+				 * comes from the command channel and the parser below is
+				 * reached unchanged. */
+				if (cq_json) {
+					if (!cq_wait_line(buf, 200)) {
+						printf("Error - unrecognised input\n");
+						continue;
+					}
+				} else if (con_fgets(buf, 200) == NULL) {
 					printf("Error - unrecognised input\n");
 					continue;
 				}
@@ -2874,7 +2887,11 @@ a1log *log			/* verb, debug & error log */
 						cq_emit_simple("strip_interrupted");	/* CHROMIQ_EXT */
 						if ((ch = cq_prompt_char()) == 0x1b || ch == 0x3 || ch == 'q' || ch == 'Q') {
 							printf("\n");
-							it->del(it);
+							/* CHROMIQ_EXT #159: `it` is only created inside
+							 * `if (xtern == 0)`, so on the external-values path it
+							 * is NULL and this crashed (SIGSEGV) on abort. */
+							if (it != NULL)
+								it->del(it);
 							if (pfname != NULL)
 								free(pfname);
 							return -1;
@@ -2894,7 +2911,11 @@ a1log *log			/* verb, debug & error log */
 					   ? cq_handle_calibrate(it, inst_calt_needed, inst_calc_none, 0)
 					   : inst_handle_calibrate(it, inst_calt_needed, inst_calc_none, NULL, NULL, 0);
 					if (ev != inst_ok) {	/* Abort or fatal error */
-						it->del(it);
+						/* CHROMIQ_EXT #159: `it` is only created inside
+						 * `if (xtern == 0)`, so on the external-values path it
+						 * is NULL and this crashed (SIGSEGV) on abort. */
+						if (it != NULL)
+							it->del(it);
 						if (pfname != NULL)
 							free(pfname);
 						return -1;
@@ -2910,7 +2931,11 @@ a1log *log			/* verb, debug & error log */
 					cq_emit_error("misread", it->interp_error(it, rv));	/* CHROMIQ_EXT */
 					if ((ch = cq_prompt_char()) == 0x1b || ch == 0x3 || ch == 'q' || ch == 'Q') {
 						printf("\n");
-						it->del(it);
+						/* CHROMIQ_EXT #159: `it` is only created inside
+						 * `if (xtern == 0)`, so on the external-values path it
+						 * is NULL and this crashed (SIGSEGV) on abort. */
+						if (it != NULL)
+							it->del(it);
 						if (pfname != NULL)
 							free(pfname);
 						return -1;
@@ -2927,7 +2952,11 @@ a1log *log			/* verb, debug & error log */
 					cq_emit_error("coms", "");	/* CHROMIQ_EXT */
 					if ((ch = cq_prompt_char()) == 0x1b || ch == 0x3 || ch == 'q' || ch == 'Q') {
 						printf("\n");
-						it->del(it);
+						/* CHROMIQ_EXT #159: `it` is only created inside
+						 * `if (xtern == 0)`, so on the external-values path it
+						 * is NULL and this crashed (SIGSEGV) on abort. */
+						if (it != NULL)
+							it->del(it);
 						if (pfname != NULL)
 							free(pfname);
 						return -1;
@@ -2950,7 +2979,11 @@ a1log *log			/* verb, debug & error log */
 							printf("init_coms returned '%s' (%s)\n",
 						       it->inst_interp_error(it, rv), it->interp_error(it, rv));
 #endif /* DEBUG */
-							it->del(it);
+							/* CHROMIQ_EXT #159: `it` is only created inside
+							 * `if (xtern == 0)`, so on the external-values path it
+							 * is NULL and this crashed (SIGSEGV) on abort. */
+							if (it != NULL)
+								it->del(it);
 							if (pfname != NULL)
 								free(pfname);
 							return -1;
@@ -2969,7 +3002,11 @@ a1log *log			/* verb, debug & error log */
 					cq_emit_error("misread", it->interp_error(it, rv));	/* CHROMIQ_EXT */
 					if ((ch = cq_prompt_char()) == 0x1b || ch == 0x3 || ch == 'q' || ch == 'Q') {
 						printf("\n");
-						it->del(it);
+						/* CHROMIQ_EXT #159: `it` is only created inside
+						 * `if (xtern == 0)`, so on the external-values path it
+						 * is NULL and this crashed (SIGSEGV) on abort. */
+						if (it != NULL)
+							it->del(it);
 						if (pfname != NULL)
 							free(pfname);
 						return -1;
@@ -2985,7 +3022,11 @@ a1log *log			/* verb, debug & error log */
 				cq_emit_simple("abort_confirm");	/* CHROMIQ_EXT */
 				if ((ch = cq_prompt_char()) == 'y' || ch == 'Y') {
 					printf("\n");
-					it->del(it);
+					/* CHROMIQ_EXT #159: `it` is only created inside
+					 * `if (xtern == 0)`, so on the external-values path it
+					 * is NULL and this crashed (SIGSEGV) on abort. */
+					if (it != NULL)
+						it->del(it);
 					if (pfname != NULL)
 						free(pfname);
 					return -1;
@@ -2999,7 +3040,11 @@ a1log *log			/* verb, debug & error log */
 				   ? cq_handle_calibrate(it, inst_calt_available, inst_calc_none, 0)
 				   : inst_handle_calibrate(it, inst_calt_available, inst_calc_none, NULL, NULL, 0);
 				if (ev != inst_ok) {	/* Abort or fatal error */
-					it->del(it);
+					/* CHROMIQ_EXT #159: `it` is only created inside
+					 * `if (xtern == 0)`, so on the external-values path it
+					 * is NULL and this crashed (SIGSEGV) on abort. */
+					if (it != NULL)
+						it->del(it);
 					if (pfname != NULL)
 						free(pfname);
 					return -1;
@@ -3041,7 +3086,11 @@ a1log *log			/* verb, debug & error log */
 				            scols[i]->id, scols[i]->loc);	/* CHROMIQ_EXT */
 				if ((ch = cq_prompt_char()) == 0x1b) {
 					printf("\n");
-					it->del(it);
+					/* CHROMIQ_EXT #159: `it` is only created inside
+					 * `if (xtern == 0)`, so on the external-values path it
+					 * is NULL and this crashed (SIGSEGV) on abort. */
+					if (it != NULL)
+						it->del(it);
 					if (pfname != NULL)
 						free(pfname);
 					return -1;

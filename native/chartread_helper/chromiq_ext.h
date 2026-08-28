@@ -44,6 +44,12 @@ const char *cq_take_goto(void);    /* target strip label for CQ_KEY_GOTO */
  * back to the console like stock chartread. */
 int cq_wait_char(void);
 
+/* #159: block for one line on the external-values (-x) channel. Fed by
+ * {"cmd":"value","xyz":"X Y Z"} and by every key command, mirrored as a
+ * one-character line. Needed because in JSON mode stdin belongs to the command
+ * reader, so -x's own con_fgets can never succeed. */
+int cq_wait_line(char *buf, int size);
+
 /* ---- replay instrument -------------------------------------------------
  * cq_replay_path != NULL enables replay mode: no USB, readings come from a
  * replay script (see chromiq_replay.c header comment for the format). */

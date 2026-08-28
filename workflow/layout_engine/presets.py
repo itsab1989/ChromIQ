@@ -21,7 +21,7 @@ from pathlib import Path
 
 from . import permutation
 
-SUPPORTED_INSTRUMENTS = ("i1", "p3", "CM", "41", "51", "SS")
+SUPPORTED_INSTRUMENTS = ("i1", "p3", "CM", "41", "51", "SS", "CR30")
 
 
 @dataclass
@@ -170,6 +170,11 @@ class LayoutRecipe:
             return self.CM_MODES.get(self.cm_density, "freehand")
         if self.instrument == "SS":
             return "hex" if self.hflag else "flat"
+        if self.instrument == "CR30":
+            # One mode, and it is NAMED rather than left to the "default"
+            # fallthrough so the preset key reads CR30|A4|spot and says what the
+            # device does: one patch at a time, placed by hand (#159).
+            return "spot"
         return "default"
 
     def preset_key(self) -> str:
@@ -407,10 +412,19 @@ def default_recipe(instrument: str = "i1", paper: str = "A4", *, mode: str | Non
     # columns/rows" stays fully available for users who want an explicit grid.
     if instrument == "SS":
         r.layout_mode = "patch_first"
+    # A CR30 is aimed BY HAND through a 4 mm aperture, so the patch size is a
+    # usability property and must not float. area_first (the generic default)
+    # resizes the patch to fill the page - measured on A3 it turns the ruled
+    # 10.00 mm patch into 10.27 x 10.39 mm, and on another paper into something
+    # else again. The user would then not know what size they are aiming at, and
+    # the "provisional 10 mm" the UI labels would be a lie. patch_first keeps the
+    # ruled size and fits as many as the page takes (#159).
+    if instrument == "CR30":
+        r.layout_mode = "patch_first"
     # ColorMunki / SpectroScan have no physical clip; the notes band is opt-in, so
     # it defaults OFF for every mode (Sebastian). i1/p3 keep "notes" so that when
     # their clip border is on it carries the record strip.
-    if instrument in ("CM", "SS"):
+    if instrument in ("CM", "SS", "CR30"):
         r.clip_content_mode = "off"
     if mode is not None:
         if instrument in ("i1", "p3"):
@@ -499,6 +513,7 @@ class PresetStore:
             modes = (["clip", "noclip"] if inst in ("i1", "p3")
                      else ["freehand", "high", "extrahigh"] if inst == "CM"
                      else ["flat", "hex"] if inst == "SS"
+                     else ["spot"] if inst == "CR30"
                      else ["default"])
             for m in modes:
                 r = default_recipe(inst, "A4", mode=m)

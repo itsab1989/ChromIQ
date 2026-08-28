@@ -72,6 +72,20 @@ void cq_json_escape(char *dst, size_t dstlen, const char *src) {
 
 static volatile int   cq_pending_key = CQ_KEY_NONE;
 static char           cq_goto_label[16];
+
+/* CHROMIQ_EXT #159: the external-values line channel.
+ *
+ * -x mode reads a whole LINE from stdin (a measurement, or a one-letter
+ * navigation command), but in JSON mode stdin belongs to this command reader,
+ * so that read can never succeed: it returns immediately, the loop `continue`s
+ * and spins, emitting spot_ready without bound. -x and --json were therefore
+ * mutually exclusive, which made a non-Argyll instrument backend impossible.
+ *
+ * This gives -x its own line queue, fed by JSON commands, so the existing
+ * parser in the read loop is reached unchanged -- it still sees a line and
+ * still decides for itself whether it is a value or a command. */
+static char           cq_pending_line[128];
+static volatile int   cq_line_ready = 0;
 #ifdef NT
 static CRITICAL_SECTION cq_lock;
 #else
@@ -151,6 +165,24 @@ static void cq_handle_line(const char *line) {
 	/* "goto" carries a target label: "strip" in strip mode, "patch" in
 	 * spot mode. Both feed the same CQ_KEY_GOTO / cq_goto_label channel —
 	 * the read loop matches the label against its own units. */
+	/* {"cmd":"value","xyz":"95.1 100.0 108.8"} -- one external measurement.
+	 * The payload is passed through VERBATIM to -x's own parser; we never
+	 * interpret the numbers here, so the units and count stay whatever that
+	 * parser already accepts (XYZ with -x, L*a*b* with -xl). */
+	if (strcmp(cmd, "value") == 0) {
+		char v[sizeof(cq_pending_line)] = "";
+		if (!cq_json_get(line, "xyz", v, sizeof(v))
+		 && !cq_json_get(line, "lab", v, sizeof(v))
+		 && !cq_json_get(line, "value", v, sizeof(v)))
+			return;                    /* no payload -> ignore, never queue */
+		cq_lock_take();
+		strncpy(cq_pending_line, v, sizeof(cq_pending_line) - 1);
+		cq_pending_line[sizeof(cq_pending_line) - 1] = '\0';
+		cq_line_ready = 1;
+		cq_lock_give();
+		return;
+	}
+
 	if (strcmp(cmd, "goto") == 0
 	 && (cq_json_get(line, "strip", gl, sizeof(gl))
 	  || cq_json_get(line, "patch", gl, sizeof(gl))))
@@ -185,6 +217,25 @@ static void cq_handle_line(const char *line) {
 	if (key == CQ_KEY_GOTO) {
 		strncpy(cq_goto_label, gl, sizeof(cq_goto_label) - 1);
 		cq_goto_label[sizeof(cq_goto_label) - 1] = '\0';
+	}
+	/* Mirror the key onto the line channel so the SAME command works in -x,
+	 * where the read loop wants a line rather than a key. -x's parser reads
+	 * the first non-space character, so a one-character line is exactly what
+	 * the console would have delivered. Without this, Stop/forward/back/done
+	 * would be inert on the external-values path. */
+	if (!cq_line_ready) {
+		if (key == CQ_KEY_GOTO) {
+			cq_pending_line[0] = 'g';
+			strncpy(cq_pending_line + 1, gl, sizeof(cq_pending_line) - 2);
+			cq_pending_line[sizeof(cq_pending_line) - 1] = '\0';
+		} else if (key > 0 && key < 128) {
+			cq_pending_line[0] = (char)key;
+			cq_pending_line[1] = '\0';
+		} else {
+			cq_pending_line[0] = '\0';
+		}
+		if (cq_pending_line[0] != '\0')
+			cq_line_ready = 1;
 	}
 	cq_lock_give();
 }
@@ -252,6 +303,28 @@ int cq_wait_char(void) {
 		int k = cq_cmd_take_key();
 		if (k != CQ_KEY_NONE && k != CQ_KEY_GOTO)
 			return k;
+		cq_sleep_ms(20);
+	}
+}
+
+/* Block until a line arrives on the -x channel. Mirrors cq_wait_char, which is
+ * the key equivalent. Returns 1 and fills buf; never returns without a line, so
+ * the caller cannot spin. */
+int cq_wait_line(char *buf, int size) {
+	for (;;) {
+		int got = 0;
+		cq_lock_take();
+		if (cq_line_ready) {
+			strncpy(buf, cq_pending_line, (size_t)size - 1);
+			buf[size - 1] = '\0';
+			cq_pending_line[0] = '\0';
+			cq_line_ready = 0;
+			cq_pending_key = CQ_KEY_NONE;   /* consumed as a line, not a key */
+			got = 1;
+		}
+		cq_lock_give();
+		if (got)
+			return 1;
 		cq_sleep_ms(20);
 	}
 }
