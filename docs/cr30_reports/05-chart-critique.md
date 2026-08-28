@@ -204,3 +204,147 @@ and the differences are the whole point of this branch existing."*
 I am not asking for a different number by fiat — the point is that **the number
 was inherited rather than chosen, and the sheet is paying for a clearance gain
 it does not receive.** It should be a deliberate decision, recorded.
+
+> **Re-verified against commit `22f005aa`** ("cr30: hexagonal patches in every
+> Create Chart module, and spacers off by default without killing the control"),
+> which landed while this report was being written. Blockers 1.1, 1.2 and 1.3
+> are all still present in that commit. `raster.py:1056`, `geometry.py:475` and
+> `geometry.py:669` are unchanged, and a fresh render of
+> `default_recipe("CR30","A4",mode="hex")` still produces rectangles.
+> `geometry.patch_rects_px` on a CR30 hex geometry returns **one distinct x per
+> column** — i.e. no stagger recorded — which is 1.2 measured directly.
+
+### 1.5 Should hexagons be the CR30 DEFAULT?
+
+**No — keep Rectangular, as the SpectroScan does. Recommendation, with the
+reasoning, not a preference.**
+
+The pro-hex case is sound and I could not break it. For a round 4 mm aperture,
+hexagonal close packing genuinely is the efficient arrangement (90.7 % of the
+sheet within reach of an inscribed circle against 78.5 % for a square grid —
+both numbers in the Guided tooltip at `tab_chart.py:11841-11846` are correct and
+correctly describe *this* layout), the clearance around the aperture is
+unchanged at 3.000 mm, and the measured gain is real: 532 → 576 patches on A4.
+
+What decides it against being the *default* is what a honeycomb silently
+switches off:
+
+1. **The scanner and camera tools refuse it** unless the user finds
+   "Allow hexagonal charts in the scanner and camera tools" under
+   Preferences → Beta (`hex_support.py:73-79`, `hex_scanner_message`). A default
+   must not require a Beta opt-in somewhere else to stay whole.
+2. **The ruler helper markers are unavailable** — `geometry.helper_marker_lines_mm`
+   returns `[]` for a hexagonal geometry (`geometry.py:669`), by design, because
+   a honeycomb has no straight rows to line a ruler against.
+3. **It does not currently work at all** (1.1–1.3).
+
+And what is bought is small in the currency that matters to a CR30 user, which
+is *time*, not patches. `chromiq-cr30-research/INTEGRATION.md:277-279`: *"If a
+reading takes ~1 s … a 400-patch chart is ~7 minutes of manual placement."*
+The A4 gain of 44 patches is therefore worth roughly **45 seconds on a 9-minute
+sheet** — while costing three capabilities that stop working without saying so.
+
+There is also a **consistency** argument, which the brief asks about
+explicitly. `layout_options_panel.py:127-129` tells the SpectroScan user
+*"rectangular is the safe default"* and the CR30 user the same words. Two
+instruments, one control, one label, two different defaults would be a mental
+model a user has to learn for no benefit they can see. Defaulting both to
+Rectangular and letting the (very good) CR30 tooltip sell the honeycomb is the
+coherent answer.
+
+**What would change my mind:** a measured tolerance envelope. The research repo
+is unambiguous that this does not exist —
+`chromiq-cr30-research/MEASUREMENT.md:483-489`: *"This does NOT give the minimum
+patch size … The minimum patch size needs a deliberate experiment placing the
+aperture near a patch edge until the reading degrades. **Chart layout is still
+blocked on that**, not on this number."* Until that experiment is run, the
+default should be the shape that keeps every other ChromIQ feature working.
+
+### 1.6 SERIOUS — an unmeasured ergonomic claim in a user-facing string
+
+`ui/tabs/tab_chart.py:11848-11850`, the Guided hexagon tooltip:
+
+> *"The honeycomb also helps you aim: six sides funnel a round barrel towards
+> the middle of the cell in a way four right angles do not, and the interlocking
+> rows make it harder to lose your place in a large grid."*
+
+Nobody has tested either half. No CR30 placement experiment has been run at all
+(§1.5), and "harder to lose your place" is the opposite of what the honeycomb
+does to the column coordinate (§1.7). This sits in the same dialog as the patch
+-size tooltip, which is scrupulously honest — *"nobody has yet measured how
+small a CR30 patch can safely be"* — so the dialog currently applies two
+different standards of proof to two claims about the same instrument.
+
+The rest of that tooltip is excellent and should stay: the packing numbers are
+right, the 532/576 figure matches a real render, and *"you keep exactly the same
+room around the aperture"* is exactly true of the implemented equal-width
+hexagon. It is the one aiming sentence that outruns the evidence.
+
+### 1.7 SERIOUS — the column coordinate zigzags, and only the rows are honest
+
+The CR30's whole ergonomic case rests on the 2-D A1/B2 coordinate; the CR30
+geometry branch calls the `rlwi = 7.5` row-number band *"the single most useful
+piece of furniture on the page"*. On a honeycomb that coordinate is **half
+true**:
+
+* **Row numbers still work.** Rows are straight horizontal lines at `plen`
+  pitch; `raster.py:1225-1230` draws the number against the row's true
+  mid-y. Verified on the SpectroScan hex render.
+* **Column letters do not.** `raster._hexagon_points` offsets every patch by
+  `∓w/4` on alternating rows, so a "column" is a vertical zigzag of total
+  amplitude `w/2` — **5.0 mm on a 10 mm CR30 patch, half a patch width** —
+  while its letter sits on a straight line at the top of the page. Visible in
+  the SpectroScan render at `scratchpad/render/ss_hex_corner.png`: column A's
+  patches alternate left and right under a single "A".
+
+This is followable but it is a real cost, and it is the cost that lands on
+precisely the instrument that needs the coordinate most — a CR30 user reads
+~500 of these by hand over ~9 minutes. It should be stated, and the Guided
+tooltip currently claims the opposite ("harder to lose your place").
+
+**Mitigation that already exists and should be checked before anything is
+built:** the Measure tab arms click-to-jump over every patch on the first
+`patch_ready` event (`tab_measure.py:10243-10247`) and highlights the next patch
+with a haloed ring. On a honeycomb the ring is drawn as a **hexagon**, not a
+rectangle — `tiff_preview.py:2635` and `:2660-2668`, guarded by `_hex_zigzag`,
+which is now true for a CR30 hex chart because `chart_is_hexagonal` →
+`recipe_is_hexagonal` was widened at `hex_support.py:104`. So the on-screen
+answer to "which patch now?" is correct for a honeycomb. **This survives the
+attack and is the strongest thing in the feature** — provided 1.2 is fixed,
+because `_patch_hexagon` (`tiff_preview.py:1569-1592`) draws the hexagon around
+the *recorded rect* and applies no stagger of its own.
+
+### 1.8 What survives — hex support does NOT assume motorised positioning
+
+I attacked this and could not break it.
+
+* **`recipe_is_hexagonal`** (`hex_support.py:82-104`) is now instrument-list
+  driven and includes CR30. Everything keyed off it follows for free:
+  `margin_inspector.py:282-285` (the apex correction to the reported ink
+  extremes), `scanin_dialog.py:1974-2015` (the sample-area cap),
+  `tab_measure.py:4190` (`set_hex_zigzag`), `tab_measure.py:505-520` (the
+  legacy-sidecar stagger compensation).
+* **`hex_max_sample_fraction`** (`scanin_runner.py:140-160`) derives the cap
+  from the chart's own `w`/`h` proportions, with no instrument in it.
+* **The `.cht` / scanner path** is corner-placed by the user, not
+  machine-found — the `-p` perspective search was removed precisely because it
+  *"collapses on a honeycomb"* (`hex_support.py:19-22`). Nothing there assumes a
+  motor.
+
+**`HEXAGON_PATCHES` is accepted downstream, and is inert on the CR30's path.**
+`native/chartread_helper/chromiq_chartread.c:3819-3820` parses the keyword into
+`hex` and passes it to `read_strips` at `:4246`. `hex` is then dereferenced in
+exactly one place — `:1753-1786` — which lives inside the `rmode == 2` branch
+(`:1541`, *"For xy mode, read each sheet"*), gated on `inst2_xy_locate` /
+`inst2_xy_holdrel`, and its whole job is to turn 1–3 user-placed fiducials into
+`ox/oy/ax/ay/aax/aay/px/py` **navigation vectors for a motorised table**
+(consumed by `read_xy` at `:1802`). A CR30 has no XY capability, so
+`check_mode` puts it on `rmode = 0` (spot) at `:1230`/`:1247` and the hex
+navigation code is never reached. **So this is the one place that genuinely
+does assume motorised positioning, and the CR30 correctly never enters it.**
+Nothing rejects the keyword; nothing errors.
+
+Minor caveat: emitting `HEXAGON_PATCHES` in a CR30 `.ti2` is a claim about the
+sheet that third-party CGATS readers or stock Argyll `chartread` could act on.
+Contained in practice, because ChromIQ already refuses stock chartread for a
+CR30 chart (M-CR30-STOCK-READER, `tab_measure.py:4407-4451`).
