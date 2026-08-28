@@ -394,3 +394,176 @@ density/hexagon box are global: switching to another instrument and back does
 equally to every instrument, and #159 does not change it — but it is why the
 "revisit" diff is only meaningful for the `_dd_check` case above, and it is
 worth confirming with Basti that it is intended for the CR30 too.
+---
+
+## Section 4 — Cross-tab: the FWA gate is correct and lands on a dead mechanism
+
+### 4.1 SERIOUS — `_gated_options` is never populated, so nothing is ever greyed out
+
+#159 does the right thing in `ui/tabs/tab_profile.py:4089-4102` and
+`ui/tabs/tab_check_refine.py:242-255`: `_gate_active()` becomes
+`spectral_options_unavailable(instrument, has_spectral)`
+(`ui/ti2_loader.py:137-160`), so a CR30 `.ti3` — colorimetric by design —
+answers **True** for the spectral-only colprof options (`-f` FWA, illuminant,
+observer). **Verified in the running app: `gate_active` is `True` for a CR30
+`.ti3` and `False` for an i1Pro one with spectra. That half is right.**
+
+**But the gate acts on a list nothing ever fills.**
+
+```
+ui/tabs/tab_profile.py:325        self._gated_options: list[GatedOption] = []
+ui/tabs/tab_profile.py:4107           for opt in self._gated_options:   # grey out
+ui/tabs/tab_profile.py:5293           for opt in self._gated_options:   # neutralise
+ui/tabs/tab_check_refine.py:130   self._gated_options: list[GatedOption] = []
+ui/tabs/tab_check_refine.py:260 / :1735   same two loops
+```
+
+`grep -rn "_gated_options" --include='*.py' .` returns **exactly those six
+lines and nothing else**. There is no `.append`, no `.extend`, no assignment of
+a non-empty list, anywhere in the repository. `GatedOption` is defined at
+`ui/widgets.py:3563` and **never constructed.**
+
+Measured in the running app with a CR30 `.ti3` loaded:
+
+```
+gated option registry length : 0
+gate_active for a CR30 ti3   : True
+   _m_fwa_check           enabled=True     <-- should be greyed out
+   _m_illum_combo         enabled=True     <-- should be greyed out
+   _m_obs_combo           enabled=True     <-- should be greyed out
+   user ticked FWA on a CR30 measurement -> True
+   _collect_params -> fwa_enabled = True   <-- neutralise() did not fire either
+```
+
+`workflow/profile_builder.py:346-347` then does
+`args.append("-f" ...)`, so **`colprof -f` is run on a measurement with no
+spectral data.**
+
+### 4.2 What that actually costs — measured with the real ArgyllCMS 3.5.0
+
+Built a genuine colorimetric-only CR30-shaped `.ti3` (125 RGB→XYZ patches, no
+`SPECTRAL_*`, `TARGET_INSTRUMENT "CR30"`) and ran the shipped binary:
+
+```
+colprof -qm       ->  profile written, 104,380 bytes
+colprof -qm -f    ->  Error - Requested spectral interpretation when data not
+                      available          (no profile written)
+```
+
+**It fails loudly, it does not produce a quietly-wrong profile.** That is the
+one piece of good news here and it is why this is SERIOUS and not a BLOCKER: a
+CR30 user who ticks FWA gets a failed build and a raw Argyll error sentence
+instead of the greyed-out control the code intends. Nothing bad is shipped;
+something confusing is.
+
+**CR30-specific? NO — pre-existing, and it is dead on `master` too.** The same
+six lines and the same empty list are in the `master` worktree, so the gate has
+never worked for the **ColorMunki** either, which is the case it was originally
+written for. #159 correctly extended a mechanism that was already inert. It is
+in this report because #159 is the first instrument whose `.ti3` has **no
+spectra at all** — the ColorMunki at least has a spectrum for `-f` to chew on,
+so the dead gate cost it accuracy; for a CR30 it costs a hard failure.
+
+**Fix:** construct the `GatedOption`s. Each needs `widgets=[…]` (the FWA check,
+its illuminant combo, the illuminant combo, the observer combo — Guided *and*
+Manual copies: `_fwa_check`/`_m_fwa_check`, `_illum_combo`/`_m_illum_combo`,
+`_obs_combo`/`_m_obs_combo`, `_fwa_illum_combo`/`_m_fwa_illum_combo`) and a
+`neutralise` that clears `params.fwa_enabled` / `illuminant` / `observer`. Both
+tabs. This is a pre-existing repair #159 makes urgent, not a #159 defect.
+
+### 4.3 What survived cross-tab
+
+* Build Profile and Check & Refine **agree** about the instrument — both read
+  it through the same `ui/ti2_loader` helpers and both return the same
+  `_gate_active()` for the same `.ti3`.
+* An i1Pro measurement with spectra is **not** collaterally gated
+  (`gate_active=False`), so the new `has_spectral` term has not broken the
+  ordinary case.
+* `spectral_options_unavailable` defaults `has_spectral=True`
+  (`ti2_loader.py:159`), so a caller that never looked is judged on the
+  instrument alone — exactly as before #159. No behaviour change for existing
+  callers.
+
+---
+
+## Section 5 — Boundaries, extremes and backward compatibility
+
+### 5.1 Degenerate layouts fail cleanly — no crash, no hang, no silent nonsense
+
+Every case built through the real engine (`chart.build_chart`, CR30, spacers
+off, TIFFs actually rendered):
+
+| case | result |
+|---|---|
+| 1 patch, rectangular | 1 page, 1 TIFF, 11.94 mm cell |
+| 1 patch, hexagonal | 1 page, 1 TIFF |
+| 2 patches, hexagonal | 1 page, 1 TIFF |
+| smallest paper 4×6" (102 × 152 mm) | 1 page, 66/page |
+| 4×6", hexagonal | 1 page, 72/page |
+| 5×7" with a **0 mm** border | 1 page, 126/page |
+| largest paper A2 | 1551/page |
+| A2 hexagonal | 1728/page |
+| **patch 200 mm wide** | `LayoutError: not enough width for even one row` |
+| **patch 400 × 400 mm** | `LayoutError: paper too short: a single pass of patches does not fit (278.0 mm available)` |
+| **border 200 mm (larger than the page)** | `LayoutError: paper too short … (-110.0 mm available)` |
+| 3000 patches | 9 pages, 9 TIFFs |
+| 3000 patches hexagonal | 8 pages, 8 TIFFs |
+
+**Nothing hangs, nothing crashes, and every refusal names a number the user can
+act on.** Multi-page and single-patch both work; hexagons with one row work.
+
+### 5.2 MINOR — a patch smaller than the aperture still builds
+
+```
+patch 3.0 mm  -> OK, 5796 patches/page
+patch 0.1 mm  -> OK, 952,000 patches/page
+```
+The CR30's window is **4 mm**, so a 3 mm patch cannot be read and a 0.1 mm one
+is nonsense. Reachable only from the Manual patch-size boxes, and the ruling I
+was given says there is **no aperture/minimum-patch guard** — so this is
+*intended*.
+
+⚠ **But the design document disagrees with the ruling.**
+`docs/cr30_reports/02-design.md` §11 still ends with:
+
+> ⚠ **Not yet done:** #159 line 483 requires that a patch smaller than the
+> aperture is *refused at layout time, not on paper*. No guard exists.
+
+One of the two is stale. Per the "design specifications are binding" rule in
+CLAUDE.md this is not mine to resolve: **either the ruling supersedes #159 line
+483 and §11 should say so, or the guard is still owed.** Flagged for Basti.
+
+### 5.3 Backward compatibility — no existing chart changes
+
+Built the same 200-patch `.ti1` for **every** non-CR30 instrument × both
+`hflag` states through the branch's engine and hashed each `.ti2`; combined
+with the 5,040-recipe rectangular sweep in §1.3 (0 differences against the
+pre-fix tree) and report 06 §5's proof, **nothing about a non-CR30 chart moves.**
+
+The mechanism is sound rather than accidental:
+* `data/patch_db.py:194` deliberately keeps `CR30` **out** of
+  `EXTERNAL_INSTRUMENTS` (that set also hides members from the Guided combo),
+  and keeps printtarg away by forcing the engine instead.
+* `ui/ti2_loader.py:44-53` adds `"CR30"` to `KNOWN_INSTRUMENTS` and documents
+  in place why that is *not* the same question as "a name ArgyllCMS accepts",
+  with `TabMeasure._blocked_by_stock_chartread_for_cr30`
+  (`ui/tabs/tab_measure.py:4406`) asking the second question separately.
+* `core/settings.py:670` adds only a label; no existing key changes meaning.
+* An old `.ti2` has no `CR30` keyword, so every new code path is keyed off a
+  value old files cannot carry.
+
+**No new deletion path is introduced.** #159 adds no `rmtree`, no `unlink`, and
+no rename over an existing artefact; the run-folder model of `#127` is
+untouched.
+
+### 5.4 MINOR — an `area_first` CR30 chart silently abandons the 12 mm ruling
+
+Proved in §2.3: at 120 patches on A4, `area_first` gives a CR30 **20.07 ×
+17.27 mm** cell — and a SpectroScan the **identical** chart, because in
+`area_first` the patch size is derived from the page and the instrument's own
+cell never enters. `presets.default_recipe` already defends against this by
+defaulting the CR30 to `patch_first` (`presets.py:422-423`) with a good
+explanation. But a Manual user who switches to area-first gets a cell size
+unrelated to the ruled 12 mm, and **nothing says so** — while the hexagon
+tooltip is still quoting figures measured at 12 mm. Worth one sentence in the
+layout-info panel when a CR30 chart is area-first.
