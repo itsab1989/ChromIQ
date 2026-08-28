@@ -72,3 +72,73 @@ which is why the flip was silent.
 Regression: `pytest -k "measure or ti2_loader or cr30 or pace or bidir"`,
 **1099 passed**.
 
+
+## Change A — no stock fallback for a chart stock chartread refuses (F4)
+
+`MeasureParams.stock_reader_cannot_read: bool = False`
+(`workflow/measure_manager.py:190`), set in `TabMeasure._apply_engine_params`
+**before every early return** — it is a property of the chart, not of the
+engine, so the manager needs it whichever reader runs.
+`NOT_A_SETTING["stock_reader_cannot_read"]` added
+(`workflow/measure_settings.py:41`); `tests/test_measure_settings.py`'s drift
+guard is green.
+
+**All three relaunch sites gated**, as A.3 requires:
+
+| site | how |
+|---|---|
+| `_engine_mode_fallback` (`:389`) | `and not self._stock_reader_cannot_read` |
+| `_engine_should_resume_fallback` (`:401`) | the whole `if was_engine:` block |
+| `_engine_should_fall_back` (`:427`) | a new block **above** it that ends the run |
+
+The new block ends on the helper's own exit — `on_finish(code)` — and emits
+`engine_fallback_refused(reason)`. It is placed above the third site rather
+than inside `_engine_should_fall_back` so a refused chart cannot reach *any*
+`_launch_stock`, including a future fourth caller.
+
+**A.4 — the C-side request is in §"Requests for the C side" below.** Meanwhile
+the reason is as informative as Python can make it: `_engine_fatal` is only
+ever set from a typed JSON event, so a helper that dies before emitting one
+left the log saying `(unknown error)` while its own sentence sat one line above
+it, on stderr, as prose (log 8583 vs 8586). `_HELPER_FATAL_RE` captures
+`…chartread: Error - <sentence>` into **`_engine_error_prose`**, and
+`_engine_failure_reason()` prefers `_engine_fatal`, then the prose, then
+`"unknown error"`.
+
+⚠ **It is deliberately a separate field.** `self._engine_fatal is not None` is
+a fallback *trigger* in both `_engine_should_fall_back` and
+`_engine_should_resume_fallback`. Folding captured prose into it would silently
+change when an ordinary i1Pro chart falls back — mavtop's rescue. Pinned by
+`test_prose_capture_never_sets_the_fallback_trigger`.
+
+**A.5 — §M.** `M_CR30_READ_ENDED` / `M-CR30-READ-ENDED`, `approved=False`, in
+`CATALOGUE`, in `AWAITING_APPROVAL`, and defined in §M-PROPOSED of
+`docs/design/unified_measurement_management.md` (both the header list and a
+defining heading) — all in the one commit, as the rule requires.
+Rendered by `TabMeasure._on_engine_fallback_refused`. i18n: the two new keys
+are in all 12 catalogues; `de` carries a real translation (Du-Form), because
+`test_the_catalogue_is_actually_translated_into_german` rejects a placeholder.
+
+**Tests** (`tests/test_engine_fallback.py`, 12 new). Normal: the reported bug —
+one launch, `finished == [1]`, no "ArgyllCMS" sentence. Boundary: exit 0 is
+untouched; a user-stopped run raises no failure message. Error: the resume
+site with a genuinely resumable `.ti3` (`has_any_readings` asserted as the
+premise) still does not relaunch, and its reassurance is never printed.
+Guard against over-reach: `test_an_ordinary_chart_still_falls_back` keeps
+mavtop's i1Pro1 rescue.
+
+**Mutation proved to land.** Removing all three gates fails 5 of the new tests
+and no others; restored, 45 pass. Regression across
+`-k "measure or engine or cr30 or message_catalogue or ti2_loader"`:
+**1392 passed, 23 skipped**.
+
+### Deviation from the change list
+
+**A is not a window.** A.5 says only "the user-facing sentence goes to
+§M-PROPOSED", and the two neighbouring handlers (`_on_engine_fell_back`,
+`_on_engine_fell_back_resumed`) write to the measurement log and flash the
+status bar rather than opening a modal. This one follows them. If Basti wants
+a modal for a run that has *ended* rather than switched readers, the text is
+already a §M `Message` and `_on_engine_fallback_refused` is the single place to
+change. **Listed as open item 1.**
+
