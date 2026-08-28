@@ -1,4 +1,4 @@
-STATUS: in-progress
+STATUS: complete
 
 # 05 — Chart-layout critique for the CR30 (#159)
 
@@ -485,3 +485,291 @@ read `pspa`. Unaffected.
 
 Zero-spacer is also not novel to the engine — the SpectroScan has shipped that
 way since #93 (§2.2). **The ruling is mechanically safe.**
+
+---
+
+## Section 3 — everything else, and why the blockers got through
+
+### 3.1 Correction to §1.4 — the equal-width choice IS deliberate
+
+`tests/test_cr30_registration.py:130-136` pins it explicitly:
+
+```python
+assert sq.pwid / 2 == hexg.pwid / 2, "same clearance around the aperture"
+assert hex_area < sq.pwid * sq.plen, "less paper per patch"
+```
+
+So the equal-width hexagon was chosen and tested, not copied unthinkingly, and
+the Guided tooltip's *"you keep exactly the same room around the aperture"* is
+an accurate description of it. **I withdraw the "inherited rather than chosen"
+half of §1.4.**
+
+What stands is narrower and still worth acting on: because capacity is
+quantised by whole columns, **flat-to-flat 10.200 mm yields the identical 558
+patches on A4 portrait with 3.3 % more clearance than 10.000 mm.** That
+headroom is free and is currently unclaimed. It is a MINOR, not the SERIOUS I
+first graded it.
+
+### 3.2 BLOCKER-adjacent — why the gate is green on a feature that does not work
+
+`tests/test_cr30_registration.py` is thorough about `Geom` **fields** — shape,
+overhang, keyword, spacer on/off/size, preset keys, capacity ordering. Not one
+test renders a CR30 chart or inspects a recorded rect. Meanwhile the whole
+existing hex suite is hard-coded to the SpectroScan:
+
+* `tests/test_layout_raster.py:89` — `default_recipe("SS", "A4", mode="hex")`
+* `tests/test_layout_raster.py:510, 527` — `_hexagon_points`, "SpectroScan hex
+  patches render as hexagons whose top apex pokes above…"
+* `tests/test_hex_overlay_geometry.py:34, 77, 100, 108` — every fixture builds
+  `instruments.build("SS", …)`
+
+That is exactly why 1.1 and 1.2 pass: the assertions that would catch them exist
+and are pointed at the other instrument. **Parametrising those two files over
+`("SS", "CR30")` would have caught both blockers and is the single highest-value
+change in this report after the fixes themselves.**
+
+### 3.3 SERIOUS — Manual resets a CR30 to i1Pro
+
+`ui/tabs/tab_chart.py:5235`, in `_sync_engine_panel_selection`:
+
+```python
+eng = {"3p": "p3"}.get(self._active_instrument_flag(), self._active_instrument_flag())
+if eng not in ("i1", "p3", "CM", "SS"):
+    eng = "i1"
+```
+
+A CR30 is not in the list, so switching Manual on seeds the engine layout panel
+with **i1Pro**. The user picked a CR30 and the panel silently says i1Pro —
+different patch size, different clip-border behaviour, different preset.
+
+### 3.4 SERIOUS — Preferences → Chart Layout opens on i1 for a CR30
+
+`ui/tabs/tab_chart.py:16790`, in `current_layout_combo`, the same missing entry:
+
+```python
+if instr not in ("i1", "p3", "CM", "SS"):
+    instr = "i1"
+```
+
+Its own docstring says the point of this method is *"so Preferences opens on
+what the user is editing, instead of always resetting to i1/A4 (which made a
+preset saved under any other combination look lost)"* — which is precisely what
+now happens to every CR30 preset.
+
+Both 3.3 and 3.4 are one-word fixes and are independent of either decision under
+review; they are CR30 registration gaps.
+
+### 3.5 MINOR — the `~15 %` in the code comment is wrong
+
+`workflow/layout_engine/instruments.py`, CR30 hex comment: *"packs roughly 15 %
+more patches onto the sheet."* Measured through `geometry.patches_per_sheet`:
+**+8.8 %** (A4 portrait), +10.5 % (A4 landscape), +12.5 % (A3 portrait). 15.5 %
+is the infinite-sheet pitch ratio and no real page reaches it, because the
+honeycomb hands back 2·`hxew` = 5.0 mm of width and 2·`hxeh` = 2.9 mm of height.
+
+The two user-facing strings are already right (`layout_options_panel.py:130`
+says 8 %; `tab_chart.py:11835` says ~8 % and quotes a real 532/576 render).
+Only the code comment is wrong — and the SpectroScan's own Guided label
+(`tab_chart.py:11870`, *"packs ~15% more per sheet"*) against its tooltip's
+*"roughly 14%"* has the same disease.
+
+### 3.6 MINOR — an old `CR30|A4|spot` preset becomes unreachable
+
+`LayoutRecipe.mode()` changed from `"spot"` to `"flat"/"hex"`, so
+`preset_key()` moved from `CR30|A4|spot` to `CR30|A4|flat`.
+`PresetStore.get` (`presets.py:471-475`) does a plain dict lookup and falls back
+to `default_recipe` on a miss — no migration. Demonstrated:
+
+```
+saved under CR30|A4|spot; get("CR30","A4","flat") -> patch_w_mm = 0.0
+```
+
+i.e. the saved preset is silently gone. Graded MINOR only because the CR30 has
+never shipped in a beta and no test or on-disk preset in this repo pins the old
+key (checked with a fixed-string grep). If any tester's
+`chromiq-layout-presets.json` has been written during on-screen driving, it
+needs a one-line rename `CR30|<paper>|spot` → `CR30|<paper>|flat` in
+`PresetStore.from_dict`.
+
+### 3.7 MINOR — the "Double density" checkbox carries state across a meaning change
+
+In Guided, one `_dd_check` means "Double density" on CM, "Hexagon patches" on SS
+and now on CR30 (`tab_chart.py:11807-11890`), and its state is persisted as
+`chart_double_density` (`tab_chart.py:17812`). It is force-unchecked only when
+*hidden* (`:11888-11891`), so CM-with-double-density → CR30 arrives with
+**hexagons silently on**. Pre-existing between CM and SS; the CR30 inherits it.
+
+### 3.8 MINOR — a stale comment, and a red test on the branch
+
+* `ui/tiff_preview.py:1496-1499` (`set_no_swipe`) still says *"which a CR30
+  chart's square patches must not get"* — no longer true now that a CR30 chart
+  can be a honeycomb. The **code** is correct (`set_hex_zigzag` is driven by
+  `chart_is_hexagonal`, which now includes CR30); only the comment misleads.
+  `tab_measure.py:4191-4193` carries the same stale sentence.
+* `tests/test_target_instrument_gate.py::test_an_unknown_instrument_name_is_fatal_for_our_fork[CR30]`
+  **fails** at `22f005aa`. It expects `Unrecognised chart target instrument` and
+  gets the newer, better `The chart was made for 'CR30', which ChromIQ reads
+  itself.` Not caused by either decision under review (it belongs with the
+  earlier target-instrument work), but the branch gate is red and a release
+  decision needs a green `--runslow`.
+
+### 3.9 What a CR30 user would expect that neither decision covers
+
+1. **A time estimate on the page, not only in a tooltip.** The Guided and Manual
+   tooltips warn that A4 holds ~500 patches; at the ~1 s/reading figure in
+   `chromiq-cr30-research/INTEGRATION.md:277-279` that is a ~9-minute unbroken
+   sitting. No other instrument needs this because no other instrument is a
+   hand press per patch. The patch-count readout in Create Chart could carry
+   the minutes beside it for a CR30.
+2. **Nothing warns that patch size is the one unmeasured variable.** The
+   tooltips say it well; the *chart* does not. A CR30 sheet built at a
+   below-default patch size is the one case the research repo explicitly calls
+   blocking (`MEASUREMENT.md:483-489`). Whatever the margin inspector does for
+   thresholds today, a CR30-specific floor is not expressible.
+3. **Consistency:** everything else about the CR30 follows the SpectroScan's
+   mental model (same "Patch shape:" label, same flat/hex vocabulary, same
+   preset-key shape). That is right and should be preserved — which is the
+   consistency argument in §1.5 against defaulting the two differently.
+
+---
+
+## Findings, ranked
+
+### BLOCKER
+
+1. **The renderer draws squares for a CR30 hexagonal chart.**
+   `workflow/layout_engine/raster.py:1056` — `ss_hex` is gated on
+   `key == "SS"`. Proven by render at commit `22f005aa`. The user gets
+   10.000 × 8.660 mm rectangles on a page that has already surrendered 5.0 mm of
+   width and 2.9 mm of height to apex/stagger reservation. §1.1
+2. **The recorded patch rects carry no stagger for a CR30.**
+   `workflow/layout_engine/geometry.py:475`. Measured: `patch_rects_px` returns
+   one distinct x per column. Latent today (the raster does not stagger either);
+   **fixing 1 without 2 makes it a live half-patch mis-registration** in the
+   Measure-tab highlight, the margin inspector and `workflow/scanin_target.py`.
+   Must be fixed in the same change as 1. §1.2
+3. **Helper markers are not suppressed on a CR30 honeycomb.**
+   `workflow/layout_engine/geometry.py:669`, `ui/tabs/tab_chart.py:16175`
+   and `:16180`. This is #152 reproduced verbatim for a new instrument. §1.3
+
+### SERIOUS
+
+4. **"Spacer size" is enabled but inert whenever spacers are off**, and the CR30
+   is the first instrument to ship with them off by default, so it is the first
+   where a user meets the dead control out of the box — on the very setting the
+   ruling says must be changeable. `ui/dialogs/layout_options_panel.py:2898`
+   greys only the swatches. §2.3
+5. **Hexagons should not be the CR30 default.** A honeycomb silently disables
+   the scanner/camera tools (Beta opt-in required) and the ruler helper markers,
+   to buy ~45 s on a ~9-minute A4 sheet, and would make the CR30 and the
+   SpectroScan default differently under an identical control and label. §1.5
+6. **An unmeasured ergonomic claim ships as fact** in the Guided tooltip
+   (`ui/tabs/tab_chart.py:11848-11850`, "six sides funnel a round barrel…",
+   "harder to lose your place"), in a dialog that is otherwise scrupulous about
+   saying what has not been measured. §1.6
+7. **The column coordinate zigzags by half a patch width (5.0 mm) on a
+   honeycomb** while its letter sits on a straight line — on the instrument
+   whose entire ergonomics rest on that coordinate. §1.7
+8. **Manual resets a CR30 to i1Pro** — `ui/tabs/tab_chart.py:5235`. §3.3
+9. **Preferences → Chart Layout opens on i1 for a CR30** —
+   `ui/tabs/tab_chart.py:16790`. §3.4
+
+### MINOR
+
+10. The `~15 %` in the CR30 hex code comment is wrong; measured +8.8 % on A4
+    portrait. The SS Guided label/tooltip disagree with each other too. §3.5
+11. Flat-to-flat **10.200 mm gives the identical 558 patches with 3.3 % more
+    aperture clearance** than the coded 10.000 mm on A4 portrait — free
+    headroom, currently unclaimed. §3.1
+12. An old `CR30|A4|spot` preset is unreachable after the mode-key change; no
+    migration in `PresetStore.from_dict`. §3.6
+13. The shared "Double density"/"Hexagon patches" checkbox carries state across
+    a meaning change, so CM→CR30 can arrive with hexagons silently on. §3.7
+14. Stale comments at `ui/tiff_preview.py:1496-1499` and
+    `ui/tabs/tab_measure.py:4191-4193` ("a CR30 chart's square patches"). §3.8
+15. `tests/test_target_instrument_gate.py::…[CR30]` fails at `22f005aa`
+    (unrelated to these decisions, but the branch gate is red). §3.8
+16. **The SpectroScan's "Spacer size" box has never worked** — its geometry
+    hard-codes `pspa=0.0`. Pre-existing; found while verifying that the CR30
+    avoided the same trap. §2.2
+
+---
+
+## What I attacked and could not break
+
+* **`recipe_is_hexagonal` was widened correctly** (`workflow/hex_support.py:104`),
+  and every consumer keyed off it follows for free — the margin inspector's apex
+  correction, the scanin sample cap, the measure overlay, the legacy-sidecar
+  compensation. §1.8
+* **The Measure tab highlights a honeycomb patch as a hexagon**, both the
+  next-to-read ring and the click-to-jump hover outline
+  (`ui/tiff_preview.py:2635`, `:2660-2668`). Given fix 2, patch identification
+  on screen is genuinely solved. §1.7
+* **Nothing downstream rejects `HEXAGON_PATCHES`.** The helper parses it
+  (`native/chartread_helper/chromiq_chartread.c:3819`) and uses it only inside
+  the XY branch (`:1753-1786` under `rmode == 2` at `:1541`), which computes
+  motorised navigation vectors and which a CR30 never enters — `check_mode`
+  puts a spot instrument on `rmode = 0`. **This is the one place that truly
+  assumes motorised positioning, and the CR30 correctly never reaches it.** §1.8
+* **The spacer default is mechanically right.** Real 1.3 mm base in the
+  geometry, off via `spacer_mode="none"` in `default_recipe`, fully turnable on
+  with a live width box. Verified by running `instruments.build`. §2.1
+* **"Always off in Guided" is expressible without a special case that leaks** —
+  `workflow/chart_creator.py:1204` sits inside the CR30 arm and uses the
+  existing `params.is_manual` discriminator. §2.4
+* **Nothing breaks at `pspa == 0`** — every consumer guards zero, `.cht`
+  generation has no spacer dependence, capacity and rendering both verified. §2.5
+* **The equal-width hexagon is a deliberate, tested choice**, and the Guided
+  tooltip describes it accurately (90.7 % vs 78.5 % packing, same clearance,
+  532/576 patches — all three verified). §3.1
+
+---
+
+## Concrete changes
+
+1. `workflow/layout_engine/raster.py:1056` — drop the instrument test:
+   `ss_hex = getattr(geom, "hxew", 0.0) > 0`. Only a hexagonal geometry ever
+   sets `hxew`. (Rename the local off `ss_` while you are there.)
+2. `workflow/layout_engine/geometry.py:475` — the same edit, in the same commit
+   as 1. Its comment already says it is mirroring the renderer's test, so the
+   two must never diverge.
+3. `workflow/layout_engine/geometry.py:669` — the same edit in
+   `helper_marker_lines_mm`.
+4. `ui/tabs/tab_chart.py:16168-16181` — make `_chart_is_hexagonal` delegate to
+   `workflow.hex_support.recipe_is_hexagonal` instead of carrying a second copy
+   of the instrument list. Two copies is how these sites drifted apart.
+5. `ui/dialogs/layout_options_panel.py` — disable `spacer_width` and its
+   label/tooltip row whenever `spacer_mode.currentData() == "none"`, from the
+   handler already wired to `spacer_mode.currentIndexChanged` (`:673`). Benefits
+   every instrument; required for the CR30 ruling to be legible.
+6. `tests/test_hex_overlay_geometry.py` and the hex tests in
+   `tests/test_layout_raster.py` (`:75-110`, `:510`, `:527`) — parametrise over
+   `("SS", "CR30")`. This alone would have caught changes 1 and 2.
+7. `ui/tabs/tab_chart.py:5235` and `:16790` — add `"CR30"` to both instrument
+   tuples.
+8. **Default:** leave `default_recipe("CR30", …)` at `hflag=False` /
+   mode `"flat"`, matching the SpectroScan. Do not promote hexagons to the CR30
+   default until the tolerance-envelope experiment
+   (`chromiq-cr30-research/MEASUREMENT.md:483-489`) has been run.
+9. `ui/tabs/tab_chart.py:11848-11850` — remove or hedge the "six sides funnel a
+   round barrel" / "harder to lose your place" sentences. Everything else in
+   that tooltip is accurate and should stay. If the honeycomb's effect on the
+   column coordinate is worth a word, it is that **rows** stay straight and
+   **columns** step half a patch left and right.
+10. `workflow/layout_engine/instruments.py` — correct the CR30 hex comment from
+    "roughly 15 %" to the measured "+8.8 % on A4 portrait, +12.5 % on A3"; and
+    reconcile `tab_chart.py:11870` ("~15%") with its own tooltip ("roughly 14%")
+    for the SpectroScan.
+11. *(Optional, free)* Consider flat-to-flat **10.200 mm** for the CR30 hexagon:
+    identical 558 patches on A4 portrait, 3.3 % more clearance around the 4 mm
+    aperture. If taken, record it as a deliberate choice next to the existing
+    equal-width assertion in `tests/test_cr30_registration.py:130-136`.
+12. `ui/tiff_preview.py:1496-1499` and `ui/tabs/tab_measure.py:4191-4193` —
+    update the "a CR30 chart's square patches" comments.
+13. `workflow/layout_engine/presets.py`, `PresetStore.from_dict` — rename any
+    `CR30|<paper>|spot` key to `CR30|<paper>|flat` on load, if any tester's
+    preset file has one.
+14. `tests/test_target_instrument_gate.py:89` — update the expectation to the
+    new CR30 message so the branch gate can go green.
+
+STATUS: complete
