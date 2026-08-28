@@ -3607,9 +3607,17 @@ class TabMeasure(QWidget):
 
         instr = None
         randomized = True
-        if self._ti1_path is not None and self._ti1_path.exists():
-            instr = read_target_instrument(self._ti1_path)
-            randomized = is_randomized(self._ti1_path)
+        # Both keywords are written by the LAYOUT stage and live in the .ti2:
+        # TARGET_INSTRUMENT, and printtarg's RANDOM_START. Opening a project
+        # hands this tab run.chart_ti1, where neither exists — so an unresolved
+        # read cost an i1Pro chart its automatic -b (force_bidir_for_instrument
+        # never saw the name) and reported the chart as non-randomised, after
+        # ANY project reopen. Not a CR30 fault; resolve the sibling like every
+        # other reader on this tab.
+        chart = self._chart_file_for(self._ti1_path)
+        if self._ti1_path is not None and chart.exists():
+            instr = read_target_instrument(chart)
+            randomized = is_randomized(chart)
         self._detected_instrument    = instr
         self._detected_disable_bidir = disable_bidir_for_instrument(instr)
         self._detected_force_bidir   = force_bidir_for_instrument(instr)
@@ -4339,7 +4347,10 @@ class TabMeasure(QWidget):
             from ui.ti2_loader import read_target_instrument
             try:
                 if self._ti1_path is not None:
-                    key = model_key(read_target_instrument(self._ti1_path))
+                    # Resolve to the .ti2 — the keyword is not in the .ti1, so a
+                    # reopened project used to fall through to the i1Pro rate.
+                    key = model_key(read_target_instrument(
+                        self._chart_file_for(self._ti1_path)))
             except Exception:      # noqa: BLE001
                 key = None
         hz_default, min_default = defaults_for(key)

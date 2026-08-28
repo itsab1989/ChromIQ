@@ -775,3 +775,63 @@ def test_the_swipe_arrow_stays_off_after_a_project_reopen(qapp, tmp_path) -> Non
     tab._ti1_path = _ti1_with_ti2_sibling(tmp_path / "f", "GretagMacbeth i1 Pro")
     tab._setup_stripe_rects()
     assert seen and seen[-1] is False, "only a CR30 loses its arrow"
+
+
+# ---------------------------------------------------------------------------
+# 13. Change 0.3/0.4 (#159, finding F5): the SAME unresolved read costs an
+#     i1Pro chart its automatic -b. Pre-existing, all instruments, not CR30.
+#
+# TARGET_INSTRUMENT and printtarg's RANDOM_START are both written by the layout
+# stage into the .ti2. Reading them from the .ti1 that a project reopen hands
+# this tab returned None and False: no auto -b (the flag that lets a strip be
+# swiped either way), a wrong "using Argyll's default strip recognition" log
+# line, and the CR30 pace row judged against the i1Pro rate.
+# ---------------------------------------------------------------------------
+
+def test_bidir_autodetect_sees_an_i1pro_through_the_ti1(qapp, tmp_path) -> None:
+    tab, _ = _measure_tab(tmp_path, "chromiq")
+    tab._ti1_path = _ti1_with_ti2_sibling(tmp_path / "c", "GretagMacbeth i1 Pro")
+    tab._refresh_bidir_autodetect()
+    assert tab._detected_instrument == "GretagMacbeth i1 Pro"
+    assert tab._detected_force_bidir is True, \
+        "an i1Pro chart must keep its automatic -b after a project reopen"
+
+
+def test_bidir_autodetect_sees_the_randomisation_through_the_ti1(
+        qapp, tmp_path) -> None:
+    """RANDOM_START is printtarg's, so it is in the .ti2 only. Read from the
+    .ti1 it reported False on a chart that IS randomised."""
+    from ui.ti2_loader import is_randomized
+    tab, _ = _measure_tab(tmp_path, "chromiq")
+    ti1 = _ti1_with_ti2_sibling(tmp_path / "c", "GretagMacbeth i1 Pro")
+    ti2 = ti1.with_suffix(".ti2")
+    ti2.write_text(ti2.read_text(encoding="utf-8").replace(
+        'COLOR_REP "RGB"', 'COLOR_REP "RGB"\nRANDOM_START "17"'), encoding="utf-8")
+    assert is_randomized(ti1) is False and is_randomized(ti2) is True, \
+        "the premise: the keyword is only in the .ti2"
+    tab._ti1_path = ti1
+    tab._refresh_bidir_autodetect()
+    assert tab._detected_randomized is True
+
+
+def test_the_pace_key_follows_the_chart_through_the_ti1(qapp, tmp_path) -> None:
+    """Without a resolved read the CR30 pace row was judged at the i1Pro rate,
+    on a chart that can never produce a strip.
+
+    The discriminator is ``min_samples``: ``defaults_for("cr30")`` is
+    ``(100.0, None)`` -> 0, ``defaults_for("i1pro")`` is ``(100.0, 20)``, and
+    an unresolved read falls through to the i1Pro entry.
+    """
+    from core.measure_pace import defaults_for, model_key
+    assert model_key("CR30") == "cr30", "the premise, from core.measure_pace"
+    assert defaults_for("cr30")[1] is None and defaults_for("i1pro")[1] == 20
+
+    tab, _ = _measure_tab(tmp_path, "chromiq")
+    tab._detected_instrument = None       # -x opens no instrument, so nothing reports one
+    tab._ti1_path = _ti1_with_ti2_sibling(tmp_path / "c", "CR30")
+    assert tab._pace_config().min_samples == 0, \
+        "a CR30 chart must not be held to the i1Pro minimum sample count"
+
+    tab._ti1_path = _ti1_with_ti2_sibling(tmp_path / "f", "GretagMacbeth i1 Pro")
+    assert tab._pace_config().min_samples == 20, \
+        "and an i1Pro chart must still get the i1Pro row"
