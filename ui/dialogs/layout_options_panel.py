@@ -90,7 +90,9 @@ class LayoutOptionsPanel(QWidget):
         if inst == "SS":
             return tr("Patch shape:")
         if inst == "CR30":
-            return tr("Reading:")
+            # The CR30 offers the SpectroScan's shape choice, so the control
+            # says what it does (Basti, 2026-08-28).
+            return tr("Patch shape:")
         return tr("Mode:")
 
     @staticmethod
@@ -125,26 +127,41 @@ class LayoutOptionsPanel(QWidget):
                        "tighter, fitting a few more patches per sheet; "
                        "rectangular is the safe default."))
         if inst == "CR30":
-            return (tr("How the CR30 reads"),
-                    tr("The CR30 has one way of working, so there is nothing to "
-                       "choose here — it is shown so you can see what the chart "
-                       "is being built for. You place the instrument on ONE "
-                       "patch, press the button on the instrument, and ChromIQ "
-                       "records that patch and highlights the next one. There "
-                       "are no strips to sweep and no rail to clip on.\n\n"
-                       "Because of that, the chart is a plain grid of squares "
-                       "with row numbers down the left and column letters "
-                       "along the top, so you can always find the patch "
-                       "ChromIQ is asking for.\n\n"
-                       "PATCH SIZE IS PROVISIONAL. The 10 mm squares are a "
-                       "considered starting point — 2.5 times the CR30's 4 mm "
-                       "aperture, the same ratio the i1Pro uses — but nobody "
-                       "has yet measured how small a CR30 patch can safely be. "
-                       "If you find you are missing patches, make them bigger "
-                       "in Patch size below and tell us what worked.\n\n"
-                       "Plan your time before you print: a full A4 sheet holds "
-                       "around 475 patches at this size, and each one is a "
-                       "hand placement and a button press."))
+            return (tr("Patch shape"),
+                    tr("Rectangular or hexagonal patches — and on a CR30, "
+                       "hexagonal is worth a serious look.\n\n"
+                       "The CR30 is a ROUND instrument: a 33 mm barrel reading "
+                       "through a 4 mm circular window. A round window can "
+                       "never use the corners of a square patch, so on a "
+                       "square grid that paper is simply spent. Hexagons are "
+                       "the tightest way to pack round openings into a sheet — "
+                       "90.7 % of the area is within reach of a circle, "
+                       "against 78.5 % for squares — so you keep exactly the "
+                       "same room around the aperture while each patch uses "
+                       "less paper. Measured on A4 at the standard size: 532 "
+                       "patches rectangular, 576 hexagonal.\n\n"
+                       "The honeycomb also helps you aim. Six sides funnel a "
+                       "round barrel towards the middle of the cell in a way "
+                       "four right angles do not, and the interlocking rows "
+                       "make it harder to lose your place in a large grid.\n\n"
+                       "The shape costs a CR30 nothing to read. It matters "
+                       "only to an instrument that has to travel ALONG a row "
+                       "of patches, and a CR30 never does — you lift it onto "
+                       "one patch, press the button on the instrument, and "
+                       "lift it onto the next.\n\n"
+                       "One cost worth knowing about. The scanner and camera "
+                       "tools turn a honeycomb chart away unless you switch "
+                       "them on for it in Preferences → Beta. If you might "
+                       "ever want to read this chart with a flatbed scanner "
+                       "instead of the CR30, stay on Rectangular.\n\n"
+                       "Either shape is a grid with row numbers down the left "
+                       "and column letters along the top, so you can always "
+                       "find the patch ChromIQ is asking for. Patch size is "
+                       "PROVISIONAL — the 10 mm starting point is 2.5 times "
+                       "the CR30's 4 mm aperture, the same ratio the i1Pro "
+                       "uses — but nobody has yet measured how small a CR30 "
+                       "patch can safely be. Make them bigger in Patch size "
+                       "below if you find yourself missing patches."))
         return (tr("Layout mode"),
                 tr("A per-instrument layout choice that keeps its own saved "
                    "preset."))
@@ -160,7 +177,7 @@ class LayoutOptionsPanel(QWidget):
         if inst == "SS":
             return [("flat", tr("Rectangular")), ("hex", tr("Hexagonal — denser"))]
         if inst == "CR30":
-            return [("spot", tr("One patch at a time"))]
+            return [("flat", tr("Rectangular")), ("hex", tr("Hexagonal — denser"))]
         return [("default", tr("Default"))]
 
     def __init__(self, parent: QWidget | None = None, *,

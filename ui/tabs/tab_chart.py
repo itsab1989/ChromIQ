@@ -3268,14 +3268,24 @@ class TabChart(QWidget):
         reveal_in_file_manager(target)
 
     def _warn_if_hexagonal_selected(self, *_a) -> None:
-        """Heads-up when the user switches the SpectroScan patch shape to
-        Hexagonal: the scanner / camera (CHT) features can't use such a chart
-        (Knut). Fires only on a real hex selection (not while a preset loads),
-        and re-arms once the shape leaves hex so each new pick is flagged."""
+        """Heads-up when the user switches the patch shape to Hexagonal: the
+        scanner / camera (CHT) features can't use such a chart (Knut). Fires
+        only on a real hex selection (not while a preset loads), and re-arms
+        once the shape leaves hex so each new pick is flagged.
+
+        THE CR30 IS INCLUDED, and the reason is worth stating because it is not
+        obvious. A CR30 is not scanned, so it is tempting to think the warning
+        cannot apply — but the thing the scanner tools refuse is the SHAPE, not
+        the instrument. `workflow/scanin_runner.py` reads a printed sheet
+        through a flatbed whatever the chart was laid out for, and a user who
+        lays out a CR30 chart and later decides to read it with a scanner meets
+        exactly the same refusal an SS user meets. Warning at the moment the
+        shape is chosen is the only moment it can still be changed for free.
+        """
         pnl = self._manual_layout_panel
         if pnl is None or pnl.instr is None or pnl.mode is None:
             return
-        is_hex = (pnl.instr.currentData() == "SS"
+        is_hex = (pnl.instr.currentData() in ("SS", "CR30")
                   and pnl.mode.currentData() == "hex")
         if not is_hex:
             self._hex_warned = False
@@ -3290,8 +3300,16 @@ class TabChart(QWidget):
         if hex_scanner_allowed(self._settings):
             return
         from PyQt6.QtWidgets import QMessageBox
-        QMessageBox.information(self, tr("Hexagonal patches — a heads-up"),
-                                hex_scanner_message())
+        body = hex_scanner_message()
+        if pnl.instr.currentData() == "CR30":
+            # The approved text closes by naming the SpectroScan's own control.
+            # That key must not be edited (it is one string in twelve
+            # catalogues), so the CR30's route to the same setting is added as
+            # a separate sentence rather than by rewriting theirs (#159).
+            body += "\n\n" + tr(
+                "On the CR30 the same setting is the “Patch shape” row of the "
+                "layout options: choose “Rectangular” there.")
+        QMessageBox.information(self, tr("Hexagonal patches — a heads-up"), body)
 
     # ------------------------------------------------------------------
     # Guided panel
@@ -11807,6 +11825,45 @@ class TabChart(QWidget):
             )
             self._dd_tooltip._min_width = 600
             self._dd_tooltip.setToolTip(tr("Double Density (-h)\n\nClick for details"))
+        elif instr == "CR30":
+            # Same option, its own numbers and its own reasons (#159, Basti
+            # 2026-08-28). Measured on this branch: A4 patch-first, 532 patches
+            # rectangular against 576 hexagonal.
+            self._dd_check.setVisible(True)
+            self._dd_tooltip.setVisible(True)
+            self._dd_check.setText(
+                tr("Hexagon patches (suits the round CR30, ~8% more per sheet)"))
+            self._dd_tooltip._title = tr("Hexagon Patches (CR30)")
+            self._dd_tooltip._body = tr(
+                "Switches the CR30 chart from rectangular to hexagonal "
+                "patches.\n\n"
+                "The CR30 is a ROUND instrument — a 33 mm barrel reading "
+                "through a 4 mm circular window — and a round window can never "
+                "use the corners of a square patch. Hexagons are the tightest "
+                "way to pack round openings into a sheet (90.7 % of the area "
+                "is within reach of a circle, against 78.5 % for squares), so "
+                "you keep exactly the same room around the aperture while each "
+                "patch uses less paper. Measured on A4 at the standard size: "
+                "532 patches rectangular, 576 hexagonal.\n\n"
+                "The honeycomb also helps you aim: six sides funnel a round "
+                "barrel towards the middle of the cell in a way four right "
+                "angles do not, and the interlocking rows make it harder to "
+                "lose your place in a large grid.\n\n"
+                "No extra hardware, and nothing changes about how you measure. "
+                "The shape only matters to an instrument that has to travel "
+                "along a row of patches, and the CR30 never does: you lift it "
+                "onto one patch, press the button on the instrument, and lift "
+                "it onto the next.\n\n"
+                "One cost worth knowing about. The scanner and camera tools "
+                "turn a honeycomb chart away unless you switch them on for it "
+                "in Preferences → Beta. If you might ever want to read this "
+                "chart with a flatbed scanner instead of the CR30, leave this "
+                "off.\n\n"
+                "Has no effect on i1Pro, i1Pro 3 Plus or ColorMunki — the "
+                "option is hidden when those are selected."
+            )
+            self._dd_tooltip._min_width = 600
+            self._dd_tooltip.setToolTip(tr("Hexagon Patches (CR30)\n\nClick for details"))
         elif instr == "SS":
             self._dd_check.setVisible(True)
             self._dd_tooltip.setVisible(True)

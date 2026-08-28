@@ -1183,16 +1183,27 @@ class ChartCreator:
         elif params.instrument == "SS":
             kw["hflag"] = bool(params.double_density)   # hexagon patches
         elif params.instrument == "CR30":
-            # A CR30 grid takes none of the strip options above: no density
-            # levels, no hexagons, no stagger, no clip border, no edge spacers
-            # (there is no strip to bracket - see the tuple above, which the
-            # CR30 is deliberately not in). Its patch size is fixed by the
-            # geometry branch and must NOT float, so pin patch-first here as
-            # well as in presets.default_recipe: this basics path (Guided, and
-            # Manual without a recipe) never passes layout_mode, and if the
-            # engine default ever flips to area_first the ruled 10 mm patch
-            # would silently become "whatever fills the page" (#159).
+            # A CR30 grid takes no density levels, no stagger, no clip border
+            # and no edge spacers (there is no strip to bracket - see the tuple
+            # above, which the CR30 is deliberately not in). Its patch size is
+            # fixed by the geometry branch and must NOT float, so pin
+            # patch-first here as well as in presets.default_recipe: this
+            # basics path (Guided, and Manual without a recipe) never passes
+            # layout_mode, and if the engine default ever flips to area_first
+            # the ruled 10 mm patch would silently become "whatever fills the
+            # page" (#159).
             kw["layout_mode"] = "patch_first"
+            # Hexagons, from the same checkbox the SpectroScan uses (Basti,
+            # 2026-08-28). Guided relabels it "Hexagon patches" for both.
+            kw["hflag"] = bool(params.double_density)
+            # GUIDED HAS NO SPACERS AT ALL for a CR30 (Basti's ruling). Manual
+            # keeps its own control - `no_spacers` above is the Manual "-n"
+            # checkbox, and a Manual chart with a layout recipe never reaches
+            # this branch at all (see _engine_kwargs). Forced only for Guided so
+            # a Manual user who deliberately turns spacers on still gets them.
+            if not params.is_manual:
+                kw["spacer_on"] = False
+                kw["spacer_mode"] = "none"
         return kw
 
     def _engine_total_patches(self, params: "ChartParams") -> int | None:

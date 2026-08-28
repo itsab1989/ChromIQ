@@ -246,7 +246,10 @@ def build(
     # through the `replace()` below. So a 20 mm hexagon still reserved the 7 mm
     # geometry's 1.75 mm, overhung it by 5 mm, and printed past the margin. Both
     # the Manual patch-size boxes and the area-first grid take this path (#159).
-    if key == "SS" and geom.hxew > 0 and (patch_w or patch_h):
+    # CR30 included (#159): it now offers hexagons too, and a resized CR30
+    # hexagon would otherwise keep the 10 mm geometry's reservation and print
+    # past the margin - the exact bug this block was written for.
+    if key in ("SS", "CR30") and geom.hxew > 0 and (patch_w or patch_h):
         hxeh = plen / 6.0
         hxew = 0.25 * pwid
     row_stagger = 0.0
@@ -542,15 +545,72 @@ def _build_base(
         # hxeh/hxew/clwi = 0 — no hexagons, no stagger, no cut lines.
         # rpstrip/nextrap/dorspace/dopglabel — as every non-DTP branch.
         txhisl = 7.0
+        # HEXAGONS (-h), offered for the CR30 as for the SpectroScan (Basti,
+        # 2026-08-28) - but for a better reason than the SS has. The SS gains
+        # only density. The CR30 is a ROUND instrument (33 mm barrel, 4 mm
+        # circular aperture), and a round aperture can never reach the corners
+        # of a square patch, so on a square grid that paper is spent. Hexagonal
+        # cells are the densest packing of equal circles in a plane: 90.69 % of
+        # the sheet within reach of a circle against 78.54 % for squares
+        # (pi/(2*sqrt(3)) vs pi/4 - computed, not quoted).
+        #
+        # ⚠ SIZING, and the claim it does or does not support. This branch
+        # mirrors the SS one (:461-475) at EQUAL WIDTH ACROSS THE FLATS: the
+        # hexagon is 10 mm wide exactly as the square is, so its inradius is
+        # 5.000 mm - IDENTICAL to the square's - and its area is 86.6 mm²
+        # against the square's 100. Measured on A4, patch-first: 532 patches
+        # rectangular, 576 hexagonal (+8.3 %).
+        #
+        # So at this sizing the honeycomb buys DENSITY at unchanged aperture
+        # clearance, plus whatever the six guiding edges are worth to a hand.
+        # It does NOT buy the "+7.5 % inradius / +12 % clearance" that a
+        # hexagon of EQUAL AREA to the square would (flat-to-flat 10.746 mm,
+        # inradius 5.373 mm) - and that hexagon costs capacity rather than
+        # gaining it: 510 patches per A4, fewer than the square's 532. The two
+        # cannot be had at once, and which one a CR30 wants is a hardware
+        # question nobody has answered. Recorded in
+        # docs/cr30_reports/04-impl-python.md; the switch is the 10.0 below.
+        #
+        # Shape mechanics: a hexagon of the same width is sqrt(0.75) as tall
+        # (the rows interleave), pokes plen/6 past its slot top and bottom and
+        # a quarter of its width past each side. hxeh/hxew reserve exactly
+        # those two overhangs so the honeycomb cannot print past the margin.
+        if hflag:
+            plen = pscale * math.sqrt(0.75) * 10.0
+            hxeh = plen / 6.0
+            hxew = pscale * 0.25 * 10.0
+        else:
+            plen = pscale * 10.0
+            hxeh = hxew = 0.0
+        extra = (("HEXAGON_PATCHES", "True"),) if hflag else ()
+        # SPACERS: a REAL width here, switched OFF by the recipe, not by a zero.
+        #
+        # Basti's ruling (2026-08-28) is that a CR30 chart has no spacers by
+        # default but the user must be able to turn them on. Those are two
+        # different questions and only one of them belongs in the geometry.
+        #
+        # Writing pspa=0.0 here would answer both at once and answer the second
+        # one WRONG: build() only honours the Manual "Spacer size" box when
+        # `geom.pspa > 0` (:218-219), so a zero base makes the spacer
+        # un-turn-on-able as well as absent. The default therefore lives in
+        # presets.default_recipe, which sets spacer_mode="none" for a CR30 -
+        # that feeds spacer_on=False into spacer() below, which returns 0.0. Set
+        # the Spacers control to Coloured or Black & white and the 1.3 mm base
+        # comes back, with its width box live.
+        #
+        # 1.3 mm because that is what the only hardware-proven CR30 read used:
+        # EXP-SPEC-001a was a ColorMunki extra-high sheet, whose branch sets
+        # pspa_e = pscale * 1.3 (:433). It is the evidence base for the size,
+        # not for whether it is on.
         return Geom(
-            key=key, plen=pscale * 10.0, pspa=spacer(1.3), tspa=0.0,
+            key=key, plen=plen, pspa=spacer(1.3), tspa=0.0,
             pwid=pscale * 10.0, rrsp=pscale * 10.0,
             lspa=border + txhisl, lcar=0.0, txhisl=txhisl, pglth=5.0,
-            border=border, lbord=_band, hxeh=0.0, hxew=0.0, clwi=0.0, rlwi=7.5,
+            border=border, lbord=_band, hxeh=hxeh, hxew=hxew, clwi=0.0, rlwi=7.5,
             mxpprow=MAXPPROW, mxrowl=MAXROWLEN, rpstrip=999, nextrap=0,
             dorspace=False, dopglabel=False,
             padlrow=False, target_name=name,
-            has_clip_border=_band > 0,
+            has_clip_border=_band > 0, extra_keywords=extra,
         )
 
     # ---- X-Rite DTP41 ---------------------------------------------------

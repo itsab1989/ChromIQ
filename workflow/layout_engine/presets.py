@@ -171,10 +171,10 @@ class LayoutRecipe:
         if self.instrument == "SS":
             return "hex" if self.hflag else "flat"
         if self.instrument == "CR30":
-            # One mode, and it is NAMED rather than left to the "default"
-            # fallthrough so the preset key reads CR30|A4|spot and says what the
-            # device does: one patch at a time, placed by hand (#159).
-            return "spot"
+            # Same shape vocabulary as the SpectroScan (Basti, 2026-08-28): a
+            # CR30 is placed on each patch by hand and never traverses them, so
+            # a honeycomb costs it nothing and packs ~15 % more per sheet.
+            return "hex" if self.hflag else "flat"
         return "default"
 
     def preset_key(self) -> str:
@@ -421,6 +421,15 @@ def default_recipe(instrument: str = "i1", paper: str = "A4", *, mode: str | Non
     # ruled size and fits as many as the page takes (#159).
     if instrument == "CR30":
         r.layout_mode = "patch_first"
+        # SPACERS OFF BY DEFAULT, but still turnable on (Basti, 2026-08-28).
+        # The default lives HERE and not in the geometry: instruments.py keeps a
+        # real 1.3 mm base width, because build() only honours the Manual
+        # "Spacer size" box while `geom.pspa > 0` (instruments.py:218-219) - a
+        # zero base would make the spacer un-turn-on-able as well as absent.
+        # "none" feeds spacer_on=False into the geometry, which returns 0.0;
+        # setting the Spacers control to Coloured or Black & white brings the
+        # 1.3 mm back with its width box live.
+        r.spacer_mode = "none"
     # ColorMunki / SpectroScan have no physical clip; the notes band is opt-in, so
     # it defaults OFF for every mode (Sebastian). i1/p3 keep "notes" so that when
     # their clip border is on it carries the record strip.
@@ -439,7 +448,7 @@ def default_recipe(instrument: str = "i1", paper: str = "A4", *, mode: str | Non
                 r.margin_top = r.margin_right = r.margin_bottom = r.margin_left = 5.0
                 r.border = 5.0
                 r.patch_area_align = "center-left"
-        elif instrument == "SS":
+        elif instrument in ("SS", "CR30"):
             r.hflag = (mode == "hex")
     return r
 
@@ -513,7 +522,7 @@ class PresetStore:
             modes = (["clip", "noclip"] if inst in ("i1", "p3")
                      else ["freehand", "high", "extrahigh"] if inst == "CM"
                      else ["flat", "hex"] if inst == "SS"
-                     else ["spot"] if inst == "CR30"
+                     else ["flat", "hex"] if inst == "CR30"
                      else ["default"])
             for m in modes:
                 r = default_recipe(inst, "A4", mode=m)
