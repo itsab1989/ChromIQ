@@ -31,15 +31,27 @@ HELPER_C = (Path(__file__).resolve().parent.parent
 #: The stem is written out rather than derived from the runtime line: the C
 #: holds "'%s'" where the runtime line holds a real filename, so deriving it
 #: fails for the wrong reason.
+#:
+#: ⚠ THE SOURCE LINE NUMBERS DRIFT whenever chromiq_chartread.c gains or loses
+#: lines above them, and a drift failure looks exactly like a behavioural
+#: regression. #159 shifted all four by +21 and the failures were reported as
+#: "pre-existing" for a while, which is precisely how a real regression would
+#: hide. If these fail, FIRST check whether the literal simply moved:
+#:
+#:     grep -n "Setting instrument mode failed with error" \
+#:         native/chartread_helper/chromiq_chartread.c
+#:
+#: and prove it is a move by running the same test on master in a separate
+#: worktree before touching anything else.
 HELPER_LINES = {
     "capability":  ("Need reflection spot, strip, xy or chart reading capability,",
-                    "Need reflection spot, strip, xy or chart reading capability", 1022),
+                    "Need reflection spot, strip, xy or chart reading capability", 1043),
     "ccmx_set":    ("Setting Colorimeter Correction Matrix failed with error :'x' (0x1)",
-                    "Setting Colorimeter Correction Matrix failed with error", 1081),
+                    "Setting Colorimeter Correction Matrix failed with error", 1102),
     "ccmx_read":   ("Reading CCMX/CCSS File 'x.ccmx' failed with error 2:'nope'",
-                    "Reading CCMX/CCSS File", 1103),
+                    "Reading CCMX/CCSS File", 1124),
     "mode_set":    ("Setting instrument mode failed with error :'unsupported' (0x2)",
-                    "Setting instrument mode failed with error", 1427),
+                    "Setting instrument mode failed with error", 1448),
     "init_fail":   ("Initialising instrument failed with message 'Communications failure'",
                     None, None),
     "coms_fail":   ("Establishing communications with instrument failed with message 'timeout'",
