@@ -393,3 +393,114 @@ A `"cr30"` row closes it.
 | `workflow/layout_engine/instruments.default_ruler_mm` | `:142-155` | `build()` raises → caught → `0.0`. **Safe and correct** |
 | `core/usb_driver_installer.py` | (WinUSB, Argyll's own devices) | does **not** cover a CH340/CP210x serial bridge. Per the research repo, macOS 15.7.9 needs **no** driver for VID `0x1A86` PID `0x7523` — so this file is out of scope for macOS; Windows is NOT VERIFIED |
 
+
+---
+
+## 9. i18n — the real cost
+
+**13 languages: English source + 12 catalogues** (`data/i18n/*.json`: de, es, fr,
+it, ja, nl, no, pl, pt, ru, sv, zh_CN) **and 12 parameter overlays**
+(`data/i18n/parameters.<code>.yaml`) — counted on disk.
+
+### 9.1 Hard gates in `tests/test_i18n.py`
+| Test | Line | What it demands |
+|---|---|---|
+| `test_catalog_is_complete` | `:78` | every `tr()` key extracted by `scripts/i18n_extract.py` exists in **all 12** JSON catalogues |
+| `test_catalog_has_no_stale_keys` | `:84` | **no catalogue may hold a key that is no longer in the code** |
+| `test_placeholders_match_source` | `:90` | `{name}` placeholders must survive translation |
+| `test_short_labels_stay_compact` | `:96` | a ≤24-char English string may not translate to >1.6× + 6 chars |
+| `test_parameters_overlay_covers_every_parameter` | `:124` | for every `parameters.yaml` entry, each overlay must have `name`, `tooltip_title`, `tooltip_body` and **`len(labels)` equal to the source's** (`:139-140`) |
+
+**English placeholders satisfy all five** (the key must exist; its value is not
+checked against English), so the beta policy is workable.
+
+### 9.2 The costed list
+1. **`data/parameters.yaml:626-632`** — one new `choices` entry + one new
+   `labels` entry ⇒ **12 mandatory overlay edits**, one label each, or
+   `test_parameters_overlay_covers_every_parameter` fails **12 times**.
+2. **`ui/tabs/tab_chart.py:3416-3434`** — the Guided instrument tooltip is a
+   **single ~1,200-character `tr()` key**. Adding a CR30 bullet **changes the
+   key**, so the old key goes stale in all 12 catalogues
+   (`test_catalog_has_no_stale_keys` fails ×12) and the new one is missing
+   (`test_catalog_is_complete` fails ×12). **24 test failures from one bullet.**
+   Same shape, smaller, for `data/parameters.yaml:639-663`'s `tooltip_body`
+   (presence-checked only, so it fails nothing — but ships stale text).
+3. **New per-instrument branches**, each one or two new `tr()` keys:
+   `layout_options_panel.mode_label_for` / `mode_tooltip_for` / `modes_for`
+   (`:81-138`), `settings_dialog` pace `labels` (`:1700-1707`), and the four
+   `ui/ti2_loader.py` instruction texts (`:125`, `:157`, `:178`, `:202`).
+4. **Every §M message** (see §10) is a `tr()` string in
+   `workflow/measurement_messages.py` and reaches the catalogues via
+   `tests/test_i18n.py:191` (`test_the_message_catalogue_reaches_the_translations`).
+
+**Rough total for a minimal registration: ~8-14 new `tr()` keys + 1 changed key
++ 12 overlay label lines** ⇒ 12 × (~9-15) JSON entries. `python
+scripts/i18n_extract.py --missing <code>` lists them per language.
+
+---
+
+## 10. Design specifications — which ones bind this work
+
+`CLAUDE.md` makes `docs/design/` binding, with two obligations: read before
+changing, and **report** (do not silently fix) a fault that contradicts a spec.
+
+| Spec | Binds because | What it forces |
+|---|---|---|
+| `unified_measurement_management.md` | §M is the message catalogue for **every** measurement window | any new CR30 wording goes to **§M-PROPOSED first** (heading at `:928`) |
+| `measurement_exit_strategy.md` | `:132-140` already tabulates strip vs **patch-by-patch** differences | a CR30 read is a patch-by-patch read — the exits are already specified and must not be re-invented |
+| `per_target_settings.md` | `:495` (Q1) rules chart instrument/paper **per target**; `:293` (N-6) rules calibration seeding | §7 above |
+| `measurement_window_sounds.md` | which sound each measurement window plays | a spot read's cue is already defined by patch-by-patch mode |
+| `tool_availability.md` (**DRAFT**) | `:93` lists `spot_read` as always available | a CR30 entry in the Tools matrix would need Knut/Basti sign-off; the doc is not confirmed |
+| `calibration_run_type.md` | only if a CR30 calibration run type is proposed | out of scope for a beta |
+| `verification_printing_and_target.md` (**DRAFT**) | only if CR30 verification charts are in scope | out of scope for a beta |
+
+### 10.1 How `tests/test_message_catalogue.py` enforces §M-PROPOSED — VERIFIED
+Reading the test end to end:
+- `_spec_messages()` (`:38-52`) parses `## M. The message catalogue` out of
+  `docs/design/unified_measurement_management.md` up to `### M-x.`
+- `test_every_message_in_the_document_exists_in_the_code` (`:60`) — every §M ID
+  must exist in `measurement_messages.CATALOGUE`
+- `test_every_headline_is_the_documents_headline` (`:70`) — **word for word**
+  for any message marked `approved`
+- `test_proposed_messages_are_marked_as_such_in_the_document` (`:81`) — every ID
+  in `M.PROPOSED` must have a `### <ID> ·` heading whose first 300 chars contain
+  `PROPOSED`
+- `test_nothing_is_quietly_proposed` (`:171`) —
+  `assert set(M.PROPOSED) == AWAITING_APPROVAL`, the hand-maintained set at
+  `:97-167`
+- `test_an_approved_message_is_not_still_headed_proposed` (`:187`) — the reverse
+
+**So the exact procedure for one new CR30 window, in ONE commit:** write the
+message under `## M-PROPOSED.` (`unified_measurement_management.md:928`) with
+`### M-CR30-… · PROPOSED ·` and a `> **headline**` line; add it to
+`workflow/measurement_messages.CATALOGUE` with `approved=False`; add its ID to
+`AWAITING_APPROVAL` in `tests/test_message_catalogue.py`. Miss any one and the
+suite fails.
+
+### 10.2 What must NOT go into a spec
+`CLAUDE.md`, quoting Knut 2026-08-08: only **human-confirmed** behaviour is
+written into a specification. Anything CR30 that this branch verifies goes into
+an `⏳ Awaiting confirmation` section with `**Confirmed by:** *nobody yet.*`;
+`tests/test_design_specs_are_binding.py` fails a "Confirmed" section that names
+nobody. **#159's own header says it too**: *"Nobody here has the device.
+Nothing about the CR30 is hardware-verified."*
+
+---
+
+## 11. Where a spot-only device breaks a strip assumption
+
+| Assumption | Where | What breaks | Severity |
+|---|---|---|---|
+| **A strip has a length cap (ruler/jig)** | `instruments.py:135` `ruler_mm`, `:386`, `:492`, `:507` | none — `ColorMunki`/`SpectroScan` already set `0.0` and the code handles it (`default_ruler_mm` `:142-155`, `margin_inspector:300-306`) | **none** |
+| **A strip needs a white lead-in and trailer** | `instruments.py` `lcar`/`lspa`/`tspa` on every branch | wasted paper: the CM branch reserves `lcar=20`, `tspa=25` (`:447-451`) for a swipe that never happens. Fewer patches per sheet than the device could take | **cosmetic/efficiency** |
+| **A strip needs a clip border** | `instruments.py:385` (i1/p3 `has_clip_border=True` unconditionally) vs `:452` (CM, conditional) | none if the CR30 copies the **CM** branch | **none** |
+| **Reading is a swipe with a pace** | `core/measure_pace.py`, `ui/tabs/tab_measure.py:9862` | **inert in spot mode** — `_report_strip_pace` is wired only to `strip_measured` (`tab_measure.py:1022`). The i1Pro fallback in `_pace_config` (`:4340`) would bite only in strip mode | **latent** |
+| **Reading is bidirectional** | `ui/ti2_loader.py:234-265` `disable_bidir_for_instrument` / `force_bidir_for_instrument`; `measure_manager.py:892-896` `-B`/`-b` | a CR30 must land on "disable" like the SpectroScan (`is_spectroscan` `:69-76`, its docstring says the bidi concept does not apply) | **must be handled** |
+| **A swipe arrow is drawn on the preview** | `ui/tabs/tab_measure.py:535-586`, `ui/tiff_preview.py:1672-1691` | cosmetic; the SpectroScan already hides it (`tab_measure.py:4186-4190`) | **cosmetic** |
+| **Strips are the unit of progress** | `measure_manager.py` `strip_ready`/`strip_read`/`all_stripes_done` | already solved: `spot_ready`/`patch_read` and the `_saw_spot_ready` completion logic (`measure_manager.py:1147-1160`) | **none** |
+| **Per-strip autosave** | `saved` event (`c:494`), `read_patches` count | spot mode reuses the same autosave; **verify the cadence is per patch, not per strip** — a 300-patch, 10-minute session must not risk 299 readings. NOT VERIFIED | **must check** |
+| **Instruments come from Argyll** | `measure_manager._build_args:891` `-c <port>` | a CR30 is not an Argyll device at all → §4.3's three seams | **the central design question** |
+| **A chart is read once, in strip order** | `spot_ready` navigation (`forward`/`back`/`next_unread`/`goto`) | already right for spot | **none** |
+| **Spectral data is 380-730 nm / 36 bands** | `ui/ti2_loader.has_spectral_data:287`, `SPECTRAL_BANDS` regex `:27`; `chromiq_chartread.c:372-394` writes `SPECTRAL_BANDS`/`_START_NM`/`_END_NM` from the instrument | a 31-band 400-700 `.ti3` is legal CGATS, but every Tool that assumes a band count is a risk (#159 §10) — **NOT VERIFIED, needs its own sweep** | **unknown** |
+| **`colprof -f` (FWA) needs a non-UV-filtered instrument** | `ui/tabs/tab_check_refine.py:248`, `ui/tabs/tab_profile.py:4095` — gated on `is_colormunki` | a blue-pump white LED does not excite OBAs either; a CR30 must be gated the **same way as a ColorMunki** or FWA is offered when it cannot work | **must be handled** |
+
