@@ -104,6 +104,18 @@ _ARGYLL_NOT_FOUND_MSG = (
 )
 
 
+def _mix_hex(a: str, b: str, t: float) -> str:
+    """Blend two #rrggbb colours, *t* = share of *a*. Used for the "locked on"
+    checkbox fill: a muted version of the tab accent that still reads as a tick
+    against the disabled background."""
+    def _c(h):
+        h = h.lstrip("#")
+        return [int(h[i:i + 2], 16) for i in (0, 2, 4)]
+    ca, cb = _c(a), _c(b)
+    return "#" + "".join(f"{round(x * t + y * (1 - t)):02x}"
+                         for x, y in zip(ca, cb))
+
+
 def _darken_for_light_log(hex_color: str) -> str:
     """Return a tab accent darkened for readable log text on the light-mode
     log background. Preserves hue, reduces lightness, and tames very
@@ -695,6 +707,9 @@ class MainWindow(QMainWindow):
             # Greyed checkbox/radio indicator — matches light_styles disabled rule
             disabled_ind_bg      = "#eeece8"   # LM_BG_WINDOW
             disabled_ind_border  = "#d0ccc6"   # LM_BORDER
+            # A box that is disabled BECAUSE it is forced on: muted accent, so
+            # the tick still reads while the control stays obviously inactive.
+            locked_on_bg         = _mix_hex(color, "#eeece8", 0.45)
             # Big "Calculated Patches" number anchors to the masthead
             # "Chrom" wordmark colour, not the tab's spectrum accent, so
             # it reads as a text anchor rather than a per-tab tint.
@@ -713,6 +728,7 @@ class MainWindow(QMainWindow):
             # Greyed checkbox/radio indicator — matches styles.py disabled rule
             disabled_ind_bg      = "#1f1f1f"
             disabled_ind_border  = "#3a3a3a"
+            locked_on_bg         = _mix_hex(color, "#1f1f1f", 0.45)
             patch_count_color    = "#ffffff"   # _PALETTE_DARK["wordmark"]
             log_color            = color
 
@@ -744,6 +760,18 @@ class MainWindow(QMainWindow):
                 QCheckBox::indicator:checked:disabled {{
                     background: {disabled_ind_bg};
                     border-color: {disabled_ind_border};
+                }}
+                /* …EXCEPT when the box is disabled BECAUSE it is forced on.
+                   The rule above makes a ticked-and-disabled box look
+                   identical to an unticked one, which is right for "this whole
+                   group is off" and wrong for "this is on and not yours to
+                   change": the user then cannot see the mode they are actually
+                   in (Basti, 2026-08-28, on the CR30 patch-by-patch lock).
+                   #locked_on keeps a muted accent fill so the tick still
+                   reads, while staying obviously inactive. */
+                QCheckBox#locked_on::indicator:checked:disabled {{
+                    background: {locked_on_bg};
+                    border-color: {color};
                 }}
                 QRadioButton::indicator:checked {{
                     background: {color};

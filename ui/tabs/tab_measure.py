@@ -1426,6 +1426,23 @@ class TabMeasure(QWidget):
                 try:
                     cb.setChecked(True)
                     cb.setEnabled(False)
+                    # A DISABLED CHECKBOX NORMALLY RENDERS AS UNCHECKED HERE.
+                    # Both themes deliberately override the checked fill when a
+                    # box is disabled (main_window.py's
+                    # `QCheckBox::indicator:checked:disabled`, light_styles.py's
+                    # `QCheckBox::indicator:disabled`) — correct for "this whole
+                    # group is off", wrong for "this is on and not yours to
+                    # change": the row then reads as switched OFF while the
+                    # measurement is patch-by-patch (Basti saw exactly that,
+                    # 2026-08-28). `#locked_on` keeps a muted accent fill so the
+                    # tick still reads while the control stays obviously
+                    # inactive.
+                    cb.setObjectName("locked_on")
+                    # objectName is part of the selector, so the box has to be
+                    # re-polished for the new rule to take effect on a widget
+                    # that already exists.
+                    cb.style().unpolish(cb)
+                    cb.style().polish(cb)
                     # The literal lives HERE, inside tr(), on purpose: tr() with
                     # a variable is invisible to scripts/i18n_extract.py, so the
                     # string would never reach a catalogue (the same note
@@ -1448,6 +1465,12 @@ class TabMeasure(QWidget):
                 try:
                     cb.setChecked(bool(was))
                     cb.setEnabled(True)
+                    # Drop the locked look with the lock. Left on, the box would
+                    # read as "forced on" the next time it is disabled for some
+                    # entirely different reason.
+                    cb.setObjectName("")
+                    cb.style().unpolish(cb)
+                    cb.style().polish(cb)
                     cb.setToolTip(tip)
                 finally:
                     cb.blockSignals(False)
@@ -5627,11 +5650,18 @@ class TabMeasure(QWidget):
 
         self._manager.set_guided_strips(self._strip_list if guided else [])
 
+        # One window per measurement, and this run has not shown it yet (#159).
+        self._cr30_how_shown = False
         self._manager.start(
             params,
             on_line=self._on_log_line,
             on_finish=self._on_measure_done,
         )
+        if params.external_values:
+            # ChromIQ supplies the readings, so no instrument is opened and
+            # `calibration_done` — the only route to the "how to measure"
+            # window — can never arrive. Say it here instead (F9).
+            self._show_cr30_measuring_window()
         # SAY WHEN THE INSTRUMENT IS NOT BEING CALIBRATED.
         #
         # Skipping the initial calibration changes every reading that follows,
@@ -6761,6 +6791,54 @@ class TabMeasure(QWidget):
             tr("Your measured strips are safe — continuing on ArgyllCMS "
                "chartread from where you left off."),
             duration_ms=8000)
+
+    def _show_cr30_measuring_window(self) -> None:
+        """The "how to measure" window for a reader ChromIQ drives itself (#159).
+
+        Every other instrument gets this through `calibration_done` —
+        `_on_calibration_done` is the ONLY route to
+        `patch_measurement_instructions_html`. Under `-x` the helper opens no
+        instrument and `cq_handle_calibrate` is inside `if (xtern == 0)`, so
+        that signal cannot fire and a CR30 user was given a spot session with
+        no on-screen instruction at all (finding F9).
+
+        Modeless, and shown once per measurement: the reading is driven by the
+        instrument's own button, so a modal would sit between the user and the
+        preview they are meant to be watching.
+        """
+        if getattr(self, "_cr30_how_shown", False):
+            return
+        self._cr30_how_shown = True
+        from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout
+
+        from ui.ti2_loader import patch_measurement_instructions_html
+        from workflow import measurement_messages as M
+
+        title, body = M.M_CR30_HOW_TO_MEASURE.render(
+            how=patch_measurement_instructions_html("cr30"))
+        dlg = QDialog(self)
+        dlg.setWindowTitle(title)
+        dlg.setMinimumWidth(520)
+        lay = QVBoxLayout(dlg)
+        lay.setSpacing(14)
+        lay.setContentsMargins(24, 20, 24, 20)
+        # The §M body is plain text with {how} carrying HTML, so the paragraph
+        # breaks are turned into markup here rather than in the catalogue —
+        # a message constant must never hold layout (feedback: no Markdown in
+        # message strings).
+        msg = QLabel(body.replace("\n\n", "<br><br>"), dlg)
+        msg.setTextFormat(Qt.TextFormat.RichText)
+        msg.setWordWrap(True)
+        lay.addWidget(msg)
+        box = QDialogButtonBox()
+        ok = box.addButton(tr("Start measuring"),
+                           QDialogButtonBox.ButtonRole.AcceptRole)
+        ok.setObjectName("primary")
+        box.accepted.connect(dlg.accept)
+        lay.addWidget(box)
+        dlg.setModal(False)
+        dlg.show()
+        self._cr30_how_dlg = dlg          # keep it referenced, or it is collected
 
     def _on_engine_fallback_refused(self, reason: str) -> None:
         """The read failed and there is no reader to fall back to (#159).
@@ -11375,7 +11453,7 @@ class TabMeasure(QWidget):
         """Attach the chart-reading engine when selected and usable."""
         # Set BEFORE every early return: this is a property of the chart, not
         # of the engine, and the manager needs it whichever reader runs (#159).
-        p.stock_reader_cannot_read = self._chart_is_cr30()
+        p.stock_reader_cannot_read = p.external_values = self._chart_is_cr30()
         if not self._engine_selected():
             return p
         from workflow import chartread_engine

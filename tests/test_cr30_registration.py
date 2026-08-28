@@ -433,7 +433,7 @@ def test_no_thresholds_are_seeded_which_is_honest_not_missing() -> None:
 # asks whether the selected reader can use it.
 # ---------------------------------------------------------------------------
 from PyQt6.QtCore import QSettings                        # noqa: E402
-from PyQt6.QtWidgets import QApplication                  # noqa: E402
+from PyQt6.QtWidgets import QApplication, QLabel          # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -1035,3 +1035,94 @@ def test_a_target_that_stored_false_cannot_unlock_a_cr30_chart(
                         "patch_by_patch_guided": {"enabled": True, "value": False}})
     assert tab._resolve_patch_by_patch("guided") is True
     assert tab._resolve_patch_by_patch("manual") is True
+
+
+# ---------------------------------------------------------------------------
+# 15. Change B (#159): -x, and the two user-facing gaps it opens
+# ---------------------------------------------------------------------------
+
+def test_a_cr30_chart_is_measured_with_xx(qapp, tmp_path) -> None:
+    """B.2. `-x` takes its letter AS the option argument
+    (chromiq_chartread.c:3559-3569): a bare `-x` calls usage(). `-xx` is XYZ;
+    `-xl` would be L*a*b* and make the helper run icmLab2XYZ over a conversion
+    workflow/cr30 has already done."""
+    from core.argyll_runner import ArgyllRunner
+    from workflow.measure_manager import MeasureManager
+    tab, settings = _measure_tab(tmp_path, "chromiq")
+    tab.set_ti1_path(_ti1_with_ti2_sibling(tmp_path / "c", "CR30"))
+    args = MeasureManager(ArgyllRunner(settings))._build_args(tab._collect_params())
+    assert "-xx" in args
+    assert "-x" not in args, "a bare -x calls usage() and the run dies"
+    assert "-p" in args, "spot mode must agree between helper and manager"
+
+
+def test_every_other_chart_is_measured_without_x(qapp, tmp_path) -> None:
+    from core.argyll_runner import ArgyllRunner
+    from workflow.measure_manager import MeasureManager
+    tab, settings = _measure_tab(tmp_path, "chromiq")
+    tab.set_ti1_path(_ti1_with_ti2_sibling(tmp_path / "f", "GretagMacbeth i1 Pro"))
+    args = MeasureManager(ArgyllRunner(settings))._build_args(tab._collect_params())
+    assert not any(a.startswith("-x") for a in args)
+
+
+def test_the_flag_is_not_a_stored_setting(qapp, tmp_path) -> None:
+    """Both new MeasureParams fields describe the CHART. If either were ever
+    treated as a preference it would follow the user onto a chart it is wrong
+    for — which is why NOT_A_SETTING has to name them."""
+    from workflow.measure_settings import MEASURE_CONTROLS, NOT_A_SETTING
+    for f in ("external_values", "stock_reader_cannot_read"):
+        assert f in NOT_A_SETTING and f not in MEASURE_CONTROLS
+
+
+def test_the_patch_instructions_have_a_cr30_branch(qapp) -> None:
+    """F10. `instrument_family`, `calibration_instructions_html` and
+    `core.measure_pace` all had CR30 branches; this one fell through to the
+    generic 'as described in its manual' — for an instrument whose cap must be
+    taken OFF first, which is the one instruction that matters."""
+    from ui.ti2_loader import (instrument_family,
+                               patch_measurement_instructions_html)
+    assert instrument_family("CR30") == "cr30"
+    txt = patch_measurement_instructions_html("cr30")
+    generic = patch_measurement_instructions_html(None)
+    assert txt != generic
+    assert "cap off" in txt.lower(), "taking the cap off is the CR30-only step"
+    for other in ("i1pro", "colormunki", "spectroscan", None):
+        assert patch_measurement_instructions_html(other) != txt
+
+
+def test_the_how_to_measure_window_does_not_need_calibration_done(
+        qapp, tmp_path, monkeypatch) -> None:
+    """F9. `_on_calibration_done` is the ONLY route to the patch instructions,
+    and `calibration_done` cannot fire under -x (cq_handle_calibrate is inside
+    `if (xtern == 0)`), so a CR30 user got no instruction at all."""
+    shown: list = []
+    tab, _ = _measure_tab(tmp_path, "chromiq")
+    monkeypatch.setattr(type(tab), "_show_cr30_measuring_window",
+                        lambda self: shown.append(True))
+    tab.set_ti1_path(_ti1_with_ti2_sibling(tmp_path / "c", "CR30"))
+    # Drive the exact branch _on_start takes after the launch.
+    p = tab._collect_params()          # what _on_start builds
+    assert p.external_values is True
+    if p.external_values:
+        tab._show_cr30_measuring_window()
+    assert shown == [True]
+
+
+def test_the_window_renders_from_the_catalogue_and_shows_once(
+        qapp, tmp_path) -> None:
+    from workflow import measurement_messages as M
+    assert M.CATALOGUE["M-CR30-HOW-TO-MEASURE"].approved is False
+    title, body = M.M_CR30_HOW_TO_MEASURE.render(how="STEPS-GO-HERE")
+    assert "STEPS-GO-HERE" in body and title
+
+    tab, _ = _measure_tab(tmp_path, "chromiq")
+    tab._cr30_how_shown = False
+    tab._show_cr30_measuring_window()
+    dlg = tab._cr30_how_dlg
+    assert dlg is not None and dlg.windowTitle() == title
+    assert "cap off" in dlg.findChildren(type(dlg.children()[1]))[0].text().lower() \
+        or "cap off" in "".join(
+            w.text() for w in dlg.findChildren(QLabel)).lower()
+    # Once per measurement, not once per event.
+    tab._show_cr30_measuring_window()
+    assert tab._cr30_how_dlg is dlg

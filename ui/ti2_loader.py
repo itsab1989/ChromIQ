@@ -300,6 +300,17 @@ def patch_measurement_instructions_html(family: "str | None") -> str:
             "with the aperture fully inside it, and <b>press the side button "
             "once</b>. Hold it still until the reading is taken — there is no "
             "sliding in this mode.")
+    if family == "cr30":
+        return tr(
+            "Take the <b>magnetic cap off</b> the measuring end first — with "
+            "the cap on, the CR30 reads its own white tile instead of your "
+            "print.<br><br>Rest the instrument flat on the highlighted patch "
+            "with the aperture fully inside it, hold it still, and <b>press "
+            "the button on the instrument</b>. ChromIQ collects the reading by "
+            "itself and moves on to the next patch — there is nothing to press "
+            "on screen, and there is no sliding in this mode.<br><br>"
+            "A CR30 chart is always read one patch at a time; the instrument "
+            "has no strip reading to offer.")
     if family == "i1pro":
         return tr(
             "Take the i1Pro off its base. Place it flat on the highlighted "

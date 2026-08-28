@@ -202,6 +202,12 @@ class MeasureParams:
     #: already had. Set by the tab from the CHART, never from a preference or a
     #: connected device — see `TabMeasure._chart_is_cr30`.
     stock_reader_cannot_read: bool = False
+    #: ChromIQ supplies the readings itself over its own transport, so the
+    #: helper opens NO instrument and takes its values from the JSON command
+    #: channel (#159, the CR30). Sent as `-xx` — XYZ, because `workflow/cr30`
+    #: produces XYZ and `-xl` would make the helper run icmLab2XYZ over a
+    #: conversion ChromIQ had already done.
+    external_values: bool = False
 
 
 class MeasureManager(QObject):
@@ -958,6 +964,17 @@ class MeasureManager(QObject):
         # forms side by side (#130, 2026-07-31): the only difference is a short
         # header, and "Instrument Type:" is the same line spotread prints.
         args: list[str] = ["-v", "-c", p.instrument]
+        if p.external_values:
+            # NEVER a bare `-x`: the letter IS the option's argument
+            # (chromiq_chartread.c:3559-3569), and `na == NULL` calls usage().
+            # `-xx` is XYZ; `-xl` would be L*a*b* and a double conversion.
+            #
+            # -c, -N, -B/-b and -T all become inert under it — new_icompaths is
+            # skipped entirely and calibration lives inside `if (xtern == 0)` —
+            # and they are left in place rather than stripped, because removing
+            # a flag the helper ignores would only make this list disagree with
+            # every other reader of MeasureParams.
+            args.append("-xx")
         # -B (disable) and -b (force enable) are mutually exclusive; -B wins
         # if both are somehow set.
         if p.disable_bidir:

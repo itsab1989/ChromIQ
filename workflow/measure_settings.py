@@ -39,6 +39,8 @@ NOT_A_SETTING = {
     "force_bidir":   "derived from the bidirectional choice below",
     "stock_reader_cannot_read": ("a property of the chart, not a preference — "
                                  "read from TARGET_INSTRUMENT at Start (#159)"),
+    "external_values": ("a property of the chart, not a preference — ChromIQ "
+                        "reads a CR30 itself and supplies the values (#159)"),
 }
 
 #: setting key -> the manual-mode attribute on the tab that holds it.

@@ -178,7 +178,13 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # stock chartread refuses a CR30 chart. The
                                  # other two fallback messages promise a rescue
                                  # that cannot happen here.
-                                 "M-CR30-READ-ENDED"}
+                                 "M-CR30-READ-ENDED",
+                                 # #159, 2026-08-28: under -x the helper opens
+                                 # no instrument, so `calibration_done` -- the
+                                 # only route to the "how to measure" window --
+                                 # can never fire, and a CR30 user got a spot
+                                 # session with no instruction at all.
+                                 "M-CR30-HOW-TO-MEASURE"}
 
 
 def test_nothing_is_quietly_proposed():

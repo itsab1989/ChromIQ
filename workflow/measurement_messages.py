@@ -110,6 +110,29 @@ M_CR30_READ_ENDED = _m(
     approved=False)
 
 
+# --- PROPOSED: how to measure, for a reader ChromIQ drives itself ---------
+#: #159. Every other instrument reaches its "how to measure" window through
+#: `calibration_done` (`tab_measure._on_calibration_done`), which is the ONLY
+#: route to `patch_measurement_instructions_html`. Under `-x` the helper opens
+#: no instrument, `cq_handle_calibrate` is inside `if (xtern == 0)`, and that
+#: signal can never fire — so a CR30 user was given a spot session with no
+#: on-screen instruction at all. This window replaces it, and it says the two
+#: things a CR30 user needs that no other instrument's user does: take the cap
+#: OFF, and nothing on screen has to be pressed. {how} is the instrument's own
+#: steps from `ui.ti2_loader.patch_measurement_instructions_html`.
+M_CR30_HOW_TO_MEASURE = _m(
+    "M-CR30-HOW-TO-MEASURE",
+    "Ready to measure, patch by patch",
+    "ChromIQ reads your CR30 itself, so the measurement is driven from here "
+    "rather than by ArgyllCMS.\n\n"
+    "{how}\n\n"
+    "The patch to read is highlighted in the preview, and the highlight moves "
+    "on by itself as each reading arrives. You can click any patch in the "
+    "preview to jump to it, and ChromIQ keeps every reading as it is taken, so "
+    "you can stop and continue later without losing anything.",
+    approved=False)
+
+
 # ---------------------------------------------------------------------------
 # §5 — starting a measurement over an existing one
 # ---------------------------------------------------------------------------
@@ -970,6 +993,7 @@ CATALOGUE = {m.id: m for m in (
     M_PROJECT_REPLACE_FAILED,
     M_CR30_STOCK_READER,
     M_CR30_READ_ENDED,
+    M_CR30_HOW_TO_MEASURE,
 )}
 
 #: Paragraphs appended to another message rather than shown on their own.

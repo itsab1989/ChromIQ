@@ -333,6 +333,17 @@ QCheckBox::indicator:disabled {{
     background: {LM_BG_WINDOW};
     border-color: {LM_BORDER};
 }}
+/* …EXCEPT when the box is disabled BECAUSE it is forced on. The rule above
+   makes a ticked-and-disabled box look identical to an unticked one — right
+   for "this whole group is off", wrong for "this is on and not yours to
+   change", where the user then cannot see the mode they are actually in
+   (Basti, 2026-08-28, on the CR30 patch-by-patch lock). The tab accent is not
+   known here, so this uses a neutral mid tone that reads as a tick in the
+   light theme; the dark sheet in main_window.py tints its own with the accent. */
+QCheckBox#locked_on::indicator:checked:disabled {{
+    background: {LM_TEXT_FAINT};
+    border-color: {LM_BORDER_HI};
+}}
 QRadioButton {{
     spacing: 6px;
 }}
