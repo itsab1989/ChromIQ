@@ -38,6 +38,11 @@ def _write_session_banner(path) -> None:
 def configure_logging() -> None:
     root = logging.getLogger()
     if root.handlers:
+        # STILL QUIET THEM. Pillow imports (and logs) long before this is first
+        # called in some entry points, so a handler can already be installed —
+        # and the early return then skipped the one line that keeps a user's
+        # log readable.
+        _quiet_third_party()
         return
     root.setLevel(logging.DEBUG)
 
@@ -57,6 +62,22 @@ def configure_logging() -> None:
     ch.setLevel(logging.WARNING)
     ch.setFormatter(fmt)
     root.addHandler(ch)
+
+    _quiet_third_party()
+
+
+#: Libraries that log at DEBUG on the root logger and drown ChromIQ's own
+#: diagnostics. Measured on a log Knut sent for a nine-minute session
+#: (2026-08-27): 2,315 lines, of which 1,813 were Pillow's per-tag TIFF/PNG
+#: chatter and only 101 were ChromIQ saying anything about what it did. With a
+#: 5 MB rotation that noise can evict the very traceback the log was sent for,
+#: so these are held at WARNING — where a real problem still comes through.
+_NOISY_LIBRARIES = ("PIL", "matplotlib", "urllib3", "fontTools")
+
+
+def _quiet_third_party() -> None:
+    for name in _NOISY_LIBRARIES:
+        logging.getLogger(name).setLevel(logging.WARNING)
 
 
 def get_logger(name: str) -> logging.Logger:
