@@ -3719,10 +3719,24 @@ int main(int argc, char *argv[]) {
 	if (itype == instUnknown
 	 && (ti = icg->find_kword(icg, 0, "TARGET_INSTRUMENT")) >= 0
 	 && cq_is_external_instrument(icg->t[0].kdata[ti])) {
-		if (xtern == 0)
+		if (xtern == 0) {
+			/* CHROMIQ_EXT #159: say WHY on the event stream before dying.
+			 *
+			 * measure_manager falls back to stock chartread when the engine
+			 * exits non-zero having emitted NO event -- and it then reports
+			 * "unknown error", because the reason only ever went to stderr.
+			 * Stock chartread cannot know this name either, so the fallback is
+			 * guaranteed to fail a second time and more confusingly. Emitting
+			 * here gives the GUI the real reason and lets it suppress a
+			 * fallback that could never work. */
+			cq_emit_raw("{\"event\":\"error\",\"kind\":\"chart_refused\","
+			            "\"instrument\":\"%s\",\"detail\":\"needs external "
+			            "values (-x); ChromIQ drives this instrument itself\"}",
+			            icg->t[0].kdata[ti]);
 			error("The chart was made for '%s', which ChromIQ reads itself. "
 			      "Measure it in ChromIQ, or use -x to supply values.",
 			      icg->t[0].kdata[ti]);
+		}
 		/* Carry the chart's own instrument name into the .ti3 (A3): without
 		 * this the result claims "Unknown Instrument", and ChromIQ then offers
 		 * FWA on a measurement that has no spectral data at all. */

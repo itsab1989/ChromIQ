@@ -146,6 +146,29 @@ def test_A4_an_honest_CR30_chart_is_accepted(tmpchart):
     assert r.events("session_start"), "CR30 chart rejected: " + " | ".join(r.raw[:4])
 
 
+def test_a_refused_chart_says_why_on_the_event_stream(tmpchart):
+    """Without `-x` the helper must explain itself in MACHINE-READABLE form.
+
+    `measure_manager` falls back to stock chartread when the engine exits
+    non-zero having emitted no event, and then reports "unknown error" — because
+    the reason only ever reached stderr. Stock chartread cannot know the name
+    `CR30` either, so that fallback fails a second time and more confusingly.
+    This event is what lets the GUI report the real reason and suppress a
+    fallback that could never work.
+    """
+    import subprocess
+    tmp = tmpchart().tmp                      # reuse the fixture's chart
+    r = subprocess.run([str(BIN), "--json", "n"], cwd=tmp,
+                       capture_output=True, text=True, timeout=60)
+    assert r.returncode != 0
+    events = [json.loads(l) for l in (r.stdout or "").splitlines()
+              if l.strip().startswith("{")]
+    refused = [e for e in events if e.get("kind") == "chart_refused"]
+    assert refused, f"no chart_refused event; stdout was {r.stdout!r}"
+    assert refused[0]["instrument"] == "CR30"
+    assert "-x" in refused[0]["detail"]
+
+
 def test_an_unknown_instrument_is_still_fatal(tmpchart):
     """The gate must stay strict — only named external instruments pass."""
     r = tmpchart("Totally Made Up 9000")
