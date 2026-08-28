@@ -107,12 +107,26 @@ def is_i1pro(name: str | None) -> bool:
     return "i1 pro" in low or "i1pro" in low
 
 
+def is_cr30(name: str | None) -> bool:
+    """Whether the instrument is a CHNSpec CR30 (#159).
+
+    Single source of truth for the CR30 check. The chart is stamped with the
+    honest name the device reports for itself, so this is a plain match and
+    never borrows another instrument's identity — a borrowed name would make
+    every ``is_colormunki`` consumer lie about what took the readings.
+    """
+    return bool(name) and "cr30" in name.lower()
+
+
 def instrument_family(name: str | None) -> "str | None":
     """Coarse instrument family for instruction wording: ``"colormunki"``
     (ColorMunki / i1Studio / ColorChecker Studio), ``"i1pro"`` (the whole i1 Pro
     line — Argyll tags them all the same, so they share one instruction set),
-    ``"spectroscan"`` (XY table), or ``None`` when unrecognised (→ generic
+    ``"cr30"`` (CHNSpec CR30 hand-held spot reader), ``"spectroscan"`` (XY
+    table), or ``None`` when unrecognised (→ generic
     wording). Accepts a TARGET_INSTRUMENT value or spotread's reported model."""
+    if is_cr30(name):
+        return "cr30"
     if is_colormunki(name):
         return "colormunki"
     if is_spectroscan(name):
@@ -136,6 +150,26 @@ def calibration_instructions_html(family: "str | None") -> str:
             "<b>Start Calibration</b>.<br><br>Calibration takes only a few "
             "seconds. Once it's done, another message will tell you how to start "
             "measuring.")
+    if family == "cr30":
+        return tr(
+            "<b>Your instrument needs to be calibrated before measuring.</b>"
+            "<br><br>Your CR30 came with a small <b>magnetic cap</b>. That cap "
+            "holds the <b>white tile</b> your instrument calibrates against, so "
+            "there is no separate tile to look for.<br><br>"
+            "<b>1.</b> Put the cap on the measuring end of the CR30, with the "
+            "<b>white side facing inwards</b> — towards the lens. It should sit "
+            "flat and snap into place.<br>"
+            "<b>2.</b> Press the <b>button on the instrument itself</b>. The "
+            "CR30 reads the white tile and shows the result on its own little "
+            "display.<br>"
+            "<b>3.</b> Come back here and click <b>Start Calibration</b> so "
+            "ChromIQ can check that it worked.<br><br>"
+            "Calibration takes only a second or two. Once it's done, another "
+            "message will tell you how to start measuring.<br><br>"
+            "<b>Please check the cap is the right way round.</b> If the cap is "
+            "reversed, the CR30 will happily calibrate against the wrong "
+            "surface, and every reading afterwards will look perfectly normal "
+            "while being wrong.")
     if family == "i1pro":
         return tr(
             "<b>Your instrument needs to be calibrated before measuring.</b>"
@@ -164,6 +198,16 @@ def measurement_instructions_html(family: "str | None") -> str:
             "the <b>start of the strip</b>, then <b>press and hold the side "
             "button</b> and slide the whole device smoothly along the strip at "
             "a steady pace.")
+    if family == "cr30":
+        return tr(
+            "<b>Take the magnetic cap off first</b> — with the cap (or any "
+            "magnet) near the instrument, the CR30 does not measure at all.<br>"
+            "<br>Stand the CR30 flat on the <b>highlighted patch</b>, so the "
+            "measuring opening sits well inside it, then <b>press the button on "
+            "the instrument</b>. ChromIQ picks the reading up on its own and "
+            "moves the highlight to the next patch — you do not need to touch "
+            "the keyboard.<br><br>Each patch takes about two seconds. You can "
+            "stop at any time; every patch you have already read is saved.")
     if family == "i1pro":
         return tr(
             "Take the i1Pro off its base. Place it flat at the <b>start of the "
