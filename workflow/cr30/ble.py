@@ -53,13 +53,29 @@ def frame(cmd: int, sub: int = 0, param: int = 0, data: bytes = b"") -> bytes:
 
 
 READ_MEASUREMENT = frame(0x02, 0x10)
-STATUS = frame(0x01, 0x00)
+
+# ⚠ THIS IS THE TRIGGER. It is not a status query, whatever the name says.
+#
+# `bb 01 00` is the USB TRIGGER (usb_measure.trigger_frame), and EXP-BLE-012
+# proved on 2026-08-28 that it triggers over Bluetooth too: sent with no button
+# press, the stored reading moved 11.27 %R -> 3.92 %R, and the operator's own
+# button press on the same surface then read 3.94 %R -- the two agree to
+# 0.035 %R, 0.49 % of the mean. A host trigger over BLE was documented as "not
+# known"; it was simply never tested.
+#
+# That matters because a trigger with a MAGNET at the aperture does not
+# measure: the device performs a WHITE CALIBRATION against whatever is under
+# the cap and reports the nominal tile value. So sending this frame while the
+# instrument is capped -- its natural resting state -- silently rewrites its
+# white reference. Nothing may send it as part of finding or identifying a
+# device. Use READ_MEASUREMENT, whose reply carries the same axis and which
+# only reads what is already stored.
+TRIGGER_UNSAFE = frame(0x01, 0x00)
 
 # ⚠ The advertised name is the device's OWN device-id string (the value
 # AA 0A 01 returns over USB) and is therefore UNIT-SPECIFIC. Hard-coding one
 # unit's name works only on that unit. Discovery must go by SERVICE UUID and
 # then confirm over the protocol; the name is a hint and a label, never a test.
-STATUS_REPLY_PREFIX = bytes([0xBB, 0x01, 0x00])
 EXPECTED_AXIS = (400, 10, 31)      # start_nm, step_nm, bands
 
 
@@ -97,14 +113,18 @@ async def discover(timeout: float = 10.0, *, verify: bool = True) -> list[dict]:
                 async with BleakClient(entry["address"], timeout=8.0) as c:
                     buf = bytearray()
                     await c.start_notify(FFE1, lambda _s, d: buf.extend(bytes(d)))
-                    await c.write_gatt_char(FFE1, STATUS, response=False)
+                    # NOT the trigger: identifying a device must never
+                    # make it measure, still less calibrate. See
+                    # TRIGGER_UNSAFE above.
+                    await c.write_gatt_char(FFE1, READ_MEASUREMENT,
+                                            response=False)
                     await asyncio.sleep(0.4)
                     for _ in range(4):
                         await c.write_gatt_char(FFE1, POLL, response=False)
                         await asyncio.sleep(0.3)
                         if buf:
                             break
-                    i = bytes(buf).find(STATUS_REPLY_PREFIX)
+                    i = bytes(buf).find(MEASUREMENT_HDR)
                     if i >= 0 and len(buf) - i >= 8:
                         ax = BleAxis.parse(bytes(buf)[i:i + 8])
                         entry["axis"] = (ax.start_nm, ax.step_nm, ax.bands)

@@ -95,8 +95,12 @@ class CR30:
         from any other CH34x device (PLATFORM_SUPPORT.md).
         """
         if self.kind == "ble":
-            raw = self._t.ask(ble.STATUS, polls=4)
-            i = raw.find(bytes([0xBB, 0x01, 0x00]))
+            # READ_MEASUREMENT, never the trigger: its reply carries the
+            # same axis, and identifying an instrument must not make it
+            # measure -- nor, if it happens to be capped, recalibrate.
+            # See ble.TRIGGER_UNSAFE (EXP-BLE-012).
+            raw = self._t.ask(ble.READ_MEASUREMENT, polls=4)
+            i = raw.find(ble.MEASUREMENT_HDR)
             if i < 0 or len(raw) - i < 8:
                 raise MeasurementError(f"no status reply ({len(raw)} bytes)")
             axis = ble.BleAxis.parse(raw[i:i + 8])
