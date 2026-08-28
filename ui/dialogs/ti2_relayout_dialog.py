@@ -7724,7 +7724,7 @@ class Ti2RelayoutDialog(QDialog):
         if self._spec is None:
             return "chart"
         instr = {"i1": "i1Pro", "CM": "ColorMunki", "3p": "i1Pro3Plus",
-                 "SS": "SpectroScan"}.get(self._spec.instrument_flag,
+                 "SS": "SpectroScan", "CR30": "CR30"}.get(self._spec.instrument_flag,
                                           self._spec.instrument_flag or "chart")
         # Named papers contribute their NAME (e.g. "A3+"), not their millimetre
         # code ("483x329"); only a truly custom size falls back to the W×H code

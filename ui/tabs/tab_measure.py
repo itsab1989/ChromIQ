@@ -4188,6 +4188,15 @@ class TabMeasure(QWidget):
         # table reads patch-by-patch, so there's nothing to swipe (Knut/Basti).
         from workflow.hex_support import chart_is_hexagonal
         self._preview.set_hex_zigzag(chart_is_hexagonal(self._ti1_path))
+        # A CR30 chart has no swipe either, so the arrow goes — but its patches
+        # are square, so it must NOT borrow the hex zigzag to achieve that
+        # (#159). Read from the chart, like everything else on this path.
+        from ui.ti2_loader import is_cr30, read_target_instrument
+        try:
+            _spot = is_cr30(read_target_instrument(self._ti1_path))
+        except Exception:      # noqa: BLE001 — a missing keyword is not an error
+            _spot = False
+        self._preview.set_no_swipe(_spot)
 
         engine = self._engine_stripe_rects()
         if engine is not None:
@@ -4550,7 +4559,15 @@ class TabMeasure(QWidget):
         from ui.ti2_loader import KNOWN_INSTRUMENTS
         low = found.lower().replace(" ", "")
         wanted = None
-        if "colormunki" in low or "i1studio" in low or "ccstudio" in low:
+        # Checked first, and it is the one repair that does NOT make the chart
+        # readable by ArgyllCMS: "CR30" is the name ChromIQ itself uses, so a
+        # near-miss ("ChnSpec CR30", "CR-30") becomes the exact name our own
+        # reader matches on. Whether the SELECTED reader can use it is the
+        # separate question _blocked_by_stock_chartread_for_cr30 asks, and it
+        # runs before this guard (#159).
+        if "cr30" in low or "cr-30" in low:
+            wanted = next(n for n in KNOWN_INSTRUMENTS if n == "CR30")
+        elif "colormunki" in low or "i1studio" in low or "ccstudio" in low:
             wanted = next(n for n in KNOWN_INSTRUMENTS if "ColorMunki" in n)
         elif "spectroscan" in low:
             wanted = next(n for n in KNOWN_INSTRUMENTS if "SpectroScan" in n)

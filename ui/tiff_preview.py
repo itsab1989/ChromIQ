@@ -605,6 +605,13 @@ class TiffPreview(QWidget):
         # zigzag (staggered hexagons) instead of a straight rect, and the swipe
         # arrow is hidden (an XY table reads patch-by-patch — nothing to swipe).
         self._hex_zigzag: bool = False
+        #: No swipe exists for this chart's instrument (a CR30 is placed on one
+        #: patch at a time and triggered by its own button), so the scan arrow
+        #: must not be drawn. Kept SEPARATE from _hex_zigzag, which suppresses
+        #: the same arrow but also switches the highlight to the staggered
+        #: hexagon outline — right for a SpectroScan hex chart, wrong for the
+        #: CR30's square grid (#159).
+        self._no_swipe: bool = False
         self._pixmap: QPixmap | None = None
         self._frame_color = QColor(Qt.GlobalColor.white)   # the margin around the image
         # How much blank paper THIS image already carries, as a fraction of its
@@ -1480,6 +1487,20 @@ class TiffPreview(QWidget):
             self._hex_zigzag = on
             self._repaint_label()
 
+    def set_no_swipe(self, on: bool) -> None:
+        """Suppress the scan arrow for an instrument that does not swipe (#159).
+
+        The arrow says "draw the instrument down this column". A CR30 is put on
+        one patch and triggered by its own button, so the arrow would be an
+        instruction to do something the device cannot do. Separate from
+        :meth:`set_hex_zigzag` — that also reshapes the highlight, which a CR30
+        chart's square patches must not get. No-op change is ignored to avoid
+        needless repaints."""
+        on = bool(on)
+        if on != self._no_swipe:
+            self._no_swipe = on
+            self._repaint_label()
+
     def _strip_patches(self, strip_rect: QRect) -> "list[QRect]":
         """The current page's patch boxes belonging to *strip_rect*, top→bottom.
 
@@ -2231,7 +2252,8 @@ class TiffPreview(QWidget):
                             (label_size.width() - _cw) / 2 + B,
                             (label_size.height() - _ch) / 2 + B)
 
-        if self._active_stripe >= 0 and self._stripe_rects and not self._hex_zigzag:
+        if (self._active_stripe >= 0 and self._stripe_rects
+                and not self._hex_zigzag and not self._no_swipe):
             # sx/sy: device pixels per original image pixel
             sx = scaled.width()  / self._pixmap.width()
             sy = scaled.height() / self._pixmap.height()
