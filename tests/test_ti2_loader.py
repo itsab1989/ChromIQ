@@ -177,6 +177,10 @@ def test_known_instruments_registry() -> None:
         "X-Rite ColorMunki",
         "GretagMacbeth i1 Pro",
         "GretagMacbeth SpectroScan",
+        # #159: the CR30 is ChromIQ's own — stock ArgyllCMS chartread does not
+        # know this name and refuses the chart, which is why
+        # TabMeasure._blocked_by_stock_chartread_for_cr30 exists.
+        "CR30",
     )
 
 

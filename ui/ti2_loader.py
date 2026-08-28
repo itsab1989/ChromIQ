@@ -32,10 +32,25 @@ _RANDOM_START_RE = re.compile(r'\bRANDOM_START\b')
 
 # The exact TARGET_INSTRUMENT strings ChromIQ lays out charts for. ArgyllCMS
 # writes the same value into the resulting .ti3, so detection works on either.
+#
+# ⚠ "CR30" IS THE ONE NAME ARGYLLCMS DOES NOT KNOW (#159). Every other entry
+# here is an ArgyllCMS instrument name, and stock `chartread` matches the
+# keyword against its own instrument table. ChromIQ reads the CR30 itself, so
+# the chart carries the honest name the device reports for itself — and the
+# price of that honesty is that stock chartread REFUSES a CR30 chart outright.
+# ChromIQ's own chartread fork accepts it.
+#
+# This list means "a name ChromIQ recognises and can act on", which is what
+# every consumer actually asks it. It is NOT "a name ArgyllCMS will accept" —
+# `TabMeasure._blocked_by_stock_chartread_for_cr30` is the guard that asks the
+# second question, and it must run for a CR30 chart before the measurement is
+# armed. Adding "CR30" here without that guard would silence a warning that is
+# still true whenever Preferences has the chart-reading engine on ArgyllCMS.
 KNOWN_INSTRUMENTS: tuple[str, ...] = (
     "X-Rite ColorMunki",          # ColorMunki / i1Studio / ColorChecker Studio
     "GretagMacbeth i1 Pro",       # i1 Pro family (i1 Pro / Pro 2 / Pro 3 / Pro 3+)
     "GretagMacbeth SpectroScan",  # motorized XY table (patch-by-patch, not strips)
+    "CR30",                       # ChnSpec CR30 — ChromIQ reads it, Argyll cannot
 )
 
 

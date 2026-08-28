@@ -488,6 +488,7 @@ parameters:
         - "i1Pro 3 Plus"
         - "ColorMunki / i1Studio / ColorChecker Studio"
         - "SpectroScan（フラットベッド）"
+        - "CR30 (ChnSpec, patch by patch)"
         - "i1iSis（i1Profiler経由）"
     "-h":
       name: "ダブルデンシティ"

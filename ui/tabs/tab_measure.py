@@ -4394,6 +4394,89 @@ class TabMeasure(QWidget):
             self._saw_instrument = True
         self._warn_if_instrument_does_not_match_chart(model)
 
+    def _blocked_by_stock_chartread_for_cr30(self) -> bool:
+        """Refuse to start a CR30 measurement while Preferences selects stock
+        ArgyllCMS chartread — and offer the one setting that fixes it.
+
+        The CR30 chart carries ``TARGET_INSTRUMENT "CR30"``, the honest name the
+        device reports for itself (#159, Basti's ruling). ChromIQ's own
+        chartread fork accepts that name; **stock ArgyllCMS chartread does
+        not** — it matches the keyword against its own instrument table and
+        fatals before a patch is read, which is exactly the abrupt cut-off Knut
+        reported on #130 and which the sibling guard
+        ``_blocked_by_unusable_target_instrument`` exists to prevent.
+
+        That sibling can no longer catch this: "CR30" had to go into
+        ``KNOWN_INSTRUMENTS`` for a CR30 measurement to be possible at all, and
+        with it there the sibling's message ("ArgyllCMS … does not know this
+        one") would be silenced for the one case where it is still true. So the
+        two guards split the question: the sibling asks *does ChromIQ know this
+        name*, this one asks *can the reader the user has chosen actually use
+        it*.
+
+        Offering the switch rather than only naming it: the setting lives in
+        Preferences → Measurement, several clicks away from a user who has just
+        pressed Start, and there is exactly one right answer for this chart.
+        Declining cancels — a measurement that cannot succeed must not begin.
+        The **text** comes from ``workflow/measurement_messages.py`` (§M); this
+        method only renders it.
+        """
+        if self._ti1_path is None or self._engine_selected():
+            return False
+        from ui.ti2_loader import is_cr30, read_target_instrument
+        try:
+            name = read_target_instrument(self._ti1_path)
+        except Exception:      # noqa: BLE001 — never block a read on this check
+            return False
+        if not is_cr30(name):
+            return False
+
+        if not self._cr30_stock_reader_window():
+            self._log.appendPlainText(tr(
+                "Measurement not started: a CR30 chart needs ChromIQ's own "
+                "chart reader, and Preferences is set to ArgyllCMS chartread."))
+            return True
+        self._settings.set("chartread_engine", "chromiq")
+        self._log.appendPlainText(tr(
+            "Chart-reading engine switched to ChromIQ's own reader, so this "
+            "CR30 chart can be measured."))
+        # Same refresh the Settings dialog triggers, so the engine-only UI
+        # follows the setting immediately instead of at the next restart.
+        try:
+            self.refresh_engine_visibility()
+        except Exception:      # noqa: BLE001 — the setting is what matters
+            log.debug("refresh_engine_visibility failed after the CR30 switch",
+                      exc_info=True)
+        return False
+
+    def _cr30_stock_reader_window(self) -> bool:
+        """Show §M's M-CR30-STOCK-READER and return True when the user accepts
+        the switch to ChromIQ's own chart reader.
+
+        Kept apart from the guard above so this method holds nothing but the
+        window: the **text** comes from ``workflow/measurement_messages.py``
+        (§M) and the only literals here are the two button labels. The guard's
+        log lines are sentences of its own, which is fine in a log and is not
+        fine in a window — ``tests/test_message_catalogue.py`` draws that line
+        for us, and this split is how the window stays on the right side of it.
+        """
+        from PyQt6.QtWidgets import QMessageBox
+
+        from workflow import measurement_messages as M
+        title, body = M.M_CR30_STOCK_READER.render()
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(body)
+        use = box.addButton(tr("Use ChromIQ's reader and measure"),
+                            QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(use)
+        from ui.widgets import fit_message_box_buttons
+        fit_message_box_buttons(box)
+        box.exec()
+        return box.clickedButton() is use
+
     def _blocked_by_unusable_target_instrument(self) -> bool:
         """Refuse to start when the chart's ``TARGET_INSTRUMENT`` is not a name
         ArgyllCMS recognises — and say so properly.
@@ -5171,7 +5254,12 @@ class TabMeasure(QWidget):
         # …and nothing to measure without the laid-out chart (Knut, 2026-08-04).
         if self._blocked_by_missing_chart_file():
             return
-        # …and stop here when the chart names an instrument ArgyllCMS cannot use.
+        # …and stop here when the chart names an instrument ArgyllCMS cannot
+        # use. The CR30 check comes FIRST: "CR30" is a name ChromIQ knows, so
+        # the general guard passes it — the open question is whether the READER
+        # the user has selected can use it (#159).
+        if self._blocked_by_stock_chartread_for_cr30():
+            return
         if self._blocked_by_unusable_target_instrument():
             return
         # #131: enter measurement mode so per-patch/strip sounds are allowed and

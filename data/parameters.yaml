@@ -623,12 +623,13 @@ parameters:
     - flag: "-i"
       name: "Measurement Instrument"
       type: choice
-      choices: ["i1", "p3", "CM", "SS", "isis"]
+      choices: ["i1", "p3", "CM", "SS", "CR30", "isis"]
       labels:
         - "i1Pro / i1Pro 2 / i1Pro 3"
         - "i1Pro 3 Plus"
         - "ColorMunki / i1Studio / ColorChecker Studio"
         - "SpectroScan (flatbed)"
+        - "CR30 (ChnSpec, patch by patch)"
         - "i1iSis (via i1Profiler)"
       default: "i1"
       no_space: true
@@ -656,6 +657,19 @@ parameters:
           •  SpectroScan — flatbed XY scanner. A motorised arm reads
              each patch individually, so it packs far more colours per
              sheet than any strip reader.
+
+          •  CR30 (ChnSpec) — small hand-held colorimeter that reads
+             ONE patch at a time. You place it on a patch and press the
+             button on the instrument; ChromIQ records that patch and
+             highlights the next one. The chart is a plain grid with row
+             numbers and column letters so you can find the patch being
+             asked for. Its patch size is PROVISIONAL (10 mm squares —
+             a starting point, not a measured minimum), and each patch
+             is a placement and a press of about two seconds, so a full
+             A4 sheet of ~475 patches is a long sitting. A CR30 chart is
+             ALWAYS laid out by ChromIQ's own layout engine, and can
+             only be read by ChromIQ — standard ArgyllCMS chartread does
+             not know this instrument and refuses the chart.
 
           •  i1iSis (via i1Profiler) — automatic sheet-fed chart reader.
              ChromIQ cannot drive this device directly: instead it will

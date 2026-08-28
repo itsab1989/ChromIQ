@@ -508,6 +508,7 @@ parameters:
         - "i1Pro 3 Plus"
         - "ColorMunki / i1Studio / ColorChecker Studio"
         - "SpectroScan (płaski)"
+        - "CR30 (ChnSpec, patch by patch)"
         - "i1iSis (przez i1Profiler)"
     "-h":
       name: "Double density"

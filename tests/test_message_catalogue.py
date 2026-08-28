@@ -166,7 +166,13 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  "M-PROJECT-REPLACE-FAILED",
                                  # …and the second look before it runs, which
                                  # Basti asked for on 2026-08-27.
-                                 "M-PROJECT-REPLACE-CONFIRM"}
+                                 "M-PROJECT-REPLACE-CONFIRM",
+                                 # #159, 2026-08-28: a CR30 chart carries the
+                                 # honest name the device reports for itself,
+                                 # which stock ArgyllCMS chartread refuses. The
+                                 # window names the Preferences control that
+                                 # fixes it. New WORDING, so it waits here.
+                                 "M-CR30-STOCK-READER"}
 
 
 def test_nothing_is_quietly_proposed():
@@ -266,6 +272,7 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_measure", "TabMeasure", "_ask_how_printed"),
     ("ui.tabs.tab_chart", "TabChart", "_patchset_missing_message"),
     ("ui.tabs.tab_chart", "TabChart", "_project_exists_message"),
+    ("ui.tabs.tab_measure", "TabMeasure", "_cr30_stock_reader_window"),
 ]
 
 #: Measurement windows that are NOT yet in §M, listed so the gap is visible.

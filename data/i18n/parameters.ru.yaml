@@ -503,6 +503,7 @@ parameters:
         - "i1Pro 3 Plus"
         - "ColorMunki / i1Studio / ColorChecker Studio"
         - "SpectroScan (планшетный)"
+        - "CR30 (ChnSpec, patch by patch)"
         - "i1iSis (через i1Profiler)"
     "-h":
       name: "Двойная плотность"

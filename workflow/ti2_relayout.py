@@ -47,6 +47,13 @@ log = get_logger(__name__)
 # import the ui layer. printtarg -i accepts: 20|22|41|51|SS|i1|3p|CM.
 def instrument_to_flag(target_instrument: str | None) -> str:
     name = (target_instrument or "").lower()
+    # The CR30 is checked FIRST and is not a printtarg code at all (#159):
+    # printtarg has no -iCR30 and never lays this chart out. It is returned so
+    # a CR30 chart relayouts as a CR30 rather than silently falling through to
+    # the i1Pro default below, which would re-lay a hand-placed grid as a strip
+    # chart. chart_creator forces the layout engine for this key.
+    if "cr30" in name:
+        return "CR30"
     if "colormunki" in name:
         return "CM"
     if "spectroscan" in name:

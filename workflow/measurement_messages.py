@@ -69,6 +69,23 @@ def _m(id_: str, title: str, body: str, *, approved: bool = True,
     return Message(id_, title, body, approved, body_one, count_key)
 
 
+# --- PROPOSED: a CR30 chart while Preferences selects stock chartread ------
+M_CR30_STOCK_READER = _m(
+    "M-CR30-STOCK-READER",
+    "This chart can only be read by ChromIQ",
+    "This chart was made for the CR30, and ChromIQ reads that instrument "
+    "itself. Standard ArgyllCMS chartread does not know the CR30 at all — it "
+    "would refuse the chart before reading a single patch, whichever "
+    "instrument you have connected.\n\n"
+    "Right now, Preferences → Measurement has “Chart-reading engine” set to "
+    "ArgyllCMS chartread. Switch it to ChromIQ's own reader and this chart "
+    "measures normally. The setting applies to every chart, and every other "
+    "chart reads the same either way.\n\n"
+    "Nothing is wrong with the chart, and nothing you have already measured "
+    "is affected.",
+    approved=False)
+
+
 # ---------------------------------------------------------------------------
 # §5 — starting a measurement over an existing one
 # ---------------------------------------------------------------------------
@@ -927,6 +944,7 @@ CATALOGUE = {m.id: m for m in (
     M_PROJECT_EXISTS,
     M_PROJECT_REPLACE_CONFIRM,
     M_PROJECT_REPLACE_FAILED,
+    M_CR30_STOCK_READER,
 )}
 
 #: Paragraphs appended to another message rather than shown on their own.

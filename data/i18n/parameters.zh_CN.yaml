@@ -442,6 +442,7 @@ parameters:
         - "i1Pro 3 Plus"
         - "ColorMunki / i1Studio / ColorChecker Studio"
         - "SpectroScan（平板）"
+        - "CR30 (ChnSpec, patch by patch)"
         - "i1iSis（经i1Profiler）"
     "-h":
       name: "双倍密度"
