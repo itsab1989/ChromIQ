@@ -11505,20 +11505,22 @@ class TabChart(QWidget):
 
     def _engine_geom(self, instr: str, paper: str, *, dd: bool, td: bool,
                      eff_lb: bool, nsl: bool, pscale: float, margin: float,
-                     spacers: bool = True):
+                     guided: bool = True):
         """Build a layout-engine Geom from the guided/manual effective values,
         with the user's margin thresholds enforced (so the count matches what
         the engine will actually build, #93).
 
-        *spacers* must mirror what the BUILD will do, not a default. It was
-        hard-coded ``True`` here, which was invisible until the CR30 arrived as
-        the first instrument that lays out without spacers
-        (``chart_creator._engine_build_kwargs`` forces them off for a Guided
-        CR30): the estimate reserved 1.3 mm of gap the chart never used and
-        under-counted by ~10 %.
+        Spacers are decided HERE, from *guided*, and never by a caller. They
+        were hard-coded ``True``, which stayed invisible until the CR30 became
+        the first instrument that lays out without them: the estimate reserved
+        1.3 mm of gap the chart never used and under-counted by ~10 %. Fixing it
+        at one call site then left the sibling caller wrong, so the
+        Calculated-Patches figure and the Chart-layout-information panel
+        disagreed with each other. One rule, one place — mirroring
+        ``chart_creator._engine_build_kwargs``.
         """
         from workflow.layout_engine import instruments
-        kw: dict = dict(instrument=instr, paper=paper, spacer_on=bool(spacers),
+        kw: dict = dict(instrument=instr, paper=paper, spacer_on=True,
                         pscale=float(pscale),
                         margins=(float(margin),) * 4, border=float(margin),
                         nolimit=bool(nsl))
@@ -11549,6 +11551,12 @@ class TabChart(QWidget):
                 kw["pscale"] = float(pscale) / CM_TRIPLE_PRINTTARG_SCALE
         elif instr in self.HEX_TOGGLE_INSTRUMENTS:
             kw["hflag"] = bool(dd)
+        # A GUIDED CR30 is laid out with no spacers at all (Basti's ruling);
+        # chart_creator._engine_build_kwargs does exactly this for the build, so
+        # the estimate must model the same chart. Manual keeps its own control.
+        if instr == "CR30" and guided:
+            kw["spacer_on"] = False
+            kw["spacer_mode"] = "none"
         # Guided mode has no margin boxes and no "Use instrument margins"
         # recipe toggle, so the jig-safety threshold clamp is NOT applied here.
         # It would pin the patch count regardless of the clip-border / strip-cap
@@ -11558,13 +11566,13 @@ class TabChart(QWidget):
 
     def _engine_capacity(self, instr: str, paper: str, *, dd: bool, td: bool,
                          eff_lb: bool, nsl: bool, pscale: float, margin: float,
-                         spacers: bool = True):
+                         guided: bool = True):
         """Patches per sheet from the ChromIQ engine (None if it can't lay out)."""
         try:
             from workflow.layout_engine import geometry, papers
             geom = self._engine_geom(instr, paper, dd=dd, td=td, eff_lb=eff_lb,
                                      nsl=nsl, pscale=pscale, margin=margin,
-                                     spacers=spacers)
+                                     guided=guided)
             w_mm, h_mm = papers.dimensions_mm(paper)
             return geometry.patches_per_sheet(geom, w_mm, h_mm)
         except Exception:
@@ -11698,13 +11706,9 @@ class TabChart(QWidget):
         engine_on = (instr in ENGINE_INSTRUMENTS) and (
             guided_active or bool(self._settings.get("use_chromiq_layout_engine", False)))
         if engine_on:
-            # Mirror chart_creator._engine_build_kwargs: a GUIDED CR30 is laid
-            # out with no spacers at all (Basti's ruling). Anything else keeps
-            # them. The estimate has to model the same chart the build makes.
             per_sheet = self._engine_capacity(
                 instr, paper, dd=dd, td=td, eff_lb=eff_lb, nsl=nsl_eff,
-                pscale=eff_scale, margin=eff_margin,
-                spacers=not (instr == "CR30" and guided_active))
+                pscale=eff_scale, margin=eff_margin, guided=guided_active)
         else:
             per_sheet = query_patches(instr, paper, dd, suppress_lb=eff_lb,
                                       margin_mm=eff_margin, patch_scale=eff_scale,
@@ -11732,9 +11736,15 @@ class TabChart(QWidget):
         # "on screen" column keeps the generated chart's real numbers (#93).
         if guided_active and getattr(self, "_layout_info_panel", None) is not None:
             if engine_on:
+                # Same mirror of chart_creator._engine_build_kwargs as the
+                # patch-count estimate above. This is a SECOND caller of
+                # _engine_geom and it was missed when the first was fixed, so
+                # the Calculated-Patches figure went right while the
+                # Chart-layout-information panel next to it still described a
+                # rectangular, spacered chart (Basti, 2026-08-28).
                 geom = self._engine_geom(instr, paper, dd=dd, td=td, eff_lb=eff_lb,
                                          nsl=nsl_eff, pscale=eff_scale,
-                                         margin=eff_margin)
+                                         margin=eff_margin, guided=guided_active)
                 self._predict_layout_info(geom, paper, pages)
             else:
                 self._layout_info_panel.clear_estimate()
