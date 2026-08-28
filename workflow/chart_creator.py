@@ -555,6 +555,10 @@ class ChartCreator:
         self._settings = settings
 
         self._pending_on_finish: Callable[[list[Path]], None] | None = None
+        #: The chart that was set aside for the build now running, and the run
+        #: it belongs to. Settled on every way out — see :meth:`_finish`.
+        self._chart_stash: "Path | None" = None
+        self._chart_stash_run = None
         self._pending_params: ChartParams | None = None
         # State for the slow-chart watchdog escape hatch (see generate /
         # restart_with_fast_sampler / cancel). The on_line callback, work dir
@@ -609,7 +613,11 @@ class ChartCreator:
         else:
             run = proj.current_run()
             self._announce_result_archive(run, on_line, False)
-            run.reset_chart_artefacts()
+            # SET THE OLD CHART ASIDE RATHER THAN DELETING IT. Nothing here is
+            # "regenerated" unless the build finishes, and every way it can fail
+            # now puts the chart back — see `_finish`.
+            self._chart_stash_run = run
+            self._chart_stash = run.reset_chart_artefacts(stash=True)
             work_dir = run.ensure_dir()
             # External -c preconditioning: copy ICC (and sibling .ti3 if
             # refinement is on) into the current run so the chart and the
@@ -675,6 +683,31 @@ class ChartCreator:
         self._restart_fast = True
         self._runner.abort()
         return True
+
+    def _finish(self, tiffs: list) -> None:
+        """The ONE way a build ends, whatever ended it.
+
+        Every exit — success, a non-zero exit code, an engine exception, a
+        deliberate cancel — used to call `_pending_on_finish` directly, and the
+        chart that had been cleared to make room was already gone by then. So a
+        build that did not finish left the run with no chart at all, `.ti2`
+        included, which is the file a printed sheet is read against. Routing all
+        of them through here means the set-aside chart is put back on exactly
+        the paths that do not produce a new one.
+
+        An empty result IS the failure signal: `_printtarg_done` reports `[]`
+        when printtarg wrote nothing, and the engine and targen paths report
+        `[]` on every error and on a cancel.
+        """
+        run, stash = self._chart_stash_run, self._chart_stash
+        self._chart_stash_run = self._chart_stash = None
+        if run is not None and stash is not None:
+            try:
+                run.settle_chart_stash(stash, built=bool(tiffs))
+            except Exception:      # noqa: BLE001 — never lose the callback
+                log.warning("Could not settle the chart stash", exc_info=True)
+        if self._pending_on_finish:
+            self._pending_on_finish(tiffs)
 
     def cancel(self) -> None:
         """Kill a running targen/printtarg as a deliberate user cancel.
@@ -790,7 +823,10 @@ class ChartCreator:
         ti1_bytes = Path(ti1_path).read_bytes()
         run = self._file_mgr.project().current_run()
         self._announce_result_archive(run, on_line, keep_results)
-        run.reset_chart_artefacts(keep_results=keep_results)
+        # Set aside, not deleted — see the note at the other call site.
+        self._chart_stash_run = run
+        self._chart_stash = run.reset_chart_artefacts(
+            keep_results=keep_results, stash=True)
         work_dir = run.ensure_dir()
         stem = run.stem
         dest = run.chart_ti1
@@ -825,7 +861,8 @@ class ChartCreator:
             pt_args,
             work_dir,
             on_line=_printtarg_scan,
-            on_finish=lambda code: self._printtarg_done(code, work_dir, on_finish, stem),
+            on_finish=lambda code: self._printtarg_done(code, work_dir,
+                                                        self._finish, stem),
         )
 
     def _import_external_preconditioning(self, extra_args: str, run: "Run") -> str:
@@ -967,14 +1004,12 @@ class ChartCreator:
         if self._cancelling:
             self._cancelling = False
             log.info("targen cancelled by user (exit code %d)", exit_code)
-            if self._pending_on_finish:
-                self._pending_on_finish([])
+            self._finish([])
             return
         if exit_code != 0:
             log.error("targen failed with code %d", exit_code)
             on_line(f"[ERROR] targen exited with code {exit_code}")
-            if self._pending_on_finish:
-                self._pending_on_finish([])
+            self._finish([])
             return
 
         # ChromIQ layout engine (issue #93): when enabled (and the chart isn't
@@ -997,7 +1032,7 @@ class ChartCreator:
             work_dir,
             on_line=_printtarg_scan,
             on_finish=lambda code: self._printtarg_done(
-                code, work_dir, self._pending_on_finish,
+                code, work_dir, self._finish,
                 self._file_mgr.chart_stem(cal_target=params.cal_target),
             ),
         )
@@ -1205,8 +1240,7 @@ class ChartCreator:
         except Exception as exc:  # noqa: BLE001 — surface any engine failure
             log.exception("ChromIQ layout engine failed")
             on_line(f"[ERROR] ChromIQ layout engine: {exc}")
-            if self._pending_on_finish:
-                self._pending_on_finish([])
+            self._finish([])
             return
 
         on_line(
@@ -1232,8 +1266,7 @@ class ChartCreator:
             self._embed_layout_geometry(work_dir, stem, result, params)
             self._stamp_tiff_metadata(tiffs, self._pending_params)
 
-        if self._pending_on_finish:
-            self._pending_on_finish(tiffs)
+        self._finish(tiffs)
 
     def _embed_layout_geometry(self, work_dir: Path, stem: str, result,
                                params: "ChartParams") -> None:

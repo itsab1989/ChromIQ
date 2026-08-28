@@ -1122,7 +1122,54 @@ class Run:
         self.dir.mkdir(parents=True, exist_ok=True)
         return self.dir
 
-    def reset_chart_artefacts(self, *, keep_results: bool = False) -> None:
+    #: Where a chart waits while its replacement is being built. Dot-prefixed
+    #: so `live_files()` skips it, so it is never mistaken for the run's chart,
+    #: and so Finder keeps it out of the way.
+    CHART_STASH_PREFIX = ".chart-stash-"
+
+    def chart_stash_dirs(self) -> list[Path]:
+        """Every chart stash left in this run, oldest first."""
+        if not self.dir.is_dir():
+            return []
+        return sorted(p for p in self.dir.iterdir()
+                      if p.is_dir() and p.name.startswith(self.CHART_STASH_PREFIX))
+
+    def settle_chart_stash(self, stash: "Path | None", *, built: bool) -> None:
+        """Finish what :meth:`reset_chart_artefacts` started.
+
+        *built* True means a new chart was written, so the one that was set
+        aside is no longer wanted and the stash goes. False means the build did
+        not happen — it failed, it was stopped, or the app was closed while it
+        ran — and every file is moved back exactly where it was.
+
+        Never raises: a stash that cannot be settled is left on disk, where
+        :meth:`Project.load` deals with it on the next launch, and that is far
+        better than a half-restored run.
+        """
+        if stash is None or not Path(stash).is_dir():
+            return
+        stash = Path(stash)
+        if not built:
+            for p in sorted(stash.iterdir()):
+                dest = self.dir / p.name
+                try:
+                    if dest.exists():
+                        # The build wrote a file of this name after all, so the
+                        # new one wins — putting the old page back over it would
+                        # leave the run holding two charts' pages at once.
+                        continue
+                    shutil.move(str(p), str(dest))
+                except OSError as exc:
+                    log.warning("Could not put %s back: %s", p.name, exc)
+            log.info("Chart build did not finish — the previous chart was put "
+                     "back in %s", self.dir)
+        try:
+            shutil.rmtree(stash)
+        except OSError as exc:
+            log.warning("Could not remove the chart stash %s: %s", stash, exc)
+
+    def reset_chart_artefacts(self, *, keep_results: bool = False,
+                              stash: bool = False) -> "Path | None":
         """Wipe chart files + reads + measurement + merged + profile.
 
         ``keep_results`` redraws the pages of the chart that is already there
@@ -1136,7 +1183,25 @@ class Run:
         ``reports/`` — past quality checks document history. ``reads/`` is
         archived beside the measurement it belongs to; ``exports/`` and
         ``cache/`` are derived from the chart and go with it.
+
+        ``stash`` MOVES THE CHART ASIDE INSTEAD OF DELETING IT, and returns the
+        folder it moved it to; the caller then calls :meth:`settle_chart_stash`
+        with whether a new chart was really written. This method runs BEFORE
+        targen, and the chart it clears is only "regenerated" if the build
+        finishes — so a build that failed, was stopped, or was interrupted by
+        the app closing used to leave the run with no chart at all. The `.ti2`
+        went with it, which is the file a printed sheet is read against, and the
+        layout seed lives only in that `.ti2` — so pages already on the desk
+        became waste paper, and rebuilding from the same settings produced a
+        chart that no longer matched them. Measured on screen, 2026-08-28: seven
+        files gone from an unmeasured run, none archived, no window shown.
+
+        NOT archived to ``old/``, though that would also have worked: Knut ruled
+        the other way for the calibration chart at beta.148 — only measurements
+        belong in ``old/``, or it stops being readable — and a run with nothing
+        to lose must not spawn an ``old/`` folder at all. A stash costs neither.
         """
+        stash_dir: "Path | None" = None
         s = self.stem
         # #130 (Knut, critical): a chart re-generation must NEVER delete the
         # run's finished MEASUREMENT / PROFILE — they can't be regenerated. If
@@ -1178,6 +1243,28 @@ class Run:
                     shutil.rmtree(sub)
                 except OSError as exc:
                     log.warning("Could not delete %s: %s", sub, exc)
+        def _drop(p: Path) -> None:
+            """Delete, or set aside in the stash when the caller asked for one."""
+            nonlocal stash_dir
+            if stash and stash_dir is None:
+                cand = self.dir / f"{self.CHART_STASH_PREFIX}{os.getpid()}"
+                try:
+                    cand.mkdir(parents=True, exist_ok=True)
+                    stash_dir = cand
+                except OSError as exc:
+                    log.warning("Could not make a chart stash in %s: %s",
+                                self.dir, exc)
+            if stash and stash_dir is not None:
+                try:
+                    shutil.move(str(p), str(stash_dir / p.name))
+                    return
+                except OSError as exc:
+                    log.warning("Could not set %s aside: %s", p, exc)
+            try:
+                p.unlink()
+            except OSError as exc:
+                log.warning("Could not delete %s: %s", p, exc)
+
         for name in (
             f"{s}.ti1", f"{s}.ti2", f"{s}.cht", f"{s}.cie", f"{s}.ps",
             f"{s}.pdf",                  # vector-PDF export (was left stale, Basti)
@@ -1191,20 +1278,15 @@ class Run:
         ) if not keep_results else ()):
             p = self.dir / name
             if p.exists():
-                try:
-                    p.unlink()
-                except OSError as exc:
-                    log.warning("Could not delete %s: %s", p, exc)
+                _drop(p)
         for tiff in self.chart_tiffs():
-            try:
-                tiff.unlink()
-            except OSError as exc:
-                log.warning("Could not delete %s: %s", tiff, exc)
+            _drop(tiff)
         # The reads went with the measurement, into old/ — see above. Anything
         # left behind (an empty reads/ folder, or one that appeared between the
         # archive and here) is swept so the run starts clean.
         if not keep_results and self.reads_dir.exists():
             self.clear_reads()
+        return stash_dir
 
 
 # ---------------------------------------------------------------------------
@@ -1448,6 +1530,25 @@ class Project:
         rp = proj.readme_path
         if not rp.exists() or rp.stat().st_size == 0:
             proj.write_readme()
+        # PUT BACK A CHART WHOSE BUILD NEVER FINISHED. `reset_chart_artefacts`
+        # sets the old chart aside before targen runs and the build settles it
+        # afterwards — but a build interrupted by the app CLOSING never reaches
+        # that point, and closing the window is exactly what a person does when
+        # a build is taking too long, because there is no Stop button. So the
+        # stash is settled here instead, on the next open.
+        #
+        # `built=False` is right whichever way it ended: a file is only put back
+        # when the run does not already have one of that name, so a build that
+        # did finish before the app died keeps its new chart and the stash is
+        # simply dropped.
+        try:
+            for _run in proj.all_runs():
+                for _stash in _run.chart_stash_dirs():
+                    log.info("Found a chart set aside by an unfinished build in "
+                             "%s — putting it back", _run.dir)
+                    _run.settle_chart_stash(_stash, built=False)
+        except Exception as exc:      # noqa: BLE001 — opening must never fail
+            log.warning("Could not settle a leftover chart stash: %s", exc)
         # Repair file stems truncated by the pre-4.1.3-beta.16 layout-engine
         # bug. Deliberately NOT gated on schema_version: being affected depends
         # on the project's NAME and on which build made its chart, not on the
