@@ -24,6 +24,7 @@ with nothing to lose must not spawn an `old/` folder at all.
 from __future__ import annotations
 
 import os
+import shutil
 from pathlib import Path
 
 import pytest
@@ -289,3 +290,41 @@ def test_a_stash_holding_only_the_marker_counts_as_empty(run_with_a_chart):
     after = {p.name: p.read_text() for p in run.dir.iterdir() if p.is_file()}
     assert after == before
     assert not stash.exists()
+
+
+# ---------------------------------------------------------------------------
+# The one gap that is KNOWN and deliberately left for 4.1.5
+# ---------------------------------------------------------------------------
+
+@pytest.mark.xfail(
+    reason="A restore interrupted half way loses the files it had already put "
+           "back: on the next open they are no longer in the (now partial) "
+           "stash, so the sweep treats them as the dead build's rubbish. "
+           "Ranked 4.1.5 by two verification rounds — it needs a manifest in "
+           "the stash so a restored original can be told from a leftover, and "
+           "that change was measured to bring costs of its own (name matching "
+           "stops being the filesystem's job and starts being Python string "
+           "equality, which is blind to case and to NFD/NFC). This test is the "
+           "acceptance criterion for that work, written first on purpose.",
+    strict=True)
+def test_a_restore_interrupted_half_way_keeps_what_it_already_put_back(
+        run_with_a_chart):
+    """Six originals set aside, two already moved back, then the process dies.
+
+    Measured (report 34, A-5): the two that had been restored are deleted on
+    the next open, because `Project.load` cannot tell "the original, already put
+    back" from "rubbish the dead build left".
+    """
+    proj, run = run_with_a_chart
+    before = {p.name: p.read_text() for p in run.dir.iterdir() if p.is_file()}
+    stash = run.reset_chart_artefacts(stash=True)
+
+    # …the restore gets two files back and then the app dies.
+    for name in (f"{run.stem}.ti1", f"{run.stem}.ti2"):
+        shutil.move(str(stash / name), str(run.dir / name))
+
+    again = Project.load(proj.root).all_runs()[0]
+
+    after = {p.name: p.read_text() for p in again.dir.iterdir() if p.is_file()}
+    assert after == before, (
+        "the files the interrupted restore had already put back were deleted")
