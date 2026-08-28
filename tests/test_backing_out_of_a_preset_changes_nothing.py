@@ -551,3 +551,81 @@ def test_the_same_preset_accepted_MAY_pin_them(tab, monkeypatch):
     assert [k for k in absent if tab._settings.is_stored(k)], (
         "no preset writes any of these keys any more — the test above has "
         "stopped proving anything")
+
+
+# ---------------------------------------------------------------------------
+# Found ON SCREEN in round 9 — a forced tick box whose side effects nobody redid
+# ---------------------------------------------------------------------------
+
+def test_triple_density_still_works_after_a_refused_preset(tab, monkeypatch):
+    """A tick box has to be forced back with its signals blocked — its handler
+    is not idempotent, and re-running it would stash the TRIPLE-density values
+    as the "before" ones (#89). But then nothing redoes what the handler did.
+
+    Measured on screen: after backing out of a preset, Triple Density still read
+    "on", "Double density" beside it was clickable again, and unticking Triple
+    Density changed nothing at all — the chart stayed at the triple-density
+    spacing with nothing saying so. The box was there; it had stopped meaning
+    anything.
+    """
+    tab._switch_mode("manual")
+    tab._set_manual_value("printtarg", "-i", "CM")     # Triple density is CM-only
+    tab._manual_td_check.setChecked(True)
+    assert tab._td_saved_layout, "the fixture did not reach the triple-density state"
+    before_stash = dict(tab._td_saved_layout)
+    assert tab._manual_dd_pw.isEnabled() is False, "Double density should be greyed"
+
+    _refuse(tab, monkeypatch)
+    _pick(tab, _ENGINE_KEY)
+
+    assert tab._manual_td_check.isChecked() is True
+    assert tab._manual_dd_pw.isEnabled() is False, \
+        "Double density was left clickable beside a ticked Triple Density"
+    assert tab._td_saved_layout == before_stash, \
+        "the layout Triple Density is hiding was lost, so unticking it reverts nothing"
+
+    # …and the box still does what it says: unticking it puts the layout back.
+    tab._manual_td_check.setChecked(False)
+    assert tab._manual_get("printtarg", "-a", None) == before_stash["-a"]
+    assert tab._manual_get("printtarg", "-m", None) == before_stash["-m"]
+    assert tab._manual_get("printtarg", "-P", None) == before_stash["-P"]
+
+
+def test_a_failing_row_restore_does_not_abandon_the_rest_of_the_undo(tab,
+                                                                    monkeypatch):
+    """Step 6 used to sit outside every guard, so ONE raise there skipped every
+    step after it — the dropdown, the family flags and the instrument were left
+    on the preset that had just been refused, which is the exact state the undo
+    exists to prevent.
+
+    The realistic trigger is a `ParameterWidget` whose C++ object has been
+    deleted: reading `pw.flag` then raises `RuntimeError`, and the snapshot side
+    already guarded that access while the restore did not. This test makes the
+    step fail directly rather than planting a dead widget, because a dead widget
+    in `_manual_widgets` also breaks panel code that has nothing to do with the
+    undo, and the point here is that the undo carries on.
+    """
+    class Unreadable(dict):
+        def items(self):
+            raise RuntimeError("wrapped C/C++ object of type ParameterWidget "
+                               "has been deleted")
+
+    start_combo = tab._preset_combo.currentIndex()
+    _refuse(tab, monkeypatch)
+    real = tab._restore_preset_state
+
+    def with_unreadable_rows(snap):
+        snap = dict(snap)
+        snap["widgets"] = Unreadable()
+        return real(snap)
+
+    monkeypatch.setattr(tab, "_restore_preset_state", with_unreadable_rows,
+                        raising=False)
+    _pick(tab, _ENGINE_KEY)          # must not raise
+
+    assert tab._preset_combo.currentIndex() == start_combo, \
+        "the dropdown was abandoned on a preset that was refused"
+    assert tab._last_preset_index == start_combo
+    assert tab._knut_active is False, \
+        "the tab still says a Spyderprint chart is loaded"
+    assert tab._pending_replace is None

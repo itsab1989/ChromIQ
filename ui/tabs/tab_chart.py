@@ -7539,6 +7539,14 @@ class TabChart(QWidget):
         "_vendor_debranded", "_layout_owned_by_build",
         "_engine_clip_saved", "_engine_leftclip_saved",
         "_engine_was_active", "_stamp_engine_state",
+        # THE LAYOUT TRIPLE DENSITY IS HIDING. `_on_manual_td_toggled` stashes
+        # the pre-TD `-a/-m/-P/-L` here when the box goes on and clears it when
+        # the box goes off, and a preset switches the box off on its way in. The
+        # box is put back with signals blocked — it has to be, its handler is not
+        # idempotent — so without this the box came back ticked with no stash
+        # behind it: unticking Triple Density afterwards reverted nothing and the
+        # chart silently stayed at the triple-density spacing. Found on screen.
+        "_td_saved_layout",
         # Written by `_convert_engine_to_printtarg` on the way in and read to
         # decide whether a LATER printtarg→engine switch keeps the panel's
         # margins or re-derives them from `-m`. Measured absent before a refused
@@ -7822,18 +7830,36 @@ class TabChart(QWidget):
                             exc_info=True)
         # 6. Every parameter row, in panel order (see the docstring) — the last
         #    word on the rows, after anything the panel pushed into them.
-        for tool, rows in snap["widgets"].items():
-            by_flag = {pw.flag: pw for pw in self._manual_widgets.get(tool, [])}
-            for flag, value, enabled in rows:
-                pw = by_flag.get(flag)
-                if pw is None:
-                    continue
+        # THE WHOLE STEP IS INSIDE THE GUARD, LOOP HEADER INCLUDED. Two lines
+        # here used to sit outside every `try`: the iteration itself, and
+        # `pw.flag`, which raises `RuntimeError` on a ParameterWidget whose C++
+        # object has been deleted — the snapshot's identical access was already
+        # guarded, and this one was not. Either raise skipped steps 7 to 12 and
+        # left the dropdown, the family flags and `-i` on the preset that had
+        # just been refused: precisely the "worse than no undo" state this
+        # method says it has removed.
+        try:
+            for tool, rows in snap["widgets"].items():
                 try:
-                    pw.set_value(value)
-                    pw.set_user_enabled(enabled)
-                except Exception:      # noqa: BLE001 — one row, not the undo
-                    log.debug("preset undo: could not restore %s %s", tool,
-                              flag, exc_info=True)
+                    by_flag = {pw.flag: pw
+                               for pw in self._manual_widgets.get(tool, [])}
+                except Exception:      # noqa: BLE001 — one tool, not the undo
+                    log.warning("preset undo: could not index the %s rows",
+                                tool, exc_info=True)
+                    continue
+                for flag, value, enabled in rows:
+                    pw = by_flag.get(flag)
+                    if pw is None:
+                        continue
+                    try:
+                        pw.set_value(value)
+                        pw.set_user_enabled(enabled)
+                    except Exception:  # noqa: BLE001 — one row, not the undo
+                        log.debug("preset undo: could not restore %s %s", tool,
+                                  flag, exc_info=True)
+        except Exception:              # noqa: BLE001 — the step, not the undo
+            log.warning("preset undo: the parameter rows could not be put back",
+                        exc_info=True)
         try:
             spin = getattr(self, "_manual_pages_spin", None)
             if spin is not None and snap["pages_spin"] is not None:
@@ -7913,6 +7939,21 @@ class TabChart(QWidget):
             self._update_manual_lb_visibility()
         except Exception:              # noqa: BLE001
             log.debug("preset undo: row visibility refresh failed", exc_info=True)
+        # …and the one piece of greying a forced box owns that nothing above
+        # re-derives: Triple Density disables "Double density", because the two
+        # are mutually exclusive. The handler cannot simply be re-run — called
+        # again with True it would stash the TRIPLE-density values as the
+        # "pre-TD" ones, which is the #89 round-trip bug — so the box's own rule
+        # is applied directly instead. Measured on screen: without this, backing
+        # out of a preset left "Double density" clickable beside a ticked Triple
+        # Density.
+        try:
+            _td = getattr(self, "_manual_td_check", None)
+            if _td is not None and self._manual_dd_pw is not None:
+                self._manual_dd_pw.setEnabled(not _td.isChecked())
+        except Exception:              # noqa: BLE001
+            log.debug("preset undo: could not re-grey Double density",
+                      exc_info=True)
         # …and once more, which is INSURANCE AND NOT PROVEN LOAD-BEARING: the
         # visibility pass just above is the one thing left that can move a box
         # (it force-unticks Triple Density when the instrument is not a
