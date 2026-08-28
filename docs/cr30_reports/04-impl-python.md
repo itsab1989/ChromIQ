@@ -447,3 +447,100 @@ The release gate (`--runslow`) was **not** run, per the brief.
 (`test_qt_message_filter`, `test_preferences_website_link`,
 `test_profile_engine_parity`, …). All eight pass in isolation and did not recur;
 `BrokenPipeError` in xdist teardown, not a regression.
+
+## §R — Requests for changes in [CR30-IMPL-C]'s files
+
+Not edited by me. Ordered by how much Python behaviour depends on them.
+
+**R-1 — `.ti3` must carry `TARGET_INSTRUMENT "CR30"` (critique A3, G3).**
+`chromiq_chartread.c:3636`. While the `.ti3` says `"Unknown Instrument"`,
+`tab_profile._detected_instrument` cannot see a CR30, so the **instrument** half
+of the FWA gate is blind. The Python side is defended anyway — the gate also
+fires on "no spectral columns", which a CR30 `.ti3` always satisfies — but every
+other consumer of the identity chain (the measurement report, the wrong-device
+warning, `instrument_label`) is reading a lie until this lands.
+
+**R-2 — exclude CR30 from `_engine_should_fall_back`
+(`measure_manager.py:537+`, critique B8/G5).** A failed engine run can be
+**automatically** relaunched on stock chartread, which for a CR30 chart is a
+fatal `Unrecognised chart target instrument`. My guard
+(`TabMeasure._blocked_by_stock_chartread_for_cr30`) only covers the deliberate
+Preferences setting at **start**; it does not see an automatic fallback
+mid-run. Suggested test: `ui.ti2_loader.is_cr30(read_target_instrument(ti2))`.
+
+**R-3 — `patch_by_patch` is a visible per-target checkbox that will read
+"off" while a CR30 read is patch-by-patch regardless** (critique B8.2). `-x` is
+always spot mode (`chromiq_chartread.c:887`, every `rmode` assignment is inside
+`if (xtern == 0)`). Force it, hide it, or explain it. The control is
+`ui/tabs/tab_measure.py:11157/11175` (mine) but the decision is yours — tell me
+which and I will do the UI half.
+
+**R-4 — where does the CR30 instrument *family* come from in `-x` mode?**
+(critique F4.) `_detected_instrument` is fed by the engine's `instrument`
+event, which never fires when Argyll opens no device. Until something supplies
+it, the CR30 branches already written into `ui/ti2_loader.py`
+(`calibration_instructions_html`, `measurement_instructions_html`) are dead code
+and every CR30 window shows the generic wording. Cheapest fix on my side: fall
+back to the chart's own `TARGET_INSTRUMENT`. Say the word and I will wire it.
+
+**R-5 — two sounds per patch** (critique D6). The CR30 beeps for itself, and
+`measurement_window_sounds.md:54-55` already defines a patch-read cue for
+patch-by-patch. `--json` gags Argyll's beep, but Argyll never opens this device.
+345 patches × 2 beeps needs a decision before a beta tester meets it.
+
+**R-6 — an orphaned `-x` helper** (critique D9/F8). Other instruments' helpers
+exit when the device closes; this one has no device.
+
+## §U — Unfinished, risky, or deliberately not done
+
+Numbered, so they can be picked up without re-deriving anything.
+
+1. **`ui/dialogs/welcome_dialog.py` still does not mention the CR30**
+   (surface map 5.26). Two prose `tr()` keys list the supported instruments
+   (`:764` glossary, `:1044`). Editing either changes the key → 24 `test_i18n`
+   failures each, and the brief forbids it. **Deliberately deferred to the
+   pre-final translation sweep**, where the keys can be re-cut in one pass.
+2. **The 12 parameter overlays carry a stale `tooltip_body` for
+   `printtarg -i`.** The English gained a CR30 bullet; the translated bodies did
+   not. `test_parameters_overlay_covers_every_parameter` only checks presence,
+   so nothing fails — but 12 languages ship an instrument list missing the CR30.
+   Predicted by surface map §9.2; a translation-sweep item.
+3. **The A4 hex gain (+17.4 %) does not match the chart critique's +8.8 %.**
+   Mine is measured at the shipped 12 mm; theirs predates the ruling. The gain
+   is strongly paper-dependent (+6.9 % on A3). Worth one confirmation before
+   anyone quotes a headline figure.
+4. **Whether the hexagon should be sized at equal WIDTH (shipped) or equal AREA
+   is a genuine open trade** — density against 0.45 mm more clearance, table
+   above. Nobody has a CR30 in front of them. One-line switch, documented in the
+   source.
+5. **`INSTRUMENT_LABELS["CR30"] = "CR30 (ChnSpec)"` but the `parameters.yaml`
+   label is `"CR30 (ChnSpec, patch by patch)"`.** Deliberate (the YAML one sits
+   beside "SpectroScan (flatbed)"), but they appear in different places and
+   someone may want them identical.
+6. **The Manual "Spacer size" box now greys out for the SpectroScan too.** That
+   is a fix — its geometry hard-codes `pspa = 0.0`, so the box never worked —
+   but it is a **visible change to an instrument outside #159's scope**. Flagged
+   deliberately.
+7. **The FWA gate now also fires on any spectra-free `.ti3`, for every
+   instrument.** Correct (FWA/illuminant/observer are computed *from* spectra)
+   and it is what protects the CR30 while R-1 is open, but it is a behaviour
+   change beyond the CR30. Full suite green.
+8. **`_MARGIN_INSTR_LABEL.get(flag, "i1Pro")` still falls back to the i1Pro for
+   a genuinely unknown flag** (`tab_chart.py:16174`). Closed for the CR30 by
+   registering it; the general trap is untouched, being out of scope.
+9. **No live patch-size feedback in the layout panel.** With the too-small guard
+   dropped (ruling), a user can set a 3 mm CR30 patch and only meet
+   `preflight`'s 6 mm warning in the Preferences preview. Consistent with every
+   other instrument, which is the point of the ruling.
+10. **`hex_capable()` calls `build()` on every query.** Cheap (a dataclass
+    construction, no I/O) and called from UI event handlers, not paint paths.
+    Noting it because it is a probe, not a lookup.
+11. **`settings_are_hexagonal()` (`hex_support.py`) is still SpectroScan-only.**
+    Correct: it detects **printtarg**-drawn hexagons from recorded Create Chart
+    settings, and a CR30 chart is engine-only, so it always has a recipe and
+    never reaches that path. Left alone deliberately.
+12. **Nothing in the reading path was implemented** — that is the C work, by the
+    brief. Everything above assumes the `-x` route is made to work
+    (critique A1/A2).
+
+STATUS: complete

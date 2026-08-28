@@ -11859,7 +11859,7 @@ class TabChart(QWidget):
             self._dd_check.setVisible(True)
             self._dd_tooltip.setVisible(True)
             self._dd_check.setText(
-                tr("Hexagon patches (suits the round CR30, more per sheet)"))
+                tr("Hexagon patches (suits the round CR30, about a tenth more per sheet)"))
             self._dd_tooltip._title = tr("Hexagon Patches (CR30)")
             self._dd_tooltip._body = tr(
                 "Switches the CR30 chart from rectangular to hexagonal "
