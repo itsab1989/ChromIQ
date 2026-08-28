@@ -507,3 +507,133 @@ reconnect re-runs a 12 s scan with a connect-and-verify per candidate.
 that waits and can be cancelled) and §1.4 (a retry path). Reconnection is a
 *retry policy*; there is nothing to hang it on yet.
 
+
+## Section 4 — report 09's open list, verified and ranked
+
+**A real CR30 turned out to be attached to this machine** (`/dev/cu.usbserial-10`;
+`identify()` → `model='CR30', device_id='PT694D01E7', version 'V11.3.'`), so
+several items that 09 could only reason about are now **measured on hardware**.
+Nothing was ever sent to it but `read_stored`, which sends **no trigger** and
+cannot cause a calibration write (`usb_measure.py:22-25, 171-179`).
+
+| 09's item | verdict | rank |
+|---|---|---|
+| 1. `M-CR30-READ-ENDED` is a log line, not a window | real, and correct as it stands | MINOR |
+| 2. `DeviceReader` has never met hardware | **it has now, and it fails** — §1 is hardware-confirmed | **BLOCKER** |
+| 3. calibration flow not built | real | **BLOCKER for a useful beta** (§3.1) |
+| 4. BLE reconnection not built | real | SERIOUS (§3.3) |
+| 5. C-before-B ordering | not a defect | — |
+| 6. F13 no-instrument window | still unreachable under `-x`; unchanged | MINOR |
+| 7. F14 `_saw_instrument` dead | confirmed dead: set at `:1083`, `:4582`, `:5686`, read nowhere | MINOR |
+| 8. the one-off write into the real `~/ChromIQ` | **09's guess is wrong — see 4.2** | SERIOUS |
+| 9. `-p` under `-x` | deliberate and correct | — |
+
+### 4.1 Item 2 — measured on the attached unit
+
+```
+$ python /tmp/hw.py
+opened over usb in 0.02s
+identify: Identity(model='CR30', device_id='PT694D01E7', … version_a='V11.3.')
+read 0: 0.00s mean 81.198%R peak 89.642 gate=None axis=ASSUMED 400/31/10 -- no header was fetched
+     XYZ: [77.634, 80.7851, 70.5674] tile? False
+read 1: 0.00s RAISED: reading is bit-identical to the previous one. …
+read 2: 0.00s RAISED: reading is bit-identical to the previous one. …
+two unenforced reads 1s apart identical: True
+```
+
+* **`read_measurement()` returns in 0.00 s.** It does not wait for anything.
+* The second and third reads raise. Exactly §1.2.
+* `gate=None` and `axis=ASSUMED 400/31/10 — no header was fetched`: §1.3's two
+  side-effects are live on this unit.
+* `tile? False` — the stale reading is *not* the tile constant, so even the
+  unit-specific tile check would not have caught it.
+
+**And then the real app did it, on his real project.** Driving the real
+`MainWindow` on a **copy** of `~/ChromIQ/CR30-Test` (offscreen, sandboxed
+settings — the real folder was never touched), pressing **Start** on the Measure
+tab produced, in the tab's own log:
+
+```
+Ready to read patch '384' at 'A1'
+ Got XYZ value 77.633986 80.785143 70.567372
+Ready to read patch '103' at 'A2'
+The CR30 could not be read for patch A2: reading is bit-identical to the
+previous one. … Press the button on the instrument again.
+```
+
+and wrote this `.ti3`:
+
+```
+NUMBER_OF_SETS 1
+384 "A1" 81.59335 56.76003 87.60663 77.63399 80.78514 70.56737
+```
+
+Patch A1's device value is RGB **(81.6, 56.8, 87.6)** — a saturated lavender,
+expected XYZ `49.997 39.551 75.274`, **Lab (69.2, +34.7, −47.2)**. What was
+recorded is the instrument's stale cache, **Lab (92.0, −0.5, −3.6)** — near-white
+paper. **ΔE76 = 60.5**, written into the measurement file with no warning, no
+event, and no way for anything downstream to tell.
+
+The helper did not catch it either: its plausibility gate is `WERR_TH 95.0`
+(`chromiq_chartread.c:71`), and 60.5 sails through.
+
+**Nothing about this needed Bluetooth, a flaky cable or bad luck. It is what
+happens every time.**
+
+### 4.2 Item 8 — the mystery write is explained, and 09's guess was wrong
+
+09 recorded a write into `~/ChromIQ/CR30-Test/runs/run1/meta.json` at 21:00:58,
+copied both files to `/tmp/chromiq-meta-backup/`, and concluded *"the likeliest
+explanation is that Basti's own app touched his own project"*.
+
+**The backed-up copy settles it, and it is the other way round.** Diffing the
+21:03 backup against the live file:
+
+```
+-   "value": "i1"          +   "value": "CR30"        (printtarg -i)
+-   "value": 0             +   "value": 390           (targen -f  — the patch count)
+-   "engine_on": false     +   "engine_on": true
+-   "dpi": 72,             +   "dpi": 300,
+-   "seed": null,          +   "seed": 1800742635,
+-   "hflag": false,        +   "hflag": true,
+-   "layout_mode": "area_first"  + "patch_first"
+    … 14 more, all of the same kind
+```
+
+The **backup is the damaged version**. It cannot be a state this project was
+ever in: `targen -f = 0` and `dpi 72` cannot have produced the 390-patch,
+300 dpi, hexagonal chart that was generated at 20:14 and whose `.ti2` carries
+`RANDOM_START "1800742635"` — the seed the *live* file holds and the backup does
+not. So at 21:00:58 the run's stored Create Chart recipe was **replaced by an
+unpopulated tab's defaults**, and something put the right values back at 21:05.
+
+That is a **project-settings clobber**, the same shape as the two earlier ones,
+and for four minutes the printed chart's recipe did not exist on disk. Had
+anyone pressed Generate in that window, a different chart would have been built
+over the one on paper.
+
+**What I could and could not reproduce.** I drove the real `MainWindow` against a
+copy, with `restore_last_session` on, for `active_tab` = Create Chart and
+= Print Chart, then left the tab (the §3 W6 write):
+
+* Create Chart: `md5` **unchanged**. `TabChart` reloads on the target change, so
+  the ordering hazard I expected (`_load_settings_of_tab_entered` runs at
+  `main_window.py:420`, `_restore_last_session` only at the following
+  `singleShot(0)`, `:423`) does **not** bite for that tab.
+* Print Chart: the file **was** rewritten, but benignly — `"print_settings": {}`
+  → `{"intent": "relative", "route": "chromiq"}`.
+
+**So the writer is still unidentified.** It is not the startup path, and it is
+not (as 09 assumed) benign. Two practical consequences, both for the user:
+
+1. **`/private/tmp` is swept nightly.** `/tmp/chromiq-meta-backup/` — the only
+   copy of the damaged file, and the evidence — will be destroyed. It has been
+   copied to `~/chromiq-cr30-test-backup-20260828-215034/`, together with the
+   whole project and both `com.chromiq*.plist` files, before anything else in
+   this session was done.
+2. **Do not run the gate, or any driver, while his CR30-Test project matters.**
+   The tripwire (`tests/conftest.py:552`) is what caught this; it only catches
+   a stray **once** per name.
+
+**Rank: SERIOUS, pre-existing (not #159's), and unresolved.**
+
