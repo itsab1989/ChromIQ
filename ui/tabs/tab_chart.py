@@ -3103,11 +3103,40 @@ class TabChart(QWidget):
         self._generate_btn.setFixedHeight(36)
         self._generate_btn.clicked.connect(self._on_generate)
 
+        # STOP, beside Generate, exactly as Measure has START and STOP.
+        #
+        # There was no way to stop a chart build at all: the only exit was to
+        # quit ChromIQ, which is what destroyed the chart being replaced until
+        # the build learned to set it aside first. The mechanism already
+        # existed — `ChartCreator.cancel()`, reachable only from the slow-chart
+        # window that appears on its own after a wait — so this is wiring, not
+        # a new feature. Hidden until a build starts, so the row looks the same
+        # as it always did when nothing is running.
+        self._stop_btn = QPushButton(tr("Stop"), self)
+        self._stop_btn.setFixedHeight(36)
+        self._stop_btn.setVisible(False)
+        self._stop_btn.setToolTip(tr(
+            "Stop building this chart.\n\n"
+            "Whatever was here before is put back, so nothing is lost: the "
+            "chart, its printed pages and the layout they were made from are "
+            "all still there when this finishes.\n\n"
+            "One part cannot be interrupted. While ChromIQ's own layout engine "
+            "is drawing the pages it works in one go, so a stop pressed then "
+            "takes effect as soon as that finishes rather than immediately."))
+        self._stop_btn.clicked.connect(self._on_stop_clicked)
+        # SHOWN FROM ONE PLACE, and that place is the marker the app already
+        # trusts. `_chart_build_in_flight()` reads the Generate button, which
+        # every build path disables on the way in and re-enables on the way out,
+        # failures included — so watching that button for a state change keeps
+        # Stop in step with all ten of those sites without touching any of them.
+        self._generate_btn.installEventFilter(self)
+
         self._save_defaults_btn = QPushButton(tr("Save as Defaults"), self)
         self._save_defaults_btn.setFixedHeight(36)
         self._save_defaults_btn.clicked.connect(self._on_save_defaults)
 
         btn_row.addWidget(self._generate_btn)
+        btn_row.addWidget(self._stop_btn)
         btn_row.addStretch()
         btn_row.addWidget(self._save_defaults_btn)
         left_layout.addLayout(btn_row)
@@ -10932,11 +10961,13 @@ class TabChart(QWidget):
         designed = _number_of_sets(run.chart_ti1)
         total = _number_of_sets(run.chart_ti2)
         if designed and total and total > designed:
+            _fill = count_phrase(total - designed,
+                                 tr("1 paper-white fill-up patch"),
+                                 tr("{n} paper-white fill-up patches"))
             self._log.appendPlainText(
-                f"Patch count: {designed} designed + {total - designed} "
-                f"paper-white fill-up patch(es) completing the last strip "
-                f"= {total} total. Instruments read whole strips; the "
-                f"fill-up patches are measured like any others."
+                f"Patch count: {designed} designed + {_fill} completing the "
+                f"last strip = {total} total. Instruments read whole strips; "
+                f"the fill-up patches are measured like any others."
             )
         # The chart wasn't built from ChartParams; clear them so the meta stamp
         # falls back to instrument/paper only and preserves the editor layout we
@@ -11613,9 +11644,14 @@ class TabChart(QWidget):
             total = per_sheet * pages
             self._predicted_patch_count = total   # for the Suggest-name button (#62)
             self._patch_count_lbl.setText(self._count_with_accent(str(total)))
+            # "1 PAGES" sat on the first screen of the app, in the largest
+            # type on the panel, with "Number of pages: 1" two inches above it.
+            # Every other count-bearing line already uses `count_phrase`; this
+            # one skipped it and thirteen translations inherited the mistake.
+            _pages = count_phrase(pages, tr("1 PAGE"), tr("{n} PAGES"))
             self._patch_detail_lbl.setText(
-                tr("PATCHES · {pages} PAGES · {paper}").format(
-                    pages=pages, paper=paper.upper())
+                tr("PATCHES · {pages} · {paper}").format(
+                    pages=_pages, paper=paper.upper())
             )
         else:
             self._predicted_patch_count = None
@@ -12400,6 +12436,32 @@ class TabChart(QWidget):
         else:
             # Keep waiting: re-arm so the user can change their mind later.
             self._slow_watchdog.start(_SLOW_CHART_WATCHDOG_MS)
+
+    def eventFilter(self, obj, event):     # noqa: N802 — Qt's name
+        """Keep Stop in step with the Generate button's own state."""
+        try:
+            from PyQt6.QtCore import QEvent
+            if obj is getattr(self, "_generate_btn", None) \
+                    and event.type() == QEvent.Type.EnabledChange:
+                self._show_stop_button(self._chart_build_in_flight())
+        except Exception:      # noqa: BLE001 — an event filter must never raise
+            log.debug("could not refresh the Stop button", exc_info=True)
+        return super().eventFilter(obj, event)
+
+    def _on_stop_clicked(self) -> None:
+        """The Stop button beside Generate Chart."""
+        self._log.appendPlainText(tr(
+            "Stopping. The chart that was here before is being put back, so "
+            "nothing is lost."))
+        self._log.ensureCursorVisible()
+        self._cancel_generation()
+
+    def _show_stop_button(self, running: bool) -> None:
+        """Show Stop exactly while a chart build is in flight."""
+        btn = getattr(self, "_stop_btn", None)
+        if btn is not None:
+            btn.setVisible(bool(running))
+            btn.setEnabled(bool(running))
 
     def _cancel_generation(self) -> None:
         self._cancelled_by_user = True

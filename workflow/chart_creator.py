@@ -145,8 +145,11 @@ def _engine_padding_log_line(total: int, padding: int) -> str:
     if not padding or padding <= 0:
         return ""
     designed = total - padding
+    from core.i18n import count_phrase, tr
+    fill = count_phrase(padding, tr("1 paper-white fill-up patch"),
+                        tr("{n} paper-white fill-up patches"))
     return (f"[ChromIQ layout engine] patch count: {designed} designed "
-            f"+ {padding} paper-white fill-up patch(es) completing the last "
+            f"+ {fill} completing the last "
             f"strip = {total} total. Instruments read whole strips; the "
             f"fill-up patches are measured like any others.")
 
@@ -731,8 +734,9 @@ class ChartCreator:
         eng = self._engine_total_patches(params)
         if eng is not None:
             if progress_cb:
-                progress_cb(f"ChromIQ layout engine: {eng} patches "
-                            f"({params.pages} page(s))")
+                from core.i18n import count_phrase, tr
+                _pg = count_phrase(params.pages, tr("1 page"), tr("{n} pages"))
+                progress_cb(f"ChromIQ layout engine: {eng} patches ({_pg})")
             return eng
 
         triple = params.triple_density and params.instrument == "CM"
@@ -1243,10 +1247,12 @@ class ChartCreator:
             self._finish([])
             return
 
+        from core.i18n import count_phrase as _cp, tr as _tr
+        _pages = _cp(result.layout.pages, _tr("1 page"), _tr("{n} pages"))
         on_line(
             f"[ChromIQ layout engine] {result.layout.total_patches} patches "
             f"({result.layout.steps_in_pass}×{result.layout.passes}), "
-            f"{result.layout.pages} page(s), random start {result.seed}")
+            f"{_pages}, random start {result.seed}")
         # Explain a total that grew past the designed count: a partial last
         # strip is topped up with paper-white patches so the instrument reads
         # whole strips (printtarg behaviour, mirrored by the engine). Knut
@@ -1257,8 +1263,10 @@ class ChartCreator:
         if pad_line:
             on_line(pad_line)
         if result.low_contrast_passes:
-            on_line(f"[ChromIQ layout engine] note: low patch/spacer contrast in "
-                    f"{len(result.low_contrast_passes)} strip(s)")
+            _strips = _cp(len(result.low_contrast_passes),
+                          _tr("1 strip"), _tr("{n} strips"))
+            on_line("[ChromIQ layout engine] note: low patch/spacer contrast "
+                    f"in {_strips}")
 
         tiffs = sorted(result.tiff_paths or [])
         if tiffs and self._pending_params is not None:
@@ -1355,6 +1363,17 @@ class ChartCreator:
         stem: str = "chart",
     ) -> None:
         if exit_code != 0:
+            # A DELIBERATE STOP IS NOT A FAILURE, and printtarg is the phase
+            # that writes the pages, so it is the likeliest one to be stopped.
+            # `_cancelling` was only ever checked in `_targen_done`, so a person
+            # who pressed Stop here was shown "Chart Generation Failed
+            # (printtarg)" for something they had just asked for.
+            if self._cancelling:
+                self._cancelling = False
+                log.info("printtarg cancelled by user (exit code %d)", exit_code)
+                if on_finish:
+                    on_finish([])
+                return
             log.error("printtarg failed with code %d", exit_code)
             if on_finish:
                 on_finish([])

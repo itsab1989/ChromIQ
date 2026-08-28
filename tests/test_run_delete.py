@@ -206,11 +206,23 @@ def test_p1_names_the_measurement_and_the_profile(tmp_path):
 
 
 def test_p2_says_plainly_that_nothing_measured_is_lost(tmp_path):
+    """A run with nothing in it must not be described as though it had.
+
+    THE WORDING CHANGED FROM "has not been measured" TO "has no measurement …
+    right now", and that is the whole point: the old sentence was a claim about
+    the run's HISTORY, and it was false for the commonest case. Re-generating a
+    chart on a measured run archives the measurement and the profile into
+    `old/<date>/` — deliberately, because they cannot be recreated — leaving no
+    live `.ti3`. Such a run read as "has not been measured" while the window
+    went on to delete two archived measurements and a profile.
+    """
     p = _project(tmp_path, runs=3)
     plan = rd.plan_for(p, _Target("run2"))
     body = rd.message_for(plan)
-    assert "has not been measured" in body
+    assert "no measurement and no profile in it right now" in body
     assert ".ti3" not in body
+    # …and it must not claim anything about what the run once held.
+    assert "has not been measured" not in body
 
 
 def test_p1_lists_the_renumbering_in_full(tmp_path):
@@ -582,3 +594,96 @@ def test_a_failed_rename_rolls_back_and_leaves_the_numbering_alone(tmp_path, mon
     names = sorted(d.name for d in p.runs_root.iterdir() if d.is_dir())
     assert names == ["run1", "run3", "run4"], names
     assert not any(rd._TMP_SUFFIX in n for n in names)
+
+
+# ---------------------------------------------------------------------------
+# F6: what the run keeps in old/ — the run that LOOKS unmeasured is usually the
+# one with the most to lose
+# ---------------------------------------------------------------------------
+
+def _archive(run, when: str, *, measurement=True, profile=True):
+    """Put an archived session in the run's old/ folder, as a chart re-make does."""
+    d = run.old_dir / when
+    d.mkdir(parents=True, exist_ok=True)
+    if measurement:
+        (d / f"{run.stem}.ti3").write_text("readings")
+        reads = d / "reads"
+        reads.mkdir(exist_ok=True)
+        (reads / "read1.ti3").write_text("one")
+    if profile:
+        (d / f"{run.stem}.icc").write_text("profile")
+    return d
+
+
+def test_a_run_whose_chart_was_remade_is_not_called_unmeasured(tmp_path):
+    """The exact sequence a person follows in the ordinary refinement loop:
+    measure a run, then re-make its chart. ChromIQ archives the measurement and
+    the profile on purpose. Delete then said "no measurement and no profile
+    will be lost" and removed both."""
+    p = _project(tmp_path, runs=3)
+    run = p.run("run2")
+    _archive(run, "2026-08-11_101500")
+    body = rd.message_for(rd.plan_for(p, _Target("run2")))
+    assert "one earlier measurement" in body
+    assert "2026-08-11 10:15:00" in body
+    assert "cannot be recreated" in body
+    assert "one earlier printer profile" in body
+
+
+def test_several_archives_are_counted_and_dated(tmp_path):
+    p = _project(tmp_path, runs=3)
+    run = p.run("run2")
+    _archive(run, "2026-08-11_101500")
+    _archive(run, "2026-08-14_090000")
+    _archive(run, "2026-08-27_173000")
+    body = rd.message_for(rd.plan_for(p, _Target("run2")))
+    assert "3 earlier measurements" in body
+    for d in ("2026-08-11 10:15:00", "2026-08-14 09:00:00", "2026-08-27 17:30:00"):
+        assert d in body, d
+    assert "3 earlier printer profiles" in body
+
+
+def test_measurements_and_profiles_are_counted_separately(tmp_path):
+    """A dated folder can hold a measurement with no profile. Composing one
+    sentence from two counts is how "2 measurements and 1 profiles" happens,
+    which is the fault the house rule against "(s)" exists to prevent."""
+    p = _project(tmp_path, runs=3)
+    run = p.run("run2")
+    _archive(run, "2026-08-11_101500", profile=False)
+    _archive(run, "2026-08-14_090000")
+    body = rd.message_for(rd.plan_for(p, _Target("run2")))
+    assert "2 earlier measurements" in body
+    assert "one earlier printer profile" in body
+    assert "(s)" not in body
+
+
+def test_the_chart_a_measurement_was_taken_with_is_named(tmp_path):
+    """`chart/` is the only copy of it, and Restore Used Chart is the only thing
+    that reads it. No delete window mentioned it."""
+    p = _project(tmp_path, runs=3)
+    run = p.run("run2")
+    run.chart_snapshot_dir.mkdir(parents=True, exist_ok=True)
+    (run.chart_snapshot_dir / f"{run.stem}.ti2").write_text("the used chart")
+    body = rd.message_for(rd.plan_for(p, _Target("run2")))
+    assert "Restore Used Chart" in body
+    assert "no other one" in body
+
+
+def test_the_preconditioning_seed_is_named(tmp_path):
+    """ChromIQ preserves preconditioning.* across a chart rebuild on purpose,
+    then Delete removed it silently."""
+    p = _project(tmp_path, runs=3)
+    run = p.run("run2")
+    run.preconditioning_ti3.write_text("the seed")
+    body = rd.message_for(rd.plan_for(p, _Target("run2")))
+    assert "pre-conditioning" in body
+
+
+def test_an_empty_old_folder_says_nothing_extra(tmp_path):
+    """The negative control: a run with nothing archived must not grow a
+    paragraph about archives."""
+    p = _project(tmp_path, runs=3)
+    p.run("run2").old_dir.mkdir(parents=True, exist_ok=True)
+    body = rd.message_for(rd.plan_for(p, _Target("run2")))
+    assert "earlier measurement" not in body
+    assert "earlier printer profile" not in body

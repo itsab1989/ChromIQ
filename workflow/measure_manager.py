@@ -1714,9 +1714,12 @@ class MeasureManager(QObject):
             target = self._guided_strips[0]
             self._guided_state = "navigating"
             strips_str = ", ".join(self._guided_strips)
+            from core.i18n import count_phrase, tr
+            _n = count_phrase(len(self._guided_strips),
+                              tr("1 strip"), tr("{n} strips"))
             on_line(
                 f"[Guided Refinement] Starting auto-navigation to "
-                f"{len(self._guided_strips)} strip(s): {strips_str} — worst \u0394E first."
+                f"{_n}: {strips_str} — worst \u0394E first."
             )
             on_line("[Guided Refinement] The app will press 'f'/'b' for you. Do not touch the keyboard.")
             on_line(f"[Guided Refinement] Moving to strip {target}\u2026")

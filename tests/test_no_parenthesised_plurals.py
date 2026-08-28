@@ -21,10 +21,20 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 
 #: "file(s)", "page(s)" — a word immediately followed by a parenthesised s.
-PARENS_PLURAL = re.compile(r"\b[A-Za-z]+\(s\)")
+#: `(es)` AS WELL AS `(s)`. The original pattern was one character short, and
+#: `paper-white fill-up patch(es)` sat inside the directory this test already
+#: scanned, in an `appendPlainText` call it already listed, through a green gate.
+PARENS_PLURAL = re.compile(r"\b[A-Za-z]+\((?:s|es)\)")
 
 #: Directories holding text a user can read.
-UI_DIRS = ("ui",)
+#:
+#: `workflow/` IS ONE OF THEM, WHICH THIS TEST USED TO DENY. Its own docstring
+#: excludes Python `log.*` calls because "those are for us, not for the user" —
+#: but `on_line(...)` and `progress_cb(...)` are not `log.info`: they write the
+#: Create Chart log the person is watching while their chart is built. Three
+#: strings lived there and read "7 page(s)", "3 patch(es)" and "9 strip(s)" on
+#: screen, off a real build, while this test passed.
+UI_DIRS = ("ui", "workflow")
 
 #: Calls whose string arguments end up in front of a user. ``tr`` is the
 #: obvious one; the setters matter because the counted phrases that prompted
@@ -34,6 +44,9 @@ UI_DIRS = ("ui",)
 USER_FACING_CALLS = {
     "tr", "appendPlainText", "setToolTip", "setText", "setPlaceholderText",
     "setWindowTitle", "setStatusTip", "addButton", "setLabelText", "setTitle",
+    # The build log. Not logging: these are the lines a person reads while
+    # ChromIQ makes their chart, and they are the ones this test missed.
+    "on_line", "progress_cb",
 }
 
 

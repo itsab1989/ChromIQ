@@ -1272,10 +1272,55 @@ class NoScrollSpinBox(QSpinBox):
 
 
 class NoScrollDoubleSpinBox(QDoubleSpinBox):
+    """Every number field in ChromIQ with a decimal point is one of these.
+
+    IT ACCEPTS BOTH SEPARATORS, AND THAT IS NOT A CONVENIENCE — IT IS A BUG FIX.
+    A spin box runs on the SYSTEM locale, so on a German machine the decimal
+    separator is a comma. ChromIQ writes its numbers the English way everywhere
+    else: the tooltips say 0.7, the ArgyllCMS flag documentation says 0.7, and
+    the live command preview under the field says -T0.70. Type what you are
+    told to type and the box rejects the "." keystroke, the digits close up, and
+    0.7 silently becomes 07, which is 7.0. In range, no warning, nothing on
+    screen disagreeing with anything else.
+
+    Measured on screen, 2026-08-28, on a real de_DE machine: all fourteen of
+    them. The expensive one is the patch-consistency tolerance, where the app
+    really sent `chartread -T7.00` instead of `-T0.70` — telling the instrument
+    to accept a strip ten times further out of agreement than the person asked
+    for, which is a measurement that looks fine and is not. The dE
+    re-measurement threshold does the mirror thing: ask for 0.7, get 7.0, and no
+    strip is ever flagged.
+
+    So both "." and "," are read as the decimal point, whichever one the locale
+    itself uses. Basti ruled on 2026-08-28 that a comma is ALWAYS a decimal
+    point here, never a thousands separator: 1,250 is one and a quarter, not one
+    thousand two hundred and fifty. Of these fields only two have a range that
+    reaches four digits, and neither is somewhere a person would reach for a
+    thousands separator, so the alternative — refusing anything ambiguous —
+    would interrupt typing to prevent a case that barely exists.
+
+    NOT fixed with `QLocale.setDefault(C)`, which was the first idea and is
+    measurably worse: under C, typing 0,7 gives 7.0. That does not fix the bug,
+    it aims it at the people whose keyboard habit is the comma.
+    """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setStyleSheet(_input_bg_qss())
+
+    def _normalised(self, text: str) -> str:
+        """*text* with whichever separator is not this locale's swapped for the
+        one that is. Leaves anything else exactly as typed."""
+        want = self.locale().decimalPoint()
+        other = "," if want == "." else "."
+        return text.replace(other, want) if other in text else text
+
+    def validate(self, text, pos):        # noqa: N802 — Qt's name
+        return super().validate(self._normalised(text), pos)
+
+    def valueFromText(self, text):        # noqa: N802 — Qt's name
+        return super().valueFromText(self._normalised(text))
 
     def wheelEvent(self, event):
         if self.hasFocus():

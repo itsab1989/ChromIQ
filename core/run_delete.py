@@ -110,6 +110,26 @@ class DeletePlan:
     #: KIND_VERIFY_ALL only — whether the one dated result has readings.
     verification_measured: bool = False
     has_verify_chart: bool = False
+    #: KIND_RUN only — the dates of the archives in this run's ``old/`` folder
+    #: that hold a measurement, and those that hold a profile, oldest first.
+    #:
+    #: THE RUN THAT LOOKS UNMEASURED IS USUALLY THE ONE WITH THE MOST TO LOSE.
+    #: Re-generating a chart on a measured run ARCHIVES the measurement and the
+    #: profile into ``old/<date>/`` — Knut's #130 critical, because they cannot
+    #: be recreated — and the run's live ``.ti3`` is then gone. Asking the live
+    #: paths alone therefore reported such a run as never measured, and the
+    #: window told the person that nothing would be lost while deleting two
+    #: archived measurements, a profile and both averaging reads. Measured on
+    #: screen, 2026-08-28, on the ordinary refinement loop.
+    archived_measurements: list = field(default_factory=list)
+    archived_profiles: list = field(default_factory=list)
+    #: KIND_RUN only — the run keeps the chart a finished measurement was taken
+    #: with in ``chart/``; it is the only copy, and Restore Used Chart reads it.
+    has_chart_snapshot: bool = False
+    #: KIND_RUN only — ``preconditioning.ti3/.icc``, the seed a refinement run
+    #: was built from. `reset_chart_artefacts` goes out of its way to preserve
+    #: these across a chart rebuild, and Delete removed them without a word.
+    has_preconditioning: bool = False
 
 
 def run_number(run_id: str) -> str:
@@ -184,6 +204,7 @@ def plan_for(project, target, *, measuring: bool = False
         return DeletePlan(kind=KIND_LAST_RUN, path=run.dir, run_id=run_id,
                           project_name=name)
 
+    _arch_m, _arch_p = _archives(run)
     survivors = [r for r in all_ids if r != run_id]
     renumbering = [(old, f"run{i}") for i, old in enumerate(survivors, start=1)
                    if old != f"run{i}"]
@@ -201,6 +222,9 @@ def plan_for(project, target, *, measuring: bool = False
         kind=KIND_RUN, path=run.dir, run_id=run_id, project_name=name,
         has_measurement=run.measurement_ti3.exists(),
         has_profile=run.profile_icc.exists() or (run.dir / f"{run.stem}.icm").exists(),
+        archived_measurements=_arch_m, archived_profiles=_arch_p,
+        has_chart_snapshot=_has_snapshot(run),
+        has_preconditioning=_has_precond(run),
         seeded_runs=seeded, renumbering=renumbering,
         lands_on=f"run{len(survivors)}",
         verification_ids=_dated(run))
@@ -250,6 +274,54 @@ def title_for(plan: DeletePlan) -> str:
         when=pretty_date(plan.verification_ids[0]))
 
 
+def _archives(run) -> tuple:
+    """(dates holding a measurement, dates holding a profile) from ``old/``.
+
+    DATED FOLDERS, NOT FILES. ``old/`` holds one folder per archive event, so a
+    run archived three times holds three sessions that may total a dozen files.
+    "12 earlier files" tells a person nothing they can act on; three dates do.
+    """
+    measurements, profiles = [], []
+    try:
+        old = run.old_dir
+        if not old.is_dir():
+            return [], []
+        for d in sorted(p for p in old.iterdir() if p.is_dir()):
+            files = list(d.rglob("*"))
+            if any(f.suffix.lower() == ".ti3" for f in files):
+                measurements.append(d.name)
+            if any(f.suffix.lower() in (".icc", ".icm") for f in files):
+                profiles.append(d.name)
+    except OSError:
+        return measurements, profiles
+    return measurements, profiles
+
+
+def _has_snapshot(run) -> bool:
+    """Does ``chart/`` hold the chart a measurement was actually taken with?
+
+    It is the ONLY copy — Restore Used Chart reads it, and nothing else does —
+    and no delete window mentioned it.
+    """
+    try:
+        d = run.chart_snapshot_dir
+        return d.is_dir() and any(d.iterdir())
+    except OSError:
+        return False
+
+
+def _has_precond(run) -> bool:
+    """``preconditioning.ti3/.icc`` — the seed a refinement run was built from.
+
+    `Run.reset_chart_artefacts` deliberately preserves these across a chart
+    rebuild, and Delete removed them without a word.
+    """
+    try:
+        return run.preconditioning_ti3.exists() or run.preconditioning_icc.exists()
+    except OSError:
+        return False
+
+
 def pretty_date(vid: str) -> str:
     """``2026-07-28_131500`` → ``2026-07-28 13:15:00``."""
     try:
@@ -270,6 +342,42 @@ def message_for(plan: DeletePlan) -> str:
     if plan.kind == KIND_VERIFY_ALL:
         return _verify_all_message(plan)
     return _verify_one_message(plan)
+
+
+def _archive_paragraphs(plan: DeletePlan) -> list:
+    """What the run's ``old`` folder holds, named by date.
+
+    Two sentences, never one: a dated folder can hold a measurement with no
+    profile, so "2 measurements and 1 profiles" is exactly the fault the house
+    rule against "(s)" exists to prevent.
+    """
+    out = []
+    m, p = plan.archived_measurements, plan.archived_profiles
+    if len(m) == 1:
+        out.append(tr(
+            "This run also holds one earlier measurement in its “old” folder, "
+            "from {date}. It was put there when the chart was last re-made, "
+            "because a measurement cannot be recreated without printing and "
+            "measuring the chart again. Deleting the run deletes it as well.")
+            .format(date=pretty_date(m[0])))
+    elif len(m) > 1:
+        out.append(tr(
+            "This run also holds {n} earlier measurements in its “old” folder, "
+            "from {dates}. They were put there each time the chart was re-made, "
+            "because a measurement cannot be recreated without printing and "
+            "measuring the chart again. Deleting the run deletes all of them.")
+            .format(n=len(m), dates=_join([pretty_date(d) for d in m])))
+    if len(p) == 1:
+        out.append(tr(
+            "There is one earlier printer profile in that “old” folder too, "
+            "from {date}, and it goes with the rest.")
+            .format(date=pretty_date(p[0])))
+    elif len(p) > 1:
+        out.append(tr(
+            "There are {n} earlier printer profiles in that “old” folder too, "
+            "from {dates}, and they go with the rest.")
+            .format(n=len(p), dates=_join([pretty_date(d) for d in p])))
+    return out
 
 
 def _run_message(plan: DeletePlan) -> str:
@@ -295,9 +403,25 @@ def _run_message(plan: DeletePlan) -> str:
         parts.append(tr("This includes:") + "\n" + "\n".join(lines))
     else:
         parts.append(tr(
-            "This run has not been measured, so no measurement and no profile "
-            "will be lost. What goes is the chart, its printable pages and the "
-            "working files that belong to it."))
+            "This run has no measurement and no profile in it right now. What "
+            "goes is the chart, its printable pages and the working files that "
+            "belong to it."))
+    # WHAT IS IN old/ COUNTS, IN BOTH BRANCHES. A run whose chart was
+    # re-generated after it was measured has its measurement and profile in
+    # `old/<date>/` and nothing live, so it read as "never measured" — and the
+    # window said so while deleting them.
+    parts.extend(_archive_paragraphs(plan))
+    if plan.has_chart_snapshot:
+        parts.append(tr(
+            "It also holds the copy of the chart this run was measured with, "
+            "kept in its “chart” folder. That copy is what “Restore Used Chart” "
+            "puts back, and there is no other one, so it goes too."))
+    if plan.has_preconditioning:
+        parts.append(tr(
+            "And it holds the pre-conditioning files this run was started "
+            "from, which is the measurement a refinement was built on top of. "
+            "ChromIQ keeps those even when you re-make the chart, but deleting "
+            "the run takes them with it."))
     if plan.seeded_runs:
         parts.append(_seeded_paragraph(plan))
     parts.append(tr(
@@ -343,11 +467,15 @@ def _last_run_message(plan: DeletePlan) -> str:
         tr("You have two ways forward:"),
         tr("•  Empty the run — keep run {n} but delete its chart, measurement, "
            "profile, reports and verifications, so you start again from a "
-           "clean run {n}.").format(n=run_number(plan.run_id)),
+           "clean run {n}. That means everything inside the run folder, "
+           "including anything kept in its “old” folder from earlier "
+           "measurements and the copy of the chart in its “chart” folder.")
+           .format(n=run_number(plan.run_id)),
         tr("•  Delete the whole project — remove the project folder and "
-           "everything in it, including the shared calibration and the "
-           "project-wide exports. ChromIQ then returns to the state it has "
-           "when you start it fresh, with no project open."),
+           "everything in it: the shared calibration and every earlier one "
+           "kept beside it, the project-wide exports, and every run with "
+           "everything in its folders. ChromIQ then returns to the state it "
+           "has when you start it fresh, with no project open."),
         tr("Both of these move the files to your Trash rather than destroying "
            "them, so you can open the Trash and put them back if you change "
            "your mind. Neither one leaves a copy behind in an “old” folder "

@@ -31,6 +31,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from core.i18n import count_phrase, tr
 from core.stem_paths import artefact
 
 from workflow.layout_engine import cht_writer, cie_writer
@@ -146,13 +147,14 @@ def layout_from_cht_files(cht_paths: list, ref_path: str | Path) -> dict:
     if missing:
         raise ScaninTargetError(
             f"The .cht files don't cover the whole chart: {len(missing)} "
-            f"patch(es) of the reference have no box (e.g. "
+            f"patches of the reference have no box (e.g. "
             f"{sorted(missing)[:3]}). Did you pick every page's .cht?")
     extra = geom_set - ref_set
     if extra:
         raise ScaninTargetError(
-            f"The .cht files don't belong to this chart: {len(extra)} box(es) "
-            f"have no patch in the reference (e.g. {sorted(extra)[:3]}). Pick "
+            f"The .cht files don't belong to this chart: "
+            f"{count_phrase(len(extra), tr('1 box has'), tr('{n} boxes have'))} "
+            f"no patch in the reference (e.g. {sorted(extra)[:3]}). Pick "
             "the .cht files printtarg wrote for exactly this chart.")
     return {"engine": "printtarg", "cht_pages": texts, "locs": geom_locs}
 
@@ -194,7 +196,7 @@ def _check_measured(geom_locs: list[str], data: Ti3Data) -> None:
             "Measure this chart with ChromIQ (Measure tab) and build the "
             "target from that .ti3.")
     raise GeometryMismatch(
-        f"{len(missing)} chart patch(es) have no measurement — the .ti3 "
+        f"{count_phrase(len(missing), tr('1 chart patch has'), tr('{n} chart patches have'))} no measurement — the .ti3 "
         f"doesn't match this chart (e.g. {sorted(missing)[:3]}). Re-measure "
         "the whole chart before building scanner files.")
 
