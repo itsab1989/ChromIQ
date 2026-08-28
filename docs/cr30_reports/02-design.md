@@ -225,3 +225,54 @@ So the guard becomes unit-independent, the hard-coded `TILE_SIGNATURE` drops to
 a fallback used only when calibration was skipped, and the blocker is closed by
 a feature the user asked for on ergonomic grounds. Recorded because it was not
 the reason for the request.
+
+---
+
+## 11. Geometry rulings — Basti, 2026-08-28 (FINAL)
+
+| | |
+|---|---|
+| Patch cell | **12.0 mm** |
+| Default shape | **Rectangular** |
+| Hexagonal | **offered as an option**, in every Create Chart module |
+| Spacers | **off by default**; always off in Guided, changeable elsewhere |
+
+### Why 12 mm — the reasoning that actually applies
+
+⚠ The earlier justification ("2.5× the aperture, the same patch:aperture ratio
+as the i1Pro") was **wrong on its own terms**: the i1Pro is 10 mm / 5 mm = 2.00×,
+a 10 mm CR30 cell would be 2.50×, and 12 mm is 3.00×. Never claim a match that
+is not one.
+
+The real driver is **occlusion, not the aperture**. The CR30 body is **33 mm in
+diameter and opaque**: once it is placed, the patch underneath is invisible. The
+user aims a 33 mm disc at a target they can no longer see, using the ring of
+surrounding cells. So cell size is set by hand placement under occlusion.
+
+| Cell | Square / A4 | Hex / A4 | Clearance around the 4 mm aperture (sq / hex) |
+|---|---|---|---|
+| 10.0 mm | 513 | 558 | 3.00 / 3.37 mm |
+| 10.4 mm *(proven readable)* | 468 | 510 | 3.20 / 3.59 mm |
+| **12.0 mm** | **330** | **390** | **4.00 / 4.45 mm** |
+
+12 mm **exceeds the only geometry a CR30 has been proven to read** — the
+ColorMunki extra-high sheet at 10.4 × 13.0 mm (`instruments.py:422-430`), 40
+patches, 0 misreads (`EXP-SPEC-001a`). Since the minimum patch size was never
+measured and will not be, the safe direction is the generous one. Capacity stays
+practical against Pharmacist's 300-patch working target, at ~13 min per sheet.
+
+**Still labelled provisional in the UI.** A reasoned choice is not a measured
+minimum.
+
+### Why rectangular is the default, with hex offered
+
+For a round instrument a hexagon of equal area has a **7.5 % larger inscribed
+circle** (4.45 mm vs 4.00 mm clearance) and hexagonal close packing is the
+densest arrangement of circles in a plane (90.69 % vs 78.54 %), so the honeycomb
+is both denser and more forgiving — its cells guide a round body. It is offered
+everywhere the SpectroScan offers it. Rectangular remains the default by
+ruling: it is the familiar shape, and the aiming gain is an option the user
+takes deliberately rather than a change sprung on them.
+
+⚠ **Not yet done:** #159 line 483 requires that a patch smaller than the
+aperture is *refused at layout time, not on paper*. No guard exists.
