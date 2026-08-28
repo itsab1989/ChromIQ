@@ -440,3 +440,96 @@ highlight over hexagons, and the scanner sample-area cap silently lifted.
 Pre-existing for the SpectroScan; it now applies to a second instrument. The
 fallback is one `find_kword`-equivalent away.
 
+---
+
+## Section 6 — What a real user hits that the design does not cover
+
+### 6.1 SERIOUS — three user-facing strings quote numbers from the 10 mm cell
+
+The cell was ruled to 12 mm (HEAD `aed369d9`, "cr30: 12 mm cell (wip)"). The
+patch-count claims were not re-measured. Measured now, through
+`geometry.patches_per_sheet` on `default_recipe`:
+
+| paper | rectangular | hexagonal | gain |
+|---|---|---|---|
+| **A4 portrait** | **345** | **405** | **+17.4 %** |
+| A4 landscape | 368 | 396 | +7.6 % |
+| A3 | 782 | 836 | +6.9 % |
+
+And the provenance of the shipped figures, confirmed by forcing the old size:
+`patch_w = 10 mm` gives **532 flat / 576 hex** — exactly the pair three strings
+still quote. They are the *previous* ruling's numbers.
+
+| site | says | truth |
+|---|---|---|
+| `ui/tabs/tab_chart.py:11836` (Guided checkbox **label**) | "Hexagon patches (suits the round CR30, **~8 % more per sheet**)" | +17.4 % on A4P; ~7 % on A4L/A3 |
+| `ui/tabs/tab_chart.py:11848` (Guided tooltip) | "532 patches rectangular, **576 hexagonal**" | 345 / 405 |
+| `ui/dialogs/layout_options_panel.py:142` (Manual tooltip) | "532 patches rectangular, **576 hexagonal**" | 345 / 405 |
+| `workflow/layout_engine/presets.py:175` (comment) | "packs **~15 %** more per sheet" | +17.4 % A4P, +6.9 % A3 |
+
+`workflow/layout_engine/instruments.py:640` already says "345 patches
+rectangular, 405 hexagonal (+17 %)" — the geometry comment was updated and the
+four sites above were not. Graded SERIOUS because two of them are **translated
+strings**: changing them costs a German pass and a `tests/test_i18n.py` run, so
+it is cheaper to fix before the strings are translated than after.
+
+The honest phrasing is a range, not a number — the gain is +17 % on A4 portrait
+and +7 % on A4 landscape and A3, because the honeycomb hands back
+`2·hxew = 6.0 mm` of width and `2·hxeh = 3.5 mm` of height, and a wider sheet
+absorbs the width penalty less well.
+
+### 6.2 SERIOUS — the "Double density"/"Hexagon patches" checkbox leak now changes the SHAPE
+
+`ui/tabs/tab_chart.py:11803-11895`: one `_dd_check` carries three meanings, and
+it is force-unchecked **only when hidden** (`:11888-11891`). It is visible for
+CM, SS and CR30, so:
+
+* ColorMunki with **Double density** on → switch to CR30 → arrives with
+  **hexagons silently on**;
+* SpectroScan with **Hexagon patches** on → switch to ColorMunki → arrives at
+  **double density**, which needs hardware the user may not own.
+
+Report 05 graded this MINOR (§3.7) when a CR30 honeycomb was drawn as squares.
+It is now SERIOUS, because the shape actually changes — and §3.1 means the
+patch-count readout **does not move**, so nothing on screen hints that the
+sheet just changed shape. The state is persisted as `chart_double_density`
+(`tab_chart.py:17812`), so it survives a restart.
+
+### 6.3 MINOR — text written for a SpectroScan is now shown to a CR30 user
+
+* `workflow/hex_support.py:69-70`, `hex_scanner_message()` — the way out it
+  offers is *"make the chart with square patches: in Create Chart, **with the
+  SpectroScan selected**, set the layout to Rectangular."* This message is now
+  raised for a CR30 honeycomb (`scanin_dialog.py:1741`,
+  `scanin_target_dialog.py:384`), telling a CR30 user to select a different
+  instrument. Translated string.
+* `ui/dialogs/settings_dialog.py:3201-3203` — *"for the SpectroScan it is
+  rectangular vs hexagonal patches"*, in the help for the very preset grid that
+  now also holds `CR30|…|flat` / `CR30|…|hex`. Translated string.
+* `ui/tiff_preview.py:1496-1499` and `ui/tabs/tab_measure.py:4191-4193` —
+  *"which a CR30 chart's square patches must not get"*. Code comments only; the
+  code is right (`set_hex_zigzag` is driven by `chart_is_hexagonal`), but the
+  comment now asserts the opposite of the feature. Carried over from report 05
+  §3.8 and still present.
+
+### 6.4 Mixed shapes, switching shapes, other machines, printing, reports
+
+Walked, and each is fine or already covered above:
+
+* **Mixed hex and rect in one project.** Each run carries its own chart,
+  `.channels.json` and recipe; `chart_is_hexagonal` is asked per chart path
+  (`tab_measure.py:4190`, `:506`). Two runs of one target may differ freely.
+  No shared state was found. **Survives.**
+* **Switching shape after a chart exists.** `_chart_is_hexagonal` deliberately
+  reads the live selectors, not the built chart — that is #152's ruling
+  (`tab_chart.py:16157-16171` records Knut's report and why). The margin
+  inspector and the measure overlay keep reading the *chart's* sidecar, so the
+  built chart is never re-judged by the selector. **Correct as designed.**
+* **Measured on another machine.** The whole run folder travels, sidecar
+  included, so the shape survives. A bare `.ti2` does not — §5.5.
+* **Printing.** `PostScriptGenerator` takes the rendered TIFF; nothing on that
+  path knows the patch shape. **No exposure.**
+* **Reports and the overlay.** Both read the recorded rects, which now carry
+  the stagger for any hexagonal geometry (§3.3). `margin_inspector` adds the
+  apex and correctly does not re-add the stagger. **Survives.**
+
