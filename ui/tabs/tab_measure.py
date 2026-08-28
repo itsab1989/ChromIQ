@@ -2051,6 +2051,9 @@ class TabMeasure(QWidget):
             "Normally chartread prompts you to place the instrument on its\n"
             "white calibration tile before measuring begins. This ensures\n"
             "accurate absolute reflectance values and takes only a few seconds.\n\n"
+            "For a chart ChromIQ reads itself — a CR30 — there is no chartread\n"
+            "prompt, and this option instead decides whether ChromIQ offers\n"
+            "you its own calibration window before the measurement starts.\n\n"
             "Enable this only if you have already calibrated the instrument\n"
             "earlier in the same session and do not want to repeat the step."),
         )
@@ -2529,6 +2532,9 @@ class TabMeasure(QWidget):
             "Normally chartread prompts you to place the instrument on its\n"
             "white calibration tile before measuring begins. This ensures\n"
             "accurate absolute reflectance values and takes only a few seconds.\n\n"
+            "For a chart ChromIQ reads itself — a CR30 — there is no chartread\n"
+            "prompt, and this option instead decides whether ChromIQ offers\n"
+            "you its own calibration window before the measurement starts.\n\n"
             "Enable this only if you have already calibrated the instrument\n"
             "earlier in the same session and do not want to repeat the step."),
         )
@@ -5726,13 +5732,30 @@ class TabMeasure(QWidget):
         # reason for a chart full of rejected patches should have been all
         # along (Knut, beta.148).
         if params.disable_initial_cal:
+            # The wording has to differ for a reader ChromIQ drives itself.
+            # `-N` suppresses ArgyllCMS chartread's calibration PROMPT — and
+            # under `-xx` chartread opens no instrument and prompts nobody, so
+            # the flag is inert on the command line. What the tick now means
+            # for such a chart is that ChromIQ's own calibration window is not
+            # offered. Telling a CR30 user about a prompt that cannot appear
+            # would send them looking for something that does not exist.
             self._log.appendPlainText("\n" + tr(
                 "[NOTE] Skip initial calibration (-N) is switched on, so your "
                 "instrument will not be calibrated before this measurement.\n"
                 "That is fine if you calibrated it earlier in this session. If "
                 "you did not, readings can drift and whole patches may come "
                 "back as “inconsistent” — switch the option off in the "
-                "measurement options and start again."))
+                "measurement options and start again.")
+                if not params.external_values else
+                "\n" + tr(
+                "[NOTE] Skip initial calibration is switched on, so ChromIQ "
+                "has not offered to calibrate your instrument before this "
+                "measurement.\n"
+                "That is fine if you calibrated it earlier. If you did not, "
+                "every reading in this measurement can be shifted by the same "
+                "amount, which is not visible in the numbers — untick the "
+                "option in the measurement options and start again to be "
+                "offered the calibration."))
             self._log.ensureCursorVisible()
         # A fresh session: nothing detected yet, and no window pending from the
         # last one.
