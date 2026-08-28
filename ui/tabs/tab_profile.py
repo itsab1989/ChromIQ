@@ -4050,6 +4050,21 @@ class TabProfile(QWidget):
                 ).format(held=facts.held, expected=facts.expected))
         else:
             self._build_btn.setToolTip("")
+        # AND ON THE LABEL, not only in a tooltip nobody hovers over.
+        #
+        # The tooltip alone left the screen saying "Ready to build?" beside an
+        # enabled button for a measurement of 17 patches out of 390. How much
+        # of the chart was measured is the single most important fact about a
+        # measurement you are about to build a profile from, so it goes where
+        # the file is named.
+        if (facts.state is Ti3State.PARTIAL and facts.held is not None
+                and facts.expected):
+            self._file_lbl.setText(tr("{path}  —  {held} of {expected} patches "
+                                      "measured").format(
+                path=path, held=facts.held, expected=facts.expected))
+        elif not usable:
+            self._file_lbl.setText(tr("{path}  —  no readings yet").format(
+                path=path))
         # #130 §4: **only while the field is still a ChromIQ default.** These
         # two lines used to overwrite unconditionally, so a Profile Description
         # the user had typed was lost the moment a measurement was loaded or

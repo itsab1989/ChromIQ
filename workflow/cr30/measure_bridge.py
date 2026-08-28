@@ -256,6 +256,23 @@ class Cr30MeasureBridge(QObject):
             self._stopped = True
             self.mispaired.emit(answered, loc)
 
+    def rearm(self) -> bool:
+        """Start reading the outstanding patch again. True if there was one.
+
+        For the case where a reading ended the session's contact with the
+        instrument and the user chose to carry on anyway: the prompt is still
+        outstanding on the helper's side, so all that is missing is a reader.
+        Without this, "Keep measuring" would leave a live session with nothing
+        listening — the same dead end this round removed elsewhere.
+        """
+        if self._stopped or self._awaiting_loc is None:
+            return False
+        if self._reading_loc == self._awaiting_loc:
+            return True                    # already reading it
+        self._retries.pop(self._awaiting_loc, None)
+        self._start_read(self._awaiting_loc)
+        return True
+
     def note_goto(self, target: str) -> None:
         """Call when a ``{"cmd":"goto"}`` is sent, BEFORE it goes out.
 
@@ -454,10 +471,36 @@ class DeviceReader:
         # said "press the button again".
         with self._lock:
             if self._dev is None:
-                self._dev = self._open()
+                try:
+                    self._dev = self._open()
+                except Exception as exc:      # noqa: BLE001 — classified below
+                    # AN INSTRUMENT THAT CANNOT BE OPENED IS A LOST ONE.
+                    #
+                    # Failing to open raises ConnectionError and its kin, none
+                    # of which is a DeviceLost — so it took the "refused
+                    # reading" path and a CR30 that was switched OFF was told
+                    # "the magnetic cap is still on the instrument". The
+                    # silence this whole round removed, re-created one layer
+                    # up, and with worse advice than saying nothing.
+                    from .device import DeviceLost
+                    raise DeviceLost(
+                        f"the instrument could not be opened ({exc})") from exc
                 log.info("CR30: opened over %s", self._dev.kind)
-            m = self._dev.read_next_measurement(
-                timeout=self.button_timeout_s, cancelled=self._cancelled)
+            from .device import DeviceLost
+            try:
+                m = self._dev.read_next_measurement(
+                    timeout=self.button_timeout_s, cancelled=self._cancelled)
+            except DeviceLost:
+                # Let go of the handle. It belongs to an instrument that is no
+                # longer there, and keeping it means a reconnected instrument
+                # can never be opened — which would make "Keep measuring" a
+                # promise the session cannot keep.
+                try:
+                    self._dev.close()
+                except Exception:          # noqa: BLE001 — it is already gone
+                    pass
+                self._dev = None
+                raise
         from .colour import spectrum_to_xyz
         return spectrum_to_xyz(m.values)
 

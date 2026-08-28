@@ -82,6 +82,7 @@ def test_an_empty_measurement_cannot_build_a_profile(tab, tmp_path):
     assert not tab._build_btn.isEnabled(), (
         "Build Profile is offered for a measurement holding no readings")
     assert "nothing to build" in tab._build_btn.toolTip().lower()
+    assert "no readings" in tab._file_lbl.text().lower()
 
 
 def test_a_partial_measurement_says_how_partial_it_is(tab, tmp_path):
@@ -91,9 +92,16 @@ def test_a_partial_measurement_says_how_partial_it_is(tab, tmp_path):
     tip = tab._build_btn.toolTip()
     assert "1" in tip and "4" in tip, (
         f"the tooltip does not say how much of the chart was measured: {tip!r}")
+    # And on the label, where it cannot be missed: a tooltip alone left the
+    # screen saying "Ready to build?" beside an enabled button on 17 of 390.
+    lbl = tab._file_lbl.text()
+    assert "1" in lbl and "4" in lbl and "measured" in lbl, (
+        f"the file label does not say the measurement is partial: {lbl!r}")
 
 
 def test_a_complete_measurement_is_not_nagged_about(tab, tmp_path):
     _load(tab, tmp_path, 4)
     assert tab._build_btn.isEnabled()
     assert tab._build_btn.toolTip() == ""
+    assert "measured" not in tab._file_lbl.text(), (
+        "a complete measurement is being flagged as if it were partial")

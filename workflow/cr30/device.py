@@ -36,6 +36,13 @@ class CR30:
     def __init__(self, transport, kind: str):
         self._t, self.kind = transport, kind
         self._previous: Measurement | None = None
+        #: The last spectrum the device was SEEN holding, whether or not
+        #: the reading was accepted. Distinct from `_previous` on
+        #: purpose: "has the operator pressed the button" and "is this
+        #: identical to the reading we kept" are different questions,
+        #: and answering both from one value made a refused reading end
+        #: the next wait instantly, with nobody pressing anything.
+        self._last_seen: "list[float] | None" = None
         self.model = ""
 
     # -- construction ----------------------------------------------------
@@ -229,19 +236,27 @@ class CR30:
                         f"the instrument stopped answering ({exc})") from exc
                 return self.read_measurement(button_header=hdr)
 
-        # The reading we will judge the next one against: the last one this
-        # session ACCEPTED. Captured before the loop, because the polling reads
-        # below must not be allowed to become it.
+        # TWO DIFFERENT QUESTIONS, AND THEY NEED TWO DIFFERENT VALUES.
+        #
+        #   `accepted` — the last reading this session USED. That is what
+        #   check_usable compares against, because "identical to the previous
+        #   one" means the previous one we kept.
+        #
+        #   `prev` — the last reading the device was SEEN holding, accepted or
+        #   not. That is what "the operator has pressed the button" is measured
+        #   against, because the device's stored value changes on every press
+        #   whether we liked the result or not.
+        #
+        # Conflating them cost a session. A refused reading (cap on, say) left
+        # `_previous` untouched, so the next wait still compared against the
+        # last ACCEPTED patch — the device's stored value already differed from
+        # it, the wait ended instantly without anyone pressing anything, the
+        # same reading was refused again, and the retry budget was gone in
+        # under a millisecond. The user pressed once and was told ChromIQ had
+        # "tried several times".
         accepted = self._previous
-
-        # What "unchanged" means. With no accepted reading yet — the first
-        # patch of a session — there is nothing to compare against, and
-        # accepting whatever the device happens to be holding is exactly the
-        # stale-cache bug this method exists to prevent (see the docstring:
-        # patch A1 took the white-tile cache at delta E 60.5). So probe once
-        # first and make THAT the baseline: the wait then starts from what the
-        # device holds now, and only a genuinely new reading ends it.
-        prev = accepted.values if accepted else None
+        prev = self._last_seen if self._last_seen is not None else (
+            accepted.values if accepted else None)
         while prev is None:
             if cancelled is not None and cancelled():
                 raise MeasurementError("cancelled while waiting for the "
@@ -250,7 +265,8 @@ class CR30:
                 raise MeasurementError(
                     f"the instrument did not answer within {timeout:.0f} s.")
             try:
-                prev = self.read_measurement(enforce=False).values
+                prev = self._last_seen = self.read_measurement(
+                    enforce=False).values
             except DeviceLost:
                 # Before the MeasurementError arm below, which it is a subclass
                 # of: without this, "the instrument is gone" would land in
@@ -290,6 +306,12 @@ class CR30:
                     f"the Bluetooth link to the instrument dropped ({exc})"
                 ) from exc
             if m.values != prev:
+                # The device is holding something new, so the operator has
+                # pressed. Record that BEFORE judging it: whatever the verdict,
+                # this is now what the next press has to differ from, and a
+                # refusal that left the baseline behind made the following wait
+                # end instantly on the very reading that had just been refused.
+                self._last_seen = m.values
                 # Judge it against the last ACCEPTED reading. Passing
                 # self._previous here compared the reading to ITSELF once
                 # read_measurement had already stored it, so identical_to was

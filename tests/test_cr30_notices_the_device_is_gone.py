@@ -25,6 +25,7 @@ def _usb_device(receive):
     d = CR30.__new__(CR30)
     d.kind = "usb"
     d._previous = None
+    d._last_seen = None
     d.model = "CR30"
     d._t = type("T", (), {"receive": staticmethod(receive)})()
     return d
@@ -70,6 +71,7 @@ def test_a_dropped_bluetooth_link_is_reported():
     d = CR30.__new__(CR30)
     d.kind = "ble"
     d._previous = None
+    d._last_seen = None
     d.model = "CR30"
 
     class _Dead:
@@ -79,3 +81,47 @@ def test_a_dropped_bluetooth_link_is_reported():
     d._t = _Dead()
     with pytest.raises(DeviceLost):
         d.read_next_measurement(timeout=5.0)
+
+
+def test_an_instrument_that_cannot_be_opened_is_reported_as_gone():
+    """report 13, V-23: an instrument switched OFF was told its cap was on.
+
+    Failing to OPEN raises ConnectionError and its kin, none of which is a
+    DeviceLost — so it took the refused-reading path, was re-armed, and after
+    five instant failures the user was shown "The magnetic cap is still on the
+    instrument". That is the silence this round removed, re-created one layer
+    up, and with worse advice than saying nothing at all.
+    """
+    from workflow.cr30.measure_bridge import DeviceReader
+
+    r = DeviceReader()
+    r._open = lambda: (_ for _ in ()).throw(ConnectionError("no such device"))
+    with pytest.raises(DeviceLost):
+        r()
+
+
+def test_a_lost_instrument_is_let_go_of_so_a_reconnect_can_be_opened():
+    """report 13, V-7: the ending window offers "Keep measuring", and on a lost
+    instrument that is only honest if reconnecting can actually work. A stale
+    handle to a vanished device would make the next read fail for ever."""
+    from workflow.cr30.measure_bridge import DeviceReader
+
+    class _Gone:
+        kind = "usb"
+        closed = False
+
+        def read_next_measurement(self, **_kw):
+            raise DeviceLost("the instrument stopped answering")
+
+        def close(self):
+            self.closed = True
+
+    r = DeviceReader()
+    dev = _Gone()
+    r._dev = dev
+    with pytest.raises(DeviceLost):
+        r()
+    assert dev.closed, "the vanished instrument's handle was never closed"
+    assert r._dev is None, (
+        "the reader kept a handle to an instrument that is gone — a "
+        "reconnected one could never be opened")

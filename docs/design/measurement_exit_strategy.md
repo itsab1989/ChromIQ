@@ -105,6 +105,9 @@ whether the handler works.**
 | **Abort?** (Esc pressed) | Yes | `n` to chartread, then the ending | chartread leaves its own question; ours runs | ✅ *(beta.156; **unreachable until beta.160** — see note 4)* |
 | | No | `n` | keep measuring | ✅ |
 | **Calibration required** | OK / Skip / Cancel | `\r` / `s` / `\x1b` | the instrument's own calibration prompt | ⚠️ **see note 3** |
+| **Calibrate your CR30 before measuring** (M-CR30-CALIBRATE) | Calibrate now | ChromIQ triggers the instrument's calibration | not an exit — the session has not begun | ✅ *(see note 5)* |
+| | Cancel | a bare `return` from `_on_start` | the measurement never starts | ✅ *(see note 5)* |
+| **The instrument stopped answering** (M-CR30-INSTRUMENT-GONE) | (three buttons) | `_end_session(choice)` | the ending | ✅ *(see note 6)* |
 | **All Strips Read / All Patches Read** | Go to … Tab | `d` | "done" — chartread writes and exits normally; keeps the measurement and moves on | ✅ not a failure exit |
 | | Re-read … | — | the window closes; the session continues | ✅ |
 | | Close | — | raises **"Keep what you have measured so far?"** — the single exit | ✅ |
@@ -202,3 +205,42 @@ text belongs to §M.
 Cancel, which ends the session before any reading exists. **His ruling:** *"The
 calibration prompt's Cancel is ok. Leave it."* Recorded here rather than
 pretended away.
+
+## Note 5 — the CR30 calibration window is not an exit, and that is why it is safe
+
+⏳ **Awaiting confirmation.** **Confirmed by:** *nobody yet.*
+
+M-CR30-CALIBRATE opens inside `TabMeasure._on_start`, **before the helper is
+started and before anything irreversible has happened** — after the user has
+agreed to replace the measurement, and before the run's existing `.ti3` is moved
+to `old/`. So its Cancel is not an ending at all: no session exists to end, and
+the correct behaviour is a bare `return`. That is exactly why it sits there. One
+line later it would be a genuine exit, and a Cancel would have cost the user the
+measurement that run was holding for a measurement that never began.
+
+The one thing already done that the Cancel must undo is the armed per-patch
+sound (#131: sounds must not be live outside a read).
+
+Verified on screen, 2026-08-29: after Cancel the run's `.ti3` was byte-identical,
+`old/` had not grown, no file in the run folder had changed, Start was enabled
+again and the session was not live.
+
+## Note 6 — a lost instrument ends through the one exit, and may also be resumed
+
+⏳ **Awaiting confirmation.** **Confirmed by:** *nobody yet.*
+
+When ChromIQ loses contact with a CR30 mid-measurement it does **not** call
+`abort()`. `abort()` is a second exit, which §1 forbids, and on any instrument
+that is not a CR30 it destroys the session outright, because stock chartread
+writes its `.ti3` only on a clean exit. The window's OK therefore routes into
+`_end_session(_confirm_end_of_session(...))` like every other ending.
+
+Nothing is at risk either way for a CR30: the helper writes the measurement file
+after **every** patch, so a session that dies still has every reading that was
+taken.
+
+"Keep measuring" remains offered, and it is honest: the handle to the vanished
+instrument is released when contact is lost, so a reconnected instrument can be
+opened, and the outstanding patch is armed again. Without both of those the
+button would leave a live session with nothing listening — the dead end this
+work removed everywhere else.

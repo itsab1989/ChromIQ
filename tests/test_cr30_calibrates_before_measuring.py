@@ -29,6 +29,13 @@ from ui.tabs.tab_measure import TabMeasure                       # noqa: E402
 from workflow import measurement_messages as M                   # noqa: E402
 
 
+def _calibration_source() -> str:
+    """The flow is a pair: a thin wrapper that holds Start and Stop across it,
+    and the body it guards. Both are the unit under test."""
+    return (inspect.getsource(TabMeasure._run_cr30_calibration)
+            + inspect.getsource(TabMeasure._calibrate_and_confirm))
+
+
 def test_the_window_comes_before_anything_irreversible():
     """The whole reason it sits where it does."""
     src = inspect.getsource(TabMeasure._on_start)
@@ -68,7 +75,7 @@ def test_it_calibrates_through_the_session_reader():
     """A second device handle means opening the instrument twice, and over
     Bluetooth that is a disconnect and reconnect of a peripheral that accepts
     one connection at a time."""
-    src = inspect.getsource(TabMeasure._run_cr30_calibration)
+    src = _calibration_source()
     assert "_open_cr30_bridge" in src
     assert "_cr30_reader" in src
     assert "CR30.open" not in src, "it opens its own second handle"
@@ -77,7 +84,7 @@ def test_it_calibrates_through_the_session_reader():
 def test_it_does_not_block_the_gui_thread():
     """The reader holds its lock for the whole call — the same primitive that
     froze the app for three minutes on Stop."""
-    src = inspect.getsource(TabMeasure._run_cr30_calibration)
+    src = _calibration_source()
     assert "QThread" in src and "moveToThread" in src
 
 
@@ -85,7 +92,7 @@ def test_the_cancel_does_not_touch_the_readers_one_way_latch():
     """`DeviceReader._cancel` means 'this reader is finished' and is never
     cleared, so cancelling a calibration through it would make every patch
     read for the rest of the session fail instantly."""
-    src = inspect.getsource(TabMeasure._run_cr30_calibration)
+    src = _calibration_source()
     assert ".cancel()" not in src, (
         "the calibration reaches for the reader's one-way cancel latch")
 

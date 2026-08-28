@@ -6910,6 +6910,35 @@ class TabMeasure(QWidget):
         # connection at a time. Standing the bridge up arms nothing: it does
         # nothing until the helper's first spot prompt reaches on_patch_ready,
         # and the helper has not been started yet.
+        # Waiting for the calibration below uses processEvents, which is a
+        # NESTED event loop, and Start is not disabled until much later in
+        # _on_start. Traced on screen: the calibration began at 0.72 s and
+        # Start was still clickable at 1.21 s, re-entering _on_start and
+        # raising a second modal over the first. So the controls that could
+        # start or stop a run are held for the whole of this, and restored on
+        # every path out of it — including the failures.
+        self._start_btn.setEnabled(False)
+        stop_was = self._stop_btn.isEnabled()
+        self._stop_btn.setEnabled(False)
+        try:
+            return self._calibrate_and_confirm()
+        finally:
+            self._start_btn.setEnabled(True)
+            self._stop_btn.setEnabled(stop_was)
+
+    def _calibrate_and_confirm(self) -> bool:
+        """The calibration proper. Split out so its caller can hold Start and
+        Stop across every path out of it."""
+        from PyQt6.QtCore import QThread
+        from PyQt6.QtWidgets import QMessageBox
+        from workflow import measurement_messages as M
+        from ui.widgets import fit_message_box_buttons
+
+        # A previous session's bridge must not be inherited: this is the first
+        # thing a Start does with the instrument, so let go of anything still
+        # held before opening. _open_cr30_bridge's own guard then keeps the
+        # later call from rebuilding what this one stands up.
+        self._close_cr30_bridge()
         self._open_cr30_bridge()
         reader = getattr(self, "_cr30_reader", None)
         if reader is None:
@@ -6932,6 +6961,7 @@ class TabMeasure(QWidget):
         # Off the GUI thread: the reader holds its lock for the whole call, and
         # a slot that waited on it would freeze the window it was opened from —
         # the same primitive that froze the app for three minutes on Stop.
+        #
         result: dict = {}
 
         class _Worker(QObject):
@@ -6998,6 +7028,18 @@ class TabMeasure(QWidget):
         driver dependencies are missing the run still starts and the user is
         told, rather than Start doing nothing.
         """
+        if getattr(self, "_cr30_bridge", None) is not None:
+            # ALREADY STANDING, AND IT MUST STAY STANDING.
+            #
+            # The calibration opens the bridge before the helper starts, on
+            # purpose: it calibrates through the session's own reader so the
+            # instrument is opened once. Rebuilding here would call
+            # _close_cr30_bridge() and shut the instrument the calibration had
+            # just opened and used — over Bluetooth a full disconnect from a
+            # peripheral that takes one connection at a time. Measured on
+            # screen before this guard: two DeviceReader constructions and two
+            # close() calls for a single Start.
+            return
         self._close_cr30_bridge()
         try:
             from workflow.cr30.measure_bridge import (Cr30MeasureBridge,
@@ -7078,7 +7120,20 @@ class TabMeasure(QWidget):
         self._log.ensureCursorVisible()
         self._flash_status(title, duration_ms=10000)
         self._sound_instrument_fault_once()
-        self._end_session(self._confirm_end_of_session(self.END_FAILURE_WINDOW))
+        choice = self._confirm_end_of_session(self.END_FAILURE_WINDOW)
+        self._end_session(choice)
+        if choice is None:
+            # "Keep measuring", on an instrument that has just gone. The
+            # helper's prompt is still outstanding, so the only thing missing
+            # is a reader — and the handle to the vanished instrument has been
+            # dropped, so this reopens it. If it is still not there the next
+            # attempt lands back here rather than in silence.
+            bridge = getattr(self, "_cr30_bridge", None)
+            if bridge is not None and bridge.rearm():
+                self._log.appendPlainText(tr(
+                    "Carrying on: reconnect the instrument and read the "
+                    "highlighted patch again."))
+                self._log.ensureCursorVisible()
 
     def _on_cr30_gave_up(self, loc: str, message: str) -> None:
         """One patch was refused over and over. M-CR30-PATCH-GAVE-UP.

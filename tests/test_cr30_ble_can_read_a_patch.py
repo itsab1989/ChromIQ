@@ -48,11 +48,18 @@ class _Link:
 
     def __init__(self, changes_after: int = 0):
         self.reads = 0
+        self._last_n = 1
         self._changes_after = changes_after
+
+    frozen = False
 
     def ask(self, _cmd):
         self.reads += 1
-        n = self.reads if self.reads > self._changes_after else 1
+        if self.frozen:
+            n = self._last_n
+        else:
+            n = self.reads if self.reads > self._changes_after else 1
+            self._last_n = n
         return _reply([10.0 + 0.5 * n + 0.01 * i for i in range(31)])
 
 
@@ -61,6 +68,10 @@ def _device(link) -> CR30:
     d.kind = "ble"
     d._t = link
     d._previous = None
+    # The last spectrum the device was SEEN holding — distinct from the last
+    # one ACCEPTED. Enumerated here because this builds the device with
+    # __new__, so __init__ never runs.
+    d._last_seen = None
     d.model = "CR30"
     return d
 
@@ -95,3 +106,52 @@ def test_the_guard_still_catches_a_genuinely_repeated_reading():
     d = _device(link)
     with pytest.raises(MeasurementError):
         d.read_next_measurement(timeout=0.4, poll=0.0)
+
+
+def test_a_refused_reading_does_not_burn_the_next_wait():
+    """A refused reading must still count as "the button was pressed".
+
+    Measured before the fix: a refusal left the change-detection baseline
+    pointing at the last ACCEPTED patch, so the device's stored value — the
+    very reading that had just been refused — already differed from it. The
+    next wait therefore ended INSTANTLY with nobody pressing anything, the same
+    reading was refused again, and the bridge's whole retry budget went in
+    0.8 ms. The user pressed once and was told ChromIQ had "tried several
+    times".
+    """
+    import time
+    link = _Link()
+    d = _device(link)
+    first = d.read_next_measurement(timeout=5.0, poll=0.0)   # A1 accepted
+    assert first is not None
+
+    # A2: the device now holds something the guard will refuse. Simulate the
+    # refusal the way check_usable does — it raises out of the wait.
+    from workflow.cr30 import measurement as meas
+    calls = {"n": 0}
+    real = meas.Measurement.check_usable
+
+    def _refuse_once(self, prev):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise MeasurementError("the magnet gate is set")
+        return real(self, prev)
+
+    meas.Measurement.check_usable = _refuse_once
+    try:
+        with pytest.raises(MeasurementError):
+            d.read_next_measurement(timeout=5.0, poll=0.0)
+        reads_before = link.reads
+        # The device has NOT changed since — nobody pressed anything.
+        link.frozen = True
+        t0 = time.monotonic()
+        with pytest.raises(MeasurementError) as e:
+            d.read_next_measurement(timeout=0.5, poll=0.0)
+        assert "no new reading" in str(e.value), (
+            f"the wait ended on something other than a timeout: {e.value}")
+        assert time.monotonic() - t0 > 0.3, (
+            "the wait returned instantly on a reading nobody re-took — the "
+            "retry budget would be gone before the user could react")
+        assert link.reads > reads_before
+    finally:
+        meas.Measurement.check_usable = real
