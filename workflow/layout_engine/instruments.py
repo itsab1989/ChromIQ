@@ -42,6 +42,66 @@ TARGET_INSTRUMENT_NAME: dict[str, str] = {
 # Instruments ChromIQ never lays out itself (delegated to i1Profiler).
 DELEGATED = {"isis"}
 
+# Measuring-aperture diameter (mm) for instruments where the layout has to
+# respect it. Only the CR30 is listed: it is the one instrument ChromIQ lays out
+# whose patch a person aims BLIND (see the geometry branch), and #159 requires a
+# patch smaller than the aperture to be refused at layout time rather than
+# discovered on paper.
+APERTURE_MM: dict[str, float] = {"CR30": 4.0}
+
+# Smallest patch edge (mm) this instrument may be laid out with — a REFUSAL,
+# not a warning.
+#
+# The physical impossibility is the aperture itself: below 4 mm the opening
+# cannot see one patch at a time, whatever the user does. The floor sits at
+# 6 mm rather than 4 mm because 4 mm is not a size anyone can hit. The CR30's
+# body is a 33 mm opaque disc, so the patch is invisible the moment the
+# instrument is set down and the user is aiming from the cells AROUND it; a
+# patch the exact size of the opening demands perfect centring from a blind
+# placement. 6 mm leaves 1 mm of clearance on every side, which is the least
+# that is a target rather than a lottery, and it agrees with the reliability
+# floor the pre-flight check already applies to every instrument
+# (preflight.MIN_PATCH_MM, printtarg's own 6 mm).
+#
+# This is a FLOOR, not a recommendation. The shipped size is 12 mm — twice it —
+# and is itself provisional; see the geometry branch.
+MIN_PATCH_MM: dict[str, float] = {"CR30": 6.0}
+
+
+def minimum_patch_mm(key: str) -> float:
+    """Smallest patch edge (mm) *key* may be laid out with; 0.0 = no limit."""
+    return MIN_PATCH_MM.get(_MARGIN_LABEL_TO_KEY.get(key, key), 0.0)
+
+
+def patch_size_error(key: str, patch_w: float, patch_h: float) -> "str | None":
+    """Why this patch size is refused for *key*, in plain language, or None.
+
+    Deliberately NOT raised from :func:`build`: ``area_fit`` probes patch sizes
+    down to 1 mm while searching for a grid that fits, so a raise there would
+    turn an internal search step into a crash. The refusal belongs where a size
+    becomes the user's actual chart - chart_creator's engine path - and where
+    they are choosing it.
+    """
+    floor = minimum_patch_mm(key)
+    if floor <= 0:
+        return None
+    smallest = min(float(patch_w or 0.0), float(patch_h or 0.0))
+    if smallest <= 0 or smallest >= floor - 1e-6:
+        return None
+    ap = APERTURE_MM.get(_MARGIN_LABEL_TO_KEY.get(key, key), 0.0)
+    if ap and smallest < ap - 1e-6:
+        return (f"A {smallest:.1f} mm patch is smaller than the {key}'s "
+                f"{ap:.0f} mm measuring window, so the instrument would read "
+                f"the paper and the patches around it as well as the patch "
+                f"itself. The smallest patch this chart can use is "
+                f"{floor:.0f} mm.")
+    return (f"A {smallest:.1f} mm patch is too small for the {key} to be "
+            f"placed on reliably. Its measuring window is {ap:.0f} mm across "
+            f"and its body hides the patch once you set it down, so you are "
+            f"aiming from the cells around it - a patch this size leaves no "
+            f"room to be even slightly off. The smallest patch this chart can "
+            f"use is {floor:.0f} mm.")
+
 
 def _inch(mm: float) -> float:
     return mm * 25.4
@@ -496,16 +556,40 @@ def _build_base(
         #
         # Every field, and why:
         #
-        # plen / pwid / rrsp = 10 mm square, PROVISIONAL.
-        #   The aperture is 4 mm; 10 mm is 2.5x it, the same patch:aperture
-        #   ratio the i1Pro uses (10 mm patch, 5 mm aperture — see :371-372).
-        #   ⚠ This is NOT a measured minimum. EXP-MEAS-005 measured
-        #   REPEATABILITY (dE 0.215 mean) on a comfortably large patch, which
-        #   says nothing about the smallest patch a hand can hit. The UI labels
-        #   this size "provisional" for exactly that reason. rrsp == pwid, so
-        #   columns touch: that is the topology of the only chart a CR30 has
-        #   ever been proven to read (EXP-SPEC-001a, a ColorMunki extra-high
-        #   sheet, 40 patches, 0 misreads — and its columns touched too).
+        # plen / pwid / rrsp = 12 mm square, PROVISIONAL (Basti, 2026-08-28).
+        #   Cell size here is set by HAND PLACEMENT UNDER OCCLUSION, not by the
+        #   aperture. The CR30's body is a 33 mm OPAQUE disc: the moment it is
+        #   set down the patch underneath is invisible, so the user is aiming a
+        #   33 mm disc at a target they can no longer see, using the cells
+        #   around it. What matters is how far the aim may be off.
+        #
+        #   12 mm leaves 4.00 mm of clearance all round the 4 mm window, against
+        #   3.00 mm at 10 mm. (A hexagon of the same AREA as a 12 mm square
+        #   would give 4.45 mm — see the hexagon note below for why this branch
+        #   does not use that sizing.)
+        #
+        #   It also sits ABOVE the only geometry a CR30 has been proven to
+        #   read: EXP-SPEC-001a was a ColorMunki extra-high sheet at
+        #   10.4 x 13.0 mm (:422-430), 40 patches, 0 misreads. We move away
+        #   from the untested edge, not toward it. The minimum was never
+        #   measured and will not be, so the safe direction is the generous one.
+        #
+        #   Capacity stays practical: measured on this branch, A4 patch-first at
+        #   the default margins, 345 patches rectangular and 405 hexagonal -
+        #   comfortably over the 300-patch working target, at roughly a quarter
+        #   of an hour a sheet.
+        #
+        #   ⚠ NOT a measured minimum, and the UI says so. An earlier version of
+        #   this comment claimed 10 mm was "2.5x the aperture, the same
+        #   patch:aperture ratio the i1Pro uses". That was WRONG twice over: the
+        #   i1Pro's ratio is 10/5 = 2.00 and this one is 12/4 = 3.00, so it was
+        #   never a match, and the aperture ratio is not what governs the size
+        #   anyway. Removed rather than corrected. The hard floor is
+        #   MIN_PATCH_MM above - a smaller patch is refused, not printed.
+        #
+        #   rrsp == pwid, so columns touch: that is the topology of the only
+        #   chart a CR30 has been proven to read (EXP-SPEC-001a's columns
+        #   touched too).
         #
         # pspa = 1.3 mm, KEPT — the design's "spacers: none" is wrong.
         #   The successful EXP-SPEC-001a read used the CM extra-high geometry,
@@ -555,32 +639,33 @@ def _build_base(
         # (pi/(2*sqrt(3)) vs pi/4 - computed, not quoted).
         #
         # ⚠ SIZING, and the claim it does or does not support. This branch
-        # mirrors the SS one (:461-475) at EQUAL WIDTH ACROSS THE FLATS: the
-        # hexagon is 10 mm wide exactly as the square is, so its inradius is
-        # 5.000 mm - IDENTICAL to the square's - and its area is 86.6 mm²
-        # against the square's 100. Measured on A4, patch-first: 532 patches
-        # rectangular, 576 hexagonal (+8.3 %).
+        # mirrors the SS one at EQUAL WIDTH ACROSS THE FLATS: the hexagon is
+        # 12 mm wide exactly as the square is, so its inradius is 6.000 mm -
+        # IDENTICAL to the square's, i.e. the same 4.00 mm clearance round the
+        # window - and its area is 124.7 mm² against the square's 144.
+        # Measured on A4, patch-first: 345 patches rectangular, 405 hexagonal
+        # (+17 %).
         #
         # So at this sizing the honeycomb buys DENSITY at unchanged aperture
-        # clearance, plus whatever the six guiding edges are worth to a hand.
-        # It does NOT buy the "+7.5 % inradius / +12 % clearance" that a
-        # hexagon of EQUAL AREA to the square would (flat-to-flat 10.746 mm,
-        # inradius 5.373 mm) - and that hexagon costs capacity rather than
-        # gaining it: 510 patches per A4, fewer than the square's 532. The two
-        # cannot be had at once, and which one a CR30 wants is a hardware
-        # question nobody has answered. Recorded in
-        # docs/cr30_reports/04-impl-python.md; the switch is the 10.0 below.
+        # clearance, plus whatever the six guiding edges are worth to a hand
+        # placing a disc it cannot see through. It does NOT buy the 4.45 mm
+        # clearance a hexagon of EQUAL AREA to the square would give
+        # (flat-to-flat 12.895 mm) - and that hexagon costs capacity instead of
+        # gaining it: 350 patches per A4 against the square's 345, i.e. no gain
+        # at all. Denser-at-equal-clearance is the better trade of the two, and
+        # it is the one shipped. The equal-area variant is a one-line change
+        # (the 12.0 in the hflag branch) if hardware ever says otherwise.
         #
         # Shape mechanics: a hexagon of the same width is sqrt(0.75) as tall
         # (the rows interleave), pokes plen/6 past its slot top and bottom and
         # a quarter of its width past each side. hxeh/hxew reserve exactly
         # those two overhangs so the honeycomb cannot print past the margin.
         if hflag:
-            plen = pscale * math.sqrt(0.75) * 10.0
+            plen = pscale * math.sqrt(0.75) * 12.0
             hxeh = plen / 6.0
-            hxew = pscale * 0.25 * 10.0
+            hxew = pscale * 0.25 * 12.0
         else:
-            plen = pscale * 10.0
+            plen = pscale * 12.0
             hxeh = hxew = 0.0
         extra = (("HEXAGON_PATCHES", "True"),) if hflag else ()
         # SPACERS: a REAL width here, switched OFF by the recipe, not by a zero.
@@ -604,7 +689,7 @@ def _build_base(
         # not for whether it is on.
         return Geom(
             key=key, plen=plen, pspa=spacer(1.3), tspa=0.0,
-            pwid=pscale * 10.0, rrsp=pscale * 10.0,
+            pwid=pscale * 12.0, rrsp=pscale * 12.0,
             lspa=border + txhisl, lcar=0.0, txhisl=txhisl, pglth=5.0,
             border=border, lbord=_band, hxeh=hxeh, hxew=hxew, clwi=0.0, rlwi=7.5,
             mxpprow=MAXPPROW, mxrowl=MAXROWLEN, rpstrip=999, nextrap=0,

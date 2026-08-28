@@ -46,9 +46,19 @@ class PreflightReport:
 
 def check(geom: Geom, layout: Layout, *,
           low_contrast_passes: list[int] | None = None,
-          min_patch_mm: float = MIN_PATCH_MM) -> PreflightReport:
-    """Headless readability checks for a built layout."""
+          min_patch_mm: float | None = None) -> PreflightReport:
+    """Headless readability checks for a built layout.
+
+    *min_patch_mm* defaults to the instrument's own floor when it declares one
+    (``instruments.MIN_PATCH_MM``, the CR30) and to the general 6 mm floor
+    otherwise, so the badge and the layout-time refusal agree about the same
+    number instead of each carrying its own (#159).
+    """
     rep = PreflightReport()
+
+    if min_patch_mm is None:
+        from .instruments import minimum_patch_mm
+        min_patch_mm = minimum_patch_mm(geom.key) or MIN_PATCH_MM
 
     smallest = min(geom.plen, geom.pwid)
     if smallest < min_patch_mm - 1e-6:

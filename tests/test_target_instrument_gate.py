@@ -83,11 +83,30 @@ def _run(binary: Path, base: Path) -> str:
     return ((r.stdout or "") + (r.stderr or "")).strip().splitlines()[0]
 
 
-@pytest.mark.parametrize("name", ["Itohi CR30", "CR30", "Some Unknown Device"])
+# "CR30" was in this list until #159. It is deliberately no longer an unknown
+# name: the fork now recognises the instruments ChromIQ drives itself. The gate
+# is unchanged for everything else, which the third case pins — "Itohi CR30"
+# stays fatal, so recognition is a whole-keyword match and a near-miss does NOT
+# smuggle a chart through.
+@pytest.mark.parametrize("name", ["Itohi CR30", "CR30 ", "cr-30",
+                                  "Some Unknown Device"])
 def test_an_unknown_instrument_name_is_fatal_for_our_fork(tmp_path, name):
     out = _run(HELPER, _chart(tmp_path, name))
     assert UNRECOGNISED in out, out
-    assert name in out                      # it names the offender
+    assert name.strip() in out              # it names the offender
+
+
+def test_a_cr30_chart_is_recognised_but_refused_without_external_values(tmp_path):
+    """#159: the honest CR30 name is accepted, and the refusal explains itself.
+
+    ChromIQ drives a CR30 itself and feeds values in with -x, so a plain run has
+    no instrument to open. Before this the user got "Unrecognised chart target
+    instrument", which is both wrong and unhelpful.
+    """
+    out = _run(HELPER, _chart(tmp_path, "CR30"))
+    assert UNRECOGNISED not in out, out
+    assert "CR30" in out
+    assert "-x" in out or "ChromIQ" in out, out
 
 
 def test_a_known_instrument_name_gets_past_the_gate(tmp_path):
