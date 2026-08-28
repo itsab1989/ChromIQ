@@ -888,3 +888,294 @@ ruling's UI half.
   place-and-press text.
 * **No aperture-ratio claim survives** — `instruments.py:568-574` explicitly
   records *and retracts* the old wrong "2.5× the aperture" line.
+---
+
+## Section 8 — The suite, and a warning about how I first measured it
+
+### 8.1 The branch is green except for the four pinned line numbers
+
+Run in an **isolated `git worktree` at `714f719b`**, everyday tier, `-n auto`:
+
+```
+4 failed, 7826 passed, 266 skipped, 3 xfailed in 87.57s
+```
+
+**The four failures are exactly the ones in §3.1** and nothing else is broken.
+Corrected pins at this HEAD:
+
+| label | change to |
+|---|---|
+| `capability` | **1043** |
+| `ccmx_set` | **1102** |
+| `ccmx_read` | **1124** |
+| `mode_set` | **1448** |
+
+### 8.2 ⚠ My first run said 131 failures, and it was wrong
+
+Run in the shared working tree while the coordinator was committing:
+`131 failed, 7709 passed`. Re-running six of the failing files immediately
+afterwards: **38 passed, 0 failed.**
+
+This is exactly the hazard CLAUDE.md documents — *"Do not edit source files
+while a gate is running… it cost one full run to learn"* — because dozens of
+tests assert on `inspect.getsource`, which reads from disk. **A gate run in a
+tree another agent is editing is not a gate.** Recorded so the 131 is never
+quoted, and so the next agent runs the gate in a worktree.
+
+I did not run `--runslow`, per the brief. **The merge decision still needs one**,
+and CLAUDE.md is explicit that the everyday tier is not a gate.
+
+---
+
+## FINDINGS, RANKED
+
+### BLOCKER
+
+**B1 — The bundled `chromiq-chartread` binary is stale; a packaged beta refuses
+every CR30 chart.** §6.1. `native/chromiq-chartread` is git-tracked, dated
+Aug 15 (before the branch), and `ChromIQ.spec:110-113` bundles that path.
+A source checkout silently uses the fresh CMake build
+(`chartread_engine.py:41-49`), so it works for everyone testing it and is dead
+in the artefact. Proved by running both binaries against a real CR30 chart.
+*CR30-specific.*
+
+**B2 — "The four failing tests are pre-existing" is false; #159 broke them.**
+§3.1. `master` is `30 passed`; the branch is `4 failed`. #159's C edits shifted
+four pinned `printf` line numbers by +21, past an 11-line match window. No
+behaviour is broken, and the fix is four integers — but the branch cannot go
+green, and a regression labelled "pre-existing" without checking is how a real
+one ships. *CR30-specific.*
+
+### SERIOUS
+
+**S1 — The shared hexagon/density checkbox leaks in both directions and changes
+the printed sheet.** §3.2. `tab_chart.py:11922-11927` force-unchecks only when
+the box is *hidden*, and it is visible on CM, SS and CR30. Driven in the real
+app, Guided and Manual, read off the built `Geom`: ColorMunki + "Double
+density" → CR30 gives `hexagonal=True`; CR30 + "Hexagon patches" → ColorMunki
+gives `pwid=13.70` against `28.00`, i.e. a double-density chart **that cannot
+be read without the rig accessory**. *Half CR30-specific; open since report 06.*
+
+**S2 — And "Save as Defaults" makes S1 permanent.** §9 below.
+`chart_double_density` is **one shared settings key** for both meanings
+(`tab_chart.py:17468`, restored at `:17854`). Verified across a real restart:
+saving CR30 + hexagons writes `chart_double_density=True`, and after relaunch
+selecting the ColorMunki arrives ticked under the label "Double density",
+building `pwid=13.70`. A restart does not clear it. *CR30-specific aggravation
+of S1.* (The CR30's own round trip — instrument, hexagons, paper, pages — is
+otherwise **correct**: 4/4 values survive Save-as-Defaults + restart.)
+
+**S3 — The FWA / illuminant / observer gate acts on a list nothing ever fills.**
+§4.1-4.2. `_gated_options` is created empty in both tabs and there is **no
+`.append` anywhere in the repository**; `GatedOption` is never constructed.
+Measured in the running app: `gate_active=True` for a CR30 `.ti3` while
+`_m_fwa_check` stays `enabled=True`, the user ticks it, `_collect_params`
+returns `fwa_enabled=True`, and `profile_builder.py:346` appends `-f`. Real
+ArgyllCMS: `colprof -qm` → 104,380-byte profile; `colprof -qm -f` →
+`Error - Requested spectral interpretation when data not available`, no
+profile. **Fails loudly, not silently — which is why this is not a blocker.**
+*Pre-existing (dead on `master` too, so the ColorMunki never had it either);
+#159 makes it bite harder because a CR30 `.ti3` has no spectra at all.*
+
+**S4 — With the layout-engine preference off, the CR30 preview shows
+`printtarg -iCR30`, loses the hexagon control, and blanks the patch count.**
+§7.3. Read off the live Guided widget. The tab's `engine_on`/`use_engine`
+(`tab_chart.py:5001`, `:11704`) do not mirror
+`ChartCreator._should_use_engine`, where `ENGINE_ONLY_INSTRUMENTS = {"CR30"}`
+returns `True` unconditionally. **The chart that gets built is still correct** —
+`_build_printtarg_args` raises rather than emit `-iCR30` — so this is a lie in
+the preview, not a broken chart. *CR30-specific.*
+
+**S5 — "Minimum patch height (% of width)" is live and completely inert on any
+honeycomb, and its tooltip describes the effect it no longer has.** §7.4.
+Ratios of 0/50/100/150/200/300 % give byte-identical output on CR30 and SS.
+The engine behaviour is right; the panel must grey the row with a reason.
+⚠ It also silently makes **every existing SpectroScan hex `area_first` preset
+ignore its stored ratio**. *CR30-introduced, regresses the SpectroScan.*
+
+**S6 — The Guided hexagon tooltip claims 405 patches; Guided builds 390.**
+§7.1. Two default paths disagree because one sets `use_instrument_margins`.
+The identical sentence is *correct* in the Manual panel. *CR30-specific.*
+
+**S7 — The `532 / 576` comment three lines above that tooltip is the 10 mm
+cell, superseded by the 12 mm ruling (345 / 405).** §7.2. The file contradicts
+itself. *CR30-specific, open since report 06.*
+
+**S8 — `by_grid` + hexagons: the snap costs up to 76 % of capacity with no
+explanation, and an explicit row pin is honoured in only 69 % of cases.**
+§1.5-1.6. `SS · A2 · 20 columns`: 1360 → 320 patches. **The new numbers are the
+geometrically honest ones** and the pin violation is *unchanged* by the fix
+(290/420 before and after) — but a user who ticks "hexagon patches" and watches
+an A2 chart fall by three quarters deserves a sentence. A honeycomb's aspect is
+fixed, so columns and rows are over-determined: at most one may be pinned.
+*Pre-existing SpectroScan behaviour, exposed by #159.*
+
+**S9 — Two new CR30 instruction bodies (~1,400 characters) reach measurement
+windows without passing §M.** §7.6. `ui/ti2_loader.py:196-215` and `:244-255`.
+The ColorMunki and i1Pro siblings in the same functions have always been
+outside the catalogue, and `test_message_catalogue.py:280-288` names that
+allow-list as its own weakness. *Pattern pre-existing, instance CR30-specific.*
+
+**S10 — Nothing can take a CR30 reading, and Start is not blocked.** §6.4.
+`workflow/cr30/` (~1,900 lines) is imported only by one colour-table test;
+`measure_manager.py` and `chartread_engine.py` never mention CR30 and never
+pass `-x`. With `chartread_engine='chromiq'` the guard deliberately stands down,
+so Start is enabled and the run dies on a helper error the user did not ask
+for. Known (`04-impl-python.md` §U.12: *"Nothing in the reading path was
+implemented"*), but the UI consequence is not written down. **No path hangs,
+crashes, or records anything wrong** — I could not reach one. *CR30-specific.*
+
+### MINOR
+
+1. **A patch smaller than the 4 mm aperture still builds** (3 mm → 5796/page,
+   0.1 mm → 952,000/page). Intended by ruling — but `02-design.md` §11 still
+   says #159 line 483 *requires* a refusal and "no guard exists". §5.2. **One
+   of the two is stale, and per the binding-specs rule that is Basti's call.**
+2. **An `area_first` CR30 chart silently abandons the 12 mm ruling** and is
+   geometrically identical to a SpectroScan chart. §5.4, §2.3. `default_recipe`
+   already defaults the CR30 to `patch_first`; a Manual user gets no warning.
+3. `presets.py:176` *"packs ~15 % more per sheet"* — measured mean **+12.2 %**,
+   range +2.7 … +18.8 %. §7.7a.
+4. Three stale **10 mm** references survive the 12 mm ruling: `presets.py:418`,
+   `:420`, `chart_creator.py:1193`. §7.7b-d.
+5. `tab_chart.py:3463` *"a plain grid of squares"* in the same Guided panel that
+   offers a **Hexagon patches** box. §7.7e.
+6. **The SpectroScan's own two figures disagree with each other and with the
+   engine**: label "~15%", tooltip "roughly 14%", measured +9.1 … +14.3 %.
+   "~15 %" exceeds the maximum on **every** paper. *Pre-existing.* §7.7f.
+7. `"CR30 (ChnSpec)"` vs `"CR30 (ChnSpec, patch by patch)"` appear in the **same
+   Settings dialog**. §7.7g.
+8. *"Edge spacers (bracket each strip)"* and *"Don't cap strip length"* are
+   visible and **measurably inert** on a CR30 — strip vocabulary on a device
+   with no strip. §7.7h.
+9. **16 English placeholder keys × 12 languages are invisible to
+   `i18n_extract.py --missing`.** Sanctioned for beta, but the pre-GA
+   translation pass **cannot find them with the normal tool** — they must be
+   pulled by diffing against `master`, or GA ships English. §7.5.
+10. The residual hexagon stretch after the fix is **±0.13 %**, pure 0.01 mm
+    quantisation, and `area_first` now leaves at most **9.28 mm** unused
+    vertically — less than one row, so no row is ever lost. Recorded so nobody
+    "fixes" it. §1.4, §1.8.
+
+---
+
+## WHAT SURVIVED THE ATTACK
+
+* **The `area_first` hexagon fix is correct, complete and safe.** 5,040
+  rectangular recipes byte-identical against the pre-fix tree; stretch reduced
+  from −75 %…+204 % (mean 12.9 %) to ±0.13 %. §1.
+* **All three Measure-tab overlays land on the ink** — CR30 rectangular and
+  hexagonal, `patch_first` and `area_first` and `by_grid` — with every ring
+  centre within 2.2 px. Verified on screen and **by reading the screenshots**,
+  which is how I caught a case the numbers called PASS. §2.
+* **Degenerate layouts fail cleanly.** 1 patch, 1 page, 4×6", A2, 0 mm border,
+  3000 patches, 400 mm patches, a border bigger than the page — every refusal
+  is a `LayoutError` naming a number. Nothing hangs or crashes. §5.1.
+* **No existing chart changes and no user file is ever deleted.** #159 adds no
+  `rmtree`, no `unlink`, no rename over an existing artefact. §5.3.
+* **The honest-name chain works end to end**: `TARGET_INSTRUMENT "CR30"` in the
+  `.ti2`, stock chartread refuses it exactly as ruled, the fresh fork gives a
+  CR30-specific message and enters spot mode under `-xx`/`-xl`, and the Measure
+  guard blocks on `argyll` and stands down on `chromiq`. §6.2-6.3.
+* **The FWA gate's *logic* is right** even though its mechanism is dead, and it
+  does not collaterally gate an i1Pro. §4.3.
+* **`M-CR30-STOCK-READER` is a model §M citizen.** §7.6.
+* **The capability refactor holds.** No control other than `_dd_check` leaks
+  across an instrument change, in Guided or Manual. §3.3.
+* Several claims I tried hard to break and could not: the 90.7 %/78.5 % packing
+  figures, the 4.00 mm clearance, the equal-area "350 patches", the suppressed
+  helper markers on a honeycomb, and the row/column labels at 12 mm. §7.8.
+
+---
+
+## CONCRETE FIXES, IN ORDER
+
+1. **Rebuild `native/chromiq-chartread` and commit it** (plus the Windows/Linux
+   binaries) in the same commit as any `chromiq_chartread.c` change; or make
+   the release step build it as `ChromIQ.spec:99-101` says the gammap helper's
+   CI step does. **Without this the beta artefact is dead.** (B1)
+2. **`tests/test_both_readers_raise_the_same_windows.py:35-42`** — change the
+   four pinned line numbers to **1043 / 1102 / 1124 / 1448**. Re-pin them in
+   the same commit as any future C edit. (B2)
+3. **`ui/tabs/tab_chart.py` `_update_dd_visibility`** — clear `_dd_check` on any
+   instrument change that crosses the meaning boundary
+   (`hex_capable(old) != hex_capable(new)`), or simply on every instrument
+   change. Do **not** widen the existing `else:` — the box is *visible* in the
+   failing cases. (S1)
+4. **Split the persisted key**, or clear `chart_double_density` on load when the
+   saved `chart_instrument` disagrees in meaning with the selected one. (S2)
+5. **Construct the `GatedOption`s** in `tab_profile.py` and
+   `tab_check_refine.py`: `widgets=[…]` for the Guided *and* Manual copies of
+   `_fwa_check`, `_fwa_illum_combo`, `_illum_combo`, `_obs_combo`, and a
+   `neutralise` clearing `fwa_enabled` / `illuminant` / `observer`. (S3)
+6. **Make `engine_on`/`use_engine` honour `ENGINE_ONLY_INSTRUMENTS`** at
+   `tab_chart.py:5001` and `:11704` — the single source `_should_use_engine`
+   already uses. (S4)
+7. **Grey the "Minimum patch height (% of width)" row for a hexagonal chart**
+   in `_sync_layout_mode` (`layout_options_panel.py:2490-2540`) with a reason on
+   the tooltip, the way `set_helper_markers_supported` already does; and drop
+   the "150 % makes each patch half again as tall" sentence for that case. (S5)
+8. **Change the Guided hexagon tooltip's `405` to `390`** at
+   `tab_chart.py:11881-11883`; leave `layout_options_panel.py:143-145` alone.
+   (S6)
+9. **Delete or correct the `532 / 576` comment** at `tab_chart.py:11864-11866`.
+   (S7)
+10. **Say something when a hexagonal `by_grid` chart loses capacity or cannot
+    honour both pins** — a honeycomb's aspect is fixed, so at most one of
+    columns/rows may be pinned. (S8)
+11. **Decide where the two CR30 instruction bodies live**: through §M, or
+    recorded in `UNCATALOGUED_MEASUREMENT_WINDOWS`. (S9)
+12. **Tell the user in the Measure tab that CR30 reading is not wired yet**,
+    before Start rather than after — or disable Start for a CR30 chart until it
+    is. (S10)
+13. **Resolve `02-design.md` §11 against the no-guard ruling** — Basti's call
+    under the binding-specs rule. (MINOR 1)
+14. **Fix the stale numbers**: `presets.py:176`, `:418`, `:420`,
+    `chart_creator.py:1193`, `tab_chart.py:3463`, and the SpectroScan's
+    "~15%"/"14%" pair. (MINOR 3-6)
+15. **Record the 16 CR30 i18n keys somewhere the GA translation pass will find
+    them** — `--missing` cannot see them. (MINOR 9)
+16. **Run `--runslow` in an isolated worktree** before any merge decision, and
+    never in a tree another agent is editing. (§8.2)
+
+---
+
+## IS IT SHIPPABLE AS A BETA?
+
+**Yes — after fixes 1 and 2, which are half an hour of work between them.**
+Nothing I found produces a wrong profile, deletes a user file, changes an
+existing chart, or hangs. The geometry is correct, the overlays are correct,
+the identity chain is honest and enforced, and the suite is green but for four
+integers.
+
+**Fix 1 is not optional.** Without the rebuilt helper the beta refuses every
+CR30 chart while working perfectly in every developer's checkout — the failure
+mode most likely to reach a tester unnoticed.
+
+**What the tester must be told, plainly:**
+
+1. **You cannot take a CR30 reading yet.** The chart side is complete; the
+   device side is vendored but unwired (S10). Create, print and lay out CR30
+   charts — do not expect to measure one.
+2. **A CR30 chart cannot be read by stock ArgyllCMS chartread, ever.** That is
+   the deliberate price of the honest `TARGET_INSTRUMENT "CR30"`. Preferences →
+   Measurement must be on ChromIQ's own reader.
+3. **The 12 mm cell is provisional and reasoned, not measured.** The minimum
+   readable patch size has never been measured and there is no guard: Manual
+   will let you build a 3 mm patch the instrument cannot read.
+4. **Do not switch straight between the ColorMunki and the CR30/SpectroScan**
+   until fix 3 lands. The density/hexagon box carries across and changes what
+   gets printed — and "Save as Defaults" makes it survive a restart (S1, S2).
+5. **Leave the ChromIQ layout engine ON in Preferences.** With it off the CR30
+   preview shows a `printtarg` command that never runs, hides the hexagon
+   control, and shows no patch count — though the chart itself is still built
+   correctly (S4).
+6. **Do not tick FWA on a CR30 measurement.** It should be greyed out and is
+   not; ticking it makes `colprof` fail with a raw Argyll error (S3).
+7. **Hexagons are offered and default off, as ruled.** The gain is
+   paper-dependent — about +13 % on A4 in Guided, much less on A3 — not the
+   single percentage some tooltips still quote.
+8. **All twelve translations are English placeholders for the CR30**, by design
+   until GA.
+
+STATUS: complete
