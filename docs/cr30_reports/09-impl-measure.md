@@ -1,4 +1,4 @@
-STATUS: in-progress
+STATUS: complete
 
 # 09 — Measure-tab wiring implementation (CR30, #159)
 
