@@ -61,6 +61,14 @@ class _Tab:
     _overlay_failure_reason = tab_measure.TabMeasure._overlay_failure_reason
     _measurement_is_empty = tab_measure.TabMeasure._measurement_is_empty
     _existing_ti3_for_chart = tab_measure.TabMeasure._existing_ti3_for_chart
+    # _overlay_failure_reason resolves the chart to its .ti2 before naming
+    # patches: from a .ti1 per_patch_overlay can only answer SAMPLE_IDs.
+    # Borrowed like the rest — without it the AttributeError is swallowed
+    # by the method's own `except Exception` and reads as a data verdict.
+    # staticmethod() is required: accessing it through the class gives a
+    # plain function, which a class body would rebind as an instance
+    # method and pass `self` where the path belongs.
+    _chart_file_for = staticmethod(tab_measure.TabMeasure._chart_file_for)
 
 
 def _chart(tmp_path, ti3_body=None):

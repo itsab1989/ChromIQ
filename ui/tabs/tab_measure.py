@@ -4683,8 +4683,14 @@ class TabMeasure(QWidget):
         if self._ti1_path is None:
             return False
         from ui.ti2_loader import KNOWN_INSTRUMENTS, read_target_instrument
+        # TARGET_INSTRUMENT is a .ti2 keyword — a .ti1 is a patch set and never
+        # carries it. Reading the tab's path raw therefore answered None on a
+        # REOPENED project (the one route that hands this tab the .ti1), so the
+        # repair window silently never appeared for exactly the users who had
+        # closed the app and come back.
+        chart = self._chart_file_for(self._ti1_path)
         try:
-            name = read_target_instrument(self._ti1_path)
+            name = read_target_instrument(chart)
         except Exception:      # noqa: BLE001 — never block a read on this check
             return False
         if name is None or name in KNOWN_INSTRUMENTS:
@@ -4717,7 +4723,7 @@ class TabMeasure(QWidget):
                 "Measurement not started: this chart names the instrument "
                 "“{found}”, which ArgyllCMS does not recognise.").format(found=name))
             return True
-        if not self._repair_target_instrument(self._ti1_path, name):
+        if not self._repair_target_instrument(chart, name):
             return True
         return False           # repaired — carry on and measure
 
@@ -11445,7 +11451,14 @@ class TabMeasure(QWidget):
             return "mismatch"
         try:
             from workflow.measurement_report import per_patch_overlay
-            matched = bool(per_patch_overlay(ti3, self._ti1_path))
+            # The .ti2, for the same reason as
+            # _show_overlay_from_existing_ti3: from a .ti1 every patch comes
+            # back named by SAMPLE_ID, which matches nothing — and here that
+            # produced the OPPOSITE of a missing overlay. `matched` was True,
+            # so this reported "no_geometry" and told the user their chart
+            # carries no patch positions, about a chart with 390 of them.
+            matched = bool(per_patch_overlay(
+                ti3, self._chart_file_for(self._ti1_path)))
         except Exception:      # noqa: BLE001 — a bad file is not a mismatch claim
             matched = False
         if not matched:

@@ -163,7 +163,31 @@ class CR30:
                     continue                      # nothing yet; keep waiting
                 return self.read_measurement(button_header=hdr)
 
-        prev = self._previous.values if self._previous else None
+        # The reading we will judge the next one against: the last one this
+        # session ACCEPTED. Captured before the loop, because the polling reads
+        # below must not be allowed to become it.
+        accepted = self._previous
+
+        # What "unchanged" means. With no accepted reading yet — the first
+        # patch of a session — there is nothing to compare against, and
+        # accepting whatever the device happens to be holding is exactly the
+        # stale-cache bug this method exists to prevent (see the docstring:
+        # patch A1 took the white-tile cache at delta E 60.5). So probe once
+        # first and make THAT the baseline: the wait then starts from what the
+        # device holds now, and only a genuinely new reading ends it.
+        prev = accepted.values if accepted else None
+        while prev is None:
+            if cancelled is not None and cancelled():
+                raise MeasurementError("cancelled while waiting for the "
+                                       "instrument's button")
+            if time.monotonic() > deadline:
+                raise MeasurementError(
+                    f"the instrument did not answer within {timeout:.0f} s.")
+            try:
+                prev = self.read_measurement(enforce=False).values
+            except MeasurementError:
+                time.sleep(poll)      # not answering yet; keep trying
+
         while True:
             if cancelled is not None and cancelled():
                 raise MeasurementError("cancelled while waiting for the "
@@ -174,8 +198,13 @@ class CR30:
                     "instrument on the highlighted patch and press its own "
                     "button.")
             m = self.read_measurement(enforce=False)
-            if prev is None or m.values != prev:
-                m.check_usable(self._previous)
+            if m.values != prev:
+                # Judge it against the last ACCEPTED reading. Passing
+                # self._previous here compared the reading to ITSELF once
+                # read_measurement had already stored it, so identical_to was
+                # always True and every BLE read raised "bit-identical to the
+                # previous one" — no patch could ever be read over Bluetooth.
+                m.check_usable(accepted)
                 self._previous = m
                 return m
             time.sleep(poll)
@@ -203,7 +232,12 @@ class CR30:
             m.device_model = self.model or "CR30"
             if enforce:
                 m.check_usable(self._previous)
-            self._previous = m
+                # Same rule as the BLE tail below: only an ACCEPTED reading
+                # becomes the baseline. Latent here today (nothing calls the
+                # USB path with enforce=False), but leaving the two branches
+                # disagreeing is how the BLE bug got written in the first
+                # place.
+                self._previous = m
             return m
         raw = self._t.ask(ble.READ_MEASUREMENT)
         # A stream can hold MORE THAN ONE reply: the vendor's own 410-byte BLE
@@ -259,5 +293,8 @@ class CR30:
                                         "detection here is behavioural only"})
         if enforce:
             m.check_usable(self._previous)
-        self._previous = m
+            # Only an ACCEPTED reading becomes the one the next is judged
+            # against. A polling probe (enforce=False) must not, or the guard
+            # ends up comparing a reading to itself.
+            self._previous = m
         return m
