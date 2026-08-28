@@ -1,7 +1,7 @@
 # Unified Measurement Management — Design Specification
 
 > **Revision 2026-08-09 (e) — two approved messages carry a revised print step.**
-> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), M-IMPORT-MISMATCH and M-IMPORT-DATE-TAKEN (the Measure tab's IMPORT module; its import-done window was approved by Sebastian 2026-08-10), plus the revised M-CHART-VERIFY (W5, reworked after the 2026-08-10 hardware session) and M-HOW-PRINTED (pairing 3 — the measure-time question for sheets ChromIQ did not print), plus M-ALL-STRIPS-PATCHES-LEFT (new, 2026-08-14 — every strip read while patches inside them are not, #156; both are wording only, their bug fixes are already in the code and speak through the log until these are approved), plus M-NO-INSTRUMENT-FAST (new, 2026-08-13 — Knut's ColorMunki was invisible on older hardware until "Faster instrument connection" was switched off, so that variant of the no-instrument window names the shortcut and carries its switch), plus M-ENGINE-FELL-BACK (new, 2026-08-14 — asked for by Knut on #148: ChromIQ's own measuring engine could not use the instrument, so stock chartread took over, which also silences ChromIQ's measurement sounds without saying so) — all defined in the awaiting-review section below, plus M-PATCHSET-MISSING (new, 2026-08-25 — a loaded patch set that had gone from disk wrote one line to the log and built a different chart, in silence) — all defined in the awaiting-review section below.
+> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), M-IMPORT-MISMATCH and M-IMPORT-DATE-TAKEN (the Measure tab's IMPORT module; its import-done window was approved by Sebastian 2026-08-10), plus the revised M-CHART-VERIFY (W5, reworked after the 2026-08-10 hardware session) and M-HOW-PRINTED (pairing 3 — the measure-time question for sheets ChromIQ did not print), plus M-ALL-STRIPS-PATCHES-LEFT (new, 2026-08-14 — every strip read while patches inside them are not, #156; both are wording only, their bug fixes are already in the code and speak through the log until these are approved), plus M-NO-INSTRUMENT-FAST (new, 2026-08-13 — Knut's ColorMunki was invisible on older hardware until "Faster instrument connection" was switched off, so that variant of the no-instrument window names the shortcut and carries its switch), plus M-ENGINE-FELL-BACK (new, 2026-08-14 — asked for by Knut on #148: ChromIQ's own measuring engine could not use the instrument, so stock chartread took over, which also silences ChromIQ's measurement sounds without saying so) — all defined in the awaiting-review section below, plus M-PATCHSET-MISSING (new, 2026-08-25 — a loaded patch set that had gone from disk wrote one line to the log and built a different chart, in silence), plus M-PROJECT-EXISTS (new, 2026-08-27 — a typed project name that already names a project on disk adopted it in silence; Knut reported it and Basti ruled on when it may appear and what it may offer, but the WORDING is new and waits here), plus M-PROJECT-REPLACE-CONFIRM and M-PROJECT-REPLACE-FAILED (new, 2026-08-27 — the second look before §S4.7's "Replace it" clears a whole project, and the window for the case where its promise cannot be kept) — all defined in the awaiting-review section below.
 > **Withdrawn, never approved:** the patch-set sibling of the message above was removed on 2026-08-26 without reaching the catalogue. Ticking “Edit patch recipe (override preset)” already opens a window saying the loaded patches will be replaced, and that box is shown for a patch set the user loaded themselves, not only for a built-in preset — so a second window at Generate time would have interrupted a decision the user had already made and acknowledged. Knut, 4.1.3-beta.17: *“there is already a message when clicking the ‘Edit patch recipe’ warning of consequences … that warning should be sufficient for a user.”* Checked against the existing text before removal.
 
 > Both were approved by Knut on 2026-08-04, but one step in each instructed *"(with colour management on)"* — a setting ChromIQ deliberately locks **off** on every print path, so the approved text told the user to do something the app prevents (established in `verification_printing_and_target.md` §1, and A0.1 of its plan). With feature A the instruction has a real control to name — the Print Chart tab's **Colour** row — so that one step is revised and the revision waits in §M-PROPOSED. Every other message in §M remains approved as before: the last, **M-BUILD-ELSEWHERE**, was accepted on 2026-08-04 — *"Message M-BUILD-ELSEWHERE accepted"* — and M-CHART-CORRUPT, M-REPLACE-UNCOUNTABLE and M-PREVIEW-PAUSED the day before. A new message goes to §M-PROPOSED first, and `tests/test_message_catalogue.py` fails if one is added to the code without it.
@@ -1002,6 +1002,140 @@ for.*
 > • Choose a ready-made patch set from the "Presets" list.
 > • Or let ChromIQ work out a fresh set of colour patches for you: tick "Edit patch recipe (override preset)" and click "Generate Chart".
 
+### M-PROJECT-EXISTS · PROPOSED · the typed project name is already a project — Create Chart
+
+*New for 4.1.3. **Nothing in this model governed it.** §4 governs what a RUN
+holds; nothing governed which PROJECT a typed name lands on. So typing the name
+of a project you already have adopted that project in silence and built into its
+current run — Knut, 2026-08-27: "there is no warning message that this project
+already exists, with choice to overwrite or cancel, and message to change to a
+different name … Nothing shall ever be lost and user shall always be notified if
+there is a risk of overwriting a project."*
+
+*Raised at build time — Generate Chart, a preset, a loaded patch set, an applied
+editor chart, a from-profile-gamut build — when the name in "Printer profile
+project name" resolves to a project that exists on disk, is not the project
+already open, **and holds something**. An existing project that is empty raises
+nothing: there is nothing to lose, and a window there would be a nag. In every
+case, empty included, a line appears under the name box saying which project the
+name now points at; that line is hidden whenever the name does not match one, so
+its appearing is itself the signal (Basti's ruling, 2026-08-27).*
+
+*It is **never** raised from the live auto-update preview, which may not open a
+window (§4) and no longer adopts an uncommitted name at all.*
+
+*This window ALSO carries §4's answer for the run it names, so one action still
+opens one window — see §S4.6.*
+
+*`{name}` is the sanitised project name (the folder that will really be used),
+`{folder}` its path, `{runs}` how many runs it has, `{cal}` the one extra
+sentence when the project has a calibration of its own, `{chosen}` the run the
+picker is on, and `{holds}` what that run holds.*
+
+> **There is already a project called “{name}”**
+>
+> ChromIQ found it here:
+> {folder}
+>
+> That name is already taken, so building now would carry on inside that project rather than start a new one. A project keeps its work in runs, and each run holds one finished profile. This one has {runs}.{cal}
+>
+> You can choose below which run the new chart goes into. {chosen} holds:
+>
+> {holds}
+>
+> Nothing has been changed yet. Choose what you would like to do:
+>
+> •  Continue this project: the new chart is made in the run named in the box below. Anything that chart replaces is moved to that run’s “old” folder first, with today’s date on it, so you can always get it back. Choosing a new run adds a fresh, empty one and leaves everything already in the project exactly as it is.
+>
+> •  Replace it: everything the project holds now is moved into its own “old” folder, with today’s date, and a new, empty project of the same name is started. Nothing is deleted, and ChromIQ asks you to confirm before it does it.
+>
+> •  Use a different name: nothing is touched, and ChromIQ takes you back to the name box so you can type another one.
+>
+> •  Cancel: stops here and changes nothing.
+
+Buttons: **Continue this project** · **Replace it** · **Use a different name** ·
+**Cancel**. The default is **Cancel** — a Return keypress must never be an
+overwrite.
+
+The picker below the text is labelled **"Make the new chart in:"** and offers
+**"A new run (nothing already there is touched)"** first — the default, because
+it is the one answer that cannot cost anything — followed by every run the
+project has, oldest first. `{chosen}` and `{holds}` follow the picker as it
+moves. `{runs}` is *"one run"*, *"{n} runs"*, *"{n} runs, one of them with work
+in it"* or *"{n} runs, {f} of them with work in them"*.
+
+`{holds}` is a LIST, not a sentence — joining the parts with commas and a final
+"and" would need the comma and the conjunction to be translatable too, and word
+order differs enough across the thirteen languages that the result would be
+wrong somewhere. It is built from these lines and from nothing else (house rule:
+real singular and plural, never "(s)"):
+
+> •  a chart
+> •  a measurement
+> •  a built profile
+> •  one dated verification check          ← when there is exactly one
+> •  {n} dated verification checks         ← when there is more than one
+
+Only the lines that apply are shown. When none of them do:
+
+> •  nothing yet: no chart, no measurement and no profile
+
+That is the line the window shows by default, because the picker starts on
+**a new run** — a run that does not exist yet holds nothing. It is also what a
+project shows when every one of its runs is empty, and THAT case raises no
+window at all: only the line under the name box.
+
+`{cal}` is empty, or this one sentence — a calibration belongs to the PROJECT,
+not to a run, so it is stated with the project rather than listed under
+"A new run holds:", where it said something plainly untrue:
+
+> It also has a calibration of its own, shared by every run.
+
+### M-PROJECT-REPLACE-CONFIRM · PROPOSED · the second look before a project is cleared — Create Chart
+
+*New for 4.1.3, with §S4.7. Basti, 2026-08-27: "Keep it but require a second
+confirmation". "Replace it" is the only control in the app that clears a whole
+project from the Create Chart tab, and three of the six data-loss faults found in
+the first implementation were about it — so it is never one click away from a
+window somebody opened by accident. Default button: **Go back**.*
+
+> **Start “{name}” again from empty?**
+>
+> Everything this project holds is about to be moved into its own “old” folder, with today’s date on it:
+>
+> {folder}
+>
+> Nothing is deleted. That “old” folder stays inside the project, so you can open it at any time and take anything back out of it: the charts, the measurements, the profiles, all of it.
+>
+> After that, a new and completely empty project of the same name is started in the same place, and your new chart is made in its first run.
+>
+> If what you wanted was to ADD to this project rather than start it again, go back and choose “Continue this project” instead. That leaves everything where it is.
+
+Buttons: **Replace it** · **Go back**, default **Go back**.
+
+### M-PROJECT-REPLACE-FAILED · PROPOSED · the Replace could not be carried out — Create Chart
+
+*New for 4.1.3, with §S4.7. "Replace it" promises that everything is moved into
+the project's own "old" folder and that nothing is deleted. When the move cannot
+be made — a read-only folder, a share that has gone away, a file another program
+holds open — the promise is not kept, and this says so. The archive is
+all-or-nothing: anything already moved is put back before this window appears,
+and the build does not go ahead. `{folder}` is the project, `{reason}` the error
+the operating system gave.*
+
+> **The existing project could not be moved aside**
+>
+> ChromIQ was going to move everything in this project into its own “old” folder before starting a fresh one of the same name, and it could not:
+>
+> {folder}
+>
+> Nothing has been changed. Anything that had already been moved has been put back, and no new chart has been made.
+>
+> The reason given was:
+> {reason}
+>
+> This usually means the folder is read-only, is on a disk or a share that is no longer available, or holds a file another program still has open. Close anything that might be using it and try again, or choose “Use a different name” and leave this project alone.
+
 ### M-CM-NO-CCTIFF · PROPOSED · the profile-applying tool is missing — feature A, §3.2 A10
 
 *New with feature A (`verification_printing_and_target.md` §6 S9). Shown when
@@ -1417,8 +1551,25 @@ Only **one** of S3.2, S3.3, S3.4, S3.5 can apply, so at most one window follows 
 | S4.4 | as S4.3 **and** dated verifications exist | 1 **M-CHART-PROFILING**, its `{items}` naming the verification measurements too → 2 *Cancel stops* → 3 M-CHART-NOPAGES if applicable → 4 archive run work **and** `verifications/` → 5 generate |
 | S4.5 | Verification run type | 1 **M-CHART-VERIFY** → 2 *Cancel stops* → 3 archive the verification chart → 4 generate |
 | S4.6 | any of the above, Duplicate unavailable | the recommendation carries **M-DUPLICATE-BLOCKED** — one window still, not two |
+| S4.7 · **PROPOSED** | the typed project name resolves to a **different** project that exists on disk **and holds something** — in ANY of its runs (not only the current one), or its shared calibration | 1 **M-PROJECT-EXISTS**, listing every run and defaulting its picker to **a new run** → 2 *Cancel / Use a different name stops* → 3 Replace it → **M-PROJECT-REPLACE-CONFIRM** → *Go back stops* → archive the whole project into its `old/` and start a fresh one · Continue this project → adopt it, point the Profile-run bar at the run the picker names → 4 generate. For **Profiling**, S4.1–S4.4 do not also fire: M-PROJECT-EXISTS carries §4's answer for the run it names. For **Verification** and **Calibration** they DO — see below. When the project is EMPTY in every run, no window at all: only the line under the name box. |
 
 S4.3 and S4.4 are the only place two windows can follow one action, and they are strictly sequential: the second is built after the first returns, and only if the first was accepted.
+
+**S4.7 replaces S4.1–S4.4, and only those.** It describes the run's *profiling*
+artefacts — a chart, a measurement, a profile — which is what M-CHART-PROFILING
+would have said, so for a Profiling build one action still opens one window. It
+knows nothing about the verification charts under `verifications/` or about the
+calibration in `cal/`, so for **Run type = Verification** it does NOT stand in
+for S4.5, and for **Run type = Calibration** it does not stand in for the
+calibration question: the specific one follows it. That is a second window for
+one action, and it is recorded here rather than left to be discovered.
+
+**⏳ Awaiting confirmation.** Whether two windows are right for those two run
+types, or whether M-PROJECT-EXISTS should instead grow a verification and a
+calibration variant, is a decision about the model.
+**Confirmed by:** *nobody yet.*
+
+**Why S4.1–S4.5 could not answer this on their own.** They are all evaluated against *the run*, and until 4.1.3 they were evaluated **before** the typed name was applied — so when a name adopted a different project, the question was answered about the run the app happened to be on, not the one about to be written. S4.7 resolves the name first and asks about the project the build will really touch.
 
 ### S5 · Build Profile
 

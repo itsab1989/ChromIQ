@@ -119,7 +119,12 @@ def test_g1_a_user_preset_with_an_attached_ti1_does_not_invent(qapp, settings,
     assert idx > 0, "the user preset should be in the dropdown"
 
     tab._manual_target_name_edit.setText("")
+    # A REAL CLICK. The presets dropdown is wired to `activated`, which Qt emits
+    # only for an interaction, so moving the combo from code is silent (#175).
+    tab._preset_combo.blockSignals(True)
     tab._preset_combo.setCurrentIndex(idx)
+    tab._preset_combo.blockSignals(False)
+    tab._preset_combo.activated.emit(idx)
 
     assert not tab._file_mgr.is_named(), (
         f"selecting a preset invented {tab._file_mgr._target_name!r}")

@@ -688,8 +688,19 @@ def test_the_prebuilt_preset_asks_before_replacing_a_chart(qapp):
     assert "_confirm_displacing_results()" in src
     # …and it must ask BEFORE it touches anything. Compare the CALLS, not the
     # prose: the comment above the guard names reset_chart_artefacts too.
-    ask = src.index("if not self._confirm_displacing_results()")
-    assert ask < src.index("self.target_started.emit()")
+    #
+    # THE QUESTION MOVED, AND WHY MATTERS. It used to be asked first of all —
+    # before `set_target_name` — so when the typed name adopted a DIFFERENT
+    # project it was answered about the run of the project the user was leaving,
+    # and the §S4.7 window put a second one up about the right project. It is
+    # asked after the name is applied now, and skipped entirely when §S4.7 has
+    # already carried §4's answer, which is what §S4.7 says for Profiling. What
+    # must still hold is what Knut reported: nothing is displaced before the
+    # user has been asked.
+    ask = src.index("self._confirm_displacing_results()")
+    assert "_s4_done" in src, "§4 can no longer be skipped when §S4.7 answered it"
+    assert src.index("self._gate_route_and_replace(") < src.index(
+        "self.target_started.emit()"), "the project question comes first of all"
     assert ask < src.index("run.reset_chart_artefacts()")
 
 

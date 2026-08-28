@@ -338,20 +338,33 @@ def test_a_nested_project_also_reaches_the_masthead(win, tmp_path):
     assert btn.isEnabled() is False
 
 
-def test_renaming_an_open_project_does_not_churn_the_listeners(win):
-    """Only a TRANSITION notifies. `set_target_name` runs on every keystroke
-    path, preset and Generate; re-firing on each would be pure churn."""
+def test_re_applying_the_same_name_does_not_churn_the_listeners(win):
+    """Only a real CHANGE notifies, and the churn this guards against is
+    re-applying the SAME name: `set_target_name` runs on every keystroke path,
+    every preset and every Generate, almost always with the name that is
+    already set.
+
+    THIS TEST USED TO SAY SWITCHING PROJECTS WAS CHURN TOO, and that was too
+    narrow. It compared "is something open" before and after, so with project A
+    open and a build adopting project B, nothing fired at all — and the Create
+    Chart hint that says "you already have a project with this name" went on
+    showing after ChromIQ had opened exactly that project. The comparison is now
+    the FOLDER (`_project_identity`), so a swap is a change and re-applying a
+    name is not (2026-08-27).
+    """
     calls = []
     win._file_mgr.add_named_state_listener(lambda: calls.append(1))
 
     win._file_mgr.set_target_name("First")
     assert len(calls) == 1, "opening should notify once"
-    win._file_mgr.set_target_name("Second")
-    win._file_mgr.set_target_name("Third")
+    win._file_mgr.set_target_name("First")
+    win._file_mgr.set_target_name("First")
     assert len(calls) == 1, (
-        f"renaming an already-open project notified again ({len(calls)} times)")
+        f"re-applying the same name notified again ({len(calls)} times)")
+    win._file_mgr.set_target_name("Second")
+    assert len(calls) == 2, "swapping one project for another must notify"
     win._file_mgr.close_project()
-    assert len(calls) == 2, "closing should notify"
+    assert len(calls) == 3, "closing should notify"
 
 
 def test_the_tab_you_are_standing_in_stays_usable_with_two_holders(win):

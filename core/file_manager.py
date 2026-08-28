@@ -1133,9 +1133,9 @@ class Run:
 
         Preserves ``preconditioning.*`` and ``meta.json`` so the run's identity
         and pre-conditioning seed survive a chart re-generation, and
-        ``reports/`` — past quality checks document history the way ``reads/``
-        would if it weren't tied to the chart being wiped. ``exports/`` and
-        ``cache/`` belong to the old chart and go with it.
+        ``reports/`` — past quality checks document history. ``reads/`` is
+        archived beside the measurement it belongs to; ``exports/`` and
+        ``cache/`` are derived from the chart and go with it.
         """
         s = self.stem
         # #130 (Knut, critical): a chart re-generation must NEVER delete the
@@ -1150,8 +1150,28 @@ class Run:
                    self.dir / "merged.icc", self.dir / "calibrated.icc"]
         if keep_results:
             results = []
-        if any(p.exists() for p in results):
-            self.archive_to_old([p for p in results if p.exists()])
+        # reads/ IS ARCHIVED, NOT DELETED. `clear_reads()` used to `rmtree` it
+        # at the end of this method — while §4 W4 of the model says, in as many
+        # words, *"Everything is kept in old/ and nothing is deleted"*, and this
+        # method's own comment repeated it. Measured on a finished run: 26 files
+        # in, 5 archived, 6 left alone and 15 destroyed, among them
+        # `reads/read1..3.ti3` — the individual instrument readings someone took
+        # by hand, which cannot be regenerated from anything on disk, while the
+        # averaged .ti3 built FROM them was carefully archived.
+        #
+        # An EMPTY reads/ folder is not work, though, and archiving it would
+        # break the rule one line above: a run with nothing to lose spawns no
+        # old/ folder.
+        archive = [p for p in results if p.exists()]
+        if not keep_results and any(self.reads_dir.glob("*")):
+            archive.append(self.reads_dir)
+        if archive:
+            self.archive_to_old(archive)
+        # exports/ AND cache/ ARE DERIVED, and go with the chart they describe.
+        # Archiving exports/ as well looked like the same kindness and was not:
+        # the sidecars are rebuilt from the chart on every build, so it broke
+        # the rule that a run with no results spawns no `old/` folder — every
+        # live-preview render started leaving one behind.
         for sub in (self.exports_dir, self.cache_dir):
             if sub.exists():
                 try:
@@ -1180,9 +1200,10 @@ class Run:
                 tiff.unlink()
             except OSError as exc:
                 log.warning("Could not delete %s: %s", tiff, exc)
-        if not keep_results:
-            # The individual reads belong to the measurement, so they stay or go
-            # with it.
+        # The reads went with the measurement, into old/ — see above. Anything
+        # left behind (an empty reads/ folder, or one that appeared between the
+        # archive and here) is swept so the run starts clean.
+        if not keep_results and self.reads_dir.exists():
             self.clear_reads()
 
 
@@ -1445,8 +1466,26 @@ class Project:
 
     @classmethod
     def create_or_load(cls, root: Path, target_name: str) -> "Project":
+        """Open the project at *root*, creating it if it is not there yet.
+
+        SAY WHICH OF THE TWO HAPPENED. Adopting a project that already exists
+        and creating a brand-new one are very different events for the person
+        reading a log afterwards — the first means the work about to be done
+        lands on somebody's existing chart, measurement and profile. Knut's
+        2026-08-27 log has this moment in it (he typed the name of a project he
+        already had) and there is no line anywhere that says so; only
+        "Target name set to: test", which reads identically either way.
+        """
         if (root / cls.MANIFEST).exists():
-            return cls.load(root)
+            proj = cls.load(root)
+            try:
+                runs = len(proj.all_runs())
+            except Exception:      # noqa: BLE001 — a log line is never worth a crash
+                runs = -1
+            log.info("opened the EXISTING project at %s (%s run(s) on disk)",
+                     root, runs if runs >= 0 else "?")
+            return proj
+        log.info("created a NEW project '%s' at %s", target_name, root)
         return cls.create(root, target_name)
 
     # ---- v1 → v2 migration (#127)
@@ -1934,7 +1973,7 @@ class FileManager:
         return s or "session"
 
     def set_target_name(self, name: str) -> None:
-        _was = self.is_named()
+        _was = self._project_identity()
         cleaned = self.strip_workfile_ext(name)
         new_name = self._auto_name() if not cleaned.strip() else self._sanitise(cleaned)
         # #130 (Knut): a nested project keeps its real location as long as the
@@ -1982,7 +2021,7 @@ class FileManager:
         Clearing the name is what makes that impossible: with no name there is
         nothing for :meth:`project` to be called about, exactly as at launch.
         """
-        _was = self.is_named()
+        _was = self._project_identity()
         self._target_name = ""
         self._project_root_override = None
         self._project = None
@@ -1990,25 +2029,50 @@ class FileManager:
         self._notify_named_state(_was)
 
     def add_named_state_listener(self, callback) -> None:
-        """Call *callback* whenever a project starts or stops being named."""
+        """Call *callback* whenever the project that is open CHANGES — including
+        one project being swapped for another, not only opened or closed."""
         if callback not in self._named_state_listeners:
             self._named_state_listeners.append(callback)
 
-    def _notify_named_state(self, was_named: bool) -> None:
-        """Fire the listeners, but only on an actual transition.
+    def _project_identity(self) -> "tuple[bool, str]":
+        """What "which project is open" means, for change detection.
 
-        `set_target_name` runs on every keystroke path, every preset and every
-        Generate; re-notifying on each would be churn. Only a change from
-        "nothing open" to "something open" (or back) can change what the
-        masthead offers.
+        The FOLDER, not the name: a project opened from a sub-folder has the
+        same name as a different one at the top level, and swapping between them
+        changes everything about where a build goes. Asking never creates
+        anything — `working_dir()` is only consulted when something is named.
         """
-        if bool(was_named) == self.is_named():
+        if not self.is_named():
+            return (False, "")
+        try:
+            return (True, str(self.working_dir()))
+        except OSError:
+            return (True, self._target_name)
+
+    def _notify_named_state(self, was) -> None:
+        """Fire the listeners, but only on an actual change.
+
+        WAS NAMED↔UNNAMED ONLY, AND THAT WAS TOO NARROW. `set_target_name` runs
+        on every keystroke path, every preset and every Generate, so re-notifying
+        on each would be churn — but a build that adopts a DIFFERENT project
+        while one is already open changed nothing this could see, and the Create
+        Chart hint that says "you already have a project with this name" went on
+        showing after the app had opened exactly that project. Compare the folder
+        instead: churn is still avoided, and a swap is no longer invisible.
+
+        *was* is what :meth:`_project_identity` returned before the change. A
+        bare ``bool`` is still accepted, because that is what this took for a
+        year and a caller elsewhere may still pass one.
+        """
+        if isinstance(was, bool):
+            was = (was, "" if not was else "?")
+        if tuple(was) == self._project_identity():
             return
         for cb in list(self._named_state_listeners):
             try:
                 cb()
             except Exception:      # noqa: BLE001 — a listener must never
-                log.exception("named-state listener failed")   # break a rename
+                log.exception("project-change listener failed")   # break a rename
 
     def is_named(self) -> bool:
         """Whether a project has a NAME yet — without inventing one.
@@ -2037,7 +2101,7 @@ class FileManager:
         """Open a project at its ACTUAL folder *root*, which may be nested in a
         sub-folder of the ChromIQ folder (#130, Knut). working_dir() then
         resolves there rather than <ChromIQ>/<name>."""
-        _was = self.is_named()
+        _was = self._project_identity()
         root = Path(root)
         self._target_name = self._sanitise(root.name)
         self._project_root_override = root
@@ -2093,6 +2157,30 @@ class FileManager:
             return None
         return self.root_dir() / self._sanitise(cleaned)
 
+    def resolved_root_for_name(self, raw_name: str) -> "Path | None":
+        """Where a build under *raw_name* would ACTUALLY land.
+
+        :meth:`preview_project_root` answers ``<ChromIQ>/<name>`` and nothing
+        else. That is right for a fresh name and wrong for the name of a NESTED
+        project that is already open: :meth:`set_target_name` deliberately keeps
+        such a project where it is, so the build goes to the sub-folder while
+        the preview pointed at the top level. Asking the wrong one is not
+        academic — a window offered to replace ``<ChromIQ>/test`` while the
+        build wrote to ``<ChromIQ>/Group-A/test``, so one click emptied a
+        project the build never touched.
+
+        This mirrors ``set_target_name`` + ``working_dir()`` exactly, and
+        creates nothing.
+        """
+        cleaned = self.strip_workfile_ext(raw_name)
+        if not cleaned.strip():
+            return None
+        name = self._sanitise(cleaned)
+        ov = self._project_root_override
+        if ov is not None and self._sanitise(ov.name) == name:
+            return ov
+        return self.root_dir() / name
+
     def ensure_folder(self) -> Path:
         d = self.working_dir()
         d.mkdir(parents=True, exist_ok=True)
@@ -2112,7 +2200,33 @@ class FileManager:
             self._project = Project.create_or_load(root, self.get_target_name())
         return self._project
 
-    def rename_existing_project(self, old_name: str, new_name_raw: str) -> Path:
+    def target_snapshot(self) -> tuple:
+        """What is open right now, so a caller can put it back.
+
+        Used where a question is asked AFTER the project has been switched — the
+        question has to be about the right run, and its "no" has to leave the
+        app where it found it.
+        """
+        return (self._target_name, self._project_root_override)
+
+    def restore_target(self, snapshot: tuple) -> None:
+        """Put back what :meth:`target_snapshot` recorded."""
+        _was = self._project_identity()
+        self._target_name, self._project_root_override = snapshot
+        self._project = None
+        log.info("target restored to %r", self._target_name or "(nothing open)")
+        self._notify_named_state(_was)
+
+    def forget_cached_project(self) -> None:
+        """Drop the cached :class:`Project` so the next call re-reads the disk.
+
+        The UI needs this after it has changed a project folder underneath the
+        file manager (a Replace empties it), and was reaching into
+        ``_project`` to do it.
+        """
+        self._project = None
+
+    def rename_existing_project(self, old: "str | Path", new_name_raw: str) -> Path:
         """Move the project folder ``old_name`` to the sanitised ``new_name`` and
         fix every artefact stem + the manifest inside it.
 
@@ -2123,11 +2237,26 @@ class FileManager:
         Raises ``FileExistsError`` if a project already occupies the new name,
         and ``FileNotFoundError`` if ``old_name`` is not a project on disk.
         """
-        root = self.root_dir()
-        old_root = root / old_name
-        new_root = self.preview_project_root(new_name_raw)
-        if new_root is None:
+        # A NESTED PROJECT IS RENAMED WHERE IT LIVES. Both sides used to be
+        # derived from `root_dir()`, so for a project opened from a sub-folder
+        # this raised `FileNotFoundError` — and the one caller answers that by
+        # "creating fresh instead", which leaves an empty project at the new
+        # name and abandons the real one in its sub-folder. Measured.
+        #
+        # A PATH MAY BE PASSED, and the UI does. Resolving a NAME here while the
+        # caller shows the user a folder it resolved differently is how the
+        # window came to name one project and the delete to take another; the
+        # caller now hands in the folder it displayed.
+        old_root = (Path(old) if isinstance(old, Path)
+                    else self.resolved_root_for_name(old))
+        if old_root is None:
             raise ValueError("Empty target name")
+        cleaned = self.strip_workfile_ext(new_name_raw)
+        if not cleaned.strip():
+            raise ValueError("Empty target name")
+        # The NEW name goes beside the old project, not at the top level: a
+        # rename must not also move a project out of the group it is filed in.
+        new_root = old_root.parent / self._sanitise(cleaned)
         if new_root == old_root:
             return old_root
         if not (old_root / Project.MANIFEST).exists():
@@ -2135,11 +2264,18 @@ class FileManager:
         if new_root.exists():
             raise FileExistsError(new_root)
 
+        _was = self._project_identity()
         shutil.move(str(old_root), str(new_root))
         proj = Project.load(new_root)
         proj.rename(new_root.name)
         self._target_name = new_root.name
+        # Keep the override pointing at where the project now is, or a nested
+        # one silently detaches the moment it is renamed.
+        self._project_root_override = (
+            new_root if new_root.parent != self.root_dir() else None)
         self._project = proj
+        # A rename changes which folder is open and told nobody at all.
+        self._notify_named_state(_was)
         return new_root
 
     def project_has_built_profile(self, name: str) -> bool:
@@ -2148,7 +2284,12 @@ class FileManager:
         has been created — at that point the embedded ICC description is baked
         in, so the user copies it to a new name instead (#70, Knut).
         """
-        root = self.preview_project_root(name)
+        # `resolved_root_for_name`, not `preview_project_root`: for a project
+        # open from a sub-folder the latter answers `<ChromIQ>/<name>`, which
+        # does not exist — so this returned False for a project with an ICC
+        # sitting in it, and the "you cannot rename a built profile" guard
+        # never fired. Measured.
+        root = self.resolved_root_for_name(name)
         if root is None or not (root / Project.MANIFEST).exists():
             return False
         try:
@@ -2159,16 +2300,34 @@ class FileManager:
             return False
         return any(r.built_profile_icc().exists() for r in proj.all_runs())
 
-    def delete_project_folder(self, name: str) -> None:
+    def delete_project_folder(self, name: "str | Path") -> None:
         """Permanently delete a ChromIQ project folder.
 
         Guarded so a stray/empty name can never remove something unexpected: the
-        folder must live directly under :meth:`root_dir` and contain a
-        ``project.json``. Anything else is refused with a warning.
+        folder must be INSIDE :meth:`root_dir` and contain a ``project.json``.
+        Anything else is refused with a warning.
+
+        "Inside", not "directly under": a project opened from a sub-folder of
+        the ChromIQ folder is a real project, and this refused to delete it with
+        nothing but a log line — so the rename chooser's Delete branch appeared
+        to do nothing at all. The safety this guard exists for is unchanged:
+        the target must still be under the ChromIQ folder, must not BE it, and
+        must carry a manifest.
         """
         root = self.root_dir()
-        target = root / name
-        if target == root or target.parent != root:
+        # A PATH MAY BE PASSED, and the UI does — so that the folder the window
+        # named is the folder that goes. See `rename_existing_project`.
+        target = (Path(name) if isinstance(name, Path)
+                  else self.resolved_root_for_name(name))
+        if target is None:
+            log.warning("Refusing to delete an empty project name")
+            return
+        try:
+            inside = (target != root
+                      and root.resolve() in target.resolve().parents)
+        except OSError:
+            inside = False
+        if not inside:
             log.warning("Refusing to delete unsafe path: %s", target)
             return
         if not (target / Project.MANIFEST).exists():
@@ -2198,3 +2357,227 @@ class FileManager:
         proj = self.project()
         return proj.calibration.stem if cal_target else proj.current_run().stem
 
+
+
+# ---------------------------------------------------------------------------
+# Looking at a project WITHOUT opening it (#: the typed-name gate, 2026-08-27)
+# ---------------------------------------------------------------------------
+
+def same_dir(a: "Path | None", b: "Path | None") -> bool:
+    """True when *a* and *b* are the same directory on THIS filesystem.
+
+    ``==`` on two Paths is a string comparison, and every interesting case
+    defeats it: macOS and Windows treat ``REAL`` and ``real`` as one folder, a
+    project opened through a symlink resolves elsewhere, and a name typed in NFC
+    never equals a folder created in NFD. Each of those made ChromIQ call the
+    project on screen "a different project" — and then offer to replace it.
+    """
+    if a is None or b is None:
+        return False
+    try:
+        return Path(a).samefile(Path(b))
+    except OSError:
+        # samefile needs both to exist; before a project is created one does
+        # not. Fall back to the strongest comparison that works on paths alone.
+        return (os.path.normcase(os.path.realpath(a))
+                == os.path.normcase(os.path.realpath(b)))
+
+
+@dataclass(frozen=True)
+class RunPeek:
+    """One run of a project, read without opening it. See :func:`peek_project`."""
+
+    id: str
+    chart: bool = False
+    measurement: bool = False
+    profile: bool = False
+    verifications: int = 0
+
+    @property
+    def holds_anything(self) -> bool:
+        return bool(self.chart or self.measurement or self.profile
+                    or self.verifications)
+
+    @property
+    def number(self) -> str:
+        """"1" for ``run1`` — the number a message puts into "Run {n}"."""
+        if self.id.startswith("run") and self.id[3:].isdigit():
+            return self.id[3:]
+        return self.id or "1"
+
+
+@dataclass(frozen=True)
+class ProjectPeek:
+    """What a project holds, read without opening it.
+
+    WHY NOT `Project.load`. Loading MIGRATES the folder in place — that is what
+    brings a pre-#127 project up to the current layout — and this is asked while
+    the user is merely *considering* a name. A question that rearranges someone
+    else's project before they have answered it is not a question. So this reads
+    ``project.json`` as plain JSON and looks at the run folder with `glob`, and
+    it writes nothing, creates nothing and migrates nothing.
+
+    ``exists`` False means "no project of that name" — every other field is then
+    meaningless. ``run_id`` is the run a build would land in: the manifest's
+    ``current_run``.
+    """
+
+    root: Path
+    exists: bool = False
+    run_id: str = ""
+    chart: bool = False
+    measurement: bool = False
+    profile: bool = False
+    verifications: int = 0
+    calibration: bool = False
+    #: EVERY run, oldest first — not only the current one. A project whose
+    #: current run is empty can still hold four finished ones, and joining it
+    #: unannounced is what Basti asked to be told about (2026-08-27).
+    runs: tuple = ()
+
+    @property
+    def holds_anything(self) -> bool:
+        """Whether there is anything in there a person would mind losing."""
+        return bool(self.chart or self.measurement or self.profile
+                    or self.verifications or self.calibration
+                    or self.other_runs_hold)
+
+    @property
+    def other_runs_hold(self) -> bool:
+        """Whether a run OTHER than the current one holds work."""
+        return any(r.holds_anything for r in self.runs if r.id != self.run_id)
+
+    @property
+    def finished_runs(self) -> int:
+        """How many runs hold anything at all."""
+        return sum(1 for r in self.runs if r.holds_anything)
+
+    @property
+    def run_number(self) -> str:
+        """"1" for ``run1`` — the number a message puts into "Run {n}".
+
+        The LABEL is built by the caller, not here: this module has no `tr()`
+        and an English "Run 1" baked in would have walked straight into twelve
+        translated messages.
+        """
+        if self.run_id.startswith("run") and self.run_id[3:].isdigit():
+            return self.run_id[3:]
+        return self.run_id or "1"
+
+
+def peek_project(root: "Path | None") -> ProjectPeek:
+    """Read-only: what is in the project at *root*? Never creates or migrates."""
+    if root is None:
+        return ProjectPeek(Path(""), exists=False)
+    root = Path(root)
+    manifest = root / Project.MANIFEST
+    try:
+        if not manifest.is_file():
+            return ProjectPeek(root, exists=False)
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        # A manifest we cannot read still means a project folder is sitting
+        # there, and the honest answer is "something is here" rather than
+        # "nothing is here" — the latter would let a build walk into it.
+        log.warning("could not read %s: %s", manifest, exc)
+        return ProjectPeek(root, exists=True, chart=True)
+
+    if not isinstance(data, dict):
+        # Valid JSON, but a list or a number. `data.get` then raises
+        # AttributeError out of a method whose whole promise is that asking is
+        # safe — and takes Generate Chart down with it.
+        log.warning("%s is not a project manifest (%s)", manifest, type(data).__name__)
+        return ProjectPeek(root, exists=True, chart=True)
+
+    schema = 1
+    try:
+        schema = int(data.get("schema_version", 1))
+    except (TypeError, ValueError):
+        pass
+    # A MANIFEST IS A FILE PEOPLE CAN EDIT, AND PROJECTS GET MAILED AROUND.
+    # These ids become path components below, so a `current_run` of "../.." or
+    # "/etc" would walk this read straight out of the project — the same shape
+    # as the journal traversal fixed in 4.1.3-beta.18. Anything that is not a
+    # plain folder name is dropped.
+    def _safe_id(value) -> str:
+        v = str(value or "").strip()
+        return v if v and v not in (".", "..") and "/" not in v and "\\" not in v else ""
+
+    run_id = _safe_id(data.get("current_run"))
+    runs = [r for r in (_safe_id(x) for x in (data.get("runs") or [])) if r]
+    if not run_id:
+        run_id = runs[0] if runs else "run1"
+
+    # v1 kept everything flat in the project folder; v2+ put it in runs/runN/.
+    # A CALIBRATION IS WORK TOO. It lives in the project's own `cal/`, shared
+    # by every run, and a project that holds only a calibration used to read as
+    # empty here — so no window appeared and a build could replace it in
+    # silence. Looked for before the run, because it does not belong to one.
+    cal_dir = root / "cal"
+    calibration = False
+    if cal_dir.is_dir():
+        calibration = any(cal_dir.glob("*.cal")) or any(cal_dir.glob("*.ti3"))
+
+    # EVERY run on disk, not only the ones the manifest lists — a folder the
+    # manifest has lost still holds somebody's work.
+    #
+    # AND `runs/` IS RIGHT FOR SCHEMA 1 TOO. This used to look for a v1
+    # project's files flat in the project folder, on the assumption that
+    # per-run folders arrived with #127. They did not:
+    # `tests/test_legacy_migration.py` says so in as many words — v1 HAD
+    # `runs/`, it was the `reports/`, `exports/` and `cache/` sub-folders
+    # inside each run that did not exist, and that is all `_migrate_v1_to_v2`
+    # moves. The consequence of getting it wrong was total: every project made
+    # before #127 read as EMPTY, so no window appeared and the project was
+    # adopted in silence — which is Knut's original report, unfixed for every
+    # 3.13-era project.
+    runs_root = root / "runs"
+    ids = list(runs)
+    if runs_root.is_dir():
+        try:
+            for d in sorted(runs_root.glob("run*")):
+                if d.is_dir() and d.name not in ids:
+                    ids.append(d.name)
+        except OSError:
+            pass
+
+    def _peek_run(rid: str) -> "RunPeek | None":
+        run_dir = runs_root / rid
+        if not run_dir.is_dir():
+            return None
+
+        def _any(*patterns: str, skip: "tuple[str, ...]" = ()) -> bool:
+            for pat in patterns:
+                for f in run_dir.glob(pat):
+                    if f.name not in skip:
+                        return True
+            return False
+
+        # `preconditioning.*` is a COPY seeded from the parent run, not this
+        # run's own work, so it must not make an untouched run look finished.
+        vdir = run_dir / VERIFICATIONS_DIRNAME
+        n_ver = 0
+        if vdir.is_dir():
+            try:
+                n_ver = sum(1 for d in vdir.iterdir()
+                            if d.is_dir() and _VERIFY_ID_RE.match(d.name))
+            except OSError:
+                n_ver = 0
+        return RunPeek(
+            rid,
+            chart=_any("*.ti1", "*.ti2"),
+            measurement=_any("*.ti3", skip=("preconditioning.ti3",)),
+            profile=_any("*.icc", "*.icm", skip=("preconditioning.icc",)),
+            verifications=n_ver,
+        )
+
+    peeked = tuple(r for r in (_peek_run(i) for i in ids) if r is not None)
+    current = next((r for r in peeked if r.id == run_id), None)
+    if current is None:
+        return ProjectPeek(root, exists=True, run_id=run_id,
+                           calibration=calibration, runs=peeked)
+
+    return ProjectPeek(root, exists=True, run_id=run_id, chart=current.chart,
+                       measurement=current.measurement, profile=current.profile,
+                       verifications=current.verifications,
+                       calibration=calibration, runs=peeked)

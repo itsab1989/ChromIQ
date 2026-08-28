@@ -79,7 +79,7 @@ def _renders(tab, monkeypatch) -> list:
 
     calls: list = []
     monkeypatch.setattr(type(tab), "_generate_from_ti1",
-                        lambda self, ti1, ask=True: calls.append(ti1))
+                        lambda self, ti1, ask=True, preview=False: calls.append(ti1))
     monkeypatch.setattr(type(tab), "_current_mode", lambda self: "manual")
     monkeypatch.setattr(type(tab), "_chart_build_in_flight", lambda self: False)
     monkeypatch.setattr(tc, "_is_named", lambda _fm: True)

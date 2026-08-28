@@ -254,6 +254,13 @@ class MainWindow(QMainWindow):
         add_listener = getattr(self._file_mgr, "add_named_state_listener", None)
         if callable(add_listener):
             add_listener(self._refresh_masthead_availability)
+            # …and the Create Chart hint that says "you already have a project
+            # with this name". It only ever refreshed when the TEXT changed, and
+            # adopting a project does not change the text — so it went on
+            # showing after ChromIQ had opened exactly the project it was
+            # warning about. This listener fires whenever the open project
+            # changes, which is the real rule.
+            add_listener(self._refresh_project_hint)
         # A restored verification chart must reach every tab, so nothing is left
         # showing or printing the pages it replaced (#130, Knut).
         self._target_ctl.chart_restored.connect(self._on_verify_chart_restored)
@@ -1111,6 +1118,14 @@ class MainWindow(QMainWindow):
             # a watchdog underneath so it cannot be left stuck on.
             busy = self._masthead.BUSY_CHART
         self._masthead.set_availability(busy, self._file_mgr.is_named())
+
+    def _refresh_project_hint(self) -> None:
+        """Re-ask the Create Chart tab whether its name still names another
+        project. Best-effort: a hint must never break a project switch."""
+        try:
+            self._tab_chart._refresh_project_exists_line()
+        except Exception:      # noqa: BLE001
+            log.debug("could not refresh the project hint", exc_info=True)
 
     def _on_verify_chart_restored(self) -> None:
         """React to Restore Used Chart having put an older verification chart

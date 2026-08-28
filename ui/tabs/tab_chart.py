@@ -4442,7 +4442,15 @@ class TabChart(QWidget):
         if _dev is not None:
             _dev.value_changed.connect(self._update_n_channel_visibility)
         self._update_n_channel_visibility()
-        self._preset_combo.currentIndexChanged.connect(self._on_preset_selected)
+        # `activated`, NOT `currentIndexChanged` (#175). Refusing a preset now puts
+        # the dropdown back on the one that was showing before, and with the
+        # change-only signal that entry could never be chosen again: the index
+        # would already match, so nothing would be emitted and nothing would
+        # happen until the user picked something else first. `activated` fires on
+        # every real choice, including re-choosing what is already shown, and
+        # never on a programmatic `setCurrentIndex` — which is what the three
+        # internal callers want anyway (two of them already block signals).
+        self._preset_combo.activated.connect(self._on_preset_selected)
         self._preset_add_btn.clicked.connect(self._on_preset_save)
         self._preset_del_btn.clicked.connect(self._on_preset_delete)
         self._manual_target_name_edit.textChanged.connect(self._check_for_cal_file)
@@ -7467,20 +7475,280 @@ class TabChart(QWidget):
         """Pick a built-in from the overlay — identical to choosing it in the dropdown.
 
         The built-ins live in the Manual presets dropdown, so route through it:
-        switch to Manual (so the dropdown and greyed panels are visible), then
-        select the matching entry, which fires _on_preset_selected — the name
-        prompt + generate flow. Re-picking the current entry won't emit
-        currentIndexChanged, so call the handler directly in that case."""
+        switch to Manual (so the dropdown and greyed panels are visible), move
+        the dropdown to the matching entry, then run the handler — the name
+        prompt + generate flow.
+
+        THE HANDLER IS CALLED HERE, NOT LEFT TO A SIGNAL. The combo is wired to
+        `activated`, which Qt emits only for a real interaction, so moving it
+        from code is silent by design (#175). That is what lets a refused preset
+        be put back on the dropdown without arming it; the price is that this
+        caller does the dispatch itself, in both directions."""
         idx = self._preset_combo.findData(key)
         if idx < 0:
             log.warning("Built-in preset overlay: key %r not in dropdown", key)
             return
+        # THE MODE IS PUT BACK HERE, NOT IN THE HANDLER (#175). The switch to
+        # Manual happens before `_on_preset_selected` is even called, so the
+        # snapshot it takes has already lost the mode the person was in.
+        _mode_before = self._mode_name()
         if self._current_mode() != "manual":
             self._switch_mode("manual")
-        if idx == self._preset_combo.currentIndex():
-            self._on_preset_selected(idx)
-        else:
+        if idx != self._preset_combo.currentIndex():
+            self._preset_combo.blockSignals(True)
             self._preset_combo.setCurrentIndex(idx)
+            self._preset_combo.blockSignals(False)
+        self._preset_selection_reverted = False
+        self._on_preset_selected(idx)
+        if self._preset_selection_reverted and self._mode_name() != _mode_before:
+            self._switch_mode(_mode_before)
+
+    # ------------------------------------------------------------------
+    # #175 — a built-in preset that is refused must leave NOTHING behind
+    # ------------------------------------------------------------------
+    #: Settings a built-in preset writes that OUTLIVE THE APP RUN, and which
+    #: Basti ruled go back with everything else (2026-08-28). Before this,
+    #: answering Cancel to a Spyderprint preset changed the layout-engine switch
+    #: and the four ruler-marker values for good — measured, with a negative
+    #: control proving it was the preset seeding and not the window.
+    _PRESET_PERSISTED_SETTINGS = (
+        "use_chromiq_layout_engine",
+        "i1pro_chromiq_clip_style",
+        "helper_markers_show",
+        "helper_marker_edge_mm",
+        "helper_marker_len_mm",
+        "helper_marker_per_patch",
+        "helper_markers_top_bottom",
+        "helper_markers_sides",
+    )
+
+    #: Every attribute that records "which kind of chart is on screen".
+    #: `_leave_prebuilt` and its two siblings are nothing but these plus a lock
+    #: refresh, so putting the values back and re-running `_update_preset_locks`
+    #: undoes them exactly.
+    _PRESET_FAMILY_ATTRS = (
+        "_tc918_active", "_tc918_targen_sig",
+        "_knut_active", "_knut_active_key", "_knut_targen_sig",
+        "_prebuilt_active", "_prebuilt_key",
+        "_prebuilt_targen_sig", "_prebuilt_printtarg_sig",
+        "_applied_active", "_applied_src_dir", "_applied_stem",
+        "_applied_targen_sig", "_applied_printtarg_sig",
+        "_reflected_active", "_reflected_ti2",
+        "_preset_ti1_path", "_preset_ti1_targen_sig",
+        "_pending_editor_recipe", "_builtin_ti1_path",
+        "_vendor_debranded", "_layout_owned_by_build",
+        "_engine_clip_saved", "_engine_leftclip_saved",
+        "_engine_was_active", "_stamp_engine_state",
+        # Restored LAST of the group and deliberately: if the preset was what
+        # first seeded the layout panel, putting this back to False means the
+        # next time the engine is switched on the panel is seeded again from
+        # "Save as Defaults" — which is exactly what would have happened had the
+        # preset never been chosen. `_init_manual_layout_panel` only sets the
+        # flag and applies a recipe, so re-running it connects nothing twice.
+        "_manual_panel_inited",
+    )
+
+    #: Tick boxes a preset can move. Restored with signals blocked: their
+    #: handlers rewrite the very rows being restored, and one of them
+    #: (`_on_manual_engine_toggled`) runs the whole engine↔printtarg conversion.
+    _PRESET_CHECKS = (
+        "_manual_engine_check", "_manual_td_check",
+        "_manual_auto_patches_check", "_manual_left_clip_check",
+        "_manual_auto_grey_check", "_manual_auto_white_check",
+        "_manual_auto_black_check", "_manual_stamp_cmd_check",
+        "_override_targen_check", "_override_printtarg_check",
+    )
+
+    def _snapshot_preset_state(self) -> dict:
+        """Everything a built-in preset can move, exactly as it stands now.
+
+        Best-effort by design: a row that cannot be read is left out rather than
+        aborting the selection. Missing one row costs that row; refusing to take
+        a snapshot at all would cost the whole undo.
+        """
+        snap: dict = {
+            "mode": self._mode_name(),
+            "settings": {k: self._settings.get(k)
+                         for k in self._PRESET_PERSISTED_SETTINGS},
+            "attrs": {a: getattr(self, a, None)
+                      for a in self._PRESET_FAMILY_ATTRS},
+            # NOT `currentIndex()` — by the time this runs the dropdown has
+            # already moved to the new preset, so its own position is the thing
+            # being undone. `_last_preset_index` is the selection that was
+            # actually committed, which is what Basti's ruling means by "what
+            # they were before the dropdown was touched".
+            "combo_index": self._last_preset_index,
+            "last_preset_index": self._last_preset_index,
+            "del_enabled": self._is_deletable_preset(self._last_preset_index),
+            "name_typed": bool(getattr(self, "_name_typed_by_user", False)),
+            "bit16": bool(self._bit16_radio is not None
+                          and self._bit16_radio.isChecked()),
+            "checks": {}, "names": {}, "widgets": {},
+            "recipe": None, "pages": None, "pages_spin": None,
+        }
+        for tool, widgets in self._manual_widgets.items():
+            rows = []
+            for pw in widgets:
+                try:
+                    rows.append((pw.flag, pw.get_raw_value(),
+                                 bool(pw.is_enabled_by_user)))
+                except Exception:      # noqa: BLE001 — one bad row, not the undo
+                    log.debug("preset undo: could not read %s %s", tool,
+                              getattr(pw, "flag", "?"), exc_info=True)
+            snap["widgets"][tool] = rows
+        for attr in self._PRESET_CHECKS:
+            w = getattr(self, attr, None)
+            if w is not None:
+                snap["checks"][attr] = w.isChecked()
+        for attr in ("_target_name_edit", "_manual_target_name_edit"):
+            w = getattr(self, attr, None)
+            if w is not None:
+                snap["names"][attr] = w.text()
+        spin = getattr(self, "_manual_pages_spin", None)
+        if spin is not None:
+            snap["pages_spin"] = spin.value()
+        # NOT GUARDED ON `_manual_panel_inited` — that is the bug this had.
+        # Driven on screen: with the engine off, the panel exists but is not yet
+        # seeded, so a guarded snapshot took no recipe; the refused A3 preset
+        # then inited it and its layout (CM / 420x297 / 200 dpi / its four
+        # margins) stayed behind, invisible until the person next switched the
+        # engine on. `get_recipe()` answers before the panel is seeded, and
+        # whatever it answers IS what was on screen.
+        panel = getattr(self, "_manual_layout_panel", None)
+        if panel is not None:
+            try:
+                snap["recipe"] = panel.get_recipe()
+                snap["pages"] = panel.get_pages()
+            except Exception:          # noqa: BLE001
+                log.debug("preset undo: could not read the layout recipe",
+                          exc_info=True)
+        return snap
+
+    def _restore_preset_state(self, snap: dict) -> None:
+        """Put back everything :meth:`_snapshot_preset_state` took.
+
+        THE ORDER IS LOAD-BEARING, AND IT WAS MEASURED BOTH WAYS.
+
+        * `-i` goes back before `-m`, because setting the instrument re-applies
+          that instrument's default margin. Restoring the rows in reverse panel
+          order rewrote a margin of 10 that the user had typed to 6.
+        * The persisted settings go back twice: once before the widgets that
+          mirror them, and again after the layout recipe — because
+          `panel.set_recipe` emits `changed`, and one of that signal's slots
+          re-persists the ruler markers 150 ms later. Restoring the tick box
+          alone was undone before the user could see it.
+        * The tick boxes go back with signals blocked and the rows go back
+          after them, so a handler that rewrites a row cannot win.
+        """
+        # 1. The mode the person was actually in.
+        try:
+            if snap["mode"] != self._mode_name():
+                self._switch_mode(snap["mode"])
+        except Exception:              # noqa: BLE001
+            log.warning("preset undo: could not restore the mode", exc_info=True)
+        # 2. The settings that outlive the run. Written HERE so that everything
+        #    below reads the right value while it works — `panel.set_recipe`
+        #    emits `changed`, and one of that signal's slots reloads the whole
+        #    layout frame from `use_chromiq_layout_engine`.
+        for key, value in snap["settings"].items():
+            self._settings.set(key, value)
+        # 3. Tick boxes, silenced.
+        for attr, was in snap["checks"].items():
+            w = getattr(self, attr, None)
+            if w is None or w.isChecked() == was:
+                continue
+            w.blockSignals(True)
+            w.setChecked(was)
+            w.blockSignals(False)
+        # 3b. …but "Auto patch count" also greys the -f and Pages controls, and
+        #     that is visible. Run its handler HERE, before the rows: it writes
+        #     -f, so afterwards the row restore below would have to fight it.
+        if getattr(self, "_manual_auto_patches_check", None) is not None:
+            try:
+                self._on_auto_patches_toggled(
+                    snap["checks"].get("_manual_auto_patches_check", False))
+            except Exception:          # noqa: BLE001
+                log.debug("preset undo: auto-patch refresh failed", exc_info=True)
+        # 4. The bit-depth radios. `setChecked(False)` on an auto-exclusive
+        #    radio does nothing, so check the one that WAS on.
+        radio = self._bit16_radio if snap["bit16"] else self._bit8_radio
+        if radio is not None and not radio.isChecked():
+            radio.setChecked(True)
+        # 5. THE LAYOUT PANEL GOES BACK BEFORE THE ROWS IT WRITES INTO.
+        #    `panel.set_recipe` applies the recipe one control at a time, and
+        #    the instrument combo's slot reads the panel's paper — still the
+        #    refused preset's, because the paper combo is set later in the same
+        #    method — and pushes it straight into the printtarg `-p` row.
+        #    Measured: restoring the rows first left `-p` on the A3 preset's
+        #    420x297 while every other row was correctly back on A4's values.
+        panel = getattr(self, "_manual_layout_panel", None)
+        if panel is not None and snap["recipe"] is not None:
+            try:
+                panel.set_recipe(snap["recipe"])
+                if snap["pages"] is not None:
+                    panel.set_pages(snap["pages"])
+            except Exception:          # noqa: BLE001
+                log.warning("preset undo: could not restore the layout recipe",
+                            exc_info=True)
+        # 6. Every parameter row, in panel order (see the docstring) — the last
+        #    word on the rows, after anything the panel pushed into them.
+        for tool, rows in snap["widgets"].items():
+            by_flag = {pw.flag: pw for pw in self._manual_widgets.get(tool, [])}
+            for flag, value, enabled in rows:
+                pw = by_flag.get(flag)
+                if pw is None:
+                    continue
+                try:
+                    pw.set_value(value)
+                    pw.set_user_enabled(enabled)
+                except Exception:      # noqa: BLE001 — one row, not the undo
+                    log.debug("preset undo: could not restore %s %s", tool,
+                              flag, exc_info=True)
+        spin = getattr(self, "_manual_pages_spin", None)
+        if spin is not None and snap["pages_spin"] is not None:
+            spin.setValue(snap["pages_spin"])
+        # 7. AND THE SETTINGS AGAIN, because steps 5 and 6 both emit `changed`
+        #    and one of its slots re-persists the ruler markers from the panel.
+        #    This is the write that has the last word.
+        #
+        #    HONESTLY: with the ordering above, either this write or step 2
+        #    alone passes the suite — the recipe being restored is the person's
+        #    own, so what gets re-persisted in between is what we want anyway.
+        #    Mutation-tested both ways; only removing BOTH fails. Both are kept
+        #    because they guard different moments (step 2 what the intermediate
+        #    refreshes read, step 7 what survives them), and because the cost of
+        #    being wrong here is a preference silently changed for good.
+        for key, value in snap["settings"].items():
+            self._settings.set(key, value)
+        # 8. The name the person had, and whether THEY typed it. That flag is
+        #    what §S4.7 keys off, so a seeded name must not be left looking typed.
+        for attr, text in snap["names"].items():
+            w = getattr(self, attr, None)
+            if w is not None and w.text() != text:
+                w.blockSignals(True)
+                w.setText(text)
+                w.blockSignals(False)
+        self._name_typed_by_user = snap["name_typed"]
+        # 9. Which family of chart is on screen.
+        for attr, value in snap["attrs"].items():
+            setattr(self, attr, value)
+        # 10. The dropdown, silently — `activated` is a user's signal.
+        self._preset_combo.blockSignals(True)
+        self._preset_combo.setCurrentIndex(snap["combo_index"])
+        self._preset_combo.blockSignals(False)
+        self._last_preset_index = snap["last_preset_index"]
+        self._preset_del_btn.setEnabled(snap["del_enabled"])
+        self._preset_selection_reverted = True
+        # 11. Everything that only READS the state above, so the screen agrees
+        #     with it: locks, row visibility, the engine frame and the preview.
+        try:
+            self._update_preset_locks()
+            self._update_manual_lb_visibility()
+            self._refresh_helper_marker_support()
+            self._refresh_manual_command_preview()
+        except Exception:              # noqa: BLE001 — never leave the tab dead
+            log.warning("preset undo: could not refresh the panel", exc_info=True)
+        log.info("Create Chart: the preset was refused, the tab was put back")
 
     def _on_preset_selected(self, index: int) -> None:
         # Group-divider separators aren't real choices. The combo skips them on
@@ -7517,6 +7785,11 @@ class TabChart(QWidget):
                     self._revert_preset_combo()
                     return
                 name = None
+                # EVERYTHING BELOW IS UNDOABLE FROM HERE (#175). Taken before the
+                # first tear-down, because those run whether or not the build is
+                # ever agreed to, and Basti's ruling is that a preset the person
+                # backs out of leaves nothing behind at all.
+                _undo = self._snapshot_preset_state()
                 # Switching from the TC9.18 chart to another built-in clears the
                 # expert printtarg overrides it forced on (margins, spacers, etc.).
                 if self._tc918_active and data != TC918_PRESET_KEY:
@@ -7590,13 +7863,20 @@ class TabChart(QWidget):
                         and self._manual_engine_check.isChecked() != engine_builtin:
                     self._manual_engine_check.setChecked(engine_builtin)
                 if data == TC918_PRESET_KEY:
-                    self._apply_tc918_preset(name)
+                    applied = self._apply_tc918_preset(name)
                 elif data in KNUT_PRESET_KEYS:
-                    self._apply_knut_preset(data, name)
+                    applied = self._apply_knut_preset(data, name)
                 elif data in PREBUILT_PRESETS:
-                    self._apply_prebuilt_preset(data, name)
+                    applied = self._apply_prebuilt_preset(data, name)
                 else:
-                    self._apply_colormunki_td_preset(*MUNKI_TARGEN[data], target_name=name)
+                    applied = self._apply_colormunki_td_preset(
+                        *MUNKI_TARGEN[data], target_name=name)
+                if not applied:
+                    # THE PERSON SAID NO. Put the tab back exactly as it was —
+                    # the mode, the panel, the flags and the settings that
+                    # outlive the app run (#175, Basti 2026-08-27/28).
+                    self._restore_preset_state(_undo)
+                    return
                 # Final lock pass: covers the params-based ColorMunki presets (which
                 # set no ti1/prebuilt flag, so their panels stay fully editable) and
                 # re-asserts state after leaving a previous tc918/knut preset.
@@ -9242,11 +9522,15 @@ class TabChart(QWidget):
             clip_border_width_mm=26.0,    # the regular clip-border width
         ))
 
-    def _apply_tc918_preset(self, target_name: str | None = None) -> None:
-        """Seed the fixed TC9.18 layout and create the target from the bundled .ti1."""
+    def _apply_tc918_preset(self, target_name: str | None = None) -> bool:
+        """Seed the fixed TC9.18 layout and create the target from the bundled .ti1.
+
+        Returns whether the preset was actually applied. False means the person
+        (or a missing file) refused it, and the caller puts the tab back (#175).
+        """
         if self._runner.is_running:
             log.warning("TC9.18 preset: a process is already running")
-            return
+            return False
         ti1 = self._tc918_ti1_path()
         if not ti1.is_file():
             InfoDialog(
@@ -9255,7 +9539,7 @@ class TabChart(QWidget):
                 f"{ti1}\n\nThe app bundle may be incomplete.",
                 self, min_width=520,
             ).exec()
-            return
+            return False
 
         # Triple density / Auto patch count must be off before seeding values,
         # otherwise they hijack the -a / -m / -e / -B widgets we set below.
@@ -9291,12 +9575,12 @@ class TabChart(QWidget):
         self._tc918_targen_sig = self._targen_signature()
         self._update_preset_locks()      # grey targen (printtarg stays editable)
         self._refresh_manual_command_preview()
-        self._generate_from_ti1(ti1)
+        return self._generate_from_ti1(ti1)
 
     def _apply_colormunki_td_preset(
         self, patches: int, white: int, black: int, grey: int,
         target_name: str | None = None,
-    ) -> None:
+    ) -> bool:
         """Load a ColorMunki + Triple-density recipe and generate it immediately.
 
         Produces (example for 324 / 2 / 2 / 16):
@@ -9305,10 +9589,20 @@ class TabChart(QWidget):
         Triple density makes printtarg use the denser i1Pro geometry (-ii1) while
         chart_creator rewrites the .ti2 TARGET_INSTRUMENT back to ColorMunki.
         Like TC9.18, selecting the preset creates the target right away; all
-        settings stay editable for a regenerate afterwards."""
+        settings stay editable for a regenerate afterwards.
+
+        THIS FAMILY CANNOT REPORT A REFUSAL, AND CANNOT BE REACHED EITHER.
+        It builds through `_on_generate`, which has no return channel, so the
+        best it can say is "the dispatch ran". That is harmless only because no
+        `MUNKI_TARGEN` key is in `BUILTIN_PRESET_KEYS`, so the dropdown branch
+        that calls this is unreachable —
+        `tests/test_backing_out_of_a_preset_changes_nothing.py` fails the moment
+        that stops being true, because then #175's undo would need a real answer
+        here.
+        """
         if self._runner.is_running:
             log.warning("ColorMunki preset: a process is already running")
-            return
+            return False
         # Clear modes that would otherwise hijack the seeded -f / -e / -B / -g.
         if self._manual_auto_patches_check is not None:
             self._manual_auto_patches_check.setChecked(False)
@@ -9349,6 +9643,7 @@ class TabChart(QWidget):
         self._on_generate()
 
         self._refresh_manual_command_preview()
+        return True
 
     # ------------------------------------------------------------------
     # TC9.18 + Spyderprint-greys presets (shared .ti1 → printtarg)
@@ -9470,11 +9765,15 @@ class TabChart(QWidget):
             self._manual_pages_spin.setValue(p.pages)
         self._ensure_profile_name(target_name or p.default_target_name)
 
-    def _apply_knut_preset(self, key: str, target_name: str | None = None) -> None:
-        """Seed a TC9.18+Spyderprint preset and build it from the bundled .ti1."""
+    def _apply_knut_preset(self, key: str, target_name: str | None = None) -> bool:
+        """Seed a TC9.18+Spyderprint preset and build it from the bundled .ti1.
+
+        Returns whether it was applied; False means the caller puts the tab back
+        (#175).
+        """
         if self._runner.is_running:
             log.warning("Knut preset: a process is already running")
-            return
+            return False
         ti1 = resource_path(KNUT_PRESETS_BY_KEY[key].ti1_asset)
         if not ti1.is_file():
             InfoDialog(
@@ -9483,7 +9782,7 @@ class TabChart(QWidget):
                 f"located:\n\n{ti1}\n\nThe app bundle may be incomplete.",
                 self, min_width=520,
             ).exec()
-            return
+            return False
         self._seed_knut_preset(key, target_name)
         self._knut_active = True
         self._knut_active_key = key
@@ -9495,7 +9794,7 @@ class TabChart(QWidget):
         self._knut_targen_sig = self._targen_signature()
         self._update_preset_locks()      # grey targen (printtarg stays editable)
         self._refresh_manual_command_preview()
-        self._generate_from_ti1(ti1)
+        return self._generate_from_ti1(ti1)
 
     def _reset_knut_overrides(self) -> None:
         """Revert the printtarg flags a TC9.18+Spyderprint preset forced on.
@@ -10360,7 +10659,7 @@ class TabChart(QWidget):
                 log.warning("Could not copy applied-chart extra %s: %s",
                             extra.name, exc)
 
-    def _apply_prebuilt_preset(self, key: str, target_name: str | None = None) -> None:
+    def _apply_prebuilt_preset(self, key: str, target_name: str | None = None) -> bool:
         """Select a prebuilt-files preset: grey the panels and copy the bundle.
 
         Both panels start locked. The instrument and paper the bundle was made
@@ -10383,7 +10682,7 @@ class TabChart(QWidget):
             # down. See `_revert_preset_combo`.
             self._forget_gate_answer()
             self._revert_preset_combo(to_none=True)
-            return
+            return False
         self._prebuilt_active = True
         self._prebuilt_key = key
         # THESE ROWS BELONG TO THE BUNDLE NOW, NOT TO THE TARGET.
@@ -10407,9 +10706,9 @@ class TabChart(QWidget):
         self._prebuilt_targen_sig = self._targen_signature()
         self._prebuilt_printtarg_sig = self._printtarg_signature()
         self._update_preset_locks()      # grey both panels
-        self._create_prebuilt_target(key, target_name,
-                                     gate_already_asked=True,
-                                     s4_already_answered=_s4_done)
+        return self._create_prebuilt_target(key, target_name,
+                                            gate_already_asked=True,
+                                            s4_already_answered=_s4_done)
 
     def _abandon_prebuilt_attempt(self) -> None:
         """Leave nothing behind when a prebuilt build does not happen.
@@ -10429,16 +10728,25 @@ class TabChart(QWidget):
 
     def _create_prebuilt_target(self, key: str, target_name: str | None = None,
                                 *, gate_already_asked: bool = False,
-                                s4_already_answered: bool = False) -> None:
+                                s4_already_answered: bool = False) -> bool:
         """Copy a bundled prebuilt target into the project's current run and load it.
 
         No targen/printtarg is run: the bundled .ti1/.ti2 and TIFF pages are
         copied into runs/<current>/ under the fixed ``chart`` stem and the TIFFs
-        are loaded into the preview, then routed downstream like a normal chart."""
+        are loaded into the preview, then routed downstream like a normal chart.
+
+        WHAT THE RETURN VALUE MEANS, AND WHERE IT STOPS MEANING IT (#175).
+        False = nothing happened and the caller may put the whole tab back.
+        Every such exit is ABOVE ``target_started.emit()``. From that emit
+        onwards the project has really changed — the tabs are cleared, the run
+        is chosen, the run root is cleared for the copy — so there is nothing to
+        go back to, and even the copy failing returns True. An undo there would
+        put the panel back to describing the project the person just left.
+        """
         import shutil
         if self._runner.is_running:
             log.warning("Prebuilt preset: a process is already running")
-            return
+            return False
         stem_rel, default_name = PREBUILT_PRESETS[key]
         src_ti1 = resource_path(f"{stem_rel}.ti1")
         src_ti2 = resource_path(f"{stem_rel}.ti2")
@@ -10456,7 +10764,7 @@ class TabChart(QWidget):
             # marked active with no bundle to build from, the build shield
             # latched, and an agreed "Replace it" still armed.
             self._abandon_prebuilt_attempt()
-            return
+            return False
 
         # §4: THIS REPLACES THE RUN'S CHART LIKE ANY OTHER BUILD.
         #
@@ -10479,7 +10787,7 @@ class TabChart(QWidget):
                                                           perform_replace=False)
         if not _proceed:
             self._abandon_prebuilt_attempt()
-            return
+            return False
         _s4_done = _s4_done or s4_already_answered
 
         # Remember the loaded project BEFORE the name is applied, so a build into
@@ -10505,12 +10813,13 @@ class TabChart(QWidget):
         if not _s4_done and not self._confirm_displacing_results():
             self._file_mgr.restore_target(_snapshot)
             self._abandon_prebuilt_attempt()
-            return
+            return False
         # Only now is anything committed: the archive the user agreed to, the
         # tabs, and the run the picker named.
         if not self._perform_pending_replace():
             self._abandon_prebuilt_attempt()
-            return
+            return False
+        # ---- THE POINT OF NO RETURN. Everything below is True (see docstring).
         self.target_started.emit()
         # The run the picker named. Without this the route fell through to
         # `_align_current_run_to_target`, which reads the BAR — still pointing
@@ -10559,7 +10868,7 @@ class TabChart(QWidget):
                 f"Copying the bundled chart into\n\n{work_dir}\n\nfailed:\n{exc}",
                 self, min_width=520,
             ).exec()
-            return
+            return True     # past the point of no return — see the docstring
 
         self._last_target_name = name
         self._log.appendPlainText(
@@ -10572,6 +10881,7 @@ class TabChart(QWidget):
         # (read from the bundled .ti2) rather than a previous chart's knobs.
         self._last_params = None
         self._on_generate_finished(tiffs)
+        return True
 
     def _targen_skipped_layout_name(self) -> str | None:
         """Layout name when Generate will skip targen for a *non-built-in* ti1
@@ -10620,7 +10930,7 @@ class TabChart(QWidget):
         return None
 
     def _generate_from_ti1(self, ti1_path: Path, *, ask: bool = True,
-                           preview: bool = False) -> None:
+                           preview: bool = False) -> bool:
         """Create the target by running printtarg only on an existing .ti1.
 
         Used by the TC9.18 preset both for its initial creation and for every
@@ -10631,10 +10941,18 @@ class TabChart(QWidget):
         a window on every turn of a knob — see :meth:`_auto_regenerate_preview`,
         which does its own §4 check and simply does not re-lay-out a run that
         holds work.
+
+        WHAT THE RETURN VALUE MEANS (#175). False = this build did not happen
+        and nothing was changed, so the caller may put the whole tab back. The
+        five refusals are a busy runner, either half of the project/§4 question,
+        a missing patch set, and no project name — and all five sit ABOVE
+        ``target_started.emit()``. From that emit onwards the project has
+        already moved, so every exit returns True even when the build then
+        fails: there is no earlier state left to go back to.
         """
         if self._runner.is_running:
             log.warning("A process is already running")
-            return
+            return False
         self._log_chart_build("live preview" if not ask else "user", ti1_path)
         self._cancel_pending_auto_preview()
         # §4: every path that lays out a new chart asks first, not just the
@@ -10646,16 +10964,16 @@ class TabChart(QWidget):
             # Cancel is a plain early return that has changed nothing.
             _proceed, _s4_done = self._gate_typed_project_name()
             if not _proceed:
-                return
+                return False
             if not _s4_done and not self._confirm_displacing_results():
-                return
+                return False
         if not ti1_path.is_file():
             InfoDialog(
                 "Patch set not found",
                 f"The .ti1 patch set could not be located:\n\n{ti1_path}",
                 self, min_width=520,
             ).exec()
-            return
+            return False
         # A NAME IS REQUIRED — never invent one (Basti, #164 Q15).
         #
         # THE GUARD BELONGS HERE, NOT ONLY IN `_on_generate`. Seven of that
@@ -10684,7 +11002,7 @@ class TabChart(QWidget):
         _typed = _field.text().strip() if _field is not None else ""
         if not _typed and not _is_named(self._file_mgr):
             self._ask_for_a_project_name(retry=tr("pick the preset again"))
-            return
+            return False
         # THE BUILD STARTS HERE, not at the call to the creator further down.
         # Everything below — naming the target, re-aligning the run, arming the
         # verification snapshot — can fire the target-switch handler, which loads
@@ -10695,6 +11013,7 @@ class TabChart(QWidget):
         # re-enables the button, including the failures.
         self._generate_btn.setEnabled(False)
         self._layout_owned_by_build = True
+        # ---- THE POINT OF NO RETURN. Every exit below is True (see docstring).
         self.target_started.emit()
         # Remember the loaded project before the name is applied (#130).
         _ctl = getattr(self, "_target_ctl", None)
@@ -10732,7 +11051,7 @@ class TabChart(QWidget):
         if not preview and not self._perform_pending_replace():
             self._generate_btn.setEnabled(True)
             self._layout_owned_by_build = False
-            return
+            return True     # past the point of no return — see the docstring
         if name:
             self._file_mgr.set_target_name(name)
         if not preview:
@@ -10765,6 +11084,7 @@ class TabChart(QWidget):
             on_line=self._on_log_line,
             on_finish=self._on_generate_finished,
         )
+        return True
 
     # ------------------------------------------------------------------
     # Patch count display

@@ -782,6 +782,133 @@ M_NO_INSTRUMENT_FAST = _m(
     approved=False)
 
 
+# --- PROPOSED: the typed project name that already exists ------------------
+# Knut, 2026-08-27: *"if I name project name 'test' which also exists
+# before … there is no warning message that this project already exists, with
+# choice to overwrite or cancel, and message to change to a different name …
+# Nothing shall ever be lost and user shall always be notified if there is a
+# risk of overwriting a project."*
+#
+# NO SPECIFICATION COVERS THIS. §4 governs what a RUN holds; nothing governs
+# which PROJECT a typed name lands on. Until now nothing did: typing the name
+# of a project you already have adopted it in silence, and the build went into
+# its current run. The window below is new behaviour and new text, so it waits
+# here for approval — see §M-PROPOSED and §S4 in the design document.
+M_PROJECT_EXISTS = _m(
+    "M-PROJECT-EXISTS",
+    "There is already a project called \u201c{name}\u201d",
+    "ChromIQ found it here:\n{folder}\n\nThat name is already taken, so building now would carry on inside that project rather than start a new one. A project keeps its work in runs, and each run holds one finished profile. This one has {runs}.{cal}\n\nYou can choose below which run the new chart goes into. {chosen} holds:\n\n{holds}\n\nNothing has been changed yet. Choose what you would like to do:\n\n•  Continue this project: the new chart is made in the run named in the box below. Anything that chart replaces is moved to that run’s “old” folder first, with today’s date on it, so you can always get it back. Choosing a new run adds a fresh, empty one and leaves everything already in the project exactly as it is.\n\n•  Replace it: everything the project holds now is moved into its own “old” folder, with today’s date, and a new, empty project of the same name is started. Nothing is deleted, and ChromIQ asks you to confirm before it does it.\n\n•  Use a different name: nothing is touched, and ChromIQ takes you back to the name box so you can type another one.\n\n•  Cancel: stops here and changes nothing.",
+    approved=False)
+
+#: The one sentence M-PROJECT-EXISTS uses to say what is already in there. It
+#: is a FRAGMENT of that message rather than a message of its own, and every
+#: form it can take is written out in §M-PROPOSED so a reviewer sees all of
+#: them. The parts live here, in the catalogue, so the tab holds no prose —
+#: and each is its own module constant, because the extractor resolves
+#: ``tr(NAME)`` only for those (a dict of them would ship untranslated).
+_HOLDS_NOTHING = "•  nothing yet: no chart, no measurement and no profile"
+_HOLDS_CHART = "a chart"
+_HOLDS_MEASUREMENT = "a measurement"
+_HOLDS_PROFILE = "a built profile"
+_HOLDS_VERIFICATION_ONE = "one dated verification check"
+_HOLDS_VERIFICATION_MANY = "{n} dated verification checks"
+#: A calibration belongs to the PROJECT, not to one run — it lives in `cal/`
+#: and every run shares it. A project holding only a calibration used to read
+#: as empty, so no window appeared and a build could replace it in silence.
+#:
+#: AND IT IS NOT A LINE OF `{holds}`. Listing it under "A new run holds:" said
+#: something plainly false about a run that does not exist yet. It is a fact
+#: about the PROJECT, so it goes in the sentence about the project.
+_ALSO_CALIBRATION = "It also has a calibration of its own, shared by every run."
+#: The ``{runs}`` fragment of M-PROJECT-EXISTS, and the ``{chosen}`` one. Both
+#: live here rather than in the tab, so every sentence the window can show is
+#: written down in one reviewable place.
+_RUNS_ONE = "one run"
+_RUNS_MANY = "{n} runs"
+_RUNS_MANY_SOME_USED = "{n} runs, {f} of them with work in them"
+_RUNS_MANY_ONE_USED = "{n} runs, one of them with work in it"
+_CHOSEN_NEW = "A new run"
+
+
+def runs_phrase(total: int, finished: int) -> str:
+    """The ``{runs}`` fragment: how many runs this project has, and how many of
+    them hold anything. Count-aware, per the house rule."""
+    if total <= 1:
+        return tr(_RUNS_ONE)
+    if finished == 1 and total > 1:
+        return tr(_RUNS_MANY_ONE_USED).format(n=total)
+    if finished and finished < total:
+        return tr(_RUNS_MANY_SOME_USED).format(n=total, f=finished)
+    return tr(_RUNS_MANY).format(n=total)
+
+
+def chosen_phrase(run_label: "str | None") -> str:
+    """The ``{chosen}`` fragment: the run the picker is on, or a new one."""
+    if not run_label:
+        return tr(_CHOSEN_NEW)
+    # Already translated by the caller ("Run 1"); wrapping it again would only
+    # create a `tr("{run}")` key that means nothing to a translator.
+    return run_label
+
+
+def calibration_phrase(calibration: bool) -> str:
+    """The ``{cal}`` fragment of :data:`M_PROJECT_EXISTS` — empty, or the one
+    sentence saying the project has a calibration of its own."""
+    return (" " + tr(_ALSO_CALIBRATION)) if calibration else ""
+
+
+def holds_phrase(run: str, *, chart: bool = False, measurement: bool = False,
+                 profile: bool = False, verifications: int = 0) -> str:
+    """The ``{holds}`` sentence of :data:`M_PROJECT_EXISTS`.
+
+    A LIST, NOT A SENTENCE, deliberately: joining the parts with commas and a
+    final "and" would need the comma and the conjunction themselves to be
+    translatable, and word order differs enough between the thirteen languages
+    that the result would be wrong somewhere. One bullet per thing is right
+    everywhere. Count-aware, per the house rule \u2014 "1 dated verification
+    checks" never reaches a user.
+    """
+    items = []
+    if chart:
+        items.append(tr(_HOLDS_CHART))
+    if measurement:
+        items.append(tr(_HOLDS_MEASUREMENT))
+    if profile:
+        items.append(tr(_HOLDS_PROFILE))
+    if verifications == 1:
+        items.append(tr(_HOLDS_VERIFICATION_ONE))
+    elif verifications > 1:
+        items.append(tr(_HOLDS_VERIFICATION_MANY).format(n=verifications))
+    if not items:
+        return tr(_HOLDS_NOTHING)
+    return "\n".join(f"\u2022  {i}" for i in items)
+
+
+# --- PROPOSED: are you sure you want to replace the whole project? ----------
+# Basti, 2026-08-27: "Keep it but require a second confirmation". Three of the
+# six data-loss faults found in the first implementation were about this one
+# button, and it is the only control in the app that clears a whole project from
+# the Create Chart tab. So it is never one click away from a window somebody
+# opened by accident.
+M_PROJECT_REPLACE_CONFIRM = _m(
+    "M-PROJECT-REPLACE-CONFIRM",
+    "Start \u201c{name}\u201d again from empty?",
+    "Everything this project holds is about to be moved into its own “old” folder, with today’s date on it:\n\n{folder}\n\nNothing is deleted. That “old” folder stays inside the project, so you can open it at any time and take anything back out of it: the charts, the measurements, the profiles, all of it.\n\nAfter that, a new and completely empty project of the same name is started in the same place, and your new chart is made in its first run.\n\nIf what you wanted was to ADD to this project rather than start it again, go back and choose “Continue this project” instead. That leaves everything where it is.",
+    approved=False)
+
+# --- PROPOSED: the Replace that could not be carried out -------------------
+# "Replace it" promises that everything is moved into the project's own "old"
+# folder and nothing is deleted. When the move cannot be made — a read-only
+# folder, a network share that has gone away, a file another program is holding
+# open — the promise is not kept, and the old code said so in one line of the
+# tab's log, which nobody reads. Everything is put back before this is shown.
+M_PROJECT_REPLACE_FAILED = _m(
+    "M-PROJECT-REPLACE-FAILED",
+    "The existing project could not be moved aside",
+    "ChromIQ was going to move everything in this project into its own “old” folder before starting a fresh one of the same name, and it could not:\n\n{folder}\n\nNothing has been changed. Anything that had already been moved has been put back, and no new chart has been made.\n\nThe reason given was:\n{reason}\n\nThis usually means the folder is read-only, is on a disk or a share that is no longer available, or holds a file another program still has open. Close anything that might be using it and try again, or choose “Use a different name” and leave this project alone.",
+    approved=False)
+
+
 CATALOGUE = {m.id: m for m in (
     M_REPLACE_PARTIAL, M_REPLACE_COMPLETE, M_TI3_MISMATCH,
     M_REPLACE_UNCOUNTABLE,
@@ -797,6 +924,9 @@ CATALOGUE = {m.id: m for m in (
     M_OVERLAY_NO_MEASUREMENT, M_ALL_STRIPS_PATCHES_LEFT,
     M_ENGINE_FELL_BACK,
     M_PATCHSET_MISSING,
+    M_PROJECT_EXISTS,
+    M_PROJECT_REPLACE_CONFIRM,
+    M_PROJECT_REPLACE_FAILED,
 )}
 
 #: Paragraphs appended to another message rather than shown on their own.

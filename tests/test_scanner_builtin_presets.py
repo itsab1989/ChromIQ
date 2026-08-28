@@ -132,17 +132,36 @@ def test_seed_scanner_preset_seeds_engine_panel(qapp, tmp_path):
     assert letter.patches == 3250
 
 
+def _choose(tab, idx):
+    """Pick entry *idx* in the presets dropdown the way a person does.
+
+    The combo is connected to `activated`, not `currentIndexChanged` (#175), so
+    moving it from code is deliberately silent — that is what lets a refused
+    preset be put back on the dropdown without arming it.
+    """
+    combo = tab._preset_combo
+    combo.blockSignals(True)
+    combo.setCurrentIndex(idx)
+    combo.blockSignals(False)
+    combo.activated.emit(idx)
+
+
 def test_selecting_scanner_preset_turns_engine_on(qapp, tmp_path, monkeypatch):
     """The real dropdown handler flips the engine to match the preset kind: ON
     for the Scanner family (and seeds the layout panel + builds from the
     bundled .ti1), OFF again for a printtarg-era built-in (#100)."""
     tab, s = _make_tab(qapp, tmp_path)
     built = []
+    # THE STUB MUST RETURN TRUE. Since #175 the build step's answer is what says
+    # whether the preset was applied at all — a stub returning None reads as "the
+    # person refused it", and the tab is then correctly put back, engine and all.
     monkeypatch.setattr(tab, "_generate_from_ti1",
-                        lambda p: built.append(p))     # stub the process edge
+                        lambda p: (built.append(p), True)[1])
     idx = tab._preset_combo.findData(_A4_KEY)
     assert idx > 0
-    tab._preset_combo.setCurrentIndex(idx)             # fires _on_preset_selected
+    # A REAL CLICK, not a bare `setCurrentIndex`: the dropdown is wired to
+    # `activated`, which Qt emits only for an interaction (#175).
+    _choose(tab, idx)
     assert bool(s.get("use_chromiq_layout_engine", False)) is True
     assert tab._manual_layout_panel.get_recipe().instrument == "SS"
     assert built and built[-1].name == "chart.ti1"     # the bundled patch set
@@ -162,12 +181,12 @@ def test_selecting_a_printtarg_builtin_turns_the_engine_off(qapp, tmp_path,
     switches the engine off.
     """
     tab, s = _make_tab(qapp, tmp_path)
-    monkeypatch.setattr(tab, "_generate_from_ti1", lambda p: None)
+    monkeypatch.setattr(tab, "_generate_from_ti1", lambda p: True)
     s.set("use_chromiq_layout_engine", True)
 
     idx = tab._preset_combo.findData("__chromiq_tc918eg_a4_builtin__")
     assert idx > 0, "the TC9.18 built-in is not in the dropdown"
-    tab._preset_combo.setCurrentIndex(idx)
+    _choose(tab, idx)
 
     assert bool(s.get("use_chromiq_layout_engine", False)) is False, (
         "a printtarg-path built-in left the ChromIQ layout engine switched on")

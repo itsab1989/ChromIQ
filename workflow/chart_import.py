@@ -19,10 +19,14 @@ Destination rules (Model A of the design):
 """
 from __future__ import annotations
 
+import os
 import shutil
 from pathlib import Path
 
 from core.file_manager import FileManager, Project, Run
+from core.logger import get_logger
+
+log = get_logger(__name__)
 
 # Chart-file extensions that travel WITH a chart (never the measurement/profile).
 _CHART_EXTS = (".cht", ".channels.json", ".strips.json", ".cie", ".pdf")
@@ -172,12 +176,41 @@ def copy_whole_project(src_root: Path, working_dir: Path, new_name: str,
 
 def _archive_project_contents(project_root: Path) -> Path:
     """Move a project's current contents (except an existing ``old/``) into
-    ``<project>/old/<timestamp>/`` before an overwrite."""
+    ``<project>/old/<timestamp>/`` before an overwrite.
+
+    ALL OR NOTHING. This used to move item by item with no pre-flight and no
+    rollback, so a failure part way through left the runs at the top level and
+    the manifest inside ``old/`` — a project that is neither the old one nor a
+    fresh one, and that :func:`core.file_manager.peek_project` then reads as
+    "there is no project here" — while the caller told the user nothing had been
+    changed. Measured, on a folder made read-only half way through.
+
+    Now the folder is checked for writability first, every move is recorded, and
+    any failure puts them all back before the error is raised. A rollback that
+    itself fails is logged at ERROR with both paths, because at that point only
+    a person can put it right.
+    """
     from datetime import datetime
+
+    items = [p for p in project_root.iterdir() if p.name != "old"]
+    if not items:
+        return project_root / "old"
+    if not os.access(project_root, os.W_OK):
+        raise OSError(f"{project_root} is not writable")
     dest = project_root / "old" / datetime.now().strftime("%Y-%m-%d_%H%M%S")
     dest.mkdir(parents=True, exist_ok=True)
-    for item in list(project_root.iterdir()):
-        if item.name == "old":
-            continue
-        shutil.move(str(item), str(dest / item.name))
+    moved: "list[tuple[Path, Path]]" = []
+    try:
+        for item in items:
+            target = dest / item.name
+            shutil.move(str(item), str(target))
+            moved.append((target, item))
+    except OSError:
+        for target, original in reversed(moved):
+            try:
+                shutil.move(str(target), str(original))
+            except OSError:
+                log.error("ARCHIVE ROLLBACK FAILED: %s could not be put back "
+                          "as %s — this project needs a person", target, original)
+        raise
     return dest

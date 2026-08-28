@@ -152,7 +152,21 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # it silences ChromIQ's sounds without saying
                                  # so — which is half of why the sound feature
                                  # looked broken.
-                                 "M-ENGINE-FELL-BACK"}
+                                 "M-ENGINE-FELL-BACK",
+                                 # 2026-08-27, Knut: a typed project name that
+                                 # already names a project on disk was adopted
+                                 # in silence. No section of the model governed
+                                 # it — §4 governs what a RUN holds, not which
+                                 # PROJECT a name lands on. Basti ruled on when
+                                 # it may appear and what it offers; the WORDING
+                                 # waits here.
+                                 "M-PROJECT-EXISTS",
+                                 # …and the window for the case where that
+                                 # window's own promise cannot be kept.
+                                 "M-PROJECT-REPLACE-FAILED",
+                                 # …and the second look before it runs, which
+                                 # Basti asked for on 2026-08-27.
+                                 "M-PROJECT-REPLACE-CONFIRM"}
 
 
 def test_nothing_is_quietly_proposed():
@@ -251,6 +265,7 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_measure", "TabMeasure", "_show_verification_saved"),
     ("ui.tabs.tab_measure", "TabMeasure", "_ask_how_printed"),
     ("ui.tabs.tab_chart", "TabChart", "_patchset_missing_message"),
+    ("ui.tabs.tab_chart", "TabChart", "_project_exists_message"),
 ]
 
 #: Measurement windows that are NOT yet in §M, listed so the gap is visible.
