@@ -959,6 +959,7 @@ class TabMeasure(QWidget):
         # chart exposes no per-patch geometry (then the overlay is suppressed).
         self._patch_boxes: list[dict[str, QRect]] = []
         self._patch_geom_warned = False
+        self._patch_missing_warned = False
         # Engine spot (patch-by-patch) mode: the patch currently awaiting a
         # read, and whether click-to-jump has been armed for this session.
         self._spot_current_loc: str = ""
@@ -4323,6 +4324,14 @@ class TabMeasure(QWidget):
             self._tiff_pages = []
             self._page_stripe_rects = []
             self._strips_per_page = []
+            # And the per-patch geometry, which is built in _setup_stripe_rects
+            # and so is only ever REPLACED on the branch above. Left behind, the
+            # previous chart's boxes stayed live for a chart that has no preview
+            # at all: _locate_patch would answer with a rect belonging to a
+            # different sheet, and the split-patch overlay would draw this
+            # chart's colours at the last chart's coordinates.
+            self._patch_boxes = []
+            self._preview.set_page_patch_boxes({})
             self._preview.clear()
             self._log.appendPlainText(
                 "[WARNING] No matching TIFF preview found. "
@@ -9995,6 +10004,7 @@ class TabMeasure(QWidget):
         self._preview.clear_patch_overlay()
         self._repaint_overlay_from_disk()
         self._patch_geom_warned = False
+        self._patch_missing_warned = False
         if self._spot_session:
             # Patch-by-patch mode drives the preview via spot_ready/patch_read
             # with its OWN per-patch highlight + click-to-jump. The strip
@@ -10652,13 +10662,28 @@ class TabMeasure(QWidget):
         loc = str(ev.get("loc", ""))
         page, box = self._locate_patch(loc)
         if page < 0 or box is None:
-            if not self._patch_geom_warned and not any(self._patch_boxes):
-                self._patch_geom_warned = True
+            if not any(self._patch_boxes):
+                if not self._patch_geom_warned:
+                    self._patch_geom_warned = True
+                    self._log.appendPlainText(
+                        tr("[Engine] Live patch preview needs a chart made with the "
+                           "ChromIQ layout engine, so it is off for this chart. Your "
+                           "measurement is unaffected — every patch is still saved and "
+                           "checked."))
+            elif not self._patch_missing_warned:
+                # The chart HAS geometry and this one patch is not in it. That
+                # used to return in silence, so the overlay simply stopped
+                # growing and nothing said why — indistinguishable, on screen,
+                # from the overlay being broken. Said once per session: it is a
+                # property of the chart, so every later patch would repeat it.
+                self._patch_missing_warned = True
+                log.warning("no geometry for patch %r; the chart has %d boxes",
+                            loc, sum(len(d) for d in self._patch_boxes))
                 self._log.appendPlainText(
-                    tr("[Engine] Live patch preview needs a chart made with the "
-                       "ChromIQ layout engine, so it is off for this chart. Your "
-                       "measurement is unaffected — every patch is still saved and "
-                       "checked."))
+                    tr("[Engine] This chart records where its patches are, but "
+                       "not where “{loc}” is, so that patch is left out of the "
+                       "live preview. Your measurement is unaffected — every "
+                       "patch is still saved and checked.").format(loc=loc))
             return
         from PyQt6.QtGui import QColor as _QC
         from workflow.icc_info import xyz_to_lab

@@ -406,3 +406,195 @@ M-CR30-HOW-TO-MEASURE are all `approved=False` and listed in
 `unified_measurement_management.md`'s awaiting-review header.
 
 ---
+# PART B — surfacing the disconnect (S28) and the missing watchdog (S31)
+
+Your plan is *"emit `instrument_disconnected` when `DeviceLost` reaches the
+bridge, and reuse `_on_instrument_disconnected`."* The reuse instinct is right.
+Three things are wrong with it, and one of them is bigger than the disconnect.
+
+## B-1 [BLOCKER] The bigger bug: **one failed read kills the CR30 session for ever, in silence — and the commonest first-time mistake triggers it**
+
+This is the "I pressed a few times and nothing happened" case, and it is **not**
+a disconnect, not `reading_dropped`, and not `DROPPED_NO_PROMPT`.
+
+Trace it in the code:
+
+* `Cr30MeasureBridge._start_read` has **exactly one caller**:
+  `on_patch_ready` (`measure_bridge.py:214`). Verified by grep — no other site
+  in the repo calls it.
+* `on_patch_ready` only runs on a **new `spot_ready`** from the helper, and the
+  helper only re-prompts when it **receives a command**
+  (`chromiq_chartread.c`, the `xtern` spot loop).
+* `_on_read_failed` (`:277-288`) sets `self._reading_loc = None`, emits
+  `read_failed`, **and does nothing else**. It sends no command, starts no
+  retry, re-arms nothing.
+* `_on_cr30_read_failed` in the tab (`tab_measure.py:6875-6881`) writes a log
+  line and flashes the status bar. It sends nothing either.
+
+**So after any single failed read, no reader is running and no prompt will ever
+arrive again. The session is dead and every part of the UI still says it is
+alive**: the preview keeps its patch highlighted, the helper still shows *"Ready
+to read patch …"*, and the message on screen says:
+
+> *"The CR30 could not be read for patch A1: … **Press the button on the
+> instrument again.**"*
+
+Pressing it cannot help. Nothing is listening. On BLE the presses land in
+`BleTransport._buf` and are cleared by the next `ask()`; on USB they sit in the
+serial buffer.
+
+**The reproducible failure scenario is the ordinary one, not an exotic one.**
+The user starts a CR30 chart with the cap still on — the instrument's resting
+state, and the mistake the how-to-measure window exists to pre-empt. Patch A1 is
+read, `Measurement.check_usable` raises the magnet-gate message, `read_failed`
+fires, and the session is over. The user takes the cap off, presses the button
+as instructed, and nothing happens for ever. **This is a 100 % dead end on the
+most likely first-run mistake**, and it needs no unplugging, no Bluetooth and no
+timeout to reach. The 180 s button timeout is merely *one* of the doors into it.
+
+**Recommendation.** `read_failed` must be recoverable. Two routes, both already
+anticipated by the code:
+
+1. **Re-arm in the bridge.** In `_on_read_failed`, if the session is live and
+   `self._awaiting_loc == loc`, call `_start_read(loc)` again after telling the
+   user why. A retry counter is needed so a permanently broken device does not
+   spin; a `DeviceLost` (once B-2 gives it a type) must *not* re-arm.
+2. **Or re-prompt the helper.** The module docstring at `measure_bridge.py:20-27`
+   already records that `{"cmd":"ok"}` / `{"cmd":"retry"}` are inert to the
+   external-value parser and **loop the prompt, producing a duplicate
+   `spot_ready` for the same loc** — which is precisely a re-arm. The
+   `_reading_loc == loc` guard at `:209` does not block it after a failure,
+   because `_on_read_failed` has already cleared `_reading_loc`.
+
+Route 1 is smaller and does not touch the protocol. Either way the user must be
+told which happened. **Whatever else is done for S28, do this first: it costs a
+user their whole session on the first mistake they are most likely to make.**
+
+## B-2 [BLOCKER] `instrument_disconnected` cannot be emitted from a `DeviceLost` today, because the type is gone by then
+
+See **T-1**. `_ReadWorker.run` catches `Exception` and emits
+`failed = pyqtSignal(str, str)` with `str(e)`. By the time anything in the tab
+can act, all that is left is a sentence. Emitting `instrument_disconnected` on
+a substring match would be exactly the "adjacent in the log is not causal" trap.
+
+**Minimum change:** `_ReadWorker` gains a second signal, or a third string
+argument carrying `type(e).__name__`; `Cr30MeasureBridge` gains
+`device_lost = pyqtSignal(str, str)`; `_open_cr30_bridge` connects it. Only then
+can the tab distinguish "that reading was refused" from "the instrument is gone",
+which is the whole point of `243cee7c`.
+
+## B-3 [BLOCKER] `_on_instrument_disconnected`'s `abort()` is a **second exit**, and the design spec forbids it — your instinct is right, but not for the reason you gave
+
+You asked: *"is `abort()` right, or must it be save-and-stop?"*
+
+**Data-wise, for a CR30, `abort()` loses nothing.** I confirmed the per-patch
+autosave in the C source: `native/chartread_helper/chromiq_chartread.c:3178`,
+`cq_write_ti3_atomic(); /* CHROMIQ_EXT: autosave per patch */`, inside the
+`xtern` external-value branch. And `MeasurementSession.finish` →
+`judge_session` (`workflow/measurement_state.py:241-256`) keeps a file with
+`after > 0` (verdict `KEEP`), or on a resume that went backwards keeps **both**
+(`RESTORE_AND_KEEP_BOTH`). So the 15 patches survive a kill.
+
+**But `abort()` is still wrong, and the reason is binding spec, not data loss.**
+`docs/design/measurement_exit_strategy.md:27-40`:
+
+> *"**Every way out of a session goes through `_confirm_end_of_session`** …
+> A window that ends a session any other way is a second exit, and that is the
+> thing this document exists to catch."*
+
+and Knut on M-NO-INSTRUMENT (`unified_measurement_management.md:906-911`):
+
+> *"its **OK button ends the session through the one ending every route
+> shares**, so nothing read is lost and nothing is discarded without being
+> offered … **All messages that can arrive during measurement must exit in that
+> safe manner, as a single exit strategy for all cases.**"*
+
+`_on_instrument_disconnected` (`tab_measure.py:7129-7147`) calls
+`self._manager.abort()` **directly**. It never asks. And the handler is shared
+with every other instrument, where `abort()` **does** destroy the session —
+CLAUDE.md's own note: *"chartread writes .ti3 ONLY on clean exit — kill = data
+loss."* So the moment this dead signal is brought to life, a CR30 unplug is
+survivable and an i1Pro unplug on the same code path is not.
+
+The helper is still alive after a disconnect — the instrument went away, not the
+process — so `send_save_partial_and_quit()` (`d` → `unread_confirm` → `y`) works
+perfectly well from here.
+
+**Recommendation:** `_on_instrument_disconnected` shows its window, and the
+window's OK routes into `self._end_session(self._confirm_end_of_session(...))`,
+exactly as M-NO-INSTRUMENT does. Keep `abort()` only where the user chose
+"Discard and stop".
+
+## B-4 [MAJOR] The handler's strings are **ad-hoc, not §M**, and one of them is not translated at all — report 11 got this wrong
+
+Report 11 (S28, S31) says reusing this machinery *"would light up an existing,
+already-§M-approved user journey"*. **It is not §M-approved. It is not in §M at
+all.**
+
+* `grep -n "isconnect" workflow/measurement_messages.py` → **nothing**. There is
+  no `M-INSTRUMENT-DISCONNECTED`.
+* `grep -in "disconnect" docs/design/*.md` → **one hit**,
+  `measurement_window_sounds.md:38`, a *sound* row. It is absent from
+  `measurement_exit_strategy.md`, a document whose title is *"Every window that
+  can end a measurement"* — so an ending window is missing from the register of
+  ending windows.
+* `tab_measure.py:7144-7146` is **not `tr()`-wrapped**:
+  ```python
+  self._log.appendPlainText(
+      "\n[ERROR] Instrument disconnected — stopping measurement."
+  )
+  ```
+  (the `[WARN]` line four lines above it *is* wrapped, so this is an oversight,
+  not a convention).
+* The window body (`_show_instrument_disconnected_window`, `:7186-7190`) is
+  `tr()`-wrapped but invented in place, and says **"Please check the USB
+  connection"** — wrong for a CR30 that dropped its **Bluetooth** link, which is
+  one of the two cases this work is about.
+
+So the §M obligation lands on Section B too, not only on Section A: the window
+must be added to `measurement_exit_strategy.md`'s table and its text moved into
+`measurement_messages.py` as `approved=False`, with a transport-neutral body.
+
+## B-5 [MAJOR] Yes, a watchdog is still needed — `DeviceLost` covers **one** of the three silences
+
+Your question: *"is a watchdog actually needed on top, or does `DeviceLost` cover
+every case now?"* It covers one.
+
+| silence | covered by `DeviceLost`? | why |
+|---|---|---|
+| cable pulled / BLE link dropped | **yes**, once B-2 routes the type | `device.py:191,224,246` |
+| a read failed and nothing re-armed (B-1) | **no** | the transport is healthy; there is simply no reader |
+| instrument switched off *before* Start | **no** | `_open` raises `ConnectionError`, `_on_read_failed` fires once, session runs on with no reader (S29 state 4) |
+
+Two of the three are the **same shape**: *the session believes it is measuring
+and no read is in flight.* That is a state the bridge can answer exactly, with no
+timing guesswork at all:
+
+```python
+@property
+def is_reading(self) -> bool:
+    return self._reading_loc is not None
+```
+
+A 20-30 s `QTimer` in the tab that fires only while `self._session_live` and
+`bridge.awaiting_loc is not None and not bridge.is_reading` catches both, and
+**cannot false-positive on a user taking their time** — which is exactly why
+report 11's S31 warned that the watchdog interval cannot be
+`button_timeout_s`. It is a state check with a debounce, not a timeout.
+
+## B-6 [ANSWER] Does a dropped reading reach the user? Yes — but it is not the symptom you are chasing
+
+`reading_dropped` → `_on_cr30_dropped` (`tab_measure.py:6855-6873`): a `tr()`-ed
+line in the in-app log **and** a 6-second status flash. So it is visible (though
+not a window, which is arguably against Knut's *"all events shall have windows"*
+— a design call, not a bug).
+
+But `DROPPED_NO_PROMPT` is close to unreachable in practice: `_why_not` returns
+it only when `_awaiting_loc is None` while a reading arrives, and the only paths
+that clear `_awaiting_loc` are `_on_reading`'s own success (`:302`),
+`note_goto` (`:236` — which sets `_nav_target`, so `DROPPED_NAVIGATING` wins) and
+`stop()` (`:243` — which sets `_stopped`, so `_on_reading` returns first at
+`:294`). **`DROPPED_NO_PROMPT` is not the mechanism behind "I pressed and
+nothing happened".** B-1 is. Do not fix the wrong one.
+
+---

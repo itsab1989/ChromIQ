@@ -4032,6 +4032,7 @@
   "[Engine] Reading the whole chart — this may take a moment…": "[Engine] 正在读取整张色卡——这可能需要一点时间……",
   "[Engine] Switched to ArgyllCMS chartread because ChromIQ's own measuring engine could not use your instrument ({reason}). Measuring continues as normal; you can turn the ChromIQ engine off for good in Preferences if this keeps happening.": "[Engine] 已切换到 ArgyllCMS chartread，因为 ChromIQ 自带的测量引擎无法使用您的仪器（{reason}）。测量将照常继续；如果经常发生这种情况，您可以在「偏好设置」中永久关闭 ChromIQ 引擎。",
   "[Engine] The ChromIQ chart-reading engine isn't available on this system — using regular chartread. Everything works as before.": "[Engine] ChromIQ 色卡读取引擎在此系统上不可用 — 使用普通的 chartread。一切照旧工作。",
+  "[Engine] This chart records where its patches are, but not where “{loc}” is, so that patch is left out of the live preview. Your measurement is unaffected — every patch is still saved and checked.": "[Engine] This chart records where its patches are, but not where “{loc}” is, so that patch is left out of the live preview. Your measurement is unaffected — every patch is still saved and checked.",
   "[Engine] This instrument reads whole sheets; using ArgyllCMS chartread for it.": "[Engine] 该仪器读取整页；为此将使用 ArgyllCMS chartread。",
   "[Engine] Tip: click any patch in the preview to jump straight to it.": "[Engine] 提示：点击预览中的任意色块即可直接跳转到它。",
   "[INFO] Bit-exact gamut mapping on a standard (≤4-ink) measurement — building with ArgyllCMS colprof directly, for a profile identical to Argyll.": "[INFO] 在标准（≤4 墨水）测量上进行位精确色域映射 — 直接使用 ArgyllCMS colprof 构建，生成与 Argyll 完全相同的配置文件。",
