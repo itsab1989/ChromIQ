@@ -3340,6 +3340,20 @@ class TabChart(QWidget):
         self._target_name_hint.setStyleSheet("color: #d08a3a; font-size: 11px;")
         self._target_name_hint.setVisible(False)
         folder_layout.addWidget(self._target_name_hint)
+        # §S4.7's quiet half: which project this name points at, shown ONLY
+        # when it points at one that is already there.
+        self._project_exists_lbl = QLabel("", inner)
+        self._project_exists_lbl.setWordWrap(True)
+        # The Create Chart tab's own accent, not a colour of its own (Basti).
+        self._project_exists_lbl.setStyleSheet(
+            f"color: {SPEC_MAGENTA}; font-size: 11px;")
+        self._project_exists_lbl.setVisible(False)
+        folder_layout.addWidget(self._project_exists_lbl)
+        self._target_name_edit.textChanged.connect(
+            lambda *_a: self._refresh_project_exists_line())
+        # `textEdited` fires ONLY for a change the person made — see
+        # `_name_typed_by_user`.
+        self._target_name_edit.textEdited.connect(self._mark_name_typed_by_user)
         self._target_name_edit.editingFinished.connect(
             lambda: self._clean_target_name_field(
                 self._target_name_edit, self._target_name_hint
@@ -3753,7 +3767,7 @@ class TabChart(QWidget):
         self._manual_target_name_edit = self._make_lineedit("", w)
         # Live-update the manual command preview as the user types.
         self._manual_target_name_edit.textChanged.connect(
-            self._refresh_manual_command_preview
+            self._schedule_manual_command_preview
         )
         name_row.addWidget(self._manual_target_name_edit, stretch=1)
         name_row.addWidget(TooltipButton(
@@ -3768,6 +3782,16 @@ class TabChart(QWidget):
         self._manual_target_name_hint.setStyleSheet("color: #d08a3a; font-size: 11px;")
         self._manual_target_name_hint.setVisible(False)
         output_layout.addWidget(self._manual_target_name_hint)
+        self._manual_project_exists_lbl = QLabel("", w)
+        self._manual_project_exists_lbl.setWordWrap(True)
+        self._manual_project_exists_lbl.setStyleSheet(
+            f"color: {SPEC_MAGENTA}; font-size: 11px;")
+        self._manual_project_exists_lbl.setVisible(False)
+        output_layout.addWidget(self._manual_project_exists_lbl)
+        self._manual_target_name_edit.textChanged.connect(
+            lambda *_a: self._refresh_project_exists_line())
+        self._manual_target_name_edit.textEdited.connect(
+            self._mark_name_typed_by_user)
         self._manual_target_name_edit.editingFinished.connect(
             lambda: self._clean_target_name_field(
                 self._manual_target_name_edit, self._manual_target_name_hint
@@ -4551,7 +4575,7 @@ class TabChart(QWidget):
         # Wire every parameter widget to refresh the live command preview.
         for tool in ("targen", "printtarg"):
             for pw in self._manual_widgets.get(tool, []):
-                pw.value_changed.connect(self._refresh_manual_command_preview)
+                pw.value_changed.connect(self._schedule_manual_command_preview)
         if self._manual_pages_spin is not None:
             self._manual_pages_spin.valueChanged.connect(
                 self._refresh_manual_command_preview
@@ -4753,6 +4777,33 @@ class TabChart(QWidget):
                 self._manual_pages_spin.setValue(int(panel.pages.value()))
         except Exception:  # noqa: BLE001 — never block the toggle
             log.warning("engine→printtarg conversion failed", exc_info=True)
+
+    def _schedule_manual_command_preview(self) -> None:
+        """Refresh the Manual command preview a moment after the last change.
+
+        THE PREVIEW RECOMPUTES THE WHOLE PAGE GEOMETRY, and the signals below
+        fire on every keystroke. Measured on screen: one character typed into
+        the project-name field cost **82 ms**, of which 76 ms was this — the
+        column fit binary-searches 40 geometries, each one measuring all 26
+        capital letters with PIL, so a keystroke ran over 51,000 text
+        measurements to answer a question whose answer never changes. Memoising
+        that measurement took it to 27 ms; deferring the recompute until the
+        typing stops takes it to about 4 ms.
+
+        Same pattern, and the same interval, as `_auto_preview_timer`, which
+        already defers the far more expensive chart re-render for exactly this
+        reason. Direct callers still get it synchronously — only the
+        high-frequency signals come through here.
+        """
+        timer = getattr(self, "_cmd_preview_timer", None)
+        if timer is None:
+            from PyQt6.QtCore import QTimer
+            timer = QTimer(self)
+            timer.setSingleShot(True)
+            timer.setInterval(150)
+            timer.timeout.connect(self._refresh_manual_command_preview)
+            self._cmd_preview_timer = timer
+        timer.start()
 
     def _refresh_manual_command_preview(self) -> None:
         """Rebuild the manual info label from the current ParameterWidget state.
@@ -5631,10 +5682,17 @@ class TabChart(QWidget):
         old_name = getattr(self, "_last_target_name", "") or ""
         if not old_name or not new_name:
             return
-        old_root = self._file_mgr.root_dir() / old_name
-        if not (old_root / "project.json").exists():
+        # RESOLVE BOTH SIDES THE WAY THE FILE MANAGER DOES. `root_dir()/name`
+        # and `preview_project_root` are blind to a project opened from a
+        # sub-folder, so for a nested project this returned here and the whole
+        # rename chooser never appeared — and worse, the helpers it calls were
+        # changed to resolve properly, so what the window NAMED and what the
+        # code ACTED ON came from two different calls. Measured: the chooser
+        # said <ChromIQ>/test and `shutil.rmtree` took Group-A/test.
+        old_root = self._file_mgr.resolved_root_for_name(old_name)
+        if old_root is None or not (old_root / "project.json").exists():
             return                                   # nothing created under the old name
-        new_root = self._file_mgr.preview_project_root(new_name)
+        new_root = self._new_project_root_beside(old_root, new_name)
         if new_root is None or new_root == old_root:
             return                                   # unchanged / equivalent name
         # A finished profile can't be renamed — the embedded ICC description was
@@ -5654,6 +5712,19 @@ class TabChart(QWidget):
         # doesn't prompt a second time.
         self._file_mgr.set_target_name(new_name)
         self._last_target_name = new_name
+
+    def _new_project_root_beside(self, old_root, new_name: str):
+        """Where a rename of the project at *old_root* to *new_name* would land.
+
+        BESIDE THE OLD ONE, not at the top level: a rename must not also move a
+        project out of the sub-folder group it is filed in. Mirrors
+        `FileManager.rename_existing_project`, so the window and the operation
+        cannot disagree.
+        """
+        cleaned = self._file_mgr.strip_workfile_ext(new_name)
+        if not cleaned.strip() or old_root is None:
+            return None
+        return old_root.parent / self._file_mgr._sanitise(cleaned)
 
     def _warn_rename_after_profile(self, name: str) -> None:
         """Tell the user a built profile can't be renamed (#70, Knut)."""
@@ -5735,6 +5806,8 @@ class TabChart(QWidget):
                 if isinstance(f, PrefixLockedLineEdit):
                     f.set_prefix("")
                 f.setText(self._last_target_name)
+        # Reflecting the project that is OPEN is not the user naming one.
+        self._name_typed_by_user = False
 
     def _load_existing_profile(self) -> None:
         """Reopen an existing project: make it the active profile, fill the name
@@ -7312,14 +7385,32 @@ class TabChart(QWidget):
             "can adjust any printtarg setting and regenerate."
         )
 
-    def _revert_preset_combo(self) -> None:
-        """Restore the dropdown to the last committed selection (no re-apply)."""
+    def _revert_preset_combo(self, *, to_none: bool = False) -> None:
+        """Restore the dropdown after a selection that did not take.
+
+        Also records that this selection was abandoned, so
+        `_on_preset_selected` does not commit it as the new "last" one.
+
+        *to_none* IS THE HONEST ANSWER ONCE A DISPATCH HAS STARTED. By then
+        `_on_preset_selected` has already torn the previous preset down — it
+        clears the TC9.18 and Spyderprint overrides and resets the panels before
+        it dispatches — so putting the dropdown back on that preset shows a
+        selection whose settings no longer exist, and, because the index then
+        matches, picking it again emits no signal and does nothing at all. The
+        first version of this fix moved exactly that trap from the new preset
+        onto the previous one. "None" is what is actually applied at that point.
+
+        The separator guard is the other caller and passes nothing: a divider
+        was clicked, no dispatch ran, and the previous selection is still real.
+        """
+        index = 0 if to_none else self._last_preset_index
+        self._preset_selection_reverted = True
         self._preset_combo.blockSignals(True)
-        self._preset_combo.setCurrentIndex(self._last_preset_index)
+        self._preset_combo.setCurrentIndex(index)
         self._preset_combo.blockSignals(False)
-        self._preset_del_btn.setEnabled(
-            self._is_deletable_preset(self._last_preset_index)
-        )
+        self._preset_del_btn.setEnabled(self._is_deletable_preset(index))
+        if to_none:
+            self._last_preset_index = 0
 
     def _update_header_buttons_for_mode(self) -> None:
         """Park "Load patch set" and the presets button while FROM PROFILE
@@ -7472,7 +7563,19 @@ class TabChart(QWidget):
                 # Start the freshly-picked built-in with its panels locked again.
                 self._reset_override_checks()
                 self._preset_del_btn.setEnabled(False)
-                self._last_preset_index = index
+                # THE SELECTION IS COMMITTED AFTER THE PRESET IS APPLIED, NOT
+                # BEFORE. This line used to sit here, above the dispatch — so
+                # by the time anything called `_revert_preset_combo` it was
+                # restoring the combo to the index the combo was already on, and
+                # EVERY built-in preset's revert was a no-op. Driven through the
+                # real dropdown: answer "Cancel" to the project window, whose
+                # own button says it changes nothing, and the dropdown went on
+                # showing a preset that had not been applied — with the panels
+                # still on their old values. Worse, `_last_preset_index` then
+                # matched the combo, so picking the same preset again emitted no
+                # signal at all and nothing happened until the user chose
+                # something else first.
+                self._preset_selection_reverted = False
                 # Load each built-in with the engine it was made with: most are
                 # printtarg-based (they predate the engine), but the Scanner family
                 # carries a layout_recipe and needs the ChromIQ engine ON so the
@@ -7498,6 +7601,8 @@ class TabChart(QWidget):
                 # set no ti1/prebuilt flag, so their panels stay fully editable) and
                 # re-asserts state after leaving a previous tc918/knut preset.
                 self._update_preset_locks()
+                if not self._preset_selection_reverted:
+                    self._last_preset_index = index
                 return
 
             # Leaving the TC9.18 built-in chart for Default or a user preset clears
@@ -7920,6 +8025,557 @@ class TabChart(QWidget):
         return (self._manual_target_name_edit if manual
                 else getattr(self, "_target_name_edit", None))
 
+    # ------------------------------------------------------------------
+    # §S4.7 — the typed name already names a project (Knut, 2026-08-27)
+    # ------------------------------------------------------------------
+    def _typed_project_peek(self):
+        """What the name box points at, when that is a DIFFERENT project that
+        already exists on disk. None when there is nothing to say.
+
+        Read-only, and deliberately so: this runs while the user is merely
+        considering a name, and `Project.load` would migrate the folder in
+        place — rearranging somebody's project before they have answered the
+        question about it. `peek_project` reads the manifest as plain JSON.
+        """
+        # A NAME THE APP FILLED IN IS NOT A NAME THE USER TYPED.
+        # `_ensure_profile_name` seeds this field from a preset whenever it is
+        # empty, and `_update_name_fields` writes the open project's name into
+        # it. Reading either back as "the user asked for this project" is the
+        # trap the memory note calls *the app answered its own question* — and
+        # the gate would then interrupt somebody who had merely picked a preset
+        # whose default name happens to exist. `textEdited` fires only for a
+        # real keystroke or paste, so this flag is the difference.
+        if not getattr(self, "_name_typed_by_user", False):
+            return None
+        field = self._active_name_field()
+        typed = field.text().strip() if field is not None else ""
+        if not typed:
+            return None
+        # RESOLVE IT THE WAY THE BUILD WILL. `preview_project_root` always
+        # answers <ChromIQ>/<name>, and `set_target_name` deliberately keeps a
+        # NESTED project where it is — so for the name of a nested project the
+        # two disagree, and the window described <ChromIQ>/test while the build
+        # wrote to <ChromIQ>/Group-A/test. One click on "Replace it" then
+        # emptied a project the build never touched.
+        root = self._file_mgr.resolved_root_for_name(typed)
+        if root is None:
+            return None
+        # THE PROJECT ALREADY OPEN IS NOT A COLLISION — it is this project.
+        # `same_dir`, not `==`: a Path comparison is a string comparison, so
+        # "REAL" typed against an open "real" (one folder on macOS), a project
+        # opened through a symlink, and NFC-vs-NFD forms of one name all slipped
+        # past this and offered to replace the project on screen. `is_named()`
+        # first, because `working_dir()` goes through the mutating
+        # `get_target_name()`, which invents a name when there is none.
+        from core.file_manager import peek_project, same_dir
+        try:
+            if self._file_mgr.is_named() and same_dir(self._file_mgr.working_dir(),
+                                                      root):
+                return None
+        except OSError:      # an unreachable custom output path
+            return None
+        peek = peek_project(root)
+        return peek if peek.exists else None
+
+    @staticmethod
+    def _run_label(number: str) -> str:
+        """"Run 1" — TRANSLATED. `peek` hands back only the number, so the
+        twelve catalogues are never handed an English label."""
+        return tr("Run {n}").format(n=number)
+
+    def _name_points_elsewhere(self, name: str) -> bool:
+        """Whether *name* resolves to a project other than the one open.
+
+        Deliberately NOT `_typed_project_peek`, which answers None unless the
+        user typed the name themselves. That flag is right for the WINDOW — a
+        preset seeding the field must not interrupt anybody — and wrong for the
+        live preview, which must not adopt another project whoever put the name
+        there. Measured: a preset whose default name matched an existing
+        project, plus one nudge of a layout knob, moved the preview into that
+        project and reset its run, with no window because §4 forbids one.
+        """
+        from core.file_manager import same_dir
+
+        root = self._file_mgr.resolved_root_for_name(name)
+        if root is None or not (root / "project.json").is_file():
+            return False
+        try:
+            if self._file_mgr.is_named() and same_dir(self._file_mgr.working_dir(),
+                                                      root):
+                return False
+        except OSError:
+            return False
+        return True
+
+    def _project_exists_message(self, peek, chosen_run_id: str = "") -> "tuple[str, str]":
+        """M-PROJECT-EXISTS — §S4.7, rendered from the catalogue.
+
+        *chosen_run_id* is the run the picker is on ("" = a new run); the body
+        describes THAT run, and is re-rendered when the picker moves.
+        """
+        from workflow import measurement_messages as M
+
+        chosen = next((r for r in peek.runs if r.id == chosen_run_id), None)
+        label = self._run_label(chosen.number) if chosen is not None else ""
+        return M.M_PROJECT_EXISTS.render(
+            name=peek.root.name,
+            folder=str(peek.root),
+            runs=M.runs_phrase(len(peek.runs) or 1, peek.finished_runs),
+            # The calibration is a fact about the PROJECT, so it is stated with
+            # the project — not listed under "A new run holds:", which is what
+            # it used to say, and which was simply untrue.
+            cal=M.calibration_phrase(peek.calibration),
+            chosen=M.chosen_phrase(label),
+            holds=M.holds_phrase(
+                label,
+                chart=chosen.chart if chosen else False,
+                measurement=chosen.measurement if chosen else False,
+                profile=chosen.profile if chosen else False,
+                verifications=chosen.verifications if chosen else 0))
+
+    def _gate_typed_project_name(self) -> "tuple[bool, bool]":
+        """§S4.7. Returns ``(proceed, the §4 question is already answered)``.
+
+        Until 4.1.3 typing the name of a project you already had adopted it in
+        SILENCE and built into its current run — Knut, 2026-08-27: *"there is no
+        warning message that this project already exists … Nothing shall ever be
+        lost and user shall always be notified if there is a risk of overwriting
+        a project."*
+
+        Two things were wrong at once and only one of them was this. The other
+        is that §4's own question (M-CHART-PROFILING) was asked BEFORE the typed
+        name was applied, so when a name adopted a different project §4 was
+        answered about the run the app happened to be on. This window is asked
+        first, about the project the build will really touch, and it carries
+        §4's answer for that run — which is why it returns a second flag saying
+        so, and why §S4.7 replaces S4.1–S4.5 rather than preceding them. One
+        action, one window.
+
+        An existing project that holds NOTHING raises nothing: there is nothing
+        to lose, and a window there is a nag. The line under the name box still
+        appears, because it appears whenever the name matches at all.
+        """
+        self._pending_replace = None
+        self._adopted_via_gate = False
+        if hasattr(self, "_adopt_run_choice"):
+            del self._adopt_run_choice
+        peek = self._typed_project_peek()
+        if peek is None or not peek.holds_anything:
+            return True, False
+        from PyQt6.QtWidgets import QMessageBox
+        from ui.widgets import (fit_message_box_buttons,
+                                spread_message_box_buttons)
+
+        # A NEW RUN IS THE DEFAULT, deliberately. It is the one answer that
+        # cannot cost anything: a fresh, empty run beside the work already
+        # there. Continuing INTO an existing run is one click away in the
+        # picker, and the window then says what that run holds — which is the
+        # decision the user is actually being asked to make.
+        picker, chosen = self._build_run_picker(peek)
+        if picker is None:
+            chosen = [peek.run_id]
+        title, _ = self._project_exists_message(peek, chosen[0])
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(self._project_exists_message(peek, chosen[0])[1])
+        go = box.addButton(tr("Continue this project"),
+                           QMessageBox.ButtonRole.AcceptRole)
+        replace = box.addButton(tr("Replace it"),
+                                QMessageBox.ButtonRole.DestructiveRole)
+        rename = box.addButton(tr("Use a different name"),
+                               QMessageBox.ButtonRole.ActionRole)
+        cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        # THE DEFAULT IS CANCEL. A Return keypress must never be an overwrite.
+        box.setDefaultButton(cancel)
+        if picker is not None:
+            self._attach_run_picker(box, picker)
+
+            def _on_pick(_i: int) -> None:
+                chosen[0] = picker.currentData() or ""
+                box.setInformativeText(
+                    self._project_exists_message(peek, chosen[0])[1])
+
+            picker.currentIndexChanged.connect(_on_pick)
+        fit_message_box_buttons(box)
+        # FOUR choices, not one and three afterthoughts — and Cancel on the far
+        # right, not wedged between the safe answers and the destructive one
+        # (Basti, 2026-08-27).
+        spread_message_box_buttons(box, order=[go, replace, rename, cancel])
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked is go:
+            log.info("continuing the existing project at %s, in %s",
+                     peek.root, chosen[0] or "a new run")
+            self._adopted_via_gate = True
+            self._adopt_run_choice = chosen[0]
+            return True, self._s4_is_answered_by_this_window()
+        if clicked is replace:
+            if not self._confirm_replace_whole_project(peek):
+                return False, False
+            # ARM IT, DO NOT DO IT. Several steps between this answer and the
+            # point of no return still abort — a missing .ti1 used to archive
+            # the whole project and then say "Patch set not found", having built
+            # nothing. `_perform_pending_replace` runs it where the build
+            # commits, and drops it if the name has changed since.
+            field = self._active_name_field()
+            self._pending_replace = (
+                peek.root, field.text().strip() if field is not None else "")
+            log.info("replace armed for %s", peek.root)
+            return True, self._s4_is_answered_by_this_window()
+        if clicked is rename:
+            self._focus_project_name_field()
+        return False, False
+
+    def _build_run_picker(self, peek):
+        """The run chooser for M-PROJECT-EXISTS, and the mutable choice it sets.
+
+        Basti, 2026-08-27, on being shown that ChromIQ recognises the project
+        and then still refuses to let him say which run to work in: *"allowing
+        me to either work in run 1 (or whatever runs exist for this name) or
+        create a new run under this name"*. This is that, put where he is
+        asking it — inside the window, with the folder named beside it — rather
+        than by unlocking a bar that would have to resolve a project on every
+        keystroke.
+        """
+        from PyQt6.QtWidgets import QComboBox
+
+        # NOT FOR A CALIBRATION. A calibration lives in `cal/`, one per project,
+        # shared by every run — `_align_current_run_to_target` is skipped for it
+        # entirely, so the picker could not affect where the chart goes. It was
+        # not inert either: answering it moved the Profile-run bar to a run
+        # nobody had chosen and fired a target-change write in the middle of a
+        # build, which is the "build in flight vs the run's stored state" family
+        # of fault all over again.
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is not None and getattr(ctl.target, "is_calibration", bool)():
+            return None, [peek.run_id]
+
+        # These two live HERE as literals, not in the catalogue module: the
+        # extractor resolves `tr(NAME)` only for a constant in the same file,
+        # so `tr(M.PICK_NEW_RUN)` would have shipped untranslated in all twelve
+        # languages while looking perfectly correct in the source.
+        picker = QComboBox()
+        # THE SAME WHITE BODY AS EVERY OTHER COMBOBOX (Basti, 2026-08-27). A
+        # QMessageBox paints on the window background, so a combo inside one
+        # inherits beige in light mode and reads as disabled chrome. App-wide
+        # QSS is silently ignored by Qt for compound widgets; per-widget is the
+        # way, which is what `_input_bg_qss` exists for.
+        from ui.widgets import _input_bg_qss
+        picker.setStyleSheet(_input_bg_qss())
+        picker.addItem(tr("A new run (nothing already there is touched)"), "")
+        for r in peek.runs:
+            picker.addItem(self._run_label(r.number), r.id)
+        # A NEW RUN IS THE DEFAULT — except for a verification, where it is
+        # nonsense: a brand-new run has no profile, so the chart would verify
+        # nothing. There the project's own current run is the sane starting
+        # point, and §S4.5's question still follows this window.
+        default = ""
+        try:
+            if self._is_verification_target():
+                default = peek.run_id
+        except Exception:      # noqa: BLE001 — a duck-typed target double
+            pass
+        idx = max(0, picker.findData(default))
+        picker.setCurrentIndex(idx)
+        return picker, [picker.currentData() or ""]
+
+    @staticmethod
+    def _attach_run_picker(box, picker) -> None:
+        """Put the picker into the message box, above its buttons.
+
+        A QMessageBox lays itself out in a grid with the button box on the last
+        row, so a widget simply added lands UNDER the buttons. Lifting the
+        button box out and putting it back after is the only ordering Qt
+        guarantees.
+        """
+        from PyQt6.QtWidgets import (QDialogButtonBox, QHBoxLayout, QLabel,
+                                     QWidget)
+
+        lay = box.layout()
+        bb = box.findChild(QDialogButtonBox)
+        if lay is None or bb is None:
+            return
+        row = QWidget(box)
+        h = QHBoxLayout(row)
+        h.setContentsMargins(0, 8, 0, 4)
+        h.addWidget(QLabel(tr("Make the new chart in:"), row))
+        h.addWidget(picker, 1)
+        lay.removeWidget(bb)
+        lay.addWidget(row, lay.rowCount(), 0, 1, lay.columnCount())
+        lay.addWidget(bb, lay.rowCount(), 0, 1, lay.columnCount())
+
+    def _apply_gate_run_choice(self) -> None:
+        """Point the Profile-run bar at the run chosen in the §S4.7 window.
+
+        Called immediately AFTER the project is adopted — before that the bar
+        would be naming runs of the project the user is leaving. From here
+        `_align_current_run_to_target` does the rest, exactly as it does for an
+        ordinary in-project build: "Overwrite run N" points at that folder, and
+        the empty choice makes a fresh run and advances the bar to it.
+        """
+        if not hasattr(self, "_adopt_run_choice"):
+            return
+        choice = self._adopt_run_choice
+        del self._adopt_run_choice
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
+            return
+        try:
+            ctl.set_profile_run(choice or "")
+            log.info("§S4.7: the bar now says %s", choice or "New run")
+        except Exception:      # noqa: BLE001 — never block a build over the bar
+            log.warning("could not point the bar at %r", choice, exc_info=True)
+
+    def _s4_is_answered_by_this_window(self) -> bool:
+        """Whether M-PROJECT-EXISTS may stand in for §4's own question.
+
+        For a PROFILING build, yes: it names the run and lists what is in it,
+        which is what M-CHART-PROFILING would have said, so §S4.7 replaces
+        S4.1–S4.4 and one action still opens one window.
+
+        For the other two run types, NO — and this is the correction. A
+        calibration build writes `cal/`, a verification build writes
+        `verifications/`, and each has its own question with its own message
+        (`_confirm_replacing_calibration`, and M-CHART-VERIFY at §S4.5). This
+        window describes the run's PROFILING artefacts and knows nothing about
+        either, so standing in for them meant a verification chart could replace
+        a measured, dated verification with nothing said about it. The specific
+        question follows this one for those run types — two windows, which §S4
+        must record.
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is not None and getattr(ctl.target, "is_calibration", bool)():
+            return False
+        try:
+            if self._is_verification_target():
+                return False
+        except Exception:      # noqa: BLE001 — a duck-typed target double
+            return False
+        return True
+
+    def _gate_route_and_replace(self, already_asked: bool = False, *,
+                                perform_replace: bool = True) -> "tuple[bool, bool]":
+        """Ask §S4.7 for a route that adopts the typed name itself, and carry
+        out a Replace straight away.
+
+        For the two routes that do not go through `_generate_from_ti1`'s or
+        `_on_generate`'s own sequence there is nothing between the question and
+        the adoption, so ask-now/act-later collapses into one step. Returns
+        False when the build must not go ahead.
+
+        ASKING TWICE WAS NOT ONLY POSSIBLE, IT WAS THE NORMAL CASE. Both of
+        these routes are reached from `_on_generate`, which has already asked —
+        and the typed name is still not adopted at that point, so the second
+        call put the same window up again. Worse: the second gate resets
+        `_pending_replace`, so answering "Replace it" in the first window and
+        "Continue this project" in the second dropped a confirmed, destructive
+        answer without a word.
+
+        *already_asked* IS AN ARGUMENT, NOT A FLAG ON self. The first attempt at
+        this read `_adopted_via_gate` — which only the gate clears, and which the
+        guard then skipped, so a stale flag suppressed the window AND the code
+        that would have cleared it. Five early returns in `_on_generate` and
+        `_create_prebuilt_target` leave it set, and the next preset chosen from
+        the dropdown was then adopted in silence, into the run chosen for a
+        different project. Measured. A caller knows whether it has asked; state
+        that outlives one call cannot.
+
+        Returns ``(proceed, the §4 question is already answered)`` — the second
+        half used to be thrown away here, so the prebuilt route asked §4 a
+        second time, about the project the user was leaving.
+        """
+        s4_answered = False
+        if not already_asked:
+            proceed, s4_answered = self._gate_typed_project_name()
+            if not proceed:
+                return False, False
+        # *perform_replace* False leaves an agreed Replace ARMED. The prebuilt
+        # route needs that: it may still have to ask §4 (Calibration and
+        # Verification are not answered by §S4.7), and answering "no" there
+        # after the archive had already run left the project emptied and
+        # nothing built.
+        if not perform_replace:
+            return True, s4_answered
+        return self._perform_pending_replace(), s4_answered
+
+    def _forget_gate_answer(self) -> None:
+        """Drop a §S4.7 answer that no build consumed.
+
+        AN ANSWER BELONGS TO ONE ACTION. Four returns between the question and
+        the point of no return — a reflected chart, a vanished patch set, the
+        name prompt, and the rename chooser being cancelled — left the answer
+        armed on `self`, and the next thing to reach a consumer acted on it: one
+        live-preview render archived a whole project, and a run choice made for
+        one project moved another project's bar. Called from a `finally`, so it
+        cannot be forgotten at a new early return.
+
+        Safe after a real build too: everything it clears has been consumed by
+        then.
+        """
+        self._pending_replace = None
+        self._adopted_via_gate = False
+        if hasattr(self, "_adopt_run_choice"):
+            del self._adopt_run_choice
+
+    def _perform_pending_replace(self) -> bool:
+        """Carry out a "Replace it" the user agreed to — at the point of no
+        return, not at the moment they clicked.
+
+        Returns True when there was nothing to do or the replace succeeded, and
+        False when it failed, in which case the build must not go ahead either:
+        the user asked for a clean project and would otherwise get a build on
+        top of the old one.
+        """
+        pending = getattr(self, "_pending_replace", None)
+        self._pending_replace = None
+        if pending is None:
+            return True
+        root, name_then = pending
+        from core.file_manager import same_dir
+        # Resolve the name that is in the box NOW, not the one that was there
+        # when the question was answered — the whole point is to notice that it
+        # has moved on.
+        field = self._active_name_field()
+        typed = field.text().strip() if field is not None else ""
+        now = self._file_mgr.resolved_root_for_name(typed) if typed else None
+        if now is None or not same_dir(now, root):
+            # The name moved between the answer and here. Replacing what they
+            # were asked about would now destroy a project they never saw named.
+            log.warning("the armed replace was for %r at %s and the box now "
+                        "says %r (%s) — dropped", name_then, root, typed, now)
+            return True
+        return self._replace_whole_project(root)
+
+    def _confirm_replace_whole_project(self, peek) -> bool:
+        """M-PROJECT-REPLACE-CONFIRM — the second look before a whole project is
+        cleared (Basti, 2026-08-27).
+
+        The default is "Go back". This is the only control in the app that
+        empties a whole project from the Create Chart tab, and it must never be
+        one click away from a window somebody opened by accident.
+        """
+        from PyQt6.QtWidgets import QMessageBox
+        from ui.widgets import fit_message_box_buttons
+        from workflow import measurement_messages as M
+
+        title, body = M.M_PROJECT_REPLACE_CONFIRM.render(
+            name=peek.root.name, folder=str(peek.root))
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        yes = box.addButton(tr("Replace it"),
+                            QMessageBox.ButtonRole.DestructiveRole)
+        back = box.addButton(tr("Go back"), QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(back)
+        fit_message_box_buttons(box)
+        box.exec()
+        return box.clickedButton() is yes
+
+    def _replace_whole_project(self, root) -> bool:
+        """Move everything the project at *root* holds into its own
+        ``old/<date>/``.
+
+        Not a delete: the same operation "Copy the whole project in ▸ Replace"
+        already performs (`workflow/chart_import._archive_project_contents`), so
+        one word means one thing in both places. The folder itself stays, with
+        `old/` inside it, and the build then creates a fresh project there.
+
+        A failure is a WINDOW, not a log line. The old code wrote one sentence
+        into the tab's log and returned False, so a user who had just been
+        promised "everything is moved into its own old folder, nothing is
+        deleted" was told nothing at all when it had not happened.
+        """
+        from workflow.chart_import import _archive_project_contents
+        try:
+            dest = _archive_project_contents(root)
+        except OSError as exc:
+            log.warning("could not archive %s: %s", root, exc)
+            self._replace_failed_message(root, exc)
+            return False
+        log.info("replaced the project at %s — its contents are in %s",
+                 root, dest)
+        # The FileManager may be holding a Project object for a folder that has
+        # just been emptied; the next `project()` must read the new state.
+        self._file_mgr.forget_cached_project()
+        return True
+
+    def _replace_failed_message(self, root, exc) -> None:
+        """M-PROJECT-REPLACE-FAILED — §S4.7, rendered from the catalogue."""
+        from workflow import measurement_messages as M
+
+        title, body = M.M_PROJECT_REPLACE_FAILED.render(
+            folder=str(root), reason=str(exc))
+        InfoDialog(title, body, self, min_width=560).exec()
+
+    def _mark_name_typed_by_user(self, *_a) -> None:
+        """Remember that the name in the box came from a person.
+
+        Wired to `textEdited`, which Qt emits for a keystroke or a paste and
+        NOT for `setText` — so a preset seeding the field, or the open
+        project's name being reflected into it, leaves this False.
+        """
+        self._name_typed_by_user = True
+
+    def _focus_project_name_field(self) -> None:
+        """"Use a different name" — put the cursor back where the answer goes."""
+        from PyQt6.QtCore import Qt as _Qt
+        f = self._active_name_field()
+        if f is not None:
+            f.setFocus(_Qt.FocusReason.OtherFocusReason)
+            f.selectAll()
+
+    def _refresh_project_exists_line(self) -> None:
+        """Show, under the name box, that this name points at a project that is
+        already there — and show it ONLY then.
+
+        Basti's ruling (2026-08-27): the line must not sit there empty, because
+        then the user has nothing to notice; its APPEARING is the signal. So
+        both labels are hidden unless the typed name matches, and no space is
+        reserved for them.
+
+        Deliberately the cheapest possible check — one `is_file()` on the
+        manifest — because this runs on every keystroke. The full read
+        (`peek_project`) happens once, at build time.
+        """
+        for field, lbl in ((getattr(self, "_target_name_edit", None),
+                            getattr(self, "_project_exists_lbl", None)),
+                           (getattr(self, "_manual_target_name_edit", None),
+                            getattr(self, "_manual_project_exists_lbl", None))):
+            if lbl is None:
+                continue
+            typed = field.text().strip() if field is not None else ""
+            root = (self._file_mgr.resolved_root_for_name(typed)
+                    if typed else None)
+            shown = False
+            if root is not None:
+                try:
+                    shown = (root / "project.json").is_file()
+                except OSError:
+                    shown = False
+                if shown and self._file_mgr.is_named():
+                    try:                     # the open project is not news
+                        from core.file_manager import same_dir
+                        shown = not same_dir(self._file_mgr.working_dir(), root)
+                    except OSError:
+                        pass
+            if shown:
+                # NO NAME IN IT, AND NO DASH. The name is in the field 20 px
+                # above, live in the Profile-run bar's location line while you
+                # type, and in full in the window that follows — and this label
+                # is a fixed 524 px, so a real project name (the app's own
+                # `default_target_name` makes an 81-character one) takes two
+                # rows in German and Dutch and three in Japanese, pushing the
+                # Run Description and Chart Notes rows down. Measured. The dash
+                # went because Basti reads one as a tell that a machine wrote
+                # the sentence.
+                lbl.setText(tr("You already have a project with this name. "
+                               "Your new chart goes into it."))
+            lbl.setVisible(shown)
+
     def _name_prefix(self) -> str:
         """The locked descriptive head, e.g. ``i1Pro-A4-484p-1page-Portrait``;
         the user's free text follows it. The separator is supplied by
@@ -7944,6 +8600,8 @@ class TabChart(QWidget):
         if isinstance(f, PrefixLockedLineEdit):
             f.set_prefix("")
         f.setText(name)
+        # ChromIQ put this there, not the user — see `_name_typed_by_user`.
+        self._name_typed_by_user = False
 
     def _ensure_profile_name(self, default: str) -> str:
         """Return the current Printer-profile name, seeding the field with
@@ -9568,7 +10226,8 @@ class TabChart(QWidget):
         except Exception as exc:  # noqa: BLE001 — carry-back is best-effort
             log.warning("Could not carry engine recipe back from editor: %s", exc)
 
-    def _import_applied_chart(self, add_new_run: bool = False) -> None:
+    def _import_applied_chart(self, add_new_run: bool = False, *,
+                              gate_already_asked: bool = False) -> None:
         """Copy the applied editor chart's files into the current run and load it.
 
         No targen/printtarg is run: the staged ``.ti1`` / ``.ti2`` / TIFF pages
@@ -9592,6 +10251,8 @@ class TabChart(QWidget):
         src_tiffs = sorted(src_dir.glob(f"{stem}_*.tif"))
         if not src_tiffs and (src_dir / f"{stem}.tif").is_file():
             src_tiffs = [src_dir / f"{stem}.tif"]
+        _ctl = getattr(self, "_target_ctl", None)
+        _proj_before = _ctl.project_or_none() if _ctl is not None else None
         if not src_ti1.is_file() or not src_tiffs:
             InfoDialog(
                 "Applied chart not found",
@@ -9601,10 +10262,24 @@ class TabChart(QWidget):
             ).exec()
             return
 
+        # §S4.7 BEFORE `target_started`, and before anything else. The window
+        # promises "Cancel — stops here and changes nothing", and
+        # `target_started` clears the user's Build Profile and Check tabs — so
+        # asking after it made that promise false on this route. Measured.
+        _proceed, _s4_done = self._gate_route_and_replace(gate_already_asked)
+        if not _proceed:
+            return
         self.target_started.emit()
         name = (self._manual_target_name_edit.text().strip()
                 if self._manual_target_name_edit is not None else "") or stem
         self._file_mgr.set_target_name(name)
+        # The run the picker named — this route used to ignore it entirely and
+        # write to the manifest's own current run, so someone who chose
+        # "A new run (nothing already there is touched)" had run 1's
+        # measurement archived under their new chart. Measured.
+        self._apply_gate_run_choice()
+        if self._builds_into_project(_proj_before):
+            self._align_current_run_to_target()
         project = self._file_mgr.project()
         # "Add as a new run" preserves the existing project's runs (and their
         # measurements) by filing this chart in a fresh runN; otherwise it goes
@@ -9691,7 +10366,24 @@ class TabChart(QWidget):
         Both panels start locked. The instrument and paper the bundle was made
         for are seeded so that, if the user unlocks the layout and changes it,
         a printtarg re-run starts from the right device/page — and so the
-        "did the layout change?" check has a sensible baseline."""
+        "did the layout change?" check has a sensible baseline.
+
+        §S4.7 IS ASKED BEFORE ANY OF THAT. Everything below mutates the tab —
+        `_prebuilt_active`, `_prebuilt_key`, `_layout_owned_by_build`, the
+        override boxes, the instrument and paper rows — and Cancel used to undo
+        only the dropdown. The window says "Cancel stops here and changes
+        nothing", and the dropdown then read "none" while the next Generate
+        quietly copied the bundle, with `_layout_owned_by_build` left latched.
+        Measured. Asking first is cheaper than unwinding.
+        """
+        _proceed, _s4_done = self._gate_route_and_replace(perform_replace=False)
+        if not _proceed:
+            # TO NONE, not back to the preset that was applied before: by the
+            # time this runs, `_on_preset_selected` has already torn that one
+            # down. See `_revert_preset_combo`.
+            self._forget_gate_answer()
+            self._revert_preset_combo(to_none=True)
+            return
         self._prebuilt_active = True
         self._prebuilt_key = key
         # THESE ROWS BELONG TO THE BUNDLE NOW, NOT TO THE TARGET.
@@ -9715,9 +10407,29 @@ class TabChart(QWidget):
         self._prebuilt_targen_sig = self._targen_signature()
         self._prebuilt_printtarg_sig = self._printtarg_signature()
         self._update_preset_locks()      # grey both panels
-        self._create_prebuilt_target(key, target_name)
+        self._create_prebuilt_target(key, target_name,
+                                     gate_already_asked=True,
+                                     s4_already_answered=_s4_done)
 
-    def _create_prebuilt_target(self, key: str, target_name: str | None = None) -> None:
+    def _abandon_prebuilt_attempt(self) -> None:
+        """Leave nothing behind when a prebuilt build does not happen.
+
+        Three exits used to put the dropdown back and stop there, which left an
+        agreed "Replace it" armed on the tab and `_layout_owned_by_build`
+        latched True — the state this file documents as the cause of a run's
+        stored Create Chart settings being clobbered. Neither could be reached
+        today, because every consumer sits downstream of a gate that clears
+        them; both broke the invariant this code states about itself, which is
+        how the last three faults here started.
+        """
+        self._forget_gate_answer()
+        self._layout_owned_by_build = False
+        self._revert_preset_combo(to_none=True)
+        self._leave_prebuilt()
+
+    def _create_prebuilt_target(self, key: str, target_name: str | None = None,
+                                *, gate_already_asked: bool = False,
+                                s4_already_answered: bool = False) -> None:
         """Copy a bundled prebuilt target into the project's current run and load it.
 
         No targen/printtarg is run: the bundled .ti1/.ti2 and TIFF pages are
@@ -9740,6 +10452,10 @@ class TabChart(QWidget):
                 f"{src_dir}\n\nThe app bundle may be incomplete.",
                 self, min_width=520,
             ).exec()
+            # …and leave nothing behind: this exit used to keep the preset
+            # marked active with no bundle to build from, the build shield
+            # latched, and an agreed "Replace it" still armed.
+            self._abandon_prebuilt_attempt()
             return
 
         # §4: THIS REPLACES THE RUN'S CHART LIKE ANY OTHER BUILD.
@@ -9754,11 +10470,18 @@ class TabChart(QWidget):
         # asks — the params-based ones through _on_generate, the .ti1 ones
         # through _generate_from_ti1 — and this one, which runs no Argyll tool,
         # was the single way in that did not.
-        if not self._confirm_displacing_results():
-            self._revert_preset_combo()
+        # §S4.7 FIRST, and before `target_started` — the window says Cancel
+        # changes nothing, and `target_started` clears the Build Profile and
+        # Check tabs. MERELY CHOOSING a prebuilt-files preset from the dropdown
+        # lands here and adopts the typed name, so this was the one route where
+        # Knut's report stayed reproducible after the gate went on the others.
+        _proceed, _s4_done = self._gate_route_and_replace(gate_already_asked,
+                                                          perform_replace=False)
+        if not _proceed:
+            self._abandon_prebuilt_attempt()
             return
+        _s4_done = _s4_done or s4_already_answered
 
-        self.target_started.emit()
         # Remember the loaded project BEFORE the name is applied, so a build into
         # the SAME project can honour the Profile-run bar (Overwrite run N / New
         # run); a build under a NEW name is its own project (#130).
@@ -9767,7 +10490,33 @@ class TabChart(QWidget):
         name = (self._manual_target_name_edit.text().strip()
                 if self._manual_target_name_edit is not None else "") \
             or target_name or default_name
+        # ADOPT, ASK, AND PUT IT BACK ON A NO.
+        #
+        # §4 must be asked about the run this build will really touch, which
+        # means after the name is applied — asked before, it described the run
+        # of the project the user was LEAVING, which is the whole fault §S4.7
+        # exists to remove. But "no" then has to leave the app exactly where it
+        # found it: an earlier attempt at this emitted `target_started` first,
+        # so a "no" had already cleared the Build Profile and Check tabs and
+        # switched the project. Driven against the shipped build, which does
+        # neither.
+        _snapshot = self._file_mgr.target_snapshot()
         self._file_mgr.set_target_name(name)
+        if not _s4_done and not self._confirm_displacing_results():
+            self._file_mgr.restore_target(_snapshot)
+            self._abandon_prebuilt_attempt()
+            return
+        # Only now is anything committed: the archive the user agreed to, the
+        # tabs, and the run the picker named.
+        if not self._perform_pending_replace():
+            self._abandon_prebuilt_attempt()
+            return
+        self.target_started.emit()
+        # The run the picker named. Without this the route fell through to
+        # `_align_current_run_to_target`, which reads the BAR — still pointing
+        # at a run of the project the user is leaving — so choosing "Run 1" put
+        # the chart in run 3 and archived run 3's measurement. Measured.
+        self._apply_gate_run_choice()
         # #130 CRITICAL (Knut): a prebuilt preset must build into the run the bar
         # shows — "Overwrite run N" → run N, "New run" → a fresh run — NOT always
         # the project's current run (which jumped the chart to the last run and
@@ -9870,7 +10619,8 @@ class TabChart(QWidget):
             return Path(ti1).stem
         return None
 
-    def _generate_from_ti1(self, ti1_path: Path, *, ask: bool = True) -> None:
+    def _generate_from_ti1(self, ti1_path: Path, *, ask: bool = True,
+                           preview: bool = False) -> None:
         """Create the target by running printtarg only on an existing .ti1.
 
         Used by the TC9.18 preset both for its initial creation and for every
@@ -9890,8 +10640,15 @@ class TabChart(QWidget):
         # §4: every path that lays out a new chart asks first, not just the
         # Generate Chart button — a preset, an imported chart and a bundled
         # patch set all replace the chart a measurement describes.
-        if ask and not self._confirm_displacing_results():
-            return
+        if ask:
+            # §S4.7 FIRST, and it may answer §4 as well — see
+            # `_gate_typed_project_name`. Asked before anything is applied, so
+            # Cancel is a plain early return that has changed nothing.
+            _proceed, _s4_done = self._gate_typed_project_name()
+            if not _proceed:
+                return
+            if not _s4_done and not self._confirm_displacing_results():
+                return
         if not ti1_path.is_file():
             InfoDialog(
                 "Patch set not found",
@@ -9912,6 +10669,17 @@ class TabChart(QWidget):
         # would find again. Driven: selecting a saved user preset from a fresh
         # start produced exactly that, with no dialog of any kind. Placed
         # BEFORE the button is disabled below, so an early return needs no undo.
+        #
+        # WHAT IT DOES *NOT* COVER, so nobody measures a path no user has: on
+        # every BUILT-IN preset route `_ensure_profile_name` has already put the
+        # preset's own default name in the field before this runs, so the field
+        # is not empty and this guard never fires there. That is deliberate and
+        # written down twice (#70, Knut's model): a preset's own name is one a
+        # person recognises, unlike the `Printer_Paper_Type_Instr_<timestamp>`
+        # that `get_target_name()` invents, which is what #164 Q15 is about.
+        # The consequence worth knowing is a different one and it is tracked as
+        # an issue: a preset chosen on a freshly started app creates a project
+        # with no window at all, because §S4.7 keys off a name the USER typed.
         _field = self._active_name_field()
         _typed = _field.text().strip() if _field is not None else ""
         if not _typed and not _is_named(self._file_mgr):
@@ -9933,8 +10701,42 @@ class TabChart(QWidget):
         _proj_before = _ctl.project_or_none() if _ctl is not None else None
         name = (self._manual_target_name_edit.text().strip()
                 if self._manual_target_name_edit is not None else "")
+        # A LIVE PREVIEW MAY NOT CHANGE PROJECT. This line runs whatever `ask`
+        # is, so the auto-update preview used to read the name box and adopt
+        # whatever was typed there: open project A, type the name of project B
+        # without pressing anything, nudge a layout knob, and ChromIQ made B
+        # current and rebuilt B's chart — with no window, because §4 forbids the
+        # preview from opening one. It renders into the run it just assessed
+        # instead; only a deliberate build may move to another project.
+        if name and preview and self._name_points_elsewhere(name):
+            log.info("live preview: not adopting the typed name %r — it names "
+                     "another project", name)
+            name = ""
+        # A PREVIEW IS NOT A POINT OF NO RETURN, AND MAY NOT ACT ON AN ANSWER.
+        # An armed "Replace it" survived an aborted build — cancel the rename
+        # chooser and nothing is built, but the answer stayed on `self` — and
+        # then ONE live-preview render archived the whole project, with no
+        # window, because §4 forbids the preview from opening one. Driven. The
+        # same leak applied a run choice made for one project to another
+        # project's bar.
+        # THE POINT OF NO RETURN. A "Replace it" the user agreed to is carried
+        # out HERE, not when they clicked it — everything above can still
+        # abort, and a missing .ti1 used to archive the whole project and then
+        # say "Patch set not found", having built nothing.
+        #
+        # AND A PREVIEW IS NOT THAT POINT. It is the one route forbidden to open
+        # a window, so an armed "Replace it" left over from an aborted build was
+        # carried out HERE with nothing said: cancel the rename chooser, nudge a
+        # layout knob, and the whole project was archived. Driven. The same leak
+        # applied a run choice made for one project to another project's bar.
+        if not preview and not self._perform_pending_replace():
+            self._generate_btn.setEnabled(True)
+            self._layout_owned_by_build = False
+            return
         if name:
             self._file_mgr.set_target_name(name)
+        if not preview:
+            self._apply_gate_run_choice()
         # #130 CRITICAL (Knut): a .ti1-based preset (TC9.18, Spyderprint) must
         # build into the run the Profile-run bar shows — Overwrite run N / New
         # run — not always the project's current run. Skipped for a build under a
@@ -10405,10 +11207,15 @@ class TabChart(QWidget):
         old_name = getattr(self, "_last_target_name", "")
         if not old_name or not new_name:
             return True
-        new_root = self._file_mgr.preview_project_root(new_name)
+        # Both sides resolved the way the file manager resolves them — see
+        # `_maybe_rename_on_edit`. The folder this window NAMES must be the
+        # folder the rename or the delete then acts on.
+        old_root = self._file_mgr.resolved_root_for_name(old_name)
+        if old_root is None:
+            return True
+        new_root = self._new_project_root_beside(old_root, new_name)
         if new_root is None:
             return True
-        old_root = self._file_mgr.root_dir() / old_name
         # Same destination (e.g. only spacing/case-equivalent edit), or the old
         # target was never written to disk — nothing to reconcile.
         if new_root == old_root or not (old_root / "project.json").exists():
@@ -10426,14 +11233,14 @@ class TabChart(QWidget):
             return False
         if action == TargetChangeAction.RENAME:
             try:
-                self._file_mgr.rename_existing_project(old_name, new_name)
+                self._file_mgr.rename_existing_project(old_root, new_name)
             except (OSError, FileExistsError, FileNotFoundError) as exc:
                 # Fall back to a fresh target rather than blocking the user.
                 log.warning("Project rename failed (%s); creating fresh instead", exc)
             else:
                 self._refresh_after_rename(new_name)
         elif action == TargetChangeAction.DELETE:
-            self._file_mgr.delete_project_folder(old_name)
+            self._file_mgr.delete_project_folder(old_root)
         # KEEP: leave the old folder; set_target_name creates the fresh one.
         return True
 
@@ -10494,342 +11301,408 @@ class TabChart(QWidget):
             field.setFocus()
 
     def _on_generate(self) -> None:
-        if self._runner.is_running:
-            log.warning("A process is already running")
-            return
-        self._log_chart_build("Generate Chart", "targen")
-        self._cancel_pending_auto_preview()
-        # #133: the FROM PROFILE GAMUT module has its own generate route — the
-        # colours come from the master set through this run's profile, and the
-        # layout from Manual via the ordinary from-.ti1 build (which asks the
-        # §4 displacing-results question itself).
-        if self._mode_name() == "gamut":
-            self._on_generate_gamut()
-            return
-        if not self._confirm_displacing_results():
-            return
-        # The per-ink inspector describes the PREVIOUS chart — drop it the
-        # moment a new build starts; load_tiff rebuilds it for the new chart's
-        # ink set when the build lands (#72, Basti).
-        self._preview.reset_ink_inspector()
-        # Chart reflected from the Print/Measure tab — read-only. While nothing
-        # is unlocked there is nothing to generate (the chart lives in its own
-        # folder already); say so and stop. Unlocking a panel means the user
-        # wants to build their own, so drop the reflection and fall through to
-        # the normal fresh-chart path.
-        if self._reflected_active and self._current_mode() == "manual":
-            unlocked = (
-                (self._override_targen_check is not None
-                 and self._override_targen_check.isChecked())
-                or (self._override_printtarg_check is not None
-                    and self._override_printtarg_check.isChecked()))
-            if not unlocked:
-                InfoDialog(
-                    "This chart is loaded from elsewhere",
-                    "This chart was opened with “Open Chart File (.ti2)” at the "
-                    "top left of the window, so it's shown here just for "
-                    "reference — it already lives in its own folder and there's "
-                    "nothing to generate.\n\n"
-                    "If you want to build your own chart from these settings, "
-                    "tick “Edit patch recipe (override preset)” or “Edit page "
-                    "layout (override preset)” above, make your changes, then "
-                    "click “Generate Chart” — that creates a brand-new chart and "
-                    "leaves the loaded one untouched.",
-                    self, min_width=540,
-                ).exec()
+        """Generate Chart.
+
+        THE WHOLE BODY IS INSIDE A `try`, for one reason: a §S4.7 answer
+        belongs to ONE click. Four returns between the question and the
+        point of no return — a reflected chart, a vanished patch set, the
+        name prompt, and the rename chooser being cancelled — left an armed
+        "Replace it" on the tab, and the next thing to reach a consumer
+        acted on it: one live-preview render archived a whole project with
+        no window at all, and a run choice made for one project moved
+        another project's bar. Driven. A `finally` cannot be forgotten at a
+        return somebody adds later.
+        """
+        try:
+            if self._runner.is_running:
+                log.warning("A process is already running")
                 return
-            self._leave_reflected()
-        # Chart applied from the TI2 layout editor. Mirrors the prebuilt-files
-        # logic, but the source is the editor's staging folder rather than a
-        # bundled asset:
-        #   • targen changed   → fresh targen run (different patches): fall through
-        #   • else printtarg changed → re-lay-out the staged .ti1 (same patches)
-        #   • else                   → re-import the staged files verbatim
-        if self._applied_active and self._applied_src_dir is not None \
-                and self._current_mode() == "manual":
-            targen_changed = (self._applied_targen_sig is not None
-                              and self._targen_signature() != self._applied_targen_sig)
-            printtarg_changed = (self._applied_printtarg_sig is not None
-                                 and self._printtarg_signature() != self._applied_printtarg_sig)
-            if targen_changed:
-                # User unlocked the recipe — drop the applied binding and build a
-                # fresh chart from the current settings (fall through below).
-                self._leave_applied()
-            elif printtarg_changed:
-                self._generate_from_ti1(
-                    self._applied_src_dir / f"{self._applied_stem}.ti1",
-                    ask=False)
+            self._log_chart_build("Generate Chart", "targen")
+            self._cancel_pending_auto_preview()
+            # #133: the FROM PROFILE GAMUT module has its own generate route — the
+            # colours come from the master set through this run's profile, and the
+            # layout from Manual via the ordinary from-.ti1 build (which asks the
+            # §4 displacing-results question itself).
+            if self._mode_name() == "gamut":
+                self._on_generate_gamut()
                 return
-            else:
-                self._import_applied_chart()
+            # §S4.7 FIRST — the typed name may point at a project that already
+            # exists, in which case that window carries §4's answer too. Placed
+            # AFTER the from-profile-gamut branch above, which asks for itself
+            # further down its own route, so the question is put exactly once.
+            _proceed, _s4_done = self._gate_typed_project_name()
+            if not _proceed:
                 return
-        # Prebuilt-files preset. By default nothing is computed — the bundled
-        # files are copied verbatim. But the user can unlock the panels:
-        #   • targen changed   → fresh targen run (different patches): fall through
-        #   • else printtarg changed → re-lay-out the bundled .ti1 (same patches)
-        #   • else                   → copy the bundled files (exact original)
-        if self._prebuilt_active and self._prebuilt_key is not None \
-                and self._current_mode() == "manual":
-            targen_changed = (self._prebuilt_targen_sig is not None
-                              and self._targen_signature() != self._prebuilt_targen_sig)
-            printtarg_changed = (self._prebuilt_printtarg_sig is not None
-                                 and self._printtarg_signature() != self._prebuilt_printtarg_sig)
-            if targen_changed:
-                # User unlocked the patch recipe and changed it — build a fresh
-                # chart from the current settings (fall through to the normal
-                # targen→printtarg path below). The preset stays selected.
-                pass
-            elif printtarg_changed:
-                stem_rel = PREBUILT_PRESETS[self._prebuilt_key][0]
-                bundled_ti1 = resource_path(f"{stem_rel}.ti1")
-                self._generate_from_ti1(bundled_ti1, ask=False)
+            if not _s4_done and not self._confirm_displacing_results():
                 return
-            else:
-                name = (self._manual_target_name_edit.text().strip()
-                        if self._manual_target_name_edit is not None else "")
-                self._create_prebuilt_target(
-                    self._prebuilt_key,
-                    name or self._builtin_default_name(self._prebuilt_key))
-                return
-        # User preset with a bundled .ti1: build from that patch set (skip targen,
-        # lay it out with printtarg) — same path as the TC9.18 built-in. If the
-        # user unlocked the targen panel and changed it, fall through to a fresh
-        # targen run instead (different patches, like the built-in ti1 presets).
-        # NOT GATED ON MANUAL. "Load patch set" lives in the tab HEADER, above
-        # the Guided/Manual stack, so it is offered in Guided too — which is
-        # where a beginner is. With the mode clause here, loading a patch set in
-        # Guided and pressing Generate walked straight past this branch into a
-        # fresh targen run: the user's own patches were replaced, silently, and
-        # `_preset_ti1_path` was not even cleared. Driven: load in Manual →
-        # from_ti1; switch to Guided, same state → fresh targen.
-        if self._preset_ti1_path is not None:
-            # A LOCKED PANEL CANNOT HAVE BEEN EDITED. The signature comparison
-            # exists so a user who UNLOCKS the targen panel and changes a knob
-            # gets the fresh chart they asked for. Without the override box
-            # ticked there is no such consent, and any difference is something
-            # the app did to itself — which is exactly how this fault kept
-            # coming back.
-            opted_in = bool(self._override_targen_check is not None
-                            and self._override_targen_check.isChecked())
-            targen_changed = (opted_in
-                              and self._preset_ti1_targen_sig is not None
-                              and self._targen_signature() != self._preset_ti1_targen_sig)
-            if not targen_changed:
-                if self._preset_ti1_path.is_file():
-                    self._generate_from_ti1(self._preset_ti1_path, ask=False)
+            # The per-ink inspector describes the PREVIOUS chart — drop it the
+            # moment a new build starts; load_tiff rebuilds it for the new chart's
+            # ink set when the build lands (#72, Basti).
+            self._preview.reset_ink_inspector()
+            # Chart reflected from the Print/Measure tab — read-only. While nothing
+            # is unlocked there is nothing to generate (the chart lives in its own
+            # folder already); say so and stop. Unlocking a panel means the user
+            # wants to build their own, so drop the reflection and fall through to
+            # the normal fresh-chart path.
+            if self._reflected_active and self._current_mode() == "manual":
+                unlocked = (
+                    (self._override_targen_check is not None
+                     and self._override_targen_check.isChecked())
+                    or (self._override_printtarg_check is not None
+                        and self._override_printtarg_check.isChecked()))
+                if not unlocked:
+                    InfoDialog(
+                        "This chart is loaded from elsewhere",
+                        "This chart was opened with “Open Chart File (.ti2)” at the "
+                        "top left of the window, so it's shown here just for "
+                        "reference — it already lives in its own folder and there's "
+                        "nothing to generate.\n\n"
+                        "If you want to build your own chart from these settings, "
+                        "tick “Edit patch recipe (override preset)” or “Edit page "
+                        "layout (override preset)” above, make your changes, then "
+                        "click “Generate Chart” — that creates a brand-new chart and "
+                        "leaves the loaded one untouched.",
+                        self, min_width=540,
+                    ).exec()
                     return
-                # SAY SO. This wrote one line to the log and then built a
-                # completely different chart (§M M-PATCHSET-MISSING).
-                log.warning("attached preset .ti1 vanished: %s", self._preset_ti1_path)
-                self._patchset_missing_message(self._preset_ti1_path)
-                return
-            else:
-                # NO SECOND WINDOW HERE, DELIBERATELY. Ticking "Edit patch
-                # recipe (override preset)" already opens a window that says
-                # exactly this — *"The moment you change a targen value, ChromIQ
-                # can no longer reuse the preset's patches … it will create a
-                # completely new set of colours from scratch"*
-                # (`_OVERRIDE_TARGEN_POPUP_BODY`, shown from
-                # `_on_override_clicked` on every real click of that box). And
-                # the box is shown for a patch set the USER loaded, not only for
-                # a built-in preset (`_ti1_preset_active` counts
-                # `_preset_ti1_path`), so there is no gap it would cover.
-                #
-                # A window here would interrupt a decision the user has already
-                # made and acknowledged. Knut, 4.1.3-beta.17: *"there is already
-                # a message when clicking the 'Edit patch recipe' warning of
-                # consequences, so it is deliberate and obvious that the chart
-                # will change … that warning should be sufficient for a user."*
-                # Checked against the existing text before removing this.
-                log.info("loaded patch set dropped: the targen recipe was "
-                         "edited (the override warning was already shown)")
-                self._preset_ti1_path = None
-                self._preset_ti1_targen_sig = None
-        # TC9.18 built-in preset: while it's active and the user hasn't touched
-        # any targen setting, reproduce the exact bundled chart (printtarg only).
-        # The OFPS patch set can't be recreated reliably by re-running targen, so
-        # this is the only way to guarantee an identical target. Once a targen
-        # setting changes the user has opted into a fresh chart, so fall through.
-        if self._tc918_active and self._current_mode() == "manual":
-            if self._targen_signature() == self._tc918_targen_sig:
-                self._generate_from_ti1(self._tc918_ti1_path(), ask=False)
-                return
-            self._tc918_active = False
-            self._tc918_targen_sig = None
-        # Same for Knut's TC9.18+Spyderprint presets: while active and the targen
-        # settings are untouched, re-lay-out the bundled 1168-patch .ti1 (printtarg
-        # only). Changing a targen setting opts into a fresh targen chart.
-        if self._knut_active and self._current_mode() == "manual":
-            if self._targen_signature() == self._knut_targen_sig:
-                # Reuse THIS preset's own .ti1 (Full-layout-setup presets each bundle a
-                # different one); never the shared TC9.18 set (#58).
-                p = KNUT_PRESETS_BY_KEY.get(self._knut_active_key or "")
-                ti1 = (resource_path(p.ti1_asset) if p is not None
-                       else self._knut_ti1_path())
-                self._generate_from_ti1(ti1, ask=False)
-                return
-            self._knut_active = False
-            self._knut_targen_sig = None
-            self._knut_active_key = None
-        name = (
-            self._target_name_edit.text().strip()
-            if self._current_mode() == "guided"
-            else self._manual_target_name_edit.text().strip()
-        )
-        # A NAME IS REQUIRED — never invent one (Basti, #164 Q15).
-        # `get_target_name()` below is a MUTATING getter: with nothing set it
-        # makes up `Printer_Paper_Type_Instr_<timestamp>` and builds the whole
-        # chart into a folder of that name, which nobody asked for and nobody
-        # would find again. Only ask when no project is open — once one is,
-        # emptying the field is a rename question, and `_handle_target_rename`
-        # owns that.
-        if not name and not _is_named(self._file_mgr):
-            self._ask_for_a_project_name()
-            return
-        # If a target was already created this session and the user has now typed
-        # a different name, switching folders would orphan the old one. Ask first
-        # (rename / keep both / delete old); Cancel aborts before anything clears.
-        if not self._handle_target_rename(name):
-            return
-
-        # From here on this IS a build (nothing below returns without going
-        # through _on_generate_finished), and everything below can fire the
-        # target-switch handler — so mark it in flight before it can load the
-        # run's stored layout over the one being built with. Same reasoning as
-        # in _generate_from_ti1.
-        self._generate_btn.setEnabled(False)
-        self._layout_owned_by_build = True
-        self.target_started.emit()
-
-        # #130: remember which project we're in BEFORE the profile name is
-        # applied. A build under the SAME profile name can honour the shared
-        # bar's Profile-run selection (Overwrite runN / New run); a build under a
-        # NEW name is its own new project (with its own run1), so the bar's
-        # run selection — which refers to the previously loaded project — must
-        # NOT drive it.
-        _ctl = getattr(self, "_target_ctl", None)
-        _proj_before = _ctl.project_or_none() if _ctl is not None else None
-
-        params = self._collect_params()
-        # Remembered for _stamp_chart_meta so the run's meta.json can carry the
-        # full printtarg layout knobs (not just instrument/paper), letting the
-        # TI2 editor restore a main-app chart exactly like an editor-saved one.
-        self._last_params = params
-        if name:
-            self._file_mgr.set_target_name(name)
-        base_name = self._file_mgr.get_target_name()
-
-        # Calibration vs. normal run is now expressed by params.cal_target
-        # alone — it routes chart_creator to cal/ (stem "calibration") vs the
-        # current run folder (stem "chart"). The project folder is always
-        # base_name; the file stem no longer carries a cal_ prefix.
-        # WHERE THE BUILD GOES: cal/ or the run folder. Driven by the bar's Run
-        # type (#137); the old "Create chart for calibration" checkbox is kept
-        # only as a fallback for a window with no bar attached, so a build can
-        # never silently lose its calibration routing.
-        _ctl_cal = getattr(self, "_target_ctl", None)
-        if _ctl_cal is not None:
-            cal_target_active = bool(
-                getattr(_ctl_cal.target, "is_calibration", bool)())
-        else:
-            cal_target_active = (
-                hasattr(self, "_cal_target_check")
-                and self._cal_target_check.isChecked()
-                and self._cal_target_grp.isVisible()
+                self._leave_reflected()
+            # Chart applied from the TI2 layout editor. Mirrors the prebuilt-files
+            # logic, but the source is the editor's staging folder rather than a
+            # bundled asset:
+            #   • targen changed   → fresh targen run (different patches): fall through
+            #   • else printtarg changed → re-lay-out the staged .ti1 (same patches)
+            #   • else                   → re-import the staged files verbatim
+            if self._applied_active and self._applied_src_dir is not None \
+                    and self._current_mode() == "manual":
+                targen_changed = (self._applied_targen_sig is not None
+                                  and self._targen_signature() != self._applied_targen_sig)
+                printtarg_changed = (self._applied_printtarg_sig is not None
+                                     and self._printtarg_signature() != self._applied_printtarg_sig)
+                if targen_changed:
+                    # User unlocked the recipe — drop the applied binding and build a
+                    # fresh chart from the current settings (fall through below).
+                    self._leave_applied()
+                elif printtarg_changed:
+                    self._generate_from_ti1(
+                        self._applied_src_dir / f"{self._applied_stem}.ti1",
+                        ask=False)
+                    return
+                else:
+                    self._import_applied_chart(gate_already_asked=True)
+                    return
+            # Prebuilt-files preset. By default nothing is computed — the bundled
+            # files are copied verbatim. But the user can unlock the panels:
+            #   • targen changed   → fresh targen run (different patches): fall through
+            #   • else printtarg changed → re-lay-out the bundled .ti1 (same patches)
+            #   • else                   → copy the bundled files (exact original)
+            if self._prebuilt_active and self._prebuilt_key is not None \
+                    and self._current_mode() == "manual":
+                targen_changed = (self._prebuilt_targen_sig is not None
+                                  and self._targen_signature() != self._prebuilt_targen_sig)
+                printtarg_changed = (self._prebuilt_printtarg_sig is not None
+                                     and self._printtarg_signature() != self._prebuilt_printtarg_sig)
+                if targen_changed:
+                    # User unlocked the patch recipe and changed it — build a fresh
+                    # chart from the current settings (fall through to the normal
+                    # targen→printtarg path below). The preset stays selected.
+                    pass
+                elif printtarg_changed:
+                    stem_rel = PREBUILT_PRESETS[self._prebuilt_key][0]
+                    bundled_ti1 = resource_path(f"{stem_rel}.ti1")
+                    self._generate_from_ti1(bundled_ti1, ask=False)
+                    return
+                else:
+                    name = (self._manual_target_name_edit.text().strip()
+                            if self._manual_target_name_edit is not None else "")
+                    self._create_prebuilt_target(
+                        self._prebuilt_key,
+                        name or self._builtin_default_name(self._prebuilt_key),
+                        gate_already_asked=True,
+                        # …and the §4 answer, which this caller had and dropped,
+                        # so one Generate click with a prebuilt preset active
+                        # raised the identical §4 window twice. Shipped 4.1.3
+                        # does it too; it is the other half of a fix that only
+                        # reached one of this route's two callers.
+                        s4_already_answered=_s4_done)
+                    return
+            # User preset with a bundled .ti1: build from that patch set (skip targen,
+            # lay it out with printtarg) — same path as the TC9.18 built-in. If the
+            # user unlocked the targen panel and changed it, fall through to a fresh
+            # targen run instead (different patches, like the built-in ti1 presets).
+            # NOT GATED ON MANUAL. "Load patch set" lives in the tab HEADER, above
+            # the Guided/Manual stack, so it is offered in Guided too — which is
+            # where a beginner is. With the mode clause here, loading a patch set in
+            # Guided and pressing Generate walked straight past this branch into a
+            # fresh targen run: the user's own patches were replaced, silently, and
+            # `_preset_ti1_path` was not even cleared. Driven: load in Manual →
+            # from_ti1; switch to Guided, same state → fresh targen.
+            if self._preset_ti1_path is not None:
+                # A LOCKED PANEL CANNOT HAVE BEEN EDITED. The signature comparison
+                # exists so a user who UNLOCKS the targen panel and changes a knob
+                # gets the fresh chart they asked for. Without the override box
+                # ticked there is no such consent, and any difference is something
+                # the app did to itself — which is exactly how this fault kept
+                # coming back.
+                opted_in = bool(self._override_targen_check is not None
+                                and self._override_targen_check.isChecked())
+                targen_changed = (opted_in
+                                  and self._preset_ti1_targen_sig is not None
+                                  and self._targen_signature() != self._preset_ti1_targen_sig)
+                if not targen_changed:
+                    if self._preset_ti1_path.is_file():
+                        self._generate_from_ti1(self._preset_ti1_path, ask=False)
+                        return
+                    # SAY SO. This wrote one line to the log and then built a
+                    # completely different chart (§M M-PATCHSET-MISSING).
+                    log.warning("attached preset .ti1 vanished: %s", self._preset_ti1_path)
+                    self._patchset_missing_message(self._preset_ti1_path)
+                    return
+                else:
+                    # NO SECOND WINDOW HERE, DELIBERATELY. Ticking "Edit patch
+                    # recipe (override preset)" already opens a window that says
+                    # exactly this — *"The moment you change a targen value, ChromIQ
+                    # can no longer reuse the preset's patches … it will create a
+                    # completely new set of colours from scratch"*
+                    # (`_OVERRIDE_TARGEN_POPUP_BODY`, shown from
+                    # `_on_override_clicked` on every real click of that box). And
+                    # the box is shown for a patch set the USER loaded, not only for
+                    # a built-in preset (`_ti1_preset_active` counts
+                    # `_preset_ti1_path`), so there is no gap it would cover.
+                    #
+                    # A window here would interrupt a decision the user has already
+                    # made and acknowledged. Knut, 4.1.3-beta.17: *"there is already
+                    # a message when clicking the 'Edit patch recipe' warning of
+                    # consequences, so it is deliberate and obvious that the chart
+                    # will change … that warning should be sufficient for a user."*
+                    # Checked against the existing text before removing this.
+                    log.info("loaded patch set dropped: the targen recipe was "
+                             "edited (the override warning was already shown)")
+                    self._preset_ti1_path = None
+                    self._preset_ti1_targen_sig = None
+            # TC9.18 built-in preset: while it's active and the user hasn't touched
+            # any targen setting, reproduce the exact bundled chart (printtarg only).
+            # The OFPS patch set can't be recreated reliably by re-running targen, so
+            # this is the only way to guarantee an identical target. Once a targen
+            # setting changes the user has opted into a fresh chart, so fall through.
+            if self._tc918_active and self._current_mode() == "manual":
+                if self._targen_signature() == self._tc918_targen_sig:
+                    self._generate_from_ti1(self._tc918_ti1_path(), ask=False)
+                    return
+                self._tc918_active = False
+                self._tc918_targen_sig = None
+            # Same for Knut's TC9.18+Spyderprint presets: while active and the targen
+            # settings are untouched, re-lay-out the bundled 1168-patch .ti1 (printtarg
+            # only). Changing a targen setting opts into a fresh targen chart.
+            if self._knut_active and self._current_mode() == "manual":
+                if self._targen_signature() == self._knut_targen_sig:
+                    # Reuse THIS preset's own .ti1 (Full-layout-setup presets each bundle a
+                    # different one); never the shared TC9.18 set (#58).
+                    p = KNUT_PRESETS_BY_KEY.get(self._knut_active_key or "")
+                    ti1 = (resource_path(p.ti1_asset) if p is not None
+                           else self._knut_ti1_path())
+                    self._generate_from_ti1(ti1, ask=False)
+                    return
+                self._knut_active = False
+                self._knut_targen_sig = None
+                self._knut_active_key = None
+            name = (
+                self._target_name_edit.text().strip()
+                if self._current_mode() == "guided"
+                else self._manual_target_name_edit.text().strip()
             )
-        params.cal_target = cal_target_active
-        params.target_name = base_name
-        self._last_target_name = base_name
+            # A NAME IS REQUIRED — never invent one (Basti, #164 Q15).
+            # `get_target_name()` below is a MUTATING getter: with nothing set it
+            # makes up `Printer_Paper_Type_Instr_<timestamp>` and builds the whole
+            # chart into a folder of that name, which nobody asked for and nobody
+            # would find again. Only ask when no project is open — once one is,
+            # emptying the field is a rename question, and `_handle_target_rename`
+            # owns that.
+            if not name and not _is_named(self._file_mgr):
+                self._ask_for_a_project_name()
+                return
+            # If a target was already created this session and the user has now typed
+            # a different name, switching folders would orphan the old one. Ask first
+            # (rename / keep both / delete old); Cancel aborts before anything clears.
+            if not self._handle_target_rename(name):
+                return
 
-        # "Use as pre-conditioning profile" → seed a fresh run from the parent
-        # before generating the refined chart. new_run() copies the parent's
-        # profile.icc / measurement.ti3 into the new run as preconditioning.*
-        # and makes it current, so the chart generated below lands in the new
-        # run and chart_creator's external-import becomes a no-op.
-        if (not cal_target_active
-                and self._preconditioning_from_dialog
-                and self._precond_parent_run_id):
-            proj = self._file_mgr.project()
-            if proj.has_run(self._precond_parent_run_id):
-                parent = proj.run(self._precond_parent_run_id)
-                try:
-                    new_run = proj.new_run(preconditioning_from=parent)
-                    params.extra_targen_args = shlex.join(
-                        ["-c", str(new_run.preconditioning_icc)]
+            # From here on this IS a build (nothing below returns without going
+            # through _on_generate_finished), and everything below can fire the
+            # target-switch handler — so mark it in flight before it can load the
+            # run's stored layout over the one being built with. Same reasoning as
+            # in _generate_from_ti1.
+            self._generate_btn.setEnabled(False)
+            self._layout_owned_by_build = True
+            self.target_started.emit()
+
+            # #130: remember which project we're in BEFORE the profile name is
+            # applied. A build under the SAME profile name can honour the shared
+            # bar's Profile-run selection (Overwrite runN / New run); a build under a
+            # NEW name is its own new project (with its own run1), so the bar's
+            # run selection — which refers to the previously loaded project — must
+            # NOT drive it.
+            _ctl = getattr(self, "_target_ctl", None)
+            _proj_before = _ctl.project_or_none() if _ctl is not None else None
+
+            params = self._collect_params()
+            # Remembered for _stamp_chart_meta so the run's meta.json can carry the
+            # full printtarg layout knobs (not just instrument/paper), letting the
+            # TI2 editor restore a main-app chart exactly like an editor-saved one.
+            self._last_params = params
+            # The point of no return — see `_perform_pending_replace`.
+            if not self._perform_pending_replace():
+                self._generate_btn.setEnabled(True)
+                self._layout_owned_by_build = False
+                return
+            if name:
+                self._file_mgr.set_target_name(name)
+            self._apply_gate_run_choice()
+            base_name = self._file_mgr.get_target_name()
+
+            # Calibration vs. normal run is now expressed by params.cal_target
+            # alone — it routes chart_creator to cal/ (stem "calibration") vs the
+            # current run folder (stem "chart"). The project folder is always
+            # base_name; the file stem no longer carries a cal_ prefix.
+            # WHERE THE BUILD GOES: cal/ or the run folder. Driven by the bar's Run
+            # type (#137); the old "Create chart for calibration" checkbox is kept
+            # only as a fallback for a window with no bar attached, so a build can
+            # never silently lose its calibration routing.
+            _ctl_cal = getattr(self, "_target_ctl", None)
+            if _ctl_cal is not None:
+                cal_target_active = bool(
+                    getattr(_ctl_cal.target, "is_calibration", bool)())
+            else:
+                cal_target_active = (
+                    hasattr(self, "_cal_target_check")
+                    and self._cal_target_check.isChecked()
+                    and self._cal_target_grp.isVisible()
+                )
+            params.cal_target = cal_target_active
+            params.target_name = base_name
+            self._last_target_name = base_name
+
+            # "Use as pre-conditioning profile" → seed a fresh run from the parent
+            # before generating the refined chart. new_run() copies the parent's
+            # profile.icc / measurement.ti3 into the new run as preconditioning.*
+            # and makes it current, so the chart generated below lands in the new
+            # run and chart_creator's external-import becomes a no-op.
+            if (not cal_target_active
+                    and self._preconditioning_from_dialog
+                    and self._precond_parent_run_id):
+                proj = self._file_mgr.project()
+                if proj.has_run(self._precond_parent_run_id):
+                    parent = proj.run(self._precond_parent_run_id)
+                    try:
+                        new_run = proj.new_run(preconditioning_from=parent)
+                        params.extra_targen_args = shlex.join(
+                            ["-c", str(new_run.preconditioning_icc)]
+                        )
+                        params.neutral_axis_from_profile = True
+                    except FileNotFoundError as exc:
+                        log.warning("Could not seed pre-conditioning run: %s", exc)
+
+            # #130 (Knut): for a normal build INTO the loaded project, point the
+            # current run at the shared bar's Profile-run selection so the chart
+            # lands where the bar shows — Overwrite runN → runs/runN/, New run → a
+            # fresh runs/runN+1/ (Run type = Verification then files it under that
+            # run's verifications/ in _on_generate_finished). Skipped for
+            # calibration and refinement (they chose their run above) and for a
+            # build under a new name (that's a different project with its own run1).
+            _same_project = self._builds_into_project(_proj_before)
+            if not cal_target_active and not self._preconditioning_from_dialog \
+                    and _same_project:
+                self._align_current_run_to_target()
+            elif not _same_project:
+                self._seed_new_project_text(cal_target_active)
+
+            # #130 (Knut bug): a verification chart must live ONLY in the run's
+            # verifications/ folder — the profiling chart at the run root must
+            # survive. Generating the verify chart writes <stem>.ti1/.ti2/.tif into
+            # the run root (overwriting the profiling chart) before it's moved into
+            # verifications/, so snapshot the profiling chart now and restore it in
+            # _on_generate_finished after the move.
+            self._verify_profiling_backup = None
+            if not cal_target_active:
+                self._arm_verification_snapshot()
+
+            self._log.clear()
+            self._preview.clear()
+            self._generate_btn.setEnabled(False)
+
+            # Auto patch count (manual mode only): estimate now, then proceed.
+            # Live re-estimation on every settings change blocks the UI for
+            # custom layouts (binary search shells out to targen/printtarg
+            # via subprocess.run), so we defer to the click.
+            if (self._current_mode() == "manual"
+                    # A CALIBRATION CHART'S SIZE COMES FROM THE RAMP, NOT THE PAGES.
+                    # Belt and braces beside the UI state: the Auto boxes are
+                    # already off and disabled while Run type = Calibration, and
+                    # this guard keeps the built command right even if some future
+                    # path reaches Generate with Auto still on. Without it the
+                    # command preview (which reads the disabled -f widget and
+                    # prints -f0) and the real build disagree in silence — which is
+                    # exactly how #137 D7 went unnoticed.
+                    and not cal_target_active
+                    and self._manual_auto_patches_check is not None
+                    and self._manual_auto_patches_check.isChecked()):
+                self._log.appendPlainText("Calculating patch count…")
+                self._log.ensureCursorVisible()
+                from PyQt6.QtCore import QEventLoop
+                from PyQt6.QtWidgets import QApplication
+
+                # The binary-search path (custom layouts not in the patch DB)
+                # shells out to targen/printtarg synchronously per step, blocking
+                # this thread. Repaint the log after each progress line so the user
+                # sees step-by-step progress instead of a frozen window / beach
+                # ball. ExcludeUserInputEvents stops queued clicks/keys from
+                # re-entering generation mid-search.
+                def _estimate_progress(line: str) -> None:
+                    self._on_log_line(line)
+                    QApplication.processEvents(
+                        QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents
                     )
-                    params.neutral_axis_from_profile = True
-                except FileNotFoundError as exc:
-                    log.warning("Could not seed pre-conditioning run: %s", exc)
 
-        # #130 (Knut): for a normal build INTO the loaded project, point the
-        # current run at the shared bar's Profile-run selection so the chart
-        # lands where the bar shows — Overwrite runN → runs/runN/, New run → a
-        # fresh runs/runN+1/ (Run type = Verification then files it under that
-        # run's verifications/ in _on_generate_finished). Skipped for
-        # calibration and refinement (they chose their run above) and for a
-        # build under a new name (that's a different project with its own run1).
-        _same_project = self._builds_into_project(_proj_before)
-        if not cal_target_active and not self._preconditioning_from_dialog \
-                and _same_project:
-            self._align_current_run_to_target()
-        elif not _same_project:
-            self._seed_new_project_text(cal_target_active)
+                QApplication.processEvents()
+                try:
+                    params.patches = self._creator.estimate_patches(
+                        params, progress_cb=_estimate_progress
+                    )
+                except Exception as exc:
+                    log.error("Auto patch estimation failed: %s", exc)
+                    self._log.appendPlainText(f"Auto patch estimation failed: {exc}")
+                    self._generate_btn.setEnabled(True)
+                    # DROP THE SHIELD ON THE WAY OUT.
+                    # `_layout_owned_by_build` tells the per-target loader that the rows
+                    # on screen belong to the build, not to the target — and it is
+                    # cleared only when a build FINISHES. Leaving it up on an early
+                    # return means the next target the user selects never receives its
+                    # own settings, and the next write files the previous run's values
+                    # onto it (§4 S8; the F3 corruption the comment in
+                    # `_apply_ui_state` warns about). Reproduced on screen: a refused
+                    # Generate in a run with a 17 mm margin, one click to Calibration,
+                    # and the calibration screen showed 17 mm.
+                    self._layout_owned_by_build = False
+                    return
+                self._log.appendPlainText(f"Auto patch count: {params.patches}")
+                # Now that the real patch count is known, recompute any Auto
+                # -e/-B/-g from it (the preview used a cheap patch_db estimate).
+                self._apply_auto_neutrals(params, use_estimate=True)
 
-        # #130 (Knut bug): a verification chart must live ONLY in the run's
-        # verifications/ folder — the profiling chart at the run root must
-        # survive. Generating the verify chart writes <stem>.ti1/.ti2/.tif into
-        # the run root (overwriting the profiling chart) before it's moved into
-        # verifications/, so snapshot the profiling chart now and restore it in
-        # _on_generate_finished after the move.
-        self._verify_profiling_backup = None
-        if not cal_target_active:
-            self._arm_verification_snapshot()
-
-        self._log.clear()
-        self._preview.clear()
-        self._generate_btn.setEnabled(False)
-
-        # Auto patch count (manual mode only): estimate now, then proceed.
-        # Live re-estimation on every settings change blocks the UI for
-        # custom layouts (binary search shells out to targen/printtarg
-        # via subprocess.run), so we defer to the click.
-        if (self._current_mode() == "manual"
-                # A CALIBRATION CHART'S SIZE COMES FROM THE RAMP, NOT THE PAGES.
-                # Belt and braces beside the UI state: the Auto boxes are
-                # already off and disabled while Run type = Calibration, and
-                # this guard keeps the built command right even if some future
-                # path reaches Generate with Auto still on. Without it the
-                # command preview (which reads the disabled -f widget and
-                # prints -f0) and the real build disagree in silence — which is
-                # exactly how #137 D7 went unnoticed.
-                and not cal_target_active
-                and self._manual_auto_patches_check is not None
-                and self._manual_auto_patches_check.isChecked()):
-            self._log.appendPlainText("Calculating patch count…")
-            self._log.ensureCursorVisible()
-            from PyQt6.QtCore import QEventLoop
-            from PyQt6.QtWidgets import QApplication
-
-            # The binary-search path (custom layouts not in the patch DB)
-            # shells out to targen/printtarg synchronously per step, blocking
-            # this thread. Repaint the log after each progress line so the user
-            # sees step-by-step progress instead of a frozen window / beach
-            # ball. ExcludeUserInputEvents stops queued clicks/keys from
-            # re-entering generation mid-search.
-            def _estimate_progress(line: str) -> None:
-                self._on_log_line(line)
-                QApplication.processEvents(
-                    QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents
+            # Pre-flight: targen exits with code 1 ("Must have some single or multi
+            # dimensional RGB or CMY steps") if -f is 0 and no -g / -s / -c steps
+            # provide patches either. Catch this before launching the subprocess so
+            # the user sees an actionable message instead of a cryptic exit code.
+            if (self._current_mode() == "manual"
+                    and params.patches <= 0
+                    and params.grey_steps <= 0
+                    and params.single_channel_steps <= 0
+                    and not _extra_args_have_patch_source(params.extra_targen_args)):
+                self._log.appendPlainText(
+                    "[ERROR] Nothing for targen to generate.\n"
+                    "        Set a non-zero Total Patch Count (-f), enable the Auto checkbox,\n"
+                    "        or set Grey Axis Steps (-g) / Single Channel Steps (-s) to a positive value."
                 )
-
-            QApplication.processEvents()
-            try:
-                params.patches = self._creator.estimate_patches(
-                    params, progress_cb=_estimate_progress
-                )
-            except Exception as exc:
-                log.error("Auto patch estimation failed: %s", exc)
-                self._log.appendPlainText(f"Auto patch estimation failed: {exc}")
+                self._log.ensureCursorVisible()
                 self._generate_btn.setEnabled(True)
                 # DROP THE SHIELD ON THE WAY OUT.
                 # `_layout_owned_by_build` tells the per-target loader that the rows
@@ -10843,56 +11716,24 @@ class TabChart(QWidget):
                 # and the calibration screen showed 17 mm.
                 self._layout_owned_by_build = False
                 return
-            self._log.appendPlainText(f"Auto patch count: {params.patches}")
-            # Now that the real patch count is known, recompute any Auto
-            # -e/-B/-g from it (the preview used a cheap patch_db estimate).
-            self._apply_auto_neutrals(params, use_estimate=True)
 
-        # Pre-flight: targen exits with code 1 ("Must have some single or multi
-        # dimensional RGB or CMY steps") if -f is 0 and no -g / -s / -c steps
-        # provide patches either. Catch this before launching the subprocess so
-        # the user sees an actionable message instead of a cryptic exit code.
-        if (self._current_mode() == "manual"
-                and params.patches <= 0
-                and params.grey_steps <= 0
-                and params.single_channel_steps <= 0
-                and not _extra_args_have_patch_source(params.extra_targen_args)):
-            self._log.appendPlainText(
-                "[ERROR] Nothing for targen to generate.\n"
-                "        Set a non-zero Total Patch Count (-f), enable the Auto checkbox,\n"
-                "        or set Grey Axis Steps (-g) / Single Channel Steps (-s) to a positive value."
+            # Arm the slow-chart watchdog: only this path runs targen (the tool
+            # that can hit the OFPS hang). printtarg-only paths (load .ti1,
+            # re-layout, prebuilt copy) are always fast and don't arm it.
+            self._cancelled_by_user = False
+            self._progress_line_active = False
+            self._slow_watchdog.start(_SLOW_CHART_WATCHDOG_MS)
+            self._creator.generate(
+                params,
+                on_line=self._on_log_line,
+                on_finish=self._on_generate_finished,
             )
-            self._log.ensureCursorVisible()
-            self._generate_btn.setEnabled(True)
-            # DROP THE SHIELD ON THE WAY OUT.
-            # `_layout_owned_by_build` tells the per-target loader that the rows
-            # on screen belong to the build, not to the target — and it is
-            # cleared only when a build FINISHES. Leaving it up on an early
-            # return means the next target the user selects never receives its
-            # own settings, and the next write files the previous run's values
-            # onto it (§4 S8; the F3 corruption the comment in
-            # `_apply_ui_state` warns about). Reproduced on screen: a refused
-            # Generate in a run with a 17 mm margin, one click to Calibration,
-            # and the calibration screen showed 17 mm.
-            self._layout_owned_by_build = False
-            return
 
-        # Arm the slow-chart watchdog: only this path runs targen (the tool
-        # that can hit the OFPS hang). printtarg-only paths (load .ti1,
-        # re-layout, prebuilt copy) are always fast and don't arm it.
-        self._cancelled_by_user = False
-        self._progress_line_active = False
-        self._slow_watchdog.start(_SLOW_CHART_WATCHDOG_MS)
-        self._creator.generate(
-            params,
-            on_line=self._on_log_line,
-            on_finish=self._on_generate_finished,
-        )
-
-    # ------------------------------------------------------------------
-    # Slow-chart watchdog (targen OFPS-cliff escape hatch)
-    # ------------------------------------------------------------------
-
+        # ------------------------------------------------------------------
+        # Slow-chart watchdog (targen OFPS-cliff escape hatch)
+        # ------------------------------------------------------------------
+        finally:
+            self._forget_gate_answer()
     def _on_slow_watchdog(self) -> None:
         """Fired when a chart generate has run past the watchdog threshold.
 
@@ -13645,6 +14486,18 @@ class TabChart(QWidget):
         ``<ChromIQ>/<name>`` path a fresh project would use, so a name-only check
         called a different folder "the same project".
         """
+        # A PROJECT ADOPTED THROUGH THE §S4.7 WINDOW COUNTS AS "in project".
+        # The user was just shown that project by name and picked the run they
+        # want inside it, so the bar must be honoured — otherwise the build
+        # silently takes the manifest's own current run and the bar goes on
+        # saying something else. Measured before this: the bar said run1 and the
+        # chart landed in run3. One-shot: consumed here, so it can never leak
+        # into the next build.
+        if getattr(self, "_adopted_via_gate", False):
+            self._adopted_via_gate = False
+            return True
+        # (Reset at every gate entry as well, so a route that never reaches
+        # this consumer cannot leave it armed for an unrelated build.)
         if proj_before is None:
             return False
         try:
@@ -15413,10 +16266,20 @@ class TabChart(QWidget):
         Whatever a queued re-render was going to show, the build starting now
         supersedes it, and ``_on_generate_finished`` re-baselines the layout
         signature — so cancelling here loses nothing.
+
+        BOTH TIMERS, NOT ONE. The command preview is debounced too, and it is
+        what ARMS the render timer (`_maybe_schedule_auto_preview`). Cancelling
+        only the render left the 150 ms scheduler pending, so a Generate click
+        within 150 ms of the last change re-armed the render from inside the
+        §S4.7 window — and the user pressed Cancel on a window that says "stops
+        here and changes nothing" while their chart file had already been
+        rewritten and their Build Profile and Check tabs cleared. Driven,
+        against the shipped build as a control.
         """
-        timer = getattr(self, "_auto_preview_timer", None)
-        if timer is not None and timer.isActive():
-            timer.stop()
+        for name in ("_auto_preview_timer", "_cmd_preview_timer"):
+            timer = getattr(self, name, None)
+            if timer is not None and timer.isActive():
+                timer.stop()
 
     def _maybe_schedule_auto_preview(self) -> None:
         """Start the debounce timer to re-render the preview, if auto-update is on,
@@ -15499,7 +16362,7 @@ class TabChart(QWidget):
             self._say_preview_is_paused()
             return
         self._last_auto_sig = self._layout_signature()
-        self._generate_from_ti1(ti1, ask=False)
+        self._generate_from_ti1(ti1, ask=False, preview=True)
 
     @staticmethod
     def _verify_live_chart_has_measured_dates(run) -> bool:
