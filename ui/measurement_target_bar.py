@@ -1651,6 +1651,8 @@ class MeasurementTargetBar(QWidget):
         box.setDefaultButton(keep)
         from ui.widgets import fit_message_box_buttons
         fit_message_box_buttons(box)
+        from ui.widgets import widen_message_box
+        widen_message_box(box)
         box.exec()
         return box.clickedButton() is go
 
@@ -1711,6 +1713,8 @@ class MeasurementTargetBar(QWidget):
             restore = box.addButton(tr("Restore Chart"),
                                     QMessageBox.ButtonRole.AcceptRole)
             box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+            from ui.widgets import widen_message_box
+            widen_message_box(box)
             box.exec()
             if box.clickedButton() is not restore:
                 return
@@ -1757,6 +1761,8 @@ class MeasurementTargetBar(QWidget):
             box.addButton(tr("OK"), QMessageBox.ButtonRole.AcceptRole)
             from ui.widgets import fit_message_box_buttons
             fit_message_box_buttons(box)
+            from ui.widgets import widen_message_box
+            widen_message_box(box)
             box.exec()
         elif result.should_rebuild:
             # The pages are being redrawn from the chart's own recipe; the
@@ -1858,6 +1864,8 @@ class MeasurementTargetBar(QWidget):
         box.setDefaultButton(go)
         from ui.widgets import fit_message_box_buttons
         fit_message_box_buttons(box)
+        from ui.widgets import widen_message_box
+        widen_message_box(box)
         box.exec()
         if box.clickedButton() is not go:
             return
