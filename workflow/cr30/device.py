@@ -117,6 +117,69 @@ class CR30:
         from . import usb_measure
         usb_measure.trigger(self._t)
 
+    def read_next_measurement(self, *, timeout: float = 180.0,
+                              cancelled=None, poll: float = 0.25) -> Measurement:
+        """Wait for the operator to press the instrument's button, then read it.
+
+        THIS, not :meth:`read_measurement`, is the spot workflow. The CR30 holds
+        its last reading indefinitely, so reading without waiting returns
+        whatever was already there — instantly, and with every appearance of
+        success. Measured on a real chart: patch A1 (a lavender) received the
+        stale white-tile cache, **delta E 60.5**, written to the .ti3 in silence;
+        every patch after it then failed the bit-identical guard and the session
+        was dead at patch two.
+
+        On USB the wait is exact: the instrument emits an unsolicited
+        ``BB 01 09`` header when its button is pressed, and that frame is also
+        the only unit-independent magnet check there is.
+
+        Over BLE no such frame is known, so the wait is by CHANGE — poll the
+        stored reading until it differs from the last one we accepted. That is
+        weaker (it cannot see a magnet, and it cannot distinguish "not pressed
+        yet" from "pressed, identical result"), which is why USB is the better
+        transport for a chart.
+
+        *cancelled* is called between polls; return True from it to abort a wait
+        the user has given up on.
+        """
+        import time
+        deadline = time.monotonic() + timeout
+        if self.kind == "usb":
+            from . import usb_measure
+            while True:
+                if cancelled is not None and cancelled():
+                    raise MeasurementError("cancelled while waiting for the "
+                                           "instrument's button")
+                left = deadline - time.monotonic()
+                if left <= 0:
+                    raise MeasurementError(
+                        f"no button press within {timeout:.0f} s. Place the "
+                        "instrument on the highlighted patch and press its own "
+                        "button.")
+                try:
+                    hdr = usb_measure.wait_for_button_header(
+                        self._t, timeout=min(left, 1.0))
+                except Exception:
+                    continue                      # nothing yet; keep waiting
+                return self.read_measurement(button_header=hdr)
+
+        prev = self._previous.values if self._previous else None
+        while True:
+            if cancelled is not None and cancelled():
+                raise MeasurementError("cancelled while waiting for the "
+                                       "instrument's button")
+            if time.monotonic() > deadline:
+                raise MeasurementError(
+                    f"no new reading within {timeout:.0f} s. Place the "
+                    "instrument on the highlighted patch and press its own "
+                    "button.")
+            m = self.read_measurement(enforce=False)
+            if prev is None or m.values != prev:
+                m.check_usable(self._previous)
+                self._previous = m
+                return m
+            time.sleep(poll)
+
     def read_measurement(self, *, enforce: bool = True,
                          button_header=None) -> Measurement:
         """Read the device's stored measurement.

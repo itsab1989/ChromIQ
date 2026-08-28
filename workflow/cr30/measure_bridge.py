@@ -306,6 +306,12 @@ class DeviceReader:
     never has two readings outstanding at once — that is the same latch that
     stops a value being sent ahead of its prompt.
 
+    It WAITS for the operator to press the instrument's own button
+    (`read_next_measurement`) rather than reading whatever the device already
+    holds. That distinction is the whole spot workflow: a CR30 keeps its last
+    reading indefinitely, so a plain read returns instantly, looks successful,
+    and writes the previous patch's colour under the new patch's id.
+
     The reading is returned as **XYZ on a 0-100 scale, D50 / CIE 1931 2°** —
     what `chartread -xx` and `colprof` expect, and the condition
     `workflow.cr30.colour` defaults to. `read_measurement` is left to enforce
@@ -321,6 +327,11 @@ class DeviceReader:
         self._transport, self._port, self._address = transport, port, address
         self._lock = threading.Lock()
         self._dev = None
+        #: How long to wait for the operator's button press. Generous on
+        #: purpose: finding the right patch on a 390-patch honeycomb and
+        #: seating a 33 mm barrel on it is not a two-second job.
+        self.button_timeout_s = 180.0
+        self._cancel = False
 
     def _open(self):
         from .device import CR30
@@ -338,13 +349,29 @@ class DeviceReader:
                 raise ConnectionError(_no_device_help(usb_err, ble_err)) from ble_err
 
     def __call__(self):
+        # WAIT for the operator's button press; do NOT read what is already
+        # there. The CR30 holds its last reading indefinitely, so
+        # `read_measurement()` returns instantly with the previous value and
+        # every appearance of success. Measured on a real chart: patch A1
+        # received the stale white-tile cache at delta E 60.5, silently, and
+        # every patch after it then failed the bit-identical guard with nothing
+        # to retry — the session was dead at patch two while the message still
+        # said "press the button again".
         with self._lock:
             if self._dev is None:
                 self._dev = self._open()
                 log.info("CR30: opened over %s", self._dev.kind)
-            m = self._dev.read_measurement()
+            m = self._dev.read_next_measurement(
+                timeout=self.button_timeout_s, cancelled=self._cancelled)
         from .colour import spectrum_to_xyz
         return spectrum_to_xyz(m.values)
+
+    def cancel(self) -> None:
+        """Stop a wait in progress, so Stop does not block for the timeout."""
+        self._cancel = True
+
+    def _cancelled(self) -> bool:
+        return self._cancel
 
     def close(self) -> None:
         with self._lock:
