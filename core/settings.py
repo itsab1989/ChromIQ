@@ -667,7 +667,7 @@ def margin_combo_key(instrument: str, paper: str, orientation: str) -> str:
 # keys + settings_dialog._MARGIN_INSTRUMENTS).
 THRESHOLD_INSTR_LABEL = {
     "i1": "i1Pro", "p3": "i1Pro 3+", "CM": "ColorMunki",
-    "SS": "SpectroScan", "isis": "i1iSis",
+    "SS": "SpectroScan", "isis": "i1iSis", "CR30": "CR30",
 }
 
 # Canonical sheet name keyed by sorted (short, long) mm — so any paper code

@@ -118,6 +118,33 @@ def is_cr30(name: str | None) -> bool:
     return bool(name) and "cr30" in name.lower()
 
 
+def spectral_options_unavailable(name: str | None,
+                                 has_spectral: bool = True) -> bool:
+    """Whether the spectral-only profiling options (colprof ``-f`` FWA, the
+    illuminant and the observer) must be disabled for this measurement.
+
+    Two independent reasons, either of which is enough:
+
+    * **The instrument cannot see what the option needs.** A ColorMunki and a
+      CR30 both illuminate with a blue-pump white LED, which does not excite
+      optical brightening agents, so a fluorescent-whitening adjustment has
+      nothing to work from. This has gated the ColorMunki since the option
+      existed; the CR30 belongs on the same side of it (#159).
+    * **The measurement carries no spectra at all.** FWA, illuminant and
+      observer are all computed FROM the spectral curve. A CR30 ``.ti3`` is
+      colorimetric only - by design, because the device's 31 reported bands
+      carry 8 degrees of freedom and writing 31 ``SPECTRAL_*`` columns would
+      tell ``colprof`` it has 31 independent measurements when it has 8
+      (#159). So the second test is not a CR30 special case: it is true of any
+      measurement without spectral columns, and offering an option that has no
+      data to act on is worse than not offering it.
+
+    *has_spectral* defaults True so a caller that has not looked is judged on
+    the instrument alone, exactly as before.
+    """
+    return is_colormunki(name) or is_cr30(name) or not has_spectral
+
+
 def instrument_family(name: str | None) -> "str | None":
     """Coarse instrument family for instruction wording: ``"colormunki"``
     (ColorMunki / i1Studio / ColorChecker Studio), ``"i1pro"`` (the whole i1 Pro
@@ -284,7 +311,8 @@ def disable_bidir_for_instrument(name: str | None) -> bool:
     behaviour already handles that correctly, so Auto leaves the ColorMunki on
     the Argyll default (no ``-B``) rather than forcing ``-B``. The i1 Pro family
     auto-forces ``-b`` instead (see ``force_bidir_for_instrument``); the
-    SpectroScan reads patches individually. Users can still pick "Bidirectional
+    SpectroScan and the CR30 read patches individually, so the bidirectional
+    concept does not apply to either. Users can still pick "Bidirectional
     disabled" by hand.
 
     Always returns ``False`` — kept as the single Auto ``-B`` decision point so
@@ -300,9 +328,10 @@ def force_bidir_for_instrument(name: str | None) -> bool:
     randomised; on a fixed-order chart (e.g. printtarg ``-r``) it otherwise
     reads one direction only and rejects strips scanned backwards. The i1 Pro
     family reads either direction, so ``-b`` forces the auto-detection on for
-    those charts. The ColorMunki reads one direction only and the SpectroScan
-    reads patches individually, so neither should force it. ``-b`` and ``-B``
-    are mutually exclusive; this only returns True for the i1 Pro family.
+    those charts. The ColorMunki reads one direction only, and the SpectroScan
+    and the CR30 read patches individually, so none of them should force it.
+    ``-b`` and ``-B`` are mutually exclusive; this only returns True for the
+    i1 Pro family.
     """
     return is_i1pro(name)
 

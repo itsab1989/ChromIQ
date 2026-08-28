@@ -1514,7 +1514,8 @@ class SettingsDialog(QDialog):
     # Instruments and paper+orientation choices the per-combo thresholds can be
     # defined for. The instrument labels match what the Create Chart inspector
     # derives from the chart (see core.settings.margin_combo_key).
-    _MARGIN_INSTRUMENTS = ("i1Pro", "i1Pro 3+", "ColorMunki", "SpectroScan")
+    _MARGIN_INSTRUMENTS = ("i1Pro", "i1Pro 3+", "ColorMunki", "SpectroScan",
+                           "CR30")
     _MARGIN_PAPERS = ("A4", "Letter", "Legal", "A3", "A3+", "A2", "Tabloid")
     _MARGIN_ORIENTS = ("Portrait", "Landscape")
 
@@ -1705,6 +1706,7 @@ class SettingsDialog(QDialog):
             "i1pro3plus": tr("i1Pro 3 Plus"),
             "colormunki": tr("ColorMunki / i1Studio"),
             "spectroscan": tr("SpectroScan (motorised table)"),
+            "cr30":       tr("CR30 (patch by patch)"),
         }
         self._pace_hz: dict = {}
         self._pace_patches: dict = {}
@@ -3127,6 +3129,7 @@ class SettingsDialog(QDialog):
         ("i1", "i1Pro / i1Pro 2 / i1Pro 3"), ("p3", "i1Pro 3 Plus"),
         ("CM", "ColorMunki / i1Studio / ColorChecker Studio"),
         ("SS", "SpectroScan (flatbed)"),
+        ("CR30", "CR30 (ChnSpec, patch by patch)"),
     ]
 
     @staticmethod
@@ -3648,8 +3651,9 @@ class SettingsDialog(QDialog):
         from ui.dialogs.layout_options_panel import LayoutOptionsPanel
         self._layout_mode_lbl.setText(LayoutOptionsPanel.mode_label_for(inst))
         self._layout_mode_tip.set_content(*LayoutOptionsPanel.mode_tooltip_for(inst))
-        # The extra clip-border On/Off selector is for CM/SS only.
-        is_band = inst in ("CM", "SS")
+        # The extra clip-border On/Off selector is for the instruments with no
+        # native clip border but an optional notes band: CM, SS and CR30 (#159).
+        is_band = inst in ("CM", "SS", "CR30")
         self._layout_clip_enable.setVisible(is_band)
         self._layout_clip_enable_lbl.setVisible(is_band)
         # RESTORE, don't clear: the combo rebuilds above fire _load_layout_combo,

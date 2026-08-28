@@ -1473,7 +1473,7 @@ def _paper_area_mm2(paper: str) -> float:
 # _MARGIN_INSTRUMENTS and core.settings seed keys).
 _MARGIN_INSTR_LABEL = {
     "i1": "i1Pro", "p3": "i1Pro 3+", "CM": "ColorMunki",
-    "SS": "SpectroScan", "isis": "i1iSis",
+    "SS": "SpectroScan", "isis": "i1iSis", "CR30": "CR30",
 }
 
 # Canonical sheet name keyed by sorted (short, long) mm, rounded — so any paper
@@ -3431,7 +3431,30 @@ class TabChart(QWidget):
             "Picking the wrong instrument produces a chart your device cannot "
             "align to or read reliably — you'll see \"patches not found\" or "
             "alignment errors when measuring.\n\n"
-            "In Guided mode the layout adapts to this choice automatically."),
+            "In Guided mode the layout adapts to this choice automatically.")
+            # APPENDED AS ITS OWN tr() KEY, never merged into the one above.
+            # That string is a single ~1,200-character key: adding a bullet to
+            # it would make the old key stale in all 12 catalogues AND the new
+            # one missing, which is 24 test_i18n.py failures from one bullet
+            # (#159).
+            + "\n\n" + tr(
+            "  •  CR30 (ChnSpec) — a small hand-held colorimeter that reads "
+            "ONE patch at a time. You put it on a patch, press the button on "
+            "the instrument, and ChromIQ records that patch and highlights the "
+            "next one. The chart is a plain grid of squares with row numbers "
+            "and column letters so you can always find the patch being asked "
+            "for.\n\n"
+            "     Two things to know before you choose it. Its patch size is "
+            "PROVISIONAL — 10 mm squares, a considered starting point rather "
+            "than a measured minimum — so make them larger if you find "
+            "yourself missing patches. And every patch is a hand placement and "
+            "a button press of about two seconds, so a full A4 sheet of around "
+            "475 patches takes well over a quarter of an hour. Pick a patch "
+            "count you are happy to sit through.\n\n"
+            "     A CR30 chart is always laid out by ChromIQ's own layout "
+            "engine, and can only be read by ChromIQ — standard ArgyllCMS "
+            "chartread does not know this instrument and will refuse the "
+            "chart."),
             inner,
             min_width=600,
         ))
@@ -8541,7 +8564,7 @@ class TabChart(QWidget):
         count comes from the predicted count (guided) or the loaded preset's
         .ti1 (manual); the orientation comes from the paper selection."""
         instr_lbl = {"i1": "i1Pro", "CM": "ColorMunki", "3p": "i1Pro3Plus",
-                     "p3": "i1Pro3", "SS": "SpectroScan"}
+                     "p3": "i1Pro3", "SS": "SpectroScan", "CR30": "CR30"}
         manual = self._manual_btn is not None and self._manual_btn.isChecked()
         if manual:
             engine_on = (self._manual_engine_check is not None

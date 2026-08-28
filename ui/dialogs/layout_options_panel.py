@@ -76,7 +76,8 @@ class LayoutOptionsPanel(QWidget):
     INSTRUMENTS = [("i1", "i1Pro / i1Pro 2 / i1Pro 3"),
                    ("p3", "i1Pro 3 Plus"),
                    ("CM", "ColorMunki / i1Studio / ColorChecker Studio"),
-                   ("SS", "SpectroScan (flatbed)")]
+                   ("SS", "SpectroScan (flatbed)"),
+                   ("CR30", "CR30 (ChnSpec, patch by patch)")]
 
     @staticmethod
     def mode_label_for(inst: str) -> str:
@@ -88,6 +89,8 @@ class LayoutOptionsPanel(QWidget):
             return tr("Density:")
         if inst == "SS":
             return tr("Patch shape:")
+        if inst == "CR30":
+            return tr("Reading:")
         return tr("Mode:")
 
     @staticmethod
@@ -121,6 +124,27 @@ class LayoutOptionsPanel(QWidget):
                     tr("Rectangular or hexagonal patches. Hexagons tessellate "
                        "tighter, fitting a few more patches per sheet; "
                        "rectangular is the safe default."))
+        if inst == "CR30":
+            return (tr("How the CR30 reads"),
+                    tr("The CR30 has one way of working, so there is nothing to "
+                       "choose here — it is shown so you can see what the chart "
+                       "is being built for. You place the instrument on ONE "
+                       "patch, press the button on the instrument, and ChromIQ "
+                       "records that patch and highlights the next one. There "
+                       "are no strips to sweep and no rail to clip on.\n\n"
+                       "Because of that, the chart is a plain grid of squares "
+                       "with row numbers down the left and column letters "
+                       "along the top, so you can always find the patch "
+                       "ChromIQ is asking for.\n\n"
+                       "PATCH SIZE IS PROVISIONAL. The 10 mm squares are a "
+                       "considered starting point — 2.5 times the CR30's 4 mm "
+                       "aperture, the same ratio the i1Pro uses — but nobody "
+                       "has yet measured how small a CR30 patch can safely be. "
+                       "If you find you are missing patches, make them bigger "
+                       "in Patch size below and tell us what worked.\n\n"
+                       "Plan your time before you print: a full A4 sheet holds "
+                       "around 475 patches at this size, and each one is a "
+                       "hand placement and a button press."))
         return (tr("Layout mode"),
                 tr("A per-instrument layout choice that keeps its own saved "
                    "preset."))
@@ -135,6 +159,8 @@ class LayoutOptionsPanel(QWidget):
                     ("extrahigh", tr("Extra-high density"))]
         if inst == "SS":
             return [("flat", tr("Rectangular")), ("hex", tr("Hexagonal — denser"))]
+        if inst == "CR30":
+            return [("spot", tr("One patch at a time"))]
         return [("default", tr("Default"))]
 
     def __init__(self, parent: QWidget | None = None, *,
@@ -1854,7 +1880,7 @@ class LayoutOptionsPanel(QWidget):
         # The extra clip-border On/Off selector — and its tooltip — are for CM/SS
         # only (i1/p3 use their Mode selector for the clip border).
         if hasattr(self, "clip_enable"):
-            is_band = inst in ("CM", "SS")
+            is_band = inst in ("CM", "SS", "CR30")
             self.clip_enable.setVisible(is_band)
             self._clip_enable_lbl.setVisible(is_band)
             self._clip_enable_tip.setVisible(is_band)
@@ -1907,6 +1933,16 @@ class LayoutOptionsPanel(QWidget):
         # flatbed). Only on a genuine USER switch — a preset load carries its own
         # values. Both selectors stay fully changeable afterwards.
         if hasattr(self, "layout_mode"):
+            # The CR30 defaults to patch-first for a different reason (#159):
+            # its patch size is what a hand aims at through a 4 mm aperture, so
+            # it must not float with the paper. Its area METHOD is deliberately
+            # left alone — "By minimum width" is meaningless for a flatbed but
+            # perfectly meaningful for a hand-placed device, which really does
+            # have a smallest patch a person can hit.
+            if not was_loading and inst == "CR30":
+                _pf = self.layout_mode.findData("patch_first")
+                if _pf >= 0:
+                    self.layout_mode.setCurrentIndex(_pf)
             if not was_loading and inst == "SS":
                 _pf = self.layout_mode.findData("patch_first")
                 if _pf >= 0:
@@ -1943,7 +1979,7 @@ class LayoutOptionsPanel(QWidget):
         else:
             inst = self._inst
             clip_mode = self._clip and inst in ("i1", "p3")
-        is_band_inst = inst in ("CM", "SS")
+        is_band_inst = inst in ("CM", "SS", "CR30")
         content_on = (hasattr(self, "clip_content_mode")
                       and self.clip_content_mode.currentData() != "off")
         # For CM/SS the band (and its content group) appears only when the clip
@@ -2286,7 +2322,7 @@ class LayoutOptionsPanel(QWidget):
         if inst in ("i1", "p3"):
             return (self.mode.currentData() == "clip") if self.mode is not None \
                 else bool(self._clip)
-        if inst in ("CM", "SS"):
+        if inst in ("CM", "SS", "CR30"):
             return (hasattr(self, "clip_content_mode")
                     and self.clip_content_mode.currentData() not in (None, "off"))
         return False
@@ -2896,7 +2932,8 @@ class LayoutOptionsPanel(QWidget):
         if self.instr is not None:
             inst, paper, _ = self.selection()
         _instr_friendly = {"i1": "i1Pro", "p3": "i1Pro3+", "CM": "ColorMunki",
-                           "SS": "SpectroScan", "41": "DTP41", "51": "DTP51"}
+                           "SS": "SpectroScan", "41": "DTP41", "51": "DTP51",
+                           "CR30": "CR30"}
         _plabel = PAPER_LABELS.get(paper, paper)
         _pname = _plabel.split(" (")[0]
         _porient = (" landscape" if "Landscape" in _plabel

@@ -329,6 +329,18 @@ MODEL_DEFAULTS = {
     # per-instrument strip lengths below (#130, 2026-07-29).
     "colormunki":     ( 50.0,   20),   # slowest; needs long patches
     "spectroscan":    (250.0, None),   # motorised — no pace to judge
+    # The CR30 is placed on one patch by hand and triggered by its own button
+    # (#159). Like the SpectroScan there is no swipe, so the threshold is None
+    # (shown as "Off") and no pace warning is ever raised. The rate is inert in
+    # both directions: nothing subscribes to patch events for pace
+    # (tab_measure.py:1016-1022 — the pace model is wired to strip_measured
+    # only, and a CR30 never emits a strip), and the CR30 does not stream
+    # samples at all. It is 100.0 rather than 0 or 1 purely so the Preferences
+    # spinbox shows the shipped default instead of silently clamping it to the
+    # bottom of SAMPLE_HZ_RANGE (10-500). The row exists so that
+    # _pace_config's unknown-instrument fallback — the i1Pro's (100.0, 20) —
+    # can never be applied to a CR30 chart.
+    "cr30":           (100.0, None),
 }
 
 #: How many patches one strip of a typical chart holds, per instrument (Knut,
@@ -349,6 +361,7 @@ ESTIMATE_PATCHES = {
     "i1pro3plus":     15,
     "colormunki":     15,
     "spectroscan":    None,
+    "cr30":           None,   # no strips at all — shown as "N/A" (#159)
 }
 
 #: What a user may enter for the strip length. 0 shows as "N/A".
@@ -387,6 +400,10 @@ _ARGYLL_MODEL_KEYS = (
     ("colormunki", "colormunki"),
     ("i1studio", "colormunki"),
     ("spectroscan", "spectroscan"),
+    # Not an ArgyllCMS instrument: Argyll never opens a CR30, ChromIQ does
+    # (#159). The row is here so that a model string ChromIQ reports for itself
+    # resolves to the CR30's own defaults rather than the i1Pro fallback.
+    ("cr30", "cr30"),
 )
 
 
@@ -668,6 +685,22 @@ def explanation_for(key) -> "tuple[str, str]":
             "here is for. Should you ever want a remark from this instrument "
             "too, give it a minimum above Off and it will be judged like any "
             "other."
+        ) + _calculation_note(key)
+    if key == "cr30":
+        return tr("CR30 (patch by patch)"), tr(
+            "The CR30 is not swiped at all. You place it on one patch, press "
+            "the button on the instrument, and it takes that one reading — so "
+            "there is no reading speed to get wrong and nothing worth warning "
+            "about. The minimum is set to Off, and the strip length shows N/A "
+            "because a CR30 chart has no strips.\n\n"
+            "This whole row is inert for the CR30: ChromIQ judges reading pace "
+            "per strip, and a CR30 measurement never produces one. The row is "
+            "shown so you can see that, rather than wonder which figures are "
+            "being applied behind your back.\n\n"
+            "What DOES take the time is the number of patches. Each one is a "
+            "hand placement and a button press of roughly two seconds, so a "
+            "full A4 sheet of about 475 patches is a long sitting. Choose the "
+            "patch count on the Create Chart tab with that in mind."
         ) + _calculation_note(key)
     return tr("This instrument"), tr(
         "ChromIQ has no measured figures for this instrument, so it is judged "

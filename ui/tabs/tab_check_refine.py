@@ -45,7 +45,8 @@ from ui.gamut_panel import GamutPanel
 from ui.tab_header import TabHeader
 from ui.tooltip_button import InfoDialog, TooltipButton
 from ui.widgets import add_log_row, fit_log_height, GatedOption, NoScrollComboBox, NoScrollDoubleSpinBox, make_browse_button, open_file_dialog, replace_log_line, set_folder_icon, set_preset_icon, tint_dialog_primary
-from ui.ti2_loader import has_spectral_data, instrument_label, is_colormunki, read_target_instrument
+from ui.ti2_loader import (has_spectral_data, instrument_label, is_colormunki,
+                          read_target_instrument, spectral_options_unavailable)
 
 _TAB_COLOR = "#9f82ff"  # Check & Refine tab accent
 from ui.styles import SPEC_VIOLET, TAB_COLORS
@@ -241,11 +242,17 @@ class TabCheckRefine(QWidget):
     def _gate_active(self) -> bool:
         """Whether incompatible options should be disabled for the loaded .ti3.
 
-        Defaults to "the instrument is a ColorMunki". Both the instrument name and
-        the spectral flag are stored, so this can later become
-        ``not self._detected_has_spectral`` or a combination per option.
+        The gated options (colprof ``-f`` FWA, illuminant, observer) are all
+        computed from the spectral curve, so the gate now asks BOTH questions
+        the docstring here used to promise for "later": is this an instrument
+        whose light cannot excite optical brighteners (ColorMunki, and the CR30
+        alongside it — same blue-pump white LED), and does this measurement
+        carry spectra at all. A CR30 ``.ti3`` is colorimetric by design (#159),
+        so the second test is what protects it even if the first cannot see the
+        instrument name.
         """
-        return is_colormunki(self._detected_instrument)
+        return spectral_options_unavailable(self._detected_instrument,
+                                            self._detected_has_spectral)
 
     def _apply_instrument_constraints(self) -> None:
         """Grey out the gated option widgets according to the active gate."""
