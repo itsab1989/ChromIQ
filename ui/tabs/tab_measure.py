@@ -1278,6 +1278,9 @@ class TabMeasure(QWidget):
             finally:
                 self._loading_measure_settings = False
             self._reassert_guided_refinement()
+            # …and the CR30 patch-by-patch lock, for the same reason: a stored
+            # or default `false` has just been written onto the screen (#159).
+            self._apply_cr30_pbp_lock()
             return False
         self._loading_measure_settings = True
         try:
@@ -1287,6 +1290,7 @@ class TabMeasure(QWidget):
                 log.info("ignored %d unknown stored Measure setting(s): %s",
                          len(unknown), ", ".join(sorted(unknown)[:8]))
             self._reassert_guided_refinement()
+            self._apply_cr30_pbp_lock()
             return True
         except Exception:      # noqa: BLE001
             log.warning("Could not apply the target's Measure settings",
@@ -1308,9 +1312,146 @@ class TabMeasure(QWidget):
         return ctl is not None and ctl.target.is_verification()
 
     def _is_pbp_checked(self) -> bool:
-        """True if the active module's 'Patch-by-patch mode' box is ticked."""
-        cb = self._pbp_cb if self._current_mode() == "guided" else self._m_pbp_cb
-        return cb.isChecked()
+        """Whether the active module will read patch by patch.
+
+        Not "is the box ticked" any more — see :meth:`_resolve_patch_by_patch`.
+        This one answer drives about ten downstream UI behaviours through
+        ``_spot_session``, so it has to agree with the flag the command is
+        actually built from, or the tab renders a strip session over a spot
+        read.
+        """
+        return self._resolve_patch_by_patch(self._current_mode())
+
+    # ------------------------------------------------------------------
+    # Patch-by-patch: the resolver decides, the widget only shows (#159)
+    # ------------------------------------------------------------------
+    #: Snapshot of the user's own patch-by-patch state while the CR30 lock is
+    #: engaged: ``{"guided": (checked, tooltip), "manual": (checked, tooltip)}``,
+    #: or ``None`` when the lock is off. Taken ONCE on the way in, exactly like
+    #: ``TabChart._pre_cal_snapshot`` — engaging twice must never overwrite the
+    #: user's values with the forced ones.
+    _pbp_lock_snapshot: "dict | None" = None
+
+    def _resolve_patch_by_patch(self, mode: str) -> bool:
+        """Whether *mode* reads patch by patch.
+
+        **The resolver decides; the widget only shows.** This is
+        :meth:`_resolve_bidir_value`'s contract, and it is here for the same
+        reason: there are nine readers of "patch by patch" in this tab and its
+        stores, and locking only the checkbox would leave the stale-state paths
+        (Save as Defaults, the Manual preset, the per-target store, the two
+        global keys) disagreeing with the read that is actually running.
+
+        A CR30 chart is always True. ChromIQ reads that instrument itself, one
+        patch at a time — the helper takes the spot branch unconditionally under
+        ``-x`` — and Basti's ruling is that the user cannot deselect it, in
+        either module. Keyed on the CHART and nothing else: this tab has no
+        notion of a selected instrument (`_chart_instrument_code` states the
+        rule), and the sheet in the user's hand is what decides.
+        """
+        if self._chart_is_cr30():
+            return True
+        cb = self._pbp_cb if mode == "guided" else self._m_pbp_cb
+        return bool(cb.isChecked())
+
+    def _pbp_user_value(self, mode: str) -> bool:
+        """The user's OWN patch-by-patch choice, ignoring the CR30 lock.
+
+        What every *saved* copy of the setting must be written from. Without
+        this, one press of "Save as Defaults" on a CR30 chart writes a forced
+        tick into ``measure_patch_by_patch`` / ``manual2_chartread_pbp``, which
+        are the globals that seed **every target that has nothing stored** — so
+        every future non-CR30 run would open in patch-by-patch, a slow, wrong
+        read nobody asked for. The same for a Manual preset, which then carries
+        it into whatever chart it is later applied to.
+
+        The per-target store may keep the forced value: it belongs to one run,
+        and a run's chart does not change instrument.
+        """
+        snap = self._pbp_lock_snapshot
+        if snap is not None and mode in snap:
+            return bool(snap[mode][0])
+        cb = self._pbp_cb if mode == "guided" else self._m_pbp_cb
+        return bool(cb.isChecked())
+
+    def _set_pbp_user_value(self, mode: str, value: bool) -> None:
+        """Load a stored patch-by-patch value without fighting the lock.
+
+        While the lock is on, a restore (global defaults, a Manual preset) must
+        land in the snapshot — where it becomes what comes back when a non-CR30
+        chart is loaded — and NOT on screen, where it would show an unticked box
+        over a read that is ticked.
+        """
+        snap = self._pbp_lock_snapshot
+        if snap is not None and mode in snap:
+            _was, tip = snap[mode]
+            snap[mode] = (bool(value), tip)
+            return
+        cb = self._pbp_cb if mode == "guided" else self._m_pbp_cb
+        cb.setChecked(bool(value))
+
+    def _apply_cr30_pbp_lock(self) -> None:
+        """Show, in both modules, that a CR30 chart reads patch by patch.
+
+        **Ticked and disabled, never hidden.** This tab's own rule, in capitals
+        at ``_collect_guided``: *"NEVER FROM A CONTROL THE USER CANNOT SEE."* A
+        hidden `-N` whose value was still sent ran every Guided measurement
+        uncalibrated for a whole beta, and a hidden `-p` would be the same
+        shape. A greyed box that reports the mode the read is genuinely in is
+        not a dead control — it is what the Strip-recognition combo one row
+        above already does.
+
+        The tick **and the tooltip** are snapshotted and restored, following
+        ``TabChart._apply_calibration_knobs``: the row must read as "not yours
+        to set right now" rather than as an invitation, and the user's own
+        setting has to come back exactly when a different chart is loaded.
+
+        Safe to call as often as you like — it is the re-assert hook for chart
+        changes and settings loads alike.
+        """
+        pairs = [("guided", getattr(self, "_pbp_cb", None)),
+                 ("manual", getattr(self, "_m_pbp_cb", None))]
+        if any(cb is None for _m, cb in pairs):
+            return                       # called before the UI is built
+        snap = self._pbp_lock_snapshot
+        if self._chart_is_cr30():
+            if snap is None:
+                self._pbp_lock_snapshot = {m: (cb.isChecked(), cb.toolTip())
+                                           for m, cb in pairs}
+            for _m, cb in pairs:
+                # Signals blocked: _LINKED_PAIRS mirrors these two in both
+                # directions, and both are being set to the same value here
+                # anyway. Blocking keeps the mirror out of the snapshot's way.
+                cb.blockSignals(True)
+                try:
+                    cb.setChecked(True)
+                    cb.setEnabled(False)
+                    # The literal lives HERE, inside tr(), on purpose: tr() with
+                    # a variable is invisible to scripts/i18n_extract.py, so the
+                    # string would never reach a catalogue (the same note
+                    # _apply_calibration_knobs carries).
+                    cb.setToolTip(tr(
+                        "This chart was made for the CR30, and ChromIQ reads "
+                        "that instrument one patch at a time — it has no strip "
+                        "reading to offer. So patch-by-patch is switched on for "
+                        "you and cannot be turned off here; the box is ticked "
+                        "so you can see the mode the measurement is really "
+                        "in.\n\n"
+                        "Load a chart made for a different instrument and this "
+                        "option comes back exactly as you had it."))
+                finally:
+                    cb.blockSignals(False)
+        elif snap is not None:
+            for m, cb in pairs:
+                was, tip = snap[m]
+                cb.blockSignals(True)
+                try:
+                    cb.setChecked(bool(was))
+                    cb.setEnabled(True)
+                    cb.setToolTip(tip)
+                finally:
+                    cb.blockSignals(False)
+            self._pbp_lock_snapshot = None
 
     def _guard_run(self) -> "Run | None":
         """The run the verification guard checks (#130). Prefers the Profile-run
@@ -2622,7 +2763,7 @@ class TabMeasure(QWidget):
             "bidir_auto": self._m_bidir_auto_cb.isChecked(),
             "suppress":   self._m_suppress_cb.isChecked(),
             "nocal":      self._m_nocal_cb.isChecked(),
-            "pbp":        self._m_pbp_cb.isChecked(),
+            "pbp":        self._pbp_user_value("manual"),
             # "Live preview" view controls (#126) — preview-only, but saved so a
             # preset restores the whole workspace look the user prefers.
             "overlay_mode":  self._m_overlay_mode.currentData(),
@@ -2649,7 +2790,7 @@ class TabMeasure(QWidget):
         self._m_bidir_auto_cb.setChecked(bool(data.get("bidir_auto", True)))
         self._m_suppress_cb.setChecked(bool(data.get("suppress", True)))
         self._m_nocal_cb.setChecked(bool(data.get("nocal", False)))
-        self._m_pbp_cb.setChecked(bool(data.get("pbp", False)))
+        self._set_pbp_user_value("manual", bool(data.get("pbp", False)))
         # "verify" in an older preset is ignored: the checkbox it drove is gone.
         _om = self._m_overlay_mode.findData(data.get("overlay_mode", "both"))
         if _om >= 0:
@@ -2689,7 +2830,8 @@ class TabMeasure(QWidget):
             self._m_bidir_auto_cb.setChecked(bool(s.get("manual2_chartread_bidir_auto", True)))
             self._m_suppress_cb.setChecked(bool(s.get("manual2_chartread_suppress", True)))
             self._m_nocal_cb.setChecked(bool(s.get("manual2_chartread_nocal", False)))
-            self._m_pbp_cb.setChecked(bool(s.get("manual2_chartread_pbp", False)))
+            self._set_pbp_user_value(
+                "manual", bool(s.get("manual2_chartread_pbp", False)))
             _om = self._m_overlay_mode.findData(s.get("manual2_overlay_mode", "both"))
             if _om >= 0:
                 self._m_overlay_mode.setCurrentIndex(_om)
@@ -3111,6 +3253,11 @@ class TabMeasure(QWidget):
         self._update_resume_availability()
         self._update_precond_availability()
         self._refresh_bidir_autodetect()
+        # The chart decides patch-by-patch for a CR30 (#159), and set_ti1_path
+        # is where the chart changes: project open, Profile-run and Run-type
+        # changes, and every cross-tab load all arrive here. Same place, same
+        # reason as the -B auto-detect one line above.
+        self._apply_cr30_pbp_lock()
         # #134 / K1 (Knut): the overlay auto-offer is a MEASURE-tab feature, but
         # set_ti1_path is also driven cross-tab — the Print tab's ti2_loaded, the
         # Check tab's ti2_found, project open, session restore and Profile-run /
@@ -11309,7 +11456,7 @@ class TabMeasure(QWidget):
             # inconsistent"*. Guided does not offer the option, so Guided does
             # not use it.
             disable_initial_cal = False,
-            patch_by_patch      = self._pbp_cb.isChecked(),
+            patch_by_patch      = self._resolve_patch_by_patch("guided"),
             resume              = self._resume_has_anything_to_resume(
                 self._resume_cb.isChecked()),
             extra_args          = " ".join(extra_args),
@@ -11327,7 +11474,7 @@ class TabMeasure(QWidget):
             force_bidir         = self._resolve_force_bidir("manual"),
             suppress_warnings   = self._m_suppress_cb.isChecked(),
             disable_initial_cal = self._m_nocal_cb.isChecked(),
-            patch_by_patch      = self._m_pbp_cb.isChecked(),
+            patch_by_patch      = self._resolve_patch_by_patch("manual"),
             resume              = self._resume_has_anything_to_resume(
                 self._m_resume_cb.isChecked()),
             extra_args          = " ".join(extra_args),
@@ -11352,7 +11499,7 @@ class TabMeasure(QWidget):
             # `_collect_guided` hard-codes the flag off, so saving its state
             # would write a default no Guided user can see or change — D4's
             # exact shape. Manual's Save as Defaults still stores it below.
-            s.set("measure_patch_by_patch",    self._pbp_cb.isChecked())
+            s.set("measure_patch_by_patch",    self._pbp_user_value("guided"))
             s.set("measure_overlay_mode",      self._g_overlay_mode.currentData())
             s.set("measure_only_measured",     self._g_only_measured.isChecked())
             s.set("measure_patch_tile",        self._g_patch_tile.isChecked())
@@ -11374,7 +11521,7 @@ class TabMeasure(QWidget):
             s.set("manual2_chartread_bidir_auto", self._m_bidir_auto_cb.isChecked())
             s.set("manual2_chartread_suppress", self._m_suppress_cb.isChecked())
             s.set("manual2_chartread_nocal",    self._m_nocal_cb.isChecked())
-            s.set("manual2_chartread_pbp",      self._m_pbp_cb.isChecked())
+            s.set("manual2_chartread_pbp",      self._pbp_user_value("manual"))
             s.set("manual2_overlay_mode",       self._m_overlay_mode.currentData())
             s.set("manual2_only_measured",      self._m_only_measured.isChecked())
             s.set("manual2_patch_tile",         self._m_patch_tile.isChecked())
@@ -11401,7 +11548,8 @@ class TabMeasure(QWidget):
         self._bidir_auto_cb.setChecked(bool(s.get("measure_bidir_auto", True)))
         self._suppress_cb.setChecked(bool(s.get("measure_suppress_warnings", True)))
         self._nocal_cb.setChecked(bool(s.get("measure_no_cal", False)))
-        self._pbp_cb.setChecked(bool(s.get("measure_patch_by_patch", False)))
+        self._set_pbp_user_value(
+            "guided", bool(s.get("measure_patch_by_patch", False)))
         _gom = self._g_overlay_mode.findData(s.get("measure_overlay_mode", "both"))
         if _gom >= 0:
             self._g_overlay_mode.setCurrentIndex(_gom)
@@ -11444,7 +11592,8 @@ class TabMeasure(QWidget):
         self._m_bidir_auto_cb.setChecked(bool(s.get("manual2_chartread_bidir_auto", True)))
         self._m_suppress_cb.setChecked(bool(s.get("manual2_chartread_suppress", True)))
         self._m_nocal_cb.setChecked(bool(s.get("manual2_chartread_nocal", False)))
-        self._m_pbp_cb.setChecked(bool(s.get("manual2_chartread_pbp", False)))
+        self._set_pbp_user_value(
+            "manual", bool(s.get("manual2_chartread_pbp", False)))
         _om = self._m_overlay_mode.findData(s.get("manual2_overlay_mode", "both"))
         if _om >= 0:
             self._m_overlay_mode.setCurrentIndex(_om)

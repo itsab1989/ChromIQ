@@ -835,3 +835,203 @@ def test_the_pace_key_follows_the_chart_through_the_ti1(qapp, tmp_path) -> None:
     tab._ti1_path = _ti1_with_ti2_sibling(tmp_path / "f", "GretagMacbeth i1 Pro")
     assert tab._pace_config().min_samples == 20, \
         "and an i1Pro chart must still get the i1Pro row"
+
+
+# ---------------------------------------------------------------------------
+# 14. Change C (#159): patch-by-patch is LOCKED ON for a CR30 chart
+#
+# Basti's ruling: on, in both Guided and Manual, and the user cannot deselect
+# it. The lock lives at the RESOLVER, not the widget, because there are nine
+# readers of "patch by patch" — and the two GLOBAL writers must keep writing
+# the user's own value, or one press of Save as Defaults on a CR30 chart opens
+# every future non-CR30 run in a slow, wrong read (finding F6).
+# ---------------------------------------------------------------------------
+
+def _tab_with(tmp_path: Path, instrument: str, engine: str = "chromiq"):
+    tab, settings = _measure_tab(tmp_path, engine)
+    tab.set_ti1_path(_ti1_with_ti2_sibling(tmp_path / instrument[:4], instrument))
+    return tab, settings
+
+
+def test_a_cr30_chart_forces_p_in_both_modules(qapp, tmp_path) -> None:
+    """(a) even with the stored setting False, which is its default."""
+    tab, _ = _measure_tab(tmp_path, "chromiq")
+    tab._pbp_cb.setChecked(False)
+    tab._m_pbp_cb.setChecked(False)
+    tab.set_ti1_path(_ti1_with_ti2_sibling(tmp_path / "c", "CR30"))
+    assert tab._resolve_patch_by_patch("guided") is True
+    assert tab._resolve_patch_by_patch("manual") is True
+    assert tab._collect_guided().patch_by_patch is True
+    assert tab._collect_manual().patch_by_patch is True
+    assert tab._is_pbp_checked() is True, \
+        "the ~10 downstream UI behaviours must agree with the read"
+
+
+def test_the_flag_reaches_the_command_line(qapp, tmp_path) -> None:
+    """The point of all of it: chartread must actually be given -p, because
+    MeasureManager derives its spot-mode key routing from the same field."""
+    from workflow.measure_manager import MeasureManager
+    from core.argyll_runner import ArgyllRunner
+    tab, settings = _measure_tab(tmp_path, "chromiq")
+    tab._m_pbp_cb.setChecked(False)
+    tab.set_ti1_path(_ti1_with_ti2_sibling(tmp_path / "c", "CR30"))
+    mgr = MeasureManager(ArgyllRunner(settings))
+    assert "-p" in mgr._build_args(tab._collect_manual())
+
+
+def test_both_boxes_are_ticked_and_disabled_and_neither_is_hidden(
+        qapp, tmp_path) -> None:
+    """§3.2: this tab forbids reading a control the user cannot see, so the
+    box is shown, ticked, greyed and given a reason — never hidden."""
+    tab, _ = _tab_with(tmp_path, "CR30")
+    for cb in (tab._pbp_cb, tab._m_pbp_cb):
+        assert cb.isChecked() is True
+        assert cb.isEnabled() is False
+        assert cb.isHidden() is False
+        assert "CR30" in cb.toolTip(), "a greyed control must say why"
+
+
+def test_loading_another_chart_restores_the_tick_and_the_tooltip(
+        qapp, tmp_path) -> None:
+    """(b). Without this the user's unticked box never comes back — the case
+    that makes the restore mandatory rather than cosmetic."""
+    tab, _ = _measure_tab(tmp_path, "chromiq")
+    tab._pbp_cb.setChecked(False)
+    tab._m_pbp_cb.setChecked(False)
+    tips = (tab._pbp_cb.toolTip(), tab._m_pbp_cb.toolTip())
+    tab.set_ti1_path(_ti1_with_ti2_sibling(tmp_path / "c", "CR30"))
+    assert tab._pbp_cb.isChecked() and not tab._pbp_cb.isEnabled()
+    tab.set_ti1_path(_ti1_with_ti2_sibling(tmp_path / "f", "GretagMacbeth i1 Pro"))
+    assert tab._pbp_cb.isChecked() is False
+    assert tab._m_pbp_cb.isChecked() is False
+    assert tab._pbp_cb.isEnabled() and tab._m_pbp_cb.isEnabled()
+    assert (tab._pbp_cb.toolTip(), tab._m_pbp_cb.toolTip()) == tips, \
+        "the tooltip is snapshotted and restored too, like the calibration knobs"
+    assert tab._resolve_patch_by_patch("guided") is False
+
+
+def test_a_ticked_box_survives_the_round_trip(qapp, tmp_path) -> None:
+    """Boundary: a user who WANTED patch-by-patch keeps it afterwards."""
+    tab, _ = _measure_tab(tmp_path, "chromiq")
+    tab._pbp_cb.setChecked(True)
+    tab.set_ti1_path(_ti1_with_ti2_sibling(tmp_path / "c", "CR30"))
+    tab.set_ti1_path(_ti1_with_ti2_sibling(tmp_path / "f", "X-Rite ColorMunki"))
+    assert tab._pbp_cb.isChecked() is True and tab._pbp_cb.isEnabled()
+
+
+def test_engaging_the_lock_twice_does_not_overwrite_the_snapshot(
+        qapp, tmp_path) -> None:
+    """The #137 R1 shape, in TabChart._apply_calibration_knobs' own words:
+    going in twice must not snapshot the forced values."""
+    tab, _ = _measure_tab(tmp_path, "chromiq")
+    tab._pbp_cb.setChecked(False)
+    tab.set_ti1_path(_ti1_with_ti2_sibling(tmp_path / "c", "CR30"))
+    tab._apply_cr30_pbp_lock()
+    tab._apply_cr30_pbp_lock()
+    tab.set_ti1_path(_ti1_with_ti2_sibling(tmp_path / "f", "GretagMacbeth i1 Pro"))
+    assert tab._pbp_cb.isChecked() is False
+
+
+def test_save_as_defaults_on_a_cr30_chart_leaves_the_globals_alone(
+        qapp, tmp_path) -> None:
+    """(c) FINDING F6. These two keys seed EVERY target that has nothing
+    stored, so a forced tick here opens every future non-CR30 run in a slow,
+    wrong read the user never asked for."""
+    tab, settings = _measure_tab(tmp_path, "chromiq")
+    tab._pbp_cb.setChecked(False)
+    tab._m_pbp_cb.setChecked(False)
+    tab.set_ti1_path(_ti1_with_ti2_sibling(tmp_path / "c", "CR30"))
+    for idx in (0, 1):                    # Guided saves its keys, Manual its own
+        tab._stack.setCurrentIndex(idx)
+        tab._on_save_defaults()
+    assert settings.get("measure_patch_by_patch") is False
+    assert settings.get("manual2_chartread_pbp") is False
+
+
+def test_save_as_defaults_still_stores_what_the_user_really_chose(
+        qapp, tmp_path) -> None:
+    """The other half of F6: the lock must not make the setting unsavable."""
+    tab, settings = _measure_tab(tmp_path, "chromiq")
+    tab._pbp_cb.setChecked(True)
+    tab._m_pbp_cb.setChecked(True)
+    tab.set_ti1_path(_ti1_with_ti2_sibling(tmp_path / "c", "CR30"))
+    for idx in (0, 1):                    # Guided saves its keys, Manual its own
+        tab._stack.setCurrentIndex(idx)
+        tab._on_save_defaults()
+    assert settings.get("measure_patch_by_patch") is True
+    assert settings.get("manual2_chartread_pbp") is True
+
+
+def test_a_manual_preset_saved_on_a_cr30_chart_does_not_carry_p(
+        qapp, tmp_path) -> None:
+    """(d) The preset is applied to whatever chart comes later, so a forced
+    tick travels into charts that have nothing to do with a CR30."""
+    tab, _ = _measure_tab(tmp_path, "chromiq")
+    tab._m_pbp_cb.setChecked(False)
+    tab.set_ti1_path(_ti1_with_ti2_sibling(tmp_path / "c", "CR30"))
+    assert tab._m_collect_preset_data()["pbp"] is False
+
+
+def test_applying_a_preset_while_locked_lands_in_the_snapshot(
+        qapp, tmp_path) -> None:
+    """A preset must not show an unticked box over a read that is ticked —
+    and its value must be what comes back when the lock releases."""
+    tab, _ = _measure_tab(tmp_path, "chromiq")
+    tab._m_pbp_cb.setChecked(False)
+    tab.set_ti1_path(_ti1_with_ti2_sibling(tmp_path / "c", "CR30"))
+    tab._m_apply_preset_data({"pbp": True})
+    assert tab._m_pbp_cb.isChecked() is True, "still ticked on screen"
+    assert tab._resolve_patch_by_patch("manual") is True
+    tab.set_ti1_path(_ti1_with_ti2_sibling(tmp_path / "f", "GretagMacbeth i1 Pro"))
+    assert tab._m_pbp_cb.isChecked() is True, \
+        "the preset's own value is what the user gets back"
+
+
+def test_the_lock_is_keyed_on_the_chart_and_not_on_a_preference(
+        qapp, tmp_path) -> None:
+    """C.6. There is no 'selected instrument' in this tab: the two Instrument
+    spins are chartread's -c comms PORT. A non-CR30 chart must be unlocked no
+    matter what the app-wide chart_instrument preference says."""
+    tab, settings = _measure_tab(tmp_path, "chromiq")
+    settings.set("chart_instrument", "CR30")
+    tab._pbp_cb.setChecked(False)
+    tab.set_ti1_path(_ti1_with_ti2_sibling(tmp_path / "f", "GretagMacbeth i1 Pro"))
+    assert tab._resolve_patch_by_patch("guided") is False
+    assert tab._pbp_cb.isEnabled() is True
+
+
+def test_the_resolver_decides_and_not_the_widget(qapp, tmp_path) -> None:
+    """THE POINT OF C.1, and a gap the other tests cannot see.
+
+    With the box ticked by the lock, a test that only reads the widget passes
+    whether the resolver consults the chart or not — which is exactly the
+    "locking only the checkbox leaves #3 correct by accident and every
+    stale-state path wrong" failure. So untick the boxes behind the lock's
+    back, the way `measure_settings.apply` does when a target stored `false`
+    (reader #8, which writes the widget directly through `_write`), and ask the
+    resolver again. The chart is what decides.
+    """
+    tab, _ = _measure_tab(tmp_path, "chromiq")
+    tab.set_ti1_path(_ti1_with_ti2_sibling(tmp_path / "c", "CR30"))
+    tab._pbp_cb.setChecked(False)          # a stale writer reaching the widget
+    tab._m_pbp_cb.setChecked(False)
+    assert tab._resolve_patch_by_patch("guided") is True
+    assert tab._resolve_patch_by_patch("manual") is True
+    assert tab._collect_guided().patch_by_patch is True
+    assert tab._collect_manual().patch_by_patch is True
+    assert tab._is_pbp_checked() is True
+
+
+def test_a_target_that_stored_false_cannot_unlock_a_cr30_chart(
+        qapp, tmp_path) -> None:
+    """The same thing through the real store (reader #8). §5.1: with `-x` on
+    and `patch_by_patch` off, the helper is in spot mode and MeasureManager
+    thinks it is in strip mode — so `skip_current_strip` sends the wrong key.
+    That is why C is a correctness requirement for B, not a convenience."""
+    from workflow.measure_settings import apply as apply_measure
+    tab, _ = _measure_tab(tmp_path, "chromiq")
+    tab.set_ti1_path(_ti1_with_ti2_sibling(tmp_path / "c", "CR30"))
+    apply_measure(tab, {"patch_by_patch": {"enabled": True, "value": False},
+                        "patch_by_patch_guided": {"enabled": True, "value": False}})
+    assert tab._resolve_patch_by_patch("guided") is True
+    assert tab._resolve_patch_by_patch("manual") is True

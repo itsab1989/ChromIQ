@@ -157,9 +157,14 @@ def wired(tmp_path, qapp):
     import ui.tabs.tab_measure as tm
     # `load_target_settings` re-asserts a guided refinement's ticks on both of
     # its exits, so the stub needs that method too — otherwise the real load
-    # path cannot run here at all.
+    # path cannot run here at all. Since #159 it re-asserts the CR30
+    # patch-by-patch lock on both exits as well, for the same reason (a stored
+    # `false` has just been written onto the screen), so that method and the
+    # chart predicate it asks come along too. The stub has no `_ti1_path`, so
+    # the lock answers "not a CR30" and does nothing here.
     for name in ("save_target_settings", "load_target_settings",
-                 "_measure_written_cache", "_reassert_guided_refinement"):
+                 "_measure_written_cache", "_reassert_guided_refinement",
+                 "_apply_cr30_pbp_lock", "_chart_is_cr30", "_chart_file_for"):
         setattr(_WiredTab, name, getattr(tm.TabMeasure, name))
     store = _Store(tmp_path)
     return _WiredTab(store), store
