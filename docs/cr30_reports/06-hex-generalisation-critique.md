@@ -180,3 +180,127 @@ the shape of the fault this whole exercise exists to remove — the three origin
 *wrong* (both lists happen to say SS+CR30), so it is SERIOUS, not a blocker;
 but the next instrument will half-land, and C4 will do it silently.
 
+---
+
+## Section 3 — Downstream: what breaks when a non-SS instrument becomes hexagonal
+
+### 3.1 BLOCKER — the Guided patch count ignores everything the CR30 does
+
+`ui/tabs/tab_chart.py:11495-11531`, `_engine_geom`. The `if/elif` chain that
+translates the Guided selectors into engine kwargs has arms for `i1`/`p3`, `CM`
+and `SS`. **It has no `CR30` arm at all**, while
+`workflow/chart_creator.py:1183-1206` — the path that actually *builds* the
+chart — sets three things for a CR30 that the estimate does not:
+`layout_mode="patch_first"`, `hflag=bool(double_density)`, and (Guided only)
+`spacer_on=False` / `spacer_mode="none"`.
+
+Measured through the real engine, A4, Guided defaults:
+
+| | patches/sheet |
+|---|---|
+| what the readout shows, hexagon box **off** | **315** |
+| what the readout shows, hexagon box **on** | **315** — the box changes nothing |
+| what the chart really holds, rectangular | **345** |
+| what the chart really holds, hexagonal | **390** |
+
+So the big PATCHES number on the first screen of Create Chart is wrong by
+30 patches on a rectangular CR30 sheet and by 75 on a hexagonal one, and
+**ticking "Hexagon patches" does not move it**. That readout is also
+`self._predicted_patch_count`, which feeds the Suggest-name button
+(`tab_chart.py:11693`).
+
+This is exactly the failure `GEOM_BUILD_KEYS` was written to prevent — its own
+comment (`instruments.py:389-394`) says *"a missing key silently makes capacity
+ESTIMATES disagree with the actual render (clip_border_width once did exactly
+that — #93)"*. The lockstep is between `chart_creator._engine_build_kwargs` and
+`tab_chart._engine_geom`, and it is broken.
+
+**Ranked BLOCKER, not SERIOUS,** because it is the number the user chooses the
+chart by, it is wrong in the *conservative* direction on the shape switch (the
+feature under review looks like it does nothing), and it is on the default
+screen for the instrument being added.
+
+### 3.2 SERIOUS — the row-number band overflows at the ruled 12 mm cell
+
+Not a hexagon fault; found while verifying `raster.py:1224`'s `_protrude`
+clearance, which report 05 called the CR30's most important furniture.
+
+`rlwi = 7.5` mm is inherited from the SpectroScan's 7 mm patch. The row-number
+font, though, scales with the patch (`raster.effective_indicator_size_mm`), and
+at the CR30's 12 mm cell a two-digit row number is **8.43 mm wide against a
+7.5 mm band**. Measured at 300 dpi, A4, `default_recipe`:
+
+| inst | shape | patch | indicator | "13" width | band | text starts at |
+|---|---|---|---|---|---|---|
+| SS | flat | 7.0 | 4.25 mm | 5.08 mm | 7.5 | 7.37 mm (inside a 6 mm margin) |
+| SS | hex | 7.0 | 4.25 mm | 5.08 mm | 7.5 | 7.45 mm |
+| **CR30** | **flat** | **12.0** | **7.00 mm** | **8.43 mm** | **7.5** | **4.01 mm — 2 mm inside the margin** |
+| **CR30** | **hex** | **12.0** | **7.00 mm** | **8.43 mm** | **7.5** | **4.10 mm** |
+| CR30 | flat | 12.0, margin 2 mm | 7.00 mm | 8.43 mm | 7.5 | **0.03 mm from the paper edge** |
+| CR30 | flat | 8.0 | 4.83 mm | 5.79 mm | 7.5 | 6.65 mm (fits) |
+
+So on every CR30 sheet at the ruled size the row numbers print **outside the
+patch area's left margin**, and at a 2 mm margin they land 30 µm from the paper
+edge — inside the unprintable zone of most inkjets. It affects the rectangular
+default as much as the honeycomb, so it is not gated behind an option.
+
+Also note `raster.py:1224` `_protrude = strip_w // 4` takes another 3.0 mm on a
+hexagonal CR30, which the placement does *not* reserve (only `hxew` on the patch
+block is reserved) — the numbers move left by exactly that much. It happens to
+be cancelled here by the block's own `+hxew` shift, but the two are computed in
+different modules and nothing ties them together.
+
+### 3.3 What survives downstream — verified, do not re-derive
+
+* **`patch_rects_px` consumers.** The complete list, and every one is
+  shape-agnostic (it reads the recorded rects, which now carry the stagger for
+  any hexagonal geometry):
+  1. `workflow/layout_engine/chart.py:362-370` — writes them into
+     `<stem>.strips.json` under `"patches"`; this is what the Measure tab and
+     the margin inspector load.
+  2. `chart.py:385` → `cht_writer.boxes_from_patch_rects` — the `.cht` boxes.
+     `cht_writer.py:123-140` has no shape logic at all: it converts a rect to
+     CHT bottom-left mm. A honeycomb `.cht` is therefore correct by
+     construction, and `emit_cht` is False by default (`chart.py:188`).
+  3. `workflow/scanin_target.py:230` — the scanner target's patch boxes, via
+     the same `boxes_from_patch_rects`.
+  4. `workflow/margin_inspector.py` — reads the sidecar rects; adds the apex
+     only, never the stagger (`:277-286`).
+  5. `ui/dialogs/ti2_relayout_dialog.py:6926-6929, 7035, 7116-7135` — the
+     editor's engine preview.
+  6. `ui/tabs/tab_measure.py` via `_apply_hex_stagger` and the loaded boxes.
+* **`SAMPLE_LOC`** is written by `permutation.location_label`
+  (`geometry.py:493`) from the slot index — it never sees the shape. Identical
+  labels for flat and hex.
+* **The render and the recorded rects use the identical stagger.**
+  `raster._hexagon_points` (`raster.py:934`) computes
+  `dx = round(-w/4) if step % 2 == 0 else round(w/4)` on `w = xR - x0` where
+  `xR = px(x_of(p) + pwid)`; `geometry.patch_rects_px` (`:520-523`) computes
+  the same expression on `_x1 - _x0` where `_x1 = px(x_of(p) + pwid)`. Same
+  quantity, same rounding, same parity variable (`j` = `step`). They cannot
+  diverge without one of them being edited.
+* **The vector PDF and the Tier D device raster** get the hexagon too:
+  `raster.py:1247-1249` records `("hex", _pts, dev)` under the same `ss_hex`
+  flag, so `collect_device_geom` consumers follow automatically.
+
+### 3.4 If a *third* instrument is made hexagonal tomorrow
+
+I walked it as an i1Pro to find where the "one-line change" claim fails. Adding
+`hexagonal=bool(hflag)` to a branch is **not** sufficient:
+
+1. `presets.LayoutRecipe.mode()` (C4) returns `"clip"`/`"noclip"` for i1, so the
+   flat and hex recipes get the **same `preset_key()`** and overwrite each other
+   in `PresetStore`. Silent data loss, not a missing feature.
+2. `layout_options_panel.modes_for` (C8) offers no `hex` entry, so the shape is
+   unreachable from Manual.
+3. `tab_chart._update_dd_visibility` (C10) hides the Guided checkbox and
+   force-unchecks it at `:11891`.
+4. `tab_chart._engine_geom` (C1) never maps the checkbox to `hflag` — the same
+   hole the CR30 is in now.
+5. `chart_creator._engine_build_kwargs` has no arm either.
+
+None of that is caught by a test, because `hex_capable_instruments()` would
+return the new instrument and the *engine* tests would pass. The engine half of
+the generalisation is done; the **recipe/UI half is still seven hard-coded
+lists**.
+
