@@ -3,10 +3,11 @@
 ## v4.1.4
 
 Every "Save as…" dialog in 4.1.3 was broken. One line was at fault, nothing had
-ever tested it, and it took a bug report about a help card to find it. This
-release fixes that, stops ChromIQ ever joining a project you already have
-without saying so, and makes typing in the Create Chart name field twenty times
-faster.
+ever tested it, and it took a bug report about a help card to find it. Looking
+for its neighbours turned up more: typing `0.7` into a number field gave you
+`7.0`, a chart build you interrupted destroyed the chart it was replacing, and
+deleting a project could destroy half of it and then tell you nothing had
+happened.
 
 ### Fixed
 
@@ -17,6 +18,26 @@ faster.
   window* argument with a folder path, so it raised an error before it could
   open, for every caller that suggests a file name. Reported against Help ▸
   SAVE AS PDF…, where it showed as “Something went wrong while writing the PDF”.
+- **Typing `0.7` no longer gives you `7.0`.** On any computer set to a language
+  that writes decimals with a comma — German, French, Spanish, most of Europe —
+  every number field rejected the `.` you typed, closed up the digits, and left
+  a number ten times too big, in range, with nothing on screen disagreeing with
+  it. All fourteen fields. The one that costs the most is the patch-consistency
+  tolerance under Measure: ChromIQ really sent `chartread -T7.00` instead of
+  `-T0.70`, which tells the instrument to accept a strip ten times further out
+  of agreement than you asked for — a measurement that looks fine and is not.
+  Both `.` and `,` are now read as the decimal point, whichever your computer
+  uses.
+- **A chart build you stop, or that fails, no longer destroys the chart it was
+  replacing.** The old chart is set aside before the build starts and put back
+  on any ending that does not produce a new one — including closing ChromIQ
+  while it runs. This matters most in the window the app itself tells you to
+  spend waiting: between printing a chart and measuring it. Losing the chart's
+  `.ti2` there makes the sheets on your desk unreadable, and because the layout
+  seed lives only in that file, building again from the same settings produces
+  a different chart that no longer matches them.
+- **There is a Stop button on Create Chart.** Until now the only way out of a
+  build was to quit ChromIQ, which was exactly what destroyed the chart.
 - **Cancelling a name prompt no longer closes ChromIQ.** Loading a patch set
   with no project open, or copying in a profile that lives outside your working
   folder, asks you to name the project — and pressing Cancel there shut the app
@@ -55,6 +76,21 @@ faster.
   unticking it afterwards changed nothing.
 
 ### Fixed — your work is safer than it was
+
+- **Deleting moves things to your Trash** — the Recycle Bin on Windows, the
+  Wastebasket on Linux — so you can bring them back until you empty it. It used
+  to remove files one by one and stop at the first it could not: one read-only
+  sub-folder was enough to destroy ten files of twenty-nine, `project.json`
+  among them, so ChromIQ could no longer open what was left — while the window
+  said “Nothing was changed.” A move to the Trash cannot half-happen, and when
+  there is nowhere to put the files nothing is touched at all.
+- **The Delete window stops claiming nothing will be lost when something will.**
+  Re-making a chart on a measured run archives the measurement and the profile
+  into the run's “old” folder, on purpose, because they cannot be recreated.
+  Delete only looked at the live files, so such a run reported itself as never
+  measured — and the window said so while deleting two archived measurements, a
+  profile and both averaging readings. It now counts what is in “old”, names the
+  dates, and mentions the copy of the chart your measurement was taken with.
 
 - **The individual readings of an averaged measurement are no longer deleted.**
   Re-generating a chart archived the measurement and the profile and then
