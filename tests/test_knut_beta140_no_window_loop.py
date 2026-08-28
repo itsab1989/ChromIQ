@@ -44,6 +44,8 @@ def manager(qapp):
     m = MeasureManager.__new__(MeasureManager)
     MeasureManager.__init__(m, _Runner())
     m._engine_active = True
+    # The run supplies its own values (chartread -x); see save_partial_and_quit().
+    m._external_values = False
     return m
 
 

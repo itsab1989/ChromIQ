@@ -44,6 +44,8 @@ def _manager(*, engine: bool):
     m = MeasureManager.__new__(MeasureManager)      # no Qt parent needed
     m._runner = _Runner()
     m._engine_active = engine
+    # The run supplies its own values (chartread -x); see save_partial_and_quit().
+    m._external_values = False
     m._user_quit = False
     m._save_partial_state = "wait_strip_menu"
     m._pending_post_retry_key = None

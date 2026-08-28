@@ -343,6 +343,11 @@ class MeasureManager(QObject):
         # ChromIQ chart-reading engine (#126): True while a --json helper
         # session is running; send_key() then translates keys to commands.
         self._engine_active: bool = False
+        # True while the run supplies its own values (chartread -x) rather than
+        # opening an instrument. The two are independent: the CR30 is read by
+        # ChromIQ and handed to the engine helper, so both are set at once.
+        # It decides how a partial read is saved — see save_partial_and_quit().
+        self._external_values: bool = False
         # Engine → stock-chartread safety net (#126, mavtop): the instrument
         # failure the engine reported, whether it ever read anything, whether
         # the user stopped it, and whether we already retried once.
