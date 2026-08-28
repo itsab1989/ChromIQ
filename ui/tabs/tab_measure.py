@@ -6013,11 +6013,25 @@ class TabMeasure(QWidget):
         title = tr("Keep what you have measured so far?")
         box.setWindowTitle(title)
         had = self._readings_before_session()
-        kept = ("" if not had else "\n\n" + tr(
-            "Your previous measurement of {m} patches is put back exactly as "
-            "it was.").format(m=had))
-        box.setText(title + "\n\n" + tr(
-            "You have read {n} patches in this session. They are not in your "
+        # Count-bearing sentences get real singular and plural variants, never
+        # "(s)" — CLAUDE.md. Both of these could say "1 patches", and the first
+        # one is reached with n == 1 more often than any other value: it is the
+        # window a patch-by-patch user meets after their very first reading.
+        if not had:
+            kept = ""
+        elif had == 1:
+            kept = "\n\n" + tr(
+                "Your previous measurement of 1 patch is put back exactly as "
+                "it was.")
+        else:
+            kept = "\n\n" + tr(
+                "Your previous measurement of {m} patches is put back exactly "
+                "as it was.").format(m=had)
+        read_line = (tr("You have read 1 patch in this session.") if n == 1
+                     else tr("You have read {n} patches in this "
+                             "session.").format(n=n))
+        box.setText(title + "\n\n" + read_line + " " + tr(
+            "They are not in your "
             "measurement file yet — ChromIQ can write them now, or end the "
             "session without them.\n\n"
             "What each button does:\n\n"
@@ -6028,7 +6042,7 @@ class TabMeasure(QWidget):
             "•  Discard and stop — ends the session and keeps nothing from "
             "it.{kept}\n\n"
             "•  Keep measuring — closes this window and carries on where you "
-            "were.").format(n=n, kept=kept))
+            "were.").format(kept=kept))
         save = box.addButton(tr("Save and stop"),
                              QMessageBox.ButtonRole.AcceptRole)
         discard = box.addButton(tr("Discard and stop"),
@@ -11088,14 +11102,24 @@ class TabMeasure(QWidget):
             patches = []
         if not patches or not any(self._patch_boxes):
             return False
+        # Will ANY of these patches actually land? _on_chart_measured drops
+        # every patch whose loc resolves to no box, and it does so silently, so
+        # asking afterwards how full the preview is cannot answer this
+        # question: the overlay accumulates, so a leftover from an earlier
+        # chart would read as success for a file that painted nothing. Decide
+        # from the patches themselves, before drawing.
+        drawable = sum(1 for p in patches
+                       if self._locate_patch(str(p.get("loc", "")))[1] is not None)
+        if not drawable:
+            # Returning True on an empty overlay is what made this silent: the
+            # caller took it as painted and so never pointed the user at
+            # Tools > Inspect a measurement, and the user was left looking at
+            # an unchanged chart with no message of any kind.
+            log.info("overlay: none of the %d measured patches match this "
+                     "chart's geometry", len(patches))
+            return False
         self._on_chart_measured({"patches": patches})
-        # Only claim success if something was actually painted. Returning True
-        # on an empty overlay is what made this silent: the caller believed the
-        # overlay was up and so never pointed the user at Tools > Inspect a
-        # measurement, and the user was left looking at an unchanged chart with
-        # no message of any kind.
-        return any(self._preview._patch_overlay.get(pg)
-                   for pg in range(max(1, len(self._patch_boxes))))
+        return True
 
     def _clear_overlay(self) -> None:
         """Remove a statically-shown overlay (#134)."""

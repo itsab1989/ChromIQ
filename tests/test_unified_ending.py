@@ -112,10 +112,22 @@ def test_it_says_how_many_are_at_stake():
 
 
 def test_the_previous_measurement_is_only_mentioned_when_there_is_one():
-    """Knut: the sentence assumed a measurement was already there."""
+    """Knut: the sentence assumed a measurement was already there.
+
+    Asserted on the BEHAVIOUR, not on the spelling of the conditional: this
+    used to pin the exact substring "if not had else", which broke the moment
+    the branch grew a singular variant — while the rule it guards was still
+    perfectly honoured. A rule worth a test is worth testing where it is true.
+    """
     src = inspect.getsource(TabMeasure._confirm_end_of_session)
     assert "had = self._readings_before_session()" in src
-    assert 'if not had else' in src
+    i = src.index("had = self._readings_before_session()")
+    branch = src[i:i + 900]
+    assert "if not had" in branch, "nothing checks whether there IS a previous one"
+    # The sentence itself must sit on the far side of that check.
+    assert branch.index("if not had") < branch.index("is put back exactly"), (
+        "the previous-measurement sentence is built before anything asks "
+        "whether there is a previous measurement")
 
 
 def test_ending_with_nothing_read_still_says_so():

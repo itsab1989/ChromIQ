@@ -981,6 +981,18 @@ class MeasureManager(QObject):
         return bool(self._read_something)
 
     def abort(self) -> None:
+        """End the run now. Always deliberate — never an engine failure.
+
+        Every caller is a decision, not a malfunction: the user declined to
+        measure, chose "Discard and stop", or the instrument was reported gone.
+        None of them is a reason to retry the chart on stock chartread, and the
+        non-zero exit that follows must not be described as one.
+
+        Without this the user who closed the app mid-measurement was told
+        "the chart's instrument is one stock chartread cannot read (unknown
+        error)". Nothing had failed; they had quit.
+        """
+        self._user_quit = True
         self._runner.abort()
 
     # ------------------------------------------------------------------
