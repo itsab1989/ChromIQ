@@ -1,4 +1,4 @@
-STATUS: in-progress
+STATUS: complete
 
 # 06 — Hexagon generalisation critique (#159)
 
