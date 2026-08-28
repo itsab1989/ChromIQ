@@ -586,3 +586,104 @@ trip that waits on a human pressing the device's own button. **It must not run
 on the main thread**, and `feedback_qthread_reference_lifetime` applies — the
 worker must stay referenced until it finishes.
 
+---
+
+## 6. Things nobody has raised that will bite a real user
+
+### 6.1 The `.ti1` blindness is not only a CR30 bug — it costs an i1Pro user `-b`
+
+`_refresh_bidir_autodetect` (`tab_measure.py:3596-3641`) and `_pace_config`
+(`:4341-4348`) make the **same** unresolved `read_target_instrument(self._ti1_path)`
+call as the two CR30 sites. Measured on Basti's project:
+
+```
+.ti1  instr=None  cr30=False  force_b=False  disable_B=False  randomised=False
+.ti2  instr='CR30' cr30=True  force_b=False  disable_B=False  randomised=True
+```
+
+`randomised` flips **False → True** and `instr` **None → 'CR30'**. So after
+*any* project reopen:
+
+* **an i1Pro chart silently loses its auto `-b`** (`force_bidir_for_instrument`
+  returns True only for the i1Pro family), which is the flag that lets a strip
+  be swiped either way — a documented cause of repeated re-reads;
+* `_detected_randomized` is False, so the preview's bidirectional arrow and the
+  "Chart instrument: … → using Argyll's default strip recognition" log line are
+  both wrong;
+* the CR30 pace row falls back to the i1Pro key instead of `"cr30"`
+  (`core/measure_pace.py:343, 364, 689`), so the strip-pace panel is judged
+  live on a chart that can never produce a strip.
+
+**SERIOUS, pre-existing, not CR30-specific.** One `_chart_file_for` call fixes
+all of it; Change 0 should cover these two sites as well as the two CR30 ones.
+
+### 6.2 A developer's message is being shown to the user, and §M never saw it
+
+Log lines 8584-8585 show the tab printing the helper's own stderr into the
+user's measurement log:
+
+> `chromiq-chartread: Error - The chart was made for 'CR30', which ChromIQ reads itself. Measure it in ChromIQ, or use -x to supply values.`
+
+Read that as a user: they *are* measuring it in ChromIQ, and they have no way
+to "use `-x`". It is a command-line author's sentence shown to someone who has
+just pressed Start. `tests/test_message_catalogue.py` cannot catch it — §M
+polices Python message constants, and this string lives in
+`chromiq_chartread.c:3712`. **MINOR on its own, SERIOUS as a class**: every
+`error()` in the fork can reach the user's log the same way.
+
+### 6.3 The teardown fix in `3abf6c40` did not land — it renamed the error
+
+`3abf6c40` set out to stop `test_cr30_external_values.py` leaking a
+`BrokenPipeError` at teardown. Run today, on that commit:
+
+```
+$ QT_QPA_PLATFORM=offscreen pytest tests/test_cr30_external_values.py … -q
+…PytestUnhandledThreadExceptionWarning: Exception in thread Thread-5 (_pump)
+  File "tests/test_cr30_external_values.py", line 58, in _pump
+    for line in self.p.stdout:
+ValueError: I/O operation on closed file
+82 passed, 3 warnings
+```
+
+`Reader.kill` now closes `self.p.stdout` **while the `_pump` thread is still
+iterating it**. The unraisable exception is still there under a different name.
+Fix: kill the process, `wait()`, let the pump see EOF, **join the thread**, and
+only then close. (`feedback_a_mutation_must_be_proven_to_land` — a fix that is
+not observed is not a fix.) **MINOR, CR30-specific.**
+
+### 6.4 `test_cr30_external_values.py` is pinned to a path in Basti's home
+
+`tests/test_cr30_external_values.py:34`:
+
+```python
+SRC_TI2 = pathlib.Path("/Users/Basti/ChromIQ/ttestitest/ttestitest.ti2")
+```
+
+with `pytestmark = pytest.mark.skipif(not BIN.is_file() or not SRC_TI2.is_file())`.
+On any other machine — CI, a second developer, a fresh clone, or Basti after he
+deletes that project — the file **skips silently** and the four blockers it
+pins go unguarded. The suite has a session-scoped `demo_projects_root` fixture
+for exactly this (CLAUDE.md: *"There is ONE session-scoped build for the whole
+suite"*), or the chart can be generated in `tmp_path`. **SERIOUS, CR30-specific**
+— it is the only regression guard the `-x` path has.
+
+### 6.5 The no-instrument window would tell a CR30 user to change an unrelated setting
+
+`_show_no_instrument_window` (`:6014-6075`) picks `M_NO_INSTRUMENT_FAST` and
+offers a **"Turn off faster connection"** button whenever
+`fast_instrument_connect` is on. Under `-x` the helper cannot raise
+`no_instrument`, so this is safe **today** — but the moment ChromIQ's own CR30
+backend gets a "the device did not answer" path and reuses this window, a BLE
+failure will be met with an offer to change an ArgyllCMS serial-port
+preference. **MINOR, forward-looking** — but it is the direct answer to Basti's
+question: the setting must not be *ignored* for a CR30, it must simply never be
+*mentioned* to one.
+
+### 6.6 The engine default means the existing CR30 guard almost never runs
+
+`core/settings.py:189` — `"chartread_engine": "chromiq"`, with a migration at
+`:901-909` that resets an older stored value. So `_engine_selected()` is True
+for essentially everyone, and `_blocked_by_stock_chartread_for_cr30` returns
+False at its first line (`:4433`). That is by design; it is worth stating
+because it means **the guard is not what protected Basti, and nothing did.**
+
