@@ -1051,9 +1051,11 @@ def render_pages(
 
     pl_px = px(place.plen)
     sp_px = px(place.pspa)
-    # SpectroScan hexagonal patches (printtarg -h): draw interlocking hexagons
-    # instead of rectangles (#93, Knut). Capacity is unchanged — only the shape.
-    ss_hex = getattr(geom, "key", "") == "SS" and getattr(geom, "hxew", 0.0) > 0
+    # Hexagonal patches (printtarg -h on the SpectroScan; the shape option on a
+    # CR30, #159): draw interlocking hexagons instead of rectangles (#93, Knut).
+    # Capacity is unchanged — only the shape.
+    from .instruments import is_hexagonal as _is_hex
+    ss_hex = _is_hex(geom)
     # Row-number band width (SpectroScan labels the grid 2-D): 0 for instruments
     # without it. Drawn to the left of the patches, the band placement reserves.
     _row_band_px = px(getattr(geom, "rlwi", 0.0))

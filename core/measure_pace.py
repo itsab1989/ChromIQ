@@ -699,7 +699,7 @@ def explanation_for(key) -> "tuple[str, str]":
             "being applied behind your back.\n\n"
             "What DOES take the time is the number of patches. Each one is a "
             "hand placement and a button press of roughly two seconds, so a "
-            "full A4 sheet of about 475 patches is a long sitting. Choose the "
+            "full A4 sheet of about 345 patches is a long sitting. Choose the "
             "patch count on the Create Chart tab with that in mind."
         ) + _calculation_note(key)
     return tr("This instrument"), tr(

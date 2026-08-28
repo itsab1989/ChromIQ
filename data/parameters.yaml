@@ -663,10 +663,10 @@ parameters:
              button on the instrument; ChromIQ records that patch and
              highlights the next one. The chart is a plain grid with row
              numbers and column letters so you can find the patch being
-             asked for. Its patch size is PROVISIONAL (10 mm squares —
-             a starting point, not a measured minimum), and each patch
-             is a placement and a press of about two seconds, so a full
-             A4 sheet of ~475 patches is a long sitting. A CR30 chart is
+             asked for. Its patch size is PROVISIONAL (12 mm squares —
+             a reasoned starting point, not a measured minimum), and each
+             patch is a placement and a press of about two seconds, so a
+             full A4 sheet of ~345 patches is a long sitting. A CR30 chart is
              ALWAYS laid out by ChromIQ's own layout engine, and can
              only be read by ChromIQ — standard ArgyllCMS chartread does
              not know this instrument and refuses the chart.

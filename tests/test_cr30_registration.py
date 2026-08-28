@@ -53,7 +53,8 @@ def test_the_base_geometry_is_a_hand_placed_spot_grid() -> None:
     # hand placement (a 33 mm opaque body hides the patch), not from the 4 mm
     # aperture — it leaves 4.00 mm of clearance all round the window.
     assert (g.plen, g.pwid, g.rrsp) == (12.0, 12.0, 12.0)
-    assert g.pwid / 2 - instruments.APERTURE_MM[KEY] / 2 == pytest.approx(4.0)
+    assert g.pwid / 2 - 4.0 / 2 == pytest.approx(4.0), \
+        "4.00 mm of clearance all round the CR30's 4 mm window"
     # No swipe: no run-in, no run-out, no jig.
     assert g.lcar == 0.0 and g.tspa == 0.0
     assert g.ruler_mm == 0.0 and g.mxrowl == instruments.MAXROWLEN
@@ -208,73 +209,6 @@ def test_rectangular_is_the_default_shape() -> None:
     r = presets.default_recipe(KEY, "A4")
     assert r.hflag is False and r.mode() == "flat"
     assert instruments.build(KEY).extra_keywords == ()
-
-
-# ---------------------------------------------------------------------------
-# 3b. The aperture floor — refused at layout time, not discovered on paper
-#     (#159: "Patch smaller than the aperture -> refused at layout time")
-# ---------------------------------------------------------------------------
-def test_the_floor_and_the_aperture_are_declared() -> None:
-    assert instruments.APERTURE_MM[KEY] == 4.0
-    assert instruments.minimum_patch_mm(KEY) == 6.0
-    assert instruments.minimum_patch_mm("i1") == 0.0, \
-        "only instruments with a declared floor are refused; others still warn"
-
-
-@pytest.mark.parametrize("mm,phrase", [
-    (2.0, "smaller than"),      # below the 4 mm window: physically impossible
-    (3.9, "smaller than"),
-    (4.0, "too small"),         # readable in principle, unplaceable in practice
-    (5.9, "too small"),
-])
-def test_a_patch_below_the_floor_is_refused_with_a_reason(mm, phrase) -> None:
-    msg = instruments.patch_size_error(KEY, mm, mm)
-    assert msg and phrase in msg and "6 mm" in msg
-    assert "aperture" not in msg.lower(), "plain language, not instrument jargon"
-
-
-@pytest.mark.parametrize("mm", [6.0, 8.0, 12.0, 30.0])
-def test_a_patch_at_or_above_the_floor_is_allowed(mm) -> None:
-    assert instruments.patch_size_error(KEY, mm, mm) is None
-
-
-def test_the_floor_applies_to_the_SHORTER_side_of_a_rectangle() -> None:
-    assert instruments.patch_size_error(KEY, 20.0, 3.0) is not None
-    assert instruments.patch_size_error(KEY, 3.0, 20.0) is not None
-    assert instruments.patch_size_error(KEY, 20.0, 6.0) is None
-
-
-def test_auto_sizing_is_not_mistaken_for_a_tiny_patch() -> None:
-    """0 means "auto" throughout the recipe, not "zero millimetres"."""
-    assert instruments.patch_size_error(KEY, 0.0, 0.0) is None
-
-
-def test_chart_creation_refuses_the_chart_rather_than_printing_it() -> None:
-    """The refusal has to be on the path a chart actually takes — and it must
-    reach the user, not be swallowed into a fallback that does not exist."""
-    from workflow.chart_creator import ChartParams
-    r = presets.default_recipe(KEY, "A4")
-    r.patch_w_mm = r.patch_h_mm = 3.0
-    p = ChartParams(instrument=KEY, paper="A4", layout_recipe=r)
-    c = _creator()
-    with pytest.raises(ValueError, match="smaller than"):
-        c._engine_kwargs(p)
-    with pytest.raises(ValueError, match="smaller than"):
-        c._engine_total_patches(p)      # must NOT quietly return None
-    # a legal size on the same path builds normally
-    r.patch_w_mm = r.patch_h_mm = 12.0
-    assert c._engine_total_patches(p) > 0
-
-
-def test_the_preflight_badge_uses_the_instruments_own_floor() -> None:
-    from workflow.layout_engine import preflight
-    g = instruments.build(KEY, patch_w=5.0, patch_h=5.0)
-    lay = geometry.compute(g, A4[0], A4[1], 10)
-    rep = preflight.check(g, lay)
-    assert not rep.ok and any("6.0 mm" in e for e in rep.errors)
-    ok = preflight.check(instruments.build(KEY),
-                         geometry.compute(instruments.build(KEY), A4[0], A4[1], 10))
-    assert ok.ok
 
 
 def test_the_preset_vocabulary_is_the_shape_choice() -> None:
@@ -610,3 +544,134 @@ def test_a_near_miss_name_can_be_repaired_to_the_cr30(qapp, tmp_path) -> None:
     assert tab._repair_target_instrument(ti2, "ChnSpec CR30") is True
     from ui.ti2_loader import read_target_instrument
     assert read_target_instrument(ti2) == "CR30"
+
+
+# ---------------------------------------------------------------------------
+# 12. Hexagons that are actually DRAWN
+#
+# The reason this section exists, in full: the CR30 gained the hexagon option,
+# the geometry shortened `plen` and reserved the apex overhang — and the chart
+# rendered as SQUARES, because the renderer, the recorded patch rects and the
+# ruler helper markers each asked `key == "SS"` on their own. The whole hex
+# suite was green throughout, because every test in it was hard-coded to the
+# SpectroScan and none of them rendered anything.
+#
+# So these assert on PIXELS and on RECTS, never on Geom fields alone, and each
+# carries a positive control on the identical path.
+# ---------------------------------------------------------------------------
+def _rgb_target(n: int):
+    from workflow.layout_engine.raster import ColorTarget
+    return ColorTarget(
+        color_rep="iRGB", device_fields=["RGB_R", "RGB_G", "RGB_B"],
+        patches=[((float(i * 9 % 100), float(i * 17 % 100), float(i * 5 % 100)),
+                  (40.0, 45.0, 50.0)) for i in range(n)])
+
+
+def _drawn_shapes(inst: str, mode: str, dpi: int = 200) -> "set[str]":
+    """The shapes the RENDERER actually put on the page, for the first sheet.
+
+    Asserting on pixels was tried first and cannot answer this: in a honeycomb
+    the corners of a patch's slot are filled by its NEIGHBOURS, so "is the
+    corner still paper" is False for a correct honeycomb as well as for the bug.
+    ``collect_device_geom`` records the exact shape drawn for each patch — the
+    only unambiguous evidence, and the same record the vector PDF and the Tier D
+    device raster are built from.
+    """
+    from workflow.layout_engine import raster
+    g = instruments.build(inst, hflag=(mode == "hex"))
+    lay = geometry.compute(g, A4[0], A4[1], 80)
+    res = raster.render_pages(_rgb_target(80), lay, g, seed=1, randomize=False,
+                              paper_w_mm=A4[0], paper_h_mm=A4[1], dpi=dpi,
+                              collect_device_geom=True)
+    assert res.patch_geom, "the render recorded no device geometry at all"
+    return {row[0] for row in res.patch_geom[0] if row[0] in ("hex", "rect")}
+
+
+@pytest.mark.parametrize("inst", ["CR30", "SS"])
+def test_a_hex_chart_really_renders_hexagons(inst) -> None:
+    """CR30 first, SpectroScan as the positive control on the identical path.
+
+    The bug this replaces: a CR30 honeycomb was laid out as hexagons — plen
+    shortened, apex overhang reserved, capacity charged for it — and then DRAWN
+    as rectangles, because the renderer asked `key == "SS"` on its own."""
+    shapes = _drawn_shapes(inst, "hex")
+    assert shapes == {"hex"}, \
+        f"{inst}: the honeycomb was drawn as {sorted(shapes)}, not hexagons"
+    assert instruments.is_hexagonal(instruments.build(inst, hflag=True))
+
+
+@pytest.mark.parametrize("inst", ["CR30", "SS"])
+def test_a_flat_chart_still_renders_rectangles(inst) -> None:
+    """The counterweight: the fix must not turn every chart into a honeycomb."""
+    assert _drawn_shapes(inst, "flat") == {"rect"}
+
+
+@pytest.mark.parametrize("inst", ["i1", "p3", "CM"])
+def test_hflag_draws_no_hexagons_on_an_instrument_that_has_none(inst) -> None:
+    """`-h` means double density on a ColorMunki, not hexagons. An instrument
+    whose geometry does not build a honeycomb must never be drawn as one."""
+    assert _drawn_shapes(inst, "hex") == {"rect"}
+
+
+@pytest.mark.parametrize("inst", ["CR30", "SS"])
+def test_the_recorded_rects_carry_the_honeycomb_stagger(inst) -> None:
+    """Rects and render must agree. Fixing the renderer alone would leave a
+    live half-patch mis-registration in the Measure highlight, the margin
+    inspector and scanin_target — which is why they share one predicate."""
+    w, h = papers.dimensions_mm("A4")
+    r = presets.default_recipe(inst, "A4", mode="hex")
+    g = instruments.geom_from_build_kwargs(
+        {**r.build_kwargs(), "instrument": inst, "paper": "A4"})
+    lay = geometry.compute(g, w, h, 120)
+    rects = geometry.patch_rects_px(g, w, h, lay, 150)
+    col = [rc for rc in rects if rc["page"] == 0][:8]
+    xs = sorted({rc["x"] for rc in col})
+    assert len(xs) == 2, \
+        f"{inst}: a honeycomb column must alternate x, got {xs}"
+    # …and the offset is the quarter-width the renderer draws with.
+    assert abs((xs[1] - xs[0]) - round(g.pwid / 2 * 150 / 25.4)) <= 2
+
+
+@pytest.mark.parametrize("inst", ["CR30", "SS"])
+def test_a_flat_chart_has_one_x_per_column(inst) -> None:
+    w, h = papers.dimensions_mm("A4")
+    r = presets.default_recipe(inst, "A4", mode="flat")
+    g = instruments.geom_from_build_kwargs(
+        {**r.build_kwargs(), "instrument": inst, "paper": "A4"})
+    lay = geometry.compute(g, w, h, 120)
+    rects = geometry.patch_rects_px(g, w, h, lay, 150)
+    assert len({rc["x"] for rc in rects[:8] if rc["page"] == 0}) == 1
+
+
+@pytest.mark.parametrize("inst", ["CR30", "SS"])
+def test_a_honeycomb_gets_no_ruler_helper_markers(inst) -> None:
+    """#152's rule, and it follows the SHAPE, not the instrument: a honeycomb
+    has no rows to line a ruler against."""
+    w, h = papers.dimensions_mm("A4")
+    for mode, expect_markers in (("flat", True), ("hex", False)):
+        r = presets.default_recipe(inst, "A4", mode=mode)
+        g = instruments.geom_from_build_kwargs(
+            {**r.build_kwargs(), "instrument": inst, "paper": "A4"})
+        lay = geometry.compute(g, w, h, 120)
+        lines = geometry.helper_marker_lines_mm(g, w, h, lay,
+                                                edge_mm=2.0, length_mm=4.0)
+        assert bool(lines) is expect_markers, f"{inst}/{mode}"
+
+
+def test_hex_capability_is_asked_of_the_geometry_not_a_list() -> None:
+    """A new hex-capable instrument must need no second registration: it offers
+    hexagons exactly when its _build_base branch honours hflag (Basti,
+    2026-08-28 — "we own the layout engine, so you should be able to add the
+    hex patches to any instrument we want")."""
+    assert instruments.hex_capable(KEY) and instruments.hex_capable("SS")
+    for k in ("i1", "p3", "CM", "41", "51"):
+        assert not instruments.hex_capable(k), k
+    assert instruments.hex_capable("nonsense") is False
+    assert set(instruments.hex_capable_instruments()) == {"SS", KEY}
+    # The flag is the single source of truth, and it is on the Geom itself.
+    assert instruments.build(KEY, hflag=True).hexagonal is True
+    assert instruments.build(KEY).hexagonal is False
+    # NOT inferred from the overhang floats: a ColorMunki stagger sets hxeh
+    # without being hexagonal.
+    cm = instruments.build("CM", cm_stagger=True, patch_h=14.0)
+    assert cm.hxeh > 0 and instruments.is_hexagonal(cm) is False

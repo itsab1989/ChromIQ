@@ -128,40 +128,48 @@ class LayoutOptionsPanel(QWidget):
                        "rectangular is the safe default."))
         if inst == "CR30":
             return (tr("Patch shape"),
-                    tr("Rectangular or hexagonal patches — and on a CR30, "
-                       "hexagonal is worth a serious look.\n\n"
+                    tr("Rectangular or hexagonal patches. Rectangular is the "
+                       "default; hexagonal is worth considering on a CR30, for "
+                       "a reason that does not apply to the other "
+                       "instruments.\n\n"
                        "The CR30 is a ROUND instrument: a 33 mm barrel reading "
                        "through a 4 mm circular window. A round window can "
                        "never use the corners of a square patch, so on a "
-                       "square grid that paper is simply spent. Hexagons are "
-                       "the tightest way to pack round openings into a sheet — "
-                       "90.7 % of the area is within reach of a circle, "
-                       "against 78.5 % for squares — so you keep exactly the "
-                       "same room around the aperture while each patch uses "
-                       "less paper. Measured on A4 at the standard size: 532 "
-                       "patches rectangular, 576 hexagonal.\n\n"
-                       "The honeycomb also helps you aim. Six sides funnel a "
-                       "round barrel towards the middle of the cell in a way "
-                       "four right angles do not, and the interlocking rows "
-                       "make it harder to lose your place in a large grid.\n\n"
+                       "square grid that paper is spent for nothing. Hexagons "
+                       "are the tightest way to pack round openings into a "
+                       "sheet — 90.7 % of the area is within reach of a "
+                       "circle, against 78.5 % for squares — so you keep the "
+                       "same 4 mm of clearance all round the window while each "
+                       "patch uses less paper. Measured on A4 at the standard "
+                       "size and default margins: 345 patches rectangular, 405 "
+                       "hexagonal. The gain depends on the paper — on A3 it is "
+                       "much smaller.\n\n"
+                       "It is also reasonable to expect a honeycomb to be "
+                       "easier to aim at, since its six sides close in on the "
+                       "centre of the cell where four right angles do not. "
+                       "That part has NOT been measured, and we would rather "
+                       "say so than have you plan around it. What is measured "
+                       "is the packing above.\n\n"
                        "The shape costs a CR30 nothing to read. It matters "
                        "only to an instrument that has to travel ALONG a row "
                        "of patches, and a CR30 never does — you lift it onto "
                        "one patch, press the button on the instrument, and "
                        "lift it onto the next.\n\n"
-                       "One cost worth knowing about. The scanner and camera "
-                       "tools turn a honeycomb chart away unless you switch "
-                       "them on for it in Preferences → Beta. If you might "
-                       "ever want to read this chart with a flatbed scanner "
-                       "instead of the CR30, stay on Rectangular.\n\n"
+                       "Two costs, both real. The scanner and camera tools "
+                       "turn a honeycomb chart away unless you switch them on "
+                       "for it in Preferences → Beta; and the ruler helper "
+                       "markers are not drawn on a honeycomb, because it has "
+                       "no straight rows to line a ruler against. If you want "
+                       "either of those, stay on Rectangular.\n\n"
                        "Either shape is a grid with row numbers down the left "
                        "and column letters along the top, so you can always "
                        "find the patch ChromIQ is asking for. Patch size is "
-                       "PROVISIONAL — the 10 mm starting point is 2.5 times "
-                       "the CR30's 4 mm aperture, the same ratio the i1Pro "
-                       "uses — but nobody has yet measured how small a CR30 "
-                       "patch can safely be. Make them bigger in Patch size "
-                       "below if you find yourself missing patches."))
+                       "PROVISIONAL: 12 mm is a reasoned starting point, "
+                       "chosen because the CR30's body hides the patch once "
+                       "you set it down and you are aiming from the cells "
+                       "around it — but the smallest patch a CR30 can read "
+                       "has never been measured. Make them bigger in Patch "
+                       "size below if you find yourself missing patches."))
         return (tr("Layout mode"),
                 tr("A per-instrument layout choice that keeps its own saved "
                    "preset."))
@@ -702,7 +710,8 @@ class LayoutOptionsPanel(QWidget):
                        "(default, most reliable); “Black & white” uses plain "
                        "black/white; “None” removes them — only if your instrument "
                        "doesn't need gaps."), self))
-        add_row(g, 3, tr("Spacer size:"), mm_inch(self.spacer_width),
+        self._spacer_width_row = add_row(
+                g, 3, tr("Spacer size:"), mm_inch(self.spacer_width),
                 tip=TooltipButton(
                     tr("Spacer size"),
                     tr("How thick the separator between patches is, in mm (it runs "
@@ -2896,12 +2905,40 @@ class LayoutOptionsPanel(QWidget):
         self._emit()
 
     def _sync_spacer_swatches(self, *_a) -> None:
+        """Enable exactly the spacer controls that currently do something.
+
+        "Spacer size" WAS always enabled and did nothing whenever there was no
+        spacer to size: build() honours the box only while the instrument's
+        geometry has a non-zero spacer (instruments.py, `geom.pspa > 0`), so
+        with Spacers set to None the box accepted a number and ignored it. That
+        was invisible until the CR30 (#159) became the first instrument to ship
+        with spacers OFF by default — the first where a user meets the dead
+        control straight out of the box, on the very setting the ruling says
+        must be changeable. It is greyed now, which says "turn Spacers on
+        first" instead of silently discarding what was typed.
+
+        The same fix covers the SpectroScan, whose geometry hard-codes
+        `pspa = 0.0`: its box has never worked either, in any mode.
+        """
         if not hasattr(self, "custom_spacer_cb"):
             return
-        on = (self.custom_spacer_cb.isChecked()
-              and (self.spacer_mode.currentData() or "colored") == "colored")
+        mode = self.spacer_mode.currentData() or "colored"
+        on = self.custom_spacer_cb.isChecked() and mode == "colored"
         for b in self._spacer_swatches:
             b.setEnabled(on)
+
+        if hasattr(self, "_spacer_width_row"):
+            inst = (self.instr.currentData() if self.instr is not None
+                    else self._inst) or "i1"
+            try:
+                from workflow.layout_engine import instruments as _ins
+                has_spacer = _ins.build(inst, spacer_on=True).pspa > 0
+            except Exception:      # noqa: BLE001 — an unknown key is not a claim
+                has_spacer = True
+            live = has_spacer and mode != "none"
+            for w in self._spacer_width_row:
+                if w is not None:
+                    w.setEnabled(live)
 
     def _compact_browse(self, tooltip: str):
         """A magenta folder browse button sized like the targen -c browse

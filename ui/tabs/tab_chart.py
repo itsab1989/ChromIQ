@@ -3285,7 +3285,8 @@ class TabChart(QWidget):
         pnl = self._manual_layout_panel
         if pnl is None or pnl.instr is None or pnl.mode is None:
             return
-        is_hex = (pnl.instr.currentData() in ("SS", "CR30")
+        from workflow.layout_engine.instruments import hex_capable
+        is_hex = (hex_capable(pnl.instr.currentData() or "")
                   and pnl.mode.currentData() == "hex")
         if not is_hex:
             self._hex_warned = False
@@ -3463,12 +3464,12 @@ class TabChart(QWidget):
             "and column letters so you can always find the patch being asked "
             "for.\n\n"
             "     Two things to know before you choose it. Its patch size is "
-            "PROVISIONAL — 10 mm squares, a considered starting point rather "
+            "PROVISIONAL — 12 mm squares, a reasoned starting point rather "
             "than a measured minimum — so make them larger if you find "
             "yourself missing patches. And every patch is a hand placement and "
             "a button press of about two seconds, so a full A4 sheet of around "
-            "475 patches takes well over a quarter of an hour. Pick a patch "
-            "count you are happy to sit through.\n\n"
+            "345 patches takes well over ten minutes. Pick a patch count you "
+            "are happy to sit through.\n\n"
             "     A CR30 chart is always laid out by ChromIQ's own layout "
             "engine, and can only be read by ChromIQ — standard ArgyllCMS "
             "chartread does not know this instrument and will refuse the "
@@ -5232,7 +5233,7 @@ class TabChart(QWidget):
             return
         eng = {"3p": "p3"}.get(self._active_instrument_flag(),
                                self._active_instrument_flag())
-        if eng not in ("i1", "p3", "CM", "SS"):
+        if eng not in ("i1", "p3", "CM", "SS", "CR30"):
             eng = "i1"
         paper = self._active_paper_code() or "A4"
         self._syncing_manual_sel = True
@@ -11491,6 +11492,17 @@ class TabChart(QWidget):
         except Exception:
             return None
 
+    # Instruments whose density checkbox actually means "hexagonal patches".
+    #
+    # For the ColorMunki the same checkbox means DENSITY; for these it is the
+    # rectangular/hexagonal switch. Kept as one set because the decision was
+    # spelled out as `instr == "SS"` in four separate places, and when the CR30
+    # gained hexagons (#159) it was added to some of them and not others — so
+    # the patch-count ESTIMATE silently modelled a flat 12x12 patch while the
+    # chart it described was built from 12.02x10.33 hexagons (390 real patches
+    # reported as 315). A new hex-capable instrument now joins here, once.
+    HEX_TOGGLE_INSTRUMENTS = ("SS", "CR30")
+
     def _engine_geom(self, instr: str, paper: str, *, dd: bool, td: bool,
                      eff_lb: bool, nsl: bool, pscale: float, margin: float):
         """Build a layout-engine Geom from the guided/manual effective values,
@@ -11526,7 +11538,7 @@ class TabChart(QWidget):
                 # the count used the raw 1.3 → oversized patches → undercount.
                 from workflow.chart_creator import CM_TRIPLE_PRINTTARG_SCALE
                 kw["pscale"] = float(pscale) / CM_TRIPLE_PRINTTARG_SCALE
-        elif instr == "SS":
+        elif instr in self.HEX_TOGGLE_INSTRUMENTS:
             kw["hflag"] = bool(dd)
         # Guided mode has no margin boxes and no "Use instrument margins"
         # recipe toggle, so the jig-safety threshold clamp is NOT applied here.
@@ -11564,7 +11576,7 @@ class TabChart(QWidget):
         if instr == "CM":
             bits.append({3: tr("extra-high density"), 2: tr("high density")}.get(
                 3 if td else (2 if dd else 1), tr("hand-held")))
-        if instr == "SS" and dd:
+        if instr in TabChart.HEX_TOGGLE_INSTRUMENTS and dd:
             bits.append(tr("hexagonal"))
         if nsl:
             bits.append(tr("no strip-length cap"))
@@ -11832,33 +11844,34 @@ class TabChart(QWidget):
             self._dd_check.setVisible(True)
             self._dd_tooltip.setVisible(True)
             self._dd_check.setText(
-                tr("Hexagon patches (suits the round CR30, ~8% more per sheet)"))
+                tr("Hexagon patches (suits the round CR30, more per sheet)"))
             self._dd_tooltip._title = tr("Hexagon Patches (CR30)")
             self._dd_tooltip._body = tr(
                 "Switches the CR30 chart from rectangular to hexagonal "
-                "patches.\n\n"
+                "patches. Rectangular is the default.\n\n"
                 "The CR30 is a ROUND instrument — a 33 mm barrel reading "
                 "through a 4 mm circular window — and a round window can never "
                 "use the corners of a square patch. Hexagons are the tightest "
                 "way to pack round openings into a sheet (90.7 % of the area "
                 "is within reach of a circle, against 78.5 % for squares), so "
-                "you keep exactly the same room around the aperture while each "
-                "patch uses less paper. Measured on A4 at the standard size: "
-                "532 patches rectangular, 576 hexagonal.\n\n"
-                "The honeycomb also helps you aim: six sides funnel a round "
-                "barrel towards the middle of the cell in a way four right "
-                "angles do not, and the interlocking rows make it harder to "
-                "lose your place in a large grid.\n\n"
+                "you keep the same 4 mm of clearance all round the window "
+                "while each patch uses less paper. Measured on A4 at the "
+                "standard size and default margins: 345 patches rectangular, "
+                "405 hexagonal. The gain depends on the paper — on A3 it is "
+                "much smaller.\n\n"
+                "It is also reasonable to expect a honeycomb to be easier to "
+                "aim at, since its six sides close in on the centre of the "
+                "cell where four right angles do not. That has NOT been "
+                "measured, so please do not plan around it; the packing above "
+                "is what has.\n\n"
                 "No extra hardware, and nothing changes about how you measure. "
                 "The shape only matters to an instrument that has to travel "
-                "along a row of patches, and the CR30 never does: you lift it "
-                "onto one patch, press the button on the instrument, and lift "
-                "it onto the next.\n\n"
-                "One cost worth knowing about. The scanner and camera tools "
-                "turn a honeycomb chart away unless you switch them on for it "
-                "in Preferences → Beta. If you might ever want to read this "
-                "chart with a flatbed scanner instead of the CR30, leave this "
-                "off.\n\n"
+                "along a row of patches, and the CR30 never does.\n\n"
+                "Two costs, both real. The scanner and camera tools turn a "
+                "honeycomb chart away unless you switch them on for it in "
+                "Preferences → Beta; and the ruler helper markers are not "
+                "drawn on a honeycomb, because it has no straight rows to line "
+                "a ruler against.\n\n"
                 "Has no effect on i1Pro, i1Pro 3 Plus or ColorMunki — the "
                 "option is hidden when those are selected."
             )
@@ -16171,13 +16184,19 @@ class TabChart(QWidget):
             panel = getattr(self, "_manual_layout_panel", None)
             if panel is None:
                 return False
+            # Any hex-CAPABLE instrument, asked of the geometry rather than
+            # matched against a list of names: #152's rule (a honeycomb has no
+            # rows to line a ruler against, so the markers are suppressed)
+            # follows the SHAPE, not the device. The CR30 is simply the first
+            # instrument after the SpectroScan to build one (#159).
+            from workflow.layout_engine.instruments import hex_capable
             if panel.instr is not None and panel.mode is not None:
-                return (panel.instr.currentData() == "SS"
+                return (hex_capable(panel.instr.currentData() or "")
                         and panel.mode.currentData() == "hex")
             # No selectors on this panel (the editor's cut-down variant) — fall
             # back to the recipe, where hflag is the hex/flat switch.
             rec = panel.get_recipe()
-            return (str(getattr(rec, "instrument", "")).upper() == "SS"
+            return (hex_capable(str(getattr(rec, "instrument", "")))
                     and bool(getattr(rec, "hflag", False)))
         except Exception:      # noqa: BLE001
             return False
@@ -16787,7 +16806,7 @@ class TabChart(QWidget):
             pass
         instr = {"3p": "p3"}.get(self._active_instrument_flag(),
                                  self._active_instrument_flag())
-        if instr not in ("i1", "p3", "CM", "SS"):
+        if instr not in ("i1", "p3", "CM", "SS", "CR30"):
             instr = "i1"
         paper = self._active_paper_code() or "A4"
         try:

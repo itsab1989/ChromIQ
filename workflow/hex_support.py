@@ -82,10 +82,10 @@ def hex_scanner_allowed(settings) -> bool:
 def recipe_is_hexagonal(recipe) -> bool:
     """True for a hexagonal-patch recipe (a ``LayoutRecipe`` or the dict form).
 
-    ``hflag`` means hexagons on the SpectroScan and, since #159, on the CR30 —
-    the two instruments that place themselves on one patch at a time and so do
-    not care what shape it is. It must NOT be read as hexagons anywhere else:
-    on the ColorMunki the same flag means double density, which is squares.
+    ``hflag`` means hexagons only on an instrument whose geometry actually
+    builds them (``instruments.hex_capable`` — the SpectroScan and, since #159,
+    the CR30). It must NOT be read as hexagons anywhere else: on the ColorMunki
+    the same flag means double density, which is squares.
 
     Everything downstream keys off this: the measure overlay draws the patch's
     true outline, the strip highlight follows the column zigzag, and the scanner
@@ -101,7 +101,8 @@ def recipe_is_hexagonal(recipe) -> bool:
     else:
         inst = getattr(recipe, "instrument", None)
         hflag = getattr(recipe, "hflag", None)
-    return bool(hflag) and inst in ("SS", "CR30")
+    from workflow.layout_engine.instruments import hex_capable
+    return bool(hflag) and hex_capable(str(inst or ""))
 
 
 def settings_are_hexagonal(create_chart_settings) -> bool:

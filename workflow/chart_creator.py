@@ -1206,27 +1206,6 @@ class ChartCreator:
                 kw["spacer_mode"] = "none"
         return kw
 
-    def _refuse_unreadable_patch_size(self, kw: dict) -> None:
-        """Refuse a chart whose patches are too small for its instrument to
-        read — at layout time, before anything is printed (#159).
-
-        ChromIQ#159: *"Patch smaller than the aperture -> refused at layout
-        time, not on paper."* The check lives HERE, on the one path every
-        engine chart takes (capacity estimate and build both go through
-        `_engine_kwargs`), rather than in `instruments.build`: `area_fit`
-        probes patch sizes down to 1 mm while searching for a grid that fits,
-        so refusing that deep would turn an internal search step into a crash.
-
-        Only instruments with a declared floor are affected — every other
-        instrument keeps the pre-flight WARNING it has always had.
-        """
-        from workflow.layout_engine import instruments as _ins
-        msg = _ins.patch_size_error(kw.get("instrument", ""),
-                                    kw.get("patch_w") or 0.0,
-                                    kw.get("patch_h") or 0.0)
-        if msg:
-            raise ValueError(msg)
-
     def _engine_total_patches(self, params: "ChartParams") -> int | None:
         """Patches the engine fits across all pages (capacity × pages), or None.
 
@@ -1270,7 +1249,6 @@ class ChartCreator:
             # any other and deserves a label). Empty renders as nothing, the
             # way {seed} does on a chart with no seed.
             kw["rundescription"] = params.run_description
-            self._refuse_unreadable_patch_size(kw)
             # Empty unless a stored chart is being rebuilt, in which case it is
             # the date that chart was made — the record strip must not claim
             # the sheet was produced on the day it was restored (Knut, #130).

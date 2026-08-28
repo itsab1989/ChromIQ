@@ -471,8 +471,12 @@ def patch_rects_px(geom: Geom, paper_w_mm: float, paper_h_mm: float,
     def px(mm: float) -> int:
         return round(mm * mm2px)
 
-    # The same test the renderer uses to decide it is drawing hexagons.
-    _ss_hex = getattr(geom, "key", "") == "SS" and getattr(geom, "hxew", 0.0) > 0
+    # The same test the renderer uses to decide it is drawing hexagons — and it
+    # is now literally the same function, because these two disagreeing is a
+    # half-patch mis-registration in every consumer of these rects (the Measure
+    # highlight, the margin inspector, scanin_target) rather than a visible bug.
+    from .instruments import is_hexagonal as _is_hex
+    _ss_hex = _is_hex(geom)
     out: list[dict] = []
     for page in range(layout.pages):
         first = page * pppage
@@ -656,8 +660,9 @@ def helper_marker_lines_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
     height offset, thus the markers land the correct place if you just use the
     first strip as the reference."*
 
-    Hexagonal SpectroScan charts return no markers at all: a honeycomb has no
-    rows to line a ruler up with.
+    Hexagonal charts return no markers at all — SpectroScan or CR30 (#159): a
+    honeycomb has no rows to line a ruler up with. This is #152's rule, and it
+    follows the SHAPE, not the instrument.
 
     Markers may cross a margin label or the clip-border text; that is accepted —
     *"overlapping is acceptable. User must adapt settings for the markers,
@@ -666,7 +671,8 @@ def helper_marker_lines_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
     corner rule above is the one deliberate exception, because there the dashes
     collide with **each other** rather than with something the user placed.
     """
-    if getattr(geom, "key", "") == "SS" and getattr(geom, "hxew", 0.0) > 0:
+    from .instruments import is_hexagonal as _is_hex
+    if _is_hex(geom):
         return []
     if paper_w_mm <= 0 or paper_h_mm <= 0 or length_mm <= 0:
         return []

@@ -42,67 +42,6 @@ TARGET_INSTRUMENT_NAME: dict[str, str] = {
 # Instruments ChromIQ never lays out itself (delegated to i1Profiler).
 DELEGATED = {"isis"}
 
-# Measuring-aperture diameter (mm) for instruments where the layout has to
-# respect it. Only the CR30 is listed: it is the one instrument ChromIQ lays out
-# whose patch a person aims BLIND (see the geometry branch), and #159 requires a
-# patch smaller than the aperture to be refused at layout time rather than
-# discovered on paper.
-APERTURE_MM: dict[str, float] = {"CR30": 4.0}
-
-# Smallest patch edge (mm) this instrument may be laid out with — a REFUSAL,
-# not a warning.
-#
-# The physical impossibility is the aperture itself: below 4 mm the opening
-# cannot see one patch at a time, whatever the user does. The floor sits at
-# 6 mm rather than 4 mm because 4 mm is not a size anyone can hit. The CR30's
-# body is a 33 mm opaque disc, so the patch is invisible the moment the
-# instrument is set down and the user is aiming from the cells AROUND it; a
-# patch the exact size of the opening demands perfect centring from a blind
-# placement. 6 mm leaves 1 mm of clearance on every side, which is the least
-# that is a target rather than a lottery, and it agrees with the reliability
-# floor the pre-flight check already applies to every instrument
-# (preflight.MIN_PATCH_MM, printtarg's own 6 mm).
-#
-# This is a FLOOR, not a recommendation. The shipped size is 12 mm — twice it —
-# and is itself provisional; see the geometry branch.
-MIN_PATCH_MM: dict[str, float] = {"CR30": 6.0}
-
-
-def minimum_patch_mm(key: str) -> float:
-    """Smallest patch edge (mm) *key* may be laid out with; 0.0 = no limit."""
-    return MIN_PATCH_MM.get(_MARGIN_LABEL_TO_KEY.get(key, key), 0.0)
-
-
-def patch_size_error(key: str, patch_w: float, patch_h: float) -> "str | None":
-    """Why this patch size is refused for *key*, in plain language, or None.
-
-    Deliberately NOT raised from :func:`build`: ``area_fit`` probes patch sizes
-    down to 1 mm while searching for a grid that fits, so a raise there would
-    turn an internal search step into a crash. The refusal belongs where a size
-    becomes the user's actual chart - chart_creator's engine path - and where
-    they are choosing it.
-    """
-    floor = minimum_patch_mm(key)
-    if floor <= 0:
-        return None
-    smallest = min(float(patch_w or 0.0), float(patch_h or 0.0))
-    if smallest <= 0 or smallest >= floor - 1e-6:
-        return None
-    ap = APERTURE_MM.get(_MARGIN_LABEL_TO_KEY.get(key, key), 0.0)
-    if ap and smallest < ap - 1e-6:
-        return (f"A {smallest:.1f} mm patch is smaller than the {key}'s "
-                f"{ap:.0f} mm measuring window, so the instrument would read "
-                f"the paper and the patches around it as well as the patch "
-                f"itself. The smallest patch this chart can use is "
-                f"{floor:.0f} mm.")
-    return (f"A {smallest:.1f} mm patch is too small for the {key} to be "
-            f"placed on reliably. Its measuring window is {ap:.0f} mm across "
-            f"and its body hides the patch once you set it down, so you are "
-            f"aiming from the cells around it - a patch this size leaves no "
-            f"room to be even slightly off. The smallest patch this chart can "
-            f"use is {floor:.0f} mm.")
-
-
 def _inch(mm: float) -> float:
     return mm * 25.4
 
@@ -195,11 +134,59 @@ class Geom:
     # ALWAYS honours the ruler cap, even under margins_are_law, so its "max strip
     # length" still protects the i1Pro jig. Decoupled from margins_are_law (Knut).
     fill_beyond_ruler: bool = False
+    # THE chart is a honeycomb. Set by whichever _build_base branch builds
+    # hexagons; the SINGLE source of truth for "am I drawing a hexagon", used by
+    # the renderer, the recorded patch rects and the ruler helper markers.
+    #
+    # It exists because those three used to ask `key == "SS"` separately. When
+    # the CR30 gained the same option (#159) all three silently kept saying SS,
+    # so a CR30 honeycomb reserved the apex overhang, shortened its rows to make
+    # room — and was then drawn as squares. The failure was invisible: the sheet
+    # paid for hexagons and did not get them. A capability the geometry states
+    # about itself cannot be half-registered that way, and any instrument can
+    # now offer hexagons simply by building a Geom with this set (Basti,
+    # 2026-08-28: "we own the layout engine, so you should be able to add the
+    # hex patches to any instrument we want").
+    #
+    # NOT inferred from hxeh/hxew: the ColorMunki's row stagger sets hxeh
+    # without being hexagonal, so those floats answer a different question.
+    hexagonal: bool = False
     # Physical strip-length limit of the instrument's ruler/jig (mm); 0 = none
     # (ColorMunki/SpectroScan have no ruler). In area-first the strip is NOT capped
     # to this (the margin box is law — fill it), but a strip longer than the ruler
     # is flagged as a violation so the user knows it won't fit their jig (Knut #93).
     ruler_mm: float = 0.0
+
+
+def is_hexagonal(geom) -> bool:
+    """Whether *geom* is laid out with hexagonal patches — THE single test.
+
+    Reads :attr:`Geom.hexagonal`, which the building branch sets about itself.
+    Every gate that behaves differently on a honeycomb must come through here:
+    the renderer, the recorded patch rects and the ruler helper markers. They
+    disagreeing is not a visible bug, it is a half-patch mis-registration
+    between what is drawn and what the app believes it drew.
+    """
+    return bool(getattr(geom, "hexagonal", False))
+
+
+def hex_capable(key: str) -> bool:
+    """Whether *key* can be laid out with hexagonal patches.
+
+    ASKED OF THE GEOMETRY, not held in a list: an instrument offers hexagons
+    exactly when its ``_build_base`` branch honours ``hflag``, so adding the
+    shape to a new instrument needs no second registration anywhere and cannot
+    be half-done. Anything unbuildable is simply not hex-capable.
+    """
+    try:
+        return bool(build(key, hflag=True).hexagonal)
+    except Exception:      # noqa: BLE001 — an unknown key is not a capability
+        return False
+
+
+def hex_capable_instruments() -> "list[str]":
+    """Every supported instrument that can be laid out as a honeycomb."""
+    return [k for k in supported() if hex_capable(k)]
 
 
 def supported() -> list[str]:
@@ -306,10 +293,10 @@ def build(
     # through the `replace()` below. So a 20 mm hexagon still reserved the 7 mm
     # geometry's 1.75 mm, overhung it by 5 mm, and printed past the margin. Both
     # the Manual patch-size boxes and the area-first grid take this path (#159).
-    # CR30 included (#159): it now offers hexagons too, and a resized CR30
-    # hexagon would otherwise keep the 10 mm geometry's reservation and print
-    # past the margin - the exact bug this block was written for.
-    if key in ("SS", "CR30") and geom.hxew > 0 and (patch_w or patch_h):
+    # Every honeycomb, whichever instrument built it (#159): a resized hexagon
+    # that kept its unresized reservation is exactly the bug this block was
+    # written for, and it does not care which device is reading the sheet.
+    if geom.hexagonal and (patch_w or patch_h):
         hxeh = plen / 6.0
         hxew = 0.25 * pwid
     row_stagger = 0.0
@@ -544,6 +531,7 @@ def _build_base(
             dorspace=False, dopglabel=False,   # page-label column reclaimed (#93)
             padlrow=False, target_name=name,
             has_clip_border=_band > 0, extra_keywords=extra,
+            hexagonal=bool(hflag),
         )
 
     # ---- ChnSpec CR30 (hand-placed spot colorimeter) --------------------
@@ -584,8 +572,14 @@ def _build_base(
         #   patch:aperture ratio the i1Pro uses". That was WRONG twice over: the
         #   i1Pro's ratio is 10/5 = 2.00 and this one is 12/4 = 3.00, so it was
         #   never a match, and the aperture ratio is not what governs the size
-        #   anyway. Removed rather than corrected. The hard floor is
-        #   MIN_PATCH_MM above - a smaller patch is refused, not printed.
+        #   anyway. Removed rather than corrected.
+        #
+        #   No minimum-patch REFUSAL is enforced for the CR30 (Basti,
+        #   2026-08-28: "if no instrument has it now we leave it out and don't
+        #   invent something new here"). No instrument models its aperture and
+        #   none refuses a size, so a CR30-only floor would be a special case
+        #   breaking the rule everywhere else. preflight.MIN_PATCH_MM's 6 mm
+        #   warning applies here exactly as it applies to every instrument.
         #
         #   rrsp == pwid, so columns touch: that is the topology of the only
         #   chart a CR30 has been proven to read (EXP-SPEC-001a's columns
@@ -696,6 +690,7 @@ def _build_base(
             dorspace=False, dopglabel=False,
             padlrow=False, target_name=name,
             has_clip_border=_band > 0, extra_keywords=extra,
+            hexagonal=bool(hflag),
         )
 
     # ---- X-Rite DTP41 ---------------------------------------------------

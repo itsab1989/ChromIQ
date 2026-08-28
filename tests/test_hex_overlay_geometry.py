@@ -29,21 +29,37 @@ from workflow.layout_engine import geometry, instruments  # noqa: E402
 
 A4 = (210.0, 297.0)
 
+#: Every instrument whose geometry actually builds hexagons — asked of the
+#: engine, not listed here (#159). These tests were written against the
+#: SpectroScan alone, and when the CR30 gained the same shape option every one
+#: of them kept testing only the SpectroScan: the CR30 honeycomb reserved its
+#: apex overhang and was then drawn as squares, with a full green suite. A new
+#: hex-capable instrument is now covered the moment it exists.
+HEX_INSTRUMENTS = instruments.hex_capable_instruments()
 
-def _hex_geom(w_mm: float, border: float = 6.0):
-    return instruments.build("SS", pscale=w_mm / 7.0, hflag=True, border=border)
+
+def _base_width(inst: str) -> float:
+    """The instrument's own square patch width, so a test can ask for a size in
+    millimetres without knowing which device it is talking about."""
+    return instruments.build(inst).pwid
+
+
+def _hex_geom(w_mm: float, border: float = 6.0, inst: str = "SS"):
+    return instruments.build(inst, pscale=w_mm / _base_width(inst),
+                             hflag=True, border=border)
 
 
 # ---------------------------------------------------------------------------
 # the ink lands on the paper
 # ---------------------------------------------------------------------------
+@pytest.mark.parametrize("inst", HEX_INSTRUMENTS)
 @pytest.mark.parametrize("w_mm", [7.0, 12.0, 16.0, 20.0, 30.0, 40.0])
 @pytest.mark.parametrize("border", [0.0, 2.0, 6.0, 10.0])
-def test_hexagon_ink_stays_on_the_paper(w_mm, border):
+def test_hexagon_ink_stays_on_the_paper(w_mm, border, inst):
     """Nothing asserted this at all, which is how the bottom apex came to hang
     5.11 mm off a 40 mm chart with no border. The apexes overshoot the slot
     block by hxeh at BOTH ends; the page has to hold all of it."""
-    g = _hex_geom(w_mm, border)
+    g = _hex_geom(w_mm, border, inst)
     per = geometry.patches_per_sheet(g, *A4)
     if not per:
         pytest.skip(f"{w_mm} mm does not fit this page")
@@ -55,13 +71,14 @@ def test_hexagon_ink_stays_on_the_paper(w_mm, border):
     assert bottom <= A4[1], f"the bottom apex is {bottom - A4[1]:.2f} mm off the sheet"
 
 
+@pytest.mark.parametrize("inst", HEX_INSTRUMENTS)
 @pytest.mark.parametrize("w_mm", [12.0, 20.0, 30.0])
 @pytest.mark.parametrize("border", [2.0, 6.0])
-def test_the_apex_overhang_is_shared_top_and_bottom(w_mm, border):
+def test_the_apex_overhang_is_shared_top_and_bottom(w_mm, border, inst):
     """It used to be centred on the slots, so both apexes' worth of overhang
     fell below the block: at 20 mm with a 2 mm border the lower apex sat
     0.66 mm from the page edge, inside the margin the user asked for."""
-    g = _hex_geom(w_mm, border)
+    g = _hex_geom(w_mm, border, inst)
     per = geometry.patches_per_sheet(g, *A4)
     lay = geometry.compute(g, *A4, per)
     pl = geometry.placement(g, *A4, lay)
@@ -72,10 +89,13 @@ def test_the_apex_overhang_is_shared_top_and_bottom(w_mm, border):
         f"{border:.0f} mm margin asked for")
 
 
-def test_a_square_spectroscan_chart_is_unaffected():
+@pytest.mark.parametrize("inst", HEX_INSTRUMENTS)
+def test_a_square_chart_is_unaffected(inst):
     """The counterweight: no apexes, so nothing to share."""
-    g = instruments.build("SS", pscale=12 / 7.0, hflag=False, border=6.0)
+    g = instruments.build(inst, pscale=12 / _base_width(inst), hflag=False,
+                          border=6.0)
     assert g.hxeh == 0.0
+    assert instruments.is_hexagonal(g) is False
     per = geometry.patches_per_sheet(g, *A4)
     lay = geometry.compute(g, *A4, per)
     pl = geometry.placement(g, *A4, lay)
@@ -85,7 +105,7 @@ def test_a_square_spectroscan_chart_is_unaffected():
 # ---------------------------------------------------------------------------
 # the overlay lands on the ink
 # ---------------------------------------------------------------------------
-def _build_hex_chart(tmp_path, w_mm=12.0, n=120):
+def _build_hex_chart(tmp_path, w_mm=12.0, n=120, inst="SS"):
     """A real engine-built hex chart, with the sidecar the app reads."""
     from workflow.layout_engine import chart as le_chart
     ti1 = tmp_path / "p.ti1"
@@ -97,15 +117,15 @@ def _build_hex_chart(tmp_path, w_mm=12.0, n=120):
     lines += ["END_DATA", ""]
     ti1.write_text("\n".join(lines))
     stem = tmp_path / "Chart"
-    le_chart.build_chart(ti1, stem, instrument="SS", hflag=True,
-                         pscale=w_mm / 7.0, paper="A4", border=6.0, dpi=200,
-                         randomize=False)
+    le_chart.build_chart(ti1, stem, instrument=inst, hflag=True,
+                         pscale=w_mm / _base_width(inst), paper="A4",
+                         border=6.0, dpi=200, randomize=False)
     strips = json.loads(stem.with_suffix(".strips.json").read_text())
     (tmp_path / "Chart.channels.json").write_text(json.dumps({
         "ink_channels": ["r", "g", "b"],
         "layout": {"engine": "chromiq", "dpi": 200, "paper_mm": list(A4),
                    "patches": strips["patches"],
-                   "recipe": {"instrument": "SS", "hflag": True}}}))
+                   "recipe": {"instrument": inst, "hflag": True}}}))
     return stem, strips["patches"]
 
 
@@ -115,14 +135,15 @@ def qapp():
     return QApplication.instance() or QApplication([])
 
 
+@pytest.mark.parametrize("inst", HEX_INSTRUMENTS)
 @pytest.mark.parametrize("w_mm", [10.0, 12.0, 20.0])
-def test_the_loaded_boxes_are_the_recorded_boxes(qapp, tmp_path, w_mm):
+def test_the_loaded_boxes_are_the_recorded_boxes(qapp, tmp_path, w_mm, inst):
     """The Measure tab shifted every loaded box by ±¼ width to "match the drawn
     hexagon", because the recorded boxes used to hold only the slot x. They have
     held the drawn position since 2026-08-13, so the shift moved the ring and
     the click target off the patch they name — on every row of every hex chart.
     """
-    stem, recorded = _build_hex_chart(tmp_path, w_mm)
+    stem, recorded = _build_hex_chart(tmp_path, w_mm, inst=inst)
     from ui.tabs.tab_measure import patch_boxes_from_sidecar
     boxes = patch_boxes_from_sidecar(stem.with_suffix(".ti2"), 1)[0]
     assert boxes, "no boxes were loaded at all"
