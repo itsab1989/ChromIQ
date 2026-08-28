@@ -943,6 +943,96 @@ def fit_message_box_buttons(box) -> None:
         pass
 
 
+
+def spread_message_box_buttons(box, order=None) -> None:
+    """Share the width of a message box evenly between its buttons.
+
+    Qt right-aligns a `QDialogButtonBox`, which reads fine for two buttons and
+    badly for four: they bunch into the right-hand half with a wide empty gap
+    beside them (Basti, 2026-08-27, on the "project already exists" window).
+    This lets every button grow to an equal share of the row, so a four-button
+    window reads as four choices rather than one plus three afterthoughts.
+
+    Call it AFTER :func:`fit_message_box_buttons`, which is what makes the box
+    wide enough for the labels in the first place; this only decides how the
+    width that already exists is divided.
+
+    *order*, when given, is the buttons in the left-to-right order they should
+    appear. Qt lays a `QDialogButtonBox` out by ROLE, and on macOS that put
+    Cancel second — between the two safe answers and the destructive one, which
+    is the worst place for it (Basti: *"i want cancel on the very right"*). It
+    is ignored unless it is exactly the box's own buttons: an order missing one
+    silently sent that button to the front, and an order naming a widget the box
+    does not own re-parented it INTO the box.
+
+    NOTHING IS TOUCHED UNLESS THE RESULT WILL FIT. Equal shares need room for
+    the WIDEST label, not the mean one, and long labels in a long language can
+    ask for more than the screen has. The first version measured that too late —
+    it had already removed Qt's stretches — so on a narrow screen it left the row
+    worse than it found it: measured with the Dutch labels, 0 clipped without the
+    call and 2 clipped with it.
+    """
+    try:
+        from PyQt6.QtWidgets import (QApplication, QDialogButtonBox, QLabel,
+                                     QSizePolicy, QSpacerItem)
+
+        buttons = list(box.buttons())
+        # A ROW OF TWO IS NOT A BUNCH. Qt's right-aligned pair reads correctly
+        # and is what every other window in the app shows.
+        if len(buttons) < 3:
+            return
+        bb = box.findChild(QDialogButtonBox)
+        outer = box.layout()
+        if bb is None or bb.layout() is None or outer is None:
+            return
+        if order is not None and set(order) != set(buttons):
+            _log.warning("spread: the given button order is not this box's "
+                         "buttons — ignoring it")
+            order = None
+
+        widest = max(b.sizeHint().width() for b in buttons)
+        # The icon has its own grid column and the button row does not get it,
+        # so a box with an icon is that much narrower across the buttons.
+        icon_w = 0
+        for lbl in box.findChildren(QLabel):
+            pm = lbl.pixmap()
+            if pm is not None and not pm.isNull():
+                icon_w = max(icon_w, lbl.sizeHint().width() + 20)
+        needed = len(buttons) * (widest + 18) + 24 + icon_w
+        screen = QApplication.primaryScreen()
+        if screen is not None and needed > screen.availableGeometry().width() - 80:
+            _log.debug("spread: %d px needed, screen too narrow — left as Qt "
+                       "drew it", needed)
+            return
+
+        lay = bb.layout()
+        # The stretches Qt inserts to push the row to one side.
+        for i in reversed(range(lay.count())):
+            item = lay.itemAt(i)
+            if item is not None and item.widget() is None:
+                lay.takeAt(i)
+        if order:
+            for b in order:
+                lay.removeWidget(b)
+            for b in order:
+                lay.addWidget(b)
+        for i in range(lay.count()):
+            item = lay.itemAt(i)
+            w = item.widget() if item is not None else None
+            if w is not None:
+                w.setSizePolicy(QSizePolicy.Policy.Expanding,
+                                w.sizePolicy().verticalPolicy())
+                lay.setStretch(i, 1)
+        outer.addItem(QSpacerItem(needed, 0,
+                                  QSizePolicy.Policy.Minimum,
+                                  QSizePolicy.Policy.Expanding),
+                      outer.rowCount(), 0, 1, outer.columnCount())
+        outer.activate()
+        lay.activate()
+    except Exception:      # noqa: BLE001 — sizing must never raise
+        pass
+
+
 class _ExtensionFilterProxy(QSortFilterProxyModel):
     """Hides files whose extension is not in the allowed set; directories always shown."""
 
@@ -2502,12 +2592,22 @@ def save_file_dialog(
     # no existence check, so a caller naming a folder nothing ever creates —
     # the spot-read dialog's `~/spot-readings/` is the one in the tree — landed
     # the user somewhere the platform chose. Fall back deliberately instead.
+    #
+    # AND THE FOLDER IS NOT THE PARENT WIDGET. The line below used to be
+    # `parent = p.parent`, which overwrote this function's own `parent`
+    # argument with a `Path` — so `QFileDialog(parent, …)` raised
+    # `TypeError: argument 1 has unexpected type 'PosixPath'` for EVERY caller
+    # that suggests a file name rather than a folder, which is all twelve of
+    # them. Every "Save as…" in the app was dead from 4.1.3-beta.16 until Knut
+    # reported it against the help card's PDF (2026-08-27). The local is named
+    # apart from the argument now, and `tests/test_native_file_dialogs.py`
+    # asserts the dialog's parent is the widget it was given.
     p = Path(start_path) if start_path else None
     if p is not None and p.is_dir():
         start_dir, default_name = str(p), ""
     elif p is not None:
-        parent = p.parent
-        start_dir = str(parent) if _is_dir_safe(parent) else _documents_dir()
+        parent_dir = p.parent
+        start_dir = str(parent_dir) if _is_dir_safe(parent_dir) else _documents_dir()
         default_name = p.name
     else:
         start_dir, default_name = _documents_dir(), ""

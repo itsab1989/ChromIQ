@@ -2709,8 +2709,15 @@ class LayoutOptionsPanel(QWidget):
         dpi = int(self.dpi.value())
         from pathlib import Path as _P
         from ui.widgets import save_file_dialog
+        # THE THIRD ARGUMENT IS QT'S FILE FILTER, NOT A LABEL. "Template base
+        # name" was sitting in it, so the dialog filtered on the globs
+        # "Template", "base" and "name" and listed nothing at all — the same
+        # fault `ui/help_card_print.py` documents as fixed for the help card,
+        # still live here. There IS no useful filter: what the user types is a
+        # base name and `export_clip_template` writes both a .png and a .pdf
+        # from it. So: no filter, and the label goes where the user reads it.
         base = save_file_dialog(
-            self, tr("Export clip template"), tr("Template base name"),
+            self, tr("Export clip template"), "",
             start_path=str(_P.home() / "clip-template"))
         if not base:
             return

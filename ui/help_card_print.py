@@ -446,6 +446,28 @@ def save_card_pdf(wf: dict, parent=None, lang: str = "en") -> "Path | None":
     writer.setPageMargins(QMarginsF(15, 15, 15, 15), QPageLayout.Unit.Millimeter)
     writer.setTitle(document_name(wf))
     render_card(wf, writer, lang=lang)
+    # A QPdfWriter THAT CANNOT OPEN ITS FILE SAYS NOTHING. It does not raise;
+    # the QPainter simply never begins, every paint call is a no-op warning on
+    # stderr that no user sees, and `render_paged` still returns a page count.
+    # So this used to hand back a Path for a file that was never written, and
+    # the caller logged "help card saved as …" — a success message for a save
+    # that did not happen. Verified: an unwritable folder returned a Path with
+    # no file on disk and no exception. Check the artefact instead of trusting
+    # the API, and raise so the caller's "Something went wrong" window is the
+    # truth. A cancelled dialog still returns None, which is not a failure.
+    try:
+        written = path.stat().st_size
+    except OSError as exc:
+        raise OSError(f"the PDF was not written: {path}") from exc
+    if written <= 0:
+        # AND DO NOT LEAVE IT THERE. The window says "no file was saved"; an
+        # empty file of exactly the name the user chose makes that a lie, and
+        # they would find it later and try to open it.
+        try:
+            path.unlink()
+        except OSError:      # noqa: BLE001 — the message is still the truth
+            log.warning("could not remove the empty PDF at %s", path)
+        raise OSError(f"the PDF was written empty: {path}")
     return path
 
 
