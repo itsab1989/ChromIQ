@@ -179,3 +179,122 @@ combination.** §9.4 states the consequence but no UI behaviour. This needs a
 ruling and a guard (refuse with a clear message, or force the ChromIQ engine for
 CR30 charts the same way the layout engine is forced).
 
+### A6 — §10.2's calibration confirmation is **theatre**, and the flow it mandates is the operation that destroyed a unit. **BLOCKER**
+
+§10.2 step 2: *"ChromIQ reads the stored measurement and confirms it is a flat,
+high, tile-shaped spectrum. That is what a just-calibrated white reference reads
+by definition."*
+
+The research repo says, verified and twice re-derived, that this confirms
+**nothing**:
+
+- `chromiq-cr30-research/CALIBRATION.md:26-33` — pressing the button with a
+  magnet present *"is performing a white calibration against whatever is under
+  the aperture, and reporting the nominal tile value as confirmation."*
+- `CALIBRATION.md:340-347` — the returned value is **bit-identical before and
+  after the unit's calibration was destroyed with green**, and identical again
+  after the restore (`EXP-MEAS-002/003`, `EXP-BLE-010`). *"A value that survives
+  having the stored white reference overwritten with green is not derived from
+  the stored white reference. It is the tile's nominal characterisation, held in
+  firmware."*
+- `MEASUREMENT.md:396-401` — *"the gated reading is a stored constant with no
+  dependence whatsoever on the optical input."*
+
+So the value §10.2 inspects is a **firmware constant returned regardless of what
+the reference was just calibrated against**. It is flat, high and tile-shaped
+when the calibration is perfect and *equally* flat, high and tile-shaped when
+the user has just calibrated against a green cap the wrong way round. **The
+check cannot fail in the case it exists to catch** — which is exactly the
+incident §10.2 cites as its justification (`CALIBRATION.md:7-15`, paper reading
+156.8 %R afterwards).
+
+Worse: §10.2 makes that operation **mandatory before every chart read**, and
+Guided mode cannot skip it. ChromIQ would be instructing the user, every single
+session, to perform the one action that can silently destroy their white
+reference — cap on backwards, cap on a coloured surface, cap missing — and would
+then report success.
+
+Step 3 ("remove the cap, confirm the next reading is not the tile constant") is
+sound as far as it goes: it catches "user forgot to remove the cap". It does not
+and cannot detect a bad reference.
+
+**The real check exists in the research and the design does not use it.**
+`CALIBRATION.md:354-358`: *"If the firmware holds the nominal tile values, then
+measuring the actual tile with the gate disengaged and comparing against them is
+a real calibration test."* That is: capture the firmware constant (gated, cap
+on), then measure the tile **with the gate disengaged** and compare. A
+mismatch means the reference is wrong. That check has real discriminating power
+and needs no new command. It is a hardware experiment away, and it is what
+§10.2 should be doing.
+
+The plausibility bound (`workflow/cr30/measurement.py:95`,
+`MAX_REFLECTANCE = 130.0`) is the only working defence today, and the file
+itself records its limit at `:73-95`: *"A corruption factor below 130/96.4 =
+1.35 never breaches MAX on paper."* The observed corruption was 1.83×; anything
+milder is invisible.
+
+### A7 — the §10.2 acknowledgement has nowhere to go on the `-x` path. **BLOCKER**
+
+The existing calibration subsystem does work, and the design is right to reuse
+it — but every exit of the dialog replies **to the helper process**, not to a
+backend:
+
+`ui/tabs/tab_measure.py:7046-7062` —
+```
+skip     → self._manager.send_key("s")     → {"cmd":"skip"}  → key 's'
+accept   → self._manager.send_key("\r")    → {"cmd":"accept"}→ key 0x0d
+dismiss  → self._manager.send_key("\x1b")  → {"cmd":"quit"}  → key 0x1b
+```
+Each lands in `cq_pending_key` (`chromiq_json.c:181-188`) and is consumed only
+by `cq_wait_char()` (`:250-258`). **The `-x` value prompt does not call
+`cq_wait_char` — it calls `con_fgets` (`chromiq_chartread.c:2805`).** So the
+acknowledgement is queued and never consumed: the CR30 backend, which raised the
+prompt, never learns the user answered.
+
+Answers to the four questions put to me:
+
+1. **Can a non-Argyll backend drive `calibration_prompt`?** The *signal* yes —
+   `workflow/measure_manager.py:200` is a plain `pyqtSignal`, and the tab
+   connects it at `ui/tabs/tab_measure.py:998`. Nothing about raising it is
+   Argyll-specific. Today it is raised only from the `cal_required` engine event
+   (`measure_manager.py:1373-1375`) and once synthetically at `:1549`. **The
+   reply half is what is hard-wired**: `_on_calibration_prompt` has no callback,
+   it writes to the child process's stdin. A CR30 backend needs a distinct reply
+   route, and the tab must know which one to use.
+2. **What does "retry" mean, and can it deadlock?** `_handle_cal_failed`
+   (`measure_manager.py:484-533`) sends `{"cmd":"retry"}` (`:531-535`) into the
+   same dead channel. Its own docstring at `:487-491` is the warning: *"The
+   engine blocks waiting for a reply here (`cq_wait_char`), so this must ALWAYS
+   send something — otherwise the run deadlocks."* In `-x` mode the engine is
+   **not** blocked in `cq_wait_char`, it is spinning in the A1 loop, so nothing
+   deadlocks — it burns CPU instead. Either way the retry never reaches the
+   CR30. And for a CR30 "retry" has no meaning at all: there is no host-issued
+   calibration command, only "ask the human to press the button again."
+   **`CR30.trigger_unsafe` must not be used for it** — `workflow/cr30/device.py:95-118`
+   and `CALIBRATION.md:42-48, 335-338` ban a host trigger with a magnet present,
+   and the calibration step is by definition performed with a magnet present.
+3. **`sensor_wrong_position`** (`measure_manager.py:220`, consumed at
+   `tab_measure.py:1035` → `_on_sensor_wrong_position` `:6151`) is **advisory
+   only** — nothing gates on it, it raises a warning window. A CR30 simply never
+   emits it. No downstream requires it. **Not a problem.**
+4. **Does the reused wording fit?** The dialog body comes from
+   `calibration_instructions_html(instrument_family(self._detected_instrument))`
+   (`tab_measure.py:6994-6998`). Two faults:
+   - `_detected_instrument` is set from the `instrument` engine event
+     (`measure_manager.py:1179-1181` ← `chromiq_chartread.c:977`), which is
+     **inside the instrument-open block and never fires in `-x` mode**. So the
+     family resolves to `None` and the user gets the *generic* text.
+   - A CR30 branch **has already been written** into `ui/ti2_loader.py`
+     (`is_cr30` `:110`, `instrument_family` `:121`, `calibration_instructions_html`
+     and the patch/strip instruction texts) — good text, and correct about the
+     magnetic cap. But it is unreachable until `_detected_instrument` is set from
+     something other than the engine event. **The design must say where the CR30
+     family comes from in `-x` mode** (the chart's `TARGET_INSTRUMENT`, since the
+     `.ti3`'s says "Unknown Instrument" — see A3).
+
+   The dialog's own chrome is still wrong for a CR30: title *"Calibration
+   Required"*, button *"Start Calibration"* (there is nothing for ChromIQ to
+   start — the human presses the instrument's button), and the optional-step
+   note *"You can skip it and carry on measuring, but your readings may be a
+   little less accurate without it"* — which for a CR30 is a **material
+   understatement** given A6. All three are §M-governed text.
