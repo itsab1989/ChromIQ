@@ -304,3 +304,139 @@ return the new instrument and the *engine* tests would pass. The engine half of
 the generalisation is done; the **recipe/UI half is still seven hard-coded
 lists**.
 
+---
+
+## Section 4 — The tests: I tried to make them pass on a broken implementation
+
+**Method.** The tree was copied (`rsync`, minus `.git`/`.venv`) to a scratch
+directory so nothing the implementer is holding could be touched, and each
+mutation was applied there and reverted. Baseline over
+`test_cr30_registration.py`, `test_hex_overlay_geometry.py`,
+`test_layout_raster.py`, `test_layout_geometry.py`, `test_margin_inspector.py`,
+`test_hex_scanner_support.py`, `test_cht_writer.py`, `test_engine_ui.py`:
+**314 passed, 1 skipped**. Every mutation below was verified to actually land
+(the mutated line was grepped back out before the run).
+
+| # | Mutation — a plausible way to get it wrong | Result |
+|---|---|---|
+| M1 | `raster.py` gate back to `key == "SS" and hxew > 0` (the original blocker) | **CAUGHT** — `test_a_hex_chart_really_renders_hexagons[CR30]` |
+| M2 | `geometry.patch_rects_px` stagger gate back to `key == "SS"` | **CAUGHT** — `test_the_loaded_boxes_are_the_recorded_boxes[20.0-CR30]` |
+| M3 | `helper_marker_lines_mm` gate back to `key == "SS"` | **CAUGHT** — `test_a_honeycomb_gets_no_ruler_helper_markers[CR30]` |
+| M4 | `is_hexagonal()` inferred from `hxeh > 0` (the unsafe inference the brief offered) | **CAUGHT** — `test_hex_capability_is_asked_of_the_geometry_not_a_list` |
+| M5 | the CR30 branch stops setting `hexagonal=bool(hflag)` | **CAUGHT** — same test |
+| M6 | the resize→overhang rule narrowed back to `key == "SS"` | **CAUGHT** — `test_a_resized_hexagon_recomputes_its_overhang` |
+| M7 | the renderer staggers the **opposite way** from the recorded rects (a live half-patch mis-registration, render and rects each self-consistent) | **CAUGHT** — `test_spectroscan_hex_pokes_above_first_row` |
+| M8 | `_hexagon_points` draws a **rectangle** (`t6 = 0`) while still labelling the row `"hex"` | **CAUGHT** — `test_spectroscan_hex_pokes_above_first_row` |
+| M9 | hexagons drawn with **no** horizontal stagger (`dx = 0`) | **CAUGHT** — `test_hexagon_points_shape_and_stagger`, `test_spectroscan_hex_pokes_above_first_row` |
+| M10 | `default_recipe` stops mapping `mode="hex"` → `hflag` for the CR30 | **CAUGHT** — `test_a_honeycomb_gets_no_ruler_helper_markers[CR30]` |
+
+**Verdict: the tests are not theatre. I could not construct a broken hexagon
+that the suite accepts.** The two design decisions that make them work are worth
+naming so they are not undone:
+
+1. `_drawn_shapes` (`tests/test_cr30_registration.py:570-587`) asserts on
+   `render_pages(..., collect_device_geom=True).patch_geom` — **what the
+   renderer actually drew**, not on `Geom` fields. Its docstring records that
+   pixel-corner sampling was tried first and cannot answer the question,
+   because in a honeycomb a slot's corners are filled by its neighbours. That
+   is correct and it is the reason M1 is caught.
+2. `HEX_INSTRUMENTS = instruments.hex_capable_instruments()`
+   (`tests/test_hex_overlay_geometry.py:38`) — the parametrisation is
+   *derived*, so a new hex-capable instrument is covered the moment it exists.
+   This is the single best thing in the change.
+
+### 4.1 SERIOUS — the coverage is not symmetric, and `test_layout_raster.py` is still SS-only
+
+M8 and M9 were caught, but **only by SpectroScan tests**. The five hex tests in
+`tests/test_layout_raster.py` are all still hard-coded:
+
+* `:75-90` `test_hex_strip_count_matches_columns_not_interlock` — `default_recipe("SS", …)`
+* `:510` `test_hexagon_points_shape_and_stagger`
+* `:527-532` `test_spectroscan_hex_pokes_above_first_row` — `build("SS", hflag=True)`
+* `:647` the row-number label clearance (`_protrude`) — `build("SS", hflag=True)`
+* `:653-656` `test_spectroscan_hex_first_column_not_clipped` — `build("SS", hflag=True)`
+
+Report 05's change #6 asked for both files; only `test_hex_overlay_geometry.py`
+got it. The one at `:647` is the one that matters most, because §3.2 shows the
+CR30's row-number band behaves **differently** from the SpectroScan's at the
+same code — 8.43 mm of text in a 7.5 mm band against 5.08 mm in the same band.
+A shared code path with different geometry is exactly where an SS-only test
+stops being a proxy. Parametrising these five over `HEX_INSTRUMENTS` would have
+found §3.2.
+
+### 4.2 SERIOUS — nothing tests the Guided/Manual UI wiring at all
+
+§3.1's blocker is live in the tree **with a green suite**. `_engine_geom` and
+`_engine_info_line*` have no CR30 coverage, and no test compares
+`tab_chart._engine_geom` against `chart_creator._engine_build_kwargs` for any
+instrument — which is the invariant `GEOM_BUILD_KEYS` exists to protect. One
+parametrised test ("the estimate agrees with the build, per instrument, per
+mode") closes §3.1 and pins the lockstep for every future instrument.
+
+---
+
+## Section 5 — Backward compatibility: proved, not argued
+
+The requirement is that existing SpectroScan hexagonal charts and existing user
+projects render and measure **identically**. I proved it three ways against
+`master` (extracted with `git archive` into a scratch tree, so both versions run
+the same probe script on the same input).
+
+**5.1 A whole chart, byte for byte.** A fixed 120-patch `.ti1`, built through
+`chart.build_from_recipe` with `default_recipe("SS", "A4", mode=…)`, seed 7,
+randomise off, 150 dpi:
+
+| artefact | flat | hex |
+|---|---|---|
+| rendered TIFF (SHA-256) | **identical** | **identical** |
+| `.strips.json` (strip rects **and** every patch rect) | **identical** | **identical** |
+| `.ti2` | identical apart from the `CREATED` timestamp | same |
+
+So the pixels a SpectroScan user prints, and the boxes the Measure tab and the
+margin inspector read, are unchanged.
+
+**5.2 Geometry and capacity, swept.** 864 combinations —
+`{i1, p3, CM, 41, 51, SS} × {A4, A4R, A3, Letter} × hflag × density 1–3 ×
+pscale {0.8, 1.0, 1.5} × cm_stagger` — comparing `patches_per_sheet`, `hxeh`,
+`hxew`, `plen`, `pwid`. **Zero differences.** This is the check that would have
+caught the `instruments.py:299` rewrite if `geom.hexagonal` had not been an
+exact substitute for `key in ("SS","CR30") and hxew > 0`.
+
+**5.3 The Manual resize path, swept.** 240 combinations —
+`{i1, p3, CM, 41, 51, SS} × hflag × patch_w {None,6,10,20,30} ×
+patch_h {None,6,10,20}` — comparing `hxeh`, `hxew`, `plen`, `pwid`, `rrsp`.
+**Zero differences.**
+
+The probes are kept at
+`scratchpad/{bc_probe.py, cap_probe.py, rs_probe.py}` and are re-runnable
+against any two trees; §"Concrete changes" asks for 5.2 and 5.3 to be adopted
+as a test rather than left in a scratch directory.
+
+### 5.4 MINOR — a CR30 hex chart built *on this branch before the fix* is now misread
+
+`ui/tabs/tab_measure.py:481-529` `_apply_hex_stagger` compensates *legacy*
+sidecars whose rects were recorded without the stagger, and identifies them by
+fingerprint: "a column of two or more patches that all share one x".
+
+A CR30 hexagonal chart built between commit `22f005aa` and the fix has exactly
+that fingerprint — its rects are unstaggered because `geometry.py:475` still
+said `"SS"` — **and it was also drawn as squares**. After the fix,
+`chart_is_hexagonal` returns True for it, the legacy fingerprint matches, and
+the Measure highlight is shifted ±¼ patch onto ink that was never staggered.
+The chart is wrong either way, but it now fails *differently* than it looks.
+
+MINOR because the CR30 has never shipped in a beta — but Basti and Knut drive
+this branch on screen, so any CR30 honeycomb in a real project folder from the
+last few days should be rebuilt rather than measured.
+
+### 5.5 MINOR — a `.ti2` separated from its sidecar loses its shape
+
+`hex_support.chart_is_hexagonal` reads only `<stem>.channels.json` and fails
+open. The `.ti2` itself carries `HEXAGON_PATCHES "True"`
+(`instruments.py:527`/`:684`, asserted at
+`tests/test_cr30_registration.py:331`) and is never consulted. A chart imported
+as a bare `.ti2` therefore measures as if it were rectangular: rectangular
+highlight over hexagons, and the scanner sample-area cap silently lifted.
+Pre-existing for the SpectroScan; it now applies to a second instrument. The
+fallback is one `find_kword`-equivalent away.
+
