@@ -14,6 +14,8 @@ the derivation measures a real provisional geometry.
 """
 from __future__ import annotations
 
+import math
+
 from . import geometry, instruments, papers
 
 _MIN_PATCH_MM = 1.0       # floor so a too-dense grid can't go degenerate
@@ -76,6 +78,24 @@ def derive_area_patch_size(kw: dict) -> tuple[float, float] | None:
     cols = int(kw.get("area_cols") or 0)
     rows = int(kw.get("area_rows") or 0)
     ratio = float(kw.get("area_ratio") or 0.0)     # height : width
+    # A HEXAGON'S PROPORTIONS ARE NOT THE USER'S TO CHOOSE.
+    #
+    # area_first sizes patches to fill the page from a height:width ratio the
+    # user sets. For a honeycomb that ratio is fixed by geometry: the slot must
+    # be `pwid * sqrt(3)/2` so the apexes (which overhang by plen/6 at each end)
+    # interlock with the rows above and below. Ignoring it drew STRETCHED
+    # hexagons -- measured +17 % on a SpectroScan and +20 % on a CR30 -- and
+    # because the interlock pitch was then wrong the patch count DROPPED (SS
+    # -8.5 %, CR30 -4.5 %) while the "hexagon patches" checkbox promised more.
+    #
+    # Pre-existing: the SpectroScan has shipped this way. Fixed rather than
+    # papered over on Basti's ruling (2026-08-28).
+    #
+    # `hflag` alone is not the test: on a ColorMunki it means DENSITY, not
+    # hexagons. `hex_capable` asks the geometry whether the flag makes a
+    # honeycomb, which is the same single source of truth `is_hexagonal` uses.
+    if kw.get("hflag") and instruments.hex_capable(str(kw.get("instrument") or "")):
+        ratio = math.sqrt(3) / 2.0
     min_w = float(kw.get("area_min_patch") or 0.0)
     # The calculation method selects which inputs drive the grid: "by_width" uses
     # the minimum width + height%, "by_grid" uses explicit columns + rows (#93).
@@ -186,7 +206,6 @@ def derive_area_patch_size(kw: dict) -> tuple[float, float] | None:
         if pw is not None:
             ph = max(ph or 0.0, _floor_ph(pw))
         if target > 0 and pw is not None and ph is not None:
-            import math
             cmax = _cols_at(min_w) or 1
             # When the count FITS ON ONE PAGE, grow the patches so they fill it:
             # try every column count from the max (smallest, min-width patches) down,
@@ -253,7 +272,17 @@ def derive_area_patch_size(kw: dict) -> tuple[float, float] | None:
         ph = max(_MIN_PATCH_MM, base_h, _rows_filling_fit(_max_rows_at(base_h)))
     if pw is None or ph is None or pw <= 0 or ph <= 0:
         return None
+    # A HONEYCOMB'S HEIGHT IS DERIVED, NEVER GROWN.
+    #
+    # The ratio set above is only a FLOOR for the solver: `_rows_filling_fit`
+    # then grows the height to fill the page, which for a hexagon re-stretches
+    # the very proportion the ratio was there to fix. Snapping here is what
+    # makes the constraint absolute, whichever solver path ran. Hexagons
+    # interlock, so a height that does not divide the page exactly simply ends
+    # the last row early -- there is nothing to gain by stretching it.
+    if pw and kw.get("hflag") and instruments.hex_capable(
+            str(kw.get("instrument") or "")):
+        ph = pw * math.sqrt(3) / 2.0
     # Floor to 0.01 mm so rounding can't nudge the patch over the boundary and
     # drop the column/row we just fitted.
-    import math
     return (math.floor(pw * 100) / 100.0, math.floor(ph * 100) / 100.0)
