@@ -79,8 +79,29 @@ class Reader:
             pass
 
     def kill(self):
+        """Tear down without leaking a BrokenPipeError.
+
+        The helper often exits on its own once the chart is finished, so the
+        pipes must be closed explicitly rather than left for the garbage
+        collector — an unraisable BrokenPipeError at teardown is reported by
+        pytest as an ERROR on an otherwise passing test, which is exactly the
+        noise that hides a real failure later.
+        """
         if self.p.poll() is None:
-            os.killpg(os.getpgid(self.p.pid), signal.SIGKILL)
+            try:
+                os.killpg(os.getpgid(self.p.pid), signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+        for pipe in (self.p.stdin, self.p.stdout, self.p.stderr):
+            try:
+                if pipe is not None:
+                    pipe.close()
+            except (BrokenPipeError, OSError, ValueError):
+                pass
+        try:
+            self.p.wait(timeout=5)
+        except Exception:                       # noqa: BLE001 — teardown only
+            pass
 
 
 @pytest.fixture
