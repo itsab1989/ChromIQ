@@ -232,3 +232,152 @@ of them I re-derived from the C source rather than the report:
   (`chromiq_chartread.c:2843-2852`), so `note_goto` before `goto_patch`
   (`tab_measure.py:11455-11462`) is the right order and is what it says it is.
 
+
+## Section 2 — partial measurement. The `.ti3` is safe; **"Save and stop" is not.**
+
+The user will read about five patches of 390 and stop. Everything below was
+measured against the **real** `native/chartread_helper/build/chromiq-chartread`
+over the `-xx` JSON channel, with no hardware.
+
+### 2.1 ✅ The good news, proved: the partial `.ti3` is correct and complete
+
+| question | answer | how |
+|---|---|---|
+| does the `.ti3` hold the 5 patches? | **yes** — `NUMBER_OF_SETS 5`, one row per read patch, no placeholder rows | `/tmp/p1.py` |
+| when is it written? | after **every** patch — `cq_write_ti3_atomic()` runs on the same line as `cq_emit_patch_read` (`chromiq_chartread.c:3178-3179`), and a `{"event":"saved","path":"n.ti3","read_patches":5}` follows | observed |
+| is a killed session's file worse than a finished one? | **no — byte-identical.** A 90-patch autosave file and the same run's `save_ti3()` output after `done` `diff` clean | `/tmp/p5.py` |
+| is it honest about the instrument? | yes: `TARGET_INSTRUMENT "CR30"`, `COLOR_REP "iRGB_XYZ"`, no `SPECTRAL_*` | observed |
+| does "done with unread patches" work over JSON? | **yes** — `{"cmd":"done"}` → `{"event":"unread_confirm","id":…,"loc":…}` → `{"cmd":"yes"}` → `{"event":"done"}`, exit 0 | `/tmp/p1.py` |
+| is the run resumable? | **yes** — relaunching with `-r` re-offers `A4`, i.e. the first unread patch, and `session_start` reports the read strips | `/tmp/p9.py` |
+| does relaunching *without* `-r` destroy it? | not on startup — the file is only rewritten when a patch is read | `/tmp/p9.py` |
+
+**So no reading is ever lost, and none is invented.** That part of #159 is sound.
+
+### 2.2 🔴 BLOCKER — "Save and stop" cannot end a CR30 measurement
+
+The path the user will take. `_on_stop` → `_confirm_end_of_session(END_STOP)` →
+**Save and stop** → `_end_session("save")` → `MeasureManager.send_save_partial_
+and_quit()` (`workflow/measure_manager.py:874-915`), which on the engine is the
+**two-`q` protocol**: send `q`, wait for the give-up prompt, send `q` again —
+*"the second answers the give-up prompt, and THAT is what makes chartread write
+the .ti3 and exit."*
+
+**On `-xx` that give-up prompt does not exist.** It is printed at
+`chromiq_chartread.c:2916-2918` inside `else if ((rv & inst_mask) ==
+inst_user_abort)` — a branch reached only from `it->read_sample`, i.e. only when
+an instrument is open. Under `-x` there is no `it`. `q` instead lands on
+`chromiq_chartread.c:3049-3062`, which emits **`abort_confirm`** and blocks on
+its own y/n.
+
+Measured against the real binary (`/tmp/p7.py`), after three patches:
+
+```
+-- first 'q'   -> events: [... 'spot_ready', 'abort_confirm']   alive: True
+-- second 'q'  -> alive: True    events: [..., 'spot_ready', 'abort_confirm']
+   spot_ready locs: ['A1','A2','A3','A4','A4']
+```
+
+and confirmed against the **real `MeasureManager`** fed the real helper's lines
+(`/tmp/p8.py`):
+
+```
+send_save_partial_and_quit()  ->  commands sent: [{'cmd': 'quit'}]
+                                  state: wait_give_up_prompt
+after the helper answered:        signals: ['abort_confirm']
+                                  commands sent: [{'cmd': 'quit'}]     <- still ONE
+                                  _save_partial_state: wait_give_up_prompt
+```
+
+`_save_partial_state` is stuck at `wait_give_up_prompt` **for ever**: nothing
+clears it, the second `q` never goes out, and the helper never exits.
+
+What the user then sees, from `ui/tabs/tab_measure.py:7027-7104`: the
+`abort_confirm` signal opens **"Confirm Abort" — "Stop measuring?"**, a *second*
+window immediately after he answered the first one. And clicking **"Yes — Stop"**
+does this:
+
+```python
+self._send_failure_choice("n")                                  # :7099
+self._end_session(self._confirm_end_of_session(self.END_ABORT_KEY))   # :7100
+```
+
+→ `_confirm_end_of_session` → **"Keep what you have measured so far?"** again →
+Save and stop → `send_save_partial_and_quit()` → `q` → `abort_confirm` → …
+
+**A closed loop of two dialogs with no exit but "Discard and stop."**
+
+*(For an i1Pro reading patch-by-patch this works, because there `q` arrives
+through the ui-callback during `read_sample`, produces "Spot read stopped at
+user request!" and the `strip_interrupted` event, and
+`measure_manager.py:1716-1722` sends the second key. `-x` never runs
+`read_sample`. So this is **CR30-specific in effect**, even though the shape
+lives in shared code.)*
+
+**Rank: BLOCKER, CR30-specific.** Fix: on the external-values path
+`send_save_partial_and_quit` must answer `abort_confirm` with `{"cmd":"yes"}` —
+which exits cleanly and leaves the autosaved `.ti3` in place (measured: exit 0,
+`NUMBER_OF_SETS 3` intact, `/tmp/p2.py` §P3) — or the helper must emit
+`strip_interrupted` on the `-x` quit path so the existing chain completes.
+Either way `_save_partial_state` must be cleared when `abort_confirm` arrives,
+so the state cannot wedge.
+
+### 2.3 🟠 SERIOUS — every answer to a y/n prompt leaves a ghost line that
+### silently moves the patch pointer
+
+`cq_handle_line` (`chromiq_json.c:236-269`) sets the pending **key** *and*
+mirrors the same character onto the **`-x` line queue**, unconditionally. The
+prompts (`cq_prompt_char` → `cq_wait_char`, `chromiq_json.c:328-341`) consume
+only the key. **The mirrored line stays in the FIFO and is eaten by the next
+`cq_wait_line`.**
+
+Measured (`/tmp/p2.py` §P2 and `/tmp/p7.py`):
+
+* `{"cmd":"done"}` → `unread_confirm` → `{"cmd":"no"}` →
+  `spot locs after 'no': ['A4', 'A5']`. The user said *"no, I am not finished"*
+  and the helper **skipped to the next unread patch** — because the ghost `"n"`
+  line is `-x`'s *next-unread* command.
+* the same for the tab's `_send_failure_choice("n")` at `abort_confirm`
+  (`/tmp/p7.py`): `['A1','A2','A3','A4','A4','A4','A5']`.
+
+Why it matters on a CR30 specifically: the operator is standing over a physical
+patch. If the pointer moves without him asking, `Cr30MeasureBridge` faithfully
+answers the *new* `loc` with the reading of the patch he is actually on. The
+bridge's `on_patch_measured` pairing check **cannot see this** — the helper's
+`loc` and the answered `loc` agree; it is the *paper* that disagrees. The only
+warning is the preview highlight moving, which the user is not looking at while
+he is reading a patch.
+
+**Rank: SERIOUS, CR30-specific in consequence.** Fix, C side: `cq_wait_char`
+should also drain the matching line, or the mirror should not be queued for the
+keys that only ever answer a prompt (`y`, `n`, `s`, and `\x1b`/`q` when a
+confirm is open).
+
+### 2.4 🟡 MINOR — a partial CR30 read is reported as a **whole strip read**
+
+`session_start` after resume reports `{"strip":"A", …, "read":true}` with only
+3 of that pass's 15 patches read (`/tmp/p9.py`). The flag is "has any reading",
+which is right for a strip reader and meaningless on a hexagonal 26×15 CR30
+chart. It drives `_update_engine_read_map` → `set_stripe_read_map`, so the
+preview will show a "read" pass the user has barely touched.
+
+### 2.5 🟠 SERIOUS — nothing stops him building a profile from five patches
+### (pre-existing, but #159 is what makes it likely)
+
+There is no completeness check anywhere: the tests are all
+`_cgats_has_no_readings` / `has_any_readings` (`tab_measure.py:833`,
+`workflow/measurement_state.py:198`) — *any* reading makes the run "measured".
+With the 5-patch `.ti3` produced above, ArgyllCMS says:
+
+```
+$ colprof -v -ql -aX n
+colprof: Error - 65539, set_icxLuLut: can't handle test points without a white patch
+```
+
+and with the default quality/algorithm the first refusal is *"Output profile can
+only be a cLUT algorithm"*. Both are raw Argyll text with no ChromIQ sentence in
+front of them. **This is exactly what the user's session ends in**: five patches,
+then Build Profile.
+
+**Pre-existing** — any instrument can produce a two-patch `.ti3` — but until #159
+no workflow encouraged stopping after five patches, and this one does.
+
