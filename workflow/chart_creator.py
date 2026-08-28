@@ -127,7 +127,18 @@ _PRINTTARG_ERROR_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
 
 
 # Instruments the ChromIQ layout engine can lay out itself (issue #93).
-ENGINE_INSTRUMENTS = {"i1", "p3", "CM", "SS"}
+ENGINE_INSTRUMENTS = {"i1", "p3", "CM", "SS", "CR30"}
+
+# Instruments the engine is the ONLY route for - printtarg cannot lay them out
+# at all, so the printtarg path is not a fallback, it is a fault (#159).
+#
+# printtarg's -i takes an ArgyllCMS instrument code. "CR30" is not one: printtarg
+# answers "Unsupported instrument type" (see the error table at the top of this
+# file) and, before that, ChromIQ's own patch-capacity binary search would shell
+# out to it once per probe. So the CR30 is forced onto the engine in
+# _should_use_engine, and _build_printtarg_args REFUSES to build an argv for it
+# rather than emitting a flag printtarg will reject.
+ENGINE_ONLY_INSTRUMENTS = {"CR30"}
 
 # printtarg's ColorMunki triple-density trick (-ii1) uses -a1.3 by default; the
 # engine's native extra-high-density (pscale 1.0) reproduces exactly that size,
@@ -1068,6 +1079,20 @@ class ChartCreator:
     def _should_use_engine(self, params: "ChartParams") -> bool:
         if params.instrument not in ENGINE_INSTRUMENTS:
             return False
+        # ENGINE-ONLY (CR30, #159): the engine is not a preference here, it is
+        # the only thing that can lay this chart out. Decided ahead of every
+        # test below - including the Manual "use the ChromIQ layout engine"
+        # setting and the two legacy printtarg clip flags - because each of
+        # those can otherwise route a chart to printtarg, which cannot lay out
+        # a CR30 at all. Forcing the engine (rather than filing the CR30 under
+        # EXTERNAL_INSTRUMENTS, the other precedent) keeps it visible in the
+        # Guided instrument list: EXTERNAL_INSTRUMENTS is for devices whose
+        # layout an external tool recomputes, where Guided has nothing to
+        # optimise, and it HIDES its members from that combo
+        # (tab_chart.py:3406-3408). A CR30 chart is ours to lay out, and Guided
+        # is exactly where a first-time user picks the device.
+        if params.instrument in ENGINE_ONLY_INSTRUMENTS:
+            return True
         # Guided mode always uses the engine: it reproduces printtarg's Guided
         # geometry for every instrument/paper/option (verified 161/161, #93).
         #
@@ -1157,6 +1182,17 @@ class ChartCreator:
                 kw["cm_stagger"] = True
         elif params.instrument == "SS":
             kw["hflag"] = bool(params.double_density)   # hexagon patches
+        elif params.instrument == "CR30":
+            # A CR30 grid takes none of the strip options above: no density
+            # levels, no hexagons, no stagger, no clip border, no edge spacers
+            # (there is no strip to bracket - see the tuple above, which the
+            # CR30 is deliberately not in). Its patch size is fixed by the
+            # geometry branch and must NOT float, so pin patch-first here as
+            # well as in presets.default_recipe: this basics path (Guided, and
+            # Manual without a recipe) never passes layout_mode, and if the
+            # engine default ever flips to area_first the ruled 10 mm patch
+            # would silently become "whatever fills the page" (#159).
+            kw["layout_mode"] = "patch_first"
         return kw
 
     def _engine_total_patches(self, params: "ChartParams") -> int | None:
@@ -1780,6 +1816,16 @@ class ChartCreator:
         # afterwards, so we pass p.patch_scale / p.margin_mm / p.no_strip_limit
         # through verbatim. Guided mode sets the same preset values directly
         # on ChartParams.
+        # ENGINE-ONLY instruments never reach printtarg (#159). Every caller
+        # of this method is behind a `_should_use_engine` check that is
+        # unconditionally True for these keys, so arriving here means one of
+        # those guards has been lost. Fail loudly rather than emit "-iCR30",
+        # which printtarg rejects with a message about an unsupported instrument
+        # type that tells the user nothing about what actually went wrong.
+        if p.instrument in ENGINE_ONLY_INSTRUMENTS:
+            raise ValueError(
+                f"{p.instrument} charts are laid out by the ChromIQ layout "
+                f"engine only; printtarg cannot lay out this instrument")
         triple = p.triple_density and p.instrument == "CM"
         if triple:
             pt_instr = "i1"

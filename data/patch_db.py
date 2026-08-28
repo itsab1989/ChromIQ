@@ -182,11 +182,20 @@ INSTRUMENT_LABELS: dict[str, str] = {
     "p3": "i1Pro 3 Plus",
     "CM": "ColorMunki / i1Studio / ColorChecker Studio",
     "SS": "SpectroScan",
+    "CR30": "CR30 (ChnSpec)",
     "isis": "i1iSis (via i1Profiler)",
 }
 
 # ChromIQ-only sentinel instrument codes that must NOT be passed to printtarg.
 # These represent devices ChromIQ supports through an external workflow.
+#
+# The CR30 is NOT here, deliberately (#159). printtarg must never see it either
+# - but this set also HIDES its members from the Guided instrument combo
+# (tab_chart.py:3406-3408), because for an i1iSis the layout is recomputed by
+# i1Profiler and there is nothing for Guided to optimise. A CR30 chart IS laid
+# out by our own engine, and Guided is exactly where a first-time user picks it,
+# so hiding it would be wrong. printtarg is kept away from the CR30 by forcing
+# the layout engine instead - chart_creator._should_use_engine / _printtarg_args.
 EXTERNAL_INSTRUMENTS: frozenset[str] = frozenset({"isis"})
 
 PAPER_SIZES: list[str] = [
@@ -1112,6 +1121,9 @@ INSTRUMENT_MODEL_WORDS: dict[str, tuple[str, ...]] = {
     "CM": ("colormunki", "color munki", "i1studio", "i1 studio",
            "colorchecker studio"),
     "SS": ("spectroscan",),
+    # The CR30 reports itself over USB/BLE; "chnspec" is the vendor name that
+    # also appears in some firmware strings (#159).
+    "CR30": ("cr30", "chnspec"),
     "isis": ("i1isis", "isis"),
 }
 
@@ -1130,7 +1142,10 @@ def instrument_family_of(model: str) -> "str | None":
     text = (model or "").strip().lower()
     if not text:
         return None
-    for code in ("p3", "CM", "SS", "isis", "i1"):
+    # NOTE: this tuple is hand-maintained and is NOT derived from
+    # INSTRUMENT_MODEL_WORDS - a family added to the dict but missed here is
+    # silently never matched, and instrument_mismatch() below goes blind for it.
+    for code in ("p3", "CM", "SS", "CR30", "isis", "i1"):
         if any(word in text for word in INSTRUMENT_MODEL_WORDS[code]):
             return code
     return None

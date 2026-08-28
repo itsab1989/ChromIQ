@@ -752,6 +752,27 @@ typedef struct {
 	int uih[256];
 } cq_uicontext_mirror;
 
+/* CHROMIQ_EXT #159: instruments ChromIQ drives itself. Matched case-insensitively
+ * on the whole keyword so a substring cannot smuggle one in. Kept as a list
+ * because more may follow; each must also be registered on the Python side. */
+static const char *cq_external_instruments[] = { "CR30", NULL };
+static int cq_external_instrument_named = 0;
+
+static int cq_is_external_instrument(const char *name) {
+	int i, j;
+	if (name == NULL)
+		return 0;
+	for (i = 0; cq_external_instruments[i] != NULL; i++) {
+		const char *w = cq_external_instruments[i];
+		for (j = 0; name[j] != '\0' && w[j] != '\0'; j++)
+			if (tolower((unsigned char)name[j]) != tolower((unsigned char)w[j]))
+				break;
+		if (name[j] == '\0' && w[j] == '\0')
+			return 1;
+	}
+	return 0;
+}
+
 /* Label a goto command arrived for; consumed at the strip menu. */
 static char cq_goto_target[16] = "";
 /* Set when a goto repositioned the menu without a reading. */
@@ -3672,7 +3693,34 @@ int main(int argc, char *argv[]) {
 	else
 		ocg->add_kword(ocg, 0, "DEVICE_CLASS","OUTPUT", NULL);	/* What sort of device this is */
 
-	if (itype == instUnknown) {
+	/* CHROMIQ_EXT #159: instruments ChromIQ drives itself, which ArgyllCMS has
+	 * no enum for. They are only ever read with external values (-x): chartread
+	 * opens no instrument, so nothing downstream needs an instType. Recognising
+	 * the name here is what stops the gate below rejecting an honest chart.
+	 *
+	 * The honest name is deliberate (Basti's ruling, #159 section 7). Borrowing
+	 * an existing instrument's name would let the chart through, but every
+	 * is_colormunki()-style consumer in ChromIQ would then lie about what took
+	 * the readings.
+	 *
+	 * Stock ArgyllCMS chartread still refuses such a chart. That is the
+	 * accepted cost of not lying, and ChromIQ warns the user about it both when
+	 * the chart is created and when it is measured. */
+	if (itype == instUnknown
+	 && (ti = icg->find_kword(icg, 0, "TARGET_INSTRUMENT")) >= 0
+	 && cq_is_external_instrument(icg->t[0].kdata[ti])) {
+		if (xtern == 0)
+			error("The chart was made for '%s', which ChromIQ reads itself. "
+			      "Measure it in ChromIQ, or use -x to supply values.",
+			      icg->t[0].kdata[ti]);
+		/* Carry the chart's own instrument name into the .ti3 (A3): without
+		 * this the result claims "Unknown Instrument", and ChromIQ then offers
+		 * FWA on a measurement that has no spectral data at all. */
+		ocg->add_kword(ocg, 0, "TARGET_INSTRUMENT", icg->t[0].kdata[ti], NULL);
+		cq_external_instrument_named = 1;
+	}
+
+	if (itype == instUnknown && !cq_external_instrument_named) {
 		if ((ti = icg->find_kword(icg, 0, "TARGET_INSTRUMENT")) >= 0) {
 
 				if ((itype = inst_enum(icg->t[0].kdata[ti])) == instUnknown)
