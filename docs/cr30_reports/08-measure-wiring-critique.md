@@ -355,3 +355,84 @@ already has the hook for precisely this class of problem —
 `:1287`). Add the pbp re-assert beside it, and in `_restore_defaults` and
 `_m_apply_preset_data` too.
 
+---
+
+## 4. Item A — no stock fallback for a chart stock chartread cannot read
+
+**Agreed in principle, and the proposed scope is too narrow in two ways.**
+
+### 4.1 There are THREE places that launch stock chartread, not one
+
+`_engine_should_fall_back` is the one that fired on 2026-08-28. The other two
+are just as reachable and one of them is worse:
+
+| # | Site | Condition | Why it matters for a CR30 |
+|---|---|---|---|
+| 1 | `measure_manager.py:383-393` `_engine_mode_fallback` | helper says XY/chart mode and the Beta opt-in is off | unreachable **once B lands** (no instrument is opened under `-x`, so no mode can be reported) — but free to gate |
+| 2 | `:398-421` `_engine_should_resume_fallback` | engine failed **after** reading patches, resumable `.ti3` exists | **the dangerous one.** It fires exactly when the user has already measured half the chart, and it relaunches stock chartread with `-r` on a CR30 chart, which refuses it. The reassuring "every strip you have already measured has been saved and will be kept" message is emitted **first**, so the user is told they are continuing and then watches it die |
+| 3 | `:423-437` `_engine_should_fall_back` | the reported case | as diagnosed |
+
+Gating only #3 leaves #2 to produce the same double failure with a much more
+misleading message attached. **Gate all three.**
+
+### 4.2 The predicate — do not re-derive it, and do not import `ui` from `workflow`
+
+The brief asks which predicate. Answers, in order of preference:
+
+* **NOT `_blocked_by_stock_chartread_for_cr30`.** It is the right *question* but
+  the wrong *object*: it is a `TabMeasure` method that shows a modal, mutates
+  `chartread_engine`, and returns "should Start be refused". `MeasureManager`
+  must not call anything that can open a window from inside a finished-callback.
+* **NOT `params.instrument`.** That is chartread's `-c` **comms port number**
+  (`_build_args:891`, and log line 8567 shows `-c 1`). It says nothing about
+  the device.
+* **NOT re-reading the chart inside `measure_manager`.** `ui/ti2_loader.is_cr30`
+  lives in `ui/`; `workflow/` imports `ui/` in exactly two places in the whole
+  tree (`chart_creator.py:1643`, `ti2_relayout.py:255`), both lazy, both for one
+  helper. Adding a third for a policy decision inverts the layering.
+* **✅ A new `MeasureParams` field, set by the tab — the way every other
+  engine decision already travels.** `engine_helper`, `engine_safenet`,
+  `engine_xy_chart`, `cal_auto_retries` all reach the manager this way
+  (`_apply_engine_params`, `tab_measure.py:11180-11200`). Add:
+
+  ```python
+  #: This chart names an instrument stock ArgyllCMS chartread refuses
+  #: (#159 CR30). A fallback to it can only fail, so it must not happen.
+  stock_reader_cannot_read: bool = False
+  ```
+
+  set in `_apply_engine_params` from `self._chart_is_cr30()` (Change 0), and
+  checked at all three sites above.
+
+  **⚠ `workflow/measure_settings.py:26-41` `NOT_A_SETTING` must gain an entry
+  for it, or `tests/test_measure_settings.py` fails the drift guard.** That
+  test exists precisely to catch a new `MeasureParams` field nobody mapped.
+  The reason line writes itself: *"a property of the chart, not a preference"*.
+
+### 4.3 Say it once, and say the true thing
+
+With the fallback gated, the run ends on the helper's own exit. Today the user
+sees, in order: a `[WARNING]` about "the instrument", a translated paragraph
+promising ArgyllCMS chartread will take over, and then a second failure. All
+three are wrong — **no instrument was involved at any point**, and the
+suggested remedy cannot work.
+
+* `_engine_fatal` is `None` here, so the reason renders as `unknown error`. The
+  helper *did* say exactly what was wrong; it said it on **stderr**, outside the
+  JSON channel, and nothing captured it (log line 8583 proves ChromIQ received
+  the text and dropped it on the floor). **Change:** when
+  `stock_reader_cannot_read` is set and the engine exits non-zero having emitted
+  no event, surface the helper's own last stderr line rather than
+  `unknown error`. (A broader fix — have the C side emit
+  `{"event":"error","kind":"chart_refused"}` before `error()` at `:3712` — is
+  cleaner still, and the C side is already the owner of that text.)
+* The user-facing sentence must come from **§M**, not from a `tr()` at the
+  fallback site. `M_CR30_STOCK_READER` already exists
+  (`workflow/measurement_messages.py:73-86`) and is `approved=False` —
+  §M-PROPOSED. **A second CR30 message will need the same treatment**; do not
+  write new wording straight into `measure_manager.py`, or
+  `tests/test_message_catalogue.py` will fail and Knut's §M rule is broken.
+
+**Finally — A is not a substitute for B.** With A alone the user gets one clean
+failure instead of two confusing ones, and still cannot measure their chart.
+
