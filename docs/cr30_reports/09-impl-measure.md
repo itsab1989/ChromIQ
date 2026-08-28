@@ -142,3 +142,80 @@ a modal for a run that has *ended* rather than switched readers, the text is
 already a §M `Message` and `_on_engine_fallback_refused` is the single place to
 change. **Listed as open item 1.**
 
+
+## Change C — patch-by-patch locked on for a CR30 chart (F6)
+
+**Order deviation, deliberate:** C was implemented before B. §5.1 of the
+critique proves C is a *correctness* requirement for B —
+`MeasureManager.start` derives `self._spot_mode` from `params.patch_by_patch`,
+and `skip_current_strip` branches on it, so `-x` with `patch_by_patch` False
+puts the helper in spot mode while the manager believes it is in strip mode.
+Landing B first would have created a commit with that defect in it.
+
+### The resolver is the authority
+
+`_resolve_patch_by_patch(mode)` (`ui/tabs/tab_measure.py:1319`) — a CR30 chart
+is always True, otherwise the module's own box. Called from all three live
+readers: `_collect_guided`, `_collect_manual`, and `_is_pbp_checked` (which was
+rewritten to delegate; it drives ~10 downstream behaviours through
+`_spot_session`). Readers 4 and 5 in the manager follow for free.
+`grep -n '_pbp_cb\.\|_m_pbp_cb\.' ui/tabs/tab_measure.py` now returns nothing
+outside the three new helpers.
+
+⚠ **This is where the first mutation attempt failed, and it is worth
+recording.** Deleting the `if self._chart_is_cr30(): return True` branch left
+all 89 tests green — because the widget lock had ticked the boxes, so a test
+that reads the resolver cannot tell the resolver from the widget. That is the
+exact "correct by accident" failure §3.3 warns about. Two tests were added that
+separate them (`test_the_resolver_decides_and_not_the_widget`, and the same
+through the real store via `measure_settings.apply`), and the mutation then
+fails both. **The suite would have shipped a widget-only lock.**
+
+### Presentation, and the write-guards
+
+`_apply_cr30_pbp_lock()` follows `TabChart._apply_calibration_knobs`:
+snapshot the tick **and the tooltip** once (`_pbp_lock_snapshot`, with the #137
+R1 `is None` guard so engaging twice cannot capture the forced values), tick,
+`setEnabled(False)`, swap in a `tr()` literal that names the reason and how to
+get the control back, and restore all three exactly on release. Both members of
+`_LINKED_PAIRS` are locked, with signals blocked so the mirror stays out of the
+snapshot's way. **Not hidden** — `_bool_row_m` does not even keep a handle, and
+`tab_measure.py:1243` forbids reading a control the user cannot see.
+
+`_pbp_user_value(mode)` is what every *saved* copy is written from — the two
+global keys in `_on_save_defaults` and `"pbp"` in `_m_collect_preset_data`
+(F6). `_set_pbp_user_value(mode, value)` is what every *load* writes through —
+`_restore_defaults`, the Manual restore, and `_m_apply_preset_data` — so a
+preset applied while locked lands in the snapshot and becomes what the user
+gets back, instead of showing an unticked box over a ticked read.
+
+Re-asserted at every point the chart or the settings change (C.5): in
+`set_ti1_path` beside `_refresh_bidir_autodetect`, and beside
+`_reassert_guided_refinement()` on **both** exits of `load_target_settings`.
+
+### Tests and mutations
+
+13 new in `tests/test_cr30_registration.py` §14, covering C.7 (a)-(d) plus the
+resolver-authority pair, the round trip with a *ticked* box, double engagement,
+`chart_instrument` being ignored (C.6), and `-p` actually reaching
+`MeasureManager._build_args`.
+
+| mutation | result |
+|---|---|
+| resolver ignores the chart | **2 fail** (after the two new tests; 0 before) |
+| global writers read the widget again | 2 fail |
+| no restore on unlock | 3 fail |
+| snapshot retaken on every call | 1 fail |
+
+### One existing test needed a stub extended (not weakened)
+
+`tests/test_measure_settings.py`'s `wired` fixture copies selected real methods
+onto `_WiredTab`. `load_target_settings` now re-asserts the lock on both exits,
+so `_apply_cr30_pbp_lock`, `_chart_is_cr30` and `_chart_file_for` joined
+`_reassert_guided_refinement` in that list — the same reason the comment
+already there gives for `_reassert_guided_refinement`. The stub has no
+`_ti1_path`, so the lock answers "not a CR30" and does nothing.
+
+Regression: `-k "measure or engine or cr30 or preset or target_settings or
+i18n or message"`, **2090 passed, 199 skipped**.
+
