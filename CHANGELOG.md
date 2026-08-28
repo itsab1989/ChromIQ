@@ -1,5 +1,89 @@
 # Changelog
 
+## v4.1.4
+
+Every "Save as…" dialog in 4.1.3 was broken. One line was at fault, nothing had
+ever tested it, and it took a bug report about a help card to find it. This
+release fixes that, stops ChromIQ ever joining a project you already have
+without saying so, and makes typing in the Create Chart name field twenty times
+faster.
+
+### Fixed
+
+- **Every “Save as…” dialog works again.** The help card's PDF, the profile
+  report, the measurement report, the spot readings, the clip template, the
+  layout-preset export, the soft-proof image, the patch colours, the i1Profiler
+  export — twelve in all. The shared save dialog overwrote its own *parent
+  window* argument with a folder path, so it raised an error before it could
+  open, for every caller that suggests a file name. Reported against Help ▸
+  SAVE AS PDF…, where it showed as “Something went wrong while writing the PDF”.
+- **Cancelling a name prompt no longer closes ChromIQ.** Loading a patch set
+  with no project open, or copying in a profile that lives outside your working
+  folder, asks you to name the project — and pressing Cancel there shut the app
+  down instead of simply stopping. It has done that in every version since
+  4.0.0.
+- **A help card PDF that cannot be written no longer reports success.** ChromIQ
+  asked the PDF tool whether it had complained; the tool does not complain, it
+  simply paints nothing. The file itself is checked now, and an empty one is
+  removed rather than left behind under the name you chose.
+- **Typing the project name is no longer sluggish.** One keystroke in the
+  Create Chart name field recomputed the whole page layout — a column-fit search
+  measuring all 26 capital letters, over 51,000 text measurements per key
+  pressed, to answer a question whose answer never changes. Measured at 82 ms a
+  keystroke; now about 4 ms. The same saving applies to every layout estimate
+  and to building a chart.
+
+### New
+
+- **ChromIQ tells you when a project of that name already exists.** Type a name
+  you have used before and a line appears under the box; build, and a window
+  names the folder, lists what each of its runs holds, and lets you choose:
+  carry on in a run you pick (a new one by default, which costs nothing),
+  replace the project after a second confirmation, use a different name, or
+  stop. Before this, ChromIQ opened that project in silence and built into it.
+- **You choose which run to continue in**, in that same window, instead of the
+  project's own last run being taken for you.
+- **Backing out of a built-in preset now really changes nothing.** Pick one from
+  the ★ list, read the window, press Cancel, and ChromIQ used to leave you in
+  Manual with the preset's whole layout in the panel — and quietly kept four of
+  its choices as your app-wide settings, including whether the ChromIQ layout
+  engine is on and how the ruler marks are drawn. Everything goes back now: the
+  mode, every setting on the page, the layout, the name field, any section you
+  had opened, and the preset list itself, which returns to the preset you
+  actually had and can be used to choose that one again. Triple Density in
+  particular used to come back ticked but dead: the layout it hides was gone, so
+  unticking it afterwards changed nothing.
+
+### Fixed — your work is safer than it was
+
+- **The individual readings of an averaged measurement are no longer deleted.**
+  Re-generating a chart archived the measurement and the profile and then
+  removed `reads/read1.ti3`, `read2.ti3`… — instrument readings taken by hand,
+  which nothing can bring back. They are archived with everything else now.
+- **Projects in a sub-folder of your ChromIQ folder are proper projects.**
+  Renaming one used to fail and leave an empty project at the new name while
+  abandoning the real one; the “this profile has already been built” guard could
+  not see its profile; and “Delete the whole project” refused and said nothing.
+- **Replacing a project is all or nothing.** It could fail half way and leave
+  the folder neither the old project nor a new one, while reporting that nothing
+  had changed. Everything is put back now, and a failure is a window rather than
+  a line in the log.
+- **A project folder with an unreadable or hand-edited `project.json` can no
+  longer crash Generate Chart**, or steer ChromIQ outside the project folder.
+- **The clip-template export lists your files again.** The dialog was handed a
+  label where it expected a file filter, so it filtered on the words in it.
+- **Your log is readable.** Nine minutes of use produced 2,315 lines, of which
+  1,813 were the image library talking to itself and 101 were ChromIQ. The noisy
+  libraries are quiet now, so a real fault is not pushed out of a rotated log by
+  chatter — and ChromIQ says plainly whether it opened an existing project or
+  created a new one.
+
+### Also
+
+- The website's Create Chart, Measure and scanner sections were rewritten, and
+  two sections added: keeping a profile honest over months, and where your work
+  lives.
+
 ## v4.1.3
 
 ChromIQ now speaks thirteen languages properly, not just completely — every
