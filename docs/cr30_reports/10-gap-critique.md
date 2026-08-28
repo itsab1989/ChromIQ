@@ -721,3 +721,56 @@ it outlives whatever kills the window. On a real quit this leaves an orphaned
 destroyed while a read is in flight) the shutdown path for a CR30 measurement is
 the least-tested part of the feature.
 
+
+## Section 6 — what would waste his time or his paper
+
+He has **one printed 390-patch hexagonal A4 sheet**. Taken from the real chart's
+own `channels.json`:
+
+| | |
+|---|---|
+| cells | 390 hexagons, **12.02 mm across the flats**, slot 10.33 mm (hexagon height 13.8 mm) |
+| aperture clearance | 4 mm aperture in a 12 mm cell — **4 mm to the nearest edge**, as report 07 measured |
+| patch area | x 13.5 … 199.6 mm, y 16.9 … 287.0 mm on 210 × 297 |
+| first patch offered | `A1` = `.ti2` id **384**, RGB (81.6, 56.8, 87.6) — a saturated lavender |
+
+**The paper itself is fine.** The geometry is measurable by this instrument, the
+33 mm barrel overhangs the sheet edge by at most ~10 mm on a flat table, and
+nothing in the layout makes a patch unreachable. I tried to find a reason the
+sheet could not be read and could not.
+
+**What can make a measurement silently wrong, ranked by how likely he is to
+meet it:**
+
+1. **Every reading is one patch late, and the first is not a reading at all**
+   (§1.1, §4.1). Hardware-confirmed, ΔE76 = 60.5 on his own chart's A1. **This is
+   certain, not probable.**
+2. **A ghost line moves the patch pointer** after any y/n answer (§2.3). He
+   answers "no, keep measuring", the pointer steps to the next patch, and the
+   patch he then reads is filed under the wrong name. The bridge's pairing check
+   cannot see it, because the helper and the bridge agree — the *paper* is what
+   disagrees.
+3. **"Save and stop" cannot end the session** (§2.2) — a two-dialog loop whose
+   only exit is "Discard and stop".
+4. **A single failed read ends the run** (§1.4), with the one escape (click
+   another patch, then click back) undocumented — and the message telling him to
+   press the instrument's button again, which does nothing.
+5. **Build Profile is enabled on five patches** (§5.1) and fails in ArgyllCMS's
+   words.
+6. **The magnet hazard is unguarded on this path.** `gate_flag` is always `None`
+   because the button header is never fetched (§4.1), and
+   `looks_like_calibration_tile()` measured **False** against this unit's own
+   cached reading — so of `check_usable`'s four guards, only *bit-identical* and
+   the physical-range bound are actually live. If he seats the cap while the
+   instrument is awake, the unit's white reference can be overwritten and
+   **nothing here will say so** (`measurement.py:67-96` is explicit that the
+   range bound is one-sided and cannot see a *deflating* mis-calibration).
+
+**And one that costs nothing but is worth saying:** the how-to window promises
+*"ChromIQ collects the reading by itself and moves on to the next patch — there
+is nothing to press on screen"* (`ui/ti2_loader.py:305-314`). It is the one
+sentence in the feature that is flatly untrue today, and it is shown to the user
+**after** `MeasureManager.start` and `_open_cr30_bridge` have already run
+(`tab_measure.py:5657-5666`), so the first patch's read has fired before he has
+finished reading it.
+
