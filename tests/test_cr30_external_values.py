@@ -379,6 +379,62 @@ def test_a_goto_lands_the_value_on_the_clicked_patch(tmpchart, target):
         f"value landed on {got['loc']!r}, the user clicked {target!r}")
 
 
+def test_save_and_stop_ends_a_partial_read_and_writes_the_ti3(tmpchart):
+    """"Keep what I measured" must actually end the session under -x.
+
+    The engine's Save-Partial is a two-'q' protocol that waits for the give-up
+    prompt — and that prompt lives inside the helper's `read_sample` branch,
+    which -x never enters because it opens no instrument. Measured before the
+    fix: one 'q' went out, `abort_confirm` came back, and the manager sat in
+    `wait_give_up_prompt` for ever; the tab's Confirm-Abort →
+    Keep-what-you-measured pair became a loop whose only exit was "Discard and
+    stop", and the helper was left running.
+
+    The path that DOES write under -x is stock chartread's: 'd' is answered by
+    "at least one unread patch, are you sure", and 'y' there saves and exits 0.
+    """
+    r = tmpchart()
+    deadline = time.time() + 8
+    while not r.events("spot_ready") and time.time() < deadline:
+        time.sleep(0.05)
+
+    sent = 0
+    for _ in range(3):
+        spots = r.events("spot_ready")
+        if not spots or spots[-1].get("all_done"):
+            break
+        x, y, z = spots[-1]["exyz"]
+        before = len(r.events("patch_read"))
+        r.send({"cmd": "value", "xyz": f"{x:.4f} {y:.4f} {z:.4f}"})
+        sent += 1
+        d2 = time.time() + 6
+        while len(r.events("patch_read")) <= before and time.time() < d2:
+            time.sleep(0.03)
+    assert sent >= 2, "could not measure a partial run"
+
+    r.send({"cmd": "done"})
+    d2 = time.time() + 8
+    while not r.events("unread_confirm") and time.time() < d2:
+        time.sleep(0.05)
+    assert r.events("unread_confirm"), (
+        "finishing early did not ask about the unread patches")
+    r.send({"cmd": "yes"})
+
+    d2 = time.time() + 12
+    while r.p.poll() is None and time.time() < d2:
+        time.sleep(0.1)
+    assert r.p.poll() == 0, (
+        "save-and-stop did not end the session — this is the wedge returning")
+
+    ti3 = r.tmp / "n.ti3"
+    assert ti3.is_file(), "nothing was saved"
+    lines = ti3.read_text().splitlines()
+    b = next(i for i, l in enumerate(lines) if l.strip() == "BEGIN_DATA")
+    e = next(i for i, l in enumerate(lines) if l.strip() == "END_DATA")
+    rows = [x for x in lines[b + 1:e] if x.strip()]
+    assert len(rows) == sent, f"measured {sent}, saved {len(rows)}"
+
+
 def test_a_wrong_value_is_flagged_not_silently_accepted(tmpchart):
     """chartread checks each reading against the chart's expectation.
 

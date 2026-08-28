@@ -388,6 +388,10 @@ class MeasureManager(QObject):
         # The engine now covers patch-by-patch (spot) mode too — the spot loop
         # speaks the same JSON protocol as the strip loop (#126 follow-up).
         self._engine_active = params.engine_helper is not None
+        #: External values (-x): ChromIQ reads the instrument itself and the
+        #: helper opens none. Kept because the SAVE-AND-STOP path differs — see
+        #: `save_partial_and_quit`.
+        self._external_values = bool(getattr(params, "external_values", False))
         # Engine → stock-chartread safety net (#126, mavtop). Reset per run.
         self._engine_fatal = None
         self._engine_progress = False
@@ -909,9 +913,30 @@ class MeasureManager(QObject):
         question: retry back to the menu, 'd', then 'y' to the "Are you sure"
         prompt. That is what is sent there instead, one prompt at a time.
         """
-        if self._engine_active:
+        # ⚠ THE TWO-'q' PROTOCOL DOES NOT WORK UNDER -x.
+        #
+        # It waits for the give-up prompt, and that prompt lives inside the
+        # `read_sample` branch of the helper — the branch that drives a real
+        # instrument. With external values the helper opens no instrument and
+        # never enters it, so the prompt can never come: measured against the
+        # real binary AND the real MeasureManager, one 'q' went out,
+        # `abort_confirm` came back, and `_save_partial_state` sat in
+        # `wait_give_up_prompt` for ever. The tab's Confirm-Abort ->
+        # Keep-what-you-measured pair became a loop whose only exit was
+        # "Discard and stop", and the helper was left running.
+        #
+        # The path that DOES write under -x is the one stock chartread uses:
+        # 'd' (done) is answered by "at least one unread patch, are you sure",
+        # and 'y' there saves and exits 0. Verified end to end: a partial .ti3
+        # written this way is byte-identical in form to a completed one and
+        # `-r` resumes from it.
+        if self._engine_active and not self._external_values:
             self._save_partial_state = "wait_give_up_prompt"
             self.send_key("q")
+            return
+        if self._external_values:
+            self._save_partial_state = "wait_are_you_sure"
+            self.send_key("d")
             return
         if self._at_retry_prompt:
             # Any key that is not Esc/q means retry, which returns to the strip
@@ -1325,9 +1350,19 @@ class MeasureManager(QObject):
                                      int(ev.get("read_patches", 0)))
 
         elif kind == "unread_confirm":
-            # The old strip-menu chain answered this automatically; Save-Partial
-            # is two 'q' commands now and never reaches here, so the prompt is
-            # always the user's to answer.
+            # Normally the user's to answer: Save-Partial is two 'q' commands on
+            # the engine path and never reaches here.
+            #
+            # Under -x it DOES reach here, because that path cannot use the two
+            # 'q' protocol (see `save_partial_and_quit`) and asks 'd' instead.
+            # The user has already said "keep what I measured", so answering
+            # this prompt again would be asking the same question twice — and
+            # leaving it unanswered is the wedge this replaced.
+            if self._save_partial_state == "wait_are_you_sure":
+                self._save_partial_state = None
+                log.info("save-and-stop: confirming the unread patches (-x)")
+                self.send_key("y")
+                return
             info = f"{ev.get('id', '?')}, {ev.get('loc', '?')}"
             self.unread_confirm.emit(info)
 
