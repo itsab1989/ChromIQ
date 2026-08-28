@@ -348,3 +348,140 @@ Minor caveat: emitting `HEXAGON_PATCHES` in a CR30 `.ti2` is a claim about the
 sheet that third-party CGATS readers or stock Argyll `chartread` could act on.
 Contained in practice, because ChromIQ already refuses stock chartread for a
 CR30 chart (M-CR30-STOCK-READER, `tab_measure.py:4407-4451`).
+
+---
+
+## Section 2 — Decision 2: spacers off by default, mechanically
+
+Basti has ruled: **CR30 spacers off by default, Guided always off, changeable in
+the other modules.** Nothing below argues with that. This is only whether the
+mechanism delivers it.
+
+### 2.1 What survives — the dead-control trap was correctly avoided
+
+The trap is real and is at `workflow/layout_engine/instruments.py:228`:
+
+```python
+if spacer_width is not None and geom.pspa > 0:   # only when spacers are on
+    pspa = float(spacer_width)
+```
+
+A zero base width makes the Manual "Spacer size" box permanently inert. The
+implementation avoids it exactly as its own comment says: the geometry keeps a
+real `pspa = spacer(1.3)` and the *default* lives in
+`presets.default_recipe`, which sets `r.spacer_mode = "none"` for a CR30 →
+`spacer_on=False` → `spacer()` returns 0.0.
+
+Verified by running `instruments.build` directly:
+
+| call | resulting `pspa` |
+|---|---|
+| `build("CR30", spacer_on=False)` (the new default) | 0.000 |
+| `build("CR30", spacer_on=True)` | 1.300 |
+| `build("CR30", spacer_on=True, spacer_width=3.0)` | 3.000 |
+
+Both halves of the requirement hold: off by default, and fully turnable on with
+a live width box. **This is right, and the reasoning recorded in the comment is
+the right reasoning.**
+
+### 2.2 The same coupling on every other instrument — one is already broken
+
+Sweeping `build(k, spacer_on=True, spacer_width=3.0)` across all seven
+instruments:
+
+| instrument | base `pspa` | with `spacer_width=3.0` |
+|---|---|---|
+| i1 | 1.000 | 3.000 |
+| p3 | 2.000 | 3.000 |
+| CM | 1.000 | 3.000 |
+| **SS** | **0.000** | **0.000** |
+| CR30 | 1.300 | 3.000 |
+| 41 | 2.032 | 3.000 |
+| 51 | 1.778 | 3.000 |
+
+**The SpectroScan's geometry branch hard-codes `pspa=0.0`, so its "Spacer size"
+box has never done anything and never can.** That is the exact fault the CR30
+comment describes, already shipped on another instrument, and it is a
+pre-existing bug not introduced by this work. Worth reporting because (a) it is
+the precedent that makes the CR30's approach demonstrably the right one, and
+(b) a CR30 user and an SS user meet the same control with different truth.
+
+### 2.3 SERIOUS — "Spacer size" is enabled but inert whenever spacers are off
+
+`spacer_width` is **never disabled**. The only enable/disable logic near it is
+`ui/dialogs/layout_options_panel.py:2898-2904`:
+
+```python
+def _sync_spacer_swatches(self, *_a) -> None:
+    ...
+    on = (self.custom_spacer_cb.isChecked()
+          and (self.spacer_mode.currentData() or "colored") == "colored")
+    for b in self._spacer_swatches:
+        b.setEnabled(on)
+```
+
+— which greys only the custom-colour swatches, not the width box.
+
+So with `Spacers: None` the user can type a width into "Spacer size" and it is
+silently discarded at `instruments.py:228`. This has always been latent for
+every instrument, but **the CR30 is the first instrument that ships with
+`spacer_mode="none"` as its default**, so it is the first where a user meets the
+dead control out of the box, on the very setting the ruling says must be
+changeable. Verified: `build("CR30", spacer_on=False, spacer_width=3.0).pspa`
+== 0.0.
+
+**Fix:** disable `spacer_width` (and its label/tooltip row) whenever
+`spacer_mode.currentData() == "none"`, from the same handler that already runs
+on `spacer_mode.currentIndexChanged` (`layout_options_panel.py:673`). One line
+in `_sync_spacer_swatches`, or a sibling `_sync_spacer_width_enabled`.
+This makes the control tell the truth for every instrument, and it makes
+"off by default, changeable" legible: the user sees the width greyed, changes
+Spacers to Coloured, and the width lights up.
+
+### 2.4 What survives — "always off in Guided" is expressible without a leak
+
+`workflow/chart_creator.py:1199-1206`:
+
+```python
+elif params.instrument == "CR30":
+    ...
+    if not params.is_manual:
+        kw["spacer_on"] = False
+        kw["spacer_mode"] = "none"
+```
+
+This sits **inside** the `elif params.instrument == "CR30"` arm, so it cannot
+reach another instrument. `params.is_manual` is the existing Guided/Manual
+discriminator already used at `chart_creator.py:1108`. A Manual chart carrying a
+layout recipe never reaches this branch at all (it goes through
+`_engine_kwargs`), so a Manual user who deliberately turns spacers on keeps
+them. **No special case, no leak. This is correct.**
+
+### 2.5 What survives — nothing breaks at `pspa == 0`
+
+I traced every consumer of `pspa` and each one guards zero:
+
+| site | behaviour at 0 |
+|---|---|
+| `geometry.py:104` `if (g.plen + g.pspa) <= 0` | `plen` is 10 mm, never trips |
+| `geometry.py:107` capacity | `(arowl − …) / (plen + 0)` — fine |
+| `geometry.py:342` | guarded `geom.pspa > 0` |
+| `geometry.py:543` `spacer_rects_px` | returns `[]` early |
+| `raster.py:1053, 1266` | `if sp_px > 0 and spacer_mode != "none"` |
+| `margin_inspector.py:264` | expands the ink box by 0 |
+| `area_fit.py:121,124` | divides by `height + pspa`, `height > 0` |
+| `tab_measure.py:476` | spacer height 0 |
+
+Capacity maths measured end to end (A4 portrait, CR30): 513 patches with
+spacers off, 456 with them on. Both render.
+
+**`.cht` / `SAMPLE_LOC`:** no exposure. `cht_writer` contains no reference to
+`pspa`, spacers, gaps or insets — a `.cht` describes the rectangle sampled
+inside each recorded patch box. `emit_cht` defaults False
+(`layout_engine/chart.py:188`) and is not set on any CR30 path.
+
+**Measure-tab patch highlighting:** driven by `patch_rects_px`, which does not
+read `pspa`. Unaffected.
+
+Zero-spacer is also not novel to the engine — the SpectroScan has shipped that
+way since #93 (§2.2). **The ruling is mechanically safe.**
