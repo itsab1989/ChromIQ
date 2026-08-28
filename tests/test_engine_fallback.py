@@ -665,3 +665,28 @@ def test_the_ending_message_is_in_the_catalogue_and_awaits_approval():
     title, body = M.M_CR30_READ_ENDED.render(reason="the helper said so")
     assert "the helper said so" in body
     assert "ArgyllCMS chartread does not know the CR30" in body
+
+
+def test_the_chart_refused_event_becomes_the_reason(tmp_path):
+    """The C side emits {"event":"error","kind":"chart_refused"} before its
+    fatal (pinned by tests/test_cr30_external_values.py against the real
+    binary). Consuming it means the reason is machine-readable rather than
+    recovered from stderr prose — which is all Python had, and which nothing
+    had captured, so the log said "(unknown error)"."""
+    mgr, runner, lines, finished, refused = _start_cr30_run(tmp_path)
+    _feed_engine(mgr, {"event": "error", "kind": "chart_refused",
+                       "instrument": "CR30",
+                       "detail": "The chart was made for 'CR30', which ChromIQ "
+                                 "reads itself."}, lines)
+    assert mgr._engine_fatal and "CR30" in mgr._engine_fatal
+    _finish(runner, 1)
+    assert len(runner.runs) == 1
+    assert refused and "CR30" in refused[0]
+
+
+def test_chart_refused_without_a_detail_still_names_the_instrument(tmp_path):
+    mgr, runner, lines, finished, refused = _start_cr30_run(tmp_path)
+    _feed_engine(mgr, {"event": "error", "kind": "chart_refused",
+                       "instrument": "CR30"}, lines)
+    _finish(runner, 1)
+    assert refused and "CR30" in refused[0]

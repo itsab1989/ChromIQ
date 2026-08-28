@@ -1434,6 +1434,18 @@ class MeasureManager(QObject):
                               "window")
                     return
                 self.strip_error.emit(detail or "misread")
+            elif ekind == "chart_refused":
+                # #159. The helper refuses a chart whose TARGET_INSTRUMENT it
+                # reads itself and stock chartread does not know at all. It
+                # says so on stderr AND — since the C side gained this event —
+                # in machine-readable form, so the reason no longer has to be
+                # recovered from prose. Note this is a fatal, not a strip
+                # error: nothing has been read and nothing can be.
+                detail = str(ev.get("detail") or "")
+                instr = str(ev.get("instrument") or "")
+                self._engine_fatal = detail or (
+                    f"the chart names {instr}, which this reader refuses"
+                    if instr else "chart refused")
             elif ekind == "coms":
                 self._at_retry_prompt = True
                 self._engine_fatal = "communication problem"
