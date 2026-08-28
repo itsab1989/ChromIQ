@@ -367,3 +367,83 @@ barrel towards the middle" and make it "harder to lose your place" as statements
 of fact. Both now say plainly that this is reasoning and **has not been
 measured**, next to the packing figures, which have. That dialog is scrupulous
 about the same distinction for patch size; it is now consistent.
+
+## T6 — tests  ✅
+
+`tests/test_cr30_registration.py`, **69 tests**, plus the existing hex suite
+parameterised over every hex-capable instrument (`test_hex_overlay_geometry.py`,
+79 tests, up from 40).
+
+Sections: geometry and every claim its comment makes · spacers off-and-turnable ·
+hexagons (geometry, keyword, resized overhang, packing, all four modules) · the
+clip band · layout mode · presets · engine-only enforcement · the `.ti2`
+identity chain · the FWA gate · pace and margins · the Measure-tab guards ·
+**hexagons that are actually drawn**.
+
+### The tests that would have caught the blockers
+
+The chart critic's finding was that the whole existing hex suite was hard-coded
+to `"SS"` and `test_cr30_registration.py` asserted only on `Geom` fields — it
+never rendered and never inspected a rect. Fixed three ways:
+
+1. **`test_hex_overlay_geometry.py` is parameterised over
+   `instruments.hex_capable_instruments()`**, asked of the engine rather than
+   listed, so a future hex-capable instrument is covered the moment it exists.
+   Its `_hex_geom` helper now derives `pscale` from the instrument's own patch
+   width, so a test can ask for "a 20 mm hexagon" without knowing the device.
+2. **A render test that asserts on the shape actually drawn**, with the
+   SpectroScan as a positive control on the identical path, plus a negative
+   control (`i1`/`p3`/`CM` with `hflag=True` must still draw rectangles —
+   `-h` means double density on a ColorMunki).
+   ⚠ *Pixel corner-sampling was tried first and is unsound*: in a honeycomb the
+   corners of a patch's slot are filled by its **neighbours**, so "is the corner
+   still paper" is False for a correct honeycomb as well as for the bug. The
+   test uses `collect_device_geom`, which records `("hex", …)` / `("rect", …)`
+   per patch — the same record the vector PDF and the Tier D device raster are
+   built from, and the only unambiguous evidence.
+3. **A rect-stagger test**: `patch_rects_px` must yield exactly two alternating
+   x values on a honeycomb and one per column on a flat chart, with the offset
+   matching the quarter-width the renderer draws with.
+
+### Mutation-proved
+
+Every check below **landed** (asserted in the mutation script) and was **caught**:
+
+| Mutation | Caught by |
+|---|---|
+| `pspa=spacer(1.3)` → `pspa=0.0` | the two spacer tests |
+| `("CM","SS","CR30")` → `("CM","SS")` in the band gate | the clip-band test (and *only* that test) |
+| `_should_use_engine`'s engine-only branch disabled | 2 of the 4 engine-only cases |
+| FWA gate back to `is_colormunki` only | 2 of the 5 gate cases |
+| **`is_hexagonal` back to `key == "SS" and hxew > 0`** (the exact original bug) | **6 tests**: the render test, the rect-stagger test, the helper-marker test and 3 parameterised overlay tests |
+
+### An existing test I changed, and why it is not a weakening
+
+`tests/test_ti2_loader.py::test_known_instruments_registry` pins
+`KNOWN_INSTRUMENTS` exactly. `"CR30"` was added to the pinned tuple with a
+comment saying why. That test exists so that adding an entry is a **deliberate
+act visible in a diff** — which this is — not to forbid additions. Flagging it
+here rather than treating it as routine.
+
+`tests/test_hex_overlay_geometry.py::test_a_square_spectroscan_chart_is_unaffected`
+was renamed to `…_a_square_chart_…` when it was parameterised over both
+instruments; the assertions are unchanged and one was added
+(`is_hexagonal(g) is False`).
+
+## Suite state
+
+`QT_QPA_PLATFORM=offscreen pytest -n 8 --dist loadfile`:
+**7787 passed, 253 skipped, 3 xfailed, 4 failed.**
+
+The 4 failures are `tests/test_both_readers_raise_the_same_windows.py::
+test_the_helper_really_prints_that_line[capability|ccmx_read|ccmx_set|mode_set]`.
+**Pre-existing and not mine** — proved by `git stash`ing this entire branch's
+Python work and re-running: they fail identically without any of it. They
+exercise the compiled helper and belong to [CR30-IMPL-C].
+
+The release gate (`--runslow`) was **not** run, per the brief.
+
+⚠ Eight tests reported `ERROR` at teardown on one `-n 8` run
+(`test_qt_message_filter`, `test_preferences_website_link`,
+`test_profile_engine_parity`, …). All eight pass in isolation and did not recur;
+`BrokenPipeError` in xdist teardown, not a regression.
