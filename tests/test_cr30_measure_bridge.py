@@ -52,6 +52,12 @@ class Harness:
             lambda loc, msg: self.failed.append((loc, msg)))
         self.bridge.mispaired.connect(
             lambda a, b: self.mispaired.append((a, b)))
+        self.lost: list = []
+        self.gave_up: list = []
+        self.bridge.device_lost.connect(
+            lambda loc, msg: self.lost.append((loc, msg)))
+        self.bridge.read_gave_up.connect(
+            lambda loc, msg: self.gave_up.append((loc, msg)))
 
     def _read(self):
         self.read_calls.append(True)
@@ -245,7 +251,57 @@ def test_a_device_error_is_reported_and_sends_nothing():
     h.raise_with = RuntimeError("the magnet gate is set")
     h.ready("A1")
     assert h.sent == []
-    assert h.failed == [("A1", "the magnet gate is set")]
+    assert h.failed, "a refused reading was not reported at all"
+    assert all(loc == "A1" for loc, _ in h.failed)
+    assert h.failed[0][1] == "the magnet gate is set"
+
+
+def test_a_refused_reading_re_arms_so_the_session_survives(): 
+    """The dead end: `_start_read` is called only from `on_patch_ready`, which
+    runs only on a new `spot_ready`, which the helper sends only when it
+    receives a command. So a failure that re-armed nothing left no reader and
+    no prompt ever coming again — while the preview kept the patch highlighted
+    and the message said "press the button on the instrument again".
+
+    The way in is the likeliest first-run mistake there is: start with the
+    magnetic cap on — where the instrument lives when idle — and patch A1 is
+    refused by the magnet guard. One mistake, whole session dead.
+    """
+    h = Harness()
+    h.raise_with = RuntimeError("the magnet gate is set")
+    h.ready("A1")
+    assert len(h.read_calls) > 1, (
+        "a refused reading re-armed nothing — the session is a dead end and "
+        "the button the user is told to press is connected to nothing")
+    assert h.gave_up, "it retried for ever instead of eventually saying so"
+    assert h.gave_up[0][0] == "A1"
+    assert h.sent == []
+
+
+def test_a_vanished_instrument_is_NOT_re_armed():
+    """The opposite case, and it needs the opposite answer: re-arming would
+    wait for a button on a device that cannot answer, and "press it again" is
+    the wrong advice for an unplugged instrument."""
+    from workflow.cr30.device import DeviceLost
+    h = Harness()
+    h.raise_with = DeviceLost("the instrument stopped answering")
+    h.ready("A1")
+    assert h.lost and h.lost[0][0] == "A1"
+    assert len(h.read_calls) == 1, "it kept re-arming a device that is gone"
+    assert h.gave_up == []
+
+
+def test_a_patch_that_finally_works_starts_fresh():
+    """Retries are per patch and spent by the operator, so a session where
+    several patches each needed one retry is a session going fine."""
+    h = Harness()
+    h.raise_with = RuntimeError("no answer")
+    h.ready("A1")
+    assert h.gave_up
+    h.raise_with = None
+    h.ready("A2")
+    assert len(h.sent) == 1
+    assert h.bridge._retries.get("A2") is None
 
 
 def test_an_unusable_reading_is_reported_and_sends_nothing():
@@ -261,9 +317,10 @@ def test_a_failed_read_leaves_the_patch_readable_again():
     h = Harness()
     h.raise_with = RuntimeError("no answer")
     h.ready("A1")
+    before = len(h.read_calls)
     h.raise_with = None
     h.ready("A1")                              # the helper re-offers it
-    assert len(h.read_calls) == 2
+    assert len(h.read_calls) > before
     assert len(h.sent) == 1
 
 

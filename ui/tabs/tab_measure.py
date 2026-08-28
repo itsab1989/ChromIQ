@@ -6841,6 +6841,8 @@ class TabMeasure(QWidget):
             self._cr30_bridge.reading_dropped.connect(self._on_cr30_dropped)
             self._cr30_bridge.read_failed.connect(self._on_cr30_read_failed)
             self._cr30_bridge.mispaired.connect(self._on_cr30_mispaired)
+            self._cr30_bridge.device_lost.connect(self._on_cr30_device_lost)
+            self._cr30_bridge.read_gave_up.connect(self._on_cr30_gave_up)
         except Exception:      # noqa: BLE001 — say so, do not kill the run
             log.warning("could not start the CR30 reading bridge", exc_info=True)
             self._cr30_bridge = self._cr30_reader = None
@@ -6888,6 +6890,42 @@ class TabMeasure(QWidget):
         self._log.appendPlainText(text)
         self._log.ensureCursorVisible()
         self._flash_status(text, duration_ms=8000)
+
+    def _on_cr30_device_lost(self, loc: str, message: str) -> None:
+        """The instrument is gone — not merely unpressed.
+
+        M-CR30-INSTRUMENT-GONE. Its wording is not approved yet, so like every
+        other proposed message it says its piece in the log for now (§M).
+
+        The ENDING, though, goes through the one exit every route shares
+        (measurement_exit_strategy.md §1): the old handler for this called
+        `abort()` directly, which is a second exit — and on any instrument that
+        is not a CR30, `abort()` destroys the session, because stock chartread
+        writes its .ti3 only on a clean exit. Nothing is at risk here (the
+        helper saves after every patch), but the way out must still be the safe
+        one, and the user must be the one who chooses it.
+        """
+        from workflow import measurement_messages as M
+        title, body = M.M_CR30_INSTRUMENT_GONE.render(loc=loc, reason=message)
+        self._log.appendPlainText(f"\n[{title}]\n{body}")
+        self._log.ensureCursorVisible()
+        self._flash_status(title, duration_ms=10000)
+        self._sound_instrument_fault_once()
+        self._end_session(self._confirm_end_of_session(self.END_FAILURE_WINDOW))
+
+    def _on_cr30_gave_up(self, loc: str, message: str) -> None:
+        """One patch was refused over and over. M-CR30-PATCH-GAVE-UP.
+
+        This does NOT end the session. Everything already read is safe, the
+        helper is still alive, and the message names the two things that cause
+        it — so the choice of what to do next is the user's.
+        """
+        from workflow import measurement_messages as M
+        title, body = M.M_CR30_PATCH_GAVE_UP.render(loc=loc, reason=message)
+        self._log.appendPlainText(f"\n[{title}]\n{body}")
+        self._log.ensureCursorVisible()
+        self._flash_status(title, duration_ms=10000)
+        self._sound_instrument_fault_once()
 
     def _on_cr30_mispaired(self, answered: str, reported: str) -> None:
         """The helper recorded a value against a patch we did not answer.

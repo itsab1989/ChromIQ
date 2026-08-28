@@ -145,6 +145,13 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # than proposed.
                                  # M-OVERLAY-NO-MEASUREMENT was approved by
                                  # Knut on 2026-08-14 and is now in §M.
+                                 # #159, 2026-08-28. The owner unplugged the
+                                 # CR30 mid-measurement and the app said
+                                 # nothing, then froze for three minutes on
+                                 # Stop. Both windows are new wording and wait
+                                 # here.
+                                 "M-CR30-INSTRUMENT-GONE",
+                                 "M-CR30-PATCH-GAVE-UP",
                                  "M-ALL-STRIPS-PATCHES-LEFT",
                                  # #148, 2026-08-14. Knut asked for this one
                                  # outright: the engine falling back to stock

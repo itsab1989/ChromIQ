@@ -214,6 +214,12 @@ class CR30:
                     f"the instrument did not answer within {timeout:.0f} s.")
             try:
                 prev = self.read_measurement(enforce=False).values
+            except DeviceLost:
+                # Before the MeasurementError arm below, which it is a subclass
+                # of: without this, "the instrument is gone" would land in
+                # sleep-and-retry and be swallowed until the timeout -- the
+                # exact fault this whole path exists to prevent.
+                raise
             except MeasurementError:
                 time.sleep(poll)      # not answering yet; keep trying
             except Exception as exc:
@@ -237,7 +243,7 @@ class CR30:
             try:
                 m = self.read_measurement(enforce=False)
             except MeasurementError:
-                raise
+                raise      # includes DeviceLost, which is one
             except Exception as exc:
                 # Same distinction as USB above. bleak raises once the
                 # peripheral is gone; his log caught the disconnect itself

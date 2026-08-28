@@ -120,7 +120,12 @@ class _ReadWorker(QObject):
     """One reading, taken off the main thread."""
 
     done = pyqtSignal(str, object)        # loc, (X, Y, Z)
-    failed = pyqtSignal(str, str)         # loc, message
+    #: loc, message, exception class name. The NAME matters: a refused reading
+    #: and a vanished instrument need opposite answers ("press the button
+    #: again" versus "the instrument is not there"), and a signal carrying only
+    #: str(e) flattens them into one sentence. Deciding between them by
+    #: matching on that sentence is the trap this argument exists to avoid.
+    failed = pyqtSignal(str, str, str)
 
     def __init__(self, loc: str, reader) -> None:
         super().__init__()
@@ -130,12 +135,14 @@ class _ReadWorker(QObject):
         try:
             xyz = self._reader()
         except Exception as e:            # noqa: BLE001 — a device error is news
-            self.failed.emit(self._loc, str(e) or e.__class__.__name__)
+            self.failed.emit(self._loc, str(e) or e.__class__.__name__,
+                             type(e).__name__)
             return
         try:
             x, y, z = (float(v) for v in xyz)
         except (TypeError, ValueError) as e:
-            self.failed.emit(self._loc, f"unusable reading {xyz!r}: {e}")
+            self.failed.emit(self._loc, f"unusable reading {xyz!r}: {e}",
+                             type(e).__name__)
             return
         self.done.emit(self._loc, (x, y, z))
 
@@ -150,8 +157,16 @@ class Cr30MeasureBridge(QObject):
 
     #: A reading was refused rather than sent: (loc, one of DROPPED_*).
     reading_dropped = pyqtSignal(str, str)
-    #: The device could not be read: (loc, message).
+    #: The device could not be read, but the session is alive and the patch
+    #: has been RE-ARMED: (loc, message). Pressing the button again works.
     read_failed = pyqtSignal(str, str)
+    #: The instrument is gone — unplugged, switched off, or the Bluetooth link
+    #: dropped: (loc, message). Nothing has been re-armed; pressing the button
+    #: cannot help, and telling the user to press it is the wrong advice.
+    device_lost = pyqtSignal(str, str)
+    #: A read failed and could not be re-armed because it kept failing:
+    #: (loc, message). The session is stalled and the user must be told.
+    read_gave_up = pyqtSignal(str, str)
     #: The helper recorded a value against a patch we did not answer:
     #: (answered_loc, reported_loc). The read must stop.
     mispaired = pyqtSignal(str, str)
@@ -159,6 +174,10 @@ class Cr30MeasureBridge(QObject):
     def __init__(self, send, reader, parent: "QObject | None" = None) -> None:
         super().__init__(parent)
         self._send, self._reader = send, reader
+        #: Failed reads per patch, so a permanently broken device stops rather
+        #: than spinning. Per-PATCH, not per-session: a session where five
+        #: different patches each needed one retry is a session going fine.
+        self._retries: dict[str, int] = {}
         #: The prompt currently outstanding, or None. Set from `on_patch_ready`,
         #: cleared when its value goes out.
         self._awaiting_loc: "str | None" = None
@@ -274,7 +293,14 @@ class Cr30MeasureBridge(QObject):
         worker.deleteLater()
         thread.deleteLater()
 
-    def _on_read_failed(self, loc: str, message: str) -> None:
+    #: How many times one patch may be re-armed after a failed read before the
+    #: bridge stops trying. Generous: every ordinary cause is something the
+    #: operator fixes and retries by hand (cap left on, instrument lifted too
+    #: early, a reading refused as a repeat).
+    MAX_READ_RETRIES = 5
+
+    def _on_read_failed(self, loc: str, message: str,
+                        exc_type: str = "") -> None:
         if self._reading_loc == loc:
             self._reading_loc = None
         if self._stopped:
@@ -285,7 +311,42 @@ class Cr30MeasureBridge(QObject):
             # Stop responsive at all.
             log.debug("CR30: read for %s ended by the stop (%s)", loc, message)
             return
+
+        if exc_type == "DeviceLost":
+            # The instrument is not there. Re-arming would wait 180 s for a
+            # button on a device that cannot answer, and the message that goes
+            # with a re-arm -- "press the button again" -- is the wrong advice.
+            log.warning("CR30: instrument lost while reading %s (%s)",
+                        loc, message)
+            self.device_lost.emit(loc, message)
+            return
+
+        # THE SESSION MUST SURVIVE A FAILED READING.
+        #
+        # `_start_read` has one caller: `on_patch_ready`, which runs only on a
+        # new `spot_ready`, which the helper only sends when it receives a
+        # command. So a failed read that re-armed nothing left NO reader
+        # running and NO prompt ever coming again -- while the preview kept the
+        # patch highlighted, the helper still said "Ready to read patch ...",
+        # and the message on screen said "press the button on the instrument
+        # again". Nothing was listening. The presses landed in a buffer.
+        #
+        # And the way in is the likeliest first-run mistake there is: start a
+        # chart with the magnetic cap still on -- the instrument's resting
+        # state -- and patch A1 is refused by the magnet guard. One mistake,
+        # whole session dead, no way back except restarting it.
+        tries = self._retries.get(loc, 0) + 1
+        self._retries[loc] = tries
+        if tries > self.MAX_READ_RETRIES:
+            log.error("CR30: giving up on %s after %d failed reads (%s)",
+                      loc, tries - 1, message)
+            self.read_gave_up.emit(loc, message)
+            return
+        log.info("CR30: read of %s failed (%s) — re-arming, attempt %d",
+                 loc, message, tries + 1)
         self.read_failed.emit(loc, message)
+        if self._awaiting_loc == loc:
+            self._start_read(loc)
 
     def _on_reading(self, loc: str, xyz) -> None:
         """A reading arrived. Send it ONLY if its prompt is still outstanding."""
@@ -301,6 +362,7 @@ class Cr30MeasureBridge(QObject):
             return
         self._awaiting_loc = None
         self._answered_loc = loc
+        self._retries.pop(loc, None)      # it worked; the patch starts fresh
         x, y, z = xyz
         self._send({"cmd": "value", "xyz": f"{x:.6f} {y:.6f} {z:.6f}"})
 

@@ -11,6 +11,11 @@ S-numbers below refer to `11_skeptic.md`; new findings are **T-numbers**.
 > a moving target**; I cite function names as well as lines wherever it matters.
 > It also means CLAUDE.md's *"do not edit source files while a gate is running"*
 > applies to anyone who starts a gate tonight.
+>
+> **And this file was swept into commit `8223020c` at 600 of its 959 lines** by
+> someone's `git add` while I was still writing it. Nothing was lost — the rest
+> is in the working tree — but that is the hazard MEMORY records as *"never
+> `git add -A` while an agent is writing"*, and it happened again tonight.
 
 ---
 
@@ -598,3 +603,362 @@ that clear `_awaiting_loc` are `_on_reading`'s own success (`:302`),
 nothing happened".** B-1 is. Do not fix the wrong one.
 
 ---
+# PART C — every open finding from report 11, re-verified
+
+Verified against the tree as of `6295c91a` plus the implementer's uncommitted
+edits. **CLOSED** = I found the fix and read it; **OPEN** = I found the fault
+still there.
+
+| # | verdict | evidence |
+|---|---|---|
+| **S6** | **CLOSED** | `_try_load_tiffs`'s no-TIFF branch (`tab_measure.py:4324-4335`) now sets `self._patch_boxes = []` and `self._preview.set_page_patch_boxes({})`, with a comment naming exactly S6's failure. |
+| **S17** | **CLOSED** (uncommitted) | `tab_measure.py:6015-6032` now has real singular/plural for both sentences. `git blame` says *"Not Committed Yet"* — it is in the working tree, not in a commit. |
+| **S22** | **CLOSED** | the function is now `_blocked_by_unusable_target_instrument` and resolves `self._chart_file_for(self._ti1_path)`, with the reopened-project reason in the comment. |
+| **S23** | **CLOSED** | `_overlay_failure_reason:11484` calls `per_patch_overlay(ti3, self._chart_file_for(self._ti1_path))`. |
+| **S24** | **CLOSED, and better than my proposal** | `_show_overlay_from_existing_ti3:11104-11121` now counts `drawable` **before** painting, from the patches themselves, and returns False when none will land. The comment states the accumulation problem explicitly. |
+| **S16** | **OPEN** | `tab_profile.py:4012-4017` `set_ti3_path` still does `self._build_btn.setEnabled(True)` unconditionally. |
+| **S18** | **PARTLY MOOT — see C-1** | |
+| **S19** | **OPEN** | `measure_manager.py:943` sets `_save_partial_state = "wait_are_you_sure"` before `send_key("d")`; the only clears are the two prompt handlers at `:1667` and `:1672`. A complete chart raises neither. |
+| **S20** | **OPEN** | `measure_bridge.py:63-116` `_no_device_help` — still ~15 user-facing sentences with no `tr()`. It is the `{message}` in `_on_cr30_read_failed`'s window text, so it is definitely shown. |
+| **S3** | **OPEN, and I can now name the cause** — see C-2 | |
+| **S7** | **OPEN** | `_on_chart_measured` (`tab_measure.py:11744-11750`) still `continue`s silently on `page < 0 or box is None`. S24's `drawable` guard is all-or-nothing: 389 of 390 landing is still silent. Note `_on_patch_measured` (the LIVE path) **does** say so once per session (`:10673-10687`) — so the two paths disagree, and the static one is the quiet one. |
+| **S29 (1)** zero patches | **MOOT** — see C-1 |
+| **S29 (2)** all read | **OPEN** = S19 |
+| **S29 (3)** mid-goto | **OPEN** — `save_partial_and_quit` still sends `d` regardless of `bridge.navigating`; no test covers it |
+| **S29 (4)** device absent | **OPEN, and it is B-1** — `_open` raises, one `read_failed`, no reader, session runs on |
+
+## C-1 [S18 is MOOT as filed — the empty `.ti3` cannot be reached from Stop]
+
+I could not reproduce S18 and I think it was wrong. `send_save_partial_and_quit`
+has exactly three call sites in the tab (`:5976`, `:6079`, `:7441`) and the
+relevant one, `_end_session("save")`, is reachable only from
+`_confirm_end_of_session`, which returns early at zero:
+
+```python
+if not self._manager.has_unsaved_readings:
+    # M-END-EMPTY. Nothing to lose, so nothing to ask …
+    return "discard"
+```
+(`tab_measure.py:6000-6007`; `has_unsaved_readings` is `bool(self._read_something)`,
+`measure_manager.py:981`.)
+
+So at zero patches the window is not shown, "Save and stop" is not offered, and
+the path is `abort()`. **No empty `.ti3` is written by this route.** S18's
+premise — *"the user presses Stop → Save and stop"* — cannot happen at n == 0.
+
+What is left of it is real but smaller: **S16.** If an empty or 3-of-390 `.ti3`
+gets into the run by any other route, Build Profile is still armed by it.
+
+## C-2 [S16 + S18, the CORRECT rule — and it is not "forbid"]
+
+You asked for the rule rather than the ban, and you are right that a partial
+measurement is legitimate. Three things are being conflated and they need three
+different answers:
+
+1. **A partial measurement is valid work.** It must stay resumable, stay on
+   disk, and keep its progress bar. Nothing may delete or refuse it.
+2. **A partial measurement is not a finished one, and Build Profile must not
+   present it as though it were.** Today `set_ti3_path` (`tab_profile.py:4017`)
+   enables the button on the file's *existence*. The tab already has everything
+   needed to know better: `workflow/measurement_state.py` gives
+   `classify()` → `Ti3Facts.state` (`EMPTY` / `PARTIAL` / `COMPLETE`),
+   `held`, `expected`, and `progress_percent`. **Reuse that; do not write a new
+   counter.**
+3. **Building from a partial measurement is sometimes exactly what the user
+   wants** (a coarse look at 200 of 390). So the answer is a *warning with
+   the numbers in it*, not a disabled button.
+
+**Proposed behaviour** — and it belongs in `tab_profile.set_ti3_path`, because
+that is the one place every route (bar hand-off, file chooser, main window)
+passes through:
+
+* `state is EMPTY` → **Build Profile stays disabled**, and the label says the
+  measurement holds no readings. This is the only refusal, and it is not a
+  judgement call: `colprof` cannot do anything with zero patches.
+* `state is PARTIAL` → **the button stays enabled** and the file label carries
+  the count: *"217 of 390 patches measured"*. Pressing Build raises a §M
+  confirmation naming both numbers and saying the profile will describe only
+  what was measured, with **Measure the rest** / **Build anyway** / **Cancel**.
+* `state is COMPLETE` → unchanged.
+
+**Failure scenario it fixes, from his own session:** 3 patches read, Stop, Save
+and stop, switch to Build Profile, press the green button.
+`22:14:19,882 [INFO] ui.tabs.tab_profile: Build Profile: measurement follows the
+bar → …/CR30-Test.ti3` — 3 sets. `colprof` either dies with an Argyll message
+the user cannot act on, or emits a profile that is garbage and is then installed.
+Patch-by-patch on 390 patches makes "stopped after a handful" the **normal**
+case, so #159 turns a latent fault into a routine one.
+
+**The count must come from the FILE, not from the session.**
+`_readings_count` is per-session and has no idea what a resume started from
+(`measure_manager.py:1092` already reasons about this); `classify()` reads the
+file, which is the only thing Build Profile is about to consume.
+
+## C-3 [MINOR, new] S3's cause named: `abort()` never sets `_user_quit`
+
+`MeasureManager.abort` is two lines (`measure_manager.py:983-984`):
+
+```python
+def abort(self) -> None:
+    self._runner.abort()
+```
+
+`_user_quit` is set only by `send_key` on `q`/`Q`/`\x1b` (`:769-771`) and by the
+engine's `aborted` event (`:1526`). A **kill** sets neither. So the guard at
+`:470` — `if (was_engine and self._stock_reader_cannot_read and code != 0 and
+not self._user_quit)` — passes on every abort, and the user gets:
+
+* `WARNING … the chart's instrument is one stock chartread cannot read (unknown
+  error) — not falling back` in the file log, and
+* `engine_fallback_refused` → `_on_engine_fallback_refused` → **M-CR30-READ-ENDED
+  in the in-app log and an 8-second status flash**: *"The measurement stopped …
+  What went wrong: unknown error."*
+
+Reached by **"Discard and stop"** and by **quitting the app mid-measurement** —
+both deliberate user acts, both reported as an instrument failure. Fix:
+`abort()` sets `self._user_quit = True`. It is a *user-initiated* abort by
+definition — every call site (`_end_session("discard")`,
+`_on_instrument_disconnected`, the close path) is either the user or a fault
+that has already had its own message.
+
+---
+
+# PART D — F2, the live split-patch overlay: **SOLVED, and it is not a paint bug**
+
+## D-0 [CORRECTION] The ground rule that was blocking this search is wrong
+
+> *"no explanation is acceptable if it would ALSO have killed the patch
+> highlighter, because the ring and the splits come from the same function, same
+> page, same boxes."*
+
+**They do not come from the same function, and they are not even on the same
+signal.**
+
+| | ring | split |
+|---|---|---|
+| helper event | `spot_ready` | `patch_read` |
+| manager signal | `patch_ready` (`measure_manager.py:1298`) | `patch_measured` (`:1322`) |
+| tab slot | `_on_patch_ready` (`tab_measure.py:10627`) | `_on_patch_measured` (`:10653`) |
+| draws | `_preview.highlight_patch` | `_preview.set_patch_overlay` |
+
+They share `_locate_patch` and `_patch_boxes` — that is all. So a cause that
+kills only the `patch_measured` chain leaves the highlighter working, and the
+rule as written excludes a whole class of correct answers. **It should be
+retired.**
+
+## D-1 [PROVEN ON SCREEN] The live overlay works — on his chart, his numbers, his settings
+
+I drove the **real app** (real fonts, `WinButtonLayoutStyle("Fusion")`,
+`CompositeAppFilter`, his real settings copied into a sandbox `.ini`, real
+`MainWindow`, real `TabMeasure`, real preview) over **his own CR30-Test chart**,
+and fired his own three readings from `11_EVIDENCE.md` through the same slots the
+live session uses.
+
+```
+hex_zigzag=True no_swipe=True overlay_mode='both' boxes=390
+overlay before anything: {}
+overlay after 3 live patches: {0: 3}
+preview pixels identical before/after 3 live patches: False
+changed pixels: 45532 of 3486912
+```
+
+Screenshots on his Desktop:
+
+* `cr30_skeptic2_2026-08-29_P2_1_window_virgin.png` — the whole window, chart
+  loaded, nothing measured
+* `cr30_skeptic2_2026-08-29_P2_3_window_after_3_patches.png` — **the same window
+  after A1/A2/A3.** A1 carries a clean diagonal split, A2 carries the red
+  ΔE-warning ring (its ΔE was 69.6), A3 carries the green current-patch ring.
+* `cr30_skeptic2_2026-08-29_5_split_zoom.png` — zoomed, all 17 of his real
+  readings, splits clipped to the hexagons
+* `cr30_skeptic2_2026-08-29_1_chart_loaded.png`, `_4_split_all_live.png`,
+  `_6_static_overlay.png`, and `_notes.txt` / `_P2_notes.txt`
+
+The hexagon clipping is correct too — `ui/tiff_preview.py:2507-2534` has a
+dedicated `if self._hex_zigzag:` branch that fills `hexp` with the measured
+colour and then `hexp.intersected(tri)` with the expected one. His chart takes
+that branch (`chart_is_hexagonal(CR30-Test.ti2) → True`, recipe `hflag: True`).
+
+**And I ran it twice**, once with the `.ti2` and once with the **`.ti1`** — the
+reopened-project route report 11 suspected. **Byte-identical results** (45,532
+changed pixels both times). So the `.ti1` does not break the live overlay either;
+`a7516de1`'s bug was confined to the *static* path, exactly as its commit
+message claims.
+
+## D-2 [VERDICT] Stop hunting for a paint fault. What is actually wrong is legibility
+
+Every mechanism is proven good: the signal, the slot, `_locate_patch`, the
+boxes, the hex clipping, the warn ring, the mode (`both`), `only_measured`
+(`False`), and the reopened-project path. There is no remaining code candidate I
+can find, and I looked with the widget in front of me.
+
+What the screenshot shows instead is the honest answer: **three splits out of
+390 hexagons, at fit-to-window zoom, are about 20 px each on a 390-patch A4
+honeycomb.** A user who has seen the overlay on a rectangular chart would say it
+did not appear. That is a legibility problem, not a bug, and the app already
+owns the two controls that fix it — **"Show only measured patches"** (which was
+OFF in his session, confirmed from `meta.json`) and the zoom.
+
+**My recommendation, and I would put it to him as a question rather than ship
+it:** when a patch-by-patch session is live and fewer than ~5 % of the chart has
+been read, either default "Show only measured patches" ON for that session, or
+say once in the log that it exists. Do **not** change the paint code — there is
+nothing wrong with it, and changing it would be the "a perfect result can be the
+bug" trap in reverse.
+
+**Open, and only a human can close it:** whether what he saw is what these
+screenshots show. Per CLAUDE.md an agent's on-screen run is not a confirmation.
+
+---
+
+# PART E — the on-screen run, and the hardware check
+
+## E-1 Method (report 11's PART 8 failed; this is why this one did not)
+
+Report 11 launched `python main.py` and tried to photograph the screen, and the
+windows were not on the captured display. **That was the wrong instrument.** The
+repo already has the right one, in ~40 `scripts/drive_*.py`: build the real
+`QApplication` with the real fonts / style / app filter, build the real
+`MainWindow`, and capture with **`widget.grab()`**. `grab()` renders the widget
+through the same paint path the screen uses, after polish, so it sees exactly
+what the user sees — and it does not care which Space or display the window is
+on. (The known blind spot is combo *popups*, which are separate top-level
+windows; nothing here needed one.)
+
+**Safety, verified:** his real plist was copied into a sandbox `.ini` and
+`AppSettings._qs` pointed at it (the pattern `scripts/drive_hex_overlay.py`
+already uses), `custom_output_path` pointed at a temp folder, and his chart was
+**copied** there. `~/ChromIQ/CR30-Test` was never opened by the app.
+
+* `~/Library/Preferences/com.chromiq.ChromIQ.plist` md5 **`ad1496831bc929ba9acf01e21c68a8da`
+  before and after** — byte-identical.
+* `~/ChromIQ/CR30-Test/runs/run1/` mtimes unchanged (23:02 / 23:04, both before
+  my first run at 23:28); the `.ti3` still holds `NUMBER_OF_SETS 17`.
+* No modal was left waiting: `QDialog.exec` was stubbed to return 1 and the four
+  `QMessageBox` statics to 0, so nothing could block on a click nobody is awake
+  to give.
+
+## E-2 [HARDWARE, tonight, on his unit] `6295c91a` HOLDS — discovery no longer moves the reading
+
+Permitted by the brief, and nothing forbidden was sent. Script:
+`…/scratchpad/ble_discovery_no_trigger.py`.
+
+```
+frames this script may send: {'READ_MEASUREMENT': 'bb 02 10 00 00 00 00 00 ff cc'}
+TRIGGER_UNSAFE is bb 01 00 00 00 00 00 00 ff bb - NOT sent
+
+A mean %R: 78.6904  first5=[70.0369, 74.4918, 77.0983, 78.0419, 77.5336]
+discover -> [{"name": "CM454M0223", "address": "FFB32AD2-…", "rssi": -79,
+              "confirmed": true, "axis": [400, 10, 31]}]
+identify -> {'model': 'CR30', 'axis': BleAxis(start_nm=400, step_nm=10, bands=31),
+             'transport': 'ble'}
+B mean %R: 78.6904  first5=[70.0369, 74.4918, 77.0983, 78.0419, 77.5336]
+IDENTICAL: True
+```
+
+**A full discovery *and* an `identify()` left all 31 bands bit-identical.** Before
+`6295c91a` both sent `bb 01 00`, which EXP-BLE-012 has now proved is a real host
+trigger over BLE — so this is the direct confirmation that the fix works on the
+instrument it was written for.
+
+Two side observations, offered as observations only:
+
+* The advertised name is **`CM454M0223`** and `confirmed: true` came from the
+  protocol check, not the name — the discovery design behaves as documented.
+* **HYPOTHESIS, not a finding:** the value the unit is holding right now is
+  **78.6904 %R mean**, which is within **0.24 %R** of the `TILE_SIGNATURE` mean
+  the research repo records (78.93 %R, `MEASUREMENT.md:554`). The brief says the
+  cap is OFF. If that number *is* the tile constant, the last thing the device
+  did was a **gated** read — i.e. something was over the aperture. I cannot tell
+  from here and I did not probe further; worth a glance when he is awake.
+
+## E-3 [MINOR, seen on screen] The Measure tab tells a CR30 user to swipe
+
+`cr30_skeptic2_2026-08-29_P2_3_window_after_3_patches.png`, bottom left of the
+panel, on a chart whose `TARGET_INSTRUMENT` is `CR30` and whose patch-by-patch
+box is forced on:
+
+> **Keep calm!**
+> *Scan each strip with a slow, steady motion.*
+
+A CR30 cannot swipe — `set_no_swipe` exists in the preview for exactly this
+reason (`tiff_preview.py:1490`, *"the arrow would be an instruction to do
+something the device cannot do"*) and the arrow is correctly suppressed. The
+pace panel's caption was not given the same treatment. Same class of fault, one
+widget along.
+
+---
+# FINAL RANKED SUMMARY
+
+## BLOCKER
+
+| # | finding | file:line |
+|---|---|---|
+| **B-1** | **One failed read kills the CR30 session for ever, in silence.** `_start_read` has one caller (`on_patch_ready`); `_on_read_failed` re-arms nothing; the helper only re-prompts on a command. Reached by the commonest first-run mistake — starting with the cap on — and the message tells the user to press a button nothing is listening for. | `measure_bridge.py:214,277-288`, `tab_measure.py:6875` |
+| **A-1** | The calibration window placed anywhere after `_on_start:5546` means **Cancel destroys the run's existing measurement** (`_archive_measurement_before_replacing`) or leaves the tab in a live-session state with no session. | `tab_measure.py:5465-5661` |
+| **A-2** | The transport must be **owned** at calibration time. A separate `CR30` handle means a BLE disconnect/reconnect on a single-connection peripheral. `_open_cr30_bridge` must move before the window; only `_manager.start()` stays after. | `measure_bridge.py:373-389`, `ble.py:1-14` |
+| **A-3** | `DeviceReader._cancel` is a **one-way latch**. A calibration Cancel or timeout that calls `reader.cancel()` makes every patch read for the rest of the session raise instantly. The docstring says so. | `measure_bridge.py:352-356,391-396` |
+| **B-2** | `DeviceLost` cannot reach a handler: `_ReadWorker` flattened the type to `str(e)`. *(The implementer landed a fix for this mid-review — `failed` now carries `type(e).__name__`.)* | `device.py:21`, `measure_bridge.py:119-147` |
+| **B-3** | `_on_instrument_disconnected` calls `abort()` directly — a **second exit**, forbidden by `measurement_exit_strategy.md:27-40` and by Knut's M-NO-INSTRUMENT ruling. Data-safe for a CR30 only; destroys the session on every other instrument. | `tab_measure.py:7129-7147` |
+
+## MAJOR
+
+| # | finding | file:line |
+|---|---|---|
+| A-4 | the calibration must not run on the GUI thread; reuse `_ReadWorker`, and route the modal's close to the calibration's own cancel | `measure_bridge.py:119-140,382` |
+| A-5 | there is no second window to write — **M-CR30-HOW-TO-MEASURE is the confirmation window** and already says "take the cap off"; only the calibrate window is new. Watch `_cr30_how_shown`'s reset at `:5660` or it shows twice | `ti2_loader.py`, `measurement_messages.py:123`, `tab_measure.py:5660,6904` |
+| A-6 | reuse `params.disable_initial_cal`, **never** `self._m_nocal_cb` — Guided hard-codes it False after the beta.148 incident. And `-N` is inert under `-xx`, so this gives the flag a second meaning that must be documented | `tab_measure.py:11699,11717,2056` |
+| A-7 | `trigger_unsafe`'s BLE branch now **states a falsehood** that `6295c91a` disproved in the same package. And the safety warning must be about *which face of the cap*, not about magnets | `device.py:114-137` vs `ble.py:57-73` |
+| A-8 | a resumed run needs the same rule as a fresh one; no mid-session Calibrate button in this cut | S13/S14 stand |
+| B-4 | the disconnect window is **not in §M and not in `measurement_exit_strategy.md`**; one of its strings is not `tr()`-wrapped, and its body says "check the USB connection" to a Bluetooth user | `tab_measure.py:7144,7186` |
+| B-5 | a watchdog IS still needed — `DeviceLost` covers one of three silences; `bridge.is_reading` answers it exactly, with no timing guesswork | design |
+| **S16 / C-2** | Build Profile is armed by any `.ti3`, including 3-of-390. The rule is a warning with the numbers, not a ban — reuse `measurement_state.classify()` | `tab_profile.py:4017` |
+| S20 | `_no_device_help`'s ~15 shown sentences are untranslated and invisible to the extractor | `measure_bridge.py:63-116` |
+| T-1 | `243cee7c` fixed detection and left reporting *(being fixed as I write)* | see B-2 |
+
+## MINOR
+
+| # | finding |
+|---|---|
+| T-2 | `DeviceLost` subclasses `MeasurementError`, and `device.py:217` catches the parent first — a trap that reads as safe |
+| C-3 / S3 | `abort()` never sets `_user_quit`, so "Discard and stop" and quitting the app are reported as an instrument failure |
+| S19 | `_save_partial_state` latch has an unhandled exit (a complete chart raises no `unread_confirm`) |
+| S7 | a partial geometry miss is silent on the **static** path while the live path says so — the two disagree |
+| S29(3) | save-and-stop during an outstanding `goto` is untested and unguarded |
+| E-3 | the pace panel tells a CR30 user to *"scan each strip with a slow, steady motion"* |
+| D-0 | report 11's F2 ground rule is factually wrong and should be retired |
+
+## MOOT / REFUTED
+
+* **S18** — the empty-`.ti3`-from-Stop path does not exist; `_confirm_end_of_session`
+  returns `"discard"` at zero readings before the window is built (C-1).
+* **S6, S17, S22, S23, S24** — closed by the branch (S17 uncommitted).
+* **F2** — no paint fault exists; proven on screen with his chart, his numbers,
+  his settings, on both the `.ti2` and the `.ti1` route (D-1).
+
+## WHERE I DISAGREE WITH THE IMPLEMENTER, BLUNTLY
+
+1. **"The calibration window opens before the helper is started, so nothing is
+   armed"** is necessary and not sufficient. It says nothing about *where*
+   before (A-1 loses data), nothing about who owns the transport (A-2 breaks
+   BLE), nothing about the thread (A-4), and it walks straight into the one-way
+   cancel latch the code warns about in capitals (A-3).
+2. **"Window says we cannot verify it"** — you are planning two new windows. One
+   of them already exists, already says the sentence Basti asked for, and is
+   already `approved=False`. Extend it; do not write a second (A-5).
+3. **"Guided mandatory, Manual honours -N"** is `params.disable_initial_cal`
+   and nothing else. If the implementation reads the checkbox, it re-opens
+   beta.148 (A-6).
+4. **"Reuse the existing `instrument_disconnected` machinery"** — do, but not
+   because it is approved. It is **not** in §M, **not** in the exit-strategy
+   table, and it ends the session with a bare `abort()` that the spec forbids
+   (B-3, B-4). Report 11 said it was "already §M-approved"; that was wrong and I
+   checked it twice.
+5. **Fix B-1 before either of them.** A calibration flow that ends in a session
+   which dies on the first refused reading has not helped anyone.
+
+## STATUS
+
+Complete. F2 answered and closed; on-screen run achieved with screenshots on
+`~/Desktop`; the hardware check ran and `6295c91a` holds. Nothing of the user's
+was written — plist md5 and project mtimes verified unchanged.

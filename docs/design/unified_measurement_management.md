@@ -1,7 +1,7 @@
 # Unified Measurement Management — Design Specification
 
 > **Revision 2026-08-09 (e) — two approved messages carry a revised print step.**
-> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), M-IMPORT-MISMATCH and M-IMPORT-DATE-TAKEN (the Measure tab's IMPORT module; its import-done window was approved by Sebastian 2026-08-10), plus the revised M-CHART-VERIFY (W5, reworked after the 2026-08-10 hardware session) and M-HOW-PRINTED (pairing 3 — the measure-time question for sheets ChromIQ did not print), plus M-ALL-STRIPS-PATCHES-LEFT (new, 2026-08-14 — every strip read while patches inside them are not, #156; both are wording only, their bug fixes are already in the code and speak through the log until these are approved), plus M-NO-INSTRUMENT-FAST (new, 2026-08-13 — Knut's ColorMunki was invisible on older hardware until "Faster instrument connection" was switched off, so that variant of the no-instrument window names the shortcut and carries its switch), plus M-ENGINE-FELL-BACK (new, 2026-08-14 — asked for by Knut on #148: ChromIQ's own measuring engine could not use the instrument, so stock chartread took over, which also silences ChromIQ's measurement sounds without saying so) — all defined in the awaiting-review section below, plus M-PATCHSET-MISSING (new, 2026-08-25 — a loaded patch set that had gone from disk wrote one line to the log and built a different chart, in silence), plus M-PROJECT-EXISTS (new, 2026-08-27 — a typed project name that already names a project on disk adopted it in silence; Knut reported it and Basti ruled on when it may appear and what it may offer, but the WORDING is new and waits here), plus M-PROJECT-REPLACE-CONFIRM and M-PROJECT-REPLACE-FAILED (new, 2026-08-27 — the second look before §S4.7's "Replace it" clears a whole project, and the window for the case where its promise cannot be kept), plus M-CR30-STOCK-READER (new, 2026-08-28, #159 — a CR30 chart carries the honest name the device reports for itself, which stock ArgyllCMS chartread refuses outright, so the window names the Preferences control that fixes it) and M-CR30-READ-ENDED (new, 2026-08-28, #159 — the same refusal seen from the other end: an engine run that fails on a CR30 chart has no second reader to fall back to, so the two existing fallback messages, one of which promises that every measured strip will be kept, must not be shown) and M-CR30-HOW-TO-MEASURE (new, 2026-08-28, #159 — every other instrument reaches its "how to measure" window through `calibration_done`, which cannot fire when ChromIQ supplies the values itself, so a CR30 user was given a spot session with no on-screen instruction at all) — all defined in the awaiting-review section below.
+> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), M-IMPORT-MISMATCH and M-IMPORT-DATE-TAKEN (the Measure tab's IMPORT module; its import-done window was approved by Sebastian 2026-08-10), plus the revised M-CHART-VERIFY (W5, reworked after the 2026-08-10 hardware session) and M-HOW-PRINTED (pairing 3 — the measure-time question for sheets ChromIQ did not print), plus M-ALL-STRIPS-PATCHES-LEFT (new, 2026-08-14 — every strip read while patches inside them are not, #156; both are wording only, their bug fixes are already in the code and speak through the log until these are approved), plus M-NO-INSTRUMENT-FAST (new, 2026-08-13 — Knut's ColorMunki was invisible on older hardware until "Faster instrument connection" was switched off, so that variant of the no-instrument window names the shortcut and carries its switch), plus M-ENGINE-FELL-BACK (new, 2026-08-14 — asked for by Knut on #148: ChromIQ's own measuring engine could not use the instrument, so stock chartread took over, which also silences ChromIQ's measurement sounds without saying so) — all defined in the awaiting-review section below, plus M-PATCHSET-MISSING (new, 2026-08-25 — a loaded patch set that had gone from disk wrote one line to the log and built a different chart, in silence), plus M-PROJECT-EXISTS (new, 2026-08-27 — a typed project name that already names a project on disk adopted it in silence; Knut reported it and Basti ruled on when it may appear and what it may offer, but the WORDING is new and waits here), plus M-PROJECT-REPLACE-CONFIRM and M-PROJECT-REPLACE-FAILED (new, 2026-08-27 — the second look before §S4.7's "Replace it" clears a whole project, and the window for the case where its promise cannot be kept), plus M-CR30-STOCK-READER (new, 2026-08-28, #159 — a CR30 chart carries the honest name the device reports for itself, which stock ArgyllCMS chartread refuses outright, so the window names the Preferences control that fixes it) and M-CR30-READ-ENDED (new, 2026-08-28, #159 — the same refusal seen from the other end: an engine run that fails on a CR30 chart has no second reader to fall back to, so the two existing fallback messages, one of which promises that every measured strip will be kept, must not be shown) and M-CR30-INSTRUMENT-GONE (new, 2026-08-28, #159 — the instrument unplugged mid-measurement and ChromIQ said nothing at all) and M-CR30-PATCH-GAVE-UP (new, 2026-08-28, #159 — one refused reading used to end a CR30 session for ever in silence; refusals are now re-armed and this is the window for when re-arming keeps failing) and M-CR30-HOW-TO-MEASURE (new, 2026-08-28, #159 — every other instrument reaches its "how to measure" window through `calibration_done`, which cannot fire when ChromIQ supplies the values itself, so a CR30 user was given a spot session with no on-screen instruction at all) — all defined in the awaiting-review section below.
 > **Withdrawn, never approved:** the patch-set sibling of the message above was removed on 2026-08-26 without reaching the catalogue. Ticking “Edit patch recipe (override preset)” already opens a window saying the loaded patches will be replaced, and that box is shown for a patch set the user loaded themselves, not only for a built-in preset — so a second window at Generate time would have interrupted a decision the user had already made and acknowledged. Knut, 4.1.3-beta.17: *“there is already a message when clicking the ‘Edit patch recipe’ warning of consequences … that warning should be sufficient for a user.”* Checked against the existing text before removal.
 
 > Both were approved by Knut on 2026-08-04, but one step in each instructed *"(with colour management on)"* — a setting ChromIQ deliberately locks **off** on every print path, so the approved text told the user to do something the app prevents (established in `verification_printing_and_target.md` §1, and A0.1 of its plan). With feature A the instruction has a real control to name — the Print Chart tab's **Colour** row — so that one step is revised and the revision waits in §M-PROPOSED. Every other message in §M remains approved as before: the last, **M-BUILD-ELSEWHERE**, was accepted on 2026-08-04 — *"Message M-BUILD-ELSEWHERE accepted"* — and M-CHART-CORRUPT, M-REPLACE-UNCOUNTABLE and M-PREVIEW-PAUSED the day before. A new message goes to §M-PROPOSED first, and `tests/test_message_catalogue.py` fails if one is added to the code without it.
@@ -1028,6 +1028,68 @@ same failure used to render as "unknown error".*
 > Nothing you have already measured is lost — every patch that was read is on disk, and you can carry on from it by ticking "Refine / resume existing measurement" before you press Start again.
 >
 > What went wrong: {reason}
+
+### M-CR30-INSTRUMENT-GONE · PROPOSED · the instrument stopped answering mid-measurement — Measure
+
+*New message (#159, 2026-08-28). Basti unplugged the CR30 mid-session and
+**ChromIQ said nothing at all**, then froze for three minutes when he tried to
+stop. The spot workflow spends nearly all its time with nothing arriving,
+because it is waiting for a human to press a button — so "no frame yet" is the
+normal state, and a bare catch-all treated a transport that had GONE as that
+same normal state. The two are now told apart (`DeviceLost`), and this is what
+the user is told about the second. It deliberately does **not** say "press the
+button again": that is the advice for a refused reading and it is the wrong
+advice for an instrument that is not there. The promise about nothing being
+lost is real and checked — the helper writes the measurement file after every
+single patch (`chromiq_chartread.c`, `cq_write_ti3_atomic` in the external-value
+branch). `{loc}` is the patch being read; `{reason}` is the underlying failure.*
+
+> **The instrument stopped answering**
+>
+> ChromIQ has lost contact with your CR30 while measuring patch {loc}.
+>
+> This is not something you did wrong, and nothing you have measured is lost — every patch you have already read is written to your measurement file as it is read, so all of it is safe on disk.
+>
+> The usual causes, in the order worth checking:
+>
+> •  The USB cable came out, or the instrument was switched off.
+> •  Over Bluetooth, the instrument moved out of range or its battery ran down.
+> •  Something else took the instrument — the phone app holds it exclusively while it is connected.
+>
+> Reconnect it, then start the measurement again with "Refine / resume existing measurement" ticked: ChromIQ will offer you only the patches that are still missing.
+>
+> What went wrong: {reason}
+
+### M-CR30-PATCH-GAVE-UP · PROPOSED · one patch was refused again and again — Measure
+
+*New message (#159, 2026-08-28). A reading can be refused for good reasons: the
+magnetic cap left on, the instrument lifted too early, a reading identical to
+the last one. Until now a single refusal **ended the session for ever, in
+silence** — `_start_read` is reached only from a new `spot_ready`, which the
+helper sends only when it receives a command, so a failure that re-armed nothing
+left no reader running and no prompt ever coming again, while the screen still
+said "press the button on the instrument again". The likeliest first-run mistake
+there is — starting a chart with the cap still on, which is where the cap lives
+when the instrument is idle — reached it every time. Refusals are now re-armed,
+so pressing again genuinely works; this window is for when that has been tried
+several times and is still failing, so the user is not left pressing a button
+with nothing changing. `{loc}` is the patch; `{reason}` is what the instrument
+reported.*
+
+> **That patch could not be read**
+>
+> ChromIQ has tried several times to read patch {loc} and each attempt was refused, so it has stopped asking rather than leave you pressing the button with nothing changing on screen.
+>
+> Everything you have already measured is safe on disk.
+>
+> The two things that cause this, and both are quick to check:
+>
+> •  The magnetic cap is still on the instrument. That is where the cap lives when the CR30 is not in use, so it is an easy one to miss — and with a magnet at the opening the instrument does not measure at all. Take the cap right off and put it aside.
+> •  The instrument was lifted before it had finished. Hold it flat on the patch until it has beeped.
+>
+> When you have checked those, end this session with "Save and stop" and start it again with "Refine / resume existing measurement" ticked — you will be offered only the patches that are still missing.
+>
+> What the instrument reported: {reason}
 
 ### M-CR30-HOW-TO-MEASURE · PROPOSED · the spot session's instructions, when ChromIQ supplies the values — Measure
 

@@ -110,6 +110,67 @@ M_CR30_READ_ENDED = _m(
     approved=False)
 
 
+# --- PROPOSED: the instrument went away mid-measurement --------------------
+#: #159, and the fault the owner hit twice on 2026-08-28: he unplugged the
+#: CR30 mid-session and the app said nothing at all, then froze for three
+#: minutes when he tried to stop. ChromIQ now knows the difference between an
+#: instrument that has not been pressed yet — the normal state of this
+#: workflow, for minutes at a time — and one that has GONE. This is what it
+#: says about the second. {reason} is the underlying failure, verbatim.
+#:
+#: It deliberately does NOT say "press the button again": that is the advice
+#: for a refused reading, and it is the wrong advice for an instrument that is
+#: not there. Nothing is lost, and the message says so, because the helper
+#: writes the measurement file after every single patch.
+M_CR30_INSTRUMENT_GONE = _m(
+    "M-CR30-INSTRUMENT-GONE",
+    "The instrument stopped answering",
+    "ChromIQ has lost contact with your CR30 while measuring patch {loc}.\n\n"
+    "This is not something you did wrong, and nothing you have measured is "
+    "lost — every patch you have already read is written to your measurement "
+    "file as it is read, so all of it is safe on disk.\n\n"
+    "The usual causes, in the order worth checking:\n\n"
+    "•  The USB cable came out, or the instrument was switched off.\n"
+    "•  Over Bluetooth, the instrument moved out of range or its battery "
+    "ran down.\n"
+    "•  Something else took the instrument — the phone app holds it "
+    "exclusively while it is connected.\n\n"
+    "Reconnect it, then start the measurement again with “Refine / resume "
+    "existing measurement” ticked: ChromIQ will offer you only the patches "
+    "that are still missing.\n\n"
+    "What went wrong: {reason}",
+    approved=False)
+
+
+# --- PROPOSED: one patch could not be read, again and again ----------------
+#: #159. A reading can be refused for good reasons — the magnetic cap left on
+#: (the instrument's resting state, and the likeliest first-run mistake), the
+#: instrument lifted before it finished, a reading identical to the last one.
+#: ChromIQ re-arms and lets the user simply press again, so a refusal is no
+#: longer the end of the session. This is the message for when that has been
+#: tried several times over and is still not working, so the user is not left
+#: pressing a button for ever with nothing on screen changing.
+M_CR30_PATCH_GAVE_UP = _m(
+    "M-CR30-PATCH-GAVE-UP",
+    "That patch could not be read",
+    "ChromIQ has tried several times to read patch {loc} and each attempt was "
+    "refused, so it has stopped asking rather than leave you pressing the "
+    "button with nothing changing on screen.\n\n"
+    "Everything you have already measured is safe on disk.\n\n"
+    "The two things that cause this, and both are quick to check:\n\n"
+    "•  The magnetic cap is still on the instrument. That is where the cap "
+    "lives when the CR30 is not in use, so it is an easy one to miss — and "
+    "with a magnet at the opening the instrument does not measure at all. "
+    "Take the cap right off and put it aside.\n"
+    "•  The instrument was lifted before it had finished. Hold it flat on the "
+    "patch until it has beeped.\n\n"
+    "When you have checked those, end this session with “Save and stop” and "
+    "start it again with “Refine / resume existing measurement” ticked — you "
+    "will be offered only the patches that are still missing.\n\n"
+    "What the instrument reported: {reason}",
+    approved=False)
+
+
 # --- PROPOSED: how to measure, for a reader ChromIQ drives itself ---------
 #: #159. Every other instrument reaches its "how to measure" window through
 #: `calibration_done` (`tab_measure._on_calibration_done`), which is the ONLY
@@ -992,7 +1053,7 @@ CATALOGUE = {m.id: m for m in (
     M_PROJECT_REPLACE_CONFIRM,
     M_PROJECT_REPLACE_FAILED,
     M_CR30_STOCK_READER,
-    M_CR30_READ_ENDED,
+    M_CR30_READ_ENDED, M_CR30_INSTRUMENT_GONE, M_CR30_PATCH_GAVE_UP,
     M_CR30_HOW_TO_MEASURE,
 )}
 
