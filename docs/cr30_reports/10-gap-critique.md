@@ -1,4 +1,4 @@
-STATUS: in-progress
+STATUS: complete
 
 # 10 — CR30 (#159) gap critique: what is still broken or missing before the beta
 
@@ -774,3 +774,144 @@ sentence in the feature that is flatly untrue today, and it is shown to the user
 (`tab_measure.py:5657-5666`), so the first patch's read has fired before he has
 finished reading it.
 
+
+## Section 7 — verdict
+
+### 7.1 Ranked findings
+
+| # | Finding | Rank | CR30? |
+|---|---|---|---|
+| **G1** | **Nothing waits for the instrument's button.** The first patch is answered with the device's stale cached reading (ΔE76 **60.5** on his own A1, hardware-confirmed); every patch after it fails bit-identical; nothing retries. **The session dies at patch two with one wrong colour already saved.** §1.1-1.2, §4.1 | **BLOCKER** | CR30 |
+| **G2** | **"Save and stop" cannot end a CR30 measurement.** `-x` has no give-up prompt, so the two-`q` protocol wedges at `wait_give_up_prompt` and the Confirm-Abort → Keep-what-you-measured pair becomes a loop. The helper is left running. §2.2, §5.6 | **BLOCKER** | CR30 |
+| **G3** | The **calibration-first flow is not built** (`02-design.md` §10.2), and the calibration reading would be counted as a measurement if it were bolted on as-is (`CR30._previous` is shared). §3.1, §3.2 | **BLOCKER for a useful beta** | CR30 |
+| **G4** | A failed read is a **dead end** — no retry, and the one escape (jump to another patch and back) is undocumented, while the message says to press a button that nothing is listening for. §1.4 | SERIOUS | CR30 |
+| **G5** | Answering any y/n prompt leaves a **ghost line** that the next spot prompt eats — measured: `done`→`no` **skips a patch**. A wrong-labelled colour the pairing check cannot see. §2.3 | SERIOUS | CR30 (in effect) |
+| **G6** | A device that never opens, or disappears, stalls the run with **no reconnect, no progress, no cancel**; BLE discovery runs on the first patch's worker thread and can take tens of seconds silently. §1.5, §3.3 | SERIOUS | CR30 |
+| **G7** | **Stop can freeze the Qt main thread** on `DeviceReader._lock` — ~5 s over BLE, up to 15 s over USB if the device has gone. §1.6-1.7 | SERIOUS | CR30 |
+| **G8** | **Quitting mid-read destroys a running `QThread`** — `_close_cr30_bridge` has no `closeEvent` caller. §1.8 | SERIOUS | CR30 |
+| **G9** | **Build Profile is enabled on a 5-of-390 measurement** and fails with a raw ArgyllCMS sentence. No completeness check exists anywhere. §2.5, §5.1 | SERIOUS | pre-existing, surfaced by #159 |
+| **G10** | The `~/ChromIQ/CR30-Test` **settings clobber is real and unexplained** — the backup 09 kept is the *damaged* copy, not the original. §4.2 | SERIOUS | pre-existing |
+| **G11** | `gate_flag` is always `None` and the spectral **axis is assumed, not read**, because the button header is never fetched — the magnet guard's only unit-independent check is off. §1.3, §4.1 | SERIOUS | CR30 |
+| **G12** | A partial CR30 read is reported as a **whole strip read** (`"read": true` on 3 of 15). §2.4 | MINOR | CR30 |
+| **G13** | *"You have read **1 patches** in this session"* — the first window he will see. §5.5 | MINOR | pre-existing |
+| **G14** | The measurement report labels an arbitrary patch **"W"** (`present: false` is carried). §5.3 | MINOR | pre-existing |
+| **G15** | `M-CR30-HOW-TO-MEASURE` promises ChromIQ *"collects the reading by itself"*, and is shown **after** the first read has fired. §3.1, §6 | MINOR (until G1 is fixed) | CR30 |
+| **G16** | 09's items 1, 6, 7 stand as written: log-line ending, the unreachable fast-connect offer, `_saw_instrument` dead. §4 | MINOR | mixed |
+
+**What survived the attack, and should not be touched:**
+
+* **The `.ti3` is safe in every ending I could produce.** Per-patch autosave, a
+  partial file byte-identical to a finished one, `-r` resumes at the first
+  unread patch, and a relaunch without `-r` does not destroy it. §2.1
+* **The protocol layer is right.** Every rule report 09 claims for
+  `Cr30MeasureBridge` — outstanding-prompt gate, `loc` latch, hold-during-goto,
+  post-hoc pairing check, reads off the main thread — I re-derived from the C
+  source and could not break. §1.10
+* **`-xx` really is passed, patch-by-patch really is locked, and the no-swipe
+  arrow is off** — driven on the real project:
+  `args: ['-v','-c','1','-xx','-S','-p','-T','0.7', …]`,
+  `_pbp_cb: checked=True enabled=False`, `no_swipe: True`.
+* **The printed sheet is measurable.** 12.02 mm cells, 4 mm clearance, nothing
+  out of reach. §6
+
+### 7.2 What the user must do by hand, in this order
+
+He has one sheet and little patience for repeat measuring. **Do not ask him to
+measure anything until G1 and G2 are fixed** — as it stands he gets one wrong
+patch and a stuck window, and the sheet is not the thing at risk, his time is.
+
+1. **Run `EXP-MEAS-004` — 5 minutes, no chart, no measuring.**
+   `/Users/Basti/develop/chromiq-cr30-research/tools/probe_host_calibration.py`
+   with the CR30 on USB. It needs the cap's green face and *deliberately*
+   mis-calibrates, then verifies the restore. It is the **only** thing that
+   cannot be settled without him, it blocks the whole calibration design
+   (§3.1), and it costs no paper.
+2. **Press the instrument's button once, on plain white paper, and tell us the
+   XYZ ChromIQ then reports.** That confirms the button→cache path end to end
+   on his unit. (Right now the unit holds `mean 81.2 %R`, XYZ
+   `77.63 80.79 70.57` — near-white, `looks_like_calibration_tile() == False`.)
+3. **Then, and only then, a five-patch guided session** on the printed sheet,
+   after G1/G2/G4 land — reading A1, A2, A3, then Stop → **Save and stop**, and
+   checking that `runs/run1/CR30-Test.ti3` holds exactly those three with
+   sensible colours.
+4. **Do not press Build Profile** on that measurement until G9 lands; today it
+   is enabled and fails in ArgyllCMS's own words.
+5. **Decide the two things only he can decide:** whether
+   `M-CR30-READ-ENDED` becomes a window (09 item 1), and whether Skip-calibration
+   is offered in Manual only, as §10.2 says.
+
+### 7.3 What was verified how
+
+**Honesty first: I could not take screenshots in this session.** `screencapture`
+returned the desktop picture and menu bar only — Terminal's own windows were
+absent from captures while `CGWindowListCopyWindowInfo` listed them — i.e. this
+shell has no Screen Recording permission. Rather than report from numbers alone
+(the failure mode the brief warns about), I drove the **real `MainWindow` on a
+copy of the real project** with `QT_QPA_PLATFORM=offscreen` and read the tab's
+own log text, widget states and dialog contents directly, and I read the files
+the run produced. Everything below says which.
+
+| verified | how |
+|---|---|
+| G1 | **real CR30 hardware** (`/dev/cu.usbserial-10`, `PT694D01E7`) + the **real app** on a copy of `CR30-Test`; the wrong colour read out of the `.ti3` it wrote |
+| G2 | the **real helper binary** over `-xx` (`/tmp/p7.py`) **and** the **real `MeasureManager`** fed the helper's own lines (`/tmp/p8.py`) |
+| G5, §2.1 | the real helper binary (`/tmp/p1.py`, `/tmp/p2.py`, `/tmp/p5.py`, `/tmp/p9.py`) |
+| G9, §5.1-5.3 | the real app, Build Profile and Check & Refine tabs, with a real 5-patch CR30 `.ti3` |
+| G10 | file contents + `diff`, plus two driven startup paths that did **not** reproduce it |
+| G3, G4, G6, G7, G8, G11 | source, with `file:line`; G11's two effects also measured on hardware |
+| §6 geometry | the chart's own `channels.json` |
+
+### 7.4 Concrete fixes, in order
+
+1. **Make the reader wait for the button, and let it be cancelled.** USB: fetch
+   `usb_measure.wait_for_button_header(transport, timeout=…)` and pass it to
+   `read_measurement(button_header=…)` — that alone also restores the magnet
+   gate flag and the device-declared axis (G11). BLE: poll the cached reading
+   until it changes. Both on a **single long-lived worker thread**, not one
+   `QThread` per patch, with a cancel flag. *(G1, G6, G7, G8, G11, and it makes
+   §1.9's bleak question moot.)*
+2. **Give a failed read a way back.** Reuse the existing patch-failure window
+   (`tab_measure.py:7270-7300`) — its **Retry** already sends `{"cmd":"retry"}`,
+   which re-emits `spot_ready` and which the `_reading_loc` latch already
+   handles correctly. *(G4)*
+3. **Fix Save-and-stop on `-x`.** Answer `abort_confirm` with `{"cmd":"yes"}`
+   when `_save_partial_state == "wait_give_up_prompt"` (measured: exit 0, the
+   autosaved `.ti3` intact), and clear `_save_partial_state` on `abort_confirm`
+   so it can never wedge. *(G2)*
+4. **Stop the ghost line.** C side: `cq_wait_char` should drain the mirrored
+   line, or `cq_handle_line` should not queue a mirror for `y`/`n`/`s`/`q` while
+   a confirm is open. *(G5)*
+5. **Build the calibration-first flow** to `02-design.md` §10.2, before the
+   helper is launched, with its own read path that does not touch
+   `CR30._previous` and does not go through the bridge — and capture that unit's
+   own tile constant while there (§10.3). Write it for **both** EXP-MEAS-004
+   outcomes as set out in §3.1. *(G3)*
+6. **Refuse to build a profile from an incomplete chart** — compare the `.ti3`'s
+   `NUMBER_OF_SETS` with the chart's, and say *"5 of 390 patches are measured"*
+   before `colprof` runs. *(G9)*
+7. **Call `_close_cr30_bridge` from a `closeEvent`**, and make
+   `DeviceReader.close()` not block the main thread on the read lock.
+   *(G7, G8)*
+8. **Build BLE reconnection** to §10.1 — but only after 1 and 2, and give it a
+   remembered address (`CR30.discover_ble` exists and has no caller). *(G6)*
+9. **Fix the two sentences**: `"You have read {n} patches"` needs a singular
+   variant, and `patch_measurement_instructions_html("cr30")` must stop
+   promising that ChromIQ collects the reading by itself until it does — and the
+   window must be shown **before** `MeasureManager.start`. *(G13, G15)*
+10. **Find the `meta.json` writer.** Put a tripwire on `Run.save_meta` naming
+    the caller, and keep
+    `~/chromiq-cr30-test-backup-20260828-215034/` until it is found —
+    `/tmp/chromiq-meta-backup/` will be swept. *(G10)*
+11. **Say "read" only when a pass really is read** in `session_start`, or ignore
+    the flag for a spot chart. *(G12)*
+
+### 7.5 Is it a beta?
+
+**Not yet.** Not because the design is wrong — the chart side, the identity
+chain, the `.ti3` handling and the protocol layer are all sound, and the sheet
+in his hands is measurable. It is not a beta because **the one thing a tester
+would do with it cannot be done**: press the button, read a patch. Fixes 1, 2
+and 3 are what stand between this and a session worth his time; fix 5 is what
+stands between a session and a *trustworthy* measurement.
+
+STATUS: complete
