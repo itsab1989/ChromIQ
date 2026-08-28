@@ -128,3 +128,74 @@ path · B7 catalogue stubs.
 3. **Colorimetric only** — no spectral `.ti3` (§5). This is correct, not a gap.
 4. **Stock ArgyllCMS `chartread` cannot read a CR30 chart** — consequence of the
    honest name, by ruling.
+
+---
+
+## 10. Addendum — Basti, 2026-08-28: connection loss and mandatory calibration
+
+### 10.1 BLE connection lost mid-chart
+
+**Ruling: reconnect automatically for as long as the measurement is running.**
+
+Design:
+
+1. On disconnect the run is **paused, not ended**. The Measure tab shows
+   "Bluetooth connection lost — reconnecting…" with the patch count read so far.
+2. Reconnect attempts run with backoff (1 s, 2 s, 4 s, then every 5 s), and the
+   user always has **Stop**. We never retry silently and never retry forever
+   without saying so; after 60 s the message changes to name what to check
+   (device asleep, phone app connected, out of range).
+3. **Nothing read so far is at risk.** `chromiq_chartread.c:3098,3120` writes the
+   `.ti3` atomically after every patch, so a drop costs at most the patch in
+   progress.
+4. ⚠ **The stale-reading trap.** After reconnecting, the device still holds its
+   last stored measurement. Reading it would silently record the pre-disconnect
+   patch again, under a new patch id — the exact mislabelling class that
+   `beerjongen`'s order-only pairing suffers from. The existing
+   **bit-identical guard catches this**: the reading equals the previous one, so
+   it is rejected and the user is asked to read the patch again. This is the
+   guard earning its place a second time.
+5. USB is the more robust transport for a long chart. The Measure tab says so
+   when a CR30 chart is started over BLE — as information, not a block.
+
+### 10.2 Calibration before measurement — REQUIRED by ChromIQ
+
+**The device does not insist on calibration. ChromIQ will.**
+
+Justification is not theoretical: this project **corrupted a real unit's white
+reference** by presenting a green surface to the sensor, and every subsequent
+reading was plausible and wrong (paper read 156.8 %R). Nothing in the protocol
+reported it. A profiling run started on a bad reference produces a bad profile
+with no visible symptom.
+
+Flow, before the first patch of a chart read:
+
+1. ChromIQ asks: **"Put the cap on the instrument, white tile facing the
+   aperture, and press the instrument's button."**
+2. ChromIQ reads the stored measurement and confirms it is a **flat, high,
+   tile-shaped spectrum**. That is what a just-calibrated white reference reads
+   by definition.
+3. ChromIQ asks the user to **remove the cap**, and confirms the next reading is
+   *not* the tile constant.
+4. Only then does the chart read begin.
+
+**Skip:** offered in **Manual** mode only, with a plain warning that an
+uncalibrated or mis-calibrated instrument produces a profile that looks correct
+and is not. Guided mode does not offer it. The choice is recorded in the run so
+a later report can say whether calibration was confirmed.
+
+### 10.3 This fixes the unit-specific magnet guard — a real gain
+
+`docs/cr30_reports` §9.1 recorded a BLOCKER: `TILE_SIGNATURE` was captured from
+one CR30, and a second unit's constant differs by up to 4.69 %R (94× the
+tolerance), so the magnet guard was **inert on anyone else's hardware**.
+
+The calibration step removes that by construction: **step 2 above captures the
+connected unit's own tile constant**, at the start of every session. The magnet
+guard for the rest of that session compares against *that* unit's value, not
+ours.
+
+So the guard becomes unit-independent, the hard-coded `TILE_SIGNATURE` drops to
+a fallback used only when calibration was skipped, and the blocker is closed by
+a feature the user asked for on ergonomic grounds. Recorded because it was not
+the reason for the request.
