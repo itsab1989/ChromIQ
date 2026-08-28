@@ -1,4 +1,4 @@
-STATUS: in-progress
+STATUS: complete
 
 # CR30 (#159) — final whole-feature critique
 
