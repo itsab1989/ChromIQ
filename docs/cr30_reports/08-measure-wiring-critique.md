@@ -1,4 +1,4 @@
-STATUS: in-progress
+STATUS: complete
 
 # 08 — Measure-tab wiring critique (CR30)
 
@@ -687,3 +687,146 @@ for essentially everyone, and `_blocked_by_stock_chartread_for_cr30` returns
 False at its first line (`:4433`). That is by design; it is worth stating
 because it means **the guard is not what protected Basti, and nothing did.**
 
+---
+
+## 7. Ranked findings
+
+| # | Finding | Rank | CR30-specific? |
+|---|---|---|---|
+| F1 | `{"cmd":"value"}` overwrites an unconsumed line — a second value **silently destroys the first**, no event, no error (§5.2, measured) | **BLOCKER** | CR30-specific (only `-x` uses the channel) |
+| F2 | A `goto` from the advertised click-to-jump is **silently swallowed** by a value in flight, in *both* orders — the reading lands on the wrong patch (§5.3, measured) | **BLOCKER** | CR30-specific |
+| F3 | Every CR30 check reads `self._ti1_path` un-resolved, and the `.ti1` has **no `TARGET_INSTRUMENT`** — so all CR30 detection dies whenever a project is reopened (§2, measured) | **BLOCKER** | shape is pre-existing; effect is CR30-specific |
+| F4 | Three sites relaunch stock chartread, not one; `_engine_should_resume_fallback` is the dangerous one — it promises the user their strips are safe, then fails (§4.1) | **SERIOUS** | CR30-specific |
+| F5 | The same un-resolved read costs an **i1Pro** chart its auto `-b`, and makes `randomised` and the pace key wrong after any reopen (§6.1, measured) | **SERIOUS** | **pre-existing, all instruments** |
+| F6 | "Save as Defaults" and the Manual preset would write a **forced** patch-by-patch into the *global* store, seeding every future non-CR30 run (§3.4) | **SERIOUS** | CR30-specific (introduced by C) |
+| F7 | `test_cr30_external_values.py` is pinned to `/Users/Basti/ChromIQ/ttestitest/…` and skips silently everywhere else — the `-x` path's only guard (§6.4) | **SERIOUS** | CR30-specific |
+| F8 | Under `-x`, `{"cmd":"ok"}` / `{"cmd":"retry"}` re-emit `spot_ready` for the **same** patch (§5.4, measured) | **SERIOUS** | CR30-specific |
+| F9 | The "how to measure" window is reachable only via `calibration_done`, which cannot fire under `-x` — a CR30 user gets **no instruction at all** (§5.5) | **SERIOUS** | CR30-specific |
+| F10 | `patch_measurement_instructions_html` has no `cr30` branch while `instrument_family`, `calibration_instructions_html` and `measure_pace` all do (§5.5) | MINOR | CR30-specific |
+| F11 | The helper's `error()` text reaches the user's log verbatim, telling them to "use `-x`"; §M cannot see C strings (§6.2) | MINOR (SERIOUS as a class) | CR30-specific instance |
+| F12 | `3abf6c40`'s teardown fix swapped `BrokenPipeError` for `ValueError` — the warning is still emitted (§6.3, measured) | MINOR | CR30-specific |
+| F13 | The no-instrument window offers "Turn off faster connection" — meaningless for a BLE CR30 if that window is ever reused (§6.5) | MINOR | CR30-specific, forward-looking |
+| F14 | `_saw_instrument` (`:1081`, set `:4403`) is never read — dead state (§5.5) | MINOR | pre-existing |
+
+**`fast_instrument_connect` is not on this list, and should not be changed.**
+
+---
+
+## 8. The numbered change list
+
+Each is actionable without re-deriving anything above.
+
+### Change 0 — one CR30 predicate, resolved through `_chart_file_for` (fixes F3, F5)
+
+0.1 Add `TabMeasure._chart_is_cr30()` as written in §2, built on
+`self._chart_file_for(self._ti1_path)`.
+0.2 Route `:4196` (`_spot` / `set_no_swipe`) and `:4437`
+(`_blocked_by_stock_chartread_for_cr30`) through it.
+0.3 In `_refresh_bidir_autodetect` (`:3610-3612`) replace `self._ti1_path` with
+`self._chart_file_for(self._ti1_path)` for **both** `read_target_instrument`
+and `is_randomized`. This is F5 and it is worth its own commit — it is not a
+CR30 change.
+0.4 Same substitution in `_pace_config` (`:4345`).
+0.5 A test that loads the **`.ti1`** (not the `.ti2`) of a CR30 chart and
+asserts the guard, the no-swipe flag, the pace key and the bidir detection all
+still see the instrument. Every existing test hands the tab a `.ti2`, which is
+why none of this was caught.
+
+### Change A — no stock fallback for a chart stock chartread refuses (fixes F4)
+
+A.1 Add `MeasureParams.stock_reader_cannot_read: bool = False`
+(`measure_manager.py:160-190`), set in `_apply_engine_params`
+(`tab_measure.py:11180`) from `self._chart_is_cr30()`.
+A.2 Add the matching entry to `NOT_A_SETTING` in
+`workflow/measure_settings.py:26-41` — *"a property of the chart, not a
+preference"* — or `tests/test_measure_settings.py` fails on the drift guard.
+A.3 Gate **all three** relaunch sites on it: `:383` (`_engine_mode_fallback`),
+`:398` (`_engine_should_resume_fallback`), `:423` (`_engine_should_fall_back`).
+A.4 Have the C side emit `{"event":"error","kind":"chart_refused","detail":…}`
+immediately before the `error()` at `chromiq_chartread.c:3712`, so
+`_engine_fatal` carries the real reason instead of `unknown error`.
+A.5 The user-facing sentence goes to **§M-PROPOSED** in
+`workflow/measurement_messages.py`, next to `M_CR30_STOCK_READER`, with
+`approved=False`. Do not write it inline.
+A.6 Test: a CR30 chart + a non-zero engine exit + no events must produce
+**exactly one** launch, and `_launch_stock` must not be called.
+
+### Change B — `-x` for a CR30 chart (fixes the reported bug; F1, F2, F8 are its blockers)
+
+B.1 `MeasureParams.external_values: bool = False` (+ its `NOT_A_SETTING` entry),
+set from `self._chart_is_cr30()`.
+B.2 `_build_args` (`:882-912`): when set, append **`-xx`**. Do not send `-x`
+without a letter — `na == NULL` calls `usage()` (`:3562`).
+B.3 **Fix F1 first, on both sides.** C: guard the `value` write at
+`chromiq_json.c:172-184` with `if (!cq_line_ready)` and emit
+`{"event":"error","kind":"value_dropped"}` on refusal. Python: a single
+`_awaiting_loc` latch, set on `patch_ready`, cleared on `patch_measured`; never
+send a value while it is `None`.
+B.4 **Fix F2:** hold values while any navigation command is outstanding, and
+treat `_awaiting_loc` as settled only when the `spot_ready` for the **new**
+`loc` arrives.
+B.5 **Fix F8:** key the latch on `loc` and on transitions, never on the event
+count — the same `loc` can arrive repeatedly.
+B.6 Verify the pairing after the fact: `patch_read` carries `loc`; if it is not
+the `loc` that was answered, stop the read and say so.
+B.7 The CR30 read must run off the Qt main thread
+(`feedback_qthread_reference_lifetime`).
+B.8 Add a `cr30` branch to `patch_measurement_instructions_html`
+(`ui/ti2_loader.py:288`) — F10.
+B.9 Give the CR30 spot session an instruction window that does **not** depend
+on `calibration_done` — F9. Text via §M.
+B.10 Tests for F1, F2 and F8 against the **real binary**, in the style of
+`tests/test_cr30_external_values.py` — and fix F7 in the same commit so they
+actually run somewhere other than Basti's laptop.
+
+### Change C — patch-by-patch locked on for a CR30 chart
+
+C.1 `_resolve_patch_by_patch(mode)` as written in §3.3, called from
+`_collect_guided` (`:11262`), `_collect_manual` (`:11280`) **and**
+`_is_pbp_checked` (`:1308`). **The resolver decides; the widget only shows** —
+this is `_resolve_bidir_value`'s contract (`:3841-3847`), copy it.
+C.2 Presentation: **ticked and disabled**, following
+`TabChart._apply_calibration_knobs` (`tab_chart.py:5610-5700`) — snapshot the
+tick **and the tooltip**, force, disable, swap in a `tr()` literal that says
+why, and restore both exactly when the chart is no longer a CR30. Not hidden:
+`tab_measure.py:1243` forbids reading a control the user cannot see, and
+`_bool_row_m` (`:2335-2343`) does not even keep a handle to hide.
+C.3 Lock **both** members of `_LINKED_PAIRS` (`:10766`) — an unlocked partner
+writes straight through the mirror.
+C.4 **Keep the user's own value in `self._pbp_user_value` and write *that*** in
+`_on_save_defaults` (`:11305`, `:11327`) and `_m_collect_preset_data`
+(`:2623`) while the lock is on — F6. The per-target `snapshot()` may keep the
+forced value; the run's chart cannot change instrument.
+C.5 Re-assert the lock wherever the chart or the settings change: in
+`set_ti1_path` beside `_refresh_bidir_autodetect` (`:3110`), and beside
+`_reassert_guided_refinement()` on **both** branches of
+`load_target_settings` (`:1278`, `:1287`), plus `_restore_defaults` and
+`_m_apply_preset_data`.
+C.6 Key it on the **chart**, never on a connected or preferred instrument —
+`_chart_instrument_code:4603-4612` states the rule and the tab has no notion of
+a selected instrument anyway (§3.5).
+C.7 Tests: (a) a CR30 chart forces `-p` in **both** modules even with the
+stored setting False; (b) loading a non-CR30 chart afterwards restores the
+user's own tick **and tooltip**; (c) Save as Defaults on a CR30 chart does not
+change the global keys; (d) the same for a Manual preset.
+
+---
+
+## 9. Verdict on the diagnosis
+
+**Right, step for step, and confirmed by the live log rather than inferred.**
+The one refinement worth carrying forward: the fallback fires on
+`not self._engine_saw_event` (the helper never spoke), not on
+`self._engine_fatal is not None` — which is exactly why the warning says
+`unknown error` while the helper had said something perfectly clear on stderr.
+
+`fast_instrument_connect` is exonerated on both ordering and mechanism, and
+should be left alone.
+
+The three intended fixes are the right three. What the diagnosis does not yet
+account for is that **the CR30 detection they all rest on does not survive a
+project reopen (F3)**, and that **the `-x` command channel silently corrupts
+data in two measured ways (F1, F2)** — either of which would let a CR30
+measurement finish looking successful with the wrong numbers in the `.ti3`.
+
+STATUS: complete
