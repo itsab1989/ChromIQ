@@ -637,3 +637,87 @@ not (as 09 assumed) benign. Two practical consequences, both for the user:
 
 **Rank: SERIOUS, pre-existing (not #159's), and unresolved.**
 
+
+## Section 5 — cross-tab and lifecycle after a partial CR30 measurement
+
+Driven on the real app, offscreen, against a **copy** of `~/ChromIQ/CR30-Test`
+carrying a realistic **5-of-390** CR30 `.ti3` (produced by answering the real
+helper's first five prompts). `/tmp/drive_tabs.py`.
+
+### 5.1 🟠 SERIOUS — Build Profile offers to build from five patches, silently
+
+```
+tab: 4. Build Profile
+ti3 path: …/CR30-Test/runs/run1/CR30-Test.ti3          (NUMBER_OF_SETS 5)
+  _build_btn: text='Build Profile' enabled=True
+MODALS on entering: []
+  visible labels mentioning patches: []
+```
+
+No window, no note, no disabled button. And the build cannot succeed:
+
+```
+$ colprof -v -ql -aX <that ti3>
+colprof: Error - 65539, set_icxLuLut: can't handle test points without a white patch
+```
+
+This is §2.5 seen from the tab. **It is the last thing the user will do in his
+session**, and what he will get is a raw ArgyllCMS sentence.
+
+Minimum fix: compare the `.ti3`'s `NUMBER_OF_SETS` with the chart's
+`NUMBER_OF_SETS` and say *"5 of 390 patches are measured — a profile needs the
+whole chart"* before `colprof` is run. There is no completeness check anywhere
+in the tree today (§2.5).
+
+### 5.2 ✅ Check & Refine is inert and correct
+
+`_ti3_path` and `_icc_path` are both `None` and no window opens — there is no
+profile, so there is nothing to check. Nothing claims otherwise.
+
+### 5.3 🟡 MINOR — the measurement report renders, and calls a lavender patch
+### "paper white"
+
+`measurement_report.build_report()` runs cleanly on a colorimetric-only CR30
+`.ti3` (schema 7, `instrument: "CR30"`, `patches: 5`, ΔE00 mean 5.28) — the
+colour side does not need spectra, which is the right answer for #159.
+
+But the cube-corner block substitutes the nearest patch it has:
+
+```
+corners[0] = {"name": "W", "loc": "A1", "rgb": [81.6, 56.8, 87.6],
+              "hex": "#c392fd", "present": false, …}
+```
+
+`present: false` is carried, so the data is honest; whether every *renderer* of
+this block says so is the question, and a report that labels a lavender patch
+"W" is exactly the kind of thing a tester reads as a fault in the instrument.
+**Pre-existing** (any partial measurement does it), surfaced by #159.
+
+### 5.4 ✅ A second run of the same target is clean
+
+`Project.new_run` gives run2 its own folder, and §2.1 showed a relaunch does not
+touch an existing `.ti3` until a patch is read. The cross-run isolation
+CLAUDE.md describes holds; I found nothing CR30-specific here.
+
+### 5.5 🟡 MINOR — "You have read **1 patches** in this session"
+
+Observed verbatim in the driven run's ending window
+(`ui/tabs/tab_measure.py:6013-6014`). CLAUDE.md's i18n rules are explicit:
+*"Count-bearing messages get explicit singular/plural variants, never `(s)`."*
+A CR30 session that ends after one patch is not a corner case — it is what
+happens today (§1.2), and it is the **first** window the user will see.
+
+### 5.6 🟠 SERIOUS — the helper is left running when the tab goes away
+
+The driven run ended with:
+
+```
+QProcess: Destroyed while process ("…/chromiq-chartread") is still running.
+```
+
+That is §2.2 seen from the other end: the `-xx` helper never exits on `quit`, so
+it outlives whatever kills the window. On a real quit this leaves an orphaned
+`chromiq-chartread` holding the run folder. Combined with §1.8 (a `QThread`
+destroyed while a read is in flight) the shutdown path for a CR30 measurement is
+the least-tested part of the feature.
+
