@@ -298,3 +298,223 @@ Answers to the four questions put to me:
    note *"You can skip it and carry on measuring, but your readings may be a
    little less accurate without it"* — which for a CR30 is a **material
    understatement** given A6. All three are §M-governed text.
+
+---
+
+## B. SERIOUS
+
+### B1 — SpectroScan is the **wrong** template, for the opposite reason the design gives. **SERIOUS**
+
+§3 justifies SS over ColorMunki with *"SpectroScan is already the spot-grid
+shape — `pspa=0.0, tspa=0.0, lcar=0.0, rpstrip=999, dorspace=False,
+dopglabel=False`."*
+
+**Three of those six fields are shared with ColorMunki and prove nothing.**
+Read `workflow/layout_engine/instruments.py:354-509`: `rpstrip=999`,
+`dorspace=False`, `dopglabel=False` are set identically on the i1/p3 branch
+(`:383-385`), the CM extra-high branch (`:427-429`) and the CM normal branch
+(`:444-446`). Only `pspa`, `tspa` and `lcar` actually separate SS from CM.
+
+And those three are the ones that **must not** be copied. The SpectroScan is a
+**motorised flatbed XY table**: the head is machine-positioned to the patch
+centre, so `pspa = 0.0` (`:463`) and `rrsp == pwid` (`:463`) put every patch
+edge-to-edge with its four neighbours — and `raster.py:1236-1245` deliberately
+tiles them *seamlessly* ("Tying the spacer's bottom to the next patch's top
+tiles them seamlessly"). Zero separation is a **consequence of machine
+positioning**. A CR30 is hand-placed.
+
+The design's own evidence contradicts it. `EXP-SPEC-001a` — the one successful
+hardware read it cites — was a **ColorMunki double-density chart, 10.4 × 13.0 mm
+patches**. That is `instruments.py:414-436`, and that branch sets
+`pspa_e = pscale * 1.3` (`:433`) — **a 1.3 mm spacer between patches along the
+pass**. §4 then specifies "Spacers: **none**". So the design removes the one
+geometric feature present in the only layout a CR30 has been proven to read.
+
+Two further consequences nobody has costed:
+
+- **`build()` silently ignores the spacer control on an SS-shaped geom.**
+  `instruments.py:218-219`: `if spacer_width is not None and geom.pspa > 0`.
+  With `pspa == 0` the Manual "spacer width" box does nothing. `inter_patch`
+  (`:220-221`) still works, so there *is* a route — but the obvious control is
+  dead and nobody will find that out until a beta tester tries.
+- **The notes / clip band cannot be turned on at all.**
+  `instruments.geom_from_build_kwargs:311-315` gates the band on a hard-coded
+  `("CM", "SS")` tuple. Measured on a simulated CR30 registration:
+  `clip_content_mode="notes"` → `lbord = 0.0`, `has_clip_border = False`
+  (SS under the same kwargs → `lbord = 20.0`, `True`). §4 says the clip border
+  is *"off by default, **offerable**"*. **As designed it is not offerable, it is
+  silently inert**, and three more `("CM","SS")` tuples in
+  `ui/dialogs/layout_options_panel.py:1857, 1946, 2289` gate the UI half.
+
+**What the SS branch has that the design never mentions, and should keep:**
+`rlwi = 7.5` (`:466`) reserves a left band in which `raster.py:1212-1234` draws
+**row numbers** down the side, giving the chart a 2-D `A1 / A2 / B1` coordinate.
+For a human hunting one patch in a 513-patch grid that is the single most useful
+piece of furniture on the sheet, and it exists only on the SS branch. It is a
+much better argument for the SS template than the six fields §3 cites — and it
+is the one the design does not make.
+
+**Recommendation:** a CR30 branch of its own — SS's `rlwi`, `padlrow=False`,
+`ruler_mm=0.0` and `lcar=0.0`; CM's non-zero `pspa` (a real white gutter a hand
+must aim inside); the CM/SS clip-band gate extended to CR30 in all four places.
+
+### B2 — the design does not choose `layout_mode`, and the default is not the SS one. **SERIOUS**
+
+`presets.LayoutRecipe.layout_mode` defaults to `"area_first"` (`presets.py:75`)
+with `area_method = "by_width"` (`:78`). `default_recipe` sets
+`r.layout_mode = "patch_first"` **only for `"SS"`** (`:408-409`), with a comment
+explaining why a device with no fixed strip length needs it. A new `"CR30"` key
+gets neither branch. Measured on a simulated registration:
+
+| mode | patch | grid | capacity/A4 |
+|---|---|---|---|
+| `patch_first` | 10.00 × 10.00 | 19 × 27 | **513** |
+| `area_first` (default) | 10.02 × 10.17 | 19 × 28 | **532** |
+
+So `area_first` is not the disaster the SS comment fears (the "grow from the
+instrument's natural width" rule at `area_fit.py:110-115` saves it) — but the
+patch size stops being 10 mm and becomes whatever fills the page, which flatly
+contradicts §4's "10.0 × 10.0 mm (provisional), labelled provisional in the UI".
+**Pick one, deliberately, and say so.**
+
+### B3 — 513 patches per A4 page at ~2 s each. The design has no answer for the session length. **SERIOUS**
+
+Measured (`geometry.compute` on the SS-templated 10 mm geom, A4 portrait):
+**513 test patches per sheet**. A routine ChromIQ RGB profiling target is
+several hundred to ~1000 patches. At the design's own "~2 s per patch" that is
+**17 minutes per sheet** and **~30 minutes for a 900-patch chart**, every one of
+them a hand placement and a button press.
+
+The design says nothing about:
+- a recommended patch count for a CR30 (the Guided patch-count advice comes from
+  `data/patch_db.py`, which will have no CR30 rows);
+- resting and resuming a session — **`-r` resume does work on the `-x` path**
+  (verified: read A1/A2, killed, re-ran `-xx --autosave -r`, it resumed at A3 and
+  appended correctly), so this is a documentation/UI gap, not a code one;
+- instrument drift over a 30-minute session, which is the one thing §10.2's
+  once-per-session calibration cannot cover.
+
+### B4 — every key-sending exit in `measurement_exit_strategy.md` Table 1 is inert on the `-x` path. **SERIOUS → BLOCKER if A1 is not fixed**
+
+`docs/design/measurement_exit_strategy.md:85-112` is binding and specifies, for
+each window, the exact key sent. In `-x` mode the value prompt reads with
+`con_fgets` (`chromiq_chartread.c:2805`) and never touches `cq_pending_key`, so
+**every one of those keys is queued and never consumed**:
+
+| Table-1 row | Sends | On the `-x` path |
+|---|---|---|
+| Keep what you have measured so far? → Save and stop | `q`, `q` | queued, inert — the session does not end |
+| Instrument Error → Retry | `\r` | inert |
+| Patch Read Failed → Retry / Skip Patch | `retry` / `skip` | inert |
+| Calibration required → OK / Skip / Cancel | `\r` / `s` / `\x1b` | inert (see A7) |
+| All Patches Read → Go to … Tab | `d` | inert — the measurement never closes normally |
+| Discard and stop | kills the process | works (SIGKILL) |
+| Stop / Give Up (`{"cmd":"quit"}`) | `\x1b` | inert **or**, if it ever reaches the dispatch, SIGSEGV (A2) |
+
+So the *only* working ending on the `-x` path is killing the process. That
+violates the spec's whole premise — it exists so that every window has one
+honest ending. Fixing A1 (route the `-x` read through the command queue) fixes
+this row for row; nothing else will.
+
+### B5 — the colour-science section describes a converter that does not exist yet, and the one on disk defaults to the wrong condition. **SERIOUS**
+
+§5 states ChromIQ converts to XYZ under **D50 / CIE 1931 2°** *"using the
+validated converter (`cr30/colour.py`, self-checked against published white
+points and reproducing the device's own Lab to ΔE 0.054)"*.
+
+Read `workflow/cr30/colour.py`:
+- the module default is **D65 / CIE 1964 10°** — `XBAR, YBAR, ZBAR = OBS["10"]`
+  (`:90`), `spectrum_to_xyz(refl, illum=D65)` (`:102`), `OBSERVER = "CIE 1964 10
+  degree (device default)"` (`:91`);
+- the only way to get D50/2° is `use_observer("2")` (`:93-99`) — a **process-wide
+  mutable global**, plus passing `illum=D50` at every call site;
+- **the ΔE 0.054 figure validates the D65/10° decode, not the D50/2° output.**
+  The module docstring (`:16-26`) is explicit: the vendor-Lab agreement is
+  `D65/10 → ΔE 0.02`, and `D50/2 → ΔE 2.79`. §5 cites a number earned under one
+  condition as validation of a different one.
+- nothing in `workflow/cr30/` calls `spectrum_to_xyz` yet (grep: no callers
+  outside `colour.py`). The conversion the design specifies is unwritten.
+
+A module-level observer global that any Tool or report could flip mid-session,
+silently changing what lands in a `.ti3`, is exactly the class of defect
+`CLAUDE.md` records having cost this project a week (module globals across a
+boundary). **Make the observer/illuminant an explicit argument at the call
+site; never a global.**
+
+**What IS right, and verified by running the helper:** the *scale* is correct.
+`chromiq_chartread.c:3083` takes `-xx` values verbatim (`scols[pix]->XYZ[i] =
+atof(bp)`), and `save_ti3` writes them unchanged into `XYZ_X/Y/Z`
+(`:420-424`, `nn = {1,1,1}` for a reflective chart). The `-xl` path proves the
+expected scale: it does `icmLab2XYZ(&icmD50, …)` then `×100` (`:3088-3093`). So
+**`-xx` wants D50-relative XYZ on a 0–100 scale**, and
+`colour.spectrum_to_xyz` already normalises to `k = 100 / Σ(illum·ȳ)` (`:104`),
+i.e. Y=100 for a perfect diffuser. That matches. Confirmed output:
+`COLOR_REP "iRGB_XYZ"`, `DEVICE_CLASS "OUTPUT"`, no `SPECTRAL_*`.
+
+One residual, **NOT VERIFIED**: ChromIQ's other instruments produce XYZ through
+Argyll's own observer (CIE 2012 2°, per `colour.py:26`). A CR30 profile and an
+i1Pro profile of the same printer will therefore differ by the observer, not
+only by the instrument. Whether that difference is material for print profiling
+would be settled by converting one measured spectrum both ways and comparing
+ΔE — worth doing before the beta claims parity.
+
+### B6 — the BLE-first framing of §10.1 is contradicted by the research's own conclusion. **SERIOUS**
+
+§10.1 makes automatic BLE reconnection a first-class designed behaviour and
+relegates USB to *"the more robust transport for a long chart … as information,
+not a block"*. The research says something stronger:
+
+`chromiq-cr30-research/MEASUREMENT.md:662-666`: *"Over BLE there is no
+equivalent. The device's BLE button announcement is a 10-byte frame with no room
+for it, and the BLE read path is a poll. **BLE spot reading has no
+protocol-level magnet detection at all** — which is a real argument for
+preferring USB in a shipping backend, and cuts against the enthusiasm in
+`STATUS.md`."*
+
+So over BLE the *only* magnet defences are the tile-constant match (unit-specific
+per §9.1, and see A6) and the bit-identical check. §6's table lists the magnet
+row without saying it is USB-only. **The design must state, per transport, which
+guards are live** — and given A6, "BLE + magnet" is a data-integrity hole, not a
+convenience note.
+
+### B7 — "reading identical to previous" is not a guard, it is the **trigger mechanism**, and the design never says so. **SERIOUS**
+
+ChromIQ has no way to know the user pressed the button. It polls the device's
+*stored* measurement. `MEASUREMENT.md:516-520` is explicit: *"A backend reads the
+stored measurement, so it must know when a new one has arrived — and 'the reading
+did not change' is also the magnet-gated signature. **No counter has been
+found.**"*
+
+So `Measurement.identical_to` (`workflow/cr30/measurement.py:167-177`) is doing
+two jobs at once: it is the **only** signal that a new reading exists, and it is
+listed in §6 as a *rejection rule*. The design presents only the second. The
+consequences it therefore never addresses:
+
+- **What does ChromIQ do while nothing has changed?** Poll forever? At what
+  interval? Over BLE, at what battery cost? There is no timeout, no "still
+  waiting" state, no cancel semantics in §6.
+- **Two genuinely identical consecutive readings hang the run.** Unlikely given
+  the measured noise (`EXP-SPEC-001b`), but there is no escape hatch: the user
+  cannot force-accept, and §6's rule says reject.
+- §10.1.4 claims the bit-identical guard catches the post-reconnect stale
+  reading. **It does** — but only because it is the same mechanism that detects
+  *any* new reading. The design should say that once, plainly, rather than
+  presenting it as a defence earning its place twice.
+
+### B8 — `chartread_engine = "argyll"` has no CR30 behaviour, and `patch_by_patch` becomes a lie. **SERIOUS**
+
+Two related gaps:
+
+1. **The stock-chartread fallback.** Covered under A5. Additionally,
+   `measure_manager._engine_should_fall_back` (`:537+`) can **automatically**
+   relaunch a failed engine run on stock chartread. For a CR30 chart that means
+   automatically relaunching into a fatal `Unrecognised chart target instrument`.
+   The design does not exclude CR30 from the fallback.
+2. **`-p` is irrelevant in `-x` mode.** `read_strips` initialises `rmode = 0`
+   (spot) at `chromiq_chartread.c:887` and every assignment that could change it
+   (`:1209-1402`) is inside `if (xtern == 0)`. So an `-x` run is *always* spot,
+   whatever `patch_by_patch` says. But `patch_by_patch` is a visible per-target
+   checkbox in both Guided and Manual (`ui/tabs/tab_measure.py:11157, 11175`,
+   stored at `workflow/measure_settings.py:48, 71`). For a CR30 chart it will
+   show unticked while the read is patch-by-patch regardless. Force it, hide it,
+   or explain it.
