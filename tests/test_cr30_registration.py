@@ -675,3 +675,103 @@ def test_hex_capability_is_asked_of_the_geometry_not_a_list() -> None:
     # without being hexagonal.
     cm = instruments.build("CM", cm_stagger=True, patch_h=14.0)
     assert cm.hxeh > 0 and instruments.is_hexagonal(cm) is False
+
+
+# ---------------------------------------------------------------------------
+# 12. Change 0 (#159): the CR30 question must survive a project reopen
+#
+# TARGET_INSTRUMENT is written by the layout stage into the .ti2 and is NOT in
+# the .ti1 at all — but ui/main_window.py hands this tab `run.chart_ti1` when a
+# project is opened. Every open-coded read_target_instrument(self._ti1_path)
+# therefore read None and silently answered "not a CR30", so the guard below
+# was dead on the commonest path. Every test above hands the tab a .ti2, which
+# is exactly why none of them caught it.
+# ---------------------------------------------------------------------------
+
+def _ti1_with_ti2_sibling(stem: Path, instrument: str) -> Path:
+    """A chart pair as the app really writes it: the keyword only in the .ti2.
+
+    Returns the **.ti1**, i.e. what opening a project hands the Measure tab.
+    """
+    ti1 = stem.with_suffix(".ti1")
+    ti1.write_text(
+        "CTI1\n\n"
+        'DESCRIPTOR "chart"\n'
+        'COLOR_REP "RGB"\n\n'
+        "NUMBER_OF_FIELDS 4\nBEGIN_DATA_FORMAT\n"
+        "SAMPLE_ID RGB_R RGB_G RGB_B\nEND_DATA_FORMAT\n\n"
+        "NUMBER_OF_SETS 1\nBEGIN_DATA\n1 100 100 100\nEND_DATA\n",
+        encoding="utf-8")
+    _ti2_named(stem.with_suffix(".ti2"), instrument)
+    return ti1
+
+
+def test_the_ti1_really_does_not_carry_the_keyword(tmp_path) -> None:
+    """The premise, pinned. If a future chart writer starts putting
+    TARGET_INSTRUMENT in the .ti1 this test says so, and the resolver below
+    becomes belt-and-braces rather than the only thing that works."""
+    from ui.ti2_loader import read_target_instrument
+    ti1 = _ti1_with_ti2_sibling(tmp_path / "c", "CR30")
+    assert read_target_instrument(ti1) is None
+    assert read_target_instrument(ti1.with_suffix(".ti2")) == "CR30"
+
+
+def test_chart_is_cr30_resolves_the_ti2_when_handed_a_ti1(qapp, tmp_path) -> None:
+    tab, _ = _measure_tab(tmp_path, "chromiq")
+    tab._ti1_path = _ti1_with_ti2_sibling(tmp_path / "c", "CR30")
+    assert tab._chart_is_cr30() is True, \
+        "opening a project hands the .ti1; the keyword lives in the .ti2"
+
+
+def test_chart_is_cr30_still_answers_from_a_ti2(qapp, tmp_path) -> None:
+    """Boundary: most load paths hand the .ti2 directly, and must be unchanged."""
+    tab, _ = _measure_tab(tmp_path, "chromiq")
+    tab._ti1_path = _ti2_named(tmp_path / "d.ti2", "CR30")
+    assert tab._chart_is_cr30() is True
+
+
+def test_chart_is_cr30_is_false_for_every_other_chart_and_every_error(
+        qapp, tmp_path) -> None:
+    tab, _ = _measure_tab(tmp_path, "chromiq")
+    tab._ti1_path = _ti1_with_ti2_sibling(tmp_path / "e", "GretagMacbeth i1 Pro")
+    assert tab._chart_is_cr30() is False
+    # Error cases: never raise, never block.
+    tab._ti1_path = None
+    assert tab._chart_is_cr30() is False
+    tab._ti1_path = tmp_path / "nothing.ti1"          # no sibling .ti2 either
+    assert tab._chart_is_cr30() is False
+    lone = tmp_path / "lone.ti1"                       # a .ti1 with no .ti2
+    lone.write_text("CTI1\n", encoding="utf-8")
+    tab._ti1_path = lone
+    assert tab._chart_is_cr30() is False
+
+
+def test_the_stock_chartread_guard_fires_after_a_project_reopen(
+        qapp, tmp_path, monkeypatch) -> None:
+    """THE BUG. Preferences on ArgyllCMS chartread + a reopened CR30 project:
+    before Change 0 the guard read None, returned False, and the measurement
+    launched into `Unrecognised chart target instrument 'CR30'`."""
+    tab, settings = _measure_tab(tmp_path, "argyll")
+    tab._ti1_path = _ti1_with_ti2_sibling(tmp_path / "c", "CR30")
+    monkeypatch.setattr(type(tab), "_cr30_stock_reader_window", lambda self: False)
+    assert tab._blocked_by_stock_chartread_for_cr30() is True
+    assert settings.get("chartread_engine") == "argyll"
+
+
+def test_the_swipe_arrow_stays_off_after_a_project_reopen(qapp, tmp_path) -> None:
+    """A CR30 reads one patch at a time, so there is nothing to swipe. The flag
+    is set from _setup_stripe_rects, which used to make the same dead read."""
+    tab, _ = _measure_tab(tmp_path, "chromiq")
+    seen: list[bool] = []
+    tab._preview.set_no_swipe = lambda v: seen.append(v)   # type: ignore[method-assign]
+    # _setup_stripe_rects returns early with no pages loaded; one page path is
+    # all it needs to reach the flag (the rect detection below it copes with a
+    # file that is not there).
+    tab._tiff_pages = [tmp_path / "c_01.tif"]
+    tab._ti1_path = _ti1_with_ti2_sibling(tmp_path / "c", "CR30")
+    tab._setup_stripe_rects()
+    assert seen and seen[-1] is True
+    seen.clear()
+    tab._ti1_path = _ti1_with_ti2_sibling(tmp_path / "f", "GretagMacbeth i1 Pro")
+    tab._setup_stripe_rects()
+    assert seen and seen[-1] is False, "only a CR30 loses its arrow"

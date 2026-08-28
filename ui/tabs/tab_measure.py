@@ -4190,13 +4190,9 @@ class TabMeasure(QWidget):
         self._preview.set_hex_zigzag(chart_is_hexagonal(self._ti1_path))
         # A CR30 chart has no swipe either, so the arrow goes — but its patches
         # are square, so it must NOT borrow the hex zigzag to achieve that
-        # (#159). Read from the chart, like everything else on this path.
-        from ui.ti2_loader import is_cr30, read_target_instrument
-        try:
-            _spot = is_cr30(read_target_instrument(self._ti1_path))
-        except Exception:      # noqa: BLE001 — a missing keyword is not an error
-            _spot = False
-        self._preview.set_no_swipe(_spot)
+        # (#159). Read from the chart, like everything else on this path — via
+        # _chart_is_cr30, which resolves the .ti2 the keyword actually lives in.
+        self._preview.set_no_swipe(self._chart_is_cr30())
 
         engine = self._engine_stripe_rects()
         if engine is not None:
@@ -4432,12 +4428,7 @@ class TabMeasure(QWidget):
         """
         if self._ti1_path is None or self._engine_selected():
             return False
-        from ui.ti2_loader import is_cr30, read_target_instrument
-        try:
-            name = read_target_instrument(self._ti1_path)
-        except Exception:      # noqa: BLE001 — never block a read on this check
-            return False
-        if not is_cr30(name):
+        if not self._chart_is_cr30():
             return False
 
         if not self._cr30_stock_reader_window():
@@ -5193,6 +5184,31 @@ class TabMeasure(QWidget):
             return _P("")
         path = _P(path)
         return path if path.suffix.lower() == ".ti2" else path.with_suffix(".ti2")
+
+    def _chart_is_cr30(self) -> bool:
+        """Does the chart in the user's hand name a CR30? (#159)
+
+        The single CR30 question for this whole tab. It exists because
+        ``TARGET_INSTRUMENT`` is written by the layout stage into the **.ti2**
+        and is not in the `.ti1` at all — while opening a project hands this tab
+        ``run.chart_ti1`` (``ui/main_window.py``). Every open-coded
+        ``read_target_instrument(self._ti1_path)`` therefore read ``None`` after
+        a reopen and silently answered "not a CR30".
+
+        So: resolve through :meth:`_chart_file_for` first, exactly as
+        ``set_ti1_path`` already does to decide whether Start is enabled, and
+        route every CR30 decision — the stock-chartread guard, the swipe arrow,
+        ``-x``, and the patch-by-patch lock — through this one method. Never add
+        a second open-coded read; there were two and they were both wrong.
+        """
+        from ui.ti2_loader import is_cr30, read_target_instrument
+        try:
+            chart = self._chart_file_for(getattr(self, "_ti1_path", None))
+            if not chart or not chart.exists():
+                return False
+            return is_cr30(read_target_instrument(chart))
+        except Exception:      # noqa: BLE001 — never block a read on this check
+            return False
 
     def _update_start_tooltip(self) -> None:
         """Say why Start is unavailable, rather than leaving it greyed in
