@@ -281,11 +281,44 @@ def _no_native_print_dialog(monkeypatch):
 _REAL_CHROMIQ = Path.home() / "ChromIQ"
 
 
-def _real_chromiq_entries() -> set:
+#: Trees under the real folder that are not projects and are expected to have
+#: their own contents change (a cache the suite owns). Nothing today, but the
+#: fingerprint below is recursive and this is where an exception would go.
+_FINGERPRINT_SKIP: tuple = ()
+
+
+def _real_chromiq_entries() -> dict:
+    """A RECURSIVE fingerprint of the real ~/ChromIQ: relative path → (size, mtime).
+
+    NAMES ALONE WERE NOT ENOUGH, and the gap was not theoretical. Comparing the
+    top level only meant that anything written INSIDE a folder that already
+    existed produced no new name, so the assert passed and the gate stayed
+    green. Measured on 2026-08-28: two consecutive gate runs ran ArgyllCMS
+    `scanin` with its working directory set to
+    `~/ChromIQ/scanner-test-targets/real` — the owner's own scans — and scanin
+    writes beside its input, so a 37 MB `diag.tif` of his from 9 July and both
+    `.ti3` files were silently rewritten while this guard reported nothing.
+
+    Size and mtime catch an overwrite as well as a creation. Reading the tree
+    costs a fraction of a second on a real folder and runs once per test.
+    """
+    out: dict = {}
     try:
-        return {p.name for p in _REAL_CHROMIQ.iterdir()}
+        for p in _REAL_CHROMIQ.rglob("*"):
+            try:
+                rel = p.relative_to(_REAL_CHROMIQ)
+                if rel.parts and rel.parts[0] in _FINGERPRINT_SKIP:
+                    continue
+                if p.is_dir():
+                    out[str(rel) + "/"] = None
+                else:
+                    st = p.stat()
+                    out[str(rel)] = (st.st_size, st.st_mtime_ns)
+            except OSError:
+                continue
     except OSError:
-        return set()
+        return {}
+    return out
 
 
 #: Only a BACKSTOP now. A run that finishes deletes its own files (see
@@ -473,9 +506,23 @@ def _no_leaked_replay_helpers():
               f"helper(s) — a session was not finished")
 
 
+def _real_chromiq_names() -> set:
+    """Just the top-level names — cheap enough to run around every test."""
+    try:
+        return {p.name for p in _REAL_CHROMIQ.iterdir()}
+    except OSError:
+        return set()
+
+
 @pytest.fixture(autouse=True)
 def _never_touch_the_real_chromiq_folder():
-    """Fail a test that creates anything in the user's real ~/ChromIQ.
+    """Fail a test that CREATES anything in the user's real ~/ChromIQ.
+
+    Names only, because this runs around every one of ~7,700 tests. A write
+    INSIDE a folder that already exists produces no new name and is invisible
+    here — that is what `_no_gate_run_may_rewrite_the_real_chromiq_folder`
+    below is for; this one exists to name the guilty test, which a session-wide
+    check cannot do.
 
     **It only catches a stray once.** The comparison is against what was there
     when the test started, so a folder left behind by an earlier run is already
@@ -488,9 +535,9 @@ def _never_touch_the_real_chromiq_folder():
     Nothing is deleted automatically, because the folder might be a real
     project that a test happened to touch.
     """
-    before = _real_chromiq_entries()
+    before = _real_chromiq_names()
     yield
-    new = sorted(_real_chromiq_entries() - before)
+    new = sorted(_real_chromiq_names() - before)
     assert not new, (
         "this test wrote into the real ~/ChromIQ folder: "
         f"{new}\n"
@@ -499,6 +546,42 @@ def _never_touch_the_real_chromiq_folder():
         '    s.set("custom_output_path", str(tmp_path / "out"))\n'
         "Nothing has been deleted; remove the stray folder(s) by hand if you "
         "want them gone."
+    )
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _no_gate_run_may_rewrite_the_real_chromiq_folder():
+    """Fail the RUN if it changed anything inside the user's real ~/ChromIQ.
+
+    THE PER-TEST GUARD ABOVE COMPARES TOP-LEVEL NAMES, AND THAT WAS NOT ENOUGH.
+    Anything written inside a folder that already existed produced no new name,
+    so the assert passed and the gate stayed green. Measured on 2026-08-28:
+    consecutive gate runs had been rewriting a whole run of the owner's
+    "Red River Paper … Letter 2052p 9pages" project — twenty TIFFs, the .ti1,
+    the .ti2, the exports — because a built-in preset's default name happens to
+    equal that project's folder name and `custom_output_path` fell back to ""
+    (which IS ~/ChromIQ); and ArgyllCMS `scanin` was being run with its working
+    directory set to his own IT8 scans, rewriting a 37 MB diagnostic image of
+    his from July on every run.
+
+    Recursive, so it sees those; session-scoped, so it costs one tree walk at
+    each end of the run instead of two per test. Per-test it added forty
+    seconds to the gate and perturbed timing-sensitive layout tests.
+    """
+    before = _real_chromiq_entries()
+    yield
+    after = _real_chromiq_entries()
+    changed = sorted(k for k in set(after) & set(before)
+                     if after[k] != before[k])
+    created = sorted(set(after) - set(before))
+    assert not changed and not created, (
+        "THIS RUN WROTE INTO THE REAL ~/ChromIQ FOLDER.\n"
+        f"  rewritten: {changed}\n"
+        f"  created:   {created}\n"
+        "A rewritten file cannot be given back — it holds whatever the test "
+        "produced. Find the writer with a tripwire on FileManager.root_dir, "
+        "and remember that overriding QSettings alone is not enough: "
+        "custom_output_path then falls back to \"\", which IS ~/ChromIQ."
     )
 
 
@@ -555,6 +638,33 @@ def pytest_configure(config):
     # test does today and it patches correctly, but nothing enforced that.
     os.environ.setdefault(
         "CHROMIQ_PRESETS_DIR", str(sandbox / "presets"))
+
+    # …AND THE WORKING FOLDER ITSELF, which the QSettings sandbox alone does NOT
+    # cover and which is the mechanism that has actually cost data.
+    #
+    # `custom_output_path` defaults to "", and "" means `~/ChromIQ` — the
+    # developer's real projects. A sandboxed ini that has never had the key
+    # written still answers "", so every test that builds anything without
+    # setting it by hand lands there. Measured on 2026-08-28, with a recursive
+    # guard in place: one gate run rewrote a whole run of the owner's
+    # "Red River Paper … Letter 2052p 9pages" project — twenty TIFFs, the .ti1,
+    # the .ti2, the exports — because a built-in preset's default name happens
+    # to equal that project's folder name, and re-provisioned his
+    # scanner-test-targets. It had been doing that on every run.
+    #
+    # Seeding the key here makes the real folder unreachable BY DEFAULT rather
+    # than by each test remembering. A test that wants a different root still
+    # just sets it.
+    # THE DEFAULT ITSELF, not just this ini. Overriding QSettings alone is not
+    # enough and never was: dozens of test files build their own
+    # `AppSettings()` and then replace `._qs` with a fresh empty ini of their
+    # own, and a dozen more use small hand-written doubles seeded from
+    # `DEFAULTS`. In every one of those `custom_output_path` answers "", and ""
+    # IS `~/ChromIQ`. Moving the DEFAULT makes the real folder unreachable for
+    # all of them at once; a test that wants a specific root still just sets it.
+    _cs.DEFAULTS["custom_output_path"] = str(sandbox / "projects")
+    QSettings(str(ini), QSettings.Format.IniFormat).setValue(
+        "custom_output_path", str(sandbox / "projects"))
 
     def _sandboxed(*_args, **_kwargs):
         return QSettings(str(ini), QSettings.Format.IniFormat)

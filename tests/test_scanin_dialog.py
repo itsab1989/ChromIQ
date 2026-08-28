@@ -31,8 +31,24 @@ def _app():
 
 
 class _FakeSettings:
+    """A settings double built from DEFAULTS — INCLUDING `custom_output_path`.
+
+    That key defaults to "", and "" means `~/ChromIQ`, the developer's real
+    projects. A dialog built on this double therefore provisioned standard
+    scanner targets into the real folder and rewrote the owner's
+    `scanner-test-targets/.provisioned.json` on every gate run (measured
+    2026-08-28, once the ~/ChromIQ guard was made recursive enough to see
+    writes INSIDE an existing folder). The suite-wide sandbox in
+    `tests/conftest.py::pytest_configure` cannot help here, because this double
+    never reads QSettings at all — so it is pinned per instance.
+    """
+
     def __init__(self, **overrides):
+        import tempfile
         self._store = {**DEFAULTS, **overrides}
+        if not self._store.get("custom_output_path"):
+            self._store["custom_output_path"] = tempfile.mkdtemp(
+                prefix="chromiq-fakesettings-")
 
     def get(self, key, default=None):
         return self._store.get(key, default)

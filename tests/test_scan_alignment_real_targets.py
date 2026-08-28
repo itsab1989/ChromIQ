@@ -24,7 +24,9 @@ from __future__ import annotations
 import math
 import os
 import re
+import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -75,11 +77,33 @@ class _Box:
 
 
 def _scanin_placement(tif: Path, cht: Path, ref: Path):
-    """(boxes, aligned corners, fiducial quad, expected XYZ) from scanin."""
+    """(boxes, aligned corners, fiducial quad, expected XYZ) from scanin.
+
+    SCANIN WRITES BESIDE ITS INPUT, so this runs in a copy and never in the
+    folder the scans live in. With `-d` it produces a `diag.tif` and a `.ti3`
+    next to the image, and this test used to run with `cwd=tif.parent` — which
+    on a developer's machine is `~/ChromIQ/scanner-test-targets/real`, the
+    owner's own scans. Measured on 2026-08-28: two consecutive gate runs
+    rewrote his 37 MB `diag.tif` from 9 July and both `.ti3` files, and the
+    conftest guard could not see it because it compares top-level names only.
+    The scans themselves are large, so they are symlinked rather than copied
+    where the platform allows it.
+    """
     if ARGYLL is None:
         pytest.skip("ArgyllCMS scanin not installed")
-    r = subprocess.run([str(ARGYLL), "-v", "-dipn", tif.name, str(cht), str(ref)],
-                       capture_output=True, text=True, cwd=tif.parent)
+    work = Path(tempfile.mkdtemp(prefix="chromiq-scanin-"))
+    try:
+        local = work / tif.name
+        try:
+            local.symlink_to(tif)
+        except (OSError, NotImplementedError):     # Windows without privilege
+            shutil.copy2(tif, local)
+        r = subprocess.run([str(ARGYLL), "-v", "-dipn", local.name,
+                            str(cht), str(ref)],
+                           capture_output=True, text=True, cwd=work,
+                           timeout=300)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
     txt = r.stdout + r.stderr
     m = re.search(r"Chosen rotation ([-\d.]+) deg", txt)
     if not m:
