@@ -219,3 +219,117 @@ already there gives for `_reassert_guided_refinement`. The stub has no
 Regression: `-k "measure or engine or cr30 or preset or target_settings or
 i18n or message"`, **2090 passed, 199 skipped**.
 
+
+## Change B — `-xx`, the two user-facing gaps, and the bridge
+
+### B.1 / B.2 — the flag and the argument
+
+`MeasureParams.external_values` (`measure_manager.py:196`), set beside
+`stock_reader_cannot_read` from `_chart_is_cr30()`, appends **`-xx`** in
+`_build_args`. Never a bare `-x`: the letter *is* the option's argument
+(`chromiq_chartread.c:3559-3569`) and `na == NULL` calls `usage()`. `-xx` is
+XYZ; `-xl` would be L\*a\*b\* and make the helper run `icmLab2XYZ` over a
+conversion `workflow/cr30/colour.py` has already done. Its `NOT_A_SETTING`
+entry is in place. `-c`, `-N`, `-B`/`-b` and `-T` become inert under `-x` and
+are **left in place rather than stripped** — removing a flag the helper ignores
+would only make this list disagree with every other reader of `MeasureParams`.
+
+`-p` still travels, and Change C is what guarantees it: `MeasureManager.start`
+derives `_spot_mode` from `params.patch_by_patch`, and `skip_current_strip`
+branches on it.
+
+### B.8 / B.9 — a CR30 user had no instructions at all
+
+* `patch_measurement_instructions_html` gained its `cr30` branch
+  (`ui/ti2_loader.py:305`). It previously fell through to the generic *"as
+  described in its manual"* — for the one instrument whose **magnetic cap must
+  come off first**, which is the instruction that matters and the only one the
+  generic text cannot give.
+* `TabMeasure._show_cr30_measuring_window` shows it once per measurement,
+  **modeless** (the reading is driven by the instrument's own button, so a
+  modal would sit between the user and the preview they are meant to watch),
+  from the start path — not from `calibration_done`, which cannot fire under
+  `-x` because `cq_handle_calibrate` is inside `if (xtern == 0)`.
+  New §M message **M-CR30-HOW-TO-MEASURE**, `approved=False`, catalogue +
+  `AWAITING_APPROVAL` + §M-PROPOSED in one commit.
+
+### B.3–B.7 — `workflow/cr30/measure_bridge.py`
+
+`grep` for a sender of `{"cmd":"value"}` across the tree returned nothing:
+`workflow/cr30/` was a complete device layer with no bridge to the measure
+flow. This is that bridge, and **its subject is the protocol, not the device** —
+obtaining a reading is injected, so every rule is proved with no CR30 attached
+and no helper running.
+
+| rule | how |
+|---|---|
+| B.3 never answer without an outstanding prompt | `_awaiting_loc`, set on `patch_ready`, cleared when the value goes out; `_why_not()` gates every send |
+| B.4 hold values while a jump is in flight | `note_goto()` sets `_nav_target`; the jump settles only on the `spot_ready` for the **new** loc |
+| B.5 latch on `loc` and transitions, never on a count | `_reading_loc` — a repeat prompt for the patch already being read starts no second read |
+| B.6 verify the pairing afterwards | `on_patch_measured` compares `loc` with the loc answered and **stops the read** on a mismatch |
+| B.7 off the Qt main thread | `_ReadWorker` on a `QThread`; both held in `self._threads` until `finished`, per `feedback_qthread_reference_lifetime` |
+
+A refused reading is never silent: `reading_dropped` / `read_failed` /
+`mispaired` each reach the log and a status flash. Dropping costs one button
+press; sending a mis-paired reading costs a wrong colour nothing downstream can
+detect.
+
+`DeviceReader` backs it with a real CR30 and **leaves `read_measurement`'s own
+guards on**, so a tile constant, a set magnet-gate flag or a bit-identical
+repeat raises rather than being handed on as a patch colour — which is exactly
+the stale-reading-after-reconnect case of `02-design.md` §10.1 ⚠4.
+
+Layering: `workflow/cr30/__init__.py` promises the package pulls in no Qt and no
+pyserial. `measure_bridge` needs Qt, so it is **never imported from
+`__init__`** and the promise is unchanged; the docstring now records that
+explicitly.
+
+### Tests and mutations
+
+`tests/test_cr30_measure_bridge.py`, 23 tests. Mutations, all proved to land:
+
+| mutation | fails |
+|---|---|
+| drop the outstanding-prompt check (B.3) | 3 |
+| latch on events rather than `loc` (B.5) | 1 |
+| do not hold during navigation (B.4) | 1 |
+| do not verify the pairing (B.6) | 1 |
+| read on the main thread (B.7) | 5 |
+| tab announces the jump **after** sending it | 1 |
+| tab never feeds the bridge | 1 |
+
+### A.4 — no C-side change is needed after all
+
+The event A.4 asked for **already exists**: the helper emits
+`{"event":"error","kind":"chart_refused","instrument":…,"detail":…}` before its
+`error()`, and `tests/test_cr30_external_values.py::test_a_refused_chart_says_
+why_on_the_event_stream` pins it against the real binary. What was missing was
+on the Python side — it fell through the `ekind` dispatch, so `_engine_fatal`
+stayed `None`. It is now consumed, and the stderr prose capture remains as the
+fallback for a helper that dies before emitting any event at all.
+
+## F7 — the `-x` path's only guard ran on one laptop
+
+`tests/test_cr30_external_values.py` pinned its chart to
+`/Users/Basti/ChromIQ/ttestitest/ttestitest.ti2` with a `skipif` on it, so
+everywhere else the file **skipped in silence**. `make_ti2()` now generates a
+printtarg-shaped 90-patch chart in `tmp_path`; the only skip condition left is
+the built helper, and a test asserts that.
+
+Two fixture facts had to be **measured**, not assumed, and both are recorded at
+the call site:
+
+* Patch A1 is a dark saturated blue-violet, not near-black. The plausibility
+  check is `xyzLabDE` against `WERR_TH 95.0` (`chromiq_chartread.c:71`) and is
+  chroma-heavy: near-black against the white reading the test submits measures
+  **dE 84.7 and is accepted**, so the test would have passed while proving
+  nothing. This expectation measures 114.8.
+* The click-to-jump test now answers with the patch's own expected colour, taken
+  from the `spot_ready` the goto produced. A fixed mid value is refused as
+  implausible on some targets, which emits no `patch_read` and turns a
+  wrong-patch failure into a timeout. It still catches the bug: a lost goto
+  means answering A1 with A1's colour, and `loc` comes back `"A1"`.
+
+Confirmed while there: **F12 has landed** — the file runs clean under
+`-W error::pytest.PytestUnhandledThreadExceptionWarning`.
+
