@@ -29,6 +29,23 @@ class CalSettings:
     def set(self, key, value):
         self.d[key] = value
 
+    # A DOUBLE THAT IS MISSING A METHOD DOES NOT FAIL, IT MISLEADS. `#175`'s
+    # preset undo asks whether a key was ever WRITTEN, so that a key it was not
+    # is removed rather than pinned to today's default. Without these two the
+    # snapshot raised `AttributeError`, the undo was skipped entirely, and a
+    # test about the dropdown failed for a reason that had nothing to do with
+    # the dropdown. `self.d` starts as a copy of DEFAULTS, so "stored" here
+    # means "differs from the default it was seeded with" — the same
+    # distinction `AppSettings` draws against its ini.
+    def is_stored(self, key):
+        return key in self.d and self.d[key] != DEFAULTS.get(key)
+
+    def unset(self, key):
+        if key in DEFAULTS:
+            self.d[key] = DEFAULTS[key]
+        else:
+            self.d.pop(key, None)
+
 
 @pytest.fixture
 def cal_home(tmp_path) -> Path:

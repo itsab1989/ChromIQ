@@ -124,6 +124,13 @@ def main() -> int:
             print(f"  [FAIL] {slug}: not in the presets dropdown")
             failures += 1
             continue
+        # Move the dropdown FIRST, then dispatch — calling the handler on its
+        # own leaves `_last_preset_index` committed for an index the combo is
+        # not on (#175 moved the combo to `activated`, which is silent for a
+        # programmatic move).
+        tab._preset_combo.blockSignals(True)
+        tab._preset_combo.setCurrentIndex(ix)
+        tab._preset_combo.blockSignals(False)
         tab._on_preset_selected(ix)
         pump(app, 4000)          # well past the 450 ms preview debounce
         ok = len(BUILDS) == 1 and BUILDS[0]["by"] == "click"

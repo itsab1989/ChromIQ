@@ -181,7 +181,12 @@ def main() -> int:
     pump(app, 400)
     ix = tab._preset_combo.findData(preset.key)
     built.clear()
+    # A REAL CLICK: the dropdown is on `activated` (#175), so `setCurrentIndex`
+    # alone dispatches nothing.
+    tab._preset_combo.blockSignals(True)
     tab._preset_combo.setCurrentIndex(ix)
+    tab._preset_combo.blockSignals(False)
+    tab._preset_combo.activated.emit(ix)
     pump(app, 6000)
     want = preset.layout_recipe
     check(lp.helper_markers_cb.isChecked() is True,
@@ -225,7 +230,11 @@ def main() -> int:
     print("\nSCENARIO 7 — a second preset in the same session (his repeat case)")
     p2 = next(p for p in KNUT_PRESETS if p.slug.startswith("cm_a4_84p"))
     built.clear()
-    tab._preset_combo.setCurrentIndex(tab._preset_combo.findData(p2.key))
+    _ix2 = tab._preset_combo.findData(p2.key)
+    tab._preset_combo.blockSignals(True)
+    tab._preset_combo.setCurrentIndex(_ix2)
+    tab._preset_combo.blockSignals(False)
+    tab._preset_combo.activated.emit(_ix2)     # a real click (#175)
     pump(app, 6000)
     check(len(built) == 1, "one build only", f"builds={built}")
     check(built and built[0]["cols"] == p2.layout_recipe["area_cols"],

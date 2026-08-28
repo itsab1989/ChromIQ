@@ -4450,7 +4450,7 @@ class TabChart(QWidget):
         # every real choice, including re-choosing what is already shown, and
         # never on a programmatic `setCurrentIndex` — which is what the three
         # internal callers want anyway (two of them already block signals).
-        self._preset_combo.activated.connect(self._on_preset_selected)
+        self._preset_combo.activated.connect(self._on_preset_activated)
         self._preset_add_btn.clicked.connect(self._on_preset_save)
         self._preset_del_btn.clicked.connect(self._on_preset_delete)
         self._manual_target_name_edit.textChanged.connect(self._check_for_cal_file)
@@ -7539,6 +7539,11 @@ class TabChart(QWidget):
         "_vendor_debranded", "_layout_owned_by_build",
         "_engine_clip_saved", "_engine_leftclip_saved",
         "_engine_was_active", "_stamp_engine_state",
+        # Written by `_convert_engine_to_printtarg` on the way in and read to
+        # decide whether a LATER printtarg→engine switch keeps the panel's
+        # margins or re-derives them from `-m`. Measured absent before a refused
+        # preset and 10 after, which quietly changes that later decision.
+        "_pt_margin_at_switch",
         # Restored LAST of the group and deliberately: if the preset was what
         # first seeded the layout panel, putting this back to False means the
         # next time the engine is switched on the panel is seeded again from
@@ -7559,33 +7564,44 @@ class TabChart(QWidget):
         "_override_targen_check", "_override_printtarg_check",
     )
 
-    def _snapshot_preset_state(self) -> dict:
+    def _snapshot_preset_state(self) -> dict | None:
         """Everything a built-in preset can move, exactly as it stands now.
 
-        Best-effort by design: a row that cannot be read is left out rather than
-        aborting the selection. Missing one row costs that row; refusing to take
-        a snapshot at all would cost the whole undo.
+        NOTHING HERE MAY RAISE. This runs inside a Qt slot, and PyQt hands an
+        escaping exception to `sys.excepthook`, which ends in `qFatal()` — the
+        app aborts (measured: SIGABRT). Every part is taken independently, so
+        one unreadable row costs that row. If even the spine cannot be read the
+        answer is None, which the caller reads as "there is no undo" and leaves
+        the preset applied rather than half-undoing it.
         """
-        snap: dict = {
-            "mode": self._mode_name(),
-            "settings": {k: self._settings.get(k)
-                         for k in self._PRESET_PERSISTED_SETTINGS},
-            "attrs": {a: getattr(self, a, None)
-                      for a in self._PRESET_FAMILY_ATTRS},
+        snap: dict = {"checks": {}, "names": {}, "widgets": {},
+                      "recipe": None, "pages": None, "pages_spin": None}
+        try:
+            snap["mode"] = self._mode_name()
+            # THE VALUE *AND* WHETHER IT WAS EVER WRITTEN. `get` answers with
+            # the default for a key nobody has touched, so value alone cannot
+            # tell "absent" from "set to today's default" — and putting the
+            # value back would pin a key that had never been in the file, which
+            # then stops following a changed default.
+            snap["settings"] = {k: (self._settings.get(k), self._is_stored(k))
+                                for k in self._PRESET_PERSISTED_SETTINGS}
+            snap["attrs"] = {a: getattr(self, a, None)
+                             for a in self._PRESET_FAMILY_ATTRS}
             # NOT `currentIndex()` — by the time this runs the dropdown has
             # already moved to the new preset, so its own position is the thing
             # being undone. `_last_preset_index` is the selection that was
             # actually committed, which is what Basti's ruling means by "what
             # they were before the dropdown was touched".
-            "combo_index": self._last_preset_index,
-            "last_preset_index": self._last_preset_index,
-            "del_enabled": self._is_deletable_preset(self._last_preset_index),
-            "name_typed": bool(getattr(self, "_name_typed_by_user", False)),
-            "bit16": bool(self._bit16_radio is not None
-                          and self._bit16_radio.isChecked()),
-            "checks": {}, "names": {}, "widgets": {},
-            "recipe": None, "pages": None, "pages_spin": None,
-        }
+            snap["combo_index"] = self._last_preset_index
+            snap["last_preset_index"] = self._last_preset_index
+            snap["del_enabled"] = self._is_deletable_preset(self._last_preset_index)
+            snap["name_typed"] = bool(getattr(self, "_name_typed_by_user", False))
+            snap["bit16"] = bool(self._bit16_radio is not None
+                                 and self._bit16_radio.isChecked())
+        except Exception:              # noqa: BLE001 — see the docstring
+            log.warning("preset undo: the state could not be read, so this "
+                        "preset cannot be undone", exc_info=True)
+            return None
         for tool, widgets in self._manual_widgets.items():
             rows = []
             for pw in widgets:
@@ -7597,16 +7613,25 @@ class TabChart(QWidget):
                               getattr(pw, "flag", "?"), exc_info=True)
             snap["widgets"][tool] = rows
         for attr in self._PRESET_CHECKS:
-            w = getattr(self, attr, None)
-            if w is not None:
-                snap["checks"][attr] = w.isChecked()
+            try:
+                w = getattr(self, attr, None)
+                if w is not None:
+                    snap["checks"][attr] = w.isChecked()
+            except Exception:          # noqa: BLE001
+                log.debug("preset undo: could not read %s", attr, exc_info=True)
         for attr in ("_target_name_edit", "_manual_target_name_edit"):
-            w = getattr(self, attr, None)
-            if w is not None:
-                snap["names"][attr] = w.text()
-        spin = getattr(self, "_manual_pages_spin", None)
-        if spin is not None:
-            snap["pages_spin"] = spin.value()
+            try:
+                w = getattr(self, attr, None)
+                if w is not None:
+                    snap["names"][attr] = w.text()
+            except Exception:          # noqa: BLE001
+                log.debug("preset undo: could not read %s", attr, exc_info=True)
+        try:
+            spin = getattr(self, "_manual_pages_spin", None)
+            if spin is not None:
+                snap["pages_spin"] = spin.value()
+        except Exception:              # noqa: BLE001
+            log.debug("preset undo: could not read the pages spin", exc_info=True)
         # NOT GUARDED ON `_manual_panel_inited` — that is the bug this had.
         # Driven on screen: with the engine off, the panel exists but is not yet
         # seeded, so a guarded snapshot took no recipe; the refused A3 preset
@@ -7624,23 +7649,135 @@ class TabChart(QWidget):
                           exc_info=True)
         return snap
 
+    def _is_stored(self, key: str) -> bool:
+        """Has this settings key ever been WRITTEN, rather than answered by a
+        default? Degrades to "yes" for a settings object that cannot say.
+
+        Not every settings object in this codebase is an `AppSettings` — the
+        test suite has a dozen small doubles with only `get`/`set`. Asking one
+        of those directly raised `AttributeError` out of the snapshot, which
+        skipped the whole undo and failed a test for a reason that had nothing
+        to do with what it was testing. "Yes" is the safe answer: the value is
+        written back, which is what happened before the key-pinning fix.
+        """
+        ask = getattr(self._settings, "is_stored", None)
+        if ask is None:
+            return True
+        try:
+            return bool(ask(key))
+        except Exception:              # noqa: BLE001
+            log.debug("could not ask whether %s is stored", key, exc_info=True)
+            return True
+
+    def _guarded(self, what: str, fn, *args) -> None:
+        """Run one step of the preset undo and never let it out.
+
+        The steps guard themselves internally, but a step that cannot even be
+        ENTERED must still cost only itself — an exception escaping here reaches
+        a Qt slot, where PyQt hands it to `sys.excepthook` and ChromIQ aborts
+        (measured: SIGABRT), and it would leave the tab half-undone, which is
+        worse than not undoing it at all.
+        """
+        try:
+            fn(*args)
+        except Exception:              # noqa: BLE001 — see the docstring
+            log.warning("preset undo: %s could not be put back", what,
+                        exc_info=True)
+
+    def _write_back_settings(self, snap: dict) -> None:
+        """Put the persisted settings back WITHOUT materialising keys.
+
+        `AppSettings.get` answers with the DEFAULT for a key nobody has ever
+        written, so a value alone cannot tell "absent" from "set to today's
+        default" — and writing every key back turned the first into the second.
+        A pinned key stops following a changed default and needs a migration to
+        move it, so the snapshot records whether each key was STORED, and a key
+        that was not is removed rather than written. Measured: one refused
+        preset used to pin `use_chromiq_layout_engine` and
+        `i1pro_chromiq_clip_style` in the person's file for good, and the
+        preset's own seeding is what put the first one there.
+        """
+        for key, (value, was_stored) in snap["settings"].items():
+            try:
+                if not was_stored:
+                    # It was not in the file before the preset, so it does not
+                    # go in the file after one the person refused. Measured: a
+                    # refused preset pinned `use_chromiq_layout_engine` and
+                    # `i1pro_chromiq_clip_style` for good.
+                    if self._is_stored(key) and hasattr(self._settings, "unset"):
+                        self._settings.unset(key)
+                elif self._settings.get(key) != value:
+                    self._settings.set(key, value)
+            except Exception:          # noqa: BLE001 — one key, not the undo
+                log.warning("preset undo: could not restore the setting %s",
+                            key, exc_info=True)
+
+    def _assert_preset_checks(self, snap: dict) -> None:
+        """Force every tick box back to the snapshot, silently.
+
+        Called more than once on purpose. Three separate slots reached during
+        the restore move a box on their own — the command stamp when the engine
+        state it remembers disagrees with the engine, Triple Density when the
+        instrument is momentarily not a ColorMunki, the Auto-neutral greying —
+        and every one of them fired AFTER the boxes had been correctly put back.
+        Rather than order those slots and hope, the boxes are simply asserted
+        again after anything that could move them.
+        """
+        for attr, was in snap["checks"].items():
+            try:
+                w = getattr(self, attr, None)
+                if w is None or w.isChecked() == was:
+                    continue
+                log.debug("preset undo: %s was moved to %s during the restore; "
+                          "putting it back to %s", attr, not was, was)
+                w.blockSignals(True)
+                w.setChecked(was)
+                w.blockSignals(False)
+            except Exception:          # noqa: BLE001 — one box, not the undo
+                log.warning("preset undo: could not restore %s", attr,
+                            exc_info=True)
+
     def _restore_preset_state(self, snap: dict) -> None:
         """Put back everything :meth:`_snapshot_preset_state` took.
+
+        EVERY STEP IS INDEPENDENT AND NONE OF THEM MAY RAISE. This is reached
+        from a Qt slot, where an escaping exception aborts the whole app
+        (measured: SIGABRT), and a raise part-way leaves the tab in a state
+        worse than no undo at all — the parameter rows back, but the dropdown,
+        the name field and the family flags still on the preset that was
+        refused. One step failing must therefore cost that step and nothing
+        else.
 
         THE ORDER IS LOAD-BEARING, AND IT WAS MEASURED BOTH WAYS.
 
         * `-i` goes back before `-m`, because setting the instrument re-applies
           that instrument's default margin. Restoring the rows in reverse panel
           order rewrote a margin of 10 that the user had typed to 6.
-        * The persisted settings go back twice: once before the widgets that
-          mirror them, and again after the layout recipe — because
-          `panel.set_recipe` emits `changed`, and one of that signal's slots
-          re-persists the ruler markers 150 ms later. Restoring the tick box
-          alone was undone before the user could see it.
-        * The tick boxes go back with signals blocked and the rows go back
-          after them, so a handler that rewrites a row cannot win.
+        * The layout recipe goes back BEFORE the rows it writes into.
+          `panel.set_recipe` applies the recipe one control at a time, and the
+          instrument combo's slot reads the panel's paper — still the refused
+          preset's — and pushes it into `-p`.
+        * The tick boxes are asserted LAST, and again after the greying, because
+          three different slots move them behind the restore's back.
         """
-        # 1. The mode the person was actually in.
+        # 0. AN AGREED "REPLACE IT" IS NOT AGREED TO ANY MORE. The person said
+        #    yes to the archive and then no to what followed, so the answer must
+        #    not outlive the window that asked for it. `_generate_from_ti1`'s
+        #    refusals do not clear it themselves, and it is not an attribute
+        #    this method could put back — it never had a "before" value. Every
+        #    known consumer re-asks first, so nothing acts on it today; the same
+        #    leak four times over is what once archived a whole project with no
+        #    window on screen, and `_forget_gate_answer` says so by name.
+        try:
+            self._forget_gate_answer()
+        except Exception:              # noqa: BLE001
+            log.warning("preset undo: could not clear the gate answer",
+                        exc_info=True)
+        # 1. The mode. BELT AND BRACES, and honestly so: the snapshot is taken
+        #    inside `_on_preset_selected`, by which time `_activate_builtin_preset`
+        #    has already switched to Manual — so this line does nothing on the
+        #    routes that exist today, and the mode is really put back by that
+        #    method. It stays for a future caller that snapshots earlier.
         try:
             if snap["mode"] != self._mode_name():
                 self._switch_mode(snap["mode"])
@@ -7650,37 +7787,30 @@ class TabChart(QWidget):
         #    below reads the right value while it works — `panel.set_recipe`
         #    emits `changed`, and one of that signal's slots reloads the whole
         #    layout frame from `use_chromiq_layout_engine`.
-        for key, value in snap["settings"].items():
-            self._settings.set(key, value)
-        # 3. Tick boxes, silenced.
-        for attr, was in snap["checks"].items():
-            w = getattr(self, attr, None)
-            if w is None or w.isChecked() == was:
-                continue
-            w.blockSignals(True)
-            w.setChecked(was)
-            w.blockSignals(False)
+        self._guarded("the stored settings", self._write_back_settings, snap)
+        # 3. Tick boxes, silenced. Asserted again at step 12; see that step.
+        self._guarded("the tick boxes", self._assert_preset_checks, snap)
         # 3b. …but "Auto patch count" also greys the -f and Pages controls, and
         #     that is visible. Run its handler HERE, before the rows: it writes
         #     -f, so afterwards the row restore below would have to fight it.
-        if getattr(self, "_manual_auto_patches_check", None) is not None:
-            try:
+        try:
+            if getattr(self, "_manual_auto_patches_check", None) is not None:
                 self._on_auto_patches_toggled(
                     snap["checks"].get("_manual_auto_patches_check", False))
-            except Exception:          # noqa: BLE001
-                log.debug("preset undo: auto-patch refresh failed", exc_info=True)
+        except Exception:              # noqa: BLE001
+            log.debug("preset undo: auto-patch refresh failed", exc_info=True)
         # 4. The bit-depth radios. `setChecked(False)` on an auto-exclusive
         #    radio does nothing, so check the one that WAS on.
-        radio = self._bit16_radio if snap["bit16"] else self._bit8_radio
-        if radio is not None and not radio.isChecked():
-            radio.setChecked(True)
-        # 5. THE LAYOUT PANEL GOES BACK BEFORE THE ROWS IT WRITES INTO.
-        #    `panel.set_recipe` applies the recipe one control at a time, and
-        #    the instrument combo's slot reads the panel's paper — still the
-        #    refused preset's, because the paper combo is set later in the same
-        #    method — and pushes it straight into the printtarg `-p` row.
-        #    Measured: restoring the rows first left `-p` on the A3 preset's
-        #    420x297 while every other row was correctly back on A4's values.
+        try:
+            radio = self._bit16_radio if snap["bit16"] else self._bit8_radio
+            if radio is not None and not radio.isChecked():
+                radio.setChecked(True)
+        except Exception:              # noqa: BLE001
+            log.warning("preset undo: could not restore the bit depth",
+                        exc_info=True)
+        # 5. THE LAYOUT PANEL GOES BACK BEFORE THE ROWS IT WRITES INTO — see
+        #    the docstring. Measured: restoring the rows first left `-p` on the
+        #    A3 preset's 420x297 while every other row was correctly back.
         panel = getattr(self, "_manual_layout_panel", None)
         if panel is not None and snap["recipe"] is not None:
             try:
@@ -7704,12 +7834,15 @@ class TabChart(QWidget):
                 except Exception:      # noqa: BLE001 — one row, not the undo
                     log.debug("preset undo: could not restore %s %s", tool,
                               flag, exc_info=True)
-        spin = getattr(self, "_manual_pages_spin", None)
-        if spin is not None and snap["pages_spin"] is not None:
-            spin.setValue(snap["pages_spin"])
+        try:
+            spin = getattr(self, "_manual_pages_spin", None)
+            if spin is not None and snap["pages_spin"] is not None:
+                spin.setValue(snap["pages_spin"])
+        except Exception:              # noqa: BLE001
+            log.warning("preset undo: could not restore the page count",
+                        exc_info=True)
         # 7. AND THE SETTINGS AGAIN, because steps 5 and 6 both emit `changed`
         #    and one of its slots re-persists the ruler markers from the panel.
-        #    This is the write that has the last word.
         #
         #    HONESTLY: with the ordering above, either this write or step 2
         #    alone passes the suite — the recipe being restored is the person's
@@ -7718,26 +7851,38 @@ class TabChart(QWidget):
         #    because they guard different moments (step 2 what the intermediate
         #    refreshes read, step 7 what survives them), and because the cost of
         #    being wrong here is a preference silently changed for good.
-        for key, value in snap["settings"].items():
-            self._settings.set(key, value)
+        self._guarded("the stored settings", self._write_back_settings, snap)
         # 8. The name the person had, and whether THEY typed it. That flag is
         #    what §S4.7 keys off, so a seeded name must not be left looking typed.
-        for attr, text in snap["names"].items():
-            w = getattr(self, attr, None)
-            if w is not None and w.text() != text:
-                w.blockSignals(True)
-                w.setText(text)
-                w.blockSignals(False)
-        self._name_typed_by_user = snap["name_typed"]
-        # 9. Which family of chart is on screen.
-        for attr, value in snap["attrs"].items():
-            setattr(self, attr, value)
+        try:
+            for attr, text in snap["names"].items():
+                w = getattr(self, attr, None)
+                if w is not None and w.text() != text:
+                    w.blockSignals(True)
+                    w.setText(text)
+                    w.blockSignals(False)
+            self._name_typed_by_user = snap["name_typed"]
+        except Exception:              # noqa: BLE001
+            log.warning("preset undo: could not restore the name", exc_info=True)
+        # 9. Which family of chart is on screen. GUARDED SEPARATELY: this and
+        #    step 10 are what make a partial restore incoherent rather than
+        #    merely incomplete, so neither may be skipped by an earlier raise.
+        try:
+            for attr, value in snap["attrs"].items():
+                setattr(self, attr, value)
+        except Exception:              # noqa: BLE001
+            log.warning("preset undo: could not restore the family flags",
+                        exc_info=True)
         # 10. The dropdown, silently — `activated` is a user's signal.
-        self._preset_combo.blockSignals(True)
-        self._preset_combo.setCurrentIndex(snap["combo_index"])
-        self._preset_combo.blockSignals(False)
-        self._last_preset_index = snap["last_preset_index"]
-        self._preset_del_btn.setEnabled(snap["del_enabled"])
+        try:
+            self._preset_combo.blockSignals(True)
+            self._preset_combo.setCurrentIndex(snap["combo_index"])
+            self._preset_combo.blockSignals(False)
+            self._last_preset_index = snap["last_preset_index"]
+            self._preset_del_btn.setEnabled(snap["del_enabled"])
+        except Exception:              # noqa: BLE001
+            log.warning("preset undo: could not restore the dropdown",
+                        exc_info=True)
         self._preset_selection_reverted = True
         # 11. Everything that only READS the state above, so the screen agrees
         #     with it: locks, row visibility, the engine frame and the preview.
@@ -7748,7 +7893,61 @@ class TabChart(QWidget):
             self._refresh_manual_command_preview()
         except Exception:              # noqa: BLE001 — never leave the tab dead
             log.warning("preset undo: could not refresh the panel", exc_info=True)
+        # 12. THE TICK BOXES GET THE LAST WORD, then the greying they own, then
+        #     the last word again. Three slots reached above move a box on their
+        #     own and all three did: the command stamp was unticked by the
+        #     preview refresh, Triple Density by the instrument-visibility pass
+        #     while `-i` was momentarily not a ColorMunki, and the three Auto
+        #     neutrals were left ticked beside boxes that read 0 instead of
+        #     "Auto" because only the box, not its greying, had been restored.
+        self._guarded("the tick boxes", self._assert_preset_checks, snap)
+        for which, (_pw_attr, chk_attr) in self._AUTO_NEUTRAL_MAP.items():
+            try:
+                if getattr(self, chk_attr, None) is not None:
+                    self._on_auto_neutral_toggled(
+                        which, bool(snap["checks"].get(chk_attr, False)))
+            except Exception:          # noqa: BLE001
+                log.debug("preset undo: auto-%s refresh failed", which,
+                          exc_info=True)
+        try:
+            self._update_manual_lb_visibility()
+        except Exception:              # noqa: BLE001
+            log.debug("preset undo: row visibility refresh failed", exc_info=True)
+        # …and once more, which is INSURANCE AND NOT PROVEN LOAD-BEARING: the
+        # visibility pass just above is the one thing left that can move a box
+        # (it force-unticks Triple Density when the instrument is not a
+        # ColorMunki), and by now `-i` has been restored so it does not. Removing
+        # this line alone still passes the suite; removing it AND the assertion
+        # before the greying does not. Kept because it costs six comparisons and
+        # the fault it guards against was on screen twice this week.
+        self._guarded("the tick boxes", self._assert_preset_checks, snap)
         log.info("Create Chart: the preset was refused, the tab was put back")
+
+    def _on_preset_activated(self, index: int) -> None:
+        """A real click (or keyboard choice) in the presets dropdown.
+
+        RE-CHOOSING WHAT IS ALREADY SHOWING IS A BUILT-IN'S PRIVILEGE, and this
+        slot is where that is decided — not in `_on_preset_selected`, which is
+        also the entry point for the ★ overlay and for callers that mean
+        "apply this entry now" regardless of what the dropdown shows.
+
+        The dropdown moved from `currentIndexChanged` to `activated` so that a
+        built-in put back after a refusal can be chosen again; with the
+        change-only signal it could not (#175). But `activated` also fires when
+        a person opens the list and clicks the entry that is already ticked,
+        which is an easy gesture to make by accident — and until #175 that click
+        did nothing at all. Measured on "none": it re-ran the Default branch and
+        rewrote every manual row from the stored defaults, so a typed margin of
+        17 and a patch count of 999 went back to 6 and 0 with nothing said; a
+        user preset with "generate on select" would have started a build.
+        Basti's ruling is about the built-ins, so only they re-dispatch.
+        """
+        if index == self._last_preset_index \
+                and self._preset_combo.itemData(index) not in BUILTIN_PRESET_KEYS:
+            log.debug("Create Chart: %r was already the selection; a re-pick "
+                      "of a non-built-in entry changes nothing", index)
+            return
+        self._on_preset_selected(index)
 
     def _on_preset_selected(self, index: int) -> None:
         # Group-divider separators aren't real choices. The combo skips them on
@@ -7789,7 +7988,19 @@ class TabChart(QWidget):
                 # first tear-down, because those run whether or not the build is
                 # ever agreed to, and Basti's ruling is that a preset the person
                 # backs out of leaves nothing behind at all.
-                _undo = self._snapshot_preset_state()
+                # NOTHING HERE MAY ESCAPE THIS SLOT. `_snapshot_preset_state`
+                # guards every part of itself and answers None when it cannot
+                # read the spine, but this is a Qt slot: an exception getting
+                # out does not merely lose the undo, PyQt hands it to
+                # `sys.excepthook`, which ends in `qFatal()` and takes ChromIQ
+                # down. Measured as SIGABRT. None simply means "no undo", and
+                # then the preset stays applied — what happened before #175.
+                try:
+                    _undo = self._snapshot_preset_state()
+                except Exception:      # noqa: BLE001 — see above
+                    log.error("Create Chart: the state could not be read, so "
+                              "this preset cannot be undone", exc_info=True)
+                    _undo = None
                 # Switching from the TC9.18 chart to another built-in clears the
                 # expert printtarg overrides it forced on (margins, spacers, etc.).
                 if self._tc918_active and data != TC918_PRESET_KEY:
@@ -7875,7 +8086,24 @@ class TabChart(QWidget):
                     # THE PERSON SAID NO. Put the tab back exactly as it was —
                     # the mode, the panel, the flags and the settings that
                     # outlive the app run (#175, Basti 2026-08-27/28).
-                    self._restore_preset_state(_undo)
+                    #
+                    # BELT AND BRACES ROUND A SLOT. `_restore_preset_state`
+                    # already guards every step of itself; this catches anything
+                    # outside them, because an exception escaping a Qt slot does
+                    # not merely abort the undo — PyQt hands it to
+                    # `sys.excepthook`, which ends in `qFatal()` and takes
+                    # ChromIQ down. Measured: SIGABRT. A snapshot that could not
+                    # be read is None, and then the preset simply stays applied,
+                    # which is what happened before this feature existed.
+                    if _undo is None:
+                        log.warning("Create Chart: the preset was refused but "
+                                    "there is no undo to apply")
+                    else:
+                        try:
+                            self._restore_preset_state(_undo)
+                        except Exception:      # noqa: BLE001 — see above
+                            log.error("Create Chart: putting the tab back after "
+                                      "a refused preset failed", exc_info=True)
                     return
                 # Final lock pass: covers the params-based ColorMunki presets (which
                 # set no ti1/prebuilt flag, so their panels stay fully editable) and
@@ -10817,6 +11045,14 @@ class TabChart(QWidget):
         # Only now is anything committed: the archive the user agreed to, the
         # tabs, and the run the picker named.
         if not self._perform_pending_replace():
+            # PUT THE PROJECT BACK TOO. `set_target_name` above has already moved
+            # the FileManager onto the new name — the branch two lines up
+            # restores it and this one did not, so a failed archive left ChromIQ
+            # quietly on a different project while reporting that nothing had
+            # happened. `set_target_name` also drops `_project_root_override`, so
+            # a project living in a sub-folder lost its location with it, which
+            # is #130's fault by another door. Measured.
+            self._file_mgr.restore_target(_snapshot)
             self._abandon_prebuilt_attempt()
             return False
         # ---- THE POINT OF NO RETURN. Everything below is True (see docstring).

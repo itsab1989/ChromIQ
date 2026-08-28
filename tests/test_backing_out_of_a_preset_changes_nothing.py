@@ -67,16 +67,10 @@ def test_only_two_preset_families_can_be_reached_from_the_dropdown():
     assert BUILTIN_PRESET_KEYS == set(PREBUILT_PRESETS) | {p.key for p in KNUT_PRESETS}
 
 # The settings a preset writes that outlive the app run (Basti ruled they go
-# back too, 2026-08-28).
-_PERSISTED = (
-    "use_chromiq_layout_engine",
-    "helper_markers_show",
-    "helper_marker_edge_mm",
-    "helper_marker_len_mm",
-    "helper_marker_per_patch",
-    "helper_markers_top_bottom",
-    "helper_markers_sides",
-)
+# back too, 2026-08-28). TAKEN FROM THE IMPLEMENTATION, not copied: a hand-kept
+# copy had already drifted — it was missing `i1pro_chromiq_clip_style`, so that
+# key was restored by code no test looked at.
+_PERSISTED = TabChart._PRESET_PERSISTED_SETTINGS
 
 
 @pytest.fixture(scope="module")
@@ -357,3 +351,203 @@ def test_a_refused_preset_does_not_leave_its_layout_in_an_unseeded_panel(
             f"{before.instrument}/{before.paper}/{before.dpi} became "
             f"{after.instrument}/{after.paper}/{after.dpi}")
     assert after == before, "the refused preset left part of its recipe behind"
+
+
+# ---------------------------------------------------------------------------
+# The tick boxes — the whole restore of these passed 19/19 without them
+# ---------------------------------------------------------------------------
+
+def test_a_refused_preset_puts_every_tick_box_back(tab, monkeypatch):
+    """Deleting the ENTIRE tick-box restore used to pass every test in this
+    file, and three real faults were living in that blind spot: the command
+    stamp was silently unticked, Triple Density was switched off while `-i` was
+    momentarily not a ColorMunki, and the three Auto neutrals were left ticked
+    beside boxes that had been re-enabled.
+
+    So this moves every box in `_PRESET_CHECKS` away from where a preset would
+    put it, and asserts all of them come back.
+    """
+    tab._switch_mode("manual")
+    tab._set_manual_value("printtarg", "-i", "CM")     # Triple density is CM-only
+    wanted = {}
+    for attr in TabChart._PRESET_CHECKS:
+        w = getattr(tab, attr, None)
+        if w is None or not w.isEnabled():
+            continue
+        w.setChecked(not w.isChecked())
+        wanted[attr] = w.isChecked()
+    assert len(wanted) >= 6, f"too few boxes exercised: {sorted(wanted)}"
+
+    _refuse(tab, monkeypatch)
+    _pick(tab, _ENGINE_KEY)
+
+    wrong = {a: (want, getattr(tab, a).isChecked())
+             for a, want in wanted.items() if getattr(tab, a).isChecked() != want}
+    assert not wrong, f"tick boxes not put back: {wrong}"
+
+
+def test_the_greying_that_belongs_to_a_tick_box_comes_back_with_it(tab, monkeypatch):
+    """A tick box restored without its greying leaves the panel contradicting
+    itself. Measured before the fix: "Auto white/black/grey" ticked while the
+    -e / -B / -g boxes beside them were enabled and read 0 instead of "Auto"."""
+    tab._switch_mode("manual")
+    for which, (_pw_attr, chk_attr) in tab._AUTO_NEUTRAL_MAP.items():
+        chk = getattr(tab, chk_attr, None)
+        if chk is not None:
+            chk.setChecked(True)
+            tab._on_auto_neutral_toggled(which, True)
+    before = {}
+    for which, (pw_attr, _c) in tab._AUTO_NEUTRAL_MAP.items():
+        pw = getattr(tab, pw_attr, None)
+        assert pw is not None and pw._control is not None
+        before[which] = (pw._control.isEnabled(), pw._control.specialValueText())
+    assert all(t == "Auto" for _e, t in before.values()), before
+
+    _refuse(tab, monkeypatch)
+    _pick(tab, _ENGINE_KEY)
+
+    after = {which: (getattr(tab, pw_attr)._control.isEnabled(),
+                     getattr(tab, pw_attr)._control.specialValueText())
+             for which, (pw_attr, _c) in tab._AUTO_NEUTRAL_MAP.items()}
+    assert after == before, (
+        f"the Auto rows disagree with their own tick boxes: {before} -> {after}")
+
+
+# ---------------------------------------------------------------------------
+# Re-picking the entry that is already showing (the cost of `activated`)
+# ---------------------------------------------------------------------------
+
+def test_re_picking_none_does_not_wipe_what_the_person_typed(tab):
+    """`activated` fires when someone opens the list and clicks the entry that
+    is ALREADY ticked — an easy accident. On "none" that used to re-run the
+    Default branch and rewrite every row from the stored defaults: measured, a
+    typed margin of 17 and a patch count of 999 went back to 6 and 0, with
+    nothing said. Only the built-ins re-dispatch (Basti, 2026-08-28)."""
+    tab._switch_mode("manual")
+    assert tab._preset_combo.currentIndex() == 0
+    tab._set_manual_value("printtarg", "-m", 17)
+    tab._set_manual_value("targen", "-f", 999)
+    tab._preset_combo.activated.emit(0)
+    assert tab._manual_get("printtarg", "-m", None) == 17
+    assert tab._manual_get("targen", "-f", None) == 999
+
+
+def test_re_picking_a_BUILT_IN_that_is_already_showing_does_dispatch(tab, monkeypatch):
+    """…and the other half, which is the whole reason the combo moved to
+    `activated`: a built-in put back on the dropdown after a refusal has to be
+    choosable again."""
+    calls = []
+    monkeypatch.setattr(tab, "_generate_from_ti1",
+                        lambda *a, **k: (calls.append(1), True)[1], raising=False)
+    idx = _pick(tab, _ENGINE_KEY)
+    assert len(calls) == 1
+    tab._preset_combo.activated.emit(idx)      # the entry already showing
+    assert len(calls) == 2, "the built-in showing in the dropdown became unpickable"
+
+
+# ---------------------------------------------------------------------------
+# Nothing here may take ChromIQ down, or half-undo
+# ---------------------------------------------------------------------------
+
+def test_a_snapshot_that_cannot_be_read_leaves_the_preset_applied(tab, monkeypatch):
+    """`_on_preset_selected` is a Qt slot. An exception escaping it does not
+    just abort the undo — PyQt hands it to `sys.excepthook`, which ends in
+    `qFatal()`, and ChromIQ aborts. Measured as SIGABRT before this guard.
+
+    With no snapshot there is no undo, so the preset stays applied, which is
+    exactly what happened before the feature existed."""
+    def boom(*_a, **_k):
+        raise RuntimeError("the state could not be read")
+    monkeypatch.setattr(tab, "_is_deletable_preset", boom, raising=False)
+    assert tab._snapshot_preset_state() is None
+    _refuse(tab, monkeypatch)
+    _pick(tab, _ENGINE_KEY)        # must not raise
+
+
+def test_one_failing_step_does_not_take_the_rest_of_the_undo_with_it(tab, monkeypatch):
+    """A raise part-way through leaves the tab worse than no undo at all — the
+    rows back, but the dropdown, the name field and the family flags still on
+    the preset that was refused. Every step is independent now."""
+    start_combo = tab._preset_combo.currentIndex()
+    monkeypatch.setattr(tab, "_write_back_settings",
+                        lambda *_a, **_k: (_ for _ in ()).throw(
+                            RuntimeError("boom in the settings step")),
+                        raising=False)
+    _refuse(tab, monkeypatch)
+    _pick(tab, _ENGINE_KEY)        # must not raise
+    assert tab._preset_combo.currentIndex() == start_combo, \
+        "the dropdown was left on a preset that was refused"
+    assert tab._knut_active is False, \
+        "the tab still says a Spyderprint chart is loaded"
+
+
+# ---------------------------------------------------------------------------
+# The two paths the `_refuse` stub structurally cannot reach
+# ---------------------------------------------------------------------------
+
+def test_a_failed_replace_does_not_leave_the_app_on_another_project(tab, monkeypatch,
+                                                                    tmp_path):
+    """`_create_prebuilt_target` applies the typed name before it carries out an
+    agreed "Replace it". When that archive fails it says nothing has happened —
+    and used to leave the FileManager on the new project anyway, dropping a
+    nested project's location with it (`set_target_name` clears the root
+    override). The branch two lines above it always restored the target; this
+    one did not."""
+    fm = tab._file_mgr
+    fm.set_target_name("AlreadyOpen")
+    before = fm.target_snapshot()
+    tab._manual_target_name_edit.setText("SomethingElse")
+    monkeypatch.setattr(tab, "_gate_route_and_replace",
+                        lambda *a, **k: (True, True), raising=False)
+    monkeypatch.setattr(tab, "_perform_pending_replace",
+                        lambda *a, **k: False, raising=False)
+    ok = tab._create_prebuilt_target(_PREBUILT_KEY, gate_already_asked=True,
+                                     s4_already_answered=True)
+    assert ok is False
+    assert fm.target_snapshot() == before, (
+        f"the app was left on another project: {before} -> {fm.target_snapshot()}")
+
+
+def test_an_agreed_replace_does_not_survive_the_undo(tab, monkeypatch):
+    """"Replace it" is destructive and was agreed to for a build that then did
+    not happen. Every consumer re-asks first, so nothing acts on a leftover
+    today — but four earlier leaks of exactly this kind are why one live-preview
+    render once archived a whole project with no window on screen."""
+    tab._pending_replace = ("/some/root", "TheProject")
+    tab._adopted_via_gate = True
+    tab._adopt_run_choice = "run1"
+    _refuse(tab, monkeypatch)
+    _pick(tab, _ENGINE_KEY)
+    assert tab._pending_replace is None, "an agreed archive outlived its window"
+    assert tab._adopted_via_gate is False
+    assert not hasattr(tab, "_adopt_run_choice")
+
+
+def test_a_refused_preset_does_not_pin_a_setting_that_was_never_stored(tab,
+                                                                       monkeypatch):
+    """A value alone cannot tell "never written" from "written to today's
+    default": `AppSettings.get` answers with the default for both. So putting
+    the value back pinned keys that had never been in the person's file — and a
+    pinned key stops following a changed default, which this project requires a
+    migration to do.
+    """
+    absent = [k for k in TabChart._PRESET_PERSISTED_SETTINGS
+              if not tab._settings.is_stored(k)]
+    assert absent, "the fixture starts with every key already written"
+    _refuse(tab, monkeypatch)
+    _pick(tab, _PREBUILT_KEY)
+    pinned = [k for k in absent if tab._settings.is_stored(k)]
+    assert not pinned, f"a refused preset wrote keys that were never there: {pinned}"
+
+
+def test_the_same_preset_accepted_MAY_pin_them(tab, monkeypatch):
+    """Negative control. Applying a preset really does write these keys, so the
+    test above is about the undo and not about nothing happening at all."""
+    absent = [k for k in TabChart._PRESET_PERSISTED_SETTINGS
+              if not tab._settings.is_stored(k)]
+    monkeypatch.setattr(tab, "_create_prebuilt_target", lambda *a, **k: True,
+                        raising=False)
+    _pick(tab, _PREBUILT_KEY)
+    assert [k for k in absent if tab._settings.is_stored(k)], (
+        "no preset writes any of these keys any more — the test above has "
+        "stopped proving anything")

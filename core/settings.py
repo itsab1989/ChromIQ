@@ -1138,6 +1138,35 @@ class AppSettings:
         log.debug("settings.set %s = %r", key, value)
         self._qs.setValue(key, value)
 
+    def is_stored(self, key: str) -> bool:
+        """Has this key ever been WRITTEN, as opposed to answered by a default?
+
+        :meth:`get` cannot tell you: it falls back to ``DEFAULTS``, so a key
+        nobody has ever touched and a key deliberately set to today's default
+        read exactly the same. The difference matters, because a stored key
+        stops following a changed default and needs a migration to move it —
+        so code that puts a value back after undoing something must be able to
+        put "it was never there" back too.
+        """
+        try:
+            return bool(self._qs.contains(key))
+        except Exception:      # noqa: BLE001 — never break a caller over this
+            log.debug("could not ask whether %s is stored", key, exc_info=True)
+            return True        # the safe answer: treat it as written
+
+    def unset(self, key: str) -> None:
+        """Remove a key so it answers with the DEFAULT again.
+
+        The counterpart to :meth:`is_stored`. Not a reset: it removes one key,
+        and :meth:`get` then falls back to ``DEFAULTS`` exactly as it did before
+        anything wrote it.
+        """
+        log.debug("settings.unset %s", key)
+        try:
+            self._qs.remove(key)
+        except Exception:      # noqa: BLE001
+            log.warning("could not remove the setting %s", key, exc_info=True)
+
     def sync(self) -> None:
         """Write everything to disk NOW.
 

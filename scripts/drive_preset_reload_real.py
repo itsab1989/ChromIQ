@@ -153,8 +153,14 @@ def main() -> int:
             print(f"  [FAIL] {slug} not in the dropdown")
             failures += 1
             continue
-        # Move the combo — the same signal a click on the item sends.
+        # A REAL CLICK ON THE ITEM. The presets dropdown is wired to
+        # `activated` (#175), which Qt emits only for an interaction — a bare
+        # `setCurrentIndex` is silent by design, and this driver was reporting
+        # zero builds because of it.
+        tab._preset_combo.blockSignals(True)
         tab._preset_combo.setCurrentIndex(ix)
+        tab._preset_combo.blockSignals(False)
+        tab._preset_combo.activated.emit(ix)
         pump(app, 6000)
         ok = len(BUILDS) == 1 and BUILDS[0]["by"] == "click"
         failures += not ok
