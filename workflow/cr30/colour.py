@@ -35,11 +35,27 @@ from __future__ import annotations
 WL = list(range(400, 701, 10))          # the CR30's 31 bands
 
 # CIE standard illuminant relative SPDs, 400-700 nm at 10 nm.
-D65 = [82.7549, 91.4860, 93.4318, 86.6823, 104.8650, 117.0080, 117.8120,
-       114.8610, 115.9230, 108.8110, 109.3540, 107.8020, 104.7900, 107.6890,
-       104.4050, 104.0460, 100.0000, 96.3342, 95.7880, 88.6856, 90.0062,
-       89.5991, 87.6987, 83.2886, 83.6992, 80.0268, 80.2146, 82.2778, 78.2842,
-       69.7213, 71.6091]
+#
+# ⚠ These are NOT hand-typed. They are ArgyllCMS 3.5.0's own `il_D50` / `il_D65`
+# (`xicc/xspect.c:244`), sampled at the CR30's 31 wavelengths. Using Argyll's
+# numbers means our XYZ and Argyll's XYZ cannot drift apart, and they meet in
+# the same .ti3.
+#
+# The hand-typed tables these replaced were wrong by up to 0.55 at 600 nm, and
+# `validate_illuminants()` PASSED them -- a chromaticity check is nearly blind
+# to a single-band error. `tests/test_colour_tables.py` re-derives these from
+# the Argyll source when it is present.
+#
+# NB the ref/D50_*.sp files are the UV-content variants used for FWA, NOT the
+# colorimetric D50: D50_0.0.sp is zero below 440 nm. Do not substitute them.
+D65 = [
+    82.7549, 91.486, 93.4318, 86.6823, 104.865, 117.008,
+    117.812, 114.861, 115.923, 108.811, 109.354, 107.802,
+    104.79, 107.689, 104.405, 104.046, 100, 96.3342,
+    95.788, 88.6856, 90.0062, 89.5991, 87.6987, 83.2886,
+    83.6992, 80.0268, 80.2146, 82.2778, 78.2842, 69.7213,
+    71.6091,
+]
 # CORRECTED 2026-08-28 by [CR30-SKEPTIC]. The previous table was contaminated
 # from 610 nm and its last five entries (660-700 nm) were literally D65's
 # entries for 600-640 nm, copied in. The error reached 13.4 units (13 %) at
@@ -47,11 +63,14 @@ D65 = [82.7549, 91.4860, 93.4318, 86.6823, 104.8650, 117.0080, 117.8120,
 # ~1e-4 chromaticity error and the corrupt one gave 1.5e-3, four times inside
 # the 6e-3 tolerance. The tolerance has been tightened to 1e-3 and a mutation
 # test now proves the control can see this class of error.
-D50 = [49.3084, 56.5089, 60.0998, 57.8213, 74.8246, 87.2504, 90.6117, 91.3680,
-       95.1082, 91.9526, 95.7237, 96.6137, 97.1292, 102.0980, 100.7550,
-       102.3170, 100.0000, 97.7357, 98.9182, 93.5905, 97.1382, 99.2680,
-       99.0427, 95.7220, 98.8570, 95.6667, 98.1935, 103.0030, 99.1327,
-       87.3811, 91.6041]
+D50 = [
+    49.31, 56.51, 60.03, 57.82, 74.82, 87.25,
+    90.61, 91.37, 95.11, 91.96, 95.72, 96.61,
+    97.13, 102.1, 100.75, 102.32, 100, 97.74,
+    98.92, 93.5, 97.69, 99.27, 99.04, 95.72,
+    98.86, 95.67, 98.19, 103, 99.13, 87.38,
+    91.6,
+]
 
 # CIE 1931 2-degree observer at 10 nm, 400-700 (fallback if Argyll is absent).
 _X = [0.01431, 0.04351, 0.13438, 0.28390, 0.34828, 0.33620, 0.29080, 0.19536,
@@ -84,47 +103,66 @@ _Z10 = [0.08601, 0.38937, 0.97254, 1.55348, 1.96723, 1.99480, 1.74537, 1.31756,
         0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
 OBS = {"2": (_X, _Y, _Z), "10": (_X10, _Y10, _Z10)}
-XBAR, YBAR, ZBAR = OBS["10"]          # device default: D65/10
-OBSERVER = "CIE 1964 10 degree (device default)"
+
+# ⚠ NO PROCESS-WIDE OBSERVER STATE.
+#
+# An earlier version kept the observer in module globals with a `use_observer()`
+# switch. That is a trap in an application: two callers wanting different
+# conditions race, and whichever ran last silently decides the colour of the
+# other's numbers. ChromIQ profiling needs **D50 / CIE 1931 2 degree**; the
+# device's own display uses D65/10 for ITS readout. Both are legitimate and they
+# must never share a global.
+#
+# Every function now takes the condition explicitly, and the profiling default
+# is the one Argyll expects.
+PROFILING_OBSERVER = "2"      # CIE 1931 2 deg -- what colprof/.ti3 expect
+DEVICE_OBSERVER = "10"        # CIE 1964 10 deg -- what the CR30 shows on screen
 
 
-def use_observer(deg):
-    """Switch observer globally. deg is "2" or "10"."""
-    global XBAR, YBAR, ZBAR, OBSERVER
-    XBAR, YBAR, ZBAR = OBS[str(deg)]
-    OBSERVER = ("CIE 1931 2 degree" if str(deg) == "2"
-                else "CIE 1964 10 degree (device default)")
+def _obs(observer):
+    try:
+        return OBS[str(observer)]
+    except KeyError:
+        raise ValueError(
+            f"observer must be '2' or '10', got {observer!r}") from None
 
 
-def spectrum_to_xyz(refl, illum=D65):
-    """refl: 31 values in PERCENT reflectance (as the CR30 returns them)."""
+def spectrum_to_xyz(refl, illum=D50, observer=PROFILING_OBSERVER):
+    """refl: 31 values in PERCENT reflectance (as the CR30 returns them).
+
+    Defaults to **D50 / CIE 1931 2 degree**, the condition ArgyllCMS expects in
+    a .ti3. Y is returned on a 0-100 scale (a perfect diffuser is Y=100), which
+    is what `chartread -x` and `colprof` want.
+    """
     if len(refl) != len(WL):
         raise ValueError(f"need {len(WL)} bands, got {len(refl)}")
-    k = 100.0 / sum(s * y for s, y in zip(illum, YBAR))
+    xb, yb, zb = _obs(observer)
+    k = 100.0 / sum(s * y for s, y in zip(illum, yb))
     r = [v / 100.0 for v in refl]
     return tuple(k * sum(ri * s * c for ri, s, c in zip(r, illum, cmf))
-                 for cmf in (XBAR, YBAR, ZBAR))
+                 for cmf in (xb, yb, zb))
 
 
-def white_point(illum=D65):
-    k = 100.0 / sum(s * y for s, y in zip(illum, YBAR))
+def white_point(illum=D50, observer=PROFILING_OBSERVER):
+    xb, yb, zb = _obs(observer)
+    k = 100.0 / sum(s * y for s, y in zip(illum, yb))
     return tuple(k * sum(s * c for s, c in zip(illum, cmf))
-                 for cmf in (XBAR, YBAR, ZBAR))
+                 for cmf in (xb, yb, zb))
 
 
-def xyz_to_lab(xyz, illum=D65):
-    wp = white_point(illum)
+def xyz_to_lab(xyz, illum=D50, observer=PROFILING_OBSERVER):
+    wp = white_point(illum, observer)
     def f(t):
         return t ** (1 / 3) if t > 216 / 24389 else (841 / 108) * t + 4 / 29
     fx, fy, fz = (f(c / w) for c, w in zip(xyz, wp))
     return (116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz))
 
 
-def spectrum_to_lab(refl, illum=D65):
-    return xyz_to_lab(spectrum_to_xyz(refl, illum), illum)
+def spectrum_to_lab(refl, illum=D50, observer=PROFILING_OBSERVER):
+    return xyz_to_lab(spectrum_to_xyz(refl, illum, observer), illum, observer)
 
 
-def validate_illuminants(tol=0.001):
+def validate_illuminants(tol=0.001, observer=PROFILING_OBSERVER):
     """Positive control on OUR OWN hard-coded numbers.
 
     Recomputes each illuminant's chromaticity and compares with the published
@@ -142,10 +180,10 @@ def validate_illuminants(tol=0.001):
         "2":  {"D65": (0.31272, 0.32903), "D50": (0.34567, 0.35850)},
         "10": {"D65": (0.31382, 0.33100), "D50": (0.34773, 0.35952)},
     }
-    key = "10" if XBAR is _X10 else "2"
+    key = str(observer)
     for name, sp, want in (("D65", D65, want_by_obs[key]["D65"]),
                            ("D50", D50, want_by_obs[key]["D50"])):
-        X, Y, Z = white_point(sp)
+        X, Y, Z = white_point(sp, observer)
         x, y = X / (X + Y + Z), Y / (X + Y + Z)
         err = max(abs(x - want[0]), abs(y - want[1]))
         out[name] = {"xy": (round(x, 5), round(y, 5)), "expected": want,
