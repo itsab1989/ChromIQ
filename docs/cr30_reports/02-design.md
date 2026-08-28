@@ -158,7 +158,33 @@ Design:
 5. USB is the more robust transport for a long chart. The Measure tab says so
    when a CR30 chart is started over BLE — as information, not a block.
 
-### 10.2 Calibration before measurement — REQUIRED by ChromIQ
+### 10.2 INSTRUMENT calibration before measurement — REQUIRED by ChromIQ
+
+⚠ **Terminology, corrected by Basti 2026-08-28.** This is **instrument
+calibration** — the CR30 reading its own white reference as the first step of a
+measurement, exactly as an i1Pro or ColorMunki is set on its white tile before a
+chart read. It is **NOT** the **Calibration run type** of #130
+(`docs/design/calibration_run_type.md`), which is printer/paper linearisation.
+Two unrelated concepts that share a word; the UI must never blur them.
+An earlier draft of this design conflated the two, which would have invented a
+parallel concept and contradicted a binding spec.
+
+**ChromIQ already has this, and we reuse it — we do not build a second path.**
+
+| Exists | Where |
+|---|---|
+| `calibration_prompt = pyqtSignal(str, str, bool)` | `workflow/measure_manager.py:200` |
+| `calibration_retrying`, `calibration_done` | `:210-211` |
+| `sensor_wrong_position` | `:220` |
+| Automatic retry of a failed calibration (`CAL_AUTO_RETRIES`) | `:151-155`, `:485-532` |
+| Instrument-supplied instruction text, with a sanity filter | `:125-147` |
+
+That subsystem is driven today by Argyll asking for calibration over the JSON
+protocol. **In `-x` mode Argyll opens no instrument, so it will never ask.** The
+CR30 backend therefore raises the *same* `calibration_prompt` itself and waits
+for the same acknowledgement, so a CR30 user sees the **identical dialog and
+flow** an i1Pro user sees. No new dialog, no new concept, no new wording where
+existing wording fits.
 
 **The device does not insist on calibration. ChromIQ will.**
 
@@ -168,7 +194,7 @@ reading was plausible and wrong (paper read 156.8 %R). Nothing in the protocol
 reported it. A profiling run started on a bad reference produces a bad profile
 with no visible symptom.
 
-Flow, before the first patch of a chart read:
+Flow, before the first patch of a chart read (through the existing signals):
 
 1. ChromIQ asks: **"Put the cap on the instrument, white tile facing the
    aperture, and press the instrument's button."**
