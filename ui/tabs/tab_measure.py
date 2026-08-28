@@ -1049,6 +1049,8 @@ class TabMeasure(QWidget):
         self._manager.engine_fell_back.connect(self._on_engine_fell_back)
         self._manager.engine_fell_back_resumed.connect(
             self._on_engine_fell_back_resumed)
+        self._manager.engine_fallback_refused.connect(
+            self._on_engine_fallback_refused)
         self._manager.calibration_retrying.connect(self._on_calibration_retrying)
         # D. Spot / XY mode defensive handlers
         self._manager.xy_place_sheet.connect(self._on_xy_place_sheet)
@@ -6613,6 +6615,24 @@ class TabMeasure(QWidget):
                "chartread from where you left off."),
             duration_ms=8000)
 
+    def _on_engine_fallback_refused(self, reason: str) -> None:
+        """The read failed and there is no reader to fall back to (#159).
+
+        Stock ArgyllCMS chartread refuses this chart's ``TARGET_INSTRUMENT``
+        before the first patch, so the rescue the other two handlers announce
+        would only produce a second, more confusing failure. Say the one true
+        thing instead — and say it from §M, not from a `tr()` invented here.
+
+        The reason is the helper's own sentence when it printed one; it used to
+        render as "unknown error" while the helper had said exactly what was
+        wrong (`MeasureManager._engine_failure_reason`).
+        """
+        from workflow import measurement_messages as M
+        title, body = M.M_CR30_READ_ENDED.render(reason=reason)
+        self._log.appendPlainText(f"[{title}]\n{body}")
+        self._log.ensureCursorVisible()
+        self._flash_status(title, duration_ms=8000)
+
     def _on_info_message(self, category: str, text: str) -> None:
         # Log it and flash a status bar message (non-blocking).
         self._log.appendPlainText(f"[INFO] {text}")
@@ -11206,6 +11226,9 @@ class TabMeasure(QWidget):
 
     def _apply_engine_params(self, p: MeasureParams) -> MeasureParams:
         """Attach the chart-reading engine when selected and usable."""
+        # Set BEFORE every early return: this is a property of the chart, not
+        # of the engine, and the manager needs it whichever reader runs (#159).
+        p.stock_reader_cannot_read = self._chart_is_cr30()
         if not self._engine_selected():
             return p
         from workflow import chartread_engine

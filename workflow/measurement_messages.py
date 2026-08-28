@@ -86,6 +86,30 @@ M_CR30_STOCK_READER = _m(
     approved=False)
 
 
+# --- PROPOSED: a CR30 read ended and there is no other reader to try -------
+#: #159. When the engine run fails on an ordinary chart, ChromIQ restarts on
+#: stock ArgyllCMS chartread and tells the user so — see M-ENGINE-FELL-BACK,
+#: and the resume variant which promises "every strip you have already
+#: measured has been saved and will be kept". Neither promise can be kept for
+#: a CR30 chart: stock chartread does not know the name and refuses the file
+#: before the first patch. So the fallback is not attempted, and this is what
+#: the user is told instead. {reason} is the helper's own sentence.
+M_CR30_READ_ENDED = _m(
+    "M-CR30-READ-ENDED",
+    "The measurement stopped",
+    "Reading this chart has stopped before it finished.\n\n"
+    "This chart was made for the CR30, and ChromIQ reads that instrument "
+    "itself. There is no second reader to try: standard ArgyllCMS chartread "
+    "does not know the CR30 and would refuse the chart before reading a "
+    "single patch, so ChromIQ has not started it and has ended the "
+    "measurement here rather than showing you a second failure.\n\n"
+    "Nothing you have already measured is lost — every patch that was read is "
+    "on disk, and you can carry on from it by ticking “Refine / resume "
+    "existing measurement” before you press Start again.\n\n"
+    "What went wrong: {reason}",
+    approved=False)
+
+
 # ---------------------------------------------------------------------------
 # §5 — starting a measurement over an existing one
 # ---------------------------------------------------------------------------
@@ -945,6 +969,7 @@ CATALOGUE = {m.id: m for m in (
     M_PROJECT_REPLACE_CONFIRM,
     M_PROJECT_REPLACE_FAILED,
     M_CR30_STOCK_READER,
+    M_CR30_READ_ENDED,
 )}
 
 #: Paragraphs appended to another message rather than shown on their own.

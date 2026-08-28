@@ -172,7 +172,13 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # which stock ArgyllCMS chartread refuses. The
                                  # window names the Preferences control that
                                  # fixes it. New WORDING, so it waits here.
-                                 "M-CR30-STOCK-READER"}
+                                 "M-CR30-STOCK-READER",
+                                 # #159, 2026-08-28: the engine run failed and
+                                 # there is no second reader to try, because
+                                 # stock chartread refuses a CR30 chart. The
+                                 # other two fallback messages promise a rescue
+                                 # that cannot happen here.
+                                 "M-CR30-READ-ENDED"}
 
 
 def test_nothing_is_quietly_proposed():

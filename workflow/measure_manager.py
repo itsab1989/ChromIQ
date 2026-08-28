@@ -91,6 +91,12 @@ _STRIP_INTERRUPTED_RE  = re.compile(r"(?:Strip|Spot) read stopped at user reques
 _UNREAD_CONFIRM_RE     = re.compile(r"Done\s*\?\s*-\s*At least one unread patch \(([^)]+)\)", re.IGNORECASE)
 # chartread.c 3.5.0 L396: generic ierror() — transient instrument error outside the strip-read fast path.
 _GENERIC_IERROR_RE     = re.compile(r"Got\s+'([^']+)'\s*\(([^)]+)\)\s+error\.", re.IGNORECASE)
+#: Argyll's `numsup` fatal, as the helper prints it on stderr before exiting:
+#: `chromiq-chartread: Error - <sentence>`. It is prose, not a JSON event, so
+#: nothing had ever captured it and the reason rendered as "unknown error"
+#: (#159). Captured for the reason string only — see `_engine_failure_reason`.
+_HELPER_FATAL_RE       = re.compile(r"^\s*\S*chartread\S*\s*:\s*Error\s*[-–]\s*(.+)$",
+                                    re.IGNORECASE)
 
 # --- B. Startup / config failure messages --------------------------------
 _INIT_COMS_FAIL_RE     = re.compile(r"Establishing communications with instrument failed with message\s+'([^']+)'", re.IGNORECASE)
@@ -188,6 +194,14 @@ class MeasureParams:
     # up (mavtop's i1Pro1 lamp can need several strikes to burn in). Falls back
     # to CAL_AUTO_RETRIES when the caller doesn't set it.
     cal_auto_retries: int | None = None
+    #: This chart names an instrument that stock ArgyllCMS chartread REFUSES
+    #: outright (#159, the CR30: `inst_enum()` returns `instUnknown`, so it
+    #: errors with "Unrecognised chart target instrument" before the first
+    #: patch). Every engine→stock fallback below is therefore guaranteed to
+    #: fail, and it fails with a more confusing message than the one the user
+    #: already had. Set by the tab from the CHART, never from a preference or a
+    #: connected device — see `TabMeasure._chart_is_cr30`.
+    stock_reader_cannot_read: bool = False
 
 
 class MeasureManager(QObject):
@@ -206,6 +220,11 @@ class MeasureManager(QObject):
     # RESUMING from the autosaved .ti3 (-r), so nothing measured is lost.
     # Carries the reason, for a reassuring status line.
     engine_fell_back_resumed = pyqtSignal(str)
+    # #159: the engine run failed AND the chart names an instrument stock
+    # ArgyllCMS chartread refuses outright, so there is no fallback to make.
+    # The run ends here; this carries the reason so the tab can say the ONE
+    # true thing instead of promising a rescue that cannot happen.
+    engine_fallback_refused = pyqtSignal(str)
     # A failed calibration is being retried automatically: (attempt, of_total).
     calibration_retrying   = pyqtSignal(int, int)
     calibration_done       = pyqtSignal()    # emitted when instrument calibration completes
@@ -322,6 +341,8 @@ class MeasureManager(QObject):
         # failure the engine reported, whether it ever read anything, whether
         # the user stopped it, and whether we already retried once.
         self._engine_fatal: str | None = None
+        self._engine_error_prose: "str | None" = None
+        self._stock_reader_cannot_read: bool = False
         self._engine_progress: bool = False
         self._engine_saw_event: bool = False
         self._engine_fallback_used: bool = False
@@ -367,6 +388,16 @@ class MeasureManager(QObject):
         self._engine_saw_event = False
         self._engine_fallback_used = False
         self._engine_mode_fallback = False
+        #: #159: stock chartread cannot read THIS chart, so no fallback to it
+        #: may happen — see :attr:`MeasureParams.stock_reader_cannot_read`.
+        self._stock_reader_cannot_read = bool(params.stock_reader_cannot_read)
+        #: The helper's own last error sentence, printed as PROSE on stderr and
+        #: outside the JSON channel. Nothing captured it, which is why the log
+        #: said "(unknown error)" while the helper had said exactly what was
+        #: wrong. Used ONLY for the reason string — never to decide a fallback,
+        #: because `_engine_fatal is not None` is a fallback trigger and this
+        #: must not change behaviour for any other instrument.
+        self._engine_error_prose = None
         self._user_quit = False
         # The user can raise this for an ageing instrument (Settings → Beta);
         # clamp so a bad value can't disable retries or loop for ever.
@@ -381,7 +412,8 @@ class MeasureManager(QObject):
             self._save_partial_state = None
             was_engine = self._engine_active
             self._engine_active = False
-            if was_engine and self._engine_mode_fallback:
+            if (was_engine and self._engine_mode_fallback
+                    and not self._stock_reader_cannot_read):
                 # XY/chart mode with the engine opt-in off: silently re-run on
                 # stock chartread (over a PTY, where those modes' console
                 # prompts work). Not an error — no scary wording.
@@ -392,7 +424,7 @@ class MeasureManager(QObject):
                     self._without_resume_when_nothing_to_resume(
                         args, params.ti1_path), cwd, on_line, _on_finish)
                 return
-            if was_engine:
+            if was_engine and not self._stock_reader_cannot_read:
                 partial = self._resumable_partial_ti3(params.ti1_path)
                 if partial is not None and self._engine_should_resume_fallback(code):
                     # The instrument failed PARTWAY through the chart, but the
@@ -420,6 +452,20 @@ class MeasureManager(QObject):
                     self.engine_fell_back_resumed.emit(reason)
                     self._launch_stock(resume_args, cwd, on_line, _on_finish)
                     return
+            if (was_engine and self._stock_reader_cannot_read
+                    and code != 0 and not self._user_quit):
+                # #159. Stock chartread refuses this chart's TARGET_INSTRUMENT
+                # before the first patch, so all three fallbacks below can only
+                # replace one failure with a second, more confusing one — and
+                # the resume path promises "every strip you have already
+                # measured has been saved and will be kept" on its way there.
+                # End on the helper's own exit and say the true thing once.
+                reason = self._engine_failure_reason()
+                log.warning("the chart's instrument is one stock chartread "
+                            "cannot read (%s) — not falling back", reason)
+                self.engine_fallback_refused.emit(reason)
+                on_finish(code)
+                return
             if was_engine and self._engine_should_fall_back(code):
                 self._engine_fallback_used = True
                 reason = self._engine_fatal or "unknown error"
@@ -533,6 +579,30 @@ class MeasureManager(QObject):
         if not self._engine_active or self._user_quit:
             return
         self.send_command({"cmd": "retry"})
+
+    def _engine_failure_reason(self) -> str:
+        """The most informative reason available for a failed engine run.
+
+        `_engine_fatal` is only ever set from a typed JSON event, so a helper
+        that dies before it emits one leaves it `None` and the log said
+        "(unknown error)" — which is what Basti saw on 2026-08-28 while the
+        helper had printed a perfectly clear sentence on stderr one line above
+        (`chromiq-chartread: Error - The chart was made for 'CR30' …`). That
+        text does reach Python: `_handle_engine_line` reads it as prose. So
+        capture it and fall back to it here.
+
+        NOT folded into `_engine_fatal`: that attribute is a fallback TRIGGER
+        (`_engine_should_fall_back`, `_engine_should_resume_fallback` both test
+        `is not None`), and setting it from prose would change the fallback
+        behaviour of every instrument. This is presentation only.
+
+        A cleaner fix belongs on the C side — a typed
+        `{"event":"error","kind":"chart_refused"}` before the `error()` call —
+        and is requested in `docs/cr30_reports/09-impl-measure.md`.
+        """
+        return (self._engine_fatal
+                or self._engine_error_prose
+                or "unknown error")
 
     def _engine_should_fall_back(self, code: int) -> bool:
         """Whether a finished engine run should be retried on stock chartread.
@@ -993,6 +1063,12 @@ class MeasureManager(QObject):
         if ev is None:
             if line.strip():
                 on_line(line)
+                # Keep the helper's own fatal sentence, which arrives here as
+                # prose. It is the only account of what went wrong when the
+                # helper dies before emitting a single event (#159).
+                m = _HELPER_FATAL_RE.match(line)
+                if m:
+                    self._engine_error_prose = m.group(1).strip()
                 # The helper prints chartread's own startup failures as prose,
                 # and they have to raise their window here too — this parser is
                 # the only one that runs in engine mode (Knut, beta.141).

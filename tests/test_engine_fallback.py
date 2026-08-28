@@ -511,3 +511,157 @@ def test_a_real_autosave_is_still_resumed(tmp_path):
     _finish(runner, 1)
     assert len(runner.runs) == 2, "the rescue did not happen"
     assert "-r" in runner.runs[1]["args"]
+
+
+# ---------------------------------------------------------------------------
+# #159 — a chart stock chartread REFUSES has no fallback to fall back to
+#
+# The 2026-08-28 log, verbatim: the helper refused a CR30 chart, ChromIQ
+# announced "restarting on stock chartread", and stock chartread died on
+# `Unrecognised chart target instrument 'CR30'`. Two failures, the second more
+# confusing than the first, plus a translated paragraph promising a rescue that
+# could not happen. All THREE relaunch sites are gated, not just the one that
+# fired that day.
+# ---------------------------------------------------------------------------
+
+def _start_cr30_run(tmp_path: Path, **kw):
+    runner = _RecordingRunner()
+    mgr = MeasureManager(runner)
+    mgr._guided_state = "disabled"
+    ti1 = tmp_path / "chart.ti1"
+    ti1.write_text("")
+    params = MeasureParams(ti1_path=ti1,
+                           engine_helper=Path("/fake/chromiq-chartread"),
+                           stock_reader_cannot_read=True, **kw)
+    lines: list[str] = []
+    finished: list[int] = []
+    refused: list[str] = []
+    mgr.engine_fallback_refused.connect(refused.append)
+    mgr.start(params, lines.append, finished.append)
+    assert len(runner.runs) == 1
+    return mgr, runner, lines, finished, refused
+
+
+def test_a_refused_chart_never_relaunches_on_stock_chartread(tmp_path):
+    """THE REPORTED BUG. One launch, one ending, and the caller hears about it."""
+    mgr, runner, lines, finished, refused = _start_cr30_run(tmp_path)
+    _feed_engine(mgr, {"event": "error", "kind": "coms"}, lines)
+    _finish(runner, 1)
+
+    assert len(runner.runs) == 1, "stock chartread must not be launched"
+    assert finished == [1], "the run ends here, on the helper's own exit"
+    assert len(refused) == 1
+    assert not any("ArgyllCMS" in ln for ln in lines), \
+        "no promise of a reader that would refuse the chart"
+
+
+def test_an_ordinary_chart_still_falls_back(tmp_path):
+    """The mutation guard: the gate must be the FLAG, not the situation.
+    mavtop's i1Pro1 depends on this rescue and must keep it."""
+    mgr, runner, lines, finished = _start_engine_run(tmp_path)
+    _feed_engine(mgr, {"event": "error", "kind": "coms"}, lines)
+    _finish(runner, 1)
+    assert len(runner.runs) == 2 and runner.runs[1]["tool"] == "chartread"
+
+
+def test_the_resume_fallback_is_gated_too_and_keeps_its_promise_unspoken(
+        tmp_path):
+    """The dangerous one. It fires AFTER the user has measured part of the
+    chart and announces "every strip you have already measured has been saved
+    and will be kept" BEFORE relaunching — so the user is told they are
+    continuing and then watches it die."""
+    mgr, runner, lines, finished, refused = _start_cr30_run(tmp_path)
+    ti3 = tmp_path / "chart.ti3"
+    ti3.write_text(
+        "CTI3\n\nNUMBER_OF_FIELDS 4\nBEGIN_DATA_FORMAT\n"
+        "SAMPLE_ID XYZ_X XYZ_Y XYZ_Z\nEND_DATA_FORMAT\n\n"
+        "NUMBER_OF_SETS 1\nBEGIN_DATA\n1 10 10 10\nEND_DATA\n",
+        encoding="utf-8")
+    from workflow.measurement_state import has_any_readings
+    assert has_any_readings(ti3), "the premise: this .ti3 IS resumable"
+    _feed_engine(mgr, {"event": "patch_read", "loc": "A1"}, lines)
+    _feed_engine(mgr, {"event": "error", "kind": "coms"}, lines)
+    _finish(runner, 1)
+
+    assert len(runner.runs) == 1, "the resume fallback must not fire either"
+    assert not any("carry on measuring" in ln for ln in lines)
+    assert len(refused) == 1
+
+
+def test_the_mode_fallback_is_gated_too(tmp_path):
+    """Unreachable once -x lands (no instrument is opened, so no mode can be
+    reported), but free to gate and it must not be the one left open."""
+    mgr, runner, lines, finished, refused = _start_cr30_run(tmp_path)
+    mgr._engine_mode_fallback = True
+    _finish(runner, 1)
+    assert len(runner.runs) == 1
+    assert not any("reads whole sheets" in ln for ln in lines)
+
+
+def test_a_clean_run_is_untouched(tmp_path):
+    """Boundary: exit 0 must end exactly as it always did."""
+    mgr, runner, lines, finished, refused = _start_cr30_run(tmp_path)
+    _finish(runner, 0)
+    assert finished == [0] and refused == [] and len(runner.runs) == 1
+
+
+def test_the_user_stopping_it_is_not_a_refusal(tmp_path):
+    """Boundary: a deliberate quit is the user's ending, not a failure to
+    explain. `_user_quit` already suppresses every other fallback."""
+    mgr, runner, lines, finished, refused = _start_cr30_run(tmp_path)
+    mgr._user_quit = True
+    _finish(runner, 1)
+    assert refused == [], "no failure window for a run the user ended"
+    assert finished == [1] and len(runner.runs) == 1
+
+
+# --- the reason string: the helper HAD said what was wrong -----------------
+
+def test_the_helpers_own_error_sentence_becomes_the_reason(tmp_path):
+    """`_engine_fatal` is only ever set from a typed JSON event, so a helper
+    that dies before emitting one left the log saying "(unknown error)" while
+    the sentence itself was one line above it, on stderr, as prose."""
+    mgr, runner, lines, finished, refused = _start_cr30_run(tmp_path)
+    mgr._handle_engine_line(
+        "chromiq-chartread: Error - The chart was made for 'CR30', which "
+        "ChromIQ reads itself. Measure it in ChromIQ, or use -x to supply "
+        "values.", lines.append)
+    _finish(runner, 1)
+    assert refused and refused[0].startswith("The chart was made for 'CR30'")
+
+
+def test_a_typed_event_still_wins_over_the_prose(tmp_path):
+    """Ordering: the JSON channel is the authority when it spoke at all."""
+    mgr, runner, lines, finished, refused = _start_cr30_run(tmp_path)
+    mgr._handle_engine_line("chromiq-chartread: Error - something vague",
+                            lines.append)
+    _feed_engine(mgr, {"event": "error", "kind": "coms"}, lines)
+    _finish(runner, 1)
+    assert refused == ["communication problem"]
+
+
+def test_prose_capture_never_sets_the_fallback_trigger(tmp_path):
+    """CRITICAL: `_engine_fatal is not None` is a fallback TRIGGER for every
+    instrument. Capturing prose into it would silently change when an ordinary
+    chart falls back. It must stay in its own field."""
+    mgr, runner, lines, finished = _start_engine_run(tmp_path)
+    mgr._handle_engine_line("chromiq-chartread: Error - boom", lines.append)
+    assert mgr._engine_fatal is None
+    assert mgr._engine_error_prose == "boom"
+
+
+def test_ordinary_prose_is_not_mistaken_for_a_fatal(tmp_path):
+    mgr, runner, lines, finished = _start_engine_run(tmp_path)
+    for ln in ("Reading strip A1", "Result is XYZ: 10 10 10",
+               "Place instrument on spot A1"):
+        mgr._handle_engine_line(ln, lines.append)
+    assert mgr._engine_error_prose is None
+
+
+def test_the_ending_message_is_in_the_catalogue_and_awaits_approval():
+    from workflow import measurement_messages as M
+    assert "M-CR30-READ-ENDED" in M.CATALOGUE
+    assert M.CATALOGUE["M-CR30-READ-ENDED"].approved is False
+    title, body = M.M_CR30_READ_ENDED.render(reason="the helper said so")
+    assert "the helper said so" in body
+    assert "ArgyllCMS chartread does not know the CR30" in body
