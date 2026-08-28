@@ -1179,6 +1179,30 @@ class Run:
         if stash is None or not Path(stash).is_dir():
             return
         stash = Path(stash)
+        # AN EMPTY STASH REPRESENTS NOTHING, AND MUST THEREFORE TAKE NOTHING.
+        #
+        # The sweep below removes every chart file that is not in the stash, on
+        # the grounds that it belongs to a build which produced no chart. With
+        # an empty stash that is EVERY chart file, and there is nothing to put
+        # back afterwards. Measured on screen with a real Stop: the chart was
+        # restored byte-for-byte, the log said "nothing is lost", and the next
+        # time the project was opened the run held `meta.json` and nothing else
+        # — the `.ti2` a printed sheet is read against among the casualties.
+        #
+        # An empty stash is reachable: `settle_chart_stash` catches a failed
+        # `rmtree`, logs it and carries on, so a successful restore can leave
+        # the emptied folder behind for the next open to find. Before the sweep
+        # existed that leftover was harmless.
+        try:
+            if not any(q for q in stash.iterdir()
+                       if q.name != self.STASH_SUPERSEDED):
+                log.info("An empty chart stash was left in %s; removing it and "
+                         "leaving the run alone", self.dir)
+                shutil.rmtree(stash, ignore_errors=True)
+                return
+        except OSError as exc:
+            log.warning("Could not read the chart stash %s: %s", stash, exc)
+            return
         if not built:
             # SWEEP WHAT THE FAILED BUILD LEFT, not just the names we are about
             # to restore. Putting a chart back used to walk only the stash, so
@@ -1199,6 +1223,8 @@ class Run:
                     except OSError as exc:
                         log.warning("Could not clear %s: %s", tiff.name, exc)
             for p in sorted(stash.iterdir()):
+                if p.name == self.STASH_SUPERSEDED:
+                    continue      # bookkeeping, not one of the person's files
                 dest = self.dir / p.name
                 try:
                     if dest.exists():
@@ -1307,9 +1333,27 @@ class Run:
             """Delete, or set aside in the stash when the caller asked for one."""
             nonlocal stash_dir
             if stash and stash_dir is None:
-                cand = self.dir / f"{self.CHART_STASH_PREFIX}{os.getpid()}"
+                # UNIQUE PER BUILD, NOT PER PROCESS. The name used to be the
+                # pid alone, so a second build in the same session reused the
+                # folder a previous one had left behind and merged into it —
+                # measured: the two charts' files in one stash, and the
+                # SUPERSEDED marker of the earlier build restored into the run
+                # as a file. `exist_ok=False` makes the collision impossible
+                # rather than unlikely.
+                cand = None
+                for _n in range(1000):
+                    _try = (self.dir /
+                            f"{self.CHART_STASH_PREFIX}{os.getpid()}-{_n}")
+                    if not _try.exists():
+                        cand = _try
+                        break
+                if cand is None:
+                    log.warning("Could not find a free chart stash name in %s",
+                                self.dir)
                 try:
-                    cand.mkdir(parents=True, exist_ok=True)
+                    if cand is None:
+                        raise OSError("no free stash name")
+                    cand.mkdir(parents=True, exist_ok=False)
                     stash_dir = cand
                 except OSError as exc:
                     log.warning("Could not make a chart stash in %s: %s",
