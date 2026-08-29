@@ -848,7 +848,7 @@ frames this script may send: {'READ_MEASUREMENT': 'bb 02 10 00 00 00 00 00 ff cc
 TRIGGER_UNSAFE is bb 01 00 00 00 00 00 00 ff bb - NOT sent
 
 A mean %R: 78.6904  first5=[70.0369, 74.4918, 77.0983, 78.0419, 77.5336]
-discover -> [{"name": "CM454M0223", "address": "FFB32AD2-…", "rssi": -79,
+discover -> [{"name": "«serial redacted»", "address": "FFB32AD2-…", "rssi": -79,
               "confirmed": true, "axis": [400, 10, 31]}]
 identify -> {'model': 'CR30', 'axis': BleAxis(start_nm=400, step_nm=10, bands=31),
              'transport': 'ble'}
@@ -863,7 +863,7 @@ instrument it was written for.
 
 Two side observations, offered as observations only:
 
-* The advertised name is **`CM454M0223`** and `confirmed: true` came from the
+* The advertised name is **`«serial redacted»`** and `confirmed: true` came from the
   protocol check, not the name — the discovery design behaves as documented.
 * **HYPOTHESIS, not a finding:** the value the unit is holding right now is
   **78.6904 %R mean**, which is within **0.24 %R** of the `TILE_SIGNATURE` mean
