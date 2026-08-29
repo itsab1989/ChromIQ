@@ -811,8 +811,18 @@ class _ChartreadOption:
     row_widget: QWidget | None = None
     tooltip_width: int = 420        # min width of this option's info dialog
 
+    #: Options this option row must not emit, whatever its checkbox says.
+    #: Set when the instrument cannot honour them — see `suppress_for_cr30`.
+    suppressed: bool = False
+
     def build_args(self) -> list[str]:
         """Return CLI tokens for this option if enabled."""
+        if self.suppressed:
+            # Deliberately BEFORE the checkbox test. Disabling a control greys
+            # it but does not untick it, and the user's own value must survive
+            # for the day they measure the same chart with another instrument.
+            # So the row keeps its state and simply stops speaking.
+            return []
         if self.checkbox is None or not self.checkbox.isChecked():
             return []
         if self.widget is None:
@@ -1282,6 +1292,7 @@ class TabMeasure(QWidget):
             # …and the CR30 patch-by-patch lock, for the same reason: a stored
             # or default `false` has just been written onto the screen (#159).
             self._apply_cr30_pbp_lock()
+            self._apply_cr30_dead_options()
             return False
         self._loading_measure_settings = True
         try:
@@ -1292,6 +1303,7 @@ class TabMeasure(QWidget):
                          len(unknown), ", ".join(sorted(unknown)[:8]))
             self._reassert_guided_refinement()
             self._apply_cr30_pbp_lock()
+            self._apply_cr30_dead_options()
             return True
         except Exception:      # noqa: BLE001
             log.warning("Could not apply the target's Measure settings",
@@ -1390,6 +1402,46 @@ class TabMeasure(QWidget):
             return
         cb = self._pbp_cb if mode == "guided" else self._m_pbp_cb
         cb.setChecked(bool(value))
+
+    #: Chartread options a CR30 cannot honour. Under `-xx` the helper opens no
+    #: instrument, so everything that configures one is inert — the helper's own
+    #: comment says as much of `-c`, `-N`, `-B`/`-b` and `-T`. Confirmed against
+    #: the helper source, and against the instrument's own phone app, which
+    #: offers no measurement condition and no UV filter at all: there is nothing
+    #: on this device for these to configure, so they can never be made to work.
+    #:
+    #: `-F` is the one that had to stop being SENT rather than merely greyed.
+    #: Proved against the real helper: with `-F 6` the measurement file comes
+    #: back carrying `INSTRUMENT_FILTER "D65"` although no instrument was ever
+    #: opened and the CR30 has no filter — a false claim about how the data was
+    #: gathered, written into the user's own record of it.
+    CR30_DEAD_OPTIONS = ("highres", "filter", "tolerance", "xrga")
+
+    def _apply_cr30_dead_options(self) -> None:
+        """Grey the options this instrument cannot honour, in both modules.
+
+        DISABLE ONLY, NEVER UNTICK. The saved value belongs to the target and
+        must survive for the day the same chart is measured with an instrument
+        that does honour it — every save path reads the widget whether or not it
+        is enabled. What actually falls silent is `build_args`.
+        """
+        is_cr30 = bool(self._chart_is_cr30())
+        why = tr(
+            "Your CR30 cannot use this. ChromIQ reads this instrument itself, "
+            "so ArgyllCMS never opens it and there is nothing here for this "
+            "setting to change. Your choice is remembered for other "
+            "instruments.")
+        for opts in (getattr(self, "_chartread_opts", None) or [],
+                     getattr(self, "_m_chartread_opts", None) or []):
+            for opt in opts:
+                if opt.key not in self.CR30_DEAD_OPTIONS:
+                    continue
+                opt.suppressed = is_cr30
+                for w in (opt.checkbox, opt.widget, opt.row_widget):
+                    if w is not None:
+                        w.setEnabled(not is_cr30)
+                if opt.checkbox is not None:
+                    opt.checkbox.setToolTip(why if is_cr30 else "")
 
     def _apply_cr30_pbp_lock(self) -> None:
         """Show, in both modules, that a CR30 chart reads patch by patch.
@@ -3288,6 +3340,7 @@ class TabMeasure(QWidget):
         # changes, and every cross-tab load all arrive here. Same place, same
         # reason as the -B auto-detect one line above.
         self._apply_cr30_pbp_lock()
+        self._apply_cr30_dead_options()
         # #134 / K1 (Knut): the overlay auto-offer is a MEASURE-tab feature, but
         # set_ti1_path is also driven cross-tab — the Print tab's ti2_loaded, the
         # Check tab's ti2_found, project open, session restore and Profile-run /

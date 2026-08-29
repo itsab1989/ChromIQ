@@ -20,8 +20,17 @@ from workflow.measure_settings import (MEASURE_CONTROLS, NOT_A_SETTING, apply,
 class _Check:
     def __init__(self, on=False):
         self._on = on
+        self._enabled = True
+        self._tip = ""
     def isChecked(self):        return self._on
     def setChecked(self, v):    self._on = bool(v)
+    # Enough of a widget to be greyed. The point of these tests is that a
+    # DISABLED control keeps its value — so the fake has to be able to tell the
+    # two apart, or it could not catch the bug it exists to catch.
+    def setEnabled(self, v):    self._enabled = bool(v)
+    def isEnabled(self):        return self._enabled
+    def setToolTip(self, t):    self._tip = t
+    def toolTip(self):          return self._tip
 
 
 class _Combo:
@@ -30,11 +39,18 @@ class _Combo:
     def currentData(self):      return self._data[self._i]
     def findData(self, v):      return self._data.index(v) if v in self._data else -1
     def setCurrentIndex(self, i): self._i = i
+    def setEnabled(self, v):    self._enabled = bool(v)
+    def isEnabled(self):        return getattr(self, "_enabled", True)
 
 
 class _Opt:
     def __init__(self, key, on=False, widget=None):
         self.key, self.checkbox, self.widget = key, _Check(on), widget
+        # The real option row carries these two as well: the frame the label
+        # and value live in, and the flag that stops it emitting its argument
+        # for an instrument that cannot honour it.
+        self.row_widget = None
+        self.suppressed = False
 
 
 class _Tab:
@@ -161,11 +177,16 @@ def wired(tmp_path, qapp):
     # patch-by-patch lock on both exits as well, for the same reason (a stored
     # `false` has just been written onto the screen), so that method and the
     # chart predicate it asks come along too. The stub has no `_ti1_path`, so
-    # the lock answers "not a CR30" and does nothing here.
+    # the lock answers "not a CR30" and does nothing here. The dead-option lock
+    # rides along for the same reason — it is asserted from the same places and
+    # asks the same predicate.
     for name in ("save_target_settings", "load_target_settings",
                  "_measure_written_cache", "_reassert_guided_refinement",
-                 "_apply_cr30_pbp_lock", "_chart_is_cr30", "_chart_file_for"):
+                 "_apply_cr30_pbp_lock", "_apply_cr30_dead_options",
+                 "_chart_is_cr30", "_chart_file_for"):
         setattr(_WiredTab, name, getattr(tm.TabMeasure, name))
+    # …and the class-level list the dead-option lock consults.
+    _WiredTab.CR30_DEAD_OPTIONS = tm.TabMeasure.CR30_DEAD_OPTIONS
     store = _Store(tmp_path)
     return _WiredTab(store), store
 
