@@ -197,6 +197,12 @@ class Cr30MeasureBridge(QObject):
     #: dropped: (loc, message). Nothing has been re-armed; pressing the button
     #: cannot help, and telling the user to press it is the wrong advice.
     device_lost = pyqtSignal(str, str)
+    #: A magnet was at the aperture, so the instrument has ALREADY recalibrated
+    #: itself against whatever it was sitting on: (loc, message). Nothing is
+    #: re-armed and nothing more may be measured until the white reference is
+    #: retaken — every later reading would be wrong by an unknown factor, and
+    #: invisibly so.
+    magnet_gated = pyqtSignal(str, str)
     #: A read failed and could not be re-armed because it kept failing:
     #: (loc, message). The session is stalled and the user must be told.
     read_gave_up = pyqtSignal(str, str)
@@ -339,6 +345,20 @@ class Cr30MeasureBridge(QObject):
         """
         return self._reading_loc == loc
 
+    def resume_after_magnet(self) -> bool:
+        """Carry on after the white reference has been retaken.
+
+        A magnet stops the session on purpose — nothing may be measured under a
+        reference that has just been overwritten. This is the ONE way back, and
+        it exists so that recalibrating is a real remedy rather than advice the
+        app cannot act on. The caller must actually have recalibrated first.
+        """
+        if not self._stopped:
+            return True
+        self._stopped = False
+        self._retries.pop(self._awaiting_loc, None)
+        return self.rearm()
+
     def rearm(self) -> bool:
         """Start reading the outstanding patch again. True if there was one.
 
@@ -447,6 +467,21 @@ class Cr30MeasureBridge(QObject):
             # that is.
             log.debug("CR30: read for %s abandoned on navigation", loc)
             self._retries.pop(loc, None)
+            return
+
+        if exc_type == "MagnetGated":
+            # DO NOT RE-ARM. The reading was refused, but the damage is already
+            # done: the instrument recalibrated itself against whatever was
+            # under it, so anything measured from here would be wrong by an
+            # unknown factor. Inviting another press is the worst available
+            # answer, and it is what this code used to do — the owner hit it
+            # with a sheet of paper on a MacBook and the session carried
+            # blithely on.
+            log.error("CR30: magnet at the aperture while reading %s — the "
+                      "white reference has probably been overwritten (%s)",
+                      loc, message)
+            self._stopped = True
+            self.magnet_gated.emit(loc, message)
             return
 
         if exc_type == "DeviceLost":

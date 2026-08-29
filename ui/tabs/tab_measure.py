@@ -7319,6 +7319,7 @@ class TabMeasure(QWidget):
             self._cr30_bridge.readings_discarded.connect(
                 self._on_cr30_readings_discarded)
             self._cr30_bridge.device_lost.connect(self._on_cr30_device_lost)
+            self._cr30_bridge.magnet_gated.connect(self._on_cr30_magnet)
             self._cr30_bridge.read_gave_up.connect(self._on_cr30_gave_up)
         except Exception:      # noqa: BLE001 — say so, do not kill the run
             log.warning("could not start the CR30 reading bridge", exc_info=True)
@@ -7401,6 +7402,63 @@ class TabMeasure(QWidget):
         self._log.appendPlainText(text)
         self._log.ensureCursorVisible()
         self._flash_status(text, duration_ms=8000)
+
+    def _on_cr30_magnet(self, loc: str, message: str) -> None:
+        """A magnet was at the aperture. The instrument has already
+        recalibrated itself, and the session stops until that is put right.
+
+        M-CR30-MAGNET (§M-PROPOSED). This is not "that reading was refused" —
+        the reading is the least of it. The instrument performed a white
+        calibration against whatever it was sitting on, so every reading from
+        here would be wrong by an unknown factor and nothing downstream could
+        tell. The owner hit exactly this with a sheet of paper on a MacBook,
+        whose magnets reached through it: the old code refused the reading, told
+        him to press the button again, and let the session continue.
+
+        Nothing measured BEFORE this moment is affected — the refusal happens
+        before any reading is accepted, so there is no suspect data to mark or
+        discard, and nothing of his is touched.
+        """
+        from PyQt6.QtWidgets import QMessageBox
+        from workflow import measurement_messages as M
+        from ui.widgets import fit_message_box_buttons
+
+        self._log.appendPlainText("\n" + tr(
+            "[STOPPED] A magnet was against the measuring opening, so the "
+            "instrument recalibrated itself instead of measuring. Nothing "
+            "more can be measured until its white calibration is taken "
+            "again."))
+        self._log.ensureCursorVisible()
+        self._sound_instrument_fault_once()
+
+        title, body = M.M_CR30_MAGNET.render(reason=message)
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(tr("The instrument has recalibrated itself"))
+        box.setText(title)
+        box.setInformativeText(body)
+        again = box.addButton(tr("Recalibrate now"),
+                              QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(tr("Stop the measurement"),
+                      QMessageBox.ButtonRole.DestructiveRole)
+        box.setDefaultButton(again)
+        fit_message_box_buttons(box)
+        box.exec()
+
+        if box.clickedButton() is not again:
+            self._end_session(self._confirm_end_of_session(
+                self.END_FAILURE_WINDOW))
+            return
+        if not self._run_cr30_calibration():
+            self._end_session(self._confirm_end_of_session(
+                self.END_FAILURE_WINDOW))
+            return
+        bridge = getattr(self, "_cr30_bridge", None)
+        if bridge is not None and bridge.resume_after_magnet():
+            self._log.appendPlainText(tr(
+                "Carrying on. Read the highlighted patch again — and check "
+                "there is no magnet under your paper this time."))
+            self._log.ensureCursorVisible()
 
     def _on_cr30_device_lost(self, loc: str, message: str) -> None:
         """The instrument is gone — not merely unpressed.

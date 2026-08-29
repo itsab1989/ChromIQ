@@ -35,6 +35,11 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # 23 per language are the three new Tools help cards, added as English
 # placeholders under the project's beta rule; the remainder pre-date them.
 # German is lower because Basti and Knut read it, so it is kept current.
+# 2026-08-30, #159, raised 70 -> 73 for the magnet window: a magnet
+# recalibrated the owner's instrument mid-chart (a MacBook under his paper) and
+# the session carried on, so the refusal now stops the session and offers to
+# retake the white calibration. New beta text under the project's rule.
+#
 # 2026-08-29, #159, raised 62 -> 70 for the CR30 instrument work: the
 # no-device help (which had never been translatable at all — fifteen sentences
 # built as bare strings the extractor could not see), the greyed-option
@@ -43,8 +48,8 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # project's rule, and German is translated as usual because it is read.
 _BUDGET = {
     "de": 35,
-    "es": 70, "fr": 70, "it": 70, "ja": 70, "nl": 70,
-    "no": 70, "pl": 70, "pt": 70, "ru": 70, "sv": 70, "zh_CN": 70,
+    "es": 73, "fr": 73, "it": 73, "ja": 73, "nl": 73,
+    "no": 73, "pl": 73, "pt": 73, "ru": 73, "sv": 73, "zh_CN": 73,
 }
 
 

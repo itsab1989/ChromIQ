@@ -159,6 +159,10 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # against air — the vendor's own second step,
                                  # whose command was captured from its app.
                                  "M-CR30-CALIBRATE-BLACK",
+                                 # 2026-08-30, #159. A magnet recalibrated his
+                                 # instrument mid-chart — a MacBook under the
+                                 # paper — and the session carried on.
+                                 "M-CR30-MAGNET",
                                  "M-CR30-INSTRUMENT-GONE",
                                  "M-CR30-PATCH-GAVE-UP",
                                  "M-ALL-STRIPS-PATCHES-LEFT",

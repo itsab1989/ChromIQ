@@ -34,14 +34,34 @@ class MeasurementError(Exception):
 # is under the aperture. By the time this error is raised the stored white
 # reference may ALREADY have been overwritten, and "read again" then produces
 # readings that are wrong by a scale factor no guard here can see.
+class MagnetGated(MeasurementError):
+    """A reading taken with a magnet at the aperture.
+
+    Its own class because it needs the OPPOSITE answer to every other refused
+    reading. An ordinary refusal costs one button press and the patch is armed
+    again; this one means the instrument has ALREADY recalibrated itself
+    against whatever it was sitting on, so every reading after it would be
+    wrong by an unknown factor — invisibly. Re-arming and inviting another
+    press is the worst thing the app can do.
+
+    It happened for real on 2026-08-30: a sheet of paper on a MacBook, whose
+    magnets reached through it. The guard fired, and the session carried on.
+    """
+
+
 MAGNET_MESSAGE = (
     "this reading was taken with a magnet at the aperture. The CR30 does not "
     "measure in that state -- it performs a WHITE CALIBRATION against whatever "
     "is under the aperture and reports the stored tile value. STOP: remove the "
-    "cap and any magnet, then RECALIBRATE (seat the cap correctly, white tile "
-    "toward the aperture, and press the device button) before reading anything "
-    "else. The device's stored white reference may already be wrong, and a "
-    "wrong white reference is invisible in the data.")
+    "cap and any magnet, and RECALIBRATE before reading anything else. The "
+    "device's stored white reference may already be wrong, and a wrong white "
+    "reference is invisible in the data.")
+
+#: ⚠ The recovery this message used to give — "seat the cap and press the device
+#: button" — was the side-effect method ChromIQ itself has stopped using. Worse,
+#: followed in the middle of a session it produces ANOTHER gated reading and
+#: another refusal. ChromIQ now offers to recalibrate with the instrument's own
+#: command instead, so the message says WHAT must happen and the app does it.
 
 
 # The gated/stored tile spectrum, captured on this unit over BOTH transports
@@ -184,10 +204,10 @@ class Measurement:
         """
         self.validate()
         if self.gate_flag:
-            raise MeasurementError(MAGNET_MESSAGE + " (The device's own header "
-                                   "flagged this reading: frame offset 24 = 1.)")
+            raise MagnetGated(MAGNET_MESSAGE + " (The device's own header "
+                              "flagged this reading: frame offset 24 = 1.)")
         if self.looks_like_calibration_tile():
-            raise MeasurementError(MAGNET_MESSAGE)
+            raise MagnetGated(MAGNET_MESSAGE)
         if self.zero_run() >= 3:
             raise MeasurementError(
                 f"{self.zero_run()} consecutive bands are exactly 0.0 %R. That is "

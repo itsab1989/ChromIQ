@@ -209,6 +209,117 @@ Verified:
 - The app pins nothing: `DeviceReader()` bare (tab_measure.py:7312) — no
   port, no address, no name.
 
+## L5 — Windows and Linux: what is verified, what is claimed, what nobody
+## has ever run. (Owner's question, answered for quoting in the final msg.)
+
+### The one fact that frames everything
+**No Windows or Linux artefact has ever been built WITH the CR30 work.** The
+green Build Windows App / Build Linux App runs (latest v4.1.4, 2026-08-28,
+both successful) built MASTER — and master's ChromIQ.spec contains zero
+references to bleak (verified: `git show master:ChromIQ.spec | grep -c bleak`
+= 0; the branch is 124 commits ahead). Every CR30 experiment in the corpus is
+macOS. So everything below is code + dependency reasoning, labelled.
+
+### USB
+- VERIFIED (code): `discovery.candidates()` goes through
+  `serial.tools.list_ports.comports()` and filters VID 0x1A86/PID 0x7523
+  (discovery.py:41-47) — pyserial reports VID/PID on Windows (SetupAPI) and
+  Linux (sysfs) the same way; no `/dev/cu.*` or COM naming anywhere; port
+  strings are used opaquely. pyserial is pure Python, in requirements.txt,
+  and in the spec's hiddenimports ('serial', 'serial.tools.list_ports').
+- Windows driver claim in _no_device_help — CORRECT AS A CLAIM, unverified by
+  any run: WCH's CH341SER is distributed through Windows Update, so an online
+  Win10/11 machine typically self-installs it on first plug; offline machines
+  need it by hand. ⚠ When the driver is MISSING the device enumerates with NO
+  COM port, so candidates() is EMPTY -> "no CH34x serial device found" -> the
+  help window, whose Windows branch names Device Manager and the driver.
+  Diagnosable, if not instant.
+- Linux claims — CORRECT AS CLAIMS: the ch341 driver is an in-tree kernel
+  module in every mainstream distro; Debian/Ubuntu gate serial ports on the
+  `dialout` group as the help text says (Arch uses `uucp` — the text would be
+  wrong there; minor). Nobody has run it.
+
+### Bluetooth
+- bleak's own platform contract (PyPI metadata, checked today): on win32 it
+  hard-depends on winrt-runtime>=3.1 plus eight winrt-windows-* namespace
+  packages — EXACTLY the nine the spec collects (ChromIQ.spec:71-79); on
+  linux dbus-fast>=1.83 — which the spec collects (:84). The mapping is
+  verified; whether the collected result WORKS frozen is not.
+- bleak's documented minimums (library claim, nothing of ours): Windows 10
+  1709+, BlueZ >= 5.43 (present on any current distro), and our usage
+  (write-without-response + notifications on ffe1, no MTU games) is the
+  plainest BLE-UART shape there is — nothing CoreBluetooth-specific in
+  ble.py's protocol logic.
+- The macOS-UUID-vs-MAC address question: MOOT in the app — nothing is
+  remembered; `DeviceReader()` is built bare (tab_measure.py:7312) and
+  discovery runs fresh by service UUID + axis confirmation each time, which
+  is platform-neutral. (If Q-A remembered-address is ever built, the stored
+  address is a CoreBluetooth UUID on macOS and a MAC elsewhere — per-host
+  storage, never synced, and it is already per-host by nature.)
+- UNTESTED end to end on both platforms, full stop: whether WinRT surfaces
+  the CR30's FFE0 advertisement the way CoreBluetooth does, notification
+  cadence, the poll rhythm. No experiment exists.
+
+### The bundles
+- VERIFIED (spec text + tests): collect_all('bleak') unconditionally;
+  per-platform backend collection guarded by sys.platform at BUILD time —
+  right, because the Windows artefact is built on windows-11-arm/
+  windows-latest and the Linux one on ubuntu, each with its own backend
+  installed by `pip install -r requirements` (build-windows.yml:53-56 filters
+  only pycups; build-linux.yml:93). tests/test_cr30_packaging.py pins all of
+  this — but at the TEXT level (spec mentions X), plus one behavioural
+  _no_device_help test whose platform branches only run on the host platform
+  (the gate runs on macOS, so the Windows/Linux branches of that test have
+  never executed in CI).
+- NOT COVERED anywhere: an artefact-level check. The Linux workflow's smoke
+  is `test -x dist/ChromIQ/ChromIQ` (build-linux.yml:110) — bootloader
+  exists, nothing imported; Windows has no smoke at all. A dropped backend
+  would build green and surface as a runtime log line on a user's machine
+  ("no USB device (No module named 'serial')" is the documented shape,
+  requirements.txt:21-23 — both transports' errors DO reach the help window).
+  Cheap CI fix if wanted: run the frozen binary once with a probe flag that
+  imports serial+bleak+backend and exits.
+- Permissions: macOS needs NSBluetoothAlwaysUsageDescription (in the spec,
+  tested). Windows: NO manifest/capability needed for a desktop (Win32) app
+  to use WinRT Bluetooth APIs — that requirement is for packaged/UWP apps;
+  a plain PyInstaller exe scans fine (library-ecosystem claim). Linux: no
+  manifest; the user needs bluetoothd running (the help text says so) and
+  possibly no group at all (BlueZ D-Bus is open to console users on default
+  Ubuntu polkit). Nothing to bundle on either.
+- ARM Windows: the workflow genuinely builds a NATIVE arm64 artefact
+  (ChromIQ-Windows-arm64.zip, runner windows-11-arm, native arm64 Python
+  3.13, build-windows.yml:29-32,47). winrt-runtime publishes cp313
+  win_arm64 wheels (checked on PyPI today), so the arm64 CR30 build should
+  resolve — plausible, never run.
+
+### His VM (ARM Windows 11 under VMware, Apple Silicon)
+- His Bluetooth instinct is RIGHT: VMware on Apple Silicon does not expose
+  the Mac's Bluetooth controller to the guest. The only route would be a
+  third-party USB Bluetooth dongle passed through to the VM — do not spend
+  an evening there; even when it works it tests the dongle+VM as much as
+  ChromIQ.
+- USB is the usable test bed: VMware USB passthrough of the CH34x is
+  standard; attach the CR30 to the VM, let Windows Update fetch the CH341
+  driver (VM online), run ChromIQ-Windows-arm64.zip. That exercises the
+  entire USB path — which is also the BETTER CR30 transport (gate flag,
+  faster cal). Realistic outcome: a genuine first-ever Windows USB run.
+- Caveat that must be said: that artefact exists only after the CR30 branch
+  has gone through the Windows workflow (merge or a tag on the branch) —
+  today's downloadable bundles contain no CR30 code at all.
+
+### Rank the risk (Windows user, day one, CR30-era bundle)
+1. Most likely first failure: CH34x driver absent (offline or locked-down
+   machine) -> empty candidates -> the help window; named there, fixable.
+2. Second: a packaging gap in the frozen bundle (backend collected wrong) —
+   invisible in CI today, surfaces as the module-named error inside the same
+   help window. This is the one worth one cheap CI smoke line.
+3. Third: BLE behavioural differences under WinRT — unknowable until someone
+   runs it; USB is unaffected and is the recommended transport anyway.
+Bottom line he can plan around: **USB on Windows/Linux is likely fine
+(everything checkable checks out, nothing has ever run); Bluetooth is
+untested on both and rests on bleak's own cross-platform claims; his VM can
+prove Windows-USB and cannot prove Bluetooth.**
+
 ## Backlog status at 17bda950 (each grep/read-confirmed this round)
 FIXED since 22_beta: BLOCKER 1 (bridge calibrate(black=) + six EXECUTING
 tests, tests/test_cr30_calibration_actually_runs.py); MAJOR 1 (read_zero now

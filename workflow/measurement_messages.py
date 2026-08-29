@@ -143,6 +143,49 @@ M_CR30_CALIBRATE = _m(
     approved=False)
 
 
+# --- PROPOSED: a magnet recalibrated the instrument mid-measurement ---------
+#: #159, and it happened for real on 2026-08-30: the owner rested his paper on
+#: a MacBook, whose magnets reached through the sheet. The old behaviour refused
+#: the reading, told him to press the button again, and let the session carry
+#: on — so every patch after it was measured against a white reference that had
+#: just been overwritten with the colour of whatever the instrument was sitting
+#: on. He noticed only because the numbers looked wrong.
+#:
+#: The refused reading is the least of it and the window says so. What matters
+#: is that the instrument has already recalibrated itself, that nothing more may
+#: be measured until that is put right, and that ChromIQ can put it right on the
+#: spot rather than describing a procedure.
+#:
+#: Nothing measured BEFORE this moment is affected: the refusal happens before
+#: any reading is accepted, so there is no suspect data to mark or throw away.
+#: The window says that too, because "your calibration is wrong" invites a user
+#: to bin work that is perfectly sound.
+#:
+#: ⚠ Prevention is impossible and the text does not pretend otherwise. The only
+#: signal a magnet is present arrives IN the reading it has already ruined, and
+#: a probe reading would itself be the calibration.
+M_CR30_MAGNET = _m(
+    "M-CR30-MAGNET",
+    "Your CR30 has just recalibrated itself",
+    "Something magnetic was against the measuring opening, and that changes "
+    "what the instrument does: instead of measuring your patch, it takes a "
+    "white calibration from whatever it is resting on.\n\n"
+    "The usual culprit is not obvious. A laptop has magnets in its lid and "
+    "body, and they reach straight through a sheet of paper; so do fridge "
+    "doors, magnetic desk mats, tool trays and the instrument's own cap.\n\n"
+    "EVERYTHING YOU MEASURED BEFORE THIS IS SAFE, and is already saved. "
+    "ChromIQ refused this reading before using it, so nothing wrong has gone "
+    "into your measurement file.\n\n"
+    "But nothing more can be measured until the white calibration is taken "
+    "again — until then every reading would be wrong by an amount nothing "
+    "afterwards could detect.\n\n"
+    "Move your chart onto something non-magnetic — a book, a pad of paper, a "
+    "wooden desk — then press “Recalibrate now” and ChromIQ will take the "
+    "white calibration for you and carry on from the patch you were on.\n\n"
+    "What the instrument reported: {reason}",
+    approved=False)
+
+
 # --- PROPOSED: the dark reference, taken against air ------------------------
 #: #159. The second calibration, and it asks for the OPPOSITE of the first —
 #: cap OFF, opening pointing at nothing. Both windows carry the same
@@ -1126,7 +1169,7 @@ CATALOGUE = {m.id: m for m in (
     M_PROJECT_REPLACE_FAILED,
     M_CR30_STOCK_READER,
     M_CR30_READ_ENDED, M_CR30_INSTRUMENT_GONE, M_CR30_PATCH_GAVE_UP,
-    M_CR30_CALIBRATE, M_CR30_CALIBRATE_BLACK,
+    M_CR30_CALIBRATE, M_CR30_CALIBRATE_BLACK, M_CR30_MAGNET,
     M_CR30_HOW_TO_MEASURE,
 )}
 
