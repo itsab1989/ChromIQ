@@ -7013,6 +7013,22 @@ class TabMeasure(QWidget):
             "cannot check the result — the instrument reports the same value "
             "whatever is under the cap."))
         self._log.ensureCursorVisible()
+        # SAY IT HAPPENED, because the instrument will not.
+        #
+        # The CR30 beeps when its own button is pressed and stays silent when
+        # the host asks — measured on the owner's unit, EXP-BLE-015: the
+        # trigger returned the tile constant, so the calibration genuinely
+        # happened, and he heard nothing and assumed the button was dead. The
+        # calibration was never broken; the feedback was missing. So ChromIQ
+        # gives the feedback the device does not, with the sound it already
+        # uses for "that worked" rather than a new one nobody has chosen.
+        from core import sound as _snd
+        try:
+            self._sound.play(_snd.PATCH_OK)
+        except Exception:              # noqa: BLE001 — never block on audio
+            log.debug("calibration sound failed", exc_info=True)
+        self._flash_status(tr("Your CR30 has been calibrated."),
+                           duration_ms=6000)
         # The instructions window is the confirmation window his ruling asks
         # for: it already says to take the magnetic cap off and how to
         # navigate. Shown here rather than after the helper starts, so the two
@@ -7050,6 +7066,7 @@ class TabMeasure(QWidget):
             self._cr30_bridge.reading_dropped.connect(self._on_cr30_dropped)
             self._cr30_bridge.read_failed.connect(self._on_cr30_read_failed)
             self._cr30_bridge.mispaired.connect(self._on_cr30_mispaired)
+            self._cr30_bridge.patch_rearmed.connect(self._on_cr30_rearmed)
             self._cr30_bridge.device_lost.connect(self._on_cr30_device_lost)
             self._cr30_bridge.read_gave_up.connect(self._on_cr30_gave_up)
         except Exception:      # noqa: BLE001 — say so, do not kill the run
@@ -7096,6 +7113,22 @@ class TabMeasure(QWidget):
         text = tr("The CR30 could not be read for patch {loc}: {message}. "
                   "Press the button on the instrument again."
                   ).format(loc=loc, message=message)
+        self._log.appendPlainText(text)
+        self._log.ensureCursorVisible()
+        self._flash_status(text, duration_ms=8000)
+
+    def _on_cr30_rearmed(self, loc: str) -> None:
+        """A patch that was already measured is ready to be measured again.
+
+        Say so. Before this, clicking an already-read patch did nothing at all
+        and looked exactly like a dead session — the preview highlighted it,
+        the helper waited on it, and no reader was listening. Silence is what
+        made that fault so expensive, so the re-arm must never be silent
+        either.
+        """
+        text = tr("Patch {loc} was already measured. Read it again now to "
+                  "replace that reading — press the button on the instrument."
+                  ).format(loc=loc)
         self._log.appendPlainText(text)
         self._log.ensureCursorVisible()
         self._flash_status(text, duration_ms=8000)

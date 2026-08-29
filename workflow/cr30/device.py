@@ -17,6 +17,10 @@ from . import ble
 from .measurement import Measurement, MeasurementError
 from .transport import ShortFrameError, TransportTimeout
 
+import logging
+
+log = logging.getLogger(__name__)
+
 
 class DeviceLost(MeasurementError):
     """The instrument stopped answering mid-session: unplugged, switched off,
@@ -236,53 +240,34 @@ class CR30:
                         f"the instrument stopped answering ({exc})") from exc
                 return self.read_measurement(button_header=hdr)
 
-        # TWO DIFFERENT QUESTIONS, AND THEY NEED TWO DIFFERENT VALUES.
+        # WAIT FOR THE INSTRUMENT TO SAY IT ACTED, RATHER THAN GUESS.
         #
-        #   `accepted` — the last reading this session USED. That is what
-        #   check_usable compares against, because "identical to the previous
-        #   one" means the previous one we kept.
+        # The CR30 pushes a 10-byte `bb 01 00 …` frame whenever it takes a
+        # reading — VERIFIED on the owner's unit, EXP-BLE-013: three presses,
+        # three frames, control phases silent, and nothing sent to the device
+        # at any point. That is a real event, exactly like USB's `BB 01 09`
+        # button header, and it had been discarded unread.
         #
-        #   `prev` — the last reading the device was SEEN holding, accepted or
-        #   not. That is what "the operator has pressed the button" is measured
-        #   against, because the device's stored value changes on every press
-        #   whether we liked the result or not.
+        # What it replaces was inference: poll the stored value, and call it a
+        # press when it changes. That cannot tell one press from three, it
+        # cannot see a press that produced the same colour twice, and anything
+        # slow slides a reading onto whichever patch is armed by the time it is
+        # noticed. The owner measured the consequence — a colour meant for A19
+        # written against A20, delta E 73.4 — and described it exactly: "not
+        # really happening anything at all for a while but then suddenly a few
+        # measurements are recognized (and then for the wrong patches)".
         #
-        # Conflating them cost a session. A refused reading (cap on, say) left
-        # `_previous` untouched, so the next wait still compared against the
-        # last ACCEPTED patch — the device's stored value already differed from
-        # it, the wait ended instantly without anyone pressing anything, the
-        # same reading was refused again, and the retry budget was gone in
-        # under a millisecond. The user pressed once and was told ChromIQ had
-        # "tried several times".
-        accepted = self._previous
-        prev = self._last_seen if self._last_seen is not None else (
-            accepted.values if accepted else None)
-        while prev is None:
-            if cancelled is not None and cancelled():
-                raise MeasurementError("cancelled while waiting for the "
-                                       "instrument's button")
-            if time.monotonic() > deadline:
-                raise MeasurementError(
-                    f"the instrument did not answer within {timeout:.0f} s.")
-            try:
-                prev = self._last_seen = self.read_measurement(
-                    enforce=False).values
-            except DeviceLost:
-                # Before the MeasurementError arm below, which it is a subclass
-                # of: without this, "the instrument is gone" would land in
-                # sleep-and-retry and be swallowed until the timeout -- the
-                # exact fault this whole path exists to prevent.
-                raise
-            except MeasurementError:
-                time.sleep(poll)      # not answering yet; keep trying
-            except Exception as exc:
-                # A link that has GONE, as opposed to one that is merely quiet.
-                # This probe runs before the wait proper, so without the same
-                # distinction here a device switched off between arming the
-                # patch and the first poll escapes as a raw ConnectionError.
-                raise DeviceLost(
-                    f"the Bluetooth link to the instrument dropped ({exc})"
-                ) from exc
+        # Anything the instrument did BEFORE this patch was armed belongs to no
+        # patch we can name, so it is dropped rather than collected late. That
+        # is the whole mis-attribution, closed at the source.
+        take_event = getattr(self._t, "take_event", None)
+        if take_event is None:
+            raise MeasurementError(
+                "this Bluetooth transport cannot report button presses")
+        dropped = self._t.drop_events()
+        if dropped:
+            log.debug("CR30: discarded %d reading(s) taken before this patch "
+                      "was armed", dropped)
 
         while True:
             if cancelled is not None and cancelled():
@@ -290,37 +275,54 @@ class CR30:
                                        "instrument's button")
             if time.monotonic() > deadline:
                 raise MeasurementError(
-                    f"no new reading within {timeout:.0f} s. Place the "
+                    f"no button press within {timeout:.0f} s. Place the "
                     "instrument on the highlighted patch and press its own "
                     "button.")
+            if take_event() is None:
+                time.sleep(min(poll, 0.1))
+                continue
+            # It has acted. Read what it now holds — and give it a moment
+            # first: read too soon and the reply comes back zero-filled, which
+            # is the device's way of saying it has not finished (EXP-BLE-015).
+            time.sleep(0.4)
+            m = self._read_when_ready(deadline)
+            self._last_seen = m.values
+            m.check_usable(self._previous)
+            self._previous = m
+            return m
+
+    def _read_when_ready(self, deadline: float, tries: int = 6) -> Measurement:
+        """Read the stored measurement, waiting out a device that is busy.
+
+        A reply that arrives zero-filled is not a bad reply, it is a BUSY one:
+        the owner's calibration failed with "16 zero bands (truncated reply)"
+        because we read 1.8 s after asking the instrument to act. The zero-fill
+        IS the signal, so the answer is to ask again rather than to guess at a
+        sleep long enough to cover every case.
+        """
+        import time as _time
+        last = None
+        for _ in range(tries):
             try:
-                m = self.read_measurement(enforce=False)
-            except MeasurementError:
-                raise      # includes DeviceLost, which is one
+                return self.read_measurement(enforce=False)
+            except DeviceLost:
+                raise
+            except MeasurementError as exc:
+                last = exc
+                if _time.monotonic() > deadline:
+                    break
+                _time.sleep(0.5)
             except Exception as exc:
-                # Same distinction as USB above. bleak raises once the
-                # peripheral is gone; his log caught the disconnect itself
-                # ("Peripheral Device disconnected!") while the app carried on
-                # as though the session were healthy.
+                # A link that has GONE, as opposed to one that is busy. bleak
+                # raises once the peripheral is away; without this it would
+                # escape as a raw ConnectionError and take the "refused
+                # reading" path, where the user is told to press the button
+                # again on an instrument that is not there.
                 raise DeviceLost(
                     f"the Bluetooth link to the instrument dropped ({exc})"
                 ) from exc
-            if m.values != prev:
-                # The device is holding something new, so the operator has
-                # pressed. Record that BEFORE judging it: whatever the verdict,
-                # this is now what the next press has to differ from, and a
-                # refusal that left the baseline behind made the following wait
-                # end instantly on the very reading that had just been refused.
-                self._last_seen = m.values
-                # Judge it against the last ACCEPTED reading. Passing
-                # self._previous here compared the reading to ITSELF once
-                # read_measurement had already stored it, so identical_to was
-                # always True and every BLE read raised "bit-identical to the
-                # previous one" — no patch could ever be read over Bluetooth.
-                m.check_usable(accepted)
-                self._previous = m
-                return m
-            time.sleep(poll)
+        raise MeasurementError(
+            f"the instrument did not return a complete reading ({last})")
 
     def read_measurement(self, *, enforce: bool = True,
                          button_header=None) -> Measurement:

@@ -164,6 +164,10 @@ class BleTransport:
         self.name, self.address, self.timeout = name, address, timeout
         self._client = None
         self._buf = bytearray()
+        #: Unsolicited "the instrument acted" frames, kept apart from
+        #: the reply buffer so that draining one cannot lose the other.
+        from collections import deque
+        self._events: "deque[bytes]" = deque(maxlen=64)
         self._loop = None
 
     # -- lifecycle -------------------------------------------------------
@@ -219,7 +223,50 @@ class BleTransport:
 
     # -- link ------------------------------------------------------------
     def _on_notify(self, _sender, data: bytearray) -> None:
-        self._buf.extend(bytes(data))
+        """One channel, two kinds of traffic — separate them here.
+
+        The instrument pushes a 10-byte `bb 01 00 …` frame WHENEVER IT ACTS:
+        VERIFIED on the owner's unit, EXP-BLE-013 (three presses, three frames,
+        controls silent, nothing sent) and again in EXP-BLE-015, where our own
+        trigger produced one too. That is an EVENT, and it is the thing the
+        Bluetooth path was missing: without it a press could only be inferred by
+        polling the stored value and noticing it changed — which cannot tell one
+        press from three and slides readings onto later patches. The owner saw
+        exactly that: a colour meant for A19 recorded against A20.
+
+        These frames used to be swallowed. Everything landed in one buffer and
+        `_drain` cleared it before every command, so the presses were discarded
+        unread and the evidence was thrown away.
+
+        The rule is deliberately narrow: a complete 10-byte frame whose checksum
+        is valid and whose command byte is 0x01 is an event; anything else is
+        reply data. A measurement reply is 200 bytes and begins `bb 02 10`, so
+        the two cannot be confused, and a corrupt or partial frame falls through
+        to the reply buffer where the existing validation deals with it.
+        """
+        b = bytes(data)
+        if (len(b) == FRAME_LEN and b[0] == 0xBB and b[1] == 0x01
+                and b[MARKER_AT] == 0xFF and b[9] == checksum(b)):
+            self._events.append(b)
+            return
+        self._buf.extend(b)
+
+    # -- the instrument acting, as an event ------------------------------
+    def take_event(self) -> "bytes | None":
+        """The oldest unclaimed event, or None. Never blocks.
+
+        Kept OUT of `_buf` on purpose, so `_drain` — which exists to stop
+        stragglers corrupting the next reply's offsets — cannot destroy them.
+        """
+        return self._events.popleft() if self._events else None
+
+    def drop_events(self) -> int:
+        """Forget every event so far; returns how many. Used when arming a
+        patch, so a press made while nothing was listening cannot be collected
+        later and attributed to the wrong patch."""
+        n = len(self._events)
+        self._events.clear()
+        return n
 
     async def _drain(self, wait: float = 0.4) -> None:
         """Flush stragglers BEFORE a command.

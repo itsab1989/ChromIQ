@@ -168,6 +168,10 @@ class Cr30MeasureBridge(QObject):
 
     #: A reading was refused rather than sent: (loc, one of DROPPED_*).
     reading_dropped = pyqtSignal(str, str)
+    #: An already-measured patch was armed again because the user navigated to
+    #: it deliberately: (loc). They must be told, or the re-arm looks exactly
+    #: like the dead session it replaces.
+    patch_rearmed = pyqtSignal(str)
     #: The device could not be read, but the session is alive and the patch
     #: has been RE-ARMED: (loc, message). Pressing the button again works.
     read_failed = pyqtSignal(str, str)
@@ -224,6 +228,9 @@ class Cr30MeasureBridge(QObject):
         loc = str(ev.get("loc") or "")
         if not loc:
             return
+        # Did the user ASK for this patch? A jump we sent lands as the very
+        # next prompt for its target, so this is the one place that knows.
+        asked_for = (self._nav_target is not None and loc == self._nav_target)
         if self._nav_target is not None:
             if loc != self._nav_target:
                 # Still the patch we are leaving: the jump has not landed yet.
@@ -232,10 +239,28 @@ class Cr30MeasureBridge(QObject):
         self._awaiting_loc = loc
         if ev.get("all_done"):
             return
-        if ev.get("read"):
-            # Already recorded. Re-reading it would need the user to ask; the
-            # tab moves on instead, exactly as its own full-read loop does.
+        if ev.get("read") and not asked_for:
+            # Already recorded, and arrived at by traversal rather than by
+            # choice. Passing over it is right; re-reading everything already
+            # measured is not what the user asked for.
             return
+        if ev.get("read"):
+            # ALREADY READ, AND THE USER CLICKED IT ANYWAY.
+            #
+            # The old code returned here whatever the reason, with a comment
+            # saying "re-reading it would need the user to ask" — and clicking
+            # the patch IS the user asking. That is what click-to-jump is for.
+            # So a patch that had been given the wrong colour could never be
+            # corrected: the preview highlighted it, the helper waited on it,
+            # the screen said read this patch, and no reader was ever started.
+            # The owner pressed the button repeatedly at nothing.
+            #
+            # Safe to re-arm: the helper accepts a value for whatever patch it
+            # is sitting on, overwrites that row in place and re-saves the
+            # measurement file, so nothing is appended and nothing duplicated.
+            log.info("CR30: %s was already read and the user asked for it "
+                     "again — arming it", loc)
+            self.patch_rearmed.emit(loc)
         if self._reading_loc == loc:
             # A duplicate prompt for the patch already being read — an `ok` or
             # `retry` echo. Do NOT start a second read; that is the shape that
@@ -535,11 +560,25 @@ class DeviceReader:
             self._dev.calibrate_white()
             # Take the reading the calibration produced, so the device's stored
             # value is known to us rather than left as a surprise for patch A1.
-            try:
-                self._dev.read_measurement(enforce=False)
-            except Exception:            # noqa: BLE001 — informational only
-                log.debug("CR30: could not read back after calibrating",
-                          exc_info=True)
+            #
+            # WAIT IT OUT, do not read once and give up. Reading too soon
+            # returns a zero-filled reply, and that is the device saying "not
+            # finished" rather than a bad reading: the owner's calibration on
+            # 2026-08-29 failed with "16 zero bands (truncated reply)" because
+            # we asked 1.8 s after triggering. A fixed sleep would only be a
+            # guess at the longest case, so ask again until it answers.
+            import time as _t
+            deadline = _t.monotonic() + 12.0
+            while True:
+                try:
+                    self._dev.read_measurement(enforce=False)
+                    break
+                except Exception:        # noqa: BLE001 — informational only
+                    if _t.monotonic() > deadline:
+                        log.debug("CR30: could not read back after "
+                                  "calibrating", exc_info=True)
+                        break
+                    _t.sleep(0.5)
 
     def cancel(self) -> None:
         """Stop a wait in progress, so Stop does not block for the timeout."""

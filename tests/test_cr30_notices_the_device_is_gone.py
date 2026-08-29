@@ -75,7 +75,16 @@ def test_a_dropped_bluetooth_link_is_reported():
     d.model = "CR30"
 
     class _Dead:
-        def ask(self, _cmd):
+        # A link that reports one press and then turns out to be gone: the
+        # wait is event-driven now, so a transport that never announces
+        # anything would simply time out rather than exercise the loss path.
+        def take_event(self):
+            return bytes.fromhex("bb01000001900a1fff75")
+
+        def drop_events(self):
+            return 0
+
+        def ask(self, _cmd, **_kw):
             raise ConnectionError("peripheral disconnected")
 
     d._t = _Dead()
