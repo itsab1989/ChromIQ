@@ -119,16 +119,53 @@ def count_sets(path: "Path | str") -> "tuple[int | None, int | None] | None":
 
 
 def expected_patches(ti2_path: "Path | str | None") -> "int | None":
-    """**A** — how many patches the chart has, or ``None`` if it cannot be read."""
+    """**A** — how many patches the chart has, or ``None`` if it cannot be read.
+
+    PADDING ROWS ARE NOT PATCHES. A ``printtarg`` sheet is filled out to a whole
+    number of strips with rows whose ``SAMPLE_ID`` is ``0``; they are never
+    printed as readable patches and chartread never writes a reading for one.
+    Counting them made every complete measurement of such a chart look partial:
+    a real 1,155-row chart on this machine carries three of them, and a 1,173-row
+    one carries thirteen. The Measure tab's progress was already right, because
+    the helper's own "all done" excludes them — it was this second, independent
+    count that disagreed, and it told the user their finished measurement was
+    "1,152 of 1,155" and advised them to go back and resume.
+
+    Charts from ChromIQ's own layout engine have no padding, which is why this
+    never showed up on a CR30 and only bit the established instruments.
+    """
     if ti2_path is None or not Path(ti2_path).is_file():
         return None
     counts = count_sets(ti2_path)
     if counts is None:
         return None
     claimed, held = counts
-    # The .ti2's own body is authoritative over its header for the same reason
-    # the .ti3's is: the rows are the thing, the header is a claim about them.
-    return held if held else claimed
+    padding = _padding_rows(ti2_path)
+    if held:
+        # The .ti2's own body is authoritative over its header for the same
+        # reason the .ti3's is: the rows are the thing, the header is a claim
+        # about them.
+        return max(0, held - padding)
+    return max(0, claimed - padding) if claimed is not None else None
+
+
+def _padding_rows(path: "Path | str") -> int:
+    """Rows a printtarg sheet adds to fill its last strip: ``SAMPLE_ID`` 0."""
+    try:
+        text = Path(path).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return 0
+    parts = re.split(r"^\s*BEGIN_DATA\s*$", text, maxsplit=1, flags=re.MULTILINE)
+    if len(parts) < 2:
+        return 0
+    body = re.split(r"^\s*END_DATA\s*$", parts[1], maxsplit=1,
+                    flags=re.MULTILINE)[0]
+    n = 0
+    for ln in body.splitlines():
+        fields = ln.split()
+        if fields and fields[0] == "0":
+            n += 1
+    return n
 
 
 def classify(ti3_path: "Path | str | None",

@@ -151,9 +151,13 @@ def test_moving_on_does_start_a_new_read():
 
 
 def test_an_already_read_patch_is_not_re_read():
+    """It is not re-read — but the session must not stop on it either. The
+    helper advances by index, so on a resumed chart it lands on measured
+    patches constantly; stopping on each one is the stall the owner hit."""
     h = Harness()
     h.ready("A1", read=True)
-    assert h.read_calls == [] and h.sent == []
+    assert h.read_calls == []
+    assert h.sent == [{"cmd": "next_unread"}]
 
 
 def test_all_done_is_not_a_patch_to_read():
@@ -357,6 +361,10 @@ class _Spy:
     def on_patch_measured(self, ev): self.measured.append(ev)
     def note_goto(self, loc):        self.gotos.append(loc)
     def stop(self):                  pass
+    # The tab asks before it highlights, so that it can never point at a patch
+    # nothing is listening to. This spy is always armed; the rule itself is
+    # tested in test_cr30_can_re_read_a_patch.py.
+    def armed_for(self, _loc):       return True
 
 
 def test_the_tab_feeds_the_bridge_both_spot_signals(tab):

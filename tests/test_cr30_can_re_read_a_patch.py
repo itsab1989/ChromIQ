@@ -58,7 +58,12 @@ def test_clicking_an_already_read_patch_arms_it():
 
 def test_merely_passing_over_a_read_patch_still_skips_it():
     """The other half, and it must not change: traversing a chart must not
-    re-measure everything already done."""
+    re-measure everything already done.
+
+    It used to assert that NOTHING was sent — and that was the stall: the
+    session simply stopped there, in silence. Skipping the patch is still
+    right; stopping on it never was.
+    """
     h = Harness()
     rearmed: list = []
     h.bridge.patch_rearmed.connect(rearmed.append)
@@ -67,7 +72,8 @@ def test_merely_passing_over_a_read_patch_still_skips_it():
 
     assert h.read_calls == [], "traversal re-measured a patch nobody asked for"
     assert rearmed == []
-    assert h.sent == []
+    assert h.sent == [{"cmd": "next_unread"}], (
+        "it neither read the patch nor moved past it — that is the stall")
 
 
 def test_a_jump_to_an_unread_patch_is_unaffected():
@@ -94,3 +100,38 @@ def test_a_finished_chart_can_still_have_a_patch_corrected():
     assert rearmed == ["A17"], (
         "a completed chart cannot have a wrong patch corrected")
     assert len(h.read_calls) == 1
+
+
+def test_traversal_onto_a_measured_patch_moves_on_instead_of_stalling():
+    """report 16, the blocker: the helper advances BY INDEX after every
+    reading, never to the next unread one, so on a resumed chart it lands on
+    already-measured patches constantly. Each one used to stop the session
+    dead and silently — nothing armed, the patch highlighted anyway, and the
+    operator pressing at something that was not listening."""
+    h = Harness()
+    h.bridge.on_patch_ready({"loc": "A20", "read": True, "all_done": False})
+    h.settle()
+    assert h.read_calls == [], "it re-measured a patch nobody asked for"
+    assert h.sent == [{"cmd": "next_unread"}], (
+        f"the session stalled instead of moving on: {h.sent}")
+
+
+def test_a_finished_chart_does_not_ask_for_a_next_unread_patch():
+    """There is none, and the helper would answer with this same patch for
+    ever."""
+    h = Harness()
+    h.bridge.on_patch_ready({"loc": "A20", "read": True, "all_done": True})
+    h.settle()
+    assert h.sent == [], f"asked for a next unread patch when there is none: {h.sent}"
+
+
+def test_the_bridge_says_whether_a_patch_is_armed():
+    """What the tab asks before it highlights."""
+    h = Harness()
+    h.bridge.note_goto("B3")
+    h.bridge.on_patch_ready({"loc": "B3", "read": False, "all_done": False})
+    assert h.bridge.armed_for("B3")
+    h.settle()
+    h.bridge.on_patch_ready({"loc": "A20", "read": True, "all_done": False})
+    h.settle()
+    assert not h.bridge.armed_for("A20")

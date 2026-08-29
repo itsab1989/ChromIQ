@@ -108,6 +108,7 @@ whether the handler works.**
 | **Calibrate your CR30 before measuring** (M-CR30-CALIBRATE) | Calibrate now | ChromIQ triggers the instrument's calibration | not an exit — the session has not begun | ✅ *(see note 5)* |
 | | Cancel | a bare `return` from `_on_start` | the measurement never starts | ✅ *(see note 5)* |
 | **The instrument stopped answering** (M-CR30-INSTRUMENT-GONE) | (three buttons) | `_end_session(choice)` | the ending | ✅ *(see note 6)* |
+| **Instrument disconnected** (the shared handler, every instrument) | (three buttons) | `_end_session(choice)` | the ending | ✅ *(see note 7)* |
 | **All Strips Read / All Patches Read** | Go to … Tab | `d` | "done" — chartread writes and exits normally; keeps the measurement and moves on | ✅ not a failure exit |
 | | Re-read … | — | the window closes; the session continues | ✅ |
 | | Close | — | raises **"Keep what you have measured so far?"** — the single exit | ✅ |
@@ -244,3 +245,23 @@ instrument is released when contact is lost, so a reconnected instrument can be
 opened, and the outstanding patch is armed again. Without both of those the
 button would leave a live session with nothing listening — the dead end this
 work removed everywhere else.
+
+## Note 7 — the shared disconnect handler now ends through the one exit
+
+⏳ **Awaiting confirmation.** **Confirmed by:** *nobody yet.*
+
+`TabMeasure._on_instrument_disconnected` is the handler for EVERY instrument,
+not only the CR30, and it used to call `MeasureManager.abort()` directly. That
+is a second exit, which §1 forbids — and on any instrument that is not a CR30 it
+**destroyed the session**, because stock chartread writes its `.ti3` only on a
+clean exit (CLAUDE.md: *"chartread writes .ti3 ONLY on clean exit — kill = data
+loss"*). So the same line made a disconnection survivable for one instrument and
+fatal for another.
+
+It now raises the ending window every route shares, and the user chooses. The
+instrument-fault sound still plays first, because the window blocks.
+
+**This is a behaviour change for the established instruments** and is recorded
+here for that reason: an i1Pro user who unplugs mid-measurement is now offered
+Save / Discard / Keep instead of losing the session outright. It is reported as
+a change rather than assumed to be wanted.

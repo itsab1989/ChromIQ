@@ -328,7 +328,8 @@ class BleTransport:
                 break
         self._buf.clear()
 
-    async def _ask(self, req: bytes, polls: int, wait: float) -> bytes:
+    async def _ask(self, req: bytes, polls: int, wait: float,
+                   done=None) -> bytes:
         await self._drain()
         await self._client.write_gatt_char(FFE1, req, response=False)
         await asyncio.sleep(wait)
@@ -337,13 +338,30 @@ class BleTransport:
             n = len(self._buf)
             await self._client.write_gatt_char(FFE1, POLL, response=False)
             await asyncio.sleep(wait)
+            # STOP WHEN THE ANSWER IS COMPLETE, not when the silence is.
+            #
+            # Waiting for three quiet rounds spent ~1.05 s confirming silence
+            # over data already in hand: measured on the owner's unit, a press
+            # took 1.85 s to reach the chart of which the device's own share
+            # was 280 ms. On a 390-patch chart that is nearly seven minutes of
+            # nothing.
+            #
+            # `done` must be the caller's FULL validation, never a length test.
+            # The vendor's own capture is a truncated, zero-filled reply
+            # followed by a complete one, and both pass every length and
+            # checksum check — which is why read_measurement collects every
+            # candidate and keeps the last that survives. A naive "looks
+            # finished" would take the bad one.
+            if done is not None and self._buf and done(bytes(self._buf)):
+                break
             quiet = quiet + 1 if len(self._buf) == n else 0
             if quiet >= 3 and self._buf:
                 break
         return bytes(self._buf)
 
-    def ask(self, req: bytes, *, polls: int = 10, wait: float = 0.35) -> bytes:
+    def ask(self, req: bytes, *, polls: int = 10, wait: float = 0.35,
+            done=None) -> bytes:
         """Send one frame, poll until the device stops sending, return raw bytes."""
         if self._client is None:
             raise ConnectionError("BLE transport is not open")
-        return self._run(self._ask(req, polls, wait))
+        return self._run(self._ask(req, polls, wait, done))

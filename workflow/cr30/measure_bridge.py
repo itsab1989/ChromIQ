@@ -245,6 +245,9 @@ class Cr30MeasureBridge(QObject):
                 return
             self._nav_target = None       # the jump landed; normal service
         self._awaiting_loc = loc
+        # Nothing left unread. Do NOT ask for the next unread patch here —
+        # there is none, and the helper would answer with this same patch for
+        # ever. The tab says so instead.
         if ev.get("all_done") and not asked_for:
             # Nothing left unread, and the user did not ask for this patch:
             # there is nothing to arm. But once a chart is COMPLETE the helper
@@ -254,9 +257,26 @@ class Cr30MeasureBridge(QObject):
             # wrong colour, and no way left to correct it.
             return
         if ev.get("read") and not asked_for:
-            # Already recorded, and arrived at by traversal rather than by
-            # choice. Passing over it is right; re-reading everything already
-            # measured is not what the user asked for.
+            # ALREADY RECORDED, AND ARRIVED AT RATHER THAN CHOSEN.
+            #
+            # Passing over it is right — traversing a chart must not re-measure
+            # everything already done. But simply returning left the session
+            # DEAD, and silently: the helper advances by index after every
+            # reading, never to the next unread one, so on a resumed chart it
+            # lands on measured patches constantly. Each time, nothing was
+            # armed, the tab highlighted the patch anyway, and the operator
+            # pressed the button at something that was not listening. Basti hit
+            # it the moment a re-read finished and the helper stepped to A20.
+            #
+            # The same shape reaches a FRESH chart too: when a reading is wildly
+            # off the expected colour the helper re-offers the same patch marked
+            # read, and that landed in this branch as well.
+            #
+            # So move on instead of stopping. "next_unread" is the helper's own
+            # 'n', and it searches AFTER the current patch — with all_done
+            # false there is guaranteed to be an unread one to find, so this
+            # cannot circle.
+            self._send({"cmd": "next_unread"})
             return
         if ev.get("read"):
             # ALREADY READ, AND THE USER CLICKED IT ANYWAY.
@@ -294,6 +314,16 @@ class Cr30MeasureBridge(QObject):
                       answered, loc)
             self._stopped = True
             self.mispaired.emit(answered, loc)
+
+    def armed_for(self, loc: str) -> bool:
+        """Is a reader actually running for this patch?
+
+        The tab asks before it highlights. Highlighting a patch nothing is
+        listening to is the single shape every fault in this area has taken:
+        the preview says read this, the helper waits, and the button is
+        connected to nothing.
+        """
+        return self._reading_loc == loc
 
     def rearm(self) -> bool:
         """Start reading the outstanding patch again. True if there was one.

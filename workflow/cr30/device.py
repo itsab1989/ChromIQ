@@ -22,6 +22,37 @@ import logging
 log = logging.getLogger(__name__)
 
 
+def _parse_reply(raw: bytes):
+    """The last complete, valid measurement in `raw`, or None.
+
+    Factored out so the polling loop can ask the SAME question the parser asks:
+    "is a usable reply here yet?" Anything weaker — a length, a header, a
+    checksum — is satisfied by the truncated, zero-filled first half of the
+    vendor's double reply, which is exactly the frame this validation exists to
+    reject.
+    """
+    offsets, k = [], raw.find(ble.MEASUREMENT_HDR)
+    while k >= 0:
+        offsets.append(k)
+        k = raw.find(ble.MEASUREMENT_HDR, k + 1)
+    for i in reversed(offsets):
+        if len(raw) - i < ble.MIN_REPLY:
+            continue
+        try:
+            a = ble.BleAxis.parse(raw[i:i + 8])
+            v = list(struct.unpack_from(f"<{a.bands}f", raw, i + ble.SPECTRUM_AT))
+            l = list(struct.unpack_from("<3f", raw, i + ble.LAB_AT))
+            probe = Measurement(a.wavelengths(), [round(x, 6) for x in v],
+                                lab=[round(x, 4) for x in l])
+            probe.validate()
+            if probe.zero_run() >= 3:
+                continue
+        except Exception:            # noqa: BLE001 — not usable yet, keep polling
+            continue
+        return i
+    return None
+
+
 class DeviceLost(MeasurementError):
     """The instrument stopped answering mid-session: unplugged, switched off,
     or the Bluetooth link dropped.
@@ -364,7 +395,14 @@ class CR30:
                 # place.
                 self._previous = m
             return m
-        raw = self._t.ask(ble.READ_MEASUREMENT)
+        # Stop polling the moment a COMPLETE, VALID reply is in hand. The
+        # predicate is `_parse_reply` itself — the same scan-from-the-end,
+        # zero-run-rejecting validation used below, not a length test — so it
+        # cannot stop on the truncated half of a double reply. Waiting instead
+        # for three silent rounds cost about a second per patch on data already
+        # received.
+        raw = self._t.ask(ble.READ_MEASUREMENT,
+                          done=lambda b: _parse_reply(b) is not None)
         # A stream can hold MORE THAN ONE reply: the vendor's own 410-byte BLE
         # capture is a truncated, zero-filled reply followed by a complete one.
         # A first-match scan takes the truncated one and every length and

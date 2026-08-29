@@ -105,3 +105,47 @@ def test_a_complete_measurement_is_not_nagged_about(tab, tmp_path):
     assert tab._build_btn.toolTip() == ""
     assert "measured" not in tab._file_lbl.text(), (
         "a complete measurement is being flagged as if it were partial")
+
+
+_TI2_PADDED = """CTI2
+
+NUMBER_OF_FIELDS 5
+BEGIN_DATA_FORMAT
+SAMPLE_ID SAMPLE_LOC RGB_R RGB_G RGB_B
+END_DATA_FORMAT
+
+NUMBER_OF_SETS 6
+BEGIN_DATA
+1 "A1" 100 100 100
+2 "A2" 0 0 0
+3 "A3" 50 50 50
+4 "A4" 25 25 25
+0 "A5" 100 100 100
+0 "A6" 100 100 100
+END_DATA
+"""
+
+
+def test_padding_patches_are_not_counted_as_missing(tab, tmp_path):
+    """report 16: a COMPLETE measurement of a printtarg chart was labelled
+    "924 of 940 patches measured", with advice to go back and resume.
+
+    printtarg fills its last strip out with rows whose SAMPLE_ID is 0. They are
+    never printed as readable patches and chartread never writes a reading for
+    one, so counting them made every complete measurement of such a chart look
+    partial. Charts from ChromIQ's own layout engine have no padding, which is
+    why this only bit the established instruments.
+
+    Real charts on the owner's machine: a 1,155-row chart with 3 padding rows
+    and a 1,173-row one with 13.
+    """
+    (tmp_path / "chart.ti2").write_text(_TI2_PADDED)
+    ti3 = tmp_path / "chart.ti3"
+    ti3.write_text(_ti3(4))              # all four REAL patches measured
+    tab.set_ti3_path(ti3, propagate=False)
+
+    assert tab._build_btn.isEnabled()
+    assert tab._build_btn.toolTip() == "", (
+        f"a finished measurement was called partial: {tab._build_btn.toolTip()!r}")
+    assert "measured" not in tab._file_lbl.text(), (
+        f"the label calls a finished measurement partial: {tab._file_lbl.text()!r}")

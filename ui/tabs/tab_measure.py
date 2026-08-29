@@ -10963,6 +10963,17 @@ class TabMeasure(QWidget):
             self._log.appendPlainText(
                 tr("[Engine] Tip: click any patch in the preview to jump "
                    "straight to it."))
+        # NEVER HIGHLIGHT A PATCH NOTHING IS LISTENING TO.
+        #
+        # That is the shape every fault in this area has taken: the preview
+        # says "read this", the helper waits on it, and the instrument's button
+        # is connected to nothing. The bridge has already decided by the time
+        # we get here, so ask it rather than assume — a patch it passed over is
+        # one it is moving on from, and pointing at it would invite a press
+        # that cannot land.
+        if bridge is not None and not bridge.armed_for(loc):
+            self._preview.highlight_patch(-1, None)
+            return
         page, box = self._locate_patch(loc)
         if page < 0:
             self._preview.highlight_patch(-1, None)
