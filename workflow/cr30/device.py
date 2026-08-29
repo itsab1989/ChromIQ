@@ -40,13 +40,6 @@ class CR30:
     def __init__(self, transport, kind: str):
         self._t, self.kind = transport, kind
         self._previous: Measurement | None = None
-        #: The last spectrum the device was SEEN holding, whether or not
-        #: the reading was accepted. Distinct from `_previous` on
-        #: purpose: "has the operator pressed the button" and "is this
-        #: identical to the reading we kept" are different questions,
-        #: and answering both from one value made a refused reading end
-        #: the next wait instantly, with nobody pressing anything.
-        self._last_seen: "list[float] | None" = None
         self.model = ""
 
     # -- construction ----------------------------------------------------
@@ -296,7 +289,6 @@ class CR30:
             # out the zero-filled "not finished yet" reply rather than guessing
             # at a sleep long enough to cover every case.
             m = self._read_when_ready(deadline)
-            self._last_seen = m.values
             m.check_usable(self._previous)
             self._previous = m
             return m
@@ -328,6 +320,14 @@ class CR30:
                 # escape as a raw ConnectionError and take the "refused
                 # reading" path, where the user is told to press the button
                 # again on an instrument that is not there.
+                #
+                # Logged with its traceback first, because this arm is broad
+                # enough to swallow a programming error and report it to the
+                # user as a disconnection — a bug that would be invisible in
+                # exactly the sessions where it matters.
+                log.warning("CR30: read failed with an error that is not a "
+                            "measurement fault; treating the instrument as "
+                            "gone", exc_info=True)
                 raise DeviceLost(
                     f"the Bluetooth link to the instrument dropped ({exc})"
                 ) from exc

@@ -25,7 +25,6 @@ def _usb_device(receive):
     d = CR30.__new__(CR30)
     d.kind = "usb"
     d._previous = None
-    d._last_seen = None
     d.model = "CR30"
     d._t = type("T", (), {"receive": staticmethod(receive)})()
     return d
@@ -71,7 +70,6 @@ def test_a_dropped_bluetooth_link_is_reported():
     d = CR30.__new__(CR30)
     d.kind = "ble"
     d._previous = None
-    d._last_seen = None
     d.model = "CR30"
 
     class _Dead:

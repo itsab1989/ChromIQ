@@ -118,7 +118,6 @@ def _device(link) -> CR30:
     d.kind = "ble"
     d._t = link
     d._previous = None
-    d._last_seen = None
     d.model = "CR30"
     return d
 
