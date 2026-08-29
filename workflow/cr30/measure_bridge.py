@@ -138,16 +138,30 @@ class _ReadWorker(QObject):
     #: matching on that sentence is the trap this argument exists to avoid.
     failed = pyqtSignal(str, str, str)
 
-    def __init__(self, loc: str, reader) -> None:
+    def __init__(self, loc: str, reader, generation=None) -> None:
         super().__init__()
         self._loc, self._reader = loc, reader
+        # Captured when the read is ARMED, not when it starts running. A second
+        # click while this thread is still queued would otherwise read the
+        # generation AFTER the bump and survive it — the same zombie, now
+        # hidden behind a three-minute wait.
+        self._generation = generation
 
     def run(self) -> None:
         try:
-            xyz = self._reader()
+            xyz = (self._reader(self._generation)
+                   if self._generation is not None else self._reader())
         except Exception as e:            # noqa: BLE001 — a device error is news
-            self.failed.emit(self._loc, str(e) or e.__class__.__name__,
-                             type(e).__name__)
+            # WAS THIS READ ABANDONED, or did it actually fail? The difference
+            # decides whether the user hears anything at all. Answered from the
+            # token, never from the message text — deciding by matching on a
+            # sentence is exactly the "adjacent in the log is not causal" trap.
+            kind = type(e).__name__
+            if (self._generation is not None
+                    and self._generation != getattr(self._reader,
+                                                    "_generation", None)):
+                kind = "ReadAbandoned"
+            self.failed.emit(self._loc, str(e) or e.__class__.__name__, kind)
             return
         try:
             x, y, z = (float(v) for v in xyz)
@@ -350,6 +364,22 @@ class Cr30MeasureBridge(QObject):
         """
         self._nav_target = str(target)
         self._awaiting_loc = None
+        # LET GO OF THE READ FOR THE PATCH BEING LEFT.
+        #
+        # It is still blocked waiting for a button, and the operator's next
+        # press satisfies THAT read — which then finds the prompt has moved and
+        # is discarded as stale. So the first press after every click was
+        # thrown away, on both transports, and the user was told "the reading
+        # arrived when ChromIQ was not waiting for one". It cost a press every
+        # single time.
+        #
+        # Abandoning is not cancelling: the reader stays usable, only this one
+        # read is given up. The reader's own cancel is a one-way latch and
+        # using it here would end the session.
+        abandon = getattr(self._reader, "abandon_current", None)
+        if callable(abandon) and self._reading_loc is not None:
+            abandon()
+            self._reading_loc = None
         log.debug("CR30: navigation to %s outstanding — holding readings",
                   target)
 
@@ -371,8 +401,9 @@ class Cr30MeasureBridge(QObject):
     # -- the device's side ---------------------------------------------
     def _start_read(self, loc: str) -> None:
         self._reading_loc = loc
+        gen = getattr(self._reader, "_generation", None)
         thread = QThread(self)
-        worker = _ReadWorker(loc, self._reader)
+        worker = _ReadWorker(loc, self._reader, gen)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
         worker.done.connect(self._on_reading)
@@ -407,6 +438,15 @@ class Cr30MeasureBridge(QObject):
             # finished -- on EVERY stop, since cancelling is now what makes
             # Stop responsive at all.
             log.debug("CR30: read for %s ended by the stop (%s)", loc, message)
+            return
+
+        if exc_type == "ReadAbandoned":
+            # The user navigated away and we let this read go. Nothing failed,
+            # nothing is owed to them, and re-arming would fight the patch they
+            # actually asked for. Silent on purpose — the only case in here
+            # that is.
+            log.debug("CR30: read for %s abandoned on navigation", loc)
+            self._retries.pop(loc, None)
             return
 
         if exc_type == "DeviceLost":
@@ -512,6 +552,12 @@ class DeviceReader:
         #: patch was armed. Set by the bridge so the user hears about presses
         #: that did nothing.
         self.on_dropped = None
+        #: Bumped to abandon the read in flight WITHOUT ending the reader.
+        #: Distinct from `_cancel`, which means "this reader is finished" and
+        #: is never cleared — cancelling one read through that latch would make
+        #: every later patch fail instantly, which is the dead session this
+        #: whole line of work has been removing.
+        self._generation = 0
         #: Set once, by stop()/close(), and never cleared: a cancelled reader
         #: is a FINISHED one. Safe because the tab builds a fresh DeviceReader
         #: for every session (ui/tabs/tab_measure.py, _open_cr30_bridge) -- if
@@ -533,7 +579,7 @@ class DeviceReader:
             except Exception as ble_err:  # noqa: BLE001 — report BOTH honestly
                 raise ConnectionError(_no_device_help(usb_err, ble_err)) from ble_err
 
-    def __call__(self):
+    def __call__(self, generation: "int | None" = None):
         # WAIT for the operator's button press; do NOT read what is already
         # there. The CR30 holds its last reading indefinitely, so
         # `read_measurement()` returns instantly with the previous value and
@@ -563,7 +609,10 @@ class DeviceReader:
             from .device import DeviceLost
             try:
                 m = self._dev.read_next_measurement(
-                    timeout=self.button_timeout_s, cancelled=self._cancelled)
+                    timeout=self.button_timeout_s,
+                    cancelled=lambda: self._cancelled() or (
+                        generation is not None
+                        and generation != self._generation))
             except DeviceLost:
                 # Let go of the handle. It belongs to an instrument that is no
                 # longer there, and keeping it means a reconnected instrument
@@ -628,6 +677,15 @@ class DeviceReader:
                                   "calibrating", exc_info=True)
                         break
                     _t.sleep(0.5)
+
+    def abandon_current(self) -> int:
+        """Give up on the read in flight; later reads are unaffected.
+
+        For when the user navigates away from the patch being read. Returns the
+        new generation, which is the token a caller may compare against.
+        """
+        self._generation += 1
+        return self._generation
 
     def cancel(self) -> None:
         """Stop a wait in progress, so Stop does not block for the timeout."""

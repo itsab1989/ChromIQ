@@ -7013,15 +7013,21 @@ class TabMeasure(QWidget):
             "cannot check the result — the instrument reports the same value "
             "whatever is under the cap."))
         self._log.ensureCursorVisible()
-        # SAY IT HAPPENED, because the instrument will not.
+        # SAY IT HAPPENED, ON SCREEN, whatever the instrument does.
         #
-        # The CR30 beeps when its own button is pressed and stays silent when
-        # the host asks — measured on the owner's unit, EXP-BLE-015: the
-        # trigger returned the tile constant, so the calibration genuinely
-        # happened, and he heard nothing and assumed the button was dead. The
-        # calibration was never broken; the feedback was missing. So ChromIQ
-        # gives the feedback the device does not, with the sound it already
-        # uses for "that worked" rather than a new one nobody has chosen.
+        # The instrument DOES beep for a host-triggered calibration, on both
+        # transports — the owner confirmed that on 2026-08-29 after running it
+        # over USB and Bluetooth. An earlier comment here claimed the opposite
+        # and cited EXP-BLE-015 as having measured it; that experiment recorded
+        # no sound at all and the claim came from a first impression. What he
+        # originally hit was LATENCY: over Bluetooth the cycle took ~1.85 s and
+        # the button felt dead.
+        #
+        # The confirmation stays regardless, and stands on its own reasons: a
+        # beep from a device on the far side of a desk is not an answer to
+        # "did that work", and over Bluetooth it can arrive a second and a half
+        # after the click. The sound is the one already used for "that worked",
+        # rather than a new one nobody has chosen.
         from core import sound as _snd
         try:
             self._sound.play(_snd.PATCH_OK)
