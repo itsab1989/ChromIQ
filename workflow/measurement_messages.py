@@ -166,7 +166,7 @@ M_CR30_CALIBRATE_BLACK = _m(
     "This second step is the opposite of the first one, so it is worth a "
     "glance at the picture above.\n\n"
     "TAKE THE CAP OFF and put it aside. Hold the instrument with the opening "
-    "pointing DOWNWARD into open space — about an arm's length above the "
+    "pointing DOWNWARD into open space — about a metre above the "
     "floor, with nothing in front of it, and not aimed at a lamp or a "
     "window.\n\n"
     "There is nothing to place it on. Your CR30 has no black tile: it takes "

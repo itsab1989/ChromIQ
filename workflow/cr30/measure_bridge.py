@@ -627,8 +627,15 @@ class DeviceReader:
         from .colour import spectrum_to_xyz
         return spectrum_to_xyz(m.values)
 
-    def calibrate(self) -> None:
-        """Ask the instrument to take its white calibration, now.
+    def calibrate(self, black: bool = False) -> None:
+        """Ask the instrument to take a calibration, now.
+
+        `black` picks the DARK reference instead of the white one. This flag was
+        once added to `CR30.calibrate` and not to this wrapper — which is what
+        the tab actually calls — so every calibration raised TypeError and no
+        CR30 measurement could start at all. Three tests covered this flow and
+        all three read the SOURCE rather than running it, so the suite stayed
+        green through it.
 
         Uses THIS reader's device handle on purpose. Building a second one
         would mean opening the instrument twice: seconds on USB, and on
@@ -655,7 +662,12 @@ class DeviceReader:
             if self._dev is None:
                 self._dev = self._open()
                 log.info("CR30: opened over %s", self._dev.kind)
-            self._dev.calibrate_white()
+            self._dev.calibrate(black=black)
+            if black:
+                # The dark reference leaves nothing we want to keep as the
+                # patch baseline, and read_zero asks its own question straight
+                # after. Reading here would only consume the answer.
+                return
             # Take the reading the calibration produced, so the device's stored
             # value is known to us rather than left as a surprise for patch A1.
             #
@@ -704,12 +716,38 @@ class DeviceReader:
             if self._dev is None:
                 return None
             try:
-                m = self._dev.read_measurement(enforce=False)
+                # TAKE A READING, do not read the stored one. What a
+                # calibration command leaves in the stored slot has never been
+                # established, and reading it without asking for a fresh
+                # measurement is the same stale-cache pattern that once wrote
+                # the white-tile cache onto patch A1 at delta E 60.5. So this
+                # triggers, waits for the instrument to finish, and then reads.
+                self._dev.trigger_unsafe()
+                m = self._read_after_trigger()
             except Exception:            # noqa: BLE001 — informational only
                 log.debug("CR30: could not read back after the black "
                           "calibration", exc_info=True)
                 return None
-        return sum(m.values) / len(m.values) if m.values else None
+        return sum(m.values) / len(m.values) if m and m.values else None
+
+    def _read_after_trigger(self, tries: int = 8):
+        """Read once the instrument has finished, not once a timer has run.
+
+        A reply that comes back zero-filled is the device saying "not yet", not
+        a bad reading — the owner's calibration read-back failed on exactly
+        that, 1.8 s after asking. So ask again rather than guess at a sleep.
+        """
+        import time as _t
+        last = None
+        for _ in range(tries):
+            try:
+                return self._dev.read_measurement(enforce=False)
+            except Exception as exc:      # noqa: BLE001 — retried below
+                last = exc
+                _t.sleep(0.4)
+        if last is not None:
+            raise last
+        return None
 
     def cancel(self) -> None:
         """Stop a wait in progress, so Stop does not block for the timeout."""

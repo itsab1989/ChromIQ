@@ -193,9 +193,13 @@ _ALL_DONE_SOUND_GAP_MS = 500
 _PATCH_WARN_DE = 50.0
 
 #: A reading of nothing should come back at nothing. Above this the
-#: black calibration is reported as suspect rather than healthy — the
-#: threshold is a starting point, not a measured limit, and says so on
-#: screen. This unit reads 0.000 %% when pointed at nothing.
+#: black calibration is reported as suspect rather than healthy. It is a
+#: STARTING POINT, not a measured limit: the owner's unit reads 0.000 %%
+#: pointed at nothing, and nothing has established how far a genuinely bad
+#: dark reference would sit from that. The healthy wording says 'nothing
+#: wrong was seen — that is not the same as verified', which is the honest
+#: claim; the NUMBER's provisional status is recorded here, not on screen,
+#: because a user cannot act on it.
 _CR30_ZERO_WARN = 0.05
 
 
@@ -5781,6 +5785,27 @@ class TabMeasure(QWidget):
             # measure — no instrument is opened, so `calibration_done`, the only
             # route to that window, can never arrive (F9).
             self._open_cr30_bridge()
+            # SAY IT ONCE, WHERE A PUZZLED USER WILL LOOK.
+            #
+            # Measured on the owner's own instrument, 2026-08-29: a phone app
+            # that is merely CONNECTED — not in use — takes the button press
+            # exclusively, and the cable never sees it. He had to switch his
+            # phone's Bluetooth off before ChromIQ registered a press at all.
+            # The failure is completely silent and looks exactly like broken
+            # software: the patch stays highlighted and nothing arrives.
+            #
+            # This is a log line rather than a window because it is rare and
+            # the window would be paid for on every Start. The proper answer is
+            # a banner when nothing has arrived for a while, which also catches
+            # a flat battery and a sleeping instrument; until that exists, this
+            # is the cheapest honest place for it.
+            self._log.appendPlainText("\n" + tr(
+                "[NOTE] If you have the CR30's phone app open, close it or "
+                "turn Bluetooth off on the phone. While that app is connected "
+                "it takes the instrument's button presses for itself, and "
+                "ChromIQ never sees them — the patch simply stays highlighted "
+                "and nothing happens."))
+            self._log.ensureCursorVisible()
             self._show_cr30_measuring_window()
         # SAY WHEN THE INSTRUMENT IS NOT BEING CALIBRATED.
         #
@@ -7189,12 +7214,11 @@ class TabMeasure(QWidget):
             box.exec()
             return True                     # not a reason to stop measuring
 
+        # NO SECOND SOUND AND NO SECOND FLASH. The white step has already
+        # played "that worked" and flashed "Your CR30 has been calibrated." a
+        # moment earlier; repeating both here reads as two separate successes
+        # for what the user experienced as one calibration.
         zero = result.get("zero")
-        from core import sound as _snd
-        try:
-            self._sound.play(_snd.PATCH_OK)
-        except Exception:                    # noqa: BLE001 — never block on audio
-            log.debug("calibration sound failed", exc_info=True)
         if zero is None:
             self._log.appendPlainText("\n" + tr(
                 "[NOTE] ChromIQ asked the CR30 to take its black calibration. "
@@ -7214,8 +7238,6 @@ class TabMeasure(QWidget):
                 "again with the instrument pointing at nothing."
                 ).format(zero=zero))
         self._log.ensureCursorVisible()
-        self._flash_status(tr("Your CR30 has been calibrated."),
-                           duration_ms=6000)
         return True
 
     def _run_cr30_black_calibration(self) -> bool:

@@ -219,6 +219,10 @@ class CR30:
             # 10-byte frame; the difference is the vendor's payload, not the
             # framing rule, and each was copied from the transport it was
             # observed on rather than derived from the other.
+            # Clear anything still in flight first, as `transact` does for
+            # every other exchange: a straggler would prefix the reply and
+            # shift every offset in it.
+            self._t.reset_input()
             self._t.send(Frame.build(0xBB, cmd, 0x00, 0))
             self._t.receive(timeout=6.0)
             return

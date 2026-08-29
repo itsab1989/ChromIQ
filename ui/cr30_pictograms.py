@@ -74,14 +74,6 @@ def _draw_cap(p: QPainter, r: QRectF, ink: QColor, face_white: bool):
     p.drawRoundedRect(tile, r.width() * 0.04, r.width() * 0.04)
 
 
-def _draw_cross(p: QPainter, r: QRectF, ink: QColor):
-    pen = QPen(ink, max(1.5, r.width() / 20.0))
-    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-    p.setPen(pen)
-    p.drawLine(r.topLeft(), r.bottomRight())
-    p.drawLine(r.topRight(), r.bottomLeft())
-
-
 def _draw_tick(p: QPainter, r: QRectF, ink: QColor):
     pen = QPen(ink, max(1.5, r.width() / 20.0))
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)
@@ -108,9 +100,19 @@ def steps_pair(step: str, widget: QWidget | None = None,
     """Both calibration steps side by side, with `step` marked as the current
     one. The same picture in both windows, so the pair is the thing the user
     reads and the difference cannot be missed."""
+    from PyQt6.QtGui import QFont
     from PyQt6.QtWidgets import QApplication
-    fm = QFontMetrics(widget.font() if widget is not None
-                      else QApplication.instance().font())
+    app = QApplication.instance()
+    if widget is not None:
+        base = widget.font()
+    elif app is not None:
+        base = app.font()
+    else:
+        # No application: a doc build, a headless import, a test that only
+        # wants the geometry. Draw against a default font rather than raising —
+        # a picture is never worth taking the caller down with it.
+        base = QFont()
+    fm = QFontMetrics(base)
     h = height or fm.height() * 6
     w = int(h * 1.9)
     dpr = (widget.devicePixelRatioF() if widget is not None else 1.0) or 1.0

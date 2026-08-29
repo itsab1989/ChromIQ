@@ -1121,7 +1121,7 @@ where being unmistakable matters most.*
 >
 > This second step is the opposite of the first one, so it is worth a glance at the picture above.
 >
-> TAKE THE CAP OFF and put it aside. Hold the instrument with the opening pointing DOWNWARD into open space — about an arm's length above the floor, with nothing in front of it, and not aimed at a lamp or a window.
+> TAKE THE CAP OFF and put it aside. Hold the instrument with the opening pointing DOWNWARD into open space — about a metre above the floor, with nothing in front of it, and not aimed at a lamp or a window.
 >
 > There is nothing to place it on. Your CR30 has no black tile: it takes its dark reading from empty air, which is why the picture shows it pointing at nothing.
 >

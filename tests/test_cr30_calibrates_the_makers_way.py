@@ -24,9 +24,13 @@ class _Usb:
 
     def __init__(self):
         self.sent = []
+        self.reset = False
 
     def send(self, frame):
         self.sent.append(frame.to_bytes())
+
+    def reset_input(self):
+        self.reset = True
 
     def receive(self, timeout=None):
         class _R:
@@ -56,15 +60,24 @@ def _dev(transport, kind):
     return d
 
 
+#: The two frames exactly as the vendor's own software sends them, from
+#: captures/public/PRIORART-001-vendor-usb-frames.json, sequence
+#: "Calibrate White and Black and Test Target". All sixty bytes, checksum
+#: included — a prefix check would pass a frame the instrument would reject.
+_VENDOR_WHITE = ("bb1100" + "00" * 55 + "ffcb")
+_VENDOR_BLACK = ("bb1000" + "00" * 55 + "ffca")
+
+
 def test_the_usb_frames_are_the_ones_the_vendor_sends():
     t = _Usb()
     d = _dev(t, "usb")
     d.calibrate(black=False)
     d.calibrate(black=True)
     assert len(t.sent) == 2
-    assert t.sent[0][:4].hex(" ") == "bb 11 00 00"
-    assert t.sent[1][:4].hex(" ") == "bb 10 00 00"
-    assert len(t.sent[0]) == 60, "USB framing is 60 bytes"
+    assert t.sent[0].hex() == _VENDOR_WHITE, "white frame differs from the vendor's"
+    assert t.sent[1].hex() == _VENDOR_BLACK, "black frame differs from the vendor's"
+    assert t.reset, ("the input was not cleared first — a straggler would "
+                     "prefix the reply and shift every offset in it")
 
 
 def test_the_bluetooth_frames_match_the_captured_trace():
