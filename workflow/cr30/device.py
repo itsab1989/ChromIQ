@@ -174,39 +174,59 @@ class CR30:
         # contains no trigger; it was simply never tested.
         self._t.ask(ble.TRIGGER_UNSAFE, polls=4)
 
-    def calibrate_white(self) -> None:
-        """Ask the instrument to take its white calibration, now.
+    #: The instrument's own calibration commands, as the manufacturer's app
+    #: sends them. Captured from the vendor's USB frames
+    #: (PRIORART-001, "Calibrate White and Black and Test Target") and from a
+    #: Bluetooth trace of the vendor app on the owner's unit, EXP-BLE-016.
+    #: Each performs its OWN acquisition — no trigger before or after.
+    CAL_WHITE = 0x11
+    CAL_BLACK = 0x10
 
-        **This is a deliberate reversal of a documented safety rule, made by
-        the instrument's owner on 2026-08-28.** The rule was that a ChromIQ
-        backend never sends the trigger command, because the host cannot see a
-        magnet and so cannot guarantee it is asking for a measurement rather
-        than a calibration. Here that is the entire intention: the user has
-        been asked to seat the cap, and the calibration is what they pressed
-        for.
+    def calibrate(self, black: bool = False) -> None:
+        """Take a calibration the way the instrument's own maker does.
 
-        Evidence that it works, on both transports:
-          * USB -- EXP-MEAS-004: a host-only trigger moved paper 81.10 -> 149.10
-            %R against the cap's green face, and restoring returned it to 81.20,
-            ratio 1.0012.
-          * BLE -- EXP-BLE-012: host trigger 3.9222 %R against the operator's
-            own button press 3.9416 %R on the same surface, 0.0347 %R apart.
+        ChromIQ used to calibrate white by seating a magnet at the aperture and
+        firing an ordinary trigger. That works — EXP-BLE-015 proved it returns
+        the tile constant — but it is a SIDE EFFECT of the magnet gate, not the
+        manufacturer's method, and it can only ever do white. The vendor sends a
+        dedicated command for each, and neither goes near the magnet.
 
-        ⚠ **ChromIQ cannot check the result, and must never claim to.** When
-        the magnet gate engages the device reports the firmware's nominal tile
-        constant whatever is actually under the aperture: the white tile and
-        the cap's green face return spectra that are bit-identical, max
-        absolute difference across all 31 bands 0.0. So there is no reading to
-        judge and no threshold that could be defended.
+        Verified on the owner's own unit, 2026-08-29 (EXP-022), after he lifted
+        the standing instruction never to send these: both commands were
+        accepted and answered in ~250 ms, and a properly seated white
+        calibration moved his paper reading from 83.95 to 88.37 %R — back into
+        the band every other reading that evening sat in. So the command really
+        does set the reference, and setting it against the wrong surface really
+        does shift everything afterwards.
 
-        The danger is therefore not the magnet -- the magnet is what makes this
-        a calibration at all -- but WHICH FACE is at the aperture. Calibrating
-        against the green face is what corrupted this unit during the research,
-        and the error is one-sided and invisible in every reading afterwards.
-        The only safeguard is the operator's eyes, so the window that offers
-        this must say so plainly.
+        ⚠ **There is no success signal, on either transport.** The reply's
+        bytes read as `… 00 01 00`, which fits a `0x01` result code and fits
+        equally well the high byte of a device clock that was never set — over
+        Bluetooth the same field carried a real timestamp. Nothing here may be
+        reported to the user as "calibration succeeded". What CAN be checked is
+        what the readings do afterwards, and for black there is an honest one:
+        a reading of nothing should come back at zero.
+
+        The danger this instrument has ever had is calibrating against the
+        WRONG surface, silently. Doing it again correctly is the whole restore
+        procedure, which is why offering it is safe.
         """
-        self.trigger_unsafe()
+        from .frame import Frame
+        cmd = self.CAL_BLACK if black else self.CAL_WHITE
+        if self.kind == "usb":
+            # 60-byte framing, sub-byte 00 — as the vendor's USB capture sends
+            # it. Over Bluetooth the same command carries sub-byte 01 and a
+            # 10-byte frame; the difference is the vendor's payload, not the
+            # framing rule, and each was copied from the transport it was
+            # observed on rather than derived from the other.
+            self._t.send(Frame.build(0xBB, cmd, 0x00, 0))
+            self._t.receive(timeout=6.0)
+            return
+        self._t.ask(ble.frame(cmd, 0x01), polls=6)
+
+    def calibrate_white(self) -> None:
+        """Kept for callers that predate :meth:`calibrate`. Prefer that."""
+        self.calibrate(black=False)
 
     def read_next_measurement(self, *, timeout: float = 180.0,
                               cancelled=None, poll: float = 0.25) -> Measurement:

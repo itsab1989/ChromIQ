@@ -192,6 +192,12 @@ _ALL_DONE_SOUND_GAP_MS = 500
 # does not).
 _PATCH_WARN_DE = 50.0
 
+#: A reading of nothing should come back at nothing. Above this the
+#: black calibration is reported as suspect rather than healthy — the
+#: threshold is a starting point, not a measured limit, and says so on
+#: screen. This unit reads 0.000 %% when pointed at nothing.
+_CR30_ZERO_WARN = 0.05
+
 
 def _strip_outlier_fence(des: "list[float]") -> float:
     """Tukey upper fence (Q3 + 1.5·IQR) of a strip's per-patch ΔEs — the level
@@ -6997,12 +7003,25 @@ class TabMeasure(QWidget):
         if reader is None:
             return True      # no reader to calibrate with; the run says why
 
+        from ui.cr30_pictograms import BLACK_STEP, WHITE_STEP, steps_pair
+
         title, body = M.M_CR30_CALIBRATE.render()
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setIconPixmap(steps_pair(WHITE_STEP, self))
         box.setWindowTitle(tr("Calibrate the instrument"))
         box.setText(title)
         box.setInformativeText(body)
+        # PER USE, AND DELIBERATELY NOT REMEMBERED.
+        #
+        # The black calibration is needed rarely and asks for the opposite of
+        # what the window above asks for, so a remembered tick would turn
+        # "occasionally, on purpose" into a second window and a device write on
+        # every Start of this target for ever. Unticked each time means the
+        # second window only appears for the user who just asked for it — which
+        # is also the honest answer to "would this be two pop-ups every time".
+        also_black = QCheckBox(tr("Also take the black calibration afterwards"))
+        box.setCheckBox(also_black)
         go = box.addButton(tr("Calibrate now"), QMessageBox.ButtonRole.AcceptRole)
         box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(go)
@@ -7010,6 +7029,7 @@ class TabMeasure(QWidget):
         box.exec()
         if box.clickedButton() is not go:
             return False
+        want_black = also_black.isChecked()
 
         # Off the GUI thread: the reader holds its lock for the whole call, and
         # a slot that waited on it would freeze the window it was opened from —
@@ -7020,25 +7040,32 @@ class TabMeasure(QWidget):
         class _Worker(QObject):
             done = pyqtSignal()
 
+            def __init__(self, black=False):
+                super().__init__()
+                self._black = black
+
             def run(self) -> None:
                 try:
-                    reader.calibrate()
+                    reader.calibrate(black=self._black)
                 except Exception as exc:      # noqa: BLE001 — reported below
                     result["error"] = str(exc) or type(exc).__name__
                 self.done.emit()
 
-        thread, worker = QThread(self), _Worker()
-        worker.moveToThread(thread)
-        thread.started.connect(worker.run)
-        worker.done.connect(thread.quit)
-        thread.start()
-        # Both must stay referenced until the thread has finished, or Qt
-        # collects a running QThread and takes the process with it.
-        self._cal_thread, self._cal_worker = thread, worker
-        while not thread.isFinished():
-            QApplication.processEvents()
-            thread.wait(20)
-        self._cal_thread = self._cal_worker = None
+        def _run_calibration(black: bool) -> None:
+            thread, worker = QThread(self), _Worker(black)
+            worker.moveToThread(thread)
+            thread.started.connect(worker.run)
+            worker.done.connect(thread.quit)
+            thread.start()
+            # Both must stay referenced until the thread has finished, or Qt
+            # collects a running QThread and takes the process with it.
+            self._cal_thread, self._cal_worker = thread, worker
+            while not thread.isFinished():
+                QApplication.processEvents()
+                thread.wait(20)
+            self._cal_thread = self._cal_worker = None
+
+        _run_calibration(black=False)
 
         if "error" in result:
             self._log.appendPlainText("\n" + tr(
@@ -7066,6 +7093,10 @@ class TabMeasure(QWidget):
             "cannot check the result — the instrument reports the same value "
             "whatever is under the cap."))
         self._log.ensureCursorVisible()
+
+        if want_black and not self._run_cr30_black_calibration():
+            return False
+
         # SAY IT HAPPENED, ON SCREEN, whatever the instrument does.
         #
         # The instrument DOES beep for a host-triggered calibration, on both
@@ -7094,6 +7125,143 @@ class TabMeasure(QWidget):
         # windows read as one sequence.
         self._show_cr30_measuring_window()
         return True
+
+    def _do_black_calibration(self) -> bool:
+        """Send the dark-reference command, then check what it produced.
+
+        THE ZERO CHECK IS THE ONLY VERIFICATION THAT EXISTS. The instrument
+        gives no success signal for either calibration — the reply's bytes fit
+        a result code and fit equally well the high byte of a clock that was
+        never set, and over Bluetooth that same field carried a real timestamp.
+        So nothing here says "calibrated successfully".
+
+        But a dark reference has one honest test the white one does not: after
+        it, a reading of nothing should come back at nothing. That is checked
+        by ASKING the instrument, not by trusting the command.
+        """
+        from PyQt6.QtCore import QThread
+        from PyQt6.QtWidgets import QMessageBox
+        from ui.widgets import fit_message_box_buttons
+
+        reader = getattr(self, "_cr30_reader", None)
+        if reader is None:
+            return True
+        result: dict = {}
+
+        class _BlackWorker(QObject):
+            done = pyqtSignal()
+
+            def run(self) -> None:
+                try:
+                    reader.calibrate(black=True)
+                    result["zero"] = reader.read_zero()
+                except Exception as exc:      # noqa: BLE001 — reported below
+                    result["error"] = str(exc) or type(exc).__name__
+                self.done.emit()
+
+        thread, worker = QThread(self), _BlackWorker()
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.done.connect(thread.quit)
+        thread.start()
+        self._cal_thread, self._cal_worker = thread, worker
+        while not thread.isFinished():
+            QApplication.processEvents()
+            thread.wait(20)
+        self._cal_thread = self._cal_worker = None
+
+        if "error" in result:
+            self._log.appendPlainText("\n" + tr(
+                "The black calibration could not be taken: {error}"
+                ).format(error=result["error"]))
+            self._log.ensureCursorVisible()
+            box = QMessageBox(self)
+            box.setIcon(QMessageBox.Icon.NoIcon)
+            box.setWindowTitle(tr("Calibrate the instrument"))
+            box.setText(tr("The black calibration did not go through."))
+            box.setInformativeText(tr(
+                "Your white calibration is unaffected and the measurement can "
+                "go ahead — the instrument keeps the dark reference it "
+                "already had.\n\n"
+                "What went wrong: {error}").format(error=result["error"]))
+            box.setStandardButtons(QMessageBox.StandardButton.Ok)
+            fit_message_box_buttons(box)
+            box.exec()
+            return True                     # not a reason to stop measuring
+
+        zero = result.get("zero")
+        from core import sound as _snd
+        try:
+            self._sound.play(_snd.PATCH_OK)
+        except Exception:                    # noqa: BLE001 — never block on audio
+            log.debug("calibration sound failed", exc_info=True)
+        if zero is None:
+            self._log.appendPlainText("\n" + tr(
+                "[NOTE] ChromIQ asked the CR30 to take its black calibration. "
+                "It could not read back afterwards to see how it looks."))
+        elif zero <= _CR30_ZERO_WARN:
+            self._log.appendPlainText("\n" + tr(
+                "[NOTE] ChromIQ asked the CR30 to take its black calibration, "
+                "and a reading of nothing came back at {zero:.3f} %, which is "
+                "what a healthy dark reference looks like. Nothing wrong was "
+                "seen — that is not the same as verified."
+                ).format(zero=zero))
+        else:
+            self._log.appendPlainText("\n" + tr(
+                "[WARNING] After the black calibration, a reading of nothing "
+                "came back at {zero:.3f} % instead of near zero. Something was "
+                "probably in front of the opening. Take the black calibration "
+                "again with the instrument pointing at nothing."
+                ).format(zero=zero))
+        self._log.ensureCursorVisible()
+        self._flash_status(tr("Your CR30 has been calibrated."),
+                           duration_ms=6000)
+        return True
+
+    def _run_cr30_black_calibration(self) -> bool:
+        """The second calibration: the dark reference, taken against air.
+
+        M-CR30-CALIBRATE-BLACK (§M-PROPOSED). It asks for the OPPOSITE of the
+        window before it — cap OFF, opening pointing at nothing — which is why
+        both windows carry the same pair-of-steps picture with the current one
+        marked. The owner's worry was that two similar windows would have
+        someone do the same thing twice; showing the pair makes the difference
+        visible rather than remembered.
+
+        There is no black TILE on this instrument. The dark reference is open
+        air, which is why the instruction says to point it at nothing rather
+        than to put anything in front of it — and why the picture shows no
+        black tile that somebody might go looking for.
+        """
+        from PyQt6.QtWidgets import QMessageBox
+        from workflow import measurement_messages as M
+        from ui.widgets import fit_message_box_buttons
+        from ui.cr30_pictograms import BLACK_STEP, steps_pair
+
+        title, body = M.M_CR30_CALIBRATE_BLACK.render()
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setIconPixmap(steps_pair(BLACK_STEP, self))
+        box.setWindowTitle(tr("Calibrate the instrument"))
+        box.setText(title)
+        box.setInformativeText(body)
+        go = box.addButton(tr("Calibrate now"),
+                           QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(tr("Skip this step"), QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(go)
+        fit_message_box_buttons(box)
+        box.exec()
+        if box.clickedButton() is not go:
+            # Skipping the dark reference is not cancelling the measurement —
+            # the white calibration has already happened and the session is
+            # perfectly usable without this.
+            self._log.appendPlainText("\n" + tr(
+                "[NOTE] The black calibration was skipped. Your measurement "
+                "will go ahead using the dark reference the instrument "
+                "already had."))
+            self._log.ensureCursorVisible()
+            return True
+        return self._do_black_calibration()
 
     def _open_cr30_bridge(self) -> None:
         """Stand up the thing that answers the helper's spot prompts (#159).

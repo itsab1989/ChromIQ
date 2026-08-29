@@ -143,6 +143,45 @@ M_CR30_CALIBRATE = _m(
     approved=False)
 
 
+# --- PROPOSED: the dark reference, taken against air ------------------------
+#: #159. The second calibration, and it asks for the OPPOSITE of the first —
+#: cap OFF, opening pointing at nothing. Both windows carry the same
+#: pair-of-steps picture with the current step marked, because the owner's
+#: worry was that two similar windows would have someone do the same thing
+#: twice; showing the pair makes the difference visible rather than remembered.
+#:
+#: THERE IS NO BLACK TILE. This unit has none and the vendor's own app
+#: calibrates black against open air, port downward. The text says "pointing at
+#: nothing" and never "put something in front of it", because the nearest dark
+#: thing to hand is the cap's GREEN face — the surface that silently corrupted
+#: this instrument's white reference during the research.
+#:
+#: The lamp-and-window clause is PRUDENCE, not a measured threshold: it follows
+#: from the arithmetic of a dark reference and from the vendor's own
+#: port-downward instruction. The one experiment that tried to measure it was
+#: compromised and is filed as such.
+M_CR30_CALIBRATE_BLACK = _m(
+    "M-CR30-CALIBRATE-BLACK",
+    "Now the dark reference",
+    "This second step is the opposite of the first one, so it is worth a "
+    "glance at the picture above.\n\n"
+    "TAKE THE CAP OFF and put it aside. Hold the instrument with the opening "
+    "pointing DOWNWARD into open space — about an arm's length above the "
+    "floor, with nothing in front of it, and not aimed at a lamp or a "
+    "window.\n\n"
+    "There is nothing to place it on. Your CR30 has no black tile: it takes "
+    "its dark reading from empty air, which is why the picture shows it "
+    "pointing at nothing.\n\n"
+    "Then press “Calibrate now”. Afterwards ChromIQ reads once more to see "
+    "whether nothing really does come back as nothing — that is the one check "
+    "it can honestly make, and it is more than it can do for the white "
+    "step.\n\n"
+    "If you would rather not, press “Skip this step”. Your white calibration "
+    "still stands and the measurement goes ahead with the dark reference the "
+    "instrument already had.",
+    approved=False)
+
+
 # --- PROPOSED: the instrument went away mid-measurement --------------------
 #: #159, and the fault the owner hit twice on 2026-08-28: he unplugged the
 #: CR30 mid-session and the app said nothing at all, then froze for three
@@ -1087,7 +1126,7 @@ CATALOGUE = {m.id: m for m in (
     M_PROJECT_REPLACE_FAILED,
     M_CR30_STOCK_READER,
     M_CR30_READ_ENDED, M_CR30_INSTRUMENT_GONE, M_CR30_PATCH_GAVE_UP,
-    M_CR30_CALIBRATE,
+    M_CR30_CALIBRATE, M_CR30_CALIBRATE_BLACK,
     M_CR30_HOW_TO_MEASURE,
 )}
 

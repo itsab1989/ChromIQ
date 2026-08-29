@@ -687,6 +687,30 @@ class DeviceReader:
         self._generation += 1
         return self._generation
 
+    def read_zero(self) -> "float | None":
+        """Mean reflectance of whatever the instrument is looking at, now.
+
+        Used straight after a black calibration, when the instrument should be
+        pointing at nothing: the answer ought to be nothing. It is the ONLY
+        honest check either calibration has — the device reports no success
+        signal, and for white it returns the same canned value whatever is
+        under the cap, so there is nothing there to test at all.
+
+        One-sided, and the window says so: this catches a dark reference set
+        too LOW (something was in front of the opening). A reference set too
+        high would clamp to a healthy-looking zero and pass.
+        """
+        with self._lock:
+            if self._dev is None:
+                return None
+            try:
+                m = self._dev.read_measurement(enforce=False)
+            except Exception:            # noqa: BLE001 — informational only
+                log.debug("CR30: could not read back after the black "
+                          "calibration", exc_info=True)
+                return None
+        return sum(m.values) / len(m.values) if m.values else None
+
     def cancel(self) -> None:
         """Stop a wait in progress, so Stop does not block for the timeout."""
         self._cancel = True

@@ -155,6 +155,10 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # both transports, after EXP-BLE-012 disproved
                                  # the belief that Bluetooth could not do it.
                                  "M-CR30-CALIBRATE",
+                                 # 2026-08-29, #159. The dark reference, taken
+                                 # against air — the vendor's own second step,
+                                 # whose command was captured from its app.
+                                 "M-CR30-CALIBRATE-BLACK",
                                  "M-CR30-INSTRUMENT-GONE",
                                  "M-CR30-PATCH-GAVE-UP",
                                  "M-ALL-STRIPS-PATCHES-LEFT",
