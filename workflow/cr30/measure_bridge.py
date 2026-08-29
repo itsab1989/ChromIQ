@@ -172,6 +172,10 @@ class Cr30MeasureBridge(QObject):
     #: it deliberately: (loc). They must be told, or the re-arm looks exactly
     #: like the dead session it replaces.
     patch_rearmed = pyqtSignal(str)
+    #: Readings the instrument took while no patch was armed, and which were
+    #: therefore discarded: (count). To the operator these are presses that did
+    #: nothing, so they cannot be left to a debug log.
+    readings_discarded = pyqtSignal(int)
     #: The device could not be read, but the session is alive and the patch
     #: has been RE-ARMED: (loc, message). Pressing the button again works.
     read_failed = pyqtSignal(str, str)
@@ -189,6 +193,10 @@ class Cr30MeasureBridge(QObject):
     def __init__(self, send, reader, parent: "QObject | None" = None) -> None:
         super().__init__(parent)
         self._send, self._reader = send, reader
+        # Let the reader tell us about presses that landed on nothing, so they
+        # can reach the screen instead of a debug log.
+        if hasattr(reader, "on_dropped"):
+            reader.on_dropped = self.readings_discarded.emit
         #: Failed reads per patch, so a permanently broken device stops rather
         #: than spinning. Per-PATCH, not per-session: a session where five
         #: different patches each needed one retry is a session going fine.
@@ -237,7 +245,13 @@ class Cr30MeasureBridge(QObject):
                 return
             self._nav_target = None       # the jump landed; normal service
         self._awaiting_loc = loc
-        if ev.get("all_done"):
+        if ev.get("all_done") and not asked_for:
+            # Nothing left unread, and the user did not ask for this patch:
+            # there is nothing to arm. But once a chart is COMPLETE the helper
+            # sets all_done on every prompt, so returning here unconditionally
+            # made the re-read below unreachable for exactly the person who
+            # needs it most — a finished chart with one patch that took the
+            # wrong colour, and no way left to correct it.
             return
         if ev.get("read") and not asked_for:
             # Already recorded, and arrived at by traversal rather than by
@@ -464,6 +478,10 @@ class DeviceReader:
         #: purpose: finding the right patch on a 390-patch honeycomb and
         #: seating a 33 mm barrel on it is not a two-second job.
         self.button_timeout_s = 180.0
+        #: Called with a count when the instrument had taken readings before a
+        #: patch was armed. Set by the bridge so the user hears about presses
+        #: that did nothing.
+        self.on_dropped = None
         #: Set once, by stop()/close(), and never cleared: a cancelled reader
         #: is a FINISHED one. Safe because the tab builds a fresh DeviceReader
         #: for every session (ui/tabs/tab_measure.py, _open_cr30_bridge) -- if
@@ -498,6 +516,7 @@ class DeviceReader:
             if self._dev is None:
                 try:
                     self._dev = self._open()
+                    self._dev.on_dropped = self.on_dropped
                 except Exception as exc:      # noqa: BLE001 — classified below
                     # AN INSTRUMENT THAT CANNOT BE OPENED IS A LOST ONE.
                     #

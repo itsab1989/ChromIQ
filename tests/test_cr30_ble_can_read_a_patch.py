@@ -65,14 +65,41 @@ class _Link:
         self._deferred.append(changes_colour)
 
     # the transport's side
-    def take_event(self):
-        if self._events:
-            return self._events.pop(0)
-        if self._deferred:
-            if self._deferred.pop(0):
-                self._n += 1
-            return EVENT
-        return None
+    def wait_for_event(self, timeout, cancelled=None, poll=0.01):
+        """Deliver ONLY from inside a running asyncio loop, exactly as the real
+        transport does.
+
+        This is not decoration. bleak hands notifications to the loop with
+        `call_soon_threadsafe`, so a wait that does not run the loop receives
+        nothing at all — the first version of this rework waited with plain
+        `sleep`, every press queued invisibly and every patch timed out after
+        three minutes. The tests missed it because they fed the queue directly
+        and never went through a transport. A stub that can be satisfied
+        without a loop would miss it again.
+        """
+        import asyncio
+
+        async def _wait():
+            import time as _t
+            deadline = _t.monotonic() + timeout
+            while True:
+                if self._events:
+                    return self._events.pop(0)
+                if self._deferred:
+                    if self._deferred.pop(0):
+                        self._n += 1
+                    return EVENT
+                if cancelled is not None and cancelled():
+                    return None
+                if _t.monotonic() > deadline:
+                    return None
+                await asyncio.sleep(poll)
+
+        loop = asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(_wait())
+        finally:
+            loop.close()
 
     def drop_events(self):
         """Only what has already arrived. A press still to come is not ours to
@@ -170,3 +197,21 @@ def test_a_busy_instrument_is_waited_out_not_failed():
     m = d.read_next_measurement(timeout=8.0, poll=0.0)
     assert m is not None
     assert calls["n"] >= 2, "it gave up on the first busy reply"
+
+
+def test_it_waits_through_the_transport_not_by_polling_a_queue():
+    """The blocker this rework shipped with, pinned.
+
+    bleak delivers notifications through the asyncio loop, so a wait built from
+    `take_event()` and `sleep` receives nothing over real Bluetooth however long
+    it waits: every press queues invisibly and the patch times out after three
+    minutes. The gate stayed green because the tests fed the queue directly.
+
+    This transport offers ONLY `wait_for_event`. If the wait ever goes back to
+    peeking at a queue, it will not find one.
+    """
+    link = _Link()
+    assert not hasattr(link, "take_event")
+    d = _device(link)
+    link.press()
+    assert d.read_next_measurement(timeout=5.0, poll=0.0) is not None

@@ -76,3 +76,21 @@ def test_a_jump_to_an_unread_patch_is_unaffected():
     _ready(h, "B3", read=False)
     assert len(h.read_calls) == 1
     assert len(h.sent) == 1
+
+
+def test_a_finished_chart_can_still_have_a_patch_corrected():
+    """report 15, finding 2: once nothing is unread the helper sets `all_done`
+    on EVERY prompt, and returning on that made the re-read unreachable for
+    exactly the person who needs it — a completed chart with one patch that
+    took the wrong colour, and no way left to fix it."""
+    h = Harness()
+    rearmed: list = []
+    h.bridge.patch_rearmed.connect(rearmed.append)
+
+    h.bridge.note_goto("A17")
+    h.bridge.on_patch_ready({"loc": "A17", "read": True, "all_done": True})
+    h.settle()
+
+    assert rearmed == ["A17"], (
+        "a completed chart cannot have a wrong patch corrected")
+    assert len(h.read_calls) == 1

@@ -7067,6 +7067,8 @@ class TabMeasure(QWidget):
             self._cr30_bridge.read_failed.connect(self._on_cr30_read_failed)
             self._cr30_bridge.mispaired.connect(self._on_cr30_mispaired)
             self._cr30_bridge.patch_rearmed.connect(self._on_cr30_rearmed)
+            self._cr30_bridge.readings_discarded.connect(
+                self._on_cr30_readings_discarded)
             self._cr30_bridge.device_lost.connect(self._on_cr30_device_lost)
             self._cr30_bridge.read_gave_up.connect(self._on_cr30_gave_up)
         except Exception:      # noqa: BLE001 — say so, do not kill the run
@@ -7116,6 +7118,24 @@ class TabMeasure(QWidget):
         self._log.appendPlainText(text)
         self._log.ensureCursorVisible()
         self._flash_status(text, duration_ms=8000)
+
+    def _on_cr30_readings_discarded(self, n: int) -> None:
+        """The instrument took readings while no patch was armed.
+
+        They belong to no patch anyone can name, so they are dropped — that is
+        what stops a reading landing on the wrong patch. But to the operator
+        those were button presses that did nothing, and an unexplained press is
+        the thing that has made every version of this fault feel broken.
+        """
+        text = (tr("One reading was taken before ChromIQ was ready for it, so "
+                   "it was not used. Read the highlighted patch again.")
+                if n == 1 else
+                tr("{n} readings were taken before ChromIQ was ready for them, "
+                   "so they were not used. Read the highlighted patch again."
+                   ).format(n=n))
+        self._log.appendPlainText(text)
+        self._log.ensureCursorVisible()
+        self._flash_status(text, duration_ms=6000)
 
     def _on_cr30_rearmed(self, loc: str) -> None:
         """A patch that was already measured is ready to be measured again.

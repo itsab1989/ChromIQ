@@ -260,31 +260,41 @@ class CR30:
         # Anything the instrument did BEFORE this patch was armed belongs to no
         # patch we can name, so it is dropped rather than collected late. That
         # is the whole mis-attribution, closed at the source.
-        take_event = getattr(self._t, "take_event", None)
-        if take_event is None:
+        wait_for_event = getattr(self._t, "wait_for_event", None)
+        if wait_for_event is None:
             raise MeasurementError(
                 "this Bluetooth transport cannot report button presses")
         dropped = self._t.drop_events()
         if dropped:
-            log.debug("CR30: discarded %d reading(s) taken before this patch "
-                      "was armed", dropped)
+            # Reported, not merely logged: to the operator this is a press that
+            # did nothing, and silence is what made every earlier version of
+            # this fault so expensive.
+            log.info("CR30: discarded %d reading(s) taken before this patch "
+                     "was armed", dropped)
+            report = getattr(self, "on_dropped", None)
+            if callable(report):
+                report(dropped)
 
         while True:
             if cancelled is not None and cancelled():
                 raise MeasurementError("cancelled while waiting for the "
                                        "instrument's button")
-            if time.monotonic() > deadline:
+            left = deadline - time.monotonic()
+            if left <= 0:
                 raise MeasurementError(
                     f"no button press within {timeout:.0f} s. Place the "
                     "instrument on the highlighted patch and press its own "
                     "button.")
-            if take_event() is None:
-                time.sleep(min(poll, 0.1))
+            # THE LOOP HAS TO BE RUNNING. bleak delivers notifications through
+            # `call_soon_threadsafe`, so a plain `sleep` here receives nothing,
+            # for ever — the presses queue up unseen and the patch times out
+            # after three minutes. `wait_for_event` runs the transport's loop
+            # while it waits, which is the whole point of it.
+            if wait_for_event(min(left, 1.0), cancelled) is None:
                 continue
-            # It has acted. Read what it now holds — and give it a moment
-            # first: read too soon and the reply comes back zero-filled, which
-            # is the device's way of saying it has not finished (EXP-BLE-015).
-            time.sleep(0.4)
+            # It has acted. Read what it now holds — `_read_when_ready` waits
+            # out the zero-filled "not finished yet" reply rather than guessing
+            # at a sleep long enough to cover every case.
             m = self._read_when_ready(deadline)
             self._last_seen = m.values
             m.check_usable(self._previous)

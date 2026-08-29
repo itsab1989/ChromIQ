@@ -257,13 +257,59 @@ class BleTransport:
 
         Kept OUT of `_buf` on purpose, so `_drain` — which exists to stop
         stragglers corrupting the next reply's offsets — cannot destroy them.
+
+        ⚠ Polling this from a plain loop finds NOTHING, however long you wait.
+        bleak delivers notifications through `loop.call_soon_threadsafe`, so
+        `_on_notify` only runs while this transport's asyncio loop is running,
+        and the loop only runs inside `_run`. Use :meth:`wait_for_event`, which
+        does. This method is the non-blocking peek for code that is already
+        pumping the loop by other means.
         """
         return self._events.popleft() if self._events else None
+
+    def wait_for_event(self, timeout: float, cancelled=None,
+                       poll: float = 0.05) -> "bytes | None":
+        """Block until the instrument announces that it acted, or time out.
+
+        THE LOOP MUST BE RUNNING, and that is the whole reason this exists.
+        The first version of this waited with `take_event()` and `time.sleep`
+        in ordinary Python — which never pumps the asyncio loop, so bleak could
+        not deliver a single notification and every patch timed out after three
+        minutes with the presses queued and invisible. The tests missed it
+        because they fed the queue directly and never went through a transport
+        at all.
+        """
+        async def _wait():
+            import time as _t
+            deadline = _t.monotonic() + timeout
+            while True:
+                if self._events:
+                    return self._events.popleft()
+                if cancelled is not None and cancelled():
+                    return None
+                if _t.monotonic() > deadline:
+                    return None
+                await asyncio.sleep(poll)
+
+        return self._run(_wait())
 
     def drop_events(self) -> int:
         """Forget every event so far; returns how many. Used when arming a
         patch, so a press made while nothing was listening cannot be collected
-        later and attributed to the wrong patch."""
+        later and attributed to the wrong patch.
+
+        Pumps the loop first: an event that has arrived over the air but has
+        not been delivered yet would otherwise survive the drop and be
+        collected as this patch's press — the very mis-attribution the drop
+        exists to prevent.
+        """
+        async def _settle():
+            await asyncio.sleep(0.05)
+
+        try:
+            self._run(_settle())
+        except Exception:            # noqa: BLE001 — the drop must still happen
+            pass
         n = len(self._events)
         self._events.clear()
         return n
