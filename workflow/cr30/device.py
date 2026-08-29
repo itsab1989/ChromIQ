@@ -165,6 +165,10 @@ class CR30:
             from . import usb_measure
             usb_measure.trigger(self._t)
             return
+        # Same reason as `calibrate`: the trigger's own acknowledgement is a
+        # `bb 01 …` frame and goes to the event queue, so a reply-buffer wait
+        # burns the entire poll budget for nothing.
+        #
         # This branch used to raise NotImplementedError, saying "no host
         # trigger is known on BLE". EXP-BLE-012 disproved that on 2026-08-28:
         # sent over Bluetooth with no button press, the stored reading moved
@@ -172,7 +176,8 @@ class CR30:
         # same surface then read 3.9416 %R -- 0.0347 %R apart, against 11.1 %R
         # of change. The old claim was honest about the vendor capture, which
         # contains no trigger; it was simply never tested.
-        self._t.ask(ble.TRIGGER_UNSAFE, polls=4)
+        self._t.ask(ble.TRIGGER_UNSAFE, polls=4,
+                    done=lambda _b: self._t.saw_event(0x01))
 
     #: The instrument's own calibration commands, as the manufacturer's app
     #: sends them. Captured from the vendor's USB frames
@@ -226,7 +231,14 @@ class CR30:
             self._t.send(Frame.build(0xBB, cmd, 0x00, 0))
             self._t.receive(timeout=6.0)
             return
-        self._t.ask(ble.frame(cmd, 0x01), polls=6)
+        # Stop as soon as the instrument acknowledges. Its reply to a
+        # calibration is a 10-byte `bb 11 …` / `bb 10 …` frame, which the
+        # notification demux routes to the EVENT queue and never to the reply
+        # buffer — so waiting for `_buf` to fill waits for something that can
+        # never arrive, and the whole poll budget is spent. Measured: 2.16 s
+        # for a calibration whose device-side share is 0.31 s.
+        self._t.ask(ble.frame(cmd, 0x01), polls=6,
+                    done=lambda _b: self._t.saw_event(cmd))
 
     def calibrate_white(self) -> None:
         """Kept for callers that predate :meth:`calibrate`. Prefer that."""

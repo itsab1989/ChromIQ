@@ -293,6 +293,25 @@ class BleTransport:
 
         return self._run(_wait())
 
+    def saw_event(self, cmd: int) -> bool:
+        """Has the instrument acknowledged command `cmd` since the last ask?
+
+        The acknowledgement to a calibration or a trigger is a 10-byte frame
+        that this transport routes to the EVENT queue, not the reply buffer —
+        so a caller waiting for `_buf` to fill is waiting for something that
+        will never come, and spends its whole poll budget doing it. This lets
+        such a caller stop the moment the answer actually arrives.
+
+        Consuming it here is deliberate: an acknowledgement is not a press, and
+        leaving it in the queue would have the next armed patch collect it as
+        one.
+        """
+        for i, frame in enumerate(self._events):
+            if len(frame) >= 2 and frame[1] == cmd:
+                del self._events[i]
+                return True
+        return False
+
     def drop_events(self) -> int:
         """Forget every event so far; returns how many. Used when arming a
         patch, so a press made while nothing was listening cannot be collected
