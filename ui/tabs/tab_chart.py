@@ -16387,10 +16387,23 @@ class TabChart(QWidget):
             # into the margin and clamp at the paper edge -- where they can end
             # up under the patches. The patches are where he asked for them;
             # this says what it cost.
-            if geom.rlwi > 0 and r.margin_left + 0.05 < geom.rlwi:
+            # TWO BANDS, BECAUSE THE OUTCOMES DIFFER. Keying this on the full
+            # 7.5 mm band cried wolf: measured on a real CR30 hex chart, the
+            # row numbers are perfect from 2 mm, keep about 80 % of each digit
+            # at 1 mm, and are gone entirely at 0. A warning that fires at 5 mm
+            # where nothing is wrong teaches the user to ignore it, and one
+            # that says "may sit under the patches" at 0 mm understates a
+            # number that is not there at all.
+            if geom.rlwi > 0 and r.margin_left < 0.5:
                 warns.append(tr(
-                    "⚠ Left margin is too small for the row numbers — they "
-                    "move to the page edge and may sit under the patches."))
+                    "⚠ There is no room for the row numbers down the left — "
+                    "they will not be printed. Give the left margin about "
+                    "2 mm to get them back."))
+            elif geom.rlwi > 0 and r.margin_left + 0.05 < 2.0:
+                warns.append(tr(
+                    "⚠ The left margin is tight for the row numbers — the "
+                    "patches will cover part of each one. About 2 mm prints "
+                    "them cleanly."))
             nlines = (1 if r.chart_text else 0) + (1 if r.stamp_command else 0)
             if nlines and r.margin_bottom + 0.05 < r.text_edge_mm + 4.2 * nlines:
                 warns.append(tr("⚠ Bottom margin is too small for the sheet text — "

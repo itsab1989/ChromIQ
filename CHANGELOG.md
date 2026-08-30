@@ -1,5 +1,66 @@
 # Changelog
 
+## v4.1.5-beta.3
+
+**Aiming help for the CR30, a legend that gets out of your way, and the layout
+controls where the help says they are.**
+
+### New
+
+**See where the instrument will sit.** A CR30 is placed on each patch by hand,
+and its 33 mm body hides the patch the moment you lower it — so you cannot look
+at what you are aiming at while you aim. The preview now draws that body to
+scale, dashed, on the patch you are being asked for: line it up on screen, note
+which neighbours it covers, and put the instrument down so those same neighbours
+are evenly covered. A second, much smaller circle appears only when there is a
+problem — the 4 mm measuring opening, shown when the patch is too small for it,
+in which case part of every reading is the neighbouring patch. Both figures come
+from the manufacturer's own specification. The option is in the Measure tab's
+live-preview section and appears for the CR30 only.
+
+**A Bluetooth report, for when the instrument will not connect.** Tools →
+Instruments. It looks at what your computer's Bluetooth can see, whether
+anything is offering the service a CR30 uses, and whether ChromIQ's own search
+accepts it — so the three cases can be told apart instead of guessed at. It
+writes a file you can send. Nothing it does can disturb your instrument: it is
+never asked to measure and never asked to calibrate.
+
+### Changed
+
+**The legend fades out when you point at it**, so you can see the patches
+underneath. It sits in the bottom paper margin, but on a chart whose patches run
+to the edge it has to rest on the last row — now it simply gets out of the way.
+
+**Patch size and Patch scale have moved into Basic**, next to "Prioritise patch
+size", where the help has always said they were. They were in Expert Options,
+collapsed, while the other layout method showed its settings in plain sight.
+
+**A CR30 chart no longer prints spacers by default.** A spacer helps a strip
+reader find the edge of a patch as it is swiped across; a CR30 is lifted onto
+each patch and never swipes, so they were ink it cannot use. Turn them back on
+and you get them.
+
+### Fixed
+
+- **"Prioritise chart area" now honours your left margin.** A 7.5 mm band for
+  the row numbers was reserved OUTSIDE it, so a 1 mm margin put the first patch
+  at 8.5 mm. The row numbers now sit inside the margin, and the panel warns when
+  it is too tight for them.
+- **The margin readout says what it measures** — "Left (to first patch)" — and
+  explains the two things that legitimately sit in that space.
+- **A flagged patch keeps its whole red ring.** On a hexagonal chart the
+  neighbouring patch was painted over part of it.
+- **Loading a new chart no longer shows the previous chart's measurements.**
+- **The legend no longer lands at the top of the sheet**, over the column
+  letters, on charts whose strip geometry is not recorded.
+
+### Known issues
+
+- Over Bluetooth the learning step asks for TWO presses with the cap on, not
+  one, and does not yet say so while it waits.
+- Bluetooth has still only been used successfully on macOS. If it will not
+  connect for you, the new report under Tools → Instruments is what to send.
+
 ## v4.1.5-beta.2
 
 **The magnet guard now works on your instrument, not only on the one it was
