@@ -35,6 +35,10 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # 23 per language are the three new Tools help cards, added as English
 # placeholders under the project's beta rule; the remainder pre-date them.
 # German is lower because Basti and Knut read it, so it is kept current.
+# 2026-08-30, beta 2, raised 92 -> 93: a chart naming no instrument now says
+# so, because ArgyllCMS otherwise claims it is for a GretagMacbeth i1 Pro --
+# its own default, not anything in the file. One string.
+#
 # 2026-08-30, #159, raised 86 -> 92: a dark reference that does not read as
 # dark now opens a window offering to retake it (Basti: a failure must not
 # hide in a log panel he keeps closed), and both calibration texts were
@@ -79,8 +83,8 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # project's rule, and German is translated as usual because it is read.
 _BUDGET = {
     "de": 35,
-    "es": 92, "fr": 92, "it": 92, "ja": 92, "nl": 92,
-    "no": 92, "pl": 92, "pt": 92, "ru": 92, "sv": 92, "zh_CN": 92,
+    "es": 93, "fr": 93, "it": 93, "ja": 93, "nl": 93,
+    "no": 93, "pl": 93, "pt": 93, "ru": 93, "sv": 93, "zh_CN": 93,
 }
 
 

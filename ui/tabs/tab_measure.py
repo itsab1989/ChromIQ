@@ -3914,6 +3914,27 @@ class TabMeasure(QWidget):
                         label=label, detail=detail)
                 self._log.appendPlainText(msg)
                 self._instr_log_text = msg
+            else:
+                # SAY SO WHEN THE CHART NAMES NOBODY — otherwise ArgyllCMS
+                # speaks for it, and says something untrue.
+                #
+                # Driven on screen 2026-08-30 with a chart carrying no
+                # TARGET_INSTRUMENT: Argyll's own line claims "chart is for
+                # GretagMacbeth i1 Pro", which is its INTERNAL DEFAULT and not
+                # anything in the file — verified, the file names nothing. That
+                # line reaches the user through the log, and this branch was
+                # silent, so nothing corrected it. A user could reasonably
+                # believe their chart is committed to an instrument it has
+                # never heard of, and buy or borrow one to match.
+                msg = tr(
+                    "Chart instrument: this chart does not name one. ChromIQ "
+                    "will measure it with whichever instrument you have "
+                    "connected. ArgyllCMS may still say the chart is for a "
+                    "GretagMacbeth i1 Pro further down — that is its own "
+                    "assumption when a chart is silent, not something written "
+                    "in your file.")
+                self._log.appendPlainText(msg)
+                self._instr_log_text = msg
 
         self._apply_bidir_auto_state("guided")
         self._apply_bidir_auto_state("manual")
