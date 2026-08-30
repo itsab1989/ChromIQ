@@ -160,13 +160,24 @@ def usb_opens(monkeypatch):
         def __init__(self, port):
             self.port = port
 
+    class _Ident:
+        """Mirrors the real return type: `identify()` does NOT raise for a
+        stranger, it returns an identity whose `is_cr30()` is the actual test.
+        A stub returning a bare dict cannot exercise that check."""
+        def __init__(self, model="CR30"):
+            self.model = model
+        def is_cr30(self):
+            return self.model == "CR30"
+
     class _Dev:
         def __init__(self, port):
             self._t = _T(port)
         def identify(self):
             if outcome["fail_for"] == self._t.port:
                 raise ConnectionError("not a CR30")
-            return {"model": "CR30"}
+            return _Ident()
+        def close(self):
+            pass
 
     def _open_usb(port=None):
         calls.append(port)

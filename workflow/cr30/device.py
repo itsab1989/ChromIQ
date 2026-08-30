@@ -143,7 +143,19 @@ class CR30:
             try:
                 t.open()
                 dev = cls(t, "usb")
-                dev.identify()          # raises unless this really is a CR30
+                # ASK, AND THEN CHECK THE ANSWER.
+                #
+                # `identify()` does NOT raise for a stranger — it returns an
+                # Identity for whatever replied. `Identity.is_cr30()` is the
+                # real test, and it had zero callers anywhere in the codebase,
+                # so this line once said "raises unless this really is a CR30"
+                # and was simply wrong: any CH340 device that answered with
+                # parseable frames would have been accepted as the instrument.
+                ident = dev.identify()
+                if not getattr(ident, "is_cr30", lambda: False)():
+                    raise ConnectionError(
+                        f"answered, but as {getattr(ident, 'model', None)!r} "
+                        "rather than a CR30")
                 return dev
             except Exception as exc:    # noqa: BLE001 — try the next one
                 try:

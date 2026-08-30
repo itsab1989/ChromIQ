@@ -2452,6 +2452,19 @@ class MainWindow(QMainWindow):
         self._settings.set(
             "session_project_root",
             str(self._file_mgr.project_root_override() or ""))
+        # SAY WHY BEFORE KILLING. cleanup() kills the helper, and the
+        # session's finish handler runs synchronously off that — it must know
+        # this ending was the user quitting, not a failure. See
+        # MeasureManager.note_app_quitting.
+        for _mgr in (getattr(getattr(self, "tab_measure", None), "_manager", None),
+                     getattr(self, "_measure_manager", None)):
+            note = getattr(_mgr, "note_app_quitting", None)
+            if callable(note):
+                try:
+                    note()
+                except Exception:      # noqa: BLE001 — never block a quit
+                    log.debug("could not mark the quit", exc_info=True)
+                break
         self._runner.cleanup()
         # LAST, and while the event loop is still alive: main._hard_exit calls
         # os._exit, which skips the flush QSettings would otherwise do on

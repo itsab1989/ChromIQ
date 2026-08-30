@@ -708,14 +708,33 @@ class DeviceReader:
         from .device import CR30
         remembered = self._port or self._remembered(self.REMEMBERED_PORT_KEY)
         if remembered:
+            dev = None
             try:
                 dev = CR30.open_usb(remembered)
-                dev.identify()       # the path may belong to something else now
+                # CHECK THE ANSWER, not merely that one came back. `identify()`
+                # returns an Identity for whatever replied; `is_cr30()` is the
+                # test. The path may belong to something else entirely now — a
+                # /dev/cu.usbserial-* name is reused by whatever is plugged in
+                # next, and on Windows a COM number is reassigned freely.
+                ident = dev.identify()
+                if not getattr(ident, "is_cr30", lambda: False)():
+                    raise ConnectionError(
+                        f"answered as {getattr(ident, 'model', None)!r}")
                 self._remember(self.REMEMBERED_PORT_KEY, remembered)
                 return dev
-            except Exception:        # noqa: BLE001 — fall back to the search
-                log.info("CR30: %s did not answer as a CR30; looking at the "
-                         "other serial devices", remembered)
+            except Exception as exc:  # noqa: BLE001 — fall back to the search
+                # CLOSE IT, OR THE SEARCH CANNOT REOPEN IT. A serial port is
+                # EXCLUSIVE on Windows, so leaving this one open would make the
+                # fallback fail on the very device we are looking for — the
+                # remembered port is usually the right one, which is what makes
+                # the leak so unhelpful.
+                if dev is not None:
+                    try:
+                        dev.close()
+                    except Exception:  # noqa: BLE001 — teardown only
+                        log.debug("could not close %s", remembered, exc_info=True)
+                log.info("CR30: %s did not answer as a CR30 (%s); looking at "
+                         "the other serial devices", remembered, exc)
         dev = CR30.open_usb(self._port)
         self._remember(self.REMEMBERED_PORT_KEY, getattr(dev._t, "port", None))
         return dev

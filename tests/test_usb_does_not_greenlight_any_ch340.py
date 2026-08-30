@@ -60,6 +60,17 @@ def test_dsrdtr_alone_is_not_mistaken_for_the_fix():
 
 # ---- choosing a port ----------------------------------------------------
 
+class _Ident:
+    """What `Session.identify()` really returns: an object whose `is_cr30()`
+    is the actual test. `identify()` does NOT raise for a stranger."""
+
+    def __init__(self, model):
+        self.model = model
+
+    def is_cr30(self):
+        return self.model == "CR30"
+
+
 class _Cand:
     def __init__(self, device):
         self.device, self.vid, self.pid, self.product = device, 6790, 29987, None
@@ -79,11 +90,14 @@ def fake_ports(monkeypatch):
             pass
 
     def _identify(self):
+        # MIRRORS THE REAL RETURN TYPE. It used to hand back a plain dict,
+        # which has no `is_cr30()` — so it could not have caught the fault
+        # where `open_usb` accepted anything that merely answered.
         identified.append(self._t.port)
         if self._t.port != "/dev/the-real-one":
             raise RuntimeError("no reply to AA 0A")
         self.model = "CR30"
-        return {"model": "CR30"}
+        return _Ident("CR30")
 
     import workflow.cr30.device as dev
     import workflow.cr30.discovery as disc
@@ -149,3 +163,49 @@ def test_an_explicit_port_is_still_honoured(monkeypatch):
     d = CR30.open_usb("/dev/chosen-by-hand")
     assert d._t.port == "/dev/chosen-by-hand"
     assert asked == [], "an explicitly chosen port was interrogated anyway"
+
+
+# ---- answering is not the same as being a CR30 --------------------------
+#
+# `identify()` does NOT raise for a stranger: it returns an Identity for
+# whatever replied. `Identity.is_cr30()` is the real test, and it had ZERO
+# callers anywhere in the codebase — so the first version of this fix carried
+# the comment "raises unless this really is a CR30" and was simply wrong. Any
+# CH340 answering with parseable frames would have been accepted.
+
+def test_a_device_that_answers_as_something_else_is_refused(monkeypatch):
+    class _T:
+        def __init__(self, port): self.port = port
+        def open(self): pass
+        def close(self): pass
+    import workflow.cr30.device as dev
+    import workflow.cr30.discovery as disc
+    import workflow.cr30.transport as tp
+    monkeypatch.setattr(tp, "SerialTransport", _T)
+    monkeypatch.setattr(disc, "candidates", lambda: [_Cand("/dev/some-gadget")])
+    monkeypatch.setattr(dev.CR30, "identify", lambda self: _Ident("CH341 thing"))
+
+    with pytest.raises(ConnectionError) as e:
+        CR30.open_usb()
+    assert "CH341 thing" in str(e.value), (
+        "a device that answered as something else was accepted as the "
+        "instrument, or the error does not say what it claimed to be")
+
+
+def test_the_real_identity_test_is_actually_used():
+    """`is_cr30()` existing is not the same as it being called."""
+    src = inspect.getsource(CR30.open_usb)
+    assert "is_cr30" in src, (
+        "open_usb accepts anything that answers, which is what it did before")
+
+
+def test_the_remembered_port_is_checked_the_same_way(monkeypatch):
+    """The shortcut must not be weaker than the search it skips."""
+    from workflow.cr30.measure_bridge import DeviceReader
+    src = inspect.getsource(DeviceReader._open_usb)
+    assert "is_cr30" in src, (
+        "a remembered port is trusted without checking what answers there")
+    assert "dev.close()" in src, (
+        "a remembered port that fails identification is left open; on Windows "
+        "a serial port is exclusive, so the fallback search could not reopen "
+        "the very device being looked for")

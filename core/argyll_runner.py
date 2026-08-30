@@ -506,37 +506,29 @@ class ArgyllRunner(QObject):
         otherwise the daemon PTY thread can emit signals into already-freed
         C++ objects and cause a segfault (macOS 'quit unexpectedly' dialog).
         """
-        # DROP THE PER-RUN CALLBACKS FIRST, AND THE QPROCESS SIGNALS WITH THEM.
+        # ⚠ THE SESSION'S FINISH HANDLER STILL RUNS FROM HERE, ON PURPOSE.
         #
-        # Disconnecting `self.finished` is not enough, and it looked like it
-        # was. `_on_finished` calls `_run_on_finish` DIRECTLY — deliberately,
-        # so a chained run (targen→printtarg) can register its own without it
-        # being disconnected — so the public signal is not the path that
-        # matters. Killing the process below makes `waitForFinished` deliver
-        # `finished`, which runs the measurement session's finish handler in
-        # the middle of application shutdown.
+        # Killing the process makes `waitForFinished` deliver `finished` →
+        # `_on_finished` → the per-run callback, synchronously, during
+        # shutdown. Disconnecting `self.finished` does not prevent that:
+        # `_on_finished` calls the per-run callback DIRECTLY, so a chained run
+        # (targen→printtarg) can register its own. The public signal was never
+        # the path that mattered.
         #
-        # Two things came of that. The owner saw
-        # "the chart's instrument is one stock chartread cannot read (unknown
-        # error) — not falling back" in his terminal on every quit: exit code 9
-        # is SIGKILL, `_user_quit` is False because he never asked to stop, and
-        # the #159 branch warns about a failure that did not happen. Worse and
-        # latent: a non-CR30 engine session quit before its first event would
-        # RELAUNCH stock chartread during shutdown, leaving an orphan process
-        # behind the closing app.
+        # An earlier fix dropped the per-run callbacks here to stop a spurious
+        # warning. **That was too blunt and is not what this does.** It also
+        # silenced the §3b / M-TI3-EMPTY reconciliation, which legitimately
+        # runs when a session ends — leaving an empty `.ti3` still claiming to
+        # be a measurement and the one it replaced stranded in `old/`. Knut
+        # specified that reconciliation. Silencing a false alarm must never
+        # silence real work.
         #
-        # Nothing is lost by dropping them — CR30 readings are written to disk
-        # after every patch, and this path exists only for quitting.
-        self._run_on_finish = None
-        self._run_on_line = None
-        if self._process is not None:
-            for _sig, _slot in ((self._process.finished, self._on_finished),
-                                (self._process.readyReadStandardOutput,
-                                 self._on_ready_read)):
-                try:
-                    _sig.disconnect(_slot)
-                except (TypeError, RuntimeError):
-                    pass
+        # The real fault was narrower: the session was not told WHY it was
+        # ending. `MainWindow.closeEvent` now says so before calling this, via
+        # `MeasureManager.note_app_quitting()`, because quitting IS a
+        # deliberate ending. That silences the "unknown error" warning and
+        # stops stock chartread being relaunched into a closing app, while the
+        # finish handler still runs and still reconciles.
 
         # Disconnect all signals so no callbacks fire during teardown.
         for sig in (self.line_received, self.finished, self._pty_done):

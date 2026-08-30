@@ -236,6 +236,7 @@ def test_stopping_from_the_window_still_ends_the_session(stubbed):
         assert any(isinstance(e, tuple) and e[0] == "end" for e in tab.ended), (
             "'Stop the measurement' did not end the session")
         assert h.bridge._stopped is True, "the session was resumed anyway"
+        h.settle()
     finally:
         stubbed.choose = "Recalibrate now"
 
@@ -264,6 +265,7 @@ def test_keep_measuring_does_not_leave_a_stopped_session_on_screen(stubbed):
             f"window was shown {len(stubbed.seen)} time(s)")
         assert any("still stopped" in l for l in tab._log.lines), (
             "nothing told the user why they cannot measure")
+        h.settle()
     finally:
         stubbed.choose = "Recalibrate now"
         _Tab.endings = []
@@ -281,6 +283,7 @@ def test_cancelling_the_calibration_is_not_an_ending_by_itself(stubbed):
         tab._on_cr30_magnet("A1", MAGNET_MESSAGE)
         assert len(stubbed.seen) == 2, (
             "cancelling the calibration ended the session without asking")
+        h.settle()
     finally:
         _Tab.endings = []
 
@@ -324,6 +327,7 @@ def test_resuming_a_bridge_that_was_never_stopped_is_not_success():
     assert fresh._stopped is False
     assert fresh.resume_after_magnet() is False, (
         "a bridge with nothing outstanding reported that it had resumed")
+    h.settle()
 
 
 def test_a_real_resume_still_reports_success():
@@ -331,3 +335,34 @@ def test_a_real_resume_still_reports_success():
     h = _stopped_by_a_magnet()
     assert h.bridge.resume_after_magnet() is True
     assert h.bridge.armed_for("A1")
+    h.settle()          # ⚠ see _stopped_by_a_magnet: resuming starts a thread
+
+
+
+def test_every_test_here_that_resumes_also_settles():
+    """SELF-POLICING, because the failure is an intermittent SEGFAULT.
+
+    Resuming starts a real reader thread. A test that ends while it runs lets
+    Qt collect objects out from under it and the xdist worker dies — never when
+    the file runs alone, which is the worst way for a fault to present. It was
+    tolerated for hours before being tracked down, and then reappeared two
+    screens below the warning that documents it.
+
+    So the rule is enforced rather than remembered. It is deliberately
+    over-broad: a test that only LOOKS like it resumes still has to settle,
+    because deciding case by case is how the hole got reopened.
+    """
+    import pathlib
+    src = pathlib.Path(__file__).read_text()
+    offenders = []
+    for block in src.split("\ndef test_")[1:]:
+        name = block.split("(")[0]
+        if name == "every_test_here_that_resumes_also_settles":
+            continue
+        touches = ("resume_after_magnet" in block or "_on_cr30_magnet" in block
+                   or "bridge.rearm(" in block)
+        if touches and "h.settle()" not in block:
+            offenders.append(name)
+    assert not offenders, (
+        "these resume a bridge without settling its reader thread, which "
+        f"segfaults an xdist worker at random: {offenders}")

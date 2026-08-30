@@ -880,6 +880,32 @@ class MeasureManager(QObject):
             return
         self.send_post_retry_key("f")
 
+    def note_app_quitting(self) -> None:
+        """The application is closing. Treat the ending as deliberate.
+
+        `ArgyllRunner.cleanup()` kills the helper during shutdown, and
+        `waitForFinished` then delivers `finished` synchronously — so this
+        session's finish handler runs while the window is closing, with exit
+        code 9 (SIGKILL) and no idea why.
+
+        Without this the owner saw, on every quit:
+
+            the chart's instrument is one stock chartread cannot read
+            (unknown error) — not falling back
+
+        a warning about a failure that never happened. Worse and latent: a
+        non-CR30 engine session quit before its first event would RELAUNCH
+        stock chartread during shutdown, leaving an orphan process behind the
+        closing app.
+
+        Quitting IS a deliberate ending, so saying so is both true and enough:
+        `_user_quit` is exactly the flag those branches test. **The finish
+        handler still runs**, which matters — it is what reconciles an empty
+        `.ti3` (§3b / M-TI3-EMPTY), and an earlier version of this fix silenced
+        that by dropping the callbacks outright.
+        """
+        self._user_quit = True
+
     def send_save_partial_and_quit(self) -> None:
         """Save what's been scanned so far and exit chartread cleanly.
 

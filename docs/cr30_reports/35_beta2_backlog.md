@@ -166,33 +166,55 @@ Bluetooth path is documented — a silent gap in a data-integrity guard is the
 worst kind. Currently only in the research repo.
 
 
-## B2-10 · Could a real patch be mistaken for the calibration tile? — MEASURED: no
+## B2-10 · Could a real patch be mistaken for the calibration tile? — very probably not, and my first answer was partly wrong
 
-Basti's question, and a fair one: *"what if one happens to measure a patch that
-has the same value as the tile? this could even happen to me myself."* The tile
-is a light neutral around 79 %R — not far from paper white — so the worry is
-that a near-white patch would be rejected as magnet-spoiled.
+Basti's question: *"what if one happens to measure a patch that has the same
+value as the tile? this could even happen to me myself."* The tile is a light
+neutral near 79 %R — not far from paper white — so the worry is that a
+near-white patch would be rejected as magnet-spoiled.
 
-Measured against the public corpus (103 readings):
+### The answer that holds
 
 | | worst-band distance to `TILE_SIGNATURE` |
 |---|---|
 | the guard's tolerance | **0.05 %R, on all 31 bands at once** |
-| closest GENUINE reading | **4.686 %R** — 94x the tolerance |
-| readings inside the guard | **3 of 103**, all of them the magnet/calibration cases it exists to catch |
+| closest GENUINE reading in the corpus | **4.686 %R** — 94x the tolerance |
+| closest genuine reading **on his own unit** | **≥ 11.33 %R** — 227x |
+| readings inside the guard | **3 of 103**, all the magnet/calibration cases it exists to catch |
 
-The margin is not the real reason it is safe. **Two readings of the same real
-surface on his own unit differ by 1.41–6.38 %R on their worst band** — his own
-measurement noise is 28x to 128x the tolerance. So even measuring the actual
-white tile WITHOUT a magnet cannot match: noise alone pushes it out. This is not
-a colour comparison that a similar-looking patch could satisfy; it is a
-bit-pattern match against one specific 31-band curve.
+The guard is not a colour comparison that a similar-looking patch could satisfy.
+It is a match against one specific 31-band curve, on every band at once.
 
-**A false positive would need a tolerance loose enough to swallow measurement
-noise. At 0.05 it cannot be reached.** Anyone tempted to relax it should read
-this entry first.
+### ⚠ WHERE I WAS WRONG, AND IT WAS THE LOAD-BEARING PART
 
-⚠ **The 4.686 %R figure is the OTHER unit in the corpus** — that is how far its
-white reference sits from his constant, and precisely why the guard does not
-work on anybody else's device. The risk is inverted from the one Basti feared:
-not false alarms for him, but no protection at all for them. See B2-9.
+My first version argued from measurement noise: "his own repeat readings differ
+by 1.41–6.38 %R, which is 28–128x the tolerance, so a genuine reading can never
+sit inside it." **That figure was not measurement noise.** It came from
+comparing every pair of readings in a capture — including readings of DIFFERENT
+surfaces. Recomputing on consecutive readings gives a median worst-band delta of
+36 %R, which is obviously not noise either: the corpus simply does not contain a
+clean repeatability series, and I presented a number from it as though it did.
+
+Review put the real figure at **0.035–2.71 %R** for adjacent repeats, **some of
+which fall BELOW the 0.05 tolerance**, and `measurement.py`'s own docstring
+records **0.056 %R SD**. So noise does NOT by itself put a genuine reading out
+of reach of the guard.
+
+**The conclusion survives, but only on the margin**: nothing genuine has ever
+been observed within 94x the tolerance, and on his own unit within 227x. That is
+a strong empirical argument and it is not the same as an impossibility proof.
+
+### Therefore
+
+The claim that a false positive **"cannot be reached"** was too strong and must
+not enter a specification. The honest form is: **never observed, and
+astronomically unlikely — a printed patch would have to reproduce one specific
+31-band curve to within 0.05 %R at every wavelength.**
+
+Anyone tempted to LOOSEN the tolerance should read this entry first: at 0.056 %R
+SD, a tolerance a little above 0.05 would begin to admit real readings.
+
+⚠ The 4.686 %R figure is the OTHER unit in the corpus — that is how far its
+white reference sits from his constant, and why the guard does not work on
+anybody else's device. The risk is inverted from the one Basti feared: not false
+alarms for him, but no protection at all for them. See B2-9.
