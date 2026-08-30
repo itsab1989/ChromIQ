@@ -16,7 +16,9 @@ no protection at all.
 ### New
 
 **ChromIQ learns your instrument's white-tile value.** One press with the cap
-on, offered once after calibrating. That press is harmless to your calibration:
+on over USB — two over Bluetooth, where the instrument does not report that the
+opening was covered and ChromIQ instead requires two identical readings, which
+real measurements never are. Offered once after calibrating. That press is harmless to your calibration:
 measured across three experiments on real hardware, a capped press does not move
 the white reference. The value is filed against your instrument, so a second
 CR30 never inherits the first one's — over USB by its serial, over Bluetooth by
@@ -51,6 +53,9 @@ stands in for it.
 - Over Bluetooth the instrument reports no serial, so its address is used to
   tell two units apart. If your Bluetooth pairing is reset, ChromIQ offers the
   learning step again rather than trusting a stale value.
+- Over Bluetooth the learning step asks for TWO presses with the cap on, not
+  one, and it does not yet say so while it waits — if it seems to hang after
+  the first press, press again. Over USB one press is enough.
 - The keyboard trigger is refused until your instrument's tile is learned. This
   is deliberate — see above — but it means Space does nothing on a fresh
   install until you have been through the one-off step.

@@ -477,3 +477,148 @@ introduced a regression I could find. Bump the version, run your gate, tag.
    identifies) + the `""`-key dual-transport entry that permanently disarms
    the BLE fast path once a unit is learned over both transports.
 7. Learning-wait progress/cancel UI; wire `on_press`.
+
+---
+
+# Second re-check: f1ea856e (address as signature key, doc quotes) and 1c67698a (changelog)
+
+Staged; verdict at the end of this section. Tree at 1c67698a, clean,
+`core/version.py` = 4.1.5-beta.2.
+
+## S1. The Bluetooth address as the signature key — the mechanism HOLDS; verified, not accepted
+
+**The platform claim checks out.** `docs/cr30_reports/23_live.md` (lines
+253–257) says precisely what the commit cites: "the stored address is a
+CoreBluetooth UUID on macOS and a MAC elsewhere — per-host". PROVEN by reading
+the cited source.
+
+**Address populated at arm time — verified in `ble.py` and then PROVEN on the
+real stack.** Code-read first: `BleTransport.address` is set in `__init__`
+(explicit/remembered paths) and in `open()` *before* connecting on the
+discovery path (`self.address = target`, ble.py:242), and `_arm_tile_guard`
+runs only after `_open_ble` returns an opened transport — so on every BLE path
+the address exists when the key is computed. The remembered value is
+`str(value) or None` and discovery addresses come from bleak non-empty, so no
+empty-string key. Then proven end-to-end: **new file
+`tests/test_cr30_ble_address_key_is_live_at_arm_time.py`** (4 tests, green)
+drives the real `DeviceReader._open()` → `CR30.open_ble` → `BleTransport`
+over the report-41 fake-bleak harness and shows: the guard arms from
+`ble:<address>` on the fast path with the scan forbidden, and after discovery;
+`learn_tile`'s key and `_arm_tile_guard`'s key are the same string for the
+same session; and a signature stored for a *different* address arms nothing.
+
+**Can the fallback silently reopen the hole?** Only where `_signature_key`
+returns None, and on every production path it cannot: BLE always has the
+address (above); both production USB paths (`remembered port`, and discovery
+inside `open_usb`) call `identify()` before acceptance, so `unit_id` is the
+serial. The one path with neither is an explicit `port=`/`address=`
+constructor argument — no production caller passes one (same finding as
+report 41). INFERENCE, code-read.
+
+**Different keys for learn vs arm?** No. Both call the same static
+`_signature_key(dev)` on the same device object, and `_arm_tile_guard` runs on
+every open (including the one `learn_tile` performs), refreshing
+`reader.unit_id`; the `or self.unit_id` fallbacks only fire when the key is
+None (non-production paths). Pinned by the third new test so a future
+asymmetry cannot file signatures nobody finds. PROVEN.
+
+**`ble:` prefix vs USB serials:** `Identity.device_id` is the unit's own id
+string (shape "CM454M0223"); a serial spelled `ble:<something>` is not a real
+format, and even a collision would merely merge two keys, in the safe
+direction. Non-issue.
+
+**Failure direction:** holds. A key that stops matching (pairing reset changes
+the CoreBluetooth UUID; another Mac; BLE privacy randomisation) lands on "no
+signature, guard unarmed, learning offered again" — every owner's position
+today. The only way to arm a unit with a foreign constant is now a genuine
+address collision between two CR30s on one host (random UUIDs / distinct
+MACs — vanishing), and even then the bad outcome is the pre-existing "trigger
+enabled while the tile check is blind", never a refused patch: a real patch
+matching a foreign constant across 31 bands at 0.001 %R cannot happen (units
+in evidence 4.69 %R apart). One residual worth naming: a signature learned
+during beta.2 testing BEFORE f1ea856e sits under the `""` key, is orphaned by
+the new keys (arming looks it up by key, never by the "" entry), and the
+session is simply offered learning again — safe, one extra learning step for
+anyone who tested the un-keyed build. That is the owner and nobody else.
+
+**The shipped tests, audited:** the `_Dev` stand-in mirrors exactly the two
+attributes `_signature_key` reads, so it is a faithful mirror of that
+function's surface — but it IS too thin to prove the integration claim (that
+the real stack delivers those attributes at arm time), which is precisely the
+claim the owner asked about. That gap is now closed by my end-to-end file
+(above). The "fallback removed → tests fail" claim was re-verified by applying
+the mutation in a scratchpad copy: `return None` in place of the `ble:` branch
+is caught by **four** parametrised failures across the two test functions that
+matter, including the second-instrument-stays-unarmed safety property. The
+commit's "two of them fail" undercounts its own tests; the protection is real.
+
+## S2. The design-document (-r) quotes — DONE, discipline followed
+
+PROVEN: zero unmigrated quotes remain (`grep` finds no "resume existing
+measurement" without "(-r)"; seven carry it), the catalogue/spec/i18n tests
+pass (66 + 123 across the sweeps), and no message's *meaning* changed — every
+edit is the quotation of the widget's own label, which the widgets have
+carried since 4a8876f2. The ruling is recorded in the commit message; since
+the reasoning must stay off GitHub, that is the right place, and this report
+carries the cross-reference.
+
+## S3. The changelog (1c67698a) — one promise is false over Bluetooth
+
+`test_release_notes.py` passes; the entry renders. The numbers check out
+against the measured record: 4.69 %R between units (PRIORART-001), 94x the
+0.05 tolerance (4.69/0.05 = 93.8), 0.5 %R button press vs 0.05 %R untouched
+noise (EXP-TILE-003/004), "three experiments" for the capped press
+(EXP-TILE-002/003/004). "A capped press does not move the white reference" is
+a shade stronger than the record (the record shows non-monotonic shifts
+attributable to repositioning, i.e. *does not damage*), acceptable as written.
+
+**But "One press with the cap on" promises behaviour that is not built over
+Bluetooth.** BLE has no gate flag, so the learner needs TWO bit-identical
+presses by design (`TileLearner.offer`); fix 3 collects the press made before
+the dialog is answered, and then the loop waits — up to 90 s, silently, with
+`on_press` unwired and no on-screen prompt — for a second press the user was
+told would not be needed ("press the button on the instrument once. That is
+all."). An instruction-following Bluetooth user gets "could not learn this
+time" every session, forever: fail-SAFE, but the beta's headline feature is
+effectively USB-only as instructed. The M-CR30-LEARN-TILE window body and the
+changelog both carry the one-press promise; the Known issues section does not
+mention it. Over USB one press is genuinely enough (gate flag) — the sentence
+is true there.
+
+## S4. Verdict on the tag
+
+Everything else is ready: version bumped, release commits in, 113 tests green
+across this re-check's sweep, both new-commit mechanisms verified and
+mutation-proven.
+
+### NO — one wording fix short of green
+
+**The shortest list that makes it yes (one item):**
+
+1. Make the one-press promise honest about Bluetooth in the release page:
+   qualify the "New" bullet (e.g. "one press with the cap on — two over
+   Bluetooth, where the instrument cannot flag the press as capped") and add a
+   Known-issues line saying that over Bluetooth ChromIQ does not yet prompt
+   for the second press, so press twice with the cap on. Changelog only; no
+   source change, no re-review needed — say the word and this report's verdict
+   is GREEN LIGHT.
+
+The in-app M-CR30-LEARN-TILE body carries the same false promise; it is
+§M-PROPOSED (unapproved), so the wording fix goes through the owner with the
+document — recommended for beta 3 together with wiring `on_press` so the
+second press is actually prompted on screen.
+
+**Beta-3 list, updated:**
+1. Learning over Bluetooth: wire `on_press`, prompt for the second press, and
+   revise M-CR30-LEARN-TILE's body (owner's §M review) — supersedes the old
+   "progress/cancel UI" item and subsumes S3's changelog qualifier.
+2. Learning mis-arm hardening (upgraded in R3): tile-plausibility band in
+   `remember_signature` AND/OR at-most-one pre-queued event per learning read.
+3. Generation-scoped trigger request (closes R1's microsecond residual).
+4. Wrong-message wart: M-CR30-TRIGGER-NOT-ARMED shown on an armed instrument
+   in the ms-wide not-yet-in-flight window — pick the message by
+   `guard_is_armed`.
+5. Housekeeping: the orphaned `""` signature entry from pre-f1ea856e learning
+   (harmless; clear it when a keyed signature is stored). The old item 6
+   (dual-transport learning permanently disarming the BLE fast path) is
+   RESOLVED by f1ea856e — each transport's key now finds its own entry.

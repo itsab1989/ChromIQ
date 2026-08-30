@@ -1198,7 +1198,9 @@ and always refusable. Skipping costs nothing that is not already lost today.*
 >
 > Every instrument's tile value is slightly different, so ChromIQ has to learn yours from your own device.
 >
-> LEAVE THE CAP ON, exactly as it is now, and press the button on the instrument once. That is all. The reading is not part of your measurement and nothing is written to your chart.
+> LEAVE THE CAP ON, exactly as it is now, and press the button on the instrument. The reading is not part of your measurement and nothing is written to your chart.
+>
+> Over USB one press is enough: the instrument tells ChromIQ that the opening was covered, so it knows what it is looking at. Over Bluetooth it does not say, so ChromIQ asks for a SECOND press and accepts the value only if the two readings are identical — which real measurements never are. Either way, just keep pressing until this window closes.
 >
 > This does not change your calibration. A press with the cap on reads the tile that is already the instrument's reference, so there is nothing for it to spoil.
 >
