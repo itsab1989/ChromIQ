@@ -34,7 +34,26 @@ from workflow.margin_inspector import MarginReport, Violation
 _SPIN_CHROME_PX = 34
 
 _MM_PER_INCH = 25.4
-_EDGES = (("L", "Left"), ("R", "Right"), ("T", "Top"), ("B", "Bottom"))
+# SAY WHAT IS BEING MEASURED. These are the distances from the paper edge to
+# the FIRST PATCH -- not to the first ink. Two things sit in between and are
+# meant to: furniture bands (the row numbers down the left, the strip labels
+# across the top) and, when the grid does not divide the width exactly, the
+# leftover that keeps it centred.
+#
+# Unlabelled, the number reads as "the app ignored my margin". Basti set 1 mm
+# and measured 8.6, and was right to ask -- part of it was a real fault (the
+# row-label band was reserved OUTSIDE the margin in area-first; fixed) and part
+# of it was this, which is correct and was simply never explained.
+#: Built by a function, and the strings are LITERALS inside `tr()`, because
+#: `scripts/i18n_extract.py` resolves `tr(NAME)` only for module-level string
+#: constants -- a loop variable is invisible to it. Left as `tr(label)` over a
+#: tuple, these four would have shipped untranslated in every language, silently,
+#: which is this project's known extractor blind spot.
+def _edges():
+    return (("L", tr("Left (to first patch)")),
+            ("R", tr("Right (to first patch)")),
+            ("T", tr("Top (to first patch)")),
+            ("B", tr("Bottom (to first patch)")))
 
 
 class MarginInspectorPanel(QGroupBox):
@@ -79,8 +98,8 @@ class MarginInspectorPanel(QGroupBox):
         grid.addWidget(hdr_thr, 0, 3)
         self._thr_labels: dict[str, QLabel] = {}
         row = 1
-        for key, label in _EDGES:
-            name = QLabel(tr(label), self)
+        for key, label in _edges():
+            name = QLabel(label, self)
             mm = QLabel("—", self)
             inch = QLabel("—", self)
             thr = QLabel("—", self)
@@ -138,8 +157,18 @@ class MarginInspectorPanel(QGroupBox):
                "This panel helps you catch that before you print.\n\n"
                "What the numbers mean:\n"
                "• Left, Right, Top, Bottom — how much white space there is "
-               "between each edge of the paper and the patches, shown in both "
-               "millimetres and inches.\n"
+               "between each edge of the paper and the first PATCH, shown in "
+               "both millimetres and inches.\n\n"
+               "  These can read larger than the margins you set, and usually "
+               "should. Two things sit in that space on purpose. Some charts "
+               "print row numbers down the left and strip letters across the "
+               "top, so you can find one patch among hundreds — that lettering "
+               "needs room. And patches come in whole units, so the grid "
+               "almost never divides the width exactly; the leftover is shared "
+               "at both ends to keep the block centred on the page. Neither is "
+               "the app ignoring your margins: they are the smallest white "
+               "border you asked for, and this panel reports what the patches "
+               "actually got.\n"
                "• Patch width — how wide one patch is across a strip.\n"
                "• Strip length — how long each strip of patches is (handy "
                "because some jigs have a maximum, e.g. 240 mm for the "

@@ -1227,11 +1227,20 @@ def render_pages(
                         _ry = (px(place.y_of(_j)) + px(place.y_of(_j) + place.plen)) // 2
                         _txt = label_patch(_j + 1)
                         _tw = int(draw.textlength(_txt, font=font))
-                        draw.text((_rx - _tw, _ry - ind_px // 2), _txt,
+                        # CLAMP AT THE PAPER EDGE. In area-first the row band is
+                        # no longer reserved outside the margin (the margin is
+                        # the law for the PATCHES), so with a small left margin
+                        # these numbers grow left past x=0 and simply vanish off
+                        # the sheet. Basti's ruling, 2026-08-30: clamp them at
+                        # the edge and warn, the mirror of what the strip labels
+                        # already do at the top. Furniture slides; patches do
+                        # not move.
+                        _tx = max(0, _rx - _tw)
+                        draw.text((_tx, _ry - ind_px // 2), _txt,
                                   font=font, fill=(0, 0, 0))
                         if collect_device_geom and _ind_font_file:
                             _geom_rows.append(
-                                ("text", _rx - _tw, _ry - ind_px // 2 + _ind_ascent,
+                                ("text", _tx, _ry - ind_px // 2 + _ind_ascent,
                                  _txt, _ind_font_file, ind_px, 0, 0, (0, 0, 0),
                                  _ind_var))
             for j, gslot in enumerate(col_slots):

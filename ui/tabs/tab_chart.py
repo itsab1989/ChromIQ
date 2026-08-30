@@ -16380,6 +16380,17 @@ class TabChart(QWidget):
                     r.margin_top + 0.05 < r.text_edge_top_mm + lab:
                 warns.append(tr("⚠ Top margin is too small for the strip labels — "
                                 "they overflow toward the page edge."))
+            # …AND THE ROW NUMBERS DOWN THE LEFT, the same rule one edge over.
+            # Area-first no longer reserves their 7.5 mm band outside the margin
+            # (that was the fault Basti reported: a 1 mm margin put the first
+            # patch at 8.5 mm), so with a small left margin the numbers slide
+            # into the margin and clamp at the paper edge -- where they can end
+            # up under the patches. The patches are where he asked for them;
+            # this says what it cost.
+            if geom.rlwi > 0 and r.margin_left + 0.05 < geom.rlwi:
+                warns.append(tr(
+                    "⚠ Left margin is too small for the row numbers — they "
+                    "move to the page edge and may sit under the patches."))
             nlines = (1 if r.chart_text else 0) + (1 if r.stamp_command else 0)
             if nlines and r.margin_bottom + 0.05 < r.text_edge_mm + 4.2 * nlines:
                 warns.append(tr("⚠ Bottom margin is too small for the sheet text — "
