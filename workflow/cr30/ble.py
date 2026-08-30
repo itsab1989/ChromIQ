@@ -76,7 +76,12 @@ READ_MEASUREMENT = frame(0x02, 0x10)
 # only reads what is already stored.
 TRIGGER_UNSAFE = frame(0x01, 0x00)
 
-# ⚠ The advertised name is the device's OWN device-id string (the value
+# ⚠ The advertised name is the device's OWN SECOND id string -- `AA 0A 01`,
+# which the identity parser calls `second_id`, NOT `device_id` (`AA 0A 00`).
+# The two are different 10-character strings, and this comment used to name one
+# while citing the other. Something believed the wrong half (see
+# `device.py::identify`), and the tile-learning key then differed by transport.
+# (the value
 # AA 0A 01 returns over USB) and is therefore UNIT-SPECIFIC. Hard-coding one
 # unit's name works only on that unit. Discovery must go by SERVICE UUID and
 # then confirm over the protocol; the name is a hint and a label, never a test.

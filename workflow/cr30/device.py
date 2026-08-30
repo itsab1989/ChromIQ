@@ -235,7 +235,24 @@ class CR30:
         # constant being applied to another, and asking again costs a round
         # trip the fast paths exist to avoid.
         self.last_identity = ident
-        self.unit_id = (getattr(ident, "device_id", "") or "").strip() or None
+        # `second_id`, NOT `device_id`, and the difference is a silent hole.
+        #
+        # The BLE branch above keys `unit_id` from the ADVERTISED NAME, and that
+        # name is `second_id` (the `AA 0A 01` field) -- measured on the owner's
+        # unit against the recorded captures: it matches `second_id` and does
+        # NOT match `device_id`, which is a different 10-character string.
+        # (`ble.py`'s own comment says "device-id string" while citing
+        # `AA 0A 01`; it contradicts itself, and this line believed the wrong
+        # half of it.)
+        #
+        # `unit_id` is the key the learned tile constant is filed under. Keying
+        # it differently per transport meant a tile learned over USB did not
+        # arm the magnet guard over Bluetooth -- the failure direction is safe,
+        # the guard simply stays off, but the protection is silently absent on
+        # the transport where there is no gate flag to fall back on.
+        self.unit_id = ((getattr(ident, "second_id", "") or "").strip()
+                        or (getattr(ident, "device_id", "") or "").strip()
+                        or None)
         return ident
 
     def trigger_unsafe(self) -> None:

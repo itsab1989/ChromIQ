@@ -99,3 +99,46 @@ def test_an_instrument_with_neither_is_not_invented_a_key():
     """No id and no address: return None, so `learned_signature` applies its
     'exactly one signature' rule rather than keying on a made-up string."""
     assert DeviceReader._signature_key(_Dev()) is None
+
+
+# -- the same key on both transports ----------------------------------------
+
+def test_the_tile_key_is_the_same_id_the_advertisement_carries():
+    """USB and Bluetooth must file a unit under the SAME name.
+
+    The BLE branch keys `unit_id` from the advertised name, and that name is
+    `second_id` (`AA 0A 01`) — measured on the owner's unit against the recorded
+    captures. The USB branch keyed it from `device_id` (`AA 0A 00`), a different
+    10-character string, because `ble.py`'s comment named one field while citing
+    the other.
+
+    The consequence was silent: a tile learned over USB did not arm the magnet
+    guard over Bluetooth. Safe direction — the guard stays off rather than
+    misfiring — but off is exactly where it must not be on the transport that
+    has no gate flag to fall back on.
+    """
+    from workflow.cr30.device import CR30
+
+    class _Ident:
+        model = "CR30"
+        device_id = "AAAA000001"
+        second_id = "BBBB000002"
+
+    class _Session:
+        def __init__(self, _t): pass
+        def identify(self): return _Ident()
+
+    import workflow.cr30.session as sess
+    real = sess.Session
+    sess.Session = _Session
+    try:
+        dev = CR30(object(), "usb")
+        dev.identify()
+    finally:
+        sess.Session = real
+
+    ble_name = "BBBB000002"          # what the advertisement carries
+    assert dev.unit_id == ble_name, (
+        f"USB files this unit under {dev.unit_id!r} while Bluetooth files it "
+        f"under {ble_name!r}; a tile learned on one transport would not arm "
+        "the guard on the other")
