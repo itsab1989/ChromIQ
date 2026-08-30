@@ -202,6 +202,14 @@ class CR30:
             if i < 0 or len(raw) - i < 8:
                 raise MeasurementError(f"no status reply ({len(raw)} bytes)")
             axis = ble.BleAxis.parse(raw[i:i + 8])
+            # COMPARE IT. This parsed the axis and then ignored it, so ANY
+            # device that echoed a measurement header was pronounced a CR30 —
+            # the Bluetooth twin of `Identity.is_cr30()` having had no callers.
+            got = (axis.start_nm, axis.step_nm, axis.bands)
+            if got != ble.EXPECTED_AXIS:
+                raise MeasurementError(
+                    f"answered, but with a {got[0]}-{got[0] + got[1] * (got[2] - 1)} nm "
+                    f"axis in {got[2]} bands, not a CR30's {ble.EXPECTED_AXIS}")
             self.model = "CR30"
             return {"model": "CR30", "axis": axis, "transport": "ble"}
         from .session import Session

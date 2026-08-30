@@ -189,9 +189,45 @@ class BleTransport:
                 target = await BleakScanner.find_device_by_name(
                     self.name, timeout=self.timeout)
             if target is None:
+                # ⚠ CONFIRMED ONLY. `ffe0` IS NOT A CR30.
+                #
+                # This used to be `[c for c in cands if c["confirmed"]] or
+                # cands` — so when nothing confirmed, it connected to ANY
+                # advertiser of the ffe0 service. That is the HM-10 module's
+                # service UUID, sold in countless hobby gadgets, and the
+                # consequences do not stop at a failed read: the address is
+                # REMEMBERED for next time, and the next frames written to that
+                # stranger are calibration commands.
+                #
+                # The fallback protected almost nothing real. A CR30 held by a
+                # phone app does not advertise at all, so it never reaches this
+                # list; a freshly calibrated one still confirms, because
+                # confirmation reads the stored slot's AXIS and a zero-filled
+                # slot still carries its header. The one genuine case is a
+                # transient timing miss — `discover` allows about 1.6 s for a
+                # reply — and one retry serves that far better than accepting
+                # anything that answers.
                 cands = await discover(timeout=min(self.timeout, 12.0))
-                ok = [c for c in cands if c["confirmed"]] or cands
+                ok = [c for c in cands if c["confirmed"]]
+                if not ok and cands:
+                    log.info("CR30: %d Bluetooth device(s) advertise the right "
+                             "service but none identified as a CR30; asking "
+                             "again once", len(cands))
+                    cands = await discover(timeout=min(self.timeout, 12.0))
+                    ok = [c for c in cands if c["confirmed"]]
                 if not ok:
+                    if cands:
+                        seen = ", ".join(
+                            f"{c.get('name') or c['address']}"
+                            f"{' (' + str(c['axis']) + ')' if c.get('axis') else ''}"
+                            for c in cands[:4])
+                        raise ConnectionError(
+                            "No CR30 answered over Bluetooth. Something else "
+                            "is advertising the same Bluetooth service — that "
+                            "service is used by many hobby devices, so it is "
+                            "probably not an instrument. ChromIQ will not send "
+                            "commands to a device that has not identified "
+                            f"itself. Seen: {seen}")
                     raise ConnectionError(
                         "No CR30 found over Bluetooth. The device stops "
                         "advertising while another central holds it, so "
