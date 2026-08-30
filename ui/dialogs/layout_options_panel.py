@@ -333,6 +333,14 @@ class LayoutOptionsPanel(QWidget):
             sb.setRange(0.5, 3.0)
             sb.setDecimals(3)
             sb.setSingleStep(0.05)
+            # START AT 1.0, THE INSTRUMENT'S OWN SIZE. A QDoubleSpinBox starts
+            # at its minimum, so an unseeded panel reported a 0.5 scale --
+            # every patch at half size, from a control the user never touched.
+            # Production always seeds it from a recipe today, which is why this
+            # has never been seen; it is a trap waiting for the first caller
+            # that does not, and the panel is now shown in Basic where it will
+            # be read rather than left collapsed.
+            sb.setValue(1.0)
             sb.setMinimumWidth(96)
             sb.valueChanged.connect(self._emit)
             return sb
@@ -536,17 +544,43 @@ class LayoutOptionsPanel(QWidget):
         add_row(lgg, 0, tr("Create layout:"), self.layout_mode,
                 tip=TooltipButton(
                     tr("Create layout"),
-                    tr("Two ways to decide patch size vs. how many fit:\n\n"
-                       "• Prioritise patch size — you set the patch size (or "
-                       "scale) and ChromIQ fits as many patches as it can. Simple, "
-                       "but the last strip may not reach the far margin.\n\n"
-                       "• Prioritise chart area — you say how many strips "
-                       "(columns) and/or patches per strip (rows) you want, and "
-                       "ChromIQ SIZES the patches so the grid fills the usable area "
-                       "(the space left inside your margins). The patch area always "
-                       "lands exactly where you defined it; you trade patch size "
-                       "for the grid you asked for. Watch that the patches don't "
-                       "get too small for your instrument to read."), self))
+                    tr("Two ways to decide patch size against how many fit. "
+                       "Whichever you pick, its own settings appear directly "
+                       "below this box.\n\n"
+                       "• Prioritise patch size — you set the patch size, or a "
+                       "scale to grow and shrink the instrument's standard "
+                       "size, and ChromIQ fits as many patches as it can. "
+                       "Simple, but the last strip may not reach the far "
+                       "margin. Leave the size on “auto” and ChromIQ uses the "
+                       "size your instrument prefers.\n\n"
+                       "• Prioritise chart area — you decide the GRID and "
+                       "ChromIQ sizes the patches so it fills the space inside "
+                       "your margins. Two ways to describe the grid: by patch "
+                       "width, where you give the smallest patch you are "
+                       "willing to read and ChromIQ fits as many as that "
+                       "allows; or by columns and rows, where you say how many "
+                       "strips and how many patches per strip you want. Either "
+                       "way the patch area lands exactly where you defined it, "
+                       "and you trade patch size for the grid you asked for. "
+                       "Watch that the patches don't get too small for your "
+                       "instrument to read."), self))
+        # PATCH-FIRST FIELDS, IN BASIC, BESIDE THE MODE THAT NEEDS THEM.
+        #
+        # Area-first has always shown its sizing inputs right here; patch-first
+        # kept its own -- Patch size and Patch scale -- in Expert Options,
+        # collapsed. So one help text described a matched pair of strategies
+        # while sending the user to two different places for them, and the
+        # CR30 and SpectroScan force patch-first on a user switch, landing
+        # exactly in the half whose controls were hidden. Basti found it on
+        # screen, twice.
+        #
+        # The container is placed now and FILLED further down, where the spin
+        # boxes are built; the widgets, their signals and their recipe keys are
+        # untouched, so presets and stored per-target recipes are unaffected.
+        self._patch_fields_w = QWidget(self)
+        self._patch_fields_grid = QGridLayout(self._patch_fields_w)
+        self._patch_fields_grid.setContentsMargins(0, 0, 0, 0)
+
         # Area-first fields (shown only in that mode).
         self._area_fields_w = QWidget(self)
         afg = QGridLayout(self._area_fields_w)
@@ -633,24 +667,25 @@ class LayoutOptionsPanel(QWidget):
                        "patch close to your instrument's natural patch size — the "
                        "size it was designed to read — then fills the height to "
                        "that count."), self))
-        lgg.addWidget(self._area_fields_w, 1, 0, 1, 3)
+        lgg.addWidget(self._patch_fields_w, 1, 0, 1, 3)
+        lgg.addWidget(self._area_fields_w, 2, 0, 1, 3)
         # "Show strip indicators" is a layout option (not a selector), so it is
         # ALWAYS placed here — otherwise, when the panel has no built-in selectors
         # (e.g. the Preferences → Chart Layout tab), the checkbox was created but
         # never added to a layout and floated at the panel's top-left, overlapping
         # the "Basic" frame header (Knut).
-        lgg.addWidget(self.show_indicators, 2, 1)
-        lgg.addWidget(self._show_indicators_tip, 2, 2)
+        lgg.addWidget(self.show_indicators, 3, 1)
+        lgg.addWidget(self._show_indicators_tip, 3, 2)
         # Mode (density / clip mode / shape) and the CM/SS Clip-border toggle are
         # SELECTORS, so they only appear when the panel owns them (#93); in
         # Settings the same selectors are provided by the tab itself.
         if getattr(self, "mode", None) is not None:
-            lgg.addWidget(self._mode_lbl, 3, 0)
-            lgg.addWidget(self.mode, 3, 1)
-            lgg.addWidget(self._mode_tip, 3, 2)
-            lgg.addWidget(self._clip_enable_lbl, 4, 0)
-            lgg.addWidget(self.clip_enable, 4, 1)
-            lgg.addWidget(self._clip_enable_tip, 4, 2)
+            lgg.addWidget(self._mode_lbl, 4, 0)
+            lgg.addWidget(self.mode, 4, 1)
+            lgg.addWidget(self._mode_tip, 4, 2)
+            lgg.addWidget(self._clip_enable_lbl, 5, 0)
+            lgg.addWidget(self.clip_enable, 5, 1)
+            lgg.addWidget(self._clip_enable_tip, 5, 2)
         # "Offset every second strip" is a ColorMunki layout option (printtarg's
         # rig stagger), so it belongs with the layout choices, not in Patches &
         # spacers (Knut). CM-only — visibility is set per-instrument. Always placed
@@ -685,7 +720,8 @@ class LayoutOptionsPanel(QWidget):
         self.inter_patch = mm()
         self.strip_gap = mm()
         self.sig = mm()
-        self._patch_size_row = add_row(g, 0, tr("Patch size (mm):"),
+        self._patch_size_row = add_row(
+                self._patch_fields_grid, 0, tr("Patch size (mm):"),
                 cell(self.patch_x, QLabel("×", self), self.patch_y),
                 tip=TooltipButton(
                     tr("Patch size"),
@@ -693,7 +729,8 @@ class LayoutOptionsPanel(QWidget):
                        "“auto” (0) to use the instrument's recommended size "
                        "(scaled by Patch scale). A value below ~6 mm can make the "
                        "chart hard to read."), self))
-        self._patch_scale_row = add_row(g, 1, tr("Patch scale:"), self.pscale,
+        self._patch_scale_row = add_row(
+                self._patch_fields_grid, 1, tr("Patch scale:"), self.pscale,
                 tip=TooltipButton(
                     tr("Patch scale"),
                     tr("Grows or shrinks every patch (and its spacer) together. "
@@ -2537,6 +2574,8 @@ class LayoutOptionsPanel(QWidget):
             return
         area = (self.layout_mode.currentData() == "area_first")
         self._area_fields_w.setVisible(area)
+        # …and its patch-first counterpart, which now lives beside it in Basic.
+        self._patch_fields_w.setVisible(not area)
         # Patch size/scale/alignment, the strip-length cap and the chart offset are
         # all "Prioritise patch size" concerns — area-first sizes patches to fill
         # the margin box, so hide them there (Knut #93).
