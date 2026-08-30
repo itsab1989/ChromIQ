@@ -94,6 +94,17 @@ class Transport(ABC):
                 f"single {FRAME_SIZE}-byte frame per write (EXP-USB-005b/c)")
         self._write(data)
 
+    def bytes_waiting(self) -> int:
+        """How many bytes are readable now, or -1 when the transport cannot say.
+
+        Lets a waiting loop check something else -- a keyboard trigger, a
+        cancel -- without blocking inside `receive`. Shortening `receive`'s own
+        timeout instead would risk ending the read in the MIDDLE of a 60-byte
+        frame, and a partial read is discarded, so the press would be lost and
+        the next read would mis-parse its remainder.
+        """
+        return -1
+
     def receive(self, timeout: float = DEFAULT_TIMEOUT_S, *, verify: bool = True) -> Frame:
         raw = self._read(FRAME_SIZE, timeout)
         if len(raw) < FRAME_SIZE:
@@ -192,6 +203,9 @@ class SerialTransport(Transport):
                 f"short write {n}/{len(data)}; a split frame is never answered "
                 "(EXP-USB-005c)")
         ser.flush()
+
+    def bytes_waiting(self) -> int:
+        return self._require().in_waiting
 
     def _read(self, n: int, timeout: float) -> bytes:
         ser = self._require()

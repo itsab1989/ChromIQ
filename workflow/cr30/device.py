@@ -421,6 +421,33 @@ class CR30:
                     # magnet gate (byte 58 marks it solicited), so the learned
                     # tile signature is what refuses a gated trigger.
                     return self.read_measurement(button_header=hdr)
+                # DO NOT SIT INSIDE `receive` WAITING FOR A PRESS THAT MAY
+                # NEVER COME. It blocks for up to a second, and the keyboard
+                # trigger above is only looked at between blocks -- so pressing
+                # Space cost up to 1 s, half a second on average, before the
+                # trigger was even sent. Basti noticed it as "a tiny bit of
+                # delay ... compared to the button press on the instrument".
+                #
+                # Shortening `receive`'s timeout is the wrong fix: a partial
+                # read is DISCARDED, so a window that ends mid-frame loses a
+                # real press and leaves its remainder to be mis-parsed. Instead
+                # only enter `receive` once bytes are actually arriving; the
+                # full one-second window still covers the frame once it starts.
+                probe = getattr(self._t, "bytes_waiting", None)
+                if probe is not None:
+                    try:
+                        waiting = probe()
+                    except Exception as exc:
+                        # pyserial raises from `in_waiting` on a port that has
+                        # gone -- the same signal the read below uses.
+                        raise DeviceLost(
+                            f"the instrument stopped answering ({exc})") from exc
+                    # -1 means "this transport cannot say", and then the
+                    # blocking read below is still the right thing. A missing
+                    # accessor is NOT a missing instrument.
+                    if waiting == 0:
+                        time.sleep(min(poll, 0.02))
+                        continue
                 try:
                     hdr = usb_measure.wait_for_button_header(
                         self._t, timeout=min(left, 1.0))
@@ -513,7 +540,9 @@ class CR30:
                 m.check_usable(self._previous, learned_tile=self.learned_tile)
                 self._previous = m
                 return m
-            if wait_for_event(min(left, 1.0), cancelled) is None:
+            # Same reasoning as the USB branch, and simpler here: BLE events
+            # arrive whole through a queue, so a shorter wait cannot split one.
+            if wait_for_event(min(left, 0.1), cancelled) is None:
                 continue
             # It has acted. Read what it now holds — `_read_when_ready` waits
             # out the zero-filled "not finished yet" reply rather than guessing
