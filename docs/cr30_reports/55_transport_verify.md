@@ -1,6 +1,6 @@
 # 55 — Verifying d8ceaca8, and the Windows question
 
-**Status:** COMPLETE.
+**Status:** COMPLETE — §A–I reviewed `d8ceaca8`; **§J is the final check for `v4.1.5-beta.4`** (`d926b358`, `f11b9bc6`) and ends in the verdict.
 **Date:** 2026-08-30
 **Reviews:** `d8ceaca8` "ChromIQ now says which way it connected, and can prove
 it afterwards", against report 54.
@@ -733,3 +733,401 @@ No source outside `tests/` and `scripts/` was touched. The settings plist was
 backed up and restored byte-identically (sha1 `33fd96c8…` before and after).
 Nothing was written to `~/ChromIQ/CR30-Test`. The CR30 was never touched: no
 serial port was opened and no Bluetooth connection was made at any point.
+
+---
+
+# J. Final check for `v4.1.5-beta.4`
+
+Reviewing `d926b358` and `f11b9bc6`. Same constraints: no CR30, no serial port,
+no Bluetooth connection. Plist backed up before the on-screen runs and restored
+byte-identically after.
+
+## J.1 B.4 — FIXED, re-verified on screen, four combinations
+
+`tab_measure.py:7365-7389`: the white-calibration note is written first, the
+transport note last, then `ensureCursorVisible()`. Since that call always leaves
+the **last** line showing, the note survives any pane height.
+
+Driven in the real app (`scripts/drive_55_transport_note.py`) at 1900×1400:
+
+| `log_visible_lines` | transport | what the pane shows |
+|---|---|---|
+| **2** (the owner's own setting) | USB | `[NOTE] Connected to your CR30 over the USB cable.` ✅ |
+| **2** | Bluetooth | `[NOTE] Connected to your CR30 over Bluetooth.` ✅ |
+| **9** (shipped default) | USB | both notes, transport note last ✅ |
+| **9** | Bluetooth | both notes, transport note last ✅ |
+
+At two lines the pane now shows **only** the transport note — the single most
+useful line, alone, in the smallest pane anyone runs. That is a better outcome
+than the nine-line case.
+
+### J.1.1 Residual — the tile-learning offer still writes after it
+
+I removed the stub for `_offer_cr30_tile_learning` from the driver, because
+stubbing it would have hidden exactly this. It appends up to six lines
+(`tab_measure.py`, six `appendPlainText` calls) and it runs whenever
+`reader.guard_is_armed` is False — which is **every session** until the user
+teaches that unit its tile constant.
+
+Driven with `guard_is_armed = False`, two-line pane:
+
+```
+magnet check stays on its built-in one. Nothing else is affected, and it will offer again.
+```
+
+The transport note is pushed off again.
+
+**Not a blocker, and much smaller than what it replaced.** Before B.4 the note
+was invisible on a short pane in **100 %** of sessions; now only when the guard
+is unarmed *and* the pane is short. The file log records the transport on every
+route regardless (`measure_bridge.py:891`), and the §F recipe — the actual
+Windows ask — never reads the pane. Worth one line in a follow-up, not a reason
+to hold a tag.
+
+## J.2 The no-services line — correct, and placed where it matters
+
+`bluetooth_report.py:118,145-168`. Run with a faked `BleakScanner.discover`
+(no Bluetooth touched) against the case that matters — nothing offers `ffe0`,
+two devices advertise nothing:
+
+```
+  (named device, hidden)     …:EE:00  rssi=-70  services=1
+  (named device, hidden)     …:EE:01  rssi=-70  services=0
+  (no name)                  …:EE:02  rssi=-70  services=0
+
+⚠ 2 of those advertise NO services at all.
+```
+
+It appears **before** stage 2's early return, so it survives the
+"NOTHING was advertising" path — which is the one a stuck user actually hits.
+Your first placement would have missed it; the fix is right. The counter is
+incremented only in the `else` branch, which is correct: an `ffe0` candidate has
+services by definition.
+
+## J.3 The serial caveat — correct, and it exposes one wording collision
+
+`bluetooth_report.py:213-218` now says a silent match does not rule the
+instrument out. That is exactly right and it closes G.2.
+
+⚠ **One contradiction to fix, cheap.** In the same report the new ⚠ block says
+
+> *"If your instrument is one of them, ChromIQ will not have looked at it —
+> please send this report, because that is **a fault of ours**"*
+
+and eight lines later stage 2 still says
+
+> *"Your computer never saw a device offering the service ChromIQ looks for, so
+> **the problem is before ChromIQ rather than inside it**."*
+
+Both cannot be true, and the reader meets them in that order. The second
+sentence predates the new finding. Suggested repair, no new claim:
+
+> *"Your computer never saw a device offering the service ChromIQ looks for. If
+> the note above says some devices advertised no services at all, one of them
+> could still be your instrument — otherwise the problem is before ChromIQ
+> rather than inside it."*
+
+**Not a blocker.** It is a report a human reads and sends, not a decision the
+app makes. But it should go in before it is pasted to a real person.
+
+## J.4 The `ble.py` comment — repaired
+
+`ble.py:81-87`. The dangling clause and unmatched parenthesis are gone and the
+sentence reads through. Comment only, no behaviour.
+
+## J.5 ⚠ THE RULING I WAS ASKED TO CHECK — `bleak` quietened. **It is safe.**
+
+Three ways, all run.
+
+**(a) The suppression actually reaches the logger that named the television.**
+The tests added (`test_the_log_does_not_name_the_neighbours.py`) assert on the
+parent logger `bleak`. The names came from a **child**,
+`bleak.backends.corebluetooth.CentralManagerDelegate`, and a child only inherits
+if it has no level of its own — so this had to be checked, not assumed:
+
+```
+child explicit level : 0 (NOTSET, inherits)
+child effective level: WARNING
+DEBUG enabled?   False
+WARNING enabled? True
+bleak loggers with an EXPLICIT level after importing bleak: {'bleak': 30}
+after importing bleak, DEBUG still suppressed? True
+```
+
+The only explicit level is the WARNING we set. Importing bleak does not reset
+it, and no backend module sets its own. **Inheritance holds.** Worth adding that
+child logger name to the test so a future bleak release cannot break it quietly.
+
+**(b) Nothing the diagnosis reads goes through a bleak logger.** All six phrases
+in the §F pattern are written by `workflow.cr30.*` loggers
+(`measure_bridge.py:851,863,891,697,774`; `ble.py:261`). None can come from
+bleak.
+
+**(c) End to end, with the ruling applied, on a real file.** A real
+`RotatingFileHandler` at DEBUG in a temp directory, `_quiet_third_party()`
+applied, a verbatim-shaped television line and a real bleak failure emitted, then
+the real `_open()` failing both transports:
+
+```
+[WARNING] bleak.backends.corebluetooth.CentralManagerDelegate: Failed to connect to device: timeout
+[INFO]    workflow.cr30.measure_bridge: CR30: no USB device (no CH34x serial device found); trying Bluetooth
+[WARNING] workflow.cr30.measure_bridge: CR30: Bluetooth failed too (No CR30 found over Bluetooth); no instrument could be opened
+
+neighbour named?      False   ✅
+bleak FAILURE kept?   True    ✅
+```
+
+Then the §F grep over that file returned both ChromIQ lines. **The recipe still
+answers the question.**
+
+**Nothing needed was lost.** The Bluetooth report runs its own
+`BleakScanner.discover` and formats the results itself
+(`bluetooth_report.py:108-146`) — logger levels do not touch it. And the one
+thing bleak says that a diagnosis would want, a connection failure, is at
+WARNING and survives. The ruling improves the position: it removes the reason we
+could never ask for the log at all.
+
+## J.6 Translations — complete, budget restored
+
+All twelve languages carry both new strings, and none is an English copy
+(checked by comparing each value against its key). The untranslated budget is
+back from 112 to 110, so C.3 is closed rather than papered over.
+
+## J.7 Version, changelog, site
+
+`core/version.py` → `4.1.5-beta.4`; `CHANGELOG.md` has the beta.4 section;
+`docs/index.html:363` points at the beta.4 tag. The changelog does not claim
+Bluetooth is fixed, which is right (J.9).
+
+---
+
+## J.8 THE RECIPE, FINAL FORM — paste-ready
+
+Everything below is meant to be copied to a real person as-is. It works on a log
+they already have; a beta-4 build only makes the failure case louder.
+
+### J.8.1 Windows — ⚠ NOT RUN. There is no Windows machine and no PowerShell here.
+
+Rewritten since §F.5 to be defensive about the two things I cannot test: a log
+that does not exist, and an empty result. `@( … )` forces an array so `.Count`
+is right for zero, one or many.
+
+> Open **Windows PowerShell** from the Start menu, paste all of this in at once,
+> and press Enter.
+>
+> ```powershell
+> $logs = "$env:LOCALAPPDATA\ChromIQ\Logs\chromiq.log*"
+> $out  = "$env:USERPROFILE\Desktop\cr30-transport.txt"
+> $p = "trying Bluetooth|opened over|Bluetooth failed too|BLE: found in|did not answer as a CR30|remembered Bluetooth address"
+> if (-not (Test-Path $logs)) {
+>   "No ChromIQ log found at $logs"
+> } else {
+>   $hits = @(Select-String -Path $logs -Pattern $p -ErrorAction SilentlyContinue |
+>             ForEach-Object { $_.Line } | Sort-Object)
+>   Set-Content -Path $out -Value $hits
+>   "Wrote $($hits.Count) line(s) to $out"
+> }
+> ```
+>
+> It writes **cr30-transport.txt** to your Desktop. Send us that file.
+>
+> **Please tell us the number it prints, even if it is 0** — and tell us if it
+> says it found no log at all. Those are two different answers and both are
+> useful. It is a short file and you can open it first; it contains only
+> ChromIQ's own notes about your instrument. It deliberately does **not**
+> include the rest of the log, because that would list the Bluetooth devices
+> around you.
+
+### J.8.2 macOS — RUN AND VERIFIED on this machine
+
+```bash
+grep -hE "trying Bluetooth|opened over|Bluetooth failed too|BLE: found in|did not answer as a CR30|remembered Bluetooth address" \
+  ~/Library/Logs/ChromIQ/chromiq.log* | sort > ~/Desktop/cr30-transport.txt
+wc -l < ~/Desktop/cr30-transport.txt
+```
+
+### J.8.3 Linux — same tested grep, path read from the source (no Linux machine here)
+
+```bash
+grep -hE "trying Bluetooth|opened over|Bluetooth failed too|BLE: found in|did not answer as a CR30|remembered Bluetooth address" \
+  "${XDG_STATE_HOME:-$HOME/.local/state}"/ChromIQ/logs/chromiq.log* | sort > ~/Desktop/cr30-transport.txt
+```
+
+### J.8.4 Where the log lives (`core/platform_paths.py:122-131`)
+
+| | |
+|---|---|
+| Windows | `%LOCALAPPDATA%\ChromIQ\Logs\chromiq.log` |
+| macOS | `~/Library/Logs/ChromIQ/chromiq.log` |
+| Linux | `$XDG_STATE_HOME/ChromIQ/logs/chromiq.log`, else `~/.local/state/ChromIQ/logs/` |
+
+Six files, 5 MB each (`core/logger.py:54`). `chromiq.log` is the newest and
+`chromiq.log.5` the oldest — which is why every command above ends in a sort.
+
+### J.8.5 ⚠ Two things that must be said when asking
+
+1. **Sort, or the story runs backwards.** `chromiq.log*` expands newest-file
+   first. Verified: unsorted, the last line was 29 Aug; sorted, it is 30 Aug.
+2. **An empty result is not proof that nothing happened.** It may only mean the
+   log has rotated past it. Say so, or "no record" gets read as "no".
+
+### J.8.6 The three outcomes
+
+**(a) ChromIQ never tried Bluetooth** — cable opens, and no `trying Bluetooth`:
+
+```
+2026-08-20 10:00:01,000 [INFO] …: CR30: opened over usb
+2026-08-21 09:15:44,000 [INFO] …: CR30: opened over usb
+```
+
+> ChromIQ was using the cable and never looked at Bluetooth. Whatever went
+> wrong did not happen inside ChromIQ.
+
+**(b) It tried and failed** — the beta-4 shape:
+
+```
+2026-08-25 21:03:11,000 [INFO]    …: CR30: no USB device (no CH34x serial device found); trying Bluetooth
+2026-08-25 21:03:47,000 [WARNING] …: CR30: Bluetooth failed too (No CR30 found over Bluetooth …); no instrument could be opened
+```
+
+> It tried, and the reason is on the line. On a build older than beta 4 this
+> shows as a `trying Bluetooth` line with **no** `opened over ble` after it —
+> still an answer, just a quieter one.
+
+**(c) It tried and it worked:**
+
+```
+2026-08-26 08:41:02,000 [INFO] …: CR30: no USB device …; trying Bluetooth
+2026-08-26 08:41:04,000 [INFO] …: CR30 BLE: found in 15.42 s, connected in 2.33 s, notifications in 0.06 s
+2026-08-26 08:41:06,000 [INFO] …: CR30: opened over ble
+```
+
+> Bluetooth works on that computer, and the timings say where the time went.
+
+### J.8.7 The second ask, worth making at the same time
+
+**Tools ▸ Instruments ▸ "CR30 Bluetooth report (for when it will not connect)"**,
+then send the file it saves.
+
+It answers what the log cannot: what his computer can *see* right now. Stage 1
+lists every device with its service count, and beta 4 adds the ⚠ line that names
+the most likely fault outright. Worth making **now** specifically because report
+51 §1.1 found the tool would have died on Windows within half a second, and
+`main_window.py:1813-1834` moved it off the GUI thread — so it should now
+actually run there. **That is unverified on real Windows and should be said when
+asking.**
+
+---
+
+## J.9 What beta 4 does and does NOT do for the Windows user
+
+**Your reading is correct. Beta 4 is the instrument, not the fix.** Confirmed,
+and here is the line to hold.
+
+### It DOES
+
+* record every Bluetooth **attempt** and its **outcome**, dated, in a file he
+  already has — including for attempts made **before** beta 4 existed, because
+  `trying Bluetooth` and `opened over …` have always been written;
+* make a **failed** attempt say so, instead of existing only as a missing line;
+* say **on screen** which way it connected, visibly, at any log-pane height;
+* stop the log evicting its own evidence — 58.7 % of it was one help-icon line;
+* stop the log listing his neighbours, which is what made asking for it
+  impossible;
+* in the Bluetooth report, **name the most likely fault outright** — devices
+  advertising no services at all — and admit the serial match can silently miss.
+
+### It does NOT
+
+* fix Bluetooth on Windows. **No line of the discovery or connection path has
+  been changed.** `ble.discover`, `_open_ble` and `_open` behave exactly as they
+  did in beta 3;
+* make ChromIQ attempt Bluetooth when the cable works. `auto` is unchanged:
+  USB first, Bluetooth only in the `except`. If his cable works, ChromIQ still
+  never tries Bluetooth, and **there is still no setting to ask it to**;
+* find an instrument that advertises no service UUID. It now *tells* him that is
+  possible; it does not act on it;
+* prove the log-reach improvement. That is a prediction from a measurement, not
+  a result — no machine has yet run beta 4 long enough to rotate.
+
+### The sentence to send him
+
+> This build does not fix Bluetooth — nothing about how ChromIQ connects has
+> changed. What it does is let us find out what actually happened, which nobody
+> can currently say. Would you run the two things below and send what they
+> produce? Then we will know whether ChromIQ ever tried Bluetooth on your
+> machine at all, and if it did, where it stopped.
+
+Anything stronger would be the fifth time today that shipped text described
+something that does not exist.
+
+---
+
+## J.10 Everyday tier — run here
+
+```
+8256 passed, 262 skipped, 3 xfailed in 92.39s
+```
+
+**Identical to your number.** That includes the 10 tests I added last round and
+the 4 you added this round.
+
+## J.11 Constraints — accounted for
+
+* **The CR30 was never touched.** No serial port opened, no Bluetooth connection
+  made, at any point in either round. Every device in every run was a stub;
+  `BleakScanner.discover` was replaced with a fake for the report check.
+* **Plist backed up and restored byte-identically** — sha1
+  `33fd96c8864ffcea3945c9de589739a276846541` before and after. `log_visible_lines`
+  back to 2, `custom_output_path` back to empty, verified by reading them through
+  `AppSettings` after the restore.
+* **Paths sandboxed** — `CHROMIQ_PRESETS_DIR` and the output path under the
+  scratch directory for every on-screen run.
+* **`~/ChromIQ/CR30-Test` untouched** — mtime 28 Aug 20:14, two days before this
+  session.
+* **No `--runslow`.** It remains the one gate I have not run and cannot.
+* **No source edited outside `tests/` and `scripts/`.**
+
+## J.12 Follow-ups — none of them blocking
+
+| | Item | Size |
+|---|---|---|
+| 1 | **J.3** — stage 2 still says *"the problem is before ChromIQ"* eight lines after the new ⚠ block says *"that is a fault of ours"*. Suggested repair in J.3. Worth doing before it is pasted to a real person | one sentence |
+| 2 | **J.1.1** — the tile-learning offer writes after the transport note, so a short pane loses it again while the magnet guard is unarmed | one line moved |
+| 3 | **J.5** — add `bleak.backends.corebluetooth.CentralManagerDelegate` to `test_the_log_does_not_name_the_neighbours.py`, so a future bleak release cannot break inheritance quietly | one assert |
+| 4 | **§C** — when the in-app log summary is eventually built, `("failed", "Bluetooth failed too")` must be in its needle list. The §F recipe does not depend on it | one tuple entry |
+
+---
+
+# VERDICT: 🟢 GREEN LIGHT to tag `v4.1.5-beta.4`
+
+Subject to the two things only you can do: **bump is already done** (`4.1.5-beta.4`
+is in `core/version.py`), and **`--runslow` must be green at the tag commit** —
+CLAUDE.md makes that the gate and I am not permitted to run it. If it is red, this
+verdict does not apply.
+
+Everything asked for this round is in, and every claim in it was checked by
+running rather than reading:
+
+* **B.4 is fixed**, re-verified on screen on both transports at both pane
+  heights. At two lines the pane now shows the transport note *alone*, which is
+  the best outcome available.
+* **The no-services line** is correct and, after your fix, appears in the
+  early-return case that matters.
+* **The serial caveat** closes G.2.
+* **The `bleak` ruling is safe** — proven three ways, including that the
+  suppression reaches the *child* logger that actually named the television, and
+  that the §F recipe still returns both ChromIQ lines end to end on a real file
+  with the ruling applied. Nothing needed was lost; bleak's connection failures
+  survive at WARNING, and the report does its own scanning.
+* **Translations complete**, budget back to 110, so C.3 is closed rather than
+  deferred.
+* **8256 / 262 / 3**, matching your run.
+
+The four follow-ups in J.12 are all one-liners and none of them affects what
+beta 4 is for.
+
+**One thing to hold to when you write to him** (J.9): beta 4 does not fix
+Bluetooth and changes no line of the discovery or connection path. It is the
+instrument that will find the fault. Say that, send the two asks in J.8, and the
+next round starts from evidence instead of from two people's memory.

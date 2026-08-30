@@ -188,7 +188,22 @@ async def collect(scan_seconds: float = 20.0, serial: str = "") -> "Report":
         say("NOTHING. That is the most useful line in this report.")
         say("")
         say("Your computer never saw a device offering the service ChromIQ")
-        say("looks for, so the problem is before ChromIQ rather than inside it.")
+        say("looks for.")
+        say("")
+        if silent:
+            # DO NOT CLAIM INNOCENCE OVER A LINE THAT JUST ADMITTED FAULT. Eight
+            # lines above, the report may have said devices advertising nothing
+            # at all could be the instrument and that skipping them is our bug.
+            # Saying "so the problem is before ChromIQ" underneath that
+            # contradicts it, and the reader would be right to trust neither.
+            say("That does NOT clear ChromIQ: as noted above, some devices")
+            say("here advertise nothing at all, and one of them could be your")
+            say("instrument. Everything below is worth checking, and this")
+            say("report is worth sending either way.")
+        else:
+            say("Every device here announced what it offers, and none of them")
+            say("offered this — so the problem is before ChromIQ rather than")
+            say("inside it.")
         say("")
         say("On the CR30 we developed against there is no Bluetooth on/off")
         say("setting to find — it is on from the moment it leaves the box — so")

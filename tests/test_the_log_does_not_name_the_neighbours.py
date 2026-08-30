@@ -19,6 +19,23 @@ def test_bleak_is_quietened():
     assert "bleak" in lg._NOISY_LIBRARIES
 
 
+#: The device names came from a CHILD logger, not from `bleak` itself. It
+#: inherits only while it has no level of its own, so a future bleak release
+#: setting one would quietly put the neighbourhood back in the log.
+_SCANNER_LOGGER = "bleak.backends.corebluetooth.CentralManagerDelegate"
+
+
+def test_the_child_that_actually_names_devices_is_quiet_too():
+    from core import logger as lg
+    lg._quiet_third_party()
+    child = logging.getLogger(_SCANNER_LOGGER)
+    assert not child.isEnabledFor(logging.DEBUG), (
+        "the logger that actually prints device names is still at DEBUG")
+    assert child.level == logging.NOTSET, (
+        "it has a level of its own now, so it no longer inherits ours — the "
+        "quietening must name it explicitly")
+
+
 def test_its_running_commentary_is_dropped_but_failures_are_kept():
     """WARNING, not silence. Everything bleak says about a connection going
     wrong survives; only the neighbourhood scan is dropped."""
