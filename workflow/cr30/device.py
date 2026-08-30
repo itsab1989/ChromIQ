@@ -77,6 +77,16 @@ class CR30:
         self._t, self.kind = transport, kind
         self._previous: Measurement | None = None
         self.model = ""
+        #: This unit's own tile constant, once it has been learned. Armed by
+        #: the session; None means the guard falls back to the hard-coded
+        #: constant, which only ever matched the owner's instrument. See
+        #: `tile_learning`.
+        self.learned_tile: "list[float] | None" = None
+        #: This unit's own id, once `identify()` has been called. The key the
+        #: learned tile constant is stored under, so a second instrument never
+        #: inherits the first one's.
+        self.unit_id: "str | None" = None
+        self.last_identity = None
 
     # -- construction ----------------------------------------------------
     @classmethod
@@ -211,10 +221,21 @@ class CR30:
                     f"answered, but with a {got[0]}-{got[0] + got[1] * (got[2] - 1)} nm "
                     f"axis in {got[2]} bands, not a CR30's {ble.EXPECTED_AXIS}")
             self.model = "CR30"
-            return {"model": "CR30", "axis": axis, "transport": "ble"}
+            # No unit id over Bluetooth: the reply carries only the axis. The
+            # advertised NAME is the unit's own id string, but it is not
+            # available on the remembered-address fast path, which never scans.
+            self.unit_id = getattr(self._t, "name", None) or None
+            self.last_identity = {"model": "CR30", "axis": axis,
+                                  "transport": "ble"}
+            return self.last_identity
         from .session import Session
         ident = Session(self._t).identify()
         self.model = ident.model
+        # KEEP IT. The unit id is what stops one instrument's learned tile
+        # constant being applied to another, and asking again costs a round
+        # trip the fast paths exist to avoid.
+        self.last_identity = ident
+        self.unit_id = (getattr(ident, "device_id", "") or "").strip() or None
         return ident
 
     def trigger_unsafe(self) -> None:
@@ -455,7 +476,7 @@ class CR30:
             # out the zero-filled "not finished yet" reply rather than guessing
             # at a sleep long enough to cover every case.
             m = self._read_when_ready(deadline)
-            m.check_usable(self._previous)
+            m.check_usable(self._previous, learned_tile=self.learned_tile)
             self._previous = m
             return m
 
@@ -540,7 +561,7 @@ class CR30:
             m = usb_measure.read_stored(self._t, button_header=button_header)
             m.device_model = self.model or "CR30"
             if enforce:
-                m.check_usable(self._previous)
+                m.check_usable(self._previous, learned_tile=self.learned_tile)
                 # Same rule as the BLE tail below: only an ACCEPTED reading
                 # becomes the baseline. Latent here today (nothing calls the
                 # USB path with enforce=False), but leaving the two branches
@@ -613,7 +634,7 @@ class CR30:
                       "gate_flag_note": "BLE has no known magnet-gate flag; "
                                         "detection here is behavioural only"})
         if enforce:
-            m.check_usable(self._previous)
+            m.check_usable(self._previous, learned_tile=self.learned_tile)
             # Only an ACCEPTED reading becomes the one the next is judged
             # against. A polling probe (enforce=False) must not, or the guard
             # ends up comparing a reading to itself.

@@ -161,7 +161,8 @@ class Measurement:
                 raise MeasurementError(f"L* out of range: {self.lab[0]:.4g}")
 
     # -- the magnet hazard ----------------------------------------------
-    def looks_like_calibration_tile(self, tol: float = 0.05) -> bool:
+    def looks_like_calibration_tile(self, tol: float = 0.05,
+                                    learned: "list[float] | None" = None) -> bool:
         """Is this the stored tile constant rather than a measurement?
 
         VERIFIED **on this unit**: with a magnet present the device returns
@@ -176,9 +177,22 @@ class Measurement:
         `TILE_SIGNATURE`). 4.69 is **94x** this tolerance, so on that unit this
         method returns False for every gated reading and contributes nothing.
         Widening `tol` is not the fix -- 4.69 %R would swallow real patches.
-        The fix is to LEARN the constant per unit; see MEASUREMENT.md.
-        `gate_flag` is the unit-independent check and must be preferred.
+        Pass `learned` -- this unit's own constant, captured from a proven
+        gated press by `tile_learning` -- and the check works on ANY unit. That
+        is the fix this docstring has been asking for; the hard-coded constant
+        stays as the fallback for a unit that has not been through the learning
+        step, where it protects the owner's instrument and, honestly, nothing
+        else. `gate_flag` remains the unit-independent check and is preferred
+        where the transport reports one (USB button presses only).
         """
+        if learned and len(self.values) == len(learned):
+            # A LEARNED signature is this unit's own constant, captured at the
+            # precision the device actually returns, so it is compared far more
+            # tightly than the hard-coded one -- see tile_learning.
+            from .tile_learning import LEARNED_TOLERANCE
+            if all(abs(a - b) <= LEARNED_TOLERANCE
+                   for a, b in zip(self.values, learned)):
+                return True
         if len(self.values) != len(TILE_SIGNATURE):
             return False
         return all(abs(a - b) <= tol
@@ -195,7 +209,8 @@ class Measurement:
             return False
         return self.values == other.values
 
-    def check_usable(self, previous: "Measurement | None" = None) -> None:
+    def check_usable(self, previous: "Measurement | None" = None, *,
+                     learned_tile: "list[float] | None" = None) -> None:
         """Full gate. Raise unless this reading may be used for profiling.
 
         Order matters: the protocol flag is checked FIRST because it is the only
@@ -206,7 +221,7 @@ class Measurement:
         if self.gate_flag:
             raise MagnetGated(MAGNET_MESSAGE + " (The device's own header "
                               "flagged this reading: frame offset 24 = 1.)")
-        if self.looks_like_calibration_tile():
+        if self.looks_like_calibration_tile(learned=learned_tile):
             raise MagnetGated(MAGNET_MESSAGE)
         if self.zero_run() >= 3:
             raise MeasurementError(

@@ -609,6 +609,9 @@ class DeviceReader:
         #: for every session (ui/tabs/tab_measure.py, _open_cr30_bridge) -- if
         #: one is ever reused, every read would cancel the instant it started.
         self._cancel = False
+        #: The instrument this session is talking to, when it is known. Used to
+        #: keep one unit's learned tile constant from being applied to another.
+        self.unit_id: "str | None" = None
 
     #: Where the last Bluetooth address is remembered between sessions.
     REMEMBERED_ADDRESS_KEY = "cr30_ble_address"
@@ -767,18 +770,45 @@ class DeviceReader:
         self._remember(self.REMEMBERED_PORT_KEY, getattr(dev._t, "port", None))
         return dev
 
+    def _arm_tile_guard(self, dev):
+        """Give the instrument its OWN tile constant, if we have learned it.
+
+        Without this the magnet guard compares against a constant captured from
+        one particular unit, and the only other CR30 anyone has measured sits up
+        to 4.69 %R away -- 94x the tolerance -- so on that unit the check
+        matches nothing and the owner has no magnet protection at all. Armed,
+        the same check works on any unit that has been through the learning
+        step. `learned_signature` returns None for a signature belonging to a
+        different unit, so the failure direction stays "unarmed", never "a real
+        patch refused".
+        """
+        try:
+            from .tile_learning import learned_signature
+            # The device's own id, set by `identify()`, is the real key. Over
+            # USB that is the unit's serial; over Bluetooth there is none on
+            # the fast path, and `learned_signature` then arms only if exactly
+            # one instrument has ever been learned here.
+            self.unit_id = getattr(dev, "unit_id", None) or self.unit_id
+            dev.learned_tile = learned_signature(self.unit_id)
+            if dev.learned_tile:
+                log.info("CR30: magnet guard armed with the learned tile "
+                         "signature of unit %s", self.unit_id or "(this one)")
+        except Exception:            # noqa: BLE001 — never fail an open over it
+            log.debug("could not arm the learned tile guard", exc_info=True)
+        return dev
+
     def _open(self):
         from .device import CR30
         if self._transport == "usb":
-            return self._open_usb()
+            return self._arm_tile_guard(self._open_usb())
         if self._transport == "ble":
-            return self._open_ble()
+            return self._arm_tile_guard(self._open_ble())
         try:
-            return self._open_usb()
+            return self._arm_tile_guard(self._open_usb())
         except Exception as usb_err:      # noqa: BLE001 — try the other one
             log.info("CR30: no USB device (%s); trying Bluetooth", usb_err)
             try:
-                return self._open_ble()
+                return self._arm_tile_guard(self._open_ble())
             except Exception as ble_err:  # noqa: BLE001 — report BOTH honestly
                 raise ConnectionError(_no_device_help(usb_err, ble_err)) from ble_err
 

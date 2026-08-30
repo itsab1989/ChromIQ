@@ -114,10 +114,14 @@ class _Link:
 
 
 def _device(link) -> CR30:
-    d = CR30.__new__(CR30)
-    d.kind = "ble"
-    d._t = link
-    d._previous = None
+    """Build it through the REAL constructor.
+
+    This used to be `CR30.__new__(CR30)` with the fields set by hand, which
+    silently drifts from the real object every time one is added -- it broke on
+    `learned_tile` the day that field appeared, reporting the code faulty when
+    only the stand-in was. `__init__` opens nothing; it just assigns.
+    """
+    d = CR30(link, "ble")
     d.model = "CR30"
     return d
 
