@@ -46,7 +46,12 @@ REGISTRY = ROOT / "ui" / "dialogs" / "tools_dialogs.py"
 POPUP = ROOT / "ui" / "tools_popup.py"
 
 #: Keys handled by MainWindow._launch_tool itself rather than open_tool_dialog.
-SPECIAL_KEYS = {"patch_cube"}
+#: Handled by MainWindow._launch_tool directly rather than by a dialog class in
+#: `tools_dialogs`, so the registry the audit walks does not see them.
+#: `patch_cube` opens a 3D view; `cr30_bt_report` runs a Bluetooth scan and
+#: writes a text file through a save dialog — neither has a tool DIALOG to
+#: register.
+SPECIAL_KEYS = {"patch_cube", "cr30_bt_report"}
 
 #: Calls that put bytes on disk. ``painter.save()`` / ``painter.restore()`` are
 #: QPainter state, not files — excluded by the receiver check below.

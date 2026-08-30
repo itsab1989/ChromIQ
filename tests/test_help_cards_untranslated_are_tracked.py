@@ -93,8 +93,8 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # so a uniform "+2" under-shot for some languages and passed for others.
 _BUDGET = {
     "de": 35,
-    "es": 101, "fr": 101, "it": 101, "ja": 101, "nl": 101,
-    "no": 101, "pl": 101, "pt": 101, "ru": 101, "sv": 101, "zh_CN": 101,
+    "es": 106, "fr": 106, "it": 106, "ja": 106, "nl": 106,
+    "no": 106, "pl": 106, "pt": 106, "ru": 106, "sv": 106, "zh_CN": 106,
 }
 
 

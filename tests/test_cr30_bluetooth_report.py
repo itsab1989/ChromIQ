@@ -1,0 +1,129 @@
+"""The in-app Bluetooth diagnostic must be safe, honest and sendable.
+
+A CR30 owner on Windows cannot connect and has no error text to give us. This
+report is what he runs instead. Three properties matter more than its wording:
+
+* it must never disturb his instrument;
+* it must not publish his neighbours' devices, because it is written to be sent
+  to a stranger;
+* it must not tell him a library is missing when it is there — an earlier
+  version did exactly that, because that release of `bleak` defines no
+  `__version__`, and it would have sent him to install what he already had.
+"""
+import asyncio
+
+import pytest
+
+from workflow.cr30 import bluetooth_report as br
+
+
+def test_it_reports_bleak_as_present(monkeypatch):
+    """The import is the test, not the version string."""
+    assert "NOT AVAILABLE" not in br._bleak_version()
+
+
+def test_a_missing_library_is_still_reported(monkeypatch):
+    import builtins
+    real = builtins.__import__
+
+    def fake(name, *a, **k):
+        if name == "bleak":
+            raise ImportError("no module named bleak")
+        return real(name, *a, **k)
+
+    monkeypatch.setattr(builtins, "__import__", fake)
+    assert "NOT AVAILABLE" in br._bleak_version()
+
+
+def _run(monkeypatch, devices):
+    """Drive the real `collect()` with only the scanner faked."""
+    class _Adv:
+        def __init__(self, name, uuids, rssi=-50):
+            self.local_name, self.service_uuids, self.rssi = name, uuids, rssi
+
+    class _Dev:
+        def __init__(self, addr, name):
+            self.address, self.name = addr, name
+
+    found = {addr: (_Dev(addr, name), _Adv(name, uuids))
+             for addr, name, uuids in devices}
+
+    class _Scanner:
+        @staticmethod
+        async def discover(timeout=0.0, return_adv=False):
+            return found
+
+    import bleak
+    monkeypatch.setattr(bleak, "BleakScanner", _Scanner)
+    from workflow.cr30 import ble
+    monkeypatch.setattr(ble, "discover",
+                        lambda *a, **k: asyncio.sleep(0, result=[]))
+    return asyncio.new_event_loop().run_until_complete(br.collect(0.0))
+
+
+FFE0 = "0000ffe0-0000-1000-8000-00805f9b34fb"
+
+
+def test_a_bystanders_name_is_never_written(monkeypatch):
+    """His phone, his television, his neighbours' — none of it helps anyone."""
+    text = _run(monkeypatch, [
+        ("AA:BB:CC:DD:EE:01", "Someone's iPhone", []),
+        ("AA:BB:CC:DD:EE:02", "Living Room TV", ["0000180f-0000-1000-8000-00805f9b34fb"]),
+    ])
+    assert "iPhone" not in text
+    assert "Living Room" not in text
+    assert br._REDACTED in text
+
+
+def test_a_candidate_IS_named(monkeypatch):
+    """The one device that might be the instrument must be identifiable, or the
+    report cannot be acted on."""
+    text = _run(monkeypatch, [("AA:BB:CC:DD:EE:03", "CR30-XYZ", [FFE0])])
+    assert "CR30-XYZ" in text
+    assert "AA:BB:CC:DD:EE:03" in text
+
+
+def test_seeing_nothing_says_so_plainly_and_does_not_blame_a_setting(monkeypatch):
+    """There is no Bluetooth on/off control on a CR30, so advice to check one
+    would send the reader hunting for something that does not exist."""
+    text = _run(monkeypatch, [("AA:BB:CC:DD:EE:04", "Someone's iPhone", [])])
+    assert "NOTHING" in text
+    assert "no Bluetooth on/off setting" in text.lower() or \
+           "NO Bluetooth on/off setting" in text
+    assert "screen" in text.lower(), "the instrument's own display is the clue"
+
+
+def test_a_failed_scan_is_a_finding_not_a_crash(monkeypatch):
+    class _Boom:
+        @staticmethod
+        async def discover(timeout=0.0, return_adv=False):
+            raise OSError("the adapter is not available")
+
+    import bleak
+    monkeypatch.setattr(bleak, "BleakScanner", _Boom)
+    text = asyncio.new_event_loop().run_until_complete(br.collect(0.0))
+    assert "THE SCAN ITSELF FAILED" in text
+    assert "OSError" in text
+
+
+def test_it_opens_no_connection_of_its_own(monkeypatch):
+    """The safety property, tested by BEHAVIOUR rather than by grepping.
+
+    A first version of this searched the source for the word "calibrate" — a
+    test of the file's shape, not of what it does, and it failed on the
+    docstring that promises never to calibrate. What actually matters is that
+    this module opens no connection itself: the ONE connection in the whole
+    report is made inside `ble.discover(verify=True)`, whose single status
+    frame is covered where that code lives. So a `BleakClient` constructed
+    here at all is the fault.
+    """
+    import bleak
+
+    class _Forbidden:
+        def __init__(self, *a, **k):
+            raise AssertionError(
+                "the diagnostic opened its own connection to an instrument")
+
+    monkeypatch.setattr(bleak, "BleakClient", _Forbidden)
+    text = _run(monkeypatch, [("AA:BB:CC:DD:EE:05", "CR30-XYZ", [FFE0])])
+    assert "ChromIQ's own discovery" in text or "discovery" in text.lower()

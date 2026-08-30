@@ -1731,9 +1731,92 @@ class MainWindow(QMainWindow):
         popup.selected.connect(self._launch_tool)
         popup.show_under(self._masthead.tools_button())
 
+    def _run_cr30_bluetooth_report(self) -> None:
+        """Write a Bluetooth diagnostic the user can send us.
+
+        IN THE APP, NOT IN A SCRIPT. `bleak` and its platform backend live
+        inside the bundle, where a system Python cannot reach them — so asking
+        someone with a connection problem to install Python and pip a library
+        is both a wall and a different test: it would exercise a bleak that is
+        not the one failing. This runs the app's own stack.
+        """
+        from pathlib import Path
+        from PyQt6.QtWidgets import QApplication, QFileDialog, QMessageBox
+        from ui.widgets import fit_message_box_buttons
+
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(tr("CR30 Bluetooth report"))
+        box.setText(tr("Find out why the instrument will not connect"))
+        box.setInformativeText(tr(
+            "ChromIQ will look for Bluetooth instruments for about half a "
+            "minute and write down what it finds, so somebody can see where "
+            "the connection stops.\n\n"
+            "Switch your CR30 on and leave it awake — press its button once if "
+            "you are not sure — and keep it near this computer. There is no "
+            "Bluetooth setting to turn on: a CR30 has none, and is on from the "
+            "moment it comes out of the box.\n\n"
+            "Watch the instrument's own screen while this runs. An indicator "
+            "appears there when a computer asks to connect, so the display "
+            "tells you whether the request is arriving at all.\n\n"
+            "Nothing here can change your instrument. It is never asked to "
+            "measure and never asked to calibrate.\n\n"
+            "The window will be unresponsive while it looks."),
+            )
+        go = box.addButton(tr("Look now"), QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(go)
+        fit_message_box_buttons(box)
+        box.exec()
+        if box.clickedButton() is not go:
+            return
+
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            import asyncio
+            from workflow.cr30.bluetooth_report import collect
+            text = asyncio.new_event_loop().run_until_complete(collect())
+        except Exception as exc:                    # noqa: BLE001 — report it
+            text = (f"The report could not be produced: "
+                    f"{type(exc).__name__}: {exc}")
+            log.warning("CR30 Bluetooth report failed", exc_info=True)
+        finally:
+            QApplication.restoreOverrideCursor()
+
+        suggested = str(Path.home() / "Desktop" / "cr30-bluetooth-report.txt")
+        path, _ = QFileDialog.getSaveFileName(
+            self, tr("Save the Bluetooth report"), suggested,
+            tr("Text files (*.txt)"))
+        if not path:
+            return
+        try:
+            Path(path).write_text(text, encoding="utf-8")
+        except Exception as exc:                    # noqa: BLE001
+            QMessageBox.warning(self, tr("CR30 Bluetooth report"),
+                                tr("The report could not be saved: {error}"
+                                   ).format(error=exc))
+            return
+        done = QMessageBox(self)
+        done.setIcon(QMessageBox.Icon.NoIcon)
+        done.setWindowTitle(tr("CR30 Bluetooth report"))
+        done.setText(tr("Saved"))
+        done.setInformativeText(tr(
+            "The report is at:\n{path}\n\nOpen it and read it before you "
+            "send it — it describes what your computer could see. Send it "
+            "PRIVATELY, by message or email rather than a public post: a "
+            "Bluetooth scan lists what is switched on around you. ChromIQ has "
+            "already hidden the names of everything that was not a possible "
+            "instrument.").format(path=path))
+        done.setStandardButtons(QMessageBox.StandardButton.Ok)
+        fit_message_box_buttons(done)
+        done.exec()
+
     def _launch_tool(self, key: str) -> None:
         if key == "patch_cube":
             self._show_patch_cube()
+            return
+        if key == "cr30_bt_report":
+            self._run_cr30_bluetooth_report()
             return
         from ui.dialogs.tools_dialogs import open_tool_dialog
         # The TI2 layout editor's "Save & apply" hands its chart folder back to

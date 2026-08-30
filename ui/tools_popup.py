@@ -75,6 +75,10 @@ _GROUPS: tuple[tuple[str, tuple[ToolEntry, ...]], ...] = (
         ToolEntry("devicelink_apply", tr("Apply a device-link to an image")),
         ToolEntry("softproof",      tr("Soft-proof / check an image")),
     )),
+    (tr("Instruments"), (
+        ToolEntry("cr30_bt_report",
+                  tr("CR30 Bluetooth report (for when it will not connect)")),
+    )),
     (tr("Language"), (
         ToolEntry("translate", tr("Translate / edit language")),
     )),
