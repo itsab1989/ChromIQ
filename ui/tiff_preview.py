@@ -1796,6 +1796,14 @@ class TiffPreview(QWidget):
         self._patch_overlay = {}
         self._legend_rect = None
         self._legend_geom = None
+        # …AND THE HOVER STATE. Clearing while the pointer sat on the chip left
+        # `_legend_hidden` True and the opacity at 0, so the NEXT chart opened
+        # with no legend at all and nothing to bring it back.
+        self._legend_pointer = None
+        self._legend_hidden = False
+        self._legend_opacity = 1.0
+        if self._legend_fade is not None:
+            self._legend_fade.stop()
         self._hide_patch_tile()
         self._pixmap = None
         self._ink_channels = None
@@ -3315,16 +3323,27 @@ class TiffPreview(QWidget):
         of snapping to the far end.
         """
         from PyQt6.QtCore import QEasingCurve, QVariantAnimation
-        if abs(self._legend_opacity - target) < 0.01:
-            return
+        # STOP FIRST, THEN DECIDE. The early return below used to come before
+        # this, so a re-hide requested while a SHOW fade was just starting
+        # (opacity ~0.005, target 0.0, "close enough") returned without
+        # stopping it -- and that show fade carried on to 1.0. The chip then
+        # sat fully drawn under the pointer with `_legend_hidden` already True,
+        # so no further move could produce a transition and wiggling on it did
+        # not recover it. Flick off the chip and straight back on and you had
+        # it, every time.
         anim = self._legend_fade
+        if anim is not None:
+            anim.stop()
+        if abs(self._legend_opacity - target) < 0.01:
+            self._legend_opacity = float(target)   # settle exactly
+            self._repaint_label()
+            return
         if anim is None:
             anim = QVariantAnimation(self)
             anim.setDuration(self.LEGEND_FADE_MS)
             anim.setEasingCurve(QEasingCurve.Type.OutCubic)
             anim.valueChanged.connect(self._on_legend_fade_step)
             self._legend_fade = anim
-        anim.stop()
         anim.setStartValue(float(self._legend_opacity))
         anim.setEndValue(float(target))
         anim.start()
@@ -3332,6 +3351,22 @@ class TiffPreview(QWidget):
     def _on_legend_fade_step(self, value) -> None:
         self._legend_opacity = float(value)
         self._repaint_label()
+
+    def _reconcile_legend_hover(self) -> None:
+        """Re-decide hidden/shown after something MOVED the chip under a still
+        pointer.
+
+        Resizing the window (a tiling shortcut, say) or loading another chart
+        re-places the chip, but nothing re-evaluated the pointer against it --
+        so the legend could vanish while the pointer was over where it USED to
+        be, and stay gone until the mouse left the widget entirely.
+        """
+        if self._legend_pointer is None:
+            return
+        hidden = self._legend_is_hidden()
+        if hidden != self._legend_hidden:
+            self._legend_hidden = hidden
+            self._start_legend_fade(0.0 if hidden else 1.0)
 
     def _forget_legend_pointer(self) -> None:
         """The pointer has gone; the chip comes back."""
@@ -3491,6 +3526,11 @@ class TiffPreview(QWidget):
     def resizeEvent(self, event) -> None:  # type: ignore[override]
         super().resizeEvent(event)
         self._repaint_label()
+        # The chip has just moved under a pointer that did not; re-decide.
+        # Queued, not immediate: the rectangle it must be tested against is
+        # written by the repaint above, which has only been scheduled here.
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(0, self._reconcile_legend_hover)
         if getattr(self, "_badge_lbl", None) is not None \
                 and self._badge_lbl.isVisible():
             self._badge_lbl.move(

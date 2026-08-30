@@ -203,10 +203,20 @@ def test_it_fades_rather_than_blinking(preview, qtbot):
     assert preview._legend_opacity < 0.02, "the fade never finished"
 
 
-def test_the_fade_is_quick(preview):
-    """A control getting out of the way, not an effect. If this ever grows,
-    it should be a deliberate change and not a drift."""
-    assert 60 <= preview.LEGEND_FADE_MS <= 200
+def test_the_fade_is_quick(preview, qtbot):
+    """A control getting out of the way, not an effect.
+
+    Rewritten: it used to assert the CONSTANT against a constant, so a two-
+    second fade would have passed it as long as nobody edited the number. It
+    now times the real animation.
+    """
+    import time
+    assert 60 <= preview.LEGEND_FADE_MS <= 200, "the declared duration drifted"
+    began = time.monotonic()
+    preview._apply_legend_pointer(preview._legend_rect.center())
+    qtbot.waitUntil(lambda: preview._legend_opacity < 0.02, timeout=3000)
+    took = (time.monotonic() - began) * 1000
+    assert took < 400, f"the fade actually took {took:.0f} ms"
 
 
 def test_turning_back_mid_fade_does_not_snap(preview, qtbot):
@@ -222,5 +232,107 @@ def test_turning_back_mid_fade_does_not_snap(preview, qtbot):
     preview._forget_legend_pointer()          # reverse before it finishes
     from PyQt6.QtWidgets import QApplication
     QApplication.processEvents()
-    assert preview._legend_opacity <= 1.0
+    # IT MUST CONTINUE FROM WHERE IT WAS, not restart from the far end. The
+    # only assertion here used to be `<= 1.0`, which a snapping implementation
+    # satisfies trivially — so it proved nothing at all.
+    assert preview._legend_opacity < 0.999, (
+        "the reversal jumped straight to fully visible instead of easing back")
+    assert preview._legend_opacity >= mid - 0.05, (
+        f"the reversal restarted from below where it had got to "
+        f"({preview._legend_opacity:.3f} against {mid:.3f})")
     qtbot.waitUntil(lambda: preview._legend_opacity > 0.99, timeout=2000)
+
+
+# -- the three faults the verification round found --------------------------
+
+def test_flicking_off_and_straight_back_on_still_hides_it(preview, qtbot):
+    """F1. Leave the chip and return before the show-fade finishes.
+
+    The re-hide used to be dropped: `_start_legend_fade` returned early when the
+    opacity was already near its target, WITHOUT stopping the show fade that was
+    running the other way — so that fade carried on to fully drawn while the
+    state said hidden, and no further movement could produce a transition. The
+    chip sat under the pointer and wiggling on it did not recover it.
+    """
+    centre = preview._legend_rect.center()
+    preview._apply_legend_pointer(centre)
+    qtbot.waitUntil(lambda: preview._legend_opacity < 0.02, timeout=2000)
+    # off the chip, and back on before the show fade can finish
+    preview._apply_legend_pointer(QPoint(centre.x(), max(0, centre.y() - 400)))
+    preview._apply_legend_pointer(centre)
+    # WAIT PAST THE WHOLE FADE BEFORE JUDGING. A first version asserted
+    # immediately, when the opacity was still 0.0 from the previous hide — so it
+    # passed while the dropped show-fade was quietly running underneath, and the
+    # mutation went uncaught. What matters is where it ENDS UP.
+    import time
+    from PyQt6.QtWidgets import QApplication
+    end = time.monotonic() + (preview.LEGEND_FADE_MS * 3) / 1000.0
+    while time.monotonic() < end:
+        QApplication.processEvents()
+        time.sleep(0.005)
+    assert preview._legend_hidden is True
+    assert preview._legend_opacity < 0.05, (
+        f"the chip faded back in to {preview._legend_opacity:.2f} while the "
+        "pointer sat on it")
+    assert _chip_pixels(preview) < 60, "the chip is drawn under the pointer"
+
+
+def test_resizing_under_a_still_pointer_brings_it_back(preview, qtbot):
+    """F2. The chip moves; the pointer does not. Nothing used to re-decide, so
+    the legend vanished and stayed gone until the mouse left the widget."""
+    _point_at_chip(preview, qtbot)
+    preview.resize(preview.width() + 160, preview.height() + 160)
+    qtbot.waitUntil(lambda: preview._legend_opacity > 0.99, timeout=2000)
+    assert preview._legend_hidden is False
+    assert _chip_pixels(preview) > 200, "the legend never came back"
+
+
+def test_a_new_chart_gets_its_legend_back(preview, qtbot, tmp_path):
+    """F3. Clearing while pointing at the chip carried the hover state into the
+    next chart, which then opened with no legend at all."""
+    _point_at_chip(preview, qtbot)
+    preview.clear()
+    assert preview._legend_hidden is False
+    assert preview._legend_opacity == 1.0
+    assert preview._legend_pointer is None
+
+
+# -- cover for what the mutation audit found untested -----------------------
+
+def test_the_pointer_is_mapped_through_the_image_label(preview):
+    """The commit's headline subtlety, and it had no test. A raw widget
+    position tested against a canvas rectangle is off by the label offset."""
+    label = getattr(preview, "_img_label", None)
+    assert label is not None
+    off = label.mapFrom(preview, QPoint(0, 0))
+    inside = preview._legend_rect.center()
+    preview._legend_pointer = inside
+    assert preview._legend_is_hidden() is True
+    # the SAME point expressed in widget coordinates must NOT be treated as a hit
+    # unless the offset happens to be zero
+    if off != QPoint(0, 0):
+        preview._legend_pointer = inside - off
+        assert preview._legend_is_hidden() is False, (
+            "widget and label coordinates are being confused")
+
+
+def test_hiding_the_widget_restores_the_chip(preview, qtbot):
+    """`hideEvent` had no cover. A widget hidden under the pointer gets no
+    leaveEvent, so without it the chip stays hidden when it comes back."""
+    _point_at_chip(preview, qtbot)
+    preview.hide()
+    assert preview._legend_hidden is False
+    assert preview._legend_opacity == 1.0
+
+
+def test_a_narrow_pane_elides_rather_than_clipping(preview, qtbot):
+    """The elision had no cover either. The widest wording used to run past the
+    paper edge and be cut off mid-word."""
+    from PyQt6.QtWidgets import QApplication
+    preview.set_overlay_mode("measured")
+    preview.resize(300, 700)
+    QApplication.processEvents()
+    r = preview._legend_rect
+    assert r is not None
+    assert r.right() <= preview.width() + 2, (
+        f"the chip runs to x={r.right()} in a {preview.width()} px pane")
