@@ -62,8 +62,13 @@ def _reader(monkeypatch, spectrum=None):
     from workflow.cr30.measurement import Measurement
     vals = spectrum if spectrum is not None else [0.0] * 31
 
-    def _read(self, *, enforce=True, button_header=None):
+    # The signature MIRRORS the real one, argument for argument. A stub that
+    # quietly accepted **kw would have swallowed `allow_dark` and this file
+    # would have gone on passing while the real read-back was still rejecting
+    # the very reading it exists to take.
+    def _read(self, *, enforce=True, allow_dark=False, button_header=None):
         self._t.reads += 1
+        self._t.allow_dark = allow_dark
         return Measurement(wavelengths=list(range(400, 710, 10)),
                            values=list(vals), gate_flag=None, transport="usb")
 
@@ -122,3 +127,26 @@ def test_a_black_calibration_does_not_consume_its_own_answer(monkeypatch):
     assert dev._t.reads == 0
     r.calibrate(black=False)
     assert dev._t.reads == 1
+
+
+def test_the_dark_read_back_asks_for_a_reading_air_can_actually_give(monkeypatch):
+    """#159, found on the owner's own Bluetooth session, 2026-08-30.
+
+    The read-back after a black calibration failed with
+
+        candidate at 0 has 31 zero bands (truncated reply)
+
+    and the check silently did nothing. The guard is right about patches — a
+    real dark patch reads a few percent, never exactly 0.0 — but the dark
+    reference is taken against OPEN AIR, and air reads exactly 0.00000 %R on
+    this instrument (EXP-022, before and after). The expected answer and the
+    fault are byte-identical, so the check could never pass.
+
+    Admitting it is safe because the check is one-sided: it warns when the dark
+    reference reads too HIGH, and a truncated reply reads zero — the passing
+    direction. It cannot turn a bad reference into a good report.
+    """
+    r, dev = _reader(monkeypatch)
+    r.read_zero()
+    assert getattr(dev._t, "allow_dark", False) is True, (
+        "the dark read-back still asks for a reading air cannot give")

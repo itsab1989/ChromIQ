@@ -610,18 +610,75 @@ class DeviceReader:
         #: one is ever reused, every read would cancel the instant it started.
         self._cancel = False
 
+    #: Where the last Bluetooth address is remembered between sessions.
+    REMEMBERED_ADDRESS_KEY = "cr30_ble_address"
+
+    @staticmethod
+    def _remembered_address() -> "str | None":
+        """The address this Mac last reached a CR30 at, if any."""
+        try:
+            from core.settings import AppSettings
+            value = AppSettings().get(DeviceReader.REMEMBERED_ADDRESS_KEY, "")
+            return str(value) or None
+        except Exception:            # noqa: BLE001 — a hint, never a hard need
+            log.debug("could not read the remembered CR30 address",
+                      exc_info=True)
+            return None
+
+    @staticmethod
+    def _remember_address(dev) -> None:
+        """Store the address a successful Bluetooth open actually used."""
+        address = getattr(getattr(dev, "_t", None), "address", None)
+        if not address:
+            return
+        try:
+            from core.settings import AppSettings
+            AppSettings().set(DeviceReader.REMEMBERED_ADDRESS_KEY, str(address))
+        except Exception:            # noqa: BLE001 — never fail an open over it
+            log.debug("could not remember the CR30 address", exc_info=True)
+
+    def _open_ble(self):
+        """Bluetooth, trying the remembered address before scanning for one.
+
+        MEASURED ON THE OWNER'S MAC, 2026-08-30, with the app instrumented:
+
+            found in 15.42 s, connected in 2.33 s, notifications in 0.06 s
+
+        The scan is six times the connection and nearly twenty times the
+        calibration exchange it precedes — it IS his "when i click the button to
+        calibrate ... it takes a while". An address skips it entirely.
+
+        The remembered address is a HINT and never an identity: it is stable per
+        host but says nothing about which unit answers there, so a failure falls
+        straight back to the scan rather than reporting the device missing. That
+        also covers a second CR30, a reset Bluetooth stack, or another Mac.
+        """
+        from .device import CR30
+        remembered = self._address or self._remembered_address()
+        if remembered:
+            try:
+                dev = CR30.open_ble(address=remembered)
+                self._remember_address(dev)
+                return dev
+            except Exception:        # noqa: BLE001 — fall back to discovery
+                log.info("CR30: the remembered Bluetooth address did not "
+                         "answer; searching for the instrument instead")
+        dev = CR30.open_ble(address=self._address)
+        self._remember_address(dev)
+        return dev
+
     def _open(self):
         from .device import CR30
         if self._transport == "usb":
             return CR30.open_usb(self._port)
         if self._transport == "ble":
-            return CR30.open_ble(address=self._address)
+            return self._open_ble()
         try:
             return CR30.open_usb(self._port)
         except Exception as usb_err:      # noqa: BLE001 — try the other one
             log.info("CR30: no USB device (%s); trying Bluetooth", usb_err)
             try:
-                return CR30.open_ble(address=self._address)
+                return self._open_ble()
             except Exception as ble_err:  # noqa: BLE001 — report BOTH honestly
                 raise ConnectionError(_no_device_help(usb_err, ble_err)) from ble_err
 
@@ -717,17 +774,26 @@ class DeviceReader:
             # Take the reading the calibration produced, so the device's stored
             # value is known to us rather than left as a surprise for patch A1.
             #
-            # WAIT IT OUT, do not read once and give up. Reading too soon
-            # returns a zero-filled reply, and that is the device saying "not
-            # finished" rather than a bad reading: the owner's calibration on
-            # 2026-08-29 failed with "16 zero bands (truncated reply)" because
-            # we asked 1.8 s after triggering. A fixed sleep would only be a
-            # guess at the longest case, so ask again until it answers.
+            # ⚠ IT IS ZERO-FILLED, AND THAT IS THE ANSWER, NOT A FAILURE.
+            #
+            # This loop used to read without `allow_dark`, so the zero-filled
+            # reply was rejected as truncated and it retried until its twelve
+            # second deadline expired — EVERY TIME. Measured on the owner's own
+            # Bluetooth session, 2026-08-30: the calibration answered at
+            # 04:46:27.8 and this gave up at 04:46:41.5. Fourteen seconds of a
+            # calibration he described as slow were spent here, waiting for an
+            # answer the device had already given.
+            #
+            # An earlier note here read the same symptom as "the device saying
+            # not finished", from a run that asked 1.8 s after triggering. That
+            # was the wrong conclusion: waiting twelve seconds produces exactly
+            # the same reply. After a calibration the stored slot IS zeros, and
+            # knowing that is precisely what this read is for.
             import time as _t
             deadline = _t.monotonic() + 12.0
             while True:
                 try:
-                    self._dev.read_measurement(enforce=False)
+                    self._dev.read_measurement(enforce=False, allow_dark=True)
                     break
                 except Exception:        # noqa: BLE001 — informational only
                     if _t.monotonic() > deadline:
@@ -787,7 +853,12 @@ class DeviceReader:
         last = None
         for _ in range(tries):
             try:
-                return self._dev.read_measurement(enforce=False)
+                # allow_dark: this is the read-back after a BLACK calibration,
+                # so the instrument is pointing at open air and the honest
+                # answer is exactly zero — which the truncated-reply guard
+                # rejects, because over air the two are indistinguishable.
+                return self._dev.read_measurement(enforce=False,
+                                                  allow_dark=True)
             except Exception as exc:      # noqa: BLE001 — retried below
                 last = exc
                 _t.sleep(0.4)

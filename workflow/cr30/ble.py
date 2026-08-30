@@ -15,12 +15,16 @@ Requires `bleak`. Kept import-light so the protocol layer never depends on it.
 from __future__ import annotations
 
 import asyncio
+import logging
 import struct
+import time
 from dataclasses import dataclass
 
 FFE0_SERVICE = "0000ffe0-0000-1000-8000-00805f9b34fb"
 FFE1 = "0000ffe1-0000-1000-8000-00805f9b34fb"
 FFE2 = "0000ffe2-0000-1000-8000-00805f9b34fb"
+
+log = logging.getLogger(__name__)
 
 POLL = bytes([0x01])
 FRAME_LEN = 10
@@ -194,11 +198,31 @@ class BleTransport:
                         "disconnect the phone app; then press its button to "
                         "wake it and try again.")
                 target = ok[0]["address"]
+            # REMEMBER WHAT WE ACTUALLY CONNECTED TO, so the caller can skip
+            # the scan next time. Measured on the owner's Mac, 2026-08-30:
+            # finding the device by name took 15.42 s, connecting to it 2.33 s.
+            # The scan is the whole of his "it takes a while", and an address
+            # makes it unnecessary.
+            self.address = target
             c = BleakClient(target, timeout=self.timeout)
+            t0 = time.monotonic()
             await c.connect()
+            t1 = time.monotonic()
             await c.start_notify(FFE1, self._on_notify)
+            # TIMED, BECAUSE THIS IS WHERE THE OWNER'S FIRST GAP LIVES.
+            # The first connection of a session is made when he presses
+            # Calibrate, and nothing on screen says anything is happening. Any
+            # remedy for that has to start from a number, not an impression:
+            # "i don't know if it is much faster" is what guessing earned last
+            # time. Found and connect are separated because they have different
+            # cures — a slow FIND wants the address remembered, a slow CONNECT
+            # wants the link opened before the window rather than inside it.
+            log.info("CR30 BLE: found in %.2f s, connected in %.2f s, "
+                     "notifications in %.2f s",
+                     t0 - t_start, t1 - t0, time.monotonic() - t1)
             return c
 
+        t_start = time.monotonic()
         self._client = self._run(_open())
 
     def close(self) -> None:

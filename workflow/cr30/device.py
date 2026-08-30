@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import datetime
 import struct
+import time
 
 from . import ble
 from .measurement import Measurement, MeasurementError
@@ -22,8 +23,12 @@ import logging
 log = logging.getLogger(__name__)
 
 
-def _parse_reply(raw: bytes):
+def _parse_reply(raw: bytes, allow_dark: bool = False):
     """The last complete, valid measurement in `raw`, or None.
+
+    `allow_dark` is for ONE caller: the read-back after a black calibration,
+    where the instrument is pointing at open air and the honest answer is
+    nothing at all. See :meth:`CR30.read_measurement`.
 
     Factored out so the polling loop can ask the SAME question the parser asks:
     "is a usable reply here yet?" Anything weaker — a length, a header, a
@@ -45,7 +50,7 @@ def _parse_reply(raw: bytes):
             probe = Measurement(a.wavelengths(), [round(x, 6) for x in v],
                                 lab=[round(x, 4) for x in l])
             probe.validate()
-            if probe.zero_run() >= 3:
+            if not allow_dark and probe.zero_run() >= 3:
                 continue
         except Exception:            # noqa: BLE001 — not usable yet, keep polling
             continue
@@ -258,8 +263,14 @@ class CR30:
         # offset in it, which once produced fifteen garbage readings, and a
         # calibration can be taken mid-session where a reading has just
         # arrived. Shortening it needs a measurement on hardware, not a guess.
+        t0 = time.monotonic()
         self._t.ask(ble.frame(cmd, 0x01), polls=20, wait=0.10,
                     done=lambda _b: self._t.saw_reply(cmd))
+        # The second half of the same question: how long the exchange itself
+        # took, once the link was already open. Compare against the ~250 ms the
+        # device needs (EXP-022) to see what is ours.
+        log.info("CR30 BLE: calibration %s answered in %.2f s",
+                 "black" if black else "white", time.monotonic() - t0)
 
     def calibrate_white(self) -> None:
         """Kept for callers that predate :meth:`calibrate`. Prefer that."""
@@ -423,7 +434,7 @@ class CR30:
         raise MeasurementError(
             f"the instrument did not return a complete reading ({last})")
 
-    def read_measurement(self, *, enforce: bool = True,
+    def read_measurement(self, *, enforce: bool = True, allow_dark: bool = False,
                          button_header=None) -> Measurement:
         """Read the device's stored measurement.
 
@@ -439,6 +450,24 @@ class CR30:
         magnet check that is unit-independent and effective on the first reading
         of a run. Over BLE no equivalent frame is known, so the BLE path has
         **no protocol-level magnet detection at all** -- see TRANSPORT_BLE.md.
+
+        ⚠ `allow_dark` EXISTS FOR THE BLACK CALIBRATION AND NOTHING ELSE.
+
+        A zero-filled reply is normally rejected as truncated, and rightly:
+        "a real dark patch reads a few percent, never exactly 0.0 across a
+        run". But the dark reference is taken against OPEN AIR, and air reads
+        exactly 0.00000 %R on this instrument -- measured before and after, in
+        EXP-022. So the expected answer and the fault are byte-identical, and
+        the read-back after a black calibration could never succeed: on the
+        owner's own Bluetooth session, 2026-08-30, it failed with "candidate at
+        0 has 31 zero bands (truncated reply)" and the check silently did
+        nothing at all.
+
+        Allowing it costs nothing there, because that check is ONE-SIDED by
+        design: it warns when the dark reference reads too HIGH (something was
+        in front of the opening). A truncated reply reads zero, which is the
+        passing direction, so admitting one cannot turn a bad reference into a
+        good report. Never pass this for a patch.
         """
         if self.kind == "usb":
             from . import usb_measure
@@ -460,7 +489,7 @@ class CR30:
         # for three silent rounds cost about a second per patch on data already
         # received.
         raw = self._t.ask(ble.READ_MEASUREMENT,
-                          done=lambda b: _parse_reply(b) is not None)
+                          done=lambda b: _parse_reply(b, allow_dark) is not None)
         # A stream can hold MORE THAN ONE reply: the vendor's own 410-byte BLE
         # capture is a truncated, zero-filled reply followed by a complete one.
         # A first-match scan takes the truncated one and every length and
@@ -486,7 +515,7 @@ class CR30:
                                 lab=[round(x, 4) for x in l])
             try:
                 probe.validate()
-                if probe.zero_run() >= 3:
+                if not allow_dark and probe.zero_run() >= 3:
                     raise MeasurementError(
                         f"candidate at {i} has {probe.zero_run()} zero bands "
                         "(truncated reply)")

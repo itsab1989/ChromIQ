@@ -233,3 +233,39 @@ def test_a_slow_device_still_gets_its_full_budget():
     # empty buffer the loop runs its full count.
     assert t._client.polls == 20, (
         f"a silent device was given up on after {t._client.polls} polls")
+
+
+# ---- the dark read-back, over the REAL parser ----------------------------
+
+def _dark_reply():
+    """A complete, valid BLE measurement reply whose spectrum is all zeros —
+    what the instrument returns pointing at open air (EXP-022)."""
+    import struct
+    from workflow.cr30 import ble
+    raw = bytearray(ble.MIN_REPLY)
+    raw[0:4] = ble.MEASUREMENT_HDR
+    # the axis: 400 nm start, 10 nm step, 31 bands
+    raw[4:8] = struct.pack("<HBB", 400, 10, 31)
+    struct.pack_into("<31f", raw, ble.SPECTRUM_AT, *([0.0] * 31))
+    struct.pack_into("<3f", raw, ble.LAB_AT, 0.0, 0.0, 0.0)
+    return bytes(raw)
+
+
+def test_the_real_parser_rejects_an_all_zero_spectrum_by_default():
+    """The guard that protects patch readings must stay exactly as it is."""
+    from workflow.cr30.device import _parse_reply
+    assert _parse_reply(_dark_reply()) is None, (
+        "a zero-filled reply is accepted as a patch reading; that is the "
+        "truncated-reply fault this guard exists for")
+
+
+def test_it_accepts_one_when_the_caller_asks_for_the_dark_case():
+    """And the black calibration's read-back, which could not work without it.
+
+    Proved against the REAL `_parse_reply`, not a stub: the failure the owner
+    hit on 2026-08-30 was inside this function.
+    """
+    from workflow.cr30.device import _parse_reply
+    assert _parse_reply(_dark_reply(), allow_dark=True) is not None, (
+        "the read-back after a black calibration still cannot read air, so "
+        "the only honest check either calibration has does nothing")
