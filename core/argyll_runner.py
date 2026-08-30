@@ -506,6 +506,38 @@ class ArgyllRunner(QObject):
         otherwise the daemon PTY thread can emit signals into already-freed
         C++ objects and cause a segfault (macOS 'quit unexpectedly' dialog).
         """
+        # DROP THE PER-RUN CALLBACKS FIRST, AND THE QPROCESS SIGNALS WITH THEM.
+        #
+        # Disconnecting `self.finished` is not enough, and it looked like it
+        # was. `_on_finished` calls `_run_on_finish` DIRECTLY — deliberately,
+        # so a chained run (targen→printtarg) can register its own without it
+        # being disconnected — so the public signal is not the path that
+        # matters. Killing the process below makes `waitForFinished` deliver
+        # `finished`, which runs the measurement session's finish handler in
+        # the middle of application shutdown.
+        #
+        # Two things came of that. The owner saw
+        # "the chart's instrument is one stock chartread cannot read (unknown
+        # error) — not falling back" in his terminal on every quit: exit code 9
+        # is SIGKILL, `_user_quit` is False because he never asked to stop, and
+        # the #159 branch warns about a failure that did not happen. Worse and
+        # latent: a non-CR30 engine session quit before its first event would
+        # RELAUNCH stock chartread during shutdown, leaving an orphan process
+        # behind the closing app.
+        #
+        # Nothing is lost by dropping them — CR30 readings are written to disk
+        # after every patch, and this path exists only for quitting.
+        self._run_on_finish = None
+        self._run_on_line = None
+        if self._process is not None:
+            for _sig, _slot in ((self._process.finished, self._on_finished),
+                                (self._process.readyReadStandardOutput,
+                                 self._on_ready_read)):
+                try:
+                    _sig.disconnect(_slot)
+                except (TypeError, RuntimeError):
+                    pass
+
         # Disconnect all signals so no callbacks fire during teardown.
         for sig in (self.line_received, self.finished, self._pty_done):
             try:

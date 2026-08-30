@@ -667,14 +667,67 @@ class DeviceReader:
         self._remember_address(dev)
         return dev
 
+    #: Where the last USB port that answered as a CR30 is remembered.
+    REMEMBERED_PORT_KEY = "cr30_usb_port"
+
+    @staticmethod
+    def _remembered(key: str) -> "str | None":
+        try:
+            from core.settings import AppSettings
+            return str(AppSettings().get(key, "")) or None
+        except Exception:            # noqa: BLE001 — a hint, never a hard need
+            log.debug("could not read the remembered %s", key, exc_info=True)
+            return None
+
+    @staticmethod
+    def _remember(key: str, value: "str | None") -> None:
+        if not value:
+            return
+        try:
+            from core.settings import AppSettings
+            AppSettings().set(key, str(value))
+        except Exception:            # noqa: BLE001 — never fail an open over it
+            log.debug("could not remember %s", key, exc_info=True)
+
+    def _open_usb(self):
+        """USB, trying the port that answered last before probing others.
+
+        WHY THIS EXISTS, AND IT IS NOT SPEED. `1a86:7523` is the generic CH340
+        bridge, so the candidate list can contain an Arduino, a 3D printer or a
+        CNC controller. `CR30.open_usb()` now identifies each candidate rather
+        than trusting the first — which is right, and which also means it may
+        write its one identify frame to MORE of the user's devices than the old
+        code did. Remembering the port that answered keeps the ordinary case to
+        a single probe, of the right device.
+
+        The port is a HINT, never an identity: a `/dev/cu.usbserial-*` path is
+        reused by whatever is plugged in next, so the remembered port is still
+        identified before it is accepted, and a failure falls back to the full
+        search. Same discipline as the remembered Bluetooth address.
+        """
+        from .device import CR30
+        remembered = self._port or self._remembered(self.REMEMBERED_PORT_KEY)
+        if remembered:
+            try:
+                dev = CR30.open_usb(remembered)
+                dev.identify()       # the path may belong to something else now
+                self._remember(self.REMEMBERED_PORT_KEY, remembered)
+                return dev
+            except Exception:        # noqa: BLE001 — fall back to the search
+                log.info("CR30: %s did not answer as a CR30; looking at the "
+                         "other serial devices", remembered)
+        dev = CR30.open_usb(self._port)
+        self._remember(self.REMEMBERED_PORT_KEY, getattr(dev._t, "port", None))
+        return dev
+
     def _open(self):
         from .device import CR30
         if self._transport == "usb":
-            return CR30.open_usb(self._port)
+            return self._open_usb()
         if self._transport == "ble":
             return self._open_ble()
         try:
-            return CR30.open_usb(self._port)
+            return self._open_usb()
         except Exception as usb_err:      # noqa: BLE001 — try the other one
             log.info("CR30: no USB device (%s); trying Bluetooth", usb_err)
             try:

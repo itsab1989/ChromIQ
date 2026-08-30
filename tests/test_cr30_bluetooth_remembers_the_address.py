@@ -141,3 +141,72 @@ def test_a_broken_settings_store_never_stops_a_measurement(monkeypatch, opens):
 
     dev = _reader()._open()
     assert dev is not None, "a settings failure prevented the instrument opening"
+
+
+# ---- and the same discipline on USB -------------------------------------
+#
+# `CR30.open_usb()` now identifies every candidate rather than trusting the
+# first — right, and it means it may write its identify frame to MORE of the
+# user's devices than the old code did, because `1a86:7523` is the generic
+# CH340 and the list can hold an Arduino or a 3D printer. Remembering the port
+# that answered keeps the ordinary case to a single probe, of the right device.
+
+@pytest.fixture
+def usb_opens(monkeypatch):
+    calls: list = []
+    outcome = {"fail_for": None}
+
+    class _T:
+        def __init__(self, port):
+            self.port = port
+
+    class _Dev:
+        def __init__(self, port):
+            self._t = _T(port)
+        def identify(self):
+            if outcome["fail_for"] == self._t.port:
+                raise ConnectionError("not a CR30")
+            return {"model": "CR30"}
+
+    def _open_usb(port=None):
+        calls.append(port)
+        if port is None:
+            return _Dev("/dev/found-by-searching")
+        if outcome["fail_for"] == port:
+            raise ConnectionError("not a CR30")
+        return _Dev(port)
+
+    import workflow.cr30.device as device
+    monkeypatch.setattr(device.CR30, "open_usb", staticmethod(_open_usb))
+    return calls, outcome
+
+
+def test_the_first_usb_open_searches_and_remembers(usb_opens, store):
+    calls, _ = usb_opens
+    DeviceReader(transport="usb")._open()
+    assert calls == [None], "it did not search when it had nothing remembered"
+    assert store[DeviceReader.REMEMBERED_PORT_KEY] == "/dev/found-by-searching"
+
+
+def test_the_next_open_tries_the_remembered_port_first(usb_opens, store):
+    calls, _ = usb_opens
+    store[DeviceReader.REMEMBERED_PORT_KEY] = "/dev/known"
+    DeviceReader(transport="usb")._open()
+    assert calls == ["/dev/known"], (
+        "it probed other people's serial devices although it knew where the "
+        "instrument was")
+
+
+def test_a_port_that_is_now_something_else_falls_back(usb_opens, store):
+    """A `/dev/cu.usbserial-*` path is reused by whatever is plugged in next,
+    so the remembered port is a hint and must be identified, not trusted."""
+    calls, outcome = usb_opens
+    store[DeviceReader.REMEMBERED_PORT_KEY] = "/dev/was-the-cr30"
+    outcome["fail_for"] = "/dev/was-the-cr30"
+
+    dev = DeviceReader(transport="usb")._open()
+
+    assert calls == ["/dev/was-the-cr30", None], "a stale port did not fall back"
+    assert dev is not None
+    assert store[DeviceReader.REMEMBERED_PORT_KEY] == "/dev/found-by-searching", (
+        "the stale port is still remembered, so every session would probe it")

@@ -164,3 +164,35 @@ anybody else the first magnet-spoiled reading over Bluetooth is undetectable.
 Not fixable without other units. **It must be SAID**, plainly, wherever the
 Bluetooth path is documented — a silent gap in a data-integrity guard is the
 worst kind. Currently only in the research repo.
+
+
+## B2-10 · Could a real patch be mistaken for the calibration tile? — MEASURED: no
+
+Basti's question, and a fair one: *"what if one happens to measure a patch that
+has the same value as the tile? this could even happen to me myself."* The tile
+is a light neutral around 79 %R — not far from paper white — so the worry is
+that a near-white patch would be rejected as magnet-spoiled.
+
+Measured against the public corpus (103 readings):
+
+| | worst-band distance to `TILE_SIGNATURE` |
+|---|---|
+| the guard's tolerance | **0.05 %R, on all 31 bands at once** |
+| closest GENUINE reading | **4.686 %R** — 94x the tolerance |
+| readings inside the guard | **3 of 103**, all of them the magnet/calibration cases it exists to catch |
+
+The margin is not the real reason it is safe. **Two readings of the same real
+surface on his own unit differ by 1.41–6.38 %R on their worst band** — his own
+measurement noise is 28x to 128x the tolerance. So even measuring the actual
+white tile WITHOUT a magnet cannot match: noise alone pushes it out. This is not
+a colour comparison that a similar-looking patch could satisfy; it is a
+bit-pattern match against one specific 31-band curve.
+
+**A false positive would need a tolerance loose enough to swallow measurement
+noise. At 0.05 it cannot be reached.** Anyone tempted to relax it should read
+this entry first.
+
+⚠ **The 4.686 %R figure is the OTHER unit in the corpus** — that is how far its
+white reference sits from his constant, and precisely why the guard does not
+work on anybody else's device. The risk is inverted from the one Basti feared:
+not false alarms for him, but no protection at all for them. See B2-9.
