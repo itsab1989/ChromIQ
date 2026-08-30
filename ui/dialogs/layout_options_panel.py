@@ -1969,6 +1969,46 @@ class LayoutOptionsPanel(QWidget):
                 _pf = self.layout_mode.findData("patch_first")
                 if _pf >= 0:
                     self.layout_mode.setCurrentIndex(_pf)
+                # AND NO SPACERS. A spacer exists so a strip reader can find
+                # the edge of a patch as it is swiped across; a CR30 is lifted
+                # onto each patch by hand and never swipes, so a spacer is
+                # nothing but ink and paper it cannot use. `default_recipe`
+                # already answers "none" for a CR30 (presets.py), and Guided
+                # already forces it (chart_creator.py) -- but Manual builds its
+                # recipe from these controls, so whatever the combo happened to
+                # be showing won, and it shows "colored" by default. Basti,
+                # 2026-08-30: *"create chart manual tab defaults to use colored
+                # spacers for the cr30. should default to none for this
+                # device"*.
+                #
+                # A DEFAULT, not a rule: the combo stays enabled and a Manual
+                # user who deliberately turns spacers on still gets them, which
+                # is the same line Guided draws. `was_loading` keeps a preset or
+                # a stored per-target recipe from being overridden by it.
+                if hasattr(self, "spacer_mode"):
+                    _none = self.spacer_mode.findData("none")
+                    if _none >= 0:
+                        self.spacer_mode.setCurrentIndex(_none)
+            # AND IT MUST NOT STICK. Leaving "none" behind on a switch back to
+            # a strip reader is worse than the fault it fixes: an i1 or a
+            # ColorMunki finds the edge of each patch BY the spacer, so a chart
+            # printed without them is hard to read and easy to misalign. Same
+            # shape as the clip-content rule below -- only on a genuine user
+            # switch, and only when the value is the one the CR30 left behind,
+            # so a deliberate "no spacers" chosen while an i1 was already
+            # selected is not touched.
+            if (not was_loading and inst not in ("CR30",)
+                    and hasattr(self, "spacer_mode")
+                    and self.spacer_mode.currentData() == "none"):
+                from workflow.layout_engine.presets import default_recipe
+                try:
+                    _paper = self.selection()[1]
+                except Exception:      # noqa: BLE001 — a default, never fatal
+                    _paper = "A4"
+                _want = default_recipe(inst, _paper).spacer_mode
+                _i = self.spacer_mode.findData(_want)
+                if _i >= 0:
+                    self.spacer_mode.setCurrentIndex(_i)
             if not was_loading and inst == "SS":
                 _pf = self.layout_mode.findData("patch_first")
                 if _pf >= 0:
