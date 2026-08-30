@@ -40,10 +40,11 @@ MAXROWLEN = 5000.0      # printtarg.c MAXROWLEN — large enough to never bind f
 # aperture figure. It is the inscribed circle of a hexagonal patch of equal
 # area — a CLEARANCE, i.e. how much room a 4 mm aperture has inside that shape.
 #
-# ⚠ UNVERIFIED, AND THE AIMING TECHNIQUE DEPENDS ON IT: nothing establishes
-# that the aperture is CENTRED in the body. The overlay draws both circles
-# concentric, and "place it so the same neighbours are evenly covered" only
-# works if they are. Two minutes with a real unit would settle it.
+# The aperture is CENTRED in the body. Confirmed by Basti on his own unit,
+# 2026-08-30 -- which matters because the overlay draws the two circles
+# concentric, and the technique it exists to support ("place it so the same
+# neighbours are evenly covered") is only sound if they are. It was an
+# assumption until he checked; it is a fact now.
 #
 # These are drawn ON SCREEN AT SCALE, so they are a factual claim about the
 # instrument: change them only against a better source, and say which.
