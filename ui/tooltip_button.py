@@ -75,7 +75,13 @@ class TooltipButton(QToolButton):
         self._explicitly_disabled = False
         self._set_icon()
         self.clicked.connect(self._show_dialog)
-        log.debug("TooltipButton created: %s", title)
+        # NO LOG LINE HERE. One DEBUG line per widget CONSTRUCTION, and this app
+        # builds hundreds: measured at 99,751 of 170,000 lines -- 58.7 % of the
+        # user's entire 30 MB rotating budget -- spent recording that a help
+        # icon exists. It has never told anyone anything, and it was pushing
+        # the lines that DO diagnose faults out of the rotation. Deleting it
+        # roughly triples how far back a user's log reaches, which is what the
+        # Bluetooth diagnosis depends on.
 
     # ------------------------------------------------------------------
     def set_content(self, title: str, body: str) -> None:

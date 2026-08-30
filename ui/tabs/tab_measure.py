@@ -7362,6 +7362,22 @@ class TabMeasure(QWidget):
             again.exec()
             return False
 
+        # SAY WHICH WAY IT CONNECTED. ChromIQ picks USB or Bluetooth by itself
+        # and has never said which it chose, so a user who wants wireless has
+        # no way to tell whether they got it — and a user who is CERTAIN they
+        # unplugged the cable has no way to prove it afterwards either. That
+        # exact question is currently being reconstructed from memory between
+        # two people on a forum.
+        try:
+            kind = getattr(getattr(reader, "_dev", None), "kind", "")
+            if kind:
+                self._log.appendPlainText("\n" + (
+                    tr("[NOTE] Connected to your CR30 over Bluetooth.")
+                    if kind == "ble" else
+                    tr("[NOTE] Connected to your CR30 over the USB cable.")))
+        except Exception:              # noqa: BLE001 — a note, never fatal
+            log.debug("could not name the CR30 transport", exc_info=True)
+
         self._log.appendPlainText("\n" + tr(
             "[NOTE] ChromIQ asked the CR30 to take its white calibration. It "
             "cannot check the result — the instrument reports the same value "

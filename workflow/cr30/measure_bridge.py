@@ -852,6 +852,14 @@ class DeviceReader:
             try:
                 return self._arm_tile_guard(self._open_ble())
             except Exception as ble_err:  # noqa: BLE001 — report BOTH honestly
+                # SAY SO IN THE LOG. Until now a failed Bluetooth open left no
+                # trace at all: the "trying Bluetooth" line above was written,
+                # and then nothing -- so the difference between "it worked" and
+                # "it failed" was an ABSENCE, which no diagnostic can read and
+                # no user can be asked about. It is the exact question now
+                # being reconstructed from memory across a forum.
+                log.warning("CR30: Bluetooth failed too (%s); no instrument "
+                            "could be opened", ble_err)
                 raise ConnectionError(_no_device_help(usb_err, ble_err)) from ble_err
 
     def __call__(self, generation: "int | None" = None):
