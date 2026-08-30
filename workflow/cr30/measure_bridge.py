@@ -615,6 +615,10 @@ class DeviceReader:
         #: Set by the keyboard, consumed by the reader thread. A trigger has to
         #: leave from the thread that owns the link -- see `request_trigger`.
         self._trigger_requested = False
+        #: True only while a read is actually waiting for the operator. A
+        #: request made when nothing is listening has no read to belong to, and
+        #: must not be kept for the next one.
+        self._reading_in_flight = False
 
     #: Where the last Bluetooth address is remembered between sessions.
     REMEMBERED_ADDRESS_KEY = "cr30_ble_address"
@@ -843,6 +847,7 @@ class DeviceReader:
                         f"the instrument could not be opened ({exc})") from exc
                 log.info("CR30: opened over %s", self._dev.kind)
             from .device import DeviceLost
+            self._reading_in_flight = True
             try:
                 m = self._dev.read_next_measurement(
                     timeout=self.button_timeout_s,
@@ -861,6 +866,18 @@ class DeviceReader:
                     pass
                 self._dev = None
                 raise
+            finally:
+                self._reading_in_flight = False
+                # A TRIGGER REQUEST BELONGS TO ONE READ, AND DIES WITH IT.
+                #
+                # The flag survived an abandoned read, a failed read and a
+                # given-up patch -- and the next read consumed it on its FIRST
+                # iteration, firing the instrument at whatever it happened to
+                # be resting on, with nobody having pressed anything. The
+                # reading that came back was plausible, so it went in as the
+                # patch value in silence. That is the exact class of fault this
+                # whole module exists to prevent.
+                self._trigger_requested = False
         from .colour import spectrum_to_xyz
         return spectrum_to_xyz(m.values)
 
@@ -929,9 +946,17 @@ class DeviceReader:
         a flag; `read_next_measurement` acts on it and collects its own reply.
 
         Returns False, and does nothing, when the guard is not armed for this
-        instrument -- see `trigger_allowed`.
+        instrument (see `trigger_allowed`) or when NO READ IS LISTENING.
+
+        The second condition is the important one. A request with no read to
+        belong to used to be kept, and the next read consumed it on its first
+        iteration -- firing the instrument at whatever it was resting on, with
+        nobody having pressed anything, and sending the plausible reading that
+        came back as the patch value in silence. A request is a live user
+        action about the patch on screen now; if nothing is waiting for that
+        patch, there is nothing to ask for.
         """
-        if not self.trigger_allowed():
+        if not self.trigger_allowed() or not self._reading_in_flight:
             return False
         self._trigger_requested = True
         return True

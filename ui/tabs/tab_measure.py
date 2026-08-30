@@ -11125,8 +11125,21 @@ class TabMeasure(QWidget):
             # bridge knows when it is waiting for a patch, and that is the only
             # moment the keys are free.
             bridge = getattr(self, "_cr30_bridge", None)
-            if (getattr(self, "_cr30_reader", None) is not None
-                    and getattr(bridge, "awaiting_loc", None) is not None
+            loc = getattr(bridge, "awaiting_loc", None)
+            # `awaiting_loc` IS NOT THE SAME AS "SOMEONE IS LISTENING".
+            #
+            # After the bridge gives up on a patch it is still set, with no
+            # reader waiting -- so Space flashed "Taking the reading" into a
+            # stalled session and nothing came. `armed_for` is the state that
+            # actually means a press will be collected.
+            armed = False
+            if loc is not None:
+                try:
+                    armed = bool(bridge.armed_for(loc))
+                except Exception:      # noqa: BLE001 — never eat a keystroke
+                    log.debug("CR30: could not ask whether %s is armed", loc,
+                              exc_info=True)
+            if (getattr(self, "_cr30_reader", None) is not None and armed
                     and key in (Qt.Key.Key_Space, Qt.Key.Key_Return,
                                 Qt.Key.Key_Enter)):
                 self._cr30_reading_from_the_keyboard()

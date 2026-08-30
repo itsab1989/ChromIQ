@@ -501,7 +501,13 @@ class CR30:
         if wait_for_event is None:
             raise MeasurementError(
                 "this Bluetooth transport cannot report button presses")
-        dropped = self._t.drop_events()
+        # DO NOT DROP EVENTS ON A LEARNING READ. The learning window asks the
+        # user to press the button and THEN click "I have pressed it", so the
+        # press is already queued when the read starts -- and this discarded
+        # exactly the press it had just asked for, then waited ninety seconds
+        # in silence. Over Bluetooth, where learning needs two presses and
+        # there is no gate flag, that made the feature impossible as written.
+        dropped = 0 if for_learning else self._t.drop_events()
         if dropped:
             # Reported, not merely logged: to the operator this is a press that
             # did nothing, and silence is what made every earlier version of
