@@ -72,7 +72,21 @@ def configure_logging() -> None:
 #: chatter and only 101 were ChromIQ saying anything about what it did. With a
 #: 5 MB rotation that noise can evict the very traceback the log was sent for,
 #: so these are held at WARNING — where a real problem still comes through.
-_NOISY_LIBRARIES = ("PIL", "matplotlib", "urllib3", "fontTools")
+# `bleak` is here for a reason the others are not: PRIVACY, not noise.
+#
+# Its DEBUG output names every Bluetooth device within range of the user, by
+# advertised name -- their phone, their television by model, their neighbours'.
+# Measured on the author's machine: 16 devices in the clear across 7,597 lines.
+# ChromIQ's own Bluetooth report redacts exactly that, with a comment saying the
+# file "is written to be sent to a stranger" -- so leaving the log itself full
+# of them meant a user could never send one, and asking for it would have been
+# asking for a list of what is switched on around them.
+#
+# WARNING keeps the failures. Everything bleak says about a connection going
+# wrong survives; only its running commentary on the neighbourhood is dropped.
+# ChromIQ's own `workflow.cr30` lines are untouched and are what the diagnosis
+# actually reads.
+_NOISY_LIBRARIES = ("PIL", "matplotlib", "urllib3", "fontTools", "bleak")
 
 
 def _quiet_third_party() -> None:
