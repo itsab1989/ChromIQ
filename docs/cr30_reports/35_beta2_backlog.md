@@ -312,3 +312,25 @@ that strengthens rather than weakens the case for it. It SHOWS the clearance
 instead of refusing the chart, which leaves the decision with the user and
 costs them nothing. It must not, however, be built as if a guard existed
 somewhere behind it.
+
+## R2 · The legend chip stays ON the sheet — hover-to-hide, not a caption band
+
+Report 48 offered, as an alternative to hover-to-hide, moving the legend
+permanently BELOW the sheet using the `_pending_caption_band` mechanism, where
+it could never cover a patch at all. The cost is that the sheet shrinks by the
+band's height once the first measurement lands.
+
+**Basti ruled it out, 2026-08-30 — having already considered and rejected it
+before he asked for the hover behaviour:**
+
+> *"i thought this too first but it looses space for the preview thats why i
+> came up with the hover idea"*
+
+So the hover behaviour is not a compromise arrived at for want of something
+better; it IS the answer to that trade-off, and the chip stays on the paper.
+The preview is where a user reads their chart, and it is worth more than a
+legend that never overlaps.
+
+Do not re-propose the caption band. If the chip's placement needs further work,
+the direction is to keep it out of the way (as the item-aware `patch_bottom`
+fix now does) rather than to give it a reserved strip of its own.
