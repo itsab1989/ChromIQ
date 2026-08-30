@@ -13,31 +13,47 @@ other CR30 anyone has measured reads up to 4.69 %R away, ninety-four times the
 tolerance. On anyone else's device the check matched nothing and its owner had
 no protection at all.
 
-ChromIQ now learns your instrument's value from a single press with the cap on,
-offered once after calibrating. That press is harmless to your calibration:
+### New
+
+**ChromIQ learns your instrument's white-tile value.** One press with the cap
+on, offered once after calibrating. That press is harmless to your calibration:
 measured across three experiments on real hardware, a capped press does not move
 the white reference. The value is filed against your instrument, so a second
 CR30 never inherits the first one's — over USB by its serial, over Bluetooth by
 its address, which distinguishes two devices on macOS, Windows and Linux alike.
 
-**Space, or Enter, now takes the reading** without touching the instrument. That
-is not only convenience: pressing the instrument's own button moves it, by about
-ten times its own measurement noise (0.5 %R against 0.05 %R, measured). Keeping
-it still is measurably more accurate. ChromIQ offers the key once it has learned
-your instrument's tile, and refuses it before then — a reading ChromIQ asks for
-cannot report the magnet gate, so the learned value is what stands in for it.
+**Space, or Enter, takes the reading** without touching the instrument. That is
+not only convenience: pressing the instrument's own button moves it, by about
+ten times its own measurement noise — 0.5 %R against 0.05 %R, both measured.
+Keeping it still is measurably more accurate. ChromIQ offers the key once it has
+learned your instrument's tile and refuses it before then, because a reading
+ChromIQ asks for cannot report the magnet gate, and the learned value is what
+stands in for it.
 
-Also in this release:
+### Fixed
 
-- Bluetooth: the remembered address is now identified before anything is written
-  to it. `ffe0` is the generic service every hobby gadget exposes, and the next
-  frames sent to whatever answers are calibration commands.
-- The magnet window no longer prints its own explanation back at you in
+- **Bluetooth: the remembered address is identified before anything is written
+  to it.** `ffe0` is the generic service every hobby gadget exposes, and the
+  next frames sent to whatever answers there are calibration commands.
+- **The magnet window no longer prints its own explanation back at you** in
   capitals, labelled as something the instrument said. It did not say it.
-- "With a magnet at the opening the instrument does not measure at all" was the
-  opposite of the danger. It answers — with a plausible number.
-- Seven places quoted the "Refine / resume existing measurement (-r)" checkbox
-  without its flag, one of them in Polish quoting a label that did not exist.
+- **"With a magnet at the opening the instrument does not measure at all"** was
+  the opposite of the danger. It answers — with a plausible number, which is
+  the whole reason the guard exists.
+- **A reading refused as a repeat** said "bit-identical" and "the low bits", and
+  blamed the magnet in a window whose advice was to press the button again.
+- **Seven places quoted the "Refine / resume existing measurement (-r)"
+  checkbox without its flag** — and Polish quoted a label that did not exist on
+  any control.
+
+### Known issues
+
+- Over Bluetooth the instrument reports no serial, so its address is used to
+  tell two units apart. If your Bluetooth pairing is reset, ChromIQ offers the
+  learning step again rather than trusting a stale value.
+- The keyboard trigger is refused until your instrument's tile is learned. This
+  is deliberate — see above — but it means Space does nothing on a fresh
+  install until you have been through the one-off step.
 
 ## v4.1.5-beta.1
 
