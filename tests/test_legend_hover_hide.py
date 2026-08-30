@@ -71,6 +71,18 @@ def _chip_pixels(p) -> int:
     return n
 
 
+def _point_at_chip(p, qtbot) -> None:
+    """Drive the REAL state machine and let the fade finish.
+
+    The chip fades rather than switching (Basti: *"can be a really fast one
+    just not this completely instant on off"*), so a test that sets a flag and
+    repaints once measures a chip caught mid-fade. This waits for the animation
+    the user actually sees to complete.
+    """
+    p._apply_legend_pointer(p._legend_rect.center())
+    qtbot.waitUntil(lambda: p._legend_opacity < 0.02, timeout=2000)
+
+
 def _split_pixels(p) -> int:
     """The measured half of the patches. The vacuity guard: if this is zero the
     canvas is empty and 'the chip is gone' means nothing."""
@@ -86,28 +98,25 @@ def test_the_chip_is_drawn_at_all(preview):
     assert _chip_pixels(preview) > 200, "no chip on screen; the rest proves nothing"
 
 
-def test_pointing_at_it_takes_it_away_and_leaves_the_patches(preview):
+def test_pointing_at_it_takes_it_away_and_leaves_the_patches(preview, qtbot):
     assert preview._legend_rect is not None, "the chip's rectangle was not recorded"
     before = _chip_pixels(preview)
-    preview._legend_pointer = preview._legend_rect.center()
-    preview._legend_hidden = preview._legend_is_hidden()
-    preview._repaint_label()
+    _point_at_chip(preview, qtbot)
     after = _chip_pixels(preview)
     assert after < before / 4, f"the chip is still there ({after} vs {before})"
     # …and the canvas is NOT simply blank, which would pass the line above.
     assert _split_pixels(preview) > 500, "nothing was drawn; vacuous"
 
 
-def test_it_comes_back_when_the_pointer_leaves(preview):
+def test_it_comes_back_when_the_pointer_leaves(preview, qtbot):
     before = _chip_pixels(preview)
-    preview._legend_pointer = preview._legend_rect.center()
-    preview._legend_hidden = True
-    preview._repaint_label()
+    _point_at_chip(preview, qtbot)
     preview._forget_legend_pointer()
+    qtbot.waitUntil(lambda: preview._legend_opacity > 0.99, timeout=2000)
     assert _chip_pixels(preview) == pytest.approx(before, rel=0.15)
 
 
-def test_the_rectangle_is_refreshed_even_on_the_paint_that_hides_it(preview):
+def test_the_rectangle_is_refreshed_even_on_the_paint_that_hides_it(preview, qtbot):
     """The anti-flicker property, stated so that only the real implementation
     passes.
 
@@ -123,10 +132,7 @@ def test_the_rectangle_is_refreshed_even_on_the_paint_that_hides_it(preview):
     longer describes anything on screen.
     """
     from PyQt6.QtWidgets import QApplication
-    preview._legend_pointer = preview._legend_rect.center()
-    preview._legend_hidden = True
-    preview._repaint_label()
-    QApplication.processEvents()
+    _point_at_chip(preview, qtbot)
     narrow = QRect(preview._legend_rect)
 
     preview.set_overlay_mode("measured")      # a much wider wording
@@ -170,3 +176,51 @@ def test_the_chip_is_placed_below_the_patches_without_strip_geometry(preview):
     assert r.y() > preview.height() * 0.5, (
         f"the chip sits at y={r.y()} of {preview.height()} — at the top, over "
         "the patches, which is the fault this covers")
+
+
+# -- the fade itself --------------------------------------------------------
+
+def test_it_fades_rather_than_blinking(preview, qtbot):
+    """Basti, after using the instant version: *"could we do a fade? can be a
+    really fast one just not this completely instant on off"*.
+
+    Proven by catching the chip PART WAY: an instant switch is never partly
+    drawn, so a sample strictly between the two states can only come from an
+    animation. Sampled through the real animation, not by reading a constant.
+    """
+    seen = []
+    assert preview._legend_opacity == 1.0
+    preview._apply_legend_pointer(preview._legend_rect.center())
+    from PyQt6.QtWidgets import QApplication
+    import time
+    end = time.monotonic() + 2.0
+    while time.monotonic() < end and preview._legend_opacity > 0.02:
+        seen.append(preview._legend_opacity)
+        QApplication.processEvents()
+        time.sleep(0.005)
+    partial = [v for v in seen if 0.05 < v < 0.95]
+    assert partial, f"the chip switched rather than faded; samples: {seen[:8]}"
+    assert preview._legend_opacity < 0.02, "the fade never finished"
+
+
+def test_the_fade_is_quick(preview):
+    """A control getting out of the way, not an effect. If this ever grows,
+    it should be a deliberate change and not a drift."""
+    assert 60 <= preview.LEGEND_FADE_MS <= 200
+
+
+def test_turning_back_mid_fade_does_not_snap(preview, qtbot):
+    """Sweeping the pointer on and off quickly must turn round from where the
+    fade had got to, not jump to the far end and start again."""
+    preview._apply_legend_pointer(preview._legend_rect.center())
+    # Wait for the animation's FIRST tick — a single processEvents can run
+    # before the timer has fired, and then there is nothing to interrupt and
+    # the test would be measuring its own impatience.
+    qtbot.waitUntil(lambda: preview._legend_opacity < 1.0, timeout=2000)
+    mid = preview._legend_opacity
+    assert 0.0 < mid < 1.0, f"caught at {mid}, not mid-fade"
+    preview._forget_legend_pointer()          # reverse before it finishes
+    from PyQt6.QtWidgets import QApplication
+    QApplication.processEvents()
+    assert preview._legend_opacity <= 1.0
+    qtbot.waitUntil(lambda: preview._legend_opacity > 0.99, timeout=2000)

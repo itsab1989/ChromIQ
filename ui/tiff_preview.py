@@ -1908,6 +1908,12 @@ class TiffPreview(QWidget):
         self._legend_geom = None        # the (ox, oy) that rect was drawn in
         self._legend_pointer = None     # last pointer position, label coords
         self._legend_hidden = False
+        #: 1.0 fully visible, 0.0 fully gone. Basti asked for a fade rather
+        #: than a switch -- *"can be a really fast one just not this completely
+        #: instant on off"* -- so the chip is drawn at this opacity and the
+        #: value is animated between the two states.
+        self._legend_opacity = 1.0
+        self._legend_fade = None        # QVariantAnimation while one is running
         self._ink_row = QWidget(self)
         _ink_l = QHBoxLayout(self._ink_row)
         _ink_l.setContentsMargins(8, 2, 8, 2)
@@ -2966,9 +2972,13 @@ class TiffPreview(QWidget):
             # bring the chip back, and flicker at the boundary.
             self._legend_rect = QRect(cx, cy, tw, th)
             self._legend_geom = (ox, oy)
-            if not self._legend_is_hidden():
-                painter.fillRect(cx, cy, tw, th, QColor(20, 20, 20, 190))
-                painter.setPen(QColor("#f4f2ef"))
+            # Drawn at the CURRENT opacity, not switched. Both the panel and
+            # its text fade together, so it dims away rather than blinking.
+            op = self._legend_opacity
+            if op > 0.01:
+                painter.fillRect(cx, cy, tw, th,
+                                 QColor(20, 20, 20, int(190 * op)))
+                painter.setPen(QColor(244, 242, 239, int(255 * op)))
                 painter.drawText(cx + 8, cy + th - 6, txt)
 
     def _draw_margin_guides(
@@ -3274,23 +3284,71 @@ class TiffPreview(QWidget):
         # canvas rectangle is off by that offset (measured at 25 px here) plus
         # the centring.
         label = getattr(self, "_img_label", None)
-        self._legend_pointer = label.mapFrom(self, pos) if label is not None else pos
+        self._apply_legend_pointer(
+            label.mapFrom(self, pos) if label is not None else pos)
+
+    def _apply_legend_pointer(self, pos) -> None:
+        """The state machine, in label coordinates. Separated from the event so
+        it can be driven directly — by a test, and by anything else that learns
+        where the pointer is without a move event."""
+        self._legend_pointer = pos
         hidden = self._legend_is_hidden()
         if hidden != self._legend_hidden:
             self._legend_hidden = hidden
-            self._repaint_label()
+            self._start_legend_fade(0.0 if hidden else 1.0)
+
+    #: How long the chip takes to fade, in ms. Short on purpose: this is a
+    #: control getting out of the way, not an effect. Long enough that the eye
+    #: reads it as movement rather than a blink.
+    LEGEND_FADE_MS = 110
+
+    def _start_legend_fade(self, target: float) -> None:
+        """Fade the chip towards `target` (1.0 visible, 0.0 gone).
+
+        ONE animation object, retargeted -- never stopped and replaced. The
+        first version created a fresh QVariantAnimation each time and stopped
+        the old one, and sweeping the pointer on and off across the chip's edge
+        SEGFAULTED: the reversal happens inside the running animation's own
+        callback chain, and tearing that object down from under itself takes
+        the process with it. Reusing one object cannot hit that, and it is also
+        what makes a reversal continue from where the fade had got to instead
+        of snapping to the far end.
+        """
+        from PyQt6.QtCore import QEasingCurve, QVariantAnimation
+        if abs(self._legend_opacity - target) < 0.01:
+            return
+        anim = self._legend_fade
+        if anim is None:
+            anim = QVariantAnimation(self)
+            anim.setDuration(self.LEGEND_FADE_MS)
+            anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+            anim.valueChanged.connect(self._on_legend_fade_step)
+            self._legend_fade = anim
+        anim.stop()
+        anim.setStartValue(float(self._legend_opacity))
+        anim.setEndValue(float(target))
+        anim.start()
+
+    def _on_legend_fade_step(self, value) -> None:
+        self._legend_opacity = float(value)
+        self._repaint_label()
 
     def _forget_legend_pointer(self) -> None:
         """The pointer has gone; the chip comes back."""
         self._legend_pointer = None
         if self._legend_hidden:
             self._legend_hidden = False
-            self._repaint_label()
+            self._start_legend_fade(1.0)
 
     def hideEvent(self, event) -> None:  # type: ignore[override]
         # A widget hidden while the pointer sat on the chip gets no leaveEvent,
         # so without this the chip would still be hidden when it came back.
-        self._forget_legend_pointer()
+        # The fade is stopped rather than left running into a hidden widget.
+        if self._legend_fade is not None:
+            self._legend_fade.stop()
+        self._legend_pointer = None
+        self._legend_hidden = False
+        self._legend_opacity = 1.0
         super().hideEvent(event)
 
     def mouseMoveEvent(self, event) -> None:  # type: ignore[override]
