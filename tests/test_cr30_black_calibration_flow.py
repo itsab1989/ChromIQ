@@ -66,12 +66,20 @@ class _Box:
     ButtonRole = _real.ButtonRole
     choose: "str | None" = "Calibrate now"
 
+    shown_texts: list = []
+
     def __init__(self, parent=None):
         self._buttons: dict = {}
         self._clicked = None
 
     def __getattr__(self, name):
         return lambda *a, **k: None
+
+    def setText(self, t):
+        type(self).shown_texts.append(t)
+
+    def setInformativeText(self, t):
+        type(self).shown_texts.append(t)
 
     def addButton(self, text, role):
         from PyQt6.QtWidgets import QPushButton
@@ -110,6 +118,8 @@ class _Tab(QWidget):
     # The real one, so the message really does name the button the user can
     # see — "Continue Measurement" when the resume box is ticked.
     _start_button_name = TabMeasure._start_button_name
+    _is_lost_link = TabMeasure._is_lost_link
+    _LOST_LINK_SIGNS = TabMeasure._LOST_LINK_SIGNS
 
     def __init__(self):
         super().__init__()
@@ -130,6 +140,7 @@ def window(monkeypatch):
     monkeypatch.setattr(W, "QMessageBox", _Box)
     monkeypatch.setattr(widgets, "fit_message_box_buttons", lambda box: None)
     _Box.choose = "Calibrate now"
+    _Box.shown_texts = []
     return _Box
 
 
@@ -153,12 +164,67 @@ def test_skipping_the_black_step_does_not_stop_the_measurement(window):
 def test_closing_the_window_cancels_instead_of_skipping(window):
     """The owner's finding. Dismissing a window is a withdrawal, never a
     consent — and skipping a calibration step is a positive decision that has
-    its own button."""
+    its own button.
+
+    ⚠ THE STUB'S `None` IS NOT WHAT QT ACTUALLY DOES. It is kept because the
+    branch must be right either way, but on a real window Qt clicks a BUTTON
+    for Escape and the close box — see the test below, which is the one that
+    would have caught the fault this file first claimed to fix.
+    """
     window.choose = None                      # the red traffic light / X / Esc
     tab = _Tab()
     assert tab._run_cr30_black_calibration() is False, (
         "closing the window let the measurement go ahead anyway")
     assert not tab.did_calibrate
+
+
+def test_escape_really_cancels_on_a_real_window(qapp_or_skip):
+    """THE TEST THAT SHOULD HAVE EXISTED FIRST.
+
+    QMessageBox does not report "no button" for Escape. With no escape button
+    set it DETECTS one at exec() time and picks the RejectRole button — here
+    "Skip this step". So the whole "a dismissal is a withdrawal" branch was
+    unreachable, and closing the window skipped the dark reference and walked
+    into the measurement: the owner's original report, still true after the fix
+    meant to remove it.
+
+    It was measured wrong twice before it was measured right:
+      * `box.close()` on a box that was never shown returns None;
+      * so does Escape on a box that was only `show()`n.
+    Qt does not detect the escape button until `exec()`. Only an exec'd box
+    with a real key event tells the truth, so this test uses one.
+    """
+    from PyQt6.QtCore import Qt, QTimer
+    from PyQt6.QtTest import QTest
+    from PyQt6.QtWidgets import QMessageBox
+    from ui.widgets import fit_message_box_buttons, order_message_box_buttons
+
+    box = QMessageBox()
+    go = box.addButton("Calibrate now", QMessageBox.ButtonRole.AcceptRole)
+    skip = box.addButton("Skip this step", QMessageBox.ButtonRole.RejectRole)
+    cancel = box.addButton("Cancel the measurement",
+                           QMessageBox.ButtonRole.DestructiveRole)
+    box.setEscapeButton(cancel)
+    fit_message_box_buttons(box)
+    order_message_box_buttons(box, [go, skip, cancel])
+
+    QTimer.singleShot(20, lambda: (QTest.keyClick(box, Qt.Key.Key_Escape),
+                                   QTimer.singleShot(300, box.reject)))
+    box.exec()
+
+    clicked = box.clickedButton()
+    assert clicked is cancel, (
+        "Escape did not cancel; it clicked "
+        f"{clicked.text() if clicked else None!r} — with no escape button set "
+        "Qt picks the RejectRole button, which is 'Skip this step'")
+
+
+def test_the_window_the_app_builds_sets_its_escape_button():
+    """And the real window must do it, not only this file's copy of it."""
+    import inspect
+    src = inspect.getsource(TabMeasure._run_cr30_black_calibration)
+    assert "setEscapeButton(cancel)" in src, (
+        "Escape falls back to Qt's own choice, which is 'Skip this step'")
 
 
 def test_there_is_an_explicit_way_to_cancel(window):
@@ -203,10 +269,49 @@ def test_it_names_the_button_the_user_can_actually_see(window):
     assert "Start Measurement" not in said
 
 
-def test_a_failed_black_calibration_does_not_stop_the_measurement_either():
-    src = inspect.getsource(TabMeasure._do_black_calibration)
-    i = src.index('"error" in result')
-    assert "return True" in src[i:i + 2000]
+# ---- a refusal and a lost instrument are not the same failure -----------
+#
+# This was a source search for `return True` near `"error" in result`. It could
+# not tell the two cases apart, and the difference matters more than the
+# refusal does: on 2026-08-30 the owner's CR30 powered itself off, the
+# Bluetooth link dropped between the white calibration and its read-back, and
+# ChromIQ told him "the measurement can go ahead" over a dead link — then
+# started a session and highlighted patch A3 for an instrument that was not
+# there. It also showed him bleak's own sentence, "Service Discovery has not
+# been performed yet", as the explanation.
+
+def test_a_refused_black_calibration_does_not_stop_the_measurement():
+    """The white calibration still stands and the chart can still be read."""
+    tab = _Tab()
+    assert tab._is_lost_link("the instrument refused the command") is False
+
+
+@pytest.mark.parametrize("message", [
+    "Service Discovery has not been performed yet",
+    "BleakError: Not connected",
+    "the peripheral disconnected",
+    "No backend with an available connection",
+])
+def test_a_lost_link_is_recognised_as_one(message):
+    assert _Tab()._is_lost_link(message) is True, (
+        f"{message!r} was treated as a survivable refusal, so the user would "
+        "be told the measurement can go ahead over a dead link")
+
+
+def test_the_users_words_are_not_the_librarys_words():
+    """"Service Discovery has not been performed yet" is bleak talking to
+    itself. Shown in a window it explains nothing — and it was shown."""
+    plain = TabMeasure._plain_instrument_error(
+        "Service Discovery has not been performed yet")
+    assert "Service Discovery" not in plain
+    assert "connection" in plain.lower() and "lost" in plain.lower()
+
+
+def test_an_instruments_own_words_are_kept():
+    """Only the library's internals are translated. What the INSTRUMENT says
+    is evidence, and a report is worth less without it."""
+    real = "no usable reply among the only candidate in 200 bytes"
+    assert TabMeasure._plain_instrument_error(real) == real
 
 
 def test_the_zero_check_asks_the_instrument_rather_than_trusting_the_command():
@@ -251,9 +356,18 @@ def test_nothing_claims_the_calibration_succeeded():
                 "succeeded", "confirmed"):
         assert lie not in shown.lower(), f"the code claims {lie!r}"
         assert lie not in body, f"the window claims {lie!r}"
-    assert "not the same as verified" in shown, (
+    # THE MEANING, NOT ONE PHRASING. This pinned the exact words "not the same
+    # as verified" and failed when the sentence was made STRONGER — the
+    # healthy-case text now names what the check cannot see and why, which is
+    # more than the phrase it replaced. Hardware settled that on 2026-08-30: a
+    # dark reference taken against white paper read back 0.004 %R and passed,
+    # because a dark calibration defines zero and whatever it saw becomes zero.
+    low = shown.lower()
+    assert "does not" in low or "not the same as verified" in low, (
         "the healthy-looking case must say plainly what it is NOT — 'nothing "
         "wrong was seen' is not 'we checked it'")
+    assert "right thing" in low or "verified" in low, (
+        "it does not say WHICH doubt remains, so the disclaimer is decoration")
 
 
 def test_the_window_never_mentions_a_black_tile():
@@ -285,3 +399,103 @@ def test_the_drawing_follows_the_theme_rather_than_shipping_two_sets():
 
 def test_it_is_still_awaiting_approval():
     assert M.M_CR30_CALIBRATE_BLACK.approved is False
+
+
+# ---- a failure has to interrupt, because the log can be hidden ----------
+#
+# Basti, 2026-08-30, after running the black calibration deliberately wrong and
+# finding the verdict nowhere: *"a failure message should be [a pop up] to warn
+# the user and let him act accordingly because you can hide the log output as i
+# do it and it is not that noticable there anyway"*. He does hide it.
+
+class _WarnTab(QWidget):
+    _warn_dark_reference_looks_wrong = (
+        TabMeasure._warn_dark_reference_looks_wrong)
+
+    def __init__(self):
+        super().__init__()
+        self._log = _Log()
+        self.retook = 0
+
+    def _do_black_calibration(self):
+        self.retook += 1
+        return True
+
+
+def test_a_bad_dark_reference_opens_a_window(window):
+    window.choose = "Carry on anyway"
+    tab = _WarnTab()
+    tab._warn_dark_reference_looks_wrong(2.317)
+    assert window.shown_texts, (
+        "the only honest check either calibration has reported a problem into "
+        "a log panel the user hides")
+
+
+def test_the_window_names_the_number_and_why_it_matters(window):
+    window.choose = "Carry on anyway"
+    tab = _WarnTab()
+    tab._warn_dark_reference_looks_wrong(2.317)
+    said = " ".join(window.shown_texts)
+    assert "2.317" in said, "it does not say what was actually read"
+    assert "every reading" in said or "shifts them all" in said, (
+        "it does not say why a wrong dark reference matters")
+
+
+def test_taking_it_again_really_recalibrates(window):
+    window.choose = "Take it again"
+    tab = _WarnTab()
+    tab._warn_dark_reference_looks_wrong(2.317)
+    assert tab.retook == 1, "the remedy was named but not offered"
+
+
+def test_carrying_on_is_allowed_and_recorded(window):
+    """It is the user's instrument and the user's chart. But the choice goes in
+    the log, so a puzzling profile later has something to point at."""
+    window.choose = "Carry on anyway"
+    tab = _WarnTab()
+    assert tab._warn_dark_reference_looks_wrong(2.317) is True
+    assert tab.retook == 0
+    assert any("at your choice" in l for l in tab._log.lines)
+
+
+def test_a_healthy_reading_does_not_interrupt():
+    """Only failures interrupt. A dark reference that reads as dark is not news
+    worth a window."""
+    src = inspect.getsource(TabMeasure._do_black_calibration)
+    i = src.index("_CR30_ZERO_WARN")
+    healthy = src[i:src.index("else:", i)]
+    assert "_warn_dark_reference_looks_wrong" not in healthy
+
+
+
+def test_the_healthy_note_names_the_circularity_hardware_proved():
+    """The specific thing the check cannot see, in the text the user reads.
+
+    Measured on the owner's CR30, 2026-08-30: black-calibrated against WHITE
+    PAPER, the read-back came back at 0.00410 %R — inside the 0.05 threshold,
+    reported as healthy. A dark calibration DEFINES zero, so whatever the
+    instrument was looking at reads as nothing straight afterwards. The check
+    is circular for the one mistake it appeared to guard.
+    """
+    shown = _user_facing(TabMeasure._do_black_calibration).lower()
+    assert "defines" in shown or "becomes the new zero" in shown or \
+           "reads as nothing" in shown, (
+        "the healthy note does not explain WHY a good-looking reading proves "
+        "nothing about what the instrument was pointed at")
+
+
+def test_the_window_says_the_same_thing():
+    """The window is where the user is standing when it matters — before the
+    step, not after it."""
+    body = M.M_CR30_CALIBRATE_BLACK.body.lower()
+    assert "cannot check that you pointed it at the right thing" in body
+    assert "0.004" in body, (
+        "the window claims a limit without the measurement that established "
+        "it; a number a user can check beats an assertion they cannot")
+
+
+
+@pytest.fixture
+def qapp_or_skip():
+    from PyQt6.QtWidgets import QApplication
+    return QApplication.instance() or QApplication([])

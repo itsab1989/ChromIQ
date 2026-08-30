@@ -49,9 +49,8 @@ The full page is `docs/cr30_platform_support.md`.
 - **The dark reference is offered as a tick-box** on that same window, taken
   against open air — your CR30 has no black tile. It is off unless you ask for
   it, so it never becomes a second window on every measurement. Afterwards
-  ChromIQ reads once to check that nothing really does come back as nothing.
-  That is one-sided: it can warn you the dark reference looks too high, and it
-  cannot tell you a reference is good.
+  ChromIQ reads once and tells you what came back — see below for exactly what
+  that does and does not prove.
 - **ChromIQ cannot check a white calibration at all**, and says so rather than
   implying otherwise. The instrument reports the same value whatever is under
   the cap, so a calibration against the cap's green face looks exactly like a
@@ -101,6 +100,29 @@ These affected 4.1.4 and are not about the CR30.
   WinUSB on a USB-serial instrument, whatever asks it to.
 - **The driver window counts properly**: “device(s)” and “colorimeter(s)” are
   gone.
+
+### Found by testing it on the bench, not by reading the code
+
+- **The check after a black calibration cannot tell you the reference was taken
+  against the right thing**, and no longer implies it can. A dark calibration
+  *defines* what zero means, so whatever the instrument was pointed at becomes
+  the new zero and reads as nothing a moment later — calibrated deliberately
+  against white paper on a real CR30, it read back 0.004 %. What it still gives
+  you is the number itself, recorded where you and we can both see it. Getting
+  that step right is your eyes, not ours, and both windows now say so.
+- **Every calibration message used to be erased.** ChromIQ cleared the
+  measurement log after the calibration had already written to it, so the
+  read-back result, the note that a white calibration cannot be verified, and
+  the note about skipping the dark step were all wiped a moment after they
+  appeared. Nobody had ever read any of them. The reading now also goes to the
+  log file, so it survives in a problem report.
+- **A dark reference that does not look dark now stops and asks**, instead of
+  mentioning it in a log panel you may have collapsed. It offers to take the
+  calibration again on the spot.
+- **When the instrument goes away mid-session, ChromIQ says so in plain
+  words** — it used to pass on the Bluetooth library's own sentence, "Service
+  Discovery has not been performed yet" — and it no longer tells you the
+  measurement can go ahead over a connection that is gone.
 
 ### Known limits
 

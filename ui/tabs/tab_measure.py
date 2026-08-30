@@ -5679,6 +5679,20 @@ class TabMeasure(QWidget):
         # so the calibration's copy of the window would be forgotten and the
         # user would be shown the same instructions twice in a row.
         self._cr30_how_shown = False
+        # CLEAR THE LOG BEFORE THE CALIBRATION, NOT AFTER IT.
+        #
+        # It used to be cleared fifty-one lines further down, AFTER
+        # _run_cr30_calibration had already written its notes — so every
+        # calibration message was erased milliseconds after being written:
+        # the dark-reference check (the only honest check either calibration
+        # has), the note that a white calibration cannot be verified at all,
+        # and the note saying which dark reference a skipped step left in
+        # place. None of it had ever been seen by anybody.
+        #
+        # Found on 2026-08-30 by the owner running the black-calibration test
+        # and pasting a log that simply did not contain the answer. The check
+        # had been firing correctly the whole time.
+        self._log.clear()
         if params.external_values and not params.disable_initial_cal:
             # `params`, never the checkbox. `disable_initial_cal` is hard-coded
             # False for Guided behind a comment headed "NEVER FROM A CONTROL
@@ -5740,7 +5754,7 @@ class TabMeasure(QWidget):
                 log.warning("Could not seed the overlay from the existing "
                             "measurement", exc_info=True)
         self._preview.set_bidirectional(self._effective_bidirectional(params))
-        self._log.clear()
+        # (the log was cleared before the calibration — see above)
         self._auto_proceed = False
         self._all_done_shown = False
         self._spot_current_loc = ""
@@ -7187,19 +7201,24 @@ class TabMeasure(QWidget):
         if "error" in result:
             self._log.appendPlainText("\n" + tr(
                 "The instrument could not be calibrated: {error}"
-                ).format(error=result["error"]))
+                ).format(error=self._plain_instrument_error(result["error"])))
             self._log.ensureCursorVisible()
             again = QMessageBox(self)
             again.setIcon(QMessageBox.Icon.NoIcon)
             again.setWindowTitle(tr("Calibrate the instrument"))
             again.setText(tr("The calibration did not go through."))
+            # The same distinction the black step makes: bleak's own sentences
+            # explain nothing to a user, and "switched on and still connected"
+            # is the right advice for a lost link but not for a refusal.
+            why = self._plain_instrument_error(result["error"])
             again.setInformativeText(tr(
                 "ChromIQ asked your CR30 to calibrate and it did not answer.\n\n"
-                "Check that the instrument is switched on and still connected, "
+                "Check that the instrument is switched on and still connected "
+                "— over Bluetooth, pressing its own button once wakes it — "
                 "then start the measurement again.\n\n"
                 "Nothing has been changed, and any measurement this run "
                 "already had is untouched.\n\n"
-                "What went wrong: {error}").format(error=result["error"]))
+                "What went wrong: {error}").format(error=why))
             again.setStandardButtons(QMessageBox.StandardButton.Ok)
             fit_message_box_buttons(again)
             again.exec()
@@ -7242,6 +7261,43 @@ class TabMeasure(QWidget):
         # windows read as one sequence.
         self._show_cr30_measuring_window()
         return True
+
+    #: Fragments of the underlying library's own error text that mean "the link
+    #: to the instrument is gone", not "the instrument refused". Matched on the
+    #: message because bleak raises one BleakError type for many causes.
+    _LOST_LINK_SIGNS = ("service discovery has not been performed",
+                        "not connected", "disconnected",
+                        "no backend with an available connection")
+
+    def _is_lost_link(self, message: str) -> bool:
+        """Did this failure mean the instrument is unreachable?
+
+        It matters because the two cases need OPPOSITE advice. A refused
+        calibration is survivable — the white one still stands and the chart can
+        still be measured. A LOST CONNECTION is not: nothing can be read at all,
+        and telling the user "the measurement can go ahead" sends them to press
+        a button nothing is listening to. The owner hit exactly that on
+        2026-08-30: the Bluetooth link dropped between the white calibration and
+        its read-back, and ChromIQ invited him to carry on.
+        """
+        return any(sign in str(message).lower() for sign in self._LOST_LINK_SIGNS)
+
+    @staticmethod
+    def _plain_instrument_error(message: str) -> str:
+        """The instrument's own words, or plain English when they are a
+        library's internals.
+
+        "Service Discovery has not been performed yet" is bleak telling itself
+        something true. Shown to a user it explains nothing, and it was shown to
+        the owner in a window.
+        """
+        text = str(message)
+        low = text.lower()
+        if "service discovery has not been performed" in low or "not connected" in low:
+            return tr("the Bluetooth connection to the instrument was lost")
+        if "no backend with an available connection" in low:
+            return tr("Bluetooth could not reach the instrument")
+        return text
 
     def _do_black_calibration(self) -> bool:
         """Send the dark-reference command, then check what it produced.
@@ -7289,29 +7345,53 @@ class TabMeasure(QWidget):
         self._cal_thread = self._cal_worker = None
 
         if "error" in result:
+            why = self._plain_instrument_error(result["error"])
+            lost = self._is_lost_link(result["error"])
             self._log.appendPlainText("\n" + tr(
                 "The black calibration could not be taken: {error}"
-                ).format(error=result["error"]))
+                ).format(error=why))
             self._log.ensureCursorVisible()
             box = QMessageBox(self)
             box.setIcon(QMessageBox.Icon.NoIcon)
             box.setWindowTitle(tr("Calibrate the instrument"))
             box.setText(tr("The black calibration did not go through."))
-            box.setInformativeText(tr(
-                "Your white calibration is unaffected and the measurement can "
-                "go ahead — the instrument keeps the dark reference it "
-                "already had.\n\n"
-                "What went wrong: {error}").format(error=result["error"]))
+            if lost:
+                # THE MEASUREMENT CANNOT GO AHEAD, so do not say it can.
+                box.setInformativeText(tr(
+                    "ChromIQ has lost contact with your CR30, so nothing can "
+                    "be measured until it is back.\n\n"
+                    "Nothing has been changed: your white calibration still "
+                    "stands and the instrument keeps the dark reference it "
+                    "already had.\n\n"
+                    "Check that it is switched on and in range — over "
+                    "Bluetooth, pressing its own button once wakes it — then "
+                    "start the measurement again.\n\n"
+                    "What went wrong: {error}").format(error=why))
+            else:
+                box.setInformativeText(tr(
+                    "Your white calibration is unaffected and the measurement "
+                    "can go ahead — the instrument keeps the dark reference it "
+                    "already had.\n\n"
+                    "What went wrong: {error}").format(error=why))
             box.setStandardButtons(QMessageBox.StandardButton.Ok)
             fit_message_box_buttons(box)
             box.exec()
-            return True                     # not a reason to stop measuring
+            # A refused calibration is survivable; a lost instrument is not.
+            return not lost
 
         # NO SECOND SOUND AND NO SECOND FLASH. The white step has already
         # played "that worked" and flashed "Your CR30 has been calibrated." a
         # moment earlier; repeating both here reads as two separate successes
         # for what the user experienced as one calibration.
         zero = result.get("zero")
+        # ALSO TO THE FILE LOG. This number is the only honest check either
+        # calibration has, and it was written to the on-screen panel alone —
+        # so it never reached chromiq.log, and a report of a bad profile could
+        # not be checked against it afterwards. Found while trying to read it
+        # back during a live test, 2026-08-30.
+        log.info("CR30 dark reference read back at %s %%R (warn above %s)",
+                 "unreadable" if zero is None else f"{zero:.5f}",
+                 _CR30_ZERO_WARN)
         if zero is None:
             self._log.appendPlainText("\n" + tr(
                 "[NOTE] ChromIQ asked the CR30 to take its black calibration. "
@@ -7320,8 +7400,11 @@ class TabMeasure(QWidget):
             self._log.appendPlainText("\n" + tr(
                 "[NOTE] ChromIQ asked the CR30 to take its black calibration, "
                 "and a reading of nothing came back at {zero:.3f} %, which is "
-                "what a healthy dark reference looks like. Nothing wrong was "
-                "seen — that is not the same as verified."
+                "what a healthy dark reference looks like. It does NOT say "
+                "the reference "
+                "was taken against the right thing: a dark calibration defines "
+                "what zero means, so whatever the instrument was looking at "
+                "reads as nothing straight afterwards."
                 ).format(zero=zero))
         else:
             self._log.appendPlainText("\n" + tr(
@@ -7330,6 +7413,60 @@ class TabMeasure(QWidget):
                 "probably in front of the opening. Take the black calibration "
                 "again with the instrument pointing at nothing."
                 ).format(zero=zero))
+            self._log.ensureCursorVisible()
+            return self._warn_dark_reference_looks_wrong(zero)
+        self._log.ensureCursorVisible()
+        return True
+
+    def _warn_dark_reference_looks_wrong(self, zero: float) -> bool:
+        """A dark reference that does not read as dark. Always a window.
+
+        Basti's ruling, 2026-08-30: *"a failure message should be [a pop up] to
+        warn the user and let him act accordingly because you can hide the log
+        output as i do it and it is not that noticable there anyway"*. He does
+        hide it, and this is the ONE honest check either calibration has — a
+        finding nobody can see is not a finding.
+
+        It offers the remedy rather than only naming it, because the remedy is
+        four seconds of work and the alternative is a whole chart measured
+        against a dark reference that is wrong by an unknown amount.
+        """
+        from PyQt6.QtWidgets import QMessageBox
+        from ui.widgets import (fit_message_box_buttons,
+                                order_message_box_buttons)
+
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(tr("Check the dark calibration"))
+        box.setText(tr("That dark reference does not look dark."))
+        box.setInformativeText(tr(
+            "Straight after the calibration, ChromIQ asked your CR30 to read "
+            "nothing at all. It came back at {zero:.3f} % instead of near "
+            "zero, which usually means something was in front of the opening "
+            "— a hand, the cap, the paper it was resting on.\n\n"
+            "It is worth putting right: every reading you take from now on is "
+            "measured against this reference, and a wrong one shifts them all "
+            "by an amount nothing afterwards can see.\n\n"
+            "Hold the instrument with the opening pointing DOWNWARD into open "
+            "space, with nothing in front of it, then press “Take it again”.\n\n"
+            "If you would rather carry on, you can — your white calibration "
+            "is unaffected either way."
+            ).format(zero=zero))
+        again = box.addButton(tr("Take it again"),
+                              QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(tr("Carry on anyway"),
+                      QMessageBox.ButtonRole.DestructiveRole)
+        box.setDefaultButton(again)
+        fit_message_box_buttons(box)
+        order_message_box_buttons(box, box.buttons())
+        box.exec()
+
+        if box.clickedButton() is again:
+            # ONE retry per press, never a loop of its own: if the second one
+            # warns too, this window comes back and the user decides again.
+            return self._do_black_calibration()
+        self._log.appendPlainText("\n" + tr(
+            "[NOTE] Carrying on with that dark reference, at your choice."))
         self._log.ensureCursorVisible()
         return True
 
@@ -7368,6 +7505,21 @@ class TabMeasure(QWidget):
         cancel = box.addButton(tr("Cancel the measurement"),
                                QMessageBox.ButtonRole.DestructiveRole)
         box.setDefaultButton(go)
+        # ESCAPE AND THE CLOSE BUTTON MUST MEAN CANCEL, AND SAYING SO IS NOT
+        # ENOUGH — QT PICKS FOR YOU OTHERWISE.
+        #
+        # With no escape button set, QMessageBox detects one at exec() time and
+        # chooses the RejectRole button — which here is "Skip this step". So
+        # dismissing the window silently SKIPPED the dark reference and walked
+        # into the measurement: precisely the fault the owner reported, still
+        # present after the fix meant to remove it, because the branch that
+        # handles a dismissal was unreachable.
+        #
+        # It was measured wrong twice before it was measured right. `box.close()`
+        # on an unshown box returns None, and so does Escape on a box that was
+        # only `show()`n — Qt does not detect the escape button until exec().
+        # Only an exec'd box with a real key event tells the truth.
+        box.setEscapeButton(cancel)
         fit_message_box_buttons(box)
         # "calibrate now, skip this step, cancel" — his order, verbatim.
         order_message_box_buttons(box, [go, skip, cancel])
@@ -7828,8 +7980,8 @@ class TabMeasure(QWidget):
         self._log.appendPlainText(tr(
             "This measurement cannot carry on: there is no patch waiting to "
             "be read. Start the measurement again with “Refine / resume "
-            "existing measurement” ticked and ChromIQ will offer you only the "
-            "patches that are still missing."))
+            "existing measurement (-r)” ticked and ChromIQ will offer you only "
+            "the patches that are still missing."))
         self._log.ensureCursorVisible()
 
     def _on_cr30_gave_up(self, loc: str, message: str) -> None:

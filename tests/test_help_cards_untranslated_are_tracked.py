@@ -35,6 +35,17 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # 23 per language are the three new Tools help cards, added as English
 # placeholders under the project's beta rule; the remainder pre-date them.
 # German is lower because Basti and Knut read it, so it is kept current.
+# 2026-08-30, #159, raised 86 -> 92: a dark reference that does not read as
+# dark now opens a window offering to retake it (Basti: a failure must not
+# hide in a log panel he keeps closed), and both calibration texts were
+# corrected to stop claiming the read-back checks what the user pointed at —
+# hardware says it does not: white paper read back 0.004 %.
+#
+# 2026-08-30, #159, raised 83 -> 86: a lost Bluetooth link is now told apart
+# from a refused calibration. The owner's CR30 powered itself off mid-session
+# and ChromIQ said 'the measurement can go ahead' over a dead link, quoting
+# bleak's 'Service Discovery has not been performed yet' as the reason.
+#
 # 2026-08-30, #159, raised 80 -> 83: the measure panel's advice line now says
 # what a CR30 owner actually does ("rest it on the patch and press its button"
 # rather than "scan each strip"), and a re-arm that finds nothing outstanding
@@ -68,8 +79,8 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # project's rule, and German is translated as usual because it is read.
 _BUDGET = {
     "de": 35,
-    "es": 83, "fr": 83, "it": 83, "ja": 83, "nl": 83,
-    "no": 83, "pl": 83, "pt": 83, "ru": 83, "sv": 83, "zh_CN": 83,
+    "es": 92, "fr": 92, "it": 92, "ja": 92, "nl": 92,
+    "no": 92, "pl": 92, "pt": 92, "ru": 92, "sv": 92, "zh_CN": 92,
 }
 
 

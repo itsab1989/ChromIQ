@@ -1262,11 +1262,49 @@ where being unmistakable matters most.*
 >
 > There is nothing to place it on. Your CR30 has no black tile: it takes its dark reading from empty air, which is why the picture shows it pointing at nothing.
 >
-> Then press "Calibrate now". Afterwards ChromIQ reads once more to see whether nothing really does come back as nothing — that is the one check it can honestly make, and it is more than it can do for the white step.
+> Then press "Calibrate now". Afterwards ChromIQ reads once more and shows you the number that came back, so there is a record of it.
+>
+> ⚠ It cannot check that you pointed it at the right thing. A dark calibration DEFINES what zero means, so whatever the instrument was looking at becomes the new zero and reads as nothing a moment later — measured on a real unit: calibrated against white paper, it read back 0.004 %. Getting this step right is your eyes, not ours.
 >
 > If you would rather not, press "Skip this step". Your white calibration still stands and the measurement goes ahead with the dark reference the instrument already had.
 >
 > If you have changed your mind about measuring at all, press "Cancel the measurement". Nothing has been measured yet and nothing on disk changes, so the only thing you lose is the white calibration you have just taken — and you can take that again in a few seconds whenever you like.
+
+*⚠ REVISED 2026-08-30, and this one is a retraction. The window claimed the
+read-back was "the one check it can honestly make". **It is not a check of what
+the user did.** Basti tested it on hardware — black-calibrated deliberately
+against white paper — and the read-back came back at **0.004 %R**, comfortably
+inside the 0.05 threshold, reported as a healthy dark reference.*
+
+*The reason is structural, not a bug: a dark calibration DEFINES zero. Whatever
+the instrument is looking at becomes the new zero, so reading that same surface
+a moment later can only return ~0. The check is circular for the one mistake it
+appeared to guard — pointing it at the wrong thing — and could only fire if
+something moved in front of the aperture in the fraction of a second between
+the calibration and the read-back.*
+
+*What it still gives is the NUMBER — recorded on screen and now in
+`chromiq.log` too. Not "the instrument answered sanely": `allow_dark=True` is
+what makes the read-back possible at all, and it necessarily disables the
+zero-run guard, so a truncated zero-filled frame passes this exactly as a real
+dark reading does. Claiming sanity would have been the same overselling one
+sentence further down. The text now promises the number and nothing else.* Under the project's own
+rule about colour science — no fake or circular checks — a check that cannot
+see its own failure mode must not be described as one.*
+
+*A real check is possible and is NOT implemented: read the WHITE TILE after the
+black calibration, where a dark reference taken against paper would show up. It
+costs the user another step with the cap, and it needs measuring before it is
+promised. Recorded as a possible improvement, not a plan.*
+
+*⚠ ALSO FOUND BY THAT TEST, AND WORSE: every calibration message was being
+erased. `_on_start` cleared the measurement log fifty-one lines AFTER calling
+the calibration, so the read-back verdict, the note that a white calibration
+cannot be verified at all, and the skip note were all written and then wiped
+milliseconds later. The check had been firing correctly for its whole life and
+nobody had ever seen its answer — which is how the overselling survived this
+long. The log is now cleared before the calibration, and the reading also goes
+to `chromiq.log`.*
 
 *⚠ REVISED 2026-08-30: a third button, because closing this window used to mean
 "skip". Basti found it:* **"none of the calibration pop ups allow to cancel and
@@ -1316,7 +1354,7 @@ branch). `{loc}` is the patch being read; `{reason}` is the underlying failure.*
 >
 > Plug it back in or switch it on, then press "Carry on measuring" and ChromIQ will pick up from the patch you were on. If it is still not there, you will simply land back here.
 >
-> If you would rather stop, press "Stop the measurement". Everything you have read is saved either way, and you can come back to the rest later by starting the measurement again with "Refine / resume existing measurement" ticked — ChromIQ will then offer you only the patches that are still missing.
+> If you would rather stop, press "Stop the measurement". Everything you have read is saved either way, and you can come back to the rest later by starting the measurement again with "Refine / resume existing measurement (-r)" ticked — ChromIQ will then offer you only the patches that are still missing.
 >
 > What went wrong: {reason}
 

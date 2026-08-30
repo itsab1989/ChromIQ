@@ -246,10 +246,13 @@ M_CR30_CALIBRATE_BLACK = _m(
     "There is nothing to place it on. Your CR30 has no black tile: it takes "
     "its dark reading from empty air, which is why the picture shows it "
     "pointing at nothing.\n\n"
-    "Then press “Calibrate now”. Afterwards ChromIQ reads once more to see "
-    "whether nothing really does come back as nothing — that is the one check "
-    "it can honestly make, and it is more than it can do for the white "
-    "step.\n\n"
+    "Then press “Calibrate now”. Afterwards ChromIQ reads once more and shows "
+    "you the number that came back, so there is a record of it.\n\n"
+    "⚠ It cannot check that you pointed it at the right thing. A dark "
+    "calibration DEFINES what zero means, so whatever the instrument was "
+    "looking at becomes the new zero and reads as nothing a moment later — "
+    "measured on a real unit: calibrated against white paper, it read back "
+    "0.004 %. Getting this step right is your eyes, not ours.\n\n"
     "If you would rather not, press “Skip this step”. Your white calibration "
     "still stands and the measurement goes ahead with the dark reference the "
     "instrument already had.\n\n"
@@ -291,8 +294,8 @@ M_CR30_INSTRUMENT_GONE = _m(
     "If you would rather stop, press “Stop the measurement”. Everything you "
     "have read is saved either way, and you can come back to the rest later "
     "by starting the measurement again with “Refine / resume existing "
-    "measurement” ticked — ChromIQ will then offer you only the patches that "
-    "are still missing.\n\n"
+    "measurement (-r)” ticked — ChromIQ will then offer you only the patches "
+    "that are still missing.\n\n"
     "What went wrong: {reason}",
     approved=False)
 
@@ -320,7 +323,8 @@ M_CR30_PATCH_GAVE_UP = _m(
     "•  The instrument was lifted before it had finished. Hold it flat on the "
     "patch until it has beeped.\n\n"
     "When you have checked those, end this session with “Save and stop” and "
-    "start it again with “Refine / resume existing measurement” ticked — you "
+    "start it again with “Refine / resume existing measurement (-r)” ticked "
+    "— you "
     "will be offered only the patches that are still missing.\n\n"
     "What the instrument reported: {reason}",
     approved=False)

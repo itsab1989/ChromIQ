@@ -52,9 +52,13 @@ def test_the_window_comes_before_anything_irreversible():
 def test_cancelling_disarms_the_sound_it_armed():
     """#131: per-patch sounds must not stay live outside a read, and Start
     arms them before this point."""
+    # THE WINDOW IS THE `if` BLOCK, NOT A CHARACTER COUNT. This sliced 600
+    # characters after the call, so it broke the day a comment above it grew —
+    # measuring the source's shape rather than the code's behaviour.
     src = inspect.getsource(TabMeasure._on_start)
-    i = src.index("_run_cr30_calibration")
-    assert "_sound.disarm()" in src[i:i + 600], (
+    i = src.index("if not self._run_cr30_calibration():")
+    block = src[i:src.index("return", i) + len("return")]
+    assert "_sound.disarm()" in block, (
         "a cancelled start leaves the measurement sounds armed")
 
 
@@ -62,11 +66,15 @@ def test_the_skip_rule_is_read_from_the_run_not_the_widget():
     """beta.148: the Skip box is hidden in Guided while still holding whatever
     Manual last set, so reading the widget ran guided measurements
     uncalibrated with nothing on screen to say so."""
+    # The GUARD LINE itself, not a 2000-character window before the call:
+    # what matters is what the `if` tests, and a window drifts with comments.
     src = inspect.getsource(TabMeasure._on_start)
-    i = src.index("_run_cr30_calibration")
-    head = src[max(0, i - 2000):i]
-    assert "params.disable_initial_cal" in head
-    assert "_nocal_cb" not in head, (
+    guard = next(l for l in src.splitlines()
+                 if "if params.external_values" in l
+                 or "disable_initial_cal" in l)
+    assert "params.disable_initial_cal" in guard, (
+        f"the calibration gate is not read from the run: {guard.strip()!r}")
+    assert "_nocal_cb" not in guard, (
         "the calibration gate reads the checkbox — in Guided that widget is "
         "hidden and belongs to Manual")
 
