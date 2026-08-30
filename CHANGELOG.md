@@ -3,19 +3,25 @@
 ## v4.1.5-beta.1
 
 **ChromIQ can now measure a chart with a CR30.** It is the first instrument
-ChromIQ drives itself rather than handing to ArgyllCMS, over USB and over
-Bluetooth, on macOS and Windows.
+ChromIQ drives itself rather than handing to ArgyllCMS.
 
 The CR30 is a low-cost spectrophotometer with no ArgyllCMS support of any kind,
 so everything here — finding it, identifying it, calibrating it, reading a patch
 — is new. It was reverse engineered on real hardware over several weeks; the
-protocol notes, the captures and the experiments that were *wrong* are public at
-https://github.com/itsab1989/chromiq-cr30-research.
+protocol notes, the captures, and the experiments that turned out **wrong**, are
+public at https://github.com/itsab1989/chromiq-cr30-research.
+
+**Where it has actually been used:** macOS over USB and over Bluetooth, and
+Windows on ARM over USB, each with a real instrument and a real chart. Bluetooth
+on Windows and everything on Linux should work and have not been tried on
+hardware — please tell us if you get there first.
 
 ### Before you start — Windows needs a driver
 
-The CR30 talks through a CH340-class USB-to-serial chip. Windows needs WCH's
-driver for it; macOS and Linux need nothing.
+The CR30 talks through a CH340-class USB-to-serial chip, and Windows needs WCH's
+driver for it. macOS needs nothing at all. On Linux the driver is part of the
+kernel, so there is nothing to install, but your user needs permission to open
+the serial port (on most distributions, being in the `dialout` group).
 
 1. Download **CH341SER** from **wch-ic.com**.
 2. Run the installer, then unplug and replug the instrument.
@@ -25,116 +31,84 @@ driver for it; macOS and Linux need nothing.
 
 If ChromIQ says no instrument was found while the CR30 is plugged in, this is
 almost certainly why: look in Device Manager for a device with a warning
-triangle. The cable and the instrument are fine.
+triangle. The cable and the instrument are fine. We would like ChromIQ to tell
+those two apart itself, and it does not yet.
 
 > ⚠ **Do not use Preferences ▸ “Install USB Driver…” for the CR30.** That button
 > installs WinUSB, which is right for the colorimeters it lists and wrong here —
 > it would replace the serial driver and the instrument would stop being found.
 > It does not offer the CR30; please do not point it at one by hand.
 
-The full page is in `docs/cr30_platform_support.md`.
+The full page is `docs/cr30_platform_support.md`.
 
-### Measuring with a CR30
+### How measuring with a CR30 works
 
-- **ChromIQ calibrates it for you.** A window explains which face of the
-  magnetic cap must meet the opening, with a picture of both calibration steps
-  so the two cannot be confused. There is no button to press on the instrument.
-- **The dark reference is offered too**, as a tick-box on that same window, taken
-  against open air. It is off unless you ask for it, so it never becomes a second
-  window on every measurement.
+- **ChromIQ calibrates it for you.** A window shows both calibration steps as a
+  picture, with the current one marked, so the two cannot be confused. There is
+  no button to press on the instrument.
+- **The dark reference is offered as a tick-box** on that same window, taken
+  against open air — your CR30 has no black tile. It is off unless you ask for
+  it, so it never becomes a second window on every measurement. Afterwards
+  ChromIQ reads once to check that nothing really does come back as nothing.
+  That is one-sided: it can warn you the dark reference looks too high, and it
+  cannot tell you a reference is good.
+- **ChromIQ cannot check a white calibration at all**, and says so rather than
+  implying otherwise. The instrument reports the same value whatever is under
+  the cap, so a calibration against the cap's green face looks exactly like a
+  good one. Your eyes are the only check there is.
 - **Read a patch by pressing the button on the instrument.** ChromIQ highlights
-  the patch it is waiting for and never highlights one it is not listening to.
-- **Bluetooth works**, and needs no driver on any platform. Note that a phone app
-  which is merely *connected* takes the button press exclusively — close it
-  before measuring, or the readings never arrive.
+  the patch it is waiting for, and never highlights one it is not listening to.
+- **Bluetooth needs no driver on any platform.** A phone app that is merely
+  *connected* takes the button press exclusively, so close it before measuring
+  or your readings will never arrive.
+- **A Bluetooth calibration takes about three seconds.** ChromIQ remembers the
+  address it last reached your instrument at, so it does not search for a device
+  it has already met. If that address stops working — a different computer, a
+  second instrument, a reset Bluetooth stack — it searches again by itself.
 
 ### The safety part, which matters more than it sounds
 
 **A magnet at the measuring opening does not measure — it recalibrates.** The
 instrument takes a white calibration from whatever it is resting on and returns
-a stored constant, and nothing in the reply says so. A laptop lid, a fridge door,
-a magnetic desk mat or the instrument's own cap will do it, straight through a
-sheet of paper.
+a stored constant, and nothing in the reply says so. A laptop lid, a fridge
+door, a magnetic desk mat or the instrument's own cap will do it, straight
+through a sheet of paper.
 
-ChromIQ detects this and **refuses the reading**, stops the measurement, and
-offers to retake the white calibration on the spot. Everything measured before
-that moment is safe and already saved. This cannot be prevented — the only
-signal arrives inside the reading it has already spoiled — but it is never
-accepted silently.
+ChromIQ detects this, **refuses the reading**, stops the measurement, and offers
+to retake the white calibration on the spot. Everything measured before that
+moment is safe and already saved. It cannot be prevented — the only signal
+arrives inside the reading it has already spoiled — but it is never accepted in
+silence.
+
+Over USB this is caught on every unit. Over Bluetooth there is no equivalent
+signal, so on a CR30 other than the one this was developed on the first such
+reading may not be caught. Use USB if you have the cable.
 
 ### Fixed
 
-- **“Recalibrate now” after a magnet really does carry on.** It rebuilt the
-  reading session instead of resuming it, so the measurement was left with
-  nothing listening while the log said it had continued.
-- **A reading that does not arrive now opens a window**, not just a line in the
-  log. It names the patch, says to press the button again, and closes itself when
-  the reading comes through. Missing that message was the difference between one
-  extra press and a stalled session.
-- **The Bluetooth calibration no longer waits past the instrument's own answer.**
-  Note this is about the polling only: the first connection of a session is still
-  made when you calibrate and can take a few seconds.
-- **On Windows, the chart path broke the measurement's own bookkeeping.** A path
-  like `C:\Users\…` was written into the progress channel without escaping, so
-  the message carrying the strip map and the patch count was discarded on every
-  measurement.
-- **The “how to measure” window now closes when the measurement ends** instead of
-  staying on screen offering to start one.
-- **Counts read properly.** “1 candidate(s)” is gone.
-- **“Keep measuring” after a magnet no longer leaves the measurement frozen.**
-  Declining to stop did nothing at all, so the session sat there with nothing
-  listening. It now says plainly that nothing can be read until the white
-  calibration has been taken again, and offers to take it.
-- **Giving up on a patch closes the window that was asking you to read it.**
-- **A Bluetooth calibration takes about three seconds instead of about thirty.**
-  Measured on real hardware, and neither cost was the instrument: ChromIQ spent
-  13–15 seconds *searching* for a device it had already met, and another 13
-  waiting for a reading the device had already given. It now remembers the
-  address it last reached your instrument at and tries that first, and it no
-  longer waits for an answer it already has. If the remembered address ever
-  stops working — a different computer, a second instrument, a reset Bluetooth
-  stack — it searches again by itself and remembers the new one.
-- **The check after a black calibration now actually runs.** It is the only
-  honest check either calibration has, and it had never once completed: the
-  dark reference is read against open air, air reads exactly zero, and ChromIQ
-  was rejecting exactly-zero readings as damaged. It warns you when the dark
-  reference looks too high — something in front of the opening. It cannot tell
-  you a reference is *good*, and does not claim to.
+These affected 4.1.4 and are not about the CR30.
 
-### Also
-
-- **Windows: the Zadig driver instructions now warn CR30 owners.** Those steps
-  say to find your instrument and give it the WinUSB driver, which is right for
-  every colorimeter ChromIQ lists and wrong for a CR30 — it is reached through
-  a COM port, and WinUSB would remove it. ChromIQ also now refuses outright to
-  install WinUSB on a USB-serial instrument, whatever asks it to.
-- The driver window counts properly: “device(s)” and “colorimeter(s)” are gone.
-
-### Closing a window now means what it looks like
-
-- **Closing the dark-reference window no longer skips the step and carries on.**
-  The window offered “Calibrate now” and “Skip this step”, and closing it with
-  the red button (or the X on Windows, or Esc) was read as “skip” — so the
-  measurement went ahead anyway. Skipping is a decision and keeps its own
-  button; closing the window now cancels, which costs nothing, because no
-  measuring has started yet.
-- **That window also has a “Cancel the measurement” button**, which it did not
-  before.
-- **When the instrument stops answering, ChromIQ now says so in a window**
-  rather than only in the log, and offers the two things worth doing: plug it
-  back in and carry on from the patch you were on, or stop and keep everything
-  already measured. Closing that window does *not* end your session.
-- Its advice was also wrong: it told you to start the measurement again with
-  “Refine / resume existing measurement”, while the app was already offering to
-  carry on where you were. Carrying on is named first now.
+- **On Windows, every measurement lost its own bookkeeping.** ChromIQ's
+  measuring engine reports what it is doing as it goes, and a Windows chart path
+  like `C:\Users\…` was written into that channel without escaping — so the
+  message carrying the strip map and the patch count was thrown away silently,
+  on every measurement. macOS and Linux were unaffected, because their paths
+  have no backslashes.
+- **The Zadig driver instructions now warn CR30 owners.** Those steps say to
+  find your instrument and give it the WinUSB driver, which is right for every
+  colorimeter ChromIQ lists and wrong for a CR30 — it is reached through a COM
+  port, and WinUSB would remove it. ChromIQ also now refuses outright to install
+  WinUSB on a USB-serial instrument, whatever asks it to.
+- **The driver window counts properly**: “device(s)” and “colorimeter(s)” are
+  gone.
 
 ### Known limits
 
-- The i1Profiler-style legend on the Measure tab's preview can cover the last row
-  of patches when the page margin is small.
+- The measurement preview's legend can cover the last row of patches when the
+  page margin is small.
 - Help cards still print with US Letter measurements on Letter paper.
-- Bluetooth cannot detect the magnet case on a unit other than the one this was
-  developed on; USB detects it on every unit.
+- On Windows, “no instrument found” is also what you see when the driver is
+  missing. The two should be told apart and are not yet.
 
 ## v4.1.4
 
