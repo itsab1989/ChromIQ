@@ -1508,6 +1508,8 @@ manual").*
 > {how}
 >
 > The patch to read is highlighted in the preview, and the highlight moves on by itself as each reading arrives. You can click any patch in the preview to jump to it, and ChromIQ keeps every reading as it is taken, so you can stop and continue later without losing anything.
+>
+> You can also press the SPACE BAR, or Enter, to take the reading from here without touching the instrument. That keeps it perfectly still, and a reading taken that way is steadier than one taken by pressing the instrument's own button — pressing it moves the instrument slightly, by about ten times its own measurement noise. ChromIQ offers this once it has learned what your instrument's white tile looks like, which it asks about after calibrating.
 
 ### M-PATCHSET-MISSING · PROPOSED · the loaded patch set is no longer on disk — Create Chart
 

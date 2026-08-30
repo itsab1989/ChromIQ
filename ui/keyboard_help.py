@@ -207,6 +207,13 @@ def _measurement_keys() -> list[tuple[str, str, str]]:
          tr("At a warning or a failure, throw the reading away and try the "
             "same strip again. This is what the Retry button sends."),
          BOTH),
+        (tr("Space  ·  {enter}").format(enter=_enter()),
+         tr("CR30 only, while it is waiting for a patch: take the reading "
+            "without touching the instrument, so it stays perfectly still. "
+            "Steadier than pressing the instrument's own button, which moves "
+            "it by about ten times its own measurement noise. Offered once "
+            "ChromIQ has learned that instrument's white tile."),
+         CHROMIQ),
         ("F  ·  B",
          tr("Move one strip forward or back."),
          BOTH),

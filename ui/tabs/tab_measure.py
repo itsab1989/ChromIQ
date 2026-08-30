@@ -11116,8 +11116,19 @@ class TabMeasure(QWidget):
             # ~0.5 %R against its own repeat noise of 0.05 %R when nothing
             # touches it (EXP-TILE-003/004). Taking the reading from the
             # keyboard removes that error.
-            if getattr(self, "_cr30_reader", None) is not None and key in (
-                    Qt.Key.Key_Space, Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            # ONLY WHILE A PATCH IS ACTUALLY BEING ASKED FOR.
+            #
+            # Space and Enter already mean something here: Space throws a
+            # reading away and retries, Enter keeps one the reader has
+            # questioned. Claiming them for the whole of a CR30 session would
+            # swallow both, so a warning could not be answered at all. The
+            # bridge knows when it is waiting for a patch, and that is the only
+            # moment the keys are free.
+            bridge = getattr(self, "_cr30_bridge", None)
+            if (getattr(self, "_cr30_reader", None) is not None
+                    and getattr(bridge, "awaiting_loc", None) is not None
+                    and key in (Qt.Key.Key_Space, Qt.Key.Key_Return,
+                                Qt.Key.Key_Enter)):
                 self._cr30_reading_from_the_keyboard()
                 return True
             sent = True

@@ -309,6 +309,11 @@ def patch_measurement_instructions_html(family: "str | None") -> str:
             "the button on the instrument</b>. ChromIQ collects the reading by "
             "itself and moves on to the next patch — there is nothing to press "
             "on screen, and there is no sliding in this mode.<br><br>"
+            "You can also press the <b>space bar</b> (or Enter) to take the "
+            "reading without touching the instrument at all — that keeps it "
+            "perfectly still and is steadier than pressing its button. It "
+            "becomes available once ChromIQ has learned your instrument's "
+            "white tile, which it offers after calibrating.<br><br>"
             "A CR30 chart is always read one patch at a time; the instrument "
             "has no strip reading to offer.")
     if family == "i1pro":
