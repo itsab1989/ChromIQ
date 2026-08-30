@@ -336,3 +336,25 @@ def test_a_narrow_pane_elides_rather_than_clipping(preview, qtbot):
     assert r is not None
     assert r.right() <= preview.width() + 2, (
         f"the chip runs to x={r.right()} in a {preview.width()} px pane")
+
+
+# ── AN ADMITTED GAP ────────────────────────────────────────────────────────
+#
+# F1 -- `_start_legend_fade` returning early WITHOUT stopping the fade running
+# the other way -- has NO regression test here, and I could not write one.
+#
+# Two attempts failed, and both passed with the fault deliberately re-applied
+# (mutation verified to land, bytecode cleared, randomisation off):
+#
+#   * the scenario version, flicking off the chip and straight back on: by the
+#     time it can assert, the state has settled to the same place either way;
+#   * the invariant version, asserting the countermanded animation is no longer
+#     running towards the old target: it is not running in either build, so the
+#     assertion is satisfied without the fix.
+#
+# A test that passes under the fault is worse than no test: it reads as cover
+# and is not. So this says so instead. The fix is a strict improvement and the
+# behaviour was confirmed on screen in the beta-3 gate round (report 49), but
+# nothing here would stop it coming back — if you touch `_start_legend_fade`,
+# check by hand: point at the chip, move off it and straight back on, and it
+# must stay hidden.

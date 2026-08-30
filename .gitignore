@@ -87,3 +87,8 @@ assets/app_icon.ico
 # is unaffected by this rule.
 *.orig
 *.rej
+
+# A Bluetooth diagnostic report is a scan of everything switched on around the
+# person who ran it — their devices and their neighbours'. The script writes to
+# the Desktop now, but belt and braces: never commit one from anywhere.
+cr30-bluetooth-report*.txt

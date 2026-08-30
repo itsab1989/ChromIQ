@@ -1771,24 +1771,61 @@ class MainWindow(QMainWindow):
         if box.clickedButton() is not go:
             return
 
+        # ON A WORKER THREAD, AND NOT ONLY TO KEEP THE WINDOW ALIVE.
+        #
+        # On Windows this MUST leave the GUI thread. Qt's Windows platform
+        # plugin calls OleInitialize, which makes that thread a single-threaded
+        # apartment; bleak's WinRT scanner asserts it is in a multi-threaded
+        # apartment and raises "Thread is configured for Windows GUI but
+        # callbacks are not working" within about half a second. So the tool
+        # written for a Windows user who cannot connect would have failed
+        # instantly ON WINDOWS, and its own text would then have told him to
+        # check whether Bluetooth was switched on.
+        #
+        # It is also why this is not the same code path as his original fault:
+        # the Measure tab's Bluetooth already runs on the reader's worker
+        # thread, which is free of that apartment.
+        import asyncio
+        import threading
+        from PyQt6.QtCore import QEventLoop
+
+        result: dict = {}
+
+        def _work() -> None:
+            try:
+                from workflow.cr30.bluetooth_report import collect
+                result["text"] = asyncio.new_event_loop().run_until_complete(
+                    collect())
+            except Exception as exc:                # noqa: BLE001 — report it
+                result["text"] = (f"The report could not be produced: "
+                                  f"{type(exc).__name__}: {exc}")
+                log.warning("CR30 Bluetooth report failed", exc_info=True)
+
+        worker = threading.Thread(target=_work, daemon=True,
+                                  name="cr30-bluetooth-report")
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        worker.start()
         try:
-            import asyncio
-            from workflow.cr30.bluetooth_report import collect
-            text = asyncio.new_event_loop().run_until_complete(collect())
-        except Exception as exc:                    # noqa: BLE001 — report it
-            text = (f"The report could not be produced: "
-                    f"{type(exc).__name__}: {exc}")
-            log.warning("CR30 Bluetooth report failed", exc_info=True)
+            while worker.is_alive():
+                QApplication.processEvents(
+                    QEventLoop.ProcessEventsFlag.AllEvents, 50)
+                worker.join(0.05)
         finally:
             QApplication.restoreOverrideCursor()
+        text = result.get("text", "The report produced nothing.")
 
         suggested = str(Path.home() / "Desktop" / "cr30-bluetooth-report.txt")
         path, _ = QFileDialog.getSaveFileName(
             self, tr("Save the Bluetooth report"), suggested,
             tr("Text files (*.txt)"))
         if not path:
-            return
+            # DO NOT THROW THE REPORT AWAY. It took half a minute of the user's
+            # time and a scan they may not be able to repeat (the instrument
+            # has to be awake and unclaimed). A mis-clicked Cancel used to lose
+            # all of it silently.
+            path = suggested
+            log.info("CR30 Bluetooth report: save cancelled; keeping it at %s",
+                     path)
         try:
             Path(path).write_text(text, encoding="utf-8")
         except Exception as exc:                    # noqa: BLE001

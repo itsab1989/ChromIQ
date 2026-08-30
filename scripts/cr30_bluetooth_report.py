@@ -68,7 +68,17 @@ import platform
 import sys
 from pathlib import Path
 
-REPORT = Path(__file__).resolve().parent / "cr30-bluetooth-report.txt"
+# THE DESKTOP, NOT NEXT TO THIS FILE. A developer runs this from inside a
+# checkout, and the output is a scan of everything switched on around them --
+# so the old default dropped a real neighbourhood scan INTO THE REPOSITORY, one
+# `git add -A` from publishing exactly what this script tells people never to
+# post. It happened within an hour of the script being written.
+def _default_report_path() -> Path:
+    desktop = Path.home() / "Desktop"
+    return (desktop if desktop.is_dir() else Path.home()) / "cr30-bluetooth-report.txt"
+
+
+REPORT = _default_report_path()
 SCAN_SECONDS = 20.0
 
 #: The service a CR30 advertises. Generic -- HM-10 style modules use it too,

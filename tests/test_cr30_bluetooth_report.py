@@ -35,7 +35,7 @@ def test_a_missing_library_is_still_reported(monkeypatch):
     assert "NOT AVAILABLE" in br._bleak_version()
 
 
-def _run(monkeypatch, devices):
+def _run(monkeypatch, devices, accepted=()):
     """Drive the real `collect()` with only the scanner faked."""
     class _Adv:
         def __init__(self, name, uuids, rssi=-50):
@@ -57,7 +57,7 @@ def _run(monkeypatch, devices):
     monkeypatch.setattr(bleak, "BleakScanner", _Scanner)
     from workflow.cr30 import ble
     monkeypatch.setattr(ble, "discover",
-                        lambda *a, **k: asyncio.sleep(0, result=[]))
+                        lambda *a, **k: asyncio.sleep(0, result=list(accepted)))
     return asyncio.new_event_loop().run_until_complete(br.collect(0.0))
 
 
@@ -127,3 +127,40 @@ def test_it_opens_no_connection_of_its_own(monkeypatch):
     monkeypatch.setattr(bleak, "BleakClient", _Forbidden)
     text = _run(monkeypatch, [("AA:BB:CC:DD:EE:05", "CR30-XYZ", [FFE0])])
     assert "ChromIQ's own discovery" in text or "discovery" in text.lower()
+
+
+# -- the verdict must read the flag, not count the list ---------------------
+
+def test_an_unconfirmed_gadget_is_not_called_an_instrument(monkeypatch):
+    """`ble.discover` returns the SHORTLIST, confirmed or not — that is what
+    `verify` is for. Counting the list told a user with a hobby module that
+    "the instrument is reachable", which is the opposite of the truth in the
+    one report whose whole job is to tell those two cases apart."""
+    text = _run(monkeypatch,
+                [("AA:BB:CC:DD:EE:06", "HM-10", [FFE0])],
+                accepted=[{"name": "HM-10", "address": "AA:BB:CC:DD:EE:06",
+                           "confirmed": False}])
+    assert "CONFIRMED 1" not in text
+    assert "reachable over Bluetooth" not in text
+    assert "NONE of them" in text
+    assert "unconfirmed" in text
+
+
+def test_a_confirmed_instrument_is_reported_as_reachable(monkeypatch):
+    text = _run(monkeypatch,
+                [("AA:BB:CC:DD:EE:07", "CR30-XYZ", [FFE0])],
+                accepted=[{"name": "CR30-XYZ", "address": "AA:BB:CC:DD:EE:07",
+                           "confirmed": True}])
+    assert "CONFIRMED 1" in text
+    assert "reachable over Bluetooth" in text
+
+
+def test_an_empty_rescan_is_not_reported_as_a_refusal(monkeypatch):
+    """The instrument can fall asleep or be claimed between the two scans. That
+    is not ChromIQ refusing it, and saying so sends the reader after the wrong
+    thing entirely."""
+    text = _run(monkeypatch, [("AA:BB:CC:DD:EE:08", "CR30-XYZ", [FFE0])],
+                accepted=[])
+    assert "REFUSED every candidate" in text
+    # …and the wording must not claim the device was judged and rejected
+    assert "did not answer as a CR30" not in text

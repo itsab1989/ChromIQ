@@ -150,7 +150,27 @@ async def collect(scan_seconds: float = 20.0) -> str:
         say("missing instrument — please send this report.")
         return "\n".join(out)
 
-    if not accepted:
+    # READ THE CONFIRMED FLAG, DO NOT JUST COUNT THE LIST. `ble.discover`
+    # returns candidates whether or not the protocol check confirmed them --
+    # the shortlist and the identification are different things, which is the
+    # whole reason `verify=True` exists. Counting the list told a user with an
+    # UNCONFIRMED hobby gadget that "the instrument is reachable", and told a
+    # user whose instrument merely fell asleep between the two scans that
+    # ChromIQ had "REFUSED" it. Both are the opposite of the truth, in a report
+    # whose only job is to say which of those two things happened.
+    confirmed = [c for c in accepted if c.get("confirmed")]
+    if accepted and not confirmed:
+        say(f"{len(accepted)} device(s) advertise the service, and NONE of them")
+        say("answered as a CR30 when asked.")
+        say("")
+        say("So something nearby is using the same generic Bluetooth service --")
+        say("hobby modules do -- or an instrument is there and did not answer")
+        say("the way ChromIQ expects. The second would be OUR bug. Either way")
+        say("this report is worth sending; it is the case we cannot tell apart")
+        say("from here.")
+        for c in accepted:
+            say(f"  unconfirmed: {c}")
+    elif not accepted:
         say("ChromIQ REFUSED every candidate.")
         say("")
         say("So a device is advertising the right service but did not answer as")
@@ -159,8 +179,8 @@ async def collect(scan_seconds: float = 20.0) -> str:
         say("second would be a ChromIQ bug worth knowing about. Please send")
         say("this report.")
     else:
-        say(f"ChromIQ ACCEPTED {len(accepted)} device(s):")
-        for c in accepted:
+        say(f"ChromIQ CONFIRMED {len(confirmed)} instrument(s):")
+        for c in confirmed:
             say(f"  {c}")
         say("")
         say("So the instrument is reachable over Bluetooth from this computer.")
