@@ -390,3 +390,64 @@ duplicated into beta-3's changelog; the site's "stops measuring altogether";
 one consent sentence in the intro dialog for stage 3 (§1.6); the script's
 "in Windows" phrasing on other platforms; the Windows MAC last-6
 half-redaction; `confirmed[0]` when two instruments confirm.
+
+
+## 7. Re-review at `ee529f5d` — GREEN LIGHT ✅
+
+All three blockers and both named minors re-verified against the commit, not
+the claim:
+
+* **F-1**: the `elif not accepted:` branch rendered through the real
+  `collect()` (scanner faked to one vanishing candidate) now reads:
+  *"Something was advertising a moment ago, and by the time ChromIQ looked
+  again it was gone. Nothing was refused here — there was simply nothing left
+  to ask…"* with the sleep and claimed-by-another causes and a
+  press-the-button-and-rerun action. Honest, actionable, and it still asks
+  for the report in the persistent case. The rewritten test asserts the
+  meaning (`"REFUSED" not in text`, `"nothing was refused"`,
+  `"went to sleep"`) and flattens whitespace before the judged-and-rejected
+  guard — the line-wrap loophole is closed.
+* **F-2**: the dialog now says «run this report again and choose “Search
+  normally”. That is the whole of it — there is nothing to hunt for in
+  Preferences.» No impossible instruction remains.
+* **F-3**: `ExcludeUserInputEvents` — proven live, and honestly this time.
+  My first re-probe used `QApplication.postEvent`ed QMouseEvents and showed
+  the tab still switching: that was **my probe's fault, not the fix's** —
+  the flag filters *window-system* input, and Qt-posted synthetic events
+  bypass the native queue entirely (they are also not something a user can
+  produce). Probe v3 posts real window-server events (`CGEventPost`), with a
+  **positive control first**: the identical click in the normal event loop
+  switches the tab (so the harness is proven able to click), then mid-scan
+  the same clicks on the tab bar and the Tools button change **nothing** —
+  tab 0 → 0, no popup, none delivered even after the run. The GUI-thread
+  heartbeat kept ticking (211 ticks, max gap 295 ms), so the window paints;
+  it just no longer listens. Close-mid-scan: a titlebar click and ⌘Q are the
+  same NSEvent classes (mouse, key) the probe proved deferred; the one
+  residual quit route is a Dock-quit Apple event, which is not user input in
+  the NSEvent sense — but that path predates this feature, applies to every
+  modal flow in the app, and is not a beta-3 matter.
+* **F-4**: `loop.close()` in a `finally`. Read in the diff.
+* **Intro disclosure** (the §1.6 judgement call): the dialog now says ChromIQ
+  "briefly contacts anything nearby that offers the same kind of connection
+  and asks what it is — the same question it asks whenever you measure over
+  Bluetooth." Accurate, and it restores the consent the standalone script
+  always asked.
+* **Prose**: the duplicated no-spacers paragraph is out of beta 3's notes;
+  the live site now says a magnet makes a CR30 "stop measuring your patch and
+  hand back its own white-tile value instead, which looks like a perfectly
+  ordinary colour" — exactly the distinction beta 2's Fixed list drew.
+* **Suite**: 34/34 on the three touched test files; full everyday tier rerun
+  by me at `ee529f5d`: **8229 passed, 262 skipped, 3 xfailed in 1:24** —
+  matching the owner's number. Repair still never offered with the
+  instrument off; sandbox `cr30_ble_address` and the real plist untouched
+  through all probes.
+
+Remaining minors (not blocking, listed in §6): the standalone script's stale
+"next to this script" docstring line and its "in Windows" phrasing on other
+platforms; the Windows MAC last-6 half-redaction; `confirmed[0]` when two
+instruments confirm; F-6's "Bluetooth is off" bullet under a populated
+stage-1 listing.
+
+**GREEN LIGHT for `v4.1.5-beta.3` at `ee529f5d`** — subject only to the
+owner's own `--runslow` gate at the tag commit, and push + tag together so
+the live site's link never points at a tag that does not yet exist.

@@ -213,7 +213,19 @@ def main() -> int:
 
         import argparse
         ap = argparse.ArgumentParser(); ap.add_argument("--skip-run1", action="store_true")
+        ap.add_argument("--probe-exclude-input", action="store_true")
         args, _ = ap.parse_known_args()
+        if args.probe_exclude_input:
+            probe_exclude_input(app, win, say, OUT)
+            say(f"repair offered: {clicker.repair_offered}")
+            say(f"remembered address after: {ini_value('cr30_ble_address')!r}")
+            for s in clicker.seen:
+                say("  " + s)
+            win.close()
+            end = time.monotonic() + 1.0
+            while time.monotonic() < end:
+                app.processEvents(); time.sleep(0.005)
+            return 0
         if not args.skip_run1:
             ticks.clear()
             run_once("run1", OUT / "in_app_run1.txt")
@@ -250,6 +262,111 @@ def main() -> int:
         OUT.mkdir(parents=True, exist_ok=True)
         (OUT / "driver_log.txt").write_text("\n".join(LOG))
     return 0
+
+
+
+
+def probe_exclude_input(app, win, say, OUT):
+    """Post REAL input events mid-scan; with ExcludeUserInputEvents none may
+    be delivered while the scan runs. Direct method calls (the first probe's
+    poke) are not user input and prove nothing here — these are queued
+    QMouseEvents, the thing the flag exists to hold back."""
+    import time
+    from PyQt6.QtCore import QEvent, QPoint, QPointF, Qt, QTimer
+    from PyQt6.QtGui import QMouseEvent
+    from PyQt6.QtWidgets import QApplication, QFileDialog
+
+    state = {}
+
+    # REAL input, not QApplication.postEvent: ExcludeUserInputEvents filters
+    # window-system input, and a Qt-posted synthetic QMouseEvent bypasses the
+    # native queue entirely — the first probe "failed" on exactly that. A
+    # CGEventPost click goes through the window server and arrives as a real
+    # NSEvent, which is what the Cocoa dispatcher defers under the flag.
+    import Quartz
+
+    def click_at(widget, pos):
+        g = widget.mapToGlobal(pos)
+        pt = Quartz.CGPointMake(float(g.x()), float(g.y()))
+        for etype in (Quartz.kCGEventLeftMouseDown, Quartz.kCGEventLeftMouseUp):
+            ev = Quartz.CGEventCreateMouseEvent(None, etype, pt,
+                                                Quartz.kCGMouseButtonLeft)
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, ev)
+
+    def poke():
+        state["tab_before"] = win._tabs.currentIndex()
+        bar = win._tabs.tabBar()
+        target = (state["tab_before"] + 1) % win._tabs.count()
+        click_at(bar, bar.tabRect(target).center())
+        tools = win._masthead.tools_button()
+        if tools is not None:
+            click_at(tools, QPoint(tools.width() // 2, tools.height() // 2))
+        state["posted_at"] = time.monotonic()
+
+    def check_mid():
+        from ui.tools_popup import ToolsPopup
+        state["tab_mid_scan"] = win._tabs.currentIndex()
+        state["popup_mid_scan"] = any(isinstance(x, ToolsPopup) and x.isVisible()
+                                      for x in app.topLevelWidgets())
+        win.grab().save(str(OUT / "probe_mid_scan_window.png"))
+
+    # POSITIVE CONTROL first: the same click, in the normal event loop, must
+    # actually switch the tab — otherwise "nothing happened mid-scan" would
+    # only prove the harness cannot click (no Accessibility permission, wrong
+    # coordinates), not that the flag works.
+    win.raise_(); win.activateWindow()
+    end = time.monotonic() + 1.0
+    while time.monotonic() < end:
+        app.processEvents(); time.sleep(0.005)
+    win._tabs.setCurrentIndex(0)
+    bar = win._tabs.tabBar()
+    click_at(bar, bar.tabRect(1).center())
+    end = time.monotonic() + 1.5
+    while time.monotonic() < end:
+        app.processEvents(); time.sleep(0.005)
+    state["positive_control_tab"] = win._tabs.currentIndex()
+    say(f"[probe] positive control: real click on tab 1 -> current tab "
+        f"{state['positive_control_tab']} (must be 1, else the probe is blind)")
+    if state["positive_control_tab"] != 1:
+        say("[probe] ABORT: the harness cannot deliver real clicks; "
+            "nothing below would mean anything")
+        return
+    win._tabs.setCurrentIndex(0)
+    end = time.monotonic() + 0.5
+    while time.monotonic() < end:
+        app.processEvents(); time.sleep(0.005)
+
+    QTimer.singleShot(9000, poke)
+    QTimer.singleShot(12000, check_mid)
+    ticks = []
+    hb = QTimer(); hb.timeout.connect(lambda: ticks.append(time.monotonic()))
+    hb.start(100)
+
+    QFileDialog.getSaveFileName = staticmethod(
+        lambda *a, **k: (str(OUT / "in_app_probe_run.txt"), "t"))
+    t0 = time.monotonic()
+    win._run_cr30_bluetooth_report()
+    dt = time.monotonic() - t0
+    hb.stop()
+    from ui.tools_popup import ToolsPopup
+    end = time.monotonic() + 1.5
+    while time.monotonic() < end:
+        app.processEvents(); time.sleep(0.005)
+    state["tab_after_run"] = win._tabs.currentIndex()
+    state["popup_after_run"] = any(isinstance(x, ToolsPopup) and x.isVisible()
+                                   for x in app.topLevelWidgets())
+    gaps = [b - a for a, b in zip(ticks, ticks[1:])]
+    say(f"[probe] run took {dt:.1f} s; heartbeat ticks {len(ticks)}, "
+        f"max gap {max(gaps)*1000:.0f} ms" if gaps else "[probe] NO TICKS")
+    say(f"[probe] mid-scan: tab {state.get('tab_before')} -> "
+        f"{state.get('tab_mid_scan')} (must be unchanged); "
+        f"tools popup visible: {state.get('popup_mid_scan')} (must be False)")
+    say(f"[probe] after run: tab {state.get('tab_after_run')}; "
+        f"tools popup visible: {state.get('popup_after_run')} "
+        f"(deferred delivery is allowed once the scan is over)")
+    for x in app.topLevelWidgets():
+        if isinstance(x, ToolsPopup):
+            x.close()
 
 
 if __name__ == "__main__":
