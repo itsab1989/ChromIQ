@@ -35,11 +35,6 @@ to the edge it has to rest on the last row — now it simply gets out of the way
 size", where the help has always said they were. They were in Expert Options,
 collapsed, while the other layout method showed its settings in plain sight.
 
-**A CR30 chart no longer prints spacers by default.** A spacer helps a strip
-reader find the edge of a patch as it is swiped across; a CR30 is lifted onto
-each patch and never swipes, so they were ink it cannot use. Turn them back on
-and you get them.
-
 ### Fixed
 
 - **"Prioritise chart area" now honours your left margin.** A 7.5 mm band for

@@ -161,9 +161,16 @@ def test_an_empty_rescan_is_not_reported_as_a_refusal(monkeypatch):
     thing entirely."""
     text = _run(monkeypatch, [("AA:BB:CC:DD:EE:08", "CR30-XYZ", [FFE0])],
                 accepted=[])
-    assert "REFUSED every candidate" in text
-    # …and the wording must not claim the device was judged and rejected
-    assert "did not answer as a CR30" not in text
+    # THIS TEST USED TO ASSERT THE BUG. It required "REFUSED every candidate" —
+    # the very wording its own docstring calls wrong — and its guard against
+    # "judged and rejected" passed only because that phrase happened to wrap
+    # across a line break in the source text. A green test holding the fault in
+    # place, in the diagnostic written for the user waiting on it.
+    assert "REFUSED" not in text
+    assert "nothing was refused" in text.lower()
+    assert "went to sleep" in text
+    flat = " ".join(text.split())          # defeat the line-wrap loophole
+    assert "did not answer as a CR30" not in flat
 
 
 # -- the repair: only ever a CONFIRMED address ------------------------------

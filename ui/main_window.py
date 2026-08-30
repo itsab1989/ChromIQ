@@ -1761,6 +1761,10 @@ class MainWindow(QMainWindow):
             "tells you whether the request is arriving at all.\n\n"
             "Nothing here can change your instrument. It is never asked to "
             "measure and never asked to calibrate.\n\n"
+            "To tell your instrument apart from other Bluetooth gadgets, "
+            "ChromIQ briefly contacts anything nearby that offers the same "
+            "kind of connection and asks what it is — the same question it "
+            "asks whenever you measure over Bluetooth.\n\n"
             "The window will be unresponsive while it looks."),
             )
         go = box.addButton(tr("Look now"), QMessageBox.ButtonRole.AcceptRole)
@@ -1794,7 +1798,11 @@ class MainWindow(QMainWindow):
         def _work() -> None:
             try:
                 from workflow.cr30.bluetooth_report import collect
-                rep = asyncio.new_event_loop().run_until_complete(collect())
+                loop = asyncio.new_event_loop()
+                try:
+                    rep = loop.run_until_complete(collect())
+                finally:
+                    loop.close()          # one leaked loop per run otherwise
                 result["text"] = rep.text
                 result["confirmed"] = rep.confirmed
             except Exception as exc:                # noqa: BLE001 — report it
@@ -1808,8 +1816,15 @@ class MainWindow(QMainWindow):
         worker.start()
         try:
             while worker.is_alive():
+                # EXCLUDE USER INPUT. With AllEvents the window went on
+                # accepting clicks while the dialog said it would not: a tab
+                # switch landed mid-scan with Start Measurement live, a second
+                # report could be nested inside the first, and closing the
+                # window ran the whole quit teardown and then put dialogs up
+                # over a quitting app — with an accepted repair written after
+                # the settings had already been flushed, and lost.
                 QApplication.processEvents(
-                    QEventLoop.ProcessEventsFlag.AllEvents, 50)
+                    QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents, 50)
                 worker.join(0.05)
         finally:
             QApplication.restoreOverrideCursor()
@@ -1889,7 +1904,8 @@ class MainWindow(QMainWindow):
             "only, and ChromIQ still checks that the instrument really is a "
             "CR30 before using it, so nothing else can take its place.\n\n"
             "You can undo it at any time: run this report again and choose "
-            "“Search normally”, or clear it in Preferences.\n\n"
+            "“Search normally”. That is the whole of it — there is nothing to "
+            "hunt for in Preferences.\n\n"
             "Please still send the report either way. If this works for you it "
             "means ChromIQ's search has a fault that we would rather fix than "
             "leave you working around."

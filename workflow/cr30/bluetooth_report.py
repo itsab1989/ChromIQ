@@ -187,13 +187,27 @@ async def collect(scan_seconds: float = 20.0) -> "Report":
         for c in accepted:
             say(f"  unconfirmed: {c}")
     elif not accepted:
-        say("ChromIQ REFUSED every candidate.")
+        # NOT A REFUSAL. An empty list here means ChromIQ's own scan, twenty
+        # seconds after the first one, saw nothing advertising at all -- so
+        # nothing was asked and nothing was refused. Saying "REFUSED" sent the
+        # reader after a rejection that never happened. The likely sequence is
+        # much duller and much more actionable: the device went to sleep, or
+        # something claimed it, between the two scans.
+        say("Something was advertising a moment ago, and by the time ChromIQ")
+        say("looked again it was gone.")
         say("")
-        say("So a device is advertising the right service but did not answer as")
-        say("a CR30. That is either a different gadget using the same generic")
-        say("service, or an instrument ChromIQ does not recognise — and the")
-        say("second would be a ChromIQ bug worth knowing about. Please send")
-        say("this report.")
+        say("Nothing was refused here — there was simply nothing left to ask.")
+        say("Between the two scans, about twenty seconds apart, the device")
+        say("stopped advertising. The two usual reasons:")
+        say("  * it went to sleep. Press the instrument's button to wake it and")
+        say("    run this again straight away.")
+        say("  * something claimed it — the phone app, or another computer. A")
+        say("    CR30 accepts one connection at a time and stops advertising")
+        say("    while it is held.")
+        say("")
+        say("If you press the button and run this again immediately and it")
+        say("still happens, please send the report: an instrument that will not")
+        say("stay visible long enough to be asked is worth us knowing about.")
     else:
         say(f"ChromIQ CONFIRMED {len(confirmed)} instrument(s):")
         for c in confirmed:

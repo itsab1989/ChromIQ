@@ -358,3 +358,64 @@ def test_a_narrow_pane_elides_rather_than_clipping(preview, qtbot):
 # nothing here would stop it coming back — if you touch `_start_legend_fade`,
 # check by hand: point at the chip, move off it and straight back on, and it
 # must stay hidden.
+#
+# UPDATE (beta-3 final review): a discriminating test now exists below —
+# `test_a_countermanding_hide_stops_the_running_show_fade`. Proven both ways:
+# with the fault re-applied (early return moved back above the stop, mutation
+# verified in the diff, bytecode cleared) it fails on the synchronous
+# assertion; on the fixed code it passes, five runs. The paragraph above is
+# kept because its diagnosis is right: END-state assertions cannot see this
+# fault. The new test looks at the moment the re-hide call RETURNS instead.
+
+
+# ── F1, caught at last ─────────────────────────────────────────────────────
+#
+# The two deleted attempts (see the note above) both judged the END state, and
+# the event loop had settled it to the same place either way by the time they
+# could look. The discriminating moment is SYNCHRONOUS: the instant the
+# re-hide call returns, the countermanded show fade must already be stopped —
+# under the fault the early return leaves it Running towards 1.0, and nothing
+# has had a chance to settle anything yet. Two rules from the gate reviews
+# apply: the setup self-verifies (a show fade PROVEN to be running towards
+# 1.0, so an off-point that never left the chip fails loudly instead of
+# passing vacuously — the shipped scenario test above has exactly that hole),
+# and the assertion runs before a single event is processed.
+def test_a_countermanding_hide_stops_the_running_show_fade(preview, qtbot):
+    """F1. The re-hide arrives while the show fade has only just begun."""
+    import time
+    from PyQt6.QtCore import QAbstractAnimation
+    from PyQt6.QtWidgets import QApplication
+    Running = QAbstractAnimation.State.Running
+
+    centre = preview._legend_rect.center()
+    preview._apply_legend_pointer(centre)              # hide the chip…
+    qtbot.waitUntil(lambda: (preview._legend_fade is not None
+                             and preview._legend_fade.state() != Running
+                             and preview._legend_opacity < 0.01),
+                    timeout=2000)                      # …completely: opacity 0
+
+    # Leave the chip: a show fade starts from ~0.0 — which is still inside the
+    # "close enough to 0" window the faulty early return tested against.
+    off = preview._legend_rect.bottomRight() + QPoint(200, 200)
+    preview._apply_legend_pointer(off)
+    anim = preview._legend_fade
+    assert anim is not None and anim.state() == Running \
+        and float(anim.endValue()) == 1.0, (
+        "setup failed: leaving the chip did not start a show fade — the "
+        "off-point never left the chip, so this test would prove nothing")
+
+    # Flick straight back on. SYNCHRONOUS assertion, before any event runs:
+    preview._apply_legend_pointer(centre)
+    assert not (anim.state() == Running and float(anim.endValue()) == 1.0), (
+        "the re-hide returned without stopping the show fade running the "
+        "other way — the chip will fade in under the pointer and stick")
+
+    # And the behavioural half: pump past the whole fade; it must END hidden.
+    end = time.monotonic() + preview.LEGEND_FADE_MS * 3 / 1000.0
+    while time.monotonic() < end:
+        QApplication.processEvents()
+        time.sleep(0.005)
+    assert preview._legend_hidden is True
+    assert preview._legend_opacity < 0.05, (
+        f"the chip faded back in to {preview._legend_opacity:.2f} while the "
+        "pointer sat on it")

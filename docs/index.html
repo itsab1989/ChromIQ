@@ -351,10 +351,12 @@ footer .sp{flex:1}
           chart patch by patch, build a profile from it exactly as you would with any other
           instrument. Because it is aimed by hand, the preview draws the instrument&rsquo;s
           <b>33&nbsp;mm body to scale</b> on the patch it is asking for, so you can line it up
-          on the neighbours before you set it down. And a CR30 stops measuring altogether if
-          anything magnetic touches its opening &mdash; a laptop lid under your paper will do
-          it &mdash; so ChromIQ learns what your instrument reports in that state and refuses
-          the reading instead of writing it quietly into your profile.</p>
+          on the neighbours before you set it down. And if anything magnetic touches its
+          opening &mdash; a laptop lid under your paper will do it &mdash; a CR30 stops
+          measuring your patch and hands back its own white-tile value instead, which looks
+          like a perfectly ordinary colour. ChromIQ learns what your instrument reports in
+          that state and refuses the reading rather than writing it quietly into your
+          profile.</p>
         <p>It is in <b>beta</b> while it is proved on more units. The protocol was reverse
           engineered on real hardware, and the notes, the captures and the experiments that
           turned out <i>wrong</i> are public:
