@@ -63,9 +63,11 @@ MEASURE_CONTROLS: "dict[str, str]" = {
     "show_overlay":            "_overlay_cb",
     "view_mode_guided":        "_g_overlay_mode",
     "only_measured_guided":    "_g_only_measured",
+    "aim_help_guided":         "_g_aim_help",
     "patch_tile_guided":       "_g_patch_tile",
     "view_mode_manual":        "_m_overlay_mode",
     "only_measured_manual":    "_m_only_measured",
+    "aim_help_manual":         "_m_aim_help",
     "patch_tile_manual":       "_m_patch_tile",
     # Sebastian's are-you-certain audit (2026-08-11): the GUIDED module's
     # toggles are their own widgets, not mirrors of Manual's — the same

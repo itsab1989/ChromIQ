@@ -561,6 +561,11 @@ class TiffPreview(QWidget):
         self._hover_stripe: int = -1
         self._pan_dist: int = 0
         self._patch_overlay: dict[int, list] = {}
+        #: CR30 aiming help: the instrument's body and aperture, drawn to scale
+        #: on the patch being asked for. See `set_aim_overlay`.
+        self._aim_overlay = False
+        self._aim_aperture_px = 0.0
+        self._aim_body_px = 0.0
         # Exact per-patch pixel boxes per page (#126, Basti): lets the hover
         # outline hug only the patches of a strip — never the label band or the
         # white paper around them — for every layout, including ColorMunki
@@ -1486,6 +1491,21 @@ class TiffPreview(QWidget):
         if on != self._hex_zigzag:
             self._hex_zigzag = on
             self._repaint_label()
+
+    def set_aim_overlay(self, enabled: bool, aperture_px: float = 0.0,
+                        body_px: float = 0.0) -> None:
+        """Aiming help for a hand-placed instrument (the CR30).
+
+        `aperture_px` / `body_px` are DIAMETERS in image pixels, so the caller
+        does the mm-to-pixel conversion from the chart's own recorded dpi. Pass
+        0 (or less) for "the scale is not known" -- and then nothing is drawn.
+        A circle that claims to be 33 mm and is not is worse than no circle:
+        the whole point is that the user can trust its size.
+        """
+        self._aim_overlay = bool(enabled)
+        self._aim_aperture_px = max(0.0, float(aperture_px or 0.0))
+        self._aim_body_px = max(0.0, float(body_px or 0.0))
+        self._schedule_refresh()
 
     def set_no_swipe(self, on: bool) -> None:
         """Suppress the scan arrow for an instrument that does not swipe (#159).
@@ -2649,6 +2669,57 @@ class TiffPreview(QWidget):
             for hexp in _warn_hexes:
                 painter.setPen(red)
                 painter.drawPath(hexp)
+
+        # AIMING HELP for a hand-placed instrument (#159). Drawn UNDER the
+        # accent ring below, so the ring that says "this patch" stays on top.
+        #
+        # The big dashed circle is the instrument's BODY to scale -- 33 mm of
+        # opaque barrel that hides the patch the moment you lower it. That is
+        # the whole aiming problem, and the reason the cue has to be about the
+        # NEIGHBOURS: with the circle on screen you can see which ones the body
+        # will cover, and even them up by eye before it touches down. Dashed so
+        # the patch borders you aim by stay visible through it.
+        #
+        # The small circle is the 4 mm APERTURE, and it appears only when it
+        # does NOT fit inside the patch -- Basti's ruling, 2026-08-30. Nothing
+        # refuses a chart whose patches are smaller than the aperture (his
+        # ruling too: ArgyllCMS offers no such guard for any instrument), so
+        # this is the ONLY place that condition is ever visible. It is drawn
+        # overflowing, honestly, rather than tidied to fit.
+        if (self._aim_overlay and self._aim_body_px > 0
+                and self._active_patch_box is not None
+                and self._active_patch_page == self._current):
+            ar = self._active_patch_box
+            cx = (ar.x() + ar.width() / 2.0) * s + ox
+            cy = (ar.y() + ar.height() / 2.0) * s + oy
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+
+            def _aim_circle(d_px: float, dash: bool) -> None:
+                rad = d_px * s / 2.0
+                if rad < 4.0:            # smaller than the dash pattern: noise
+                    return
+                rect = QRectF(cx - rad, cy - rad, rad * 2.0, rad * 2.0)
+                for colour, extra in ((QColor(255, 255, 255, 225), 2.4),
+                                      (QColor("#1f8f6b"), 0.0)):
+                    pen = QPen(colour)
+                    pen.setWidthF(2.0 + extra)
+                    if dash:
+                        # Dash lengths are multiplied by the pen width, so they
+                        # must be divided by it or the casing pen draws a
+                        # coarser pattern than the accent and the two stop
+                        # lining up -- the mockup's "casing on BOTH sides".
+                        w = 2.0 + extra
+                        pen.setDashPattern([9.0 / w, 7.0 / w])
+                    painter.setPen(pen)
+                    painter.drawEllipse(rect)
+
+            _aim_circle(self._aim_body_px, True)
+            # Only when it overflows: the patch's own smaller dimension is the
+            # room a round aperture actually has.
+            if (self._aim_aperture_px > 0
+                    and self._aim_aperture_px >= min(ar.width(), ar.height())):
+                _aim_circle(self._aim_aperture_px, False)
 
         # #126 spot mode: highlight the patch to read next with a bright
         # haloed accent ring so the user knows where to place the instrument.

@@ -22,6 +22,25 @@ from dataclasses import dataclass, replace
 MAXPPROW = 500          # printtarg.c: absolute max patches per pass/row
 MAXROWLEN = 5000.0      # printtarg.c MAXROWLEN — large enough to never bind for sheet sizes
 
+# ---- CR30 physical dimensions, for the Measure tab's aiming help ------------
+#
+# SOURCED, not assumed. Both figures come from CHNSpec's own CR-series
+# brochure (the URL is in the manufacturer-contact draft), and the body
+# diameter was independently confirmed by measuring the owner's unit
+# (chromiq-cr30-research, EXPERIMENTS.md, EXP-018):
+#
+#     Measure Aperture   4 mm
+#     Body               Ø33 mm x 84 mm
+#
+# ⚠ The 4.45 mm that appears in `docs/cr30_reports/02-design.md` is NOT a rival
+# aperture figure. It is the inscribed circle of a hexagonal patch of equal
+# area — a CLEARANCE, i.e. how much room a 4 mm aperture has inside that shape.
+#
+# These are drawn ON SCREEN AT SCALE, so they are a factual claim about the
+# instrument: change them only against a better source, and say which.
+CR30_BODY_DIAMETER_MM = 33.0
+CR30_APERTURE_DIAMETER_MM = 4.0
+
 # Instrument flag (printtarg -i value) -> CGATS TARGET_INSTRUMENT string.
 TARGET_INSTRUMENT_NAME: dict[str, str] = {
     "i1": "GretagMacbeth i1 Pro",

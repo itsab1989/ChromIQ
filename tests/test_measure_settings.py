@@ -187,6 +187,12 @@ def wired(tmp_path, qapp):
                  # because that sentence is only true for a strip-reading
                  # instrument; it is a no-op when there is no such label.
                  "_refresh_calm_subtext",
+                 # …and shows or hides the CR30 aiming row, which asks the same
+                 # question at the same moment. Binding the REAL method rather
+                 # than stubbing it: it is a no-op when the widgets are absent,
+                 # and a stand-in that silently lacks a method the real object
+                 # calls reports the caller broken when only the double is.
+                 "_apply_cr30_aim_visibility", "_apply_active_view_settings",
                  "_chart_is_cr30", "_chart_file_for"):
         setattr(_WiredTab, name, getattr(tm.TabMeasure, name))
     # …and the class-level list the dead-option lock consults.

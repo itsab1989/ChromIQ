@@ -1176,6 +1176,11 @@ class TabMeasure(QWidget):
             self._preview.set_show_only_measured(only.isChecked())
         if tile is not None:
             self._preview.set_show_patch_tile(tile.isChecked())
+        aim = getattr(self, f"_{prefix}_aim_help", None)
+        if aim is not None:
+            ap, body = self._cr30_aim_diameters_px()
+            self._preview.set_aim_overlay(aim.isChecked() and body > 0,
+                                          ap, body)
 
     def _on_view_control_changed(self, prefix: str) -> None:
         """A Live-preview control changed. Only the ACTIVE module's controls
@@ -1449,6 +1454,51 @@ class TabMeasure(QWidget):
         except RuntimeError:            # the widget is gone with its tab
             pass
 
+    def _cr30_aim_diameters_px(self) -> "tuple[float, float]":
+        """(aperture, body) diameters in IMAGE pixels for this chart, or (0, 0).
+
+        Scaled from the chart's own recorded dpi, never from an assumed one. A
+        circle that claims to be 33 mm and is not is worse than no circle, so
+        an unreadable sidecar returns zeros and the preview draws nothing.
+        """
+        if not self._chart_is_cr30():
+            return 0.0, 0.0
+        import json
+        try:
+            ti2 = self._chart_file_for(getattr(self, "_ti1_path", None))
+            channels = Path(ti2).with_suffix(".channels.json")
+            if not channels.is_file():
+                return 0.0, 0.0
+            dpi = float((json.loads(channels.read_text()).get("layout") or {})
+                        .get("dpi") or 0.0)
+            if dpi <= 0:
+                return 0.0, 0.0
+            from workflow.layout_engine.instruments import (
+                CR30_APERTURE_DIAMETER_MM, CR30_BODY_DIAMETER_MM)
+            per_mm = dpi / 25.4
+            return (CR30_APERTURE_DIAMETER_MM * per_mm,
+                    CR30_BODY_DIAMETER_MM * per_mm)
+        except Exception:          # noqa: BLE001 — a drawing aid, never fatal
+            log.debug("CR30: could not scale the aiming help", exc_info=True)
+            return 0.0, 0.0
+
+    def _apply_cr30_aim_visibility(self) -> None:
+        """The aiming row belongs to the CR30 and to nothing else.
+
+        Hidden -- label, checkbox and help icon together -- for every other
+        instrument, because it would describe a body diameter that has nothing
+        to do with what the user is holding. Routed through `_chart_is_cr30`
+        like every other CR30 decision in this tab: a direct
+        `read_target_instrument` answers "not a CR30" after every project
+        reopen, and that mistake has been made twice here already.
+        """
+        show = bool(self._chart_is_cr30())
+        for prefix in ("g", "m"):
+            for name in (f"_{prefix}_aim_help", f"_{prefix}_aim_help_tip"):
+                w = getattr(self, name, None)
+                if w is not None:
+                    w.setVisible(show)
+
     def _apply_cr30_dead_options(self) -> None:
         """Grey the options this instrument cannot honour, in both modules.
 
@@ -1458,6 +1508,11 @@ class TabMeasure(QWidget):
         is enabled. What actually falls silent is `build_args`.
         """
         is_cr30 = bool(self._chart_is_cr30())
+        # The aiming row answers the SAME question at the SAME moment, so it is
+        # refreshed from here rather than from three call sites of its own --
+        # three that could drift apart, and one of which someone would forget.
+        self._apply_cr30_aim_visibility()
+        self._apply_active_view_settings()
         self._refresh_calm_subtext()
         why = tr(
             "Your CR30 cannot use this. ChromIQ reads this instrument itself, "
@@ -2471,7 +2526,52 @@ class TabMeasure(QWidget):
             row))
         v.addLayout(om_row)
 
+        # AIMING HELP — a CR30 row, hidden for every other instrument (#159).
+        #
+        # It is the only aiming aid there will be: the owner ruled on
+        # 2026-08-30 that a patch smaller than the aperture is NOT refused at
+        # layout time, because ArgyllCMS offers no such guard for any
+        # instrument. So this shows the user what they are up against instead
+        # of the app deciding for them.
+        aim = QCheckBox(tr("Show where the instrument will sit"), row)
+        aim.setChecked(True)          # on by default; the user's choice is kept
+        aim.toggled.connect(
+            lambda _on, p=prefix: self._on_view_control_changed(p))
+        aim_tip = TooltipButton(
+            tr("Show where the instrument will sit"),
+            tr("Turn this on and the patch you are being asked to read gets a "
+            "dashed circle around it, drawn to scale: it is exactly how much "
+            "of your chart the body of your CR30 will cover when you put it "
+            "down.\n\nThat sounds like a small thing, and it is the whole "
+            "difficulty of measuring by hand. The instrument is 33 mm across "
+            "and completely hides the patch the moment you lower it onto the "
+            "paper — so you cannot look at what you are aiming at while you "
+            "aim. What you CAN do is line the circle up on screen first and "
+            "note which neighbouring patches it touches, then place the "
+            "instrument so those same neighbours are evenly covered. The "
+            "circle is dashed so the patch edges you are aiming by stay "
+            "visible through it.\n\nA second, much smaller circle appears "
+            "only when there is a problem: it is the 4 mm measuring opening, "
+            "and you will see it if the patch is too small for it. Then part "
+            "of what the instrument reads is the neighbouring patch, and that "
+            "reading will be wrong no matter how carefully you aim — build the "
+            "chart again with fewer or larger patches.\n\nIt changes nothing "
+            "about your measurements; it only draws on the preview. This "
+            "option appears for the CR30 only, because it is the only "
+            "instrument ChromIQ asks you to aim by hand."),
+            row)
+        aim_row = QHBoxLayout()
+        aim_row.setContentsMargins(0, 0, 0, 0)
+        aim_row.setSpacing(0)
+        aim_row.addWidget(aim)
+        aim_row.addSpacing(10)
+        aim_row.addWidget(aim_tip)
+        aim_row.addStretch(1)
+        v.addLayout(aim_row)
+
         gv.addWidget(row)
+        setattr(self, f"_{prefix}_aim_help", aim)
+        setattr(self, f"_{prefix}_aim_help_tip", aim_tip)
         setattr(self, f"_{prefix}_view_grp", grp)
         setattr(self, f"_{prefix}_engine_row", row)
         setattr(self, f"_{prefix}_overlay_mode", combo)
@@ -2886,6 +2986,7 @@ class TabMeasure(QWidget):
             # preset restores the whole workspace look the user prefers.
             "overlay_mode":  self._m_overlay_mode.currentData(),
             "only_measured": self._m_only_measured.isChecked(),
+            "aim_help": self._m_aim_help.isChecked(),
             "patch_tile":    self._m_patch_tile.isChecked(),
         }
         for opt in self._m_chartread_opts:
@@ -2914,6 +3015,10 @@ class TabMeasure(QWidget):
         if _om >= 0:
             self._m_overlay_mode.setCurrentIndex(_om)
         self._m_only_measured.setChecked(bool(data.get("only_measured", False)))
+        # ON unless this preset says otherwise: the aiming help is the CR30's
+        # only aid, so a preset written before it existed must not switch it
+        # off for someone who has never seen it.
+        self._m_aim_help.setChecked(bool(data.get("aim_help", True)))
         self._m_patch_tile.setChecked(bool(data.get("patch_tile", False)))
         for opt in self._m_chartread_opts:
             if opt.checkbox:
@@ -2954,6 +3059,7 @@ class TabMeasure(QWidget):
             if _om >= 0:
                 self._m_overlay_mode.setCurrentIndex(_om)
             self._m_only_measured.setChecked(bool(s.get("manual2_only_measured", False)))
+            self._m_aim_help.setChecked(bool(s.get("manual2_aim_help", True)))
             self._m_patch_tile.setChecked(bool(s.get("manual2_patch_tile", False)))
             for opt in self._m_chartread_opts:
                 if opt.checkbox:
@@ -12573,6 +12679,7 @@ class TabMeasure(QWidget):
         ("_bidir_auto_cb", "_m_bidir_auto_cb"),
         ("_g_overlay_mode", "_m_overlay_mode"),
         ("_g_only_measured", "_m_only_measured"),
+        ("_g_aim_help", "_m_aim_help"),
         ("_g_patch_tile", "_m_patch_tile"),
     )
 
@@ -13126,6 +13233,7 @@ class TabMeasure(QWidget):
             s.set("measure_patch_by_patch",    self._pbp_user_value("guided"))
             s.set("measure_overlay_mode",      self._g_overlay_mode.currentData())
             s.set("measure_only_measured",     self._g_only_measured.isChecked())
+            s.set("measure_aim_help",          self._g_aim_help.isChecked())
             s.set("measure_patch_tile",        self._g_patch_tile.isChecked())
             # #134/#130 (Knut, 2026-07-27): this switch was left out, so
             # "Save as Defaults" never kept it and it came back off every time.
@@ -13148,6 +13256,7 @@ class TabMeasure(QWidget):
             s.set("manual2_chartread_pbp",      self._pbp_user_value("manual"))
             s.set("manual2_overlay_mode",       self._m_overlay_mode.currentData())
             s.set("manual2_only_measured",      self._m_only_measured.isChecked())
+            s.set("manual2_aim_help",           self._m_aim_help.isChecked())
             s.set("manual2_patch_tile",         self._m_patch_tile.isChecked())
             for opt in self._m_chartread_opts:
                 if opt.checkbox:
@@ -13178,6 +13287,11 @@ class TabMeasure(QWidget):
         if _gom >= 0:
             self._g_overlay_mode.setCurrentIndex(_gom)
         self._g_only_measured.setChecked(bool(s.get("measure_only_measured", False)))
+        # DEFAULTS ON. Basti, 2026-08-30: "on by default first and it should
+        # remember what the user set it to then" -- so the stored value wins
+        # once there is one, and until then a first-time CR30 user gets the
+        # help without having to know the option exists.
+        self._g_aim_help.setChecked(bool(s.get("measure_aim_help", True)))
         self._g_patch_tile.setChecked(bool(s.get("measure_patch_tile", False)))
         for opt in self._chartread_opts:
             if opt.checkbox:
@@ -13222,6 +13336,7 @@ class TabMeasure(QWidget):
         if _om >= 0:
             self._m_overlay_mode.setCurrentIndex(_om)
         self._m_only_measured.setChecked(bool(s.get("manual2_only_measured", False)))
+        self._m_aim_help.setChecked(bool(s.get("manual2_aim_help", True)))
         self._m_patch_tile.setChecked(bool(s.get("manual2_patch_tile", False)))
         for opt in self._m_chartread_opts:
             if opt.checkbox:
