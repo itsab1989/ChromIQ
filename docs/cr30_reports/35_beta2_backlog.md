@@ -334,3 +334,39 @@ legend that never overlaps.
 Do not re-propose the caption band. If the chip's placement needs further work,
 the direction is to keep it out of the way (as the item-aware `patch_bottom`
 fix now does) rather than to give it a reserved strip of its own.
+
+## R3 · Leftover width stays SHARED — the grid stays centred
+
+Patches come in whole units, so the grid almost never fills the space between
+the margins exactly. The leftover has to go somewhere, and today it is shared,
+which centres the block.
+
+**Basti ruled it stays that way, 2026-08-30**, when asked whether to give it all
+to the right so the left margin would be literally the number in the box.
+
+**The consequence, stated so nobody re-opens this as a bug:** on a chart with
+leftover width, the first patch is NOT at the left margin the user typed. It is
+at that margin plus its share of the leftover. So "Measured from Preview" will
+still report more than the number in the box on such charts, and that is now
+CORRECT AND INTENDED rather than the fault Basti originally reported.
+
+What was a fault, and is fixed (commit `ba09130a`), is the separate 7.5 mm
+row-label band that used to be reserved OUTSIDE the margin in area-first, in
+breach of that mode's own contract.
+
+**This makes report 45's display half more valuable, not less.** With centring
+kept, the panel must say what it is measuring -- "Left (to first patch)", with
+the furniture bands named on their own lines -- or a user will keep reading the
+number as "the app ignored my setting" when the app is right.
+
+## R4 · Row numbers clamp at the page edge, with a warning
+
+Asked and answered on 2026-08-30, when a fixed left margin of 1 mm leaves no
+room for the row numbers that run down the side: **clamp them at the page edge
+and warn**, mirroring the warning the panel already gives when the top margin is
+too small for the strip labels. The margin stays law for the PATCHES; the
+furniture slides rather than pushing them.
+
+Rejected alternatives, in his words the same day: reserving space for them
+(*"the left margin is then not law after all"*), and dropping them below a
+threshold (which loses the A1/B2 coordinates that make hand-aiming possible).
