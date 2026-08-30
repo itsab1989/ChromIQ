@@ -4046,7 +4046,7 @@ class TabProfile(QWidget):
                 "patches. You can build a profile from it, but a profile made "
                 "from part of a chart describes your printer only where it was "
                 "measured. To fill in the rest, go back to Measure and tick "
-                "“Refine / resume existing measurement”."
+                "“Refine / resume existing measurement (-r)”."
                 ).format(held=facts.held, expected=facts.expected))
         else:
             self._build_btn.setToolTip("")

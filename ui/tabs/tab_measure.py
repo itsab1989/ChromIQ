@@ -6272,7 +6272,7 @@ class TabMeasure(QWidget):
             "What each button does:\n\n"
             "•  Save and stop — writes what you have read so far to this run's "
             "measurement file and ends the session. You can carry on later "
-            "with “Refine / resume existing measurement”, reading only the "
+            "with “Refine / resume existing measurement (-r)”, reading only the "
             "strips or patches that are still missing.\n\n"
             "•  Discard and stop — ends the session and keeps nothing from "
             "it.{kept}\n\n"

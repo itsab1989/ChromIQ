@@ -10700,7 +10700,7 @@ class TabChart(QWidget):
                "any time from the “Profile run” box.\n\n"
                "WHAT YOU CAN DO NOW\n"
                "•  Measure this chart again — the copied measurement is here, "
-               "so tick “Refine / resume existing measurement” to add to it, or "
+               "so tick “Refine / resume existing measurement (-r)” to add to it, or "
                "leave it unticked to start fresh.\n"
                "•  Build a different profile from the copied measurement, on "
                "the Build Profile tab.\n"

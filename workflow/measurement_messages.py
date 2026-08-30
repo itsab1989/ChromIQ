@@ -105,7 +105,7 @@ M_CR30_READ_ENDED = _m(
     "measurement here rather than showing you a second failure.\n\n"
     "Nothing you have already measured is lost — every patch that was read is "
     "on disk, and you can carry on from it by ticking “Refine / resume "
-    "existing measurement” before you press Start again.\n\n"
+    "existing measurement (-r)” before you press Start again.\n\n"
     "What went wrong: {reason}",
     approved=False)
 
@@ -360,7 +360,7 @@ M_REPLACE_PARTIAL = _m(
     "M-REPLACE-PARTIAL",
     "This run already holds part of a measurement",
     "{c} of the chart's {a} patches have been read. Starting now without "
-    "“Refine / resume existing measurement” replaces them.\n\n"
+    "“Refine / resume existing measurement (-r)” replaces them.\n\n"
     "Tick that option to keep what you have and read only the patches that are "
     "still missing. The existing measurement is moved to the run's “old” "
     "folder either way, so nothing is lost.\n\n"
@@ -368,7 +368,7 @@ M_REPLACE_PARTIAL = _m(
     count_key="c",
     body_one=
     "One of the chart's {a} patches has been read. Starting now without "
-    "“Refine / resume existing measurement” replaces it.\n\n"
+    "“Refine / resume existing measurement (-r)” replaces it.\n\n"
     "Tick that option to keep what you have and read only the patches that are "
     "still missing. The existing measurement is moved to the run's “old” "
     "folder either way, so nothing is lost.\n\n"
@@ -988,7 +988,7 @@ M_ALL_STRIPS_PATCHES_LEFT = _m(
     "This usually happens when some patches were read one at a time in "
     "“Patch-by-patch mode” and a few were stepped over.\n\n"
     "To finish them, start measuring again with “Patch-by-patch mode” ticked "
-    "and “Refine / resume existing measurement” ticked. ChromIQ picks up where "
+    "and “Refine / resume existing measurement (-r)” ticked. ChromIQ picks up where "
     "the readings stop, so you only measure the patches that are still missing "
     "rather than the whole chart again.\n\n"
     "•  Re-read Individual Strips — stay in this session and read a strip "
@@ -1004,7 +1004,7 @@ M_ALL_STRIPS_PATCHES_LEFT = _m(
     "This usually happens when some patches were read one at a time in "
     "“Patch-by-patch mode” and one was stepped over.\n\n"
     "To finish it, start measuring again with “Patch-by-patch mode” ticked "
-    "and “Refine / resume existing measurement” ticked. ChromIQ picks up where "
+    "and “Refine / resume existing measurement (-r)” ticked. ChromIQ picks up where "
     "the readings stop, so you only measure the patch that is still missing "
     "rather than the whole chart again.\n\n"
     "•  Re-read Individual Strips — stay in this session and read a strip "
