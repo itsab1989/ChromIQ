@@ -183,6 +183,10 @@ def wired(tmp_path, qapp):
     for name in ("save_target_settings", "load_target_settings",
                  "_measure_written_cache", "_reassert_guided_refinement",
                  "_apply_cr30_pbp_lock", "_apply_cr30_dead_options",
+                 # The dead-option lock also refreshes the panel's advice line,
+                 # because that sentence is only true for a strip-reading
+                 # instrument; it is a no-op when there is no such label.
+                 "_refresh_calm_subtext",
                  "_chart_is_cr30", "_chart_file_for"):
         setattr(_WiredTab, name, getattr(tm.TabMeasure, name))
     # …and the class-level list the dead-option lock consults.

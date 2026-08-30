@@ -933,6 +933,51 @@ list it on the issue. `tests/test_message_catalogue.py` holds the two in step �
 it fails if a proposed message is missing from this section, and equally if an
 approved one is left sitting in it.*
 
+### ⏳ Awaiting confirmation — the log rule no longer describes what CR30 does
+
+**Confirmed by:** *nobody yet.* This is a discrepancy report and a proposed
+amendment, not a change to the rule. Nothing here is in force.
+
+§M says that a message whose wording is not yet approved says its piece **in the
+log** until it is. For the CR30 messages that is no longer true of any of them:
+
+| message | where its text appears | wording |
+|---|---|---|
+| M-CR30-CALIBRATE | window | `approved=False` |
+| M-CR30-CALIBRATE-BLACK | window | `approved=False` |
+| M-CR30-MAGNET | window | `approved=False` |
+| M-CR30-INSTRUMENT-GONE | window | `approved=False` |
+| M-CR30-READ-FAILED | window | `approved=False` |
+
+Each window exists because **Basti asked for that window**, in his own words,
+after meeting the fault himself — the magnet one after a MacBook recalibrated
+his instrument mid-chart, the read-failure one after missing a grey line under
+the buttons, the instrument-gone one on 2026-08-30: *"if this is an important
+message this should be in a pop up windows with benefitial options for this
+case"*.
+
+So this is not four exceptions accumulating. It is the rule having stopped
+describing practice, which is worse, because the next message will break it
+without anyone noticing.
+
+**Proposed amendment, for Basti or Knut to accept or reject:**
+
+> Proposed wording may be shown in a window when the window itself has been
+> asked for. The WORDING remains §M-PROPOSED and unapproved either way, and
+> still needs review before it can move to §M.
+
+The distinction that matters is preserved: a ruling that a *window* should exist
+is not an approval of the *text* inside it. What the log rule was protecting —
+that nobody's unreviewed prose quietly becomes the specification — is untouched,
+because none of these five is marked approved.
+
+**If this is rejected**, the honest alternative is to put all five back to
+log-only, which reverses four decisions Basti made deliberately. Recording it
+that way so the choice is visible rather than drifted into.
+
+*Raised by the round-3 review, 2026-08-30.*
+
+
 *The two below are **revisions**, not new messages. Both were approved by Knut
 on 2026-08-04, but one step in each instructed "(with colour management on)" —
 a setting ChromIQ deliberately locks off on every print path

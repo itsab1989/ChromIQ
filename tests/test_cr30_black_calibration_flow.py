@@ -107,10 +107,15 @@ class _Tab(QWidget):
     palette and font — the picture is theme-aware by design."""
 
     _run_cr30_black_calibration = TabMeasure._run_cr30_black_calibration
+    # The real one, so the message really does name the button the user can
+    # see — "Continue Measurement" when the resume box is ticked.
+    _start_button_name = TabMeasure._start_button_name
 
     def __init__(self):
         super().__init__()
+        from PyQt6.QtWidgets import QPushButton
         self._log = _Log()
+        self._start_btn = QPushButton("Start Measurement", self)
         self.did_calibrate = False
 
     def _do_black_calibration(self):
@@ -182,6 +187,20 @@ def test_cancelling_says_so_and_reassures_and_says_what_to_do_next(window):
         "it does not reassure the user that nothing was lost or altered")
     assert "start measurement" in said, (
         "it does not say how to begin again — a dead end is not friendly")
+
+
+def test_it_names_the_button_the_user_can_actually_see(window):
+    """The Start button reads "Continue Measurement" whenever the resume box is
+    ticked, so a message hard-coding "Start Measurement" sends the user looking
+    for a button that is not there. Found on screen during review."""
+    window.choose = None
+    tab = _Tab()
+    tab._start_btn.setText("Continue Measurement")
+    tab._run_cr30_black_calibration()
+    said = " ".join(tab._log.lines)
+    assert "Continue Measurement" in said, (
+        "the message names a button the user cannot see")
+    assert "Start Measurement" not in said
 
 
 def test_a_failed_black_calibration_does_not_stop_the_measurement_either():

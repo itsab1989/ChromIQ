@@ -1427,6 +1427,28 @@ class TabMeasure(QWidget):
     #: gathered, written into the user's own record of it.
     CR30_DEAD_OPTIONS = ("highres", "filter", "tolerance", "xrga")
 
+    def _refresh_calm_subtext(self) -> None:
+        """The panel's one line of advice has to match how you actually read.
+
+        *"Scan each strip with a slow, steady motion"* is the right thing to
+        say to somebody holding an i1 Pro over a printed row. It is the wrong
+        thing to say to somebody holding a CR30, which reads ONE PATCH AT A
+        TIME: there is no strip to scan and no motion to make — you rest it on
+        the highlighted patch and press its own button. Found on screen during
+        review, on a real CR30 chart.
+        """
+        label = getattr(self, "_calm_subtext", None)
+        if label is None:
+            return
+        try:
+            label.setText(
+                tr("Rest the instrument on the highlighted patch and press "
+                   "its button.")
+                if self._chart_is_cr30() else
+                tr("Scan each strip with a slow, steady motion."))
+        except RuntimeError:            # the widget is gone with its tab
+            pass
+
     def _apply_cr30_dead_options(self) -> None:
         """Grey the options this instrument cannot honour, in both modules.
 
@@ -1436,6 +1458,7 @@ class TabMeasure(QWidget):
         is enabled. What actually falls silent is `build_args`.
         """
         is_cr30 = bool(self._chart_is_cr30())
+        self._refresh_calm_subtext()
         why = tr(
             "Your CR30 cannot use this. ChromIQ reads this instrument itself, "
             "so ArgyllCMS never opens it and there is nothing here for this "
@@ -1813,6 +1836,9 @@ class TabMeasure(QWidget):
         )
         calm_layout.addWidget(headline)
         subtext = QLabel(tr("Scan each strip with a slow, steady motion."), calm_box)
+        # Kept, because the sentence is only true for a strip-reading
+        # instrument — see _refresh_calm_subtext.
+        self._calm_subtext = subtext
         subtext.setAlignment(Qt.AlignmentFlag.AlignCenter)
         subtext.setStyleSheet(
             "color: #808080; background: transparent;"
@@ -3538,7 +3564,8 @@ class TabMeasure(QWidget):
         leave = box.addButton(tr("Leave them alone"),
                               QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(recover)
-        from ui.widgets import fit_message_box_buttons
+        from ui.widgets import (fit_message_box_buttons,
+                                order_message_box_buttons)
         fit_message_box_buttons(box)
         box.exec()
         if box.clickedButton() is not recover:
@@ -4310,6 +4337,19 @@ class TabMeasure(QWidget):
             return self._precond_ti3
         return None
 
+    def _start_button_name(self) -> str:
+        """What the Start button ACTUALLY says right now.
+
+        It reads "Continue Measurement" whenever the resume box is ticked
+        (`_refresh_start_button_label`), so any message that hard-codes "Start
+        Measurement" names a button the user cannot see. Ask the button.
+        """
+        btn = getattr(self, "_start_btn", None)
+        try:
+            return btn.text() if btn is not None else tr("Start Measurement")
+        except RuntimeError:            # the widget is gone; the name is not
+            return tr("Start Measurement")
+
     def _refresh_start_button_label(self) -> None:
         """Show 'Continue Measurement' on the Start button when the resume
         checkbox for the active mode is ticked (i.e. the next run will pass
@@ -4733,7 +4773,8 @@ class TabMeasure(QWidget):
                             QMessageBox.ButtonRole.AcceptRole)
         box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(use)
-        from ui.widgets import fit_message_box_buttons
+        from ui.widgets import (fit_message_box_buttons,
+                                order_message_box_buttons)
         fit_message_box_buttons(box)
         box.exec()
         return box.clickedButton() is use
@@ -4793,7 +4834,8 @@ class TabMeasure(QWidget):
                             QMessageBox.ButtonRole.AcceptRole)
         box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(fix)
-        from ui.widgets import fit_message_box_buttons
+        from ui.widgets import (fit_message_box_buttons,
+                                order_message_box_buttons)
         fit_message_box_buttons(box)
         box.exec()
         if box.clickedButton() is not fix:
@@ -4970,7 +5012,8 @@ class TabMeasure(QWidget):
                                QMessageBox.ButtonRole.AcceptRole)
             cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
             box.setDefaultButton(cancel)
-            from ui.widgets import fit_message_box_buttons
+            from ui.widgets import (fit_message_box_buttons,
+                                order_message_box_buttons)
             fit_message_box_buttons(box)
             # Nothing else may open over this until it is answered.
             self._pre_measure_window_open = True
@@ -5594,7 +5637,8 @@ class TabMeasure(QWidget):
             box.setText(title)
             box.setInformativeText(body)
             box.setStandardButtons(QMessageBox.StandardButton.Ok)
-            from ui.widgets import fit_message_box_buttons
+            from ui.widgets import (fit_message_box_buttons,
+                                order_message_box_buttons)
             fit_message_box_buttons(box)
             box.exec()
             # The old code unticked the module's Verification box here. With
@@ -6013,7 +6057,8 @@ class TabMeasure(QWidget):
         box.setWindowTitle(title)
         box.setText(title + "\n\n" + body)
         box.addButton(QMessageBox.StandardButton.Ok)
-        from ui.widgets import fit_message_box_buttons
+        from ui.widgets import (fit_message_box_buttons,
+                                order_message_box_buttons)
         fit_message_box_buttons(box)
         box.exec()
 
@@ -6150,7 +6195,8 @@ class TabMeasure(QWidget):
         performs the action; this only asks.
         """
         from PyQt6.QtWidgets import QMessageBox
-        from ui.widgets import fit_message_box_buttons
+        from ui.widgets import (fit_message_box_buttons,
+                                order_message_box_buttons)
 
         if not self._manager.has_unsaved_readings:
             # M-END-EMPTY. Nothing to lose, so nothing to ask — but say so,
@@ -6418,7 +6464,8 @@ class TabMeasure(QWidget):
         self._cue_window("INSTRUMENT_ERROR")
 
         from PyQt6.QtWidgets import QMessageBox
-        from ui.widgets import fit_message_box_buttons
+        from ui.widgets import (fit_message_box_buttons,
+                                order_message_box_buttons)
         from workflow.measurement_messages import (M_NO_INSTRUMENT,
                                                    M_NO_INSTRUMENT_FAST)
 
@@ -6989,7 +7036,8 @@ class TabMeasure(QWidget):
         from PyQt6.QtCore import QThread
         from PyQt6.QtWidgets import QMessageBox
         from workflow import measurement_messages as M
-        from ui.widgets import fit_message_box_buttons
+        from ui.widgets import (fit_message_box_buttons,
+                                order_message_box_buttons)
 
         # The bridge FIRST, and calibrate through its reader. A second device
         # handle would mean opening the instrument twice — and over Bluetooth
@@ -7036,7 +7084,8 @@ class TabMeasure(QWidget):
         from PyQt6.QtCore import QThread
         from PyQt6.QtWidgets import QMessageBox
         from workflow import measurement_messages as M
-        from ui.widgets import fit_message_box_buttons
+        from ui.widgets import (fit_message_box_buttons,
+                                order_message_box_buttons)
 
         if not keep_bridge:
             # A previous session's bridge must not be inherited: this is the
@@ -7069,9 +7118,15 @@ class TabMeasure(QWidget):
         also_black = QCheckBox(tr("Also take the black calibration afterwards"))
         box.setCheckBox(also_black)
         go = box.addButton(tr("Calibrate now"), QMessageBox.ButtonRole.AcceptRole)
-        box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(go)
         fit_message_box_buttons(box)
+        # BASTI'S RULE, 2026-08-30: *"cancel should always be on the right
+        # side"* — the action first, the way out last. It reverses the macOS
+        # default (which puts the confirming button rightmost), so it is set
+        # explicitly here and in every sibling window rather than left to the
+        # platform. See ui/widgets.order_message_box_buttons.
+        order_message_box_buttons(box, [go, cancel])
         box.exec()
         if box.clickedButton() is not go:
             # Cancel, the red traffic light, the Windows X and Esc all land
@@ -7087,8 +7142,8 @@ class TabMeasure(QWidget):
                 "[STOPPED] You cancelled the calibration, so this measurement "
                 "did not start. Nothing has been changed and nothing has been "
                 "measured — your instrument still has the calibration it had "
-                "before. Press “Start Measurement” whenever you are ready to "
-                "begin."))
+                "before. Press “{start}” whenever you are ready to begin."
+                ).format(start=self._start_button_name()))
             self._log.ensureCursorVisible()
             return False
         want_black = also_black.isChecked()
@@ -7203,7 +7258,8 @@ class TabMeasure(QWidget):
         """
         from PyQt6.QtCore import QThread
         from PyQt6.QtWidgets import QMessageBox
-        from ui.widgets import fit_message_box_buttons
+        from ui.widgets import (fit_message_box_buttons,
+                                order_message_box_buttons)
 
         reader = getattr(self, "_cr30_reader", None)
         if reader is None:
@@ -7294,7 +7350,8 @@ class TabMeasure(QWidget):
         """
         from PyQt6.QtWidgets import QMessageBox
         from workflow import measurement_messages as M
-        from ui.widgets import fit_message_box_buttons
+        from ui.widgets import (fit_message_box_buttons,
+                                order_message_box_buttons)
         from ui.cr30_pictograms import BLACK_STEP, steps_pair
 
         title, body = M.M_CR30_CALIBRATE_BLACK.render()
@@ -7308,10 +7365,12 @@ class TabMeasure(QWidget):
                            QMessageBox.ButtonRole.AcceptRole)
         skip = box.addButton(tr("Skip this step"),
                              QMessageBox.ButtonRole.RejectRole)
-        box.addButton(tr("Cancel the measurement"),
-                      QMessageBox.ButtonRole.DestructiveRole)
+        cancel = box.addButton(tr("Cancel the measurement"),
+                               QMessageBox.ButtonRole.DestructiveRole)
         box.setDefaultButton(go)
         fit_message_box_buttons(box)
+        # "calibrate now, skip this step, cancel" — his order, verbatim.
+        order_message_box_buttons(box, [go, skip, cancel])
         box.exec()
         clicked = box.clickedButton()
 
@@ -7346,9 +7405,10 @@ class TabMeasure(QWidget):
             "[STOPPED] You cancelled at the dark-reference step, so this "
             "measurement did not start. Your white calibration was taken and "
             "is still in the instrument; nothing has been measured and nothing "
-            "on disk has been changed. Press “Start Measurement” when you want "
-            "to begin, or press it and choose “Skip this step” if you would "
-            "rather not take the dark reference at all."))
+            "on disk has been changed. Press “{start}” when you want to begin, "
+            "or press it and choose “Skip this step” if you would rather not "
+            "take the dark reference at all."
+            ).format(start=self._start_button_name()))
         self._log.ensureCursorVisible()
         return False
 
@@ -7605,7 +7665,8 @@ class TabMeasure(QWidget):
         """
         from PyQt6.QtWidgets import QMessageBox
         from workflow import measurement_messages as M
-        from ui.widgets import fit_message_box_buttons
+        from ui.widgets import (fit_message_box_buttons,
+                                order_message_box_buttons)
 
         self._log.appendPlainText("\n" + tr(
             "[STOPPED] A magnet was against the measuring opening, so the "
@@ -7628,10 +7689,11 @@ class TabMeasure(QWidget):
             box.setInformativeText(body)
             again = box.addButton(tr("Recalibrate now"),
                                   QMessageBox.ButtonRole.AcceptRole)
-            box.addButton(tr("Stop the measurement"),
-                          QMessageBox.ButtonRole.DestructiveRole)
+            stop = box.addButton(tr("Stop the measurement"),
+                                 QMessageBox.ButtonRole.DestructiveRole)
             box.setDefaultButton(again)
             fit_message_box_buttons(box)
+            order_message_box_buttons(box, [again, stop])
             box.exec()
 
             if box.clickedButton() is again:
@@ -7694,7 +7756,8 @@ class TabMeasure(QWidget):
         """
         from PyQt6.QtWidgets import QMessageBox
         from workflow import measurement_messages as M
-        from ui.widgets import fit_message_box_buttons
+        from ui.widgets import (fit_message_box_buttons,
+                                order_message_box_buttons)
 
         title, body = M.M_CR30_INSTRUMENT_GONE.render(loc=loc, reason=message)
         self._log.appendPlainText(f"\n[{title}]\n{body}")
@@ -7716,33 +7779,58 @@ class TabMeasure(QWidget):
         box.setInformativeText(body)
         again = box.addButton(tr("Carry on measuring"),
                               QMessageBox.ButtonRole.AcceptRole)
-        box.addButton(tr("Stop the measurement"),
-                      QMessageBox.ButtonRole.DestructiveRole)
+        stop = box.addButton(tr("Stop the measurement"),
+                             QMessageBox.ButtonRole.DestructiveRole)
         box.setDefaultButton(again)
         fit_message_box_buttons(box)
+        order_message_box_buttons(box, [again, stop])
         box.exec()
 
-        # CLOSING IT IS NOT AGREEING TO END. `clickedButton()` is None for the
-        # red traffic light, the Windows X and Esc alike, and ending the
-        # session is the consequential act here — so a dismissal takes the
-        # option that changes nothing, exactly as it does at the black
-        # calibration window.
+        # Anything but "Carry on measuring" — including the red traffic light,
+        # the Windows X and Esc, for all of which `clickedButton()` is None —
+        # goes to the one shared ending window (measurement_exit_strategy.md
+        # §1). That window offers "Keep measuring" of its own, and THAT is the
+        # answer this handler has to finish properly.
         if box.clickedButton() is not again:
-            self._end_session(self._confirm_end_of_session(
-                self.END_FAILURE_WINDOW))
-            return
+            choice = self._confirm_end_of_session(self.END_FAILURE_WINDOW)
+            self._end_session(choice)
+            if choice is not None:
+                return
+            # ⚠ "KEEP MEASURING", AND `_end_session(None)` IS A NO-OP.
+            #
+            # So declining to end used to leave the session standing with no
+            # reader armed and nothing on screen — the same dead end that was
+            # found and fixed at the magnet window one commit earlier, walked
+            # straight back in through a window written the day after. Unlike
+            # the magnet, carrying on here is legitimate: nothing about the
+            # instrument's calibration is in doubt, it simply went away.
+        self._carry_on_after_the_instrument_went(loc)
 
-        # Carrying on, on an instrument that has just gone. The helper's prompt
-        # is still outstanding, so the only thing missing is a reader — and the
-        # handle to the vanished instrument has been dropped, so this reopens
-        # it. If it is still not there the next attempt lands back here rather
-        # than in silence.
+    def _carry_on_after_the_instrument_went(self, loc: str) -> None:
+        """Re-arm the outstanding patch after the instrument came back.
+
+        The helper's prompt is still outstanding, so the only thing missing is
+        a reader — and the handle to the vanished instrument has been dropped,
+        so this reopens it. If it is still not there the next attempt lands
+        back at the window rather than in silence.
+        """
         bridge = getattr(self, "_cr30_bridge", None)
         if bridge is not None and bridge.rearm():
             self._log.appendPlainText(tr(
                 "Carrying on: reconnect the instrument and read the "
                 "highlighted patch again."))
             self._log.ensureCursorVisible()
+            return
+        # NOTHING WAS RE-ARMED, so say so rather than let the user believe the
+        # session is live. `rearm` returns False when the bridge is stopped or
+        # has no outstanding patch, and a silent False here is precisely the
+        # shape of every fault this area has had.
+        self._log.appendPlainText(tr(
+            "This measurement cannot carry on: there is no patch waiting to "
+            "be read. Start the measurement again with “Refine / resume "
+            "existing measurement” ticked and ChromIQ will offer you only the "
+            "patches that are still missing."))
+        self._log.ensureCursorVisible()
 
     def _on_cr30_gave_up(self, loc: str, message: str) -> None:
         """One patch was refused over and over. M-CR30-PATCH-GAVE-UP.
@@ -9300,7 +9388,8 @@ class TabMeasure(QWidget):
         unsure_btn = box.addButton(tr("Not sure"),
                                    QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(unsure_btn)
-        from ui.widgets import fit_message_box_buttons
+        from ui.widgets import (fit_message_box_buttons,
+                                order_message_box_buttons)
         fit_message_box_buttons(box)
         box.exec()
         clicked = box.clickedButton()
@@ -9699,7 +9788,8 @@ class TabMeasure(QWidget):
         box.setText(title)
         box.setInformativeText(body)
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
-        from ui.widgets import fit_message_box_buttons
+        from ui.widgets import (fit_message_box_buttons,
+                                order_message_box_buttons)
         fit_message_box_buttons(box)
         box.exec()
 
@@ -9883,7 +9973,8 @@ class TabMeasure(QWidget):
             "all. Your chart is untouched too.\n\n"
             "When you are ready, start the measurement again."))
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
-        from ui.widgets import fit_message_box_buttons
+        from ui.widgets import (fit_message_box_buttons,
+                                order_message_box_buttons)
         fit_message_box_buttons(box)
         box.exec()
         return True
@@ -9971,7 +10062,8 @@ class TabMeasure(QWidget):
             "will not be warned about a measurement that was never taken.\n\n"
             "When you are ready, start the measurement again."))
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
-        from ui.widgets import fit_message_box_buttons
+        from ui.widgets import (fit_message_box_buttons,
+                                order_message_box_buttons)
         fit_message_box_buttons(box)
         box.exec()
 
@@ -11840,7 +11932,8 @@ class TabMeasure(QWidget):
         box.setDefaultButton(go)
         # Long labels clip once the font swap widens them, and polish
         # does not happen offscreen — so fit them here (Knut, #130).
-        from ui.widgets import fit_message_box_buttons
+        from ui.widgets import (fit_message_box_buttons,
+                                order_message_box_buttons)
         fit_message_box_buttons(box)
         box.exec()
         agreed = box.clickedButton() is go
@@ -12369,7 +12462,8 @@ class TabMeasure(QWidget):
                    "Open it in Tools ▸ Inspect a measurement to see the measured "
                    "values as a table instead."))
         box.setStandardButtons(QMessageBox.StandardButton.Ok)
-        from ui.widgets import fit_message_box_buttons
+        from ui.widgets import (fit_message_box_buttons,
+                                order_message_box_buttons)
         fit_message_box_buttons(box)
         box.exec()
 

@@ -97,7 +97,12 @@ class _Bridge:
 
 class _Tab(QWidget):
     _on_cr30_device_lost = TabMeasure._on_cr30_device_lost
+    _carry_on_after_the_instrument_went = (
+        TabMeasure._carry_on_after_the_instrument_went)
     END_FAILURE_WINDOW = TabMeasure.END_FAILURE_WINDOW
+
+    #: What the shared ending window answers. None = "Keep measuring".
+    ending = "give_up"
 
     def __init__(self, bridge=None):
         super().__init__()
@@ -114,7 +119,7 @@ class _Tab(QWidget):
 
     def _confirm_end_of_session(self, which):
         self.ended.append(which)
-        return "give_up"
+        return type(self).ending
 
     def _end_session(self, choice):
         self.ended.append(("end", choice))
@@ -206,3 +211,68 @@ def test_the_message_no_longer_only_tells_the_user_to_start_again(window):
     assert i < j, (
         "restarting is offered before carrying on, which is the wrong order: "
         "carrying on is what the user wants and what the app now does")
+
+
+# ---- the dead end, walked back in one commit after it was fixed ---------
+#
+# The magnet window's "Keep measuring" dead end was found and fixed on
+# 2026-08-30. The device-lost window, written the same night, reintroduced it
+# at once: Stop (or a dismissal) leads to the shared ending window, that window
+# offers "Keep measuring", and `_end_session(None)` is deliberately a no-op —
+# so declining to end left the session with no reader armed and nothing said.
+#
+# Unlike the magnet, carrying on here is legitimate: nothing about the
+# instrument's calibration is in doubt, it simply went away.
+
+@pytest.fixture
+def keep_measuring():
+    _Tab.ending = None
+    yield
+    _Tab.ending = "give_up"
+
+
+def test_keep_measuring_from_the_ending_window_re_arms(window, keep_measuring):
+    window.choose = "Stop the measurement"
+    bridge = _Bridge()
+    tab = _Tab(bridge)
+
+    tab._on_cr30_device_lost("B7", REASON)
+
+    assert bridge.rearmed == 1, (
+        "declining to end left the session with nothing listening — the same "
+        "dead end the magnet window had, one commit later")
+    assert any("Carrying on" in l for l in tab._log.lines)
+
+
+def test_the_same_holds_when_the_window_is_dismissed(window, keep_measuring):
+    window.choose = None                      # red traffic light / X / Esc
+    bridge = _Bridge()
+    tab = _Tab(bridge)
+
+    tab._on_cr30_device_lost("B7", REASON)
+
+    assert bridge.rearmed == 1, (
+        "a dismissal followed by 'Keep measuring' left nothing armed")
+
+
+def test_a_failed_re_arm_is_never_silent(window, keep_measuring):
+    """`rearm()` returns False when there is no outstanding patch. Saying
+    nothing there is the exact shape of every fault this area has had."""
+    window.choose = "Stop the measurement"
+    tab = _Tab(_Bridge(rearms=False))
+
+    tab._on_cr30_device_lost("B7", REASON)
+
+    said = " ".join(tab._log.lines)
+    assert "cannot carry on" in said, (
+        "nothing was re-armed and the user was not told")
+    assert "Refine / resume" in said, "it does not say how to get the rest"
+
+
+def test_really_ending_still_ends(window):
+    """The fix must not turn every ending into a resumption."""
+    window.choose = "Stop the measurement"
+    bridge = _Bridge()
+    tab = _Tab(bridge)
+    tab._on_cr30_device_lost("B7", REASON)
+    assert bridge.rearmed == 0, "the session carried on after the user ended it"

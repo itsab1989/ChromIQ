@@ -922,6 +922,48 @@ def widen_message_box(box, px: int = 660) -> None:
         log.debug("could not widen the message box", exc_info=True)
 
 
+def order_message_box_buttons(box, buttons) -> None:
+    """Force a QMessageBox's buttons into the left-to-right order given.
+
+    ⚠ USE THIS SPARINGLY, AND ONLY WHEN THE OWNER HAS ASKED FOR THE ORDER.
+
+    Qt normally lays a message box out to the platform's own rule, and on macOS
+    that rule puts the confirming action LAST, on the right — the same as
+    Finder, Mail and System Settings, and the same as every OK/Cancel window in
+    ChromIQ (measured 2026-08-30, not assumed: four windows, all identical).
+    Overriding it makes one window disagree with the platform and with its
+    siblings, so it needs a reason better than taste.
+
+    The reason it exists: Basti asked for the dark-reference window to read
+    "Calibrate now, Skip this step, Cancel" — three buttons of which two are
+    ways of going ahead, where reading order matching the order of the steps
+    carries more than the platform rule for a plain yes/no pair does.
+
+    `buttons` is the sequence of QAbstractButtons in the order wanted. Anything
+    not listed keeps its place after them. Failing is never fatal: a layout
+    tweak must not be able to stop a window opening.
+    """
+    try:
+        from PyQt6.QtWidgets import QDialogButtonBox
+        bb = box.findChild(QDialogButtonBox)
+        if bb is None or bb.layout() is None:
+            return
+        lay = bb.layout()
+        wanted = [b for b in buttons if b is not None]
+        for b in wanted:
+            lay.removeWidget(b)
+        # Drop the stretches Qt inserted for the layout we are replacing;
+        # leaving them behind pushes the buttons apart at random.
+        for i in reversed(range(lay.count())):
+            if lay.itemAt(i).widget() is None:
+                lay.takeAt(i)
+        for i, b in enumerate(wanted):
+            lay.insertWidget(i, b)
+        lay.addStretch(1)
+    except Exception:      # noqa: BLE001 — never block a window over a layout
+        _log.debug("could not reorder the message box buttons", exc_info=True)
+
+
 def fit_message_box_buttons(box) -> None:
     """Fit **every** button of a QMessageBox to the label it will paint.
 

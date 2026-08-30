@@ -35,6 +35,11 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # 23 per language are the three new Tools help cards, added as English
 # placeholders under the project's beta rule; the remainder pre-date them.
 # German is lower because Basti and Knut read it, so it is kept current.
+# 2026-08-30, #159, raised 80 -> 83: the measure panel's advice line now says
+# what a CR30 owner actually does ("rest it on the patch and press its button"
+# rather than "scan each strip"), and a re-arm that finds nothing outstanding
+# says so instead of going quiet. Three strings.
+#
 # 2026-08-30, #159, raised 76 -> 80 for the windows the owner asked for: a
 # pop-up for a vanished instrument ("if this is an important message this
 # should be in a pop up windows with benefitial options"), and a real Cancel on
@@ -63,8 +68,8 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # project's rule, and German is translated as usual because it is read.
 _BUDGET = {
     "de": 35,
-    "es": 80, "fr": 80, "it": 80, "ja": 80, "nl": 80,
-    "no": 80, "pl": 80, "pt": 80, "ru": 80, "sv": 80, "zh_CN": 80,
+    "es": 83, "fr": 83, "it": 83, "ja": 83, "nl": 83,
+    "no": 83, "pl": 83, "pt": 83, "ru": 83, "sv": 83, "zh_CN": 83,
 }
 
 
