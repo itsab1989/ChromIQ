@@ -285,3 +285,30 @@ differ from M1.
 
 ⚠ The coverage figures I published in `itohio/color-science` issue #3 are the
 overstated ones. They need correcting there too.
+
+# Owner's rulings — settled, do not re-propose
+
+## R1 · A patch smaller than the aperture is NOT refused at layout time
+
+`docs/cr30_reports/02-design.md` records that #159 line 483 wanted a patch
+smaller than the instrument's aperture "refused at layout time, not on paper",
+and notes that no guard exists. It was raised again on 2026-08-30, while
+designing the aiming overlay, on the reasoning that an aiming aid drawn on a
+chart the app should have refused to build is decoration over a real fault.
+
+**Basti ruled it closed, 2026-08-30:**
+
+> *"your concern about the guard is reasonable but defered for now. argyll does
+> not offer it for other instruments so i won't invent it for this"*
+
+The principle is parity with what ArgyllCMS actually does, not with what would
+be nice: no other instrument in ChromIQ gets such a guard, and inventing one
+only for the CR30 would make the app refuse charts every other tool builds
+happily -- an inconsistency of exactly the kind this project spends its time
+removing.
+
+**Consequence for the aiming overlay**: it becomes the ONLY aiming aid, and
+that strengthens rather than weakens the case for it. It SHOWS the clearance
+instead of refusing the chart, which leaves the decision with the user and
+costs them nothing. It must not, however, be built as if a guard existed
+somewhere behind it.
