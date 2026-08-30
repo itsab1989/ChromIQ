@@ -218,3 +218,70 @@ SD, a tolerance a little above 0.05 would begin to admit real readings.
 white reference sits from his constant, and why the guard does not work on
 anybody else's device. The risk is inverted from the one Basti feared: not false
 alarms for him, but no protection at all for them. See B2-9.
+
+
+---
+
+# Round 1 (2026-08-30) — the challenge found a blocker in my own fix
+
+## F1 · The quit fix never ran — FIXED
+
+`408f25d7` added `closeEvent` → `note_app_quitting()` so a quit would stop
+looking like a failure. It looked the manager up as `self.tab_measure` and
+`self._measure_manager`. **`MainWindow` has neither** — the attribute is
+`self._tab_measure` (`ui/main_window.py:239`). `getattr` fails silently, so the
+guard was dead code, the owner's quit warning kept firing, and the
+orphan-relaunch stayed latent.
+
+**The suite was green because my test read `inspect.getsource`.** Source
+contains the right words whether or not the names resolve.
+
+Fixed, and the lookup is now a method (`_mark_quit_on_the_measurement`) so a
+test can run the REAL lookup on a REAL `MainWindow` in a sandboxed settings
+store. Proved by re-applying the wrong name: the real-window test fails, the
+source test does not.
+
+⚠ This is the fourth time this week a test measured the source's shape rather
+than the code's behaviour, and I had written that lesson into three commit
+messages before repeating it. **A `getattr` chain is exactly where it hides**,
+because a wrong name and a working one look identical in source.
+
+## Still open after round 1, re-ranked with what the review found
+
+**B2-8 — Bluetooth accepts unconfirmed devices. Worse than recorded.**
+`ble.py::_open` does `ok = [c for c in cands if c["confirmed"]] or cands`, so a
+stranger's `ffe0` gadget is accepted when nothing confirms. New facts: the
+misfire is **persisted via the remembered address**, and the next frames written
+to that gadget are **calibration commands**. And the fallback protects almost
+nothing real — a held or sleeping CR30 does not advertise at all, and a
+freshly-calibrated one still confirms. The one genuine case is a transient
+confirmation error, better served by ONE retry than by accepting anything.
+
+**F-BLE-ID — `identify()`'s BLE branch accepts an echoing gadget.** It never
+compares the axis. Latent (zero callers), same shape as `is_cr30()` having had
+none.
+
+**B2-9 — no magnet guard for any owner but Basti.** The review points at a cheap
+**unit-independent** mitigation I had skipped: the rolling bit-identity window
+(report 38 §6). Gated readings are bit-exact; real readings never are. That
+needs no per-unit constant at all.
+
+**F7 — tile learning: buildable in the narrow form, blocked on ONE experiment.**
+EXP-TILE-001's negative result is mostly artefact — I read the stored slot with
+no header and no raw bytes, and echoes parse as exact zeros. Important protocol
+point: **a host trigger can never prove gatedness; only the button path carries
+the flag.** The runnable experiment, with positive controls before and after, is
+specified in `39_round1_challenge.md`.
+
+**F8 — the D50 answer for YouTube.** Substance verified end to end: one producer
+(`measure_bridge.py:550`), one converter (`:803`, D50/2° defaults), the device's
+own Lab consumed by nothing, and `colprof`'s defaults matching
+(`colprof.c:1075-1079`). Two corrections before posting — the 400–700 nm
+coverage figures do NOT reproduce from Argyll's own tables (X 99.82 / Y 99.95 /
+Z 99.78, so "more than 99.8 %", not the 99.95/100/100 I quoted upstream), and
+**"UV-cut like a ColorMunki" must be cut** — UV content is unknown in the
+corpus. Say instead that no M-condition is specified, so brightened papers may
+differ from M1.
+
+⚠ The coverage figures I published in `itohio/color-science` issue #3 are the
+overstated ones. They need correcting there too.

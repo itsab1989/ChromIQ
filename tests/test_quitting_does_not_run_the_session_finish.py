@@ -31,6 +31,8 @@ from __future__ import annotations
 
 import inspect
 
+import pytest
+
 from core.argyll_runner import ArgyllRunner
 from workflow.measure_manager import MeasureManager
 
@@ -74,6 +76,41 @@ def test_the_window_says_so_before_it_kills_anything():
         "finish handler has already run")
 
 
+def test_the_window_can_actually_REACH_its_manager(qtbot_free_window):
+    """⚠ THE TEST THAT SHOULD HAVE EXISTED, AND THE REASON THIS ONE DOES.
+
+    The first version of this fix looked the manager up as `self.tab_measure`
+    and `self._measure_manager`. **MainWindow has NEITHER** — the attribute is
+    `self._tab_measure` — so the whole guard was dead code and the warning it
+    was written to remove kept firing on every quit.
+
+    The suite stayed green because the test above reads `inspect.getsource`.
+    Source contains the right words whether or not the lookup resolves. So this
+    one BUILDS A REAL MainWindow and follows the same path `closeEvent` does.
+    """
+    win = qtbot_free_window
+    mgr = getattr(getattr(win, "_tab_measure", None), "_manager", None)
+    assert mgr is not None
+    mgr._user_quit = False
+
+    # THE REAL LOOKUP, not a copy of it. This is what caught nothing before.
+    assert win._mark_quit_on_the_measurement() is True, (
+        "closeEvent cannot reach the measurement manager; the quit is never "
+        "marked and the guard is inert")
+    assert mgr._user_quit is True
+
+
+def test_close_event_still_calls_it():
+    """The extraction is only honest if closeEvent still drives it."""
+    from ui.main_window import MainWindow
+    src = inspect.getsource(MainWindow.closeEvent)
+    assert "_mark_quit_on_the_measurement()" in src
+    assert (src.index("_mark_quit_on_the_measurement()")
+            < src.index("_runner.cleanup()")), (
+        "the quit is marked after the helper is killed, which is after its "
+        "finish handler has already run")
+
+
 def test_the_callbacks_are_NOT_dropped_at_cleanup():
     """The regression this file exists to prevent. Dropping them silences the
     empty-.ti3 reconciliation along with the false warning."""
@@ -86,3 +123,25 @@ def test_the_callbacks_are_NOT_dropped_at_cleanup():
 def test_cleanup_still_kills_what_it_must():
     src = inspect.getsource(ArgyllRunner.cleanup)
     assert ".kill()" in src and "waitForFinished" in src
+
+
+
+@pytest.fixture
+def qtbot_free_window(tmp_path, monkeypatch):
+    """A real MainWindow, in a sandbox — no user settings, no user presets."""
+    import os
+    from PyQt6.QtCore import QSettings
+    from PyQt6.QtWidgets import QApplication
+    import core.settings as cs
+
+    monkeypatch.setenv("CHROMIQ_PRESETS_DIR", str(tmp_path / "presets"))
+    ini = str(tmp_path / "settings.ini")
+    monkeypatch.setattr(
+        cs, "QSettings",
+        lambda *a, **k: QSettings(ini, QSettings.Format.IniFormat))
+
+    QApplication.instance() or QApplication([])
+    from ui.main_window import MainWindow
+    win = MainWindow(cs.AppSettings())
+    yield win
+    win.close()

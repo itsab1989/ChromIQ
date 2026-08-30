@@ -2421,6 +2421,31 @@ class MainWindow(QMainWindow):
 
         log.info("Session restored: target=%s run=%s", target, run.id)
 
+    def _mark_quit_on_the_measurement(self) -> bool:
+        """Tell a running measurement that the app is closing. True if told.
+
+        ⚠ THE ATTRIBUTE IS `_tab_measure`. An earlier version of this looked
+        for `self.tab_measure` and `self._measure_manager` — **MainWindow has
+        neither** — so the guard was dead code and the quit warning it was
+        written to remove kept firing on every quit. `getattr` fails silently,
+        which is exactly why a wrong name survives.
+
+        It is a METHOD rather than four lines inside `closeEvent` so a test can
+        run the real lookup on a real window. The test that let the dead code
+        through read `inspect.getsource`: source contains the right words
+        whether or not the names resolve.
+        """
+        mgr = getattr(getattr(self, "_tab_measure", None), "_manager", None)
+        note = getattr(mgr, "note_app_quitting", None)
+        if not callable(note):
+            return False
+        try:
+            note()
+            return True
+        except Exception:              # noqa: BLE001 — never block a quit
+            log.debug("could not mark the quit", exc_info=True)
+            return False
+
     def closeEvent(self, event) -> None:
         # §3 W6 — QUITTING COUNTS AS LEAVING THE VISIBLE TAB.
         #
@@ -2456,15 +2481,7 @@ class MainWindow(QMainWindow):
         # session's finish handler runs synchronously off that — it must know
         # this ending was the user quitting, not a failure. See
         # MeasureManager.note_app_quitting.
-        for _mgr in (getattr(getattr(self, "tab_measure", None), "_manager", None),
-                     getattr(self, "_measure_manager", None)):
-            note = getattr(_mgr, "note_app_quitting", None)
-            if callable(note):
-                try:
-                    note()
-                except Exception:      # noqa: BLE001 — never block a quit
-                    log.debug("could not mark the quit", exc_info=True)
-                break
+        self._mark_quit_on_the_measurement()
         self._runner.cleanup()
         # LAST, and while the event loop is still alive: main._hard_exit calls
         # os._exit, which skips the flush QSettings would otherwise do on
