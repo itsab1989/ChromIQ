@@ -204,7 +204,14 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # only route to the "how to measure" window --
                                  # can never fire, and a CR30 user got a spot
                                  # session with no instruction at all.
-                                 "M-CR30-HOW-TO-MEASURE"}
+                                 "M-CR30-HOW-TO-MEASURE",
+                                 # #159, 2026-08-30: a refused reading was
+                                 # announced only in the log. Basti, with a
+                                 # screenshot: "a message like this would be
+                                 # better in a pop up so the user is aware of
+                                 # it instead of ruining a whole measurement
+                                 # session when this is unnoticed".
+                                 "M-CR30-READ-FAILED"}
 
 
 def test_nothing_is_quietly_proposed():

@@ -97,9 +97,18 @@ def _draw_nothing(p: QPainter, r: QRectF, ink: QColor):
 
 def steps_pair(step: str, widget: QWidget | None = None,
                height: int | None = None) -> QPixmap:
-    """Both calibration steps side by side, with `step` marked as the current
-    one. The same picture in both windows, so the pair is the thing the user
-    reads and the difference cannot be missed."""
+    """Both calibration steps, one above the other, with `step` marked.
+
+    The same picture in both windows, so the pair is the thing the user reads
+    and the difference between the two steps cannot be missed.
+
+    STACKED, NOT SIDE BY SIDE. They were side by side until the owner saw them
+    in the real window: the text beside them is a tall, narrow column, so a
+    wide pair left the picture small and the space under it empty. Stacked, the
+    pair fills the height the text already occupies and each step can be half
+    again as large — and reading downwards matches the order the steps are
+    taken in.
+    """
     from PyQt6.QtGui import QFont
     from PyQt6.QtWidgets import QApplication
     app = QApplication.instance()
@@ -113,8 +122,12 @@ def steps_pair(step: str, widget: QWidget | None = None,
         # a picture is never worth taking the caller down with it.
         base = QFont()
     fm = QFontMetrics(base)
-    h = height or fm.height() * 6
-    w = int(h * 1.9)
+    # Sized from the font, so it keeps its proportions at any text size. The
+    # gap is what makes them two pictures rather than one tall one.
+    gap = fm.height() * 0.9
+    cell = (height - gap) / 2.0 if height else fm.height() * 7.2
+    h = int(cell * 2 + gap)
+    w = int(cell * 1.05)
     dpr = (widget.devicePixelRatioF() if widget is not None else 1.0) or 1.0
     pm = QPixmap(int(w * dpr), int(h * dpr))
     pm.setDevicePixelRatio(dpr)
@@ -126,34 +139,33 @@ def steps_pair(step: str, widget: QWidget | None = None,
 
     p = QPainter(pm)
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
-    half = QRectF(0, 0, w / 2.0, h)
-    left = QRectF(half)
-    right = QRectF(half).translated(w / 2.0, 0)
+    top = QRectF(0, 0, w, cell)
+    bottom = QRectF(0, cell + gap, w, cell)
 
     # --- step 1: cap on, white face --------------------------------------
     c = ink if step == WHITE_STEP else dim
-    box = QRectF(left.left() + left.width() * 0.10, left.top() + h * 0.06,
-                 left.width() * 0.80, h * 0.80)
+    box = QRectF(top.left() + w * 0.10, top.top() + cell * 0.06,
+                 w * 0.80, cell * 0.80)
     _draw_instrument(p, box, c, nose_down=True)
     _draw_cap(p, box, c, face_white=True)
-    t = QRectF(0, 0, h * 0.16, h * 0.16)
+    t = QRectF(0, 0, cell * 0.16, cell * 0.16)
     t.moveCenter(QPointF(box.right() - box.width() * 0.06, box.bottom()))
     _draw_tick(p, t, c)
 
     # --- step 2: cap off, pointing at nothing -----------------------------
     c = ink if step == BLACK_STEP else dim
-    box = QRectF(right.left() + right.width() * 0.10, right.top() + h * 0.06,
-                 right.width() * 0.80, h * 0.80)
+    box = QRectF(bottom.left() + w * 0.10, bottom.top() + cell * 0.06,
+                 w * 0.80, cell * 0.80)
     _draw_instrument(p, box, c, nose_down=True)
     _draw_nothing(p, box, c)
 
     # the current step gets an underline; the other is simply fainter
-    cur = left if step == WHITE_STEP else right
-    pen = QPen(ink, max(2.0, h / 40.0))
+    cur = top if step == WHITE_STEP else bottom
+    pen = QPen(ink, max(2.0, cell / 40.0))
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)
     p.setPen(pen)
-    y = h - max(2.0, h / 40.0)
-    p.drawLine(QPointF(cur.left() + cur.width() * 0.18, y),
-               QPointF(cur.right() - cur.width() * 0.18, y))
+    y = cur.bottom() - max(2.0, cell / 40.0)
+    p.drawLine(QPointF(cur.left() + w * 0.18, y),
+               QPointF(cur.right() - w * 0.18, y))
     p.end()
     return pm

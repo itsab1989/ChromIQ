@@ -4604,5 +4604,7 @@
   "⟳ Rotate 90°": "⟳ 90°回転",
   "⤢ Dock back": "⤢ 元に戻す",
   "⤢ Pop out for a bigger view": "⤢ 別ウィンドウで拡大",
-  "＋ Add another scan to average": "＋ 平均するスキャンを追加"
+  "＋ Add another scan to average": "＋ 平均するスキャンを追加",
+  "That reading did not come through": "That reading did not come through",
+  "The reading for patch {loc} did not arrive complete, so ChromIQ has not used it — nothing wrong has gone into your measurement file.\n\nPress the button on the instrument again, with it resting on patch {loc}. This window will close by itself when the reading comes through.\n\nWhat the instrument reported: {reason}": "The reading for patch {loc} did not arrive complete, so ChromIQ has not used it — nothing wrong has gone into your measurement file.\n\nPress the button on the instrument again, with it resting on patch {loc}. This window will close by itself when the reading comes through.\n\nWhat the instrument reported: {reason}"
 }

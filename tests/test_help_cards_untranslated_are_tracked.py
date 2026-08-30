@@ -35,6 +35,11 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # 23 per language are the three new Tools help cards, added as English
 # placeholders under the project's beta rule; the remainder pre-date them.
 # German is lower because Basti and Knut read it, so it is kept current.
+# 2026-08-30, #159, raised 73 -> 75 for the read-failure window: a refused
+# reading was announced only in the log, where Basti did not see it, so it now
+# opens a window that closes itself when the reading arrives. Two new strings,
+# German translated as usual because it is read.
+#
 # 2026-08-30, #159, raised 70 -> 73 for the magnet window: a magnet
 # recalibrated the owner's instrument mid-chart (a MacBook under his paper) and
 # the session carried on, so the refusal now stops the session and offers to
@@ -48,8 +53,8 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # project's rule, and German is translated as usual because it is read.
 _BUDGET = {
     "de": 35,
-    "es": 73, "fr": 73, "it": 73, "ja": 73, "nl": 73,
-    "no": 73, "pl": 73, "pt": 73, "ru": 73, "sv": 73, "zh_CN": 73,
+    "es": 75, "fr": 75, "it": 75, "ja": 75, "nl": 75,
+    "no": 75, "pl": 75, "pt": 75, "ru": 75, "sv": 75, "zh_CN": 75,
 }
 
 

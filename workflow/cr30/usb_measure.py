@@ -109,9 +109,13 @@ def assemble(chunks: dict[int, Frame | bytes], bands: int = 31) -> list[float]:
     """
     missing = [s for s in CHUNK_SUBS if s not in chunks]
     if missing:
+        # Singular and plural written out — this reaches the user through the
+        # read-failure window, and the project never ships "(s)".
+        which = ", ".join(f"0x{s:02X}" for s in missing)
+        what = ("missing spectrum chunk " if len(missing) == 1
+                else "missing spectrum chunks ")
         raise MeasurementError(
-            "missing spectrum chunk(s) " + ", ".join(f"0x{s:02X}" for s in missing)
-            + " -- refusing to assemble a partial spectrum")
+            what + which + " -- refusing to assemble a partial spectrum")
     vals: list[float] = []
     for s in CHUNK_SUBS:
         vals += chunk_values(chunks[s])

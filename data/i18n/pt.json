@@ -4604,5 +4604,7 @@
   "⟳ Rotate 90°": "⟳ Rodar 90°",
   "⤢ Dock back": "⤢ Encaixar de volta",
   "⤢ Pop out for a bigger view": "⤢ Abrir em janela maior",
-  "＋ Add another scan to average": "＋ Adicionar outra digitalização para média"
+  "＋ Add another scan to average": "＋ Adicionar outra digitalização para média",
+  "That reading did not come through": "That reading did not come through",
+  "The reading for patch {loc} did not arrive complete, so ChromIQ has not used it — nothing wrong has gone into your measurement file.\n\nPress the button on the instrument again, with it resting on patch {loc}. This window will close by itself when the reading comes through.\n\nWhat the instrument reported: {reason}": "The reading for patch {loc} did not arrive complete, so ChromIQ has not used it — nothing wrong has gone into your measurement file.\n\nPress the button on the instrument again, with it resting on patch {loc}. This window will close by itself when the reading comes through.\n\nWhat the instrument reported: {reason}"
 }

@@ -48,6 +48,15 @@ void cq_emit_error(const char *kind, const char *detail) {
 	cq_emit_raw("{\"event\":\"error\",\"kind\":\"%s\",\"detail\":\"%s\"}", kind, esc);
 }
 
+/* Kept in the binary so the packaging test can see which build it is. `used`
+ * stops the compiler discarding a variable nothing reads; the volatile pointer
+ * is the portable fallback for toolchains without the attribute. */
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((used))
+#endif
+static const char cq_helper_build[] = CQ_HELPER_BUILD;
+const char *cq_helper_build_string(void) { return cq_helper_build; }
+
 void cq_json_escape(char *dst, size_t dstlen, const char *src) {
 	size_t o = 0;
 	for (; *src != '\0' && o + 6 < dstlen; src++) {

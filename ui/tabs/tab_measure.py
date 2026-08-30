@@ -6968,8 +6968,11 @@ class TabMeasure(QWidget):
                "chartread from where you left off."),
             duration_ms=8000)
 
-    def _run_cr30_calibration(self) -> bool:
+    def _run_cr30_calibration(self, *, keep_bridge: bool = False) -> bool:
         """The calibration window. True to go on measuring, False to stop.
+
+        `keep_bridge` is for the one caller that runs this DURING a session —
+        the magnet remedy. See :meth:`_calibrate_and_confirm`.
 
         M-CR30-CALIBRATE (§M-PROPOSED). The instrument's owner ruled on
         2026-08-28 that ChromIQ triggers the calibration itself rather than
@@ -7005,24 +7008,42 @@ class TabMeasure(QWidget):
         stop_was = self._stop_btn.isEnabled()
         self._stop_btn.setEnabled(False)
         try:
-            return self._calibrate_and_confirm()
+            return self._calibrate_and_confirm(keep_bridge=keep_bridge)
         finally:
             self._start_btn.setEnabled(True)
             self._stop_btn.setEnabled(stop_was)
 
-    def _calibrate_and_confirm(self) -> bool:
+    def _calibrate_and_confirm(self, *, keep_bridge: bool = False) -> bool:
         """The calibration proper. Split out so its caller can hold Start and
-        Stop across every path out of it."""
+        Stop across every path out of it.
+
+        `keep_bridge` distinguishes the two callers, and getting it wrong made
+        the magnet remedy a dead end:
+
+        * A **Start** calibrates before there is a session. It must not inherit
+          a previous run's bridge, so it drops whatever is held and opens a
+          fresh one.
+        * The **magnet remedy** calibrates in the MIDDLE of a live session. The
+          bridge is the session — it holds the outstanding patch, the retry
+          counts and the stopped flag that `resume_after_magnet` exists to
+          clear. Rebuilding it there threw all of that away and closed the
+          instrument mid-recovery, and the resume then ran against a brand-new
+          bridge that had never been stopped: it returned True without arming
+          anything, under a log line promising the operator the session had
+          carried on. Nothing was listening. The remedy for his own incident
+          led straight into the fault it was written to remove.
+        """
         from PyQt6.QtCore import QThread
         from PyQt6.QtWidgets import QMessageBox
         from workflow import measurement_messages as M
         from ui.widgets import fit_message_box_buttons
 
-        # A previous session's bridge must not be inherited: this is the first
-        # thing a Start does with the instrument, so let go of anything still
-        # held before opening. _open_cr30_bridge's own guard then keeps the
-        # later call from rebuilding what this one stands up.
-        self._close_cr30_bridge()
+        if not keep_bridge:
+            # A previous session's bridge must not be inherited: this is the
+            # first thing a Start does with the instrument, so let go of
+            # anything still held before opening. _open_cr30_bridge's own guard
+            # then keeps the later call from rebuilding what this one stands up.
+            self._close_cr30_bridge()
         self._open_cr30_bridge()
         reader = getattr(self, "_cr30_reader", None)
         if reader is None:
@@ -7362,12 +7383,97 @@ class TabMeasure(QWidget):
         self._flash_status(text, duration_ms=6000)
 
     def _on_cr30_read_failed(self, loc: str, message: str) -> None:
+        """A reading did not arrive complete. The patch is armed again.
+
+        M-CR30-READ-FAILED (§M-PROPOSED). The owner, 2026-08-30, with a
+        screenshot of this as a line of grey text under the buttons: *"a
+        message like this would be better in a pop up so the user is aware of
+        it instead of ruining a whole measurement session when this is
+        unnoticed"*.
+
+        He is describing the cost exactly. The failure itself is one button
+        press — the bridge re-arms the patch automatically. Not NOTICING it is
+        the expensive part: the instrument waits, the operator believes they
+        have already pressed it, and the session stands still.
+        """
         text = tr("The CR30 could not be read for patch {loc}: {message}. "
                   "Press the button on the instrument again."
                   ).format(loc=loc, message=message)
         self._log.appendPlainText(text)
         self._log.ensureCursorVisible()
         self._flash_status(text, duration_ms=8000)
+        self._show_cr30_read_failed_window(loc, message)
+
+    def _show_cr30_read_failed_window(self, loc: str, message: str) -> None:
+        """The window for the above — modeless, and once per patch.
+
+        MODELESS ON PURPOSE. The remedy is to press the button on the
+        instrument, so a window that had to be dismissed first would stand
+        between the user and the only thing that puts it right — and if they
+        pressed the instrument while it was up, the reading would arrive behind
+        a window still asking for it. It closes itself when the chart moves on.
+
+        ONCE PER PATCH, for the same reason the retry limit exists: a flaky
+        link can refuse the same patch five times, and five windows for one
+        stuck patch is a worse interface than none. The second and later
+        refusals of the same patch keep the log line and the status flash.
+        """
+        from PyQt6.QtWidgets import (QDialog, QDialogButtonBox, QLabel,
+                                     QVBoxLayout)
+        from workflow import measurement_messages as M
+
+        if getattr(self, "_cr30_failed_window_for", None) == loc:
+            return                     # already asking about this very patch
+        self._close_cr30_read_failed_window()
+        self._cr30_failed_window_for = loc
+
+        title, body = M.M_CR30_READ_FAILED.render(loc=loc, reason=message)
+        dlg = QDialog(self)
+        dlg.setWindowTitle(title)
+        dlg.setMinimumWidth(460)
+        lay = QVBoxLayout(dlg)
+        lay.setSpacing(14)
+        lay.setContentsMargins(24, 20, 24, 20)
+        label = QLabel(body.replace("\n\n", "<br><br>"), dlg)
+        label.setTextFormat(Qt.TextFormat.RichText)
+        label.setWordWrap(True)
+        lay.addWidget(label)
+        box = QDialogButtonBox()
+        box.addButton(tr("Close"), QDialogButtonBox.ButtonRole.AcceptRole)
+        box.accepted.connect(dlg.accept)
+        lay.addWidget(box)
+        dlg.setModal(False)
+        # It belongs to the measurement, so the ending closes it too
+        # (Knut, beta.139).
+        self._live_measure_windows.append(dlg)
+
+        def _gone(_result, d=dlg):
+            self._forget_measure_window(d)
+            # AND FORGET THE PATCH IT WAS ABOUT. Otherwise the "already asked
+            # about this one" flag outlives the window — the user closes it by
+            # hand, or the session ends and the ending closes it, and the next
+            # refusal of that same patch is silent because a window nobody can
+            # see is remembered as still standing.
+            if getattr(self, "_cr30_failed_dlg", None) is d:
+                self._cr30_failed_dlg = None
+                self._cr30_failed_window_for = None
+
+        dlg.finished.connect(_gone)
+        dlg.show()
+        dlg.raise_()
+        dlg.activateWindow()
+        self._cr30_failed_dlg = dlg    # keep it referenced, or it is collected
+
+    def _close_cr30_read_failed_window(self) -> None:
+        """Take the window down once the reading it asked for has arrived."""
+        self._cr30_failed_window_for = None
+        dlg = getattr(self, "_cr30_failed_dlg", None)
+        self._cr30_failed_dlg = None
+        if dlg is not None:
+            try:
+                dlg.accept()
+            except RuntimeError:
+                pass               # already gone with its parent
 
     def _on_cr30_readings_discarded(self, n: int) -> None:
         """The instrument took readings while no patch was armed.
@@ -7449,7 +7555,9 @@ class TabMeasure(QWidget):
             self._end_session(self._confirm_end_of_session(
                 self.END_FAILURE_WINDOW))
             return
-        if not self._run_cr30_calibration():
+        # KEEPING the bridge, because it IS the stopped session: the patch
+        # still outstanding, and the flag resume_after_magnet clears.
+        if not self._run_cr30_calibration(keep_bridge=True):
             self._end_session(self._confirm_end_of_session(
                 self.END_FAILURE_WINDOW))
             return
@@ -7575,8 +7683,26 @@ class TabMeasure(QWidget):
         box.accepted.connect(dlg.accept)
         lay.addWidget(box)
         dlg.setModal(False)
+        # IT BELONGS TO THE MEASUREMENT, SO IT ENDS WITH IT.
+        #
+        # Knut's rule, beta.139: *"When the measurement session ends,
+        # everything relating to measurements should end."* This window was
+        # never registered, because the registry is filled by
+        # _exec_measure_dialog and this one is shown rather than exec'd — so it
+        # sat on screen after the session it explains had finished, telling the
+        # user how to measure a chart nothing was reading. Found on Windows,
+        # reproduced on macOS.
+        self._live_measure_windows.append(dlg)
+        dlg.finished.connect(lambda _r, d=dlg: self._forget_measure_window(d))
         dlg.show()
         self._cr30_how_dlg = dlg          # keep it referenced, or it is collected
+
+    def _forget_measure_window(self, dlg) -> None:
+        """Drop a window from the live registry once it has closed itself."""
+        try:
+            self._live_measure_windows.remove(dlg)
+        except ValueError:
+            pass
 
     def _on_engine_fallback_refused(self, reason: str) -> None:
         """The read failed and there is no reader to fall back to (#159).
@@ -11258,6 +11384,11 @@ class TabMeasure(QWidget):
         chart's patches."""
         loc = str(ev.get("loc", ""))
         self._spot_current_loc = loc
+        # A read-failure window asks the user to press the button again; the
+        # chart moving on IS that press having worked, so the window has said
+        # its piece and goes.
+        if getattr(self, "_cr30_failed_window_for", None) not in (None, loc):
+            self._close_cr30_read_failed_window()
         # ChromIQ supplies the readings for this chart (#159): the bridge owns
         # the whole protocol discipline — one value per outstanding prompt,
         # nothing while a jump is in flight, the read taken off this thread.

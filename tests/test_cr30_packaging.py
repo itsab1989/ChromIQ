@@ -45,10 +45,26 @@ def test_the_app_asks_for_bluetooth_permission():
     assert "CR30" in text, "the user should learn which instrument wants this"
 
 
+def _expected_build_marker() -> bytes:
+    """The marker the CURRENT sources define, read from the header."""
+    header = (ROOT / "native" / "chartread_helper" / "chromiq_ext.h").read_text()
+    m = re.search(r'#define\s+CQ_HELPER_BUILD\s+"([^"]+)"', header)
+    assert m, "CQ_HELPER_BUILD has gone from chromiq_ext.h"
+    return m.group(1).encode()
+
+
 def test_the_bundled_helper_is_not_stale():
     """`ChromIQ.spec` bundles native/chromiq-chartread, while the engine prefers
-    the CMake build tree — so a stale bundled copy is invisible in a checkout.
-    It must at least know the instruments this branch added."""
+    the CMake build tree — so a stale bundled copy is invisible in a checkout:
+    everything a developer runs uses the fresh binary, and only the packaged app
+    gets the old one.
+
+    ⚠ THIS TEST USED TO GREP FOR b"CR30", which every build since this branch
+    began contains — so it passed over a binary of any age from this branch. It
+    could not have caught the committed helper missing the JSON path fix, which
+    is a Windows-only fault nobody here can see. It now compares against a
+    marker the sources carry and that is bumped whenever the helper changes.
+    """
     helper = ROOT / "native" / "chromiq-chartread"
     if not helper.is_file():
         import pytest
@@ -57,6 +73,19 @@ def test_the_bundled_helper_is_not_stale():
     assert b"CR30" in blob, (
         "the bundled helper predates CR30 support — rebuild it from "
         "native/chartread_helper/build and commit the result")
+    want = _expected_build_marker()
+    assert want in blob, (
+        f"the bundled helper is stale: it does not carry {want!r}. Rebuild "
+        "native/chartread_helper/build and copy the result to "
+        "native/chromiq-chartread, in the same commit as the source change.")
+
+
+def test_the_build_marker_is_bumped_when_the_helper_changes():
+    """A marker nobody moves is a marker that proves nothing. It carries a date
+    so that leaving it alone is visible in review rather than invisible."""
+    marker = _expected_build_marker().decode()
+    assert re.search(r"\d{4}-\d{2}-\d{2}", marker), (
+        "the build marker carries no date, so a stale one cannot be spotted")
 
 
 # ---- cross-platform, not just macOS ---------------------------------------

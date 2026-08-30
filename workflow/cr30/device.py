@@ -231,14 +231,17 @@ class CR30:
             self._t.send(Frame.build(0xBB, cmd, 0x00, 0))
             self._t.receive(timeout=6.0)
             return
-        # Stop as soon as the instrument acknowledges. Its reply to a
-        # calibration is a 10-byte `bb 11 …` / `bb 10 …` frame, which the
-        # notification demux routes to the EVENT queue and never to the reply
-        # buffer — so waiting for `_buf` to fill waits for something that can
-        # never arrive, and the whole poll budget is spent. Measured: 2.16 s
-        # for a calibration whose device-side share is 0.31 s.
+        # Stop as soon as the instrument acknowledges, rather than waiting out
+        # three silent poll rounds over an answer already in hand: measured,
+        # 1.81 s for a calibration whose device-side share is 0.31 s.
+        #
+        # The acknowledgement arrives in the reply BUFFER. This asked
+        # `saw_event` for one round of the branch's life, which is the event
+        # QUEUE — the demux puts a frame there only when its command byte is
+        # 0x01, and a calibration's is 0x11 or 0x10. So it matched nothing, and
+        # the speed-up it was written for never happened.
         self._t.ask(ble.frame(cmd, 0x01), polls=6,
-                    done=lambda _b: self._t.saw_event(cmd))
+                    done=lambda _b: self._t.saw_reply(cmd))
 
     def calibrate_white(self) -> None:
         """Kept for callers that predate :meth:`calibrate`. Prefer that."""
@@ -329,8 +332,9 @@ class CR30:
             # Reported, not merely logged: to the operator this is a press that
             # did nothing, and silence is what made every earlier version of
             # this fault so expensive.
-            log.info("CR30: discarded %d reading(s) taken before this patch "
-                     "was armed", dropped)
+            log.info("CR30: discarded %d %s taken before this patch was "
+                     "armed", dropped,
+                     "reading" if dropped == 1 else "readings")
             report = getattr(self, "on_dropped", None)
             if callable(report):
                 report(dropped)
@@ -473,9 +477,14 @@ class CR30:
             chosen, axis, vals, lab = i, a, v, l
             break
         if chosen is None:
+            # Count-aware, because this sentence reaches the user through the
+            # read-failure window: the project writes singular and plural out
+            # rather than "(s)".
+            n = len(offsets)
+            among = (f"the only candidate in {len(raw)} bytes" if n == 1 else
+                     f"any of {n} candidates in {len(raw)} bytes")
             raise MeasurementError(
-                f"no usable reply among {len(offsets)} candidate(s) in "
-                f"{len(raw)} bytes; last reason: {last_err}")
+                f"no usable reply among {among}; last reason: {last_err}")
         i = chosen
         m = Measurement(
             wavelengths=axis.wavelengths(), values=[round(v, 6) for v in vals],

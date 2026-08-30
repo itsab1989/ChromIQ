@@ -26,6 +26,22 @@ void cq_emit_raw(const char *fmt, ...);   /* fmt is a complete JSON object */
 void cq_emit_simple(const char *event);   /* {"event":"..."} */
 void cq_emit_error(const char *kind, const char *detail);
 void cq_json_escape(char *dst, size_t dstlen, const char *src);
+/* A STALENESS MARKER FOR THE COMMITTED BINARY.
+ *
+ * ChromIQ.spec bundles native/chromiq-chartread — a build product committed to
+ * the repository — while the engine prefers the CMake build tree. So a stale
+ * bundled copy is invisible in a checkout: everything a developer runs uses the
+ * fresh binary, and only the packaged app gets the old one.
+ *
+ * tests/test_cr30_packaging.py greps the committed binary for this string.
+ * It used to grep for "CR30", which every build since the branch started
+ * contains — so it stayed green over a binary that was months out of date.
+ *
+ * ⚠ BUMP THIS IN THE SAME COMMIT AS ANY CHANGE TO THE HELPER, and rebuild and
+ * commit native/chromiq-chartread. The test tells you the expected value. */
+#define CQ_HELPER_BUILD "chromiq-chartread 2026-08-30 json-path-escape"
+const char *cq_helper_build_string(void);
+
 
 /* ---- command channel ---------------------------------------------------
  * A background thread reads stdin lines; commands are mapped to the same

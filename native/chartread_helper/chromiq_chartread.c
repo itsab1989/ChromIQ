@@ -4241,11 +4241,28 @@ int main(int argc, char *argv[]) {
 	}
 	if (cq_json) {
 		int ri, acc, six;
+		/* THE PATH MUST BE ESCAPED, and on Windows it is not optional.
+		 *
+		 * A Windows chart path is C:\Users\... — every backslash starts a JSON
+		 * escape, and \U is not one, so the parser rejects the whole line and
+		 * the session_start event is silently lost on EVERY measurement. What
+		 * goes with it is the strip map and the patch count, which is why the
+		 * Windows run saw an empty strip map and no total. macOS and Linux
+		 * never showed it because their paths have no backslashes; a path with
+		 * a quote in it would have broken there too.
+		 *
+		 * Sized for the absolute worst case rather than the likely one: a
+		 * quote or backslash costs 2 bytes out per byte in, a control
+		 * character 6. cq_json_escape truncates rather than overruns if a
+		 * buffer is short, but a silently shortened path is the same class of
+		 * fault as the one being fixed, so leave it no room to happen. */
+		char cesc[6 * (MAXNAMEL + 16) + 8];
 		cq_compute_row_eligibility(scols, stipa, totpa);
+		cq_json_escape(cesc, sizeof(cesc), inname);
 		fprintf(stdout,
 		        "\n{\"event\":\"session_start\",\"chart\":\"%s\",\"randomised\":%s,"
 		        "\"patches\":%d,\"steps_per_pass\":%d,\"strips\":[",
-		        inname, rand ? "true" : "false", npat, stipa);
+		        cesc, rand ? "true" : "false", npat, stipa);
 		for (ri = 0, acc = 0, six = 0; ri < totpa; ri++) {
 			char *lab = paix->aix(paix, ri);
 			while (pis[six] != 0 && acc + pis[six] <= ri) {

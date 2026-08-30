@@ -186,6 +186,37 @@ M_CR30_MAGNET = _m(
     approved=False)
 
 
+
+# --- PROPOSED: a reading that did not come through --------------------------
+#: #159. The owner, 2026-08-30, with a screenshot of it in the log panel:
+#: *"a message like this would be better in a pop up so the user is aware of it
+#: instead of ruining a whole measurement session when this is unnoticed"*.
+#:
+#: The failure itself is recoverable and costs one button press — the patch is
+#: armed again automatically. What is NOT recoverable is not noticing: the
+#: instrument is waiting, the operator believes they have pressed it, and the
+#: session sits there. A log line at the bottom of the window did not carry
+#: that.
+#:
+#: It is MODELESS and closes itself as soon as the chart moves on, because the
+#: remedy is to press the instrument's button — a window the user must dismiss
+#: first would be standing between them and the only thing that fixes it.
+#:
+#: {reason} is the instrument's own words, which are technical. They stay: the
+#: sentence above them says what to do, and the detail is what makes a report
+#: worth reading when somebody sends one in.
+M_CR30_READ_FAILED = _m(
+    "M-CR30-READ-FAILED",
+    "That reading did not come through",
+    "The reading for patch {loc} did not arrive complete, so ChromIQ has not "
+    "used it — nothing wrong has gone into your measurement file.\n\n"
+    "Press the button on the instrument again, with it resting on patch "
+    "{loc}. This window will close by itself when the reading comes "
+    "through.\n\n"
+    "What the instrument reported: {reason}",
+    approved=False)
+
+
 # --- PROPOSED: the dark reference, taken against air ------------------------
 #: #159. The second calibration, and it asks for the OPPOSITE of the first —
 #: cap OFF, opening pointing at nothing. Both windows carry the same
@@ -1170,7 +1201,7 @@ CATALOGUE = {m.id: m for m in (
     M_CR30_STOCK_READER,
     M_CR30_READ_ENDED, M_CR30_INSTRUMENT_GONE, M_CR30_PATCH_GAVE_UP,
     M_CR30_CALIBRATE, M_CR30_CALIBRATE_BLACK, M_CR30_MAGNET,
-    M_CR30_HOW_TO_MEASURE,
+    M_CR30_HOW_TO_MEASURE, M_CR30_READ_FAILED,
 )}
 
 #: Paragraphs appended to another message rather than shown on their own.

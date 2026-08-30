@@ -23,6 +23,7 @@ import json
 import pytest
 
 from core.file_manager import Project, RunMeta
+from core.trash import trash_name
 import core.run_delete as rd
 
 
@@ -202,7 +203,7 @@ def test_p1_names_the_measurement_and_the_profile(tmp_path):
     body = rd.message_for(plan)
     assert ".ti3" in body and ".icc" in body
     assert "cannot be recreated" in body
-    assert "Trash" in body and "cannot be undone" not in body
+    assert trash_name() in body and "cannot be undone" not in body
 
 
 def test_p2_says_plainly_that_nothing_measured_is_lost(tmp_path):
@@ -395,7 +396,7 @@ def test_every_window_says_where_the_files_go(tmp_path):
                    _Target("run1", "verification"),
                    _Target("run1", "verification", "2026-07-14_090211")):
         body = rd.message_for(rd.plan_for(p, target))
-        assert "Trash" in body, target.run_type
+        assert trash_name() in body, target.run_type
         assert "cannot be undone" not in body, (
             f"{target.run_type}: the window still promises permanence, which "
             f"is no longer what happens")
@@ -687,3 +688,38 @@ def test_an_empty_old_folder_says_nothing_extra(tmp_path):
     body = rd.message_for(rd.plan_for(p, _Target("run2")))
     assert "earlier measurement" not in body
     assert "earlier printer profile" not in body
+
+
+# ---------------------------------------------------------------------------
+# The window names the system's own recycle folder, and that name is not the
+# same word on every platform. These two assertions used to be spelled "Trash",
+# which is a macOS word: they passed here and failed on the owner's Windows VM
+# — a failure nobody could see from the machine the gate runs on.
+#
+# So the platform is a parameter now. All three are provable from any host.
+@pytest.mark.parametrize("platform,osname,expected", [
+    ("darwin", "posix", "Trash"),
+    ("win32", "nt", "Recycle Bin"),
+    ("linux", "posix", "Wastebasket"),
+])
+def test_the_window_names_the_recycle_folder_this_platform_has(
+        platform, osname, expected, tmp_path, monkeypatch):
+    """A German Windows user was told eight times in one window to look in the
+    "Trash". There is no such thing on Windows."""
+    import core.trash as trash
+    monkeypatch.setattr(trash.sys, "platform", platform)
+    monkeypatch.setattr(trash.os, "name", osname)
+
+    p = _project(tmp_path, runs=3)
+    run = p.run("run2")
+    _measure(run)
+    _profile(run)
+    body = rd.message_for(rd.plan_for(p, _Target("run2")))
+
+    assert expected in body, (
+        f"on {platform} the window calls it something else entirely")
+    wrong = {"Trash", "Recycle Bin", "Wastebasket"} - {expected}
+    for w in wrong:
+        assert w not in body, (
+            f"on {platform} the window also says {w!r}, which is not what this "
+            "platform calls it")

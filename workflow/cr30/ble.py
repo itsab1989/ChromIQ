@@ -312,6 +312,29 @@ class BleTransport:
                 return True
         return False
 
+    def saw_reply(self, cmd: int) -> bool:
+        """Has the reply to command `cmd` arrived in the buffer yet?
+
+        The sibling of :meth:`saw_event`, and the distinction is the whole
+        point: the demux routes a 10-byte frame to the event queue only when
+        its command byte is 0x01. A CALIBRATION acknowledgement is `bb 11 …` /
+        `bb 10 …`, so it lands HERE — and a caller that asked `saw_event` about
+        it was asking the wrong queue, matched nothing, and spent its entire
+        poll budget waiting out the silence it had already been answered
+        through. Measured: 1.81 s for an operation the device finishes in
+        0.31 s.
+
+        The prefix is three bytes, not two, and that is deliberate. Every
+        capture of this reply — the vendor's Bluetooth trace (EXP-BLE-016,
+        `bb 11 00 11 …` / `bb 10 00 1c …`) and both of our own USB sessions
+        (EXP-022, `bb 11 00 00 …`) — has 00 in byte 2, while byte 3 varies and
+        means nothing we have determined. Two bytes would be findable inside
+        the float data of a measurement reply; three is not, on any capture we
+        hold. Nothing is asserted here about length or checksum, because the
+        Bluetooth reply's length has never been measured.
+        """
+        return bytes([0xBB, cmd, 0x00]) in bytes(self._buf)
+
     def drop_events(self) -> int:
         """Forget every event so far; returns how many. Used when arming a
         patch, so a press made while nothing was listening cannot be collected
@@ -371,7 +394,14 @@ class BleTransport:
             # checksum check — which is why read_measurement collects every
             # candidate and keeps the last that survives. A naive "looks
             # finished" would take the bad one.
-            if done is not None and self._buf and done(bytes(self._buf)):
+            # NOT `and self._buf`. That guard was here until it was measured:
+            # a trigger's acknowledgement is routed to the EVENT queue, so the
+            # reply buffer stays EMPTY and the predicate watching for that
+            # acknowledgement was never called at all — every poll ran, and the
+            # event was left in the queue for the next armed patch to collect
+            # as a stray press. Every predicate here is safe on empty input
+            # (`_parse_reply(b"")` finds no header and returns None).
+            if done is not None and done(bytes(self._buf)):
                 break
             quiet = quiet + 1 if len(self._buf) == n else 0
             if quiet >= 3 and self._buf:
