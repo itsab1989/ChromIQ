@@ -1786,6 +1786,16 @@ class TiffPreview(QWidget):
         self._stripe_arrow_mode = "base"
         self._page_patch_boxes = {}
         self._patch_info = {}
+        # AND THE SPLIT PATCHES. `_patch_info` (the hover numbers) was cleared
+        # and `_patch_overlay` (the colours actually painted) was not, so after
+        # clear() and a new chart the PREVIOUS chart's measured patches carried
+        # on painting over it -- somebody else's readings, on your chart, with
+        # the legend chip pinned to the top because the new chart's strip
+        # geometry had not arrived yet. Found by the review that was only
+        # looking at where the legend sits.
+        self._patch_overlay = {}
+        self._legend_rect = None
+        self._legend_geom = None
         self._hide_patch_tile()
         self._pixmap = None
         self._ink_channels = None
@@ -1888,6 +1898,16 @@ class TiffPreview(QWidget):
         self._ink_page_data = None      # (H, W, n) uint8 of the current page
         self._ink_page_key = None
         self._paint_geom = None         # (scale, x, y): image px → label px
+        #: The legend chip, in the (ox, oy) frame it was last painted in, so a
+        #: pointer test can be done without recomputing the placement. Kept
+        #: even while the chip is HIDDEN -- that is the whole point: the chip
+        #: vanishes the instant the pointer enters it, and without a remembered
+        #: rectangle there would be nothing left to test against, so it would
+        #: reappear immediately and flicker at the boundary.
+        self._legend_rect = None        # QRect in canvas coords, or None
+        self._legend_geom = None        # the (ox, oy) that rect was drawn in
+        self._legend_pointer = None     # last pointer position, label coords
+        self._legend_hidden = False
         self._ink_row = QWidget(self)
         _ink_l = QHBoxLayout(self._ink_row)
         _ink_l.setContentsMargins(8, 2, 8, 2)
@@ -2859,6 +2879,9 @@ class TiffPreview(QWidget):
                 y1 = round((r.y() + r.height()) * s + oy)
                 painter.drawRect(x0, y0, x1 - x0, y1 - y0)
 
+        if not (items and self._pixmap is not None):
+            self._legend_rect = None
+            self._legend_geom = None
         if items and self._pixmap is not None:
             # Legend chip — text reflects the current view (Knut). No split
             # wording unless the split is actually shown; in Measured view the
@@ -2883,6 +2906,18 @@ class TiffPreview(QWidget):
             patch_bottom = oy
             for r in self._stripe_rects:
                 patch_bottom = max(patch_bottom, oy + (r.y() + r.height()) * s)
+            # THE OVERLAY ITEMS COUNT TOO. `_stripe_rects` is the strip
+            # geometry, and it can be empty while patches are plainly on screen
+            # -- an imported chart, a sidecar whose page count does not match
+            # (the strip reader is all-or-nothing where the patch reader
+            # tolerates partial pages), a chart cleared and reloaded. Then
+            # `patch_bottom` stayed at the TOP of the sheet and the chip was
+            # clamped there, over the column letters and the first row of
+            # patches: the very complaint this placement exists to prevent,
+            # in its worst form, every time rather than sometimes.
+            for rect, _e, _m, _w in items:
+                patch_bottom = max(
+                    patch_bottom, oy + (rect.y() + rect.height()) * s)
             # THE STRIP DOES NOT END AT ITS LAST PATCH. A chart with edge
             # spacers draws one more band below it — the recorded geometry
             # stops at the patch (see edge_spacer_px_from_sidecar: they
@@ -2913,9 +2948,28 @@ class TiffPreview(QWidget):
             # lesser evil: the chip is semi-transparent and readable, whereas
             # a clipped one says nothing at all.
             cy = max(int(oy), min(cy, int(floor)))
-            painter.fillRect(cx, cy, tw, th, QColor(20, 20, 20, 190))
-            painter.setPen(QColor("#f4f2ef"))
-            painter.drawText(cx + 8, cy + th - 6, txt)
+            # …AND KEEP IT ON THE PAPER AT BOTH ENDS. The clamp above is
+            # left-only, so the widest of the three wordings ("measured", 70 %
+            # wider than the split one) ran past the right edge on a narrow
+            # pane and was cut off mid-word. A chip that cannot fit is elided
+            # with an ellipsis, which at least reads as deliberate.
+            avail = int(img_r - img_l)
+            if tw > avail > 0:
+                txt = fm.elidedText(txt, Qt.TextElideMode.ElideRight, avail - 16)
+                tw = fm.horizontalAdvance(txt) + 16
+                cx = max(int(img_l), min(cx, int(img_r - tw)))
+
+            # PLACED ALWAYS, DRAWN CONDITIONALLY. The rectangle is remembered
+            # even on the paint where the chip is hidden: the pointer is then
+            # over the PATCHES, not the chip, so a test against a rectangle
+            # computed only when drawing would immediately say "not hovering",
+            # bring the chip back, and flicker at the boundary.
+            self._legend_rect = QRect(cx, cy, tw, th)
+            self._legend_geom = (ox, oy)
+            if not self._legend_is_hidden():
+                painter.fillRect(cx, cy, tw, th, QColor(20, 20, 20, 190))
+                painter.setPen(QColor("#f4f2ef"))
+                painter.drawText(cx + 8, cy + th - 6, txt)
 
     def _draw_margin_guides(
         self, painter: QPainter, border: float, disp_w: float, disp_h: float
@@ -3186,7 +3240,63 @@ class TiffPreview(QWidget):
             return
         super().mousePressEvent(event)
 
+    def _legend_is_hidden(self) -> bool:
+        """Is the pointer sitting on the legend chip right now?
+
+        Basti asked for it: *"the legend … sometimes is over the patches. can
+        we make it so it disappears when the mouse hovers over it so the user
+        can see what is underneath?"* The chip is placed in the bottom paper
+        margin, but the code has always conceded that on a chart whose patches
+        run to the edge it lands on the last row instead -- "the lesser evil",
+        against a chip clipped off the page.
+
+        The rectangle is the one from the LAST paint, in the (ox, oy) it was
+        painted in, translated to wherever the image sits now. Panning or
+        resizing between paints therefore cannot strand it.
+        """
+        if self._legend_rect is None or self._legend_pointer is None:
+            return False
+        if self._paint_geom is None or self._legend_geom is None:
+            return False
+        _s, ox, oy = self._paint_geom
+        lox, loy = self._legend_geom
+        r = self._legend_rect.translated(int(ox - lox), int(oy - loy))
+        return r.contains(self._legend_pointer)
+
+    def _note_legend_pointer(self, event) -> None:
+        """Track the pointer for the chip, and repaint only when it matters."""
+        try:
+            pos = event.position().toPoint()
+        except Exception:            # noqa: BLE001 — a drawing aid, never fatal
+            return
+        # The overlay is painted on the image label, which does not start at
+        # the widget's own origin; testing the raw widget position against a
+        # canvas rectangle is off by that offset (measured at 25 px here) plus
+        # the centring.
+        label = getattr(self, "_img_label", None)
+        self._legend_pointer = label.mapFrom(self, pos) if label is not None else pos
+        hidden = self._legend_is_hidden()
+        if hidden != self._legend_hidden:
+            self._legend_hidden = hidden
+            self._repaint_label()
+
+    def _forget_legend_pointer(self) -> None:
+        """The pointer has gone; the chip comes back."""
+        self._legend_pointer = None
+        if self._legend_hidden:
+            self._legend_hidden = False
+            self._repaint_label()
+
+    def hideEvent(self, event) -> None:  # type: ignore[override]
+        # A widget hidden while the pointer sat on the chip gets no leaveEvent,
+        # so without this the chip would still be hidden when it came back.
+        self._forget_legend_pointer()
+        super().hideEvent(event)
+
     def mouseMoveEvent(self, event) -> None:  # type: ignore[override]
+        # BEFORE the panning early-return below: a drag that starts on the chip
+        # would otherwise leave it hidden for the rest of the drag.
+        self._note_legend_pointer(event)
         if self._panning:
             now = event.position().toPoint()
             d = now - self._pan_anchor
@@ -3252,6 +3362,7 @@ class TiffPreview(QWidget):
             if self._cursor_overlay is not None:
                 self._cursor_overlay.show_cursor(None, None)
         self._hide_patch_tile()
+        self._forget_legend_pointer()
         if self._hover_patch_loc:
             self._hover_patch_loc = ""
             self._repaint_label()
