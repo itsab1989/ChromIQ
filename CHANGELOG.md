@@ -32,6 +32,13 @@ learned your instrument's tile and refuses it before then, because a reading
 ChromIQ asks for cannot report the magnet gate, and the learned value is what
 stands in for it.
 
+**A CR30 chart no longer defaults to printing spacers.** A spacer exists so a
+strip reader can find where one patch ends as it is swiped across the row. A
+CR30 is lifted onto each patch by hand and never swipes, so a spacer is ink it
+cannot use — and the width it costs is patches per sheet. Guided already knew
+this; Manual and From Profile Gamut now do too. It is a default, not a rule:
+turn them back on and you get them.
+
 ### Fixed
 
 - **Bluetooth: the remembered address is identified before anything is written
