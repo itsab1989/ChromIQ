@@ -301,3 +301,179 @@ fakes, mutation-aware).
 button bit-identical when gated) is correctly reflected in the code comments and
 in `trigger_allowed`'s reasoning; report 42's "specified, not run" note is
 superseded. `TILE_SIGNATURE`'s 4 decimals are harmless at its 0.05 tolerance.
+
+---
+
+# Re-check after 0945855b (staged — if this section ends without a verdict, the re-check was killed mid-way)
+
+Scope: commit 0945855b only (5 files: the three fixes, the rewritten proving
+tests, this report). Tree clean at re-check time. Sections appended as
+completed:
+
+- R1. Fix 1 — request needs a read to belong to — PENDING
+- R2. Fix 2 — routing on `armed_for` — PENDING
+- R3. Fix 3 — no event drop on a learning read — PENDING
+- R4. Audit of the rewritten tests — PENDING
+- R5. Re-verdict — PENDING
+
+## R1. Fix 1 — a request needs a read to belong to. HOLDS, one microsecond-class residual
+
+**PROVEN green:** the reworked test plus my two new ones (below) pass;
+`test_cr30_the_keyboard_trigger_is_prompt.py` still passes (the prompt-latency
+behaviour is intact).
+
+**Every-path audit of `_reading_in_flight` (code-read, PROVEN by test for the
+paths that matter):** it is set and cleared at exactly one site, the
+try/finally around the read in `DeviceReader.__call__` — so a normal return, a
+refusal, a cancel, an abandoned generation, and the DeviceLost re-raise all
+pass through the same `finally`, which also kills any unconsumed request.
+`learn_tile` and `calibrate` never set it, which is correct: no keyboard
+trigger belongs in either. `trigger_and_read` (still unused by the UI) neither
+sets nor consults it and does not need to — it takes its reading synchronously
+under the lock; a concurrent `request_trigger` during it returns False, which
+is sensible. Its pre-existing BLE first-read staleness note from the original
+review stands, unreachable today.
+
+**The plain bool: I agree, with one stated residual.** Each field has a single
+writer per transition and no read-modify-write on the GUI side except the
+check-then-set in `request_trigger` — and that pair is the residual: if the
+read completes in the microseconds between the GUI evaluating
+`_reading_in_flight` (True) and storing `_trigger_requested = True`, the store
+lands after the finally cleared it, and the next read fires it. That is the
+original fault reduced from two wide-open states to a true race requiring
+Space in the same instant a reading completes — vanishing probability, same
+consequence class. A generation-scoped request token would close it airtight;
+beta 3, not a blocker. The lost-update direction (a refused or overwritten
+keystroke) costs one press, as claimed.
+
+**Wrong-patch consumption: closed.** A request accepted for patch A either
+fires while A's read is in flight (right patch; if the user then navigates,
+the bridge drops the value as DROPPED_NAVIGATING), or the abandoned read exits
+via its cancelled check — which runs BEFORE the trigger check — and the
+finally clears the flag, so nothing crosses into B's read. PROVEN for the
+crossing case by `test_a_request_pending_when_its_read_dies_is_cleared_by_that_read`.
+
+## R2. Fix 2 — routing on `armed_for`. HOLDS; the bridge should NOT change; one wrong-message wart
+
+**Coverage of the press window (code-read):** `_reading_loc` is set
+synchronously inside `_start_read`, which runs inside the same GUI-thread slot
+as `on_patch_ready` and as the re-arm tail of `_on_read_failed` — no event-loop
+turn happens between clearing and re-setting, so there is no instant in which
+a keystroke can land during a re-arm gap. A genuine instrument press is never
+governed by this filter at all. The give-up, device-lost and magnet states all
+leave `armed_for` False, which is exactly when nothing is listening.
+
+**On the bridge question: keep it as you have it.** `awaiting_loc` means "the
+helper's outstanding prompt", which a give-up does not retract — and
+`resume_after_magnet`/`rearm` genuinely need it afterwards. My original test's
+demand (awaiting_loc alone must mean "listening") was the wrong altitude; the
+tab asking `armed_for` is the right fix. No change requested.
+
+**Wart (minor, beta 3):** between `armed_for` going True and the worker thread
+actually setting `_reading_in_flight` (milliseconds, since the calibration flow
+has already opened the device), and again in the window between a worker-side
+failure and its queued GUI delivery, Space passes the filter but
+`request_trigger` returns False — and `_cr30_reading_from_the_keyboard` then
+shows M-CR30-TRIGGER-NOT-ARMED, whose text claims the tile is not learned,
+on an instrument whose tile IS learned. Once per session (it latches to a
+status flash afterwards). No data hazard, self-corrects on the next press.
+Cheap fix: ask `reader.guard_is_armed` before choosing the message, and say
+"not ready for that patch yet — press again" when the guard is armed.
+
+## R3. Fix 3 — no event drop on a learning read. RIGHT FIX; it hardens one abuse path into a deterministic one — beta-3 item upgraded
+
+The skip is correctly scoped (`for_learning` only; normal patch reads still
+drop), the false "discarded a press" report is gone with it, and the shipped
+test proves the asked-for press is now collected. PROVEN.
+
+**Stale-inheritance analysis (INFERENCE, code-read against the hardware facts):**
+events carry no values — every read fetches the CURRENT stored slot — so
+nothing historical can be "replayed"; a genuine earlier gated pair cannot be
+re-presented as proof. The learning call site sits immediately after the white
+calibration, which zero-fills the slot, so stale queued events from before the
+flow resolve to zero-filled reads that the learner never sees (the read-back
+retries, then the learn aborts to the safe "could not learn this time" path).
+A press made during the dialog with the cap ON — the instructed flow — reads
+the tile, and even several such reads agree because a gated slot is
+bit-identical by nature. All safe.
+
+**But you asked about TWO stale identical events, and the honest answer is
+yes, with double user error:** two uncapped presses made during the dialog
+leave two queued events and ONE final acquisition in the slot; the two learning
+reads then both fetch that single acquisition, so they are bit-identical **by
+construction** — the pair rule's premise (two independent acquisitions never
+match) is bypassed, and whatever the slot holds (paper, a patch) is learned as
+the tile. Before this fix that path needed an unproven slot-update race; it is
+now deterministic. It still requires ignoring "LEAVE THE CAP ON … press once"
+twice over, inside the dialog's lifetime, after the calibration zeroed the
+slot. Consequence if hit is the bad direction (guard armed wrong, trigger
+enabled, a real magnet invisible). Two cheap closures for beta 3, either
+sufficient: (a) the tile-plausibility band on `remember_signature` from the
+original review (kills every non-white surface); (b) in a learning read,
+treat pre-queued events as at most ONE press — the second half of a pair must
+arrive after the first read, restoring the two-acquisitions premise. I
+recommend both before GA; for a beta whose testers know the flow, not a
+blocker.
+
+## R4. Audit of the rewritten tests — not softened in intent, but finding 1's rewrite had lost half its teeth; closed with two new mutation-proven tests
+
+- **Finding 1 rewrite:** the True→False precondition flip is correct under the
+  new contract and is itself the stronger assertion. **But** the behavioural
+  tail (`not port.triggered`) became vacuous for the `finally`-clear half of
+  the fix — nothing sets the flag any more, so nothing could fire regardless —
+  and no test anywhere else leaves a request pending when a read exits, nor
+  proves `request_trigger` ever says YES at the reader level (the tab-level
+  accept guard uses a plain-function reader, not `DeviceReader`). Two
+  mutations would have passed the entire suite: delete the finally's
+  `_trigger_requested = False`, or never set `_reading_in_flight = True`
+  (feature dead). **Closed:**
+  `tests/test_cr30_trigger_request_dies_with_its_read.py` (new, 2 tests, both
+  green on master). Both mutations were APPLIED in a scratchpad copy of the
+  repo (never the working tree) and each was caught by exactly its intended
+  assertion — the mutation-must-land rule satisfied by execution, with the
+  mutated line visible in the failing traceback.
+- **Finding 2 rewrite:** stronger than mine, and the right altitude — it
+  drives the real `TabMeasure.eventFilter` unbound over a stand-in carrying
+  the real bridge in a genuinely given-up state, asserts the key is refused
+  AND still forwarded to the manager (not swallowed), pre-asserts that
+  `awaiting_loc` survives (so the test cannot go vacuous if the bridge ever
+  changes), and the accept-direction mutation guard releases and joins its
+  reader thread. Nothing softened.
+- **Finding 3:** unchanged apart from the marker. Not softened.
+- **Marker removal after each XPASS:** correct protocol; the strict markers
+  did their job.
+
+## R5. Re-verdict
+
+Everything else in the 16 commits was re-confirmed unaffected by 0945855b
+(it touched only the three fix sites, the test file, and this report):
+catalogue/§M, quit-fix, and the full CR30 targeted suite re-run green here —
+83 + 59 tests across the two sweeps, plus the 123 catalogue/i18n/spec tests
+from the first pass, all passing.
+
+**One pre-tag mechanical note:** `core/version.py` still reads `4.1.5-beta.1`.
+The release process bumps it BEFORE the gate — do that with the tag.
+
+### GREEN LIGHT for v4.1.5-beta.2
+
+All three review-43 faults are genuinely fixed — each fix verified against the
+real objects, each fix's mutation proven to land and be caught — and no fix
+introduced a regression I could find. Bump the version, run your gate, tag.
+
+**Beta-3 list, re-stated and re-ranked (top two already with Basti):**
+1. *(Basti's ruling)* The "exactly one signature ⇒ arm an unidentified unit"
+   rule can enable the keyboard trigger on a second, unlearned unit over BLE —
+   store/key the advertised BLE name, or gate the trigger on a matching key.
+2. *(Basti's ruling)* Six design-doc quotes of the resume checkbox still lack
+   "(-r)" while approved code strings carry it (`unified_measurement_management.md`
+   262, 640, 697, 1073, 1483, 1828).
+3. Learning mis-arm hardening, upgraded by R3: tile-plausibility band in
+   `remember_signature` AND/OR at-most-one pre-queued event per learning read.
+4. Generation-scoped trigger request (closes R1's microsecond residual).
+5. Wrong-message wart: `_cr30_reading_from_the_keyboard` shows
+   M-CR30-TRIGGER-NOT-ARMED on an armed instrument in the ms-wide
+   not-yet-in-flight window — pick the message by `guard_is_armed`.
+6. BLE `unit_id` never populated (fast path has no name; discovery never
+   identifies) + the `""`-key dual-transport entry that permanently disarms
+   the BLE fast path once a unit is learned over both transports.
+7. Learning-wait progress/cancel UI; wire `on_press`.

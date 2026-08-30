@@ -259,7 +259,7 @@ and why the two engines cannot share one sequence.
 > You have read **{n} patches** in this session. They are not in your measurement file yet — ChromIQ can write them now, or end the session without them.
 >
 > **What each button does:**
-> • **Save and stop** — writes what you have read so far to this run's measurement file and ends the session. You can carry on later with "Refine / resume existing measurement", reading only the strips or patches that are still missing.
+> • **Save and stop** — writes what you have read so far to this run's measurement file and ends the session. You can carry on later with "Refine / resume existing measurement (-r)", reading only the strips or patches that are still missing.
 > • **Discard and stop** — ends the session and keeps nothing from it. *(added only when a measurement was already there: "Your previous measurement of {n} patches is put back exactly as it was.")*
 > • **Keep measuring** — closes this window and carries on where you were.
 
@@ -637,7 +637,7 @@ Every window this specification can raise, in one place. **ID → where it is us
 > You have read **{n} patches** in this session. They are not in your measurement file yet — ChromIQ can write them now, or end the session without them.
 >
 > **What each button does:**
-> • **Save and stop** — writes what you have read so far to this run's measurement file and ends the session. You can carry on later with "Refine / resume existing measurement", reading only the strips or patches that are still missing.
+> • **Save and stop** — writes what you have read so far to this run's measurement file and ends the session. You can carry on later with "Refine / resume existing measurement (-r)", reading only the strips or patches that are still missing.
 > • **Discard and stop** — ends the session and keeps nothing from it. *(when a measurement was already there: "Your previous measurement of {m} patches is put back exactly as it was.")*
 > • **Keep measuring** — closes this window and carries on where you were.
 
@@ -694,7 +694,7 @@ Every window this specification can raise, in one place. **ID → where it is us
 
 > **This run already holds part of a measurement**
 >
-> {c} of the chart's {a} patches have been read. Starting now without **Refine / resume existing measurement** replaces them.
+> {c} of the chart's {a} patches have been read. Starting now without **Refine / resume existing measurement (-r)** replaces them.
 >
 > Tick that option to keep what you have and read only the patches that are still missing. The existing measurement is moved to `old/{date}/` either way, so nothing is lost.
 
@@ -1070,7 +1070,7 @@ same failure used to render as "unknown error".*
 >
 > This chart was made for the CR30, and ChromIQ reads that instrument itself. There is no second reader to try: standard ArgyllCMS chartread does not know the CR30 and would refuse the chart before reading a single patch, so ChromIQ has not started it and has ended the measurement here rather than showing you a second failure.
 >
-> Nothing you have already measured is lost — every patch that was read is on disk, and you can carry on from it by ticking "Refine / resume existing measurement" before you press Start again.
+> Nothing you have already measured is lost — every patch that was read is on disk, and you can carry on from it by ticking "Refine / resume existing measurement (-r)" before you press Start again.
 >
 > What went wrong: {reason}
 
@@ -1480,7 +1480,7 @@ reported.*
 > •  The magnetic cap is still on the instrument. That is where the cap lives when the CR30 is not in use, so it is an easy one to miss — and with a magnet at the opening the instrument stops measuring and hands back its own white-tile value instead, which ChromIQ refuses. Take the cap right off and put it aside.
 > •  The instrument was lifted before it had finished. Hold it flat on the patch until it has beeped.
 >
-> When you have checked those, end this session with "Save and stop" and start it again with "Refine / resume existing measurement" ticked — you will be offered only the patches that are still missing.
+> When you have checked those, end this session with "Save and stop" and start it again with "Refine / resume existing measurement (-r)" ticked — you will be offered only the patches that are still missing.
 >
 > What the instrument reported: {reason}
 
@@ -1825,7 +1825,7 @@ sheet unrecorded, exactly as today.*
 >
 > This usually happens when some patches were read one at a time in **Patch-by-patch mode** and a few were stepped over.
 >
-> To finish them, start measuring again with **Patch-by-patch mode** ticked and **Refine / resume existing measurement** ticked. ChromIQ picks up where the readings stop, so you only measure the patches that are still missing rather than the whole chart again.
+> To finish them, start measuring again with **Patch-by-patch mode** ticked and **Refine / resume existing measurement (-r)** ticked. ChromIQ picks up where the readings stop, so you only measure the patches that are still missing rather than the whole chart again.
 >
 > • **Re-read Individual Strips** — stay in this session and read a strip again now. Use **f** and **b** to move between strips, **n** to jump to the next unread one, and **d** when you are done.
 >

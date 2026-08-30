@@ -777,6 +777,41 @@ class DeviceReader:
         self._remember(self.REMEMBERED_PORT_KEY, getattr(dev._t, "port", None))
         return dev
 
+    @staticmethod
+    def _signature_key(dev) -> "str | None":
+        """What this instrument's learned tile constant is filed under.
+
+        The unit's own id where we have it -- over USB that is its serial, read
+        by `identify()`. Over Bluetooth there is none: the reply carries only
+        the spectral axis, and the remembered-address fast path never scans, so
+        the advertised name is not available either.
+
+        The ADDRESS stands in there, and it works on all three platforms for
+        two different reasons:
+
+        * **macOS** hands back a CoreBluetooth UUID, host-local and stable for
+          this Mac and this instrument.
+        * **Windows and Linux** hand back the device's MAC, stable everywhere.
+
+        Either way it is DIFFERENT for two instruments on the same machine,
+        which is the only property this needs: a second CR30 must never inherit
+        the first one's constant. Settings are per-host and never synced, so the
+        macOS form being host-local costs nothing.
+
+        It is not an identity, and is not used as one. If the stored key ever
+        stops matching -- a reset pairing database changes a CoreBluetooth UUID
+        -- the result is "no signature found, guard unarmed", which is every
+        owner's position today, and the user is offered the learning step again.
+        It can never be "a real patch refused": matching 31 bands to 0.001 %R
+        against a foreign constant cannot happen (the two units in evidence sit
+        4.69 %R apart, ~4,700x the tolerance).
+        """
+        uid = getattr(dev, "unit_id", None)
+        if uid:
+            return str(uid)
+        address = getattr(getattr(dev, "_t", None), "address", None)
+        return f"ble:{address}" if address else None
+
     def _arm_tile_guard(self, dev):
         """Give the instrument its OWN tile constant, if we have learned it.
 
@@ -795,7 +830,7 @@ class DeviceReader:
             # USB that is the unit's serial; over Bluetooth there is none on
             # the fast path, and `learned_signature` then arms only if exactly
             # one instrument has ever been learned here.
-            self.unit_id = getattr(dev, "unit_id", None) or self.unit_id
+            self.unit_id = self._signature_key(dev) or self.unit_id
             dev.learned_tile = learned_signature(self.unit_id)
             if dev.learned_tile:
                 log.info("CR30: magnet guard armed with the learned tile "
@@ -928,7 +963,7 @@ class DeviceReader:
                 proven = learner.offer(m)
                 if proven is None:
                     continue
-                unit = getattr(self._dev, "unit_id", None) or self.unit_id
+                unit = self._signature_key(self._dev) or self.unit_id
                 if remember_signature(proven, unit):
                     self._dev.learned_tile = proven
                     return {"learned": True, "presses": presses,
