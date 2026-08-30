@@ -42,6 +42,9 @@ class _Log:
 
 class _Tab(QWidget):
     _on_cr30_read_failed = TabMeasure._on_cr30_read_failed
+    _on_cr30_gave_up = TabMeasure._on_cr30_gave_up
+    _close_read_failed_window_if_moved_on = (
+        TabMeasure._close_read_failed_window_if_moved_on)
     _show_cr30_read_failed_window = TabMeasure._show_cr30_read_failed_window
     _close_cr30_read_failed_window = TabMeasure._close_cr30_read_failed_window
     _close_measurement_windows = TabMeasure._close_measurement_windows
@@ -55,6 +58,9 @@ class _Tab(QWidget):
 
     def _flash_status(self, text, duration_ms=0):
         self.flashed.append(text)
+
+    def _sound_instrument_fault_once(self):
+        pass
 
 
 REASON = "the instrument did not return a complete reading"
@@ -190,3 +196,93 @@ def test_the_instrument_words_never_say_s_in_brackets():
         for bad in ('candidate(s)', 'reading(s)', 'chunk(s)', 'patch(es)'):
             assert bad not in src.replace('"(s)"', ''), (
                 f"{mod.__name__} still ships {bad!r}")
+
+
+def test_giving_up_on_a_patch_takes_the_window_down(app):
+    """After the last retry NOTHING is armed, so "press the button on the
+    instrument again" has stopped being true.
+
+    M-CR30-PATCH-GAVE-UP takes over at that point. Leaving the earlier window
+    standing would ask the user for a press nothing is listening for — which is
+    the exact fault this whole round removed everywhere else, reappearing at
+    the one moment the app has just admitted defeat.
+    """
+    tab = _Tab()
+    tab._on_cr30_read_failed("A3", REASON)
+    dlg = tab._live_measure_windows[0]
+    assert dlg.isVisible()
+
+    tab._on_cr30_gave_up("A3", REASON)
+    app.processEvents()
+
+    assert not dlg.isVisible(), (
+        "the window still asks for a press, after the app gave up listening")
+
+
+# ---- the promise the window makes about itself --------------------------
+#
+# "This window will close by itself when the reading comes through." That is
+# the reason it has no work for the user to do, so it has to hold at the END of
+# a chart too — where the helper re-offers the SAME patch with all_done rather
+# than moving to a new one.
+
+def _ready(tab, **ev):
+    """The prompt the helper sends, through the real decision it drives.
+
+    `_on_patch_ready` needs half the tab standing up around it, so the decision
+    was split out — and a test that asserts the wiring is below, so the two
+    cannot drift apart.
+    """
+    ev.setdefault("read", False)
+    ev.setdefault("all_done", False)
+    tab._close_read_failed_window_if_moved_on(ev)
+
+
+def test_it_closes_when_the_chart_moves_to_another_patch(app):
+    tab = _Tab()
+    tab._on_cr30_read_failed("A3", REASON)
+    dlg = tab._live_measure_windows[0]
+    _ready(tab, loc="A4")
+    app.processEvents()
+    assert not dlg.isVisible()
+
+
+def test_it_closes_on_the_last_patch_where_the_loc_does_not_change(app):
+    """The edge that would have broken the promise: same loc, all_done."""
+    tab = _Tab()
+    tab._on_cr30_read_failed("A3", REASON)
+    dlg = tab._live_measure_windows[0]
+    _ready(tab, loc="A3", all_done=True)
+    app.processEvents()
+    assert not dlg.isVisible(), (
+        "on the chart's last patch the window promised to close itself and "
+        "did not")
+
+
+def test_it_closes_when_the_same_patch_comes_back_read(app):
+    tab = _Tab()
+    tab._on_cr30_read_failed("A3", REASON)
+    dlg = tab._live_measure_windows[0]
+    _ready(tab, loc="A3", read=True)
+    app.processEvents()
+    assert not dlg.isVisible()
+
+
+def test_it_stays_while_the_same_unread_patch_is_still_being_asked_for(app):
+    """It must NOT close on the prompt that is still asking for the very
+    reading it is about — that would leave the message on screen for a blink
+    and then take it away."""
+    tab = _Tab()
+    tab._on_cr30_read_failed("A3", REASON)
+    dlg = tab._live_measure_windows[0]
+    _ready(tab, loc="A3")
+    app.processEvents()
+    assert dlg.isVisible(), "the window vanished while the patch was still unread"
+
+
+def test_the_prompt_handler_really_calls_it():
+    """The extraction is only honest if `_on_patch_ready` still drives it."""
+    import inspect
+    src = inspect.getsource(TabMeasure._on_patch_ready)
+    assert "_close_read_failed_window_if_moved_on" in src, (
+        "the window is no longer closed when the chart moves on")

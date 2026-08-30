@@ -7434,7 +7434,12 @@ class TabMeasure(QWidget):
         lay = QVBoxLayout(dlg)
         lay.setSpacing(14)
         lay.setContentsMargins(24, 20, 24, 20)
-        label = QLabel(body.replace("\n\n", "<br><br>"), dlg)
+        # ESCAPE FIRST, THEN ADD THE BREAKS. The body carries {reason}, which
+        # is the instrument's own sentence — and rich text would swallow a "<"
+        # or start an entity at an "&". No message reaches here with either
+        # today, which is exactly why it would be found the hard way.
+        from html import escape
+        label = QLabel(escape(body).replace("\n\n", "<br><br>"), dlg)
         label.setTextFormat(Qt.TextFormat.RichText)
         label.setWordWrap(True)
         lay.addWidget(label)
@@ -7463,6 +7468,33 @@ class TabMeasure(QWidget):
         dlg.raise_()
         dlg.activateWindow()
         self._cr30_failed_dlg = dlg    # keep it referenced, or it is collected
+
+    def _close_read_failed_window_if_moved_on(self, ev: dict) -> None:
+        """Take the read-failure window down once the chart has moved past it.
+
+        The window promises "This window will close by itself when the reading
+        comes through", and that promise is the reason it asks nothing of the
+        user. So it has to hold everywhere, including the two places where the
+        prompt does not simply name a different patch:
+
+        * on the chart's LAST patch the helper re-offers the same loc with
+          `all_done`;
+        * a patch that comes back marked `read` has been read.
+
+        It must NOT close on the prompt that is still asking for the very
+        reading it is about — that would show the message and take it away
+        again in the same breath.
+
+        Split out from `_on_patch_ready` so this decision can be tested for
+        what it is, rather than through a handler that needs half the tab
+        standing up around it.
+        """
+        waiting_for = getattr(self, "_cr30_failed_window_for", None)
+        if waiting_for is None:
+            return
+        if waiting_for != str(ev.get("loc", "")) or ev.get("all_done") \
+                or ev.get("read"):
+            self._close_cr30_read_failed_window()
 
     def _close_cr30_read_failed_window(self) -> None:
         """Take the window down once the reading it asked for has arrived."""
@@ -7537,36 +7569,68 @@ class TabMeasure(QWidget):
         self._log.ensureCursorVisible()
         self._sound_instrument_fault_once()
 
-        title, body = M.M_CR30_MAGNET.render(reason=message)
-        box = QMessageBox(self)
-        box.setIcon(QMessageBox.Icon.NoIcon)
-        box.setWindowTitle(tr("The instrument has recalibrated itself"))
-        box.setText(title)
-        box.setInformativeText(body)
-        again = box.addButton(tr("Recalibrate now"),
-                              QMessageBox.ButtonRole.AcceptRole)
-        box.addButton(tr("Stop the measurement"),
-                      QMessageBox.ButtonRole.DestructiveRole)
-        box.setDefaultButton(again)
-        fit_message_box_buttons(box)
-        box.exec()
+        # A LOOP, BECAUSE THERE ARE ONLY TWO REAL WAYS OUT: recalibrate, or end
+        # the session. Anything else leaves an instrument whose white reference
+        # has been overwritten and a chart that cannot be measured against it,
+        # and offering a third door would only mean pretending otherwise.
+        while True:
+            title, body = M.M_CR30_MAGNET.render(reason=message)
+            box = QMessageBox(self)
+            box.setIcon(QMessageBox.Icon.NoIcon)
+            box.setWindowTitle(tr("The instrument has recalibrated itself"))
+            box.setText(title)
+            box.setInformativeText(body)
+            again = box.addButton(tr("Recalibrate now"),
+                                  QMessageBox.ButtonRole.AcceptRole)
+            box.addButton(tr("Stop the measurement"),
+                          QMessageBox.ButtonRole.DestructiveRole)
+            box.setDefaultButton(again)
+            fit_message_box_buttons(box)
+            box.exec()
 
-        if box.clickedButton() is not again:
-            self._end_session(self._confirm_end_of_session(
-                self.END_FAILURE_WINDOW))
-            return
-        # KEEPING the bridge, because it IS the stopped session: the patch
-        # still outstanding, and the flag resume_after_magnet clears.
-        if not self._run_cr30_calibration(keep_bridge=True):
-            self._end_session(self._confirm_end_of_session(
-                self.END_FAILURE_WINDOW))
-            return
+            if box.clickedButton() is again:
+                # KEEPING the bridge, because it IS the stopped session: the
+                # patch still outstanding, and the flag resume_after_magnet
+                # clears.
+                if self._run_cr30_calibration(keep_bridge=True):
+                    break
+                # Cancelled at the calibration window. Not an ending by itself.
+            if self._end_after_magnet():
+                return                     # the user ended the session
+            # "Keep measuring" — so it is not ended, and the remedy comes back.
+
         bridge = getattr(self, "_cr30_bridge", None)
         if bridge is not None and bridge.resume_after_magnet():
             self._log.appendPlainText(tr(
                 "Carrying on. Read the highlighted patch again — and check "
                 "there is no magnet under your paper this time."))
             self._log.ensureCursorVisible()
+
+    def _end_after_magnet(self) -> bool:
+        """Offer the ending after a magnet. True if the session really ended.
+
+        THE ONE ANSWER THIS HAS TO HANDLE IS "KEEP MEASURING", and it is the
+        one the first version got wrong: `_end_session(None)` is deliberately a
+        no-op, so declining to end left the session stopped with nothing armed
+        and nothing on screen — the same dead end the magnet remedy was written
+        to remove, reached by the other door.
+
+        Resuming is NOT the answer either. The instrument's white reference has
+        been overwritten; that is why the session stopped, and it is still true
+        however the user answers a window about ending. So "keep measuring" is
+        taken at its word — the session is not ended — and the caller puts the
+        remedy back on screen, because recalibrating is the only thing that can
+        make measuring possible again.
+        """
+        choice = self._confirm_end_of_session(self.END_FAILURE_WINDOW)
+        self._end_session(choice)
+        if choice is not None:
+            return True
+        self._log.appendPlainText(tr(
+            "The measurement is still stopped: nothing can be read until the "
+            "white calibration has been taken again."))
+        self._log.ensureCursorVisible()
+        return False
 
     def _on_cr30_device_lost(self, loc: str, message: str) -> None:
         """The instrument is gone — not merely unpressed.
@@ -7611,6 +7675,12 @@ class TabMeasure(QWidget):
         it — so the choice of what to do next is the user's.
         """
         from workflow import measurement_messages as M
+        # The read-failure window for this patch says "press the button on the
+        # instrument again". After the last retry nothing is armed, so that
+        # sentence has stopped being true — and a window asking for a press
+        # nothing is listening for is the exact fault this round removed
+        # everywhere else.
+        self._close_cr30_read_failed_window()
         title, body = M.M_CR30_PATCH_GAVE_UP.render(loc=loc, reason=message)
         self._log.appendPlainText(f"\n[{title}]\n{body}")
         self._log.ensureCursorVisible()
@@ -11384,11 +11454,7 @@ class TabMeasure(QWidget):
         chart's patches."""
         loc = str(ev.get("loc", ""))
         self._spot_current_loc = loc
-        # A read-failure window asks the user to press the button again; the
-        # chart moving on IS that press having worked, so the window has said
-        # its piece and goes.
-        if getattr(self, "_cr30_failed_window_for", None) not in (None, loc):
-            self._close_cr30_read_failed_window()
+        self._close_read_failed_window_if_moved_on(ev)
         # ChromIQ supplies the readings for this chart (#159): the bridge owns
         # the whole protocol discipline — one value per outstanding prompt,
         # nothing while a jump is in flight, the read taken off this thread.

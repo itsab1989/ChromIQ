@@ -40,6 +40,23 @@ def _ink(widget: QWidget | None) -> QColor:
     return (app.palette().windowText().color() if app else QColor(0, 0, 0))
 
 
+#: The Measure tab's accent, both grounds. `#56d6a5` is `ui.styles.SPEC_GREEN`,
+#: which that tab uses for its own information boxes; on a pale ground the light
+#: theme already darkens it to `#0f7a5a` for the same text, because the bright
+#: green does not carry there. Kept as literals rather than imported so a
+#: pictogram never drags the whole stylesheet module in behind it.
+ACCENT_DARK = "#56d6a5"
+ACCENT_LIGHT = "#0f7a5a"
+
+
+def _accent(widget: QWidget | None) -> QColor:
+    """The Measure tab's green, picked for the ground it will be drawn on."""
+    ink = _ink(widget)
+    # A light ink means a dark ground: the theme's own foreground is the only
+    # reliable signal here, and it is the one _ink already trusts.
+    return QColor(ACCENT_DARK if ink.lightness() > 127 else ACCENT_LIGHT)
+
+
 def _draw_instrument(p: QPainter, r: QRectF, ink: QColor, nose_down: bool):
     """A CR30 in outline: a rounded body with the measuring opening marked."""
     pen = QPen(ink, max(1.0, r.width() / 28.0))
@@ -83,6 +100,18 @@ def _draw_tick(p: QPainter, r: QRectF, ink: QColor):
     path.lineTo(r.left() + r.width() * 0.36, r.bottom())
     path.lineTo(r.right(), r.top())
     p.drawPath(path)
+
+
+def _draw_surface(p: QPainter, r: QRectF, ink: QColor):
+    """The solid line an instrument is resting ON. The opposite of
+    :func:`_draw_nothing`, and drawn at the same height so the pair reads as
+    one difference rather than two pictures."""
+    pen = QPen(ink, max(1.5, r.width() / 26.0))
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    p.setPen(pen)
+    y = r.bottom() - r.height() * 0.04
+    p.drawLine(QPointF(r.left() + r.width() * 0.04, y),
+               QPointF(r.right() - r.width() * 0.04, y))
 
 
 def _draw_nothing(p: QPainter, r: QRectF, ink: QColor):
@@ -148,9 +177,18 @@ def steps_pair(step: str, widget: QWidget | None = None,
                  w * 0.80, cell * 0.80)
     _draw_instrument(p, box, c, nose_down=True)
     _draw_cap(p, box, c, face_white=True)
-    t = QRectF(0, 0, cell * 0.16, cell * 0.16)
-    t.moveCenter(QPointF(box.right() - box.width() * 0.06, box.bottom()))
-    _draw_tick(p, t, c)
+    # THE SOLID LINE MEANS "RESTING ON SOMETHING", ALWAYS — it is not the
+    # current-step marker, and it used to be. Because the marker was an
+    # underline drawn at the same place, the step that means "pointing at
+    # nothing" gained a solid floor underneath its dashes whenever it was the
+    # current one, which says the opposite of what that step is. Confirmed on
+    # screen in the real black-calibration window before this was changed.
+    # NO TICK HERE. There was one, and the owner read it exactly as a tick
+    # means: *"i don't want the checkmark next to the first one because i would
+    # read it as done although it is not yet done in the first window"*. He is
+    # right — in the white window that step is what he is about to do, and a
+    # tick on a step nobody has taken is the picture disagreeing with the text.
+    _draw_surface(p, box, c)
 
     # --- step 2: cap off, pointing at nothing -----------------------------
     c = ink if step == BLACK_STEP else dim
@@ -159,13 +197,17 @@ def steps_pair(step: str, widget: QWidget | None = None,
     _draw_instrument(p, box, c, nose_down=True)
     _draw_nothing(p, box, c)
 
-    # the current step gets an underline; the other is simply fainter
+    # The current step is marked DOWN THE SIDE, where nothing the drawing means
+    # can be read into it, and in the MEASURE TAB'S OWN GREEN — these windows
+    # belong to that tab, and its guidance already reads in that colour there.
+    # The other step is simply fainter.
     cur = top if step == WHITE_STEP else bottom
-    pen = QPen(ink, max(2.0, cell / 40.0))
+    bar = max(2.5, cell / 28.0)
+    pen = QPen(_accent(widget), bar)
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)
     p.setPen(pen)
-    y = cur.bottom() - max(2.0, cell / 40.0)
-    p.drawLine(QPointF(cur.left() + w * 0.18, y),
-               QPointF(cur.right() - w * 0.18, y))
+    x = cur.left() + bar
+    p.drawLine(QPointF(x, cur.top() + cell * 0.16),
+               QPointF(x, cur.bottom() - cell * 0.16))
     p.end()
     return pm

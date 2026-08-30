@@ -193,3 +193,43 @@ def test_a_predicate_is_safe_on_an_empty_buffer():
     """The guard was removed, so every predicate now sees b"" at least once."""
     from workflow.cr30.device import _parse_reply
     assert _parse_reply(b"") is None
+
+
+def test_the_calibration_looks_for_its_answer_sooner_than_the_device_replies():
+    """Stopping at the answer is only half the problem.
+
+    With the old cadence the FIRST look happened 1.10 s after the command
+    (0.40 s drain + 0.35 s settle + 0.35 s to the first poll), for a device
+    measured at ~250 ms (EXP-022). Stopping promptly at a poll that late still
+    costs a second of nothing. The owner said so plainly after testing the
+    first fix: *"i don't know if it is much faster"*.
+
+    This asserts the cadence rather than a wall-clock time, because the test
+    stubs out the passage of time — a timing assertion here would measure the
+    stub.
+    """
+    import inspect
+    from workflow.cr30.device import CR30
+    src = inspect.getsource(CR30.calibrate)
+    assert "wait=0.10" in src, "the calibration is back on the slow cadence"
+
+    # And the budget must not have shrunk: a slow link needs at least as long
+    # as it had before, or this trades one fault for a worse one.
+    assert 20 * 0.10 >= 6 * 0.35 - 0.11, (
+        "the new cadence gives a slow link less total time than the old one")
+
+
+def test_a_slow_device_still_gets_its_full_budget():
+    """The ceiling matters as much as the floor: a device that answers late
+    must not be abandoned earlier than it used to be."""
+    t = _transport(_cal_reply(0x11, 0x11))
+    t._client._reply = None            # it never answers at all
+
+    async def _go():
+        return await t._ask(ble.frame(0x11, 0x01), 20, 0.10,
+                            lambda _b: t.saw_reply(0x11))
+    asyncio.run(_go())
+    # Three quiet rounds end it early only when something arrived; with an
+    # empty buffer the loop runs its full count.
+    assert t._client.polls == 20, (
+        f"a silent device was given up on after {t._client.polls} polls")

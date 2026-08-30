@@ -137,3 +137,23 @@ be recorded as such.** Flagged, not decided.
 `CLAUDE.md`'s rule names no platform, and every release so far has been gated on
 macOS. Windows fails 69 of the same tests on `master`, so 4.1.4 shipped with
 them latent. **Green gate = green `--runslow` on macOS at the tag commit.**
+
+---
+
+## Found in my own review, held until the challenge round reports
+
+**The read-failure window renders its body as rich text**
+(`tab_measure.py::_show_cr30_read_failed_window`, `setTextFormat(RichText)`),
+which is needed for the `<br><br>` paragraph breaks — but `{reason}` is the
+instrument's own sentence, and a `<` or `&` in it would swallow text or start an
+entity. **No reachable message contains either today**: every `MeasurementError`
+string in `workflow/cr30/` is plain ASCII prose, and the only `<` characters in
+`device.py` are `struct` format specifiers, not text.
+
+So this is latent, not live. The fix is to HTML-escape the rendered body and
+then insert the `<br>`s, rather than the other way round. Held only to avoid
+editing a file the reviewer is reading; applied as soon as it reports.
+
+The same argument applies to `_show_cr30_measuring_window`, except that one is
+deliberately given HTML by `patch_measurement_instructions_html`, so escaping
+there would have to be selective.

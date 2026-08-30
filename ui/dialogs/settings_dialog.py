@@ -4107,7 +4107,9 @@ class SettingsDialog(QDialog):
                     # path (forum #148275: dialog mentioned Zadig but had no
                     # button when the device reported the driver as installed).
                     action_text = (
-                        "The driver is already installed for the device(s) above. "
+                        "The driver is already installed for the "
+                        + ("device above. " if len(lines) == 1
+                           else "devices above. ") +
                         "If ChromIQ or Argyll still can't open your instrument, click "
                         "<b>Reinstall Driver</b> to run the installer again."
                     )
@@ -4119,6 +4121,13 @@ class SettingsDialog(QDialog):
                         "<i>No test-signing mode required. Works on x64 and ARM64.</i>"
                     )
                 else:
+                    # THE WARNING IS NOT OPTIONAL ON A MACHINE THAT MAY HAVE
+                    # A CR30. "Find your colorimeter and give it WinUSB" is
+                    # right for every device this dialog knows about and
+                    # catastrophic for one it does not: the CR30 is reached
+                    # through a COM port, and WinUSB removes it. Nothing in the
+                    # app can steer the user there — but this text can, and a
+                    # user with driver trouble is exactly who follows it.
                     action_text = (
                         "Click <b>Open Zadig</b> and ChromIQ will launch <b>Zadig</b>, a free "
                         "USB driver tool. In Zadig:<br>"
@@ -4126,9 +4135,14 @@ class SettingsDialog(QDialog):
                         "&nbsp;&nbsp;2. Find your colorimeter in the dropdown<br>"
                         "&nbsp;&nbsp;3. Select <b>WinUSB</b> as the driver and click "
                         "<b>Install Driver</b>"
+                        "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
+                        "device (CH340) in Zadig. That instrument is reached "
+                        "through its COM port, and giving it WinUSB would stop "
+                        "ChromIQ finding it at all."
                     )
                 msg_text = (
-                    "<b>Connected colorimeter(s):</b><br>"
+                    ("<b>Connected colorimeter:</b><br>" if len(lines) == 1
+                     else "<b>Connected colorimeters:</b><br>")
                     + "<br>".join(lines)
                     + "<br><br>"
                     + action_text
@@ -4203,6 +4217,10 @@ class SettingsDialog(QDialog):
                     outcome_text = (
                         "Zadig is open. Select your colorimeter, choose WinUSB, "
                         "then click Install Driver."
+                        "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
+                        "device (CH340) in Zadig. That instrument is reached "
+                        "through its COM port, and giving it WinUSB would stop "
+                        "ChromIQ finding it at all."
                     )
                 elif status == "download_page":
                     outcome_text = (
@@ -4210,6 +4228,10 @@ class SettingsDialog(QDialog):
                         "has been opened in your browser.<br>"
                         "Download and run <b>Zadig</b>, then: Options → List All Devices → "
                         "select your colorimeter → choose WinUSB → Install Driver."
+                        "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
+                        "device (CH340) in Zadig. That instrument is reached "
+                        "through its COM port, and giving it WinUSB would stop "
+                        "ChromIQ finding it at all."
                     )
                 else:
                     outcome_text = (

@@ -352,9 +352,20 @@ class Cr30MeasureBridge(QObject):
         reference that has just been overwritten. This is the ONE way back, and
         it exists so that recalibrating is a real remedy rather than advice the
         app cannot act on. The caller must actually have recalibrated first.
+
+        ⚠ THIS USED TO RETURN True WHEN THERE WAS NOTHING TO RESUME, and that
+        one line is the root of both dead ends found in this area. "Not stopped"
+        does not mean "carrying on" — it means the bridge in front of us is not
+        the session that was stopped, because something rebuilt it underneath
+        us. The tab took the True at face value and printed "Carrying on. Read
+        the highlighted patch again" over a session with no reader in it.
+
+        So the answer is now the honest one either way: True only if a patch is
+        genuinely being read when this returns.
         """
         if not self._stopped:
-            return True
+            return self._awaiting_loc is not None and self.armed_for(
+                self._awaiting_loc)
         self._stopped = False
         self._retries.pop(self._awaiting_loc, None)
         return self.rearm()

@@ -71,6 +71,33 @@ KNOWN_COLORIMETERS: dict[tuple[str, str], str] = {
 }
 
 
+# INSTRUMENTS THAT MUST NEVER BE GIVEN WinUSB — a third class, kept in its own
+# table so no existing code path can hand one to install_winusb by accident.
+#
+# The CR30 (#159) does not speak USB directly: it is behind a CH340 USB-to-
+# serial bridge and ChromIQ reaches it as a COM port through pyserial. Replacing
+# its vendor serial driver with WinUSB does not "install a driver" — it DESTROYS
+# the COM port, and the instrument goes dark in ChromIQ and in every other
+# serial application until someone rolls the driver back by hand in Device
+# Manager.
+#
+# This is the same reasoning as the HID exclusion above, with a worse outcome:
+# a HID colorimeter given WinUSB stops working; a serial one stops existing.
+#
+# ⚠ 1a86:7523 is the generic CH340 chip and sits inside millions of unrelated
+# serial devices — Arduinos, cheap adapters, lab gear. Its presence NEVER means
+# "a CR30 is attached". Identification stays behavioural (open the port and ask
+# the device what it is), which is why nothing here may auto-install anything.
+VENDOR_SERIAL_DEVICES: dict[tuple[str, str], str] = {
+    ("1a86", "7523"): "USB-serial bridge (CH340) — used by the CR30",
+}
+
+
+def is_vendor_serial(vid: str, pid: str) -> bool:
+    """Would WinUSB break this device rather than drive it?"""
+    return (str(vid).lower(), str(pid).lower()) in VENDOR_SERIAL_DEVICES
+
+
 class UsbDevice(NamedTuple):
     vid: str        # 4-char hex, lower-case, no 0x prefix
     pid: str
@@ -153,6 +180,17 @@ def install_winusb(device: UsbDevice) -> bool:
     Returns True if wdi-simple exits with code 0.
     Returns False if the user cancels the UAC prompt or the install fails.
     """
+    # REFUSED OUTRIGHT, BELT AND BRACES. The table above is the guard; this is
+    # the one that still holds if somebody adds a serial instrument to
+    # KNOWN_COLORIMETERS by mistake. It matters because the dialog's "Reinstall"
+    # path runs this over EVERY detected device, so a single wrong table entry
+    # would brick a CR30 while the user was repairing something else entirely.
+    if is_vendor_serial(device.vid, device.pid):
+        log.error("refusing to install WinUSB on %s (%s:%s): it is a vendor "
+                  "serial device, and WinUSB would destroy its COM port",
+                  device.name, device.vid, device.pid)
+        return False
+
     wdi = _wdi_simple_path()
     if not wdi.exists() or wdi.stat().st_size == 0:
         log.error("wdi-simple not found or empty at %s", wdi)

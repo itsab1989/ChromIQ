@@ -68,7 +68,11 @@ class _Tab:
     _calibrate_and_confirm = TabMeasure._calibrate_and_confirm
     _open_cr30_bridge = TabMeasure._open_cr30_bridge
     _close_cr30_bridge = TabMeasure._close_cr30_bridge
+    _end_after_magnet = TabMeasure._end_after_magnet
     END_FAILURE_WINDOW = TabMeasure.END_FAILURE_WINDOW
+
+    #: What the ending window returns, in order. None means "Keep measuring".
+    endings: list = []
 
     def __init__(self, bridge):
         self._cr30_bridge = bridge
@@ -88,7 +92,7 @@ class _Tab:
 
     def _confirm_end_of_session(self, which):
         self.ended.append(which)
-        return None
+        return self.endings.pop(0) if self.endings else "give_up"
 
     def _end_session(self, choice):
         self.ended.append(("end", choice))
@@ -226,6 +230,51 @@ def test_stopping_from_the_window_still_ends_the_session(stubbed):
         stubbed.choose = "Recalibrate now"
 
 
+def test_keep_measuring_does_not_leave_a_stopped_session_on_screen(stubbed):
+    """THE OTHER DOOR INTO THE SAME DEAD END.
+
+    "Stop the measurement" leads to the shared ending window, and that window
+    always offers "Keep measuring" — which returns None, and `_end_session`
+    treats None as "carry on" by doing nothing at all. So the session stayed
+    stopped, with nothing armed and nothing on screen: exactly the fault the
+    magnet remedy exists to remove, reached by the other route.
+
+    Resuming would be wrong — the white reference is still overwritten. So the
+    remedy comes back instead, and the user recalibrates or really ends it.
+    """
+    stubbed.choose = "Stop the measurement"
+    _Tab.endings = [None, "give_up"]        # keep measuring, then really stop
+    try:
+        h = _stopped_by_a_magnet()
+        tab = _Tab(h.bridge)
+        tab._on_cr30_magnet("A1", MAGNET_MESSAGE)
+
+        assert len(stubbed.seen) == 2, (
+            "the remedy was not offered again after 'Keep measuring'; the "
+            f"window was shown {len(stubbed.seen)} time(s)")
+        assert any("still stopped" in l for l in tab._log.lines), (
+            "nothing told the user why they cannot measure")
+    finally:
+        stubbed.choose = "Recalibrate now"
+        _Tab.endings = []
+
+
+def test_cancelling_the_calibration_is_not_an_ending_by_itself(stubbed):
+    """Cancel at the calibration window, then "Keep measuring": the remedy must
+    come back rather than the session dying quietly."""
+    _Tab.endings = [None, "give_up"]
+    try:
+        h = _stopped_by_a_magnet()
+        tab = _Tab(h.bridge)
+        # No reader, so the calibration returns True; force the cancel path.
+        tab._run_cr30_calibration = lambda **kw: False
+        tab._on_cr30_magnet("A1", MAGNET_MESSAGE)
+        assert len(stubbed.seen) == 2, (
+            "cancelling the calibration ended the session without asking")
+    finally:
+        _Tab.endings = []
+
+
 def test_a_start_still_lets_go_of_an_older_bridge():
     """The other caller must keep its opposite behaviour: a Start must NOT
     inherit a previous run's bridge. One flag serves both, so both are asserted
@@ -249,3 +298,26 @@ def test_the_remedy_does_not_let_go_of_it():
     TabMeasure._calibrate_and_confirm(tab, keep_bridge=True)
 
     assert closed == [], "the remedy dropped the session it was rescuing"
+
+
+def test_resuming_a_bridge_that_was_never_stopped_is_not_success():
+    """The one line both dead ends grew from.
+
+    `resume_after_magnet` used to answer True whenever the bridge was not
+    stopped — which is exactly the state a REBUILT bridge is in. The tab took
+    that as "carrying on" and said so to the user, over a session with no
+    reader in it. "Not stopped" is not the same as "reading".
+    """
+    from workflow.cr30.measure_bridge import Cr30MeasureBridge
+    h = Harness()
+    fresh = h.bridge                      # never stopped, nothing outstanding
+    assert fresh._stopped is False
+    assert fresh.resume_after_magnet() is False, (
+        "a bridge with nothing outstanding reported that it had resumed")
+
+
+def test_a_real_resume_still_reports_success():
+    """The other direction, so the fix cannot be 'always return False'."""
+    h = _stopped_by_a_magnet()
+    assert h.bridge.resume_after_magnet() is True
+    assert h.bridge.armed_for("A1")

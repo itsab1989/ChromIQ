@@ -240,7 +240,25 @@ class CR30:
         # QUEUE — the demux puts a frame there only when its command byte is
         # 0x01, and a calibration's is 0x11 or 0x10. So it matched nothing, and
         # the speed-up it was written for never happened.
-        self._t.ask(ble.frame(cmd, 0x01), polls=6,
+        # SHORT POLLS, NOT FEW LONG ONES.
+        #
+        # Stopping as soon as the answer arrives is only half of it: with the
+        # default cadence we did not LOOK until 1.1 s had passed (0.4 s drain,
+        # 0.35 s settle, 0.35 s to the first poll) for a device that answers in
+        # about 250 ms — measured on this unit, EXP-022. The owner, testing
+        # Bluetooth after the first speed fix: "i don't know if it is much
+        # faster". He was right, and this is the half that was missing.
+        #
+        # The ceiling is deliberately unchanged (20 x 0.10 s ~ the old
+        # 6 x 0.35 s), so a slow or busy link has no less time than before —
+        # only the fast case stops waiting for its own clock.
+        #
+        # The 0.4 s drain in front of this is NOT touched. It exists to flush
+        # stragglers that would otherwise prefix the next reply and shift every
+        # offset in it, which once produced fifteen garbage readings, and a
+        # calibration can be taken mid-session where a reading has just
+        # arrived. Shortening it needs a measurement on hardware, not a guess.
+        self._t.ask(ble.frame(cmd, 0x01), polls=20, wait=0.10,
                     done=lambda _b: self._t.saw_reply(cmd))
 
     def calibrate_white(self) -> None:
