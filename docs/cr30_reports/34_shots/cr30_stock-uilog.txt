@@ -1,0 +1,2 @@
+Chart instrument: CR30 → using Argyll's default strip recognition.
+Measurement not started: a CR30 chart needs ChromIQ's own chart reader, and Preferences is set to ArgyllCMS chartread.

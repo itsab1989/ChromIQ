@@ -1,0 +1,13 @@
+Steps in each Pass = 26
+Passes in each Strip = 15
+Instrument Type:   ColorMunki
+Serial Number:     4009154
+Firmware version:  512
+Chip ID:           01-5504FA1A0000AD
+Version string:    'i1Studio FW V2.00  Build Nr. 1310'
+Calibration Ver.:  6
+Production No.:    204548
+Warning: chart is for GretagMacbeth i1 Pro, using instrument X-Rite ColorMunki
+Calibration failed with error :'User hit Abort Key' (No device error)
+
+[INFO] Measurement stopped — no measurement (.ti3) file was created.

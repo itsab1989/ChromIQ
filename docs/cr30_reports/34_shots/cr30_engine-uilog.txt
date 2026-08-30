@@ -1,0 +1,4 @@
+
+[STOPPED] You cancelled the calibration, so this measurement did not start. Nothing has been changed and nothing has been measured — your instrument still has the calibration it had before. Press “Start Measurement” whenever you are ready to begin.
+
+Measurement not started: the instrument was not calibrated. Nothing has been changed.

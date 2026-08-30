@@ -35,16 +35,43 @@ Stop → the shared ending window offers several answers and they do not all tak
 the same path. Every wrong answer tonight came from reasoning about a path
 instead of watching it.
 
-## B2-2 · Does the instrument follow the chart?
+## B2-2 · Does the instrument follow the chart? — ANSWERED: YES
 
-Basti's question, being investigated on screen with both a CR30 and a ColorMunki
-attached over USB. Ruled explicitly NOT a beta-1 blocker. See
-`34_instrument_follows_the_chart.md` when it lands.
+Proven on screen with both a CR30 and a ColorMunki attached over USB. Full
+report and screenshots: `34_instrument_follows_the_chart.md`.
 
-The case worth the most attention: a CR30 chart with a ColorMunki also plugged
-in. A ColorMunki is a real ArgyllCMS instrument and stock chartread will open it
-happily — so a routing mistake there would not look like an error. It would look
-like a successful measurement taken with the wrong instrument.
+* A chart for another instrument **never scans for a CR30** — zero CR30 lines
+  in the log for a ColorMunki chart, an i1 Pro chart, and a chart naming no
+  instrument, each started with the CR30 plugged in.
+* An i1 Pro chart with a ColorMunki connected **warns before a patch is read**:
+  "laid out for: i1Pro… but the instrument connected is: ColorMunki…". The
+  owner's fallback wish is already shipped.
+* A CR30 chart takes the CR30 path **even through the `.ti1` reopen trap**, and
+  stock ArgyllCMS refuses it as designed (M-CR30-STOCK-READER).
+* **No case measures with the wrong instrument silently.** That was the one
+  that mattered.
+
+### What it left for beta 2 (both cosmetic)
+
+**B2-2a · A chart naming no instrument is described as an i1 Pro.** Argyll's own
+log line claims "chart is for GretagMacbeth i1 Pro" — its internal default, not
+anything in the file, which was verified to name no instrument. ChromIQ passes
+that line through, so the user is told something about their chart that is not
+true. Harm: a user could believe their chart is committed to an instrument it is
+not, and choose hardware to match.
+
+**B2-2b · A chart naming no instrument gets no load-time announcement.** Charts
+that DO name one announce it ("Chart instrument: CR30"); this case is silent, so
+there is nothing to correct the false line above.
+
+### Not driven, and worth naming rather than assuming
+
+* the unknown-instrument-name repair window (test-covered, not driven);
+* verification and calibration run types (statically they converge on the same
+  `set_ti1_path` / `_on_start`, but that is inference, not observation);
+* the positive Bluetooth-scan line — proving a scan DOES happen for a CR30 chart
+  needs the CR30 unplugged, which was not done while it was attached for other
+  work.
 
 ## B2-3 · Two places still quote the resume checkbox without its flag
 
