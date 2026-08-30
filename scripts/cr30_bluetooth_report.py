@@ -34,8 +34,15 @@ BEFORE YOU RUN IT
   * Keep an eye on the instrument's SCREEN while the script runs. An indicator
     appears there when a computer asks to connect, so the screen tells you
     whether the request is arriving at all.
-  * Do NOT pair it in Windows Bluetooth settings first. This talks to it
-    directly; a pairing can get in the way.
+  * You probably cannot "pair" a CR30 the way you pair headphones, and you do
+    not need to: this connects to it directly. On the unit this was developed
+    against there is no pairing step at all -- an indicator simply appears on
+    the instrument's screen when a computer asks to connect.
+
+    BUT IF IT DOES APPEAR in your system's "add a device" list, that is worth
+    telling us, and so is what happens if you try. It would mean your computer
+    can see the instrument perfectly well, which moves the problem somewhere
+    else entirely.
   * Close ChromIQ, or anything else that might be holding the instrument.
 
 HOW TO RUN IT (Windows)
