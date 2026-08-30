@@ -35,6 +35,13 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # 23 per language are the three new Tools help cards, added as English
 # placeholders under the project's beta rule; the remainder pre-date them.
 # German is lower because Basti and Knut read it, so it is kept current.
+# 2026-08-30, #159, raised 76 -> 80 for the windows the owner asked for: a
+# pop-up for a vanished instrument ("if this is an important message this
+# should be in a pop up windows with benefitial options"), and a real Cancel on
+# the black-calibration window, whose close button used to mean "skip". Four
+# strings; the two revised message bodies replace keys already counted, and
+# German is translated as usual because it is read.
+#
 # 2026-08-30, #159, raised 75 -> 76 for the sentence that says the measurement
 # is still stopped after a magnet, when the user declines to end it. One string.
 #
@@ -56,8 +63,8 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # project's rule, and German is translated as usual because it is read.
 _BUDGET = {
     "de": 35,
-    "es": 76, "fr": 76, "it": 76, "ja": 76, "nl": 76,
-    "no": 76, "pl": 76, "pt": 76, "ru": 76, "sv": 76, "zh_CN": 76,
+    "es": 80, "fr": 80, "it": 80, "ja": 80, "nl": 80,
+    "no": 80, "pl": 80, "pt": 80, "ru": 80, "sv": 80, "zh_CN": 80,
 }
 
 

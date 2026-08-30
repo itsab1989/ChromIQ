@@ -1220,6 +1220,27 @@ where being unmistakable matters most.*
 > Then press "Calibrate now". Afterwards ChromIQ reads once more to see whether nothing really does come back as nothing — that is the one check it can honestly make, and it is more than it can do for the white step.
 >
 > If you would rather not, press "Skip this step". Your white calibration still stands and the measurement goes ahead with the dark reference the instrument already had.
+>
+> If you have changed your mind about measuring at all, press "Cancel the measurement". Nothing has been measured yet and nothing on disk changes, so the only thing you lose is the white calibration you have just taken — and you can take that again in a few seconds whenever you like.
+
+*⚠ REVISED 2026-08-30: a third button, because closing this window used to mean
+"skip". Basti found it:* **"none of the calibration pop ups allow to cancel and
+if i close them via the red traffic light button chromiq gives me the next
+window anyway and allows me to go into the measurement"**.
+
+*The window offered "Calibrate now" and "Skip this step", and the code asked
+"is it not Calibrate now?" — which is also true of the red traffic light, the
+Windows X and Esc, since `clickedButton()` is None for all three (measured).
+So dismissing the window was read as a decision to skip the dark reference, and
+the measurement went ahead.*
+
+*Skipping a calibration step is a positive decision and keeps its own button.
+Dismissing a window is a withdrawal and now cancels — which costs nothing at
+all, because the calibration runs BEFORE the helper starts and there is no
+session yet to lose. The same rule is applied at the white window, where it was
+already correct, and at M-CR30-INSTRUMENT-GONE, where the safe option is the
+opposite one (there, ending is the consequential act, so a dismissal carries
+on).*
 
 ### M-CR30-INSTRUMENT-GONE · PROPOSED · the instrument stopped answering mid-measurement — Measure
 
@@ -1248,9 +1269,37 @@ branch). `{loc}` is the patch being read; `{reason}` is the underlying failure.*
 > •  Over Bluetooth, the instrument moved out of range or its battery ran down.
 > •  Something else took the instrument — the phone app holds it exclusively while it is connected.
 >
-> Reconnect it, then start the measurement again with "Refine / resume existing measurement" ticked: ChromIQ will offer you only the patches that are still missing.
+> Plug it back in or switch it on, then press "Carry on measuring" and ChromIQ will pick up from the patch you were on. If it is still not there, you will simply land back here.
+>
+> If you would rather stop, press "Stop the measurement". Everything you have read is saved either way, and you can come back to the rest later by starting the measurement again with "Refine / resume existing measurement" ticked — ChromIQ will then offer you only the patches that are still missing.
 >
 > What went wrong: {reason}
+
+*⚠ REVISED 2026-08-30, twice over, and the second revision is a ruling.*
+
+*The advice was WRONG for the code it belonged to. It offered restarting with
+"Refine / resume" as the only way forward, while the handler had already been
+changed to offer carrying on from the patch you were on — so the text sent the
+user the long way round past a door the app was holding open. Carrying on is
+now named first, because it is what the user wants and what the app does;
+restarting is kept as the fallback for someone who would rather stop.*
+
+*And it is shown in a WINDOW now, not only in the log. Basti ruled on that
+directly:* **"i don't know what m-cr30-instrument-gone is for but if this is an
+important message this should be in a pop up windows with benefitial options
+for this case"**. *It had been log-only under §M's own rule — that unapproved
+wording speaks through the log until it is approved — with the consequence that
+the user got the shared ending window and no statement of why it had appeared.
+An instrument that has vanished mid-chart is not something to discover by
+scrolling.*
+
+*The two buttons are the two real options and both are safe: "Carry on
+measuring" re-arms the outstanding patch (nothing ends), "Stop the measurement"
+goes through `_confirm_end_of_session` like every other ending
+(`measurement_exit_strategy.md` §1). **Closing the window does not end the
+session** — `clickedButton()` is None for the red traffic light, the Windows X
+and Esc alike, and ending is the consequential act, so a dismissal takes the
+option that changes nothing.*
 
 ### M-CR30-PATCH-GAVE-UP · PROPOSED · one patch was refused again and again — Measure
 

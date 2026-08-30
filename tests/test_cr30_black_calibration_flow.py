@@ -22,7 +22,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest                                                    # noqa: E402
 
-from PyQt6.QtWidgets import QApplication                         # noqa: E402
+from PyQt6.QtWidgets import QApplication, QWidget                # noqa: E402
 
 from ui.tabs.tab_measure import TabMeasure                       # noqa: E402
 from workflow import measurement_messages as M                   # noqa: E402
@@ -41,12 +41,147 @@ def test_the_offer_is_per_use_and_never_remembered():
         "a second window on every Start of the target, for ever")
 
 
-def test_skipping_the_black_step_does_not_stop_the_measurement():
+# ---- the three ways out of the black-calibration window -----------------
+#
+# THIS USED TO BE A SOURCE SEARCH for the string "clickedButton() is not go",
+# asserting a `return True` appeared near it. It passed for years and could not
+# have caught what the owner found on 2026-08-30: that same condition was
+# reached by CLOSING the window, so the red traffic light was read as "skip"
+# and the measurement went ahead —
+#
+#   *"if i close them via the red traffic light button chromiq gives me the
+#    next window anyway and allows me to go into the measurement"*
+#
+# A test that reads code cannot tell those two apart. These run the method.
+
+class _Box:
+    """Stands in for the window, and presses one of its own buttons.
+
+    `choose = None` is the important case: it is what Qt reports for the red
+    traffic light, the Windows X and Esc alike — measured, not assumed.
+    """
+
+    from PyQt6.QtWidgets import QMessageBox as _real
+    Icon = _real.Icon
+    ButtonRole = _real.ButtonRole
+    choose: "str | None" = "Calibrate now"
+
+    def __init__(self, parent=None):
+        self._buttons: dict = {}
+        self._clicked = None
+
+    def __getattr__(self, name):
+        return lambda *a, **k: None
+
+    def addButton(self, text, role):
+        from PyQt6.QtWidgets import QPushButton
+        b = QPushButton(text)
+        self._buttons[text] = b
+        return b
+
+    def exec(self):
+        want = type(self).choose
+        self._clicked = self._buttons.get(want) if want else None
+        if want is not None and self._clicked is None:
+            raise AssertionError(
+                f"no {want!r} button; the window offered "
+                f"{sorted(self._buttons)}")
+
+    def clickedButton(self):
+        return self._clicked
+
+
+class _Log:
+    def __init__(self):
+        self.lines: list[str] = []
+
+    def appendPlainText(self, t):
+        self.lines.append(t)
+
+    def ensureCursorVisible(self):
+        pass
+
+
+class _Tab(QWidget):
+    """A QWidget, because the window's pictogram is drawn in the tab's own
+    palette and font — the picture is theme-aware by design."""
+
+    _run_cr30_black_calibration = TabMeasure._run_cr30_black_calibration
+
+    def __init__(self):
+        super().__init__()
+        self._log = _Log()
+        self.did_calibrate = False
+
+    def _do_black_calibration(self):
+        self.did_calibrate = True
+        return True
+
+
+@pytest.fixture
+def window(monkeypatch):
+    import PyQt6.QtWidgets as W
+    import ui.widgets as widgets
+    monkeypatch.setattr(W, "QMessageBox", _Box)
+    monkeypatch.setattr(widgets, "fit_message_box_buttons", lambda box: None)
+    _Box.choose = "Calibrate now"
+    return _Box
+
+
+def test_calibrate_now_takes_the_dark_reference(window):
+    tab = _Tab()
+    assert tab._run_cr30_black_calibration() is True
+    assert tab.did_calibrate, "it never asked the instrument to calibrate"
+
+
+def test_skipping_the_black_step_does_not_stop_the_measurement(window):
     """The white calibration has already happened; the session is usable."""
-    src = inspect.getsource(TabMeasure._run_cr30_black_calibration)
-    i = src.index("clickedButton() is not go")
-    assert "return True" in src[i:i + 700], (
+    window.choose = "Skip this step"
+    tab = _Tab()
+    assert tab._run_cr30_black_calibration() is True, (
         "declining the dark reference aborts the measurement")
+    assert not tab.did_calibrate
+    assert any("skipped" in l for l in tab._log.lines), (
+        "the skip was silent, so nothing records which dark reference was used")
+
+
+def test_closing_the_window_cancels_instead_of_skipping(window):
+    """The owner's finding. Dismissing a window is a withdrawal, never a
+    consent — and skipping a calibration step is a positive decision that has
+    its own button."""
+    window.choose = None                      # the red traffic light / X / Esc
+    tab = _Tab()
+    assert tab._run_cr30_black_calibration() is False, (
+        "closing the window let the measurement go ahead anyway")
+    assert not tab.did_calibrate
+
+
+def test_there_is_an_explicit_way_to_cancel(window):
+    """*"none of the calibration pop ups allow to cancel"* — this one did not."""
+    window.choose = "Cancel the measurement"
+    tab = _Tab()
+    assert tab._run_cr30_black_calibration() is False
+    assert not tab.did_calibrate
+
+
+def test_cancelling_says_so_and_reassures_and_says_what_to_do_next(window):
+    """Cancelling before the helper starts costs nothing at all, and the user
+    should be told that rather than left to wonder.
+
+    The MEANING is asserted, not one phrasing — an earlier version of this
+    pinned the exact sentence "Nothing has been changed" and broke the moment
+    the wording was made friendlier, which teaches nobody anything.
+    """
+    window.choose = None
+    tab = _Tab()
+    tab._run_cr30_black_calibration()
+    said = " ".join(tab._log.lines).lower()
+
+    assert "cancel" in said, "the cancellation was silent"
+    assert "nothing" in said and ("changed" in said or "measured" in said), (
+        "it does not reassure the user that nothing was lost or altered")
+    assert "start measurement" in said, (
+        "it does not say how to begin again — a dead end is not friendly")
 
 
 def test_a_failed_black_calibration_does_not_stop_the_measurement_either():

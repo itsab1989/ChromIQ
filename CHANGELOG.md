@@ -86,11 +86,20 @@ accepted silently.
   listening. It now says plainly that nothing can be read until the white
   calibration has been taken again, and offers to take it.
 - **Giving up on a patch closes the window that was asking you to read it.**
-- **The Bluetooth calibration looks for its answer sooner.** It was not checking
-  until about a second had passed, for an instrument that answers in a quarter
-  of one. A slow link still gets exactly as long as before. Note the first
-  Bluetooth connection of a session is still made when you press Calibrate, and
-  that part is unchanged.
+- **A Bluetooth calibration takes about three seconds instead of about thirty.**
+  Measured on real hardware, and neither cost was the instrument: ChromIQ spent
+  13–15 seconds *searching* for a device it had already met, and another 13
+  waiting for a reading the device had already given. It now remembers the
+  address it last reached your instrument at and tries that first, and it no
+  longer waits for an answer it already has. If the remembered address ever
+  stops working — a different computer, a second instrument, a reset Bluetooth
+  stack — it searches again by itself and remembers the new one.
+- **The check after a black calibration now actually runs.** It is the only
+  honest check either calibration has, and it had never once completed: the
+  dark reference is read against open air, air reads exactly zero, and ChromIQ
+  was rejecting exactly-zero readings as damaged. It warns you when the dark
+  reference looks too high — something in front of the opening. It cannot tell
+  you a reference is *good*, and does not claim to.
 
 ### Also
 
@@ -100,6 +109,24 @@ accepted silently.
   a COM port, and WinUSB would remove it. ChromIQ also now refuses outright to
   install WinUSB on a USB-serial instrument, whatever asks it to.
 - The driver window counts properly: “device(s)” and “colorimeter(s)” are gone.
+
+### Closing a window now means what it looks like
+
+- **Closing the dark-reference window no longer skips the step and carries on.**
+  The window offered “Calibrate now” and “Skip this step”, and closing it with
+  the red button (or the X on Windows, or Esc) was read as “skip” — so the
+  measurement went ahead anyway. Skipping is a decision and keeps its own
+  button; closing the window now cancels, which costs nothing, because no
+  measuring has started yet.
+- **That window also has a “Cancel the measurement” button**, which it did not
+  before.
+- **When the instrument stops answering, ChromIQ now says so in a window**
+  rather than only in the log, and offers the two things worth doing: plug it
+  back in and carry on from the patch you were on, or stop and keep everything
+  already measured. Closing that window does *not* end your session.
+- Its advice was also wrong: it told you to start the measurement again with
+  “Refine / resume existing measurement”, while the app was already offering to
+  carry on where you were. Carrying on is named first now.
 
 ### Known limits
 

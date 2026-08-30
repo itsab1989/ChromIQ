@@ -7074,6 +7074,22 @@ class TabMeasure(QWidget):
         fit_message_box_buttons(box)
         box.exec()
         if box.clickedButton() is not go:
+            # Cancel, the red traffic light, the Windows X and Esc all land
+            # here — `clickedButton()` is None for every one of them, so
+            # "anything but Calibrate now" is the right test HERE, where the
+            # safe answer and the dismissing answer are the same thing. (Its
+            # sibling below, the black window, has a third option where they
+            # are NOT, and reading a dismissal as "skip" was a real fault.)
+            #
+            # Say so. Cancelling was silent, and a window that vanishes leaving
+            # no trace is indistinguishable from one that failed.
+            self._log.appendPlainText("\n" + tr(
+                "[STOPPED] You cancelled the calibration, so this measurement "
+                "did not start. Nothing has been changed and nothing has been "
+                "measured — your instrument still has the calibration it had "
+                "before. Press “Start Measurement” whenever you are ready to "
+                "begin."))
+            self._log.ensureCursorVisible()
             return False
         want_black = also_black.isChecked()
 
@@ -7290,11 +7306,19 @@ class TabMeasure(QWidget):
         box.setInformativeText(body)
         go = box.addButton(tr("Calibrate now"),
                            QMessageBox.ButtonRole.AcceptRole)
-        box.addButton(tr("Skip this step"), QMessageBox.ButtonRole.RejectRole)
+        skip = box.addButton(tr("Skip this step"),
+                             QMessageBox.ButtonRole.RejectRole)
+        box.addButton(tr("Cancel the measurement"),
+                      QMessageBox.ButtonRole.DestructiveRole)
         box.setDefaultButton(go)
         fit_message_box_buttons(box)
         box.exec()
-        if box.clickedButton() is not go:
+        clicked = box.clickedButton()
+
+        if clicked is go:
+            return self._do_black_calibration()
+
+        if clicked is skip:
             # Skipping the dark reference is not cancelling the measurement —
             # the white calibration has already happened and the session is
             # perfectly usable without this.
@@ -7304,7 +7328,29 @@ class TabMeasure(QWidget):
                 "already had."))
             self._log.ensureCursorVisible()
             return True
-        return self._do_black_calibration()
+
+        # CLOSING A WINDOW IS A WITHDRAWAL, NEVER A CONSENT.
+        #
+        # `clickedButton()` is None for the red traffic light, the Windows X and
+        # Esc alike — measured, not assumed. This branch used to be reached by
+        # "anything that is not Calibrate now", so closing the window was read
+        # as "skip" and the measurement went ahead: the owner found it,
+        # 2026-08-30 — *"if i close them via the red traffic light button
+        # chromiq gives me the next window anyway and allows me to go into the
+        # measurement"*. Skipping a calibration step is a positive decision and
+        # has its own button; dismissing the window is not that decision.
+        #
+        # Cancelling here costs nothing at all: the calibration runs BEFORE the
+        # helper starts, so there is no session yet and nothing to lose.
+        self._log.appendPlainText("\n" + tr(
+            "[STOPPED] You cancelled at the dark-reference step, so this "
+            "measurement did not start. Your white calibration was taken and "
+            "is still in the instrument; nothing has been measured and nothing "
+            "on disk has been changed. Press “Start Measurement” when you want "
+            "to begin, or press it and choose “Skip this step” if you would "
+            "rather not take the dark reference at all."))
+        self._log.ensureCursorVisible()
+        return False
 
     def _open_cr30_bridge(self) -> None:
         """Stand up the thing that answers the helper's spot prompts (#159).
@@ -7646,26 +7692,57 @@ class TabMeasure(QWidget):
         helper saves after every patch), but the way out must still be the safe
         one, and the user must be the one who chooses it.
         """
+        from PyQt6.QtWidgets import QMessageBox
         from workflow import measurement_messages as M
+        from ui.widgets import fit_message_box_buttons
+
         title, body = M.M_CR30_INSTRUMENT_GONE.render(loc=loc, reason=message)
         self._log.appendPlainText(f"\n[{title}]\n{body}")
         self._log.ensureCursorVisible()
         self._flash_status(title, duration_ms=10000)
         self._sound_instrument_fault_once()
-        choice = self._confirm_end_of_session(self.END_FAILURE_WINDOW)
-        self._end_session(choice)
-        if choice is None:
-            # "Keep measuring", on an instrument that has just gone. The
-            # helper's prompt is still outstanding, so the only thing missing
-            # is a reader — and the handle to the vanished instrument has been
-            # dropped, so this reopens it. If it is still not there the next
-            # attempt lands back here rather than in silence.
-            bridge = getattr(self, "_cr30_bridge", None)
-            if bridge is not None and bridge.rearm():
-                self._log.appendPlainText(tr(
-                    "Carrying on: reconnect the instrument and read the "
-                    "highlighted patch again."))
-                self._log.ensureCursorVisible()
+
+        # IT SAYS ITS PIECE IN A WINDOW, and the owner ruled on that directly
+        # (2026-08-30): *"if this is an important message this should be in a
+        # pop up windows with benefitial options for this case"*. It used to
+        # reach the log only, under the §M rule that unapproved wording speaks
+        # through the log — while the user got the shared ending window with no
+        # idea WHY it had appeared. An instrument that has vanished mid-chart
+        # is not something to find out about by scrolling.
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(tr("The instrument stopped answering"))
+        box.setText(title)
+        box.setInformativeText(body)
+        again = box.addButton(tr("Carry on measuring"),
+                              QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(tr("Stop the measurement"),
+                      QMessageBox.ButtonRole.DestructiveRole)
+        box.setDefaultButton(again)
+        fit_message_box_buttons(box)
+        box.exec()
+
+        # CLOSING IT IS NOT AGREEING TO END. `clickedButton()` is None for the
+        # red traffic light, the Windows X and Esc alike, and ending the
+        # session is the consequential act here — so a dismissal takes the
+        # option that changes nothing, exactly as it does at the black
+        # calibration window.
+        if box.clickedButton() is not again:
+            self._end_session(self._confirm_end_of_session(
+                self.END_FAILURE_WINDOW))
+            return
+
+        # Carrying on, on an instrument that has just gone. The helper's prompt
+        # is still outstanding, so the only thing missing is a reader — and the
+        # handle to the vanished instrument has been dropped, so this reopens
+        # it. If it is still not there the next attempt lands back here rather
+        # than in silence.
+        bridge = getattr(self, "_cr30_bridge", None)
+        if bridge is not None and bridge.rearm():
+            self._log.appendPlainText(tr(
+                "Carrying on: reconnect the instrument and read the "
+                "highlighted patch again."))
+            self._log.ensureCursorVisible()
 
     def _on_cr30_gave_up(self, loc: str, message: str) -> None:
         """One patch was refused over and over. M-CR30-PATCH-GAVE-UP.

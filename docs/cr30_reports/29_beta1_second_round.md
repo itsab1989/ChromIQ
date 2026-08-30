@@ -114,3 +114,73 @@ backlog, the 69 pre-existing Windows failures, and the §M question in `27`:
 three CR30 messages are shown in windows while their wording is unapproved, two
 of them because Basti asked for those windows. That inconsistency should be
 settled deliberately rather than by accumulation.
+
+---
+
+# The Bluetooth timings, measured on hardware — 2026-08-30, ~04:40–04:51
+
+The app was instrumented and the owner ran it. **Neither cost was where either
+of us had looked**, and the first "speed fix" of the night aimed at the one part
+that was already fast — which is precisely what *"i don't know if it is much
+faster"* meant.
+
+## What one instrumented run settled
+
+```
+04:40   found in 15.42 s, connected in 2.33 s, notifications in 0.06 s
+        calibration white answered in 0.81 s
+        ... 13 s later: could not read back after calibrating
+```
+
+Two costs, both **ours**:
+
+1. **The scan — 13 to 15 s.** Finding the device by name, six times the
+   connection and nearly twenty times the calibration exchange it precedes.
+2. **The read-back — ~13 s, every time, guaranteed to fail.** After a
+   calibration this device's stored measurement IS zero-filled, and the
+   truncated-reply guard rejects exactly that, so the loop retried to its
+   twelve-second deadline on every white calibration. The same guard silently
+   disabled the black calibration's zero check — *the only honest check either
+   calibration has* — which had therefore never run at all.
+
+The calibration commands themselves were **0.81 s** throughout, before and
+after. They were never the problem.
+
+## Measured after the fixes, same unit, same evening
+
+```
+04:51:01.9  found 0.04 s · connected 1.08 s · notifications 0.06 s
+04:51:02.7  white calibration 0.81 s        <- and straight on, no wait
+04:51:28.1  found 0.00 s · connected 2.00 s
+04:51:28.9  white calibration 0.81 s
+04:51:33.9  black calibration 0.81 s
+```
+
+**About thirty seconds to under three.** Owner's words on black: *"black was
+near instant now"* — consistent, because black never had the read-back wait, so
+removing the scan was all it needed.
+
+## A correction to this document's own earlier claim
+
+An older comment in the read-back loop explained the zero-filled reply as *"the
+device saying not finished"*, inferred from a run that asked 1.8 s after
+triggering. **That was wrong.** Waiting twelve seconds returns the identical
+reply. The stored slot after a calibration is zeros, and knowing that is exactly
+what the read is for.
+
+## What the address caching is, and is not
+
+The address is remembered between sessions and tried before scanning. It is a
+**hint, never an identity**: a CoreBluetooth address is stable per host and says
+nothing about which unit answers there. A failure falls back to the scan and
+re-remembers, which covers a second CR30, a reset Bluetooth stack and a
+different Mac. A broken settings store cannot fail an open.
+
+## And one fault this found the hard way
+
+`BleTransport.open()` had **no test at all**. Timing instrumentation added to it
+used a logger the module never defined, and it reached the owner as
+*"Over Bluetooth: name 'log' is not defined"* — a Python error in a user-facing
+window. Same shape as every other fault this week: **code no test executes.**
+`open()` and `close()` now run against a stubbed radio, with nothing else
+replaced.

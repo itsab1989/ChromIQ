@@ -252,7 +252,11 @@ M_CR30_CALIBRATE_BLACK = _m(
     "step.\n\n"
     "If you would rather not, press “Skip this step”. Your white calibration "
     "still stands and the measurement goes ahead with the dark reference the "
-    "instrument already had.",
+    "instrument already had.\n\n"
+    "If you have changed your mind about measuring at all, press “Cancel the "
+    "measurement”. Nothing has been measured yet and nothing on disk changes, "
+    "so the only thing you lose is the white calibration you have just taken "
+    "— and you can take that again in a few seconds whenever you like.",
     approved=False)
 
 
@@ -281,9 +285,14 @@ M_CR30_INSTRUMENT_GONE = _m(
     "ran down.\n"
     "•  Something else took the instrument — the phone app holds it "
     "exclusively while it is connected.\n\n"
-    "Reconnect it, then start the measurement again with “Refine / resume "
-    "existing measurement” ticked: ChromIQ will offer you only the patches "
-    "that are still missing.\n\n"
+    "Plug it back in or switch it on, then press “Carry on measuring” and "
+    "ChromIQ will pick up from the patch you were on. If it is still not "
+    "there, you will simply land back here.\n\n"
+    "If you would rather stop, press “Stop the measurement”. Everything you "
+    "have read is saved either way, and you can come back to the rest later "
+    "by starting the measurement again with “Refine / resume existing "
+    "measurement” ticked — ChromIQ will then offer you only the patches that "
+    "are still missing.\n\n"
     "What went wrong: {reason}",
     approved=False)
 
