@@ -67,10 +67,16 @@ def test_g1_generate_from_ti1_asks_instead_of_inventing(qapp, settings, monkeypa
     built, asked = [], []
     monkeypatch.setattr(tab._creator, "load_ti1_and_generate_preview",
                         lambda *a, **k: built.append(a))
-    monkeypatch.setattr(tab, "_ask_for_a_project_name", lambda **kw: asked.append(kw.get("retry")))
+    # The ask now TAKES the name and reports whether to go on; False is a
+    # person cancelling, which is what proves nothing is built.
+    monkeypatch.setattr(tab, "_ask_for_a_project_name",
+                        lambda: asked.append(True) or False)
 
     tab._manual_target_name_edit.setText("")          # nothing typed
     assert not tab._file_mgr.is_named()               # nothing open
+    # `ask=False` is what the auto-run preset routes pass, and they are
+    # person-initiated — this is Knut's exact route. Only `preview=True` may
+    # stay silent; that is asserted separately below.
     tab._generate_from_ti1(ti1, ask=False)
 
     assert asked, "it must ask for a project name"
@@ -79,6 +85,31 @@ def test_g1_generate_from_ti1_asks_instead_of_inventing(qapp, settings, monkeypa
         f"a name was invented: {tab._file_mgr._target_name!r}")
     assert tab._generate_btn.isEnabled(), \
         "an early return must re-enable Generate Chart"
+
+
+def test_g1_the_live_preview_never_asks_for_a_name(qapp, settings, monkeypatch):
+    """`preview=True` is the auto-update preview, which re-renders on every turn
+    of a knob. A modal there would be thrown at the person repeatedly while they
+    drag a slider, and it left one standing in headless runs — the release gate
+    reports that as an error, not a failure, which is easy to miss."""
+    from ui.tabs.tab_chart import KNUT_PRESETS
+    from core.resource_path import resource_path
+    tab = _tab(qapp, settings)
+    ti1 = resource_path([p for p in KNUT_PRESETS
+                         if p.slug.startswith("i1_w8")][0].ti1_asset)
+    built, asked = [], []
+    monkeypatch.setattr(tab._creator, "load_ti1_and_generate_preview",
+                        lambda *a, **k: built.append(a))
+    monkeypatch.setattr(tab, "_ask_for_a_project_name",
+                        lambda: asked.append(True) or False)
+
+    tab._manual_target_name_edit.setText("")
+    assert not tab._file_mgr.is_named()
+    tab._generate_from_ti1(ti1, ask=False, preview=True)
+
+    assert not asked, "the live preview opened a window"
+    assert not built, "the live preview built a chart with no name"
+    assert not tab._file_mgr.is_named()
 
 
 def test_g1_a_user_preset_with_an_attached_ti1_does_not_invent(qapp, settings,
@@ -113,7 +144,7 @@ def test_g1_a_user_preset_with_an_attached_ti1_does_not_invent(qapp, settings,
     # The fix ASKS for a name, so the real dialog would now open here — stub it
     # and assert it was reached. (Before the fix nothing was asked at all.)
     monkeypatch.setattr(type(tab), "_ask_for_a_project_name",
-                        lambda self, **kw: asked.append(kw.get("retry")))
+                        lambda self: asked.append(True) or False)
     tab._refresh_preset_combo() if hasattr(tab, "_refresh_preset_combo") else None
     idx = tab._preset_combo.findData(name)
     assert idx > 0, "the user preset should be in the dropdown"
@@ -130,8 +161,12 @@ def test_g1_a_user_preset_with_an_attached_ti1_does_not_invent(qapp, settings,
         f"selecting a preset invented {tab._file_mgr._target_name!r}")
     assert not built, "no chart may be built before the project has a name"
     assert asked, "the user was not asked for a name — nothing told them why"
-    assert asked[0] and "preset" in asked[0], (
-        f"the message should name the way back for a PRESET, got {asked[0]!r}")
+    # THERE IS NO LONGER A "WAY BACK" TO NAME. The dialog used to send the
+    # person off to type in the name box and pick the preset a second time, so
+    # this asserted that its wording named that route. Since 2026-08-30 the
+    # dialog takes the name itself and the caller carries on, so what matters is
+    # that it was asked exactly once and nothing was built behind the question.
+    assert len(asked) == 1, f"asked {len(asked)} times, expected once"
 
 
 def test_g1_the_displacement_question_never_creates_a_project(qapp, settings):

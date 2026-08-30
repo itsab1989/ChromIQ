@@ -48,6 +48,12 @@ MAXROWLEN = 5000.0      # printtarg.c MAXROWLEN — large enough to never bind f
 #
 # These are drawn ON SCREEN AT SCALE, so they are a factual claim about the
 # instrument: change them only against a better source, and say which.
+#: Width (mm) of the band reserved to the LEFT of the patch block for the row
+#: NUMBERS that `raster.py` draws there. 7.5 mm is the SpectroScan's own value,
+#: kept because it is a measured fit for two digits at the instrument text
+#: height; every instrument that switches the band on gets the same width.
+ROW_LABEL_BAND_MM = 7.5
+
 CR30_BODY_DIAMETER_MM = 33.0
 CR30_APERTURE_DIAMETER_MM = 4.0
 
@@ -262,6 +268,7 @@ def build(
     strip_gap: float | None = None,
     max_strip: float | None = None,
     strip_indicator_gap: float | None = None,
+    row_indicators: bool | None = None,
     offset_x: float = 0.0,
     offset_y: float = 0.0,
     nolpcbord: bool = False,
@@ -308,6 +315,24 @@ def build(
     mxrowl = float(max_strip) if max_strip else geom.mxrowl
     sig = geom.strip_indicator_gap if strip_indicator_gap is None \
         else float(strip_indicator_gap)
+    # ROW NUMBERS DOWN THE LEFT — the band, and who decides it is there.
+    #
+    # `rlwi > 0` is the whole switch: raster.py draws a row number against the
+    # leftmost strip of each page only where the band is reserved. Until
+    # 2026-08-30 that was decided by the instrument alone (7.5 mm for SS and
+    # CR30, 0 everywhere else), so the most useful piece of furniture on the
+    # sheet — a 2-D A1/B2 coordinate for finding one patch among hundreds — was
+    # reachable only by owning one of two devices. Knut asked for it on any
+    # chart that wants it.
+    #
+    # THREE STATES, and None is the one that matters: it means "whatever this
+    # instrument has always done", so every recipe written before this existed
+    # renders byte-identically. An explicit True/False is a person's answer.
+    rlwi = geom.rlwi
+    if row_indicators is True:
+        rlwi = rlwi or ROW_LABEL_BAND_MM
+    elif row_indicators is False:
+        rlwi = 0.0
     # ColorMunki "offset every second strip": shift odd strips down by half a
     # patch (printtarg's rig stagger = 0.5·(plen + ½·spacer)) and reserve hxeh =
     # ¼·plen so the overhang stays on the page. Decoupled from density (#93, Knut).
@@ -346,7 +371,8 @@ def build(
     return replace(geom, margin_t=mt, margin_r=mr, margin_b=mb, margin_l=ml,
                    plen=plen, pwid=pwid, rrsp=rrsp, pspa=pspa, mxrowl=mxrowl,
                    hxeh=hxeh, hxew=hxew, row_stagger_mm=row_stagger,
-                   strip_indicator_gap=sig, offset_x=offset_x, offset_y=offset_y,
+                   strip_indicator_gap=sig, rlwi=rlwi,
+                   offset_x=offset_x, offset_y=offset_y,
                    edge_spacers=edge_spacers,
                    patch_area_align=patch_area_align or "center-left",
                    clip_side=clip_side or "left",
@@ -365,7 +391,8 @@ def build(
 GEOM_BUILD_KEYS = (
     "hflag", "density", "spacer_on", "pscale", "sscale", "border", "margins",
     "patch_w", "patch_h", "spacer_width", "inter_patch", "strip_gap", "max_strip",
-    "strip_indicator_gap", "offset_x", "offset_y", "nolpcbord", "nolimit",
+    "strip_indicator_gap", "row_indicators", "offset_x", "offset_y",
+    "nolpcbord", "nolimit",
     "clip_border_width", "clip_band", "edge_spacers", "patch_area_align",
     "clip_side", "cm_stagger", "text_edge_top", "text_edge_clip",
 )
@@ -555,7 +582,7 @@ def _build_base(
         return Geom(
             key=key, plen=plen, pspa=0.0, tspa=0.0, pwid=pscale * 7.0, rrsp=pscale * 7.0,
             lspa=border + 7.0, lcar=0.0, txhisl=5.0, pglth=5.0,
-            border=border, lbord=_band, hxeh=hxeh, hxew=hxew, clwi=0.0, rlwi=7.5,
+            border=border, lbord=_band, hxeh=hxeh, hxew=hxew, clwi=0.0, rlwi=ROW_LABEL_BAND_MM,
             mxpprow=MAXPPROW, mxrowl=MAXROWLEN, rpstrip=999, nextrap=0,
             dorspace=False, dopglabel=False,   # page-label column reclaimed (#93)
             padlrow=False, target_name=name,
@@ -714,7 +741,7 @@ def _build_base(
             key=key, plen=plen, pspa=spacer(1.3), tspa=0.0,
             pwid=pscale * 12.0, rrsp=pscale * 12.0,
             lspa=border + txhisl, lcar=0.0, txhisl=txhisl, pglth=5.0,
-            border=border, lbord=_band, hxeh=hxeh, hxew=hxew, clwi=0.0, rlwi=7.5,
+            border=border, lbord=_band, hxeh=hxeh, hxew=hxew, clwi=0.0, rlwi=ROW_LABEL_BAND_MM,
             mxpprow=MAXPPROW, mxrowl=MAXROWLEN, rpstrip=999, nextrap=0,
             dorspace=False, dopglabel=False,
             padlrow=False, target_name=name,

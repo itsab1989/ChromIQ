@@ -183,6 +183,11 @@ def test_selecting_a_printtarg_builtin_turns_the_engine_off(qapp, tmp_path,
     tab, s = _make_tab(qapp, tmp_path)
     monkeypatch.setattr(tab, "_generate_from_ti1", lambda p: True)
     s.set("use_chromiq_layout_engine", True)
+    # NAME THE PROJECT FIRST. Since 2026-08-30 a built-in preset no longer names
+    # the project after itself (Knut's report); an empty name field makes the
+    # prebuilt route ask for one and refuse the preset, which would put the
+    # engine flag back and hide this test's real subject.
+    tab._manual_target_name_edit.setText("ZZ-engine-off-probe")
 
     idx = tab._preset_combo.findData("__chromiq_tc918eg_a4_builtin__")
     assert idx > 0, "the TC9.18 built-in is not in the dropdown"

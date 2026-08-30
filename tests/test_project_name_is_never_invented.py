@@ -55,46 +55,83 @@ def test_the_location_appears_as_soon_as_you_type_one(fresh):
     assert "Canon" in where, f"typing a name showed no location ({where!r})"
 
 
+def _stub_name_prompt(monkeypatch, answer):
+    """Stand in for the name dialog, recording that it was opened.
+
+    Patched on the module, because `_ask_for_a_project_name` imports the
+    function inside the method. *answer* is the name a person would type, or
+    None for Cancel.
+    """
+    import ui.dialogs.name_prompt as np
+    calls = []
+
+    def _fake(parent, *, prefill="", body=None):
+        calls.append(prefill)
+        return answer
+
+    monkeypatch.setattr(np, "ask_for_project_name", _fake)
+    return calls
+
+
 def test_generate_with_no_name_invents_no_folder(fresh, monkeypatch):
     """`get_target_name()` is a MUTATING getter — with nothing set it makes up
     `Printer_Paper_Type_Instr_<timestamp>` and builds the chart into it."""
-    from ui.tooltip_button import InfoDialog
-
     w, out = fresh
-    shown = []
-    monkeypatch.setattr(InfoDialog, "exec",
-                        lambda self: shown.append(self.windowTitle()) or 0)
+    asked = _stub_name_prompt(monkeypatch, None)      # the person cancels
 
     before = sorted(p.name for p in out.glob("*")) if out.exists() else []
     w._tab_chart._on_generate()
     after = sorted(p.name for p in out.glob("*")) if out.exists() else []
 
-    assert shown, "Generate said nothing about the missing name"
+    assert asked, "Generate said nothing about the missing name"
     assert after == before, f"Generate invented a folder: {set(after) - set(before)}"
     assert w._file_mgr.is_named() is False, (
         "Generate named the project anyway")
 
 
-def test_the_ask_names_the_exact_box(fresh, monkeypatch):
-    """House style: help text names the UI element you must touch."""
-    from ui.tooltip_button import InfoDialog
+def test_the_ask_takes_the_name_instead_of_sending_you_away(fresh, monkeypatch):
+    """The dialog answers its own question (Basti, 2026-08-30).
 
+    It used to explain that the name box was empty, name the box, and tell the
+    person to type there and repeat what they had just done. Now it takes the
+    name, writes it into the field, and reports that the caller may go on.
+    """
     w, _ = fresh
-    seen = {}
+    tab = w._tab_chart
+    _stub_name_prompt(monkeypatch, "Canon PRO-300 Baryta Gloss")
 
-    def _grab(self):
-        seen["title"] = self.windowTitle()
-        seen["body"] = getattr(self, "_body_text", "") or self.property("body") or ""
-        return 0
+    assert tab._ask_for_a_project_name() is True
+    assert tab._active_name_field().text() == "Canon PRO-300 Baryta Gloss"
+    # AND §S4.7 MUST SPEAK FOR IT. `setText` never fires `textEdited`, so
+    # without an explicit flag a name that collides is accepted in silence.
+    assert tab._name_typed_by_user is True
 
-    monkeypatch.setattr(InfoDialog, "__init__",
-                        lambda self, title, body, parent=None, **kw: (
-                            seen.update(title=title, body=body), None)[1])
-    monkeypatch.setattr(InfoDialog, "exec", lambda self: 0)
-    monkeypatch.setattr(InfoDialog, "windowTitle", lambda self: "", raising=False)
-    w._tab_chart._ask_for_a_project_name()
-    assert "Printer profile project name" in seen["body"]
-    assert "Generate Chart" in seen["body"]
+
+def test_cancelling_the_ask_leaves_the_name_alone(fresh, monkeypatch):
+    """Cancel must change nothing at all (#175)."""
+    w, _ = fresh
+    tab = w._tab_chart
+    _stub_name_prompt(monkeypatch, None)
+
+    assert tab._ask_for_a_project_name() is False
+    assert tab._active_name_field().text() == ""
+    # `getattr` with a default, the way the tab itself reads this flag: it is
+    # only created once something sets it.
+    assert getattr(tab, "_name_typed_by_user", False) is False
+
+
+def test_the_name_dialog_refuses_what_a_folder_cannot_hold(qapp):
+    """Shape-only validation: the dialog never asks about collisions — §S4.7
+    owns that question and owns it alone."""
+    from ui.dialogs.name_prompt import validate
+
+    assert validate("Canon PRO-300 Baryta Gloss") is None
+    assert validate("") is not None
+    assert validate("   ") is not None
+    assert validate("a/b") is not None            # a folder cannot hold it
+    assert validate("///") is not None            # sanitises away to nothing
+    assert validate("...") is not None
+    assert validate("2026") is None               # digits alone are a real name
 
 
 def test_a_named_project_still_generates(fresh, monkeypatch):
@@ -202,3 +239,79 @@ def test_saving_defaults_does_not_persist_a_factory_name(fresh):
             "the saved defaults still seed the name box")
     finally:
         w2.close()
+
+
+def test_a_name_given_in_the_dialog_is_checked_against_existing_projects(
+        fresh, monkeypatch):
+    """§S4.7 MUST SEE THE NAME THE DIALOG RETURNED.
+
+    The regression this pins was silent and destructive. §S4.7 compares the name
+    in the box with the projects on disk; asked while the box was still empty it
+    had nothing to compare, waved the build through, and the name supplied by
+    the dialog afterwards was never checked against anything. Driven against the
+    shipped build: the same name typed into the BOX produced the four-button
+    "there is already a project called…" window, while typed into the DIALOG it
+    replaced seven files — including the .ti2 a printed sheet is read against —
+    with no window at all.
+
+    So the order is the invariant: ask first, gate second.
+    """
+    w, _out = fresh
+    tab = w._tab_chart
+    _stub_name_prompt(monkeypatch, "ZZ-already-there")
+
+    seen = []
+
+    def _gate(*_a, **_k):
+        field = tab._active_name_field()
+        seen.append(field.text().strip() if field is not None else "")
+        return False, False          # refuse, so nothing is built either way
+
+    monkeypatch.setattr(type(tab), "_gate_typed_project_name", _gate)
+
+    tab._manual_target_name_edit.setText("")
+    tab._on_generate()
+
+    assert seen, "§S4.7 was never asked at all"
+    assert seen[0] == "ZZ-already-there", (
+        "§S4.7 was asked about {!r} — it must be asked about the name the "
+        "person actually gave, or a collision goes unreported".format(seen[0]))
+
+
+def test_a_prebuilt_preset_asks_before_it_gates(fresh, monkeypatch):
+    """The prebuilt route settles the name BEFORE §S4.7, or not at all.
+
+    `_apply_prebuilt_preset` gates and then hands `gate_already_asked=True` down
+    to `_create_prebuilt_target`, so a guard inside the latter can never get in
+    front of the question. Without the ask up here, §S4.7 was asked while the
+    name box was still empty — nothing to compare — and the name given
+    afterwards overwrote a project of the same name with no window at all.
+
+    Written because a verification pass proved the guard had no test: deleting
+    it left 333 targeted tests green while the fault came straight back on
+    screen.
+    """
+    from ui.tabs.tab_chart import ABW1110_PRESET_KEY
+
+    w, _out = fresh
+    tab = w._tab_chart
+    _stub_name_prompt(monkeypatch, "ZZ-prebuilt-name")
+
+    seen = []
+
+    def _gate(*_a, **_k):
+        f = tab._manual_target_name_edit
+        seen.append(f.text().strip() if f is not None else "")
+        return False, False          # refuse, so nothing is built either way
+
+    monkeypatch.setattr(type(tab), "_gate_route_and_replace", _gate)
+    monkeypatch.setattr(type(tab), "_revert_preset_combo",
+                        lambda self, *a, **k: None, raising=False)
+
+    tab._manual_target_name_edit.setText("")
+    tab._apply_prebuilt_preset(ABW1110_PRESET_KEY)
+
+    assert seen, "§S4.7 was never asked on the prebuilt route"
+    assert seen[0] == "ZZ-prebuilt-name", (
+        "§S4.7 was asked about {!r} — on this route the name must be settled "
+        "before the gate, because the gate is never asked again".format(seen[0]))

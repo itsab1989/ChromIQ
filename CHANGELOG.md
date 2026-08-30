@@ -1,5 +1,60 @@
 # Changelog
 
+## v4.1.5-beta.5
+
+**Row numbers can now be printed on any chart, and a preset stops naming your
+project after itself.**
+
+Two reports from Knut.
+
+### New
+
+- **"Show row numbers".** ChromIQ has always printed a number beside each row
+  of patches on a SpectroScan and a CR30 chart, which — together with the
+  letters along the top — lets you find one patch among several hundred the way
+  you find a square on a map: strip A, row 12. It was never offered anywhere
+  else. There is now a checkbox for it in the layout panel, next to "Show strip
+  indicators", for every instrument.
+- Every chart you have already made looks exactly as it did. The setting starts
+  out as "whatever this instrument normally does", so nothing changes until you
+  tick or clear the box yourself. Your choice is then saved with your presets
+  and with the chart.
+- Switching it on reserves 7.5 mm down the left edge, so there may be room for
+  slightly fewer or slightly smaller patches. The estimated patch count takes
+  that into account, and so does the chart ChromIQ actually builds.
+- Where the clip border would be printed over the numbers, the layout inspector
+  says so and offers the two ways round it.
+
+### Changed
+
+- **A preset no longer names your project after itself.** Loading a built-in
+  preset with the name box empty used to name the project after the preset, so
+  a folder, the name printed on the chart and the finished ICC profile could
+  all end up called something like "i1Pro-A4-162p-1page-Portrait-w7.5mm".
+  ChromIQ now asks you for a name.
+- **The window that asks now takes the answer.** It has a name box, a Continue
+  button, and a ⓘ that explains what makes a good name and where that name will
+  show up later. Type it and the chart you asked for is built — no going back to
+  a field elsewhere and picking the preset a second time.
+
+### Fixed
+
+- Choosing a SpectroScan or a CR30 could silently switch off the row numbers
+  those two instruments have always printed.
+- A preset chosen while a project was already open could rename that project
+  after the preset.
+- The name is now settled before ChromIQ checks whether it already belongs to a
+  project, so an existing project is never quietly replaced.
+- A name too long for the filesystem is refused with an explanation, instead of
+  failing halfway through and leaving a half-made project behind.
+- The live chart preview no longer opens a window while you drag a slider.
+
+### Known issues
+
+- In "Prioritise chart area", the row numbers still cost 7.5 mm of paper that
+  is then left empty at the right-hand edge. This affects SpectroScan and CR30
+  charts as well, and predates this release; it is being tracked separately.
+
 ## v4.1.5-beta.4
 
 **Finding out why Bluetooth will not connect — and a magnet guard that was

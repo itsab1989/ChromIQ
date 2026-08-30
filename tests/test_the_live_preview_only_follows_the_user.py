@@ -338,6 +338,11 @@ def test_loading_a_user_preset_arms_nothing(tab, monkeypatch, tmp_path):
     that leaves early when a process is already running.
     """
     combo = tab._preset_combo
+    # NAME THE PROJECT FIRST. Since 2026-08-30 a preset no longer names the
+    # project after itself, so an empty name box makes the build ask for one —
+    # correct in front of a person, but in a headless run it leaves a modal
+    # standing and the settle this test is about never happens.
+    tab._manual_target_name_edit.setText("ZZ-preview-settle-probe")
     # Choosing a preset that does not exist exercises the ordinary path: the
     # handler runs, seeds nothing it can find, and must still settle.
     _arm(tab)

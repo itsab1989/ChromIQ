@@ -448,6 +448,39 @@ class LayoutOptionsPanel(QWidget):
                "straight. Set the font, size and underline style in "
                "Preferences → Chart Layout."), self)
 
+        self.show_row_indicators = WrappingCheckBox(
+            tr("Show row numbers"), self)
+        # WHO TICKED IT, NOT WHAT IT SAYS.
+        #
+        # The recipe field is tri-state and None means "this instrument's own
+        # behaviour", so the panel has to know whether a PERSON chose the state
+        # or the panel merely displayed it. Inferring that from "the box
+        # disagrees with the instrument default" is wrong and shipped a bug:
+        # the panel opens on an i1Pro with the box clear, the user picks a
+        # SpectroScan, and that clear box — which nobody had touched — now
+        # disagreed with the SpectroScan's default and was stored as an
+        # explicit False. Choosing a SpectroScan silently turned OFF the row
+        # numbers it has always printed. `clicked` fires only for a real click
+        # or a keyboard toggle, never for `setChecked`, so it is the honest
+        # signal. (Found by the challenge agent, 2026-08-30.)
+        self._row_indicators_touched = False
+        self.show_row_indicators.clicked.connect(self._mark_row_indicators_touched)
+        self.show_row_indicators.toggled.connect(self._emit)
+        self._show_row_indicators_tip = TooltipButton(
+            tr("Row numbers"),
+            tr("Prints a number down the left-hand side of the chart for every "
+               "row of patches (1, 2, 3…). Together with the strip letters "
+               "along the top it gives the sheet a two-way coordinate, so a "
+               "patch can be found the way a square is found on a map: strip A, "
+               "row 12.\n\n"
+               "This is most useful when you place the instrument on one patch "
+               "at a time — a SpectroScan or a CR30 — which is why those two "
+               "have always printed it. Turn it on for any chart you want to "
+               "read by hand, or off to get the space back.\n\n"
+               "It costs 7.5 mm of paper down the left edge, so switching it "
+               "on can leave room for fewer or slightly smaller patches. The "
+               "numbers restart at 1 on every page."), self)
+
         from PyQt6.QtWidgets import QLineEdit, QPushButton
 
         def small_mm(top: float = 60.0, *,
@@ -676,16 +709,22 @@ class LayoutOptionsPanel(QWidget):
         # the "Basic" frame header (Knut).
         lgg.addWidget(self.show_indicators, 3, 1)
         lgg.addWidget(self._show_indicators_tip, 3, 2)
+        # Row numbers sit directly under the strip letters: they are the other
+        # half of the same coordinate, and Knut asked for the pair to be
+        # together (2026-08-30). Placed unconditionally for the same reason the
+        # line above is — a panel with no selectors would otherwise float it.
+        lgg.addWidget(self.show_row_indicators, 4, 1)
+        lgg.addWidget(self._show_row_indicators_tip, 4, 2)
         # Mode (density / clip mode / shape) and the CM/SS Clip-border toggle are
         # SELECTORS, so they only appear when the panel owns them (#93); in
         # Settings the same selectors are provided by the tab itself.
         if getattr(self, "mode", None) is not None:
-            lgg.addWidget(self._mode_lbl, 4, 0)
-            lgg.addWidget(self.mode, 4, 1)
-            lgg.addWidget(self._mode_tip, 4, 2)
-            lgg.addWidget(self._clip_enable_lbl, 5, 0)
-            lgg.addWidget(self.clip_enable, 5, 1)
-            lgg.addWidget(self._clip_enable_tip, 5, 2)
+            lgg.addWidget(self._mode_lbl, 5, 0)
+            lgg.addWidget(self.mode, 5, 1)
+            lgg.addWidget(self._mode_tip, 5, 2)
+            lgg.addWidget(self._clip_enable_lbl, 6, 0)
+            lgg.addWidget(self.clip_enable, 6, 1)
+            lgg.addWidget(self._clip_enable_tip, 6, 2)
         # "Offset every second strip" is a ColorMunki layout option (printtarg's
         # rig stagger), so it belongs with the layout choices, not in Patches &
         # spacers (Knut). CM-only — visibility is set per-instrument. Always placed
@@ -699,8 +738,8 @@ class LayoutOptionsPanel(QWidget):
                "printtarg's measuring-rig layout. Reserves a little space at the "
                "top and bottom for the offset, so the patch count drops slightly. "
                "Leave off for a plain aligned grid."), self)
-        lgg.addWidget(self.cm_stagger_cb, 5, 1)
-        lgg.addWidget(self._cm_stagger_tip, 5, 2)
+        lgg.addWidget(self.cm_stagger_cb, 6, 1)
+        lgg.addWidget(self._cm_stagger_tip, 6, 2)
         _basic_v.addWidget(lg)
 
         # ---- Patches & spacers (2-column: label | control) ----
@@ -1963,6 +2002,8 @@ class LayoutOptionsPanel(QWidget):
         was_loading = self._loading
         self._loading = True
         inst = self.instr.currentData() or "i1"
+        # The row-number box follows the instrument until somebody chooses.
+        self._sync_row_indicators_to_instrument(inst)
         prev_paper = self.paper.currentData()
         self.paper.clear()
         for code, label, _dims in papers.list_papers(inst, for_engine=True):
@@ -3143,7 +3184,60 @@ class LayoutOptionsPanel(QWidget):
             QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         combo.setMinimumContentsLength(12)
 
+    def _mark_row_indicators_touched(self, *_a) -> None:
+        """A person chose the row-number state; stop tracking the instrument."""
+        self._row_indicators_touched = True
+
+    def _row_indicators_default(self, r) -> bool:
+        """Whether *r*'s instrument prints row numbers when nobody has said.
+
+        Asked of the geometry rather than a list of device codes, so the answer
+        cannot drift from `instruments.py`: the band IS `rlwi`, and clearing the
+        recipe's own field is what "unless told otherwise" means.
+        """
+        from dataclasses import replace
+        from workflow.layout_engine import instruments
+        try:
+            return instruments.geom_from_build_kwargs(
+                replace(r, show_row_indicators=None).build_kwargs()).rlwi > 0
+        except Exception:      # noqa: BLE001 — an unknown instrument prints none
+            return False
+
+    def _row_indicators_default_for(self, instrument: str) -> bool:
+        """The same answer for an instrument the panel is about to switch to,
+        before any recipe for it exists."""
+        from workflow.layout_engine.presets import LayoutRecipe
+        try:
+            return self._row_indicators_default(
+                LayoutRecipe(instrument=instrument or "i1", paper="A4"))
+        except Exception:      # noqa: BLE001
+            return False
+
+    def _sync_row_indicators_to_instrument(self, instrument: str) -> None:
+        """Follow the new instrument while nobody has expressed a preference."""
+        # `__init__` calls `_on_instr_changed` before this checkbox exists, so
+        # both lookups are guarded rather than assumed.
+        cb = getattr(self, "show_row_indicators", None)
+        if cb is None or getattr(self, "_row_indicators_touched", False):
+            return
+        want = self._row_indicators_default_for(instrument)
+        if cb.isChecked() != want:
+            was = cb.blockSignals(True)
+            cb.setChecked(want)
+            cb.blockSignals(was)
+
     def _on_show_indicators(self, on: bool) -> None:
+        # ROW NUMBERS RIDE ON THE STRIP LABELS. raster.py draws the row-number
+        # block INSIDE `if draw_indicators:`, so with strip indicators off the
+        # numbers are not drawn — while the 7.5 mm band is still reserved and
+        # paid for in patch area. Leaving the box live offers a setting that
+        # can only cost paper and print nothing, so it follows its parent.
+        cb = getattr(self, "show_row_indicators", None)
+        if cb is not None:
+            cb.setEnabled(on)
+            tip = getattr(self, "_show_row_indicators_tip", None)
+            if tip is not None:
+                tip.setEnabled(on)
         self.indicator_font.setEnabled(on)
         self.indicator_size.setEnabled(on)
         if on:
@@ -3440,6 +3534,15 @@ class LayoutOptionsPanel(QWidget):
         self.bit_depth.setCurrentIndex(1 if r.bit16 else 0)
         self.export_pdf.setChecked(r.export_pdf)
         self.show_indicators.setChecked(r.show_strip_indicators)
+        # SHOW THE EFFECT, STORE THE ANSWER. The box shows what this chart will
+        # actually print, so None (= "whatever this instrument does") appears
+        # ticked on a SpectroScan and clear on an i1Pro. `get_recipe` turns it
+        # back into None whenever it still agrees with the instrument, so a
+        # recipe nobody touched is never written with an explicit value.
+        self._row_indicators_touched = r.show_row_indicators is not None
+        self.show_row_indicators.setChecked(
+            self._row_indicators_default(r) if r.show_row_indicators is None
+            else bool(r.show_row_indicators))
         _fi = self.indicator_font.findData(r.indicator_font)
         self.indicator_font.setCurrentIndex(_fi if _fi >= 0 else 0)
         self.indicator_size.setValue(mm_to_pt(r.indicator_size_mm))
@@ -3583,6 +3686,8 @@ class LayoutOptionsPanel(QWidget):
         r.bit16 = (self.bit_depth.currentData() == 16)
         r.export_pdf = self.export_pdf.isChecked()
         r.show_strip_indicators = self.show_indicators.isChecked()
+        r.show_row_indicators = (self.show_row_indicators.isChecked()
+                                 if self._row_indicators_touched else None)
         r.indicator_font = self.indicator_font.currentData() or "JetBrains Mono"
         r.indicator_size_mm = pt_to_mm(self.indicator_size.value())
         r.indicator_bold = self.ind_bold.isChecked()

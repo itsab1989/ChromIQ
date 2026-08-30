@@ -44,6 +44,11 @@ def tab(qapp, tmp_path):
     s.set("auto_update_preview", True)
     t = TabChart(ArgyllRunner(s), FileManager(s), s)
     t._switch_mode("manual")
+    # NAME THE PROJECT FIRST. Since 2026-08-30 a build with an empty name box
+    # asks for one (before §S4.7, so the gate sees the real answer). These
+    # tests are about queued re-renders, and an unanswered dialog would stand
+    # in the way of the thing they measure.
+    t._manual_target_name_edit.setText("ZZ-preview-preset-probe")
     return t
 
 

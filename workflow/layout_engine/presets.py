@@ -94,6 +94,13 @@ class LayoutRecipe:
     compression: str = "lzw"       # "lzw" | "zlib" | "none"
     export_pdf: bool = False        # also write a vector PDF next to the TIFF
     show_strip_indicators: bool = True   # draw the per-strip letter labels
+    # Row NUMBERS down the left of the patch block (the "1" in A1), in a
+    # reserved 7.5 mm band. TRI-STATE, and None is not laziness: it means "this
+    # instrument's own behaviour" — on for the SpectroScan and the CR30, off
+    # everywhere else — so every recipe saved before this field existed, and all
+    # 121 built-in presets, render exactly as they did. Only a person touching
+    # the checkbox writes an explicit True/False. (Knut, 2026-08-30.)
+    show_row_indicators: "bool | None" = None
     indicator_font: str = "JetBrains Mono"
     indicator_size_mm: float = 0.0       # 0 = auto (instrument text height)
     indicator_bold: bool = False
@@ -233,6 +240,8 @@ class LayoutRecipe:
             bit16=bool(d.get("bit16", False)), compression=d.get("compression", "lzw"),
             export_pdf=bool(d.get("export_pdf", False)),
             show_strip_indicators=bool(d.get("draw_indicators", True)),
+            show_row_indicators=(None if d.get("row_indicators") is None
+                                 else bool(d.get("row_indicators"))),
             indicator_font=d.get("indicator_font", "JetBrains Mono"),
             indicator_size_mm=float(d.get("indicator_size_mm") or 0.0),
             indicator_bold=bool(d.get("indicator_bold", False)),
@@ -352,6 +361,17 @@ class LayoutRecipe:
             "compression": self.compression,
             "export_pdf": self.export_pdf,
             "draw_indicators": self.show_strip_indicators,
+            # THE BAND FOLLOWS WHAT IS ACTUALLY DRAWN. `raster.py` draws the
+            # row numbers INSIDE `if draw_indicators:`, so with the strip labels
+            # off nothing appears — yet `rlwi` still reserved 7.5 mm, and the
+            # patch area paid for digits that were never printed. Derived here
+            # rather than written into the recipe, so the person's own answer
+            # survives switching the strip labels off and on again (writing
+            # False into the field would make an untouched SpectroScan lose its
+            # row numbers for good — the same stickiness as the instrument-switch
+            # bug this option already had once).
+            "row_indicators": (False if not self.show_strip_indicators
+                               else self.show_row_indicators),
             "indicator_font": self.indicator_font,
             "indicator_size_mm": self.indicator_size_mm,
             "indicator_bold": self.indicator_bold,

@@ -90,6 +90,12 @@ def settings(tmp_path):
 def tab(qapp, settings):
     t = TabChart(ArgyllRunner(settings), FileManager(settings), settings)
     t._switch_mode("guided")
+    # NAME THE PROJECT FIRST. Since 2026-08-30 a preset no longer names the
+    # project after itself, and the name is asked for BEFORE §S4.7 so the gate
+    # sees the real answer. With an empty box these tests — whose subject is
+    # what a REFUSED preset leaves behind — would sit on that dialog instead.
+    t._manual_target_name_edit.setText("ZZ-backout-probe")
+    t._target_name_edit.setText("ZZ-backout-probe")
     return t
 
 

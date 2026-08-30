@@ -8697,9 +8697,8 @@ class TabChart(QWidget):
         question about it. `peek_project` reads the manifest as plain JSON.
         """
         # A NAME THE APP FILLED IN IS NOT A NAME THE USER TYPED.
-        # `_ensure_profile_name` seeds this field from a preset whenever it is
-        # empty, and `_update_name_fields` writes the open project's name into
-        # it. Reading either back as "the user asked for this project" is the
+        # `_update_name_fields` writes the open project's name into this field,
+        # and a restored run's name is seeded into it by `_seed_preset_name`. Reading either back as "the user asked for this project" is the
         # trap the memory note calls *the app answered its own question* — and
         # the gate would then interrupt somebody who had merely picked a preset
         # whose default name happens to exist. `textEdited` fires only for a
@@ -9261,6 +9260,29 @@ class TabChart(QWidget):
         f.setText(name)
         # ChromIQ put this there, not the user — see `_name_typed_by_user`.
         self._name_typed_by_user = False
+
+    def _seed_preset_name(self, target_name: str | None) -> None:
+        """Put a name in the Printer-profile field for a BUILT-IN preset — and
+        ONLY when the caller supplied one.
+
+        #70 (Knut's model) said a preset must never overwrite a name the user
+        chose, and `_ensure_profile_name` honoured that by seeding only into an
+        empty field. But the fallback it was handed was the preset's OWN name,
+        so an empty field silently became e.g.
+        ``i1Pro-A4-162p-1page-Portrait-w7.5mm`` — and that string is not a
+        suggestion, it is the project folder, the ICC stem and the name printed
+        on the sheet. Knut reported it as a fault (2026-08-30); Basti agreed he
+        had wanted it the other way all along, so both asked for the field to
+        stay EMPTY, letting the build-time guard ask for a real name the way
+        the user-preset path already does.
+
+        A *restored* name is still applied. `target_name` comes from a saved
+        run or a reopened project — that name IS the user's, merely not typed
+        this minute — and #70's rule about not overwriting a chosen name is
+        exactly what keeps it.
+        """
+        if target_name:
+            self._ensure_profile_name(target_name)
 
     def _ensure_profile_name(self, default: str) -> str:
         """Return the current Printer-profile name, seeding the field with
@@ -9946,9 +9968,9 @@ class TabChart(QWidget):
         if self._bit8_radio is not None:
             self._bit8_radio.setChecked(True)
 
-        # The chart is built under the current Printer-profile name; the preset
-        # never overwrites it (#70). Only seed a name if the field is still empty.
-        self._ensure_profile_name(target_name or TC918_TARGET_NAME)
+        # Built under the current Printer-profile name; the preset never
+        # overwrites it (#70) and no longer NAMES the project after itself.
+        self._seed_preset_name(target_name)
 
         self._tc918_active = True
         self._tc918_targen_sig = self._targen_signature()
@@ -10014,8 +10036,8 @@ class TabChart(QWidget):
             self._manual_td_check.setChecked(True)
 
         # Built under the current Printer-profile name; the preset never
-        # overwrites it (#70). Seed a name only when the field is still empty.
-        self._ensure_profile_name(target_name or f"ColorMunki-{patches}")
+        # overwrites it (#70) and no longer NAMES the project after itself.
+        self._seed_preset_name(target_name)
 
         self._refresh_manual_command_preview()
         # Auto-generate immediately, like the TC9.18 preset.
@@ -10101,7 +10123,7 @@ class TabChart(QWidget):
             self._set_manual_value("targen", "-B", p.black)
             if self._manual_pages_spin is not None:
                 self._manual_pages_spin.setValue(p.pages)
-            self._ensure_profile_name(target_name or p.default_target_name)
+            self._seed_preset_name(target_name)
             return
 
         # Instrument first — it drives -h visibility and the per-instrument
@@ -10142,7 +10164,7 @@ class TabChart(QWidget):
 
         if self._manual_pages_spin is not None:
             self._manual_pages_spin.setValue(p.pages)
-        self._ensure_profile_name(target_name or p.default_target_name)
+        self._seed_preset_name(target_name)
 
     def _apply_knut_preset(self, key: str, target_name: str | None = None) -> bool:
         """Seed a TC9.18+Spyderprint preset and build it from the bundled .ti1.
@@ -11056,6 +11078,18 @@ class TabChart(QWidget):
         quietly copied the bundle, with `_layout_owned_by_build` left latched.
         Measured. Asking first is cheaper than unwinding.
         """
+        # THE NAME BEFORE THE GATE, on this route too. `_create_prebuilt_target`
+        # is handed `gate_already_asked=True` from here, so the guard inside it
+        # can no longer put §S4.7 in front of the answer — the question is
+        # settled here or not at all. Asked while the box was empty, §S4.7 has
+        # nothing to compare and a name given later overwrote a project without
+        # a single window.
+        if (self._manual_target_name_edit is not None
+                and not self._manual_target_name_edit.text().strip()
+                and not target_name and not _is_named(self._file_mgr)):
+            if not self._ask_for_a_project_name():
+                self._revert_preset_combo()
+                return False
         _proceed, _s4_done = self._gate_route_and_replace(perform_replace=False)
         if not _proceed:
             # TO NONE, not back to the preset that was applied before: by the
@@ -11081,8 +11115,9 @@ class TabChart(QWidget):
         # the bundled .ti1 only if the user unlocks the layout and edits it.
         self._set_manual_value("printtarg", "-i", self._prebuilt_instrument(key))
         self._set_manual_value("printtarg", "-p", self._prebuilt_paper_code(key))
-        # Built under the current Printer-profile name; never overwritten (#70).
-        self._ensure_profile_name(target_name or PREBUILT_PRESETS[key][1])
+        # Built under the current Printer-profile name; never overwritten (#70),
+        # and no longer named after the preset — see `_seed_preset_name`.
+        self._seed_preset_name(target_name)
         # Baselines for the Generate-time change detection, taken after seeding.
         self._prebuilt_targen_sig = self._targen_signature()
         self._prebuilt_printtarg_sig = self._printtarg_signature()
@@ -11164,6 +11199,22 @@ class TabChart(QWidget):
         # Check tabs. MERELY CHOOSING a prebuilt-files preset from the dropdown
         # lands here and adopts the typed name, so this was the one route where
         # Knut's report stayed reproducible after the gate went on the others.
+        # THE NAME COMES FIRST, BEFORE §S4.7 IS ASKED ABOUT ANYTHING.
+        # §S4.7 asks about the project this build will touch, so it has to be
+        # asked about the FINAL name. Asking for the name afterwards would
+        # invalidate the answer just given: the person agrees to replace project
+        # X and then names the project Y. `default_name` is the preset's own
+        # name, and letting it stand is what made the folder, the ICC stem and
+        # the name printed on the sheet into
+        # `i1Pro-A4-162p-1page-Portrait-w7.5mm` — Knut's report, 2026-08-30.
+        # An open project is not asked about: the chart is being added to it and
+        # its name is already the answer.
+        if (self._manual_target_name_edit is not None
+                and not self._manual_target_name_edit.text().strip()
+                and not target_name and not _is_named(self._file_mgr)):
+            if not self._ask_for_a_project_name():
+                self._abandon_prebuilt_attempt()
+                return False
         _proceed, _s4_done = self._gate_route_and_replace(gate_already_asked,
                                                           perform_replace=False)
         if not _proceed:
@@ -11176,9 +11227,18 @@ class TabChart(QWidget):
         # run); a build under a NEW name is its own project (#130).
         _ctl = getattr(self, "_target_ctl", None)
         _proj_before = _ctl.project_or_none() if _ctl is not None else None
-        name = (self._manual_target_name_edit.text().strip()
-                if self._manual_target_name_edit is not None else "") \
-            or target_name or default_name
+        # The name was settled above, before §S4.7 was asked. Read it back.
+        _typed = (self._manual_target_name_edit.text().strip()
+                  if self._manual_target_name_edit is not None else "")
+        _named = _is_named(self._file_mgr)
+        # AN OPEN PROJECT IS THE ANSWER — DO NOT RENAME IT AFTER THE PRESET.
+        # With a project open and the name box cleared, falling through to
+        # `default_name` renamed the target to the preset's own name and built
+        # there: the very fault this guard exists to stop, one branch over.
+        # `_generate_from_ti1` gets this right by simply not calling
+        # `set_target_name` when it has no name, which leaves the FileManager on
+        # the project already open; do the same here.
+        name = _typed or target_name or (None if _named else default_name)
         # ADOPT, ASK, AND PUT IT BACK ON A NO.
         #
         # §4 must be asked about the run this build will really touch, which
@@ -11190,7 +11250,8 @@ class TabChart(QWidget):
         # switched the project. Driven against the shipped build, which does
         # neither.
         _snapshot = self._file_mgr.target_snapshot()
-        self._file_mgr.set_target_name(name)
+        if name:
+            self._file_mgr.set_target_name(name)
         if not _s4_done and not self._confirm_displacing_results():
             self._file_mgr.restore_target(_snapshot)
             self._abandon_prebuilt_attempt()
@@ -11344,6 +11405,42 @@ class TabChart(QWidget):
             return False
         self._log_chart_build("live preview" if not ask else "user", ti1_path)
         self._cancel_pending_auto_preview()
+        # `preview` IS THE ONE CALLER THAT MAY NOT OPEN A WINDOW.
+        # The live auto-update preview re-renders on every turn of a knob, so a
+        # modal here would be thrown at somebody repeatedly while they drag a
+        # slider — and it left one standing in headless runs, which the gate
+        # reports as an ERROR rather than a failure and is easy to miss.
+        #
+        # NOT `ask`, which is the obvious-looking flag and the wrong one. Four
+        # auto-run preset routes also pass `ask=False` (they are the reason
+        # `_generate_from_ti1` needs its own name guard at all — Knut's G1
+        # report), and they ARE person-initiated. Keying on `ask` silently
+        # turned his exact route back into "nothing happens and nothing says
+        # why". `preview=True` is passed by exactly one caller.
+        #
+        # AND IT RUNS BEFORE §S4.7, WHICH IS THE WHOLE POINT OF ITS PLACE HERE.
+        # §S4.7 asks about the project this build will touch; asked while the
+        # name box is still empty it has nothing to check, waves the build
+        # through, and the name given afterwards is never compared with anything
+        # — so a name that already belongs to a project overwrote it with no
+        # window of any kind. Driven: 7 files replaced, including the .ti2 a
+        # printed sheet is read against. Typing the same name into the box
+        # itself asked properly. The name must exist BEFORE the gate.
+        from ui.dialogs.name_prompt import validate as _validate_name
+        _field = self._active_name_field()
+        _typed = _field.text().strip() if _field is not None else ""
+        # Empty, or typed into the box and unusable as a folder — the same door.
+        if ((not _typed and not _is_named(self._file_mgr))
+                or (_typed and _validate_name(_typed))):
+            if preview:
+                log.debug("live preview: nothing rendered — no usable project "
+                          "name yet")
+                return False
+            if not self._ask_for_a_project_name():
+                return False      # cancelled — nothing has been touched yet
+            # Answered. Fall through and build: the name is in the field now,
+            # and the code below reads it from there.
+
         # §4: every path that lays out a new chart asks first, not just the
         # Generate Chart button — a preset, an imported chart and a bundled
         # patch set all replace the chart a measurement describes.
@@ -11377,21 +11474,15 @@ class TabChart(QWidget):
         # start produced exactly that, with no dialog of any kind. Placed
         # BEFORE the button is disabled below, so an early return needs no undo.
         #
-        # WHAT IT DOES *NOT* COVER, so nobody measures a path no user has: on
-        # every BUILT-IN preset route `_ensure_profile_name` has already put the
-        # preset's own default name in the field before this runs, so the field
-        # is not empty and this guard never fires there. That is deliberate and
-        # written down twice (#70, Knut's model): a preset's own name is one a
-        # person recognises, unlike the `Printer_Paper_Type_Instr_<timestamp>`
-        # that `get_target_name()` invents, which is what #164 Q15 is about.
-        # The consequence worth knowing is a different one and it is tracked as
-        # an issue: a preset chosen on a freshly started app creates a project
-        # with no window at all, because §S4.7 keys off a name the USER typed.
-        _field = self._active_name_field()
-        _typed = _field.text().strip() if _field is not None else ""
-        if not _typed and not _is_named(self._file_mgr):
-            self._ask_for_a_project_name(retry=tr("pick the preset again"))
-            return False
+        # THIS NOW COVERS THE BUILT-IN PRESETS TOO. Until 2026-08-30 every
+        # built-in route had already called `_ensure_profile_name` with the
+        # preset's own default name, so the field was never empty here and the
+        # guard could not fire — and a preset picked on a freshly started app
+        # created a project named `i1Pro-A4-162p-1page-Portrait-w7.5mm` with no
+        # window at all, because §S4.7 keys off a name the USER typed. Knut
+        # reported that; Basti had wanted it asked all along. `_seed_preset_name`
+        # now leaves the field empty, so a built-in arrives here like any other
+        # preset and is asked for a name.
         # THE BUILD STARTS HERE, not at the call to the creator further down.
         # Everything below — naming the target, re-aligning the run, arming the
         # verification snapshot — can fire the target-switch handler, which loads
@@ -12063,30 +12154,40 @@ class TabChart(QWidget):
         InfoDialog(tr(m.title), tr(m.body).format(path=path),
                    self, min_width=560).exec()
 
-    def _ask_for_a_project_name(self, retry: "str | None" = None) -> None:
-        """Say that the name is needed, name the exact box, and put the cursor
-        in it (Basti, #164 Q15)."""
-        guided = self._current_mode() == "guided"
-        field = (self._target_name_edit if guided
-                 else self._manual_target_name_edit)
-        InfoDialog(
-            tr("Your project needs a name first"),
-            tr(
-                "“Printer profile project name” is still empty, and ChromIQ "
-                "uses that name for everything this project makes: the folder "
-                "it all lives in, the name printed on the chart itself, and "
-                "the finished ICC profile.\n\n"
-                "Type a name into that box — the one just above the "
-                "“Generate Chart” button — and {retry}. "
-                "Something that tells you which printer and paper it is for "
-                "works well, for example “Canon PRO-300 Baryta Gloss”.\n\n"
-                "You can rename it later; ChromIQ will offer to move the "
-                "folder with it."
-            ).format(retry=retry or tr("click “Generate Chart” again")),
-            self, min_width=540,
-        ).exec()
+    def _ask_for_a_project_name(self) -> bool:
+        """Ask for the project name, put it in the box, and say whether the
+        action that needed it may now go on.
+
+        IT USED TO BE A DEAD END. The old window explained that the name box
+        was empty, named the box, told the person to type into it and then
+        repeat the thing they had just done — so it closed, and the work
+        happened somewhere else. Basti, 2026-08-30: *"can this pop up window
+        offer me a field to directly enter the name in it and then a
+        confirmation button as well plus a tooltip icon"*. It can, and every
+        caller is placed early enough to carry straight on with the answer.
+
+        Returns True when a name was given (and written into the field), False
+        when the person cancelled — in which case the caller must leave
+        everything exactly as it found it (#175).
+        """
+        from ui.dialogs.name_prompt import ask_for_project_name
+        field = self._active_name_field()
+        current = field.text().strip() if field is not None else ""
+        name = ask_for_project_name(self, prefill=current)
+        if not name:
+            return False
         if field is not None:
+            field.setText(name)
             field.setFocus()
+        # A PERSON TYPED THIS, SO §S4.7 MUST SPEAK FOR IT.
+        # `setText` never emits `textEdited`, which is the only thing that sets
+        # this flag, and `_typed_project_peek` deliberately returns None for a
+        # name the app put in the box. Without this line a name that already
+        # belongs to another project would be accepted in silence — the very
+        # fault the flag exists to prevent, rebuilt one layer down.
+        self._name_typed_by_user = True
+        self._refresh_project_exists_line()
+        return True
 
     def _on_generate(self) -> None:
         """Generate Chart.
@@ -12114,6 +12215,27 @@ class TabChart(QWidget):
             if self._mode_name() == "gamut":
                 self._on_generate_gamut()
                 return
+            # THE NAME BEFORE THE GATE. §S4.7 below compares the name in the
+            # box with the projects on disk, so an empty box gives it nothing to
+            # compare: it waved the build through, and the name supplied
+            # afterwards was never checked against anything. A name that already
+            # belonged to a project then overwrote it in silence — while typing
+            # the very same name into the box asked properly. Ask first, and the
+            # gate does its job on the real answer.
+            # …AND A NAME THE FILESYSTEM CANNOT TAKE IS NO BETTER THAN NONE.
+            # The dialog refuses one; the name BOX has no limit at all, so a
+            # 250-character name reached `mkdir`, died with Errno 63 and left a
+            # half-built project behind. Send it back through the same dialog,
+            # pre-filled, rather than inventing a second way to say no.
+            from ui.dialogs.name_prompt import validate as _validate_name
+            _cur = (self._target_name_edit.text().strip()
+                    if self._current_mode() == "guided"
+                    else self._manual_target_name_edit.text().strip())
+            if ((not _cur and not _is_named(self._file_mgr))
+                    or (_cur and _validate_name(_cur))):
+                if not self._ask_for_a_project_name():
+                    return
+
             # §S4.7 FIRST — the typed name may point at a project that already
             # exists, in which case that window carries §4's answer too. Placed
             # AFTER the from-profile-gamut branch above, which asks for itself
@@ -12305,9 +12427,16 @@ class TabChart(QWidget):
             # would find again. Only ask when no project is open — once one is,
             # emptying the field is a rename question, and `_handle_target_rename`
             # owns that.
+            # Normally already answered above, before §S4.7 ran; kept as the
+            # backstop for any route that reaches here another way.
             if not name and not _is_named(self._file_mgr):
-                self._ask_for_a_project_name()
-                return
+                if not self._ask_for_a_project_name():
+                    return
+                name = (
+                    self._target_name_edit.text().strip()
+                    if self._current_mode() == "guided"
+                    else self._manual_target_name_edit.text().strip()
+                )
             # If a target was already created this session and the user has now typed
             # a different name, switching folders would orphan the old one. Ask first
             # (rename / keep both / delete old); Cancel aborts before anything clears.
@@ -16404,6 +16533,33 @@ class TabChart(QWidget):
                     "⚠ The left margin is tight for the row numbers — the "
                     "patches will cover part of each one. About 2 mm prints "
                     "them cleanly."))
+            # THE NUMBERS AND THE CLIP BAND WANT THE SAME PAPER.
+            #
+            # "Fill the page" deliberately stops reserving the 7.5 mm band
+            # (geometry.py: `_rlwi = 0.0 if g.fill_beyond_ruler`), because the
+            # margin is the law for the PATCHES there. The numbers are then
+            # drawn growing LEFT from the first patch — straight into the clip
+            # border or the notes band when the chart has one on that edge, so
+            # the digits print on top of whatever is written there. Nothing is
+            # lost and no patch moves, so this is a warning and not a refusal;
+            # switching to "Prioritise patch size" reserves the band again.
+            # …AND ONLY WHEN SOMETHING IS ACTUALLY PRINTED THERE. With the clip
+            # content switched off the strip is empty, nothing is pasted over
+            # the digits and they come out perfectly — measured, 96,313 dark
+            # pixels in the left 20 mm against 0 with notes on. Warning there
+            # tells the user a feature is broken while they are looking at it
+            # working, which is the fastest way to teach them to ignore
+            # warnings.
+            if geom.rlwi > 0 and geom.fill_beyond_ruler and geom.lbord > 0 \
+                    and r.clip_content_mode != "off" \
+                    and (getattr(geom, "clip_side", "left") or "left") == "left":
+                warns.append(tr(
+                    "⚠ The row numbers will not appear on this chart. "
+                    "“Prioritise chart area, then fit patches to it” gives "
+                    "their space to the patches, so they are drawn where the "
+                    "clip border is and the clip border is printed over them. "
+                    "Switch to “Prioritise patch size, then fit to page” to "
+                    "get them back, or put the clip border on the right."))
             nlines = (1 if r.chart_text else 0) + (1 if r.stamp_command else 0)
             if nlines and r.margin_bottom + 0.05 < r.text_edge_mm + 4.2 * nlines:
                 warns.append(tr("⚠ Bottom margin is too small for the sheet text — "
