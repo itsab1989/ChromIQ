@@ -2503,6 +2503,10 @@ class TiffPreview(QWidget):
                                   for lb in left_pats)
                     if left_is_border or not covered:
                         painter.drawLine(QPointF(x0, y0), QPointF(x0, y1))  # left
+        #: Hexagonal seams and warn rings, stroked after every fill -- see the
+        #: note below the loop.
+        _seams: list = []
+        _warn_hexes: list = []
         for rect, c_exp, c_meas, warn in items:
             if self._hex_zigzag:
                 # SpectroScan hexagonal chart: the measured/expected patch must
@@ -2536,22 +2540,21 @@ class TiffPreview(QWidget):
                 _seam = QPen(_edge)
                 _seam.setCosmetic(True)
                 _seam.setWidthF(1.0)
-                painter.setPen(_seam)
-                painter.setBrush(Qt.BrushStyle.NoBrush)
-                painter.drawPath(hexp)
+                # The seam is stroked on the shared edge too, so it is deferred
+                # for the same reason as the ring: a neighbour's fill drawn
+                # later would erase half of it.
+                _seams.append((hexp, QPen(_seam)))
                 if warn:
-                    painter.setBrush(Qt.BrushStyle.NoBrush)
-                    rw = max(1.8, s * 2.2)
-                    halo = QPen(QColor(255, 255, 255, 235))
-                    halo.setWidthF(rw + 2.6)
-                    halo.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-                    painter.setPen(halo)
-                    painter.drawPath(hexp)
-                    red = QPen(QColor("#ff2b2b"))
-                    red.setWidthF(rw)
-                    red.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-                    painter.setPen(red)
-                    painter.drawPath(hexp)
+                    # DEFERRED TO A SECOND PASS. On a hexagonal chart the ring
+                    # is stroked ON the shared edge, so half its width lies in
+                    # the neighbour's territory -- and the neighbour's FILL is
+                    # drawn later in this same loop, straight over it. Measured
+                    # on the real widget with the chart's own A1/A2: 37 ring
+                    # pixels lost, and with two adjacent flagged patches one
+                    # ring loses either way round, so no ordering saves it.
+                    # Basti found it on a printed-looking report: "red overlays
+                    # for flagged patches are partly covered by other patches".
+                    _warn_hexes.append(hexp)
                 continue
             # Round BOTH edges to whole pixels so the split covers exactly the
             # same span as the printed patch — flooring each of x/y/w/h
@@ -2614,6 +2617,38 @@ class TiffPreview(QWidget):
                 red.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
                 painter.setPen(red)
                 painter.drawRect(wr)
+
+        # SECOND PASS: every warn ring, after every fill.
+        #
+        # A ring drawn inside the fill loop is painted over by the next patch's
+        # fill, because a hexagon's ring sits ON the shared edge. Two passes is
+        # the only order that works -- with two adjacent flagged patches, one
+        # ring is lost whichever way the items are sorted.
+        #
+        # The rectangular branch keeps its ring inline and is unaffected: its
+        # ring is INSET, so nothing of it lies in a neighbour's territory
+        # (verified on the real widget, 0 pixels differ by draw order).
+        if _seams:
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            for hexp, pen in _seams:
+                painter.setPen(pen)
+                painter.drawPath(hexp)
+        if _warn_hexes:
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            rw = max(1.8, s * 2.2)
+            halo = QPen(QColor(255, 255, 255, 235))
+            halo.setWidthF(rw + 2.6)
+            halo.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+            red = QPen(QColor("#ff2b2b"))
+            red.setWidthF(rw)
+            red.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+            for hexp in _warn_hexes:
+                painter.setPen(halo)
+                painter.drawPath(hexp)
+            for hexp in _warn_hexes:
+                painter.setPen(red)
+                painter.drawPath(hexp)
 
         # #126 spot mode: highlight the patch to read next with a bright
         # haloed accent ring so the user knows where to place the instrument.
