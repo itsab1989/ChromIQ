@@ -2695,13 +2695,21 @@ class TiffPreview(QWidget):
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
-            def _aim_circle(d_px: float, dash: bool) -> None:
+            def _aim_circle(d_px: float, dash: bool,
+                            accent: str = "#1f8f6b") -> None:
                 rad = d_px * s / 2.0
-                if rad < 4.0:            # smaller than the dash pattern: noise
+                # The dash guard applies to the DASHED body circle only. A
+                # 4 mm aperture on a 3 mm patch is small on screen by nature --
+                # that is the whole point of it -- and skipping it below 4 px
+                # made the warning vanish entirely at any ordinary window size
+                # (measured: 1280x860 showed nothing at all).
+                if dash and rad < 4.0:
+                    return
+                if rad < 1.5:
                     return
                 rect = QRectF(cx - rad, cy - rad, rad * 2.0, rad * 2.0)
                 for colour, extra in ((QColor(255, 255, 255, 225), 2.4),
-                                      (QColor("#1f8f6b"), 0.0)):
+                                      (QColor(accent), 0.0)):
                     pen = QPen(colour)
                     pen.setWidthF(2.0 + extra)
                     if dash:
@@ -2715,11 +2723,12 @@ class TiffPreview(QWidget):
                     painter.drawEllipse(rect)
 
             _aim_circle(self._aim_body_px, True)
-            # Only when it overflows: the patch's own smaller dimension is the
-            # room a round aperture actually has.
-            if (self._aim_aperture_px > 0
-                    and self._aim_aperture_px >= min(ar.width(), ar.height())):
-                _aim_circle(self._aim_aperture_px, False)
+            # The aperture circle is NOT drawn here. It is a warning, and the
+            # accent ring below is drawn after this block and swallowed it: on
+            # a 3 mm patch the ring's halo reached 6.2 px while the aperture
+            # stroke spanned 2.6-7.0 px, leaving 119 device pixels of a circle
+            # that was the SAME COLOUR as the ring anyway. Deferred, and given
+            # its own alarm colour, below.
 
         # #126 spot mode: highlight the patch to read next with a bright
         # haloed accent ring so the user knows where to place the instrument.
@@ -2773,6 +2782,36 @@ class TiffPreview(QWidget):
                 painter.drawPath(_hex)
             else:
                 painter.drawRect(x0, y0, x1 - x0, y1 - y0)
+
+        # THE APERTURE WARNING, AFTER THE ACCENT RING so nothing covers it.
+        #
+        # It appears only when the 4 mm measuring opening does NOT fit inside
+        # the patch -- Basti's ruling, 2026-08-30. Nothing refuses such a chart
+        # (his ruling too: ArgyllCMS offers no such guard for any instrument),
+        # so this is the only place the condition is ever visible, and it is
+        # drawn overflowing the patch honestly rather than tidied to fit.
+        #
+        # Red, not the accent green: it says "this reading will be wrong", and
+        # it sat invisible under a ring of its own colour until it was moved
+        # here.
+        if (self._aim_overlay and self._aim_aperture_px > 0
+                and self._active_patch_box is not None
+                and self._active_patch_page == self._current):
+            ar = self._active_patch_box
+            if self._aim_aperture_px >= min(ar.width(), ar.height()):
+                cx = (ar.x() + ar.width() / 2.0) * s + ox
+                cy = (ar.y() + ar.height() / 2.0) * s + oy
+                rad = self._aim_aperture_px * s / 2.0
+                if rad >= 1.5:
+                    painter.setBrush(Qt.BrushStyle.NoBrush)
+                    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+                    rect = QRectF(cx - rad, cy - rad, rad * 2.0, rad * 2.0)
+                    for colour, extra in ((QColor(255, 255, 255, 235), 2.6),
+                                          (QColor("#ff2b2b"), 0.0)):
+                        pen = QPen(colour)
+                        pen.setWidthF(2.0 + extra)
+                        painter.setPen(pen)
+                        painter.drawEllipse(rect)
 
         # #126 spot mode: click-to-jump hover outline around the patch under
         # the pointer (mirrors the strip hover outline below).

@@ -24,10 +24,14 @@ MAXROWLEN = 5000.0      # printtarg.c MAXROWLEN — large enough to never bind f
 
 # ---- CR30 physical dimensions, for the Measure tab's aiming help ------------
 #
-# SOURCED, not assumed. Both figures come from CHNSpec's own CR-series
-# brochure (the URL is in the manufacturer-contact draft), and the body
-# diameter was independently confirmed by measuring the owner's unit
-# (chromiq-cr30-research, EXPERIMENTS.md, EXP-018):
+# SOURCED, not assumed -- but NOT equally well sourced, and the difference is
+# recorded here rather than smoothed over. Both figures come from CHNSpec's own
+# CR-series brochure (the URL is in the manufacturer-contact draft). Only the
+# APERTURE has a second, independent source: the owner's own measurement of his
+# unit (chromiq-cr30-research, EXPERIMENTS.md, EXP-018). The BODY diameter rests
+# on the brochure alone -- "33 mm" appears nowhere in the research repo -- and a
+# commit message of mine claimed otherwise. Measure a real unit and this comment
+# improves.
 #
 #     Measure Aperture   4 mm
 #     Body               Ø33 mm x 84 mm
@@ -35,6 +39,11 @@ MAXROWLEN = 5000.0      # printtarg.c MAXROWLEN — large enough to never bind f
 # ⚠ The 4.45 mm that appears in `docs/cr30_reports/02-design.md` is NOT a rival
 # aperture figure. It is the inscribed circle of a hexagonal patch of equal
 # area — a CLEARANCE, i.e. how much room a 4 mm aperture has inside that shape.
+#
+# ⚠ UNVERIFIED, AND THE AIMING TECHNIQUE DEPENDS ON IT: nothing establishes
+# that the aperture is CENTRED in the body. The overlay draws both circles
+# concentric, and "place it so the same neighbours are evenly covered" only
+# works if they are. Two minutes with a real unit would settle it.
 #
 # These are drawn ON SCREEN AT SCALE, so they are a factual claim about the
 # instrument: change them only against a better source, and say which.

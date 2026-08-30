@@ -2535,6 +2535,11 @@ class TabMeasure(QWidget):
         # of the app deciding for them.
         aim = QCheckBox(tr("Show where the instrument will sit"), row)
         aim.setChecked(True)          # on by default; the user's choice is kept
+        # HIDDEN UNTIL A CHART SAYS OTHERWISE. `_apply_cr30_aim_visibility` is
+        # reached through `_apply_cr30_dead_options`, which never runs at
+        # construction -- so with no chart loaded the row stood there offering
+        # help for an instrument nobody had mentioned.
+        aim.setVisible(False)
         aim.toggled.connect(
             lambda _on, p=prefix: self._on_view_control_changed(p))
         aim_tip = TooltipButton(
@@ -2555,11 +2560,17 @@ class TabMeasure(QWidget):
             "and you will see it if the patch is too small for it. Then part "
             "of what the instrument reads is the neighbouring patch, and that "
             "reading will be wrong no matter how carefully you aim — build the "
-            "chart again with fewer or larger patches.\n\nIt changes nothing "
-            "about your measurements; it only draws on the preview. This "
-            "option appears for the CR30 only, because it is the only "
-            "instrument ChromIQ asks you to aim by hand."),
+            "chart again with larger patches — in Create Chart, either raise "
+            "the patch size or ask for fewer patches, depending on which "
+            "layout method you are using.\n\nThe circles appear while a "
+            "measurement is running, on the patch you are being asked for. "
+            "Before you press Start there is nothing to point at, so you "
+            "will not see them yet.\n\nIt changes nothing about your "
+            "measurements; it only draws on the preview. This option appears "
+            "for the CR30 only — it is the one instrument ChromIQ always "
+            "reads one patch at a time, by hand."),
             row)
+        aim_tip.setVisible(False)
         aim_row = QHBoxLayout()
         aim_row.setContentsMargins(0, 0, 0, 0)
         aim_row.setSpacing(0)
