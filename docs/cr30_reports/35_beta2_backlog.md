@@ -102,3 +102,65 @@ the cap and **needs measuring before it is promised**. Recorded in
   Recorded as a discrepancy with a proposed amendment, `Confirmed by: nobody
   yet` — Basti's or Knut's call.
 * Bluetooth on Windows, and Linux entirely, have never been run on hardware.
+
+## B2-6 · The CH340 hazard — DONE, and it was worse than misidentification
+
+The owner: *"we just have to make sure that chromiq does not greenlight any and
+every device that is connected via usb this way"*. Two faults, both fixed and
+both verified against his instrument:
+
+* **`open_usb()` took `candidates()[0]` and trusted it.** With any other CH340
+  device enumerating first, ChromIQ would treat a stranger's board as the
+  instrument and write a calibration frame to it. Every candidate is now
+  identified before it is accepted; one that does not answer `CR30` is closed
+  and left alone, and the error names what was tried and why a CH340 may not be
+  an instrument at all.
+* **Opening the port asserted DTR and RTS.** `dsrdtr=False` is flow control
+  only — pyserial still raises both lines on open. Most maker boards AUTO-RESET
+  on DTR; that is how their bootloaders are entered. So merely LOOKING for an
+  instrument restarted somebody's Arduino, 3D printer or CNC controller. On a
+  printer mid-job that is a ruined print.
+
+Measured on his Mac, 2026-08-30: ChromIQ's own open reported `dtr True, rts
+True`. Held low before opening, his CR30 identified normally (`CR30`, V11.3) —
+so the safe form costs the instrument nothing. Verified again through the real
+`CR30.open_usb()` path.
+
+**Residual, and honest:** finding a CR30 on a serial port still requires WRITING
+to it — one `AA 0A` request, the same frame the vendor's own software sends. A
+board that mistakes four bytes for a command could still be disturbed. Removing
+the reset was the large half; the remaining half needs either a read-only
+discriminator (none is known) or a remembered confirmed port, which is worth
+building next.
+
+## B2-7 · The BLE axis check cannot tell a CR30 from its own siblings
+
+From the vendor's brochure, found while drafting the manufacturer email: the
+**CR10, CR20 and CR30 all share 45/0 geometry and 400–700 nm at 10 nm**. The
+Bluetooth confirmation shortlists on the `ffe0` service and confirms on that
+axis — so it identifies "a CHNSpec CR-series colorimeter", not "a CR30".
+
+Not necessarily a fault: if the siblings answer the same protocol, reading them
+may simply work, and supporting them would be a feature rather than a bug. But
+ChromIQ currently claims CR30 specifically, and **nobody has ever seen a CR10 or
+CR20**. Say what is true, and put the question to the manufacturer — it is
+already question 2 in the draft email.
+
+## B2-8 · `BleTransport.open()` falls back to unconfirmed ffe0 devices
+
+Reported by review: when the confirmed shortlist is empty, `open()` accepts any
+device advertising `ffe0` — a service UUID shared with the common HM-10 module
+and countless hobby gadgets. Same shape as the CH340 fault on the other
+transport, and it should get the same answer: do not accept what has not
+identified itself.
+
+## B2-9 · Over Bluetooth, no other owner has magnet protection at all
+
+`TILE_SIGNATURE` is the owner's own unit's constant, and on the only other unit
+with captures it is 94x outside tolerance. USB catches a magnet on every unit
+via the device's own gate flag; Bluetooth has no equivalent frame, so for
+anybody else the first magnet-spoiled reading over Bluetooth is undetectable.
+
+Not fixable without other units. **It must be SAID**, plainly, wherever the
+Bluetooth path is documented — a silent gap in a data-integrity guard is the
+worst kind. Currently only in the research repo.

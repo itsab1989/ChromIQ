@@ -135,10 +135,40 @@ class SerialTransport(Transport):
         self._ser = None
 
     def open(self) -> None:
+        """Open the port WITHOUT touching the modem control lines.
+
+        ⚠ THIS IS NOT ABOUT THE CR30. IT IS ABOUT EVERYTHING ELSE PLUGGED IN.
+
+        `1a86:7523` is the generic CH340 bridge and it is inside millions of
+        unrelated devices — Arduinos, 3D printers, CNC controllers, laser
+        cutters. Most of those boards AUTO-RESET when DTR is asserted; that is
+        how their bootloaders are entered. Simply opening the port restarts
+        them, which on a printer means a job stops mid-print.
+
+        `dsrdtr=False` does NOT prevent that. It disables hardware flow
+        control, nothing more: pyserial still raises DTR and RTS on open,
+        because `_dtr_state`/`_rts_state` default to True. Measured on the
+        owner's Mac, 2026-08-30 — ChromIQ's own open reported `dtr True,
+        rts True`.
+
+        Holding both LOW before the port is opened is the form that cannot
+        reset a board. **And the CR30 does not need them**: with both low it
+        identified normally on the owner's unit, same session — `CR30`,
+        firmware V11.3. So this costs us nothing and spares somebody else's
+        hardware.
+        """
         import serial  # noqa: PLC0415 -- deliberately lazy, see class docstring
-        self._ser = serial.Serial(
-            self.port, self.baud, timeout=0.05,
-            bytesize=8, parity="N", stopbits=1, rtscts=False, dsrdtr=False)
+        ser = serial.Serial()
+        ser.port = self.port
+        ser.baudrate = self.baud   # irrelevant to the device; see the docstring
+        ser.timeout = 0.05
+        ser.bytesize, ser.parity, ser.stopbits = 8, "N", 1
+        ser.rtscts = ser.dsrdtr = False
+        # BEFORE open(), or the lines are asserted the moment it is opened.
+        ser.dtr = False
+        ser.rts = False
+        ser.open()
+        self._ser = ser
         # No settle delay: VERIFIED unnecessary (EXP-USB-005, 10/10 at 0 ms).
         self._ser.reset_input_buffer()
 

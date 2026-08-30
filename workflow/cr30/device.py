@@ -107,15 +107,61 @@ class CR30:
 
     @classmethod
     def open_usb(cls, port: str | None = None) -> "CR30":
+        """Open over USB, and — when choosing for ourselves — ASK EACH PORT
+        WHAT IT IS before handing it back as an instrument.
+
+        ⚠ `1a86:7523` IS NOT A CR30. It is the generic CH340 bridge, inside
+        millions of unrelated devices: Arduinos, 3D printers, CNC controllers,
+        laser cutters. This method used to take `candidates()[0]` and trust it,
+        so with any other CH340 device enumerating first ChromIQ would treat a
+        stranger's board as the user's instrument and go on to write a
+        calibration frame to it.
+
+        Every candidate is now identified before it is accepted, and a port
+        that does not say `CR30` is closed and left alone. Opening is safe in
+        itself — `SerialTransport.open` holds DTR and RTS low precisely so that
+        looking cannot reset somebody's board — and identification is the
+        smallest possible question: one `AA 0A` request, the same frame the
+        vendor's own software sends.
+
+        An explicit `port` is still honoured without a question, because then
+        the caller has already decided.
+        """
         from .transport import SerialTransport
         from .discovery import candidates
-        if port is None:
-            found = candidates()
-            if not found:
-                raise ConnectionError("no CH34x serial device found")
-            port = found[0].device
-        t = SerialTransport(port); t.open()
-        return cls(t, "usb")
+        if port is not None:
+            t = SerialTransport(port); t.open()
+            return cls(t, "usb")
+
+        found = candidates()
+        if not found:
+            raise ConnectionError("no CH34x serial device found")
+
+        refused: list[str] = []
+        for cand in found:
+            t = SerialTransport(cand.device)
+            try:
+                t.open()
+                dev = cls(t, "usb")
+                dev.identify()          # raises unless this really is a CR30
+                return dev
+            except Exception as exc:    # noqa: BLE001 — try the next one
+                try:
+                    t.close()
+                except Exception:       # noqa: BLE001 — closing a bad port
+                    pass
+                refused.append(f"{cand.device} ({exc})")
+                continue
+
+        # EVERY CH340 SAID NO. Name them, because "no instrument found" while a
+        # cable is plainly plugged in is the least helpful thing we could say —
+        # and because the likeliest cause is that the CH340 the user can see is
+        # something else entirely.
+        raise ConnectionError(
+            "a CH34x serial device is connected but none of them answered as a "
+            "CR30 — that chip is also used by Arduinos, 3D printers and CNC "
+            "controllers, so it may not be an instrument at all. Tried: "
+            + "; ".join(refused))
 
     def close(self) -> None:
         self._t.close()

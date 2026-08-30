@@ -146,7 +146,14 @@ def stubbed(monkeypatch):
 
 
 def _stopped_by_a_magnet():
-    """A real bridge, stopped the way the instrument really stops it."""
+    """A real bridge, stopped the way the instrument really stops it.
+
+    ⚠ ANY TEST THAT RESUMES THIS BRIDGE MUST CALL `h.settle()` BEFORE IT ENDS.
+    Resuming starts a real reader thread; ending the test with it still running
+    leaves Qt collecting objects out from under it, and the worker SEGFAULTS —
+    intermittently, and never when the file is run alone, which is the worst
+    way for it to fail. Seen repeatedly on 2026-08-30 under `-n auto`.
+    """
     h = Harness()
     h.raise_with = MagnetGated(MAGNET_MESSAGE)
     h.ready("A1")
@@ -166,6 +173,7 @@ def test_the_remedy_keeps_the_session_it_is_rescuing(stubbed):
     assert tab._cr30_bridge is was, (
         "the remedy built a new bridge; the outstanding patch and the stopped "
         "flag went with the old one")
+    h.settle()          # the resume started a reader thread; let it finish
 
 
 def test_the_remedy_actually_re_arms_the_patch(stubbed):
@@ -199,6 +207,7 @@ def test_the_operator_is_only_told_it_carried_on_when_it_did(stubbed):
     assert "Carrying on" in said
     assert h.bridge.armed_for("A1"), (
         "the app promised the session had carried on while nothing listened")
+    h.settle()
 
 
 def test_the_instrument_is_not_closed_mid_recovery(stubbed):
@@ -213,6 +222,7 @@ def test_the_instrument_is_not_closed_mid_recovery(stubbed):
     tab._on_cr30_magnet("A1", MAGNET_MESSAGE)
 
     assert stops == [], "the bridge was stopped by its own remedy"
+    h.settle()
 
 
 def test_stopping_from_the_window_still_ends_the_session(stubbed):
