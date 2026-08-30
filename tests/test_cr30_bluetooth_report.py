@@ -88,8 +88,14 @@ def test_seeing_nothing_says_so_plainly_and_does_not_blame_a_setting(monkeypatch
     would send the reader hunting for something that does not exist."""
     text = _run(monkeypatch, [("AA:BB:CC:DD:EE:04", "Someone's iPhone", [])])
     assert "NOTHING" in text
-    assert "no Bluetooth on/off setting" in text.lower() or \
-           "NO Bluetooth on/off setting" in text
+    # A mixed-case needle against a lowercased haystack can never match; the
+    # original only passed on its second clause, so a wording change broke it
+    # for a reason that had nothing to do with the wording being wrong.
+    # FLATTEN FIRST. The phrase wraps across a line in the report, so a naive
+    # substring test misses it — the same line-break trap that let an earlier
+    # test in this file pass while asserting the wrong thing.
+    flat = " ".join(text.lower().split())
+    assert "no bluetooth on/off setting" in flat
     assert "screen" in text.lower(), "the instrument's own display is the clue"
 
 
@@ -292,3 +298,51 @@ def test_the_offer_still_asks_for_the_report(monkeypatch):
     monkeypatch.setattr("ui.widgets.fit_message_box_buttons", lambda *a: None)
     _Tab(None)._offer([{"name": "CR30", "address": "X", "confirmed": True}])
     assert "send the report" in captured.get("text", "")
+
+
+# -- the serial: not for finding, but for seeing ----------------------------
+
+def test_a_serial_is_not_used_to_find_the_instrument(monkeypatch):
+    """Discovery goes by service then by protocol, so it works on a unit nobody
+    has seen. A name filter would only ever find instruments we already knew."""
+    text = _run(monkeypatch, [("AA:BB:CC:DD:EE:20", "CM000X0000", [FFE0])],
+                accepted=[])
+    assert "CM000X0000" in text          # listed because it OFFERS the service
+    assert "MATCHES THE SERIAL" not in text
+
+
+def test_a_name_only_advertiser_is_surfaced_when_the_serial_is_known(monkeypatch):
+    """The case the shortlist cannot see: it advertises its NAME but not the
+    service, so ChromIQ skips it — and the redaction would hide it."""
+    import asyncio
+    from workflow.cr30 import ble
+
+    class _Adv:
+        def __init__(s, n, u, r=-50): s.local_name, s.service_uuids, s.rssi = n, u, r
+
+    class _Dev:
+        def __init__(s, a, n): s.address, s.name = a, n
+
+    found = {"AA:BB:CC:DD:EE:21": (_Dev("AA:BB:CC:DD:EE:21", "CM443L1437"),
+                                   _Adv("CM443L1437", []))}
+
+    class _S:
+        @staticmethod
+        async def discover(timeout=0.0, return_adv=False):
+            return found
+
+    import bleak
+    monkeypatch.setattr(bleak, "BleakScanner", _S)
+    monkeypatch.setattr(ble, "discover", lambda *a, **k: asyncio.sleep(0, result=[]))
+    text = asyncio.new_event_loop().run_until_complete(
+        br.collect(0.0, serial="CM443L1437")).text
+    assert "MATCHES THE SERIAL" in text
+    assert "OUR bug, not yours" in text
+    assert br._REDACTED not in text, "the one device that matters was redacted"
+
+
+def test_without_a_serial_that_device_is_redacted_like_any_other(monkeypatch):
+    """The redaction is not weakened: only a device the USER named is shown."""
+    text = _run(monkeypatch, [("AA:BB:CC:DD:EE:22", "CM443L1437", [])])
+    assert "CM443L1437" not in text
+    assert br._REDACTED in text

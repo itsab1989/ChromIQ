@@ -1775,6 +1775,26 @@ class MainWindow(QMainWindow):
         if box.clickedButton() is not go:
             return
 
+        # ASK FOR THE SERIAL, OPTIONALLY. It is NOT used to find the
+        # instrument -- searching goes by service and then by protocol, so it
+        # works on a unit nobody has seen. It is used to catch the one case
+        # searching cannot: a device that advertises its NAME but not the
+        # service, which ChromIQ skips and this report would otherwise hide
+        # behind the redaction. Then the instrument is sitting in the list and
+        # nobody can tell.
+        from PyQt6.QtWidgets import QInputDialog
+        serial, _ok = QInputDialog.getText(
+            self, tr("CR30 Bluetooth report"),
+            tr("If you know your instrument's serial number, type it here.\n\n"
+               "The manufacturer's own software shows it under Instrument "
+               "settings, and it may be printed on the instrument itself. It "
+               "is optional — leave it empty and the report still works.\n\n"
+               "ChromIQ does not use it to search. It uses it to spot your "
+               "instrument in the list even if it is not announcing itself "
+               "the way ChromIQ expects, which is one of the things that can "
+               "go wrong."))
+        serial = (serial or "").strip()
+
         # ON A WORKER THREAD, AND NOT ONLY TO KEEP THE WINDOW ALIVE.
         #
         # On Windows this MUST leave the GUI thread. Qt's Windows platform
@@ -1800,7 +1820,7 @@ class MainWindow(QMainWindow):
                 from workflow.cr30.bluetooth_report import collect
                 loop = asyncio.new_event_loop()
                 try:
-                    rep = loop.run_until_complete(collect())
+                    rep = loop.run_until_complete(collect(serial=serial))
                 finally:
                     loop.close()          # one leaked loop per run otherwise
                 result["text"] = rep.text

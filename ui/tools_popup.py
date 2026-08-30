@@ -108,6 +108,7 @@ class ToolsPopup(QWidget):
     H_PAD       = 18    # horizontal padding inside the panel
     V_PAD       = 8     # vertical padding above the first / below the last row
     PANEL_MARGIN = 12   # transparent space around panel for the drop shadow
+    SCROLLBAR_W  = 4    # thumb width, matching ui/builtin_preset_popup
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -126,6 +127,13 @@ class ToolsPopup(QWidget):
         self._mode    = "dark"
         self._palette = _PALETTE_DARK
         self._hover_index: int = -1
+        #: How far the list is scrolled, in pixels. The popup is painted rather
+        #: than laid out, so scrolling is an offset applied in `_rows()` --
+        #: which both the painter and the hit test go through, so they cannot
+        #: disagree about where a row is.
+        self._scroll: int = 0
+        self._content_h: int = 0     # the full list's height
+        self._view_h: int = 0        # what the capped panel can show
         self._tail_offset_x: int = 0  # tail apex X within the widget
         self._anchor: QWidget | None = None  # button we're anchored under, for hover-reset on close
 
@@ -151,7 +159,7 @@ class ToolsPopup(QWidget):
         # true insets plus H_PAD of actual breathing room, and round up so a
         # fractional advance never truncates.
         inner = 2 * (6 + 12)
-        panel_w = math.ceil(text_w) + inner + self.H_PAD
+        panel_w = math.ceil(text_w) + inner + self.H_PAD + self.SCROLLBAR_W
         panel_w = max(panel_w, 240)
         content = 0
         first = True
@@ -163,10 +171,29 @@ class ToolsPopup(QWidget):
             else:
                 content += self.ROW_H
             first = False
-        panel_h = content + 2 * self.V_PAD
+        # CAP IT AGAINST THE SCREEN, AND SCROLL THE REST. The list has grown
+        # with the app -- twenty entries in seven groups -- and an uncapped
+        # popup eventually runs off the bottom of the display, where the last
+        # tools are simply unreachable. Two thirds of the available height
+        # leaves the anchor button and some page visible above and below.
+        self._content_h = content
+        avail = 700
+        try:
+            from PyQt6.QtGui import QGuiApplication
+            scr = QGuiApplication.screenAt(self.pos()) or \
+                QGuiApplication.primaryScreen()
+            if scr is not None:
+                avail = scr.availableGeometry().height()
+        except Exception:            # noqa: BLE001 — a cap, never fatal
+            pass
+        room = max(240, int(avail * 0.66) - 2 * self.PANEL_MARGIN
+                   - self.TAIL_H - 2 * self.V_PAD)
+        self._view_h = min(content, room)
+        panel_h = self._view_h + 2 * self.V_PAD
         w = panel_w + 2 * self.PANEL_MARGIN
         h = panel_h + 2 * self.PANEL_MARGIN + self.TAIL_H
         self.setFixedSize(w, h)
+        self._scroll = min(self._scroll, self._max_scroll())
 
     def _panel_rect(self) -> QRect:
         return QRect(
@@ -181,7 +208,7 @@ class ToolsPopup(QWidget):
         ``"header"`` (payload = label) or ``"tool"`` (payload = ToolEntry)."""
         panel = self._panel_rect()
         out: list[tuple[str, object, QRect]] = []
-        y = panel.top() + self.V_PAD
+        y = panel.top() + self.V_PAD - self._scroll
         first = True
         for kind, payload in _ROWS:
             if kind == "header":
@@ -268,6 +295,12 @@ class ToolsPopup(QWidget):
         p.setBrush(Qt.BrushStyle.NoBrush)
         p.drawPath(bubble)
 
+        # CLIP TO THE PANEL BEFORE DRAWING ROWS. Scrolled rows still have
+        # rectangles above and below the visible area; without this they paint
+        # over the tail, the shadow margin and whatever is behind the popup.
+        p.save()
+        p.setClipRect(panel.adjusted(1, 1, -1, -1))
+
         # Rows (grouped: muted uppercase headers, hoverable tool rows)
         header_font = QFont(self.font())
         header_font.setPixelSize(10)
@@ -299,15 +332,92 @@ class ToolsPopup(QWidget):
                 payload.label,
             )
 
+        p.restore()
+
+        # A HINT THAT THERE IS MORE. Without it a capped list looks like the
+        # whole list, and the tools below the fold simply do not exist as far
+        # as the user is concerned. Two soft fades, each shown only when there
+        # is something in that direction, plus a slim thumb on the right.
+        if self.is_scrollable():
+            from PyQt6.QtGui import QLinearGradient
+            edge = QColor(pal["panel_bg"])
+            fade_h = 18
+            if self._scroll > 0:
+                g = QLinearGradient(0, panel.top(), 0, panel.top() + fade_h)
+                c0 = QColor(edge); c0.setAlpha(235)
+                c1 = QColor(edge); c1.setAlpha(0)
+                g.setColorAt(0.0, c0); g.setColorAt(1.0, c1)
+                p.fillRect(QRect(panel.left() + 1, panel.top() + 1,
+                                 panel.width() - 2, fade_h), g)
+            if self._scroll < self._max_scroll():
+                g = QLinearGradient(0, panel.bottom() - fade_h, 0, panel.bottom())
+                c0 = QColor(edge); c0.setAlpha(0)
+                c1 = QColor(edge); c1.setAlpha(235)
+                g.setColorAt(0.0, c0); g.setColorAt(1.0, c1)
+                p.fillRect(QRect(panel.left() + 1, panel.bottom() - fade_h,
+                                 panel.width() - 2, fade_h), g)
+            track_h = panel.height() - 2 * self.V_PAD
+            frac = self._view_h / float(max(1, self._content_h))
+            thumb_h = max(24, int(track_h * frac))
+            span = track_h - thumb_h
+            pos = 0 if self._max_scroll() == 0 else int(
+                span * self._scroll / self._max_scroll())
+            # `pal` HAS NO "row_text" KEY, so this fell back to the panel
+            # BORDER colour at alpha 70 -- #333 on #1f1f1f, which is why Basti
+            # saw no scrollbar at all. The preset popup draws its thumb from
+            # "text" at the same alpha, and that is visible; matching it also
+            # makes the two overlays look like the same app.
+            thumb = QColor(pal["text"])
+            thumb.setAlpha(70)
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(thumb)
+            p.drawRoundedRect(
+                QRect(panel.right() - self.SCROLLBAR_W - 3,
+                      panel.top() + self.V_PAD + pos,
+                      self.SCROLLBAR_W, thumb_h),
+                self.SCROLLBAR_W / 2.0, self.SCROLLBAR_W / 2.0)
+
         p.end()
 
     # ------------------------------------------------------------------
+    def _max_scroll(self) -> int:
+        return max(0, self._content_h - self._view_h)
+
+    def is_scrollable(self) -> bool:
+        return self._max_scroll() > 0
+
+    def wheelEvent(self, event) -> None:  # noqa: N802
+        if not self.is_scrollable():
+            super().wheelEvent(event)
+            return
+        # THE SAME FEEL AS THE PRESET POPUP, which already solved this
+        # (`ui/builtin_preset_popup.py`): angleDelta is in eighths of a degree,
+        # one notch is 120, so one notch moves one row. My first version jumped
+        # three rows per notch and quantised everything smaller to a whole row,
+        # which is what made a trackpad feel jumpy.
+        dy = event.angleDelta().y() or event.angleDelta().x()
+        step = int(round(dy / 120 * self.ROW_H)) or (1 if dy > 0 else -1)
+        before = self._scroll
+        self._scroll = max(0, min(self._max_scroll(), self._scroll - step))
+        if self._scroll != before:
+            # The row under the cursor has changed without the cursor moving.
+            self._hover_index = self._index_at(
+                self.mapFromGlobal(self.cursor().pos()))
+            self.update()
+        event.accept()
+
     def _index_at(self, pt: QPoint) -> int:
         """Index of the row under ``pt``; -1 over gaps or the transparent margin
         to either side of the panel (so a row never highlights when the cursor is
         level with it but outside the bubble)."""
+        # …AND ONLY WITHIN THE PANEL. A row scrolled above or below the visible
+        # area still has a rectangle; without this it would answer to a click
+        # level with it but outside the bubble, which is the one thing a
+        # scrolling menu must never do.
+        view = self._panel_rect()
         for i, (kind, _payload, rect) in enumerate(self._rows()):
-            if kind == "tool" and rect.contains(pt):
+            if kind == "tool" and rect.contains(pt) \
+                    and view.contains(rect.center()):
                 return i
         return -1
 

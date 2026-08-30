@@ -60,7 +60,21 @@ class Report:
         self.confirmed = list(confirmed or [])
 
 
-async def collect(scan_seconds: float = 20.0) -> "Report":
+def _looks_like(name: str, serial: str) -> bool:
+    """Does this advertised name look like the serial the user gave us?
+
+    Loose on purpose: the advertised name is the device's own id string, and it
+    is NOT established that it is character-for-character the serial the vendor
+    software prints. Either containing the other, ignoring case and
+    punctuation, is enough to be worth pointing at.
+    """
+    def _key(t: str) -> str:
+        return "".join(c for c in t.lower() if c.isalnum())
+    a, b = _key(name), _key(serial)
+    return bool(a) and bool(b) and (a in b or b in a)
+
+
+async def collect(scan_seconds: float = 20.0, serial: str = "") -> "Report":
     """Run the three stages and return the report."""
     out: list[str] = []
     found_confirmed: list = []
@@ -102,6 +116,7 @@ async def collect(scan_seconds: float = 20.0) -> "Report":
     items = list(found.items()) if isinstance(found, dict) else [
         (d.address, (d, None)) for d in found]
     candidates: list[tuple[str, str]] = []
+    serial_seen: list[tuple[str, str]] = []
     say(f"{len(items)} Bluetooth LE device(s) visible in {scan_seconds:.0f} s:")
     for addr, pair in items:
         dev, adv = pair if isinstance(pair, tuple) else (pair, None)
@@ -113,6 +128,18 @@ async def collect(scan_seconds: float = 20.0) -> "Report":
             say(f"  {name:26s} {addr}  rssi={rssi}   <-- offers the CR30's service")
             say(f"      services: {', '.join(uuids)}")
             candidates.append((name, str(addr)))
+        elif serial and _looks_like(name, serial):
+            # THE CASE THE SHORTLIST CANNOT SEE. Service UUIDs are OPTIONAL in
+            # a BLE advertisement; a device may advertise its name and reveal
+            # its services only once connected. ChromIQ's filter then skips it
+            # and the redaction hides it, so the instrument can sit in this
+            # list with nobody able to tell.
+            say(f"  {name:26s} {addr}  rssi={rssi}"
+                "   <-- MATCHES THE SERIAL YOU GAVE US")
+            say("      …but it does NOT advertise the service ChromIQ looks")
+            say("      for, so ChromIQ's search skips it. That is very likely")
+            say("      the whole problem, and it is OUR bug, not yours.")
+            serial_seen.append((name, str(addr)))
         else:
             shown = _REDACTED if name != "(no name)" else "(no name)"
             say(f"  {shown:26s} …{str(addr)[-6:]}  rssi={rssi}  "
@@ -123,14 +150,29 @@ async def collect(scan_seconds: float = 20.0) -> "Report":
     say("2. Is anything advertising the CR30's service")
     say("-" * 62)
     if not candidates:
+        if serial_seen:
+            say("NOTHING advertises the service ChromIQ looks for — BUT a")
+            say("device matching the serial you gave us IS here:")
+            for _n, _a in serial_seen:
+                say(f"  {_n}  {_a}")
+            say("")
+            say("So your instrument is switched on, in range and visible to")
+            say("this computer. It simply does not announce the service")
+            say("ChromIQ filters on, so ChromIQ never looks at it.")
+            say("")
+            say("That is a fault in ChromIQ, not in your instrument and not in")
+            say("your computer, and this report is exactly what is needed to")
+            say("fix it. Please send it.")
+            return Report("\n".join(out), found_confirmed)
         say("NOTHING. That is the most useful line in this report.")
         say("")
         say("Your computer never saw a device offering the service ChromIQ")
         say("looks for, so the problem is before ChromIQ rather than inside it.")
         say("")
-        say("There is NO Bluetooth on/off setting on a CR30 — it is on from the")
-        say("moment it leaves the box — so this is not a setting anybody got")
-        say("wrong. The likely causes, in order:")
+        say("On the CR30 we developed against there is no Bluetooth on/off")
+        say("setting to find — it is on from the moment it leaves the box — so")
+        say("this is probably not something you have switched off. The likely")
+        say("causes, in order:")
         say("  * the instrument is asleep. Press its button once and run this")
         say("    again straight away.")
         say("  * something else is holding it. It accepts ONE connection at a")
@@ -138,6 +180,14 @@ async def collect(scan_seconds: float = 20.0) -> "Report":
         say("    computer, has it.")
         say("  * this computer's Bluetooth is off, or ChromIQ is not permitted")
         say("    to use it.")
+        say("  * YOUR CR30 MAY NOT HAVE BLUETOOTH. We know of at least two")
+        say("    production batches, and the vendor documents none of this —")
+        say("    the manufacturer's own settings window shows no Bluetooth")
+        say("    anything, so there is nowhere to look it up. If everything")
+        say("    else here is in order, this is the explanation left, and it")
+        say("    is not a fault you can fix. Tell us your instrument's serial")
+        say("    number (the vendor software shows it under Instrument")
+        say("    settings) and we can start telling owners which units have it.")
         say("")
         say("WATCH THE INSTRUMENT'S OWN SCREEN while this runs: an indicator")
         say("appears there when a computer asks to connect. If nothing ever")
