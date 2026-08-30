@@ -182,7 +182,7 @@ M_CR30_MAGNET = _m(
     "Move your chart onto something non-magnetic — a book, a pad of paper, a "
     "wooden desk — then press “Recalibrate now” and ChromIQ will take the "
     "white calibration for you and carry on from the patch you were on.\n\n"
-    "What the instrument reported: {reason}",
+    "What ChromIQ detected: {reason}",
     approved=False)
 
 
@@ -318,8 +318,9 @@ M_CR30_PATCH_GAVE_UP = _m(
     "The two things that cause this, and both are quick to check:\n\n"
     "•  The magnetic cap is still on the instrument. That is where the cap "
     "lives when the CR30 is not in use, so it is an easy one to miss — and "
-    "with a magnet at the opening the instrument does not measure at all. "
-    "Take the cap right off and put it aside.\n"
+    "with a magnet at the opening the instrument stops measuring and hands "
+    "back its own white-tile value instead, which ChromIQ refuses. Take the "
+    "cap right off and put it aside.\n"
     "•  The instrument was lifted before it had finished. Hold it flat on the "
     "patch until it has beeped.\n\n"
     "When you have checked those, end this session with “Save and stop” and "

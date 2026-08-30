@@ -50,12 +50,15 @@ class MagnetGated(MeasurementError):
 
 
 MAGNET_MESSAGE = (
-    "this reading was taken with a magnet at the aperture. The CR30 does not "
-    "measure in that state -- it performs a WHITE CALIBRATION against whatever "
-    "is under the aperture and reports the stored tile value. STOP: remove the "
-    "cap and any magnet, and RECALIBRATE before reading anything else. The "
-    "device's stored white reference may already be wrong, and a wrong white "
-    "reference is invisible in the data.")
+    "a magnet at the aperture turned this reading into a white calibration, "
+    "so the value is the instrument's stored tile and not your patch")
+
+#: ⚠ KEEP IT SHORT AND TECHNICAL. This text is the exception's message, and it
+#: reaches the user through M-CR30-MAGNET's "{reason}" slot -- so a long
+#: teaching paragraph here is printed UNDERNEATH the window that has just
+#: taught the same thing, in capitals, with double dashes, labelled as what the
+#: instrument reported. It is not: the instrument reported a flag bit. The
+#: window does the explaining and the remedy; this says only what was detected.
 
 #: ⚠ The recovery this message used to give — "seat the cap and press the device
 #: button" — was the side-effect method ChromIQ itself has stopped using. Worse,
@@ -219,10 +222,15 @@ class Measurement:
         """
         self.validate()
         if self.gate_flag:
-            raise MagnetGated(MAGNET_MESSAGE + " (The device's own header "
-                              "flagged this reading: frame offset 24 = 1.)")
+            raise MagnetGated(
+                MAGNET_MESSAGE + ". The device's own header flagged it: "
+                "frame offset 24 = 1.")
         if self.looks_like_calibration_tile(learned=learned_tile):
-            raise MagnetGated(MAGNET_MESSAGE)
+            raise MagnetGated(
+                MAGNET_MESSAGE + ". The reading matches "
+                + ("this instrument's own learned tile value exactly."
+                   if learned_tile else
+                   "the built-in tile value."))
         if self.zero_run() >= 3:
             raise MeasurementError(
                 f"{self.zero_run()} consecutive bands are exactly 0.0 %R. That is "
@@ -230,9 +238,9 @@ class Measurement:
                 "dark patch still reads a few percent.")
         if self.identical_to(previous):
             raise MeasurementError(
-                "reading is bit-identical to the previous one. Either no new "
-                "measurement was taken, or a magnet is gating the device. "
-                "Genuine repeats differ in the low bits.")
+                "the instrument returned exactly the same numbers as last "
+                "time, down to the last digit. Real readings always differ a "
+                "little, so no new measurement was taken.")
 
     def zero_run(self, n: int = 3) -> int:
         """Longest run of EXACTLY 0.0 bands.

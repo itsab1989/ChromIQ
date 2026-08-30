@@ -176,7 +176,10 @@ def test_two_presses_are_two_readings_even_when_the_colour_repeats():
     link.press(changes_colour=False)
     with pytest.raises(MeasurementError) as e:
         d.read_next_measurement(timeout=5.0, poll=0.0)
-    assert "identical" in str(e.value).lower(), (
+    # Match what the refusal MEANS, not one word of its wording. This asserted
+    # on "identical", which was jargon the user-facing text has since dropped —
+    # so a message improvement failed a test about the guard's behaviour.
+    assert "same numbers" in str(e.value).lower(), (
         "the second press was not even looked at")
 
 

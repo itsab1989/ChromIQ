@@ -107,5 +107,15 @@ def test_the_message_no_longer_prescribes_the_abandoned_recovery():
     """It used to say "seat the cap and press the device button" — the
     side-effect method ChromIQ has stopped using, which mid-session produces
     another gated reading and another refusal."""
+    # THE REMEDY LIVES IN THE WINDOW, NOT IN THE EXCEPTION.
+    #
+    # This used to assert both on MAGNET_MESSAGE, which is the exception text —
+    # and that text is printed in the window's "{reason}" slot, underneath the
+    # window that has just given the same advice at length. So the long version
+    # moved out and this checks where it actually has to be true.
+    from workflow.measurement_messages import M_CR30_MAGNET
     assert "press the device button" not in MAGNET_MESSAGE
-    assert "RECALIBRATE" in MAGNET_MESSAGE
+    assert "press the device button" not in M_CR30_MAGNET.body
+    assert "Recalibrate now" in M_CR30_MAGNET.body
+    # And the reason line stays a reason: short, and not a second lecture.
+    assert len(MAGNET_MESSAGE) < 200, MAGNET_MESSAGE

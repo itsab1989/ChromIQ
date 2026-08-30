@@ -1279,7 +1279,7 @@ tile signature is one unit's constant. USB catches it on every unit.*
 >
 > Move your chart onto something non-magnetic — a book, a pad of paper, a wooden desk — then press “Recalibrate now” and ChromIQ will take the white calibration for you and carry on from the patch you were on.
 >
-> What the instrument reported: {reason}
+> What ChromIQ detected: {reason}
 
 ### M-CR30-CALIBRATE-BLACK · PROPOSED · the dark reference, taken against air — Measure
 
@@ -1477,7 +1477,7 @@ reported.*
 >
 > The two things that cause this, and both are quick to check:
 >
-> •  The magnetic cap is still on the instrument. That is where the cap lives when the CR30 is not in use, so it is an easy one to miss — and with a magnet at the opening the instrument does not measure at all. Take the cap right off and put it aside.
+> •  The magnetic cap is still on the instrument. That is where the cap lives when the CR30 is not in use, so it is an easy one to miss — and with a magnet at the opening the instrument stops measuring and hands back its own white-tile value instead, which ChromIQ refuses. Take the cap right off and put it aside.
 > •  The instrument was lifted before it had finished. Hold it flat on the patch until it has beeped.
 >
 > When you have checked those, end this session with "Save and stop" and start it again with "Refine / resume existing measurement" ticked — you will be offered only the patches that are still missing.
