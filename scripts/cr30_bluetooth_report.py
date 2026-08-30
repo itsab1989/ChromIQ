@@ -3,8 +3,14 @@
 
 WHAT THIS IS FOR. ChromIQ can read a CR30 over Bluetooth, and that path has only
 ever been run on one Mac. Nobody has run it on Windows or Linux. If your CR30
-will not connect wirelessly, this script finds out WHERE it stops, and writes a
-small report you can paste into the forum thread or attach to a GitHub issue.
+will not connect wirelessly, this script finds out WHERE it stops and writes a
+small report.
+
+SEND IT PRIVATELY -- a forum DM or an email to the developer, not a public post.
+Nothing in it is secret, but a Bluetooth scan is a list of what is switched on
+around you, and that belongs to you and to your neighbours rather than to a
+thread. The script redacts everything that is not the instrument for the same
+reason.
 
 WHAT IT DOES, IN ORDER
   1. Says which operating system, Python and Bluetooth library you have.
@@ -155,6 +161,7 @@ async def main() -> int:
     say("")
     if not candidates:
         say("NO DEVICE ADVERTISING ffe0 WAS SEEN.")
+        say("(Send this file privately — a DM or an email — not a public post.)")
         say("")
         say("That is the single most useful thing this report can say. It means")
         say("your computer never saw the instrument offering the service ChromIQ")
@@ -239,7 +246,8 @@ async def main() -> int:
 
     REPORT.write_text("\n".join(_lines), encoding="utf-8")
     print(f"\nReport written to: {REPORT}")
-    print("Please send that file — it says where this stops.")
+    print("Please send that file to the developer PRIVATELY — a forum DM or")
+    print("an email, rather than a public post. It says where this stops.")
     return 0
 
 
