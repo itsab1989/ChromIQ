@@ -33,8 +33,28 @@ class _Transport:
 
 
 class _Device:
+    """Mirrors the REAL CR30's BLE surface, or this test proves nothing.
+
+    `identify()` returns a plain DICT over Bluetooth (device.py:214) and raises
+    for a stranger; `close()` exists and the reader calls it when identification
+    fails. A stub missing either one turns a legitimate call into an
+    AttributeError and reports the code broken when it is not -- which is what
+    happened when the remembered-address branch was finally taught to identify.
+    """
+
     def __init__(self, address):
         self._t = _Transport(address)
+        self.model = ""
+        self.identified = 0
+        self.closed = 0
+
+    def identify(self):
+        self.identified += 1
+        self.model = "CR30"
+        return {"model": "CR30", "transport": "ble"}
+
+    def close(self):
+        self.closed += 1
 
 
 @pytest.fixture

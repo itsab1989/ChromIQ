@@ -656,14 +656,42 @@ class DeviceReader:
         from .device import CR30
         remembered = self._address or self._remembered_address()
         if remembered:
+            dev = None
             try:
                 dev = CR30.open_ble(address=remembered)
+                # CHECK WHAT ANSWERED, not merely that something did. The
+                # address is a HINT: it is stable per host but says nothing
+                # about which unit -- or which DEVICE -- answers there, and
+                # `ffe0` is the generic HM-10 service every hobby gadget
+                # exposes. Without this, the next application bytes written to
+                # a stranger are `bb 11` white calibration, because the tab
+                # calibrates through the reader before anything else.
+                #
+                # On BLE `identify()` RAISES for a stranger and returns a plain
+                # DICT, which has no `is_cr30()`. So the exception is the whole
+                # test -- copying the USB branch's `ident.is_cr30()` expression
+                # here would refuse every genuine CR30.
+                dev.identify()
                 self._remember_address(dev)
                 return dev
-            except Exception:        # noqa: BLE001 — fall back to discovery
-                log.info("CR30: the remembered Bluetooth address did not "
-                         "answer; searching for the instrument instead")
-        dev = CR30.open_ble(address=self._address)
+            except Exception as exc:  # noqa: BLE001 — fall back to discovery
+                # CLOSE IT, OR THE SCAN CANNOT FIND IT. A connected peripheral
+                # stops advertising, so a real CR30 that failed transiently
+                # would be invisible to the very fallback meant to recover it.
+                if dev is not None:
+                    try:
+                        dev.close()
+                    except Exception:  # noqa: BLE001 — teardown only
+                        log.debug("could not close %s", remembered,
+                                  exc_info=True)
+                log.info("CR30: the device at the remembered Bluetooth address "
+                         "did not answer as a CR30 (%s); searching for the "
+                         "instrument instead", exc)
+        # Do NOT hand the failed address straight back: if a chooser passed
+        # `self._address` explicitly, re-opening it here would reach the same
+        # unidentified device with the check bypassed by its own fallback.
+        dev = CR30.open_ble(
+            address=None if self._address == remembered else self._address)
         self._remember_address(dev)
         return dev
 
