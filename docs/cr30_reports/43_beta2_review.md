@@ -622,3 +622,132 @@ second press is actually prompted on screen.
    (harmless; clear it when a keyed signature is stored). The old item 6
    (dual-transport learning permanently disarming the BLE fast path) is
    RESOLVED by f1ea856e — each transport's key now finds its own entry.
+
+---
+
+# Third re-check: 32d3ea54 (learning-window wording), 5817c89b (CR30 spacers), 23fd2c8f (changelog) — final word for the tag
+
+Tree at 23fd2c8f, `core/version.py` = 4.1.5-beta.2. Final sweep: 168 tests
+green (catalogue, i18n, design-spec, release-notes, both spacer files, both
+signature-key files, all review-43 regression files).
+
+## T1. The learning-window rewording (32d3ea54) — CORRECT on both transports, one nit
+
+**Checked against the provenance rules themselves, not the summary.** "Over
+USB one press is enough: the instrument tells ChromIQ that the opening was
+covered" — true: `TileLearner.offer` accepts `gate_flag is True`, carried by
+the unsolicited header alone (`button_header_is_gated` refuses solicited
+frames). "Over Bluetooth … a SECOND press and accepts the value only if the
+two readings are identical — which real measurements never are" — true:
+that is the bit-identical rule verbatim, and the 0.05 %R untouched-noise fact
+behind it. The changelog "New" qualifier and the Known-issues line say the
+same, and Known issues honestly names the missing progress ("does not yet say
+so while it waits — press again"). Tone is plain and friendly. §M discipline
+held: the message is §M-PROPOSED (amendable), the design document carries the
+new body, all twelve catalogs migrated, and the catalogue/i18n/spec tests
+pass. PROVEN by the sweep.
+
+**One nit, for the owner's §M review (not blocking):** the body ends "just
+keep pressing until this window closes" — but the window closes when the user
+clicks "I have pressed it", and during the learning wait there is NO window on
+screen at all. Following the sentence still converges (presses queued while
+the dialog is up are collected since 0945855b, and two reads of one capped
+acquisition are bit-identical — the true tile, since the cap is on), so the
+outcome is right; the description of the UI is not. Fold the fix into the
+beta-3 `on_press` work, where the window will genuinely stay up and ask.
+
+## T2. CR30 spacers (5817c89b) — mechanism HOLDS; the load-bearing claim verified; the admitted gap was real and is now closed
+
+**The From Profile Gamut claim is TRUE — verified, not accepted.**
+`tab_chart.py` constructs exactly ONE `LayoutOptionsPanel` (line 4539);
+`_switch_mode` shows that "the gamut module IS the Manual page with the targen
+section swapped" — the gamut branch only toggles `_gamut_container` against
+`_manual_targen_grp`, and every builder call site reads
+`self._manual_layout_panel.get_recipe()`. There is no second panel and no
+other recipe route in that tab, so the owner's second sentence is covered by
+the panel fix. (The other two instantiations — Preferences and the TI2
+re-layout dialog — get the same defaults free, both sensible.) PROVEN by
+code-read of the single instantiation; exercised by the build tests below.
+
+**The attack questions, answered:**
+- *Clobbering a deliberate "none":* yes, and after ONE switch, not two — a
+  user who chooses "none" on an i1 and then switches to any other strip
+  reader gets that instrument's default back, CR30 never involved. The commit
+  message's "only when the value is the one the CR30 left behind" overstates
+  the guard: the code cannot know who set "none" and acts on any. I judge the
+  behaviour acceptable — it is the exact shape of the shipped clip-content
+  rule, the loss is visible in an enabled combo, and a user-set latch is more
+  state than the case earns — but the owner should know the guard is
+  "value is none", not "CR30 set it". Beta 3 at most.
+- *`default_recipe(inst, paper)` and the try-scope:* safe. `default_recipe`
+  only constructs a `LayoutRecipe` dataclass — no paper lookup, cannot raise
+  for "__custom__" or anything else — so the call sitting OUTSIDE the
+  `selection()` try cannot strand `self._loading = True`. (Had it been able to
+  raise, that stranding would have been a real fault; worth remembering if
+  `default_recipe` ever grows validation.)
+- *Paths that read `spacer_mode` before the change runs:* none unsafe. The
+  per-target restore and preset load go through `set_recipe` (`_loading` set
+  before the instrument combo moves — `was_loading` guards both new blocks;
+  their fifth test proves it). `_transfer_guided_to_manual` sets the
+  instrument first and then loads the FULL engine recipe
+  (`_apply_guided_engine_recipe`) last, so the defaults applied in between are
+  overwritten by the carried values either way.
+- *Does `spacer_on` follow the mode on every path:* three independent
+  derivations agree — `get_recipe` (panel:3509), `LayoutRecipe.build_kwargs`
+  (presets.py:318), and `build_chart` itself (chart.py:208, re-derives from
+  the mode). A path that forgot `spacer_on` but carried the mode would still
+  build correctly.
+
+**Their six tests:** genuinely drive the real panel and the real
+`get_recipe()` — not a stand-in problem this time. Their "default removed →
+two fail" claim verified by applying that mutation in a scratchpad copy:
+exactly the two named tests fail. Two blemishes: the docstring claims the
+gamut module "gets one test here to prove it" and **no such test exists**
+(the reuse is proven by code-read, not by any test in that file — fix the
+docstring or add the test); and the was-loading test covers `set_recipe` but
+nothing covered the built chart.
+
+**The admitted gap — a built chart — was worth closing, and closing it taught
+something.** New file `tests/test_cr30_built_chart_really_has_no_spacers.py`
+(2 tests, green): the real panel's recipe through the real
+`chart.build_chart` on a hand-written .ti1. The CR30 probe compares built
+strip-rect heights (a CR30 chart is unpadded, so the rect spans the real
+patches; spacers-on is strictly taller). The i1 probe CANNOT use heights —
+an i1 strip is padded to full length, which my first attempt tripped over —
+so it pins pass CAPACITY instead: spacers-on packs 45 patches per A4 pass,
+spacers-off 48; equal capacities would mean the restore is gone. Both
+mutations (CR30 default removed; restore-on-switch-away removed) were applied
+in the scratchpad copy and each is caught by exactly its test. The
+recipe-to-ink chain is now pinned end to end.
+
+## T3. The changelog (1c67698a + 23fd2c8f) — accurate
+
+The spacers entry says nothing untrue: "Guided already knew this; Manual and
+From Profile Gamut now do too" (verified above), "a default, not a rule"
+(their third test and my build test both prove the opt-in reaches the ink).
+The learning entry's numbers were all verified in the previous section; the
+new qualifier and Known-issues line make the one-press promise honest. Nothing
+overstated, nothing promised that is not built, nothing I would expect a beta
+tester to misread.
+
+## T4. VERDICT
+
+**GREEN LIGHT for v4.1.5-beta.2 at 23fd2c8f.**
+
+One mechanical note before the gate: `tests/test_cr30_built_chart_really_has_no_spacers.py`
+is untracked — commit it with the tag so the pinned chain travels.
+
+**Beta-3 list, final:**
+1. Learning over Bluetooth: wire `on_press`, keep a window up that genuinely
+   asks for the second press, and fix the "until this window closes" sentence
+   in M-CR30-LEARN-TILE at the same time (owner's §M review).
+2. Learning mis-arm hardening: tile-plausibility band in `remember_signature`
+   AND/OR at-most-one pre-queued event per learning read.
+3. Generation-scoped trigger request (the microsecond check-then-set residual).
+4. M-CR30-TRIGGER-NOT-ARMED shown on an armed instrument in the ms-wide
+   not-yet-in-flight window — pick the message by `guard_is_armed`.
+5. Spacers restore-on-switch-away acts on ANY "none", not only one the CR30
+   left behind (commit message overstates it) — owner decides whether a
+   user-set latch is worth the state; and either add the gamut-mode test the
+   spacers docstring already claims, or correct the docstring.
+6. Housekeeping: the orphaned `""` signature entry from pre-f1ea856e learning.

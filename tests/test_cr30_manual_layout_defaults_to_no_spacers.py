@@ -11,9 +11,16 @@ whatever the Spacers combo happened to be showing won, and it shows "colored".
 Basti, 2026-08-30, having found it on screen: *"create chart manual tab defaults
 to use colored spacers for the cr30. should default to none for this device"*.
 
-The FROM PROFILE GAMUT module needs no separate fix and gets one test here to
-prove it: it reuses this same Manual layout panel ("The Manual layout half is on
-screen too", tab_chart.py), so a fix in the panel reaches both.
+The FROM PROFILE GAMUT module needs no separate fix, and this file does NOT
+prove that — an earlier version of this docstring claimed a test that was never
+written. What the claim rests on is read, not run: `TabChart` constructs exactly
+one `LayoutOptionsPanel`, and `_switch_mode`'s gamut branch swaps only the
+targen group, so every builder reads that one panel's `get_recipe()`. Verified
+by reading tab_chart.py, and independently by the reviewing agent.
+
+What IS run end to end lives in `test_cr30_built_chart_really_has_no_spacers.py`:
+panel → recipe → real `build_chart` → printed geometry. These here cover the
+panel's own behaviour.
 
 These drive the REAL `LayoutOptionsPanel` and its real signal wiring — the
 instrument combo is changed the way a user changes it, and the assertions read
