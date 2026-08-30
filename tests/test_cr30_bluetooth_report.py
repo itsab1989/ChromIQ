@@ -346,3 +346,36 @@ def test_without_a_serial_that_device_is_redacted_like_any_other(monkeypatch):
     text = _run(monkeypatch, [("AA:BB:CC:DD:EE:22", "CM443L1437", [])])
     assert "CM443L1437" not in text
     assert br._REDACTED in text
+
+
+def test_devices_advertising_no_services_are_counted(monkeypatch):
+    """Bluetooth CSS Part A: an omitted service list means an empty one — so a
+    device may hold its services back until something connects. ChromIQ decides
+    what to look at from the advertisement, so such an instrument is skipped and
+    never asked. Counting them is the difference between "your instrument is not
+    here" and "it may be here and the advertisement cannot tell us"."""
+    text = _run(monkeypatch, [
+        ("AA:BB:CC:DD:EE:30", "(no name)", []),
+        ("AA:BB:CC:DD:EE:31", "Something", []),
+        ("AA:BB:CC:DD:EE:32", "Other", ["0000180f-0000-1000-8000-00805f9b34fb"]),
+    ])
+    assert "2 of those advertise NO services at all" in text
+    assert "fault of ours" in text
+
+
+def test_no_such_line_when_every_device_advertises_something(monkeypatch):
+    """The mutation guard: a line that always appears says nothing."""
+    text = _run(monkeypatch, [
+        ("AA:BB:CC:DD:EE:33", "A", ["0000180f-0000-1000-8000-00805f9b34fb"]),
+    ])
+    assert "advertise NO services" not in text
+
+
+def test_a_silent_serial_match_does_not_clear_the_instrument(monkeypatch):
+    """The net compares the advertised name against whatever serial the user
+    types — but the advertisement carries `second_id`, and which of the two ids
+    the vendor prints is not established. If they differ the match cannot fire,
+    and a reader must not read silence as 'it is not my instrument'."""
+    text = _run(monkeypatch, [("AA:BB:CC:DD:EE:34", "Bystander", [])])
+    flat = " ".join(text.split())
+    assert "does NOT rule your instrument out" in flat

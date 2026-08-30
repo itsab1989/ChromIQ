@@ -81,9 +81,9 @@ TRIGGER_UNSAFE = frame(0x01, 0x00)
 # The two are different 10-character strings, and this comment used to name one
 # while citing the other. Something believed the wrong half (see
 # `device.py::identify`), and the tile-learning key then differed by transport.
-# (the value
-# AA 0A 01 returns over USB) and is therefore UNIT-SPECIFIC. Hard-coding one
-# unit's name works only on that unit. Discovery must go by SERVICE UUID and
+#
+# It is therefore UNIT-SPECIFIC. Hard-coding one unit's name works only on that
+# unit. Discovery must go by SERVICE UUID and
 # then confirm over the protocol; the name is a hint and a label, never a test.
 EXPECTED_AXIS = (400, 10, 31)      # start_nm, step_nm, bands
 

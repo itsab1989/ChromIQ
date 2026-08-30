@@ -7362,12 +7362,21 @@ class TabMeasure(QWidget):
             again.exec()
             return False
 
-        # SAY WHICH WAY IT CONNECTED. ChromIQ picks USB or Bluetooth by itself
-        # and has never said which it chose, so a user who wants wireless has
-        # no way to tell whether they got it — and a user who is CERTAIN they
-        # unplugged the cable has no way to prove it afterwards either. That
-        # exact question is currently being reconstructed from memory between
-        # two people on a forum.
+        self._log.appendPlainText("\n" + tr(
+            "[NOTE] ChromIQ asked the CR30 to take its white calibration. It "
+            "cannot check the result — the instrument reports the same value "
+            "whatever is under the cap."))
+        # SAY WHICH WAY IT CONNECTED — AND SAY IT LAST.
+        #
+        # ChromIQ picks USB or Bluetooth by itself and has never said which it
+        # chose, so a user who wants wireless cannot tell whether they got it,
+        # and a user CERTAIN they unplugged the cable cannot show it afterwards.
+        #
+        # It is written after the calibration note, not before, because the log
+        # pane can be as short as TWO lines and scrolls to the bottom: written
+        # first, a longer note pushes it out of sight and nobody ever sees it.
+        # The owner's own machine is set to two lines. Headless tests passed
+        # either way; only looking at it on screen found this.
         try:
             kind = getattr(getattr(reader, "_dev", None), "kind", "")
             if kind:
@@ -7377,11 +7386,6 @@ class TabMeasure(QWidget):
                     tr("[NOTE] Connected to your CR30 over the USB cable.")))
         except Exception:              # noqa: BLE001 — a note, never fatal
             log.debug("could not name the CR30 transport", exc_info=True)
-
-        self._log.appendPlainText("\n" + tr(
-            "[NOTE] ChromIQ asked the CR30 to take its white calibration. It "
-            "cannot check the result — the instrument reports the same value "
-            "whatever is under the cap."))
         self._log.ensureCursorVisible()
 
         # THE CAP IS STILL ON, WHICH IS THE ONLY MOMENT THIS CAN BE ASKED.

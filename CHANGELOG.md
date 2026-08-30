@@ -1,5 +1,44 @@
 # Changelog
 
+## v4.1.5-beta.4
+
+**Finding out why Bluetooth will not connect — and a magnet guard that was
+silently switched off for some people.**
+
+### Fixed
+
+- **A tile learned over the USB cable did not protect you over Bluetooth.**
+  ChromIQ files your instrument's white-tile value under the instrument's own
+  id, and it was reading a different id on each connection — so the magnet
+  guard looked under a name with nothing stored against it and stayed off.
+  Nothing was ever measured wrongly because of it, but the protection was
+  absent on the one connection that has no other defence.
+- **A failed Bluetooth connection left nothing in the log.** Success and
+  failure looked identical afterwards, which made "did it even try?" an
+  unanswerable question.
+- **The help-icon debug line was filling your log.** It recorded every help
+  icon the app built — around three fifths of everything ChromIQ wrote — and
+  pushed the entries that diagnose real faults out of the file. Removing it
+  roughly triples how far back your log reaches.
+
+### Changed
+
+- **The Measure tab now says how it connected**, over the cable or over
+  Bluetooth, in the session log. ChromIQ chooses for you, and until now it
+  never said which it chose.
+- **The Bluetooth report says more.** It counts devices that advertise no
+  services at all — which is allowed, and means ChromIQ may never have looked
+  at your instrument — and it is honest that a serial number you type may not
+  match what the instrument broadcasts, so a silent result does not rule your
+  instrument out.
+- **The Tools menu is capped and scrolls.** It had grown past the bottom of
+  smaller screens, where the last tools could not be reached.
+
+### Known issues
+
+- Bluetooth has still only been used successfully on macOS. If it will not
+  connect for you, Tools → Instruments → CR30 Bluetooth report is what to send.
+
 ## v4.1.5-beta.3
 
 **Aiming help for the CR30, a legend that gets out of your way, and the layout

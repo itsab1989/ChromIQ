@@ -118,6 +118,7 @@ async def collect(scan_seconds: float = 20.0, serial: str = "") -> "Report":
     candidates: list[tuple[str, str]] = []
     serial_seen: list[tuple[str, str]] = []
     say(f"{len(items)} Bluetooth LE device(s) visible in {scan_seconds:.0f} s:")
+    silent = 0
     for addr, pair in items:
         dev, adv = pair if isinstance(pair, tuple) else (pair, None)
         uuids = [str(u) for u in (getattr(adv, "service_uuids", None) or [])]
@@ -141,10 +142,30 @@ async def collect(scan_seconds: float = 20.0, serial: str = "") -> "Report":
             say("      the whole problem, and it is OUR bug, not yours.")
             serial_seen.append((name, str(addr)))
         else:
+            if not uuids:
+                silent += 1
             shown = _REDACTED if name != "(no name)" else "(no name)"
             say(f"  {shown:26s} …{str(addr)[-6:]}  rssi={rssi}  "
                 f"services={len(uuids)}")
     say("")
+    if silent:
+        # THE FAILURE MODE THE SPECIFICATION ITSELF DEFINES. Bluetooth CSS Part
+        # A: "An omitted Service UUID data type shall be interpreted as an
+        # empty incomplete-list" -- so a device may advertise NO services and
+        # reveal them only once connected. ChromIQ shortlists on the advertised
+        # service, so such an instrument is skipped and never asked. Counting
+        # them costs nothing and connects to nothing; it is the difference
+        # between "your instrument is not here" and "it may be here and we
+        # cannot see it from the advertisement alone".
+        say(f"⚠ {silent} of those advertise NO services at all.")
+        say("")
+        say("That is allowed, and it matters here: a device may keep its")
+        say("service list until something connects to it, and ChromIQ decides")
+        say("what to look at from the advertisement. If your instrument is one")
+        say("of them, ChromIQ will not have looked at it — please send this")
+        say("report, because that is a fault of ours and this is the evidence")
+        say("for it.")
+        say("")
 
     # ---- 2. anything that could be an instrument? ----------------------
     say("2. Is anything advertising the CR30's service")
@@ -188,6 +209,12 @@ async def collect(scan_seconds: float = 20.0, serial: str = "") -> "Report":
         say("    is not a fault you can fix. Tell us your instrument's serial")
         say("    number (the vendor software shows it under Instrument")
         say("    settings) and we can start telling owners which units have it.")
+        say("")
+        say("⚠ One caveat on the serial, if you gave us one: the instrument")
+        say("  advertises one of TWO id strings it holds, and which of them")
+        say("  the vendor software prints is not established. If they differ,")
+        say("  the match above cannot fire even when your instrument is right")
+        say("  there. So a silent result does NOT rule your instrument out.")
         say("")
         say("WATCH THE INSTRUMENT'S OWN SCREEN while this runs: an indicator")
         say("appears there when a computer asks to connect. If nothing ever")
