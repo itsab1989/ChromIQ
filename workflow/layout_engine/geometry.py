@@ -122,7 +122,30 @@ def compute(geom: Geom, paper_w_mm: float, paper_h_mm: float, npat: int,
     else:
         swid = (g.rpstrip - 1) * g.rrsp + g.pwid + g.clwi
 
-    avail_w = iw - g.rlwi - sxwi - 2.0 * g.hxew - (g.pglth if g.dopglabel else 0.0)
+    # THE ROW-LABEL BAND IS NOT RESERVED IN AREA-FIRST.
+    #
+    # Area-first promises, in this file's own words, that "the patch area is
+    # exactly the page-margin box -- no hidden leader/trailer/clear area, no
+    # label/text reserve". `rlwi` IS a label reserve, and it was subtracted
+    # here and added to the origin below in every mode, so a 1 mm left margin
+    # put the first patch at 8.5 mm. Basti screenshotted exactly that and asked
+    # why the box was ignored; in that mode it was.
+    #
+    # KEYED ON AREA-FIRST, NOT ON `margins_are_law`. The law flag is also
+    # raised by "Use instrument margins", which is ON BY DEFAULT
+    # (presets.py:61) -- so keying on it would have changed patch-first
+    # layouts too, and GUIDED is patch-first. Basti: "the layout we settled for
+    # in guided mode should stay untouched". `fill_beyond_ruler` is set from
+    # `area_first` and from nothing else (instruments.py:415), so it is the
+    # honest signal for "the user asked for the area, exactly".
+    #
+    # The row numbers still print -- they slide into the left margin toward the
+    # page edge, the mirror of the rule the strip labels already follow at the
+    # top -- and the inspector warns when the margin cannot hold them. Knut's
+    # beta-13 "clip band lives INSIDE its margin" model says the same thing
+    # about furniture bands, one band over.
+    _rlwi = 0.0 if g.fill_beyond_ruler else g.rlwi
+    avail_w = iw - _rlwi - sxwi - 2.0 * g.hxew - (g.pglth if g.dopglabel else 0.0)
     sppage = int(avail_w / swid) + 1
     if g.dorspace:
         rppstrip = int((avail_w - swid * (sppage - 1) - g.pwid / 2.0) / g.rrsp)
@@ -253,8 +276,9 @@ def placement(geom: Geom, paper_w_mm: float, paper_h_mm: float, layout: Layout) 
     n_passes = (layout.patches_per_page // layout.steps_in_pass
                 if layout.steps_in_pass else 0)
     block_w = (max(0, n_passes - 1) * g.rrsp + g.pwid) if n_passes else 0.0
+    _rlwi = 0.0 if g.fill_beyond_ruler else g.rlwi   # area-first only; see compute()
     avail_w = (pw - g.margin_l - g.margin_r
-               - g.rlwi - 2.0 * g.hxew - (g.pglth if g.dopglabel else 0.0))
+               - _rlwi - 2.0 * g.hxew - (g.pglth if g.dopglabel else 0.0))
     extra_w = max(0.0, avail_w - block_w)
     # The clip / notes band lives inside the clip-side margin now (not added to
     # the patch origin), so patches simply start at the left margin (Knut beta-13,
@@ -291,7 +315,7 @@ def placement(geom: Geom, paper_w_mm: float, paper_h_mm: float, layout: Layout) 
     fh_eff = (1.0 if (getattr(g, "clip_side", "left") == "right" and g.lbord > 0)
               else fh)
     return Placement(
-        x0=g.margin_l + g.rlwi + fh_eff * extra_w + g.hxew + g.offset_x,
+        x0=g.margin_l + _rlwi + fh_eff * extra_w + g.hxew + g.offset_x,
         y0_first=_y0,
         plen=g.plen, pwid=g.pwid, pspa=g.pspa, rrsp=g.rrsp,
         steps_in_pass=layout.steps_in_pass,
