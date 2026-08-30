@@ -46,9 +46,24 @@ def _bleak_version() -> str:
         return "present (version unknown)"
 
 
-async def collect(scan_seconds: float = 20.0) -> str:
-    """Run the three stages and return the report as text."""
+class Report:
+    """What the diagnostic found: the text to send, and what it CONFIRMED.
+
+    The confirmed list is separate from the text on purpose. It is what makes a
+    repair possible -- an address here has answered as a CR30, not merely
+    advertised the right service -- and the difference between those two is the
+    whole reason `ble.discover` takes a `verify` flag.
+    """
+
+    def __init__(self, text: str = "", confirmed: "list | None" = None) -> None:
+        self.text = text
+        self.confirmed = list(confirmed or [])
+
+
+async def collect(scan_seconds: float = 20.0) -> "Report":
+    """Run the three stages and return the report."""
     out: list[str] = []
+    found_confirmed: list = []
 
     def say(line: str = "") -> None:
         out.append(line)
@@ -82,7 +97,7 @@ async def collect(scan_seconds: float = 20.0) -> str:
         say("that Bluetooth is switched on for this computer, and that ChromIQ")
         say("is allowed to use it — on macOS that is a permission prompt, on")
         say("Windows a privacy setting.")
-        return "\n".join(out)
+        return Report("\n".join(out), found_confirmed)
 
     items = list(found.items()) if isinstance(found, dict) else [
         (d.address, (d, None)) for d in found]
@@ -127,7 +142,7 @@ async def collect(scan_seconds: float = 20.0) -> str:
         say("WATCH THE INSTRUMENT'S OWN SCREEN while this runs: an indicator")
         say("appears there when a computer asks to connect. If nothing ever")
         say("shows on the display, the request is not reaching the instrument.")
-        return "\n".join(out)
+        return Report("\n".join(out), found_confirmed)
     say(f"{len(candidates)} device(s) could be a CR30 (the service is generic —")
     say("hobby Bluetooth-to-serial modules use it too, so this is a shortlist).")
     say("")
@@ -148,7 +163,7 @@ async def collect(scan_seconds: float = 20.0) -> str:
         say("Something was advertising, but ChromIQ could not complete its")
         say("check. That points at ChromIQ or at the connection, NOT at a")
         say("missing instrument — please send this report.")
-        return "\n".join(out)
+        return Report("\n".join(out), found_confirmed)
 
     # READ THE CONFIRMED FLAG, DO NOT JUST COUNT THE LIST. `ble.discover`
     # returns candidates whether or not the protocol check confirmed them --
@@ -159,6 +174,7 @@ async def collect(scan_seconds: float = 20.0) -> str:
     # ChromIQ had "REFUSED" it. Both are the opposite of the truth, in a report
     # whose only job is to say which of those two things happened.
     confirmed = [c for c in accepted if c.get("confirmed")]
+    found_confirmed = confirmed
     if accepted and not confirmed:
         say(f"{len(accepted)} device(s) advertise the service, and NONE of them")
         say("answered as a CR30 when asked.")
@@ -186,4 +202,4 @@ async def collect(scan_seconds: float = 20.0) -> str:
         say("So the instrument is reachable over Bluetooth from this computer.")
         say("If measuring still fails, the problem is later than the connection")
         say("and this report is still worth sending.")
-    return "\n".join(out)
+    return Report("\n".join(out), found_confirmed)

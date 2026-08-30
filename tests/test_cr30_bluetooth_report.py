@@ -58,7 +58,7 @@ def _run(monkeypatch, devices, accepted=()):
     from workflow.cr30 import ble
     monkeypatch.setattr(ble, "discover",
                         lambda *a, **k: asyncio.sleep(0, result=list(accepted)))
-    return asyncio.new_event_loop().run_until_complete(br.collect(0.0))
+    return asyncio.new_event_loop().run_until_complete(br.collect(0.0)).text
 
 
 FFE0 = "0000ffe0-0000-1000-8000-00805f9b34fb"
@@ -101,7 +101,7 @@ def test_a_failed_scan_is_a_finding_not_a_crash(monkeypatch):
 
     import bleak
     monkeypatch.setattr(bleak, "BleakScanner", _Boom)
-    text = asyncio.new_event_loop().run_until_complete(br.collect(0.0))
+    text = asyncio.new_event_loop().run_until_complete(br.collect(0.0)).text
     assert "THE SCAN ITSELF FAILED" in text
     assert "OSError" in text
 
@@ -164,3 +164,124 @@ def test_an_empty_rescan_is_not_reported_as_a_refusal(monkeypatch):
     assert "REFUSED every candidate" in text
     # …and the wording must not claim the device was judged and rejected
     assert "did not answer as a CR30" not in text
+
+
+# -- the repair: only ever a CONFIRMED address ------------------------------
+
+class _Tab:
+    """Enough MainWindow for the real repair method to run."""
+
+    def __init__(self, choice):
+        from ui.main_window import MainWindow
+        self._offer = MainWindow._offer_cr30_bluetooth_repair.__get__(self)
+        self.stored = {}
+        self._choice = choice
+
+    class _Settings:
+        def __init__(self, store): self._store = store
+        def set(self, k, v): self._store[k] = v
+
+    @property
+    def _settings(self):
+        return _Tab._Settings(self.stored)
+
+
+def _run_repair(monkeypatch, confirmed, choice):
+    """Drive the REAL method with only the message box faked."""
+    import ui.main_window as mw
+
+    class _Box:
+        Icon = type("I", (), {"NoIcon": 0})
+        ButtonRole = type("R", (), {"AcceptRole": 0, "DestructiveRole": 1,
+                                    "RejectRole": 2})
+        StandardButton = type("S", (), {"Ok": 1})
+
+        def __init__(self, *a, **k):
+            self._buttons = {}
+            self._clicked = None
+        def setIcon(self, *a): pass
+        def setWindowTitle(self, *a): pass
+        def setText(self, *a): pass
+        def setInformativeText(self, t): self.informative = t
+        def addButton(self, label, role):
+            b = object()
+            self._buttons[label] = b
+            if choice and choice in str(label):
+                self._clicked = b
+            return b
+        def setDefaultButton(self, *a): pass
+        def setStandardButtons(self, *a): pass
+        def exec(self): return 0
+        def clickedButton(self): return self._clicked
+
+    monkeypatch.setattr(mw, "QMessageBox", _Box, raising=False)
+    import PyQt6.QtWidgets as qtw
+    monkeypatch.setattr(qtw, "QMessageBox", _Box)
+    monkeypatch.setattr("ui.widgets.fit_message_box_buttons", lambda *a: None)
+    t = _Tab(choice)
+    t._offer(confirmed)
+    return t.stored
+
+
+KEY = "cr30_ble_address"
+
+
+def test_nothing_is_offered_when_nothing_was_confirmed(monkeypatch):
+    """The whole safety of this rests on it: an advertiser that did not answer
+    as a CR30 must never reach the setting — that is the fault where the next
+    frames written to a stranger were calibration commands."""
+    assert _run_repair(monkeypatch, [], "Go straight") == {}
+
+
+def test_accepting_stores_the_confirmed_address(monkeypatch):
+    stored = _run_repair(
+        monkeypatch,
+        [{"name": "CR30", "address": "AA:BB:CC:DD:EE:09", "confirmed": True}],
+        "Go straight")
+    assert stored.get(KEY) == "AA:BB:CC:DD:EE:09"
+
+
+def test_it_can_be_undone_from_the_same_window(monkeypatch):
+    """A repair the user cannot reverse is a trap, so 'Search normally' clears
+    it — and the window says so."""
+    stored = _run_repair(
+        monkeypatch,
+        [{"name": "CR30", "address": "AA:BB:CC:DD:EE:10", "confirmed": True}],
+        "Search normally")
+    assert stored.get(KEY) == ""
+
+
+def test_declining_changes_nothing(monkeypatch):
+    stored = _run_repair(
+        monkeypatch,
+        [{"name": "CR30", "address": "AA:BB:CC:DD:EE:11", "confirmed": True}],
+        None)
+    assert stored == {}
+
+
+def test_the_offer_still_asks_for_the_report(monkeypatch):
+    """A workaround that quietly makes an install work means we never hear about
+    the case and the real fault is never fixed."""
+    import ui.main_window as mw
+    captured = {}
+
+    class _Box:
+        Icon = type("I", (), {"NoIcon": 0})
+        ButtonRole = type("R", (), {"AcceptRole": 0, "DestructiveRole": 1,
+                                    "RejectRole": 2})
+        def __init__(self, *a, **k): pass
+        def setIcon(self, *a): pass
+        def setWindowTitle(self, *a): pass
+        def setText(self, *a): pass
+        def setInformativeText(self, t): captured["text"] = t
+        def addButton(self, *a): return object()
+        def setDefaultButton(self, *a): pass
+        def exec(self): return 0
+        def clickedButton(self): return None
+
+    monkeypatch.setattr(mw, "QMessageBox", _Box, raising=False)
+    import PyQt6.QtWidgets as qtw
+    monkeypatch.setattr(qtw, "QMessageBox", _Box)
+    monkeypatch.setattr("ui.widgets.fit_message_box_buttons", lambda *a: None)
+    _Tab(None)._offer([{"name": "CR30", "address": "X", "confirmed": True}])
+    assert "send the report" in captured.get("text", "")

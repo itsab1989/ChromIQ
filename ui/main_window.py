@@ -1794,8 +1794,9 @@ class MainWindow(QMainWindow):
         def _work() -> None:
             try:
                 from workflow.cr30.bluetooth_report import collect
-                result["text"] = asyncio.new_event_loop().run_until_complete(
-                    collect())
+                rep = asyncio.new_event_loop().run_until_complete(collect())
+                result["text"] = rep.text
+                result["confirmed"] = rep.confirmed
             except Exception as exc:                # noqa: BLE001 — report it
                 result["text"] = (f"The report could not be produced: "
                                   f"{type(exc).__name__}: {exc}")
@@ -1847,6 +1848,72 @@ class MainWindow(QMainWindow):
         done.setStandardButtons(QMessageBox.StandardButton.Ok)
         fit_message_box_buttons(done)
         done.exec()
+        self._offer_cr30_bluetooth_repair(result.get("confirmed") or [])
+
+    def _offer_cr30_bluetooth_repair(self, confirmed: list) -> None:
+        """If the report reached an instrument, offer to use it from now on.
+
+        THE REPAIR HALF. A user whose Bluetooth "does not work" may have an
+        instrument ChromIQ can reach perfectly well once it stops searching for
+        it -- discovery is the fragile part, and it is the part this can skip.
+        Remembering the address is exactly what `DeviceReader._open_ble` already
+        consumes on its fast path.
+
+        ONLY A CONFIRMED ADDRESS. Never one that merely advertised the right
+        service: `ffe0` is generic, and writing a stranger's address into the
+        setting is the fault closed in 1de3f3af, where the next frames sent to
+        whatever answered were calibration commands. Everything offered here has
+        answered as a CR30. The fast path re-identifies it before trusting it
+        anyway, so a device that later changes is refused rather than used.
+        """
+        if not confirmed:
+            return
+        from PyQt6.QtWidgets import QMessageBox
+        from ui.widgets import fit_message_box_buttons
+        first = confirmed[0]
+        address = str(first.get("address") or "")
+        if not address:
+            return
+        name = str(first.get("name") or "") or tr("your CR30")
+
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(tr("CR30 Bluetooth report"))
+        box.setText(tr("ChromIQ reached your instrument"))
+        box.setInformativeText(tr(
+            "It found {name} and the instrument answered correctly. If "
+            "measuring over Bluetooth has been failing for you, the searching "
+            "is the fragile part — and ChromIQ can skip it by going straight "
+            "to this instrument in future.\n\n"
+            "Would you like it to do that? It is remembered on this computer "
+            "only, and ChromIQ still checks that the instrument really is a "
+            "CR30 before using it, so nothing else can take its place.\n\n"
+            "You can undo it at any time: run this report again and choose "
+            "“Search normally”, or clear it in Preferences.\n\n"
+            "Please still send the report either way. If this works for you it "
+            "means ChromIQ's search has a fault that we would rather fix than "
+            "leave you working around."
+            ).format(name=name))
+        use = box.addButton(tr("Go straight to this instrument"),
+                            QMessageBox.ButtonRole.AcceptRole)
+        clear = box.addButton(tr("Search normally"),
+                              QMessageBox.ButtonRole.DestructiveRole)
+        box.addButton(tr("Leave it as it is"),
+                      QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(use)
+        fit_message_box_buttons(box)
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked is not use and clicked is not clear:
+            return
+        try:
+            from workflow.cr30.measure_bridge import DeviceReader
+            self._settings.set(DeviceReader.REMEMBERED_ADDRESS_KEY,
+                               address if clicked is use else "")
+            log.info("CR30: remembered Bluetooth address %s",
+                     "set from the report" if clicked is use else "cleared")
+        except Exception:                      # noqa: BLE001 — never fatal
+            log.warning("could not store the CR30 address", exc_info=True)
 
     def _launch_tool(self, key: str) -> None:
         if key == "patch_cube":
