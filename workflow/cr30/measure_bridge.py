@@ -612,6 +612,9 @@ class DeviceReader:
         #: The instrument this session is talking to, when it is known. Used to
         #: keep one unit's learned tile constant from being applied to another.
         self.unit_id: "str | None" = None
+        #: Set by the keyboard, consumed by the reader thread. A trigger has to
+        #: leave from the thread that owns the link -- see `request_trigger`.
+        self._trigger_requested = False
 
     #: Where the last Bluetooth address is remembered between sessions.
     REMEMBERED_ADDRESS_KEY = "cr30_ble_address"
@@ -843,6 +846,7 @@ class DeviceReader:
             try:
                 m = self._dev.read_next_measurement(
                     timeout=self.button_timeout_s,
+                    trigger_wanted=self._take_trigger_request,
                     cancelled=lambda: self._cancelled() or (
                         generation is not None
                         and generation != self._generation))
@@ -857,6 +861,126 @@ class DeviceReader:
                     pass
                 self._dev = None
                 raise
+        from .colour import spectrum_to_xyz
+        return spectrum_to_xyz(m.values)
+
+    # -- teaching this unit its own tile constant -------------------------
+    #: How many presses the learning step will ever ask for. Over USB one
+    #: flagged press settles it; over Bluetooth two bit-identical ones do. A
+    #: third is allowed only because a first press can be a mis-seated cap.
+    MAX_LEARNING_PRESSES = 3
+
+    @property
+    def guard_is_armed(self) -> bool:
+        """Does the magnet guard work on THIS instrument?
+
+        False means the tile check is running on the built-in constant, which
+        was captured from one particular unit and matches nothing on another.
+        """
+        return bool(getattr(self._dev, "learned_tile", None))
+
+    def learn_tile(self, *, timeout: float = 180.0, cancelled=None,
+                   on_press=None) -> dict:
+        """Teach this unit's tile constant from capped presses.
+
+        Returns {"learned": bool, "provenance": str, "presses": int}. Never
+        raises for an ordinary refusal -- a failed learn leaves the guard
+        exactly as it was, which is the state every user is in today.
+
+        The presses MUST be capped: a magnet at the aperture is what makes the
+        instrument return the constant instead of measuring. That is safe to
+        ask for -- a capped press does not damage the white reference, measured
+        on 2026-08-30 across three experiments -- and it is the only source of
+        the value, because the read-back after a white calibration is
+        zero-filled.
+        """
+        from .tile_learning import TileLearner, remember_signature
+        learner, presses = TileLearner(), 0
+        with self._lock:
+            if self._dev is None:
+                self._dev = self._open()
+                log.info("CR30: opened over %s", self._dev.kind)
+            for _ in range(self.MAX_LEARNING_PRESSES):
+                if cancelled is not None and cancelled():
+                    break
+                m = self._dev.read_next_measurement(
+                    timeout=timeout, cancelled=cancelled, for_learning=True)
+                presses += 1
+                if callable(on_press):
+                    on_press(presses)
+                proven = learner.offer(m)
+                if proven is None:
+                    continue
+                unit = getattr(self._dev, "unit_id", None) or self.unit_id
+                if remember_signature(proven, unit):
+                    self._dev.learned_tile = proven
+                    return {"learned": True, "presses": presses,
+                            "provenance": learner.provenance}
+                break
+        return {"learned": False, "presses": presses, "provenance": ""}
+
+    # -- reading without touching the instrument ---------------------------
+    def request_trigger(self) -> bool:
+        """Ask for the NEXT reading to be taken without a button press.
+
+        The reader thread owns the link for the whole of its wait, so a trigger
+        sent from the GUI thread would race it: two readers of one serial
+        stream, and the reply going to whichever arrived first. This only sets
+        a flag; `read_next_measurement` acts on it and collects its own reply.
+
+        Returns False, and does nothing, when the guard is not armed for this
+        instrument -- see `trigger_allowed`.
+        """
+        if not self.trigger_allowed():
+            return False
+        self._trigger_requested = True
+        return True
+
+    def _take_trigger_request(self) -> bool:
+        """One shot: the reader asks, and the request is spent."""
+        wanted, self._trigger_requested = self._trigger_requested, False
+        return wanted
+
+    def trigger_allowed(self) -> bool:
+        """May a reading be taken from the host instead of the button?
+
+        ONLY with the magnet guard armed for this unit. A host-triggered reply
+        cannot report gatedness -- byte 58 marks it solicited and the flag at
+        offset 24 is meaningful only in an unsolicited header, so
+        `button_header_is_gated` correctly answers "cannot tell". The tile check
+        is what replaces the flag, and it is bit-exact on a gated read
+        (EXP-MEAS-004: the host trigger returned the constant with a worst-band
+        delta of 0.0000 %R). Without an armed signature there is no replacement,
+        and a magnet would go unnoticed.
+        """
+        return self.guard_is_armed
+
+    def trigger_and_read(self, generation: "int | None" = None):
+        """Take a reading now, without the operator touching the instrument.
+
+        Worth having on accuracy alone: pressing the instrument's own button
+        shifts the reading by ~0.5 %R, ten times its own repeat noise of
+        0.05 %R (EXP-TILE-003/004). A host trigger removes that error.
+
+        The reading goes through the SAME guards as a button press, which is
+        the whole safety argument: `read_measurement` enforces
+        `check_usable`, so a gated trigger is refused by the learned tile
+        signature exactly as a gated press is refused by the flag.
+        """
+        from .measurement import MeasurementError
+        with self._lock:
+            if self._dev is None:
+                self._dev = self._open()
+            if not self.trigger_allowed():
+                raise MeasurementError(
+                    "ChromIQ will not take a reading for you on this "
+                    "instrument yet, because it cannot tell whether a magnet "
+                    "is at the opening. Calibrate once with the cap on and it "
+                    "learns what to look for.")
+            if generation is not None and generation != self._generation:
+                raise MeasurementError("cancelled before the reading was taken")
+            self._dev.trigger_unsafe()
+            m = self._dev.read_measurement()
         from .colour import spectrum_to_xyz
         return spectrum_to_xyz(m.values)
 

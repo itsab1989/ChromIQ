@@ -353,6 +353,63 @@ M_CR30_HOW_TO_MEASURE = _m(
     approved=False)
 
 
+# --- PROPOSED: teaching this unit its own white-tile value -----------------
+#: #159. The magnet guard compares a reading against the instrument's stored
+#: tile value, and until now that value was HARD-CODED from one unit. The only
+#: other CR30 in evidence reads up to 4.69 %R lower -- 94x the tolerance -- so
+#: on anyone else's instrument the guard matched nothing and its owner had no
+#: protection at all: a gated reading is the stored constant, which looks like
+#: an ordinary patch colour and goes straight into the profile.
+#:
+#: The value cannot be read from the calibration: after a white calibration the
+#: instrument's stored slot is ZERO-FILLED. It comes from a capped press, which
+#: is safe to ask for -- measured across three experiments on 2026-08-30, a
+#: capped press does not damage the white reference.
+M_CR30_LEARN_TILE = _m(
+    "M-CR30-LEARN-TILE",
+    "One press teaches ChromIQ your instrument's white tile",
+    "This is a one-off, and it makes every measurement afterwards safer.\n\n"
+    "If anything magnetic touches the measuring opening — a laptop lid under "
+    "your paper, a magnetic desk mat, the instrument's own cap — the CR30 "
+    "stops measuring and hands back the value of its white tile instead. That "
+    "value looks like a perfectly ordinary patch colour, so without knowing "
+    "what it is, ChromIQ cannot tell it from a real reading.\n\n"
+    "Every instrument's tile value is slightly different, so ChromIQ has to "
+    "learn yours from your own device.\n\n"
+    "LEAVE THE CAP ON, exactly as it is now, and press the button on the "
+    "instrument once. That is all. The reading is not part of your "
+    "measurement and nothing is written to your chart.\n\n"
+    "This does not change your calibration. A press with the cap on reads the "
+    "tile that is already the instrument's reference, so there is nothing for "
+    "it to spoil.\n\n"
+    "You can press “Not now” and carry on measuring as usual — everything "
+    "works exactly as before, and ChromIQ will offer this again next time.",
+    approved=False)
+
+
+# --- PROPOSED: the keyboard trigger, on an instrument not yet learned ------
+#: #159. Pressing the instrument's own button shifts the reading by ~0.5 %R,
+#: ten times its own repeat noise of 0.05 %R (EXP-TILE-003/004), so taking the
+#: reading from the keyboard is measurably steadier. But a host-triggered reply
+#: cannot report the magnet gate -- byte 58 marks it solicited and the flag at
+#: offset 24 is meaningful only in an unsolicited header -- so the learned tile
+#: signature is what replaces the flag. Without one there is no replacement,
+#: and the trigger is refused rather than made silently unsafe.
+M_CR30_TRIGGER_NOT_ARMED = _m(
+    "M-CR30-TRIGGER-NOT-ARMED",
+    "Measuring from the keyboard needs one quick setup step",
+    "ChromIQ can take each reading for you when you press the space bar, so "
+    "the instrument never moves between patches — that makes readings about "
+    "ten times steadier than pressing its own button.\n\n"
+    "To do that safely, ChromIQ first needs to know what your instrument's "
+    "white tile looks like, so it can tell a real patch from a covered "
+    "opening. That takes one press: after calibrating, leave the cap on and "
+    "press the instrument's button once when ChromIQ asks.\n\n"
+    "Until then, keep using the button on the instrument — every reading "
+    "still works exactly as before.",
+    approved=False)
+
+
 # ---------------------------------------------------------------------------
 # §5 — starting a measurement over an existing one
 # ---------------------------------------------------------------------------
@@ -1215,6 +1272,7 @@ CATALOGUE = {m.id: m for m in (
     M_CR30_READ_ENDED, M_CR30_INSTRUMENT_GONE, M_CR30_PATCH_GAVE_UP,
     M_CR30_CALIBRATE, M_CR30_CALIBRATE_BLACK, M_CR30_MAGNET,
     M_CR30_HOW_TO_MEASURE, M_CR30_READ_FAILED,
+    M_CR30_LEARN_TILE, M_CR30_TRIGGER_NOT_ARMED,
 )}
 
 #: Paragraphs appended to another message rather than shown on their own.

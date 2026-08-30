@@ -81,10 +81,20 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # explanation, the disconnect and re-arm notices, and the two calibration
 # windows including the dark-reference step. All are new beta text under the
 # project's rule, and German is translated as usual because it is read.
+# Raised from 93 on 2026-08-30, deliberately, for the CR30's
+# learned-tile step and its keyboard-trigger refusal (#159, both §M-PROPOSED).
+# Their wording is not approved yet, and this project does not translate a
+# message before it is agreed -- translating it twice is the waste that rule
+# exists to prevent. German is translated as usual, which is why its budget
+# does not move.
+#
+# 97 is the highest ACTUAL count across the twelve, not an estimate: the old 93
+# was a uniform ceiling and the real figures sat below it by different amounts,
+# so a uniform "+2" under-shot for some languages and passed for others.
 _BUDGET = {
     "de": 35,
-    "es": 93, "fr": 93, "it": 93, "ja": 93, "nl": 93,
-    "no": 93, "pl": 93, "pt": 93, "ru": 93, "sv": 93, "zh_CN": 93,
+    "es": 97, "fr": 97, "it": 97, "ja": 97, "nl": 97,
+    "no": 97, "pl": 97, "pt": 97, "ru": 97, "sv": 97, "zh_CN": 97,
 }
 
 

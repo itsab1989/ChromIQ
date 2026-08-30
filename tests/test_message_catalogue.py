@@ -102,6 +102,16 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 #: so the print step now names the Print Chart tab's "Colour" row instead —
 #: and the two new failure windows of the print-time conversion (§6 S9/S10).
 AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
+                                 # #159, 2026-08-30. The magnet guard used to
+                                 # recognise ONE unit's stored white-tile value
+                                 # because it was hard-coded from that unit, so
+                                 # every other owner had none; it is now learned
+                                 # from a single capped press. And a reading
+                                 # taken from the keyboard cannot report the
+                                 # magnet gate, so it is refused until that
+                                 # instrument's tile is known.
+                                 "M-CR30-LEARN-TILE",
+                                 "M-CR30-TRIGGER-NOT-ARMED",
                                  # Create Chart's two patch-set endings, both
                                  # of which used to happen in silence. Basti
                                  # approved adding them 2026-08-25; the WORDING

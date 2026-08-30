@@ -364,7 +364,9 @@ class CR30:
         self.calibrate(black=False)
 
     def read_next_measurement(self, *, timeout: float = 180.0,
-                              cancelled=None, poll: float = 0.25) -> Measurement:
+                              cancelled=None, poll: float = 0.25,
+                              for_learning: bool = False,
+                              trigger_wanted=None) -> Measurement:
         """Wait for the operator to press the instrument's button, then read it.
 
         THIS, not :meth:`read_measurement`, is the spot workflow. The CR30 holds
@@ -402,6 +404,23 @@ class CR30:
                         f"no button press within {timeout:.0f} s. Place the "
                         "instrument on the highlighted patch and press its own "
                         "button.")
+                # A TRIGGER MUST BE SENT FROM THIS THREAD. The reader owns
+                # the port for the whole wait, so a trigger sent from the GUI
+                # thread would race it -- two readers of one serial stream, and
+                # the reply landing in whichever got there first. The keyboard
+                # sets a flag; the wait acts on it and collects its own reply.
+                if trigger_wanted is not None and trigger_wanted():
+                    hdr = self._t.transact(usb_measure.trigger_frame(),
+                                           timeout=10.0)
+                    if for_learning:
+                        m = self.read_measurement(button_header=hdr,
+                                                  enforce=False)
+                        m.validate()
+                        return m
+                    # Guarded exactly like a press: the reply cannot report the
+                    # magnet gate (byte 58 marks it solicited), so the learned
+                    # tile signature is what refuses a gated trigger.
+                    return self.read_measurement(button_header=hdr)
                 try:
                     hdr = usb_measure.wait_for_button_header(
                         self._t, timeout=min(left, 1.0))
@@ -417,6 +436,18 @@ class CR30:
                     # states ARE separable -- they were simply never separated.
                     raise DeviceLost(
                         f"the instrument stopped answering ({exc})") from exc
+                if for_learning:
+                    # A learning press is SUPPOSED to be gated -- it is the
+                    # capped press that teaches this unit its tile constant --
+                    # so the magnet guard, which exists to refuse exactly that,
+                    # is skipped. `validate()` still runs: a truncated or
+                    # non-finite reply must never become the stored constant.
+                    # enforce=False also keeps it out of `_previous`, so a
+                    # learning press cannot make the next real reading look
+                    # like a bit-identical repeat.
+                    m = self.read_measurement(button_header=hdr, enforce=False)
+                    m.validate()
+                    return m
                 return self.read_measurement(button_header=hdr)
 
         # WAIT FOR THE INSTRUMENT TO SAY IT ACTED, RATHER THAN GUESS.
@@ -470,12 +501,34 @@ class CR30:
             # for ever — the presses queue up unseen and the patch times out
             # after three minutes. `wait_for_event` runs the transport's loop
             # while it waits, which is the whole point of it.
+            if trigger_wanted is not None and trigger_wanted():
+                # Same reasoning as the USB branch: the trigger goes out from
+                # the thread that owns the link, and its own reply is read
+                # here rather than left for the event queue to deliver.
+                self.trigger_unsafe()
+                m = self._read_when_ready(deadline)
+                if for_learning:
+                    m.validate()
+                    return m
+                m.check_usable(self._previous, learned_tile=self.learned_tile)
+                self._previous = m
+                return m
             if wait_for_event(min(left, 1.0), cancelled) is None:
                 continue
             # It has acted. Read what it now holds — `_read_when_ready` waits
             # out the zero-filled "not finished yet" reply rather than guessing
             # at a sleep long enough to cover every case.
             m = self._read_when_ready(deadline)
+            # `for_learning` reads a press that is SUPPOSED to be gated: the
+            # capped press that teaches this unit its own tile constant. The
+            # magnet guard would refuse exactly that, so it is skipped -- but
+            # `validate()` is not, because a truncated or non-finite reply must
+            # never be learned as the constant. It is also not remembered as
+            # `_previous`: a learning press is not a patch, and letting it seed
+            # the bit-identical check would make the next real reading suspect.
+            if for_learning:
+                m.validate()
+                return m
             m.check_usable(self._previous, learned_tile=self.learned_tile)
             self._previous = m
             return m

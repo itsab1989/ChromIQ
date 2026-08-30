@@ -7251,6 +7251,11 @@ class TabMeasure(QWidget):
             "whatever is under the cap."))
         self._log.ensureCursorVisible()
 
+        # THE CAP IS STILL ON, WHICH IS THE ONLY MOMENT THIS CAN BE ASKED.
+        # The black step is next and it asks for the cap OFF, so the learning
+        # press has to happen here or not at all this session.
+        self._offer_cr30_tile_learning(reader)
+
         if want_black and not self._run_cr30_black_calibration():
             return False
 
@@ -7584,6 +7589,141 @@ class TabMeasure(QWidget):
             ).format(start=self._start_button_name()))
         self._log.ensureCursorVisible()
         return False
+
+    def _offer_cr30_tile_learning(self, reader) -> None:
+        """One capped press teaches this unit its own tile constant.
+
+        M-CR30-LEARN-TILE (§M-PROPOSED). The magnet guard recognises the value
+        the instrument returns when something magnetic is at the opening -- it
+        stops measuring and hands back its stored white tile. That value was
+        hard-coded from ONE unit, and the only other CR30 in evidence reads up
+        to 4.69 %R away, 94x the tolerance: on anyone else's instrument the
+        guard matched nothing and its owner had no protection at all.
+
+        It cannot be read from the calibration -- afterwards the instrument's
+        stored slot is zero-filled -- so it comes from a capped press. That is
+        safe to ask for: a capped press does not damage the white reference,
+        measured across EXP-TILE-002/003/004 on 2026-08-30.
+
+        Never fatal, and always refusable. A declined or failed learn leaves
+        the guard exactly as it is today.
+        """
+        from PyQt6.QtCore import QObject, QThread, pyqtSignal
+        from PyQt6.QtWidgets import QApplication, QMessageBox
+        from workflow import measurement_messages as M
+        from ui.widgets import fit_message_box_buttons, order_message_box_buttons
+        try:
+            if reader.guard_is_armed:
+                return
+        except Exception:              # noqa: BLE001 — never block a session
+            log.debug("could not ask whether the guard is armed", exc_info=True)
+            return
+
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(tr("Teach ChromIQ your instrument"))
+        box.setText(tr(M.M_CR30_LEARN_TILE.title))
+        box.setInformativeText(tr(M.M_CR30_LEARN_TILE.body))
+        teach = box.addButton(tr("I have pressed it"),
+                              QMessageBox.ButtonRole.AcceptRole)
+        later = box.addButton(tr("Not now"), QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(teach)
+        box.setEscapeButton(later)
+        order_message_box_buttons(box, [teach, later])
+        fit_message_box_buttons(box)
+        box.exec()
+        if box.clickedButton() is not teach:
+            self._log.appendPlainText("\n" + tr(
+                "[NOTE] The magnet check is running on ChromIQ's built-in "
+                "value, which was measured on a different instrument. It may "
+                "not recognise a covered opening on yours."))
+            return
+
+        result: dict = {}
+
+        class _Learn(QObject):
+            done = pyqtSignal()
+
+            def run(self) -> None:
+                try:
+                    result.update(reader.learn_tile(timeout=90.0))
+                except Exception as exc:   # noqa: BLE001 — reported below
+                    result["error"] = str(exc) or type(exc).__name__
+                self.done.emit()
+
+        thread, worker = QThread(self), _Learn()
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.done.connect(thread.quit)
+        thread.start()
+        # Both must stay referenced until the thread finishes, or Qt collects a
+        # running QThread and takes the process with it.
+        self._learn_thread, self._learn_worker = thread, worker
+        while not thread.isFinished():
+            QApplication.processEvents()
+            thread.wait(20)
+        self._learn_thread = self._learn_worker = None
+
+        if result.get("learned"):
+            self._log.appendPlainText("\n" + tr(
+                "[NOTE] ChromIQ has learned this instrument's white-tile "
+                "value, so it can now recognise a reading taken with "
+                "something magnetic at the opening. Reason it was believed: "
+                "{why}").format(why=result.get("provenance", "")))
+            self._flash_status(
+                tr("ChromIQ now knows your instrument's white tile."),
+                duration_ms=6000)
+        else:
+            self._log.appendPlainText("\n" + tr(
+                "[NOTE] ChromIQ could not learn this instrument's white-tile "
+                "value this time, so the magnet check stays on its built-in "
+                "one. Nothing else is affected, and it will offer again."))
+        self._log.ensureCursorVisible()
+
+    def _cr30_reading_from_the_keyboard(self) -> None:
+        """Space or Enter: take the reading without touching the instrument.
+
+        M-CR30-TRIGGER-NOT-ARMED (§M-PROPOSED) when this instrument's tile is
+        not known yet. A reading ChromIQ asks for cannot report the magnet
+        gate -- byte 58 marks the reply solicited and the flag at offset 24 is
+        meaningful only in the unsolicited header a button press produces -- so
+        the learned tile signature is what replaces it. Without one there is no
+        replacement, and the trigger is refused rather than made silently
+        unsafe.
+
+        The request only sets a flag. The reader thread owns the link for the
+        whole of its wait, so the trigger has to leave from there; see
+        `DeviceReader.request_trigger`.
+        """
+        reader = getattr(self, "_cr30_reader", None)
+        if reader is None:
+            return
+        try:
+            if reader.request_trigger():
+                self._flash_status(
+                    tr("Taking the reading — keep the instrument still."),
+                    duration_ms=2000)
+                return
+        except Exception:              # noqa: BLE001 — never eat a keystroke
+            log.debug("CR30: could not request a reading", exc_info=True)
+            return
+        if getattr(self, "_cr30_said_trigger_not_armed", False):
+            self._flash_status(tr(
+                "Press the button on the instrument — ChromIQ cannot take "
+                "this reading for you yet."), duration_ms=4000)
+            return
+        self._cr30_said_trigger_not_armed = True
+        from PyQt6.QtWidgets import QMessageBox
+        from workflow import measurement_messages as M
+        from ui.widgets import fit_message_box_buttons
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(tr("Measuring from the keyboard"))
+        box.setText(tr(M.M_CR30_TRIGGER_NOT_ARMED.title))
+        box.setInformativeText(tr(M.M_CR30_TRIGGER_NOT_ARMED.body))
+        box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        fit_message_box_buttons(box)
+        box.exec()
 
     def _open_cr30_bridge(self) -> None:
         """Stand up the thing that answers the helper's spot prompts (#159).
@@ -10966,6 +11106,20 @@ class TabMeasure(QWidget):
                 return False
             if key in (Qt.Key.Key_Tab, Qt.Key.Key_Backtab):
                 return False
+            # A CR30 SESSION HAS NO ARGYLL PROCESS TO SEND KEYS TO.
+            #
+            # Everything below forwards to `self._manager.send_key`, which
+            # feeds a running chartread. ChromIQ reads the CR30 itself, so
+            # those keys reached nobody and Space did nothing at all. Here it
+            # takes the reading instead -- which is not merely a convenience:
+            # pressing the instrument's own button moves it, measured at
+            # ~0.5 %R against its own repeat noise of 0.05 %R when nothing
+            # touches it (EXP-TILE-003/004). Taking the reading from the
+            # keyboard removes that error.
+            if getattr(self, "_cr30_reader", None) is not None and key in (
+                    Qt.Key.Key_Space, Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                self._cr30_reading_from_the_keyboard()
+                return True
             sent = True
             if key == Qt.Key.Key_Escape:
                 self._manager.send_key("\x1b")

@@ -1,7 +1,7 @@
 # Unified Measurement Management — Design Specification
 
 > **Revision 2026-08-09 (e) — two approved messages carry a revised print step.**
-> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), M-IMPORT-MISMATCH and M-IMPORT-DATE-TAKEN (the Measure tab's IMPORT module; its import-done window was approved by Sebastian 2026-08-10), plus the revised M-CHART-VERIFY (W5, reworked after the 2026-08-10 hardware session) and M-HOW-PRINTED (pairing 3 — the measure-time question for sheets ChromIQ did not print), plus M-ALL-STRIPS-PATCHES-LEFT (new, 2026-08-14 — every strip read while patches inside them are not, #156; both are wording only, their bug fixes are already in the code and speak through the log until these are approved), plus M-NO-INSTRUMENT-FAST (new, 2026-08-13 — Knut's ColorMunki was invisible on older hardware until "Faster instrument connection" was switched off, so that variant of the no-instrument window names the shortcut and carries its switch), plus M-ENGINE-FELL-BACK (new, 2026-08-14 — asked for by Knut on #148: ChromIQ's own measuring engine could not use the instrument, so stock chartread took over, which also silences ChromIQ's measurement sounds without saying so) — all defined in the awaiting-review section below, plus M-PATCHSET-MISSING (new, 2026-08-25 — a loaded patch set that had gone from disk wrote one line to the log and built a different chart, in silence), plus M-PROJECT-EXISTS (new, 2026-08-27 — a typed project name that already names a project on disk adopted it in silence; Knut reported it and Basti ruled on when it may appear and what it may offer, but the WORDING is new and waits here), plus M-PROJECT-REPLACE-CONFIRM and M-PROJECT-REPLACE-FAILED (new, 2026-08-27 — the second look before §S4.7's "Replace it" clears a whole project, and the window for the case where its promise cannot be kept), plus M-CR30-STOCK-READER (new, 2026-08-28, #159 — a CR30 chart carries the honest name the device reports for itself, which stock ArgyllCMS chartread refuses outright, so the window names the Preferences control that fixes it) and M-CR30-READ-ENDED (new, 2026-08-28, #159 — the same refusal seen from the other end: an engine run that fails on a CR30 chart has no second reader to fall back to, so the two existing fallback messages, one of which promises that every measured strip will be kept, must not be shown) and M-CR30-MAGNET (new, 2026-08-30, #159 — a magnet recalibrated the instrument mid-chart, which happened to Basti with a MacBook under his paper; the session now stops and offers to retake the white calibration instead of inviting another press) and M-CR30-CALIBRATE-BLACK (new, 2026-08-29, #159 — the dark reference, taken against open air with the instrument's own command, offered by an unticked per-use checkbox so it never becomes a second window on every Start) and M-CR30-CALIBRATE (new, 2026-08-28, #159 — Basti ruled that ChromIQ triggers the CR30's white calibration itself on both transports, which deliberately reverses a documented safety rule; the window's warning is about which face of the cap meets the aperture, not about magnets) and M-CR30-INSTRUMENT-GONE (new, 2026-08-28, #159 — the instrument unplugged mid-measurement and ChromIQ said nothing at all) and M-CR30-PATCH-GAVE-UP (new, 2026-08-28, #159 — one refused reading used to end a CR30 session for ever in silence; refusals are now re-armed and this is the window for when re-arming keeps failing) and M-CR30-HOW-TO-MEASURE (new, 2026-08-28, #159 — every other instrument reaches its "how to measure" window through `calibration_done`, which cannot fire when ChromIQ supplies the values itself, so a CR30 user was given a spot session with no on-screen instruction at all) and M-CR30-READ-FAILED (new, 2026-08-30, #159 — a refused reading was announced only in the log, where Basti did not see it; the behaviour was already right and only the place it was said was wrong, so this is a modeless window that closes itself when the reading arrives) — all defined in the awaiting-review section below.
+> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), M-IMPORT-MISMATCH and M-IMPORT-DATE-TAKEN (the Measure tab's IMPORT module; its import-done window was approved by Sebastian 2026-08-10), plus the revised M-CHART-VERIFY (W5, reworked after the 2026-08-10 hardware session) and M-HOW-PRINTED (pairing 3 — the measure-time question for sheets ChromIQ did not print), plus M-ALL-STRIPS-PATCHES-LEFT (new, 2026-08-14 — every strip read while patches inside them are not, #156; both are wording only, their bug fixes are already in the code and speak through the log until these are approved), plus M-NO-INSTRUMENT-FAST (new, 2026-08-13 — Knut's ColorMunki was invisible on older hardware until "Faster instrument connection" was switched off, so that variant of the no-instrument window names the shortcut and carries its switch), plus M-ENGINE-FELL-BACK (new, 2026-08-14 — asked for by Knut on #148: ChromIQ's own measuring engine could not use the instrument, so stock chartread took over, which also silences ChromIQ's measurement sounds without saying so) — all defined in the awaiting-review section below, plus M-PATCHSET-MISSING (new, 2026-08-25 — a loaded patch set that had gone from disk wrote one line to the log and built a different chart, in silence), plus M-PROJECT-EXISTS (new, 2026-08-27 — a typed project name that already names a project on disk adopted it in silence; Knut reported it and Basti ruled on when it may appear and what it may offer, but the WORDING is new and waits here), plus M-PROJECT-REPLACE-CONFIRM and M-PROJECT-REPLACE-FAILED (new, 2026-08-27 — the second look before §S4.7's "Replace it" clears a whole project, and the window for the case where its promise cannot be kept), plus M-CR30-STOCK-READER (new, 2026-08-28, #159 — a CR30 chart carries the honest name the device reports for itself, which stock ArgyllCMS chartread refuses outright, so the window names the Preferences control that fixes it) and M-CR30-READ-ENDED (new, 2026-08-28, #159 — the same refusal seen from the other end: an engine run that fails on a CR30 chart has no second reader to fall back to, so the two existing fallback messages, one of which promises that every measured strip will be kept, must not be shown) and M-CR30-MAGNET (new, 2026-08-30, #159 — a magnet recalibrated the instrument mid-chart, which happened to Basti with a MacBook under his paper; the session now stops and offers to retake the white calibration instead of inviting another press) and M-CR30-CALIBRATE-BLACK (new, 2026-08-29, #159 — the dark reference, taken against open air with the instrument's own command, offered by an unticked per-use checkbox so it never becomes a second window on every Start) and M-CR30-CALIBRATE (new, 2026-08-28, #159 — Basti ruled that ChromIQ triggers the CR30's white calibration itself on both transports, which deliberately reverses a documented safety rule; the window's warning is about which face of the cap meets the aperture, not about magnets) and M-CR30-INSTRUMENT-GONE (new, 2026-08-28, #159 — the instrument unplugged mid-measurement and ChromIQ said nothing at all) and M-CR30-PATCH-GAVE-UP (new, 2026-08-28, #159 — one refused reading used to end a CR30 session for ever in silence; refusals are now re-armed and this is the window for when re-arming keeps failing) and M-CR30-HOW-TO-MEASURE (new, 2026-08-28, #159 — every other instrument reaches its "how to measure" window through `calibration_done`, which cannot fire when ChromIQ supplies the values itself, so a CR30 user was given a spot session with no on-screen instruction at all) and M-CR30-READ-FAILED (new, 2026-08-30, #159 — a refused reading was announced only in the log, where Basti did not see it; the behaviour was already right and only the place it was said was wrong, so this is a modeless window that closes itself when the reading arrives) and M-CR30-LEARN-TILE (new, 2026-08-30, #159 — the magnet guard recognised one unit's stored white-tile value because it was hard-coded from that unit; every other owner had no protection at all, so ChromIQ now learns it from a single capped press) and M-CR30-TRIGGER-NOT-ARMED (new, 2026-08-30, #159 — taking the reading from the keyboard is measurably steadier than pressing the instrument's button, but a reading ChromIQ asks for cannot report the magnet gate, so it is refused until that instrument's tile is known) — all defined in the awaiting-review section below.
 > **Withdrawn, never approved:** the patch-set sibling of the message above was removed on 2026-08-26 without reaching the catalogue. Ticking “Edit patch recipe (override preset)” already opens a window saying the loaded patches will be replaced, and that box is shown for a patch set the user loaded themselves, not only for a built-in preset — so a second window at Generate time would have interrupted a decision the user had already made and acknowledged. Knut, 4.1.3-beta.17: *“there is already a message when clicking the ‘Edit patch recipe’ warning of consequences … that warning should be sufficient for a user.”* Checked against the existing text before removal.
 
 > Both were approved by Knut on 2026-08-04, but one step in each instructed *"(with colour management on)"* — a setting ChromIQ deliberately locks **off** on every print path, so the approved text told the user to do something the app prevents (established in `verification_printing_and_target.md` §1, and A0.1 of its plan). With feature A the instruction has a real control to name — the Print Chart tab's **Colour** row — so that one step is revised and the revision waits in §M-PROPOSED. Every other message in §M remains approved as before: the last, **M-BUILD-ELSEWHERE**, was accepted on 2026-08-04 — *"Message M-BUILD-ELSEWHERE accepted"* — and M-CHART-CORRUPT, M-REPLACE-UNCOUNTABLE and M-PREVIEW-PAUSED the day before. A new message goes to §M-PROPOSED first, and `tests/test_message_catalogue.py` fails if one is added to the code without it.
@@ -1163,6 +1163,75 @@ singular and plural out.*
 > Press the button on the instrument again, with it resting on patch {loc}. This window will close by itself when the reading comes through.
 >
 > What the instrument reported: {reason}
+
+### M-CR30-LEARN-TILE · PROPOSED · teaching one unit its own white-tile value — Measure
+
+*New message (#159, 2026-08-30). The magnet guard works by recognising the
+value the instrument returns when something magnetic is at the opening — it
+stops measuring and hands back its stored white tile. That value was HARD-CODED
+from one particular unit. The only other CR30 anyone has measured reads up to
+4.69 %R lower, which is 94 times the tolerance, so on that instrument the guard
+matched nothing and its owner had no protection at all: a gated reading looks
+exactly like an ordinary patch colour and goes straight into the profile.*
+
+*The value cannot be taken from the calibration itself. After a white
+calibration the instrument's stored slot is ZERO-FILLED — the code already
+measures this and passes `allow_dark=True` because of it — so learning there
+would store a spectrum of zeros and arm a guard that matches nothing.*
+
+*It has to come from a capped press, and that is safe to ask for. Measured
+across EXP-TILE-002/003/004 on 2026-08-30: a capped press does not damage the
+white reference. The paper readings afterwards moved -3.43 %R in one run and
++4.72 %R in the next, and a damaged reference is monotonic; repositioning alone
+accounts for 2.36 %R with no cap involved at all. The window says so, because a
+user who has read the calibration window's warnings has every reason to be
+nervous about pressing the button with the cap on.*
+
+*Offered once per session, only while the guard is unarmed for that instrument,
+and always refusable. Skipping costs nothing that is not already lost today.*
+
+> **One press teaches ChromIQ your instrument's white tile**
+>
+> This is a one-off, and it makes every measurement afterwards safer.
+>
+> If anything magnetic touches the measuring opening — a laptop lid under your paper, a magnetic desk mat, the instrument's own cap — the CR30 stops measuring and hands back the value of its white tile instead. That value looks like a perfectly ordinary patch colour, so without knowing what it is, ChromIQ cannot tell it from a real reading.
+>
+> Every instrument's tile value is slightly different, so ChromIQ has to learn yours from your own device.
+>
+> LEAVE THE CAP ON, exactly as it is now, and press the button on the instrument once. That is all. The reading is not part of your measurement and nothing is written to your chart.
+>
+> This does not change your calibration. A press with the cap on reads the tile that is already the instrument's reference, so there is nothing for it to spoil.
+>
+> You can press “Not now” and carry on measuring as usual — everything works exactly as before, and ChromIQ will offer this again next time.
+
+### M-CR30-TRIGGER-NOT-ARMED · PROPOSED · the keyboard trigger, on an instrument that has not been learned — Measure
+
+*New message (#159, 2026-08-30). Pressing the instrument's own button moves
+it: measured at ~0.5 %R against its own repeat noise of 0.05 %R when nothing
+touches it (EXP-TILE-003/004). Taking the reading from the keyboard removes that
+error, which is worth roughly a factor of ten in steadiness — Basti asked for it
+for exactly this reason: "this would help to keep the device more stable because
+pressing its button introduces shake".*
+
+*But a reading ChromIQ asks for cannot report the magnet gate. Byte 58 marks a
+solicited reply and the flag at offset 24 is meaningful only in the unsolicited
+header a button press produces, so `button_header_is_gated` correctly answers
+"cannot tell". The learned tile signature is what replaces the flag — and it is
+an exact replacement, because a gated host trigger returns the constant
+bit-for-bit (EXP-MEAS-004, 2026-08-30: worst-band delta 0.0000 %R).*
+
+*So the trigger is refused on an instrument whose tile is not yet known, rather
+than offered in a state where a magnet would go unnoticed. The window explains
+the one-off step that unlocks it and makes clear that nothing is broken
+meanwhile.*
+
+> **Measuring from the keyboard needs one quick setup step**
+>
+> ChromIQ can take each reading for you when you press the space bar, so the instrument never moves between patches — that makes readings about ten times steadier than pressing its own button.
+>
+> To do that safely, ChromIQ first needs to know what your instrument's white tile looks like, so it can tell a real patch from a covered opening. That takes one press: after calibrating, leave the cap on and press the instrument's button once when ChromIQ asks.
+>
+> Until then, keep using the button on the instrument — every reading still works exactly as before.
 
 ### M-CR30-MAGNET · PROPOSED · a magnet recalibrated the instrument mid-chart — Measure
 

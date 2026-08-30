@@ -37,8 +37,15 @@ class FakeDevice:
     def press(self, level):
         self._pending = Measurement(WL, [float(level)] * 31)
 
-    def read_next_measurement(self, *, timeout=180.0, cancelled=None, poll=0.01):
+    def read_next_measurement(self, *, timeout=180.0, cancelled=None, poll=0.01,
+                              for_learning=False, trigger_wanted=None):
+        # MIRROR THE REAL SIGNATURE. A stub that accepts fewer arguments than
+        # the object it stands in for reports the caller broken the moment the
+        # real one grows a parameter -- which is what happened when the
+        # keyboard trigger added `trigger_wanted`.
         end = time.monotonic() + timeout
+        if trigger_wanted is not None and trigger_wanted():
+            self.press(50)              # the host asked; the device answers
         while self._pending is None:
             if cancelled is not None and cancelled():
                 raise MeasurementError("cancelled")
