@@ -1,5 +1,44 @@
 # Changelog
 
+## v4.1.5-beta.2
+
+**The magnet guard now works on your instrument, not only on the one it was
+built from — and you can take a reading with the space bar.**
+
+A magnet at the CR30's measuring opening stops it measuring: it takes a white
+calibration instead and hands back its stored white-tile value. That value looks
+like a perfectly ordinary patch colour, so the only defence is recognising it.
+Until now ChromIQ recognised ONE instrument's value, hard-coded — and the only
+other CR30 anyone has measured reads up to 4.69 %R away, ninety-four times the
+tolerance. On anyone else's device the check matched nothing and its owner had
+no protection at all.
+
+ChromIQ now learns your instrument's value from a single press with the cap on,
+offered once after calibrating. That press is harmless to your calibration:
+measured across three experiments on real hardware, a capped press does not move
+the white reference. The value is filed against your instrument, so a second
+CR30 never inherits the first one's — over USB by its serial, over Bluetooth by
+its address, which distinguishes two devices on macOS, Windows and Linux alike.
+
+**Space, or Enter, now takes the reading** without touching the instrument. That
+is not only convenience: pressing the instrument's own button moves it, by about
+ten times its own measurement noise (0.5 %R against 0.05 %R, measured). Keeping
+it still is measurably more accurate. ChromIQ offers the key once it has learned
+your instrument's tile, and refuses it before then — a reading ChromIQ asks for
+cannot report the magnet gate, so the learned value is what stands in for it.
+
+Also in this release:
+
+- Bluetooth: the remembered address is now identified before anything is written
+  to it. `ffe0` is the generic service every hobby gadget exposes, and the next
+  frames sent to whatever answers are calibration commands.
+- The magnet window no longer prints its own explanation back at you in
+  capitals, labelled as something the instrument said. It did not say it.
+- "With a magnet at the opening the instrument does not measure at all" was the
+  opposite of the danger. It answers — with a plausible number.
+- Seven places quoted the "Refine / resume existing measurement (-r)" checkbox
+  without its flag, one of them in Polish quoting a label that did not exist.
+
 ## v4.1.5-beta.1
 
 **ChromIQ can now measure a chart with a CR30.** It is the first instrument
