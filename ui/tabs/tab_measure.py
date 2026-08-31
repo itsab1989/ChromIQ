@@ -7966,12 +7966,9 @@ class TabMeasure(QWidget):
 
             thread.finished.connect(_forget)
 
-        if not result.get("learned") and stop["asked"]:
-            self._log.appendPlainText("\n" + tr(
-                "[NOTE] The magnet check is running on ChromIQ's built-in "
-                "value, which was measured on a different instrument. It may "
-                "not recognise a covered opening on yours."))
-
+        # ONE NOTE, WHICHEVER WAY IT ENDED — and never two at once. Thirty-four
+        # seconds of this feature failing left NO trace in the log at all,
+        # which is why the first explanation of it was wrong.
         if result.get("learned"):
             self._log.appendPlainText("\n" + tr(
                 "[NOTE] ChromIQ has learned this instrument's white-tile "
@@ -7981,11 +7978,24 @@ class TabMeasure(QWidget):
             self._flash_status(
                 tr("ChromIQ now knows your instrument's white tile."),
                 duration_ms=6000)
+        elif stop["asked"]:
+            self._log.appendPlainText("\n" + tr(
+                "[NOTE] The magnet check is running on ChromIQ's built-in "
+                "value, which was measured on a different instrument. It may "
+                "not recognise a covered opening on yours."))
         else:
+            _why = str(result.get("error") or "").strip()
+            _presses_seen = int(result.get("presses") or 0)
             self._log.appendPlainText("\n" + tr(
                 "[NOTE] ChromIQ could not learn this instrument's white-tile "
                 "value this time, so the magnet check stays on its built-in "
                 "one. Nothing else is affected, and it will offer again."))
+            if _why or _presses_seen:
+                self._log.appendPlainText(tr(
+                    "        Readings taken: {n}. {why}").format(
+                        n=_presses_seen,
+                        why=_why or tr("They did not agree closely enough to "
+                                       "be the tile.")))
         self._log.ensureCursorVisible()
 
     def _cr30_reading_from_the_keyboard(self) -> None:

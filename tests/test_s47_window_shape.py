@@ -17,6 +17,7 @@ wedged between the safe answers and the destructive one", Basti 2026-08-27;
 import pathlib
 
 import pytest
+from PyQt6.QtWidgets import QApplication
 
 
 @pytest.fixture
@@ -81,19 +82,33 @@ def test_return_is_never_an_overwrite(tab, monkeypatch):
 
 
 def test_cancel_sits_on_the_far_right_and_replace_is_not_first(tab, monkeypatch):
+    """Asserted from the WINDOW, not from the argument.
+
+    This used to capture the `order=` list the caller passed and never ask
+    what `spread_message_box_buttons` did with it — so the function could
+    throw the argument away on its first line and stay green. Proven: it did
+    stay green under exactly that mutation. What matters is where the buttons
+    end up, so that is what is measured.
+    """
     t, out = tab
     _a_project_that_holds_something(out)
     t._manual_target_name_edit.setText("taken")
 
     seen = _capture_window(t, monkeypatch)
+    box = seen.get("box")
+    assert box is not None, "§S4.7 did not open for a project that holds work"
 
-    order = seen.get("order")
-    assert order, "the buttons were never given an explicit order"
-    assert order == ["Continue this project", "Replace it",
-                     "Use a different name", "Cancel"], (
-        f"§S4.7's buttons are in the wrong order: {order}. Cancel belongs on "
-        f"the far right, not wedged between the safe answers and the "
-        f"destructive one.")
+    box.show()                      # nothing is laid out until it is shown
+    QApplication.processEvents()
+    on_screen = [b.text() for b in
+                 sorted(box.buttons(), key=lambda b: b.mapTo(box, b.rect().topLeft()).x())]
+    box.hide()
+
+    assert on_screen == ["Continue this project", "Replace it",
+                         "Use a different name", "Cancel"], (
+        f"§S4.7's buttons are laid out {on_screen}. Cancel belongs on the far "
+        f"right, not wedged between the safe answers and the destructive one.")
+    assert on_screen[-1] == "Cancel", "Cancel is not the rightmost button"
 
 
 def test_the_picker_offers_a_new_run_by_default(tab, monkeypatch):
@@ -109,3 +124,37 @@ def test_the_picker_offers_a_new_run_by_default(tab, monkeypatch):
         pytest.skip("no picker for this target type")
     assert chosen[0] == "", (
         f"the picker starts on run {chosen[0]!r}; it must start on a NEW run")
+
+
+def test_the_given_order_is_what_the_row_ends_up_in(qapp):
+    """`spread_message_box_buttons(order=…)` must APPLY the order it is given.
+
+    The §S4.7 test above reads the finished window, which is the right thing
+    to assert — but it cannot prove this on its own: the style in a test run
+    lays a QDialogButtonBox out accept-first anyway, so discarding `order=`
+    entirely leaves that window looking correct. (On macOS it does not: Qt
+    lays the box out by ROLE and put Cancel second, which is what started
+    this.) So the order asked for here is one no role layout produces.
+    """
+    from PyQt6.QtWidgets import QMessageBox
+    from ui.widgets import fit_message_box_buttons, spread_message_box_buttons
+
+    box = QMessageBox()
+    box.setText("x")
+    a = box.addButton("Alpha", QMessageBox.ButtonRole.AcceptRole)
+    b = box.addButton("Bravo", QMessageBox.ButtonRole.DestructiveRole)
+    c = box.addButton("Charlie", QMessageBox.ButtonRole.ActionRole)
+    d = box.addButton("Delta", QMessageBox.ButtonRole.RejectRole)
+    fit_message_box_buttons(box)
+    wanted = [c, a, d, b]                    # deliberately not a role order
+    spread_message_box_buttons(box, order=wanted)
+
+    box.show()
+    QApplication.processEvents()
+    got = [w.text() for w in sorted(
+        box.buttons(), key=lambda w: w.mapTo(box, w.rect().topLeft()).x())]
+    box.hide()
+
+    assert got == [w.text() for w in wanted], (
+        f"the buttons were laid out {got}, not in the order given "
+        f"{[w.text() for w in wanted]} — the order argument is being ignored")

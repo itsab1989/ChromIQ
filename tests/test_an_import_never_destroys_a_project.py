@@ -70,18 +70,66 @@ def test_the_folder_holding_the_imported_file_is_a_self_collision(work, name):
     assert not dir_holds(None, src) and not dir_holds(work / name, None)
 
 
-def test_both_loaders_use_that_one_helper(work):
-    """Neither loader may carry its own copy again — that is how the two
-    drifted into asking the same question two different ways."""
+def test_both_loaders_ask_the_shared_helper_and_obey_it(work, monkeypatch):
+    """Asserted by ANSWERING the question differently, not by grepping.
+
+    The old version looked for the word "dir_holds" in the module source, and
+    a loader that had stopped calling it entirely still passed — the name
+    survived in the docstring above the call. So the shared helper is replaced
+    with one that gives the opposite answer, and each loader's own collision
+    test is driven and must follow it. A loader carrying its own copy cannot.
+    """
     import inspect
-    import ui.txt_loader as txt
+
+    import core.file_manager as fmmod
     import ui.ti2_loader as ti2
+    import ui.txt_loader as txt
+
+    deep = work / "Canon" / "runs" / "run1" / "measured.txt"
+    deep.parent.mkdir(parents=True)
+    deep.write_text("x")
+
+    for mod in (txt, ti2):
+        assert ".parent.resolve()" not in inspect.getsource(mod), (
+            f"{mod.__name__} has grown its own comparison again")
+
+    # The real answers first, so the flip below means something.
+    assert txt.is_self_collision(work, "Canon", deep) is True
+    assert ti2.is_self_collision(work, "Canon", deep) is True
+    assert txt.is_self_collision(work, "Nikon", deep) is False
+
+    asked: list = []
+
+    def _never(folder, path):
+        asked.append((str(folder), str(path)))
+        return False              # the opposite of the truth, deliberately
+
+    monkeypatch.setattr(fmmod, "dir_holds", _never)
+
+    assert txt.is_self_collision(work, "Canon", deep) is False, (
+        "ui.txt_loader answered the collision question without the shared "
+        "helper — it has its own copy again")
+    assert ti2.is_self_collision(work, "Canon", deep) is False, (
+        "ui.ti2_loader answered the collision question without the shared "
+        "helper — it has its own copy again")
+    assert len(asked) == 2, (
+        f"the shared helper was consulted {len(asked)} times by two loaders")
+
+
+def test_the_dialog_asks_through_that_same_function(work):
+    """…and the dialogs' own closure is the one-liner, not a second copy."""
+    import inspect
+
+    import ui.ti2_loader as ti2
+    import ui.txt_loader as txt
 
     for mod in (txt, ti2):
         src = inspect.getsource(mod)
-        assert "dir_holds" in src, f"{mod.__name__} no longer uses the helper"
-        assert ".parent.resolve()" not in src, (
-            f"{mod.__name__} has grown its own comparison again")
+        i = src.index("def _is_self_collision")
+        body = src[i:src.index("def ", i + 10)]
+        assert "is_self_collision(working_dir, name," in body, (
+            f"{mod.__name__}'s dialog no longer routes through the shared "
+            f"function:\n{body}")
 
 
 def test_a_failed_duplicate_does_not_discard_a_run_holding_work(work, qapp):

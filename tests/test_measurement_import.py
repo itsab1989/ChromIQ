@@ -85,20 +85,38 @@ def test_a_measurement_of_another_chart_is_refused_not_repaired(work):
     assert not v.ok, "a measurement of a different chart was accepted"
 
 
-def test_no_repair_is_attempted_anywhere_in_the_module():
-    """Pins the DECISION, not just today's behaviour.
+def test_a_measurement_out_of_the_chart_s_order_is_refused_not_re_paired(work):
+    """§I.9's decision, asserted from the VERDICT rather than the vocabulary.
 
-    Held deliberately on measured evidence: a tolerant match can hand a reading
-    to a patch 16.24 dE00 away, and an exact one refuses files ChromIQ wrote.
-    If someone adds a repair later, this fails and they must re-read §I.9.
+    This used to grep the module for "argmin", "argsort", "cdist" and
+    "linear_sum_assignment" — and a hand-written nearest-neighbour loop, using
+    none of those four words, passed it. What §I.9 forbids is the BEHAVIOUR:
+    a measurement whose readings do not line up with the chart is refused and
+    said so, never quietly re-paired into looking correct.
+
+    Held on measured evidence: a tolerant match can hand a reading to a patch
+    16.24 dE00 away.
     """
-    import inspect
-    import workflow.measurement_import as mod
+    chart = _ti2(work / "c.ti2", _CHART)
+    shuffled = _ti3(work / "m.ti3", list(reversed(_CHART)))
 
-    src = inspect.getsource(mod)
-    for word in ("argmin", "argsort", "linear_sum_assignment", "cdist"):
-        assert word not in src, (
-            f"{word!r} suggests a re-pairing step — §I.9 forbids it")
+    v = assess(shuffled, chart)
+    assert not v.ok, (
+        "a measurement in a different order was accepted — either the "
+        "readings were re-paired, or the check no longer looks at colour")
+    assert v.reason, "it was refused without saying why"
+    # …and the same readings IN THE CHART'S ORDER are fine, so the refusal is
+    # about the pairing and not about the file.
+    assert assess(_ti3(work / "ok.ti3", _CHART), chart).ok
+
+
+def test_one_reading_in_the_wrong_place_is_still_refused(work):
+    """The weaker case: a single swap, which a repair would silently undo."""
+    rows = list(_CHART)
+    rows[1], rows[2] = rows[2], rows[1]
+    v = assess(_ti3(work / "m.ti3", rows), _ti2(work / "c.ti2", _CHART))
+    assert not v.ok, (
+        "two readings exchanged places and the file was accepted anyway")
 
 
 def test_an_unreadable_chart_does_not_refuse_every_measurement(work):

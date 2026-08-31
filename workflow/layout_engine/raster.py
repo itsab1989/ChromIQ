@@ -975,6 +975,7 @@ def render_pages(
     paper_h_mm: float,
     dpi: int = 300,
     strip_pattern: str = permutation.DEFAULT_STRIP_PATTERN,
+    patch_pattern: str = permutation.DEFAULT_PATCH_PATTERN,
     spacer_mode: str = "colored",
     spacer_palette: "list[tuple[int, int, int]] | None" = None,
     spacer_overrides: "dict[int, tuple[int, int, int]] | None" = None,
@@ -1044,7 +1045,14 @@ def render_pages(
     steps = layout.steps_in_pass
     pppage = layout.patches_per_page
     label_strip = permutation.make_labeller(strip_pattern)
-    label_patch = permutation.make_labeller(permutation.DEFAULT_PATCH_PATTERN)
+    # THE USER'S PATTERN, NOT THE DEFAULT ONE. The row band exists so that a
+    # patch's place on paper can be found again in the file, and it was drawn
+    # with the built-in pattern whatever the chart was made with: a chart set
+    # to "A-Z;1-999" printed rows 1, 2, 3 while its own .ti2 -- and therefore
+    # the .ti3 and the report -- called those same rows A, B, C. The label on
+    # the sheet disagreed with the measurement, which defeats the only thing
+    # the band is for. Reported from beta 5.
+    label_patch = permutation.make_labeller(patch_pattern)
 
     def px(mm: float) -> int:
         return round(mm * mm2px)

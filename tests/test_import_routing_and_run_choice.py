@@ -20,6 +20,25 @@ def work():
     return pathlib.Path(tempfile.mkdtemp())
 
 
+#: A chart and a measurement of it, in the shape ChromIQ actually writes —
+#: device values AND expected XYZ, so `assess` can read both ends.
+_ROWS = [(100, 100, 100), (100, 0, 0), (0, 100, 0), (0, 0, 100),
+         (50, 50, 50), (0, 0, 0)]
+
+
+def _cgats(path, magic, rows):
+    body = "".join(f"{i} \"A{i}\" {r} {g} {b} {r*0.9:.4f} {g*1.0:.4f} "
+                   f"{b*1.1:.4f}\n" for i, (r, g, b) in enumerate(rows, 1))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f"{magic}\n\nKEYWORD \"SAMPLE_LOC\"\n"
+                    "NUMBER_OF_FIELDS 8\nBEGIN_DATA_FORMAT\n"
+                    "SAMPLE_ID SAMPLE_LOC RGB_R RGB_G RGB_B XYZ_X XYZ_Y "
+                    "XYZ_Z\nEND_DATA_FORMAT\n"
+                    f"NUMBER_OF_SETS {len(rows)}\nBEGIN_DATA\n" + body
+                    + "END_DATA\n")
+    return path
+
+
 def test_project_has_all_runs_not_runs(work, qapp):
     """The selection code called `proj.runs()`, which does not exist — it
     raised into a guard and fell through to "a new run" every time."""
@@ -96,15 +115,87 @@ def test_every_format_reaches_the_same_question(qapp):
         "never reach it")
 
 
-def test_the_run_picker_choice_is_connected(qapp):
-    """The picker wrote into a list only if somebody wired the signal. Nobody
-    did, so the selection on screen was ignored: Run 2 highlighted, Run 6
-    filed."""
-    import inspect
+def _import_into(work, monkeypatch, pick_run, n_runs=3):
+    """Drive the real routing with a real picker, and say where the file goes.
+
+    Returns (which run the measurement landed in, the runs offered on screen).
+    """
+    from PyQt6.QtWidgets import QComboBox, QMessageBox
+    from core.argyll_runner import ArgyllRunner
+    from core.file_manager import FileManager, Project
+    from core.settings import AppSettings
+    from ui.measurement_target_bar import MeasurementTargetController
+    from ui.tabs.tab_chart import TabChart
     from ui.tabs.tab_profile import TabProfile
 
-    src = inspect.getsource(TabProfile._file_into_project)
-    assert "currentIndexChanged" in src, (
-        "the run picker is decorative — every import goes to a new run")
-    assert "all_runs()" in src, (
-        "the run is looked up with a method Project does not have")
+    settings = AppSettings()
+    settings.set("custom_output_path", str(work / "out"))
+    fm = FileManager(settings)
+    root = fm.root_dir()
+    root.mkdir(parents=True, exist_ok=True)
+    proj = Project.create(root / "P", "P")
+    for i in range(n_runs):
+        run = proj.current_run() if i == 0 else proj.new_run()
+        run.ensure_dir()
+        _cgats(run.chart_ti2, "CTI2", _ROWS)
+    fm.set_target_name("P")
+
+    tab_chart = TabChart(ArgyllRunner(settings), fm, settings)
+    ctl = MeasurementTargetController(fm)
+    tab_chart.set_target_controller(ctl)
+    tab = TabProfile(ArgyllRunner(settings), settings)
+    tab.set_target_controller(ctl)
+    tab._tab_chart = tab_chart          # what `self.window()` is asked for
+
+    measurement = _cgats(work / "measured.ti3", "CTI3", _ROWS)
+
+    offered: list = []
+
+    def _answer(self):
+        """Choose *pick_run* in the picker, then press the accept button."""
+        combo = self.findChild(QComboBox)
+        if combo is not None:
+            offered.extend(combo.itemData(i) for i in range(combo.count()))
+            idx = next((i for i in range(combo.count())
+                        if combo.itemData(i) == pick_run), None)
+            if idx is not None:
+                combo.setCurrentIndex(idx)
+        for b in self.buttons():
+            if self.buttonRole(b) == QMessageBox.ButtonRole.AcceptRole:
+                b.click()
+                break
+        return 0
+
+    monkeypatch.setattr(QMessageBox, "exec", _answer)
+    monkeypatch.setattr("ui.tooltip_button._InfoDialog.exec",
+                        lambda self: 0, raising=False)
+
+    assert tab._file_into_project("P", measurement, fm, ctl) is True
+    # Read the RESULT off disk: `proj` predates any run the import created,
+    # so asking it would report an empty list for a file that is really there.
+    landed = sorted(d.name for d in (root / "P" / "runs").iterdir()
+                    if d.is_dir() and any(d.glob("*.ti3")))
+    return landed, offered
+
+
+def test_the_run_picker_choice_is_connected(work, qapp, monkeypatch):
+    """Asserted from WHERE THE FILE LANDS, not from the source text.
+
+    This used to grep `_file_into_project` for "currentIndexChanged", which a
+    no-op lambda satisfies — the exact fault it exists to catch (Run 2
+    highlighted, Run 6 filed) would have passed it. So the picker is driven:
+    run 2 is chosen on screen, and run 2 must be where the measurement is.
+    """
+    landed, offered = _import_into(work, monkeypatch, pick_run="run2")
+    assert offered, "the window offered no runs at all"
+    assert landed == ["run2"], (
+        f"run2 was chosen on screen and the measurement landed in {landed} — "
+        f"the picker is decorative")
+
+
+def test_choosing_a_new_run_still_makes_one(work, qapp, monkeypatch):
+    """The other answer, so the test above cannot pass by ignoring the picker
+    in the opposite direction."""
+    landed, _ = _import_into(work, monkeypatch, pick_run="", n_runs=2)
+    assert landed and landed[0] not in ("run1", "run2"), (
+        f"'a new run' filed into an existing one: {landed}")

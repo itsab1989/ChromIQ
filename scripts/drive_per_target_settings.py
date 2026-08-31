@@ -391,13 +391,30 @@ def main() -> int:      # noqa: PLR0915, PLR0912
     # the correct value to use" — it seeds the patch count, instrument,
     # paper and (for engine charts) the recipe over the stored values. The
     # store still carries them for the CHARTLESS case, which Phase 6 proves.
-    VOLATILE.setdefault("Create Chart", set()).update({
+    #
+    # EXCLUDED FROM THE SCREEN VERDICT ONLY. This list is why the driver was
+    # green on the two values reported from beta 5: it named `printtarg-i`
+    # and `ui:engine_recipe`, the exact pair a user watched revert, and it
+    # applied to the ON-DISK comparison as well as the on-screen one. The
+    # sidecar ruling is about what is SHOWN; nothing in it says the chart's
+    # values may be filed into the target's own store. So these keys stay out
+    # of the screen verdict, pending the §10 ruling, and are checked on disk
+    # like every other key.
+    SIDECAR_OWNED_ON_SCREEN = {
         "targen-f", "printtarg-i", "printtarg-p",
         "ui:guided.instrument", "ui:guided.paper", "ui:guided.pages",
         "ui:engine_on", "ui:engine_recipe", "ui:mode",
-    })
-    note("sidecar-owned keys excluded from verdicts (L5, Knut's precedence "
-         "ruling): patch count, instrument, paper, engine toggle/recipe")
+        # NOT `ui:stamp`. It looked like another sidecar-owned key -- it IS in
+        # the recipe -- but §1.2 names the stamp checkbox as a per-target
+        # setting outright, and the real cause was elsewhere: the engine
+        # toggle's one-time stamp default re-firing on every target change.
+        # Excluding it would have hidden a confirmed-section violation behind
+        # an unsettled question. It is judged, on screen and on disk.
+    }
+    VOLATILE.setdefault("Create Chart", set()).update(SIDECAR_OWNED_ON_SCREEN)
+    note("sidecar-owned keys excluded from the ON-SCREEN verdict (L5, Knut's "
+         "precedence ruling): patch count, instrument, paper, engine "
+         "toggle/recipe — they are still checked on disk")
 
     # ------------------------------------------------------------ Phase 2
     print("\n=== Phase 2 — every target shows ITS OWN values (two rounds) ===")
@@ -439,7 +456,8 @@ def main() -> int:      # noqa: PLR0915, PLR0912
     stores = {"run-A profiling": work / src.name / "runs" / run_a / "meta.json",
               "run-B profiling": work / src.name / "runs" / run_b / "meta.json",
               "calibration": work / src.name / "cal" / "meta.json"}
-    skip_chart = VOLATILE.get("Create Chart", set())
+    # The store is checked for EVERYTHING the sidecar may only display.
+    skip_chart = VOLATILE.get("Create Chart", set()) - SIDECAR_OWNED_ON_SCREEN
     for tname, jf in stores.items():
         if not jf.is_file():
             check(f"{tname}: {jf.relative_to(work)} exists", False, "missing")

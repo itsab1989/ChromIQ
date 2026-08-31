@@ -4721,6 +4721,13 @@ class TabChart(QWidget):
         # reappear (with the user's restored choice) when it goes off.
         self._update_manual_lb_visibility()
         self._refresh_manual_command_preview()
+        # The first-time stamp default, spent HERE — where the engine is
+        # actually switched — and never while a target's own settings are
+        # being put on screen (see _refresh_manual_command_preview).
+        if (on != was_on
+                and not getattr(self, "_loading_target_settings", False)
+                and getattr(self, "_manual_stamp_cmd_check", None) is not None):
+            self._manual_stamp_cmd_check.setChecked(not on)
 
     def _convert_printtarg_to_engine(self) -> None:
         """Engine OFF→ON: seed the engine layout panel from the printtarg widgets
@@ -5147,9 +5154,20 @@ class TabChart(QWidget):
             # in the ⓘ beside it, where there is room to say it properly.
             self._manual_stamp_cmd_check.setText(
                 tr("Stamp settings used on the chart"))
-            if getattr(self, "_stamp_engine_state", None) != use_engine:
-                self._stamp_engine_state = use_engine
-                self._manual_stamp_cmd_check.setChecked(not use_engine)
+            # THE STATE IS RECORDED HERE, THE DEFAULT IS APPLIED AT THE
+            # TOGGLE. Stamping-off-with-the-engine is a sensible first-time
+            # default, but this refresh runs from anything that touches the
+            # panel, and the value it overwrote was the target's own.
+            #
+            # Traced, not guessed: selecting a run restores that run's chart,
+            # `_set_recipe_impl` moves the instrument, the paper combo emits,
+            # this refresh re-enters with the engine state changed, and the
+            # stamp the store had just put on screen is turned off. §1.2 names
+            # the stamp checkbox as a per-target setting, so a default was
+            # quietly overruling a confirmed one. `_on_manual_engine_toggled`
+            # is where a user actually changes the engine, and that is where
+            # the default now lives.
+            self._stamp_engine_state = use_engine
         status = self._layout_preset_status() if use_engine else None
         if status is not None:
             summary, modified = status
@@ -13472,6 +13490,119 @@ class TabChart(QWidget):
     # ------------------------------------------------------------------
     # Per-target settings (#130 §2/§3) — the store, not the chart's record
     # ------------------------------------------------------------------
+    def _target_own_snapshot(self) -> "tuple | None":
+        """The parameters and UI state as the TARGET's own store just set them.
+
+        Taken immediately after `load_target_settings`, before the chart
+        sidecar has been anywhere near the screen.
+        """
+        try:
+            from workflow.per_target_settings import snapshot
+            return snapshot(self), self._collect_ui_state()
+        except Exception:          # noqa: BLE001 — never lose a target change
+            log.debug("could not snapshot the target's own settings",
+                      exc_info=True)
+            return None
+
+    def _note_what_the_chart_imposed(self) -> None:
+        """Record the values the chart sidecar changed, and what they replaced.
+
+        Only the difference is kept, and only for a TARGET CHANGE. An explicit
+        Restore Used Chart (§2 L5) is the case §10 blesses, and it does not
+        come through here, so its values still reach the store as before.
+        """
+        was = getattr(self, "_own_values_before_chart", None)
+        self._own_values_before_chart = None
+        self._chart_imposed = {}
+        self._release_imposed_connections()
+        now = self._target_own_snapshot()
+        if not was or not now:
+            return
+        (was_params, was_ui), (now_params, now_ui) = was, now
+        moved = {k: (was_params.get(k), v) for k, v in now_params.items()
+                 if k in was_params and was_params[k] != v}
+        moved_ui = {k: (was_ui.get(k), v) for k, v in now_ui.items()
+                    if k in was_ui and was_ui[k] != v}
+        if not (moved or moved_ui):
+            return
+        self._chart_imposed = {"params": moved, "ui": moved_ui}
+        log.debug("the chart sidecar moved %d parameters and %d ui values "
+                  "away from the target's own", len(moved), len(moved_ui))
+        # AND FROM NOW ON, WHOEVER TOUCHES ONE OWNS IT.
+        #
+        # The first version of this decided at write time, by comparing the
+        # widget with the value the sidecar had put there: equal meant
+        # "untouched". That is the same mistake as a name box believing its
+        # own prefill -- a user who deliberately picks the value the chart
+        # suggested is indistinguishable from one who left it alone, and
+        # their choice was silently replaced by the older stored value. The
+        # acceptance driver caught it on two targets within a minute of the
+        # disk verdict being restored.
+        #
+        # So provenance is taken from the signal instead: the moment a row
+        # reports a change AFTER this point, it stops being the sidecar's and
+        # is written normally.
+        self._release_imposed_connections()
+        from workflow.per_target_settings import params_for
+        try:
+            for param in params_for(self):
+                if param.key not in moved:
+                    continue
+                for w in param.widgets:
+                    sig = getattr(w, "value_changed", None)
+                    if sig is None:
+                        continue
+                    slot = (lambda key=param.key:
+                            self._chart_imposed.get("params", {}).pop(key, None))
+                    sig.connect(slot)
+                    self._imposed_connections.append((sig, slot))
+            panel = getattr(self, "_manual_layout_panel", None)
+            sig = getattr(panel, "changed", None) if panel is not None else None
+            if sig is not None and moved_ui:
+                slot = lambda: self._chart_imposed.get("ui", {}).clear()
+                sig.connect(slot)
+                self._imposed_connections.append((sig, slot))
+        except Exception:          # noqa: BLE001 — a shield is never fatal
+            log.debug("could not watch the imposed rows", exc_info=True)
+
+    def _release_imposed_connections(self) -> None:
+        """Drop the watchers from the previous target change."""
+        for sig, slot in getattr(self, "_imposed_connections", []):
+            try:
+                sig.disconnect(slot)
+            except (TypeError, RuntimeError):
+                pass               # already gone with its widget
+        self._imposed_connections = []
+
+    def _keep_the_targets_own_values(self, wanted: dict, ui_state: dict) -> None:
+        """Put back anything the chart sidecar imposed and the user left alone.
+
+        A row that has reported a change since the chart imposed its value has
+        already been struck off the list; anything left is checked against the
+        value the sidecar put there as well, so a change nothing reported is
+        still the user's.
+        """
+        imposed = getattr(self, "_chart_imposed", None)
+        if not imposed:
+            return
+        # TWO CONDITIONS, AND BOTH MUST HOLD. A row is only still the
+        # sidecar's if nothing has reported a change (the list below) AND it
+        # still holds the value the sidecar put there.
+        #
+        # Neither test is sufficient alone. Equality alone believes its own
+        # prefill: a user who deliberately picks the value the chart suggested
+        # looks identical to one who left it alone, and the acceptance driver
+        # caught exactly that on two targets. The signal alone misses anything
+        # changed through a control this does not watch -- `ui:stamp` lives
+        # outside the layout panel, was shielded after it had genuinely moved,
+        # and the driver caught that one too, on the very next run.
+        for key, (own, from_chart) in list(imposed.get("params", {}).items()):
+            if key in wanted and wanted[key] == from_chart:
+                wanted[key] = own
+        for key, (own, from_chart) in list(imposed.get("ui", {}).items()):
+            if key in ui_state and ui_state[key] == from_chart:
+                ui_state[key] = own
+
     def save_target_settings(self, store=_NO_STORE_GIVEN,
                              key=_NO_STORE_GIVEN) -> bool:
         """Write this tab's settings into the selected target's ``meta.json``.
@@ -13572,6 +13703,18 @@ class TabChart(QWidget):
             # toggle + recipe, gamut options. Part of the dirty check, or a
             # ui-only change would never reach the file.
             ui_state = self._collect_ui_state()
+            # THE CHART'S OWN VALUES ARE NOT THE TARGET'S (K3/K4). Whatever
+            # the sidecar is allowed to SHOW, it may not be filed into the
+            # store on the user's behalf; only a value they then changed is.
+            #
+            # Reached through `getattr` because `save_target_settings` is
+            # deliberately liftable: the store tests run it on a stand-in that
+            # implements only what the STORE needs, and a hard call turned
+            # every one of them into "could not save" -- the broad except
+            # below swallowed the AttributeError and returned False.
+            keep = getattr(self, "_keep_the_targets_own_values", None)
+            if keep is not None:
+                keep(wanted, ui_state)
             fingerprint = str(getattr(store, "dir", store))
             if self._written_cache().get(fingerprint) == (wanted, ui_state):
                 return False
@@ -14017,6 +14160,20 @@ class TabChart(QWidget):
                 chk = getattr(self, "_manual_engine_check", None)
                 if chk is not None and chk.isChecked() != on:
                     chk.setChecked(on)
+                # AND THE STAMP DEFAULT IS ALREADY SPENT FOR THIS STATE.
+                #
+                # `_refresh_manual_command_preview` sets the stamp checkbox to
+                # `not use_engine` the FIRST time the engine state changes --
+                # a sensible default, once. But a target change flips that
+                # state too, so the default fired again on every switch and
+                # overwrote the value just loaded from the target's own store:
+                # the acceptance driver drove the stamp ON, read it back OFF,
+                # and found False on disk. §1.2 names the stamp checkbox as a
+                # per-target setting, so this is a §2/§3 violation of a
+                # CONFIRMED section. Recording the state here means the
+                # default is only ever spent on a state the USER changed.
+                if "stamp" in stored:
+                    self._stamp_engine_state = on
             except Exception:      # noqa: BLE001
                 log.debug("ui-state: engine toggle not applied")
         rec_d = stored.get("engine_recipe")
@@ -15847,6 +16004,18 @@ class TabChart(QWidget):
             self._apply_calibration_knobs(
                 bool(getattr(ctl.target, "is_calibration", bool)()))
             self.load_target_settings()
+            # WHAT THE TARGET ITSELF SAYS, BEFORE THE CHART GETS A WORD IN.
+            #
+            # `_display_run_chart` -> `_restore_chart_settings` runs a few
+            # lines below and lays the chart sidecar's own recipe (instrument,
+            # paper, layout mode, both indicator checkboxes) over what was just
+            # loaded here. Whether it should is §10's question and is not
+            # settled -- but the NEXT write must not file the chart's values
+            # into the target's store as though the user had chosen them.
+            # Measured: pick CR30 on run 1, visit run 2, come back, leave the
+            # tab, and run 1's stored `printtarg-i` has gone from CR30 back to
+            # CM. Visiting a run destroyed a setting nobody touched.
+            self._own_values_before_chart = self._target_own_snapshot()
             # ONE protected load, then back to normal. The flag is set when a build
             # starts and shields the layout that build used from the run's older
             # stored copy — see _apply_ui_state. It is cleared here rather than when
@@ -15906,6 +16075,12 @@ class TabChart(QWidget):
                 tr("Switched to this run's {kind}.").format(kind=kind))
             self._display_run_chart(ti2, tiffs, ti1)
         finally:
+            # Note exactly which values the chart moved, so the write can tell
+            # "the sidecar put this here" from "the user did". In `finally`
+            # because this handler returns early down several paths -- a run
+            # with no chart among them -- and a snapshot left lying around
+            # would be compared against the NEXT target's screen.
+            self._note_what_the_chart_imposed()
             self._settle_live_preview()
 
     @staticmethod

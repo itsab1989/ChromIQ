@@ -97,10 +97,15 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # TRANSPORT needs (one over USB, two over Bluetooth), which is two message
 # bodies plus three live-progress lines. Five strings. German is translated,
 # as always.
+# 2026-08-31, #159, raised 115 -> 116: a tile learn that failed for any
+# reason other than being declined said nothing at all -- thirty-four seconds
+# of a feature failing left no trace in the log, which is why the first
+# explanation of it was wrong. It now says how many readings it took and why
+# they were not enough. Two substantial strings.
 _BUDGET = {
     "de": 35,
-    "es": 115, "fr": 115, "it": 115, "ja": 115, "nl": 115,
-    "no": 115, "pl": 115, "pt": 115, "ru": 115, "sv": 115, "zh_CN": 115,
+    "es": 117, "fr": 117, "it": 117, "ja": 117, "nl": 117,
+    "no": 117, "pl": 117, "pt": 117, "ru": 117, "sv": 117, "zh_CN": 117,
 }
 
 

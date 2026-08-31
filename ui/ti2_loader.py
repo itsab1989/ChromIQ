@@ -56,6 +56,24 @@ KNOWN_INSTRUMENTS: tuple[str, ...] = (
 )
 
 
+
+def is_self_collision(working_dir, name: str, path) -> bool:
+    """Would replacing ``working_dir/name`` destroy the file being imported?
+
+    One line, because the logic lives in `core.file_manager.dir_holds` — both
+    loaders had their own copy and both were wrong the same way, which is how
+    replacing a project deleted the project, its profile AND the file being
+    imported.
+
+    Module level, not a closure inside the dialog, so that it can be driven
+    without building a window: the test that guards this used to grep the
+    module for the word "dir_holds", and a loader that had stopped calling it
+    still passed, because the name survived in a docstring.
+    """
+    from core.file_manager import dir_holds
+    return dir_holds(working_dir / name, path)
+
+
 def read_target_instrument(cgats_path: Path) -> str | None:
     """Return the TARGET_INSTRUMENT value from a CGATS file (.ti1/.ti2/.ti3), or None.
 
@@ -1314,13 +1332,8 @@ def _ask_profile_name(
     result: dict = {"name": None, "overwrite": False}
 
     def _is_self_collision(name: str) -> bool:
-        """True when the folder we would replace HOLDS the file being imported.
-
-        One line, because the logic lives in `core.file_manager.dir_holds` —
-        both loaders had their own copy and both were wrong the same way.
-        """
-        from core.file_manager import dir_holds
-        return dir_holds(working_dir / name, ti2_path)
+        """True when the folder we would replace HOLDS the file being imported."""
+        return is_self_collision(working_dir, name, ti2_path)
 
     def _normalise(text: str) -> str:
         """Sanitise the typed name the same way set_target_name does (spaces→-,

@@ -738,8 +738,15 @@ class LayoutOptionsPanel(QWidget):
                "printtarg's measuring-rig layout. Reserves a little space at the "
                "top and bottom for the offset, so the patch count drops slightly. "
                "Leave off for a plain aligned grid."), self)
-        lgg.addWidget(self.cm_stagger_cb, 6, 1)
-        lgg.addWidget(self._cm_stagger_tip, 6, 2)
+        # ROW 6 IS THE CLIP-BORDER TOGGLE'S WHEN THE PANEL OWNS THE SELECTORS,
+        # and two widgets in one cell are simply drawn on top of each other:
+        # on a ColorMunki, the only instrument that shows both, this checkbox
+        # and its tooltip button sat over the Clip-border pair, two pixels
+        # apart (reported from beta 5). Everywhere else one of the two is
+        # hidden, which is why it read as a ColorMunki-only fault.
+        _stagger_row = 7 if getattr(self, "mode", None) is not None else 6
+        lgg.addWidget(self.cm_stagger_cb, _stagger_row, 1)
+        lgg.addWidget(self._cm_stagger_tip, _stagger_row, 2)
         _basic_v.addWidget(lg)
 
         # ---- Patches & spacers (2-column: label | control) ----

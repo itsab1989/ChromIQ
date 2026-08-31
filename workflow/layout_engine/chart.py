@@ -309,6 +309,7 @@ def build_chart(
     render = raster.render_pages(
         target, layout, geom, seed=seed, randomize=randomize,
         paper_w_mm=w_mm, paper_h_mm=h_mm, dpi=dpi, strip_pattern=strip_pattern,
+        patch_pattern=patch_pattern,
         spacer_mode=spacer_mode, spacer_palette=_palette,
         spacer_overrides=_overrides, edge_spacers=edge_spacers,
         draw_indicators=draw_indicators,
@@ -367,6 +368,12 @@ def build_chart(
     strips_path.write_text(json.dumps({
         "dpi": dpi, "paper_mm": [w_mm, h_mm],
         "steps_in_pass": layout.steps_in_pass, "strip_pattern": strip_pattern,
+        # BOTH patterns, or the row band cannot be reproduced. The sidecar
+        # recorded only the strip pattern, so a restored chart could not say
+        # what its own row labels were -- and now that the band follows the
+        # chart's patch pattern (K8), that is the difference between a sheet
+        # whose labels match its .ti2 and one whose labels are a guess.
+        "patch_pattern": patch_pattern,
         "label_band_bottom_px": render.label_band_bottom_px,
         "strips": rects, "patches": patch_rects,
     }, indent=2), encoding="utf-8")
