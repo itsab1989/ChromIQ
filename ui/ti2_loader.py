@@ -219,7 +219,7 @@ def calibration_instructions_html(family: "str | None") -> str:
             "holds the <b>white tile</b> your instrument calibrates against, so "
             "there is no separate tile to look for.<br><br>"
             "<b>1.</b> Put the cap on the measuring end of the CR30, with the "
-            "<b>white side facing inwards</b> — towards the lens. It should sit "
+            "<b>white side facing inwards</b>, towards the lens. It should sit "
             "flat and snap into place.<br>"
             "<b>2.</b> Press the <b>button on the instrument itself</b>. The "
             "CR30 reads the white tile and shows the result on its own little "
@@ -262,12 +262,12 @@ def measurement_instructions_html(family: "str | None") -> str:
             "a steady pace.")
     if family == "cr30":
         return tr(
-            "<b>Take the magnetic cap off first</b> — with the cap (or any "
+            "<b>Take the magnetic cap off first</b>, with the cap (or any "
             "magnet) near the instrument, the CR30 does not measure at all.<br>"
             "<br>Stand the CR30 flat on the <b>highlighted patch</b>, so the "
             "measuring opening sits well inside it, then <b>press the button on "
             "the instrument</b>. ChromIQ picks the reading up on its own and "
-            "moves the highlight to the next patch — you do not need to touch "
+            "moves the highlight to the next patch, you do not need to touch "
             "the keyboard.<br><br>Each patch takes about two seconds. You can "
             "stop at any time; every patch you have already read is saved.")
     if family == "i1pro":
@@ -318,19 +318,19 @@ def patch_measurement_instructions_html(family: "str | None") -> str:
             "Turn the dial to the <b>measurement position</b> (the target / "
             "aperture icon). Rest the device flat on the highlighted patch, "
             "with the aperture fully inside it, and <b>press the side button "
-            "once</b>. Hold it still until the reading is taken — there is no "
+            "once</b>. Hold it still until the reading is taken, there is no "
             "sliding in this mode.")
     if family == "cr30":
         return tr(
-            "Take the <b>magnetic cap off</b> the measuring end first — with "
+            "Take the <b>magnetic cap off</b> the measuring end first, with "
             "the cap on, the CR30 reads its own white tile instead of your "
             "print.<br><br>Rest the instrument flat on the highlighted patch "
             "with the aperture fully inside it, hold it still, and <b>press "
             "the button on the instrument</b>. ChromIQ collects the reading by "
-            "itself and moves on to the next patch — there is nothing to press "
+            "itself and moves on to the next patch, there is nothing to press "
             "on screen, and there is no sliding in this mode.<br><br>"
             "You can also press the <b>space bar</b> (or Enter) to take the "
-            "reading without touching the instrument at all — that keeps it "
+            "reading without touching the instrument at all, that keeps it "
             "perfectly still and is steadier than pressing its button. It "
             "becomes available once ChromIQ has learned your instrument's "
             "white tile, which it offers after calibrating.<br><br>"
@@ -340,7 +340,7 @@ def patch_measurement_instructions_html(family: "str | None") -> str:
         return tr(
             "Take the i1Pro off its base. Place it flat on the highlighted "
             "patch so the aperture sits fully inside it, and <b>press the "
-            "button once</b>. Keep it still until the reading is taken — there "
+            "button once</b>. Keep it still until the reading is taken, there "
             "is no sliding in this mode.")
     if family == "spectroscan":
         return tr(
@@ -639,7 +639,7 @@ def _choice_dialog(parent, title, intro_html, choices):
     parts.append(tr("What each button does:"))
     for label, desc, _key in choices:
         parts.append(f"&nbsp;&nbsp;•&nbsp; <b>{label}</b> — {desc}")
-    parts.append(tr("&nbsp;&nbsp;•&nbsp; <b>Cancel</b> — nothing is opened, "
+    parts.append(tr("&nbsp;&nbsp;•&nbsp; <b>Cancel</b>, nothing is opened, "
                     "copied or changed, and the file you picked is left exactly "
                     "as it is."))
     box.setInformativeText("<br><br>".join(parts))
@@ -730,8 +730,8 @@ def _handle_loose_into_project(parent, ti2_path, working_dir, controller):
                       ".icc/.icm and .ti3 beside the file are not copied, and no "
                       "existing run is touched.").format(run=next_id)
         else:
-            desc = tr("Copies the chart — and its measurement (.ti3) and profile "
-                      "(.icc/.icm) if present — into a brand-new run inside the "
+            desc = tr("Copies the chart, and its measurement (.ti3) and profile "
+                      "(.icc/.icm) if present, into a brand-new run inside the "
                       "profile project you have open: <code>runs/{run}/</code>. "
                       "No existing run is touched.").format(run=next_id)
         key = _choice_dialog(parent, tr("Import this chart"), header,
@@ -744,17 +744,17 @@ def _handle_loose_into_project(parent, ti2_path, working_dir, controller):
         rid = t.profile_run
         if verif:
             rep = tr("Moves the current verification chart into "
-                     "<code>runs/{run}/verifications/old/</code> — nothing is "
-                     "deleted — and then installs the loaded chart as this run's "
+                     "<code>runs/{run}/verifications/old/</code>, nothing is "
+                     "deleted, and then installs the loaded chart as this run's "
                      "verification chart in <code>runs/{run}/verifications/</code>. "
                      "Your dated verification results are kept exactly where they "
                      "are, and so are this run's own chart, measurement and "
                      "printer profile. Any .icc/.icm and .ti3 beside the loaded "
                      "file are ignored.").format(run=rid)
         else:
-            rep = tr("Moves this run's chart, measurement and printer profile — "
+            rep = tr("Moves this run's chart, measurement and printer profile, "
                      "together with every folder inside it, including its "
-                     "reports and verifications — into "
+                     "reports and verifications, into "
                      "<code>runs/{run}/old/</code>, and then copies the loaded "
                      "files into <code>runs/{run}/</code>. Nothing is deleted. "
                      "Everything moves because a new chart no longer matches the "
@@ -762,7 +762,7 @@ def _handle_loose_into_project(parent, ti2_path, working_dir, controller):
                      ).format(run=rid)
         key = _choice_dialog(parent, tr("Import this chart"), header, [
             (tr("Create a new run instead"),
-             tr("Imports into a brand-new run — <code>runs/{new}/</code> — inside "
+             tr("Imports into a brand-new run, <code>runs/{new}/</code>, inside "
                 "the profile project you have open. Nothing in {run} is touched, "
                 "and no new profile project is created.")
              .format(new=next_id, run=runlabel), "new"),
@@ -887,7 +887,7 @@ def _handle_full_project(parent, ti2_path, src_root, working_dir, controller):
     key = _choice_dialog(parent, tr("This is a complete ChromIQ project"), "", [
         (tr("Copy the whole project in"),
          tr("Copies the entire project (all runs, verifications, calibration) "
-            "into your ChromIQ folder. Profile run / Run type are not used — the "
+            "into your ChromIQ folder. Profile run / Run type are not used, the "
             "copy reproduces the project exactly. You'll confirm the project name "
             "(pre-filled with <b>{name}</b>); if it already exists you can pick a "
             "different one or Replace it (the old one is moved to its "
@@ -1152,7 +1152,7 @@ def _handle_inside(
     layout.addWidget(lbl)
 
     cont_desc = QLabel(
-        tr("<i>Continue</i> — use the files in this folder as-is — "
+        tr("<i>Continue</i>, use the files in this folder as-is, "
         "nothing will be copied or moved."),
         dlg,
     )
@@ -1160,7 +1160,7 @@ def _handle_inside(
     layout.addWidget(cont_desc)
 
     new_desc = QLabel(
-        tr("<i>Use as base for a new profile</i> — copy the files to a new "
+        tr("<i>Use as base for a new profile</i>, copy the files to a new "
         "subfolder so you can build a separate ICC profile without overwriting "
         "the original."),
         dlg,
@@ -1489,7 +1489,7 @@ def _copy_files(
             _kept_at = _archive_project_contents(dest)
         except OSError as exc:
             raise ReplaceFailed(dest, exc) from exc
-        log.info("replaced %s — everything it held is kept at %s", dest, _kept_at)
+        log.info("replaced %s, everything it held is kept at %s", dest, _kept_at)
 
     proj = Project.create(dest, new_name)
     run  = proj.current_run()
@@ -1580,7 +1580,7 @@ def _copy_ti3_only(
             _kept_at = _archive_project_contents(dest)
         except OSError as exc:
             raise ReplaceFailed(dest, exc) from exc
-        log.info("replaced %s — everything it held is kept at %s", dest, _kept_at)
+        log.info("replaced %s, everything it held is kept at %s", dest, _kept_at)
 
     proj = Project.create(dest, new_name)
     run  = proj.current_run()

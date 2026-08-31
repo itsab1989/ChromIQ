@@ -161,7 +161,7 @@ class MarginInspectorPanel(QGroupBox):
                "both millimetres and inches.\n\n"
                "  These can read larger than the margins you set, and usually "
                "should. Two things sit in that space on purpose. Some charts "
-               "print row numbers down the left and strip letters across the "
+               "print row indicators down the left and strip letters across the "
                "top, so you can find one patch among hundreds — that lettering "
                "needs room. And patches come in whole units, so the grid "
                "almost never divides the width exactly; the leftover is shared "

@@ -169,3 +169,48 @@ def test_the_instruction_names_the_count_for_the_open_transport(qtbot, kind,
     TabMeasure._offer_cr30_tile_learning(host, _Reader(kind=kind, presses=9))
     body = "\n".join(said)
     assert expected in body, f"the window did not say {expected}: {body[:400]}"
+
+
+def test_a_failure_is_not_reported_as_a_refusal(qtbot):
+    """A learn that FAILS must say so, not "you declined".
+
+    The stop flag is set unconditionally once the window has gone — a learner
+    still reading after its window closed is the hang this was rebuilt to
+    remove — and the note afterwards asked that same flag. So a link that went
+    away, or readings that never agreed, both reported "you can carry on"
+    and threw the instrument's own reason away.
+    """
+    host = _host(qtbot)
+
+    class _Fails(_Reader):
+        def learn_tile(self, *, timeout=90.0, cancelled=None, on_press=None):
+            if callable(on_press):
+                on_press(1)
+            raise RuntimeError("BLE link went away")
+
+    TabMeasure._offer_cr30_tile_learning(host, _Fails())
+    said = host._log.toPlainText()
+    assert "could not learn" in said, f"a failure said nothing about failing: {said}"
+    assert "built-in value, which was measured on a different instrument" not in said, (
+        "a failure was reported as though the user had declined")
+    assert "BLE link went away" in said, (
+        f"the instrument's own reason was thrown away: {said}")
+
+
+def test_declining_still_says_what_it_costs(qtbot):
+    """…and the refusal note must still appear when somebody really refuses."""
+    host = _host(qtbot)
+
+    def decline():
+        dlg = _live_dialog()
+        if dlg is None:
+            QTimer.singleShot(20, decline)
+        else:
+            dlg.reject()
+
+    QTimer.singleShot(20, decline)
+    TabMeasure._offer_cr30_tile_learning(host, _Reader(presses=2))
+    said = host._log.toPlainText()
+    assert "built-in value" in said, f"declining said nothing: {said}"
+    assert "could not learn" not in said, (
+        "declining was also reported as a failure")

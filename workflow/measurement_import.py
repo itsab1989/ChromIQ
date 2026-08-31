@@ -81,7 +81,7 @@ def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
             # is a measurement of something else.
             return ImportVerdict(False, tr(
                 "the chart has {chart} patches, but this file holds {got} "
-                "measurements — so it is a measurement of a different chart"
+                "measurements, so it is a measurement of a different chart"
             ).format(chart=n_chart, got=n_got), n_chart=n_chart, n_measured=n_got)
         if n_got < n_chart:
             # §I.10: filed, not refused, and both counts are stated — BUT it is

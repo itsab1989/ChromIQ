@@ -58,7 +58,12 @@ def _fit_columns(base: dict, w_mm: float, h_mm: float, cols: int,
         # Columns across the page = passes = patches_per_page / steps_in_pass
         # (strips_per_page is 1 for the single-strip instruments).
         try:
-            g = instruments.geom_from_build_kwargs({**base, "patch_w": pw})
+            # …under the area-first law, like every other geometry derived
+            # from `base` — see `_as_area_first`. Without this the binary
+            # search below counts columns in a box 7.5 mm narrower than the
+            # one the renderer will actually use.
+            g = _as_area_first(
+                instruments.geom_from_build_kwargs({**base, "patch_w": pw}))
             lay = geometry.compute(g, w_mm, h_mm, 100_000)
             return (lay.patches_per_page // lay.steps_in_pass
                     if lay.steps_in_pass else 0)
@@ -75,6 +80,22 @@ def _fit_columns(base: dict, w_mm: float, h_mm: float, cols: int,
         else:
             hi = mid
     return lo
+
+
+def _as_area_first(geom):
+    """The provisional geometry, told which law it is actually under.
+
+    `geom_from_build_kwargs` sets `margins_are_law` and `fill_beyond_ruler`
+    from the layout mode, and this module deliberately hands it "patch_first"
+    to get an automatic patch size without recursing. Both flags then come out
+    wrong for the recipe being derived.
+    """
+    import dataclasses
+    try:
+        return dataclasses.replace(geom, margins_are_law=True,
+                                   fill_beyond_ruler=True)
+    except Exception:          # noqa: BLE001 — never lose a layout over it
+        return geom
 
 
 def derive_area_patch_size(kw: dict) -> tuple[float, float] | None:
@@ -122,11 +143,24 @@ def derive_area_patch_size(kw: dict) -> tuple[float, float] | None:
         return None
     # Provisional geometry (patch-first, auto patch size) for the usable area
     # and the spacer pitch the row formula needs.
+    #
+    # PATCH-FIRST FOR THE SIZE, AREA-FIRST FOR THE LAW. The mode is flipped so
+    # that `geom_from_build_kwargs` resolves an automatic patch size instead of
+    # calling back into this function -- but it also DERIVES the two law flags
+    # from that same mode, so the provisional geometry came out saying "honour
+    # the ruler cap, reserve the row-label band" for a recipe whose whole rule
+    # is the opposite. That is why area-first stopped 7.45 mm short of the
+    # right margin with row indicators on, and why the guard added to
+    # `_usable` first changed nothing: every geometry reaching it, here and in
+    # `_cols_at`, had the flag switched off.
+    #
+    # `_as_area_first` puts the two flags back on every geometry derived from
+    # `base`, so the calculation and the render agree about what the box is.
     base = {**kw, "layout_mode": "patch_first"}
     base.pop("patch_w", None)
     base.pop("patch_h", None)
     try:
-        geom = instruments.geom_from_build_kwargs(base)
+        geom = _as_area_first(instruments.geom_from_build_kwargs(base))
     except Exception:
         return None
     avail_w, arowl = _usable(geom, w_mm, h_mm)
@@ -166,7 +200,8 @@ def derive_area_patch_size(kw: dict) -> tuple[float, float] | None:
     def _cols_at(width: float) -> int:
         # Columns a chart with this patch width would lay out across the page.
         try:
-            g = instruments.geom_from_build_kwargs({**base, "patch_w": width})
+            g = _as_area_first(
+                instruments.geom_from_build_kwargs({**base, "patch_w": width}))
             lay = geometry.compute(g, w_mm, h_mm, 100_000)
             return (lay.patches_per_page // lay.steps_in_pass
                     if lay.steps_in_pass else 0)

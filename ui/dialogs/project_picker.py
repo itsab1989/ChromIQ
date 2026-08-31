@@ -95,6 +95,29 @@ def list_projects(working_dir: "Path | str") -> "list[tuple[str, object]]":
 NEW_PROJECT = "\x00new"
 
 
+
+def _centre_on_parent(dlg) -> None:
+    """Open over the window that asked, not in the corner of the screen.
+
+    A dialog is placed the moment it is shown, and both of these windows are
+    RESIZED after that -- to the height their own words need. Qt does not move
+    a window it has already placed, so the finished dialog sat wherever the
+    smaller one had been put: hard against the top-left of the display, half
+    off the app (Basti, screenshot, beta 5). Centring explicitly, after the
+    final size is known, is the only order that survives a resize.
+    """
+    from PyQt6.QtWidgets import QApplication
+    parent = dlg.parentWidget()
+    host = parent.window() if parent is not None else None
+    try:
+        area = (host.frameGeometry() if host is not None and host.isVisible()
+                else (dlg.screen() or QApplication.primaryScreen()).availableGeometry())
+        frame = dlg.frameGeometry()
+        frame.moveCenter(area.center())
+        dlg.move(frame.topLeft())
+    except Exception:          # noqa: BLE001 — never fail to open a window
+        pass
+
 def choose_project(parent: "QWidget | None", working_dir: "Path | str", *,
                    title: str = "", body: str = "",
                    accent: str = "") -> "str | None":
@@ -126,6 +149,7 @@ def choose_project(parent: "QWidget | None", working_dir: "Path | str", *,
     heading.setWordWrap(True)
     lay.addWidget(heading)
 
+    info = None            # …there may be no body at all; see pin_min_height
     if body:
         info = QLabel(body, dlg)
         info.setWordWrap(True)
@@ -135,7 +159,7 @@ def choose_project(parent: "QWidget | None", working_dir: "Path | str", *,
 
     lst = QListWidget(dlg)
     for name, peek in projects:
-        item = QListWidgetItem(f"{name}   —   {_holds_phrase(peek)}", lst)
+        item = QListWidgetItem(f"{name}   ·   {_holds_phrase(peek)}", lst)
         item.setData(Qt.ItemDataRole.UserRole, name)
     lst.setCurrentRow(0)
     # NO SIDEWAYS SCROLLING. A real project name can be 70 characters
@@ -203,6 +227,15 @@ def choose_project(parent: "QWidget | None", working_dir: "Path | str", *,
         picked[0] = (item.data(Qt.ItemDataRole.UserRole)
                      if item is not None else None)
         dlg.accept()
+
+    # THE SAME SIZING RULE AS THE NAME BOX BESIDE IT (see name_prompt): open
+    # at the height these words need at THIS width, and never be shorter than
+    # the layout's own floor.
+    from ui.dialog_sizing import pin_min_height
+    pin_min_height(dlg, min_width=560,
+                   wrap_labels=tuple(w for w in (heading, info) if w is not None),
+                   inner_margins=lay.contentsMargins(), resize_width=True)
+    _centre_on_parent(dlg)
 
     if accent:
         from ui.widgets import tint_dialog_primary

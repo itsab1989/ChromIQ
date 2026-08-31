@@ -102,10 +102,20 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # of a feature failing left no trace in the log, which is why the first
 # explanation of it was wrong. It now says how many readings it took and why
 # they were not enough. Two substantial strings.
+#
+# 2026-09-01, #159, raised 117 -> 122: the beta-5 challenge round. The import
+# window's accept button now NAMES the run it will file into ("File it in
+# Run 2") because "File it here" read as the run already on screen; the row
+# indicator checkbox and its warnings say "row indicators" rather than "row
+# numbers", which stopped being true when the band started following the
+# chart's own patch pattern; and the import path's user-facing em dashes are
+# gone at Basti's request. Where a key was only REWORDED, the existing
+# translation was carried across rather than dropped back to English -- 19 of
+# the 32 new keys kept their German. Five substantial strings are new.
 _BUDGET = {
     "de": 35,
-    "es": 117, "fr": 117, "it": 117, "ja": 117, "nl": 117,
-    "no": 117, "pl": 117, "pt": 117, "ru": 117, "sv": 117, "zh_CN": 117,
+    "es": 122, "fr": 122, "it": 122, "ja": 122, "nl": 122,
+    "no": 122, "pl": 122, "pt": 122, "ru": 122, "sv": 122, "zh_CN": 122,
 }
 
 

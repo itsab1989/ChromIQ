@@ -164,7 +164,7 @@ def _handle_inside(
     layout.addWidget(lbl)
 
     cont_desc = QLabel(
-        tr("<i>Continue</i> — convert and use the measurement in this folder as-is — "
+        tr("<i>Continue</i>, convert and use the measurement in this folder as-is, "
         "nothing will be copied or moved."),
         dlg,
     )
@@ -172,7 +172,7 @@ def _handle_inside(
     layout.addWidget(cont_desc)
 
     new_desc = QLabel(
-        tr("<i>Use as base for a new profile</i> — copy the measurement to a new "
+        tr("<i>Use as base for a new profile</i>, copy the measurement to a new "
         "subfolder so you can build a separate ICC profile without overwriting "
         "the original."),
         dlg,
@@ -449,7 +449,7 @@ def _copy_txt(
             _kept_at = _archive_project_contents(dest)
         except OSError as exc:
             raise ReplaceFailed(dest, exc) from exc
-        log.info("replaced %s — everything it held is kept at %s", dest, _kept_at)
+        log.info("replaced %s, everything it held is kept at %s", dest, _kept_at)
 
     proj = Project.create(dest, new_name)
     run  = proj.current_run()

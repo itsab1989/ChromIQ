@@ -7893,8 +7893,21 @@ class TabMeasure(QWidget):
         QTimer.singleShot(0, _fit_to_its_own_words)
 
         result: dict = {}
+        # TWO DIFFERENT QUESTIONS, AND THEY WERE ONE FLAG.
+        #
+        # `stop` tells the learner to give up, and it is set unconditionally
+        # once the window has gone -- a learner still reading after its window
+        # closed is exactly the hang this window was rebuilt to remove. But
+        # the note afterwards asked the SAME flag whether the user had
+        # declined, so a learn that failed for any other reason (the link went
+        # away, the readings never agreed) reported "you can carry on, the
+        # magnet check stays on the built-in value" and threw the instrument's
+        # own error text away. Driven: a failure and a raised
+        # "BLE link went away" both printed the declined note.
         stop = {"asked": False}
-        dlg.rejected.connect(lambda: stop.__setitem__("asked", True))
+        declined = {"by_hand": False}
+        dlg.rejected.connect(lambda: (stop.__setitem__("asked", True),
+                                      declined.__setitem__("by_hand", True)))
 
         class _Learn(QObject):
             done = pyqtSignal()
@@ -7978,7 +7991,7 @@ class TabMeasure(QWidget):
             self._flash_status(
                 tr("ChromIQ now knows your instrument's white tile."),
                 duration_ms=6000)
-        elif stop["asked"]:
+        elif declined["by_hand"]:
             self._log.appendPlainText("\n" + tr(
                 "[NOTE] The magnet check is running on ChromIQ's built-in "
                 "value, which was measured on a different instrument. It may "

@@ -44,7 +44,7 @@ from core.resource_path import resource_path
 from ui.fade_scroll import FadeScrollArea
 from ui.tab_header import TabHeader
 from ui.tooltip_button import InfoDialog, TooltipButton
-from ui.widgets import add_log_row, fit_log_height, fit_message_box_buttons, spread_message_box_buttons, GatedOption, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, make_browse_button, open_file_dialog, replace_log_line, set_folder_icon, set_preset_icon, tint_dialog_primary
+from ui.widgets import add_log_row, fit_button_width, fit_log_height, fit_message_box_buttons, spread_message_box_buttons, GatedOption, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, make_browse_button, open_file_dialog, replace_log_line, set_folder_icon, set_preset_icon, tint_dialog_primary
 from ui.ti2_loader import (has_spectral_data, instrument_label, is_colormunki,
                           read_target_instrument, spectral_options_unavailable)
 from ui.spectrum_progress import SpectrumSegmentsBar
@@ -4285,9 +4285,9 @@ class TabProfile(QWidget):
             self, fm.root_dir(),
             title=tr("Where should this measurement go?"),
             body=tr("Choose the project this measurement belongs to. ChromIQ "
-                    "opens it and asks which run to file the measurement in "
-                    "\u2014 the file you picked stays where it is, and a copy "
-                    "is filed."))
+                    "opens it and asks which run to file the measurement in. "
+                    "The file you picked stays where it is, and a copy is "
+                    "filed."))
         if picked is None and list_projects(fm.root_dir()):
             return True                          # cancelled at the list
         if picked and picked != NEW_PROJECT:
@@ -4299,7 +4299,7 @@ class TabProfile(QWidget):
                     "project you already have and ChromIQ files the measurement "
                     "in it. Type a new name and ChromIQ makes that project and "
                     "puts the measurement in its first run.\n\nEither way the "
-                    "file you picked stays where it is \u2014 a copy is filed."),
+                    "file you picked stays where it is, and a copy is filed."),
             exists=_exists, accent=_TAB_COLOR)
         if not name:
             return False if not open_name else True   # cancelled
@@ -4368,11 +4368,38 @@ class TabProfile(QWidget):
             box.setInformativeText(tr(
                 "Choose the run in “{name}” to file it in. A new run leaves "
                 "everything already there untouched.").format(name=name))
-            _go = box.addButton(tr("File it here"),
+            # THE BUTTON NAMES THE RUN IT WILL USE, and follows the picker.
+            #
+            # It said "File it here", and "here" reads as the run the person is
+            # already looking at -- which is the one thing it never means: the
+            # whole point of this window is that the combo above it may be
+            # pointing somewhere else (Basti, 2026-08-31). Naming the run
+            # outright means the button and the combo cannot disagree, and
+            # nobody has to look up to check what "here" refers to.
+            _go = box.addButton(tr("File it in a new run"),
                                 QMessageBox.ButtonRole.AcceptRole)
             _stop = box.addButton(tr("Cancel"),
                                   QMessageBox.ButtonRole.RejectRole)
             box.setDefaultButton(_stop)
+
+            def _name_the_run() -> None:
+                """Say which run, in the picker's own words."""
+                text = picker.currentText().strip()
+                run_id = (picker.currentData() or "").strip()
+                if not run_id:
+                    label = tr("File it in a new run")
+                elif text:
+                    # The picker already carries the translated "Run 2".
+                    label = tr("File it in {run}").format(run=text)
+                else:
+                    label = tr("File it in the selected run")
+                _go.setText(label)
+                # RE-FIT EVERY TIME. The label changes length as the picker
+                # moves, and a button sized for "a new run" clips "Run 12".
+                fit_button_width(_go)
+
+            picker.currentIndexChanged.connect(lambda _i: _name_the_run())
+            _name_the_run()
             fit_message_box_buttons(box)
             spread_message_box_buttons(box, order=[_go, _stop])
             if hasattr(tab_chart, "_attach_run_picker"):

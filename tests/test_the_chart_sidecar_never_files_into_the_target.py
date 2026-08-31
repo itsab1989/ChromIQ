@@ -176,3 +176,35 @@ def test_a_row_that_reports_a_change_is_written_even_if_it_agrees(
     tab.save_target_settings()
     kept = proj.run("run1").load_meta().create_chart_settings
     assert kept.get(param.key, {}).get("value") == "from-the-chart"
+
+
+def test_an_explicit_restore_is_not_shielded(tmp_path, qapp, monkeypatch):
+    """§10 blesses the sidecar when a chart is RESTORED (§2 L5).
+
+    The shield is for the other case — merely selecting a run. Leaving it
+    standing through an explicit restore put the chart's settings on screen
+    and then filed the pre-restore ones to disk, so screen and store
+    disagreed the moment the tab was left. A challenge found it standing.
+    """
+    tab, ctl, proj = _tab_on_a_project(tmp_path)
+    ctl.set_profile_run("run1")
+    if tab._target_settings_store() is None:
+        pytest.skip("the bar could not resolve run1 in this environment")
+
+    param = _a_free_text_row(tab)
+    param.widgets[0].set_value("chosen-by-the-user")
+    ctl.set_profile_run("run2")
+
+    _pretend_a_chart_is_there(tab, monkeypatch, param, "from-the-chart")
+    ctl.set_profile_run("run1")
+    assert tab._chart_imposed, "nothing was shielded, so nothing is tested"
+
+    # …and now the user presses Restore Used Chart.
+    tab._forget_what_the_chart_imposed()
+    assert not tab._chart_imposed
+    tab.save_target_settings()
+
+    kept = proj.run("run1").load_meta().create_chart_settings
+    assert kept.get(param.key, {}).get("value") == "from-the-chart", (
+        "an explicit restore was shielded: the chart's own settings were "
+        "shown but the older stored ones were written")

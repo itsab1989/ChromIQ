@@ -3460,7 +3460,7 @@ class TabChart(QWidget):
             "  •  CR30 (ChnSpec) — a small hand-held colorimeter that reads "
             "ONE patch at a time. You put it on a patch, press the button on "
             "the instrument, and ChromIQ records that patch and highlights the "
-            "next one. The chart is a plain grid of squares with row numbers "
+            "next one. The chart is a plain grid of squares with row indicators "
             "and column letters so you can always find the patch being asked "
             "for.\n\n"
             "     Two things to know before you choose it. Its patch size is "
@@ -4679,6 +4679,22 @@ class TabChart(QWidget):
         layout.addWidget(scroll)
         return w
 
+    def _set_engine_checked(self, on: bool) -> None:
+        """Move the engine checkbox WITHOUT it counting as the user's choice.
+
+        Restoring a chart, loading a target's settings and seeding a preset all
+        move this box; none of them is somebody deciding to switch engines, and
+        the first-time stamp default must not be spent on them.
+        """
+        chk = getattr(self, "_manual_engine_check", None)
+        if chk is None or chk.isChecked() == bool(on):
+            return
+        self._engine_moved_by_app = getattr(self, "_engine_moved_by_app", 0) + 1
+        try:
+            chk.setChecked(bool(on))
+        finally:
+            self._engine_moved_by_app -= 1
+
     def _on_manual_engine_toggled(self, on: bool) -> None:
         """The engine toggle moved from Settings to Create Chart (Knut #93).
         Persist the choice, keep the engine and the old printtarg ChromIQ
@@ -4721,10 +4737,19 @@ class TabChart(QWidget):
         # reappear (with the user's restored choice) when it goes off.
         self._update_manual_lb_visibility()
         self._refresh_manual_command_preview()
-        # The first-time stamp default, spent HERE — where the engine is
-        # actually switched — and never while a target's own settings are
-        # being put on screen (see _refresh_manual_command_preview).
+        # THE FIRST-TIME STAMP DEFAULT, AND ONLY ON A REAL CLICK.
+        #
+        # `_loading_target_settings` is not enough on its own: the app moves
+        # this checkbox from five places, and one of them is
+        # `_restore_chart_settings`, which runs OUTSIDE the load flag. Traced:
+        # `_on_target_changed → _display_run_chart → _restore_chart_settings →
+        # _on_manual_engine_toggled` still spent the default and turned the
+        # stamp off behind the user, on a setting §1.2 confirms as
+        # per-target. `_engine_moved_by_app` is raised by every programmatic
+        # move (see `_set_engine_checked`), so what is left here is a person
+        # clicking the box.
         if (on != was_on
+                and not getattr(self, "_engine_moved_by_app", 0)
                 and not getattr(self, "_loading_target_settings", False)
                 and getattr(self, "_manual_stamp_cmd_check", None) is not None):
             self._manual_stamp_cmd_check.setChecked(not on)
@@ -8262,7 +8287,7 @@ class TabChart(QWidget):
                     _kp.layout_recipe is not None or _kp.engine)
                 if getattr(self, "_manual_engine_check", None) is not None \
                         and self._manual_engine_check.isChecked() != engine_builtin:
-                    self._manual_engine_check.setChecked(engine_builtin)
+                    self._set_engine_checked(engine_builtin)
                 if data == TC918_PRESET_KEY:
                     applied = self._apply_tc918_preset(name)
                 elif data in KNUT_PRESET_KEYS:
@@ -8400,7 +8425,7 @@ class TabChart(QWidget):
                 # layout_recipe) would instead switch the engine on.
                 if getattr(self, "_manual_engine_check", None) is not None:
                     has_recipe = isinstance(pdata, dict) and bool(pdata.get("layout_recipe"))
-                    self._manual_engine_check.setChecked(has_recipe)
+                    self._set_engine_checked(has_recipe)
                 # Carry the preset's stored New-chart recipe (Set B), if any, so a
                 # chart generated from it reopens in the editor with this design
                 # pre-loaded into New chart / Add (#70, Knut follow-up).
@@ -10345,8 +10370,10 @@ class TabChart(QWidget):
         sidecar exists, so it is addressed by the stem the two share.
         """
         try:
-            return self._restore_chart_settings(
+            out = self._restore_chart_settings(
                 Path(sidecar).with_suffix("").with_suffix(".ti2"))
+            self._forget_what_the_chart_imposed()
+            return out
         except Exception:      # noqa: BLE001 — a bad sidecar must not block a load
             log.warning("Could not apply the loaded chart's settings from %s",
                         sidecar, exc_info=True)
@@ -10394,6 +10421,23 @@ class TabChart(QWidget):
         except Exception:      # noqa: BLE001 — never block a chart load
             log.warning("could not show the loaded chart's page count",
                         exc_info=True)
+
+    def _forget_what_the_chart_imposed(self) -> None:
+        """After an EXPLICIT restore, the chart's values are the answer.
+
+        §10: *"When a chart is restored, the chart sidecar will overrule the
+        settings for the chart for that specific run type."* The K3/K4 shield
+        exists for the OTHER case -- merely selecting a run, where the sidecar
+        gets a word in that nobody asked for. Leaving the shield standing here
+        meant that pressing "Restore Used Chart" put the chart's settings on
+        screen and then filed the pre-restore ones to disk, so the store and
+        the screen disagreed the moment the tab was left.
+        """
+        if getattr(self, "_chart_imposed", None):
+            log.debug("chart restored explicitly: the shield is dropped")
+        self._chart_imposed = {}
+        self._own_values_before_chart = None
+        self._release_imposed_connections()
 
     def _restore_chart_settings(self, ti2_path: Path) -> bool:
         """Fill the Create-Chart options with the settings the loaded chart
@@ -10474,7 +10518,7 @@ class TabChart(QWidget):
                 # Engine on first (builds/updates the panel), then the recipe.
                 if (self._manual_engine_check is not None
                         and not self._manual_engine_check.isChecked()):
-                    self._manual_engine_check.setChecked(True)
+                    self._set_engine_checked(True)
                 if self._manual_layout_panel is not None:
                     self._set_engine_recipe(recipe)
                 n_pages = 1 + max((int(p.get("page", 0))
@@ -10547,7 +10591,7 @@ class TabChart(QWidget):
             # switched the engine on, restoring a printtarg chart left it on too.
             if (self._manual_engine_check is not None
                     and self._manual_engine_check.isChecked()):
-                self._manual_engine_check.setChecked(False)
+                self._set_engine_checked(False)
         # BOTH chart kinds get their printtarg fields back, not just printtarg
         # charts. On an engine chart these values are inert — the engine lays
         # the sheet out and the printtarg panel is hidden — but they are still
@@ -10722,6 +10766,7 @@ class TabChart(QWidget):
             # and an unlock-and-edit really does start "from these settings", as
             # the loaded-chart dialog promises (mavtop, forum).
             self._restore_chart_settings(ti2_path)
+            self._forget_what_the_chart_imposed()
             # A reflected chart is shown for reference only and never overwrites the
             # user's Printer-profile name (#70); seed it only if the field is empty.
             self._ensure_profile_name(ti2_path.stem)
@@ -13521,8 +13566,26 @@ class TabChart(QWidget):
         (was_params, was_ui), (now_params, now_ui) = was, now
         moved = {k: (was_params.get(k), v) for k, v in now_params.items()
                  if k in was_params and was_params[k] != v}
-        moved_ui = {k: (was_ui.get(k), v) for k, v in now_ui.items()
-                    if k in was_ui and was_ui[k] != v}
+        # PER FIELD, NOT PER BUCKET. `engine_recipe` is one key holding the
+        # WHOLE layout recipe -- both indicator checkboxes, the margins, the
+        # mode -- so shielding it as one lump means an unrelated edit releases
+        # all of it. Measured after the first version of this: untick "show
+        # strip indicators" on run 1, visit run 2, come back, nudge the top
+        # margin by 1 mm, leave the tab, and the checkbox is back on in the
+        # store. The margin and the checkbox are not the same decision, and
+        # they must not share a fate.
+        moved_ui = {}
+        for k, v in now_ui.items():
+            if k not in was_ui or was_ui[k] == v:
+                continue
+            before = was_ui[k]
+            if isinstance(before, dict) and isinstance(v, dict):
+                fields = {f: (before.get(f), nv) for f, nv in v.items()
+                          if f in before and before[f] != nv}
+                if fields:
+                    moved_ui[k] = {"fields": fields}
+            else:
+                moved_ui[k] = (before, v)
         if not (moved or moved_ui):
             return
         self._chart_imposed = {"params": moved, "ui": moved_ui}
@@ -13559,11 +13622,43 @@ class TabChart(QWidget):
             panel = getattr(self, "_manual_layout_panel", None)
             sig = getattr(panel, "changed", None) if panel is not None else None
             if sig is not None and moved_ui:
-                slot = lambda: self._chart_imposed.get("ui", {}).clear()
-                sig.connect(slot)
-                self._imposed_connections.append((sig, slot))
+                # NOT `.clear()`. That released every UI value the chart had
+                # imposed the moment ANY control on the panel moved -- which
+                # is how one nudge of the top margin handed the strip-
+                # indicator checkbox back to the sidecar.
+                sig.connect(self._release_ui_values_that_moved)
+                self._imposed_connections.append(
+                    (sig, self._release_ui_values_that_moved))
         except Exception:          # noqa: BLE001 — a shield is never fatal
             log.debug("could not watch the imposed rows", exc_info=True)
+
+    def _release_ui_values_that_moved(self) -> None:
+        """Whatever the user just changed on the panel is theirs from now on.
+
+        Only what MOVED: the panel emits one signal for every control it owns,
+        so anything coarser hands back values nobody touched.
+        """
+        imposed = (getattr(self, "_chart_imposed", None) or {}).get("ui")
+        if not imposed:
+            return
+        try:
+            now = self._collect_ui_state() or {}
+        except Exception:          # noqa: BLE001 — a shield is never fatal
+            return
+        for key, entry in list(imposed.items()):
+            if isinstance(entry, dict) and "fields" in entry:
+                have = now.get(key)
+                if not isinstance(have, dict):
+                    continue
+                for field, (_own, from_chart) in list(entry["fields"].items()):
+                    if field in have and have[field] != from_chart:
+                        entry["fields"].pop(field, None)
+                if not entry["fields"]:
+                    imposed.pop(key, None)
+            else:
+                _own, from_chart = entry
+                if key in now and now[key] != from_chart:
+                    imposed.pop(key, None)
 
     def _release_imposed_connections(self) -> None:
         """Drop the watchers from the previous target change."""
@@ -13599,7 +13694,16 @@ class TabChart(QWidget):
         for key, (own, from_chart) in list(imposed.get("params", {}).items()):
             if key in wanted and wanted[key] == from_chart:
                 wanted[key] = own
-        for key, (own, from_chart) in list(imposed.get("ui", {}).items()):
+        for key, entry in list(imposed.get("ui", {}).items()):
+            if isinstance(entry, dict) and "fields" in entry:
+                have = ui_state.get(key)
+                if not isinstance(have, dict):
+                    continue
+                for field, (own, from_chart) in entry["fields"].items():
+                    if field in have and have[field] == from_chart:
+                        have[field] = own
+                continue
+            own, from_chart = entry
             if key in ui_state and ui_state[key] == from_chart:
                 ui_state[key] = own
 
@@ -14157,23 +14261,7 @@ class TabChart(QWidget):
             try:
                 on = bool(stored["engine_on"])
                 self._settings.set("use_chromiq_layout_engine", on)
-                chk = getattr(self, "_manual_engine_check", None)
-                if chk is not None and chk.isChecked() != on:
-                    chk.setChecked(on)
-                # AND THE STAMP DEFAULT IS ALREADY SPENT FOR THIS STATE.
-                #
-                # `_refresh_manual_command_preview` sets the stamp checkbox to
-                # `not use_engine` the FIRST time the engine state changes --
-                # a sensible default, once. But a target change flips that
-                # state too, so the default fired again on every switch and
-                # overwrote the value just loaded from the target's own store:
-                # the acceptance driver drove the stamp ON, read it back OFF,
-                # and found False on disk. §1.2 names the stamp checkbox as a
-                # per-target setting, so this is a §2/§3 violation of a
-                # CONFIRMED section. Recording the state here means the
-                # default is only ever spent on a state the USER changed.
-                if "stamp" in stored:
-                    self._stamp_engine_state = on
+                self._set_engine_checked(on)
             except Exception:      # noqa: BLE001
                 log.debug("ui-state: engine toggle not applied")
         rec_d = stored.get("engine_recipe")
@@ -15775,6 +15863,7 @@ class TabChart(QWidget):
             restored_recipe = False
             if ti2.is_file():
                 restored_recipe = self._restore_chart_settings(ti2)
+                self._forget_what_the_chart_imposed()
             # …and BUILD IN THE MODE THAT RECIPE LANDED IN.
             #
             # Knut, #130 2026-07-29, on Demo-Verify-History: he restored a
@@ -16776,12 +16865,12 @@ class TabChart(QWidget):
             # number that is not there at all.
             if geom.rlwi > 0 and r.margin_left < 0.5:
                 warns.append(tr(
-                    "⚠ There is no room for the row numbers down the left — "
-                    "they will not be printed. Give the left margin about "
+                    "⚠ There is no room for the row indicators down the left, "
+                    "so they will not be printed. Give the left margin about "
                     "2 mm to get them back."))
             elif geom.rlwi > 0 and r.margin_left + 0.05 < 2.0:
                 warns.append(tr(
-                    "⚠ The left margin is tight for the row numbers — the "
+                    "⚠ The left margin is tight for the row indicators, so the "
                     "patches will cover part of each one. About 2 mm prints "
                     "them cleanly."))
             # THE NUMBERS AND THE CLIP BAND WANT THE SAME PAPER.
@@ -16805,7 +16894,7 @@ class TabChart(QWidget):
                     and r.clip_content_mode != "off" \
                     and (getattr(geom, "clip_side", "left") or "left") == "left":
                 warns.append(tr(
-                    "⚠ The row numbers will not appear on this chart. "
+                    "⚠ The row indicators will not appear on this chart. "
                     "“Prioritise chart area, then fit patches to it” gives "
                     "their space to the patches, so they are drawn where the "
                     "clip border is and the clip border is printed over them. "

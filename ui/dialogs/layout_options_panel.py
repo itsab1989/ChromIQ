@@ -161,7 +161,7 @@ class LayoutOptionsPanel(QWidget):
                        "markers are not drawn on a honeycomb, because it has "
                        "no straight rows to line a ruler against. If you want "
                        "either of those, stay on Rectangular.\n\n"
-                       "Either shape is a grid with row numbers down the left "
+                       "Either shape is a grid with row indicators down the left "
                        "and column letters along the top, so you can always "
                        "find the patch ChromIQ is asking for. Patch size is "
                        "PROVISIONAL: 12 mm is a reasoned starting point, "
@@ -448,8 +448,13 @@ class LayoutOptionsPanel(QWidget):
                "straight. Set the font, size and underline style in "
                "Preferences → Chart Layout."), self)
 
+        # "INDICATORS", NOT "NUMBERS" — asked for by Knut, and now literally
+        # true. The band follows the chart's own patch pattern, so a chart set
+        # to "A-Z;1-999" labels its rows A, B, C: a box promising numbers
+        # would be simply wrong, and the sheet would disagree with the box as
+        # well as with the .ti2 it used to disagree with.
         self.show_row_indicators = WrappingCheckBox(
-            tr("Show row numbers"), self)
+            tr("Show row indicators"), self)
         # WHO TICKED IT, NOT WHAT IT SAYS.
         #
         # The recipe field is tri-state and None means "this instrument's own
@@ -467,9 +472,12 @@ class LayoutOptionsPanel(QWidget):
         self.show_row_indicators.clicked.connect(self._mark_row_indicators_touched)
         self.show_row_indicators.toggled.connect(self._emit)
         self._show_row_indicators_tip = TooltipButton(
-            tr("Row numbers"),
-            tr("Prints a number down the left-hand side of the chart for every "
-               "row of patches (1, 2, 3…). Together with the strip letters "
+            tr("Row indicators"),
+            tr("Prints a label down the left-hand side of the chart for every "
+               "row of patches. They are usually numbers (1, 2, 3…), and they "
+               "follow whatever the chart's own patch pattern says, so a chart "
+               "set to letters is labelled A, B, C instead. Together with the "
+               "strip letters "
                "along the top it gives the sheet a two-way coordinate, so a "
                "patch can be found the way a square is found on a map: strip A, "
                "row 12.\n\n"
@@ -478,8 +486,10 @@ class LayoutOptionsPanel(QWidget):
                "have always printed it. Turn it on for any chart you want to "
                "read by hand, or off to get the space back.\n\n"
                "It costs 7.5 mm of paper down the left edge, so switching it "
-               "on can leave room for fewer or slightly smaller patches. The "
-               "numbers restart at 1 on every page."), self)
+               "on can leave room for fewer or slightly smaller patches, "
+               "except when “Prioritise chart area” is on, where the margins "
+               "you set are the law and the patch block still fills them. The "
+               "labels restart at the first one on every page."), self)
 
         from PyQt6.QtWidgets import QLineEdit, QPushButton
 

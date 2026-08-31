@@ -67,7 +67,7 @@ def _tooltip_body() -> str:
         "printed sheets apart months later, and it becomes the name of the ICC "
         "profile your other programs will show in their profile lists.\n\n"
         "Put in what you will want to recognise later: the printer, the paper, "
-        "and — if you use more than one — the ink set. For example "
+        "and, if you use more than one, the ink set. For example "
         "“Canon PRO-300 Hahnemuehle Photo Rag 308” or “Epson P900 Baryta "
         "Gloss”.\n\n"
         "Leave out the date and the number of patches. ChromIQ records both by "
@@ -91,7 +91,7 @@ def validate(text: str) -> str | None:
     if not name:
         return tr("Type a name to continue.")
     if any(c in name for c in FORBIDDEN):
-        return tr("A folder name cannot contain / \\ : * ? \" < > | — please "
+        return tr("A folder name cannot contain / \\ : * ? \" < > | . Please "
                   "use letters, numbers, spaces or hyphens instead.")
     # A name made only of punctuation passes the check above and then sanitises
     # away to nothing, at which point `FileManager._sanitise` substitutes
@@ -128,6 +128,29 @@ def validate(text: str) -> str | None:
                       name=name)
     return None
 
+
+
+def _centre_on_parent(dlg) -> None:
+    """Open over the window that asked, not in the corner of the screen.
+
+    A dialog is placed the moment it is shown, and both of these windows are
+    RESIZED after that -- to the height their own words need. Qt does not move
+    a window it has already placed, so the finished dialog sat wherever the
+    smaller one had been put: hard against the top-left of the display, half
+    off the app (Basti, screenshot, beta 5). Centring explicitly, after the
+    final size is known, is the only order that survives a resize.
+    """
+    from PyQt6.QtWidgets import QApplication
+    parent = dlg.parentWidget()
+    host = parent.window() if parent is not None else None
+    try:
+        area = (host.frameGeometry() if host is not None and host.isVisible()
+                else (dlg.screen() or QApplication.primaryScreen()).availableGeometry())
+        frame = dlg.frameGeometry()
+        frame.moveCenter(area.center())
+        dlg.move(frame.topLeft())
+    except Exception:          # noqa: BLE001 — never fail to open a window
+        pass
 
 def ask_for_project_name(parent: QWidget | None, *, prefill: str = "",
                          body: str | None = None,
@@ -184,8 +207,15 @@ def ask_for_project_name(parent: QWidget | None, *, prefill: str = "",
     edit.setText(prefill or "")
     edit.selectAll()
     row.addWidget(edit, 1)
+    # THE SAME ACCENT AS THE BUTTON BESIDE IT. `TooltipButton` falls back to a
+    # CLASS attribute that the main window rewrites on every tab change, so
+    # this ⓘ wore whichever tab had last been visited: opened from Build
+    # Profile it came out magenta beside a cyan Continue button (Basti,
+    # 2026-08-31). The dialog already knows its accent; it just never handed
+    # it over.
     row.addWidget(TooltipButton(tr("Choosing a project name"),
-                                _tooltip_body(), dlg), 0)
+                                _tooltip_body(), dlg,
+                                color=accent or None), 0)
     lay.addLayout(row)
 
     # WHAT THE FOLDER WILL ACTUALLY BE CALLED, but only when that differs from
@@ -268,6 +298,22 @@ def ask_for_project_name(parent: QWidget | None, *, prefill: str = "",
     cancel_btn.clicked.connect(dlg.reject)
     _revalidate()
     edit.setFocus()
+
+    # OPEN AT THE HEIGHT THE WORDS ACTUALLY NEED, not the one computed for a
+    # width the window may not get. A word-wrapped QLabel's height is only
+    # valid at the width it was measured for, so on a display too narrow for
+    # this dialog's natural 679 px the body kept the height of the wider
+    # layout and the text was simply cut off -- measured at 560 px, where the
+    # first and last paragraphs were sliced through the middle with nothing
+    # to say anything was missing. `pin_min_height` is the project's existing
+    # answer to this (three tool dialogs already use it); it pins each
+    # wrapping label to its true heightForWidth, then floors the dialog so it
+    # can never be dragged short enough to overlap either.
+    from ui.dialog_sizing import pin_min_height
+    pin_min_height(dlg, min_width=560,
+                   wrap_labels=(heading, info, exists_lbl, folder_lbl, err),
+                   inner_margins=lay.contentsMargins(), resize_width=True)
+    _centre_on_parent(dlg)
 
     if dlg.exec() != QDialog.DialogCode.Accepted:
         return None
