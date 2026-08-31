@@ -1208,6 +1208,11 @@ class TabCheckRefine(QWidget):
         # (Project.create writes the "Where are my files.txt" README too).
         # Inside an existing project, resolve_ti3 returns the path unchanged.
         resolved = resolve_ti3(self, Path(path), self._settings)
+        # NO BAR REFRESH HERE, AND DELIBERATELY SO: `TabCheckRefine` has no
+        # `_target_ctl` — it never had one. A `getattr(self, "_target_ctl")`
+        # guard sat here for one round looking like a fix and doing nothing,
+        # which is worse than an absence because it reads as covered. If this
+        # tab is ever given a controller, the call belongs here.
         if resolved is None:
             return
         self.about_to_load_ti3.emit()

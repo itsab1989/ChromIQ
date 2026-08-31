@@ -174,6 +174,23 @@ def copy_whole_project(src_root: Path, working_dir: Path, new_name: str,
     return dest
 
 
+class ReplaceFailed(OSError):
+    """The archive step of a Replace could not be carried out.
+
+    A DISTINCT TYPE, because the window that reports it promises something very
+    specific: "Nothing has been changed." Catching plain `OSError` around a
+    whole import made that sentence a lie twice over — an unreadable SOURCE file
+    on a brand-new name showed it though no replace was involved, and a copy
+    that failed AFTER a successful archive showed it while the project sat
+    empty with everything in `old/`. Only the archive step raises this.
+    """
+
+    def __init__(self, folder, reason):
+        super().__init__(str(reason))
+        self.folder = folder
+        self.reason = reason
+
+
 def _archive_project_contents(project_root: Path) -> Path:
     """Move a project's current contents (except an existing ``old/``) into
     ``<project>/old/<timestamp>/`` before an overwrite.
@@ -197,8 +214,20 @@ def _archive_project_contents(project_root: Path) -> Path:
         return project_root / "old"
     if not os.access(project_root, os.W_OK):
         raise OSError(f"{project_root} is not writable")
-    dest = project_root / "old" / datetime.now().strftime("%Y-%m-%d_%H%M%S")
-    dest.mkdir(parents=True, exist_ok=True)
+    # A SECOND ARCHIVE IN THE SAME SECOND MUST NOT LAND IN THE FIRST ONE.
+    # The stamp is to the second and the folder was reused with
+    # `exist_ok=True`, so two replaces inside one second put their contents in
+    # the same place: top-level files OVERWRITTEN, directories NESTED as
+    # `runs/runs/run1/…`. The first archive — the one the person was promised
+    # was kept — is the casualty. Measured. A suffix is cheap and the name
+    # stays readable.
+    _stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    dest = project_root / "old" / _stamp
+    _n = 2
+    while dest.exists():
+        dest = project_root / "old" / f"{_stamp}-{_n}"
+        _n += 1
+    dest.mkdir(parents=True, exist_ok=False)
     moved: "list[tuple[Path, Path]]" = []
     try:
         for item in items:

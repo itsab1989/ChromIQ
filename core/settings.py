@@ -778,9 +778,41 @@ _OBSOLETE_KEYS: tuple[str, ...] = (
 )
 
 
+#: Point ChromIQ's settings at a file of your own instead of the real store.
+#:
+#: THIS EXISTS TO PROTECT THE USER'S OWN SETTINGS. Scripts that drive the app
+#: on screen construct a real `AppSettings`, which is the real preferences
+#: store — so a driver that sets an output path, or merely resizes the window,
+#: writes it into the settings the person uses every day. That has happened
+#: repeatedly, and the damage is quiet: one run left `custom_output_path`
+#: pointing at a temp folder that was later swept, so ChromIQ looked for every
+#: project in a directory that no longer existed and simply found nothing.
+#:
+#: Backing the file up first is not enough, and that is the lesson worth
+#: keeping: three separate runs reported "no drift" by comparing the file with
+#: a backup that ALREADY held the bad value. A driver cannot verify what it has
+#: broken with a checksum of the breakage.
+#:
+#: So: set `CHROMIQ_SETTINGS_FILE=/some/scratch.ini` and the app physically
+#: cannot reach the real store. Unset, nothing changes.
+SETTINGS_FILE_ENV = "CHROMIQ_SETTINGS_FILE"
+
+
 class AppSettings:
     def __init__(self) -> None:
-        self._qs = QSettings("ChromIQ", "ChromIQ")
+        import os
+        sandbox = os.environ.get(SETTINGS_FILE_ENV, "").strip()
+        if sandbox:
+            # The FORMAT comes from Qt itself, not from the module-level
+            # `QSettings` name: `tests/conftest.py` replaces that name with a
+            # function to sandbox the suite, and a function has no `.Format`.
+            # The name is still what is CALLED, so that sandbox keeps working.
+            from PyQt6.QtCore import QSettings as _QtSettings
+            self._qs = QSettings(sandbox, _QtSettings.Format.IniFormat)
+            log.warning("Settings SANDBOXED to %s (%s is set) — the real "
+                        "preferences are untouched", sandbox, SETTINGS_FILE_ENV)
+        else:
+            self._qs = QSettings("ChromIQ", "ChromIQ")
         log.debug("Settings loaded from %s", self._qs.fileName())
 
     def migrate(self) -> list[str]:

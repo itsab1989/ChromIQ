@@ -7728,7 +7728,7 @@ class TabMeasure(QWidget):
         return False
 
     def _offer_cr30_tile_learning(self, reader) -> None:
-        """One capped press teaches this unit its own tile constant.
+        """Capped presses teach this unit its own tile constant.
 
         M-CR30-LEARN-TILE (§M-PROPOSED). The magnet guard recognises the value
         the instrument returns when something magnetic is at the opening -- it
@@ -7744,11 +7744,17 @@ class TabMeasure(QWidget):
 
         Never fatal, and always refusable. A declined or failed learn leaves
         the guard exactly as it is today.
+
+        The window COLLECTS WHILE IT IS OPEN, and closes itself the moment the
+        tile is proven. It must: over Bluetooth the learner needs two
+        bit-identical readings, and the old shape asked for the presses, then
+        waited to be dismissed, and only started listening afterwards -- so
+        the presses a user made while reading it went nowhere.
         """
-        from PyQt6.QtCore import QObject, QThread, pyqtSignal
-        from PyQt6.QtWidgets import QApplication, QMessageBox
+        from PyQt6.QtCore import QObject, QThread, QTimer, pyqtSignal
+        from PyQt6.QtWidgets import QApplication
         from workflow import measurement_messages as M
-        from ui.widgets import fit_message_box_buttons, order_message_box_buttons
+        from ui.widgets import fit_button_width
         try:
             if reader.guard_is_armed:
                 return
@@ -7756,50 +7762,215 @@ class TabMeasure(QWidget):
             log.debug("could not ask whether the guard is armed", exc_info=True)
             return
 
-        box = QMessageBox(self)
-        box.setIcon(QMessageBox.Icon.NoIcon)
-        box.setWindowTitle(tr("Teach ChromIQ your instrument"))
-        box.setText(tr(M.M_CR30_LEARN_TILE.title))
-        box.setInformativeText(tr(M.M_CR30_LEARN_TILE.body))
-        teach = box.addButton(tr("I have pressed it"),
-                              QMessageBox.ButtonRole.AcceptRole)
-        later = box.addButton(tr("Not now"), QMessageBox.ButtonRole.RejectRole)
-        box.setDefaultButton(teach)
-        box.setEscapeButton(later)
-        order_message_box_buttons(box, [teach, later])
-        fit_message_box_buttons(box)
-        box.exec()
-        if box.clickedButton() is not teach:
-            self._log.appendPlainText("\n" + tr(
-                "[NOTE] The magnet check is running on ChromIQ's built-in "
-                "value, which was measured on a different instrument. It may "
-                "not recognise a covered opening on yours."))
-            return
+        # HOW MANY PRESSES — ASKED OF THE OPEN TRANSPORT, NOT ASSUMED.
+        # The window said "One press teaches…" and buried the real rule four
+        # paragraphs down: one press proves the tile over USB, where the header
+        # carries the gate flag, but Bluetooth says nothing, so it takes TWO
+        # bit-identical readings. Basti pressed once, confirmed, and the window
+        # sat there until he killed the app; pressing twice worked at once.
+        # Two is the safe default when the transport cannot be read — being
+        # told to press twice and having it accept after one costs nothing;
+        # being told once when two are needed is a dead end.
+        _kind = ""
+        try:
+            _kind = (getattr(reader, "open_transport", "") or "").lower()
+        except Exception:              # noqa: BLE001
+            _kind = ""
+        _times = 1 if _kind == "usb" else 2
+        # THE WHOLE BODY COMES FROM THE CATALOGUE, not a sentence built here.
+        # M-CR30-LEARN-TILE carries both bodies and `count_key="presses"`
+        # picks between them, so each variant states its own rule FIRST and
+        # then explains it. One shared body with a sentence injected into it
+        # left both windows saying "Why the difference" about a difference
+        # neither had mentioned, and the one-press window never said that
+        # Bluetooth needs two (Basti, 2026-08-31).
+        _title, _body = M.M_CR30_LEARN_TILE.render(presses=_times)
+
+        # THE WINDOW LISTENS WHILE IT IS OPEN. It used to say "press the
+        # button", wait for "I have pressed it", CLOSE, and only then start
+        # collecting -- so every press made while reading the window was
+        # thrown away, and the instruction was unfollowable. Basti pressed
+        # once over Bluetooth on 2026-08-30, confirmed, and sat in front of a
+        # closed window for 34 s before force-quitting the app. The learner
+        # now runs behind the window, the window counts the presses as they
+        # land, and it closes itself the moment the tile is proven.
+        from PyQt6.QtWidgets import (QDialog, QDialogButtonBox, QHBoxLayout,
+                                     QLabel, QScrollArea, QVBoxLayout, QWidget)
+        from html import escape
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(tr("Teach ChromIQ your instrument"))
+        dlg.setMinimumWidth(560)
+        outer = QVBoxLayout(dlg)
+        outer.setSpacing(16)
+        outer.setContentsMargins(24, 20, 24, 20)
+
+        row = QHBoxLayout()
+        row.setSpacing(20)
+        try:
+            from ui.cr30_pictograms import press_button
+            art = QLabel(dlg)
+            art.setPixmap(press_button(_times, dlg))
+            art.setAlignment(Qt.AlignmentFlag.AlignTop
+                             | Qt.AlignmentFlag.AlignHCenter)
+            row.addWidget(art, 0)
+        except Exception:              # noqa: BLE001 — a picture is never
+            log.debug("learn-tile pictogram unavailable", exc_info=True)
+
+        words = QVBoxLayout()
+        words.setSpacing(12)
+        head = QLabel("<b>" + escape(_title) + "</b>", dlg)
+        head.setTextFormat(Qt.TextFormat.RichText)
+        head.setWordWrap(True)
+        words.addWidget(head)
+        body = QLabel(
+            escape(_body).replace("\n\n", "<br><br>"), dlg)
+        body.setTextFormat(Qt.TextFormat.RichText)
+        body.setWordWrap(True)
+        words.addWidget(body)
+        row.addLayout(words, 1)
+
+        # IT MUST NEVER BE TALLER THAN THE SCREEN IT IS ON. This window is
+        # eight paragraphs, and the instruction that matters -- how many
+        # times to press -- sits in the middle of them. On a short display
+        # the whole of the bottom half simply vanished, with nothing to say
+        # anything was missing and no way to reach it.
+        held = QWidget()
+        held.setLayout(row)
+        scroll = QScrollArea(dlg)
+        scroll.setWidget(held)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.viewport().setAutoFillBackground(False)
+        held.setAutoFillBackground(False)
+        outer.addWidget(scroll, 1)
+
+        # The live line: what ChromIQ has actually received so far, so nobody
+        # has to guess whether a press was heard. OUTSIDE the scroll area --
+        # it answers "did it hear me?", which is worthless if it can be
+        # scrolled out of sight while somebody is looking at the instrument.
+        heard = QLabel(tr("Waiting for the first press…"), dlg)
+        heard.setWordWrap(True)
+        heard.setStyleSheet(f"color: {_TAB_COLOR}; font-weight: 600;")
+        outer.addWidget(heard, 0)
+
+        buttons = QDialogButtonBox()
+        later = buttons.addButton(tr("Not now"),
+                                  QDialogButtonBox.ButtonRole.RejectRole)
+        buttons.rejected.connect(dlg.reject)
+        fit_button_width(later)
+        outer.addWidget(buttons, 0)
+
+        # Ask for the whole thing, then keep it inside the screen; the scroll
+        # area takes up whatever is left over.
+        #
+        # A WORD-WRAPPED QLabel UNDER-REPORTS ITS HEIGHT. `sizeHint` on the
+        # dialog cannot know how many lines the prose will take until it has a
+        # width, so asking once opens the window a couple of hundred pixels
+        # too short and puts a scrollbar on a message that would have fitted.
+        # The real height is only knowable from `heightForWidth`, and only
+        # after the layout has settled -- hence the second pass, once shown.
+        screen = dlg.screen() or QApplication.primaryScreen()
+        room = (screen.availableGeometry().height() - 80) if screen else 900
+        dlg.resize(dlg.sizeHint().width(),
+                   min(dlg.sizeHint().height(), max(320, room)))
+
+        def _fit_to_its_own_words() -> None:
+            from PyQt6 import sip
+            if sip.isdeleted(dlg):
+                return
+            inner = scroll.viewport().width()
+            need = held.heightForWidth(inner) if inner > 0 else -1
+            if need <= 0:
+                return
+            grow = need - scroll.viewport().height()
+            if grow > 0:
+                dlg.resize(dlg.width(),
+                           min(dlg.height() + grow, max(320, room)))
+
+        QTimer.singleShot(0, _fit_to_its_own_words)
 
         result: dict = {}
+        stop = {"asked": False}
+        dlg.rejected.connect(lambda: stop.__setitem__("asked", True))
 
         class _Learn(QObject):
             done = pyqtSignal()
+            pressed = pyqtSignal(int)
 
             def run(self) -> None:
                 try:
-                    result.update(reader.learn_tile(timeout=90.0))
+                    result.update(reader.learn_tile(
+                        timeout=90.0,
+                        cancelled=lambda: stop["asked"],
+                        on_press=self.pressed.emit))
                 except Exception as exc:   # noqa: BLE001 — reported below
                     result["error"] = str(exc) or type(exc).__name__
                 self.done.emit()
 
+        def _heard(n: int) -> None:
+            # A PRESS CAN ARRIVE AFTER THE WINDOW HAS GONE. "Not now" closes
+            # it while the learner is still inside a read, and the next press
+            # on the instrument delivers this signal to a label Qt has already
+            # destroyed -- "wrapped C/C++ object of type QLabel has been
+            # deleted", raised in a slot, which PyQt6 turns into an abort. It
+            # is not a rare race: it is what happens whenever somebody
+            # declines and then presses the button anyway.
+            from PyQt6 import sip
+            if sip.isdeleted(heard):
+                return
+            left = max(0, _times - n)
+            heard.setText(
+                tr("Reading {n} received. One more press to go.").format(n=n)
+                if left == 1 else
+                tr("Reading {n} received. Checking it…").format(n=n)
+                if left == 0 else
+                tr("Reading {n} received. {left} more presses to go.").format(
+                    n=n, left=left))
+
         thread, worker = QThread(self), _Learn()
         worker.moveToThread(thread)
+        worker.pressed.connect(_heard)          # queued onto the GUI thread
         thread.started.connect(worker.run)
         worker.done.connect(thread.quit)
+        worker.done.connect(dlg.accept)         # it closes ITSELF when proven
+        # …and nothing is delivered to the window's widgets once it is gone.
+        dlg.finished.connect(
+            lambda _r: worker.pressed.disconnect(_heard))
         thread.start()
         # Both must stay referenced until the thread finishes, or Qt collects a
         # running QThread and takes the process with it.
         self._learn_thread, self._learn_worker = thread, worker
-        while not thread.isFinished():
-            QApplication.processEvents()
-            thread.wait(20)
-        self._learn_thread = self._learn_worker = None
+        dlg.exec()
+
+        # The user pressed "Not now": the learner is told to stop, but it may
+        # be inside a read with a timeout still to run, so it is never waited
+        # for on the GUI thread -- that is what froze the app before.
+        stop["asked"] = True
+        if thread.isFinished():
+            self._learn_thread = self._learn_worker = None
+        else:
+            # STILL REFERENCED UNTIL IT ACTUALLY ENDS. `cancelled` is polled
+            # inside a read that may have most of its 90 s left, so the thread
+            # routinely outlives the window -- and dropping the last reference
+            # to a RUNNING QThread takes the process with it ("QThread:
+            # Destroyed while thread is still running", seen on the very first
+            # run of this window). Qt clears them when it has really stopped.
+            thread.quit()
+
+            def _forget(_t=thread):
+                if self._learn_thread is _t:
+                    self._learn_thread = self._learn_worker = None
+
+            thread.finished.connect(_forget)
+
+        if not result.get("learned") and stop["asked"]:
+            self._log.appendPlainText("\n" + tr(
+                "[NOTE] The magnet check is running on ChromIQ's built-in "
+                "value, which was measured on a different instrument. It may "
+                "not recognise a covered opening on yours."))
 
         if result.get("learned"):
             self._log.appendPlainText("\n" + tr(

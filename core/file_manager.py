@@ -692,8 +692,15 @@ class Calibration:
         which Restore Used Chart reads. Anything already in ``cal/old/`` is left
         alone: an archive of archives helps nobody.
         """
+        # THE ENGINE PARTIAL IS SOMEBODY'S MEASUREMENT TOO.
+        # `<stem>.ti3.engine-partial` is what a measurement that stopped part
+        # way through leaves behind, and its suffix is not in RESULT_SUFFIXES —
+        # so it was unlinked below, unarchived, while `Run.reset_chart_artefacts`
+        # names it explicitly as something to preserve (`:1378`). A calibration
+        # had no such mercy. Measured: it survived nowhere.
         results = [p for p in self.live_files()
-                   if p.suffix.lower() in self.RESULT_SUFFIXES]
+                   if p.suffix.lower() in self.RESULT_SUFFIXES
+                   or p.name.endswith(".ti3.engine-partial")]
         if results:
             self.archive_to_old(only=results)
         for p in self.live_files():
@@ -822,8 +829,32 @@ class Run:
         return self.reads_dir / f"read{self.next_read_index()}.ti3"
 
     def clear_reads(self) -> None:
-        if self.reads_dir.exists():
-            shutil.rmtree(self.reads_dir)
+        """Clear the averaging inputs — by ARCHIVING them, never destroying.
+
+        `reads/readN.ti3` are measurements somebody stood at an instrument to
+        make. This called `shutil.rmtree` on the whole folder with no archive
+        and nothing in the Trash, and it is reachable from a button: "Measure
+        again to average" (`ui/tabs/tab_measure.py`). The standing rule is that
+        user work is archived, never deleted, and a report predicted this caller
+        before anyone checked that it already existed.
+        """
+        if not self.reads_dir.exists():
+            return
+        keep = [p for p in self.reads_dir.rglob("*") if p.is_file()]
+        if keep:
+            from workflow.chart_import import _archive_project_contents
+            try:
+                dest = _archive_project_contents(self.reads_dir)
+                log.info("cleared %d read(s); they are kept at %s",
+                         len(keep), dest)
+                return
+            except OSError as exc:
+                # NEVER fall back to destroying them — that is the behaviour
+                # this exists to remove. Leave them and say why.
+                log.error("the previous reads could not be archived (%s); they "
+                          "are left in place at %s", exc, self.reads_dir)
+                return
+        shutil.rmtree(self.reads_dir)
 
     def promote_measurement_to_read(self) -> Path:
         """Move ``chart.ti3`` to the next ``reads/readN.ti3`` slot.
@@ -2018,7 +2049,9 @@ class Project:
     #: ``old/`` and ``cache/`` are history and scratch.
     DUPLICATE_NEVER: tuple = ("meta.json", "verifications", "old", "cache")
 
-    def duplicate_run_plan(self, source: Run) -> "list[tuple[str, list[Path], int]]":
+    def duplicate_run_plan(self, source: Run,
+                           groups: "tuple[str, ...] | None" = None
+                           ) -> "list[tuple[str, list[Path], int]]":
         """What :meth:`duplicate_run` would copy: ``[(group, files, bytes)]``.
 
         Built from what is actually on disk, so the confirmation window states
@@ -2030,6 +2063,8 @@ class Project:
         """
         plan = []
         for group, patterns in self.DUPLICATE_GROUPS:
+            if groups is not None and group not in groups:
+                continue
             found: list[Path] = []
             for pat in patterns:
                 for p in sorted(source.dir.glob(pat.format(stem=source.stem))):
@@ -2045,7 +2080,8 @@ class Project:
                 plan.append((group, found, total))
         return plan
 
-    def duplicate_run(self, source: Run) -> Run:
+    def duplicate_run(self, source: Run,
+                      groups: "tuple[str, ...] | None" = None) -> Run:
         """Copy *source*'s work into a brand-new run and make it current.
 
         Knut and Sebastian chose this over archiving a run's files whenever its
@@ -2060,7 +2096,15 @@ class Project:
         the old run — the exact kind of silent mismatch this model exists to
         prevent.
         """
-        plan = self.duplicate_run_plan(source)
+        # *groups* limits WHAT is copied, to the names in `DUPLICATE_GROUPS`.
+        # None keeps the whole run, which is what the Duplicate button means.
+        # `("chart",)` is what an IMPORT needs (§I.9): the copy gets the chart
+        # the incoming measurement belongs to and nothing else. Copying the
+        # whole run there was driven on a real project and made a run that
+        # contradicted itself — the copy carried a measurement, a profile,
+        # `reads/`, `reports/` and a 153 KB export, every one of them orphaned
+        # the moment the import wrote its own `.ti3` over the top.
+        plan = self.duplicate_run_plan(source, groups)
         new_run = self.new_run()
         try:
             for _group, files, _size in plan:
@@ -2077,7 +2121,7 @@ class Project:
             # the user is concerned, so nothing else may move.
             log.exception("Duplicating %s failed — removing the partial run",
                           source.id)
-            self._discard_run(new_run)
+            self._discard_run(new_run, just_created=True)
             raise
         meta = new_run.load_meta()
         src_meta = source.load_meta()
@@ -2110,7 +2154,7 @@ class Project:
                  sum(len(f) for _g, f, _s in plan))
         return new_run
 
-    def _discard_run(self, run: Run) -> None:
+    def _discard_run(self, run: Run, *, just_created: bool = False) -> None:
         """Remove a run that was created but never became real.
 
         Only for undoing a failed :meth:`duplicate_run`. Deliberately NOT the
@@ -2118,6 +2162,51 @@ class Project:
         right when a user deletes a run they have seen and wrong for one that
         existed for a fraction of a second.
         """
+        # ONLY IF IT REALLY NEVER BECAME REAL.
+        #
+        # This is an undo for a duplicate that failed, and it assumed the folder
+        # it is about to remove was made moments ago and holds nothing. That is
+        # not guaranteed: `new_run()` allocates from the MANIFEST, `ensure_dir()`
+        # is `exist_ok=True`, and `Project.load` never reconciles the two — so a
+        # manifest that has lost track of a run hands back a folder that already
+        # holds somebody's `.ti3` and `.icc`, and this then destroyed it with no
+        # archive and nothing in the Trash. Measured, 2026-08-31.
+        #
+        # A folder holding results is not "a run that never became real", so it
+        # is kept and the manifest is left pointing at it. Loud, because the
+        # duplicate still failed and somebody has to know why the tidy-up did
+        # not happen.
+        # RECURSIVELY, AND NOT ONLY THE RESULT SUFFIXES.
+        # A first attempt filtered top-level files by suffix, which still
+        # destroyed a printed but unmeasured chart (real ink and paper), the
+        # `reads/`, `verifications/` and `reports/` folders, the run's OWN
+        # `old/` archive, its `meta.json`, and an unconverted `.txt` — measured,
+        # with nothing in the Trash. The honest question is not "does this look
+        # like a result?" but "did somebody make anything in here?", and the
+        # only safe answer scans the whole folder.
+        #
+        # `_next_run_index` now refuses to hand out an occupied folder at all,
+        # so this should never fire. It stays because it is the last thing
+        # between a bug of ours and somebody's work, and because that is exactly
+        # what the previous version was assumed to be.
+        # *just_created* is the ONE caller that made this folder moments ago and
+        # knows every file in it is a copy it made itself: `duplicate_run`'s own
+        # rollback. Without it the guard below fired on every failed duplicate —
+        # the copied files looked exactly like somebody's work — so the undo
+        # NEVER ran and a half-copied run was left in the manifest, which this
+        # method's own docstring calls worse than none. The guard was written to
+        # stop a folder that PRE-EXISTED being destroyed; it must not stop a
+        # folder being cleaned up by the code that created it.
+        _skip = {"meta.json"}
+        _keep = [] if just_created else [
+            q for q in run.dir.rglob("*")
+            if q.is_file() and q.name not in _skip]
+        if _keep:
+            log.error("run %s was not discarded: it holds %d file(s) somebody "
+                      "made (%s). The failed duplicate is left in place rather "
+                      "than destroying them.", run.id, len(_keep),
+                      ", ".join(p.name for p in _keep[:4]))
+            return
         shutil.rmtree(run.dir, ignore_errors=True)
         if run.id in self._manifest.runs:
             self._manifest.runs.remove(run.id)
@@ -2127,12 +2216,36 @@ class Project:
         self.save_manifest()
 
     def _next_run_index(self) -> int:
+        """The next free run number — free ON DISK as well as in the manifest.
+
+        THE MANIFEST IS NOT THE ONLY TRUTH. This counted only the runs the
+        manifest lists, while `ensure_dir()` is `exist_ok=True` and
+        `Project.load` never reconciles the two. So a manifest that has lost
+        track of a run — a hand-edited file, a restore, a crash between the
+        folder being made and the manifest being saved — handed the NEXT caller
+        a folder that already held somebody's chart, measurement and profile.
+        `duplicate_run` then copied straight over them: measured, with the
+        operation reporting success and nothing in the Trash.
+
+        Skipping numbers whose folder exists costs a directory listing once per
+        new run, and no caller can then be handed occupied ground. A gap in the
+        numbering is not a fault: run folders are named, not counted.
+        """
         n = 0
         for rid in self._manifest.runs:
             m = re.match(r"run(\d+)$", rid)
             if m:
                 n = max(n, int(m.group(1)))
-        return n + 1
+        n += 1
+        try:
+            while (self.runs_root / f"run{n}").exists():
+                log.warning("run%d exists on disk but not in the manifest — "
+                            "skipping it rather than building on top of "
+                            "somebody's work", n)
+                n += 1
+        except OSError:          # unreadable runs/ — the caller will fail louder
+            pass
+        return n
 
     # ---- exports
     def ensure_exports_dir(self) -> Path:
@@ -2594,6 +2707,30 @@ class FileManager:
 # ---------------------------------------------------------------------------
 # Looking at a project WITHOUT opening it (#: the typed-name gate, 2026-08-27)
 # ---------------------------------------------------------------------------
+
+def dir_holds(folder: "Path | None", path: "Path | None") -> bool:
+    """True when *folder* is *path* or contains it, at any depth.
+
+    The question every importer must ask before replacing a folder: "does the
+    thing I am about to replace hold the file I am importing?" Both loaders
+    asked it themselves, and both asked it wrong — comparing *folder* with the
+    file's IMMEDIATE PARENT, so a measurement at `<work>/Canon/runs/run1/x.txt`
+    did not match the name "Canon", and replacing that project destroyed the
+    project, the profile and the file being imported. Measured: 8 files to 5,
+    ending in FileNotFoundError.
+
+    One copy, so the two loaders cannot drift again, and `same_dir` throughout
+    because `==` and `.resolve()` both miss that APFS and Windows fold case and
+    that a name typed in NFC never equals a folder created in NFD.
+    """
+    if folder is None or path is None:
+        return False
+    try:
+        return same_dir(folder, path) or any(same_dir(folder, p)
+                                             for p in Path(path).parents)
+    except OSError:
+        return False
+
 
 def same_dir(a: "Path | None", b: "Path | None") -> bool:
     """True when *a* and *b* are the same directory on THIS filesystem.

@@ -424,6 +424,8 @@ def restore_slot(slot) -> "RestoreResult":
                      if p.name in CHART_SIDE_FILES and p.name in snap_names]
     side_archive = None
     stash = slot.snapshot_dir.parent / f".restore-stash-{slot.snapshot_dir.name}"
+    # Set before the try: the `finally` reads it on EVERY path.
+    _rollback_ok = True
     try:
         if side_replaced:
             from core.file_manager import Run as _Run
@@ -446,21 +448,39 @@ def restore_slot(slot) -> "RestoreResult":
                 chart_order_of(result.restored)
     except OSError as exc:
         log.warning("restore failed, rolling back: %s", exc)
-        for p in result.restored:
-            p.unlink(missing_ok=True)
-        if stash.exists():
-            for p in stash.iterdir():
-                shutil.move(str(p), str(slot.live_dir / p.name))
-        if side_archive is not None:
-            for name in {p.name for p in side_replaced}:
-                src = side_archive / name
-                if src.exists() and not (slot.live_dir / name).exists():
-                    shutil.move(str(src), str(slot.live_dir / name))
+        # A ROLLBACK THAT FAILS MUST NOT ALSO DESTROY THE ONLY COPY.
+        # These moves were outside any `try`, while the `finally` below deletes
+        # the stash unconditionally — so a rollback that raised part way
+        # through left the live chart half-restored AND took the stash holding
+        # the originals with it. Fault-injected: 2 of 3 live chart files gone,
+        # nothing anywhere, and the exception escaping on top. The stash is the
+        # last copy while a rollback is in flight, so it is kept whenever the
+        # rollback did not fully succeed, and its location is logged loudly for
+        # the person who now has to put it right by hand.
+        _rollback_ok = True
+        try:
+            for p in result.restored:
+                p.unlink(missing_ok=True)
+            if stash.exists():
+                for p in stash.iterdir():
+                    shutil.move(str(p), str(slot.live_dir / p.name))
+            if side_archive is not None:
+                for name in {p.name for p in side_replaced}:
+                    src = side_archive / name
+                    if src.exists() and not (slot.live_dir / name).exists():
+                        shutil.move(str(src), str(slot.live_dir / name))
+        except OSError as roll_exc:      # noqa: BLE001 — report, never destroy
+            _rollback_ok = False
+            log.error("THE ROLLBACK ITSELF FAILED (%s). The chart files are "
+                      "kept at %s — nothing there has been deleted, and only a "
+                      "person can put this right.", roll_exc, stash)
         result.restored = []
         result.rolled_back = True
         result.error = str(exc)
     finally:
-        shutil.rmtree(stash, ignore_errors=True)
+        # Only when nothing depends on it any more.
+        if _rollback_ok:
+            shutil.rmtree(stash, ignore_errors=True)
     return result
 
 

@@ -46,8 +46,16 @@ def test_the_reset_has_its_own_method_called_only_from_a_project_load():
     whole = inspect.getsource(TabChart)
     calls = whole.count("self._reset_run_type_for_loaded_project()")
     assert calls == 1, f"expected exactly one call site, found {calls}"
+    # The open was split in two so the measurement import can perform the WHOLE
+    # open rather than a cut-down copy of it: `_load_existing_profile` is now
+    # the file dialog, `open_project_manifest` is the open. The property this
+    # guards is unchanged — the reset happens on a project load and nowhere
+    # else — so it is asserted where the load now lives.
     assert "_reset_run_type_for_loaded_project()" in inspect.getsource(
-        TabChart._load_existing_profile)
+        TabChart.open_project_manifest)
+    assert "open_project_manifest" in inspect.getsource(
+        TabChart._load_existing_profile), (
+        "the file dialog no longer performs the open at all")
 
 
 def test_restoring_a_chart_never_touches_the_run_type():

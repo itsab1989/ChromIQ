@@ -8,27 +8,56 @@ it. Two dialogs, the same word, opposite consequences for somebody's work.
 
 So this module asks for a NAME and nothing else. It validates the SHAPE of what
 was typed — empty, characters a folder cannot hold, something that leaves
-nothing usable behind — and stops there. It never asks about collisions, never
-offers to replace anything and never touches the disk. §S4.7 in Create Chart
-already owns "that name is a project you already have", with three real
-outcomes and knowledge of the run picker; a second, weaker version of that
-question inside this dialog would let one person answer it two ways.
+nothing usable behind — and stops there.
+
+It never DECIDES anything about a collision, never offers to replace anything,
+and never reads the disk itself. It will SAY that a name is already taken, but
+only because the caller hands it an `exists` callback to ask; the module has no
+idea how that question is answered. §S4.7 in Create Chart owns the decision,
+with three real outcomes and knowledge of the run picker; a second, weaker
+version of that question inside this dialog would let one person answer it two
+ways.
 """
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPalette
 from PyQt6.QtWidgets import (
-    QDialog, QDialogButtonBox, QHBoxLayout, QLabel, QLineEdit, QVBoxLayout,
-    QWidget,
+    QDialog, QHBoxLayout, QLabel, QLineEdit, QPushButton, QVBoxLayout, QWidget,
 )
 
 from core.i18n import tr
+from ui.styles import SPEC_MAGENTA
 from ui.tooltip_button import TooltipButton
 
 #: Characters a folder name cannot hold on the platforms ChromIQ ships for.
 #: Kept as data so the message and the check can never disagree.
 FORBIDDEN = r'/\:*?"<>|'
+
+#: Names Windows reserves for devices. They are refused on every platform, not
+#: only on Windows: ChromIQ projects are copied between machines and shared, and
+#: a folder that cannot be created on one of them is a trap the person springs
+#: later, on somebody else's computer. The extension is irrelevant to Windows —
+#: `CON.txt` is reserved too — so the stem is what is checked.
+RESERVED = frozenset(
+    ["CON", "PRN", "AUX", "NUL"]
+    + [f"COM{i}" for i in range(1, 10)]
+    + [f"LPT{i}" for i in range(1, 10)]
+)
+
+
+def folder_name(text: str) -> str:
+    """The folder ChromIQ will actually create for *text*.
+
+    Shown live under the field, because the name typed and the folder made are
+    not always the same string and the differences are silent: spaces become
+    hyphens, and anything outside letters, digits, hyphen and dot is dropped —
+    so "🎨🎨1" becomes "1" and an accented name typed in one Unicode form is
+    stored in another. Telling the person what they are about to get is
+    cheaper than explaining it afterwards.
+    """
+    from core.file_manager import FileManager
+    return FileManager._sanitise(FileManager.strip_workfile_ext(text or ""))
 
 
 def _tooltip_body() -> str:
@@ -82,17 +111,39 @@ def validate(text: str) -> str | None:
     if not any(ch.isalnum() for ch in name):
         return tr("That name has no letters or numbers in it, so ChromIQ "
                   "cannot make a folder from it. Please add some.")
+    # A LEADING DOT MAKES A FOLDER THAT HIDES ITSELF, and "where are my files?"
+    # must always have an answer. The sanitiser drops it silently, so the person
+    # would get a differently-named folder without being told.
+    if name.startswith("."):
+        return tr("A name cannot start with a dot, because that makes a folder "
+                  "your computer hides. Please start with a letter or a number.")
+    # JUDGE THE FOLDER, NOT ONLY WHAT WAS TYPED. `validate` reads the typed
+    # string while the filesystem sees what `_sanitise` makes of it, and the two
+    # differ: "CON!" passes a check on the typed name and then creates a folder
+    # called "CON".
+    if (name.split(".")[0].upper() in RESERVED
+            or folder_name(name).split(".")[0].upper() in RESERVED):
+        return tr("“{name}” is a name Windows keeps for itself, so a folder "
+                  "cannot be called that. Please choose another one.").format(
+                      name=name)
     return None
 
 
 def ask_for_project_name(parent: QWidget | None, *, prefill: str = "",
-                         body: str | None = None) -> str | None:
+                         body: str | None = None,
+                         exists=None, accent: str = "") -> str | None:
     """Ask for the project name and return it, or None if the user cancelled.
 
     The caller is expected to CARRY ON with the returned name rather than send
     the user away to type it somewhere else: the dialog this replaced explained
     the fix, closed, and left the person to repeat the action they had just
     taken.
+
+    *exists* is an optional callback ``(name) -> bool`` answering whether that
+    name already belongs to a project. Passed IN rather than looked up here, so
+    this module keeps its promise never to touch the disk — and so the dialog
+    and the line under the main window's name box answer from one piece of
+    code instead of two that drift.
     """
     title = tr("Give this project a name")
     dlg = QDialog(parent)
@@ -137,27 +188,84 @@ def ask_for_project_name(parent: QWidget | None, *, prefill: str = "",
                                 _tooltip_body(), dlg), 0)
     lay.addLayout(row)
 
+    # WHAT THE FOLDER WILL ACTUALLY BE CALLED, but only when that differs from
+    # what was typed. Shown then and only then, the same way the main window's
+    # "you already have a project with this name" line appears only when it
+    # applies: a line that is always there is furniture, and a line that appears
+    # is a signal. Spaces become hyphens and anything unusual is dropped, so
+    # this is where somebody finds out that "🎨🎨1" makes a folder called "1"
+    # — before it happens, rather than in the Finder afterwards.
+    # ALREADY-EXISTS NOTICE. Ordinary text colour, not the error red: this is
+    # not a refusal and it never blocks Continue. §S4.7 still owns the DECISION
+    # — which is why this says only what is there, and nothing about what will
+    # happen next.
+    exists_lbl = QLabel("", dlg)
+    exists_lbl.setWordWrap(True)
+    exists_lbl.setTextFormat(Qt.TextFormat.PlainText)
+    # THE SAME ACCENT AS THE LINE UNDER THE NAME BOX (Basti, 2026-08-31). It is
+    # the same sentence about the same fact, so it must not arrive in a
+    # different colour depending on which window the person is looking at.
+    exists_lbl.setStyleSheet(f"color: {SPEC_MAGENTA}; font-size: 11px;")
+    lay.addWidget(exists_lbl)
+
+    folder_lbl = QLabel("", dlg)
+    folder_lbl.setWordWrap(True)
+    folder_lbl.setTextFormat(Qt.TextFormat.PlainText)
+    folder_lbl.setStyleSheet(f"color: {text_color};")
+    lay.addWidget(folder_lbl)
+
     err = QLabel("", dlg)
     err.setWordWrap(True)
     err.setStyleSheet("color: #e05555;")
     lay.addWidget(err)
 
-    box = QDialogButtonBox(dlg)
-    ok = box.addButton(tr("Continue"), QDialogButtonBox.ButtonRole.AcceptRole)
-    box.addButton(tr("Cancel"), QDialogButtonBox.ButtonRole.RejectRole)
+    # A PLAIN ROW, NOT A QDialogButtonBox. A button box lays out BY ROLE, and
+    # on macOS that puts Cancel on the LEFT — Basti's rule is that Cancel is
+    # always on the very right, with the thing you came to do first.
+    row = QHBoxLayout()
+    row.setSpacing(8)
+    ok = QPushButton(tr("Continue"), dlg)
+    ok.setObjectName("primary")      # the app's styling, not the platform's
     ok.setDefault(True)
-    lay.addWidget(box)
+    cancel_btn = QPushButton(tr("Cancel"), dlg)
+    cancel_btn.setAutoDefault(False)
+    # Each button as wide as its own words — `fit_button_width` is "the one
+    # place button widths are decided" (Knut, #130), and a button that sizes
+    # itself before ButtonFontFilter swaps the face paints a clipped label.
+    from ui.widgets import fit_button_width
+    for b in (ok, cancel_btn):
+        fit_button_width(b)
+    row.addStretch(1)
+    row.addWidget(ok)
+    row.addWidget(cancel_btn)
+    lay.addLayout(row)
 
     def _revalidate(*_a) -> None:
+        typed = edit.text().strip()
         why = validate(edit.text())
         # SAY NOTHING ABOUT AN EMPTY BOX. The field starts empty, and greeting
         # somebody with an error for not having typed yet reads as a telling-off.
-        err.setText("" if (why is None or not edit.text().strip()) else why)
+        err.setText("" if (why is None or not typed) else why)
         ok.setEnabled(why is None)
+        made = folder_name(typed) if (typed and why is None) else ""
+        folder_lbl.setText(
+            tr("Your files will be in a folder called “{folder}”.").format(
+                folder=made) if made and made != typed else "")
+        _known = False
+        if exists is not None and typed and why is None:
+            try:
+                _known = bool(exists(typed))
+            except Exception:      # noqa: BLE001 — a notice may never block
+                _known = False
+        exists_lbl.setText(
+            tr("You already have a project with this name.") if _known else "")
 
+    if accent:
+        from ui.widgets import tint_dialog_primary
+        tint_dialog_primary(dlg, accent)
     edit.textChanged.connect(_revalidate)
-    box.accepted.connect(dlg.accept)
-    box.rejected.connect(dlg.reject)
+    ok.clicked.connect(dlg.accept)
+    cancel_btn.clicked.connect(dlg.reject)
     _revalidate()
     edit.setFocus()
 

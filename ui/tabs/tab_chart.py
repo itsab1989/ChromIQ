@@ -5909,11 +5909,27 @@ class TabChart(QWidget):
         if manifest.name != "project.json" or not manifest.is_file():
             InfoDialog(
                 tr("Not a ChromIQ profile"),
-                tr("That isn't a ChromIQ project. Choose the “project.json” file "
+                tr("That isn't a ChromIQ project. Choose the \u201cproject.json\u201d file "
                    "inside a profile folder under your ChromIQ folder."),
                 self, min_width=520,
             ).exec()
             return
+        self.open_project_manifest(manifest)
+
+    def open_project_manifest(self, manifest: Path) -> None:
+        """Open the project whose manifest this is — the WHOLE open.
+
+        Split out of `_load_existing_profile` so a caller that already knows
+        which project it wants (the measurement import, which asks for a name
+        rather than a file) performs exactly the same act, rather than a
+        cut-down version of it. A partial open is not an option: skipping the
+        schema announcement reorganises somebody's project in silence, skipping
+        the ten state resets carries a preset from the previous project into
+        this one, and skipping the chart display leaves Create Chart showing the
+        wrong project's chart. Measured: called directly it does NOT switch
+        tabs — that belongs to `MainWindow._on_masthead_load_project`, one line
+        above its own call — so an import can perform it and stay where it is.
+        """
         # #130 (Knut bug): a project OUTSIDE the working folder must not open
         # silently — the model keeps every project in the working folder so it
         # can find them again. Offer to copy it in (per the unified load
@@ -8010,6 +8026,11 @@ class TabChart(QWidget):
             self._update_manual_lb_visibility()
             self._refresh_helper_marker_support()
             self._refresh_manual_command_preview()
+            # The name went back at step 8 with the field's signals BLOCKED, so
+            # the "you already have a project with this name" line — which is
+            # wired to `textChanged` — never heard about it. It sat over an
+            # emptied box, describing a name that was no longer there.
+            self._refresh_project_exists_line()
         except Exception:              # noqa: BLE001 — never leave the tab dead
             log.warning("preset undo: could not refresh the panel", exc_info=True)
         # 12. THE TICK BOXES GET THE LAST WORD, then the greying they own, then
@@ -8940,7 +8961,7 @@ class TabChart(QWidget):
         return picker, [picker.currentData() or ""]
 
     @staticmethod
-    def _attach_run_picker(box, picker) -> None:
+    def _attach_run_picker(box, picker, label: str = "") -> None:
         """Put the picker into the message box, above its buttons.
 
         A QMessageBox lays itself out in a grid with the button box on the last
@@ -8958,7 +8979,11 @@ class TabChart(QWidget):
         row = QWidget(box)
         h = QHBoxLayout(row)
         h.setContentsMargins(0, 8, 0, 4)
-        h.addWidget(QLabel(tr("Make the new chart in:"), row))
+        # THE CALLER SAYS WHAT THE RUN IS FOR. §S4.7 is choosing where a
+        # CHART goes; the measurement import reuses this same picker to
+        # choose where a MEASUREMENT goes, and it read "Make the new
+        # chart in:" over a list of runs for a file that is not a chart.
+        h.addWidget(QLabel(label or tr("Make the new chart in:"), row))
         h.addWidget(picker, 1)
         lay.removeWidget(bb)
         lay.addWidget(row, lay.rowCount(), 0, 1, lay.columnCount())
@@ -9186,6 +9211,38 @@ class TabChart(QWidget):
             f.setFocus(_Qt.FocusReason.OtherFocusReason)
             f.selectAll()
 
+    def _project_already_exists(self, typed: str) -> bool:
+        """Whether *typed* names a project that is already there — and is not
+        the one already open, which is not news.
+
+        Extracted so the name dialog and the line under the name box answer
+        from the SAME code. Two copies of this question would drift, and the
+        dialog must not read the disk itself: it is handed this as a callback.
+
+        Deliberately the cheapest possible check — one `is_file()` on the
+        manifest — because it runs on every keystroke. Never `Project.load`,
+        which MIGRATES IN PLACE: rearranging somebody's project while they are
+        still typing its name would be the worst possible moment.
+        """
+        typed = (typed or "").strip()
+        if not typed:
+            return False
+        root = self._file_mgr.resolved_root_for_name(typed)
+        if root is None:
+            return False
+        try:
+            if not (root / "project.json").is_file():
+                return False
+        except OSError:
+            return False
+        if self._file_mgr.is_named():
+            try:
+                from core.file_manager import same_dir
+                return not same_dir(self._file_mgr.working_dir(), root)
+            except OSError:
+                pass
+        return True
+
     def _refresh_project_exists_line(self) -> None:
         """Show, under the name box, that this name points at a project that is
         already there — and show it ONLY then.
@@ -9206,20 +9263,7 @@ class TabChart(QWidget):
             if lbl is None:
                 continue
             typed = field.text().strip() if field is not None else ""
-            root = (self._file_mgr.resolved_root_for_name(typed)
-                    if typed else None)
-            shown = False
-            if root is not None:
-                try:
-                    shown = (root / "project.json").is_file()
-                except OSError:
-                    shown = False
-                if shown and self._file_mgr.is_named():
-                    try:                     # the open project is not news
-                        from core.file_manager import same_dir
-                        shown = not same_dir(self._file_mgr.working_dir(), root)
-                    except OSError:
-                        pass
+            shown = self._project_already_exists(typed)
             if shown:
                 # NO NAME IN IT, AND NO DASH. The name is in the field 20 px
                 # above, live in the Profile-run bar's location line while you
@@ -9230,8 +9274,16 @@ class TabChart(QWidget):
                 # Run Description and Chart Notes rows down. Measured. The dash
                 # went because Basti reads one as a tell that a machine wrote
                 # the sentence.
-                lbl.setText(tr("You already have a project with this name. "
-                               "Your new chart goes into it."))
+                #
+                # AND IT STATES THE FACT, NOT WHAT WILL HAPPEN NEXT (Basti,
+                # 2026-08-31). It used to end "Your new chart goes into it",
+                # which is a prediction — and one that is only true for an
+                # EMPTY project. Where the project holds measurements, §S4.7
+                # opens four buttons and a run picker and defaults to a NEW
+                # run, so the sentence was most confident exactly where the
+                # risk was highest. A notice before a fork may say what is
+                # there; it may not say what will happen.
+                lbl.setText(tr("You already have a project with this name."))
             lbl.setVisible(shown)
 
     def _name_prefix(self) -> str:
@@ -11084,9 +11136,10 @@ class TabChart(QWidget):
         # settled here or not at all. Asked while the box was empty, §S4.7 has
         # nothing to compare and a name given later overwrote a project without
         # a single window.
-        if (self._manual_target_name_edit is not None
-                and not self._manual_target_name_edit.text().strip()
-                and not target_name and not _is_named(self._file_mgr)):
+        if self._name_needs_asking(
+                self._manual_target_name_edit.text().strip()
+                if self._manual_target_name_edit is not None else "",
+                target_name):
             if not self._ask_for_a_project_name():
                 self._revert_preset_combo()
                 return False
@@ -11209,9 +11262,10 @@ class TabChart(QWidget):
         # `i1Pro-A4-162p-1page-Portrait-w7.5mm` — Knut's report, 2026-08-30.
         # An open project is not asked about: the chart is being added to it and
         # its name is already the answer.
-        if (self._manual_target_name_edit is not None
-                and not self._manual_target_name_edit.text().strip()
-                and not target_name and not _is_named(self._file_mgr)):
+        if self._name_needs_asking(
+                self._manual_target_name_edit.text().strip()
+                if self._manual_target_name_edit is not None else "",
+                target_name):
             if not self._ask_for_a_project_name():
                 self._abandon_prebuilt_attempt()
                 return False
@@ -11426,12 +11480,10 @@ class TabChart(QWidget):
         # window of any kind. Driven: 7 files replaced, including the .ti2 a
         # printed sheet is read against. Typing the same name into the box
         # itself asked properly. The name must exist BEFORE the gate.
-        from ui.dialogs.name_prompt import validate as _validate_name
         _field = self._active_name_field()
         _typed = _field.text().strip() if _field is not None else ""
         # Empty, or typed into the box and unusable as a folder — the same door.
-        if ((not _typed and not _is_named(self._file_mgr))
-                or (_typed and _validate_name(_typed))):
+        if self._name_needs_asking(_typed):
             if preview:
                 log.debug("live preview: nothing rendered — no usable project "
                           "name yet")
@@ -12154,6 +12206,23 @@ class TabChart(QWidget):
         InfoDialog(tr(m.title), tr(m.body).format(path=path),
                    self, min_width=560).exec()
 
+    def _name_needs_asking(self, typed: str, target_name: str | None = None) -> bool:
+        """Whether this build must stop and ask for a project name.
+
+        TWO CASES, ONE DOOR. Nothing typed and no project open — or something
+        typed that a folder cannot be made from. The second half was added to
+        only two of the four routes that reach a build, and the two it missed
+        are the prebuilt-preset ones: typing `///` and picking a bundled chart
+        built a COMPLETE project called "session" — the sanitiser's fallback —
+        with no window of any kind. Exactly what `name_prompt.validate` says it
+        exists to prevent. Keeping the rule in one method is what stops the next
+        route from being missed too.
+        """
+        from ui.dialogs.name_prompt import validate
+        if typed:
+            return validate(typed) is not None
+        return not target_name and not _is_named(self._file_mgr)
+
     def _ask_for_a_project_name(self) -> bool:
         """Ask for the project name, put it in the box, and say whether the
         action that needed it may now go on.
@@ -12173,7 +12242,8 @@ class TabChart(QWidget):
         from ui.dialogs.name_prompt import ask_for_project_name
         field = self._active_name_field()
         current = field.text().strip() if field is not None else ""
-        name = ask_for_project_name(self, prefill=current)
+        name = ask_for_project_name(self, prefill=current,
+                                    exists=self._project_already_exists)
         if not name:
             return False
         if field is not None:
@@ -12227,12 +12297,10 @@ class TabChart(QWidget):
             # 250-character name reached `mkdir`, died with Errno 63 and left a
             # half-built project behind. Send it back through the same dialog,
             # pre-filled, rather than inventing a second way to say no.
-            from ui.dialogs.name_prompt import validate as _validate_name
             _cur = (self._target_name_edit.text().strip()
                     if self._current_mode() == "guided"
                     else self._manual_target_name_edit.text().strip())
-            if ((not _cur and not _is_named(self._file_mgr))
-                    or (_cur and _validate_name(_cur))):
+            if self._name_needs_asking(_cur):
                 if not self._ask_for_a_project_name():
                     return
 
@@ -12326,7 +12394,15 @@ class TabChart(QWidget):
                             if self._manual_target_name_edit is not None else "")
                     self._create_prebuilt_target(
                         self._prebuilt_key,
-                        name or self._builtin_default_name(self._prebuilt_key),
+                        # `name or None` — NOT the preset's own name. Passing a
+                        # default in as `target_name` told the callee that a
+                        # name had been supplied, which suppressed the ask AND
+                        # defeated the "an open project is the answer" guard
+                        # inside it: with a preset active, clearing the box and
+                        # pressing Generate built a whole project named after
+                        # the preset, with no window at all — the exact fault
+                        # that guard's own comment says it prevents.
+                        name or None,
                         gate_already_asked=True,
                         # …and the §4 answer, which this caller had and dropped,
                         # so one Generate click with a prebuilt preset active

@@ -221,7 +221,19 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # better in a pop up so the user is aware of
                                  # it instead of ruining a whole measurement
                                  # session when this is unnoticed".
-                                 "M-CR30-READ-FAILED"}
+                                 "M-CR30-READ-FAILED",
+                                 # 2026-08-31: an import landing on a name that
+                                 # is already a project. The loaders asked this
+                                 # in their own words AND with their own
+                                 # consequence — one destroyed the project
+                                 # outright, the other archived it. Basti ruled
+                                 # the consequence and the vocabulary are shared
+                                 # with §S4.7 while the window stays theirs.
+                                 "M-IMPORT-REPLACE-CONFIRM",
+                                 "M-IMPORT-REPLACE-PROJECT-CONFIRM",
+                                 # …and where the replaced project went, which
+                                 # nothing anywhere recorded.
+                                 "M-IMPORT-REPLACED-KEPT"}
 
 
 def test_nothing_is_quietly_proposed():

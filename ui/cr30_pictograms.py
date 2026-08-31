@@ -124,6 +124,85 @@ def _draw_nothing(p: QPainter, r: QRectF, ink: QColor):
     p.drawLine(QPointF(r.left(), y), QPointF(r.right(), y))
 
 
+def press_button(times: int = 2, widget: QWidget | None = None,
+                 height: int | None = None) -> QPixmap:
+    """The capped instrument, a press arrow, and **2×**.
+
+    The window that teaches ChromIQ the white tile was titled "One press
+    teaches…" and buried the real rule four paragraphs down: over USB one press
+    is enough because the instrument flags the covered opening itself, but over
+    **Bluetooth it says nothing**, so the value is only accepted when TWO
+    presses come back bit-identical — something a real measurement never does.
+    Basti pressed once, confirmed, and the window sat there; pressing twice
+    worked immediately.
+
+    Drawn from the same two primitives as the calibration steps, deliberately:
+    this is the same instrument in the same cap that the person has just been
+    looking at in the white-calibration window, so it must be recognisably the
+    same picture rather than a new one that has to be learned.
+    """
+    from PyQt6.QtGui import QFont
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance()
+    if widget is not None:
+        base = widget.font()
+    elif app is not None:
+        base = app.font()
+    else:
+        base = QFont()
+    fm = QFontMetrics(base)
+    cell = height or fm.height() * 7.2
+    w = int(cell * 1.22)                     # room for the arrow and the "2x"
+    h = int(cell)
+    dpr = (widget.devicePixelRatioF() if widget is not None else 1.0) or 1.0
+    pm = QPixmap(int(w * dpr), int(h * dpr))
+    pm.setDevicePixelRatio(dpr)
+    pm.fill(Qt.GlobalColor.transparent)
+
+    ink = _ink(widget)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+    # The instrument sits LOW in the cell: the press arrow lives above it, and
+    # a first version drew the arrow off the top of the pixmap where it was
+    # clipped to a stub.
+    box = QRectF(w * 0.02, cell * 0.30, cell * 0.72, cell * 0.68)
+    _draw_instrument(p, box, ink, nose_down=True)
+    _draw_cap(p, box, ink, face_white=True)
+
+    # THE PRESS: an arrow onto the top of the body, which is where the button
+    # is. Down, because that is the direction of the hand.
+    pen = QPen(ink, max(1.5, cell / 26.0))
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+    p.setPen(pen)
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    x = box.center().x()
+    # A TINY GAP, NOT A TOUCH. The arrow tip used to land on the body outline
+    # and the two strokes merged into one shape (Basti, 2026-08-31: *"i would
+    # like to see a tiny gap between the arrow and the instrument icon"*).
+    # Derived from where `_draw_instrument` actually puts the body top, not
+    # from a constant, so moving the body cannot silently close it again.
+    _body_top = box.top() + box.height() * 0.06
+    tip = _body_top - cell * 0.08
+    p.drawLine(QPointF(x, cell * 0.04), QPointF(x, tip))
+    head = cell * 0.06
+    p.drawLine(QPointF(x - head, tip - head), QPointF(x, tip))
+    p.drawLine(QPointF(x + head, tip - head), QPointF(x, tip))
+
+    # …AND HOW MANY TIMES. The whole point of the picture.
+    f = QFont(base)
+    f.setPointSizeF(max(9.0, base.pointSizeF() * 1.35))
+    f.setBold(True)
+    p.setFont(f)
+    p.drawText(QRectF(box.right() + cell * 0.02, 0,
+                      w - box.right() - cell * 0.02, h),
+               int(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft),
+               f"{times}\u00d7")
+    p.end()
+    return pm
+
+
 def steps_pair(step: str, widget: QWidget | None = None,
                height: int | None = None) -> QPixmap:
     """Both calibration steps, one above the other, with `step` marked.

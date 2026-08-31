@@ -1,7 +1,7 @@
 # Unified Measurement Management — Design Specification
 
 > **Revision 2026-08-09 (e) — two approved messages carry a revised print step.**
-> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), M-IMPORT-MISMATCH and M-IMPORT-DATE-TAKEN (the Measure tab's IMPORT module; its import-done window was approved by Sebastian 2026-08-10), plus the revised M-CHART-VERIFY (W5, reworked after the 2026-08-10 hardware session) and M-HOW-PRINTED (pairing 3 — the measure-time question for sheets ChromIQ did not print), plus M-ALL-STRIPS-PATCHES-LEFT (new, 2026-08-14 — every strip read while patches inside them are not, #156; both are wording only, their bug fixes are already in the code and speak through the log until these are approved), plus M-NO-INSTRUMENT-FAST (new, 2026-08-13 — Knut's ColorMunki was invisible on older hardware until "Faster instrument connection" was switched off, so that variant of the no-instrument window names the shortcut and carries its switch), plus M-ENGINE-FELL-BACK (new, 2026-08-14 — asked for by Knut on #148: ChromIQ's own measuring engine could not use the instrument, so stock chartread took over, which also silences ChromIQ's measurement sounds without saying so) — all defined in the awaiting-review section below, plus M-PATCHSET-MISSING (new, 2026-08-25 — a loaded patch set that had gone from disk wrote one line to the log and built a different chart, in silence), plus M-PROJECT-EXISTS (new, 2026-08-27 — a typed project name that already names a project on disk adopted it in silence; Knut reported it and Basti ruled on when it may appear and what it may offer, but the WORDING is new and waits here), plus M-PROJECT-REPLACE-CONFIRM and M-PROJECT-REPLACE-FAILED (new, 2026-08-27 — the second look before §S4.7's "Replace it" clears a whole project, and the window for the case where its promise cannot be kept), plus M-CR30-STOCK-READER (new, 2026-08-28, #159 — a CR30 chart carries the honest name the device reports for itself, which stock ArgyllCMS chartread refuses outright, so the window names the Preferences control that fixes it) and M-CR30-READ-ENDED (new, 2026-08-28, #159 — the same refusal seen from the other end: an engine run that fails on a CR30 chart has no second reader to fall back to, so the two existing fallback messages, one of which promises that every measured strip will be kept, must not be shown) and M-CR30-MAGNET (new, 2026-08-30, #159 — a magnet recalibrated the instrument mid-chart, which happened to Basti with a MacBook under his paper; the session now stops and offers to retake the white calibration instead of inviting another press) and M-CR30-CALIBRATE-BLACK (new, 2026-08-29, #159 — the dark reference, taken against open air with the instrument's own command, offered by an unticked per-use checkbox so it never becomes a second window on every Start) and M-CR30-CALIBRATE (new, 2026-08-28, #159 — Basti ruled that ChromIQ triggers the CR30's white calibration itself on both transports, which deliberately reverses a documented safety rule; the window's warning is about which face of the cap meets the aperture, not about magnets) and M-CR30-INSTRUMENT-GONE (new, 2026-08-28, #159 — the instrument unplugged mid-measurement and ChromIQ said nothing at all) and M-CR30-PATCH-GAVE-UP (new, 2026-08-28, #159 — one refused reading used to end a CR30 session for ever in silence; refusals are now re-armed and this is the window for when re-arming keeps failing) and M-CR30-HOW-TO-MEASURE (new, 2026-08-28, #159 — every other instrument reaches its "how to measure" window through `calibration_done`, which cannot fire when ChromIQ supplies the values itself, so a CR30 user was given a spot session with no on-screen instruction at all) and M-CR30-READ-FAILED (new, 2026-08-30, #159 — a refused reading was announced only in the log, where Basti did not see it; the behaviour was already right and only the place it was said was wrong, so this is a modeless window that closes itself when the reading arrives) and M-CR30-LEARN-TILE (new, 2026-08-30, #159 — the magnet guard recognised one unit's stored white-tile value because it was hard-coded from that unit; every other owner had no protection at all, so ChromIQ now learns it from a single capped press) and M-CR30-TRIGGER-NOT-ARMED (new, 2026-08-30, #159 — taking the reading from the keyboard is measurably steadier than pressing the instrument's button, but a reading ChromIQ asks for cannot report the magnet gate, so it is refused until that instrument's tile is known) — all defined in the awaiting-review section below.
+> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), M-IMPORT-MISMATCH and M-IMPORT-DATE-TAKEN (the Measure tab's IMPORT module; its import-done window was approved by Sebastian 2026-08-10), plus the revised M-CHART-VERIFY (W5, reworked after the 2026-08-10 hardware session) and M-HOW-PRINTED (pairing 3 — the measure-time question for sheets ChromIQ did not print), plus M-ALL-STRIPS-PATCHES-LEFT (new, 2026-08-14 — every strip read while patches inside them are not, #156; both are wording only, their bug fixes are already in the code and speak through the log until these are approved), plus M-NO-INSTRUMENT-FAST (new, 2026-08-13 — Knut's ColorMunki was invisible on older hardware until "Faster instrument connection" was switched off, so that variant of the no-instrument window names the shortcut and carries its switch), plus M-ENGINE-FELL-BACK (new, 2026-08-14 — asked for by Knut on #148: ChromIQ's own measuring engine could not use the instrument, so stock chartread took over, which also silences ChromIQ's measurement sounds without saying so) — all defined in the awaiting-review section below, plus M-PATCHSET-MISSING (new, 2026-08-25 — a loaded patch set that had gone from disk wrote one line to the log and built a different chart, in silence), plus M-PROJECT-EXISTS (new, 2026-08-27 — a typed project name that already names a project on disk adopted it in silence; Knut reported it and Basti ruled on when it may appear and what it may offer, but the WORDING is new and waits here), plus M-PROJECT-REPLACE-CONFIRM and M-PROJECT-REPLACE-FAILED (new, 2026-08-27 — the second look before §S4.7's "Replace it" clears a whole project, and the window for the case where its promise cannot be kept), plus M-CR30-STOCK-READER (new, 2026-08-28, #159 — a CR30 chart carries the honest name the device reports for itself, which stock ArgyllCMS chartread refuses outright, so the window names the Preferences control that fixes it) and M-CR30-READ-ENDED (new, 2026-08-28, #159 — the same refusal seen from the other end: an engine run that fails on a CR30 chart has no second reader to fall back to, so the two existing fallback messages, one of which promises that every measured strip will be kept, must not be shown) and M-CR30-MAGNET (new, 2026-08-30, #159 — a magnet recalibrated the instrument mid-chart, which happened to Basti with a MacBook under his paper; the session now stops and offers to retake the white calibration instead of inviting another press) and M-CR30-CALIBRATE-BLACK (new, 2026-08-29, #159 — the dark reference, taken against open air with the instrument's own command, offered by an unticked per-use checkbox so it never becomes a second window on every Start) and M-CR30-CALIBRATE (new, 2026-08-28, #159 — Basti ruled that ChromIQ triggers the CR30's white calibration itself on both transports, which deliberately reverses a documented safety rule; the window's warning is about which face of the cap meets the aperture, not about magnets) and M-CR30-INSTRUMENT-GONE (new, 2026-08-28, #159 — the instrument unplugged mid-measurement and ChromIQ said nothing at all) and M-CR30-PATCH-GAVE-UP (new, 2026-08-28, #159 — one refused reading used to end a CR30 session for ever in silence; refusals are now re-armed and this is the window for when re-arming keeps failing) and M-CR30-HOW-TO-MEASURE (new, 2026-08-28, #159 — every other instrument reaches its "how to measure" window through `calibration_done`, which cannot fire when ChromIQ supplies the values itself, so a CR30 user was given a spot session with no on-screen instruction at all) and M-CR30-READ-FAILED (new, 2026-08-30, #159 — a refused reading was announced only in the log, where Basti did not see it; the behaviour was already right and only the place it was said was wrong, so this is a modeless window that closes itself when the reading arrives) and M-CR30-LEARN-TILE (new, 2026-08-30, #159 — the magnet guard recognised one unit's stored white-tile value because it was hard-coded from that unit; every other owner had no protection at all, so ChromIQ now learns it from a single capped press) and M-CR30-TRIGGER-NOT-ARMED (new, 2026-08-30, #159 — taking the reading from the keyboard is measurably steadier than pressing the instrument's button, but a reading ChromIQ asks for cannot report the magnet gate, so it is refused until that instrument's tile is known), plus M-IMPORT-REPLACE-CONFIRM, M-IMPORT-REPLACE-PROJECT-CONFIRM and M-IMPORT-REPLACED-KEPT (new, 2026-08-31 — importing a measurement or a chart under a name that is already a project asked the question in each loader's own words AND with its own consequence: one said “Overwrite existing folder” and destroyed the project outright, the other said “Replace” and archived it. Basti ruled that the consequence and the vocabulary are shared with §S4.7 while the window stays the loaders' own, because theirs carries a name box and a live “this name is taken” line that §S4.7's has no room for; the third message exists because nothing anywhere told the person where their replaced project had gone) — all defined in the awaiting-review section below.
 > **Withdrawn, never approved:** the patch-set sibling of the message above was removed on 2026-08-26 without reaching the catalogue. Ticking “Edit patch recipe (override preset)” already opens a window saying the loaded patches will be replaced, and that box is shown for a patch set the user loaded themselves, not only for a built-in preset — so a second window at Generate time would have interrupted a decision the user had already made and acknowledged. Knut, 4.1.3-beta.17: *“there is already a message when clicking the ‘Edit patch recipe’ warning of consequences … that warning should be sufficient for a user.”* Checked against the existing text before removal.
 
 > Both were approved by Knut on 2026-08-04, but one step in each instructed *"(with colour management on)"* — a setting ChromIQ deliberately locks **off** on every print path, so the approved text told the user to do something the app prevents (established in `verification_printing_and_target.md` §1, and A0.1 of its plan). With feature A the instruction has a real control to name — the Print Chart tab's **Colour** row — so that one step is revised and the revision waits in §M-PROPOSED. Every other message in §M remains approved as before: the last, **M-BUILD-ELSEWHERE**, was accepted on 2026-08-04 — *"Message M-BUILD-ELSEWHERE accepted"* — and M-CHART-CORRUPT, M-REPLACE-UNCOUNTABLE and M-PREVIEW-PAUSED the day before. A new message goes to §M-PROPOSED first, and `tests/test_message_catalogue.py` fails if one is added to the code without it.
@@ -1190,21 +1190,70 @@ nervous about pressing the button with the cap on.*
 *Offered once per session, only while the guard is unarmed for that instrument,
 and always refusable. Skipping costs nothing that is not already lost today.*
 
-> **One press teaches ChromIQ your instrument's white tile**
+*The press count is now asked of the OPEN TRANSPORT and shown as the
+instruction, with a pictogram of the capped instrument carrying a downward
+arrow and “1×” or “2×”. The window used to be titled "One press teaches…" and
+buried the two-press Bluetooth rule four paragraphs down: Basti pressed once
+over Bluetooth on 2026-08-30, confirmed, and the window sat there until he
+force-quit the app; pressing twice worked immediately. Two is the default when
+the transport cannot be read — being told twice and having it accept after one
+costs nothing, while being told once when two are needed is a dead end.*
+
+*A tile is learned PER TRANSPORT, and this is by design, not a defect. Over USB
+the key is the unit's serial; over Bluetooth there is no serial, so the key is
+the address the OS hands back. Basti's own store holds the same 31 values twice
+— once under `PT694D01E7` and once under a `ble:` key — because he learned it
+over each. The cost is one extra learning press per connection type; the
+alternative, arming one unit's constant on an instrument that has not been
+learned, is the exact fault this feature exists to remove.*
+
+**Two bodies, chosen by the OPEN TRANSPORT** (`count_key="presses"`,
+rendered `M_CR30_LEARN_TILE.render(presses=1|2)`). Each states its own
+press count first and then explains it, and each names what the OTHER
+transport needs. One shared body with a sentence injected into it left both
+windows saying *"Why the difference"* about a difference neither of them
+had mentioned, and the one-press window never said that Bluetooth needs two
+(Basti, 2026-08-31). No em dashes, by the same ruling.
+
+**Over USB (one press):**
+
+> **Teach ChromIQ your instrument's white tile**
 >
 > This is a one-off, and it makes every measurement afterwards safer.
 >
-> If anything magnetic touches the measuring opening — a laptop lid under your paper, a magnetic desk mat, the instrument's own cap — the CR30 stops measuring and hands back the value of its white tile instead. That value looks like a perfectly ordinary patch colour, so without knowing what it is, ChromIQ cannot tell it from a real reading.
+> If anything magnetic touches the measuring opening, such as a laptop lid under your paper, a magnetic desk mat, or the instrument's own cap, the CR30 stops measuring and hands back the value of its white tile instead. That value looks like a perfectly ordinary patch colour, so without knowing what it is, ChromIQ cannot tell it from a real reading.
 >
 > Every instrument's tile value is slightly different, so ChromIQ has to learn yours from your own device.
 >
-> LEAVE THE CAP ON, exactly as it is now, and press the button on the instrument. The reading is not part of your measurement and nothing is written to your chart.
+> LEAVE THE CAP ON, exactly as it is now, and press the button on the instrument ONCE. This window closes as soon as ChromIQ has the reading.
 >
-> Over USB one press is enough: the instrument tells ChromIQ that the opening was covered, so it knows what it is looking at. Over Bluetooth it does not say, so ChromIQ asks for a SECOND press and accepts the value only if the two readings are identical — which real measurements never are. Either way, just keep pressing until this window closes.
+> One press is enough over USB, because the instrument itself tells ChromIQ that the opening was covered, so a single reading proves what it is looking at. Over Bluetooth the instrument does not say, and ChromIQ has to ask for two.
+>
+> The reading is not part of your measurement and nothing is written to your chart.
 >
 > This does not change your calibration. A press with the cap on reads the tile that is already the instrument's reference, so there is nothing for it to spoil.
 >
-> You can press “Not now” and carry on measuring as usual — everything works exactly as before, and ChromIQ will offer this again next time.
+> You can press “Not now” and carry on measuring as usual. Everything works exactly as before, and ChromIQ will offer this again next time.
+
+**Over Bluetooth (two presses):**
+
+> **Teach ChromIQ your instrument's white tile**
+>
+> This is a one-off, and it makes every measurement afterwards safer.
+>
+> If anything magnetic touches the measuring opening, such as a laptop lid under your paper, a magnetic desk mat, or the instrument's own cap, the CR30 stops measuring and hands back the value of its white tile instead. That value looks like a perfectly ordinary patch colour, so without knowing what it is, ChromIQ cannot tell it from a real reading.
+>
+> Every instrument's tile value is slightly different, so ChromIQ has to learn yours from your own device.
+>
+> LEAVE THE CAP ON, exactly as it is now, and press the button on the instrument TWICE. This window closes as soon as ChromIQ has both readings.
+>
+> Two presses are needed over Bluetooth, because the instrument does not tell ChromIQ that the opening was covered. ChromIQ accepts the value only when two readings come back identical, which real measurements never do. Over USB the instrument does say, and one press is enough there.
+>
+> The reading is not part of your measurement and nothing is written to your chart.
+>
+> This does not change your calibration. A press with the cap on reads the tile that is already the instrument's reference, so there is nothing for it to spoil.
+>
+> You can press “Not now” and carry on measuring as usual. Everything works exactly as before, and ChromIQ will offer this again next time.
 
 ### M-CR30-TRIGGER-NOT-ARMED · PROPOSED · the keyboard trigger, on an instrument that has not been learned — Measure
 
@@ -1668,6 +1717,57 @@ the operating system gave.*
 >
 > This usually means the folder is read-only, is on a disk or a share that is no longer available, or holds a file another program still has open. Close anything that might be using it and try again, or choose “Use a different name” and leave this project alone.
 
+### M-IMPORT-REPLACE-CONFIRM · PROPOSED · the second look before an import clears a project — the loaders
+
+*`M-PROJECT-REPLACE-CONFIRM` with one clause changed, because on this route
+what lands in the new project is an imported file rather than a new chart.*
+
+> **Start “{name}” again from empty?**
+>
+> Everything this project holds is about to be moved into its own “old” folder, with today’s date on it:
+>
+> {folder}
+>
+> Nothing is deleted. That “old” folder stays inside the project, so you can open it at any time and take anything back out of it: the charts, the measurements, the profiles, all of it.
+>
+> After that, a new and completely empty project of the same name is started in the same place, and {subject} you are importing is put into its first run.
+
+Buttons: **Replace it** · **Go back**; default **Go back**.
+
+### M-IMPORT-REPLACE-PROJECT-CONFIRM · PROPOSED · the second look before "Copy the whole project in" replaces — Print ▸ Load chart
+
+*New for 4.1.5. This route archived a whole project on ONE CLICK with no
+confirmation of any kind, while its own error line named a button ("Replace
+it") that was not on the window ("Replace existing"). Its own wording, because
+what arrives is a whole project with its own runs — not a single file landing
+in run 1, which is what M-IMPORT-REPLACE-CONFIRM describes.*
+
+> **Start “{name}” again from empty?**
+>
+> Everything the project here holds is about to be moved into its own “old” folder, with today’s date on it:
+>
+> {folder}
+>
+> Nothing is deleted. That “old” folder stays in place, so you can open it at any time and take anything back out of it: the charts, the measurements, the profiles, all of it.
+>
+> The project you are copying in then takes its place, with everything it brings of its own.
+
+Buttons: **Replace it** · **Go back**; default **Go back**.
+
+### M-IMPORT-REPLACED-KEPT · PROPOSED · where the replaced project went — the loaders
+
+*New for 4.1.5. Nothing anywhere recorded it: no window, no log line, not even
+a line in the tab's log. "Nothing is deleted" is only true if the person can
+find it again.*
+
+> **The earlier “{name}” has been kept**
+>
+> It has been moved into its own “old” folder:
+>
+> {folder}
+>
+> Nothing was deleted. You can open that folder at any time and take anything back out of it.
+
 ### M-CM-NO-CCTIFF · PROPOSED · the profile-applying tool is missing — feature A, §3.2 A10
 
 *New with feature A (`verification_printing_and_target.md` §6 S9). Shown when
@@ -2021,6 +2121,120 @@ Deliberate limits (v1): an import never replaces an existing dated result
 native read); a partial measurement (fewer patches than the chart) is refused,
 not filed; profiling and calibration runs cannot import at all — a profile is
 built only from a measurement made here.
+
+> **Two of those three limits are WITHDRAWN by §I.9 / §I.10 below.** They are
+> left standing here because this section records what shipped; read them with
+> the amendment.
+
+### ⏳ Awaiting confirmation — §I.9 / §I.10, importing into a profiling run
+
+**Confirmed by:** *nobody yet.*
+
+**Amendment approved by:** Sebastian, 2026-08-31 — the RULE is his ruling; the
+BEHAVIOUR is not built yet, which is why the line above still says nobody. It
+is promoted only once he has seen it work.
+
+Two findings drove it, both from shipped code rather than opinion:
+
+* ChromIQ **already** builds a profile from a partial measurement made here,
+  deliberately: `ui/tabs/tab_profile.py:4026` — *"A partial measurement is
+  legitimate… this does not forbid it — it says how partial it is, and leaves
+  the choice with the user."* Refusing the same data on import contradicts it.
+* ChromIQ **already advertises** the banned capability. `ui/dialogs/tools_dialogs.py:1324`
+  tells the user: *"Measured your chart in X-Rite's i1Profiler? This brings
+  those readings back into ChromIQ so you can build a profile from them."*
+
+**I.9 · A profiling run may be an import destination.** The IMPORT module is
+offered while the shared Run type is **Profiling** as well as **Verification**.
+Its sequence is §I.1–§I.8 unchanged, with three substitutions:
+
+* **I.5** validates against the run's own chart, `Run.chart_ti2`, in place of
+  the verification chart.
+* **I.6** keeps its chart snapshot — for a profiling run that is the run's own
+  chart, not the verification chart. Dropping it (an earlier draft of this
+  clause did) would leave the filed measurement with no record of what it was a
+  measurement OF.
+* **I.7**: the measurement is copied to `Run.measurement_ti3` — the run's
+  canonical stem, never the source file's name, because the report finds its
+  chart by that stem (`measurement_report._find_reference_ti2`) and a
+  measurement filed under any other name falls back to
+  `reference_source: device` without saying so.
+* **I.8** offers *Open measurement report* and *Build the profile*.
+
+**Where the door is.** The module lives on the Measure tab for verifications.
+For a profiling run the import is offered **in the Build Profile tab**, on the
+control that already loads measurement data — that tab is disabled for
+verification runs (`ui/main_window.py:1590`), so the tab a person is on already
+says which act they are performing, and they are never sent to another tab to
+perform it. Basti, 2026-08-31: *"clicking the button should allow me to do the
+import there instead of skipping around"*.
+
+**Choosing where it goes.** The load control asks: import into the open project,
+or start a new one. With nothing open it offers to import into an existing
+project, and performs ChromIQ's own Open Project act in place before carrying
+straight on — one way to open a project, and no window that explains a fix and
+then leaves the person to repeat what they just did.
+
+**THE PATCH ORDER IS CHECKED, NEVER REPAIRED.** A measurement whose patches do
+not line up with the chart is refused with an explanation. ChromIQ does **not**
+re-pair it by matching device values, and this is deliberate (Basti,
+2026-08-31, on measured evidence):
+
+* `measurement_report.verify_patch_identity` cannot validate such a repair. It
+  compares the chart's device values with the measurement's for each pairing —
+  and a repair assigns the pairings by minimising exactly that difference, so
+  it reports "verified" afterwards whether the repair was right or wrong.
+  Measured: `mismatch, worst=100.0` before, `verified, worst=0.0001` after.
+* A tolerant match — which a real implementation needs, because 23 of 240
+  device values in ChromIQ's OWN demo chart differ from its measurement in the
+  fourth decimal — can hand a reading to a patch **16.24 ΔE00 away** in design
+  colour on real charts.
+* The interchangeability rule ("patches asked to be the same colour may be
+  swapped freely") holds for EXACT duplicates, measured on 22 of 24 real
+  charts. It does not extend to tolerant neighbours.
+
+A profiling run that **already holds a measurement** is not displaced. As for a
+verification, the road to a second result is a new place to put it: ChromIQ
+duplicates the run through `duplicate_run_plan` / `duplicate_run` and files the
+import into the copy — **copying the CHART only**
+(`groups=("chart",)`). Copying the whole run was driven on a real project and
+made a run that contradicted itself: the copy carried the measurement, the
+profile, `reads/`, `reports/` and a 153 KB export, every one of them orphaned
+the moment the import overwrote the `.ti3` — while the confirmation window said
+it was copying them for the person. Where `duplicate_source()` is `None` — the run has no
+complete chart — the import is refused with the reason
+`_duplicate_missing_phrase()` already writes.
+
+**A calibration run still cannot import.** There is one `cal/` per project,
+shared by every run, and `Calibration.reset()` has no `old/` archive
+(`calibration_run_type.md` §3 D1), so an import there has no safe way to
+displace what is present. This stays out until that defect is fixed — a
+data-safety reason, not a preference.
+
+**I.10 · A partial measurement is filed, not refused.** Withdrawn for both run
+types. A measurement holding **fewer** readings than the chart has patches is
+filed and the user is told **both counts** — M-IMPORT-PARTIAL-PROFILING or
+M-IMPORT-PARTIAL-VERIFICATION. A measurement holding **more** readings than the
+chart has patches is still refused (M-IMPORT-TOO-MANY): that is not a partial
+measurement, it is a different chart.
+
+**A file ChromIQ wrote must be a file ChromIQ will take back.** Its own real
+verification read of 15 patches from a 105-patch chart could not be re-imported
+by it.
+
+**No threshold is set, and none may be added later without a measurement to
+justify it.** Charts in use run from 64 to 2064 patches and quality falls off
+with the absolute count, not the fraction, so any line drawn across it would be
+arbitrary. ChromIQ states the counts and leaves the judgement with the person,
+exactly as Build Profile already does.
+
+**One measured caution for whoever implements this:** `colprof` builds silently
+from as few as **4 patches** (exit 0, no warning), and its own self-check then
+reports **0.016** — the best number in the table — for a profile **41.5 ΔE**
+wrong against 924 real readings. The self-check is anti-correlated with quality
+and must never be shown as reassurance. A missing **white** patch is a hard
+failure (`rc=1`); a missing black one is not, so ChromIQ must not invent a
+black-patch rule.
 
 ## S. Sequences — what happens, in what order, for every entry condition
 

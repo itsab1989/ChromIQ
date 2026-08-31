@@ -65,7 +65,7 @@ def _stub_name_prompt(monkeypatch, answer):
     import ui.dialogs.name_prompt as np
     calls = []
 
-    def _fake(parent, *, prefill="", body=None):
+    def _fake(parent, *, prefill="", body=None, **kw):
         calls.append(prefill)
         return answer
 
@@ -315,3 +315,120 @@ def test_a_prebuilt_preset_asks_before_it_gates(fresh, monkeypatch):
     assert seen[0] == "ZZ-prebuilt-name", (
         "§S4.7 was asked about {!r} — on this route the name must be settled "
         "before the gate, because the gate is never asked again".format(seen[0]))
+
+
+def test_the_already_exists_line_goes_when_the_name_does(fresh):
+    """Basti, 2026-08-31, driven on screen: pick a preset, type a name that
+    already exists, get the warning, cancel — and the line stayed on screen
+    over an EMPTY name box, describing a name that was no longer there.
+
+    Backing out restores the name at step 8 of `_restore_preset_state` with the
+    field's signals BLOCKED, and the line is wired to `textChanged`, so it never
+    heard. Anything that puts the name back silently has to say so.
+    """
+    w, out = fresh
+    (out / "test").mkdir(parents=True, exist_ok=True)
+    (out / "test" / "project.json").write_text('{"schema_version": 2, "runs": []}')
+
+    tab = w._tab_chart
+    field = tab._manual_target_name_edit
+    lbl = tab._manual_project_exists_lbl
+
+    field.setText("test")
+    tab._refresh_project_exists_line()
+    assert not lbl.isHidden(), "the line never appeared for an existing project"
+
+    # Exactly what the undo does: put the old name back without a peep.
+    field.blockSignals(True)
+    field.setText("")
+    field.blockSignals(False)
+    assert not lbl.isHidden(), "precondition: the line is still up (the bug)"
+
+    tab._refresh_project_exists_line()
+    assert lbl.isHidden(), (
+        "the line outlived the name it described — it sat over an empty box")
+
+
+# ---------------------------------------------------------------------------
+# Guards that a verification pass proved DELETABLE with the suite still green.
+# Each of these drives the real method, not a helper beside it; each was
+# mutation-tested by deleting the line it guards.
+# ---------------------------------------------------------------------------
+
+def test_an_unusable_name_typed_in_the_box_stops_the_build(fresh, monkeypatch):
+    """`///` in the name box must reach the dialog, not the filesystem.
+
+    It passes a check for forbidden characters and then sanitises away to
+    nothing, at which point `FileManager._sanitise` substitutes "session" — so
+    the build landed in a folder of that name with no window at all. The guard
+    is one `validate` call inside `_name_needs_asking`; deleting it re-opened
+    this on all four routes at once while the everyday tier stayed green.
+    """
+    w, out = fresh
+    tab = w._tab_chart
+    asked = _stub_name_prompt(monkeypatch, None)         # the person cancels
+    built = []
+    monkeypatch.setattr(tab._creator, "load_ti1_and_generate_preview",
+                        lambda *a, **k: built.append(a), raising=False)
+
+    tab._manual_target_name_edit.setText("///")
+    tab._on_generate()
+
+    assert asked, "an unusable name went through without a word"
+    assert not built, "a chart was built from a name that makes no folder"
+    assert not (out / "session").exists(), "the sanitiser's fallback was used"
+    assert w._file_mgr.is_named() is False
+
+
+def test_backing_out_of_a_preset_takes_the_collision_line_with_it(fresh):
+    """Drives `_restore_preset_state` itself.
+
+    The earlier test for this called `_refresh_project_exists_line()` by hand
+    and so proved only that the refresh works — never that the undo calls it,
+    which is the whole bug. This takes a real snapshot and restores it.
+    """
+    w, out = fresh
+    (out / "test").mkdir(parents=True, exist_ok=True)
+    (out / "test" / "project.json").write_text('{"schema_version": 2, "runs": []}')
+    tab = w._tab_chart
+    lbl = tab._manual_project_exists_lbl
+
+    snap = tab._snapshot_preset_state()
+    assert snap is not None, "no snapshot — this test would prove nothing"
+
+    tab._manual_target_name_edit.setText("test")
+    tab._refresh_project_exists_line()
+    assert not lbl.isHidden(), "precondition: the line is up for 'test'"
+
+    tab._restore_preset_state(snap)
+
+    assert tab._manual_target_name_edit.text().strip() != "test", (
+        "precondition: the undo did not put the old name back")
+    assert lbl.isHidden(), (
+        "the line outlived the name — `_restore_preset_state` restores the "
+        "field with signals blocked, so it must refresh the line itself")
+
+
+def test_the_dialog_is_told_how_to_recognise_an_existing_project(fresh,
+                                                                 monkeypatch):
+    """The notice is only as real as the callback behind it."""
+    w, out = fresh
+    (out / "test").mkdir(parents=True, exist_ok=True)
+    (out / "test" / "project.json").write_text('{"schema_version": 2, "runs": []}')
+    tab = w._tab_chart
+
+    import ui.dialogs.name_prompt as np
+    seen = {}
+
+    def _fake(parent, *, prefill="", body=None, exists=None, **kw):
+        seen["exists"] = exists
+        return "ZZ-answer"
+
+    monkeypatch.setattr(np, "ask_for_project_name", _fake)
+    tab._ask_for_a_project_name()
+
+    check = seen.get("exists")
+    assert callable(check), "the dialog was given no way to spot a collision"
+    assert check("test") is True, "a real project was not recognised"
+    assert check("ZZ-not-a-project") is False
+    assert check("") is False

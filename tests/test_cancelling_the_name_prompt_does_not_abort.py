@@ -81,7 +81,11 @@ def test_cancelling_the_name_prompt_when_copying_an_external_project(tab,
 
     # Reach the same two lines without the file dialogs in front of them.
     import inspect
-    src = inspect.getsource(tab._load_existing_profile)
+    # The open was split: `_load_existing_profile` is the file dialog,
+    # `open_project_manifest` is the open (so the measurement import can
+    # perform the whole open rather than a cut-down copy). The
+    # external-project copy lives in the half that opens.
+    src = inspect.getsource(tab.open_project_manifest)
     assert "_picked = _ask_project_name(" in src, \
         "the external-project copy no longer asks for a name here"
     assert "picked_name, replace = _picked" in src, \

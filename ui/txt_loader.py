@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
+
+from workflow.chart_import import ReplaceFailed
 from typing import TYPE_CHECKING
 
 from ui.ti2_loader import _project_root_for, _resolve_working_dir
@@ -25,6 +27,55 @@ if TYPE_CHECKING:
 
 log = get_logger(__name__)
 
+
+
+def _say_the_replace_failed(parent, folder, reason) -> None:
+    """Show M-PROJECT-REPLACE-FAILED — the promise that nothing is deleted,
+    when it could not be kept.
+
+    "Replace it" promises everything is moved into the project's own `old/`
+    folder. When that move cannot be made — a read-only folder, a share that
+    has gone away, a file another program holds open — `_archive_project_contents`
+    puts back whatever it had moved and raises. Until now the raise reached
+    nothing but `chromiq.log`: driven through a real button with the excepthook
+    `main.py` installs, the window never appeared, the tab log said nothing, and
+    the app looked idle. The copy functions take no widget, so this is said at
+    the layer that has one.
+    """
+    from PyQt6.QtWidgets import QMessageBox
+    from workflow import measurement_messages as M
+    title, body = M.M_PROJECT_REPLACE_FAILED.render(folder=str(folder),
+                                                    reason=str(reason))
+    box = QMessageBox(parent)
+    box.setIcon(QMessageBox.Icon.Warning)
+    box.setWindowTitle(title)
+    box.setText(title)
+    box.setInformativeText(body)
+    box.addButton(QMessageBox.StandardButton.Ok)
+    box.exec()
+
+
+def _say_where_the_old_project_went(parent, name, dest) -> None:
+    """M-IMPORT-REPLACED-KEPT — "Nothing is deleted" is only true if the person
+    can find it again.
+
+    Report 10, finding 9: nothing anywhere recorded where a replaced project had
+    gone — no window, no log line, not even a line in the tab's log. The
+    catalogue entry existed for a round with no call site, which is worse than
+    not having it: the specification then describes a promise the app does not
+    keep. Shown from here because the `_copy_*` functions take no widget.
+    """
+    from PyQt6.QtWidgets import QMessageBox
+    from workflow import measurement_messages as M
+    title, body = M.M_IMPORT_REPLACED_KEPT.render(name=name,
+                                                  folder=str(dest / "old"))
+    box = QMessageBox(parent)
+    box.setIcon(QMessageBox.Icon.Information)
+    box.setWindowTitle(title)
+    box.setText(title)
+    box.setInformativeText(body)
+    box.addButton(QMessageBox.StandardButton.Ok)
+    box.exec()
 
 def resolve_txt(
     parent: "QWidget",
@@ -39,11 +90,18 @@ def resolve_txt(
     sub-folder and the user chose "Continue") or copied, renamed, into a fresh
     ``<working_dir>/<name>/`` sub-folder.
     """
-    working_dir = _resolve_working_dir(settings)
-    if _project_root_for(txt_path, working_dir) is not None:
-        return _handle_inside(parent, txt_path, working_dir)
-    return _handle_outside(parent, txt_path, working_dir)
-
+    # THE PROMISE THAT NOTHING IS DELETED, KEPT OR EXPLAINED.
+    try:
+        working_dir = _resolve_working_dir(settings)
+        if _project_root_for(txt_path, working_dir) is not None:
+            return _handle_inside(parent, txt_path, working_dir)
+        return _handle_outside(parent, txt_path, working_dir)
+    except ReplaceFailed as exc:
+        # ONLY a failed archive. Any other OSError is a different fault and
+        # must not be reported as "the existing project could not be moved
+        # aside — nothing has been changed", which would be false.
+        _say_the_replace_failed(parent, exc.folder, exc.reason)
+        return None
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -59,7 +117,10 @@ def _handle_outside(
     if result is None:
         return None
     name, overwrite = result
-    return _copy_txt(txt_path, working_dir, name, overwrite=overwrite)
+    out = _copy_txt(txt_path, working_dir, name, overwrite=overwrite)
+    if overwrite:
+        _say_where_the_old_project_went(parent, name, working_dir / name)
+    return out
 
 
 def _handle_inside(
@@ -139,7 +200,10 @@ def _handle_inside(
         if result is None:
             return None
         name, overwrite = result
-        return _copy_txt(txt_path, working_dir, name, overwrite=overwrite)
+        out = _copy_txt(txt_path, working_dir, name, overwrite=overwrite)
+        if overwrite:
+            _say_where_the_old_project_went(parent, name, working_dir / name)
+        return out
     return None
 
 
@@ -194,7 +258,7 @@ def _ask_profile_name(
     ok_btn.setDefault(True)
     btn_row.addWidget(ok_btn)
 
-    overwrite_btn = QPushButton(tr("Overwrite existing folder"), dlg)
+    overwrite_btn = QPushButton(tr("Replace it"), dlg)
     overwrite_btn.setAutoDefault(False)
     overwrite_btn.setVisible(False)
     btn_row.addWidget(overwrite_btn)
@@ -211,12 +275,13 @@ def _ask_profile_name(
     result: dict = {"name": None, "overwrite": False}
 
     def _is_self_collision(name: str) -> bool:
-        # Guard against rmtree'ing the .txt's own parent folder (only possible
-        # when the loaded .txt already lives inside the working folder).
-        try:
-            return (working_dir / name).resolve() == txt_path.parent.resolve()
-        except OSError:
-            return False
+        """True when the folder we would replace HOLDS the file being imported.
+
+        One line, because the logic lives in `core.file_manager.dir_holds` —
+        both loaders had their own copy and both were wrong the same way.
+        """
+        from core.file_manager import dir_holds
+        return dir_holds(working_dir / name, txt_path)
 
     def _normalise(text: str) -> str:
         """Sanitise the typed name the same way set_target_name does (spaces→-,
@@ -237,7 +302,8 @@ def _ask_profile_name(
         collision = bool(name) and (working_dir / name).exists() and not _is_self_collision(name)
         if collision:
             error_lbl.setText(
-                tr("“{name}” already exists. Click “Overwrite existing folder” to replace it.").format(name=name)
+                tr("“{name}” is already a project. Choose a different name, "
+                   "or click “Replace it”.").format(name=name)
             )
             ok_btn.setVisible(False)
             overwrite_btn.setVisible(True)
@@ -274,8 +340,9 @@ def _ask_profile_name(
             return
         if _is_self_collision(name):
             error_lbl.setText(
-                tr("You're trying to overwrite the measurement's own folder. "
-                "Pick a different name.")
+                tr("That project holds the measurement you are importing, "
+                   "so replacing it would take the file with it. Please pick "
+                   "a different name.")
             )
             return
         dest = working_dir / name
@@ -284,16 +351,37 @@ def _ask_profile_name(
             result["overwrite"] = False
             dlg.accept()
             return
-        confirm = QMessageBox.warning(
-            dlg,
-            tr("Overwrite existing folder?"),
-            tr("This will permanently delete:\n\n    {dest}\n\n"
-               "and replace it with the imported measurement. Continue?"
-               ).format(dest=dest),
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        if confirm == QMessageBox.StandardButton.Yes:
+        # THE SECOND LOOK, IN THE WORDS §S4.7 USES.
+        # It said "This will permanently delete", which was true when this ran
+        # `shutil.rmtree` and is a lie now that it archives. Rendered from the
+        # catalogue (M-IMPORT-REPLACE-CONFIRM) rather than written here, because
+        # `test_message_catalogue.py`'s WINDOW_SOURCES is a (module, class,
+        # method) allow-list that cannot express a module-level function — text
+        # written straight into this file is invisible to every check we have.
+        #
+        # Built with QMessageBox() rather than the `.warning` STATIC: the static
+        # runs its own C++ event loop, so a test that patches `QMessageBox.exec`
+        # never reaches it and hangs on a real modal.
+        from workflow import measurement_messages as M
+        _title, _body = M.M_IMPORT_REPLACE_CONFIRM.render(
+            name=name, folder=str(dest), subject=tr("the measurement"))
+        _box = QMessageBox(dlg)
+        _box.setIcon(QMessageBox.Icon.NoIcon)
+        _box.setWindowTitle(_title)
+        _box.setText(_title)
+        _box.setInformativeText(_body)
+        _yes = _box.addButton(tr("Replace it"),
+                              QMessageBox.ButtonRole.DestructiveRole)
+        _back = _box.addButton(tr("Go back"), QMessageBox.ButtonRole.RejectRole)
+        _box.setDefaultButton(_back)     # Return must never be a replace
+        # The house rules: fit each button to its words, and Cancel/Go back on
+        # the far right (Basti, 2026-08-27; the clipping fault is Knut's #130).
+        from ui.widgets import (fit_message_box_buttons,
+                                spread_message_box_buttons)
+        fit_message_box_buttons(_box)
+        spread_message_box_buttons(_box, order=[_yes, _back])
+        _box.exec()
+        if _box.clickedButton() is _yes:
             result["name"] = name
             result["overwrite"] = True
             dlg.accept()
@@ -330,7 +418,25 @@ def _copy_txt(
 
     dest = working_dir / new_name
     if overwrite and dest.exists():
-        shutil.rmtree(dest)
+        # ARCHIVE, NEVER DESTROY. §S4.7 of the measurement specification says a
+        # replace "archive[s] the whole project into its `old/`", and T2.6 says
+        # "nothing is ever deleted" — but these three import routes reached for
+        # `shutil.rmtree`, which is not atomic: it removes what it can and
+        # raises at the end, so one unwritable sub-folder left a project with
+        # one file of six, `project.json` among the casualties, while the app
+        # reported that nothing had changed (`core/trash.py` records the
+        # measurement). Basti's ruling, 2026-08-31.
+        #
+        # Archiving into the SAME folder and then calling `Project.create` on it
+        # is safe: `create` is `mkdir(exist_ok=True)` and removes nothing, so
+        # the `old/` written here survives the new project being made on top.
+        from workflow.chart_import import (ReplaceFailed,
+                                            _archive_project_contents)
+        try:
+            _kept_at = _archive_project_contents(dest)
+        except OSError as exc:
+            raise ReplaceFailed(dest, exc) from exc
+        log.info("replaced %s — everything it held is kept at %s", dest, _kept_at)
 
     proj = Project.create(dest, new_name)
     run  = proj.current_run()

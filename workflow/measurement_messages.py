@@ -375,29 +375,60 @@ M_CR30_HOW_TO_MEASURE = _m(
 #: capped press does not damage the white reference.
 M_CR30_LEARN_TILE = _m(
     "M-CR30-LEARN-TILE",
-    "One press teaches ChromIQ your instrument's white tile",
+    "Teach ChromIQ your instrument's white tile",
+    # TWO presses: the Bluetooth body. `count_key` picks `body_one` when
+    # the caller renders with presses=1, so the tab passes the number and
+    # writes no prose of its own.
     "This is a one-off, and it makes every measurement afterwards safer.\n\n"
-    "If anything magnetic touches the measuring opening — a laptop lid under "
-    "your paper, a magnetic desk mat, the instrument's own cap — the CR30 "
-    "stops measuring and hands back the value of its white tile instead. That "
-    "value looks like a perfectly ordinary patch colour, so without knowing "
-    "what it is, ChromIQ cannot tell it from a real reading.\n\n"
-    "Every instrument's tile value is slightly different, so ChromIQ has to "
-    "learn yours from your own device.\n\n"
+    "If anything magnetic touches the measuring opening, such as a laptop "
+    "lid under your paper, a magnetic desk mat, or the instrument's own "
+    "cap, the CR30 stops measuring and hands back the value of its white "
+    "tile instead. That value looks like a perfectly ordinary patch "
+    "colour, so without knowing what it is, ChromIQ cannot tell it from "
+    "a real reading.\n\n"
+    "Every instrument's tile value is slightly different, so ChromIQ has "
+    "to learn yours from your own device.\n\n"
     "LEAVE THE CAP ON, exactly as it is now, and press the button on the "
-    "instrument. The reading is not part of your measurement and nothing is "
-    "written to your chart.\n\n"
-    "Over USB one press is enough: the instrument tells ChromIQ that the "
-    "opening was covered, so it knows what it is looking at. Over Bluetooth it "
-    "does not say, so ChromIQ asks for a SECOND press and accepts the value "
-    "only if the two readings are identical — which real measurements never "
-    "are. Either way, just keep pressing until this window closes.\n\n"
-    "This does not change your calibration. A press with the cap on reads the "
-    "tile that is already the instrument's reference, so there is nothing for "
-    "it to spoil.\n\n"
-    "You can press “Not now” and carry on measuring as usual — everything "
+    "instrument TWICE. This window closes as soon as ChromIQ has both "
+    "readings.\n\n"
+    "Two presses are needed over Bluetooth, because the instrument does "
+    "not tell ChromIQ that the opening was covered. ChromIQ accepts the "
+    "value only when two readings come back identical, which real "
+    "measurements never do. Over USB the instrument does say, and one "
+    "press is enough there.\n\n"
+    "The reading is not part of your measurement and nothing is written "
+    "to your chart.\n\n"
+    "This does not change your calibration. A press with the cap on "
+    "reads the tile that is already the instrument's reference, so there "
+    "is nothing for it to spoil.\n\n"
+    "You can press “Not now” and carry on measuring as usual. Everything "
     "works exactly as before, and ChromIQ will offer this again next time.",
-    approved=False)
+    approved=False,
+    count_key="presses",
+    body_one=
+    "This is a one-off, and it makes every measurement afterwards safer.\n\n"
+    "If anything magnetic touches the measuring opening, such as a laptop "
+    "lid under your paper, a magnetic desk mat, or the instrument's own "
+    "cap, the CR30 stops measuring and hands back the value of its white "
+    "tile instead. That value looks like a perfectly ordinary patch "
+    "colour, so without knowing what it is, ChromIQ cannot tell it from "
+    "a real reading.\n\n"
+    "Every instrument's tile value is slightly different, so ChromIQ has "
+    "to learn yours from your own device.\n\n"
+    "LEAVE THE CAP ON, exactly as it is now, and press the button on the "
+    "instrument ONCE. This window closes as soon as ChromIQ has the "
+    "reading.\n\n"
+    "One press is enough over USB, because the instrument itself tells "
+    "ChromIQ that the opening was covered, so a single reading proves "
+    "what it is looking at. Over Bluetooth the instrument does not say, "
+    "and ChromIQ has to ask for two.\n\n"
+    "The reading is not part of your measurement and nothing is written "
+    "to your chart.\n\n"
+    "This does not change your calibration. A press with the cap on "
+    "reads the tile that is already the instrument's reference, so there "
+    "is nothing for it to spoil.\n\n"
+    "You can press “Not now” and carry on measuring as usual. Everything "
+    "works exactly as before, and ChromIQ will offer this again next time.")
 
 
 # --- PROPOSED: the keyboard trigger, on an instrument not yet learned ------
@@ -1263,9 +1294,54 @@ M_PROJECT_REPLACE_FAILED = _m(
     approved=False)
 
 
+# --- PROPOSED: an IMPORT lands on a name that is already a project ----------
+# The loaders asked this question in their own words and, until 2026-08-31, with
+# their own consequence: `txt_loader` said "Overwrite existing folder" and ran
+# `shutil.rmtree`, while `ti2_loader` said "Replace existing" and archived. Same
+# act, opposite outcome, decided by which file type the person happened to load.
+#
+# Basti ruled (2026-08-31) that the CONSEQUENCE and the VOCABULARY are shared
+# with §S4.7 while the window stays the loaders' own — theirs has a name box and
+# a live "this name is taken" line, which §S4.7's has no room for.
+#
+# "Continue this project" is deliberately absent: two of the three routes have
+# no machinery for it (`_copy_txt` and `_copy_ti3_only` always call
+# `Project.create` and always make run1), so offering it would be a button that
+# cannot keep its promise.
+#
+# {subject} is "the measurement" for an i1Profiler .txt and a bare .ti3, and
+# "the chart" for a .ti2.
+M_IMPORT_REPLACE_CONFIRM = _m(
+    "M-IMPORT-REPLACE-CONFIRM",
+    "Start \u201c{name}\u201d again from empty?",
+    "Everything this project holds is about to be moved into its own \u201cold\u201d folder, with today\u2019s date on it:\n\n{folder}\n\nNothing is deleted. That \u201cold\u201d folder stays inside the project, so you can open it at any time and take anything back out of it: the charts, the measurements, the profiles, all of it.\n\nAfter that, a new and completely empty project of the same name is started in the same place, and {subject} you are importing is put into its first run.",
+    approved=False)
+
+# --- PROPOSED: where the replaced project went -----------------------------
+# Report 10, finding 9: nothing anywhere recorded it — no window, no log line,
+# no tab log. "Nothing is deleted" is only true if the person can find it.
+# --- PROPOSED: the second look before "Copy the whole project in" replaces --
+# This route archived a whole project on ONE CLICK with no confirmation at all,
+# while its own error line named a button ("Replace it") that was not on the
+# window ("Replace existing"). It needs its own wording because what arrives is
+# a whole project with its own runs, not a single file landing in run 1.
+M_IMPORT_REPLACE_PROJECT_CONFIRM = _m(
+    "M-IMPORT-REPLACE-PROJECT-CONFIRM",
+    "Start \u201c{name}\u201d again from empty?",
+    "Everything the project here holds is about to be moved into its own \u201cold\u201d folder, with today\u2019s date on it:\n\n{folder}\n\nNothing is deleted. That \u201cold\u201d folder stays in place, so you can open it at any time and take anything back out of it: the charts, the measurements, the profiles, all of it.\n\nThe project you are copying in then takes its place, with everything it brings of its own.",
+    approved=False)
+
+M_IMPORT_REPLACED_KEPT = _m(
+    "M-IMPORT-REPLACED-KEPT",
+    "The earlier \u201c{name}\u201d has been kept",
+    "It has been moved into its own \u201cold\u201d folder:\n\n{folder}\n\nNothing was deleted. You can open that folder at any time and take anything back out of it.",
+    approved=False)
+
 CATALOGUE = {m.id: m for m in (
     M_REPLACE_PARTIAL, M_REPLACE_COMPLETE, M_TI3_MISMATCH,
     M_REPLACE_UNCOUNTABLE,
+    M_IMPORT_REPLACE_CONFIRM, M_IMPORT_REPLACE_PROJECT_CONFIRM,
+    M_IMPORT_REPLACED_KEPT,
     M_CHART_PROFILING, M_CHART_W4, M_CHART_VERIFY, M_CHART_NOPAGES,
     M_CHART_CORRUPT,
     M_PREVIEW_PAUSED, M_PROFILE_VERIFY,

@@ -265,11 +265,35 @@ def test_run_reads_ignores_non_matching_files(tmp_path: Path) -> None:
     assert [p.name for p in r.reads()] == ["read1.ti3", "read2.ti3"]
 
 
-def test_run_clear_reads_removes_dir(tmp_path: Path) -> None:
+def test_run_clear_reads_archives_them(tmp_path: Path) -> None:
+    """It used to assert the folder was GONE, which pinned the fault.
+
+    `clear_reads` is reachable from "Measure again to average" and called
+    `shutil.rmtree` on measurements somebody stood at an instrument to make —
+    no archive, nothing in the Trash. The standing rule is that user work is
+    archived, never deleted, so the contract is now "the reads are no longer
+    live" rather than "the reads are gone".
+    """
     proj = Project.create(tmp_path / "P", "P")
     r = proj.current_run()
     r.reads_dir.mkdir()
     (r.reads_dir / "read1.ti3").write_text("R1")
+
+    r.clear_reads()
+
+    assert not (r.reads_dir / "read1.ti3").exists(), (
+        "the read is still live — clear_reads did not clear anything")
+    kept = [p for p in r.reads_dir.rglob("*") if p.is_file()]
+    assert [p.name for p in kept] == ["read1.ti3"], (
+        f"the read was destroyed rather than archived: {kept}")
+    assert kept[0].read_text() == "R1"
+
+
+def test_run_clear_reads_removes_an_empty_reads_folder(tmp_path: Path) -> None:
+    """Nothing to keep, so nothing to keep it in."""
+    proj = Project.create(tmp_path / "P", "P")
+    r = proj.current_run()
+    r.reads_dir.mkdir()
     r.clear_reads()
     assert not r.reads_dir.exists()
 

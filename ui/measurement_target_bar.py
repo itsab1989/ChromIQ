@@ -101,6 +101,27 @@ class MeasurementTargetController(QObject):
             self._pending_name = raw
             self.changed.emit()
 
+    def project_replaced_on_disk(self) -> None:
+        """The project folder was emptied and started again underneath us.
+
+        A REPLACE MOVES EVERYTHING INTO `old/` AND MAKES A FRESH PROJECT, so
+        every run the bar is showing has just stopped existing. Nothing told it:
+        the bar went on listing Run 1–4 and showing Run 4 while the only run on
+        disk was run1 — and one manifest write then put the three phantom runs
+        back into the file. Measured, 2026-08-31.
+
+        Dropping the cached `Project` makes the next read come from disk, and
+        `changed` makes the bar ask again. Safe to call when nothing was
+        replaced: it costs one re-read.
+        """
+        fm = getattr(self, "_fm", None)
+        if fm is not None and hasattr(fm, "forget_cached_project"):
+            fm.forget_cached_project()
+        try:
+            self.changed.emit()
+        except RuntimeError:          # the bar has gone; nothing to tell
+            pass
+
     @property
     def target(self) -> MeasurementTarget:
         return self._target

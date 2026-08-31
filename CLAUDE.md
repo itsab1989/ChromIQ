@@ -155,6 +155,33 @@ projects get built twice per run. Tests copy what they use, because
 suite has alive — two tests that took 0.2 s alone cost 29 s inside a full run.
 Style the widget under test instead; it measures the same thing.
 
+## Driving the app on screen — sandbox the settings FIRST
+
+```bash
+export CHROMIQ_SETTINGS_FILE=/tmp/chromiq-driver.ini   # then run the app/driver
+```
+
+**A script that drives ChromIQ on screen builds a real `AppSettings`, which is
+the real preferences store.** Setting an output path — or merely resizing the
+window — writes into the settings the user works with every day. Set
+`CHROMIQ_SETTINGS_FILE` and the app physically cannot reach the real store;
+unset, nothing changes (`core/settings.py`, `tests/test_settings_can_be_sandboxed.py`).
+
+**Backing the plist up first is NOT enough, and this is the part that cost a
+day.** One driver left `custom_output_path` pointing at a temp folder that was
+later swept. ChromIQ then looked for every project in a directory that no
+longer existed and quietly found none — which reached the owner as "the
+already-exists line has stopped appearing", nowhere near the cause. Three
+separate runs afterwards reported "no drift" by comparing the plist against a
+backup **that already contained the bad value**.
+
+So when a run is over, do not check that the file matches your backup. Check the
+VALUE:
+
+```bash
+defaults read com.chromiq.ChromIQ custom_output_path   # must be the user's, or unset
+```
+
 ## Build distributable
 
 ```bash

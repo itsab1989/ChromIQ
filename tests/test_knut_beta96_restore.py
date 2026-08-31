@@ -183,5 +183,9 @@ def test_loading_a_project_returns_the_run_type_to_profiling():
 
 
 def test_the_reset_is_on_the_path_a_project_load_takes():
-    src = inspect.getsource(TabChart._load_existing_profile)
+    # The open is now in two halves: `_load_existing_profile` is the file
+    # dialog and `open_project_manifest` is the open itself, so the
+    # measurement import can perform the WHOLE open rather than a
+    # cut-down copy of it. The path a project load takes is the latter.
+    src = inspect.getsource(TabChart.open_project_manifest)
     assert "_default_bar_to_current_run()" in src

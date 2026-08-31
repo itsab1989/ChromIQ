@@ -931,6 +931,20 @@ class DeviceReader:
     MAX_LEARNING_PRESSES = 3
 
     @property
+    def open_transport(self) -> str:
+        """"usb", "ble", or "" when nothing is open.
+
+        `self._transport` is the PREFERENCE and is usually "auto", so it cannot
+        answer this. The tile-learning window needs the real answer, because
+        over USB one press proves the tile (the header carries the gate flag)
+        and over Bluetooth it takes two bit-identical ones — and a window that
+        asks for the wrong number is how somebody sits pressing once and
+        waiting for ever.
+        """
+        dev = getattr(self, "_dev", None)
+        return getattr(dev, "kind", "") or ""
+
+    @property
     def guard_is_armed(self) -> bool:
         """Does the magnet guard work on THIS instrument?
 

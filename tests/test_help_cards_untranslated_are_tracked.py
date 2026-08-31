@@ -91,10 +91,16 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # 97 is the highest ACTUAL count across the twelve, not an estimate: the old 93
 # was a uniform ceiling and the real figures sat below it by different amounts,
 # so a uniform "+2" under-shot for some languages and passed for others.
+# 2026-08-31, #159, raised 110 -> 115: the learn-the-white-tile window was
+# rebuilt after Basti's own Bluetooth session -- it now listens while it is
+# open, counts the presses as they land, and names the count the OPEN
+# TRANSPORT needs (one over USB, two over Bluetooth), which is two message
+# bodies plus three live-progress lines. Five strings. German is translated,
+# as always.
 _BUDGET = {
     "de": 35,
-    "es": 110, "fr": 110, "it": 110, "ja": 110, "nl": 110,
-    "no": 110, "pl": 110, "pt": 110, "ru": 110, "sv": 110, "zh_CN": 110,
+    "es": 115, "fr": 115, "it": 115, "ja": 115, "nl": 115,
+    "no": 115, "pl": 115, "pt": 115, "ru": 115, "sv": 115, "zh_CN": 115,
 }
 
 

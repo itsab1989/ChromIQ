@@ -1053,8 +1053,6 @@ def spread_message_box_buttons(box, order=None) -> None:
         buttons = list(box.buttons())
         # A ROW OF TWO IS NOT A BUNCH. Qt's right-aligned pair reads correctly
         # and is what every other window in the app shows.
-        if len(buttons) < 3:
-            return
         bb = box.findChild(QDialogButtonBox)
         outer = box.layout()
         if bb is None or bb.layout() is None or outer is None:
@@ -1063,6 +1061,26 @@ def spread_message_box_buttons(box, order=None) -> None:
             _log.warning("spread: the given button order is not this box's "
                          "buttons — ignoring it")
             order = None
+
+        # ORDER FIRST, AND FOR ANY NUMBER OF BUTTONS.
+        #
+        # This function does two jobs — it puts the buttons in the order the
+        # caller asked for, and it shares the row's width between them — and a
+        # single `len(buttons) < 3` return used to skip BOTH. Sharing the width
+        # of a two-button row is pointless, which is what that guard was for;
+        # but the ORDER matters at any count, and Qt lays a QDialogButtonBox out
+        # by ROLE, which on macOS puts Cancel on the LEFT. So every two-button
+        # window in ChromIQ ignored the order it was given and put Cancel where
+        # Basti has twice asked it not to be: *"cancel should always be on the
+        # very right"*.
+        if order:
+            lay = bb.layout()
+            for b in order:
+                lay.removeWidget(b)
+            for b in order:
+                lay.addWidget(b)
+        if len(buttons) < 3:
+            return          # ordered, but a two-button row needs no spreading
 
         widest = max(b.sizeHint().width() for b in buttons)
         # The icon has its own grid column and the button row does not get it,
