@@ -1388,6 +1388,49 @@ def render_pages(
                 _gap = max(1, px(1.0))
                 _protrude = (strip_w // 4) if ss_hex else 0
                 _rx = x0 - _protrude - _gap
+                # WHERE THE BAND ITSELF SITS — §R1.2, and the half of Knut's
+                # rule that beta 6 did not build.
+                #
+                # The strip labels hang from the PAGE EDGE: `geometry.py`
+                # places them at `max(0, min(T + gap, margin_t - label_h))`,
+                # so T moves them and the patch block only stops them. The row
+                # labels did the exact inverse — `max(floor, x0 - 1 mm - tw)`
+                # placed them against the patch block, and Clip was only a
+                # floor they never reached. Sweeping Clip from 0 to 25 mm with
+                # the left margin pinned moved them 0.00 mm on every preset,
+                # which is what Knut reported three times: *"the row label's
+                # position are movable and definable using currently defined
+                # parameters, just like the strip labels, and not fixed."*
+                #
+                # So the band is anchored at its floor — the Clip distance
+                # from the page edge, raised to clear a clip border drawn on
+                # this edge, which is `row_label_floor` — and the patch block
+                # becomes the clamp instead of the anchor:
+                #
+                #     band right = min(floor + band width, x0 - 1 mm)
+                #     label x    = max(floor, band right - label width)
+                #
+                # Identical to the old placement wherever the left margin sits
+                # at the automatic minimum (`floor + band + 1 mm`), because
+                # there `floor + band` IS `x0 - 1 mm` — every shipped preset
+                # renders pixel-for-pixel as before. It differs only where the
+                # margin is wider than the labels need, which is precisely the
+                # case where the labels used to be dragged away from the
+                # setting that is supposed to place them.
+                #
+                # A geometry that never went through
+                # `apply_row_label_geometry` carries no floor at all (it is
+                # 0.0 by default, with the old fixed 7.5 mm band beside it).
+                # Anchoring at 0 would then throw the labels against the paper
+                # edge. Every path the app builds a chart through goes via
+                # `instruments.geom_from_build_kwargs`, which always resolves
+                # the band — and through the panel Clip can never resolve to 0
+                # either (`LayoutRecipe.build_kwargs` reads `... or 4.0`). So a
+                # missing floor means "not resolved", and an unresolved
+                # geometry keeps exactly the placement it had before.
+                _floor_px = px(getattr(geom, "row_label_floor", 0.0) or 0.0)
+                _band_right = (min(_floor_px + _row_band_px, _rx)
+                               if _floor_px > 0 else _rx)
                 for _j in range(len(col_slots)):
                     _ry = (px(place.y_of(_j)) + px(place.y_of(_j) + place.plen)) // 2
                     _txt = label_patch(_j + 1)
@@ -1406,8 +1449,10 @@ def render_pages(
                     # and the renderer clamped at 0 instead, so on a page with
                     # more than 99 rows the third digit printed 1.4 mm from
                     # the paper's edge against a 4 mm limit.
-                    _tx = max(px(getattr(geom, "row_label_floor", 0.0) or 0.0),
-                              _rx - _tw)
+                    # …and the floor still wins over everything, so a label
+                    # wider than its own band eats into its gap rather than
+                    # walking toward the paper's edge (§R1.3).
+                    _tx = max(_floor_px, _band_right - _tw)
                     draw.text((_tx, _ry - _row_px // 2), _txt,
                               font=_row_font, fill=(0, 0, 0))
                     if collect_device_geom and _ind_font_file:
