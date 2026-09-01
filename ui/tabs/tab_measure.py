@@ -7970,8 +7970,27 @@ class TabMeasure(QWidget):
         worker.done.connect(thread.quit)
         worker.done.connect(dlg.accept)         # it closes ITSELF when proven
         # …and nothing is delivered to the window's widgets once it is gone.
-        dlg.finished.connect(
-            lambda _r: worker.pressed.disconnect(_heard))
+        #
+        # `finished` FIRES TWICE ON THE DECLINE PATH, and the second one used to
+        # end the process. Press "Not now": `reject()` fires it, the learner
+        # thread then proves the tile and fires `dlg.accept()`, which fires it
+        # again — and `disconnect` on an already-disconnected slot raises
+        # `TypeError: 'function' object is not connected`. In a Qt slot that is
+        # not a log line: PyQt6 hands an unhandled slot exception to
+        # `sys.excepthook` and calls `qFatal()`, so ChromIQ aborted, mid
+        # measurement, taking chartread's unwritten `.ti3` with it — six runs
+        # of six. The window's own last line invites exactly this: *"You can
+        # press 'Not now' and carry on measuring as usual."*
+        #
+        # Every other `disconnect` in this app is guarded; this was the only
+        # one that was not (a whole-app sweep, challenge round 2026-09-01).
+        def _stop_listening(_r) -> None:
+            try:
+                worker.pressed.disconnect(_heard)
+            except (TypeError, RuntimeError):
+                pass          # already disconnected, or the sender is gone
+
+        dlg.finished.connect(_stop_listening)
         thread.start()
         # Both must stay referenced until the thread finishes, or Qt collects a
         # running QThread and takes the process with it.
@@ -9199,9 +9218,25 @@ class TabMeasure(QWidget):
         btn_box = QDialogButtonBox()
         ok_btn = btn_box.addButton(tr("Start Calibration"), QDialogButtonBox.ButtonRole.AcceptRole)
         ok_btn.setObjectName("primary")
-        skip_btn = (btn_box.addButton(tr("Skip this step"),
-                                      QDialogButtonBox.ButtonRole.DestructiveRole)
-                    if optional else None)
+        # SKIP IS ITS OWN ANSWER, AND IT HAS TO WIRE ITSELF.
+        #
+        # `DestructiveRole` emits neither `accepted` nor `rejected`, so with
+        # nothing connected to it the button did nothing at all — clicked five
+        # times, the window stayed up (challenge round, 2026-09-01). It is
+        # remembered in a flag rather than read back afterwards; see the exec
+        # below for why that matters.
+        skipped = {"asked": False}
+        skip_btn = None
+        if optional:
+            skip_btn = btn_box.addButton(
+                tr("Skip this step"),
+                QDialogButtonBox.ButtonRole.DestructiveRole)
+
+            def _skip() -> None:
+                skipped["asked"] = True
+                dlg.done(QDialog.DialogCode.Accepted.value)
+
+            skip_btn.clicked.connect(_skip)
         # A real Cancel, because the only way out was the window's close box and
         # that is not obvious (Knut, #131 2026-07-27: "so that a user is not
         # confused how to stop the calibration and the measurement session.
@@ -9218,7 +9253,16 @@ class TabMeasure(QWidget):
 
         tint_dialog_primary(dlg, _TAB_COLOR)
         result = dlg.exec()
-        if skip_btn is not None and btn_box.clickedButton() is skip_btn:
+        # THE FLAG, NOT `clickedButton()`. That is `QMessageBox`'s API;
+        # `QDialogButtonBox` has no such method, so this line raised
+        # `AttributeError` on EVERY exit of this window whenever the step was
+        # optional — Start Calibration, Cancel, Esc, the close box alike. In a
+        # Qt slot an unhandled exception is not a log line: PyQt6 calls
+        # `qFatal()` and the process ends, mid measurement, with chartread's
+        # `.ti3` unwritten. It survived because `optional` is only ever set by
+        # a SwatchMate Cube, and because the `and` short-circuits for every
+        # other instrument, so no test ever reached it.
+        if skipped["asked"]:
             # Only offered when the instrument itself said the step is optional,
             # so 's' is the answer chartread expects here.
             self._manager.send_key("s")

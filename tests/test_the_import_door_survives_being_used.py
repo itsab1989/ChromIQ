@@ -7,6 +7,8 @@ file: a string assertion cannot see a `NameError`.
 """
 from __future__ import annotations
 
+import contextlib
+
 from pathlib import Path
 
 import pytest
@@ -162,15 +164,25 @@ def test_cancel_means_nothing_happens(door, monkeypatch):
 # `on_filed=` — which is the exact path the crash was on. These two drive each
 # door for real and then ask the tab what it is pointing at.
 
-def _drive_the_windows(app, clicks=("choose", "file", "ok", "continue")):
-    """Answer whatever modal is up, the way a person would, until none is."""
+@contextlib.contextmanager
+def _driving_the_windows(app, clicks=("choose", "file", "ok", "continue")):
+    """Answer whatever modal is up, the way a person would, until none is.
+
+    A CONTEXT MANAGER, because the first version left its timer running: with
+    no modal up it re-armed itself two hundred times, so it outlived the test
+    and clicked buttons in whatever dialog the NEXT test opened. It failed a
+    different innocent file on each gate run — the splash tests once, the dial
+    pictogram tests the next time — which is the signature of exactly this.
+    """
     from PyQt6.QtCore import QTimer
     from PyQt6.QtWidgets import QAbstractButton, QApplication, QListWidget
 
-    state = {"n": 0}
+    state = {"n": 0, "stop": False}
 
     def tick():
         state["n"] += 1
+        if state["stop"]:
+            return
         dlg = QApplication.activeModalWidget()
         if dlg is None:
             if state["n"] < 200:
@@ -198,6 +210,10 @@ def _drive_the_windows(app, clicks=("choose", "file", "ok", "continue")):
         QTimer.singleShot(10, tick)
 
     QTimer.singleShot(0, tick)
+    try:
+        yield
+    finally:
+        state["stop"] = True
 
 
 @pytest.fixture
@@ -239,10 +255,10 @@ def test_check_refine_ends_up_pointing_at_the_filed_copy(house, qapp,
     tab = win._tab_check
     monkeypatch.setattr(tcr, "open_file_dialog", lambda *a, **k: str(measurement))
 
-    _drive_the_windows(qapp)
-    tab._on_browse_ti3()
-    for _ in range(50):
-        qapp.processEvents()
+    with _driving_the_windows(qapp):
+        tab._on_browse_ti3()
+        for _ in range(50):
+            qapp.processEvents()
 
     assert tab.ti3_path is not None, "the door filed nothing and said nothing"
     assert tab.ti3_path != measurement, (
@@ -263,10 +279,10 @@ def test_build_profile_ends_up_pointing_at_the_filed_copy(house, qapp,
     tab = win._tab_profile
     monkeypatch.setattr(tp, "open_file_dialog", lambda *a, **k: str(measurement))
 
-    _drive_the_windows(qapp)
-    tab._on_load_ti3()
-    for _ in range(50):
-        qapp.processEvents()
+    with _driving_the_windows(qapp):
+        tab._on_load_ti3()
+        for _ in range(50):
+            qapp.processEvents()
 
     filed = tab.ti3_path if hasattr(tab, "ti3_path") else tab._ti3_path
     assert filed is not None, "the door filed nothing and said nothing"
