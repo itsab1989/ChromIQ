@@ -166,6 +166,54 @@ def offer_import_into_a_project(parent, measurement: Path, *,
                              accent=accent, on_filed=on_filed,
                              root=_literal_root(name))
 
+def _undo_the_run(proj, made_here, was_current) -> None:
+    """Undo a run this import made, and put `current_run` back where it was.
+
+    `_discard_run` restores the manifest to the LAST run in the list, which is
+    only right when that is where the person was. Import into a two-run project
+    and be refused, and it moved them from run 1 to run 2 under a window saying
+    nothing had been changed.
+    """
+    if made_here is None:
+        return
+    try:
+        proj._discard_run(made_here, just_created=True)
+    except Exception:      # noqa: BLE001 — never lose the message
+        log.warning("import: could not undo the run it made", exc_info=True)
+        return
+    if not was_current:
+        return
+    try:
+        if proj.current_run.id != was_current:
+            proj.set_current_run(was_current)
+    except Exception:      # noqa: BLE001 — the run is gone either way
+        log.warning("import: could not put current_run back to %s",
+                    was_current, exc_info=True)
+
+
+def _cannot_file(parent, reason: str, *, project: str = "") -> bool:
+    """Say the filing did not happen, and why. Always returns True — handled.
+
+    Every one of these used to be an exception escaping a Qt slot, which is not
+    a log line: PyQt6 calls `qFatal()` and the process ends, mid-import, with
+    whatever was on screen. Four separate causes reached it — a manifest that
+    will not parse, a folder that cannot be written to, a run that cannot be
+    made, a project that would not open.
+    """
+    InfoDialog(
+        tr("ChromIQ could not file the measurement"),
+        tr("Nothing has been changed, and your own file is untouched where it "
+           "is.\n\nThe reason: {reason}.\n\nThis usually means the folder is "
+           "read-only, the disk is full, it lives on a drive or share that is "
+           "no longer connected, or the project's own {manifest} file has been "
+           "damaged. Check the project and try again, or choose another one."
+           ).format(reason=reason, manifest="project.json"),
+        parent, min_width=580).exec()
+    if project:
+        log.warning("import: could not file into %s: %s", project, reason)
+    return True
+
+
 def file_into_project(parent, name: str, measurement: Path, fm, ctl,
                       *, accent: str = "", on_filed=None, root=None) -> bool:
     """Open *name* (if it is not already open) and file the measurement in
@@ -186,6 +234,7 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
             "with the copy it files")
 
     made_here = None       # a run this call created, to undo if it refuses
+    was_current = None     # …and the run the project was ON before we did
     # A NAME THE PERSON PICKED IS A FOLDER; A NAME THEY TYPED IS A NAME.
     #
     # The picker lists real folders and hands back `child.name` verbatim, but
@@ -203,14 +252,47 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
     # only a typed name is resolved, where sanitising is exactly right.
     root = Path(root) if root is not None else fm.resolved_root_for_name(name)
     # THE WHOLE OPEN, not a cut-down one — see `open_project_manifest`.
+    #
+    # AND IT HAS TO BE CHECKED AFTERWARDS. `open_project_manifest` returns None
+    # whether it opened the project or gave up, and nothing looked: with a
+    # symlinked project — an external drive, a NAS, a Dropbox folder — the
+    # person was asked an unrelated question, and answering it left the
+    # measurement filed into WHATEVER PROJECT WAS OPEN while every window named
+    # the one they picked. With nothing open at all, ChromIQ invented a
+    # `Printer_Paper_Type_Instr_<timestamp>` project to put it in.
+    #
+    # `except OSError` was also too narrow. `Project.load` parses the manifest,
+    # and `json.JSONDecodeError` is a ValueError — so a truncated `project.json`
+    # (and `save_manifest` writes non-atomically, so truncation is an ordinary
+    # accident) took the whole app down from inside a Qt slot. Every other
+    # reader in ChromIQ already catches it; only the importer did not.
     try:
         if not (fm.is_named() and Path(fm.working_dir()) == root):
             tab_chart = getattr(parent.window(), "_tab_chart", None)
             if tab_chart is None:
                 return False
             tab_chart.open_project_manifest(root / "project.json")
-    except OSError:
-        return False
+            if not (fm.is_named() and Path(fm.working_dir()) == root):
+                return _cannot_file(
+                    parent,
+                    tr("“{name}” could not be opened").format(name=name),
+                    project=str(root))
+    except (OSError, ValueError) as exc:
+        return _cannot_file(parent, str(exc) or type(exc).__name__,
+                            project=str(root))
+
+    try:
+        proj_probe = fm.project()
+        # WHICH RUN THE PROJECT WAS ON, so a refusal can put it back. Undoing
+        # the run restores `current_run` to the LAST run in the list, which is
+        # not necessarily the one the person was looking at: import into a
+        # two-run project, be refused, and the project had quietly moved from
+        # run 1 to run 2 under a window saying nothing had been changed.
+        was_current = getattr(_peek(proj_probe.root), "current_run", None)
+    except (OSError, ValueError) as exc:
+        return _cannot_file(parent, str(exc) or type(exc).__name__,
+                            project=str(root))
+    del proj_probe
 
     # WHICH RUN? ASK — DO NOT INHERIT ONE.
     #
@@ -328,7 +410,15 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
                    "ChromIQ can then tell you whether the two match."
                    ).format(name=name), parent, min_width=560).exec()
             return True
-        run = proj.duplicate_run(source, ("chart",))
+        try:
+            run = proj.duplicate_run(source, ("chart",))
+        except (OSError, ValueError) as exc:
+            # MAKING THE RUN IS A WRITE, AND IT RE-RAISES. The copy below is
+            # guarded and this was not, so a read-only folder, a full disk or a
+            # disconnected share killed the app one step earlier than the fault
+            # that guard was written for — same journey, different line.
+            return _cannot_file(parent, str(exc) or type(exc).__name__,
+                                project=name)
         made_here = run
 
     # …AND SO DOES A RUN THE PERSON PICKED. The guard above sat inside
@@ -361,7 +451,11 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
     # The rule was written into §I.9 hours before the code was: the road to
     # a second result is a NEW PLACE to put it.
     if run.measurement_ti3.is_file():
-        plan = proj.duplicate_run_plan(run, ("chart",))
+        try:
+            plan = proj.duplicate_run_plan(run, ("chart",))
+        except (OSError, ValueError) as exc:
+            return _cannot_file(parent, str(exc) or type(exc).__name__,
+                                project=name)
         n_files = sum(len(files) for _g, files, _s in plan)
         # "Run 2", not "Run run2" — the same translated label §S4.7 uses.
         _run_label = tr("Run {n}").format(
@@ -393,7 +487,11 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
         box.exec()
         if box.clickedButton() is not _go:
             return True                      # cancelled; nothing touched
-        run = proj.duplicate_run(run, ("chart",))
+        try:
+            run = proj.duplicate_run(run, ("chart",))
+        except (OSError, ValueError) as exc:
+            return _cannot_file(parent, str(exc) or type(exc).__name__,
+                                project=name)
         made_here = run
 
     # THE RUN TYPE IS PART OF THE ANSWER, AND IT WAS NEVER SET.
@@ -434,12 +532,7 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
         # never held anything is undone, which is exactly what
         # `_discard_run(just_created=True)` is for; it refuses to remove a
         # folder that turns out to hold work.
-        if made_here is not None:
-            try:
-                proj._discard_run(made_here, just_created=True)
-            except Exception:      # noqa: BLE001 — never lose the message
-                log.warning("import: could not undo the run it made",
-                            exc_info=True)
+        _undo_the_run(proj, made_here, was_current)
         InfoDialog(
             tr("This measurement does not belong to that chart"),
             tr("ChromIQ did not file it, and nothing has been changed.\n\n"
@@ -449,19 +542,14 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
     import shutil
     try:
         shutil.copy2(measurement, run.measurement_ti3)
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
         # A FOURTH DOOR THAT KILLED THE APP. A read-only folder, a stale
         # network share or a full disk raised out of `copy2` inside a Qt slot
         # and ended the process. Filing into a place the app cannot write is
         # an ordinary thing to get wrong, and it must end in a sentence.
         log.warning("import: could not copy the measurement into %s",
                     run.measurement_ti3, exc_info=True)
-        if made_here is not None:
-            try:
-                proj._discard_run(made_here, just_created=True)
-            except Exception:      # noqa: BLE001 — never lose the message
-                log.warning("import: could not undo the run it made",
-                            exc_info=True)
+        _undo_the_run(proj, made_here, was_current)
         InfoDialog(
             tr("ChromIQ could not write into that project"),
             tr("The measurement has not been filed, and nothing has been "

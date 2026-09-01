@@ -38,7 +38,12 @@ def test_an_automatic_row_label_is_never_taller_than_its_row():
     assert strip > pitch, (
         "the premise failed: this grid no longer asks for a label taller than "
         "its own row, so the test proves nothing")
-    assert row <= pitch * ROW_LABEL_PITCH_FRAC + 1e-9, (
+    # NOT `<= pitch * ROW_LABEL_PITCH_FRAC`, which is the rule checking
+    # itself: with that assertion 0.99 passes and the labels still touch.
+    assert ROW_LABEL_PITCH_FRAC <= 0.9, (
+        "the cap has been loosened to the point where consecutive labels have "
+        f"almost no air between them: {ROW_LABEL_PITCH_FRAC}")
+    assert row <= pitch * 0.9 + 1e-9, (
         f"the row labels are {row:.3f} mm on a {pitch:.3f} mm row; they print "
         "over each other")
 
@@ -76,3 +81,28 @@ def test_the_cap_holds_on_the_grids_it_was_found_on(instrument, paper):
     geom, _kw = _tall_grid(instrument, paper, 20, 110 if paper == "A4" else 105)
     pitch = geom.plen + geom.pspa
     assert effective_row_label_size_mm(geom, 600, FONT, 0.0) <= pitch
+
+
+def test_the_renderer_clamps_at_the_floor_and_not_at_the_page_edge():
+    """The geometry carrying a floor is only half of it — the drawing has to
+    use it. Deleting the clamp passed all 1,752 tests in the fifty render and
+    raster files, these six included, because they only checked that the
+    number was computed (challenge round 3).
+
+    Asserted on the source rather than on ink, because reaching the clamp needs
+    a hand-pinned grid of more than 99 rows; the rendered proof lives in that
+    round's sweep (`~/Desktop/beta6-round3/B3-evidence/`), which measured 159
+    breaches with the clamp reverted and none with it.
+    """
+    import inspect
+
+    from workflow.layout_engine import raster
+    src = inspect.getsource(raster.render_pages)
+    src = "\n".join(l for l in src.splitlines()
+                     if not l.lstrip().startswith("#"))
+    assert "row_label_floor" in src, (
+        "the renderer no longer reads the floor the band was measured from, "
+        "so a label wider than its band walks to the page edge again")
+    assert "max(0, _rx - _tw)" not in src, (
+        "the row label is clamped at the page edge — that is §R1.3's fault, "
+        "not §R1.3's rule")

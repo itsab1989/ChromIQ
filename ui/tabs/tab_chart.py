@@ -14316,8 +14316,19 @@ class TabChart(QWidget):
             # ABSENT MEANS NEUTRAL. Its paper also drives the layout panel's
             # paper, so a run 1 set to US Letter made every later run Letter
             # too, stored as though it had been chosen.
+            # EVERY FIELD THE BUCKET CARRIES, not the two that were noticed.
+            # `pages`, `left_border` (-L), `no_strip_limit` (-P) and `precond`
+            # leaked into a brand-new run and were written into its meta.json —
+            # and a preconditioning `.ti3` path changes the targen command for
+            # a run that never asked for one.
             guided = {"instrument": self._settings.get("chart_instrument", "i1"),
-                      "paper": self._settings.get("chart_paper", "A4")}
+                      "paper": self._settings.get("chart_paper", "A4"),
+                      "pages": 1,
+                      "double_density": False,
+                      "triple_density": False,
+                      "left_border": False,
+                      "no_strip_limit": False,
+                      "precond": ""}
             for fld, val in guided.items():
                 try:
                     self._shared_set("guided", fld, val)
@@ -14405,8 +14416,11 @@ class TabChart(QWidget):
             # …and the same for the gamut module's four options: the saved
             # defaults each control is BUILT with, so an absent record puts
             # them back exactly where a fresh tab has them.
+            # NOT the count: `_gamut_count_user_set` is already cleared above,
+            # and `_refresh_gamut_state` then DERIVES the count from the patch
+            # count — which is a better answer than the stored default and the
+            # one two tests assert. Writing 400 here overrode that derivation.
             gam = {
-                "count": int(self._settings.get("gamut_target_count", 400)),
                 "auto": bool(self._settings.get("gamut_target_auto", False)),
                 "margin": str(self._settings.get("gamut_target_margin",
                                                  "safe")),
@@ -14435,6 +14449,16 @@ class TabChart(QWidget):
             except Exception:      # noqa: BLE001
                 log.debug("ui-state: gamut options not applied")
         mode = stored.get("mode")
+        # AND THE MODULE IS DELIBERATELY NOT RESET. A challenge round asked for
+        # it — absent is applied everywhere else, so why not here — and it is
+        # the one bucket where the answer is no: #162 says selecting another
+        # run while a module is open leaves you in that module, and
+        # `test_another_run_while_the_module_is_open_gets_its_own_default`
+        # holds it. Resetting to the saved default moved the person out of the
+        # gamut module mid-use, and the count then stopped deriving itself
+        # because the seeding needs `_gamut_active`. A fresh run therefore
+        # opens on the module you are standing in, with that module's own
+        # values reset around you.
         if mode in ("guided", "manual", "gamut") and mode != self._mode_name():
             if built_here:
                 # The module the chart was just built from is the newer state

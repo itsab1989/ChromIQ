@@ -4720,5 +4720,8 @@
   "⤢ Pop out for a bigger view": "⤢ 別ウィンドウで拡大",
   "＋ Add another scan to average": "＋ 平均するスキャンを追加",
   "ChromIQ could not write into that project": "ChromIQ はそのプロジェクトに書き込めませんでした",
-  "The measurement has not been filed, and nothing has been changed. Your own file is untouched where it is.\n\nThe reason: {reason}.\n\nThis usually means the folder is read-only, the disk is full, or it lives on a drive or share that is no longer connected. Check the folder and try again, or choose another project.": "測定値は保存されておらず、何も変更されていません。お客様のファイルは元の場所にそのまま残っています。\n\n理由: {reason}。\n\n多くの場合、フォルダーが読み取り専用である、ディスクの空き容量がない、または接続されていないドライブや共有フォルダー上にあることが原因です。フォルダーを確認してもう一度お試しになるか、別のプロジェクトを選んでください。"
+  "The measurement has not been filed, and nothing has been changed. Your own file is untouched where it is.\n\nThe reason: {reason}.\n\nThis usually means the folder is read-only, the disk is full, or it lives on a drive or share that is no longer connected. Check the folder and try again, or choose another project.": "測定値は保存されておらず、何も変更されていません。お客様のファイルは元の場所にそのまま残っています。\n\n理由: {reason}。\n\n多くの場合、フォルダーが読み取り専用である、ディスクの空き容量がない、または接続されていないドライブや共有フォルダー上にあることが原因です。フォルダーを確認してもう一度お試しになるか、別のプロジェクトを選んでください。",
+  "ChromIQ could not file the measurement": "ChromIQ は測定値を保存できませんでした",
+  "Nothing has been changed, and your own file is untouched where it is.\n\nThe reason: {reason}.\n\nThis usually means the folder is read-only, the disk is full, it lives on a drive or share that is no longer connected, or the project's own {manifest} file has been damaged. Check the project and try again, or choose another one.": "何も変更されておらず、お客様のファイルは元の場所にそのまま残っています。\n\n理由: {reason}。\n\n多くの場合、フォルダーが読み取り専用である、ディスクの空き容量がない、接続されていないドライブや共有フォルダー上にある、またはプロジェクトの {manifest} ファイルが壊れていることが原因です。プロジェクトを確認してもう一度お試しになるか、別のプロジェクトを選んでください。",
+  "“{name}” could not be opened": "「{name}」を開けませんでした"
 }

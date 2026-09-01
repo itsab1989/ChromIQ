@@ -79,7 +79,6 @@ def test_an_absent_bucket_means_neutral_not_whatever_is_on_screen(tab):
     """
     fresh = {
         "stamp": tab._manual_stamp_cmd_check.isChecked(),
-        "count": tab._gamut_count_spin.value(),
         "auto": tab._gamut_auto_check.isChecked(),
         "margin": tab._gamut_margin_combo.currentData(),
         "intent": tab._gamut_intent_combo.currentData(),
@@ -88,7 +87,8 @@ def test_an_absent_bucket_means_neutral_not_whatever_is_on_screen(tab):
 
     # …what the run before this one left on screen.
     tab._manual_stamp_cmd_check.setChecked(not fresh["stamp"])
-    tab._gamut_count_spin.setValue(fresh["count"] + 123)
+    tab._gamut_count_spin.setValue(tab._gamut_count_spin.value() + 123)
+    tab._gamut_count_user_set = True
     tab._gamut_auto_check.setChecked(not fresh["auto"])
     tab._gamut_margin_combo.setCurrentIndex(
         1 - tab._gamut_margin_combo.currentIndex())
@@ -103,8 +103,12 @@ def test_an_absent_bucket_means_neutral_not_whatever_is_on_screen(tab):
 
     assert tab._manual_stamp_cmd_check.isChecked() == fresh["stamp"], \
         "the stamp checkbox kept the previous run's value"
-    assert tab._gamut_count_spin.value() == fresh["count"], \
-        "the gamut colour count kept the previous run's value"
+    # NOT the count itself: `_refresh_gamut_state` derives that from the patch
+    # count, which is a better answer than any stored default. What must reset
+    # is the flag that says the person CHOSE one — leave it armed and the
+    # derivation never runs again.
+    assert tab._gamut_count_user_set is False, \
+        "the next run still believes the previous run's count was chosen"
     assert tab._gamut_auto_check.isChecked() == fresh["auto"], \
         "the gamut Auto box kept the previous run's value"
     assert tab._gamut_margin_combo.currentData() == fresh["margin"], \
