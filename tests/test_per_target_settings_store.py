@@ -58,6 +58,12 @@ def _bind():
     # The no-file-yet path needs these; the real tab has both.
     _Tab._target_settings_key = tc.TabChart._target_settings_key
     _Tab._new_run_seed_path = tc.TabChart._new_run_seed_path
+    # …and the "nothing stored" branches now both delegate to one opener
+    # (§4 S4). The stand-in has no widgets to reset, so it borrows the real
+    # method and lets it find nothing, which is what it did inline before.
+    _Tab._open_this_target_on_its_defaults = \
+        tc.TabChart._open_this_target_on_its_defaults
+    _Tab._CAL_VALUES = tc.TabChart._CAL_VALUES
     _Tab._seed_new_run_block = tc.TabChart._seed_new_run_block
     _Tab.clear_new_run_block = tc.TabChart.clear_new_run_block
     _Tab._CAL_VALUES = tc.TabChart._CAL_VALUES

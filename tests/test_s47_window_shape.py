@@ -160,7 +160,8 @@ def test_the_given_order_is_what_the_row_ends_up_in(qapp):
         f"{[w.text() for w in wanted]} — the order argument is being ignored")
 
 
-def test_the_list_selection_wears_the_accent_it_was_given(qapp, tmp_path):
+def test_the_list_selection_wears_the_accent_it_was_given(qapp, tmp_path,
+                                                          monkeypatch):
     """The highlighted row must match the button beside it.
 
     `tint_dialog_primary` restyles the primary button only; the list's
@@ -186,15 +187,19 @@ def test_the_list_selection_wears_the_accent_it_was_given(qapp, tmp_path):
                 QPalette.ColorRole.Highlight).name().lower()
         return QDialog.DialogCode.Rejected.value
 
-    real, QDialog.exec = QDialog.exec, spy
-    try:
-        for n in ("Alpha", "Beta"):
-            Project.create(tmp_path / n, n).current_run().ensure_dir()
-        host = QWidget()
-        qapp.processEvents()
-        choose_project(host, tmp_path, title="t", body="b", accent=VIOLET)
-    finally:
-        QDialog.exec = real
+    # MONKEYPATCH, NOT SAVE-AND-PUT-BACK. `exec` is inherited, so assigning
+    # the captured attribute back installs a plain object on `QDialog` that no
+    # longer binds — every later `box.exec()` in this worker then dies with
+    # "first argument of unbound method must have type 'QDialog'", in whatever
+    # file xdist schedules next. That is the fault
+    # `tests/test_qmessagebox_exec_leak_repair.py` exists to document, and this
+    # test was committing it; monkeypatch undoes it by DELETING the attribute.
+    monkeypatch.setattr(QDialog, "exec", spy)
+    for n in ("Alpha", "Beta"):
+        Project.create(tmp_path / n, n).current_run().ensure_dir()
+    host = QWidget()
+    qapp.processEvents()
+    choose_project(host, tmp_path, title="t", body="b", accent=VIOLET)
 
     assert seen.get("highlight") == VIOLET, (
         f"the picker was handed {VIOLET} and highlighted its rows in "

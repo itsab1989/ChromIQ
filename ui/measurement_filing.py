@@ -25,7 +25,8 @@ log = logging.getLogger(__name__)
 
 def offer_import_into_a_project(parent, measurement: Path, *,
                                 accent: str = "",
-                                extra_answers=()):
+                                extra_answers=(),
+                                on_filed=None):
     """Ask where a measurement should go, and put it there.
 
     Returns True when it has been dealt with (the caller stops), False to let
@@ -53,6 +54,15 @@ def offer_import_into_a_project(parent, measurement: Path, *,
     from core.file_manager import peek_project
     from ui.dialogs.name_prompt import ask_for_project_name
     from workflow.measurement_import import assess
+
+    # ASKED BEFORE A WINDOW IS DRAWN. `file_into_project` checks this too, but
+    # it is only reached after the person has answered the picker — so a caller
+    # that forgot the argument put the whole question on screen and then died
+    # on the answer. The contract belongs at the door.
+    if on_filed is None:
+        raise TypeError(
+            "offer_import_into_a_project needs on_filed: the caller must say "
+            "what to do with the copy it would file")
 
     ctl = getattr(parent, "_target_ctl", None)
     fm = getattr(ctl, "_fm", None)
@@ -111,7 +121,7 @@ def offer_import_into_a_project(parent, measurement: Path, *,
         return True                          # cancelled at the list
     if picked and picked != NEW_PROJECT:
         return file_into_project(parent, picked, measurement, fm, ctl,
-                                 accent=accent)
+                                 accent=accent, on_filed=on_filed)
 
     name = ask_for_project_name(
         parent, prefill=open_name,
@@ -120,22 +130,39 @@ def offer_import_into_a_project(parent, measurement: Path, *,
                 "in it. Type a new name and ChromIQ makes that project and "
                 "puts the measurement in its first run.\n\nEither way the "
                 "file you picked stays where it is, and a copy is filed."),
-        exists=_exists, accent=_TAB_COLOR)
+        exists=_exists, accent=accent)
     if not name:
-        return False if not open_name else True   # cancelled
+        # CANCEL MEANS NOTHING HAPPENS. It used to mean "nothing happens" only
+        # when a project was already open, and otherwise fell through to the
+        # old `resolve_ti3` route -- so answering Cancel to "Where should this
+        # measurement go?" was met by a DIFFERENT question, "Copy Chart Files",
+        # about a project the person had just declined to choose. Now that the
+        # door asks properly, the answer has to be taken (Basti, 2026-09-01).
+        return True
 
     if not _exists(name):
         return False                      # a new project: the old path
-    return file_into_project(parent, name, measurement, fm, ctl)
+    return file_into_project(parent, name, measurement, fm, ctl,
+                             accent=accent, on_filed=on_filed)
 
 def file_into_project(parent, name: str, measurement: Path, fm, ctl,
-                      *, accent: str = "") -> bool:
+                      *, accent: str = "", on_filed=None) -> bool:
     """Open *name* (if it is not already open) and file the measurement in
     a run of it. Shared by the list and the name box, so both answers reach
     exactly the same act."""
     from PyQt6.QtWidgets import QMessageBox
     from core.file_manager import peek_project as _peek
     from workflow.measurement_import import assess
+
+    # ASKED BEFORE ANYTHING IS TOUCHED. The old version reached into ONE tab's
+    # API at the very end, after the copy, the run and the manifest — so the
+    # tab that did not have that API aborted the app with the project already
+    # changed on disk. The question "what should happen to the copy?" is now
+    # answered before the first byte moves.
+    if on_filed is None:
+        raise TypeError(
+            "file_into_project needs on_filed: the caller must say what to do "
+            "with the copy it files")
 
     made_here = None       # a run this call created, to undo if it refuses
     root = fm.resolved_root_for_name(name)
@@ -391,9 +418,24 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
                ).format(chart=verdict.n_chart, got=verdict.n_measured),
             parent, min_width=580).exec()
     if ctl is not None and hasattr(ctl, "project_replaced_on_disk"):
-        ctl.project_replaced_on_disk()
-    parent.about_to_load_ti3.emit()
-    parent.set_ti3_path(run.measurement_ti3)
-    parent.ti3_manually_loaded.emit()
+        # WRAPPED, like the other controller call in this function. It sat bare
+        # one line before the hand-back, so a controller that raised left the
+        # copy filed on disk with nothing pointing at it — the import happened
+        # and the tab showed the old file. Refreshing the bar is a courtesy;
+        # it may not cost the person the thing they just filed.
+        try:
+            ctl.project_replaced_on_disk()
+        except Exception:      # noqa: BLE001 — never block the import
+            log.warning("import: could not refresh the target bar",
+                        exc_info=True)
+
+    # THE FILED COPY IS HANDED BACK, NOT POKED INTO A TAB. This used to call
+    # `parent.set_ti3_path(...)` and `parent.ti3_manually_loaded.emit()`, which
+    # only Build Profile has. When Check & Refine became the third import door
+    # it inherited those two lines and aborted on the SUCCESS path — after the
+    # copy was made, the run created and the manifest written, so the user
+    # restarted into a run they never asked for. Every caller now says what it
+    # wants done with the copy, and nothing here knows a tab's private API.
+    on_filed(run.measurement_ti3)
     return True
 

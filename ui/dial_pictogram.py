@@ -23,11 +23,8 @@ approved:
 * the measuring mark is a CROSS INSIDE FOUR CORNER BRACKETS, the registration
   mark, not the four filled squares it resembles at a glance.
 
-DRAWN FROM THE PHOTOGRAPH, second attempt. The first put a diagonal cut in the
-BODY, which the device does not have. The cut belongs to the DIAL: the ring has
-a wedge missing at the lower right, and the pointer bar rides in that gap. The
-body is a plain rounded square with a hinged arm across the top and a small
-hole at the bottom left.
+The pointer bar rides ON the ring, it does not interrupt it: the ring is drawn
+first and whole, the bar over it. Nothing here is a gap in the ring.
 """
 import math
 from PyQt6.QtCore import QPointF, QRectF, Qt
