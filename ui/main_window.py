@@ -303,7 +303,7 @@ class MainWindow(QMainWindow):
         # was selected, so its measurement could point at another run entirely
         # — and the profile then landed there.
         for _t in (self._tab_chart, self._tab_measure, self._tab_print,
-                   self._tab_profile):
+                   self._tab_profile, self._tab_check):
             if hasattr(_t, "set_target_controller"):
                 _t.set_target_controller(self._target_ctl)
 

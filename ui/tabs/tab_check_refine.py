@@ -116,6 +116,11 @@ class TabCheckRefine(QWidget):
         self._settings = settings
         self._checker  = ProfcheckRunner(runner)
         self._ti3_path: Path | None = None
+        #: True only while a measurement the person asked to check IN
+        #: PLACE is loaded. It decides where the report is written, so
+        #: every path that loads a .ti3 must set it -- a flag only some
+        #: paths set is a flag that lies.
+        self._checking_in_place = False
         self._icc_path: Path | None = None
         self._last_result = None
 
@@ -169,6 +174,10 @@ class TabCheckRefine(QWidget):
 
     def set_paths(self, ti3: Path, icc: Path, propagate: bool = True) -> None:
         """Pre-populate both file fields after a successful profile build."""
+        # A BUILD HANDS OVER A FILED MEASUREMENT, so this is never in place.
+        # Every path that sets `_ti3_path` answers this, or the report from the
+        # NEXT check lands wherever the LAST one decided.
+        self._checking_in_place = False
         self._ti3_path = ti3
         self._icc_path = icc
         self._ti3_edit.setText(str(ti3))
@@ -180,6 +189,7 @@ class TabCheckRefine(QWidget):
             self._notify_ti2(ti3)
 
     def clear_files(self) -> None:
+        self._checking_in_place = False
         self._ti3_path = None
         self._icc_path = None
         self._ti3_edit.clear()
@@ -1196,6 +1206,26 @@ class TabCheckRefine(QWidget):
     # File selection
     # ------------------------------------------------------------------
 
+    def set_target_controller(self, controller) -> None:
+        """Receive the shared Profile-run / Run-type controller (#130).
+
+        STORES THE REFERENCE AND NOTHING ELSE. This tab was the only one left
+        out of the registration loop, and the comment that used to sit in
+        `_on_browse_ti3` blamed the absence for the bar not moving after an
+        import — but it also said a `getattr` guard once sat there "looking
+        like a fix and doing nothing", which is exactly what it was: the bar
+        did not move because `resolve_ti3` creates a project and never OPENS
+        it, not because the controller was missing.
+
+        Deliberately no `controller.changed` connection. A challenge round
+        injected a controller onto the real tab and drove its whole surface:
+        zero `changed` signals, no behaviour change anywhere. Connecting one
+        would be a new behaviour nobody has asked for; what this tab needs the
+        controller for is to point the bar at a run AFTER an import, which is
+        an act, not a subscription.
+        """
+        self._target_ctl = controller
+
     def _on_browse_ti3(self) -> None:
         path = open_file_dialog(
             self, "Select .ti3 file", "Test chart data (*.ti3)",
@@ -1203,11 +1233,47 @@ class TabCheckRefine(QWidget):
         )
         if not path:
             return
-        from ui.ti2_loader import resolve_ti3
-        # External / old-flat-layout .ti3s get imported into a fresh project
-        # (Project.create writes the "Where are my files.txt" README too).
-        # Inside an existing project, resolve_ti3 returns the path unchanged.
-        resolved = resolve_ti3(self, Path(path), self._settings)
+        # THE SAME QUESTION THE OTHER DOORS ASK. This used to hand the file to
+        # `resolve_ti3`, which for a file outside the working folder CREATED A
+        # PROJECT WITHOUT ASKING -- the fault the import work has been about all
+        # month, in the one tab nobody had looked at. Basti, 2026-09-01:
+        # *"check refine shall be an import door, it already was and i want it
+        # improved."* See docs/design/import_doors_amendment.md §1.
+        #
+        # Inside the working folder nothing is asked at all: the file is already
+        # where it belongs, and asking would be noise.
+        from core.file_manager import same_dir
+        from ui.measurement_filing import offer_import_into_a_project
+        from ui.ti2_loader import _project_root_for, resolve_ti3
+
+        _picked = Path(path)
+        _work = Path(self._settings.get("custom_output_path", "")
+                     or (Path.home() / "ChromIQ"))
+        if _project_root_for(_picked, _work) is None:
+            # Outside every project: ask, in this tab's own accent, and offer
+            # to check it where it lies (§2 of the amendment).
+            from ui.dialogs.project_picker import IN_PLACE
+            _answer = offer_import_into_a_project(
+                self, _picked, accent=_TAB_COLOR,
+                extra_answers=("check_in_place",))
+            if _answer == IN_PLACE:
+                # Nothing is filed and nothing is created. The file is used
+                # exactly where it was found, and what the check produces is
+                # written beside it (Basti's ruling, 2026-09-01).
+                self._checking_in_place = True
+                resolved = _picked
+                self._log.appendPlainText("\n" + tr(
+                    "[NOTE] Checking this measurement where it is. Nothing has "
+                    "been copied and no project has been made, so the report "
+                    "is written next to the file itself and there is no run to "
+                    "look it up in later."))
+            elif _answer:
+                return
+            else:
+                resolved = resolve_ti3(self, _picked, self._settings)
+        else:
+            self._checking_in_place = False
+            resolved = resolve_ti3(self, _picked, self._settings)
         # NO BAR REFRESH HERE, AND DELIBERATELY SO: `TabCheckRefine` has no
         # `_target_ctl` — it never had one. A `getattr(self, "_target_ctl")`
         # guard sat here for one round looking like a fix and doing nothing,
@@ -1374,7 +1440,16 @@ class TabCheckRefine(QWidget):
                 # measurement (#127) — works for run folders and for a browsed
                 # external .ti3 alike.
                 from core.file_manager import ensure_subdir, reports_subdir
-                folder = ensure_subdir(reports_subdir(self._ti3_path.parent))
+                # BESIDE THE FILE WHEN THERE IS NO PROJECT. `reports_subdir`
+                # answers with a `reports/` folder, which is right inside a run
+                # and wrong in somebody's Downloads folder: a check they asked
+                # to run IN PLACE must not quietly build ChromIQ's folder
+                # structure around their file. Basti's ruling, 2026-09-01: the
+                # results are saved where the measurement is.
+                if getattr(self, "_checking_in_place", False):
+                    folder = self._ti3_path.parent
+                else:
+                    folder = ensure_subdir(reports_subdir(self._ti3_path.parent))
                 grade = quality_grade(result.avg_de, result.peak_de)
                 explanation = quality_explanation(result.avg_de, result.peak_de)
                 summary_text = tr("Profile Quality Assessment: {grade}").format(

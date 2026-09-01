@@ -120,10 +120,15 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # lost when it was renamed. German now carries all of them; the other
 # eleven hold three more English placeholders, from repairing the comma
 # splices the em-dash removal left behind.
+#
+# 2026-09-01, raised 125 -> 127: Check & Refine became a real import door
+# (docs/design/import_doors_amendment.md), which adds the two window
+# bodies that explain filing versus checking in place. German carries
+# both; the other eleven hold the English under the beta rule.
 _BUDGET = {
     "de": 35,
-    "es": 125, "fr": 125, "it": 125, "ja": 125, "nl": 125,
-    "no": 125, "pl": 125, "pt": 125, "ru": 125, "sv": 125, "zh_CN": 125,
+    "es": 128, "fr": 128, "it": 128, "ja": 128, "nl": 128,
+    "no": 128, "pl": 128, "pt": 128, "ru": 128, "sv": 128, "zh_CN": 128,
 }
 
 

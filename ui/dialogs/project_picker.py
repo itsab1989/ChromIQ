@@ -93,6 +93,10 @@ def list_projects(working_dir: "Path | str") -> "list[tuple[str, object]]":
 #: mind" are different answers, and a Cancel that quietly means "make a new
 #: project" is how a person ends up with a project they never asked for.
 NEW_PROJECT = "\x00new"
+#: The person would rather ChromIQ worked on the file where it lies, filing
+#: nothing. Offered only where the caller asks for it — see
+#: `docs/design/import_doors_amendment.md` §2.
+IN_PLACE = "\x00in-place"
 
 
 
@@ -171,7 +175,8 @@ def _wear_the_tab_accent(dlg, accent: str) -> None:
 
 def choose_project(parent: "QWidget | None", working_dir: "Path | str", *,
                    title: str = "", body: str = "",
-                   accent: str = "") -> "str | None":
+                   accent: str = "",
+                   offer_in_place: bool = False) -> "str | None":
     """Show the list and return the chosen project's name.
 
     Returns the name, :data:`NEW_PROJECT` when the person wants a new one, or
@@ -254,6 +259,13 @@ def choose_project(parent: "QWidget | None", working_dir: "Path | str", *,
     ok.setDefault(True)
     new_btn = QPushButton(tr("Make a new project instead"), dlg)
     new_btn.setAutoDefault(False)
+    # THE IN-PLACE ANSWER SITS AFTER THE FILING ANSWERS, never first and never
+    # the default (§2.4 of the amendment): filing is what keeps the work
+    # together, and the easy path must not be the one that loses the history.
+    place_btn = None
+    if offer_in_place:
+        place_btn = QPushButton(tr("Just check it where it is"), dlg)
+        place_btn.setAutoDefault(False)
     cancel_btn = QPushButton(tr("Cancel"), dlg)
     cancel_btn.setAutoDefault(False)
     # EACH BUTTON AS WIDE AS ITS OWN WORDS, not an equal third of the row.
@@ -263,10 +275,13 @@ def choose_project(parent: "QWidget | None", working_dir: "Path | str", *,
     # swaps it to a wider face. Stretch goes between the doing buttons and
     # Cancel, so Cancel sits hard right.
     from ui.widgets import fit_button_width
-    for b in (ok, new_btn, cancel_btn):
-        fit_button_width(b)
+    for b in (ok, new_btn, place_btn, cancel_btn):
+        if b is not None:
+            fit_button_width(b)
     row.addWidget(ok)
     row.addWidget(new_btn)
+    if place_btn is not None:
+        row.addWidget(place_btn)
     row.addStretch(1)
     row.addWidget(cancel_btn)
     lay.addLayout(row)
@@ -300,6 +315,9 @@ def choose_project(parent: "QWidget | None", working_dir: "Path | str", *,
         _wear_the_tab_accent(dlg, accent)
     ok.clicked.connect(_accept)
     cancel_btn.clicked.connect(dlg.reject)
+    if place_btn is not None:
+        place_btn.clicked.connect(lambda: (picked.__setitem__(0, IN_PLACE),
+                                           dlg.accept()))
     new_btn.clicked.connect(lambda: (picked.__setitem__(0, NEW_PROJECT),
                                      dlg.accept()))
     lst.itemDoubleClicked.connect(lambda _i: _accept())

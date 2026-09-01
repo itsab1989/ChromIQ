@@ -249,10 +249,15 @@ def test_the_catalogue_is_actually_translated_into_german():
 # carries it; the rest hold the English source under the beta rule. The two
 # renamed file-name strings were CARRIED, not re-Englished, so they cost
 # nothing here.
+#
+# 2026-09-01, +4 for the eleven and -1 for German: Check & Refine became a
+# real import door, which is four new strings (the third answer, its log
+# line and the two window bodies). German carries all four, which also
+# cleared one older placeholder it shared wording with.
 _IDENTICAL_TO_KEY = {
-    "de": 150,
-    "es": 259, "fr": 279, "it": 271, "ja": 248, "nl": 288,
-    "no": 272, "pl": 263, "pt": 263, "ru": 235, "sv": 276, "zh_CN": 241,
+    "de": 149,
+    "es": 262, "fr": 282, "it": 274, "ja": 251, "nl": 291,
+    "no": 275, "pl": 266, "pt": 266, "ru": 238, "sv": 279, "zh_CN": 244,
 }
 
 
