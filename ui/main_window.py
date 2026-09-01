@@ -1858,9 +1858,18 @@ class MainWindow(QMainWindow):
         text = result.get("text", "The report produced nothing.")
 
         suggested = str(Path.home() / "Desktop" / "cr30-bluetooth-report.txt")
-        path, _ = QFileDialog.getSaveFileName(
-            self, tr("Save the Bluetooth report"), suggested,
-            tr("Text files (*.txt)"))
+        # NOT `QFileDialog.getSaveFileName`. A static convenience call builds,
+        # execs and destroys the dialog inside Qt, so there is no object to
+        # install `NameOrderProxy` on and this one dialog listed names in a
+        # different order from every other. It also ignored the user's
+        # native-dialogs preference, got no sidebar shortcuts, and skipped the
+        # start-path checks `save_file_dialog` grew after the PosixPath crash.
+        # There is no static `QFileDialog.get*` left in app code; keep it that
+        # way (Basti, 2026-09-02).
+        from ui.widgets import save_file_dialog
+        path = save_file_dialog(
+            self, tr("Save the Bluetooth report"),
+            tr("Text files (*.txt)"), suggested)
         if not path:
             # DO NOT THROW THE REPORT AWAY. It took half a minute of the user's
             # time and a scan they may not be able to repeat (the instrument

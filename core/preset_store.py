@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from core.logger import get_logger
+from core.name_order import sort_names
 from core.platform_paths import presets_dir
 
 log = get_logger(__name__)
@@ -91,7 +92,12 @@ def load_presets(tab: str, settings: Any = None) -> dict[str, Any]:
         data = doc.get("data", {})
         if isinstance(data, dict):
             out[name] = data
-    return out
+    # ORDERED BY THE NAME THE PERSON READS. The scan above walks the folder in
+    # `sorted(glob(...))` order, which is the SANITISED FILE name compared byte
+    # by byte — so the combos showed "Wide gamut, boost, check" (capitals
+    # first, two alphabets) and ordered them by a name that is not the one on
+    # screen. One rule, on the displayed name: core.name_order.
+    return {name: out[name] for name in sort_names(out)}
 
 
 def save_presets(tab: str, presets: dict[str, Any]) -> None:

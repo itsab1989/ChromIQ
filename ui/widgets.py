@@ -10,6 +10,7 @@ from PyQt6.QtCore import QEvent, QModelIndex, QObject, QPointF, QRect, QRectF, Q
 from PyQt6.QtGui import QColor, QFont, QIcon, QPainter, QPainterPath, QPalette, QPen, QPixmap, QTextCursor
 
 from core.i18n import tr
+from core.name_order import name_sort_key
 from core.logger import get_logger
 import weakref
 
@@ -1125,39 +1126,61 @@ def spread_message_box_buttons(box, order=None) -> None:
         pass
 
 
-class _ExtensionFilterProxy(QSortFilterProxyModel):
-    """Hides files whose extension is not in the allowed set; directories always
-    shown. Also sorts the way Finder does, which Qt's own dialog does not."""
+class NameOrderProxy(QSortFilterProxyModel):
+    """Sorts a `QFileSystemModel` the way ChromIQ orders names EVERYWHERE.
 
-    def __init__(self, extensions: list[str], parent=None) -> None:
+    Ordering only — subclasses add filtering. Installed on all four file-dialog
+    helpers unconditionally, because the whole point is that a person cannot
+    tell which dialog they are in from the order the names come out in.
+
+    IT USED TO DEPEND ON THE CALLER'S FILTER STRING. The proxy was installed
+    only `if exts:`, so a dialog opened with `"ChromIQ profile (project.json)"`
+    — no `*.` glob — got a different order from one opened with
+    `"TI3 files (*.ti3)"`, and `ui/parameter_widget.py` took its filter from
+    `data/parameters.yaml`, which meant a *YAML file* decided how a list of
+    names was sorted. That is why the rule lives in `core.name_order` and the
+    install is unconditional (Basti, 2026-09-02).
+    """
+
+    #: Group directories above files. Qt does this on Windows and Linux and
+    #: deliberately does NOT on macOS (`QFileSystemModelSorter` guards the
+    #: branch with `#ifndef Q_OS_MAC`), so ChromIQ's three platforms disagreed
+    #: with each other. We group everywhere: in a picker over `~/ChromIQ/` the
+    #: folders ARE the projects, and grouping them makes the list scannable.
+    folders_first = True
+
+    def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self._exts = {e.lower() for e in extensions}
-        # FINDER'S ORDER, NOT ASCII'S. Qt's file dialog compares names byte by
-        # byte, so every capital sorts before every lowercase letter: a folder
-        # list read "CR30-Test, Canon…, ChromIQ…, Demo…, Knut…, Printer…" and
-        # then, far below, "chart, cmyk, knut, printer-test, test". Everything
-        # was alphabetical; it was two alphabets, one after the other. macOS
-        # sorts case-insensitively everywhere else the person looks, so this
-        # dialog was the odd one out (Basti, 2026-09-02).
+        # These govern only the base-class fallback below (a non-name column,
+        # or the exception path). The name column goes through
+        # `core.name_order`. Set anyway so that NO path can fall back to the
+        # ASCII order this class exists to remove — Qt's defaults here are
+        # `CaseSensitive` and locale-unaware, measured.
         self.setSortCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.setSortLocaleAware(True)
 
     def lessThan(self, left: QModelIndex, right: QModelIndex) -> bool:
-        # FOLDERS FIRST, whatever they are called. `QFileSystemModel` groups
-        # them itself, but that grouping is its own and is lost the moment a
-        # proxy does the sorting — without this, a folder called "zzz" sorts
-        # below a file called "aaa.ti3" and the list stops being scannable.
+        if self.sortColumn() != 0:          # Size / Kind / Date — Qt's business
+            return super().lessThan(left, right)
         src = self.sourceModel()
         try:
             l_dir, r_dir = src.isDir(left), src.isDir(right)
-            if l_dir != r_dir:
+            if self.folders_first and l_dir != r_dir:
                 return l_dir
             l_name, r_name = src.fileName(left), src.fileName(right)
         except Exception:      # noqa: BLE001 — never break a file dialog
             return super().lessThan(left, right)
-        if self.sortColumn() != 0:
-            return super().lessThan(left, right)
-        return l_name.casefold() < r_name.casefold()
+        return name_sort_key(l_name) < name_sort_key(r_name)
+
+
+class _ExtensionFilterProxy(NameOrderProxy):
+    """Hides files whose extension is not in the allowed set; directories are
+    always shown. An empty set filters nothing, so this is also the plain
+    "order it properly" proxy for a dialog with no extensions to match on."""
+
+    def __init__(self, extensions: list[str], parent=None) -> None:
+        super().__init__(parent)
+        self._exts = {e.lower() for e in extensions}
 
     def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:
         if not self._exts:
@@ -2604,11 +2627,13 @@ def open_file_dialog(
     dlg.setFileMode(QFileDialog.FileMode.ExistingFile)
     if name_filter:
         dlg.setNameFilter(name_filter)
-        if not native:
-            exts = _parse_extensions(name_filter)
-            if exts:
-                dlg.setProxyModel(_ExtensionFilterProxy(exts, dlg))
     if not native:
+        # ALWAYS, even with no extensions to match on: the proxy is what
+        # decides the ORDER (see `NameOrderProxy`), and the order must not
+        # depend on whether the caller's filter happened to contain a `*.`.
+        dlg.setProxyModel(
+            _ExtensionFilterProxy(_parse_extensions(name_filter) if name_filter
+                                  else [], dlg))
         dlg.setSidebarUrls(_sidebar_urls(extra_path, extra_paths))
         _open_up_sidebar(dlg)
         if preview:
@@ -2718,11 +2743,13 @@ def open_files_dialog(
     dlg.setFileMode(QFileDialog.FileMode.ExistingFiles)
     if name_filter:
         dlg.setNameFilter(name_filter)
-        if not native:
-            exts = _parse_extensions(name_filter)
-            if exts:
-                dlg.setProxyModel(_ExtensionFilterProxy(exts, dlg))
     if not native:
+        # ALWAYS, even with no extensions to match on: the proxy is what
+        # decides the ORDER (see `NameOrderProxy`), and the order must not
+        # depend on whether the caller's filter happened to contain a `*.`.
+        dlg.setProxyModel(
+            _ExtensionFilterProxy(_parse_extensions(name_filter) if name_filter
+                                  else [], dlg))
         dlg.setSidebarUrls(_sidebar_urls(extra_path, extra_paths))
         _open_up_sidebar(dlg)
         if preview:
@@ -2784,6 +2811,11 @@ def save_file_dialog(
     dlg.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
     if name_filter:
         dlg.setNameFilter(name_filter)
+    if not native:
+        # Ordering only — Qt's own name filtering happens in the source
+        # QFileSystemModel and still applies. A Save dialog listed names in a
+        # different order from an Open dialog until this was added.
+        dlg.setProxyModel(NameOrderProxy(dlg))
     if default_name:
         dlg.selectFile(default_name)
     if not native:
@@ -2812,6 +2844,7 @@ def open_dir_dialog(
     if not native:
         dlg.setOption(QFileDialog.Option.DontUseNativeDialog, True)
         _style_file_dialog_toolbar(dlg)
+        dlg.setProxyModel(NameOrderProxy(dlg))
         import sys as _sys
         urls = _sidebar_urls(extra_path)
         if _sys.platform == "darwin":
