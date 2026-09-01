@@ -119,6 +119,12 @@ class Geom:
     margin_r: float = 6.0
     margin_b: float = 6.0
     margin_l: float = 6.0
+    # §R1.3's floor for the ROW labels: how close to the left page edge they
+    # may come. Computed with the band in `raster.apply_row_label_geometry`
+    # and carried here so the RENDERER can clamp at the same number — its
+    # clamp used to be the page edge, which is what let a three-digit label
+    # print 1.4 mm from the paper's edge against a 4 mm limit. 0 = not set.
+    row_label_floor: float = 0.0
     strip_indicator_gap: float = 0.0   # gap (mm) between strip label and strip
     offset_x: float = 0.0              # whole-chart offset (mm)
     offset_y: float = 0.0

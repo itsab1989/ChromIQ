@@ -13846,6 +13846,91 @@ class TabChart(QWidget):
                         exc_info=True)
             return False
 
+    def _open_this_target_on_its_defaults(self) -> None:
+        """§4 S4-S7: a target with nothing stored opens on its OWN defaults.
+
+        It used to be done in one of the two "nothing stored" branches and not
+        the other. A run whose `meta.json` does not exist yet — which is every
+        brand-new run — took the other branch and simply returned, so the
+        previous run's layout stayed on screen and was then written into the
+        new run's store as though the user had chosen it. §4 S4 is explicit:
+        *"factory settings, or the saved defaults — never the last run's."*
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        on_calibration = bool(
+            ctl is not None
+            and getattr(ctl.target, "is_calibration", bool)())
+        owned_by_calibration = (
+            {(tool, flag) for tool, flag, _v in self._CAL_VALUES}
+            if on_calibration else set())
+        self._loading_target_settings = True
+        try:
+            from workflow.per_target_settings import params_for
+            # NOT WHEN THE BUILD ON SCREEN OWNS THESE ROWS.
+            #
+            # Loading a built-in preset builds its own .ti1 and then lands
+            # the bar on the new run — and on a FRESH project that is a
+            # change of run, so this fires. It reset targen's rows to their
+            # factory values, which for “Total Patch Count (-f)” is ZERO;
+            # the preset's own signature no longer matched, so the next
+            # Generate abandoned the preset's patch set, fell through to
+            # targen and hit the pre-flight guard: "Nothing for targen to
+            # generate" against an untouched “Edit patch recipe” checkbox
+            # (Knut, #164). Worse on the prebuilt-file presets, where Auto
+            # is on and it silently built a DIFFERENT chart — TC3.00's 300
+            # patches came out as 504, with no warning at all.
+            #
+            # `_apply_ui_state` already refuses to overwrite build-owned
+            # rows for the same reason (see `built_here` below).
+            if getattr(self, "_layout_owned_by_build", False):
+                raise _SkipReset
+            for prm in params_for(self):
+                if (prm.tool, prm.flag) in owned_by_calibration:
+                    continue
+                for w in prm.widgets:
+                    w.reset_to_default()
+        except _SkipReset:
+            pass
+        except Exception:      # noqa: BLE001
+            log.warning("Could not reset the rows to their defaults",
+                        exc_info=True)
+        finally:
+            self._loading_target_settings = False
+        # A target with nothing stored must not inherit the previous
+        # run's engine calibration from the screen either (Sebastian's
+        # beta.5 check 3): an empty ui-state applies exactly the
+        # engine-calibration neutral default and nothing else.
+        self._loading_target_settings = True
+        try:
+            self._apply_ui_state({})
+            # …NOR ITS LAYOUT RECIPE. `_apply_ui_state({})` resets the
+            # engine-calibration block and the parameter rows above reset
+            # themselves, but the layout panel held whatever the last run put
+            # there — so a brand-new run opened on the previous run's
+            # instrument, mode and indicator checkboxes and then STORED them,
+            # permanently, as though the user had chosen them. Measured: run 1
+            # holds a CR30 chart, select run 2 (fresh), and the panel and
+            # run 2's `meta.json` both say CR30 (§4 S4: "factory settings, or
+            # the saved defaults — never the last run's").
+            #
+            # `_init_manual_layout_panel` IS that rule: the "Save as Defaults"
+            # recipe if there is one, otherwise the active preset for the
+            # selection. It is what a first-ever chart opens on.
+            if getattr(self, "_manual_layout_panel", None) is not None:
+                try:
+                    # The panel's own instrument/paper/mode are the LAST run's
+                    # too, and `_init_manual_layout_panel` reads them to pick
+                    # which preset to seed from — so it has to be told the
+                    # freshly-reset printtarg selection first, or it seeds the
+                    # defaults for the wrong instrument.
+                    self._sync_engine_panel_selection()
+                    self._init_manual_layout_panel()
+                except Exception:      # noqa: BLE001 — never block a load
+                    log.warning("Could not open the layout panel on its "
+                                "defaults", exc_info=True)
+        finally:
+            self._loading_target_settings = False
+
     def load_target_settings(self) -> bool:
         """Put the selected target's stored settings on screen (§2 L1).
 
@@ -13871,6 +13956,13 @@ class TabChart(QWidget):
                     log.warning("Could not read %s; the New run starts clean",
                                 seed, exc_info=True)
             if not held:
+                # NOT RESET HERE. `store is None` is "this target has no file
+                # to read", which is also true of a target with no project at
+                # all — and resetting there wipes values the person has just
+                # typed with nowhere to have stored them (the calibration
+                # run-type snapshot, `test_a_hand_set_value_comes_back`). The
+                # leak §4 S4 is about comes in through the branch below, where
+                # a store EXISTS and holds nothing.
                 return False
             self._settings_store = None
             self._settings_key = self._target_settings_key()
@@ -13906,57 +13998,9 @@ class TabChart(QWidget):
             # calibration's patch count followed the user into the next run
             # they visited — a run with nothing stored opens on ALL its
             # defaults, six rows included (§4 S4/S5).
-            ctl = getattr(self, "_target_ctl", None)
-            on_calibration = bool(
-                ctl is not None
-                and getattr(ctl.target, "is_calibration", bool)())
-            owned_by_calibration = (
-                {(tool, flag) for tool, flag, _v in self._CAL_VALUES}
-                if on_calibration else set())
             self._settings_store = store
             self._settings_key = self._target_settings_key()
-            self._loading_target_settings = True
-            try:
-                from workflow.per_target_settings import params_for
-                # NOT WHEN THE BUILD ON SCREEN OWNS THESE ROWS.
-                #
-                # Loading a built-in preset builds its own .ti1 and then lands
-                # the bar on the new run — and on a FRESH project that is a
-                # change of run, so this fires. It reset targen's rows to their
-                # factory values, which for “Total Patch Count (-f)” is ZERO;
-                # the preset's own signature no longer matched, so the next
-                # Generate abandoned the preset's patch set, fell through to
-                # targen and hit the pre-flight guard: "Nothing for targen to
-                # generate" against an untouched “Edit patch recipe” checkbox
-                # (Knut, #164). Worse on the prebuilt-file presets, where Auto
-                # is on and it silently built a DIFFERENT chart — TC3.00's 300
-                # patches came out as 504, with no warning at all.
-                #
-                # `_apply_ui_state` already refuses to overwrite build-owned
-                # rows for the same reason (see `built_here` below).
-                if getattr(self, "_layout_owned_by_build", False):
-                    raise _SkipReset
-                for prm in params_for(self):
-                    if (prm.tool, prm.flag) in owned_by_calibration:
-                        continue
-                    for w in prm.widgets:
-                        w.reset_to_default()
-            except _SkipReset:
-                pass
-            except Exception:      # noqa: BLE001
-                log.warning("Could not reset the rows to their defaults",
-                            exc_info=True)
-            finally:
-                self._loading_target_settings = False
-            # A target with nothing stored must not inherit the previous
-            # run's engine calibration from the screen either (Sebastian's
-            # beta.5 check 3): an empty ui-state applies exactly the
-            # engine-calibration neutral default and nothing else.
-            self._loading_target_settings = True
-            try:
-                self._apply_ui_state({})
-            finally:
-                self._loading_target_settings = False
+            self._open_this_target_on_its_defaults()
             return False
         # REMEMBER WHOSE SETTINGS ARE NOW ON SCREEN.
         #

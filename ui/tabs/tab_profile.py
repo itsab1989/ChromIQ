@@ -4238,13 +4238,22 @@ class TabProfile(QWidget):
         and test reaches it by the name it always used."""
         from ui.measurement_filing import offer_import_into_a_project
         return offer_import_into_a_project(self, measurement,
-                                           accent=_TAB_COLOR)
+                                           accent=_TAB_COLOR,
+                                           on_filed=self._adopt_filed_ti3)
+
+    def _adopt_filed_ti3(self, filed: Path) -> None:
+        """Load the copy the filing helper just made. This tab's own three
+        lines, which the helper used to run on its behalf."""
+        self.about_to_load_ti3.emit()
+        self.set_ti3_path(filed)
+        self.ti3_manually_loaded.emit()
 
     def _file_into_project(self, name: str, measurement: Path, fm, ctl) -> bool:
         """The act behind that question; see `ui/measurement_filing.py`."""
         from ui.measurement_filing import file_into_project
         return file_into_project(self, name, measurement, fm, ctl,
-                                 accent=_TAB_COLOR)
+                                 accent=_TAB_COLOR,
+                                 on_filed=self._adopt_filed_ti3)
 
     def _on_load_ti3(self) -> None:
         # With Run type = Calibration the tab IS the Create Calibration File

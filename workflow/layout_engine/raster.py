@@ -369,6 +369,36 @@ def apply_furniture_reserves(geom, kw: dict):
 _DEFAULT_TEXT_EDGE_CLIP_MM = 4.0
 
 
+ROW_LABEL_PITCH_FRAC = 0.85
+
+
+def effective_row_label_size_mm(geom, dpi: int, font: str,
+                                size_mm: float) -> float:
+    """The size for the labels down the LEFT, which is not the size for the
+    letters across the top.
+
+    The automatic size is chosen so a two-letter strip label fits the patch
+    WIDTH — the right constraint for a label above a strip, and the wrong one
+    for a label beside a row. On a tall, narrow grid (a 178 mm patch on a
+    3.88 mm row) it produced numbers taller than the row they name, and they
+    printed over each other into a ladder nobody can read. Row labels are
+    therefore never taller than {frac:.0%} of the row pitch (Basti,
+    2026-09-01, on the picture of exactly that).
+
+    A size the user TYPED is returned untouched: capping a number somebody
+    chose would be the app arguing with them.
+    """
+    size = effective_indicator_size_mm(geom, dpi, font, size_mm)
+    if size_mm:
+        return size                      # explicit: their choice stands
+    pitch = (float(getattr(geom, "plen", 0.0) or 0.0)
+             + float(getattr(geom, "pspa", 0.0) or 0.0))
+    if pitch <= 0:
+        return size
+    return max(min(size, INDICATOR_MIN_LEGIBLE_MM),
+               min(size, pitch * ROW_LABEL_PITCH_FRAC))
+
+
 def apply_row_label_geometry(geom, kw: dict):
     """Size the row-label band to its labels, and raise the left margin to hold
     it — `docs/design/row_label_geometry.md` §R2.
@@ -439,7 +469,8 @@ def apply_row_label_geometry(geom, kw: dict):
                 float(kw.get("clip_border_width") or 0.0) if has_border else 0.0)
     needed = floor + measured + 1.0
     margin_l = max(float(getattr(geom, "margin_l", 0.0) or 0.0), needed)
-    return replace(geom, rlwi=measured, margin_l=margin_l)
+    return replace(geom, rlwi=measured, margin_l=margin_l,
+                   row_label_floor=floor)
 
 
 def _rows_that_fit(geom, kw: dict) -> int:
@@ -1339,6 +1370,16 @@ def render_pages(
             # number is the useful half: the instrument is placed on ONE patch at a
             # time, and the strip letter is the part you can spare (Basti, 2026-09-01).
             if _row_band_px > 0 and p == 0:
+                # THE ROW LABELS HAVE THEIR OWN SIZE, capped at the row pitch —
+                # `effective_row_label_size_mm`. Sharing the strip labels' font
+                # printed numbers taller than their own row on a tall grid.
+                _row_px = px(effective_row_label_size_mm(
+                    geom, dpi, indicator_font, indicator_size_mm))
+                if _row_px != ind_px:
+                    _row_font = _font(_row_px, indicator_font,
+                                      indicator_bold, indicator_italic)
+                else:
+                    _row_font, _row_px = font, ind_px
                 # Right-align each number so it ends just left of the patches
                 # and grows LEFT into the band — a two-digit number (10–13…)
                 # can't spill over the patches (#93, Knut). For hex patches the
@@ -1350,7 +1391,7 @@ def render_pages(
                 for _j in range(len(col_slots)):
                     _ry = (px(place.y_of(_j)) + px(place.y_of(_j) + place.plen)) // 2
                     _txt = label_patch(_j + 1)
-                    _tw = int(draw.textlength(_txt, font=font))
+                    _tw = int(draw.textlength(_txt, font=_row_font))
                     # CLAMP AT THE PAPER EDGE. In area-first the row band is
                     # no longer reserved outside the margin (the margin is
                     # the law for the PATCHES), so with a small left margin
@@ -1359,13 +1400,24 @@ def render_pages(
                     # the edge and warn, the mirror of what the strip labels
                     # already do at the top. Furniture slides; patches do
                     # not move.
-                    _tx = max(0, _rx - _tw)
-                    draw.text((_tx, _ry - ind_px // 2), _txt,
-                              font=font, fill=(0, 0, 0))
+                    # CLAMPED AT §R1.3's FLOOR, not at the page edge. The
+                    # band's own docstring already promised this — "a wider
+                    # label eats into its own gap rather than the page edge" —
+                    # and the renderer clamped at 0 instead, so on a page with
+                    # more than 99 rows the third digit printed 1.4 mm from
+                    # the paper's edge against a 4 mm limit.
+                    _tx = max(px(getattr(geom, "row_label_floor", 0.0) or 0.0),
+                              _rx - _tw)
+                    draw.text((_tx, _ry - _row_px // 2), _txt,
+                              font=_row_font, fill=(0, 0, 0))
                     if collect_device_geom and _ind_font_file:
+                        try:
+                            _row_ascent = _row_font.getmetrics()[0]
+                        except Exception:      # noqa: BLE001
+                            _row_ascent = _ind_ascent
                         _geom_rows.append(
-                            ("text", _tx, _ry - ind_px // 2 + _ind_ascent,
-                             _txt, _ind_font_file, ind_px, 0, 0, (0, 0, 0),
+                            ("text", _tx, _ry - _row_px // 2 + _row_ascent,
+                             _txt, _ind_font_file, _row_px, 0, 0, (0, 0, 0),
                              _ind_var))
             for j, gslot in enumerate(col_slots):
                 y0 = px(place.y_of(j)) + _stag
@@ -1847,7 +1899,7 @@ def row_label_band_mm(geom, *, dpi: int, rows: int = 0,
     page edge.
     """
     mm2px = dpi / 25.4
-    ind_px = max(6, round(effective_indicator_size_mm(
+    ind_px = max(6, round(effective_row_label_size_mm(
         geom, dpi, indicator_font, indicator_size_mm) * mm2px))
     font = _font(ind_px, indicator_font, indicator_bold, indicator_italic)
     label = permutation.make_labeller(

@@ -1247,6 +1247,12 @@ class TabCheckRefine(QWidget):
         from ui.ti2_loader import _project_root_for, resolve_ti3
 
         _picked = Path(path)
+        # DECIDED ONCE, PER BROWSE, AND OFF UNLESS THIS FILE ASKED FOR IT.
+        # It used to be an attribute written in two of the four paths, so a
+        # browse that took a different path kept the PREVIOUS file's answer:
+        # check one measurement in place, browse to a second, and its report
+        # was still written loose beside the file instead of in the run.
+        _in_place = False
         _work = Path(self._settings.get("custom_output_path", "")
                      or (Path.home() / "ChromIQ"))
         if _project_root_for(_picked, _work) is None:
@@ -1255,12 +1261,13 @@ class TabCheckRefine(QWidget):
             from ui.dialogs.project_picker import IN_PLACE
             _answer = offer_import_into_a_project(
                 self, _picked, accent=_TAB_COLOR,
-                extra_answers=("check_in_place",))
+                extra_answers=("check_in_place",),
+                on_filed=self._adopt_ti3)
             if _answer == IN_PLACE:
                 # Nothing is filed and nothing is created. The file is used
                 # exactly where it was found, and what the check produces is
                 # written beside it (Basti's ruling, 2026-09-01).
-                self._checking_in_place = True
+                _in_place = True
                 resolved = _picked
                 self._log.appendPlainText("\n" + tr(
                     "[NOTE] Checking this measurement where it is. Nothing has "
@@ -1272,7 +1279,6 @@ class TabCheckRefine(QWidget):
             else:
                 resolved = resolve_ti3(self, _picked, self._settings)
         else:
-            self._checking_in_place = False
             resolved = resolve_ti3(self, _picked, self._settings)
         # NO BAR REFRESH HERE, AND DELIBERATELY SO: `TabCheckRefine` has no
         # `_target_ctl` — it never had one. A `getattr(self, "_target_ctl")`
@@ -1281,14 +1287,26 @@ class TabCheckRefine(QWidget):
         # tab is ever given a controller, the call belongs here.
         if resolved is None:
             return
+        self._adopt_ti3(resolved, in_place=_in_place)
+
+    def _adopt_ti3(self, chosen: Path, *, in_place: bool = False) -> None:
+        """Point the tab at *chosen* and bring the rest of it into line.
+
+        One method, because there are now two ways in: the file the person
+        browsed to, and the copy the filing helper made inside a project. The
+        second used to be handled by the helper reaching into Build Profile's
+        API, which this tab does not have — so filing from here made the copy,
+        made the run, wrote the manifest, and then aborted the app.
+        """
+        self._checking_in_place = in_place
         self.about_to_load_ti3.emit()
-        self._ti3_path = resolved
-        self._ti3_edit.setText(str(resolved))
-        self._auto_fill_icc(resolved)
-        self._notify_ti2(resolved)
+        self._ti3_path = chosen
+        self._ti3_edit.setText(str(chosen))
+        self._auto_fill_icc(chosen)
+        self._notify_ti2(chosen)
         self._update_run_btn()
-        self._detect_instrument(resolved)
-        self.ti3_selected.emit(resolved)
+        self._detect_instrument(chosen)
+        self.ti3_selected.emit(chosen)
 
     def _on_browse_icc(self) -> None:
         path = open_file_dialog(

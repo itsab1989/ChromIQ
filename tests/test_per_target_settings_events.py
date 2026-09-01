@@ -98,7 +98,20 @@ def test_an_empty_target_does_not_keep_the_last_ones_values(path):
     target's values on screen — which is a setting leaking between runs, the
     thing this whole feature exists to stop.
     """
-    load = inspect.getsource(getattr(_tab_class(path), "load_target_settings"))
+    # FOLLOW THE DELEGATION, or extracting the branch into a helper looks
+    # exactly like deleting it. Create Chart now answers this in one opener
+    # called from both of its "nothing stored" branches, and a test that read
+    # only `load_target_settings` failed while the behaviour was intact.
+    cls = _tab_class(path)
+    load = inspect.getsource(getattr(cls, "load_target_settings"))
+    import re as _re
+    for _name in sorted(set(_re.findall(r"self\.(_[A-Za-z0-9_]+)\(", load))):
+        _m = getattr(cls, _name, None)
+        if callable(_m):
+            try:
+                load += "\n" + inspect.getsource(_m)
+            except (OSError, TypeError):
+                pass
     # Comments are not code, and these methods name `_restore_defaults` in
     # their prose. An earlier version of this test matched the comment and went
     # green with the fault re-introduced — the exact "a test can guard the bug"
@@ -149,7 +162,8 @@ def test_f3_the_six_rows_are_only_skipped_on_the_calibration_itself():
     the calibration IS the selected target; a run with nothing stored opens
     on ALL its defaults (§4 S4/S5), six rows included."""
     from ui.tabs.tab_chart import TabChart
-    src = inspect.getsource(TabChart.load_target_settings)
+    # The reset lives in the opener both "nothing stored" branches call.
+    src = inspect.getsource(TabChart._open_this_target_on_its_defaults)
     assert "if on_calibration else set()" in src
 
 
