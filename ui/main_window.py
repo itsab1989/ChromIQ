@@ -826,6 +826,27 @@ class MainWindow(QMainWindow):
                 }}
             """
 
+        # ---- combobox popup hover highlight, in this tab's accent ---------
+        # macOS draws a combo-popup row through CE_MenuItem, where NEITHER the
+        # application/view palette NOR `selection-background-color` reaches the
+        # highlight — only `QComboBox::item:selected` does. A combo that carries
+        # a custom item delegate (or `combobox-popup: 0`, i.e. #compact_input) is
+        # drawn as a view item instead, and only `selection-background-color`
+        # reaches THAT one. Both rules are needed; measured on screen, both
+        # themes, all five tabs. DELETE THIS BLOCK TO REVERT — nothing else
+        # refers to it, and the popup falls back to today's near-black band.
+        _hl_text = "#101010"    # dark text: white gives 1.8:1 on amber/green
+        _sheet += f"""
+                QComboBox::item:selected {{
+                    background: {color};
+                    color: {_hl_text};
+                }}
+                QComboBox QAbstractItemView {{
+                    selection-background-color: {color};
+                    selection-color: {_hl_text};
+                }}
+            """
+
         # The stylesheet is a pure function of (index, theme); a set stylesheet
         # stays applied and cascades to children added later, so on a revisit for
         # the same theme we can skip the costly re-`setStyleSheet` (~30 ms on the
