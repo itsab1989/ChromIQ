@@ -4718,5 +4718,7 @@
   "⟳ Rotate 90°": "⟳ Obróć o 90°",
   "⤢ Dock back": "⤢ Zadokuj z powrotem",
   "⤢ Pop out for a bigger view": "⤢ Otwórz w większym oknie",
-  "＋ Add another scan to average": "＋ Dodaj kolejny skan do uśrednienia"
+  "＋ Add another scan to average": "＋ Dodaj kolejny skan do uśrednienia",
+  "ChromIQ could not write into that project": "ChromIQ nie mógł zapisać w tym projekcie",
+  "The measurement has not been filed, and nothing has been changed. Your own file is untouched where it is.\n\nThe reason: {reason}.\n\nThis usually means the folder is read-only, the disk is full, or it lives on a drive or share that is no longer connected. Check the folder and try again, or choose another project.": "Pomiar nie został zarchiwizowany i nic nie zostało zmienione. Twój własny plik pozostaje nietknięty tam, gdzie jest.\n\nPowód: {reason}.\n\nZwykle oznacza to, że folder jest tylko do odczytu, dysk jest pełny albo folder znajduje się na dysku lub udziale, który nie jest już podłączony. Sprawdź folder i spróbuj ponownie albo wybierz inny projekt."
 }

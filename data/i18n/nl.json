@@ -4718,5 +4718,7 @@
   "⟳ Rotate 90°": "⟳ 90° draaien",
   "⤢ Dock back": "⤢ Terugkoppelen",
   "⤢ Pop out for a bigger view": "⤢ Groter venster openen",
-  "＋ Add another scan to average": "＋ Nog een scan om te middelen toevoegen"
+  "＋ Add another scan to average": "＋ Nog een scan om te middelen toevoegen",
+  "ChromIQ could not write into that project": "ChromIQ kon niet naar dat project schrijven",
+  "The measurement has not been filed, and nothing has been changed. Your own file is untouched where it is.\n\nThe reason: {reason}.\n\nThis usually means the folder is read-only, the disk is full, or it lives on a drive or share that is no longer connected. Check the folder and try again, or choose another project.": "De meting is niet opgeborgen en er is niets gewijzigd. Je eigen bestand blijft onaangeroerd waar het staat.\n\nDe reden: {reason}.\n\nMeestal betekent dit dat de map alleen-lezen is, dat de schijf vol is, of dat de map op een station of share staat die niet meer verbonden is. Controleer de map en probeer het opnieuw, of kies een ander project."
 }

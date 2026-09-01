@@ -14286,9 +14286,21 @@ class TabChart(QWidget):
         # an empty record is applied deliberately for exactly this reason, so
         # nothing follows the user from the run they just left (#162).
         self._gamut_count_user_set = False
-        if "stamp" in stored and not built_here:
+        # ABSENT MEANS NEUTRAL, FOR EVERY BUCKET IN THIS METHOD.
+        #
+        # `engine_cal` was given this treatment on its own (Sebastian's beta.5
+        # check 3) and the others were not, so a record that predates a key —
+        # or an empty record, which is how a target with nothing stored asks
+        # for its defaults — left that control showing THE PREVIOUS RUN's
+        # value, and the next write filed it as this run's own. Measured on a
+        # second challenge round: Guided paper, the stamp checkbox and all four
+        # gamut options each leaked from run 1 into a brand-new run 2, and the
+        # Guided paper dragged the layout panel's paper with it.
+        if not built_here:
             try:
-                self._manual_stamp_cmd_check.setChecked(bool(stored["stamp"]))
+                self._manual_stamp_cmd_check.setChecked(
+                    bool(stored["stamp"]) if "stamp" in stored
+                    else bool(self._settings.get("chart_stamp_commands", True)))
             except Exception:      # noqa: BLE001
                 pass
         # The Guided row was outside the guard until 2026-08-22, when Basti hit
@@ -14300,6 +14312,17 @@ class TabChart(QWidget):
         if isinstance(guided, dict) and built_here:
             log.debug("ui-state: kept the Guided row this build used "
                       "(the run's stored copy is the older one)")
+        elif not isinstance(guided, dict) and not built_here:
+            # ABSENT MEANS NEUTRAL. Its paper also drives the layout panel's
+            # paper, so a run 1 set to US Letter made every later run Letter
+            # too, stored as though it had been chosen.
+            guided = {"instrument": self._settings.get("chart_instrument", "i1"),
+                      "paper": self._settings.get("chart_paper", "A4")}
+            for fld, val in guided.items():
+                try:
+                    self._shared_set("guided", fld, val)
+                except Exception:      # noqa: BLE001
+                    log.debug("ui-state: guided %s not reset", fld)
         elif isinstance(guided, dict):
             for fld, val in guided.items():
                 try:
@@ -14343,6 +14366,22 @@ class TabChart(QWidget):
                 self._set_engine_recipe(rec)
             except Exception:      # noqa: BLE001
                 log.debug("ui-state: engine recipe not applied", exc_info=True)
+        elif not built_here:
+            # ABSENT MEANS NEUTRAL here too, and this is the one that matters
+            # most: `_adopt_new_run_settings` writes a record with
+            # `create_chart_settings` present and `create_chart_ui` empty, and
+            # ~40 shipped betas wrote that shape — so the panel was simply left
+            # alone and the new run opened on, and stored, the previous run's
+            # instrument, paper and layout mode.
+            #
+            # LAST of the three branches, deliberately: an `elif` earlier in
+            # the chain swallows a recipe that IS present, and the panel is
+            # then reset in the middle of a build that was using it.
+            try:
+                self._sync_engine_panel_selection()
+                self._init_manual_layout_panel()
+            except Exception:      # noqa: BLE001
+                log.debug("ui-state: layout panel not reset", exc_info=True)
         ec = stored.get("engine_cal")
         if built_here:
             ec = None          # the build's calibration is the newer choice
@@ -14362,6 +14401,18 @@ class TabChart(QWidget):
             except Exception:      # noqa: BLE001
                 log.debug("ui-state: engine calibration not applied")
         gam = stored.get("gamut")
+        if not isinstance(gam, dict) and not built_here:
+            # …and the same for the gamut module's four options: the saved
+            # defaults each control is BUILT with, so an absent record puts
+            # them back exactly where a fresh tab has them.
+            gam = {
+                "count": int(self._settings.get("gamut_target_count", 400)),
+                "auto": bool(self._settings.get("gamut_target_auto", False)),
+                "margin": str(self._settings.get("gamut_target_margin",
+                                                 "safe")),
+                "intent": str(self._settings.get("gamut_target_intent",
+                                                 "absolute")),
+            }
         if isinstance(gam, dict) and not built_here:
             try:
                 if "count" in gam:

@@ -76,7 +76,25 @@ def offer_import_into_a_project(parent, measurement: Path, *,
     except OSError:
         open_name = ""
 
+    def _literal_root(name: str) -> "Path | None":
+        """The folder of exactly that name, when there is one.
+
+        The same sanitising trap as `file_into_project`: typing the name the
+        picker just showed you — "Demo-Report-Matrix copy" — was reported FREE,
+        because the check asked about the sanitised twin. The person was then
+        told they were making a new project while looking at the old one."""
+        raw = (name or "").strip()
+        if not raw:
+            return None
+        try:
+            cand = Path(fm.root_dir()) / raw
+            return cand if (cand / "project.json").is_file() else None
+        except OSError:
+            return None
+
     def _exists(name: str) -> bool:
+        if _literal_root(name) is not None:
+            return True
         root = fm.resolved_root_for_name((name or "").strip())
         try:
             return root is not None and (root / "project.json").is_file()
@@ -120,8 +138,10 @@ def offer_import_into_a_project(parent, measurement: Path, *,
     if picked is None and list_projects(fm.root_dir()):
         return True                          # cancelled at the list
     if picked and picked != NEW_PROJECT:
+        # The folder the picker listed, not a name to be re-derived.
         return file_into_project(parent, picked, measurement, fm, ctl,
-                                 accent=accent, on_filed=on_filed)
+                                 accent=accent, on_filed=on_filed,
+                                 root=Path(fm.root_dir()) / picked)
 
     name = ask_for_project_name(
         parent, prefill=open_name,
@@ -143,10 +163,11 @@ def offer_import_into_a_project(parent, measurement: Path, *,
     if not _exists(name):
         return False                      # a new project: the old path
     return file_into_project(parent, name, measurement, fm, ctl,
-                             accent=accent, on_filed=on_filed)
+                             accent=accent, on_filed=on_filed,
+                             root=_literal_root(name))
 
 def file_into_project(parent, name: str, measurement: Path, fm, ctl,
-                      *, accent: str = "", on_filed=None) -> bool:
+                      *, accent: str = "", on_filed=None, root=None) -> bool:
     """Open *name* (if it is not already open) and file the measurement in
     a run of it. Shared by the list and the name box, so both answers reach
     exactly the same act."""
@@ -165,7 +186,22 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
             "with the copy it files")
 
     made_here = None       # a run this call created, to undo if it refuses
-    root = fm.resolved_root_for_name(name)
+    # A NAME THE PERSON PICKED IS A FOLDER; A NAME THEY TYPED IS A NAME.
+    #
+    # The picker lists real folders and hands back `child.name` verbatim, but
+    # this used to throw that away and re-derive the path through
+    # `resolved_root_for_name`, which SANITISES. A folder called
+    # "Demo-Report-Matrix copy" — Finder's Duplicate, an unzipped hand-off, a
+    # Dropbox conflicted copy — became "Demo-Report-Matrix-copy", which does
+    # not exist, so ChromIQ made an empty project of that name, switched to it,
+    # and then refused with "has no chart in it yet" about the row that had
+    # just said "2 runs, 1 verification". Where the sanitised twin DID exist,
+    # the measurement was filed into the wrong project while the window named
+    # the one that had been picked.
+    #
+    # So the picker passes the folder it listed and it is used as it stands;
+    # only a typed name is resolved, where sanitising is exactly right.
+    root = Path(root) if root is not None else fm.resolved_root_for_name(name)
     # THE WHOLE OPEN, not a cut-down one — see `open_project_manifest`.
     try:
         if not (fm.is_named() and Path(fm.working_dir()) == root):
@@ -373,7 +409,13 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
     # standing on has already said which act this is. Say it out loud
     # rather than inheriting it, and point the bar at the run that was
     # chosen so "Location being edited" names the folder the file went to.
-    if ctl is not None:
+    # …BUT NOT BEFORE THE FILE HAS BEEN JUDGED. This ran first, so a refusal
+    # left the bar reading "Run 3 (overwrite)" for a run that had just been
+    # created and deleted again, under a window promising "nothing has been
+    # changed". The bar is pointed at the run only once the file is going in.
+    def _point_the_bar_at_the_run() -> None:
+        if ctl is None:
+            return
         try:
             ctl.set_run_type("profiling")
             ctl.set_verification_id("")
@@ -405,7 +447,33 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
             parent, min_width=560).exec()
         return True
     import shutil
-    shutil.copy2(measurement, run.measurement_ti3)
+    try:
+        shutil.copy2(measurement, run.measurement_ti3)
+    except OSError as exc:
+        # A FOURTH DOOR THAT KILLED THE APP. A read-only folder, a stale
+        # network share or a full disk raised out of `copy2` inside a Qt slot
+        # and ended the process. Filing into a place the app cannot write is
+        # an ordinary thing to get wrong, and it must end in a sentence.
+        log.warning("import: could not copy the measurement into %s",
+                    run.measurement_ti3, exc_info=True)
+        if made_here is not None:
+            try:
+                proj._discard_run(made_here, just_created=True)
+            except Exception:      # noqa: BLE001 — never lose the message
+                log.warning("import: could not undo the run it made",
+                            exc_info=True)
+        InfoDialog(
+            tr("ChromIQ could not write into that project"),
+            tr("The measurement has not been filed, and nothing has been "
+               "changed. Your own file is untouched where it is.\n\n"
+               "The reason: {reason}.\n\nThis usually means the folder is "
+               "read-only, the disk is full, or it lives on a drive or share "
+               "that is no longer connected. Check the folder and try again, "
+               "or choose another project."
+               ).format(reason=exc.strerror or exc),
+            parent, min_width=580).exec()
+        return True
+    _point_the_bar_at_the_run()
     if verdict.partial:
         InfoDialog(
             tr("Filed \u2014 and it is a partial measurement"),
