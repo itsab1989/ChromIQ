@@ -8587,8 +8587,14 @@ class TabChart(QWidget):
         if engine_on:
             self._refresh_manual_command_preview()   # swap groups + init panel
             if getattr(self, "_manual_layout_panel", None) is not None:
+                from dataclasses import replace as _replace
                 from workflow.layout_engine.presets import LayoutRecipe
-                self._set_engine_recipe(LayoutRecipe.from_dict(lr))
+                # A preset the person picked BY NAME owns its layout: the
+                # instrument defaults may not write over it afterwards. Forced
+                # rather than read, because presets saved before the flag
+                # existed do not carry it.
+                self._set_engine_recipe(
+                    _replace(LayoutRecipe.from_dict(lr), layout_explicit=True))
                 # The recipe carries its own instrument/paper — mirror them onto
                 # the printtarg -i/-p so Preferences preselect + naming follow the
                 # loaded engine preset (set_recipe suppresses the live mirror) (#93).
@@ -10274,10 +10280,20 @@ class TabChart(QWidget):
                 # The Full-layout-setup presets derive their recipe from their
                 # printtarg fields rather than authoring one, so they are left
                 # unpinned and keep following Preferences as before.
+                # A BUILT-IN PRESET OWNS ITS LAYOUT TOO. `layout_explicit`
+                # tells the panel that the layout mode, the area method, the
+                # spacers and the clip content are this preset's answer — so
+                # changing the instrument afterwards no longer applies the
+                # instrument default over them (Knut, beta.5: a ColorMunki 84p
+                # preset lost its 25.8 mm patches the moment a CR30 was picked).
+                # Forced here rather than read from the file because none of the
+                # bundled dicts carries the key.
                 recipe = (_replace(LayoutRecipe.from_dict(p.layout_recipe),
-                                   label_style_explicit=True)
+                                   label_style_explicit=True,
+                                   layout_explicit=True)
                           if p.layout_recipe is not None
-                          else self._fls_engine_recipe(p))
+                          else _replace(self._fls_engine_recipe(p),
+                                        layout_explicit=True))
                 self._set_engine_recipe(recipe)
                 self._manual_layout_panel.set_pages(p.pages)
             if self._bit16_radio is not None and self._bit8_radio is not None:
@@ -10591,7 +10607,12 @@ class TabChart(QWidget):
                         and not self._manual_engine_check.isChecked()):
                     self._set_engine_checked(True)
                 if self._manual_layout_panel is not None:
-                    self._set_engine_recipe(recipe)
+                    from dataclasses import replace as _replace_rec
+                    # The chart's OWN recorded layout is the answer for that
+                    # chart (§10: a restored chart's sidecar overrules), so the
+                    # instrument defaults must not write over it either.
+                    self._set_engine_recipe(
+                        _replace_rec(recipe, layout_explicit=True))
                 n_pages = 1 + max((int(p.get("page", 0))
                                    for p in layout.get("patches") or []),
                                   default=0)
@@ -11108,7 +11129,9 @@ class TabChart(QWidget):
             self._settings.set("use_chromiq_layout_engine", eng is not None)
             self._refresh_manual_command_preview()
             if eng is not None and getattr(self, "_manual_layout_panel", None) is not None:
-                self._set_engine_recipe(eng)
+                from dataclasses import replace as _replace_rec
+                # Laid out by hand in the editor — an answer, not a default.
+                self._set_engine_recipe(_replace_rec(eng, layout_explicit=True))
         except Exception as exc:  # noqa: BLE001 — carry-back is best-effort
             log.warning("Could not carry engine recipe back from editor: %s", exc)
 

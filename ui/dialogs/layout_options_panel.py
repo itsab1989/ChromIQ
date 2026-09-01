@@ -209,6 +209,12 @@ class LayoutOptionsPanel(QWidget):
         # `_refresh_clip_preview` for why that is safe.
         self._suspend_clip_preview = bool(defer_clip_preview)
         self._loading = False
+        #: The instrument-default-able controls a PERSON has answered — by
+        #: turning the knob, or by loading a recipe that owns its layout.
+        #: `_may_default` is the only reader: an instrument default may set a
+        #: control that is NOT in here, and may never overwrite one that is.
+        #: Mirrors `LayoutRecipe.layout_explicit` in both directions.
+        self._layout_answered: set = set()
         #: True once a PERSON has set one of the ten label-style controls, or a
         #: recipe that already owned its style was loaded. Mirrors
         #: `LayoutRecipe.label_style_explicit` in both directions.
@@ -672,6 +678,7 @@ class LayoutOptionsPanel(QWidget):
             tr("Prioritise patch size, then fit to page"), "patch_first")
         self.layout_mode.currentIndexChanged.connect(self._emit)
         self.layout_mode.currentIndexChanged.connect(self._sync_layout_mode)
+        self._track_answer(self.layout_mode, "layout_mode")
         add_row(lgg, 0, tr("Create layout:"), self.layout_mode,
                 tip=TooltipButton(
                     tr("Create layout"),
@@ -744,6 +751,7 @@ class LayoutOptionsPanel(QWidget):
         self.area_method.addItem(tr("By columns / rows"), "by_grid")
         self.area_method.currentIndexChanged.connect(self._emit)
         self.area_method.currentIndexChanged.connect(self._sync_layout_mode)
+        self._track_answer(self.area_method, "area_method")
         add_row(afg, 0, tr("Calculation method:"), self.area_method,
                 tip=TooltipButton(
                     tr("Calculation method"),
@@ -858,6 +866,7 @@ class LayoutOptionsPanel(QWidget):
             self.spacer_mode.addItem(lbl, k)
         self.spacer_mode.currentIndexChanged.connect(self._emit)
         self.spacer_mode.currentIndexChanged.connect(self._sync_spacer_swatches)
+        self._track_answer(self.spacer_mode, "spacer_mode")
         self.spacer_width = mm(special_auto=True)
         self.patch_x = small_mm(special_auto=True)
         self.patch_y = small_mm(special_auto=True)
@@ -1772,6 +1781,7 @@ class LayoutOptionsPanel(QWidget):
                        ("notes", tr("Notes box")), ("image", tr("Imported image"))):
             self.clip_content_mode.addItem(lbl, k)
         self.clip_content_mode.currentIndexChanged.connect(self._on_clip_content_changed)
+        self._track_answer(self.clip_content_mode, "clip_content_mode")
         self.clip_side = ElidingComboBox(self)
         self.clip_side.addItem(tr("Left"), "left")
         self.clip_side.addItem(tr("Right"), "right")
@@ -2192,8 +2202,11 @@ class LayoutOptionsPanel(QWidget):
             # perfectly meaningful for a hand-placed device, which really does
             # have a smallest patch a person can hit.
             if not was_loading and inst == "CR30":
+                # A DEFAULT MAY NOT OVERWRITE AN ANSWER. `was_loading` covers a
+                # load in progress; `_may_default` covers the moment after one,
+                # which is where Knut's preset lost its 25.8 mm patches.
                 _pf = self.layout_mode.findData("patch_first")
-                if _pf >= 0:
+                if _pf >= 0 and self._may_default("layout_mode"):
                     self.layout_mode.setCurrentIndex(_pf)
                 # AND NO SPACERS. A spacer exists so a strip reader can find
                 # the edge of a patch as it is swiped across; a CR30 is lifted
@@ -2211,7 +2224,7 @@ class LayoutOptionsPanel(QWidget):
                 # user who deliberately turns spacers on still gets them, which
                 # is the same line Guided draws. `was_loading` keeps a preset or
                 # a stored per-target recipe from being overridden by it.
-                if hasattr(self, "spacer_mode"):
+                if hasattr(self, "spacer_mode") and self._may_default("spacer_mode"):
                     _none = self.spacer_mode.findData("none")
                     if _none >= 0:
                         self.spacer_mode.setCurrentIndex(_none)
@@ -2220,11 +2233,21 @@ class LayoutOptionsPanel(QWidget):
             # ColorMunki finds the edge of each patch BY the spacer, so a chart
             # printed without them is hard to read and easy to misalign. Same
             # shape as the clip-content rule below -- only on a genuine user
-            # switch, and only when the value is the one the CR30 left behind,
-            # so a deliberate "no spacers" chosen while an i1 was already
-            # selected is not touched.
+            # switch, and only when the value is the one the CR30 left behind.
+            #
+            # THE TWO "none"s LOOK IDENTICAL, and this branch used to claim it
+            # could tell them apart ("a deliberate 'no spacers' chosen while an
+            # i1 was already selected is not touched") when nothing in it could:
+            # the "none" a CR30 left behind, the "none" a preset asked for and
+            # the "none" a person picked by hand all read the same. So a
+            # deliberately spacer-less preset had its spacers turned back on the
+            # moment the instrument changed. `_may_default` is what tells them
+            # apart -- a default's own write never marks the control answered,
+            # so the CR30 leftover is still restored, which is the whole point
+            # of this branch, while an answer is left alone.
             if (not was_loading and inst not in ("CR30",)
                     and hasattr(self, "spacer_mode")
+                    and self._may_default("spacer_mode")
                     and self.spacer_mode.currentData() == "none"):
                 from workflow.layout_engine.presets import default_recipe
                 try:
@@ -2236,10 +2259,13 @@ class LayoutOptionsPanel(QWidget):
                 if _i >= 0:
                     self.spacer_mode.setCurrentIndex(_i)
             if not was_loading and inst == "SS":
+                # Same rule, same reason: a flatbed's grid is a good default and
+                # a poor override. A preset written for the SpectroScan already
+                # says which layout it wants.
                 _pf = self.layout_mode.findData("patch_first")
-                if _pf >= 0:
+                if _pf >= 0 and self._may_default("layout_mode"):
                     self.layout_mode.setCurrentIndex(_pf)
-                if hasattr(self, "area_method"):
+                if hasattr(self, "area_method") and self._may_default("area_method"):
                     _bg = self.area_method.findData("by_grid")
                     if _bg >= 0:
                         self.area_method.setCurrentIndex(_bg)
@@ -2251,6 +2277,7 @@ class LayoutOptionsPanel(QWidget):
         # carries its own clip-content value and must not be overridden.
         if (not was_loading and inst in ("i1", "p3")
                 and hasattr(self, "clip_content_mode")
+                and self._may_default("clip_content_mode")
                 and self.clip_content_mode.currentData() == "off"):
             _notes = self.clip_content_mode.findData("notes")
             if _notes >= 0:
@@ -3405,6 +3432,56 @@ class LayoutOptionsPanel(QWidget):
             QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         combo.setMinimumContentsLength(12)
 
+    # ------------------------------------------------------------------
+    # "A default, not a rule" — one mechanism for all of them
+    # ------------------------------------------------------------------
+    #: The controls `_on_instr_changed` is allowed to write when a person picks
+    #: a different instrument. Every one is a DEFAULT and every one used to be
+    #: applied whenever `_loading` happened to be False — which is true a
+    #: moment AFTER a preset has been loaded as well as when nothing has been
+    #: loaded at all. Knut, 4.1.5-beta.5: *"Loaded a colormunki preset, 84
+    #: patches. Then changed instrument to CR30. The Create Layout parameter
+    #: then changed from 'Prioritise patch area…' to 'Prioritise patch
+    #: size...'. Generate Chart then changed appearance (much smaller
+    #: patches)..."* Basti's ruling, 2026-09-02: keep the defaults, but do not
+    #: apply them to a preset — somebody who has loaded one has already said
+    #: what they want, by name.
+    INSTRUMENT_DEFAULTED = ("layout_mode", "area_method", "spacer_mode",
+                            "clip_content_mode")
+
+    def _track_answer(self, combo, field: str) -> None:
+        """Record a person's answer to *field* whenever they change *combo*.
+
+        Guarded by `_loading` for the reason `_on_label_style_touched` and the
+        row-indicator checkbox are: the app writing the widgets must never be
+        read back as a user's answer. Every write an instrument default makes
+        happens inside `_on_instr_changed`, which holds `_loading` True for its
+        whole body — so a default can no more mark a control "answered" than a
+        `set_recipe` can.
+        """
+        combo.currentIndexChanged.connect(
+            lambda *_a, _f=field: self._mark_layout_answered(_f))
+        # AND A RE-PICK IS AN ANSWER TOO. `currentIndexChanged` is silent when
+        # somebody opens the list and chooses the row that is already ticked —
+        # a real gesture, and one that says "yes, this one" as plainly as any
+        # other. `activated` fires only for a person (never for
+        # `setCurrentIndex`), so it can be taken at face value.
+        combo.activated.connect(
+            lambda *_a, _f=field: self._mark_layout_answered(_f))
+
+    def _mark_layout_answered(self, field: str) -> None:
+        if not self._loading:
+            self._layout_answered.add(field)
+
+    def _may_default(self, field: str) -> bool:
+        """Whether an instrument default may write *field*.
+
+        THE RULE (Basti, 2026-09-02): an instrument default may set a value the
+        person has not chosen, and may not overwrite one they have — whether
+        they chose it by hand or by loading a preset.
+        """
+        return field not in self._layout_answered
+
     def _mark_row_indicators_touched(self, *_a) -> None:
         """A person chose the row-indicator state; stop tracking the instrument.
 
@@ -3786,6 +3863,21 @@ class LayoutOptionsPanel(QWidget):
         # straight in; one that owns none is drawn with Preferences' values, so
         # those are what the controls show — otherwise the newly visible boxes
         # would read "auto / JetBrains Mono" for a chart about to print at 12 pt.
+        # WHO CHOSE THIS LAYOUT? A recipe that owns it (a preset, a chart's own
+        # recorded layout, a run's stored settings) answers every one of the
+        # four instrument-defaulted controls, so none of them may be overwritten
+        # when the instrument changes next. A recipe that owns none — the
+        # factory `PresetStore`, `default_recipe`, the printtarg→engine
+        # conversion — is the app's own starting point and clears the marks, so
+        # somebody building from scratch still gets every default.
+        #
+        # One flag for the group, exactly as `label_style_explicit` covers ten
+        # fields: a recipe is authored as a whole, so a saved chart that owns
+        # one of these owns all four. It errs towards leaving a value alone.
+        if bool(getattr(r, "layout_explicit", False)):
+            self._layout_answered.update(self.INSTRUMENT_DEFAULTED)
+        else:
+            self._layout_answered.difference_update(self.INSTRUMENT_DEFAULTED)
         self._label_style_touched = bool(getattr(r, "label_style_explicit", False))
         self._label_style_inert = (
             None if self._label_style_touched else
@@ -3918,6 +4010,12 @@ class LayoutOptionsPanel(QWidget):
         r.show_strip_indicators = self.show_indicators.isChecked()
         r.show_row_indicators = (self.show_row_indicators.isChecked()
                                  if self._row_indicators_touched else None)
+        # WHOSE LAYOUT IS THIS? False until a person answers one of the four
+        # instrument-defaulted controls (or a recipe that already owned them was
+        # loaded) — see `LayoutRecipe.layout_explicit`. Saving a chart or a
+        # preset carries the answer with it, so re-loading it is protected from
+        # the instrument defaults exactly as the original was.
+        r.layout_explicit = bool(self._layout_answered)
         # WHOSE STYLE IS THIS? False until a person answers (or a recipe that
         # already owned its style was loaded) — see LayoutRecipe.
         r.label_style_explicit = self._label_style_touched

@@ -83,6 +83,27 @@ class LayoutRecipe:
     # engine fits the most patches at this minimum size and then grows them to
     # fill the area (Knut's "max friendliness"). 0 = not used.
     area_min_patch_mm: float = 0.0
+    # WHO CHOSE THE LAYOUT: this recipe, or an instrument default?
+    #
+    # `_on_instr_changed` in the layout panel writes four values when a person
+    # picks a different instrument -- layout mode and spacers for a CR30, layout
+    # mode and area method for a SpectroScan, the spacers back on for everything
+    # else, and the clip-band content for an i1Pro. Every one of them is a
+    # DEFAULT: it may set a value nobody has chosen, and it may never overwrite
+    # one they have. `layout_mode` / `area_method` / `spacer_mode` /
+    # `clip_content_mode` all have legitimate values that also look like
+    # "nothing" ("area_first", "by_width", "colored", "off"), so -- exactly as
+    # for `label_style_explicit` below -- the question "did anybody answer?"
+    # cannot be asked of the answers themselves and needs its own field.
+    #
+    # True on a recipe somebody chose: a built-in or user preset, a chart's own
+    # recorded layout, a run's stored settings. False on `default_recipe` and on
+    # the factory `PresetStore`, which ARE the app's starting point -- so
+    # somebody building from scratch still gets every instrument default.
+    #
+    # Absent from every dict written before this change, so `from_dict` leaves
+    # it False and those recipes behave exactly as they do today.
+    layout_explicit: bool = False
     spacer_width_mm: float = 0.0   # 0 = instrument default
     inter_patch_mm: float = 0.0    # extra gap between patches
     strip_gap_mm: float = 0.0      # extra gap BETWEEN strips (adds to row pitch)
@@ -274,6 +295,9 @@ class LayoutRecipe:
             # stored raw kwargs rather than a recipe reconstructs as "no
             # opinion" -- i.e. exactly the rendering it has today.
             label_style_explicit=bool(d.get("label_style_explicit", False)),
+            # Likewise not in build_kwargs: a chart that stored raw kwargs
+            # reconstructs as "nobody chose", i.e. today's behaviour.
+            layout_explicit=bool(d.get("layout_explicit", False)),
             indicator_font=d.get("indicator_font", "JetBrains Mono"),
             indicator_size_mm=float(d.get("indicator_size_mm") or 0.0),
             indicator_bold=bool(d.get("indicator_bold", False)),
