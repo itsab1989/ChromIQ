@@ -1303,10 +1303,26 @@ class TabCheckRefine(QWidget):
         self._ti3_path = chosen
         self._ti3_edit.setText(str(chosen))
         self._auto_fill_icc(chosen)
-        self._notify_ti2(chosen)
         self._update_run_btn()
         self._detect_instrument(chosen)
-        self.ti3_selected.emit(chosen)
+        # CHECKING IN PLACE TELLS NOBODY ELSE, and that is the whole promise.
+        #
+        # These two lines broadcast the file to the other tabs:
+        # `ti2_found` -> Measure, and `ti3_selected` -> Build Profile, which
+        # finds the sibling `.ti2` and passes it to Print, which offers to
+        # IMPORT THE SET into the working folder. So the log said "Nothing has
+        # been copied and no project has been made" and the very next window
+        # was "Copy Chart Files" with a Replace it button — one OK and a whole
+        # project existed, with the in-place flag cleared underneath it. Found
+        # by a challenge round, 2026-09-01; it needs only a sibling `.ti2`,
+        # which is how a measurement usually sits on somebody's desktop.
+        #
+        # A file being checked where it lies is not in any project, so there is
+        # nothing for the other tabs to be pointed at. They are told when it is
+        # filed, and not before.
+        if not in_place:
+            self._notify_ti2(chosen)
+            self.ti3_selected.emit(chosen)
 
     def _on_browse_icc(self) -> None:
         path = open_file_dialog(

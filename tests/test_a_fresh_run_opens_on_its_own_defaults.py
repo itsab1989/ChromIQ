@@ -65,3 +65,51 @@ def test_the_empty_store_branch_goes_through_the_opener():
     assert src.count("_open_this_target_on_its_defaults()") == 1, (
         "the 'a store exists and holds nothing' path does not open the target "
         "on its defaults — which is how the previous run's layout leaked in")
+
+
+def test_an_absent_bucket_means_neutral_not_whatever_is_on_screen(tab):
+    """Every bucket in `_apply_ui_state`, not just `engine_cal`.
+
+    A record that predates a key — and an empty record, which is how a target
+    with nothing stored asks for its defaults — used to leave that control
+    showing the PREVIOUS run's value, and the next write filed it as this
+    run's own. Found by a second challenge round: the stamp checkbox, the
+    Guided paper and all four gamut options each leaked, and the Guided paper
+    dragged the layout panel's paper with it.
+    """
+    fresh = {
+        "stamp": tab._manual_stamp_cmd_check.isChecked(),
+        "count": tab._gamut_count_spin.value(),
+        "auto": tab._gamut_auto_check.isChecked(),
+        "margin": tab._gamut_margin_combo.currentData(),
+        "intent": tab._gamut_intent_combo.currentData(),
+        "layout": _selection(tab),
+    }
+
+    # …what the run before this one left on screen.
+    tab._manual_stamp_cmd_check.setChecked(not fresh["stamp"])
+    tab._gamut_count_spin.setValue(fresh["count"] + 123)
+    tab._gamut_auto_check.setChecked(not fresh["auto"])
+    tab._gamut_margin_combo.setCurrentIndex(
+        1 - tab._gamut_margin_combo.currentIndex())
+    tab._gamut_intent_combo.setCurrentIndex(
+        1 - tab._gamut_intent_combo.currentIndex())
+    other = LayoutRecipe(instrument="CR30", paper="A3")
+    other.layout_mode = "patch_first"
+    tab._set_engine_recipe(other)
+    assert _selection(tab) != fresh["layout"], "the premise failed"
+
+    tab._apply_ui_state({})
+
+    assert tab._manual_stamp_cmd_check.isChecked() == fresh["stamp"], \
+        "the stamp checkbox kept the previous run's value"
+    assert tab._gamut_count_spin.value() == fresh["count"], \
+        "the gamut colour count kept the previous run's value"
+    assert tab._gamut_auto_check.isChecked() == fresh["auto"], \
+        "the gamut Auto box kept the previous run's value"
+    assert tab._gamut_margin_combo.currentData() == fresh["margin"], \
+        "the gamut margin kept the previous run's value"
+    assert tab._gamut_intent_combo.currentData() == fresh["intent"], \
+        "the gamut intent kept the previous run's value"
+    assert _selection(tab) == fresh["layout"], (
+        f"the layout panel kept the previous run's values: {_selection(tab)}")

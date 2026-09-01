@@ -4718,5 +4718,7 @@
   "⟳ Rotate 90°": "⟳ Повернуть на 90°",
   "⤢ Dock back": "⤢ Вернуть на место",
   "⤢ Pop out for a bigger view": "⤢ Открыть в большом окне",
-  "＋ Add another scan to average": "＋ Добавить ещё скан для усреднения"
+  "＋ Add another scan to average": "＋ Добавить ещё скан для усреднения",
+  "ChromIQ could not write into that project": "ChromIQ не смог выполнить запись в этот проект",
+  "The measurement has not been filed, and nothing has been changed. Your own file is untouched where it is.\n\nThe reason: {reason}.\n\nThis usually means the folder is read-only, the disk is full, or it lives on a drive or share that is no longer connected. Check the folder and try again, or choose another project.": "Измерение не сохранено, и ничего не изменено. Ваш собственный файл остался нетронутым там, где он есть.\n\nПричина: {reason}.\n\nОбычно это означает, что папка доступна только для чтения, диск заполнен либо папка находится на диске или сетевом ресурсе, который больше не подключён. Проверьте папку и повторите попытку или выберите другой проект."
 }

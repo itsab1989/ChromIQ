@@ -274,3 +274,93 @@ def test_build_profile_ends_up_pointing_at_the_filed_copy(house, qapp,
         "the tab is pointing at the file OUTSIDE the project, not at the copy")
     assert work in Path(filed).parents, (
         f"the tab points outside the working folder: {filed}")
+
+
+# ---------------------------------------------------------------------------
+# ROUND 2 — what the second challenge found, and what must stay fixed
+# ---------------------------------------------------------------------------
+
+def test_checking_in_place_tells_nobody_else(door):
+    """The promise is "nothing has been copied and no project has been made".
+
+    These two signals reach Build Profile and Print, which find the sibling
+    `.ti2` and offer to IMPORT THE SET into the working folder — so the log
+    made the promise and the very next window broke it, and one OK created a
+    whole project with the in-place flag cleared underneath it.
+    """
+    tab, outside, _work = door
+    heard: list = []
+    tab.ti3_selected.connect(lambda p: heard.append(("ti3", p)))
+    tab.ti2_found.connect(lambda p: heard.append(("ti2", p)))
+
+    tab._adopt_ti3(outside, in_place=True)
+    assert heard == [], (
+        f"checking in place broadcast the file to the other tabs: {heard}")
+
+    # …and an ordinary load still does, or the tabs stop following each other.
+    tab._adopt_ti3(outside)
+    assert [k for k, _ in heard] == ["ti2", "ti3"], (
+        f"an ordinary load stopped telling the other tabs: {heard}")
+
+
+def test_a_folder_whose_name_does_not_survive_sanitising_is_still_that_folder(
+        qapp, tmp_path, monkeypatch):
+    """"Demo-Report-Matrix copy" — Finder's Duplicate, an unzipped hand-off, a
+    Dropbox conflicted copy. The picker listed it and handed back its name; the
+    filing threw that away and re-derived a SANITISED path, so ChromIQ made an
+    empty "…-copy" project, switched to it, and refused with "has no chart in
+    it yet" about the row that had just said "2 runs, 1 verification".
+    """
+    import shutil
+
+    import ui.measurement_filing as mf
+
+    work = tmp_path / "work"
+    work.mkdir()
+    repo = Path(__file__).resolve().parents[1]
+    listed = "Demo-Report-Matrix copy"
+    shutil.copytree(repo / "demo-projects" / "Demo-Report-Matrix",
+                    work / listed)
+
+    s = AppSettings()
+    s.set("custom_output_path", str(work))
+    fm = FileManager(s)
+
+    # The premise: the sanitised twin is NOT this folder.
+    assert fm.resolved_root_for_name(listed).name != listed
+
+    # What the filing is handed when the picker is answered.
+    seen: dict = {}
+    monkeypatch.setattr(mf, "file_into_project",
+                        lambda *a, **kw: seen.update(kw) or True)
+    monkeypatch.setattr("ui.dialogs.project_picker.choose_project",
+                        lambda *a, **kw: listed)
+
+    class _Parent:
+        _target_ctl = type("C", (), {"_fm": fm})()
+
+    mf.offer_import_into_a_project(_Parent(), work / "x.ti3",
+                                   accent="#000", on_filed=lambda p: None)
+
+    assert seen.get("root") is not None, (
+        "the picker's own folder was not passed through; the path is being "
+        "re-derived and will be sanitised")
+    assert Path(seen["root"]).name == listed, (
+        f"the measurement would go to {Path(seen['root']).name!r}, not to the "
+        f"folder that was picked, {listed!r}")
+
+
+def test_the_bar_is_not_pointed_at_a_run_that_may_be_undone():
+    """A refused import promised "nothing has been changed" while the bar read
+    "Run 3 (overwrite)" for a run created and deleted in the same breath."""
+    import inspect
+
+    from ui.measurement_filing import file_into_project
+    src = inspect.getsource(file_into_project)
+    src = "\n".join(l for l in src.splitlines()
+                    if not l.lstrip().startswith("#"))
+    # the CALL, not the `def` line, which also contains the name
+    assert src.index("verdict = assess(") < src.index(
+        "\n    _point_the_bar_at_the_run()"), (
+        "the bar is pointed at the run before the file has been judged, so a "
+        "refusal leaves it naming a run that no longer exists")

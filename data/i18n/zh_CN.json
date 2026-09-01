@@ -4718,5 +4718,7 @@
   "⟳ Rotate 90°": "⟳ 旋转 90°",
   "⤢ Dock back": "⤢ 收回停靠",
   "⤢ Pop out for a bigger view": "⤢ 弹出放大视图",
-  "＋ Add another scan to average": "＋ 添加另一次扫描以求平均"
+  "＋ Add another scan to average": "＋ 添加另一次扫描以求平均",
+  "ChromIQ could not write into that project": "ChromIQ 无法写入该项目",
+  "The measurement has not been filed, and nothing has been changed. Your own file is untouched where it is.\n\nThe reason: {reason}.\n\nThis usually means the folder is read-only, the disk is full, or it lives on a drive or share that is no longer connected. Check the folder and try again, or choose another project.": "测量数据未被归档，也没有任何内容被更改。你自己的文件仍原封不动地留在原处。\n\n原因：{reason}。\n\n这通常意味着该文件夹是只读的、磁盘已满，或者它位于一个已断开连接的驱动器或共享位置上。请检查该文件夹后重试，或者选择另一个项目。"
 }
