@@ -1,5 +1,70 @@
 # Changelog
 
+## v4.1.5-beta.6
+
+**Check & Refine now asks where a measurement should go instead of deciding for
+you, and four ways to lose a measurement are gone.**
+
+Three rounds of adversarial testing went at this build, each one attacking the
+round before it. Most of what follows was found that way, and several of the
+faults had shipped for months without anyone meeting them.
+
+### New
+
+- **Check & Refine is a proper import door.** Browse for a `.ti3` that is not
+  in one of your projects and ChromIQ asks where it belongs, in the same window
+  Build Profile uses, in Check & Refine's own colour. It used to create a
+  project without asking.
+- **"Just check it where it is."** A third answer, for a measurement you want
+  to look at without filing anything: nothing is copied, no project is made,
+  and the report is written next to the file itself. The window says plainly
+  what that costs you: no run, and nothing to look it up in later.
+- **The ColorMunki's dial is drawn.** Both calibration windows now show the
+  wheel turned to the mark that window is asking for: the white bar at half
+  past four on the gear when it wants calibrating, at six o'clock on the target
+  mark when it wants measuring. Every other instrument's windows are unchanged.
+
+### Fixed
+
+- **Declining to teach a CR30 its tile no longer closes ChromIQ.** Pressing
+  "Not now", which that window invites you to do, ended the app mid
+  measurement and took the readings taken so far with it.
+- **The optional calibration window no longer closes ChromIQ either**, and its
+  "Skip this step" button now does something. Both faults only appear with an
+  instrument that offers optional calibration.
+- **Importing a measurement can no longer end the app.** Four separate causes:
+  a folder ChromIQ cannot write to, a disk that is full, a drive or share that
+  has gone away, and a project whose own `project.json` has been damaged. Each
+  now says what went wrong and leaves everything as it was.
+- **A measurement can no longer be filed into the wrong project.** Picking a
+  folder whose name contains something like a space (a Finder duplicate, an
+  unzipped hand-off, a Dropbox conflicted copy) used to make an empty project
+  of a slightly different name and then complain that it had no chart in it. A
+  project that lives behind a symlink, on an external drive or a NAS, could
+  take the measurement into whatever project happened to be open instead.
+- **"Nothing has been copied" is true again.** Checking a file where it lies
+  used to be followed immediately by a window offering to copy it in, and one
+  click made a whole project.
+- **Cancel means nothing happens.** Answering Cancel to "Where should this
+  measurement go?" used to be met by a second, unrelated question about copying
+  chart files.
+- **A new run opens on your defaults, not on the last run's settings.** The
+  instrument, the paper, the layout mode, both indicator checkboxes, the stamp
+  option, the Guided settings and the gamut options were all inherited from
+  whichever run you had been looking at, and then stored on the new run as
+  though you had chosen them.
+- **Row numbers fit the row they name.** On a tall chart the automatic size was
+  taken from the patch width, so the numbers printed over each other into an
+  unreadable ladder; they are now capped at the height of a row. They also stay
+  inside the "Text distance to edge" limit instead of walking to the paper's
+  edge on charts with more than ninety-nine rows.
+- **Guided's patch estimate matches the chart it builds.** It promised 368
+  patches on a CR30 A4 sheet that holds 345.
+- A refused import no longer leaves a run on disk, moves you to a different
+  run, or leaves the target bar naming a run that does not exist.
+- A new user with no projects yet can now reach "Just check it where it is".
+  The window it lives on refused to appear when there was nothing to list.
+
 ## v4.1.5-beta.5
 
 **Row numbers can now be printed on any chart, and a preset stops naming your
