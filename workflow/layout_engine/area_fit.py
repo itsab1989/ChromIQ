@@ -35,15 +35,12 @@ def _usable(geom, w_mm: float, h_mm: float) -> tuple[float, float]:
     """
     g = geom
     iw = w_mm - g.margin_l - g.margin_r
-    # THE THIRD SITE OF THE SAME SUBTRACTION, AND THE ONE WITHOUT THE GUARD.
-    # `geometry.compute()` and `geometry.placement()` both drop the row-label
-    # band under `fill_beyond_ruler` -- area-first is "margins are the law" --
-    # and this one did not, so switching row indicators on made the patch
-    # block stop 7.45 mm short of the right margin while still starting at the
-    # left one. Measured, i1Pro A4 10x24: right edge 203.88 mm with rows off,
-    # 196.43 mm with rows on.
-    _rlwi = 0.0 if g.fill_beyond_ruler else g.rlwi
-    avail_w = iw - _rlwi - 2.0 * g.hxew - (g.pglth if g.dopglabel else 0.0)
+    # §R1.4 — the band lives inside the left margin now (see
+    # `raster.apply_row_label_geometry`), so it is not taken off the patch area
+    # here either. This was the third site of the same subtraction, and the one
+    # that had no guard at all: switching row indicators on made the block stop
+    # 7.45 mm short of the right margin while still starting at the left one.
+    avail_w = iw - 2.0 * g.hxew - (g.pglth if g.dopglabel else 0.0)
     arowl = h_mm - g.margin_t - g.margin_b - 2.0 * g.hxeh
     return max(0.0, avail_w), max(0.0, arowl)
 

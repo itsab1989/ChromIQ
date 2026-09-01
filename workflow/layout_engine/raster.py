@@ -359,7 +359,98 @@ def apply_furniture_reserves(geom, kw: dict):
     rendered furniture (single source of truth shared by the renderer and every
     capacity estimate, so they can't disagree — #93)."""
     lb, br = _furniture_reserves_mm(geom, kw)
-    return replace(geom, label_band_mm=lb, bottom_reserve_mm=br)
+    return apply_row_label_geometry(
+        replace(geom, label_band_mm=lb, bottom_reserve_mm=br), kw)
+
+
+def apply_row_label_geometry(geom, kw: dict):
+    """Size the row-label band to its labels, and raise the left margin to hold
+    it — `docs/design/row_label_geometry.md` §R2.
+
+    Five rules from Knut, one derivation:
+
+      * the band is measured from the WIDEST label actually printed, at the
+        chosen text size, plus 1 mm (§R1.2) -- it was a fixed 7.5 mm, too wide
+        for a 9-row chart at 6 pt (2.27 mm needed) and far too narrow for 120
+        rows at 24 pt (16.24 mm), where the labels walked off the paper;
+      * it may never come closer to the page edge than the clip border, or the
+        text-distance-to-edge where there is no border (§R1.3);
+      * so the LEFT MARGIN is raised to hold it, never lowered (§R1.5);
+      * and the band then lives INSIDE that margin, so the patch area still
+        starts exactly at the margin in both layout modes (§R1.4). That is why
+        no capacity calculation subtracts `rlwi` any more.
+
+    Returns the geometry unchanged when there are no row labels.
+    """
+    band = float(getattr(geom, "rlwi", 0.0) or 0.0)
+    if band <= 0:
+        return geom
+    measured = row_label_band_mm(
+        geom, dpi=int(kw.get("dpi") or 300),
+        indicator_font=kw.get("indicator_font") or DEFAULT_INDICATOR_FONT,
+        indicator_size_mm=float(kw.get("indicator_size_mm") or 0.0),
+        indicator_bold=bool(kw.get("indicator_bold")),
+        indicator_italic=bool(kw.get("indicator_italic")),
+        patch_pattern=kw.get("patch_pattern") or "")
+    if measured <= 0:
+        return geom
+    # §R1.3's floor: the clip border when one sits on this edge, otherwise the
+    # distance-to-edge the user set for furniture.
+    on_left = (str(kw.get("clip_side") or "left") == "left")
+    # `lbord` says WHETHER a clip border is on this edge; it is not how wide it
+    # is (26 mm of border comes back as lbord = 20). Using it as the floor put
+    # the labels at 21 mm on a 26 mm border, so the border printed over their
+    # left half and only slivers came out -- visible on the rendered page.
+    # `Geom.has_clip_border` already answers this — it is the field the band
+    # gate itself uses — so nothing new has to be threaded through the build.
+    has_border = on_left and bool(getattr(geom, "has_clip_border", False)) \
+        and float(getattr(geom, "lbord", 0.0) or 0.0) > 0
+    # WHAT THE LABELS MUST CLEAR — §R1.3, and it is Knut's rule, not a
+    # convenience: *"Row labels may never come closer to the page edge than
+    # the Clip limit, mirroring the rule that strip labels may not pass T."*
+    #
+    # So the floor is the Clip distance always, and the whole width of a clip
+    # border when one is drawn on this edge (a border prints over anything
+    # under it), and any instrument leader. This costs patch area on a chart
+    # with row indicators — the margin is raised to make room — which is the
+    # trade §R1.4 asks for: the labels stay on the paper and the patches stay
+    # inside the margins, so the paper pays rather than the data.
+    floor = max(float(getattr(geom, "lbord", 0.0) or 0.0),
+                float(kw.get("text_edge_clip") or 0.0),
+                float(kw.get("clip_border_width") or 0.0) if has_border else 0.0)
+    needed = floor + measured + 1.0
+    margin_l = max(float(getattr(geom, "margin_l", 0.0) or 0.0), needed)
+    return replace(geom, rlwi=measured, margin_l=margin_l)
+
+
+def _rows_that_fit(geom, kw: dict) -> int:
+    """How many patch rows a full page holds — the count of labels drawn.
+
+    Taken from the geometry rather than the chart's patch count, because the
+    band has to hold the widest label a FULL page would print; a short chart
+    simply uses part of it.
+
+    The paper comes from the build kwargs: `Geom` does not carry it (the size
+    is handed to `geometry.compute`), and defaulting to A4 here would size the
+    band for the wrong sheet on Letter or A3 without anything saying so.
+    """
+    pitch = float(getattr(geom, "plen", 0.0) or 0.0) + \
+        float(getattr(geom, "pspa", 0.0) or 0.0)
+    if pitch <= 0:
+        return 0
+    from . import papers
+    try:
+        _w, h_mm = papers.dimensions_mm(kw.get("paper") or "A4")
+    except Exception:              # noqa: BLE001 — an unknown paper is not fatal
+        return 0
+    if str(kw.get("orientation") or "").lower().startswith("land"):
+        _w, h_mm = h_mm, _w
+    usable = (h_mm
+              - float(getattr(geom, "margin_t", 0.0) or 0.0)
+              - float(getattr(geom, "margin_b", 0.0) or 0.0)
+              - float(getattr(geom, "label_band_mm", 0.0) or 0.0)
+              - float(getattr(geom, "bottom_reserve_mm", 0.0) or 0.0))
+    return max(1, int(usable / pitch)) if usable > 0 else 0
 
 
 def clip_text_lines(text: "str | None") -> list[str]:
@@ -1222,35 +1313,41 @@ def render_pages(
                 # plus row NUMBERS down the side, in the reserved rlwi band to the
                 # left of the patches. Drawn once, against the leftmost strip (#93,
                 # Knut). The band sits in [x0 - rlwi, x0].
-                if _row_band_px > 0 and p == 0:
-                    # Right-align each number so it ends just left of the patches
-                    # and grows LEFT into the band — a two-digit number (10–13…)
-                    # can't spill over the patches (#93, Knut). For hex patches the
-                    # left column's even rows stagger ¼·width LEFT past x0, so clear
-                    # that protrusion too, else the hexagons cover the numbers.
-                    _gap = max(1, px(1.0))
-                    _protrude = (strip_w // 4) if ss_hex else 0
-                    _rx = x0 - _protrude - _gap
-                    for _j in range(len(col_slots)):
-                        _ry = (px(place.y_of(_j)) + px(place.y_of(_j) + place.plen)) // 2
-                        _txt = label_patch(_j + 1)
-                        _tw = int(draw.textlength(_txt, font=font))
-                        # CLAMP AT THE PAPER EDGE. In area-first the row band is
-                        # no longer reserved outside the margin (the margin is
-                        # the law for the PATCHES), so with a small left margin
-                        # these numbers grow left past x=0 and simply vanish off
-                        # the sheet. Basti's ruling, 2026-08-30: clamp them at
-                        # the edge and warn, the mirror of what the strip labels
-                        # already do at the top. Furniture slides; patches do
-                        # not move.
-                        _tx = max(0, _rx - _tw)
-                        draw.text((_tx, _ry - ind_px // 2), _txt,
-                                  font=font, fill=(0, 0, 0))
-                        if collect_device_geom and _ind_font_file:
-                            _geom_rows.append(
-                                ("text", _tx, _ry - ind_px // 2 + _ind_ascent,
-                                 _txt, _ind_font_file, ind_px, 0, 0, (0, 0, 0),
-                                 _ind_var))
+            # ROW LABELS ARE NOT PART OF THE STRIP LABELS. This block used to sit
+            # inside `if draw_indicators:`, so asking for row indicators with the
+            # strip letters off printed nothing at all -- which is why the checkbox
+            # was greyed out rather than fixed. On a CR30 or a SpectroScan the row
+            # number is the useful half: the instrument is placed on ONE patch at a
+            # time, and the strip letter is the part you can spare (Basti, 2026-09-01).
+            if _row_band_px > 0 and p == 0:
+                # Right-align each number so it ends just left of the patches
+                # and grows LEFT into the band — a two-digit number (10–13…)
+                # can't spill over the patches (#93, Knut). For hex patches the
+                # left column's even rows stagger ¼·width LEFT past x0, so clear
+                # that protrusion too, else the hexagons cover the numbers.
+                _gap = max(1, px(1.0))
+                _protrude = (strip_w // 4) if ss_hex else 0
+                _rx = x0 - _protrude - _gap
+                for _j in range(len(col_slots)):
+                    _ry = (px(place.y_of(_j)) + px(place.y_of(_j) + place.plen)) // 2
+                    _txt = label_patch(_j + 1)
+                    _tw = int(draw.textlength(_txt, font=font))
+                    # CLAMP AT THE PAPER EDGE. In area-first the row band is
+                    # no longer reserved outside the margin (the margin is
+                    # the law for the PATCHES), so with a small left margin
+                    # these numbers grow left past x=0 and simply vanish off
+                    # the sheet. Basti's ruling, 2026-08-30: clamp them at
+                    # the edge and warn, the mirror of what the strip labels
+                    # already do at the top. Furniture slides; patches do
+                    # not move.
+                    _tx = max(0, _rx - _tw)
+                    draw.text((_tx, _ry - ind_px // 2), _txt,
+                              font=font, fill=(0, 0, 0))
+                    if collect_device_geom and _ind_font_file:
+                        _geom_rows.append(
+                            ("text", _tx, _ry - ind_px // 2 + _ind_ascent,
+                             _txt, _ind_font_file, ind_px, 0, 0, (0, 0, 0),
+                             _ind_var))
             for j, gslot in enumerate(col_slots):
                 y0 = px(place.y_of(j)) + _stag
                 # Derive each row's bottom edge from its true mm position (the
@@ -1687,3 +1784,60 @@ def save_tiffs(images: list[Image.Image], base_path: str | Path, dpi: int = 300,
         )
         out.append(path)
     return out
+
+
+def row_label_band_mm(geom, *, dpi: int, rows: int = 0,
+                      indicator_font: str = DEFAULT_INDICATOR_FONT,
+                      indicator_size_mm: float = 0.0,
+                      indicator_bold: bool = False,
+                      indicator_italic: bool = False,
+                      patch_pattern: str = "",
+                      gap_mm: float = 1.0) -> float:
+    """How wide the row-label band has to be, for THESE labels at THIS size.
+
+    §R1.2: *"Their position follows Text distance to edge and the Clip setting
+    — it is not a fixed 7.5 mm, because the label text size varies."* The band
+    was `ROW_LABEL_BAND_MM = 7.5` whatever the size and however many rows there
+    were, so 16 pt labels walked toward the paper edge while the reservation
+    stayed put, and a three-digit row number walked off it.
+
+    Measured from the WIDEST label actually drawn — the last row's — at the
+    resolved indicator size, plus Knut's *"maybe 1 millimetre space to the
+    left of the letters"*.
+
+    Lives here rather than in `geometry` because this is where the fonts are;
+    `geometry` calls it lazily, the same way it already reaches this module for
+    the furniture reserves.
+
+    THE COUNT IS AN ALLOWANCE, NOT THE ACTUAL ROWS. Sizing the band from the
+    rows that fit makes it depend on the patch size — which in area-first is
+    derived FROM the usable width, which the band has just changed. Measured
+    on a ColorMunki: the provisional geometry (auto patch size, many small
+    rows) asked for 9.43 mm and the finished one for 5.22 mm, so the width the
+    patch size was derived from was not the width the page ended up with.
+    Knut's rule is that the band follows the TEXT SIZE; the row count only
+    decides how many characters. So the allowance is the widest label from
+    1 to 99 — two characters, which is what a page of patches actually holds
+    (ten to thirty rows is the normal range) and keeps the band close to the
+    7.5 mm it replaces instead of taking another 3 mm of margin for a third
+    digit almost no chart prints.
+
+    A page that somehow holds more than 99 rows is not left to walk off the
+    paper: the renderer clamps the label at the same floor this band is
+    measured from, so a wider label eats into its own gap rather than the
+    page edge.
+    """
+    mm2px = dpi / 25.4
+    ind_px = max(6, round(effective_indicator_size_mm(
+        geom, dpi, indicator_font, indicator_size_mm) * mm2px))
+    font = _font(ind_px, indicator_font, indicator_bold, indicator_italic)
+    label = permutation.make_labeller(
+        patch_pattern or permutation.DEFAULT_PATCH_PATTERN)
+    img = Image.new("L", (1, 1))
+    draw = ImageDraw.Draw(img)
+    # The widest of the labels that will really be printed, not an assumption
+    # about digits: a letter pattern makes "AA" wider than "10".
+    widest = 0.0
+    for r in (1, 9, 99) if rows <= 0 else range(1, rows + 1):
+        widest = max(widest, float(draw.textlength(label(r), font=font)))
+    return widest / mm2px + max(0.0, gap_mm)

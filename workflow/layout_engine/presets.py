@@ -370,8 +370,18 @@ class LayoutRecipe:
             # False into the field would make an untouched SpectroScan lose its
             # row numbers for good — the same stickiness as the instrument-switch
             # bug this option already had once).
-            "row_indicators": (False if not self.show_strip_indicators
-                               else self.show_row_indicators),
+            # AN EXPLICIT ANSWER IS ALWAYS HONOURED; an untouched box still
+            # follows the strip letters. Ticking the box with the letters off
+            # now prints row labels (the renderer no longer ties the two
+            # together) -- but a recipe where NOBODY touched the box keeps
+            # exactly the output it has today, so every saved recipe and all
+            # 130 built-ins render unchanged. Measured 2026-09-01: none of the
+            # built-ins turns the strip letters off, and none names the row
+            # indicators explicitly.
+            "row_indicators": (self.show_row_indicators
+                               if self.show_row_indicators is not None
+                               else (None if self.show_strip_indicators
+                                     else False)),
             "indicator_font": self.indicator_font,
             "indicator_size_mm": self.indicator_size_mm,
             "indicator_bold": self.indicator_bold,

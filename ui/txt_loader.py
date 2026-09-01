@@ -164,15 +164,15 @@ def _handle_inside(
     layout.addWidget(lbl)
 
     cont_desc = QLabel(
-        tr("<i>Continue</i>, convert and use the measurement in this folder as-is, "
-        "nothing will be copied or moved."),
+        tr("<i>Continue</i>: convert and use the measurement in this folder as it is. "
+        "Nothing will be copied or moved."),
         dlg,
     )
     cont_desc.setWordWrap(True)
     layout.addWidget(cont_desc)
 
     new_desc = QLabel(
-        tr("<i>Use as base for a new profile</i>, copy the measurement to a new "
+        tr("<i>Use as base for a new profile</i>: copy the measurement to a new "
         "subfolder so you can build a separate ICC profile without overwriting "
         "the original."),
         dlg,

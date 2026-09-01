@@ -13584,8 +13584,18 @@ class TabChart(QWidget):
                           if f in before and before[f] != nv}
                 if fields:
                     moved_ui[k] = {"fields": fields}
-            else:
-                moved_ui[k] = (before, v)
+            # A SCALAR UI VALUE IS NOT THE SIDECAR'S TO KEEP.
+            #
+            # `engine_recipe` is the chart's recipe and is what this shield is
+            # for. The other UI keys -- `mode`, `stamp`, `engine_on` -- are
+            # owned by controls OUTSIDE the layout panel, so no signal here can
+            # tell that the user (or the app) has moved one, and the only
+            # release left was "its value differs from what the chart put
+            # there". `ui:mode` never differs, so it was shielded for ever:
+            # opening a VERIFICATION target, where the app itself selects the
+            # Gamut module, wrote `manual` back over that choice and the target
+            # reopened in the wrong module. Measured A/B against the commit
+            # before the shield existed. They are simply not shielded.
         if not (moved or moved_ui):
             return
         self._chart_imposed = {"params": moved, "ui": moved_ui}
@@ -13655,10 +13665,7 @@ class TabChart(QWidget):
                         entry["fields"].pop(field, None)
                 if not entry["fields"]:
                     imposed.pop(key, None)
-            else:
-                _own, from_chart = entry
-                if key in now and now[key] != from_chart:
-                    imposed.pop(key, None)
+
 
     def _release_imposed_connections(self) -> None:
         """Drop the watchers from the previous target change."""
@@ -13695,17 +13702,15 @@ class TabChart(QWidget):
             if key in wanted and wanted[key] == from_chart:
                 wanted[key] = own
         for key, entry in list(imposed.get("ui", {}).items()):
-            if isinstance(entry, dict) and "fields" in entry:
-                have = ui_state.get(key)
-                if not isinstance(have, dict):
-                    continue
-                for field, (own, from_chart) in entry["fields"].items():
-                    if field in have and have[field] == from_chart:
-                        have[field] = own
+            # Only the recipe's own fields; see `_note_what_the_chart_imposed`.
+            if not (isinstance(entry, dict) and "fields" in entry):
                 continue
-            own, from_chart = entry
-            if key in ui_state and ui_state[key] == from_chart:
-                ui_state[key] = own
+            have = ui_state.get(key)
+            if not isinstance(have, dict):
+                continue
+            for field, (own, from_chart) in entry["fields"].items():
+                if field in have and have[field] == from_chart:
+                    have[field] = own
 
     def save_target_settings(self, store=_NO_STORE_GIVEN,
                              key=_NO_STORE_GIVEN) -> bool:

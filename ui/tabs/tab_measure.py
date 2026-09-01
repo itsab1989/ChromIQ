@@ -7923,7 +7923,15 @@ class TabMeasure(QWidget):
                     result["error"] = str(exc) or type(exc).__name__
                 self.done.emit()
 
+        heard_count = {"n": 0}
+
         def _heard(n: int) -> None:
+            # COUNTED HERE, NOT TAKEN FROM THE RESULT. When `learn_tile`
+            # raises, the result carries only the error and no press count, so
+            # a learn that took a reading and then lost the link reported
+            # "Readings taken: 0" — which reads as "the instrument never
+            # answered" when it had.
+            heard_count["n"] = max(heard_count["n"], int(n))
             # A PRESS CAN ARRIVE AFTER THE WINDOW HAS GONE. "Not now" closes
             # it while the learner is still inside a read, and the next press
             # on the instrument delivers this signal to a label Qt has already
@@ -7998,7 +8006,8 @@ class TabMeasure(QWidget):
                 "not recognise a covered opening on yours."))
         else:
             _why = str(result.get("error") or "").strip()
-            _presses_seen = int(result.get("presses") or 0)
+            _presses_seen = max(int(result.get("presses") or 0),
+                                heard_count["n"])
             self._log.appendPlainText("\n" + tr(
                 "[NOTE] ChromIQ could not learn this instrument's white-tile "
                 "value this time, so the magnet check stays on its built-in "

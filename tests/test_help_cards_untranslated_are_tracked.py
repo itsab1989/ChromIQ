@@ -112,10 +112,18 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # gone at Basti's request. Where a key was only REWORDED, the existing
 # translation was carried across rather than dropped back to English -- 19 of
 # the 32 new keys kept their German. Five substantial strings are new.
+#
+# 2026-09-01, raised 122 -> 125: the verification round found the K8
+# rename had never reached German (the checkbox still said
+# "Zeilennummern", the very misnomer the rename cured, in the language
+# the reporter reads) and that the import button's translations were
+# lost when it was renamed. German now carries all of them; the other
+# eleven hold three more English placeholders, from repairing the comma
+# splices the em-dash removal left behind.
 _BUDGET = {
     "de": 35,
-    "es": 122, "fr": 122, "it": 122, "ja": 122, "nl": 122,
-    "no": 122, "pl": 122, "pt": 122, "ru": 122, "sv": 122, "zh_CN": 122,
+    "es": 125, "fr": 125, "it": 125, "ja": 125, "nl": 125,
+    "no": 125, "pl": 125, "pt": 125, "ru": 125, "sv": 125, "zh_CN": 125,
 }
 
 

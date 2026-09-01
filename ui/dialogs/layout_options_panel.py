@@ -442,8 +442,11 @@ class LayoutOptionsPanel(QWidget):
         self.show_indicators.toggled.connect(self._emit)
         self._show_indicators_tip = TooltipButton(
             tr("Strip indicators"),
-            tr("The small letter label printed above each strip (A, B, C…) so "
-               "you always know which strip you're measuring and in what order. "
+            tr("The small label printed above each strip so you always know "
+               "which strip you're measuring and in what order. They are "
+               "usually letters (A, B, C…), and they follow the chart's own "
+               "strip pattern, so a chart set to numbers is labelled 1, 2, 3 "
+               "instead. "
                "Turn off only if you have another way to keep the strips "
                "straight. Set the font, size and underline style in "
                "Preferences → Chart Layout."), self)
@@ -483,7 +486,9 @@ class LayoutOptionsPanel(QWidget):
                "row 12.\n\n"
                "This is most useful when you place the instrument on one patch "
                "at a time — a SpectroScan or a CR30 — which is why those two "
-               "have always printed it. Turn it on for any chart you want to "
+               "have always printed it. You can also switch the strip letters "
+               "off and keep only these, which is what you want when every "
+               "patch is read on its own. Turn it on for any chart you want to "
                "read by hand, or off to get the space back.\n\n"
                "It costs 7.5 mm of paper down the left edge, so switching it "
                "on can leave room for fewer or slightly smaller patches, "
@@ -1893,7 +1898,12 @@ class LayoutOptionsPanel(QWidget):
                            ("embed", tr("Embed only (-I)"))):
                 self.cal_mode.addItem(lbl, k)
             self.cal_mode.currentIndexChanged.connect(self._emit)
-            cgg.addWidget(self.cal_mode, 0, 1)
+            # SPANS TO THE BROWSE COLUMN, so the ⓘ beside it lands on the
+            # section's right edge like every other tooltip in the panel
+            # instead of hard against the combo (Basti, screenshot,
+            # 2026-09-01). The row below already spans 0..2 with its browse
+            # button in column 3.
+            cgg.addWidget(self.cal_mode, 0, 1, 1, 2)
             self.cal_path_edit = QLineEdit(self)
             self.cal_path_edit.setPlaceholderText(tr("no .cal file selected"))
             self.cal_path_edit.textChanged.connect(self._emit)
@@ -1910,7 +1920,7 @@ class LayoutOptionsPanel(QWidget):
                    "if you have a .cal and want it used. “Embed only (-I)” just "
                    "records it without changing the patches; use this when your "
                    "printer or RIP already linearises on its own. Leave it on "
-                   "“None” if you don't use a calibration."), self), 0, 2)
+                   "“None” if you don't use a calibration."), self), 0, 3)
             _expert_v.addWidget(cg)
 
         # Match the compact input styling used throughout the Manual module
@@ -3249,12 +3259,15 @@ class LayoutOptionsPanel(QWidget):
         # numbers are not drawn — while the 7.5 mm band is still reserved and
         # paid for in patch area. Leaving the box live offers a setting that
         # can only cost paper and print nothing, so it follows its parent.
+        # …and it is NO LONGER GREYED with the strip letters off: the renderer
+        # draws the two independently now, so the combination prints what it
+        # promises instead of costing paper for nothing.
         cb = getattr(self, "show_row_indicators", None)
         if cb is not None:
-            cb.setEnabled(on)
+            cb.setEnabled(True)
             tip = getattr(self, "_show_row_indicators_tip", None)
             if tip is not None:
-                tip.setEnabled(on)
+                tip.setEnabled(True)
         self.indicator_font.setEnabled(on)
         self.indicator_size.setEnabled(on)
         if on:

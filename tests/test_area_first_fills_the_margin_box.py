@@ -26,11 +26,13 @@ _MARGIN = 6.0
 _N = 240
 
 
-def _page(instrument: str, paper: str, mode: str, rows: bool):
+def _page(instrument: str, paper: str, mode: str, rows: bool,
+          margin_left: float = _MARGIN):
     r = LayoutRecipe()
     r.instrument, r.paper, r.layout_mode = instrument, paper, mode
     r.show_row_indicators, r.show_strip_indicators = rows, True
-    r.margin_top = r.margin_right = r.margin_bottom = r.margin_left = _MARGIN
+    r.margin_top = r.margin_right = r.margin_bottom = _MARGIN
+    r.margin_left = margin_left
     r.dpi, r.randomize, r.seed = _DPI, False, 1
     kw = r.build_kwargs()
     g = instruments.geom_from_build_kwargs(kw)
@@ -54,31 +56,70 @@ def _rightmost_ink_mm(page, w_mm):
 
 
 @pytest.mark.parametrize("instrument", ["i1", "CM", "CR30"])
-def test_row_indicators_do_not_move_the_area_first_right_edge(instrument):
-    off, w = _page(instrument, "A4", "area_first", rows=False)
-    on, _ = _page(instrument, "A4", "area_first", rows=True)
-    right_off = _rightmost_ink_mm(off, w)
-    right_on = _rightmost_ink_mm(on, w)
-    assert right_on == pytest.approx(right_off, abs=0.2), (
-        f"{instrument}: with row indicators on the ink stops at "
-        f"{right_on:.2f} mm and without them at {right_off:.2f} mm — the "
-        f"block lost {right_off - right_on:.2f} mm to the row-label band "
-        f"while 'margins are the law' was in force")
+def test_the_band_takes_nothing_off_the_patch_area(instrument):
+    """The band costs the MARGIN, never the patch area.
+
+    This used to assert that the right edge was identical with and without row
+    indicators. That was the right rule while the band was carved out of the
+    usable width; it stopped being the rule when Knut's §R1.5 was built, since
+    the left margin is now raised to hold the labels and a chart that does not
+    fill the page therefore ends further right. What must still be true — and
+    is the whole of §R1.4 — is that nothing is taken off the patch area a
+    second time: a chart with labels lays out exactly like a chart with no
+    labels and the same effective margin.
+    """
+    from workflow.layout_engine import instruments as _instr
+
+    labelled = _recipe_geom(instrument, rows=True)
+    plain = _recipe_geom(instrument, rows=False,
+                         margin_left=labelled.margin_l)
+    assert labelled.margin_l >= 6.0, "the margin was lowered, never allowed"
+    on, w = _page(instrument, "A4", "area_first", rows=True)
+    off, _ = _page(instrument, "A4", "area_first", rows=False,
+                   margin_left=labelled.margin_l)
+    assert _rightmost_ink_mm(on, w) == pytest.approx(
+        _rightmost_ink_mm(off, w), abs=0.2), (
+        f"{instrument}: with the same left margin, a chart with row labels "
+        f"does not lay out like one without — the band is still being taken "
+        f"off the patch area on top of the margin it was given")
 
 
-def test_the_derived_patch_size_is_the_same_with_and_without_the_band():
-    """The calculation and the render must agree; this is where they parted."""
+def _recipe_geom(instrument, *, rows, margin_left=6.0):
+    r = LayoutRecipe()
+    r.instrument, r.paper, r.layout_mode = instrument, "A4", "area_first"
+    r.show_row_indicators, r.show_strip_indicators = rows, True
+    r.margin_top = r.margin_right = r.margin_bottom = _MARGIN
+    r.margin_left = margin_left
+    r.dpi, r.randomize, r.seed = _DPI, False, 1
+    return instruments.geom_from_build_kwargs(r.build_kwargs())
+
+
+def test_the_derived_patch_size_is_the_same_for_the_same_box():
+    """The calculation and the render must agree; this is where they parted.
+
+    Compared at the SAME effective left margin, because the margin is now
+    raised to hold the labels (§R1.5) — the patch size may differ when the box
+    differs, and must not differ when it does not.
+    """
     from workflow.layout_engine.area_fit import derive_area_patch_size
 
+    labelled = _recipe_geom("CM", rows=True)
     sizes = {}
     for rows in (False, True):
         r = LayoutRecipe()
         r.instrument, r.paper, r.layout_mode = "CM", "A4", "area_first"
         r.show_row_indicators, r.show_strip_indicators = rows, True
-        r.margin_top = r.margin_right = r.margin_bottom = r.margin_left = _MARGIN
+        r.margin_top = r.margin_right = r.margin_bottom = _MARGIN
+        r.margin_left = labelled.margin_l
         sizes[rows] = derive_area_patch_size(r.build_kwargs())
-    assert sizes[True] == sizes[False], (
+    # 0.05 mm, not exact: the patch size comes out of a 40-step binary search,
+    # and two runs over the same box converge to within a couple of hundredths
+    # of a millimetre. The rule is "the band does not change the size"; 20
+    # microns is not the band.
+    assert sizes[True][0] == pytest.approx(sizes[False][0], abs=0.05), (
         f"the row-label band changed the derived patch size: {sizes}")
+    assert sizes[True][1] == pytest.approx(sizes[False][1], abs=0.05), (
+        f"the row-label band changed the derived patch height: {sizes}")
 
 
 def test_patch_first_still_reserves_the_band():

@@ -214,3 +214,24 @@ def test_declining_still_says_what_it_costs(qtbot):
     assert "built-in value" in said, f"declining said nothing: {said}"
     assert "could not learn" not in said, (
         "declining was also reported as a failure")
+
+
+def test_a_reading_that_landed_is_counted_even_when_the_learn_raises(qtbot):
+    """"Readings taken: 0" after a reading arrived reads as "it never
+    answered", which sends the next person looking in the wrong place.
+
+    `learn_tile` fills the press count in its RETURN value, so a raise carries
+    none. The window counts what it actually saw instead.
+    """
+    host = _host(qtbot)
+
+    class _OnePressThenGone(_Reader):
+        def learn_tile(self, *, timeout=90.0, cancelled=None, on_press=None):
+            if callable(on_press):
+                on_press(1)                     # a reading really did land
+            raise RuntimeError("BLE link went away")
+
+    TabMeasure._offer_cr30_tile_learning(host, _OnePressThenGone())
+    said = host._log.toPlainText()
+    assert "Readings taken: 1" in said, (
+        f"a reading that arrived was reported as none: {said}")

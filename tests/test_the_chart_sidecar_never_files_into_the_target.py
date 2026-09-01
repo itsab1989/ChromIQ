@@ -199,8 +199,11 @@ def test_an_explicit_restore_is_not_shielded(tmp_path, qapp, monkeypatch):
     ctl.set_profile_run("run1")
     assert tab._chart_imposed, "nothing was shielded, so nothing is tested"
 
-    # …and now the user presses Restore Used Chart.
-    tab._forget_what_the_chart_imposed()
+    # …and now the user restores the chart, THROUGH THE PRODUCTION PATH.
+    # Calling `_forget_what_the_chart_imposed()` by hand made this test green
+    # even with the production call site deleted — the same vacuous shape this
+    # whole file exists to repair (found by a verification round, 2026-09-01).
+    tab._apply_loaded_chart_settings(tmp_path / "whatever.channels.json")
     assert not tab._chart_imposed
     tab.save_target_settings()
 
@@ -208,3 +211,55 @@ def test_an_explicit_restore_is_not_shielded(tmp_path, qapp, monkeypatch):
     assert kept.get(param.key, {}).get("value") == "from-the-chart", (
         "an explicit restore was shielded: the chart's own settings were "
         "shown but the older stored ones were written")
+
+
+def test_an_ordinary_panel_edit_does_not_hand_the_run_back_to_the_chart(
+        tmp_path, qapp, monkeypatch):
+    """K4, in the gesture that actually loses the setting, on the value it
+    actually loses.
+
+    Untick "show strip indicators", look at another run, come back, then nudge
+    ANY control on the layout panel and leave the tab. The panel emits one
+    signal for everything it owns, so releasing the whole bucket on that nudge
+    hands the chart's recipe back — and the indicator checkboxes live in that
+    bucket. An earlier version of this test used a free-text PARAMETER, which
+    sits in a different bucket, and it stayed green under exactly the fault it
+    was written for.
+
+    Guarded because the everyday tier stayed green — 8348 passed — with the
+    original K4 fault put straight back.
+    """
+    tab, ctl, proj = _tab_on_a_project(tmp_path)
+    ctl.set_profile_run("run1")
+    if tab._target_settings_store() is None:
+        pytest.skip("the bar could not resolve run1 in this environment")
+    panel = getattr(tab, "_manual_layout_panel", None)
+    if panel is None or not hasattr(panel, "show_indicators"):
+        pytest.skip("no layout panel in this build")
+
+    def stored_strip():
+        ui = proj.run("run1").load_meta().create_chart_ui or {}
+        return (ui.get("engine_recipe") or {}).get("show_strip_indicators")
+
+    panel.show_indicators.setChecked(False)          # the user's choice
+    ctl.set_profile_run("run2")
+    assert stored_strip() is False, (
+        "the choice was never filed, so this test cannot say anything")
+
+    # Coming back, the chart's sidecar puts it back on — that is §10's half of
+    # the question and is not what this test is about.
+    monkeypatch.setattr(tab, "_resolve_target_chart",
+                        lambda: ("ti2", [], "ti1"))
+    monkeypatch.setattr(tab, "_chart_stamp", lambda _t: None)
+    monkeypatch.setattr(tab, "_display_run_chart",
+                        lambda *a, **k: panel.show_indicators.setChecked(True))
+    ctl.set_profile_run("run1")
+    assert panel.show_indicators.isChecked(), "the stand-in imposed nothing"
+    assert tab._chart_imposed, "nothing was shielded, so nothing is tested"
+
+    panel.changed.emit()                             # an ordinary panel edit
+    tab.save_target_settings()
+
+    assert stored_strip() is False, (
+        "an unrelated edit on the layout panel handed the run's own setting "
+        "back to the chart's sidecar — this is K4")

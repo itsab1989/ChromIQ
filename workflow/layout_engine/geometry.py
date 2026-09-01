@@ -144,8 +144,15 @@ def compute(geom: Geom, paper_w_mm: float, paper_h_mm: float, npat: int,
     # top -- and the inspector warns when the margin cannot hold them. Knut's
     # beta-13 "clip band lives INSIDE its margin" model says the same thing
     # about furniture bands, one band over.
-    _rlwi = 0.0 if g.fill_beyond_ruler else g.rlwi
-    avail_w = iw - _rlwi - sxwi - 2.0 * g.hxew - (g.pglth if g.dopglabel else 0.0)
+    # §R1.4 — THE MARGINS ARE THE LAW, AND THE BAND IS INSIDE THEM.
+    # The row-label band used to be subtracted from the usable width, so
+    # switching row indicators on silently added 7.45 mm to the left
+    # margin in patch-first, and pushed the labels out of the margin box
+    # in area-first. `apply_row_label_geometry` now raises the margin to
+    # hold the band, so the patches start exactly where the margin says
+    # in BOTH modes and nothing is taken off the patch area twice.
+    # See docs/design/row_label_geometry.md §R2.
+    avail_w = iw - sxwi - 2.0 * g.hxew - (g.pglth if g.dopglabel else 0.0)
     sppage = int(avail_w / swid) + 1
     if g.dorspace:
         rppstrip = int((avail_w - swid * (sppage - 1) - g.pwid / 2.0) / g.rrsp)
@@ -276,9 +283,8 @@ def placement(geom: Geom, paper_w_mm: float, paper_h_mm: float, layout: Layout) 
     n_passes = (layout.patches_per_page // layout.steps_in_pass
                 if layout.steps_in_pass else 0)
     block_w = (max(0, n_passes - 1) * g.rrsp + g.pwid) if n_passes else 0.0
-    _rlwi = 0.0 if g.fill_beyond_ruler else g.rlwi   # area-first only; see compute()
     avail_w = (pw - g.margin_l - g.margin_r
-               - _rlwi - 2.0 * g.hxew - (g.pglth if g.dopglabel else 0.0))
+               - 2.0 * g.hxew - (g.pglth if g.dopglabel else 0.0))
     extra_w = max(0.0, avail_w - block_w)
     # The clip / notes band lives inside the clip-side margin now (not added to
     # the patch origin), so patches simply start at the left margin (Knut beta-13,
@@ -315,7 +321,7 @@ def placement(geom: Geom, paper_w_mm: float, paper_h_mm: float, layout: Layout) 
     fh_eff = (1.0 if (getattr(g, "clip_side", "left") == "right" and g.lbord > 0)
               else fh)
     return Placement(
-        x0=g.margin_l + _rlwi + fh_eff * extra_w + g.hxew + g.offset_x,
+        x0=g.margin_l + fh_eff * extra_w + g.hxew + g.offset_x,
         y0_first=_y0,
         plen=g.plen, pwid=g.pwid, pspa=g.pspa, rrsp=g.rrsp,
         steps_in_pass=layout.steps_in_pass,

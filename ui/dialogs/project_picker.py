@@ -118,6 +118,29 @@ def _centre_on_parent(dlg) -> None:
     except Exception:          # noqa: BLE001 — never fail to open a window
         pass
 
+
+def _width_the_buttons_need(row, dlg, floor: int = 560) -> int:
+    """The narrowest the dialog may be before its buttons collide.
+
+    `setMinimumWidth(560)` was a number that happens to fit English. In German
+    "Stattdessen neues Projekt anlegen" runs 38 px wider than the space left
+    for it and Cancel was drawn over its last word — measured at the dialog's
+    own minimum width. The buttons have already been sized to their own words
+    by `fit_button_width`, so the row can simply be asked how much it needs.
+    """
+    try:
+        # `fit_button_width` states its answer as `setMinimumWidth`, and the
+        # size hint does not yet carry it — reading the hint alone returned
+        # 560 for a row that needed 570 and the overlap stayed.
+        need = sum(max(w.sizeHint().width(), w.minimumWidth())
+                   for w in (row.itemAt(i).widget() for i in range(row.count()))
+                   if w is not None)
+        need += row.spacing() * max(0, row.count() - 1)
+        m = dlg.layout().contentsMargins()
+        return max(floor, need + m.left() + m.right() + 24)
+    except Exception:          # noqa: BLE001 — never fail to open a window
+        return floor
+
 def choose_project(parent: "QWidget | None", working_dir: "Path | str", *,
                    title: str = "", body: str = "",
                    accent: str = "") -> "str | None":
@@ -232,7 +255,13 @@ def choose_project(parent: "QWidget | None", working_dir: "Path | str", *,
     # at the height these words need at THIS width, and never be shorter than
     # the layout's own floor.
     from ui.dialog_sizing import pin_min_height
-    pin_min_height(dlg, min_width=560,
+    # THE FLOOR ITSELF, not just the opening width. `pin_min_height` resizes
+    # the dialog, but `setMinimumWidth(560)` above still says how narrow it may
+    # be dragged — and at 560 the German buttons overlap by 10 px, with Cancel
+    # drawn over the last word of "Stattdessen neues Projekt anlegen".
+    _need_w = _width_the_buttons_need(row, dlg)
+    dlg.setMinimumWidth(_need_w)
+    pin_min_height(dlg, min_width=_need_w,
                    wrap_labels=tuple(w for w in (heading, info) if w is not None),
                    inner_margins=lay.contentsMargins(), resize_width=True)
     _centre_on_parent(dlg)

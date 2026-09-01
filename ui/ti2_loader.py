@@ -262,12 +262,12 @@ def measurement_instructions_html(family: "str | None") -> str:
             "a steady pace.")
     if family == "cr30":
         return tr(
-            "<b>Take the magnetic cap off first</b>, with the cap (or any "
+            "<b>Take the magnetic cap off first.</b> With the cap (or any "
             "magnet) near the instrument, the CR30 does not measure at all.<br>"
             "<br>Stand the CR30 flat on the <b>highlighted patch</b>, so the "
             "measuring opening sits well inside it, then <b>press the button on "
             "the instrument</b>. ChromIQ picks the reading up on its own and "
-            "moves the highlight to the next patch, you do not need to touch "
+            "moves the highlight to the next patch. You do not need to touch "
             "the keyboard.<br><br>Each patch takes about two seconds. You can "
             "stop at any time; every patch you have already read is saved.")
     if family == "i1pro":
@@ -638,8 +638,12 @@ def _choice_dialog(parent, title, intro_html, choices):
         parts.append(intro_html)
     parts.append(tr("What each button does:"))
     for label, desc, _key in choices:
-        parts.append(f"&nbsp;&nbsp;•&nbsp; <b>{label}</b> — {desc}")
-    parts.append(tr("&nbsp;&nbsp;•&nbsp; <b>Cancel</b>, nothing is opened, "
+        # A COLON, LIKE THE CANCEL BULLET BELOW IT. Removing the em dashes
+        # from the descriptions left this generated bullet with a dash while
+        # its sibling had a comma, so one list carried two punctuations
+        # (spotted in a verification screenshot, 2026-09-01).
+        parts.append(f"&nbsp;&nbsp;•&nbsp; <b>{label}</b>: {desc}")
+    parts.append(tr("&nbsp;&nbsp;•&nbsp; <b>Cancel</b>: nothing is opened, "
                     "copied or changed, and the file you picked is left exactly "
                     "as it is."))
     box.setInformativeText("<br><br>".join(parts))
@@ -1152,15 +1156,15 @@ def _handle_inside(
     layout.addWidget(lbl)
 
     cont_desc = QLabel(
-        tr("<i>Continue</i>, use the files in this folder as-is, "
-        "nothing will be copied or moved."),
+        tr("<i>Continue</i>: use the files in this folder as they are. "
+        "Nothing will be copied or moved."),
         dlg,
     )
     cont_desc.setWordWrap(True)
     layout.addWidget(cont_desc)
 
     new_desc = QLabel(
-        tr("<i>Use as base for a new profile</i>, copy the files to a new "
+        tr("<i>Use as base for a new profile</i>: copy the files to a new "
         "subfolder so you can build a separate ICC profile without overwriting "
         "the original."),
         dlg,

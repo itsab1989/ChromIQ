@@ -91,7 +91,7 @@ def validate(text: str) -> str | None:
     if not name:
         return tr("Type a name to continue.")
     if any(c in name for c in FORBIDDEN):
-        return tr("A folder name cannot contain / \\ : * ? \" < > | . Please "
+        return tr("A folder name cannot contain / \\ : * ? \" < > or |. Please "
                   "use letters, numbers, spaces or hyphens instead.")
     # A name made only of punctuation passes the check above and then sanitises
     # away to nothing, at which point `FileManager._sanitise` substitutes
@@ -310,7 +310,13 @@ def ask_for_project_name(parent: QWidget | None, *, prefill: str = "",
     # wrapping label to its true heightForWidth, then floors the dialog so it
     # can never be dragged short enough to overlap either.
     from ui.dialog_sizing import pin_min_height
-    pin_min_height(dlg, min_width=560,
+    # The same floor rule as the project picker beside it: 560 is a number that
+    # fits English, and a dialog may not be draggable into a state where its
+    # own buttons overlap. Cheap here (two short buttons) and consistent.
+    from ui.dialogs.project_picker import _width_the_buttons_need
+    _need_w = _width_the_buttons_need(row, dlg)
+    dlg.setMinimumWidth(_need_w)
+    pin_min_height(dlg, min_width=_need_w,
                    wrap_labels=(heading, info, exists_lbl, folder_lbl, err),
                    inner_margins=lay.contentsMargins(), resize_width=True)
     _centre_on_parent(dlg)

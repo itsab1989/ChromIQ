@@ -86,10 +86,19 @@ def test_a_loaded_recipe_reports_whether_it_carries_an_answer(panel):
     assert r.show_row_indicators is False
 
 
-def test_row_numbers_follow_the_strip_labels_they_are_drawn_with(panel):
-    """raster.py draws them inside `if draw_indicators:` — so the control must
-    not stay live offering a band that costs paper and prints nothing."""
+def test_row_indicators_can_be_asked_for_on_their_own(panel):
+    """They used to be greyed out with the strip letters off, because the
+    renderer drew them inside `if draw_indicators:` and the band would have
+    cost paper and printed nothing.
+
+    Basti ruled on 2026-09-01 that the combination must work: on a CR30 or a
+    SpectroScan the instrument is placed on ONE patch at a time, so the row
+    number is the useful half and the strip letter is the one you can spare.
+    The renderer draws them independently now, so the box stays live.
+    """
     panel.show_indicators.setChecked(False)
-    assert panel.show_row_indicators.isEnabled() is False
+    assert panel.show_row_indicators.isEnabled() is True, (
+        "the row-indicator box is greyed again, so the combination cannot be "
+        "reached")
     panel.show_indicators.setChecked(True)
     assert panel.show_row_indicators.isEnabled() is True
