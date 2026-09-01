@@ -41,6 +41,7 @@ import json
 import os
 import re
 import shutil
+import unicodedata
 from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime
 from pathlib import Path
@@ -53,7 +54,32 @@ if TYPE_CHECKING:
 
 log = get_logger(__name__)
 
-_ILLEGAL = re.compile(r"[^\w\-.]+", re.UNICODE)
+#: The characters a project-folder name may keep, as a predicate rather than a
+#: regular expression. It used to be ``re.compile(r"[^\w\-.]+")``, and ``\w``
+#: does not match a COMBINING MARK — so a decomposed "Mu"+U+0308 became
+#: "Mu_ller" while the precomposed "Müller" came through untouched, and a
+#: trailing accent was deleted outright ("café" -> "cafe"). Python's ``re`` has
+#: no ``\p{M}``, so the class is spelled out here instead.
+#:
+#: ``ch.isalnum() or ch == "_"`` is EXACTLY what ``\w`` matches for a str
+#: pattern (CPython's SRE tests ``Py_UNICODE_ISALNUM(ch) || ch == '_'``); that
+#: equivalence is proved over every code point in
+#: tests/test_project_name_keeps_its_accents.py, so nothing that used to be
+#: stripped survives the change.
+_MARK_CATEGORIES = ("Mn", "Mc")
+
+
+def _is_variation_selector(ch: str) -> bool:
+    """Variation selectors are category Mn but are not part of anybody's name.
+
+    They only pick a glyph shape — VS16 is the "draw the character before me as
+    an emoji" switch. Kept out so an emoji still disappears whole: "🎨1" stays
+    "1" rather than becoming an invisible "1️".
+    """
+    cp = ord(ch)
+    return 0xFE00 <= cp <= 0xFE0F or 0xE0100 <= cp <= 0xE01EF
+
+
 _TRAIL   = re.compile(r"^[._-]+|[._-]+$")   # also a trailing "-" from an empty descriptive-prefix tail
 
 # Extensions ChromIQ itself generates during a session. A user-entered target
@@ -2304,9 +2330,49 @@ class FileManager:
 
     @staticmethod
     def _sanitise(name: str) -> str:
-        s = name.strip().replace(" ", "-")
-        s = _ILLEGAL.sub("_", s)
-        s = _TRAIL.sub("", s)
+        """The folder name ChromIQ makes from a typed (or on-disk) project name.
+
+        AN ACCENT IS PART OF THE NAME. "Müller" is one character on a Mac
+        keyboard (U+00FC) and two — "u" plus a combining diaeresis — when the
+        same name arrives from a zip, a backup, a sync client or an HFS+
+        volume. Composing to NFC first means one spelling reaches the folder
+        name, the manifest, the chart stems and the name box, so the box can no
+        longer read "Mu_ller" for a project called "Müller" on disk.
+
+        NFC ALONE IS NOT ENOUGH. Thai, Devanagari, Hebrew niqqud and Arabic
+        harakat have marks with no composed form to normalise to, so the
+        character class has to admit combining marks as well — see
+        ``_MARK_CATEGORIES`` above.
+        """
+        s = unicodedata.normalize("NFC", name).strip().replace(" ", "-")
+        out: list[str] = []
+        run_of_illegal = False
+        for ch in s:
+            if ch.isalnum() or ch in "_-.":
+                out.append(ch)
+                run_of_illegal = False
+            elif (unicodedata.category(ch) in _MARK_CATEGORIES
+                    and not _is_variation_selector(ch)
+                    and out
+                    and (out[-1].isalnum()
+                         or unicodedata.category(out[-1]) in _MARK_CATEGORIES)):
+                # A COMBINING MARK IS PART OF THE LETTER IT SITS ON — but only
+                # when there is a letter under it. An orphan mark (nothing
+                # before it, or a base that was itself illegal) is dropped with
+                # the run it belongs to.
+                out.append(ch)
+                run_of_illegal = False
+            elif not run_of_illegal:
+                out.append("_")
+                run_of_illegal = True
+        s = _TRAIL.sub("", "".join(out))
+        # A FOLDER WHOSE NAME IS A COMBINING MARK HAS NO VISIBLE NAME AT ALL,
+        # and that stays impossible without a second guard: the FIRST mark in a
+        # name has nothing under it, so it is dropped with the illegal run, and
+        # every mark that survives therefore sits behind an alphanumeric base.
+        # A marks-only name still cleans down to the same "session" an empty
+        # one does. Asserted over 20,000 random names in
+        # tests/test_project_name_keeps_its_accents.py.
         return s or "session"
 
     def set_target_name(self, name: str) -> None:
